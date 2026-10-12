@@ -11,9 +11,16 @@
 //! * Windows: the user's `HKCU\Environment\Path` (type kept, other entries untouched byte for
 //!   byte), then a `WM_SETTINGCHANGE` broadcast so new terminals see it.
 //! * macOS/Linux: a symlink `~/.local/bin/harness` to the CLI; only such a symlink is removed.
+//!   macOS does not put `~/.local/bin` on PATH, so when the login shell's PATH lacks it a marked
+//!   block is appended to `~/.zprofile` (bash: its login profile); only that block is removed.
 //!
-//! The PATH string edits are pure functions ([`path_list_add`], [`path_list_remove`]) so they
-//! are unit-tested without touching the registry.
+//! macOS Gatekeeper may run a quarantined app from a random read-only copy
+//! (`.../AppTranslocation/<UUID>/d/Harness Studio.app`) that disappears when the app quits;
+//! [`refuse_translocated`] keeps such a path out of symlinks and config files.
+//!
+//! The PATH string edits are pure functions ([`path_list_add`], [`path_list_remove`],
+//! [`profile_with_block`], [`profile_without_block`]) so they are unit-tested without touching
+//! the registry or the user's profile.
 
 use std::path::{Path, PathBuf};
 
@@ -107,6 +114,23 @@ pub fn version(cli: &Path) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// Whether `path` lies inside a macOS App Translocation copy (an `AppTranslocation` folder).
+pub fn is_translocated(path: &Path) -> bool {
+    path.components()
+        .any(|c| c.as_os_str() == std::ffi::OsStr::new("AppTranslocation"))
+}
+
+/// `cli_install.translocated` when `path` must not be stored because macOS runs the app from a
+/// temporary copy (moving the app to Applications and reopening it fixes it).
+pub fn refuse_translocated(path: &Path) -> Result<(), String> {
+    if cfg!(target_os = "macos") && is_translocated(path) {
+        return Err(err("cli_install.translocated")
+            .with("path", path.display())
+            .into());
+    }
+    Ok(())
+}
+
 // ---- PATH string edits -------------------------------------------------------------------
 
 fn norm_entry(entry: &str, ci: bool) -> String {
@@ -152,6 +176,68 @@ pub fn path_list_remove(list: &str, dir: &str, sep: char, ci: bool) -> String {
         .join(&sep.to_string())
 }
 
+// ---- Shell profile block (macOS) -----------------------------------------------------------
+
+const PROFILE_BEGIN: &str = "# >>> Harness Studio: harness CLI on PATH >>>";
+const PROFILE_END: &str = "# <<< Harness Studio <<<";
+
+/// Byte range of our block in `text`: the begin marker's line through the end marker's line.
+fn profile_block_range(text: &str) -> Option<std::ops::Range<usize>> {
+    let start = text
+        .match_indices(PROFILE_BEGIN)
+        .map(|(i, _)| i)
+        .find(|&i| i == 0 || text[..i].ends_with('\n'))?;
+    let after = start + text[start..].find(PROFILE_END)? + PROFILE_END.len();
+    let end = text[after..]
+        .find('\n')
+        .map_or(text.len(), |i| after + i + 1);
+    Some(start..end)
+}
+
+/// Whether `text` (a shell profile) has our block.
+pub fn profile_has_block(text: &str) -> bool {
+    profile_block_range(text).is_some()
+}
+
+/// `text` with our `~/.local/bin` PATH block appended (unchanged when already there). A last
+/// line without a newline gets one first.
+pub fn profile_with_block(text: &str) -> String {
+    if profile_has_block(text) {
+        return text.to_string();
+    }
+    let sep = if text.is_empty() || text.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    format!("{text}{sep}{PROFILE_BEGIN}\nexport PATH=\"$HOME/.local/bin:$PATH\"\n{PROFILE_END}\n")
+}
+
+/// `text` without our block; every other line stays byte for byte.
+pub fn profile_without_block(text: &str) -> String {
+    match profile_block_range(text) {
+        Some(r) => format!("{}{}", &text[..r.start], &text[r.end..]),
+        None => text.to_string(),
+    }
+}
+
+/// The profile a login shell of `shell` (`$SHELL`) reads: bash takes the first existing of
+/// `.bash_profile`, `.bash_login`, `.profile` (a new `.bash_profile` would hide the others);
+/// any other shell gets zsh's `.zprofile`.
+pub fn shell_profile(home: &Path, shell: Option<&std::ffi::OsStr>) -> PathBuf {
+    let bash = shell
+        .and_then(|s| Path::new(s).file_name())
+        .is_some_and(|n| n == "bash");
+    if !bash {
+        return home.join(".zprofile");
+    }
+    [".bash_profile", ".bash_login", ".profile"]
+        .iter()
+        .map(|f| home.join(f))
+        .find(|p| p.is_file())
+        .unwrap_or_else(|| home.join(".bash_profile"))
+}
+
 // ---- Status / install / uninstall ----------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize)]
@@ -165,8 +251,13 @@ pub struct CliStatus {
     pub target: Option<String>,
     /// Our PATH entry / symlink exists.
     pub registered: bool,
-    /// Unix: the symlink's folder is on this process's PATH (else the UI shows the hint).
+    /// Unix: the symlink's folder is on this process's PATH, on macOS also the login shell's
+    /// PATH or our profile block (else the UI shows the hint).
     pub target_dir_on_path: bool,
+    /// macOS: the shell profile that gets the PATH block when needed.
+    pub profile: Option<String>,
+    /// macOS runs the app from a temporary copy; [`install`] refuses until it is moved.
+    pub translocated: bool,
 }
 
 pub fn status(cli: Option<&CliLocation>) -> CliStatus {
@@ -177,6 +268,8 @@ pub fn status(cli: Option<&CliLocation>) -> CliStatus {
         mode: if cfg!(windows) { "windows" } else { "symlink" },
         registered: cli.is_some_and(|c| platform::is_registered(&c.path)),
         target_dir_on_path: platform::dir_on_process_path(),
+        profile: platform::profile().map(|p| p.to_string_lossy().into_owned()),
+        translocated: cli.is_some_and(|c| refuse_translocated(&c.path).is_err()),
         target: cli
             .and_then(|c| platform::target(&c.path))
             .map(|t| t.to_string_lossy().into_owned()),
@@ -188,6 +281,7 @@ pub fn install(cli: &Path) -> Result<(), String> {
     if !cli.is_file() {
         return Err(err("fs.not_found").with("path", cli.display()).into());
     }
+    refuse_translocated(cli)?;
     platform::install(cli)
 }
 
@@ -326,6 +420,10 @@ mod platform {
         true
     }
 
+    pub(super) fn profile() -> Option<PathBuf> {
+        None
+    }
+
     pub(super) fn install(cli: &Path) -> Result<(), String> {
         let dir = dir_of(cli)
             .ok_or_else(|| err("cli_install.no_parent_dir").with("path", cli.display()))?;
@@ -389,11 +487,84 @@ mod platform {
     }
 
     pub(super) fn dir_on_process_path() -> bool {
-        let (Some(link), Some(path)) = (link_path(), std::env::var_os("PATH")) else {
+        let Some(dir) = link_path().and_then(|l| l.parent().map(Path::to_path_buf)) else {
             return false;
         };
-        let dir = link.parent().map(Path::to_path_buf);
-        std::env::split_paths(&path).any(|d| Some(d) == dir)
+        let on_process_path = std::env::var_os("PATH")
+            .is_some_and(|path| std::env::split_paths(&path).any(|d| d == dir));
+        on_process_path
+            || profile().is_some_and(|p| profile_has_block(&read_profile(&p).unwrap_or_default()))
+            || on_login_shell_path(&dir)
+    }
+
+    fn on_login_shell_path(dir: &Path) -> bool {
+        crate::integrations::launch::login_shell_path_now()
+            .iter()
+            .any(|d| d == dir)
+    }
+
+    /// macOS only: the login shell's profile ([`shell_profile`]).
+    pub(super) fn profile() -> Option<PathBuf> {
+        if !cfg!(target_os = "macos") {
+            return None;
+        }
+        let home = std::env::var_os("HOME").map(PathBuf::from)?;
+        Some(shell_profile(&home, std::env::var_os("SHELL").as_deref()))
+    }
+
+    /// The profile's text; empty when it does not exist yet.
+    fn read_profile(p: &Path) -> Result<String, String> {
+        match std::fs::read_to_string(p) {
+            Ok(t) => Ok(t),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+            Err(e) => Err(err("fs.read_failed")
+                .with("path", p.display())
+                .with("error", e)
+                .into()),
+        }
+    }
+
+    fn write_profile(p: &Path, text: &str) -> Result<(), String> {
+        std::fs::write(p, text).map_err(|e| {
+            err("fs.write_failed")
+                .with("path", p.display())
+                .with("error", e)
+                .into()
+        })
+    }
+
+    /// Adds our PATH block unless the login shell already has `dir` on its PATH.
+    fn add_profile_block(dir: &Path) -> Result<(), String> {
+        let Some(p) = profile() else {
+            return Ok(());
+        };
+        let text = read_profile(&p)?;
+        if profile_has_block(&text) || on_login_shell_path(dir) {
+            return Ok(());
+        }
+        write_profile(&p, &profile_with_block(&text))
+    }
+
+    /// Removes only our block; a profile left empty by it is deleted.
+    fn remove_profile_block() -> Result<(), String> {
+        let Some(p) = profile() else {
+            return Ok(());
+        };
+        let text = read_profile(&p)?;
+        if !profile_has_block(&text) {
+            return Ok(());
+        }
+        let next = profile_without_block(&text);
+        if next.is_empty() {
+            std::fs::remove_file(&p).map_err(|e| {
+                err("fs.remove_failed")
+                    .with("path", p.display())
+                    .with("error", e)
+                    .into()
+            })
+        } else {
+            write_profile(&p, &next)
+        }
     }
 
     pub(super) fn install(cli: &Path) -> Result<(), String> {
@@ -422,8 +593,11 @@ mod platform {
             err("cli_install.link_failed")
                 .with("path", link.display())
                 .with("error", e)
-                .into()
-        })
+        })?;
+        match link.parent() {
+            Some(dir) => add_profile_block(dir),
+            None => Ok(()),
+        }
     }
 
     pub(super) fn uninstall(cli: &Path) -> Result<(), String> {
@@ -437,7 +611,7 @@ mod platform {
                     .with("error", e)
             })?;
         }
-        Ok(())
+        remove_profile_block()
     }
 }
 
@@ -476,6 +650,62 @@ mod tests {
         );
         assert_eq!(path_list_remove(r"C:\a", r"C:\App", ';', true), r"C:\a");
         assert_eq!(path_list_remove(r"C:\a", "", ';', true), r"C:\a");
+    }
+
+    #[test]
+    fn profile_block_round_trip_keeps_other_lines() {
+        for original in ["", "export A=1\n", "# x\n\neval \"$(brew shellenv)\"\n"] {
+            let added = profile_with_block(original);
+            assert!(added.starts_with(original));
+            assert!(added.contains("export PATH=\"$HOME/.local/bin:$PATH\"\n"));
+            assert_eq!(profile_with_block(&added), added);
+            assert_eq!(profile_without_block(&added), original);
+        }
+        // A last line without a newline is ended before the block; the line itself is kept.
+        let added = profile_with_block("export A=1");
+        assert!(added.starts_with("export A=1\n# >>> Harness Studio"));
+        assert_eq!(profile_without_block(&added), "export A=1\n");
+        // Text after the block (the user appended more) stays.
+        let later = format!("{}alias h=harness\n", profile_with_block("a\n"));
+        assert_eq!(profile_without_block(&later), "a\nalias h=harness\n");
+        // A marker that does not start a line is not ours.
+        let quoted = format!("echo '{PROFILE_BEGIN}'\n");
+        assert!(!profile_has_block(&quoted));
+        assert_eq!(profile_without_block(&quoted), quoted);
+    }
+
+    #[test]
+    fn shell_profile_follows_the_login_shell() {
+        let home = tempfile::tempdir().unwrap();
+        let h = home.path();
+        let zsh = Some(std::ffi::OsStr::new("/bin/zsh"));
+        let bash = Some(std::ffi::OsStr::new("/opt/homebrew/bin/bash"));
+        assert_eq!(shell_profile(h, zsh), h.join(".zprofile"));
+        assert_eq!(shell_profile(h, None), h.join(".zprofile"));
+        assert_eq!(shell_profile(h, bash), h.join(".bash_profile"));
+        // bash reads only the first of these; an existing .profile is used, not hidden.
+        std::fs::write(h.join(".profile"), "").unwrap();
+        assert_eq!(shell_profile(h, bash), h.join(".profile"));
+        std::fs::write(h.join(".bash_login"), "").unwrap();
+        assert_eq!(shell_profile(h, bash), h.join(".bash_login"));
+    }
+
+    #[test]
+    fn translocated_paths_are_recognised() {
+        assert!(is_translocated(Path::new(
+            "/private/var/folders/xy/T/AppTranslocation/0A1B-2C3D/d/Harness Studio.app/Contents/MacOS/harness"
+        )));
+        assert!(!is_translocated(Path::new(
+            "/Applications/Harness Studio.app/Contents/MacOS/harness"
+        )));
+        // Only a whole path component counts.
+        assert!(!is_translocated(Path::new(
+            "/Users/me/AppTranslocationNotes/harness"
+        )));
+        assert_eq!(
+            refuse_translocated(Path::new("/x/AppTranslocation/u/d/harness")).is_err(),
+            cfg!(target_os = "macos")
+        );
     }
 
     #[test]
