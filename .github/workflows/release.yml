@@ -1,10 +1,14 @@
 name: Release
 
 # Push a tag like `v0.2.0` (matching the version in tauri.conf.json / Cargo.toml / package.json).
-# Builds the Windows NSIS installer and creates a DRAFT GitHub release with the installer, the
-# updater signature and `latest.json`. Review the draft and publish it to roll it out.
-# Linux and macOS builds are not published yet; add entries to the matrix below when they are
-# verified (the bundle targets are already configured in src-tauri/tauri.conf.json).
+# Builds the Windows NSIS installer and the macOS DMGs (Apple Silicon and Intel) and creates a
+# DRAFT GitHub release with the installers, the updater signatures and `latest.json`. Review the
+# draft and publish it to roll it out. To rebuild an existing tag, run the workflow by hand with
+# the `tag` input: it checks out that tag and uploads to its release.
+# The macOS DMGs are ad-hoc signed (`signingIdentity: "-"` in src-tauri/tauri.macos.conf.json)
+# and not notarized, so Gatekeeper asks for confirmation on the first open.
+# Linux builds are not published yet; add entries to the matrix below when they are verified
+# (the bundle targets are already configured in src-tauri/tauri.conf.json).
 #
 # Repository secrets (Settings > Secrets and variables > Actions):
 #   TAURI_SIGNING_PRIVATE_KEY           contents of the updater signing key (`npm run tauri signer generate`)
@@ -16,6 +20,11 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and release (for example v0.2.0); empty uses the selected ref'
+        type: string
+        required: false
 
 # Least privilege by default; only the release job may write.
 permissions:
@@ -23,7 +32,7 @@ permissions:
 
 jobs:
   build:
-    name: Windows installer
+    name: ${{ matrix.target && format('{0} ({1})', matrix.platform, matrix.target) || matrix.platform }}
     permissions:
       contents: write
     strategy:
@@ -32,10 +41,17 @@ jobs:
         include:
           - platform: windows-latest
             args: '--bundles nsis'
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            args: '--target aarch64-apple-darwin --bundles dmg'
+          - platform: macos-latest
+            target: x86_64-apple-darwin
+            args: '--target x86_64-apple-darwin --bundles dmg'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
       - uses: actions/setup-node@v5
@@ -44,8 +60,14 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          # Both macOS jobs run on Apple Silicon runners; the Intel one cross-compiles.
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          # The two macOS jobs would otherwise share (and overwrite) one cache.
+          key: ${{ matrix.target }}
 
       - run: npm ci
 
@@ -75,9 +97,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Harness Studio ${{ github.ref_name }}'
-          releaseBody: 'Download the Windows installer (`*-setup.exe`) below. The installer is not code-signed yet: if SmartScreen warns you, choose "More info" and then "Run anyway". See the changelog for what is new.'
+          tagName: ${{ inputs.tag || github.ref_name }}
+          releaseName: 'Harness Studio ${{ inputs.tag || github.ref_name }}'
+          releaseBody: 'Windows: download the installer (`*-setup.exe`) below. It is not code-signed yet: if SmartScreen warns you, choose "More info" and then "Run anyway". macOS 13.3 or later: download `*_aarch64.dmg` for Apple Silicon or `*_x64.dmg` for Intel, open it and drag Harness Studio to Applications. The app is not notarized, so the first open is blocked: on macOS 15 or later choose "Done" in the warning, then go to System Settings > Privacy & Security and click "Open Anyway" (on macOS 13 and 14, right-click the app and choose "Open" also works). See the changelog for what is new.'
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: ${{ steps.secrets.outputs.has_updater_key == 'true' }}
