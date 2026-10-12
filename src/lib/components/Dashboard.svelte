@@ -475,6 +475,16 @@
     await refreshModels();
   }
 
+  /** What the default load starts with (`automatic_launch_choice`, the launch's own rule). */
+  interface AutomaticLaunch {
+    context: number;
+    layers: number;
+    slots: number | null;
+    cache_type_k: string | null;
+    cache_type_v: string | null;
+    flash_attn: boolean;
+  }
+
   let selectToken = 0;
 
   /**
@@ -483,12 +493,12 @@
    * them automatic (`auto_fields`) while the value is still the one that was filled in; a value
    * the user changes by hand is theirs.
    */
-  let autoFilled = $state<Record<string, number | string>>({});
-  const AUTO_KEYS = ['context_size', 'gpu_layers', 'parallel_slots', 'cache_type_k', 'cache_type_v'] as const;
+  let autoFilled = $state<Record<string, number | string | boolean>>({});
+  const AUTO_KEYS = ['context_size', 'gpu_layers', 'parallel_slots', 'cache_type_k', 'cache_type_v', 'flash_attn'] as const;
   function autoFieldsNow(): string[] {
     return AUTO_KEYS.filter((k) => k in autoFilled && (params as Record<string, unknown>)[k] === autoFilled[k]);
   }
-  function markAuto(values: Record<string, number | string | null | undefined>) {
+  function markAuto(values: Record<string, number | string | boolean | null | undefined>) {
     const next = { ...autoFilled };
     for (const [k, v] of Object.entries(values)) if (v !== null && v !== undefined && v !== '') next[k] = v;
     autoFilled = next;
@@ -557,16 +567,27 @@
     // the whole model on the GPU at a smaller context on a small card. Show exactly that.
     const automatic = layersSet || params.cache_type_k || params.cache_type_v
       ? Promise.resolve(null)
-      : invoke<{ context: number; layers: number; slots: number | null } | null>('automatic_launch_choice', { config, serverId }).catch(() => null);
+      : invoke<AutomaticLaunch | null>('automatic_launch_choice', { config, serverId }).catch(() => null);
     void automatic.then(choice => {
       if (!choice) return fromPlan();
       if (stale()) return;
       params.context_size = choice.context;
       params.gpu_layers = choice.layers;
       markAuto({ context_size: choice.context, gpu_layers: choice.layers });
+      // The form shows what the automatic launch really uses: slots, KV cache types and the
+      // flash attention they need. A value the user set is theirs and stays.
       if (choice.slots != null && !params.parallel_slots) {
         params.parallel_slots = choice.slots;
         markAuto({ parallel_slots: choice.slots });
+      }
+      if (choice.cache_type_k && choice.cache_type_v && !params.cache_type_k && !params.cache_type_v) {
+        params.cache_type_k = choice.cache_type_k;
+        params.cache_type_v = choice.cache_type_v;
+        markAuto({ cache_type_k: choice.cache_type_k, cache_type_v: choice.cache_type_v });
+      }
+      if (choice.flash_attn && !params.flash_attn) {
+        params.flash_attn = true;
+        markAuto({ flash_attn: true });
       }
       if (rebase) baseline = modelPart(params);
     });

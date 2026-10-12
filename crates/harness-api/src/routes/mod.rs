@@ -122,6 +122,7 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(models::list_models))
         .routes(routes!(models::get_model, models::delete_model))
         .routes(routes!(models::model_fit))
+        .routes(routes!(models::model_automatic))
         .routes(routes!(models::pull_model))
         .routes(routes!(convert::plan))
         .routes(routes!(convert::start, convert::list))

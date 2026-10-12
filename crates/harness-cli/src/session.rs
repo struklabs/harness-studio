@@ -162,6 +162,21 @@ pub fn owner_client(info: &instance::InstanceInfo) -> CliResult<Option<ApiClient
     Ok(Some(ApiClient::new(base, read_token(token_path)?)))
 }
 
+/// The API of an instance that already runs (`--host`, or a live owner with its API on), or
+/// `None` when there is none. Never starts anything: for commands that can also work locally.
+pub fn existing_client(g: &GlobalArgs, data_dir: &Path) -> CliResult<Option<ApiClient>> {
+    if let Some(host) = &g.host {
+        let token = g.token.clone().filter(|t| !t.trim().is_empty());
+        return token
+            .map(|t| normalize_base(host).map(|b| ApiClient::new(b, t)))
+            .transpose();
+    }
+    match instance::probe(data_dir) {
+        OwnerState::Live(Some(info)) => owner_client(&info),
+        _ => Ok(None),
+    }
+}
+
 fn owner_without_api(info: &instance::InstanceInfo) -> CliError {
     CliError::from_code(Exit::Conflict, "cli.owner_without_api", Default::default())
         .with("pid", info.pid)

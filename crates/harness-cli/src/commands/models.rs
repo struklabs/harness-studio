@@ -95,7 +95,16 @@ pub async fn show(client: &ApiClient, query: &str, out: &Out) -> CliResult<()> {
             .unwrap_or(Value::Null),
         None => Value::Null,
     };
-    let result = json!({"model": entry, "definitions": definitions, "fit": fit});
+    // What a default load starts with (the launch's own rule); older APIs lack it.
+    let automatic = match entry["model"]["id"].as_str() {
+        Some(id) => client
+            .get(&format!("/models/{}/automatic", seg(id)))
+            .await
+            .unwrap_or(Value::Null),
+        None => Value::Null,
+    };
+    let result =
+        json!({"model": entry, "definitions": definitions, "fit": fit, "automatic": automatic});
     out.data(&result, || {
         let m = &entry["model"];
         let mut lines = Vec::new();
@@ -142,6 +151,9 @@ pub async fn show(client: &ApiClient, query: &str, out: &Out) -> CliResult<()> {
                 str_of(&fit["recommended_gpu_layers"]),
             ));
         }
+        if let Some(line) = automatic_line(&automatic) {
+            lines.push(line);
+        }
         for d in &definitions {
             lines.push(format!(
                 "definition:    {} ({}) -> {}",
@@ -153,6 +165,30 @@ pub async fn show(client: &ApiClient, query: &str, out: &Out) -> CliResult<()> {
         lines.join("\n")
     });
     Ok(())
+}
+
+/// The default load as the launch runs it: `-c 24576 -ngl 37 -np 2, KV q8_0/q8_0, flash attention`.
+pub fn automatic_line(a: &Value) -> Option<String> {
+    let context = a["context"].as_u64()?;
+    let mut parts = vec![format!("-c {context}")];
+    if let Some(n) = a["layers"].as_u64() {
+        parts.push(format!("-ngl {n}"));
+    }
+    if let Some(n) = a["slots"].as_u64() {
+        parts.push(format!("-np {n}"));
+    }
+    if let (Some(k), Some(v)) = (a["cache_type_k"].as_str(), a["cache_type_v"].as_str()) {
+        parts.push(format!("KV {k}/{v}"));
+    }
+    parts.push(format!(
+        "flash attention {}",
+        if a["flash_attn"] == true {
+            "on"
+        } else {
+            "auto"
+        }
+    ));
+    Some(format!("default load:  {}", parts.join(", ")))
 }
 
 /// Hugging Face search (no instance needed: it only reads the HF token).
@@ -418,5 +454,19 @@ mod tests {
             ("a/b".into(), None)
         );
         assert_eq!(parse_pull_ref("nope").unwrap_err().exit, Exit::Usage);
+    }
+
+    #[test]
+    fn show_prints_the_automatic_launch_not_a_fixed_default() {
+        let line = automatic_line(&json!({
+            "context": 24576, "layers": 37, "slots": 2,
+            "cache_type_k": "q8_0", "cache_type_v": "q8_0", "flash_attn": true
+        }))
+        .unwrap();
+        assert_eq!(
+            line,
+            "default load:  -c 24576, -ngl 37, -np 2, KV q8_0/q8_0, flash attention on"
+        );
+        assert_eq!(automatic_line(&Value::Null), None);
     }
 }

@@ -75,13 +75,22 @@ pub(crate) async fn automatic_launch_choice(
     runtime_mgr: State<'_, Arc<RuntimeManager>>,
     config: crate::process::LaunchConfig,
     server_id: Option<String>,
-) -> Result<Option<harness_core::full_offload::FullOffload>, String> {
+) -> Result<Option<harness_core::full_offload::AutomaticLaunch>, String> {
     let id = ServerRegistry::resolve_id(server_id)?;
     let runtime_mgr = runtime_mgr.inner().clone();
     blocking(move || {
         // The context shown in the form is not the user's: resolve as if it were automatic.
         let mut form = config;
         form.context_size = 0;
+        // Settings the form filled in itself are automatic, not the user's.
+        for field in form.auto_fields.clone() {
+            match field.as_str() {
+                "parallel_slots" => form.parallel_slots = None,
+                "cache_type_k" => form.cache_type_k = None,
+                "cache_type_v" => form.cache_type_v = None,
+                _ => {}
+            }
+        }
         let mut resolved = harness_core::domain::store::Domain::global().resolve_form(
             &harness_core::domain::launch::LaunchDefaults::load(),
             &id,
