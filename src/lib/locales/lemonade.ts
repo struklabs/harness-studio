@@ -2,6 +2,8 @@
 // models on Ryzen AI NPUs (FastFlowLM) and offers its own ROCm / Vulkan llama.cpp builds.
 const tr = {
   'lem.title': 'Lemonade (Ryzen AI NPU)',
+  'lem.title_mac': 'Lemonade',
+  'lem.hint_mac': 'Lemonade (lemonade-sdk, Apache-2.0) modelleri kendi llama.cpp (Metal) yapısıyla çalıştırır; Ryzen AI NPU desteği yalnız Windows ve Linux’ta. Harness\'in kendi motorlarının yerini almaz; isteğe bağlıdır. Kurulum SHA-256 ile doğrulanır, sunucu yalnızca 127.0.0.1\'de ve her çalıştırmada değişen bir anahtarla çalışır.',
   'lem.hint': 'Lemonade (lemonade-sdk, Apache-2.0) modelleri AMD Ryzen AI NPU\'larında (FastFlowLM) ve kendi ROCm / Vulkan llama.cpp yapılarıyla çalıştırır. Harness\'in kendi motorlarının yerini almaz; isteğe bağlıdır. Kurulum SHA-256 ile doğrulanır, sunucu yalnızca 127.0.0.1\'de ve her çalıştırmada değişen bir anahtarla çalışır.',
   'lem.unsupported': 'Lemonade bu işletim sistemi ve işlemci için derleme yayımlamıyor.',
   'lem.installed': 'Kurulu',
@@ -85,6 +87,8 @@ const tr = {
 
 const en: Record<keyof typeof tr, string> = {
   'lem.title': 'Lemonade (Ryzen AI NPU)',
+  'lem.title_mac': 'Lemonade',
+  'lem.hint_mac': 'Lemonade (lemonade-sdk, Apache-2.0) runs models with its own llama.cpp (Metal) build; Ryzen AI NPU support is Windows and Linux only. It does not replace Harness\'s own engines; it is optional. The install is checked against a SHA-256, and the server only listens on 127.0.0.1 and is locked with a key that changes on every run.',
   'lem.hint': 'Lemonade (lemonade-sdk, Apache-2.0) runs models on AMD Ryzen AI NPUs (FastFlowLM) and with its own ROCm / Vulkan llama.cpp builds. It does not replace Harness\'s own engines; it is optional. The install is checked against a SHA-256, and the server only listens on 127.0.0.1 and is locked with a key that changes on every run.',
   'lem.unsupported': 'Lemonade publishes no build for this operating system and CPU.',
   'lem.installed': 'Installed',

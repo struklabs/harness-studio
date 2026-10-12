@@ -25,6 +25,11 @@ export const ENGINES: readonly EngineSpec[] = [
   { family: 'mistral.rs', method: 'manual', descKey: 'eng.desc_mistralrs' },
 ];
 
+/** Description key of a family on this host: Lemonade on a Mac has no Ryzen AI NPU. */
+export function engineDescKey(e: EngineSpec, mac: boolean): EngineSpec['descKey'] | 'eng.desc_lemonade_mac' {
+  return mac && e.family === 'lemonade' ? 'eng.desc_lemonade_mac' : e.descKey;
+}
+
 export function engineSpec(family: string | null | undefined): EngineSpec | undefined {
   return family ? ENGINES.find((e) => e.family === family) : undefined;
 }
