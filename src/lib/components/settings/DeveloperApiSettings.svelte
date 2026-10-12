@@ -1,6 +1,6 @@
 <script lang="ts">
   let { page = 'developer-api' }: { page?: string } = $props();
-  // Settings > Developer API: the Harness Control API (off by default), its session token and
+  // Settings > Developer > Control API: the Harness Control API (off by default), its session token and
   // named tokens. Saved through its own commands (validated in the core), not the settings form.
   import { onMount } from 'svelte';
   import { invoke } from '$lib/ipc';

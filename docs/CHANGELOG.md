@@ -33,6 +33,7 @@ First public release. Windows installer (NSIS) on GitHub Releases; Linux and mac
 - Clear diagnosis and recovery suggestions for failed loads (out of memory, missing libraries, port conflicts).
 - Parameter catalog gated by the selected runtime build; Simple and Advanced interface levels.
 - Multi-LoRA adapters with live scaling, chat template editor, RoPE/YaRN options, speculative decoding, and router mode.
+- On Apple Silicon Macs with 16 GB of memory or less, the automatic context leaves room for macOS and other apps (a small cap on the KV cache and the free memory), and the fit labels say "memory" instead of "VRAM".
 - Managed llama.cpp runtime downloads with integrity checks, background updates, and support for extra runtimes (forks, local folders). Backends: CUDA, ROCm/HIP, SYCL, Vulkan, CPU, and Metal.
 - Other engines: whisper.cpp and sherpa-onnx (speech to text, voice activity detection, speaker separation, text to speech), stable-diffusion.cpp (image generation), ONNX Runtime (embeddings, reranking, ONNX chat), and optional Lemonade and mistral.rs.
 
@@ -42,6 +43,7 @@ First public release. Windows installer (NSIS) on GitHub Releases; Linux and mac
 - Local document search (PDF, DOCX, text, code) with cited answers.
 - Reversible context compaction for long conversations.
 - Inline load settings, token usage display, and optional token probabilities (logprobs).
+- A tool approval card that opens below the visible part of the chat scrolls into view and focuses its Approve button.
 
 ### Gateway and APIs
 - Optional gateway with one endpoint for many models: OpenAI, Anthropic, and Ollama compatible APIs (chat, responses, embeddings, rerank, images, speech, model management).
@@ -59,6 +61,7 @@ First public release. Windows installer (NSIS) on GitHub Releases; Linux and mac
 - Launch targets that start a client already pointed at your local model.
 
 ### CLI
+- Messages that point to the Control API now name the right place, Settings > Developer > Control API.
 - `harness` command: `serve`, `search`, `pull`, `load`, `run`, `ps`, `launch`, `runtime`, `doctor`, and more, with `--json` output and a headless mode that needs no window.
 
 ### Observability and benchmarks
@@ -68,6 +71,8 @@ First public release. Windows installer (NSIS) on GitHub Releases; Linux and mac
 ### Interface
 - English and Turkish, light, dark, and system themes, high contrast, color-vision-friendly palette, interface scaling.
 - System tray, launch at login, and background mode.
+- On macOS the menu bar follows the interface language (Turkish or English).
+- The Control API settings page no longer shows a stray help icon above the first setting.
 
 ### Known limitations
 - The Windows installer is unsigned; SmartScreen may show a warning (**More info > Run anyway**).

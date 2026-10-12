@@ -771,8 +771,179 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Re-labels the tray menu after a language change.
+/// Texts of the macOS menu bar. The standard items keep their roles (Hide, Quit, Copy, Paste, ...);
+/// only the labels follow the UI language, which macOS would otherwise take from the system.
+#[cfg(target_os = "macos")]
+struct MenuLabels {
+    about: &'static str,
+    services: &'static str,
+    hide: &'static str,
+    hide_others: &'static str,
+    quit: &'static str,
+    file: &'static str,
+    close_window: &'static str,
+    edit: &'static str,
+    undo: &'static str,
+    redo: &'static str,
+    cut: &'static str,
+    copy: &'static str,
+    paste: &'static str,
+    select_all: &'static str,
+    view: &'static str,
+    fullscreen: &'static str,
+    window: &'static str,
+    minimize: &'static str,
+    zoom: &'static str,
+    help: &'static str,
+}
+
+#[cfg(target_os = "macos")]
+fn menu_labels(language: &str) -> MenuLabels {
+    if language == "en" {
+        MenuLabels {
+            about: "About Harness Studio",
+            services: "Services",
+            hide: "Hide Harness Studio",
+            hide_others: "Hide Others",
+            quit: "Quit Harness Studio",
+            file: "File",
+            close_window: "Close Window",
+            edit: "Edit",
+            undo: "Undo",
+            redo: "Redo",
+            cut: "Cut",
+            copy: "Copy",
+            paste: "Paste",
+            select_all: "Select All",
+            view: "View",
+            fullscreen: "Enter Full Screen",
+            window: "Window",
+            minimize: "Minimize",
+            zoom: "Zoom",
+            help: "Help",
+        }
+    } else {
+        MenuLabels {
+            about: "Harness Studio Hakkında",
+            services: "Servisler",
+            hide: "Harness Studio'yu Gizle",
+            hide_others: "Diğerlerini Gizle",
+            quit: "Harness Studio'dan Çık",
+            file: "Dosya",
+            close_window: "Pencereyi Kapat",
+            edit: "Düzen",
+            undo: "Geri Al",
+            redo: "Yinele",
+            cut: "Kes",
+            copy: "Kopyala",
+            paste: "Yapıştır",
+            select_all: "Tümünü Seç",
+            view: "Görünüm",
+            fullscreen: "Tam Ekran Yap",
+            window: "Pencere",
+            minimize: "Simge Durumuna Küçült",
+            zoom: "Yakınlaştır",
+            help: "Yardım",
+        }
+    }
+}
+
+/// The macOS menu bar in `language` (same structure as Tauri's default menu).
+#[cfg(target_os = "macos")]
+fn build_app_menu(app: &AppHandle, language: &str) -> tauri::Result<Menu<Wry>> {
+    use tauri::menu::{AboutMetadata, Submenu, HELP_SUBMENU_ID, WINDOW_SUBMENU_ID};
+    let l = menu_labels(language);
+    let info = app.package_info();
+    let about = AboutMetadata {
+        name: Some(info.name.clone()),
+        version: Some(info.version.to_string()),
+        copyright: app.config().bundle.copyright.clone(),
+        ..Default::default()
+    };
+    let sep = || PredefinedMenuItem::separator(app);
+    Menu::with_items(
+        app,
+        &[
+            &Submenu::with_items(
+                app,
+                info.name.clone(),
+                true,
+                &[
+                    &PredefinedMenuItem::about(app, Some(l.about), Some(about))?,
+                    &sep()?,
+                    &PredefinedMenuItem::services(app, Some(l.services))?,
+                    &sep()?,
+                    &PredefinedMenuItem::hide(app, Some(l.hide))?,
+                    &PredefinedMenuItem::hide_others(app, Some(l.hide_others))?,
+                    &sep()?,
+                    &PredefinedMenuItem::quit(app, Some(l.quit))?,
+                ],
+            )?,
+            &Submenu::with_items(
+                app,
+                l.file,
+                true,
+                &[&PredefinedMenuItem::close_window(
+                    app,
+                    Some(l.close_window),
+                )?],
+            )?,
+            &Submenu::with_items(
+                app,
+                l.edit,
+                true,
+                &[
+                    &PredefinedMenuItem::undo(app, Some(l.undo))?,
+                    &PredefinedMenuItem::redo(app, Some(l.redo))?,
+                    &sep()?,
+                    &PredefinedMenuItem::cut(app, Some(l.cut))?,
+                    &PredefinedMenuItem::copy(app, Some(l.copy))?,
+                    &PredefinedMenuItem::paste(app, Some(l.paste))?,
+                    &PredefinedMenuItem::select_all(app, Some(l.select_all))?,
+                ],
+            )?,
+            &Submenu::with_items(
+                app,
+                l.view,
+                true,
+                &[&PredefinedMenuItem::fullscreen(app, Some(l.fullscreen))?],
+            )?,
+            &Submenu::with_id_and_items(
+                app,
+                WINDOW_SUBMENU_ID,
+                l.window,
+                true,
+                &[
+                    &PredefinedMenuItem::minimize(app, Some(l.minimize))?,
+                    &PredefinedMenuItem::maximize(app, Some(l.zoom))?,
+                    &sep()?,
+                    &PredefinedMenuItem::close_window(app, Some(l.close_window))?,
+                ],
+            )?,
+            &Submenu::with_id_and_items(app, HELP_SUBMENU_ID, l.help, true, &[])?,
+        ],
+    )
+}
+
+/// Sets the macOS menu bar in the UI language (called at startup and when the language changes).
+/// Other platforms have no application menu.
+pub fn set_app_menu(app: &AppHandle, language: &str) {
+    #[cfg(target_os = "macos")]
+    match build_app_menu(app, language) {
+        Ok(menu) => {
+            if let Err(e) = app.set_menu(menu) {
+                eprintln!("[Harness Studio] App menu not set: {e}");
+            }
+        }
+        Err(e) => eprintln!("[Harness Studio] App menu not built: {e}"),
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, language);
+}
+
+/// Re-labels the tray menu (and on macOS the menu bar) after a language change.
 pub fn update_tray_language(app: &AppHandle, language: &str) {
+    set_app_menu(app, language);
     let l = labels(language);
     if let Some(items) = app.try_state::<TrayItems>() {
         let _ = items.show.set_text(l.show);

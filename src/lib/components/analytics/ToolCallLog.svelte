@@ -1,6 +1,6 @@
 <script lang="ts">
   // The tool log (`analytics.db` `tool_calls`) in the request inspector: every tool call of every
-  // client (Playground, command line, Developer API), the refused ones included. Compact table;
+  // client (Playground, command line, Control API), the refused ones included. Compact table;
   // a row opens to show the arguments in full.
   import { SvelteSet } from 'svelte/reactivity';
   import { ChevronRight, ShieldAlert, Wrench } from '@lucide/svelte';

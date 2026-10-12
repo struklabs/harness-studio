@@ -41,14 +41,20 @@
         ? { text: 'text-foreground', dot: 'bg-muted-foreground' }
         : tone[fitResult.category],
   );
+  // Apple Silicon: one memory pool, so no "VRAM" wording.
+  let appleUnified = $derived(fitResult.unifiedMemory && !fitResult.sharedIgpu);
   let short = $derived(
-    fitResult.sharedIgpu && fitResult.category === 'cpu_heavy'
+    appleUnified && fitResult.category === 'full_gpu'
+      ? t('dash.fit_short_unified')
+      : appleUnified && fitResult.category === 'tight'
+        ? t('dash.fit_short_unified_tight')
+        : fitResult.sharedIgpu && fitResult.category === 'cpu_heavy'
       ? t('dash.fit_short_igpu_cpu')
       : fitResult.sharedIgpu && (fitResult.category === 'full_gpu' || fitResult.category === 'tight')
         ? t('dash.fit_short_igpu_full')
         : t(shortKey[fitResult.category]),
   );
-  let memLabel = $derived(fitResult.sharedIgpu ? t('dash.fit_shared_mem') : 'VRAM');
+  let memLabel = $derived(fitResult.sharedIgpu ? t('dash.fit_shared_mem') : appleUnified ? t('dash.fit_unified_mem') : 'VRAM');
   let sourceNote = $derived(
     fitResult.source === 'measured'
       ? t('fit.source_measured')

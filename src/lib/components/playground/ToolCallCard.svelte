@@ -29,6 +29,37 @@
   // Arguments stay visible while the user decides whether to approve.
   let showArgs = $derived(waiting || argsOpen);
 
+  // An approval card that opens just below the visible part of the chat is scrolled into view
+  // and its Approve button focused (keyboard users). A user who scrolled far up on purpose
+  // (the card is more than a screen below) is left where they are, like the chat's own
+  // follow-the-bottom behaviour.
+  let card = $state<HTMLElement | null>(null);
+  let approveButton = $state<HTMLElement | null>(null);
+  function scrollParent(el: HTMLElement): HTMLElement | null {
+    for (let p = el.parentElement; p; p = p.parentElement) {
+      const overflowY = getComputedStyle(p).overflowY;
+      if ((overflowY === 'auto' || overflowY === 'scroll') && p.scrollHeight > p.clientHeight) return p;
+    }
+    return null;
+  }
+  $effect(() => {
+    if (!waiting || !card) return;
+    const el = card;
+    const frame = requestAnimationFrame(() => {
+      const box = el.getBoundingClientRect();
+      const parent = scrollParent(el);
+      const view = parent?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
+      const hidden = box.bottom > view.bottom || box.top < view.top;
+      const farBelow = box.top - view.bottom > (view.bottom - view.top);
+      if (hidden && !farBelow) {
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+        el.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+      }
+      if (!farBelow) approveButton?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  });
+
   const statusKey: Record<ToolCallStatus, TKey> = {
     pending: 'pg.tool_status_pending',
     approval: 'pg.tool_status_approval',
@@ -51,6 +82,7 @@
 </script>
 
 <div
+  bind:this={card}
   class={cn(
     'flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-3 text-xs',
     waiting ? 'border-warning/50' : 'border-border'
@@ -109,7 +141,7 @@
     <div class="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 p-2.5" role="alert">
       <p class="text-xs leading-snug text-foreground">{t('pg.tool_approval_prompt')}</p>
       <div class="flex flex-wrap items-center gap-2">
-        <Button size="sm" onclick={() => onApprove?.(call.id, always)}>{t('pg.tool_approve')}</Button>
+        <Button size="sm" bind:ref={approveButton} onclick={() => onApprove?.(call.id, always)}>{t('pg.tool_approve')}</Button>
         <Button size="sm" variant="outline" onclick={() => onDeny?.(call.id)}>{t('pg.tool_deny')}</Button>
         <div class="flex items-center gap-1.5">
           <Checkbox id={`always-${uid}`} bind:checked={always} />

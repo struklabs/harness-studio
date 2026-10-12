@@ -144,7 +144,7 @@ export interface AppSettings {
   startup: StartupSettings;
   /** Settings > Network & security (absent in settings of older builds). */
   network?: NetworkSettings;
-  /** Settings > Developer API; changed only through `set_control_api_settings`. */
+  /** Settings > Developer > Control API; changed only through `set_control_api_settings`. */
   control_api?: ControlApiSettings;
   /** Settings > Gateway; changed only through `set_gateway_settings`. */
   gateway?: GatewaySettings;

@@ -1,4 +1,4 @@
-// Settings > Developer API: the Harness Control API (harness-api) and its tokens.
+// Settings > Developer > Control API: the Harness Control API (harness-api) and its tokens.
 
 /// Ownership of the data directory (`instance.lock`), decided at startup.
 pub(crate) struct InstanceState {
