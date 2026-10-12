@@ -98,9 +98,11 @@ export interface ChatCandidate extends Pickable {
 
 /**
  * The chat pick: official general instruct releases only (any other general repo only when none
- * of those exists). Of those that fit the GPU fully and stay under the comfort size, the best
- * family (Qwen3 Instruct-2507, Gemma, hybrid Qwen3, Llama, Mistral, Phi) and in it the largest file; otherwise the best fit
- * tier, then the best family, then the smallest file.
+ * of those exists). Of those that sit in the GPU (fully or tight) and stay under the comfort size,
+ * the best family (Qwen3 Instruct-2507, Gemma, hybrid Qwen3, Llama, Mistral, Phi), then a full fit
+ * before a tight one, then the largest file; otherwise the best fit tier, then the best family,
+ * then the smallest file. Tight counts as comfortable: on a 4 GB card a 4B Q4_K_M is tight, yet
+ * it loads all layers on the GPU (12k context) and beats a 1B model that fits with room to spare.
  */
 export function pickChat<T extends ChatCandidate>(found: T[]): T | null {
   const general = found.filter((c) => isGeneralChatRepo(c.repoId));
@@ -108,10 +110,13 @@ export function pickChat<T extends ChatCandidate>(found: T[]): T | null {
   const pool = known.length > 0 ? known : general;
   if (pool.length === 0) return null;
   const rank = (c: T) => (familyRank(c.repoId) < 0 ? 99 : familyRank(c.repoId));
-  const comfortable = pool.filter((c) => c.category === 'full_gpu' && c.sizeBytes <= CHAT_COMFORT_BYTES);
+  const comfortable = pool.filter(
+    (c) => TIER_RANK[c.category] <= TIER_RANK.tight && c.sizeBytes <= CHAT_COMFORT_BYTES,
+  );
   if (comfortable.length > 0) {
     return comfortable.reduce((a, b) => {
       if (rank(b) !== rank(a)) return rank(b) < rank(a) ? b : a;
+      if (TIER_RANK[b.category] !== TIER_RANK[a.category]) return TIER_RANK[b.category] < TIER_RANK[a.category] ? b : a;
       return b.sizeBytes > a.sizeBytes ? b : a;
     });
   }

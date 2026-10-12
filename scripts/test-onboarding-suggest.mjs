@@ -63,6 +63,22 @@ test('chat on a small card takes the best fitting known model, smallest file whe
   assert.equal(pickChat([{ repoId: 'a/Qwen3-Coder-GGUF', category: 'full_gpu', sizeBytes: GIB }]), null);
 });
 
+test('chat on a 4 GB card takes the tight 4B instruct over a roomy 1B', () => {
+  const found = [
+    { repoId: 'lmstudio-community/gemma-3-1b-it-GGUF', category: 'full_gpu', sizeBytes: 0.75 * GIB },
+    { repoId: 'unsloth/Qwen3-4B-Instruct-2507-GGUF', category: 'tight', sizeBytes: 2.3 * GIB },
+    { repoId: 'unsloth/gemma-3-4b-it-GGUF', category: 'tight', sizeBytes: 2.3 * GIB },
+    { repoId: 'unsloth/Qwen3-8B-GGUF', category: 'hybrid', sizeBytes: 5 * GIB },
+  ];
+  assert.equal(pickChat(found).repoId, 'unsloth/Qwen3-4B-Instruct-2507-GGUF');
+  // In one family a full fit still beats a tight one.
+  const same = [
+    { repoId: 'unsloth/gemma-3-4b-it-GGUF', category: 'tight', sizeBytes: 2.3 * GIB },
+    { repoId: 'lmstudio-community/gemma-3-1b-it-GGUF', category: 'full_gpu', sizeBytes: 0.75 * GIB },
+  ];
+  assert.equal(pickChat(same).repoId, 'lmstudio-community/gemma-3-1b-it-GGUF');
+});
+
 import { familyRank } from '../src/lib/components/onboarding/suggestPlan.ts';
 
 test('chat skips reasoning distills, fine-tunes and merges', () => {
