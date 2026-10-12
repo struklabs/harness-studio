@@ -69,6 +69,31 @@ export function requestBody(model: string, p: ImageParams): Record<string, unkno
   return body;
 }
 
+/** The image did not fit in GPU memory at the requested size (gateway `image_out_of_memory`). */
+export class ImageOutOfMemory extends Error {
+  constructor(
+    message: string,
+    readonly needMb: number,
+    readonly availableMb: number,
+  ) {
+    super(message);
+  }
+}
+
+/** The out-of-memory error of a failed answer's body, or null. */
+export function outOfMemory(body: string): ImageOutOfMemory | null {
+  try {
+    const e = JSON.parse(body)?.error;
+    if (e?.code !== 'image_out_of_memory') return null;
+    const need = Number(e.harness?.need_mb);
+    const available = Number(e.harness?.available_mb);
+    if (!Number.isFinite(need) || !Number.isFinite(available)) return null;
+    return new ImageOutOfMemory(String(e.message ?? ''), need, available);
+  } catch {
+    return null;
+  }
+}
+
 /** POST {baseUrl}/images/generations. Throws the gateway's message on a failed request. */
 export async function fetchImages(
   baseUrl: string,
@@ -86,7 +111,7 @@ export async function fetchImages(
   });
   const text = await res.text();
   const ms = performance.now() - started;
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${describeErrorBody(text) || res.statusText}`);
+  if (!res.ok) throw outOfMemory(text) ?? new Error(`HTTP ${res.status}: ${describeErrorBody(text) || res.statusText}`);
   const json = JSON.parse(text) as { data?: { b64_json?: string }[]; output_format?: string };
   const format = typeof json.output_format === 'string' ? json.output_format : 'png';
   const images = (json.data ?? []).flatMap((d) => (typeof d.b64_json === 'string' ? [{ data: d.b64_json, format }] : []));
