@@ -82,7 +82,9 @@ pub async fn dispatch(cli: Cli, data_dir: &Path, out: &Out) -> CliResult<()> {
             Command::Tts { command } => tts::command(command, out).await,
             Command::Transcribe(args) => asr::transcribe(args, out).await,
             Command::Asr { command } => asr::command(command, out).await,
-            Command::Lemonade { command } => Box::pin(lemonade::command(command, out)).await,
+            Command::Lemonade { command } => {
+                Box::pin(lemonade::command(command, g, data_dir, out)).await
+            }
             Command::Convert(args) => Box::pin(convert::run(args, out)).await,
             Command::Completion { shell } => {
                 completion(*shell);

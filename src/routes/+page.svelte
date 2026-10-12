@@ -28,6 +28,7 @@
   import { hideSplash } from '$lib/splash';
   import { installOverlayGuard } from '$lib/actions/overlayGuard';
   import { connectionPageFromUrl } from '$lib/components/connections/navigationResolver.js';
+  import { library } from '$lib/stores/library.svelte';
   import { panes, sidebarContext } from '$lib/stores/panes.svelte';
 
   /** Tab to reopen after the window was released to the tray and built again. Forgotten once
@@ -273,6 +274,14 @@
     }
   }
 
+  /** After the first-run wizard: the Model Hub when no model exists yet, else the Playground. A page remembered from an earlier session is dropped. */
+  async function landAfterWizard() {
+    forgetRestoreTab();
+    const models = await library.refresh();
+    const tab: Tab = models.length === 0 ? 'hub' : 'playground';
+    currentTab = tab;
+  }
+
   function handleSettingsUpdated(updated: AppSettings) {
     app.setSettings(updated);
     applyPreferences(updated);
@@ -312,8 +321,10 @@
         {settings}
         {hardware}
         onComplete={(updated: AppSettings) => {
+          const firstRun = !settings.privacy.onboarding_completed;
           showWizardManually = false;
           handleSettingsUpdated(updated);
+          if (firstRun) void landAfterWizard();
         }}
         onClose={settings.privacy.onboarding_completed
           ? () => {

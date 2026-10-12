@@ -689,6 +689,7 @@ pub fn apply_auto_fields(c: &mut LaunchConfig) {
             "parallel_slots" => c.parallel_slots = None,
             "cache_type_k" => c.cache_type_k = None,
             "cache_type_v" => c.cache_type_v = None,
+            "flash_attn" => c.flash_attn = false,
             "gpu_layers" => {
                 if let Some(n) = recommended_layers(c) {
                     c.gpu_layers = n;

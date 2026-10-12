@@ -126,6 +126,39 @@ pub async fn model_fit(
     Ok(Json(result))
 }
 
+/// What the default load of a model (context, `-ngl`, slots and KV cache all automatic) starts
+/// with on this machine: the choice the launch itself makes, so `harness show` and the
+/// Dashboard's form display what Start does. `null` when the rule does not apply (not a chat
+/// model).
+#[utoipa::path(get, path = "/models/{id}/automatic", tag = "models",
+    params(("id" = String, Path, description = "Model id (the launch path), percent-encoded")),
+    responses((status = 200, body = Option<harness_core::full_offload::AutomaticLaunch>),
+        (status = 404, body = ErrorBody)))]
+pub async fn model_automatic(
+    P(id): P<String>,
+) -> ApiResult<Json<Option<harness_core::full_offload::AutomaticLaunch>>> {
+    let entry = library_view()
+        .await?
+        .entries
+        .into_iter()
+        .find(|e| e.model.id == id)
+        .ok_or_else(|| ApiError::not_found("model", &id))?;
+    let choice = blocking(move || {
+        let config = harness_core::process::LaunchConfig {
+            model_path: entry.model.path.clone(),
+            gpu_layers: 999,
+            mmproj_path: entry.model.mmproj_path.clone(),
+            ..Default::default()
+        };
+        harness_core::full_offload::automatic_choice(
+            &config,
+            &harness_core::hardware::detect_hardware(),
+        )
+    })
+    .await?;
+    Ok(Json(choice))
+}
+
 #[derive(Deserialize, IntoParams)]
 pub struct DeleteModelQuery {
     /// Also delete the model definitions based on this file.

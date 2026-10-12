@@ -452,6 +452,7 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/models", &["get"]),
         ("/models/{id}", &["get", "delete"]),
         ("/models/{id}/fit", &["get"]),
+        ("/models/{id}/automatic", &["get"]),
         ("/models/pull", &["post"]),
         ("/convert", &["get", "post"]),
         ("/convert/plan", &["get"]),

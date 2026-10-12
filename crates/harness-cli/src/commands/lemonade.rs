@@ -5,18 +5,25 @@
 //! The `lemond` of a running Harness window or `harness serve` is separate; the gateway
 //! starts that one when a request names a Lemonade model.
 
+use std::path::Path;
 use std::time::Duration;
 
 use harness_core::lemonade::{self, InstallRequest, LemonadeSettings, ModelKind};
 use serde_json::{json, Value};
 
-use crate::cli::LemonadeCommand;
+use crate::cli::{GlobalArgs, LemonadeCommand};
 use crate::error::{CliError, CliResult};
 use crate::output::{bytes, table, Out};
+use crate::session::existing_client;
 
-pub async fn command(command: &LemonadeCommand, out: &Out) -> CliResult<()> {
+pub async fn command(
+    command: &LemonadeCommand,
+    g: &GlobalArgs,
+    data_dir: &Path,
+    out: &Out,
+) -> CliResult<()> {
     match command {
-        LemonadeCommand::Status => status(out).await,
+        LemonadeCommand::Status => status(g, data_dir, out).await,
         LemonadeCommand::Install { tag } => install(tag.clone(), out).await,
         LemonadeCommand::Uninstall { id } => uninstall(id, out).await,
         LemonadeCommand::Models {
@@ -41,10 +48,27 @@ async fn blocking<T: Send + 'static>(
         .map_err(CliError::core)
 }
 
-async fn status(out: &Out) -> CliResult<()> {
-    let s = blocking(|| Ok(lemonade::status())).await?;
+/// The state of the engine. A running instance (the window, `harness serve`) owns the `lemond`
+/// it started, so it is asked through its Control API; without one, this process looks locally.
+async fn status(g: &GlobalArgs, data_dir: &Path, out: &Out) -> CliResult<()> {
+    let from_instance = match existing_client(g, data_dir) {
+        Ok(Some(client)) => client
+            .get_as::<lemonade::LemonadeStatus>("/lemonade")
+            .await
+            .ok(),
+        _ => None,
+    };
+    let s = match from_instance {
+        Some(s) => s,
+        None => blocking(|| Ok(lemonade::status())).await?,
+    };
     let value = serde_json::to_value(&s).unwrap_or(Value::Null);
-    out.data(&value, || {
+    out.data(&value, || status_lines(&s));
+    Ok(())
+}
+
+fn status_lines(s: &lemonade::LemonadeStatus) -> String {
+    {
         let mut lines = Vec::new();
         if !s.supported {
             lines.push("Lemonade has no build for this operating system or CPU.".to_string());
@@ -89,8 +113,7 @@ async fn status(out: &Out) -> CliResult<()> {
             ));
         }
         lines.join("\n")
-    });
-    Ok(())
+    }
 }
 
 async fn install(tag: Option<String>, out: &Out) -> CliResult<()> {
@@ -306,6 +329,36 @@ mod tests {
         let mut v = vec!["harness"];
         v.extend_from_slice(args);
         crate::cli::Cli::try_parse_from(v).unwrap().command
+    }
+
+    fn global(args: &[&str]) -> GlobalArgs {
+        let mut v = vec!["harness", "ps"];
+        v.extend_from_slice(args);
+        crate::cli::Cli::try_parse_from(v).unwrap().global
+    }
+
+    #[test]
+    fn status_asks_a_running_instance_and_falls_back_to_local_detection() {
+        let dir = std::env::temp_dir().join(format!("hs-lemonade-status-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // Nobody owns the data directory: local detection.
+        assert!(existing_client(&global(&[]), &dir).unwrap().is_none());
+        // --host with a token: that instance's Control API.
+        let remote = existing_client(&global(&["--host", "127.0.0.1:1", "--token", "t"]), &dir)
+            .unwrap()
+            .unwrap();
+        assert!(remote.base.ends_with("/api/harness/v1"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn status_text_names_the_lemond_the_instance_started() {
+        let mut s: lemonade::LemonadeStatus =
+            serde_json::from_value(serde_json::to_value(lemonade::status()).unwrap()).unwrap();
+        assert!(status_lines(&s).contains("lemond is not running here"));
+        s.running = true;
+        s.base_url = Some("http://127.0.0.1:13305".into());
+        assert!(status_lines(&s).contains("lemond running at http://127.0.0.1:13305"));
     }
 
     #[test]
