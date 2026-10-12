@@ -23,7 +23,8 @@ Harness Studio, yerel yapay zekâ modellerini bulmak, çalıştırmak ve kulland
 | Platform | Donanım ve paketler |
 | --- | --- |
 | Windows 10/11 x64 | AMD GPU'larda Vulkan; uyumlu donanımda gerekli HIP kitaplıklarıyla ROCm/HIP. NVIDIA GPU'larda CUDA. GPU olmadan CPU ile kullanım. NSIS kurulum paketi (GitHub Releases). |
-| macOS, Linux | Yakında. Derlemeler mevcut ancak gerçek makinelerde henüz doğrulanmadı; bu sürümde indirme olarak sunulmuyor. Kaynaktan derleyebilirsiniz (README). |
+| macOS 13.3 veya üstü | Apple Silicon (Metal) ve Intel Mac'ler. İmzalı ve Apple onaylı (notarize) DMG (GitHub Releases): Apple Silicon için `aarch64`, Intel için `x64`. ONNX Runtime modelleri Intel Mac'lerde kullanılamaz. |
+| Linux | Yakında. Derlemeler mevcut ancak gerçek makinelerde henüz doğrulanmadı; bu sürümde indirme olarak sunulmuyor. Kaynaktan derleyebilirsiniz (README). |
 
 GPU hızlandırması donanım, sürücüler ve seçilen model çalıştırıcısına bağlıdır. Kullanılabilir RAM/ekran kartı belleğine sığan bir model seçin; model dosyaları için yeterli disk alanı ayırın.
 
