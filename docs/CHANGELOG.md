@@ -20,6 +20,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - After the first-run wizard the app opens the Model Hub when you have no model yet, otherwise the Playground, instead of a page remembered from an earlier session.
 - `harness lemonade status` asks the running Harness Studio (or `--host`) first, so it reports the `lemond` the window started.
 - The Dashboard form shows what the automatic launch really uses: concurrent slots, context, KV cache types and flash attention. `harness show` prints the same default load and no longer assumes 32k context and 4 slots.
+- Image generation: a size that does not fit in GPU memory no longer ends with a bare "HTTP 500: generate_image returned no results". The gateway answers `image_out_of_memory` with the memory needed and free, and the Playground says to try a smaller size (SD-Turbo at 1024x1024 needs about 5.8 GB).
 
 ## [0.1.0] - 2026-10-12
 
