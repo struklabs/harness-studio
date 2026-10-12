@@ -107,7 +107,8 @@ interface Candidate {
 
 /** The recommended file of one repo with its fit, or null (gated, not runnable, nothing sized). */
 async function evaluate(repo: HfModelSearchResult, ctx: number): Promise<Candidate | null> {
-  if (repo.gated || repo.not_runnable) return null;
+  // A repo whose runtime has no build here (ONNX on an Intel Mac) is never a first suggestion.
+  if (repo.gated || repo.not_runnable || repo.compatibility.status === 'unsupported_platform') return null;
   const variants = await invoke<HfModelVariant[]>('get_hf_model_variants', { repoId: repo.id });
   // Below 4 bits quality drops fast: a smaller model at Q4+ is the better first suggestion.
   const sized = variants.filter((v) => v.total_size_bytes > 0 && quantBits(v.quantization) >= 4);

@@ -372,6 +372,7 @@ pub fn run() {
             cancel_convert_env_install,
             remove_convert_env,
             list_onnx_runtime,
+            get_onnx_runtime_support,
             get_onnx_runtime_progress,
             install_onnx_runtime,
             verify_onnx_runtime,
