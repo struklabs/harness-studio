@@ -33,7 +33,7 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 toml = "1"
 toml_edit = "0.25"
-getrandom = "0.3"
+getrandom = "0.4"
 utoipa = { version = "5", features = ["preserve_order"], optional = true }
 jsonc-parser = { version = "0.34", features = ["cst", "serde_json"] }
 # OpenTelemetry OTLP trace, log and metric export (feature `otel`; runtime opt-in in Settings).
