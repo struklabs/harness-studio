@@ -53,7 +53,7 @@ Harness Studio; Tauri, Rust ve Svelte ile yazılmış bir masaüstü uygulaması
 
 ## 3 adımda hızlı başlangıç
 
-1. **İndirin ve kurun.** [Sürümler sayfasından](https://github.com/struklabs/harness-studio/releases/latest) sisteminize uygun kurulum dosyasını indirin. **Windows:** `Harness Studio_..._x64-setup.exe` dosyasını (yaklaşık 21 MB) çalıştırın. Kurulum dosyası **henüz dijital olarak imzalı değildir**; bu yüzden Windows SmartScreen "Windows bilgisayarınızı korudu" diyebilir. **Ek bilgi**'ye, sonra **Yine de çalıştır**'a tıklayın. **macOS:** Mac'inize uygun DMG'yi (Apple Silicon için `Harness Studio_..._aarch64.dmg`, yaklaşık 29 MB; Intel için `Harness Studio_..._x64.dmg`, yaklaşık 32 MB) açın ve **Harness Studio**'yu **Uygulamalar** klasörüne sürükleyin. Uygulama **henüz Apple tarafından noter onaylı (notarized) değildir**. İlk açılışta macOS 'doğrulanamadı' derse: **Sistem Ayarları > Gizlilik ve Güvenlik > Yine de Aç**. Bu bir kez gerekir. macOS 15 ve sonrasında uyarı yalnızca **Çöp Sepetine Taşı** ve **Bitti** seçeneklerini sunar: **Bitti**'yi seçin, Çöp Sepetine Taşı'yı değil. macOS 13 ve 14'te Uygulamalar'da uygulamaya sağ tıklayıp **Aç**'ı da seçebilirsiniz. Kaynak kod ve derleme akışı bu depoda açıktır.
+1. **İndirin ve kurun.** [Sürümler sayfasından](https://github.com/struklabs/harness-studio/releases/latest) sisteminize uygun kurulum dosyasını indirin. **Windows:** `Harness Studio_..._x64-setup.exe` dosyasını (yaklaşık 21 MB) çalıştırın. Kurulum dosyası **henüz dijital olarak imzalı değildir**; bu yüzden Windows SmartScreen "Windows bilgisayarınızı korudu" diyebilir. **Ek bilgi**'ye, sonra **Yine de çalıştır**'a tıklayın. **macOS:** Mac'inize uygun DMG'yi (Apple Silicon için `Harness Studio_..._aarch64.dmg`, yaklaşık 29 MB; Intel için `Harness Studio_..._x64.dmg`, yaklaşık 32 MB) açın ve **Harness Studio**'yu **Uygulamalar** klasörüne sürükleyin. Uygulama Apple Developer ID ile imzalı ve Apple tarafından noter onaylıdır (notarized); indirilen her uygulama gibi açılır. Kaynak kod ve derleme akışı bu depoda açıktır.
 2. **İlk açılış sihirbazını izleyin.** Donanımınıza bakar, modellerin nerede saklanacağını sorar, modelleri çalıştıran motoru kurar ve gizlilik ayarlarını seçmenizi sağlar. Yeniyseniz **Basit** arayüz düzeyini seçin.
 3. **Model seçin ve sohbet edin.** **Model Hub**'da bilgisayarınıza uyan önerilen bir model seçin (uygulama uyum tahmini gösterir) ve **İndir**'e basın. Sonra **Dashboard**'u açın, modeli seçin, **Sunucuyu Başlat**'a basın, **Playground**'u açıp merhaba deyin.
 
@@ -70,7 +70,7 @@ Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değ
 | **Kurulu boyut** | Yaklaşık 65 MB (macOS'ta yaklaşık 64 MB). Bunun üstüne uygulama, gereken model motorlarını ihtiyaç olunca indirir (llama.cpp derlemesi onlarca MB; CUDA derlemeleri daha büyük). |
 | **Uygulamanın bellek kullanımı** | Hiçbir model yüklenmeden uygulamanın kendisi (arayüz ve WebView2) yaklaşık 250-350 MB RAM kullanır. macOS'ta yaklaşık 250 MB (arayüz ve WebKit). |
 | **WebView2** | Windows 11'de hazır gelir. Windows 10'da eksikse kurulum dosyası otomatik kurar (bunun için bir kez internet gerekir). |
-| **macOS** | Disk görüntüsü (DMG): açın ve uygulamayı Uygulamalar klasörüne sürükleyin. Uygulama noter onaylı değildir; ilk açılışta **Sistem Ayarları > Gizlilik ve Güvenlik > Yine de Aç**'ı kullanın (macOS 13 ve 14'te sağ tıklayıp **Aç** da çalışır). Derlemeler ad-hoc imzalı olduğundan macOS, güncellemelerden sonra mikrofon ve Terminal'i denetleme izinlerini yeniden sorabilir. |
+| **macOS** | Disk görüntüsü (DMG): açın ve uygulamayı Uygulamalar klasörüne sürükleyin. Uygulama Developer ID ile imzalı ve Apple tarafından noter onaylıdır; mikrofon ve Terminal'i denetleme izinleri güncellemelerde korunur. |
 | **Ekran kartı** | **Gerekmez.** İşlemci (CPU) de çalışır. GPU yalnızca modelleri hızlandırır. |
 | **Modeller için disk** | Modele göre değişir: küçük bir model için yaklaşık 100 MB, büyük biri için 10 GB ve üstü. Klasörü, başka bir sürücü dahil, siz seçersiniz. |
 | **İnternet** | Uygulamayı, motorları ve modelleri indirmek için gerekir. Model diskinizdeyse sohbet için gerekmez. |
@@ -349,7 +349,7 @@ Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, y
 - **Sunucu kipi:** Harness'i kendi sunucunuzda web arayüzünden yönetin; parola ya da token oturumları, alan adı ve otomatik SSL, systemd servisi ve Docker imajları (CUDA, ROCm, Vulkan, CPU)
 - **Harness Link:** başka bir Harness örneğinin modellerini kütüphanenizde, Playground'da ve ağ geçidinde kullanın
 - Linux paketleri (`.deb`, tar.gz) ve macOS uygulaması, Apple Silicon için MLX motoru dahil
-- İmzalı Windows kurulum dosyası ve noter onaylı (notarized) macOS uygulaması; otomatik uygulama güncellemesi
+- İmzalı Windows kurulum dosyası; otomatik uygulama güncellemesi
 - Control API için TypeScript ve Python SDK'ları; karar modeli uç noktaları
 
 **Daha sonra:** araçlar ve MCP sunucuları için topluluk kayıt defteri, ComfyUI köprüsü, araç yönlendirici ve daha çok üretim sayfası.
