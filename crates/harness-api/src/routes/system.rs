@@ -74,6 +74,9 @@ pub struct StatusResponse {
     pub servers: ServerCounts,
     /// The gateway (managed endpoint) of this instance.
     pub gateway: harness_core::gateway::GatewayStatus,
+    /// Whether this OS / architecture has an ONNX Runtime build (ONNX embedding, rerank and
+    /// chat models need one; Intel Macs have none).
+    pub onnx_runtime: harness_core::onnx_runtime::PlatformSupport,
 }
 
 /// The llama-server binary the next start uses and what it can do.
@@ -204,6 +207,7 @@ pub async fn status(State(s): State<AppState>) -> ApiResult<Json<StatusResponse>
                 .count(),
         },
         gateway: harness_core::gateway::status(),
+        onnx_runtime: harness_core::onnx_runtime::platform_support(),
     }))
 }
 

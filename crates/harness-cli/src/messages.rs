@@ -170,6 +170,7 @@ pub fn base(code: &str) -> Option<&'static str> {
         "process.lemonade_loopback_only" => "lemond only listens on loopback",
         "onnx.runtime_missing" => "ONNX Runtime is not installed (use the Install button in Settings > Installed Runtime, or it is downloaded on first use)",
         "onnx.unsupported_platform" => "There is no such ONNX Runtime build for this platform",
+        "onnx.platform_unsupported" => "ONNX Runtime has no build for this platform (Intel Macs among them), so ONNX models cannot run here; use the GGUF versions of embedding and rerank models",
         "onnx.genai_unsupported_platform" => "ONNX Runtime GenAI chat models only run on Windows for now",
         "onnx.sidecar_missing" => "harness-onnx was not found next to the app (reinstall, or set HARNESS_ONNX_BIN)",
         "process.onnx_loopback_only" => "harness-onnx has no authentication and only listens on loopback",

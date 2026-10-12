@@ -49,6 +49,40 @@ fn defaults_and_provider_choices() {
     assert_eq!(OrtVariant::parse("tpu"), None);
 }
 
+#[test]
+fn platform_support_follows_the_pinned_builds() {
+    let s = platform_support();
+    assert_eq!(s.supported, !specs().is_empty());
+    assert_eq!(
+        (s.os.as_str(), s.arch.as_str()),
+        (std::env::consts::OS, std::env::consts::ARCH)
+    );
+    // Intel Macs have no official build the sidecar can load (none after 1.23.2).
+    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+    assert!(!s.supported);
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    assert!(s.supported);
+}
+
+#[test]
+fn a_missing_build_says_whether_the_platform_has_any() {
+    // CUDA has no build outside Windows; a platform without any build names itself instead.
+    let e = no_spec(OrtVariant::Cuda);
+    let (key, params) = crate::error_key::parse(&e).unwrap();
+    if supported() {
+        assert_eq!(
+            (key, params["variant"].as_str()),
+            ("onnx.unsupported_platform", Some("cuda"))
+        );
+    } else {
+        assert_eq!(key, "onnx.platform_unsupported");
+        assert_eq!(params["arch"], std::env::consts::ARCH);
+        assert!(lib_for_provider("auto")
+            .unwrap_err()
+            .starts_with("onnx.platform_unsupported"));
+    }
+}
+
 /// A folder laid out the way [`install_in`] leaves it.
 fn fake_install(root: &Path, variant: OrtVariant) -> PathBuf {
     let spec = spec_for(variant).expect("variant of this platform");
