@@ -1237,6 +1237,30 @@ fn six_messages(db: &StateDb, conv: &str) -> Vec<PathMessage> {
 }
 
 #[test]
+fn a_regenerated_variant_sorts_after_a_first_variant_stamped_ahead_of_the_clock() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("state.db");
+    let db = StateDb::open(&path).unwrap();
+    let conv = new_conv(&db, "Saat ileride");
+    let u = append(&db, &conv.id, None, "user", "soru");
+    let a = append(&db, &conv.id, Some(&u.id), "assistant", "cevap");
+    // Messages appended faster than the clock ticks are stamped ahead of it; force that.
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute(
+            "UPDATE message_variants SET created_at = created_at + 3600000 WHERE id = ?1",
+            [&a.variant.id],
+        )
+        .unwrap();
+    }
+    let b = db.add_variant(&a.id, &text("cevap b"), None).unwrap();
+    assert_eq!(b.variant_ids, [a.variant.id.clone(), b.variant.id.clone()]);
+    assert_eq!(b.variant_index, 1);
+    let view = db.select_variant(&a.id, &a.variant.id).unwrap();
+    assert_eq!(view.messages[1].variant_index, 0);
+}
+
+#[test]
 fn regenerating_a_message_in_the_middle_keeps_each_variants_continuation() {
     let (_d, db) = open_temp();
     let conv = new_conv(&db, "Ortadan yeniden üret");
