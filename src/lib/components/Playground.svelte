@@ -52,14 +52,15 @@
   import { gatewayModelStates, type GatewayModelEntry, type ModelLoadState } from './playground/gatewayModels';
   import EmbeddingPanel from './playground/EmbeddingPanel.svelte';
   import RerankPanel from './playground/RerankPanel.svelte';
-  import { ensureLibraryDefinitions } from '$lib/stores/downloads.svelte';
+  import { ensureLibraryDefinitions, loadAndChat } from '$lib/stores/downloads.svelte';
+  import { isChatLoadable } from '$lib/downloadFollowUp';
   import { kindsForTab } from '$lib/libraryDefinitions';
   import TranscribePanel from './playground/TranscribePanel.svelte';
   import ImagePanel from './playground/ImagePanel.svelte';
   import { imageSession } from './playground/image.svelte';
   import TtsPanel from './playground/TtsPanel.svelte';
   import * as ToggleGroup from '$lib/components/ui/toggle-group';
-  import { domain } from '$lib/stores/domain.svelte';
+  import { domain, samePath } from '$lib/stores/domain.svelte';
   import { DEFAULT_PRESET_ID, presetFromRequest } from './presets/request';
   import type { InferencePreset, ServeMode, LibraryView } from '$lib/types';
   import { Unplug, MessageSquare, Plus, SlidersHorizontal, PanelLeft, TriangleAlert, Columns2 } from '@lucide/svelte';
@@ -328,6 +329,26 @@
   // With the gateway on, any model definition can be chatted with: the gateway loads it on the
   // first request (JIT), even when no server runs yet.
   let canChat = $derived(app.isRunning || app.gatewayRunning);
+  /**
+   * The model the Dashboard would start: its saved launch's file, else the first chat model of
+   * the library. Null when there is none (the offline notice then only points to the Dashboard).
+   */
+  let startModel = $derived.by(() => {
+    const ready = library.models.filter(isChatLoadable);
+    const saved = app.selectedSavedConfig?.model_path;
+    return (saved ? ready.find((m) => samePath(m.path, saved)) : undefined) ?? ready[0] ?? null;
+  });
+  let startLabel = $derived(startModel ? t('pg.start_model', { model: startModel.gguf?.model_name || startModel.name || startModel.filename }) : '');
+  let starting = $state(false);
+  async function startFromHere() {
+    if (!startModel || starting || app.isBusy) return;
+    starting = true;
+    try {
+      await loadAndChat(startModel);
+    } finally {
+      starting = false;
+    }
+  }
   let persistEnabled = $derived(!dbReadOnly && !dbError);
   /** Every tool that can be offered: the core's (built-ins and the MCP servers' tools, run by Harness's own MCP client). */
   let allTools = $derived(coreTools);
@@ -2693,8 +2714,11 @@
         <div class="flex shrink-0 items-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2" role="status">
           <Unplug class="size-4 shrink-0 text-warning" aria-hidden="true" />
           <span class="min-w-0 flex-1 text-xs text-foreground">
-            {app.isBusy ? t('pg.offline_starting') : t('pg.offline_title')}
+            {app.isBusy || starting ? t('pg.offline_starting') : t('pg.offline_title')}
           </span>
+          {#if startModel && !app.isBusy && !starting}
+            <Button size="sm" class="max-w-64" onclick={startFromHere}><span class="truncate">{startLabel}</span></Button>
+          {/if}
           <Button variant="outline" size="sm" onclick={onGoToDashboard}>{t('pg.go_dashboard')}</Button>
         </div>
       {/if}
@@ -2717,10 +2741,13 @@
         <Empty.Header>
           <Empty.Media variant="icon"><Unplug /></Empty.Media>
           <Empty.Title>{t('pg.offline_title')}</Empty.Title>
-          <Empty.Description>{app.isBusy ? t('pg.offline_starting') : t('pg.offline_desc')}</Empty.Description>
+          <Empty.Description>{app.isBusy || starting ? t('pg.offline_starting') : t('pg.offline_desc')}</Empty.Description>
         </Empty.Header>
         <Empty.Content>
-          <Button onclick={onGoToDashboard}>{t('pg.go_dashboard')}</Button>
+          {#if startModel && !app.isBusy && !starting}
+            <Button class="max-w-full" onclick={startFromHere}><span class="truncate">{startLabel}</span></Button>
+          {/if}
+          <Button variant={startModel && !app.isBusy && !starting ? 'outline' : 'default'} onclick={onGoToDashboard}>{t('pg.go_dashboard')}</Button>
         </Empty.Content>
       </Empty.Root>
     {:else}
@@ -2728,8 +2755,11 @@
         <div class="flex shrink-0 items-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2" role="status">
           <Unplug class="size-4 shrink-0 text-warning" aria-hidden="true" />
           <span class="min-w-0 flex-1 text-xs text-foreground">
-            {app.isBusy ? t('pg.offline_starting') : t('pg.offline_title')}
+            {app.isBusy || starting ? t('pg.offline_starting') : t('pg.offline_title')}
           </span>
+          {#if startModel && !app.isBusy && !starting}
+            <Button size="sm" class="max-w-64" onclick={startFromHere}><span class="truncate">{startLabel}</span></Button>
+          {/if}
           <Button variant="outline" size="sm" onclick={onGoToDashboard}>{t('pg.go_dashboard')}</Button>
         </div>
       {/if}

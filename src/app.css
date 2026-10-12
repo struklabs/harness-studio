@@ -744,3 +744,17 @@
 [data-sonner-toast] {
   pointer-events: auto;
 }
+
+/* A toast with action buttons ("Load and Chat" / "Open in Dashboard"): the labels stay on one line
+   and the buttons drop to their own row when the text leaves no room, instead of breaking
+   mid-label. */
+[data-sonner-toast]:has([data-button]) {
+  flex-wrap: wrap;
+}
+[data-sonner-toast]:has([data-button]) [data-content] {
+  flex: 1 1 12rem;
+}
+[data-sonner-toast] [data-button] {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
