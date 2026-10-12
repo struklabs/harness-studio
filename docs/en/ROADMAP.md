@@ -12,7 +12,7 @@ This is the public roadmap of Harness Studio. It shows direction, not promises: 
 
 ## Now
 
-- **Platform verification.** The Windows installer (NSIS) ships in 0.1.0. Verify the Linux and macOS builds on real machines with AMD, NVIDIA, Intel, and Apple Silicon hardware, then publish them.
+- **Platform verification.** 0.1.0 ships the Windows installer (NSIS), signed and notarized macOS DMGs, and Linux `.deb` / AppImage packages as a preview. Verify Linux on more machines (AMD, NVIDIA, Intel) and distributions, then drop the preview label.
 - **First-run polish.** An end-to-end first-run flow (wizard, find a model, download, start, chat) on empty data folders on every platform.
 - **Benchmarks on more hardware.** Run the comparison suite (`bench/compare/`) on NVIDIA/CUDA and on Linux, and re-measure the other tools in the same session.
 - **Accessibility checks.** Small windows, high interface scale, and Windows forced-colors mode.
@@ -31,7 +31,7 @@ This is the public roadmap of Harness Studio. It shows direction, not promises: 
 - **Control API SDKs.** TypeScript and Python clients generated from the OpenAPI schema.
 - **MLX engine** for Apple Silicon.
 - **Auto-update.** A signed update channel for the desktop app through GitHub Releases.
-- **Signed installers.** A code-signed Windows installer and a notarized macOS app.
+- **Signed Windows installer.** A code-signed Windows installer (the macOS app is already signed and notarized).
 
 ## Later
 

@@ -14,7 +14,7 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
 
 ## Şimdi
 
-- **Platform doğrulaması.** Windows kurulum paketi (NSIS) 0.1.0 ile gelir. Linux ve macOS derlemelerini AMD, NVIDIA, Intel ve Apple Silicon donanımlı gerçek makinelerde doğrulayıp yayımlamak.
+- **Platform doğrulaması.** 0.1.0 ile Windows kurulum paketi (NSIS), imzalı ve Apple onaylı (notarize) macOS DMG'leri ve önizleme olarak Linux `.deb` / AppImage paketleri gelir. Linux'u daha çok makinede (AMD, NVIDIA, Intel) ve dağıtımda doğrulayıp önizleme etiketini kaldırmak.
 - **İlk çalıştırma cilası.** Her platformda boş veri klasörleriyle uçtan uca ilk çalıştırma akışı (sihirbaz, model bulma, indirme, başlatma, sohbet).
 - **Daha fazla donanımda ölçüm.** Karşılaştırma paketini (`bench/compare/`) NVIDIA/CUDA ve Linux üzerinde çalıştırmak, diğer araçları aynı oturumda yeniden ölçmek.
 - **Erişilebilirlik denetimleri.** Küçük pencereler, yüksek arayüz ölçeği ve Windows zorunlu renkler kipi.
@@ -33,7 +33,7 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
 - **Control API SDK'ları.** OpenAPI şemasından üretilen TypeScript ve Python istemcileri.
 - Apple Silicon için **MLX motoru**.
 - **Otomatik güncelleme.** Masaüstü uygulaması için GitHub Releases üzerinden imzalı güncelleme kanalı.
-- **İmzalı kurulum paketleri.** Kod imzalı Windows kurulum paketi ve Apple tarafından doğrulanmış (notarize edilmiş) macOS uygulaması.
+- **İmzalı Windows kurulum paketi.** Kod imzalı Windows kurulum paketi (macOS uygulaması zaten imzalı ve notarize edilmiş).
 
 ## Daha sonra
 
