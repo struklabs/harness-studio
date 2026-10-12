@@ -53,7 +53,7 @@ Harness Studio; Tauri, Rust ve Svelte ile yazılmış bir masaüstü uygulaması
 
 ## 3 adımda hızlı başlangıç
 
-1. **İndirin ve kurun.** [Sürümler sayfasından](https://github.com/struklabs/harness-studio/releases/latest) sisteminize uygun kurulum dosyasını indirin. **Windows:** `Harness Studio_..._x64-setup.exe` dosyasını (yaklaşık 21 MB) çalıştırın. Kurulum dosyası **henüz dijital olarak imzalı değildir**; bu yüzden Windows SmartScreen "Windows bilgisayarınızı korudu" diyebilir. **Ek bilgi**'ye, sonra **Yine de çalıştır**'a tıklayın. **macOS:** Mac'inize uygun DMG'yi (Apple Silicon için `Harness Studio_..._aarch64.dmg`, Intel için `Harness Studio_..._x64.dmg`) açın ve **Harness Studio**'yu **Uygulamalar** klasörüne sürükleyin. Uygulama **henüz Apple tarafından noter onaylı (notarized) değildir**; bu yüzden ilk açılış engellenir: macOS 15 ve sonrasında uyarı yalnızca **Çöp Sepetine Taşı** ve **Bitti** seçeneklerini sunar. **Bitti**'yi seçin, **Sistem Ayarları > Gizlilik ve Güvenlik**'e gidin ve **Yine de Aç**'a tıklayın. macOS 13 ve 14'te Uygulamalar'da uygulamaya sağ tıklayıp **Aç**'ı da seçebilirsiniz. Kaynak kod ve derleme akışı bu depoda açıktır.
+1. **İndirin ve kurun.** [Sürümler sayfasından](https://github.com/struklabs/harness-studio/releases/latest) sisteminize uygun kurulum dosyasını indirin. **Windows:** `Harness Studio_..._x64-setup.exe` dosyasını (yaklaşık 21 MB) çalıştırın. Kurulum dosyası **henüz dijital olarak imzalı değildir**; bu yüzden Windows SmartScreen "Windows bilgisayarınızı korudu" diyebilir. **Ek bilgi**'ye, sonra **Yine de çalıştır**'a tıklayın. **macOS:** Mac'inize uygun DMG'yi (Apple Silicon için `Harness Studio_..._aarch64.dmg`, yaklaşık 29 MB; Intel için `Harness Studio_..._x64.dmg`, yaklaşık 32 MB) açın ve **Harness Studio**'yu **Uygulamalar** klasörüne sürükleyin. Uygulama **henüz Apple tarafından noter onaylı (notarized) değildir**. İlk açılışta macOS 'doğrulanamadı' derse: **Sistem Ayarları > Gizlilik ve Güvenlik > Yine de Aç**. Bu bir kez gerekir. macOS 15 ve sonrasında uyarı yalnızca **Çöp Sepetine Taşı** ve **Bitti** seçeneklerini sunar: **Bitti**'yi seçin, Çöp Sepetine Taşı'yı değil. macOS 13 ve 14'te Uygulamalar'da uygulamaya sağ tıklayıp **Aç**'ı da seçebilirsiniz. Kaynak kod ve derleme akışı bu depoda açıktır.
 2. **İlk açılış sihirbazını izleyin.** Donanımınıza bakar, modellerin nerede saklanacağını sorar, modelleri çalıştıran motoru kurar ve gizlilik ayarlarını seçmenizi sağlar. Yeniyseniz **Basit** arayüz düzeyini seçin.
 3. **Model seçin ve sohbet edin.** **Model Hub**'da bilgisayarınıza uyan önerilen bir model seçin (uygulama uyum tahmini gösterir) ve **İndir**'e basın. Sonra **Dashboard**'u açın, modeli seçin, **Sunucuyu Başlat**'a basın, **Playground**'u açıp merhaba deyin.
 
@@ -61,14 +61,14 @@ Her ekranın anlatıldığı adım adım rehber: [Kullanım kılavuzu](docs/guid
 
 ## Sistem gereksinimleri
 
-Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değil. Değerler v0.1.0'ın Windows sürümünde ölçülmüştür.
+Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değil. Değerler v0.1.0'ın Windows ve macOS (Apple M1, 8 GB) sürümlerinde ölçülmüştür.
 
 | | |
 |---|---|
 | **İşletim sistemi** | 64 bit Windows 10 veya 11 ya da macOS 13.3 veya üstü: Apple Silicon (Metal hızlandırmalı) veya Intel (yalnızca CPU). Linux *yakında* (bkz. [Yol haritası](#yol-haritası)). |
-| **Kurulum dosyası boyutu** | Windows'ta yaklaşık 21 MB |
-| **Kurulu boyut** | Yaklaşık 65 MB. Bunun üstüne uygulama, gereken model motorlarını ihtiyaç olunca indirir (llama.cpp derlemesi onlarca MB; CUDA derlemeleri daha büyük). |
-| **Uygulamanın bellek kullanımı** | Hiçbir model yüklenmeden uygulamanın kendisi (arayüz ve WebView2) yaklaşık 250-350 MB RAM kullanır |
+| **Kurulum dosyası boyutu** | Windows'ta yaklaşık 21 MB; macOS'ta DMG yaklaşık 29 MB (Apple Silicon) veya 32 MB (Intel) |
+| **Kurulu boyut** | Yaklaşık 65 MB (macOS'ta yaklaşık 64 MB). Bunun üstüne uygulama, gereken model motorlarını ihtiyaç olunca indirir (llama.cpp derlemesi onlarca MB; CUDA derlemeleri daha büyük). |
+| **Uygulamanın bellek kullanımı** | Hiçbir model yüklenmeden uygulamanın kendisi (arayüz ve WebView2) yaklaşık 250-350 MB RAM kullanır. macOS'ta yaklaşık 250 MB (arayüz ve WebKit). |
 | **WebView2** | Windows 11'de hazır gelir. Windows 10'da eksikse kurulum dosyası otomatik kurar (bunun için bir kez internet gerekir). |
 | **macOS** | Disk görüntüsü (DMG): açın ve uygulamayı Uygulamalar klasörüne sürükleyin. Uygulama noter onaylı değildir; ilk açılışta **Sistem Ayarları > Gizlilik ve Güvenlik > Yine de Aç**'ı kullanın (macOS 13 ve 14'te sağ tıklayıp **Aç** da çalışır). Derlemeler ad-hoc imzalı olduğundan macOS, güncellemelerden sonra mikrofon ve Terminal'i denetleme izinlerini yeniden sorabilir. |
 | **Ekran kartı** | **Gerekmez.** İşlemci (CPU) de çalışır. GPU yalnızca modelleri hızlandırır. |

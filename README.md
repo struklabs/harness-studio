@@ -53,7 +53,7 @@ Harness Studio is a desktop app built with Tauri, Rust, and Svelte. It manages t
 
 ## Quick start in 3 steps
 
-1. **Download and install.** Get the installer for your system from the [Releases page](https://github.com/struklabs/harness-studio/releases/latest). **Windows:** run `Harness Studio_..._x64-setup.exe` (about 21 MB). The installer is **not code-signed yet**, so Windows SmartScreen may say "Windows protected your PC". Click **More info**, then **Run anyway**. **macOS:** open the DMG for your Mac (`Harness Studio_..._aarch64.dmg` for Apple Silicon, `Harness Studio_..._x64.dmg` for Intel) and drag **Harness Studio** to **Applications**. The app is **not notarized by Apple yet**, so the first open is blocked: on macOS 15 or later the warning only offers **Move to Trash** or **Done**, so choose **Done**, go to **System Settings > Privacy & Security**, and click **Open Anyway**. On macOS 13 and 14 you can also right-click the app in Applications and choose **Open**. The source code and the build workflow are open in this repository.
+1. **Download and install.** Get the installer for your system from the [Releases page](https://github.com/struklabs/harness-studio/releases/latest). **Windows:** run `Harness Studio_..._x64-setup.exe` (about 21 MB). The installer is **not code-signed yet**, so Windows SmartScreen may say "Windows protected your PC". Click **More info**, then **Run anyway**. **macOS:** open the DMG for your Mac (`Harness Studio_..._aarch64.dmg` for Apple Silicon, about 29 MB; `Harness Studio_..._x64.dmg` for Intel, about 32 MB) and drag **Harness Studio** to **Applications**. The app is **not notarized by Apple yet**. If macOS says on the first open that it could not verify the app: **System Settings > Privacy & Security > Open Anyway**. This is needed only once. On macOS 15 or later the warning only offers **Move to Trash** or **Done**: choose **Done**, not Move to Trash. On macOS 13 and 14 you can also right-click the app in Applications and choose **Open**. The source code and the build workflow are open in this repository.
 2. **Follow the first-run wizard.** It looks at your hardware, asks where to keep models, installs the engine that runs them, and lets you choose your privacy settings. Pick the **Simple** interface level if you are new to this.
 3. **Pick a model and chat.** In **Model Hub**, choose a recommended model that fits your computer (the app shows a fit estimate) and press **Download**. Then open **Dashboard**, select the model, press **Start Server**, open **Playground**, and say hello.
 
@@ -61,14 +61,14 @@ Step by step, with every screen explained: [User guide](docs/guide/en/README.md)
 
 ## System requirements
 
-These are the requirements of **Harness Studio itself**, not of any model. Figures are measured on v0.1.0 for Windows.
+These are the requirements of **Harness Studio itself**, not of any model. Figures are measured on v0.1.0 on Windows and on macOS (Apple M1, 8 GB).
 
 | | |
 |---|---|
 | **Operating system** | Windows 10 or 11, 64-bit, or macOS 13.3 or later on Apple Silicon (with Metal acceleration) or Intel (CPU only). Linux is *coming soon* (see [Roadmap](#roadmap)). |
-| **Installer size** | About 21 MB on Windows |
-| **Installed size** | About 65 MB. On top of that, the app downloads the model engines it needs on demand (a llama.cpp build is tens of MB; CUDA builds are larger). |
-| **Memory used by the app** | About 250-350 MB of RAM for the app itself (interface plus WebView2), before any model is loaded |
+| **Installer size** | About 21 MB on Windows; on macOS the DMG is about 29 MB (Apple Silicon) or 32 MB (Intel) |
+| **Installed size** | About 65 MB (about 64 MB on macOS). On top of that, the app downloads the model engines it needs on demand (a llama.cpp build is tens of MB; CUDA builds are larger). |
+| **Memory used by the app** | About 250-350 MB of RAM for the app itself (interface plus WebView2), before any model is loaded. On macOS about 250 MB (interface plus WebKit). |
 | **WebView2** | Preinstalled on Windows 11. On Windows 10 the installer sets it up automatically if it is missing (this needs an internet connection once). |
 | **macOS** | A disk image (DMG): open it and drag the app to Applications. The app is not notarized, so open it the first time with **System Settings > Privacy & Security > Open Anyway** (on macOS 13 and 14, right-click > **Open** also works). Builds are ad-hoc signed, so macOS may ask again for the microphone and Terminal-control permissions after an update. |
 | **Graphics card** | **Not required.** The CPU works. A GPU only makes models faster. |
