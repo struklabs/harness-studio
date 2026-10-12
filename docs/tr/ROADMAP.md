@@ -33,7 +33,7 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
 - **Control API SDK'ları.** OpenAPI şemasından üretilen TypeScript ve Python istemcileri.
 - Apple Silicon için **MLX motoru**.
 - **Otomatik güncelleme.** Masaüstü uygulaması için GitHub Releases üzerinden imzalı güncelleme kanalı.
-- **İmzalı kurulum paketleri.** Kod imzalı Windows kurulum paketi ve noter onaylı macOS uygulaması.
+- **İmzalı kurulum paketleri.** Kod imzalı Windows kurulum paketi ve Apple tarafından doğrulanmış (notarize edilmiş) macOS uygulaması.
 
 ## Daha sonra
 
