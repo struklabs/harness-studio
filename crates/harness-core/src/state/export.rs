@@ -184,7 +184,7 @@ pub(crate) struct InsertOptions {
 fn load_attachments(conn: &Connection, message_id: &str) -> StateResult<Vec<Attachment>> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, kind, name, mime, size, sha256, path, created_at FROM attachments \
-         WHERE message_id = ?1 ORDER BY created_at, id",
+         WHERE message_id = ?1 ORDER BY created_at, rowid",
     )?;
     let rows = stmt
         .query_map([message_id], |r| {
