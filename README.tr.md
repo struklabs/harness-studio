@@ -13,7 +13,7 @@
 [![Lisans: MIT](https://img.shields.io/badge/lisans-MIT-green.svg)](LICENSE)
 [![İndirmeler](https://img.shields.io/github/downloads/struklabs/harness-studio/total?label=indirme)](https://github.com/struklabs/harness-studio/releases)
 [![Tartışmalar](https://img.shields.io/github/discussions/struklabs/harness-studio?label=tart%C4%B1%C5%9Fmalar)](https://github.com/struklabs/harness-studio/discussions)
-![Platformlar](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%2FmacOS%20yak%C4%B1nda-blue)
+![Platformlar](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20yak%C4%B1nda-blue)
 [![Yıldızlar](https://img.shields.io/github/stars/struklabs/harness-studio?style=social)](https://github.com/struklabs/harness-studio/stargazers)
 
 [İndir](https://github.com/struklabs/harness-studio/releases/latest) · [Kullanım kılavuzu](docs/guide/tr/README.md) · [SSS](#sık-sorulan-sorular) · [Yol haritası](docs/tr/ROADMAP.md) · [Projeye destek olun](#projeye-nasıl-destek-olabilirsiniz)
@@ -53,7 +53,7 @@ Harness Studio; Tauri, Rust ve Svelte ile yazılmış bir masaüstü uygulaması
 
 ## 3 adımda hızlı başlangıç
 
-1. **İndirin ve kurun.** [Sürümler sayfasından](https://github.com/struklabs/harness-studio/releases/latest) Windows kurulum dosyasını (`Harness Studio_..._x64-setup.exe`, yaklaşık 21 MB) indirip çalıştırın. Kurulum dosyası **henüz dijital olarak imzalı değildir**; bu yüzden Windows SmartScreen "Windows bilgisayarınızı korudu" diyebilir. **Ek bilgi**'ye, sonra **Yine de çalıştır**'a tıklayın. Kaynak kod ve derleme akışı bu depoda açıktır.
+1. **İndirin ve kurun.** [Sürümler sayfasından](https://github.com/struklabs/harness-studio/releases/latest) sisteminize uygun kurulum dosyasını indirin. **Windows:** `Harness Studio_..._x64-setup.exe` dosyasını (yaklaşık 21 MB) çalıştırın. Kurulum dosyası **henüz dijital olarak imzalı değildir**; bu yüzden Windows SmartScreen "Windows bilgisayarınızı korudu" diyebilir. **Ek bilgi**'ye, sonra **Yine de çalıştır**'a tıklayın. **macOS:** Mac'inize uygun DMG'yi (Apple Silicon için `Harness Studio_..._aarch64.dmg`, Intel için `Harness Studio_..._x64.dmg`) açın ve **Harness Studio**'yu **Uygulamalar** klasörüne sürükleyin. Uygulama **henüz Apple tarafından noter onaylı (notarized) değildir**; bu yüzden ilk açılış engellenir: macOS 15 ve sonrasında uyarı yalnızca **Çöp Sepetine Taşı** ve **Bitti** seçeneklerini sunar. **Bitti**'yi seçin, **Sistem Ayarları > Gizlilik ve Güvenlik**'e gidin ve **Yine de Aç**'a tıklayın. macOS 13 ve 14'te Uygulamalar'da uygulamaya sağ tıklayıp **Aç**'ı da seçebilirsiniz. Kaynak kod ve derleme akışı bu depoda açıktır.
 2. **İlk açılış sihirbazını izleyin.** Donanımınıza bakar, modellerin nerede saklanacağını sorar, modelleri çalıştıran motoru kurar ve gizlilik ayarlarını seçmenizi sağlar. Yeniyseniz **Basit** arayüz düzeyini seçin.
 3. **Model seçin ve sohbet edin.** **Model Hub**'da bilgisayarınıza uyan önerilen bir model seçin (uygulama uyum tahmini gösterir) ve **İndir**'e basın. Sonra **Dashboard**'u açın, modeli seçin, **Sunucuyu Başlat**'a basın, **Playground**'u açıp merhaba deyin.
 
@@ -65,11 +65,12 @@ Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değ
 
 | | |
 |---|---|
-| **İşletim sistemi** | 64 bit Windows 10 veya 11. Linux ve macOS *yakında* (bkz. [Yol haritası](#yol-haritası)). |
-| **Kurulum dosyası boyutu** | Yaklaşık 21 MB |
+| **İşletim sistemi** | 64 bit Windows 10 veya 11 ya da macOS 13.3 veya üstü: Apple Silicon (Metal hızlandırmalı) veya Intel (yalnızca CPU). Linux *yakında* (bkz. [Yol haritası](#yol-haritası)). |
+| **Kurulum dosyası boyutu** | Windows'ta yaklaşık 21 MB |
 | **Kurulu boyut** | Yaklaşık 65 MB. Bunun üstüne uygulama, gereken model motorlarını ihtiyaç olunca indirir (llama.cpp derlemesi onlarca MB; CUDA derlemeleri daha büyük). |
 | **Uygulamanın bellek kullanımı** | Hiçbir model yüklenmeden uygulamanın kendisi (arayüz ve WebView2) yaklaşık 250-350 MB RAM kullanır |
 | **WebView2** | Windows 11'de hazır gelir. Windows 10'da eksikse kurulum dosyası otomatik kurar (bunun için bir kez internet gerekir). |
+| **macOS** | Disk görüntüsü (DMG): açın ve uygulamayı Uygulamalar klasörüne sürükleyin. Uygulama noter onaylı değildir; ilk açılışta **Sistem Ayarları > Gizlilik ve Güvenlik > Yine de Aç**'ı kullanın (macOS 13 ve 14'te sağ tıklayıp **Aç** da çalışır). Derlemeler ad-hoc imzalı olduğundan macOS, güncellemelerden sonra mikrofon ve Terminal'i denetleme izinlerini yeniden sorabilir. |
 | **Ekran kartı** | **Gerekmez.** İşlemci (CPU) de çalışır. GPU yalnızca modelleri hızlandırır. |
 | **Modeller için disk** | Modele göre değişir: küçük bir model için yaklaşık 100 MB, büyük biri için 10 GB ve üstü. Klasörü, başka bir sürücü dahil, siz seçersiniz. |
 | **İnternet** | Uygulamayı, motorları ve modelleri indirmek için gerekir. Model diskinizdeyse sohbet için gerekmez. |
@@ -288,7 +289,7 @@ Windows'ta **Uygulamalar > Yüklü uygulamalar**'ı kullanın. Kaldırmak verile
 <details>
 <summary><b>Linux veya macOS'ta çalışır mı?</b></summary>
 
-İkisi için de derlemeler var ama gerçek makinelerde henüz doğrulanmadı; bu yüzden **yakında** olarak işaretli. Bunları doğrulayıp yayımlamak [yol haritasının](#yol-haritası) en üst maddesidir. Kaynaktan derleyip deneyebilirsiniz; ama pürüzler bekleyin.
+macOS: evet. Apple Silicon (Metal hızlandırmalı) ve Intel Mac'ler (yalnızca CPU) için birer DMG var; macOS 13.3 veya üstü gerekir. İlk açılış adımı için bkz. [Hızlı başlangıç](#3-adımda-hızlı-başlangıç). Linux derlemeleri var ama gerçek makinelerde henüz doğrulanmadı; bu yüzden **yakında** olarak işaretli. Bunları doğrulayıp yayımlamak [yol haritasındadır](#yol-haritası). Kaynaktan derleyip deneyebilirsiniz; ama pürüzler bekleyin.
 </details>
 
 <details>
