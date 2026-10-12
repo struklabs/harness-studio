@@ -9,12 +9,14 @@
   import { security } from '$lib/stores/security.svelte';
   import { holdReleaseWhile } from '$lib/windowActivity';
   import { Button } from '$lib/components/ui/button';
+  import EngineNeeded from '../common/EngineNeeded.svelte';
+  import { familyFromError } from '$lib/engines';
   import { fetchTranscription } from './transcribe';
   import { RecordError } from './recorder';
   import { createRecordingSession, recordingClock, type RecordingState } from './recordingSession';
   import { speech } from './speech.svelte';
   import { asr } from './asr.svelte';
-  import { dictationRequirement, speechModel } from './speechSetup';
+  import { dictationFamily, dictationRequirement, speechModel } from './speechSetup';
 
   let { onText, contextKey, blocked = false }: { onText: (text: string) => void; contextKey: number; blocked?: boolean } = $props();
   let recState = $state<RecordingState>('idle');
@@ -23,6 +25,8 @@
   let checking = $state(false);
   let error = $state('');
   let setup = $state(false);
+  /** Engine family dictation is missing; shown with its install button. */
+  let needFamily = $state<string | null>(null);
   let setupSection = $state<'runtime' | 'gateway'>('runtime');
   let generation = 0;
   let controller: AbortController | null = null;
@@ -48,7 +52,7 @@
   }
   $effect(() => {
     void contextKey;
-    untrack(() => { cancel(); error = ''; setup = false; });
+    untrack(() => { cancel(); error = ''; setup = false; needFamily = null; });
   });
   $effect(() => { if (blocked) untrack(cancel); });
   onDestroy(cancel);
@@ -58,6 +62,7 @@
     const token = ++generation;
     error = '';
     setup = false;
+    needFamily = null;
     checking = true;
     await Promise.all([domain.refreshDefinitions(), runtimesStore.load(true), asr.load()]);
     if (token !== generation) return;
@@ -67,7 +72,8 @@
     if (missing) {
       setup = true;
       setupSection = missing === 'gateway' ? 'gateway' : 'runtime';
-      error = t(missing === 'model' ? 'pg.dictation_need_model' : missing === 'runtime' ? 'pg.dictation_need_runtime' : 'asr.need_gateway');
+      if (missing === 'runtime') needFamily = dictationFamily(speech.model, asr.names);
+      else error = t(missing === 'model' ? 'pg.dictation_need_model' : 'asr.need_gateway');
       return;
     }
     request = { url: app.inferenceUrl, headers: app.inferenceHeaders(), model: speech.model };
@@ -88,9 +94,10 @@
     } catch (e) {
       if (!c.signal.aborted) {
         const message = localizeError(e);
-        setup = /runtime\.family_not_installed/.test(String(e));
+        needFamily = familyFromError(String(e));
+        setup = !!needFamily;
         setupSection = 'runtime';
-        error = setup ? t('pg.dictation_need_runtime') : message;
+        error = needFamily ? '' : message;
       }
     } finally {
       if (controller === c) { controller = null; busy = false; }
@@ -113,7 +120,11 @@
     </span>
     <Button type="button" variant="ghost" size="icon-sm" onclick={cancel} aria-label={t('pg.cancel')}><X /></Button>
   {/if}
-  {#if error}
+  {#if needFamily}
+    <span class="text-xs text-destructive" role="alert">
+      <EngineNeeded family={needFamily} size="sm" onInstalled={() => { needFamily = null; setup = false; }} />
+    </span>
+  {:else if error}
     <span class="text-xs text-destructive" role="alert">{error}</span>
     {#if setup}
       <Button type="button" variant="link" size="sm" onclick={() => app.openTab('library')}>{t('pg.dictation_library')}</Button>

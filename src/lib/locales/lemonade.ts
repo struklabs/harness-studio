@@ -1,4 +1,4 @@
-// Lemonade: the Settings > Runtime card for the optional engine that runs
+// Lemonade (ROADMAP D5): the Settings > Model Engine card for the optional engine that runs
 // models on Ryzen AI NPUs (FastFlowLM) and offers its own ROCm / Vulkan llama.cpp builds.
 const tr = {
   'lem.title': 'Lemonade (Ryzen AI NPU)',
@@ -71,7 +71,7 @@ const tr = {
   'lem.removed': 'Sürüm kaldırıldı',
   'lem.license': 'FastFlowLM (NPU arka ucu): kodu MIT lisanslıdır, NPU çekirdekleri ise kapalı ikili dosyalardır ve kendi kullanım koşullarına (ticari kullanım için gelir sınırı dâhil) bağlıdır. Harness bunları dağıtmaz; Lemonade, yalnızca NPU\'lu makinelerde ve sizin isteğinizle indirir. Powered by FastFlowLM.',
   'lem.paths': 'Veri klasörü: {dir}',
-  'lemonade.not_installed': 'Lemonade kurulu değil. Ayarlar > Model Motoru bölümünden kurun.',
+  'lemonade.not_installed': 'Lemonade kurulu değil. Ayarlar > Kurulu Model Motoru sayfasındaki lemonade satırından kurun.',
   'lemonade.start_failed': 'Lemonade sunucusu (lemond) başlamadı: {detail}',
   'lemonade.start_timeout': 'Lemonade sunucusu {seconds} sn içinde yanıt vermedi.',
   'lemonade.api_error': 'Lemonade hata döndürdü: {detail}',
@@ -154,7 +154,7 @@ const en: Record<keyof typeof tr, string> = {
   'lem.removed': 'Build removed',
   'lem.license': 'FastFlowLM (the NPU backend): its code is MIT-licensed, its NPU kernels are proprietary binaries under their own terms of use (including a revenue limit for commercial use). Harness does not distribute them; Lemonade downloads them only on computers with an NPU and when you ask. Powered by FastFlowLM.',
   'lem.paths': 'Data folder: {dir}',
-  'lemonade.not_installed': 'Lemonade is not installed. Install it in Settings > Runtime.',
+  'lemonade.not_installed': 'Lemonade is not installed. Install it from the lemonade row in Settings > Installed Runtime.',
   'lemonade.start_failed': 'The Lemonade server (lemond) did not start: {detail}',
   'lemonade.start_timeout': 'The Lemonade server did not answer within {seconds} s.',
   'lemonade.api_error': 'Lemonade returned an error: {detail}',

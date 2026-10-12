@@ -51,7 +51,7 @@ The runtime is the engine that runs a model file. Chat uses llama.cpp.
 
 The recommended acceleration depends on your hardware: CUDA for NVIDIA, ROCm/HIP or Vulkan for suitable AMD cards, SYCL or Vulkan for Intel Arc, Metal for Apple Silicon. Without a GPU, the CPU is used. Detecting a graphics card does not guarantee the chosen build can use it. If the installed build cannot see the card, Harness Studio switches to a build that works on any card (for example Vulkan) and tells you on the **Settings > Runtime > Installed Runtime** page.
 
-Other kinds of models use optional engines that you install when you need them, from the **Model Hub** (an **Install** button appears above the list or in a model's details) or from **Settings > Runtime > Registry** (an Advanced page):
+Other kinds of models use optional engines that you install when you need them, with one click: an **Install** button appears next to the "This model needs the … runtime" note on library cards, in the Model Hub and in Playground errors, and every engine is listed under **Other Runtimes** in **Settings > Runtime > Installed Runtime** (at both interface levels). Extra builds can also be added from **Settings > Runtime > Registry** (an Advanced page):
 
 | Capability | Engine |
 | --- | --- |

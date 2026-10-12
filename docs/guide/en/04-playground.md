@@ -103,7 +103,7 @@ The **Speech** tab covers both directions. Audio goes through the gateway; if it
 ### Speech to Text
 
 1. In **Model Hub**, search for `whisper` and download a Whisper ggml model. For Turkish or other languages, do not pick a model that only knows English (a `.en` model).
-2. Install the whisper.cpp engine. Model Hub may show a **Required: Speech module (whisper.cpp)** note with an **Install** button. On macOS there is no ready-made whisper server package; you can add the folder of a `whisper-server` you built yourself.
+2. Install the whisper.cpp engine: press the **Install whisper.cpp** button shown on the library card, in Model Hub, or in this tab's error message. You can also install it from the **Other Runtimes** list in **Settings > Runtime > Installed Runtime**. On macOS there is no ready-made whisper server package; you can add the folder of a `whisper-server` you built yourself.
 3. Open the **Playground > Speech** tab.
 4. Choose a **Model**. Add audio with **Choose File**, or start a microphone recording with **Record** and end it with **Stop**. The operating system may ask for microphone permission.
 5. You can type a language code such as `tr` into **Language** or leave it automatic. For **Task**, choose **Transcribe** or **Translate to English**, then press **Transcribe**.
