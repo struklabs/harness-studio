@@ -2714,11 +2714,8 @@
         <div class="flex shrink-0 items-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2" role="status">
           <Unplug class="size-4 shrink-0 text-warning" aria-hidden="true" />
           <span class="min-w-0 flex-1 text-xs text-foreground">
-            {app.isBusy || starting ? t('pg.offline_starting') : t('pg.offline_title')}
+            {app.isBusy ? t('pg.offline_starting') : t('pg.offline_title')}
           </span>
-          {#if startModel && !app.isBusy && !starting}
-            <Button size="sm" class="max-w-64" onclick={startFromHere}><span class="truncate">{startLabel}</span></Button>
-          {/if}
           <Button variant="outline" size="sm" onclick={onGoToDashboard}>{t('pg.go_dashboard')}</Button>
         </div>
       {/if}
@@ -2755,11 +2752,8 @@
         <div class="flex shrink-0 items-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2" role="status">
           <Unplug class="size-4 shrink-0 text-warning" aria-hidden="true" />
           <span class="min-w-0 flex-1 text-xs text-foreground">
-            {app.isBusy || starting ? t('pg.offline_starting') : t('pg.offline_title')}
+            {app.isBusy ? t('pg.offline_starting') : t('pg.offline_title')}
           </span>
-          {#if startModel && !app.isBusy && !starting}
-            <Button size="sm" class="max-w-64" onclick={startFromHere}><span class="truncate">{startLabel}</span></Button>
-          {/if}
           <Button variant="outline" size="sm" onclick={onGoToDashboard}>{t('pg.go_dashboard')}</Button>
         </div>
       {/if}
