@@ -1,4 +1,4 @@
-// ONNX encoder models and onnxruntime-genai chat models: parameter catalog labels (params_onnx.toml), the managed
+// ONNX encoder models (ROADMAP D2) and onnxruntime-genai chat models (D7): parameter catalog labels (params_onnx.toml), the managed
 // ONNX Runtime card in Settings > Runtime and the backend error keys.
 const tr = {
   'oparam.threads': 'İş parçacığı',
@@ -32,7 +32,7 @@ const tr = {
   'ort.variant_directml': 'DirectML (Windows: AMD ve NVIDIA)',
   'ort.variant_cuda': 'CUDA (NVIDIA; güncel CUDA 12 (12.4 yetmez, 12.9 sınandı) ve cuDNN 9 gerekir)',
   'ort.variant_cpu': 'CPU',
-  'onnx.runtime_missing': 'ONNX Runtime ({variant}) kurulu değil. Ayarlar > Model Motoru bölümünden kurun.',
+  'onnx.runtime_missing': 'ONNX Runtime ({variant}) kurulu değil. Ayarlar > Kurulu Model Motoru sayfasındaki ONNX Runtime satırından kurun.',
   'onnx.unsupported_platform': 'Bu platformda ONNX Runtime "{variant}" yapısı yok.',
   'onnx.sidecar_missing': 'harness-onnx bulunamadı ({path}). Uygulamayı yeniden kurun ya da HARNESS_ONNX_BIN ile yolu verin.',
   'onnx.genai_unsupported_platform': 'ONNX Runtime GenAI sohbet modelleri şimdilik yalnızca Windows\'ta çalışır.',
@@ -72,7 +72,7 @@ const en: Record<keyof typeof tr, string> = {
   'ort.variant_directml': 'DirectML (Windows: AMD and NVIDIA)',
   'ort.variant_cuda': 'CUDA (NVIDIA; needs a recent CUDA 12 (12.4 is too old, 12.9 tested) and cuDNN 9)',
   'ort.variant_cpu': 'CPU',
-  'onnx.runtime_missing': 'ONNX Runtime ({variant}) is not installed. Install it in Settings > Runtime.',
+  'onnx.runtime_missing': 'ONNX Runtime ({variant}) is not installed. Install it from the ONNX Runtime row in Settings > Installed Runtime.',
   'onnx.unsupported_platform': 'There is no ONNX Runtime "{variant}" build for this platform.',
   'onnx.sidecar_missing': 'harness-onnx was not found ({path}). Reinstall the app or set HARNESS_ONNX_BIN.',
   'onnx.genai_unsupported_platform': 'ONNX Runtime GenAI chat models only run on Windows for now.',

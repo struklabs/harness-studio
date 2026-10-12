@@ -9,6 +9,8 @@
   import { app } from '$lib/stores/app.svelte';
   import { domain } from '$lib/stores/domain.svelte';
   import { Button } from '$lib/components/ui/button';
+  import EngineNeeded from '../common/EngineNeeded.svelte';
+  import { familyFromError } from '$lib/engines';
   import { Badge } from '$lib/components/ui/badge';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
@@ -63,6 +65,8 @@
   let file = $state<File | null>(null);
   let busy = $state(false);
   let error = $state('');
+  /** Engine family the failed run was missing; shown with its install button. */
+  let needFamily = $state<string | null>(null);
   let result = $state<TranscribeResult | null>(null);
   let controller: AbortController | null = null;
   let recState = $state<'idle' | 'starting' | 'recording'>('idle');
@@ -87,6 +91,7 @@
     controller = c;
     busy = true;
     error = '';
+    needFamily = null;
     try {
       result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language, prompt, format }, app.inferenceHeaders(), c.signal);
     } catch (e) {
@@ -94,8 +99,8 @@
         const msg = e instanceof Error ? e.message : String(e);
         // The gateway passes the load failure through as raw keys ("…: runtime.family_not_installed:
         // whisper.cpp"); say what is missing and where to install it instead.
-        const family = /runtime\.family_not_installed:\s*([\w.+-]+)/.exec(msg)?.[1];
-        error = family ? t('lib.runtime_needs_hint', { runtime: family }) : msg;
+        needFamily = familyFromError(msg);
+        error = needFamily ? '' : msg;
         result = null;
       }
     } finally {
@@ -129,6 +134,7 @@
       file = audio;
       result = null;
       error = '';
+      needFamily = null;
       if (fileInput) fileInput.value = '';
     },
     error: (e) => {
@@ -383,7 +389,11 @@
     </section>
   {/if}
 
-  {#if error}
+  {#if needFamily}
+    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
+      <EngineNeeded family={needFamily} onInstalled={() => (needFamily = null)} />
+    </div>
+  {:else if error}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
       {error}
     </div>

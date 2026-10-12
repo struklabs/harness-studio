@@ -20,6 +20,8 @@
     target: string | null;
     registered: boolean;
     target_dir_on_path: boolean;
+    translocated: boolean;
+    profile: string | null;
   }
 
   let status = $state<CliStatus | null>(null);
@@ -82,15 +84,22 @@
     </SettingRow>
     <SettingRow
       label={t('cli.path_label')}
-      hint={status.mode === 'windows' ? t('cli.path_hint_windows') : t('cli.path_hint_symlink', { target: status.target ?? '' })}
+      hint={status.mode === 'windows'
+        ? t('cli.path_hint_windows')
+        : [t('cli.path_hint_symlink', { target: status.target ?? '' }), status.profile ? t('cli.path_hint_profile', { profile: status.profile }) : '']
+            .filter(Boolean)
+            .join(' ')}
     >
       {#if status.registered}
         <Badge variant="outline" class="text-success">{t('cli.on_path')}</Badge>
         <Button size="sm" variant="outline" disabled={busy} onclick={() => run('cli_path_uninstall')}>{t('cli.remove')}</Button>
       {:else}
-        <Button size="sm" disabled={busy} onclick={() => run('cli_path_install')}>{t('cli.add')}</Button>
+        <Button size="sm" disabled={busy || status.translocated} onclick={() => run('cli_path_install')}>{t('cli.add')}</Button>
       {/if}
     </SettingRow>
+    {#if status.translocated && !status.registered}
+      <p class="px-4 pb-3 text-xs text-muted-foreground">{t('cli_install.translocated')}</p>
+    {/if}
     {#if status.registered && status.mode === 'windows'}
       <p class="px-4 pb-3 text-xs text-muted-foreground">{t('cli.reopen_terminal')}</p>
     {/if}

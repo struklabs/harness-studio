@@ -1,6 +1,6 @@
 use super::arch::{scan, scan_dir};
 use super::env;
-use super::plan::{build_plan, estimate, select_files, ConvertPlan};
+use super::plan::{build_plan, estimate, merge_config, select_files, ConvertPlan};
 use super::run::{
     mmproj_name, output_name, parse_line, parse_quantize_step, target_dir_in,
     unsupported_architecture_in, Line,
@@ -189,20 +189,39 @@ fn mistral_consolidated_weights_are_not_downloaded_twice() {
     assert_eq!(select_files(&only).len(), 2);
 }
 
-fn smol_info() -> serde_json::Value {
+/// Shaped like the Hub record (`/api/models/<repo>?blobs=true`): its `config` has no
+/// `vocab_size` / `hidden_size`; those come from the repo's `config.json` ([`smol_config`]).
+fn smol_record() -> serde_json::Value {
     json!({
         "pipeline_tag": "text-generation",
         "config": {
             "architectures": ["LlamaForCausalLM"],
             "model_type": "llama",
-            "vocab_size": 49152,
-            "hidden_size": 576
+            "tokenizer_config": {"eos_token": "<|im_end|>"}
         },
         "safetensors": {"total": 134515008},
         "cardData": {"license": "apache-2.0"},
         "gated": false,
         "siblings": siblings(),
     })
+}
+
+/// The repo's `config.json` (the fields the estimate reads, plus one the record also has).
+fn smol_config() -> serde_json::Value {
+    json!({
+        "architectures": ["LlamaForCausalLM"],
+        "model_type": "llama",
+        "vocab_size": 49152,
+        "hidden_size": 576,
+        "num_hidden_layers": 30
+    })
+}
+
+/// The record with the repo's `config.json` merged in, as `plan` builds it.
+fn smol_info() -> serde_json::Value {
+    let mut info = smol_record();
+    merge_config(&mut info, smol_config());
+    info
 }
 
 fn plan_for(
@@ -253,6 +272,29 @@ fn a_supported_repo_is_convertible_with_size_estimates() {
     assert_eq!(plan.quants.len(), CHOICES.len());
     assert_eq!(plan.default_quant, "Q4_K_M");
     plan.check("Q4_K_M").unwrap();
+}
+
+#[test]
+fn the_size_estimate_needs_the_repo_config_the_hub_record_leaves_out() {
+    let archs = scan(&[SOURCE_A]);
+    // The Hub record alone: no embedding size, Q4_K_M ~81 MB against 105.5 MB measured.
+    let bare = plan_for(&smol_record(), Some(&archs), 50_000_000_000);
+    assert_eq!(bare.embedding_parameters, 0);
+    assert!(bare.estimate("Q4_K_M").size_bytes < 90_000_000);
+    // Merged: the record's fields stay, the missing ones come from `config.json`.
+    let info = smol_info();
+    assert_eq!(
+        info["config"]["tokenizer_config"]["eos_token"],
+        "<|im_end|>"
+    );
+    assert_eq!(info["config"]["num_hidden_layers"], 30);
+    let plan = plan_for(&info, Some(&archs), 50_000_000_000);
+    assert_eq!(plan.embedding_parameters, 49_152 * 576);
+    assert!(plan.estimate("Q4_K_M").size_bytes > 94_900_000);
+    // A record without any config gets one.
+    let mut none = json!({"siblings": []});
+    merge_config(&mut none, smol_config());
+    assert_eq!(none["config"]["hidden_size"], 576);
 }
 
 #[test]

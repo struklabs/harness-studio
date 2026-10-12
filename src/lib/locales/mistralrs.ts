@@ -10,10 +10,10 @@ const tr = {
   // ---- Hub ----
   'hub.compat_needs_mistralrs': 'Gerekli: mistral.rs motoru',
   'hub.compat_needs_mistralrs_title':
-    'Bu safetensors modeli mistral.rs ile çalışır; motor henüz eklenmemiş. Kendi derlediğiniz mistral.rs klasörünü Ayarlar > Model Motoru\'ndan ekleyebilirsiniz.',
+    'Bu safetensors modeli mistral.rs ile çalışır; motor henüz eklenmemiş. Kendi derlediğiniz mistral.rs klasörünü Ayarlar > Registry sayfasından (Gelişmiş düzey) ekleyebilirsiniz.',
   'hub.compat_needs_mistralrs_drawer':
-    'Gerekli: mistral.rs motoru. Modeli indirebilirsiniz ama çalıştırmak için kendi derlediğiniz mistral.rs klasörünü Ayarlar > Model Motoru\'ndan eklemeniz gerekir.',
-  'hub.compat_open_runtime_settings': 'Model Motoru Ayarlarını Aç',
+    'Gerekli: mistral.rs motoru. Modeli indirebilirsiniz ama çalıştırmak için kendi derlediğiniz mistral.rs klasörünü Ayarlar > Registry sayfasından (Gelişmiş düzey) eklemeniz gerekir.',
+  'hub.compat_open_runtime_settings': 'Registry Ayarlarını Aç',
   // ---- Parameter catalog (params_mistralrs.toml) ----
   'mrparam.max_seq_len_help':
     'Modelin bir istekte işleyeceği en uzun bağlam (token). mistral.rs belleği bu uzunluğa göre ayırır; PagedAttention önbelleği de bu boyuta göre ayarlanır.',
@@ -53,8 +53,8 @@ const en: Record<keyof typeof tr, string> = {
   'hub.compat_needs_mistralrs_title':
     'This safetensors model runs on mistral.rs, which hasn’t been added yet. Add the folder of your own mistral.rs build in Settings > Runtime.',
   'hub.compat_needs_mistralrs_drawer':
-    'Required: mistral.rs runtime. You can download the model, but to run it you need to add the folder of your own mistral.rs build in Settings > Runtime.',
-  'hub.compat_open_runtime_settings': 'Open Runtime Settings',
+    'Required: mistral.rs runtime. You can download the model, but to run it you need to add the folder of your own mistral.rs build in Settings > Registry (Advanced level).',
+  'hub.compat_open_runtime_settings': 'Open Registry Settings',
   'mrparam.max_seq_len_help':
     'The longest context (tokens) the model handles in one request. mistral.rs sizes its memory for it; the PagedAttention cache is sized to it too.',
   'mrparam.max_seqs': 'Concurrent Requests',

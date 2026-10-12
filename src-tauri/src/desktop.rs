@@ -51,6 +51,12 @@ fn move_legacy_launch_agent(app: &AppHandle) {
     if !legacy.exists() {
         return;
     }
+    // Rewriting it from a translocated copy would point the entry at a vanishing path.
+    let translocated = std::env::current_exe()
+        .is_ok_and(|exe| crate::integrations::cli_install::is_translocated(&exe));
+    if translocated {
+        return;
+    }
     if let Err(e) = std::fs::remove_file(&legacy) {
         eprintln!("[Harness Studio] Old login entry not removed: {}", e);
         return;

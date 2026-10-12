@@ -129,7 +129,7 @@ CLI çıktısı İngilizcedir. Çekirdek ve API hataları i18n anahtarı döndü
 | `tts install <id> [-y]` | Katalogdaki modeli SHA-256 doğrulamasıyla indirip açar (`<modeller>/tts/<id>/`); ilerleme stderr'e yazılır | kurulan model |
 | `tts rm <model> [-y]` | Ses modeli klasörünü siler (yalnız model dizinlerinin içindeki, ses modeli olarak tanınan klasörler) | `{removed}` |
 
-Runtime bir kez kurulur: `harness runtime add --github k2-fsa/sherpa-onnx --family sherpa-onnx` (GUI'de Ayarlar > Model Motoru > "sherpa-onnx Deposunu Doldur" ya da Konuşma sekmesindeki "Motoru Kur").
+Runtime bir kez kurulur: `harness runtime add --github k2-fsa/sherpa-onnx --family sherpa-onnx` (GUI'de Konuşma sekmesindeki "sherpa-onnx Kur", Ayarlar > Kurulu Model Motoru > "Diğer Model Motorları" ya da Gelişmiş düzeyde Ayarlar > Registry > "sherpa-onnx Deposunu Doldur").
 
 ```sh
 harness tts install vits-piper-tr_TR-fettah-medium-int8

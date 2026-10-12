@@ -5,13 +5,13 @@ import { invoke } from '$lib/ipc';
 import { t } from '$lib/i18n.svelte';
 import { localizeError } from '$lib/network';
 import { app } from '$lib/stores/app.svelte';
-import { runtimesStore } from '$lib/stores/runtimes.svelte';
-import type { RuntimeDownloadProgress, RuntimeEntry, RuntimeReleasePick } from '$lib/types';
+import { engineInstall } from '$lib/stores/engineInstall.svelte';
+import { familyFromError } from '$lib/engines';
+import type { RuntimeDownloadProgress } from '$lib/types';
 import { fetchSpeech, pickTtsModel, pickTtsVoice, type TtsModelInfo, type TtsOverview } from './tts';
 import { chunkSpeechText, plainSpeechText } from './ttsText';
 
 const FAMILY = 'sherpa-onnx';
-const REPO = 'k2-fsa/sherpa-onnx';
 
 class TtsStore {
   overview = $state<TtsOverview | null>(null);
@@ -21,7 +21,9 @@ class TtsStore {
   /** Catalog id being downloaded, and its progress. */
   installingModel = $state<string | null>(null);
   modelProgress = $state<RuntimeDownloadProgress | null>(null);
-  installingRuntime = $state(false);
+  get installingRuntime(): boolean {
+    return engineInstall.busy(FAMILY);
+  }
 
   models = $derived<TtsModelInfo[]>(this.overview?.models ?? []);
 
@@ -61,40 +63,11 @@ class TtsStore {
     }
   }
 
-  /** Installs the sherpa-onnx runtime (the same preview + install commands as Settings > Runtime). */
+  /** Installs the sherpa-onnx runtime (the shared one-click engine installer). */
   async installRuntime(): Promise<boolean> {
-    if (this.installingRuntime) return false;
-    this.installingRuntime = true;
-    try {
-      const pick = await invoke<RuntimeReleasePick>('preview_runtime_release', {
-        query: { family: FAMILY, repo: REPO, tag: null, backend: null, asset: null },
-      });
-      if (pick.unverified.length > 0) {
-        toast.error(t('hub.compat_install_unverified'));
-        return false;
-      }
-      const entry = await invoke<RuntimeEntry>('install_runtime_github', {
-        request: {
-          family: pick.family ?? FAMILY,
-          repo: pick.repo,
-          tag: pick.tag,
-          asset: pick.assets[0]?.name ?? null,
-          backend: null,
-          name: 'sherpa-onnx',
-          id: null,
-          allow_unverified: false,
-        },
-      });
-      toast.success(t('rt.added', { name: entry.name }));
-      await runtimesStore.load(true);
-      await this.load();
-      return true;
-    } catch (e) {
-      toast.error(t('hub.compat_install_failed', { error: localizeError(e) }));
-      return false;
-    } finally {
-      this.installingRuntime = false;
-    }
+    if (!(await engineInstall.install(FAMILY))) return false;
+    await this.load();
+    return true;
   }
 }
 
@@ -173,8 +146,13 @@ class ReadAloud {
     } catch (e) {
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
-        const family = /runtime\.family_not_installed:\s*([\w.+-]+)/.exec(msg)?.[1];
-        toast.error(t('speak.read_failed', { error: family ? t('lib.runtime_needs_hint', { runtime: family }) : localizeError(e) }));
+        const family = familyFromError(msg);
+        toast.error(
+          t('speak.read_failed', { error: family ? t('lib.runtime_needs_hint', { runtime: family }) : localizeError(e) }),
+          family && engineInstall.canInstall(family)
+            ? { action: { label: t('eng.install', { runtime: family }), onClick: () => void engineInstall.install(family) } }
+            : undefined,
+        );
       }
     } finally {
       if (this.controller === c) this.stop();

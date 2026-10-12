@@ -21,8 +21,7 @@
   import VariantDrawer from './hub/VariantDrawer.svelte';
   import { parseSearchQuery } from './hub/searchParser';
   import { clearPageCache, fetchPage, loadPrefs, savePrefs } from './hub/hubData';
-  import { whisperRuntime } from './hub/whisperRuntime.svelte';
-  import { sdcppRuntime } from './hub/sdcppRuntime.svelte';
+  import EngineNeeded from './common/EngineNeeded.svelte';
   import { taskInfo } from './hub/tasks';
   import { taskSupportStore } from './hub/taskSupport.svelte';
 
@@ -270,28 +269,14 @@
       : results.filter((repo) => repo.tags?.some((tag) => tag.toLowerCase() === selectedTagFilter.toLowerCase()))
   );
 
-  /** The shown list has speech models whose whisper.cpp runtime is not installed yet. */
-  let needsWhisper = $derived(
-    results.some((r) => r.compatibility.status === 'needs_runtime' && r.compatibility.runtime === 'whisper.cpp')
+  /** Engine families the shown models need and that are not installed yet (mistral.rs has no managed download and is shown on its own). */
+  let neededFamilies = $derived(
+    [...new Set(results.flatMap((r) => (r.compatibility.status === 'needs_runtime' && r.compatibility.runtime !== 'mistral.rs' ? [r.compatibility.runtime] : [])))]
   );
 
-  async function installWhisper() {
-    if (await whisperRuntime.install()) {
-      clearPageCache();
-      void runList();
-    }
-  }
-
-  /** The shown list has image models whose stable-diffusion.cpp runtime is not installed yet. */
-  let needsSdcpp = $derived(
-    results.some((r) => r.compatibility.status === 'needs_runtime' && r.compatibility.runtime === 'stable-diffusion.cpp')
-  );
-
-  async function installSdcpp() {
-    if (await sdcppRuntime.install()) {
-      clearPageCache();
-      void runList();
-    }
+  function enginesInstalled() {
+    clearPageCache();
+    void runList();
   }
 
   let listTitle = $derived(shownQuery.trim() ? t('hub.list_title_search', { query: shownQuery.trim() }) : t(LIST_TITLES[sortKey]));
@@ -351,7 +336,7 @@
       <Info class="mt-px size-3.5 shrink-0" />
       <span>
         {#if taskInfoRuntime?.needs_runtime}
-          {t('lib.runtime_needs_hint', { runtime: taskInfoRuntime.needs_runtime })}
+          <EngineNeeded family={taskInfoRuntime.needs_runtime} onInstalled={() => void taskSupportStore.load(true)} />
         {:else if taskInfoRuntime?.runtime && taskLevel === 'partial'}
           {t('hub.task_alt_partial_banner', { task: t(task.key), runtime: taskInfoRuntime.runtime })}
         {:else if taskInfoRuntime?.runtime_missing}
@@ -411,26 +396,13 @@
           </Empty.Content>
         </Empty.Root>
       {:else}
-        {#if needsSdcpp}
+        {#each neededFamilies as family (family)}
           <div class="mb-2 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-1.5 text-xs text-info" role="status">
             <Info class="size-3.5 shrink-0" />
-            <span class="min-w-0 flex-1">{t('hub.compat_needs_sd_banner')}</span>
-            <Button variant="outline" size="xs" class="shrink-0" disabled={sdcppRuntime.installing} onclick={installSdcpp}>
-              {#if sdcppRuntime.installing}<LoaderCircle class="animate-spin" />{/if}
-              {t(sdcppRuntime.installing ? 'hub.compat_installing' : 'hub.compat_install')}
-            </Button>
+            <span class="min-w-0 flex-1">{t('eng.list_banner', { runtime: family })}</span>
+            <EngineNeeded {family} hint={false} onInstalled={enginesInstalled} />
           </div>
-        {/if}
-        {#if needsWhisper}
-          <div class="mb-2 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-1.5 text-xs text-info" role="status">
-            <Info class="size-3.5 shrink-0" />
-            <span class="min-w-0 flex-1">{t('hub.compat_needs_whisper_banner')}</span>
-            <Button variant="outline" size="xs" class="shrink-0" disabled={whisperRuntime.installing} onclick={installWhisper}>
-              {#if whisperRuntime.installing}<LoaderCircle class="animate-spin" />{/if}
-              {t(whisperRuntime.installing ? 'hub.compat_installing' : 'hub.compat_install')}
-            </Button>
-          </div>
-        {/if}
+        {/each}
         <div
           class={cn(
             'grid gap-2',

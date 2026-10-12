@@ -49,6 +49,7 @@
   } from '@lucide/svelte';
   import { formatParams, relativeTime } from './filters';
   import { isSherpaAsrFile } from '../playground/asr';
+  import EngineNeeded from '../common/EngineNeeded.svelte';
 
   interface Props {
     entry: LibraryEntry;
@@ -433,7 +434,7 @@
   {/if}
 
   {#if needsRuntime}
-    <p class="text-xs text-warning" role="status">{t('lib.runtime_needs_hint', { runtime: needsRuntime })}</p>
+    <div class="text-xs text-warning" role="status"><EngineNeeded family={needsRuntime} /></div>
   {/if}
 
   <!-- Parts of a split model -->
