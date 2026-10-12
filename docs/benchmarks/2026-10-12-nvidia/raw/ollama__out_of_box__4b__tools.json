@@ -1,0 +1,718 @@
+{
+ "cases": [
+  {
+   "id": "single-weather",
+   "category": "single",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.7490002000704408,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "get_weather",
+     "arguments": "{\"city\":\"Paris\",\"unit\":\"celsius\"}"
+    }
+   ]
+  },
+  {
+   "id": "single-calc",
+   "category": "single",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.4001506000058725,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "calculate",
+     "arguments": "{\"expression\":\"17 * 23 + 4\"}"
+    }
+   ]
+  },
+  {
+   "id": "single-timer",
+   "category": "single",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.3787997000617906,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "set_timer",
+     "arguments": "{\"minutes\":25,\"label\":\"Focus Timer\"}"
+    }
+   ]
+  },
+  {
+   "id": "single-readfile",
+   "category": "single",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.2042527999728918,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "read_file",
+     "arguments": "{\"path\":\"/etc/hosts\"}"
+    }
+   ]
+  },
+  {
+   "id": "single-search",
+   "category": "single",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.5884724000934511,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "search_web",
+     "arguments": "{\"query\":\"rust async runtime comparison\",\"max_results\":5}"
+    }
+   ]
+  },
+  {
+   "id": "choose-email",
+   "category": "choose",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.8806288000196218,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "send_email",
+     "arguments": "{\"to\":\"bob@example.com\",\"subject\":\"Lunch\",\"body\":\"See you at noon\"}"
+    }
+   ]
+  },
+  {
+   "id": "choose-translate",
+   "category": "choose",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.4139681999804452,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "translate",
+     "arguments": "{\"text\":\"Good morning\",\"target_language\":\"french\"}"
+    }
+   ]
+  },
+  {
+   "id": "choose-event",
+   "category": "choose",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 2.352038999903016,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "create_event",
+     "arguments": "{\"title\":\"Team sync\",\"date\":\"2026-03-14\",\"attendees\":[\"alice\",\"bob\"]}"
+    }
+   ]
+  },
+  {
+   "id": "choose-weather-f",
+   "category": "choose",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.5563131999224424,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "get_weather",
+     "arguments": "{\"city\":\"Tokyo\",\"unit\":\"fahrenheit\"}"
+    }
+   ]
+  },
+  {
+   "id": "choose-timer",
+   "category": "choose",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.4949344000779092,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "set_timer",
+     "arguments": "{\"minutes\":90,\"label\":\"tea\"}"
+    }
+   ]
+  },
+  {
+   "id": "parallel-weather2",
+   "category": "parallel",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 2,
+   "latency_s": 1.9599208999425173,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "get_weather",
+     "arguments": "{\"city\":\"Berlin\"}"
+    },
+    {
+     "name": "get_weather",
+     "arguments": "{\"city\":\"Madrid\"}"
+    }
+   ]
+  },
+  {
+   "id": "parallel-mixed",
+   "category": "parallel",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 2,
+   "latency_s": 2.2233447999460623,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "get_weather",
+     "arguments": "{\"city\":\"London\"}"
+    },
+    {
+     "name": "calculate",
+     "arguments": "{\"expression\":\"12 * 12\"}"
+    }
+   ]
+  },
+  {
+   "id": "parallel-read2",
+   "category": "parallel",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 2,
+   "latency_s": 2.0083801000146195,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "read_file",
+     "arguments": "{\"path\":\"a.txt\"}"
+    },
+    {
+     "name": "read_file",
+     "arguments": "{\"path\":\"b.txt\"}"
+    }
+   ]
+  },
+  {
+   "id": "none-capital",
+   "category": "none",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 0,
+   "latency_s": 0.6693004999542609,
+   "content_head": "The capital of France is Paris.",
+   "calls": []
+  },
+  {
+   "id": "none-hello",
+   "category": "none",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 0,
+   "latency_s": 0.7673005999531597,
+   "content_head": "Hello! How can I assist you today?",
+   "calls": []
+  },
+  {
+   "id": "none-explain",
+   "category": "none",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 0,
+   "latency_s": 2.7694222000427544,
+   "content_head": "A hash map is a data structure that stores key-value pairs, allowing for efficient retrieval, insertion, and deletion of data based on a unique key. It uses a h",
+   "calls": []
+  },
+  {
+   "id": "none-haiku",
+   "category": "none",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 0,
+   "latency_s": 1.2470709000481293,
+   "content_head": "The sea whispers deep,  \nWaves crash and fade in rhythm—  \nSalt wind, endless blue.",
+   "calls": []
+  },
+  {
+   "id": "nested-order",
+   "category": "nested",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 3.6362688000081107,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "create_order",
+     "arguments": "{\"customer\":{\"address\":{\"city\":\"Madrid\",\"zip\":\"28001\"},\"name\":\"Maria Lopez\"},\"items\":[{\"qty\":2,\"sku\":\"A-100\"},{\"qty\":1,\"sku\":\"B-200\"}],\"priority\":\"urgent\"}"
+    }
+   ]
+  },
+  {
+   "id": "nested-config",
+   "category": "nested",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.775978000019677,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "update_config",
+     "arguments": "{\"settings\":{\"notifications\":{\"email\":true,\"sms\":false},\"theme\":\"dark\"}}"
+    }
+   ]
+  },
+  {
+   "id": "nested-flight",
+   "category": "nested",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 2.8628152000019327,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "book_flight",
+     "arguments": "{\"passengers\":[{\"age\":34,\"name\":\"John\"},{\"age\":31,\"name\":\"Anna\"}],\"route\":{\"from\":\"Istanbul\",\"to\":\"Berlin\"},\"cabin\":\"business\"}"
+    }
+   ]
+  },
+  {
+   "id": "enum-translate",
+   "category": "enum",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.5255696000531316,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "translate",
+     "arguments": "{\"text\":\"Where is the station?\",\"target_language\":\"german\"}"
+    }
+   ]
+  },
+  {
+   "id": "enum-loglevel",
+   "category": "enum",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.2237985000247136,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "set_log_level",
+     "arguments": "{\"level\":\"warn\"}"
+    }
+   ]
+  },
+  {
+   "id": "enum-sort",
+   "category": "enum",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.662435199948959,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "sort_list",
+     "arguments": "{\"values\":[5,3,9,1],\"order\":\"desc\"}"
+    }
+   ]
+  },
+  {
+   "id": "tr-weather",
+   "category": "turkish",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.449494899949059,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "get_weather",
+     "arguments": "{\"city\":\"İstanbul\",\"unit\":\"celsius\"}"
+    }
+   ]
+  },
+  {
+   "id": "tr-timer",
+   "category": "turkish",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.4833937999792397,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "set_timer",
+     "arguments": "{\"minutes\":25,\"label\":\"25 dakika\"}"
+    }
+   ]
+  },
+  {
+   "id": "tr-parallel",
+   "category": "turkish",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 2,
+   "latency_s": 2.104281699983403,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "get_weather",
+     "arguments": "{\"city\":\"Ankara\"}"
+    },
+    {
+     "name": "get_weather",
+     "arguments": "{\"city\":\"İzmir\"}"
+    }
+   ]
+  },
+  {
+   "id": "tr-translate",
+   "category": "turkish",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.5231129999738187,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "translate",
+     "arguments": "{\"text\":\"Günaydın\",\"target_language\":\"english\"}"
+    }
+   ]
+  },
+  {
+   "id": "tr-email",
+   "category": "turkish",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 2.0487027999479324,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "send_email",
+     "arguments": "{\"to\":\"ali@example.com\",\"subject\":\"Toplantı\",\"body\":\"Yarın 10'da görüşelim\"}"
+    }
+   ]
+  },
+  {
+   "id": "tr-readfile",
+   "category": "turkish",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.2504745000042021,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "read_file",
+     "arguments": "{\"path\":\"/home/user/notlar.txt\"}"
+    }
+   ]
+  },
+  {
+   "id": "tr-event",
+   "category": "turkish",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 2.115461799898185,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "create_event",
+     "arguments": "{\"title\":\"Doğum günü\",\"date\":\"2026-05-20\",\"attendees\":[\"Ayşe\"]}"
+    }
+   ]
+  },
+  {
+   "id": "tr-calc",
+   "category": "turkish",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.4241331999655813,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "calculate",
+     "arguments": "{\"expression\":\"345 * 12\"}"
+    }
+   ]
+  },
+  {
+   "id": "tr-none",
+   "category": "turkish",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 0,
+   "latency_s": 0.836186199914664,
+   "content_head": "Fransa'nın başkenti Paris'tir.",
+   "calls": []
+  },
+  {
+   "id": "tr-none-poem",
+   "category": "turkish",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 0,
+   "latency_s": 6.254460399970412,
+   "content_head": "Elbette! İşte denizle ilgili bir kısa şiir:\n\n---\n\n**Deniz**\n\nGüneşin ışığıyla kırılıyor,  \nSessiz, sakin, dalgaların sesi.  \nKırmızı kıyıda yanan bir ışık,  \nDe",
+   "calls": []
+  },
+  {
+   "id": "many-read",
+   "category": "many_tools",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 2.816219500033185,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "read_file",
+     "arguments": "{\"path\":\"src/main.rs\"}"
+    }
+   ]
+  },
+  {
+   "id": "many-weather",
+   "category": "many_tools",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 1.9081190000288188,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "get_weather",
+     "arguments": "{\"city\":\"Oslo\",\"unit\":\"celsius\"}"
+    }
+   ]
+  },
+  {
+   "id": "many-grep",
+   "category": "many_tools",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 2.2005557999946177,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "grep_search",
+     "arguments": "{\"pattern\":\"TODO\",\"path\":\"src\",\"case_sensitive\":true}"
+    }
+   ]
+  },
+  {
+   "id": "many-glob-tr",
+   "category": "many_tools",
+   "lang": "tr",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 1,
+   "latency_s": 2.271270899916999,
+   "content_head": "",
+   "calls": [
+    {
+     "name": "glob_files",
+     "arguments": "{\"pattern\":\"*.rs\",\"path\":\"src\"}"
+    }
+   ]
+  },
+  {
+   "id": "many-none",
+   "category": "many_tools",
+   "lang": "en",
+   "pass": true,
+   "reason": "",
+   "text_format_call": false,
+   "n_calls": 0,
+   "latency_s": 2.9933011999819428,
+   "content_head": "HTTP stands for Hypertext Transfer Protocol. It is the foundation of data communication on the World Wide Web, enabling the transfer of web pages and other reso",
+   "calls": []
+  }
+ ],
+ "summary": {
+  "passed": 38,
+  "total": 38,
+  "pct": 100.0,
+  "by_category": {
+   "single": "5/5",
+   "choose": "5/5",
+   "parallel": "3/3",
+   "none": "4/4",
+   "nested": "3/3",
+   "enum": "3/3",
+   "turkish": "10/10",
+   "many_tools": "5/5"
+  },
+  "text_format_calls": 0,
+  "text_format_converted_and_passed": 0,
+  "request_errors": 0,
+  "n_tools_many": 38
+ },
+ "meta": {
+  "backend": "ollama",
+  "mode": "out_of_box",
+  "model": "4b",
+  "endpoint_info": {
+   "env": {},
+   "server_env_stripped": [
+    "OLLAMA_FLASH_ATTENTION",
+    "OLLAMA_KV_CACHE_TYPE",
+    "OLLAMA_NUM_PARALLEL",
+    "OLLAMA_MAX_LOADED_MODELS",
+    "OLLAMA_CONTEXT_LENGTH",
+    "OLLAMA_NUM_CTX",
+    "OLLAMA_GPU_OVERHEAD"
+   ],
+   "load_s": 45.89,
+   "ps": {
+    "size": 3525071338,
+    "size_vram": 2338869739,
+    "context_length": 4096
+   },
+   "log_lines": [
+    "time=2026-10-12T04:28:30.029+03:00 level=INFO source=routes.go:2373 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+    "time=2026-10-12T04:28:46.215+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\Documents\\\\Proje\\\\harness-studio\\\\scratch\\\\tools\\\\ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\Document",
+    "common_params_fit_impl: filling dense layers back-to-front:",
+    "common_params_fit_impl: - CUDA0 (NVIDIA GeForce RTX 3050 Ti Laptop GPU): 26 layers, 2230 MiB used, 1065 MiB free",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 25 repeating layers to GPU",
+    "load_tensors: offloaded 26/37 layers to GPU",
+    "llama_context: flash_attn = auto",
+    "llama_kv_cache: size = 576.00 MiB ( 4096 cells, 36 layers, 1/1 seqs), K (f16): 288.00 MiB, V (f16): 288.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled"
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 712
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 2327,
+   "shared_mib": 1037
+  },
+  "date": "2026-10-12 04:29:32",
+  "gpu_after_run": {
+   "dedicated_mib": 2357,
+   "shared_mib": 1037
+  },
+  "elapsed_s": 74.5,
+  "endpoint_info_after": {
+   "ps": {
+    "size": 3525071338,
+    "size_vram": 2338869739,
+    "context_length": 4096
+   },
+   "log_lines": [
+    "time=2026-10-12T04:28:30.029+03:00 level=INFO source=routes.go:2373 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+    "time=2026-10-12T04:28:46.215+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\Documents\\\\Proje\\\\harness-studio\\\\scratch\\\\tools\\\\ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\Document",
+    "common_params_fit_impl: filling dense layers back-to-front:",
+    "common_params_fit_impl: - CUDA0 (NVIDIA GeForce RTX 3050 Ti Laptop GPU): 26 layers, 2230 MiB used, 1065 MiB free",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 25 repeating layers to GPU",
+    "load_tensors: offloaded 26/37 layers to GPU",
+    "llama_context: flash_attn = auto",
+    "llama_kv_cache: size = 576.00 MiB ( 4096 cells, 36 layers, 1/1 seqs), K (f16): 288.00 MiB, V (f16): 288.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled"
+   ]
+  }
+ }
+}

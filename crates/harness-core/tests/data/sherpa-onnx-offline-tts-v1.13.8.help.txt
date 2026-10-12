@@ -1,0 +1,156 @@
+D:\a\sherpa-onnx\sherpa-onnx\sherpa-onnx\csrc\parse-options.cc:PrintUsage:415 
+
+Offline/Non-streaming text-to-speech with sherpa-onnx
+
+Usage examples:
+
+wget https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-amy-low.tar.bz2
+tar xf vits-piper-en_US-amy-low.tar.bz2
+
+./bin/sherpa-onnx-offline-tts \
+ --vits-model=./vits-piper-en_US-amy-low/en_US-amy-low.onnx \
+ --vits-tokens=./vits-piper-en_US-amy-low/tokens.txt \
+ --vits-data-dir=./vits-piper-en_US-amy-low/espeak-ng-data \
+ --output-filename=./generated.wav \
+  "Today as always, men fall into two groups: slaves and free men. Whoever does not have two-thirds of his day for himself, is a slave, whatever he may be: a statesman, a businessman, an official, or a scholar."
+
+Pocket TTS:
+
+wget https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-pocket-tts-int8-2026-01-26.tar.bz2
+tar xf sherpa-onnx-pocket-tts-int8-2026-01-26.tar.bz2
+
+./bin/sherpa-onnx-offline-tts \
+ --pocket-lm-flow=./sherpa-onnx-pocket-tts-int8-2026-01-26/lm_flow.int8.onnx \
+ --pocket-lm-main=./sherpa-onnx-pocket-tts-int8-2026-01-26/lm_main.int8.onnx \
+ --pocket-encoder=./sherpa-onnx-pocket-tts-int8-2026-01-26/encoder.onnx \
+ --pocket-decoder=./sherpa-onnx-pocket-tts-int8-2026-01-26/decoder.int8.onnx \
+ --pocket-text-conditioner=./sherpa-onnx-pocket-tts-int8-2026-01-26/text_conditioner.onnx \
+ --pocket-vocab-json=./sherpa-onnx-pocket-tts-int8-2026-01-26/vocab.json \
+ --pocket-token-scores-json=./sherpa-onnx-pocket-tts-int8-2026-01-26/token_scores.json \
+ --reference-audio=./sherpa-onnx-pocket-tts-int8-2026-01-26/test_wavs/bria.wav \
+ --output-filename=./generated-pocket.wav \
+ "Hello from Pocket TTS"
+
+Supertonic TTS:
+
+wget https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2
+tar xf sherpa-onnx-supertonic-3-tts-int8-2026-05-11.tar.bz2
+
+./bin/sherpa-onnx-offline-tts \
+ --supertonic-duration-predictor=./sherpa-onnx-supertonic-3-tts-int8-2026-05-11/duration_predictor.int8.onnx \
+ --supertonic-text-encoder=./sherpa-onnx-supertonic-3-tts-int8-2026-05-11/text_encoder.int8.onnx \
+ --supertonic-vector-estimator=./sherpa-onnx-supertonic-3-tts-int8-2026-05-11/vector_estimator.int8.onnx \
+ --supertonic-vocoder=./sherpa-onnx-supertonic-3-tts-int8-2026-05-11/vocoder.int8.onnx \
+ --supertonic-tts-json=./sherpa-onnx-supertonic-3-tts-int8-2026-05-11/tts.json \
+ --supertonic-unicode-indexer=./sherpa-onnx-supertonic-3-tts-int8-2026-05-11/unicode_indexer.bin \
+ --supertonic-voice-style=./sherpa-onnx-supertonic-3-tts-int8-2026-05-11/voice.bin \
+ --lang=en \
+ --num-steps=8 \
+ --output-filename=./generated-supertonic.wav \
+ "Hello from Supertonic TTS"
+
+ZipVoice TTS:
+
+wget https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2
+tar xf sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2
+wget https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos_24khz.onnx
+
+./bin/sherpa-onnx-offline-tts \
+ --zipvoice-encoder=./sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/encoder.int8.onnx \
+ --zipvoice-decoder=./sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/decoder.int8.onnx \
+ --zipvoice-data-dir=./sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/espeak-ng-data \
+ --zipvoice-lexicon=./sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/lexicon.txt \
+ --zipvoice-tokens=./sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/tokens.txt \
+ --zipvoice-vocoder=./vocos_24khz.onnx \
+ --reference-audio=./sherpa-onnx-zipvoice-distill-int8-zh-en-emilia/test_wavs/leijun-1.wav \
+ --reference-text="那还是三十六年前, 一九八七年. 我呢考上了武汉大学的计算机系." \
+ --num-steps=4 \
+ --output-filename=./generated-zipvoice.wav \
+ "小米的价值观是真诚, 热爱. 真诚，就是不欺人也不自欺. 热爱, 就是全心投入并享受其中."
+
+It will generate a file specified by --output-filename.
+
+You can find more models at
+https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models
+
+Please see
+https://k2-fsa.github.io/sherpa/onnx/tts/index.html
+or details.
+
+Options:
+  --kokoro-model              : Path to Kokoro model (string, default = "")
+  --num-steps                 : Used by some models, e.g., Supertonic, Pocket TTS and ZipVoice. Number of flow matching steps. (int, default = 5)
+  --reference-audio           : Path to reference audio. Required by Pocket TTS and ZipVoice TTS. (string, default = "")
+  --vits-dict-dir             : Not used. You don't need to provide a value for it (string, default = "")
+  --pocket-token-scores-json  : Path to PocketTTS token_scores.json (string, default = "")
+  --output-filename           : Path to save the generated audio (string, default = "./generated.wav")
+  --matcha-data-dir           : Path to the directory containing dict for espeak-ng. If it is given, --matcha-lexicon is ignored. (string, default = "")
+  --kitten-model              : Path to kitten model (string, default = "")
+  --matcha-dict-dir           : Not used. You don't need to provide a value for it (string, default = "")
+  --reference-text            : Reference text for the reference audio. Required by ZipVoice TTS. (string, default = "")
+  --lang                      : Language code for Supertonic TTS. Supported values: en, ko, ja, ar, bg, cs, da, de, el, es, et, fi, fr, hi, hr, hu, id, it, lt, lv, nl, pl, pt, ro, ru, sk, sl, sv, tr, uk, vi. (string, default = "")
+  --sid                       : Speaker ID. Used only for multi-speaker models, e.g., models trained using the VCTK dataset. Not used for single-speaker models, e.g., models trained using the LJSpeech dataset (int, default = 0)
+  --emotion-id                : Emotion ID. Used only for models that support emotion selection. Ignored otherwise. (int, default = -1)
+  --zipvoice-guidance-scale   : The scale of classifier-free guidance during inference for ZipVoice (default: 1.0) (float, default = 1)
+  --speed                     : Speech speed. Larger=faster. Used by Supertonic, VITS, etc. (float, default = 1.0) (float, default = 1)
+  --vits-model                : Path to VITS model (string, default = "")
+  --vits-lexicon              : Path to lexicon.txt for VITS models (string, default = "")
+  --pocket-voice-embedding-cache-capacity : Capacity of the voice embedding cache (number of items). Default: 50. 0 disables caching. (int, default = 50)
+  --vits-tokens               : Path to tokens.txt for VITS models (string, default = "")
+  --zipvoice-t-shift          : Shift t to smaller ones if t_shift < 1.0 (default: 0.5) (float, default = 0.5)
+  --vits-data-dir             : Path to the directory containing dict for espeak-ng. If it is given, --vits-lexicon is ignored. (string, default = "")
+  --supertonic-duration-predictor : Path to duration_predictor.onnx for Supertonic TTS (string, default = "")
+  --vits-noise-scale          : noise_scale for VITS models (float, default = 0.667)
+  --matcha-noise-scale        : noise_scale for Matcha models (float, default = 1)
+  --vits-noise-scale-w        : noise_scale_w for VITS models (float, default = 0.8)
+  --vits-length-scale         : Speech speed. Larger->Slower; Smaller->faster. (float, default = 1)
+  --matcha-acoustic-model     : Path to matcha acoustic model (string, default = "")
+  --kokoro-data-dir           : Path to the directory containing dict for espeak-ng. (string, default = "")
+  --matcha-vocoder            : Path to matcha vocoder (string, default = "")
+  --matcha-lexicon            : Path to lexicon.txt for Matcha models. You can pass multiple files separated by comma , e.g., lexicon.txt,lexicon2.txt,lexicon3.txt (string, default = "")
+  --pocket-encoder            : Path to PocketTTS encoder model (string, default = "")
+  --kokoro-length-scale       : Speech speed. Larger->Slower; Smaller->faster. (float, default = 1)
+  --matcha-tokens             : Path to tokens.txt for Matcha models (string, default = "")
+  --zipvoice-encoder          : Path to zipvoice text model (string, default = "")
+  --tts-silence-scale         : Duration of the pause is scaled by this number. So a smaller value leads to a shorter pause. Must be in [0.01, 10]. (float, default = 0.2)
+  --matcha-length-scale       : Speech speed. Larger->Slower; Smaller->faster. (float, default = 1)
+  --pocket-decoder            : Path to PocketTTS decoder model (string, default = "")
+  --kitten-length-scale       : Inverse of speech speed. Larger->Slower; Smaller->faster. (float, default = 1)
+  --kokoro-voices             : Path to voices.bin for Kokoro models (string, default = "")
+  --kokoro-dict-dir           : Not used. You don't need to provide a value for it (string, default = "")
+  --kokoro-tokens             : Path to tokens.txt for Kokoro models (string, default = "")
+  --kokoro-lang               : Used only by kokoro >= 1.0. Example values: en (English), es (Spanish), fr (French), hi (hindi), it (Italian), pt-br (Brazilian Portuguese).You can leave it empty, in which case you need to provide --kokoro-lexicon. (string, default = "")
+  --kokoro-lexicon            : Path to lexicon.txt for Kokoro models. Used only for Kokoro >= v1.0You can pass multiple files, separated by ','. Example: ./lexicon-us-en.txt,./lexicon-zh.txt (string, default = "")
+  --kitten-tokens             : Path to tokens.txt for kitten models (string, default = "")
+  --zipvoice-tokens           : Path to tokens.txt for ZipVoice models (string, default = "")
+  --kitten-data-dir           : Path to the directory containing dict for espeak-ng. (string, default = "")
+  --zipvoice-data-dir         : Path to the directory containing dict for espeak-ng. (string, default = "")
+  --zipvoice-lexicon          : Path to lexicon.txt for Chinese (string, default = "")
+  --zipvoice-target-rms       : Target speech normalization rms value for ZipVoice (default: 0.1) (float, default = 0.1)
+  --zipvoice-decoder          : Path to zipvoice flow-matching decoder model (string, default = "")
+  --zipvoice-vocoder          : Path to zipvoice vocoder (string, default = "")
+  --zipvoice-feat-scale       : Feature scale for ZipVoice (default: 0.1) (float, default = 0.1)
+  --supertonic-tts-json       : Path to tts.json for Supertonic TTS (string, default = "")
+  --kitten-voices             : Path to voices.bin for kitten models (string, default = "")
+  --pocket-lm-flow            : Path to PocketTTS lm flow model (string, default = "")
+  --pocket-lm-main            : Path to PocketTTS lm main model (string, default = "")
+  --pocket-vocab-json         : Path to PocketTTS vocab.json (string, default = "")
+  --pocket-text-conditioner   : Path to PocketTTS text conditioner model (string, default = "")
+  --supertonic-text-encoder   : Path to text_encoder.onnx for Supertonic TTS (string, default = "")
+  --supertonic-vocoder        : Path to vocoder.onnx for Supertonic TTS (string, default = "")
+  --supertonic-vector-estimator : Path to vector_estimator.onnx for Supertonic TTS (string, default = "")
+  --supertonic-unicode-indexer : Path to unicode_indexer.bin for Supertonic TTS (string, default = "")
+  --supertonic-voice-style    : Path to Supertonic voice.bin (use sid 0..NumSpeakers()-1 to select) (string, default = "")
+  --num-threads               : Number of threads to run the neural network (int, default = 1)
+  --debug                     : true to print model information while loading it. (bool, default = false)
+  --provider                  : Specify a provider to use: cpu, cuda, coreml (string, default = "cpu")
+  --tts-rule-fsts             : It not empty, it contains a list of rule FST filenames.Multiple filenames are separated by a comma and they are applied from left to right. An example value: rule1.fst,rule2.fst,rule3.fst (string, default = "")
+  --tts-rule-fars             : It not empty, it contains a list of rule FST archive filenames.Multiple filenames are separated by a comma and they are applied from left to right. An example value: rule1.far,rule2.far,rule3.far. Note that an *.far can contain multiple *.fst files (string, default = "")
+  --tts-max-num-sentences     : Maximum number of sentences that we process at a time. This is to avoid OOM for very long input text. If you set it to -1, then we process all sentences in a single batch. (int, default = 1)
+
+Standard options:
+  --config                    : Configuration file to read (this option may be repeated) (string, default = "")
+  --help                      : Print out usage message (bool, default = false)
+  --print-args                : Print the command line arguments (to stderr) (bool, default = true)
+
+

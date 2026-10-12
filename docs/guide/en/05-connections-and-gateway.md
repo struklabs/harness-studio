@@ -1,0 +1,98 @@
+# Connections and the Gateway
+
+Türkçe: [../tr/05-baglantilar-ve-ag-gecidi.md](../tr/05-baglantilar-ve-ag-gecidi.md)
+
+**What you do here:** serve your local models from one address and connect another application or a coding agent to it.
+
+## Direct Server or Gateway?
+
+Another program (Claude Code, Codex, OpenCode, an editor extension, Open WebUI, and so on) can reach your local model in two ways:
+
+| Route | How it works | When to use it |
+| --- | --- | --- |
+| Direct server | The own address of a single llama-server that you started from the Dashboard (`http://127.0.0.1:<port>`). With an Automatic port it can change on every start. | One model, a quick try. |
+| Gateway | A single endpoint that runs inside Harness Studio. The `model` field of a request is routed to the right server by **Alias**; if the model is not loaded it loads on the first request, and it can be unloaded when idle. | Several models, a fixed address, agents. |
+
+The big advantage of the gateway is one fixed address: even if you change the model or the port, the address in your client stays the same. The gateway can also serve models that run on the optional engines (speech, image, ONNX, Lemonade, mistral.rs) next to llama.cpp models, through the same address.
+
+### Turn the Gateway On
+
+1. Check that a [model definition exists in My Models](02-model-hub-and-library.md#my-models-and-model-definitions); the name your client uses is the definition's alias.
+2. Open **Settings > Gateway > Endpoint**.
+3. Enable **Turn on the gateway** and press **Apply**. The status should say **Running**.
+4. Enter the address from **Base URL** (it has a **Copy** button) in your client. Use the definition's alias as the model name.
+
+The gateway is off by default and stops when Harness Studio closes. The Playground's Speech and Image tabs and the integrations use the gateway too.
+
+The default port is `11435` and the address is `127.0.0.1`, meaning only your own computer. If another program is using the port, the gateway moves to a free port; the **Connections** page (**Endpoints > Port Notes**) shows the current address and which clients need to be moved. Always go by the address shown on screen.
+
+| Client type | Default address format |
+| --- | --- |
+| OpenAI-compatible (most tools, editor extensions, SDKs) | `http://127.0.0.1:11435/v1` |
+| Anthropic-compatible (Claude Code, the Anthropic SDK) | `http://127.0.0.1:11435`, without `/v1` at the end |
+| Ollama-compatible | The gateway's `/api/*` paths; the setting is on **Settings > Runtime > Ollama**, which also has an option to listen on Ollama's own port as well |
+
+The local gateway does not ask for a key by default. For tools that insist on one, any value will do (Harness Studio uses the placeholder `harness-local`).
+
+### Gateway Settings
+
+| Page | What it does |
+| --- | --- |
+| **Settings > Gateway > Endpoint** | Turn it on or off, **Port**, **Bind address**, **Allow network access**, **Require a token on this computer too**, **Allowed browser origins** (for web apps). |
+| **Settings > Gateway > Routing** | **Max loaded models**, **Queue per model**, **Request timeout (s)**, **Default idle time (s)**, **Memory-aware eviction**, **VRAM headroom (MiB, 0 = automatic)**; below them, each model's state (**Ready**, **Loading**, **Not loaded**) and an **Unload** button. |
+| **Settings > Gateway > Responses** | Whether the OpenAI Responses API keeps responses locally (**Store responses**) and the retention limits. |
+
+The gateway unloads only the models it loaded itself (**Loaded by gateway**) according to idle time and memory rules. It routes to servers you started by hand (**Your server**) but never shuts them down. If you mark a model definition **Pinned (always loaded)**, the gateway loads it when it starts and never unloads it.
+
+If a request is rejected because a model is loading or a queue is full, the Playground shows a message like "{model} cannot be loaded right now: {busy} is serving requests and cannot be unloaded. {wait} try again."; once the requests finish, resend with **Retry** (see [Troubleshooting](10-troubleshooting.md#model-busy-503)).
+
+For detailed routing rules, per-client settings, and limits, read the [integrations reference](../../en/INTEGRATIONS.md).
+
+## The Connections Page
+
+The sections of **Connections** in the left menu:
+
+| Group | Pages | What they hold |
+| --- | --- | --- |
+| **Endpoints** | **Endpoint List**, **Ollama Endpoint**, **Port Notes** | Addresses of the servers and the gateway; copyable. |
+| **Tools and Clients** | **Automatic Setup**, **Step-by-Step Setup**, **SDKs and Code Samples**, **Add Harness MCP** | Connecting coding tools and code snippets. |
+| **MCP Servers** | **Server List**, import, **Status and Live Tools** | Servers that Harness Studio connects to with its own MCP client. |
+| **Test** | **Tool-Calling Workbench**, **Connection Tests** | Connection and tool-calling trials. |
+
+In the **Simple** interface level only **Automatic Setup**, **Step-by-Step Setup**, and **Endpoint List** are shown; the rest are Advanced pages.
+
+## Connect a Coding Agent
+
+An in-app launch flow exists for Claude Code, Codex, OpenCode, Aider, and Goose. The client itself must be installed on your computer; installed tools are marked **Detected**, and **Rescan** refreshes the list.
+
+1. On **Connections > Tools and Clients > Automatic Setup**, pick the client in **Tool Integrations**.
+2. Check the model and the connection address. If the gateway is on, the address is the gateway; otherwise it is the selected server's direct address. Use a model that can call tools, and read the **Context too small** warning if it appears. Coding agents send large prompts: 64k of context is recommended for Claude Code, Codex, OpenCode, and Goose, and 32k for Aider.
+3. Press **Launch**. In the window that opens, choose the **Project folder** and the **Model**.
+4. If the context is too small, look at the **Prepare Server** options. **Prepare and Load** writes the context, Flash Attention, KV cache, and concurrent-request values into the model definition and stops running instances; read the explanation on screen. If memory is not enough, the earlier settings are restored.
+5. Press **Launch** to open the agent. This route gives the settings only to that session's environment variables and a temporary file, and opens a new terminal window; it does not change the tool's global configuration. If the platform cannot open a terminal, run the **Command-line equivalent** yourself.
+
+For a lasting setup, use the **Configure** button on supported clients. Harness Studio changes only its own keys in the tool's settings file and first shows a colored diff preview; read the preview and then apply it. **Revert** undoes only keys Harness Studio wrote and that you have not changed since. For clients set up by hand (the **Step-by-Step Setup** page), use the instructions and copyable fields. If you rename a model, the card shows "The tool uses an old model name" with a **Fix** button.
+
+A summary for three common clients (details and full environment variables are in the [integrations reference](../../en/INTEGRATIONS.md)):
+
+| Client | What it needs |
+| --- | --- |
+| Claude Code | The Anthropic-compatible address (`http://127.0.0.1:11435`, no `/v1`) and a model name. **Launch** or **Configure** writes this to `ANTHROPIC_BASE_URL` and the related model variables. |
+| Codex | The gateway address through the OpenAI Responses API. Codex speaks only the Responses API; the settings are added as a `harness` provider. |
+| OpenCode | The OpenAI-compatible address (`http://127.0.0.1:11435/v1`). **Configure** writes the `harness` provider and the gateway's chat models into `opencode.json`. |
+
+Use **Test Connection** to try the client's own API format. A passing test does not mean your real agent will call the right tool on every task. Small local models can make tool-calling mistakes; the **Tool-Calling Workbench** lets you try this beforehand. Client-specific limitations and test records are in the [integrations reference](../../en/INTEGRATIONS.md).
+
+## Keep API Keys Apart
+
+| Credential | What it is for |
+| --- | --- |
+| Hugging Face access token | Access to the model repository and downloads. It is not the chat server's key. |
+| Server API key | Protects the direct llama-server connection. Managed on the Dashboard's **Network** page in the **API key** field or in **Settings > Security > API Keys**. |
+| Named token | Scoped access given to the Control API or the gateway. Created in **Settings > Developer > Control API**. A model request needs the `inference` scope. |
+
+If **Require a token on this computer too** is off on the gateway, local clients connect without a key. If it is on, use a named token with the `inference` scope. A named token's value is shown only when it is created, so copy it then.
+
+For other devices to reach the gateway you need **Allow network access** and a token with the `inference` scope; there is no keyless network access. For this use, follow the conditions in the [security model](../../en/SECURITY_MODEL.md) and set your firewall yourself; Harness Studio does not change it. Do not use the gateway's, the Control API's, and the direct server's keys in place of one another.
+
+Next: [Tools](06-tools.md).

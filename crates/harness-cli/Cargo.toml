@@ -1,0 +1,46 @@
+[package]
+name = "harness-cli"
+version = "0.1.0"
+description = "harness: command-line interface and headless mode of Harness Studio"
+authors = ["struklabs and Harness Studio contributors"]
+repository = "https://github.com/struklabs/harness-studio"
+homepage = "https://github.com/struklabs/harness-studio"
+license = "MIT"
+edition = "2021"
+default-run = "harness"
+
+[[bin]]
+name = "harness"
+path = "src/main.rs"
+
+# Windows GUI-subsystem launcher for the logon task of `harness service install`: runs
+# `harness` with the same arguments and no console window.
+[[bin]]
+name = "harness-hidden"
+path = "src/bin/harness-hidden.rs"
+
+[dependencies]
+harness-core = { path = "../harness-core", features = ["otel"] }
+harness-api = { path = "../harness-api" }
+harness-gateway = { path = "../harness-gateway" }
+harness-mcp = { path = "../harness-mcp" }
+clap = { version = "4.5", features = ["derive", "env", "wrap_help"] }
+clap_complete = "4.5"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+futures-util = "0.3"
+dirs = "7"
+base64 = "0.22"
+
+[features]
+# OTLP/gRPC export in `harness` (tonic, rustls; about +1.5 MB). Off by default, where only
+# OTLP/HTTP is built in: `cargo build --release -p harness-cli --features otel-grpc`.
+otel-grpc = ["harness-core/otel-grpc", "harness-api/otel-grpc", "harness-gateway/otel-grpc"]
+
+[target.'cfg(windows)'.dependencies]
+command-group = "5.0"
+
+[dev-dependencies]
+tempfile = "3"

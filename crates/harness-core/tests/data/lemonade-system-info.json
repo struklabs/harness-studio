@@ -1,0 +1,472 @@
+{
+ "devices": {
+  "amd_gpu": [
+   {
+    "available": true,
+    "family": "",
+    "integrated": true,
+    "name": "AMD Radeon(TM) Graphics"
+   },
+   {
+    "available": true,
+    "driver_version": "32.0.21045.1000",
+    "family": "gfx110X",
+    "integrated": false,
+    "name": "AMD Radeon RX 7900 GRE",
+    "vram_gb": 17179869183.999023
+   }
+  ],
+  "amd_npu": {
+   "available": false,
+   "error": "No XDNA NPU hardware detected",
+   "family": "",
+   "name": "AMD Ryzen 7 9700X 8-Core Processor",
+   "utilization": 0.0
+  },
+  "cpu": {
+   "available": true,
+   "cores": 8,
+   "family": "x86_64",
+   "name": "AMD Ryzen 7 9700X 8-Core Processor",
+   "threads": 16
+  },
+  "nvidia_gpu": [
+   {
+    "available": false,
+    "error": "No NVIDIA discrete GPU found",
+    "name": ""
+   }
+  ]
+ },
+ "recipes": {
+  "llamacpp": {
+   "backends": {
+    "cpu": {
+     "action": "lemonade backends install llamacpp:cpu",
+     "devices": [
+      "cpu"
+     ],
+     "download_filename": "llama-b10825-bin-win-cpu-x64.zip",
+     "message": "Backend is supported but not installed.",
+     "release_url": "https://github.com/ggml-org/llama.cpp/releases/tag/b10825",
+     "state": "installable",
+     "version": "b10825"
+    },
+    "cuda": {
+     "action": "",
+     "devices": [],
+     "message": "Unsupported GPU",
+     "state": "unsupported"
+    },
+    "metal": {
+     "action": "",
+     "can_uninstall": true,
+     "devices": [],
+     "message": "Requires macOS",
+     "state": "unsupported"
+    },
+    "rocm": {
+     "action": "lemonade backends install llamacpp:rocm",
+     "devices": [
+      "amd_gpu"
+     ],
+     "download_filename": "llama-b10820-bin-win-rocm-10.0-x64.zip",
+     "message": "Backend is supported but not installed.",
+     "release_url": "https://github.com/lemonade-sdk/llama.cpp/releases/tag/b10820",
+     "state": "installable",
+     "version": "b10820"
+    },
+    "system": {
+     "action": "",
+     "can_uninstall": true,
+     "devices": [],
+     "message": "Requires Linux",
+     "release_url": "https://github.com//releases/tag/",
+     "state": "unsupported"
+    },
+    "vulkan": {
+     "action": "lemonade backends install llamacpp:vulkan",
+     "devices": [
+      "amd_gpu",
+      "cpu"
+     ],
+     "download_filename": "llama-b10825-bin-win-vulkan-x64.zip",
+     "message": "Backend is supported but not installed.",
+     "release_url": "https://github.com/ggml-org/llama.cpp/releases/tag/b10825",
+     "state": "installable",
+     "version": "b10825"
+    }
+   },
+   "default_backend": "vulkan",
+   "display_name": "Llama.cpp GPU",
+   "experimental": false,
+   "modality": "Text generation",
+   "options": [
+    {
+     "cli_flag": "--llamacpp",
+     "default": "",
+     "group": "Llama.cpp Backend Options",
+     "help": "LlamaCpp backend to use",
+     "name": "llamacpp_backend",
+     "type_name": "BACKEND"
+    },
+    {
+     "cli_flag": "--llamacpp-device",
+     "default": "",
+     "group": "Llama.cpp Backend Options",
+     "help": "Comma-separated list of accelerator devices to use (e.g. Vulkan0)",
+     "name": "llamacpp_device",
+     "type_name": "DEVICES"
+    },
+    {
+     "cli_flag": "--llamacpp-args",
+     "default": "",
+     "group": "Llama.cpp Backend Options",
+     "help": "Custom arguments to pass to llama-server",
+     "name": "llamacpp_args",
+     "type_name": "ARGS"
+    }
+   ],
+   "order": 0,
+   "selectable_backend": true,
+   "slot_policy": "standard",
+   "support": [
+    {
+     "backend": "system",
+     "device_summary": "x86_64/ARM64 CPU, GPU",
+     "devices": [
+      {
+       "device": "cpu",
+       "families": [
+        "arm64",
+        "x86_64"
+       ]
+      }
+     ],
+     "os": [
+      "linux"
+     ]
+    },
+    {
+     "backend": "metal",
+     "device_summary": "Apple Silicon GPU",
+     "devices": [
+      {
+       "device": "metal",
+       "families": []
+      }
+     ],
+     "os": [
+      "macos"
+     ]
+    },
+    {
+     "backend": "cuda",
+     "device_summary": "NVIDIA GPUs (Turing or newer)**",
+     "devices": [
+      {
+       "device": "nvidia_gpu",
+       "families": [
+        "sm_100",
+        "sm_120",
+        "sm_121",
+        "sm_75",
+        "sm_80",
+        "sm_86",
+        "sm_89",
+        "sm_90"
+       ]
+      }
+     ],
+     "os": [
+      "linux",
+      "windows"
+     ]
+    },
+    {
+     "backend": "vulkan",
+     "device_summary": "x86_64 CPU, AMD iGPU, AMD dGPU; ARM64 CPU/GPU (Linux)",
+     "devices": [
+      {
+       "device": "amd_gpu",
+       "families": []
+      },
+      {
+       "device": "cpu",
+       "families": [
+        "arm64",
+        "x86_64"
+       ]
+      }
+     ],
+     "os": [
+      "linux",
+      "windows"
+     ]
+    },
+    {
+     "backend": "rocm",
+     "device_summary": "AMD GPUs supported by ROCm",
+     "devices": [
+      {
+       "device": "amd_gpu",
+       "families": [
+        "gfx103X",
+        "gfx110X",
+        "gfx1150",
+        "gfx1151",
+        "gfx1152",
+        "gfx120X",
+        "gfx908",
+        "gfx90a",
+        "gfx942",
+        "gfx950"
+       ]
+      }
+     ],
+     "os": [
+      "linux",
+      "windows"
+     ]
+    },
+    {
+     "backend": "cpu",
+     "device_summary": "x86_64 CPU; ARM64 CPU (Linux)",
+     "devices": [
+      {
+       "device": "cpu",
+       "families": [
+        "arm64",
+        "x86_64"
+       ]
+      }
+     ],
+     "os": [
+      "linux",
+      "windows"
+     ]
+    }
+   ],
+   "uses_ctx_size": true,
+   "web_display_name": "llama.cpp GPU"
+  },
+  "flm": {
+   "backends": {
+    "npu": {
+     "action": "",
+     "devices": [],
+     "download_filename": "fastflowlm_1.0.6_windows_amd64.zip",
+     "message": "Requires AMD XDNA 2 AMD NPU",
+     "release_url": "https://github.com/ROCm/FastFlowLM/releases/tag/v1.0.6",
+     "state": "unsupported",
+     "version": "v1.0.6"
+    }
+   },
+   "display_name": "FastFlowLM NPU",
+   "experimental": false,
+   "modality": "Text generation",
+   "options": [
+    {
+     "cli_flag": "--flm-args",
+     "default": "",
+     "group": "FastFlowLM Options",
+     "help": "Safe flm serve tuning args: --pmode, --prefill-chunk-len, --img-pre-resize, --socket, --q-len, --preemption",
+     "name": "flm_args",
+     "type_name": "ARGS"
+    }
+   ],
+   "order": 6,
+   "selectable_backend": false,
+   "slot_policy": "coexist_by_type",
+   "support": [
+    {
+     "backend": "npu",
+     "device_summary": "XDNA2 NPU",
+     "devices": [
+      {
+       "device": "amd_npu",
+       "families": [
+        "XDNA2"
+       ]
+      }
+     ],
+     "os": [
+      "linux",
+      "windows"
+     ]
+    }
+   ],
+   "uses_ctx_size": true,
+   "web_display_name": "FastFlowLM NPU"
+  },
+  "whispercpp": {
+   "backends": {
+    "cpu": {
+     "action": "lemonade backends install whispercpp:cpu",
+     "devices": [
+      "cpu"
+     ],
+     "download_filename": "whisper-v1.8.4-windows-cpu-x64.zip",
+     "message": "Backend is supported but not installed.",
+     "release_url": "https://github.com/lemonade-sdk/whisper.cpp-rocm/releases/tag/v1.8.4",
+     "state": "installable",
+     "version": "v1.8.4"
+    },
+    "metal": {
+     "action": "",
+     "can_uninstall": true,
+     "devices": [],
+     "download_filename": "whisper-v1.8.4-darwin-metal-arm64.tar.gz",
+     "message": "Requires macOS",
+     "release_url": "https://github.com/lemonade-sdk/whisper.cpp-rocm/releases/tag/v1.8.4",
+     "state": "unsupported",
+     "version": "v1.8.4"
+    },
+    "npu": {
+     "action": "",
+     "devices": [],
+     "download_filename": "whisper-v1.8.4-windows-npu-x64.zip",
+     "message": "Requires AMD XDNA 2 AMD NPU",
+     "release_url": "https://github.com/lemonade-sdk/whisper.cpp-rocm/releases/tag/v1.8.4",
+     "state": "unsupported",
+     "version": "v1.8.4"
+    },
+    "rocm": {
+     "action": "lemonade backends install whispercpp:rocm",
+     "devices": [
+      "amd_gpu"
+     ],
+     "download_filename": "whisper-v1.8.4-windows-rocm-gfx110X.zip",
+     "message": "Backend is supported but not installed.",
+     "release_url": "https://github.com/lemonade-sdk/whisper.cpp-rocm/releases/tag/v1.8.4",
+     "state": "installable",
+     "version": "v1.8.4"
+    },
+    "vulkan": {
+     "action": "lemonade backends install whispercpp:vulkan",
+     "devices": [
+      "amd_gpu",
+      "cpu"
+     ],
+     "download_filename": "whisper-v1.8.4-windows-vulkan-x64.zip",
+     "message": "Backend is supported but not installed.",
+     "release_url": "https://github.com/lemonade-sdk/whisper.cpp-rocm/releases/tag/v1.8.4",
+     "state": "installable",
+     "version": "v1.8.4"
+    }
+   },
+   "default_backend": "vulkan",
+   "display_name": "Whisper.cpp",
+   "experimental": false,
+   "modality": "Speech-to-text",
+   "options": [
+    {
+     "cli_flag": "--whispercpp",
+     "default": "",
+     "group": "Whisper.cpp Options",
+     "help": "WhisperCpp backend to use",
+     "name": "whispercpp_backend",
+     "type_name": "BACKEND"
+    },
+    {
+     "cli_flag": "--whispercpp-args",
+     "default": "",
+     "group": "Whisper.cpp Options",
+     "help": "Custom arguments to pass to whisper-server",
+     "name": "whispercpp_args",
+     "type_name": "ARGS"
+    }
+   ],
+   "order": 2,
+   "selectable_backend": true,
+   "slot_policy": "standard",
+   "support": [
+    {
+     "backend": "npu",
+     "device_summary": "XDNA2 NPU",
+     "devices": [
+      {
+       "device": "amd_npu",
+       "families": [
+        "XDNA2"
+       ]
+      }
+     ],
+     "os": [
+      "windows"
+     ]
+    },
+    {
+     "backend": "metal",
+     "device_summary": "Apple Silicon GPU",
+     "devices": [
+      {
+       "device": "metal",
+       "families": []
+      }
+     ],
+     "os": [
+      "macos"
+     ]
+    },
+    {
+     "backend": "vulkan",
+     "device_summary": "x86_64 CPU",
+     "devices": [
+      {
+       "device": "amd_gpu",
+       "families": []
+      },
+      {
+       "device": "cpu",
+       "families": [
+        "x86_64"
+       ]
+      }
+     ],
+     "os": [
+      "linux",
+      "windows"
+     ]
+    },
+    {
+     "backend": "rocm",
+     "device_summary": "Supported AMD ROCm iGPU/dGPU families*",
+     "devices": [
+      {
+       "device": "amd_gpu",
+       "families": [
+        "gfx110X",
+        "gfx1150",
+        "gfx1151",
+        "gfx120X"
+       ]
+      }
+     ],
+     "os": [
+      "linux",
+      "windows"
+     ]
+    },
+    {
+     "backend": "cpu",
+     "device_summary": "x86_64 CPU",
+     "devices": [
+      {
+       "device": "cpu",
+       "families": [
+        "x86_64"
+       ]
+      }
+     ],
+     "os": [
+      "linux",
+      "windows"
+     ]
+    }
+   ],
+   "uses_ctx_size": false,
+   "web_display_name": "whisper.cpp"
+  }
+ }
+}

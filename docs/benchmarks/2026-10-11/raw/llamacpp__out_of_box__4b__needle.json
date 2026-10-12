@@ -1,0 +1,107 @@
+{
+ "target_tokens": 20000,
+ "runs": [
+  {
+   "ok": true,
+   "ttft": 113.48334760009311,
+   "ttfb": 113.48331020004116,
+   "wall": 114.05811830004677,
+   "decode_tps": 15.909418143512712,
+   "completion_tokens": 9,
+   "prompt_tokens": 19898,
+   "server_decode_tps": 13.92524926196179,
+   "server_prompt_tps": 175.86169468470712,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "stop",
+   "text_head": "amber-falcon-7421",
+   "answer_correct": true,
+   "verdict": "correct"
+  },
+  {
+   "ok": true,
+   "ttft": 115.65898759989068,
+   "ttfb": 115.65895970002748,
+   "wall": 116.23867750004865,
+   "decode_tps": 15.823213562717127,
+   "completion_tokens": 9,
+   "prompt_tokens": 19969,
+   "server_decode_tps": 13.80262249827467,
+   "server_prompt_tps": 174.58812755618956,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "stop",
+   "text_head": "amber-falcon-7421",
+   "answer_correct": true,
+   "verdict": "correct"
+  }
+ ],
+ "summary": {
+  "verdicts": [
+   "correct",
+   "correct"
+  ],
+  "prompt_tokens_reported": [
+   19898,
+   19969
+  ]
+ },
+ "meta": {
+  "backend": "llamacpp",
+  "mode": "out_of_box",
+  "model": "4b",
+  "endpoint_info": {
+   "args": [
+    "-m",
+    "D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8090"
+   ],
+   "load_s": 4.81,
+   "probe_lines": [
+    "srv llama_server: n_parallel is set to auto, using n_parallel = 4 and kv_unified = true",
+    "cmn common_init_: fitting params to device memory ...",
+    "cmn common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)",
+    "common_params_fit_impl: getting device memory data for initial parameters:",
+    "common_params_fit_impl: context size unset -> using 1048576 for 4 sequences:",
+    "common_params_fit_impl: projected to use 150930 MiB of device memory vs. 15557 MiB of free device memory",
+    "common_params_fit_impl: cannot meet free memory target of 1024 MiB, need to reduce device memory by 136397 MiB",
+    "common_params_fit_impl: context size reduced from 1048576 to 85248 -> need 136408 MiB less memory in total",
+    "common_params_fit_impl: entire model can be fit by reducing context",
+    "common_fit_params: successfully fit params to free device memory",
+    "common_fit_params: fitting params to free memory took 0.77 seconds",
+    "load_tensors: offloaded 37/37 layers to GPU",
+    "llama_context: n_seq_max = 4",
+    "llama_context: n_ctx_seq = 85248",
+    "llama_context: flash_attn = auto",
+    "llama_context: n_ctx_seq (85248) < n_ctx_train (262144) -- the full capacity of the model will not be utilized",
+    "llama_kv_cache: Vulkan0 KV buffer size = 11988.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled"
+   ],
+   "log_lines": [
+    "0.04.230.146 I srv load_model: initializing, n_slots = 4, n_ctx_slot = 85248, kv_unified = 'true'"
+   ],
+   "props": {
+    "total_slots": 4,
+    "n_ctx": 85248,
+    "build_info": "b11026-b49650adb"
+   }
+  },
+  "gpu_before": {
+   "dedicated_mib": 4375,
+   "shared_mib": 372
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 13056,
+   "shared_mib": 6462
+  },
+  "date": "2026-10-11 15:12:58",
+  "gpu_after_run": {
+   "dedicated_mib": 13105,
+   "shared_mib": 6493
+  },
+  "elapsed_s": 232.0
+ }
+}

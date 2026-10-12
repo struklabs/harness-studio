@@ -1,0 +1,16 @@
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":null}}],"created":1790930516,"id":"chatcmpl-5QtdVJKjPKy54TNx0d88bh7gZoqIubge","model":"D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"content":"Mer"}}],"created":1790930516,"id":"chatcmpl-5QtdVJKjPKy54TNx0d88bh7gZoqIubge","model":"D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"content":"hab"}}],"created":1790930516,"id":"chatcmpl-5QtdVJKjPKy54TNx0d88bh7gZoqIubge","model":"D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"content":"a"}}],"created":1790930516,"id":"chatcmpl-5QtdVJKjPKy54TNx0d88bh7gZoqIubge","model":"D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"content":"!"}}],"created":1790930516,"id":"chatcmpl-5QtdVJKjPKy54TNx0d88bh7gZoqIubge","model":"D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":"stop","index":0,"delta":{}}],"created":1790930516,"id":"chatcmpl-5QtdVJKjPKy54TNx0d88bh7gZoqIubge","model":"D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk"}
+
+data: {"choices":[],"created":1790930516,"id":"chatcmpl-5QtdVJKjPKy54TNx0d88bh7gZoqIubge","model":"D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk","usage":{"completion_tokens":5,"prompt_tokens":17,"total_tokens":22,"prompt_tokens_details":{"cached_tokens":1}},"timings":{"cache_n":1,"prompt_n":16,"prompt_ms":52.877,"prompt_per_token_ms":3.3048125,"prompt_per_second":302.58902736539517,"predicted_n":5,"predicted_ms":30.841,"predicted_per_token_ms":7.71025,"predicted_per_second":129.69748062643882}}
+
+data: [DONE]
+

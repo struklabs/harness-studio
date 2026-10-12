@@ -1,0 +1,216 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 2.1398112000897527,
+   "ttfb": 2.1398112000897527,
+   "wall": 8.422250299947336,
+   "decode_tps": 40.59069166374913,
+   "completion_tokens": 256,
+   "prompt_tokens": 510,
+   "server_decode_tps": 40.75135307226998,
+   "server_prompt_tps": 263.0221763795771,
+   "server_cache_n": null,
+   "cached_tokens": 25,
+   "finish_reason": "length",
+   "text_head": "In the heart of a sprawling industrial city, where the hum of machinery and the clatter of metal never ceased, there lay"
+  },
+  {
+   "ok": true,
+   "ttft": 2.1973846999462694,
+   "ttfb": 2.1973846999462694,
+   "wall": 8.472314199898392,
+   "decode_tps": 40.63907446782059,
+   "completion_tokens": 256,
+   "prompt_tokens": 508,
+   "server_decode_tps": 40.79681274900398,
+   "server_prompt_tps": 262.53229974160206,
+   "server_cache_n": null,
+   "cached_tokens": 24,
+   "finish_reason": "length",
+   "text_head": "In the heart of a sprawling industrial city, where the hum of machinery and the clatter of metal never ceased, there lay"
+  },
+  {
+   "ok": true,
+   "ttft": 2.1499946999829262,
+   "ttfb": 2.1499946999829262,
+   "wall": 8.41959649999626,
+   "decode_tps": 40.673746737835295,
+   "completion_tokens": 256,
+   "prompt_tokens": 510,
+   "server_decode_tps": 40.83585898867443,
+   "server_prompt_tps": 264.38569206842925,
+   "server_cache_n": null,
+   "cached_tokens": 24,
+   "finish_reason": "length",
+   "text_head": "In the heart of a sprawling industrial city, where the hum of machinery and the clatter of metal never ceased, there lay"
+  },
+  {
+   "ok": true,
+   "ttft": 2.1271989999804646,
+   "ttfb": 2.1271989999804646,
+   "wall": 8.402556599816307,
+   "decode_tps": 40.63651507468267,
+   "completion_tokens": 256,
+   "prompt_tokens": 509,
+   "server_decode_tps": 40.79681274900398,
+   "server_prompt_tps": 266.9113791295228,
+   "server_cache_n": null,
+   "cached_tokens": 24,
+   "finish_reason": "length",
+   "text_head": "In the heart of a sprawling industrial city, where the hum of machinery and the clatter of metal never ceased, there lay"
+  },
+  {
+   "ok": true,
+   "ttft": 2.158904500072822,
+   "ttfb": 2.158904500072822,
+   "wall": 8.437983799958602,
+   "decode_tps": 40.6123326849219,
+   "completion_tokens": 256,
+   "prompt_tokens": 508,
+   "server_decode_tps": 40.77082337951903,
+   "server_prompt_tps": 260.64648537711645,
+   "server_cache_n": null,
+   "cached_tokens": 24,
+   "finish_reason": "length",
+   "text_head": "In the heart of a sprawling industrial city, where the hum of machinery and the clatter of metal never ceased, there lay"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": true,
+   "ttft": 17.133488700026646,
+   "ttfb": 17.133488700026646,
+   "wall": 17.133663199841976,
+   "completion_tokens": 1,
+   "prompt_tokens": 4010,
+   "server_decode_tps": 0,
+   "server_prompt_tps": 239.61756797131758,
+   "server_cache_n": null,
+   "cached_tokens": 25,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 234.0445702686204
+  },
+  {
+   "ok": true,
+   "ttft": 17.109630199847743,
+   "ttfb": 17.109630199847743,
+   "wall": 17.109795399941504,
+   "completion_tokens": 1,
+   "prompt_tokens": 4008,
+   "server_decode_tps": 0,
+   "server_prompt_tps": 239.928165219994,
+   "server_cache_n": null,
+   "cached_tokens": 25,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 234.25404016246165
+  },
+  {
+   "ok": true,
+   "ttft": 17.104467400116846,
+   "ttfb": 17.104467400116846,
+   "wall": 17.10461809998378,
+   "completion_tokens": 1,
+   "prompt_tokens": 4007,
+   "server_decode_tps": 0,
+   "server_prompt_tps": 240.18461907330817,
+   "server_cache_n": null,
+   "cached_tokens": 25,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 234.26628296959584
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 2.1499946999829262,
+  "decode_tps": 40.63651507468267,
+  "server_decode_tps": 40.79681274900398,
+  "prompt_tokens_500": 509,
+  "completion_tokens": 256,
+  "pp4k_tps_client": 234.25404016246165,
+  "pp4k_tps_server": 239.928165219994,
+  "pp4k_prompt_tokens": 4008,
+  "pp4k_ttft_s": 17.109630199847743,
+  "errors": []
+ },
+ "meta": {
+  "backend": "ollama",
+  "mode": "equal",
+  "model": "14b",
+  "endpoint_info": {
+   "env": {
+    "OLLAMA_FLASH_ATTENTION": "1",
+    "OLLAMA_KV_CACHE_TYPE": "f16",
+    "OLLAMA_NUM_PARALLEL": "1"
+   },
+   "server_env_stripped": [
+    "OLLAMA_FLASH_ATTENTION",
+    "OLLAMA_KV_CACHE_TYPE",
+    "OLLAMA_NUM_PARALLEL",
+    "OLLAMA_MAX_LOADED_MODELS",
+    "OLLAMA_CONTEXT_LENGTH",
+    "OLLAMA_NUM_CTX",
+    "OLLAMA_GPU_OVERHEAD"
+   ],
+   "load_s": 8.76,
+   "ps": {
+    "size": 15136603503,
+    "size_vram": 15136603503,
+    "context_length": 32768
+   },
+   "log_lines": [
+    "time=2026-10-11T15:06:01.100+03:00 level=INFO source=routes.go:2117 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+    "time=2026-10-11T15:06:08.973+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Programs\\\\Ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\.ollama\\\\models\\\\blobs\\\\sha256-3605803b982cb64",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 35 repeating layers to GPU",
+    "load_tensors: offloaded 37/37 layers to GPU",
+    "llama_context: flash_attn = enabled",
+    "llama_kv_cache: size = 4608.00 MiB ( 32768 cells, 36 layers, 1/1 seqs), K (f16): 2304.00 MiB, V (f16): 2304.00 MiB",
+    "time=2026-10-11T15:07:25.590+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Programs\\\\Ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\.ollama\\\\models\\\\blobs\\\\sha256-c1e659736d89ac1",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 47 repeating layers to GPU",
+    "load_tensors: offloaded 49/49 layers to GPU",
+    "llama_context: flash_attn = enabled",
+    "llama_kv_cache: size = 6144.00 MiB ( 32768 cells, 48 layers, 1/1 seqs), K (f16): 3072.00 MiB, V (f16): 3072.00 MiB"
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 4375,
+   "shared_mib": 364
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 15177,
+   "shared_mib": 4486
+  },
+  "date": "2026-10-11 15:07:35",
+  "gpu_after_run": {
+   "dedicated_mib": 15251,
+   "shared_mib": 4638
+  },
+  "elapsed_s": 116.0,
+  "endpoint_info_after": {
+   "ps": {
+    "size": 15136603503,
+    "size_vram": 15136603503,
+    "context_length": 32768
+   },
+   "log_lines": [
+    "time=2026-10-11T15:06:01.100+03:00 level=INFO source=routes.go:2117 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+    "time=2026-10-11T15:06:08.973+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Programs\\\\Ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\.ollama\\\\models\\\\blobs\\\\sha256-3605803b982cb64",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 35 repeating layers to GPU",
+    "load_tensors: offloaded 37/37 layers to GPU",
+    "llama_context: flash_attn = enabled",
+    "llama_kv_cache: size = 4608.00 MiB ( 32768 cells, 36 layers, 1/1 seqs), K (f16): 2304.00 MiB, V (f16): 2304.00 MiB",
+    "time=2026-10-11T15:07:25.590+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Programs\\\\Ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\.ollama\\\\models\\\\blobs\\\\sha256-c1e659736d89ac1",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 47 repeating layers to GPU",
+    "load_tensors: offloaded 49/49 layers to GPU",
+    "llama_context: flash_attn = enabled",
+    "llama_kv_cache: size = 6144.00 MiB ( 32768 cells, 48 layers, 1/1 seqs), K (f16): 3072.00 MiB, V (f16): 3072.00 MiB"
+   ]
+  }
+ }
+}

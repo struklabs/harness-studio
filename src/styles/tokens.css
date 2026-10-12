@@ -1,0 +1,74 @@
+/* Harness Studio Semantic Design Tokens */
+
+:root {
+  /* Sizing & Geometry */
+  --control-height-compact: 28px;
+  --control-height-default: 32px;
+  --control-height-large: 36px;
+  --icon-button-size: 32px;
+  --topbar-height: 44px;
+  --sidebar-width-expanded: 220px;
+  --sidebar-width-collapsed: 56px;
+
+  /* Natural Geometry (Border Radii) */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* 4px / 8px Layout Spacing Grid */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Typography Stacks */
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'Cascadia Code', Consolas, monospace;
+  --font-num: 'IBM Plex Sans Variable', ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+}
+
+/*
+ * Legacy semantic tokens, mapped onto the shadcn theme variables in src/app.css so
+ * screens not yet migrated to Tailwind follow the same palette in both themes.
+ */
+:root {
+  --surface-canvas: var(--background);
+  --surface-default: var(--card);
+  --surface-raised: var(--muted);
+  --surface-hover: var(--accent);
+  --surface-selected: color-mix(in oklab, var(--primary) 16%, var(--card));
+  --surface-panel: var(--card);
+
+  --border-subtle: color-mix(in oklab, var(--border) 60%, transparent);
+  --border-default: var(--border);
+  --border-strong: var(--input);
+  --border-focus: var(--ring);
+
+  --text-primary: var(--foreground);
+  --text-secondary: var(--muted-foreground);
+  --text-muted: color-mix(in oklab, var(--muted-foreground) 80%, var(--background));
+  --text-disabled: color-mix(in oklab, var(--muted-foreground) 55%, var(--background));
+
+  --accent-primary: var(--primary);
+  --accent-hover: color-mix(in oklab, var(--primary) 85%, var(--foreground));
+  --accent-subtle: color-mix(in oklab, var(--primary) 14%, transparent);
+  --status-success: var(--success);
+  --status-success-subtle: color-mix(in oklab, var(--success) 13%, transparent);
+  --status-warning: var(--warning);
+  --status-warning-subtle: color-mix(in oklab, var(--warning) 13%, transparent);
+  --status-danger: var(--destructive);
+  --status-danger-subtle: color-mix(in oklab, var(--destructive) 13%, transparent);
+  --status-info: var(--info);
+  --status-info-subtle: color-mix(in oklab, var(--info) 13%, transparent);
+
+  --code-bg: var(--muted);
+  --terminal-bg: var(--terminal);
+  --scroll-track: transparent;
+  --scroll-thumb: color-mix(in oklab, var(--foreground) 14%, transparent);
+  --scroll-thumb-hover: color-mix(in oklab, var(--foreground) 26%, transparent);
+}

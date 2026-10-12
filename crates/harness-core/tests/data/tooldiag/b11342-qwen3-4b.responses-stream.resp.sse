@@ -1,0 +1,42 @@
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_7aobmuc8kLVdXnkXx6qLtErUdWVp1WhN","object":"response","status":"in_progress"}}
+
+event: response.in_progress
+data: {"type":"response.in_progress","response":{"id":"resp_7aobmuc8kLVdXnkXx6qLtErUdWVp1WhN","object":"response","status":"in_progress"}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2","arguments":"","call_id":"call_qWapshSovXpuwxZTf4FiETWCKTew8TC2","name":"get_weather","type":"function_call","status":"in_progress"}}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"{","item_id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"\"","item_id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"city","item_id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"\":","item_id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":" \"","item_id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"An","item_id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"k","item_id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"ara","item_id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"\"}","item_id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2","type":"function_call","status":"completed","arguments":"{\"city\": \"Ankara\"}","call_id":"call_qWapshSovXpuwxZTf4FiETWCKTew8TC2","name":"get_weather"}}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_7aobmuc8kLVdXnkXx6qLtErUdWVp1WhN","object":"response","created_at":1790924221,"status":"completed","model":"D:/Models/unsloth/Qwen3-4B-Instruct-2507-GGUF/Qwen3-4B-Instruct-2507-Q4_K_M.gguf","output":[{"id":"fc_qWapshSovXpuwxZTf4FiETWCKTew8TC2","type":"function_call","status":"completed","arguments":"{\"city\": \"Ankara\"}","call_id":"call_qWapshSovXpuwxZTf4FiETWCKTew8TC2","name":"get_weather"}],"usage":{"input_tokens":153,"output_tokens":22,"total_tokens":175,"input_tokens_details":{"cached_tokens":152}}},"timings":{"cache_n":152,"prompt_n":1,"prompt_ms":8.472,"prompt_per_token_ms":8.472,"prompt_per_second":118.03588290840416,"predicted_n":22,"predicted_ms":157.302,"predicted_per_token_ms":7.490571428571428,"predicted_per_second":133.50116336728078}}
+

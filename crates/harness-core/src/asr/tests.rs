@@ -1,0 +1,428 @@
+use super::*;
+
+fn touch(path: &Path, bytes: &[u8]) {
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, bytes).unwrap();
+}
+
+/// A folder laid out like the archive `sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8`.
+fn parakeet_dir(root: &Path) -> PathBuf {
+    let d = root.join("sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8");
+    for f in [
+        "encoder.int8.onnx",
+        "decoder.int8.onnx",
+        "joiner.int8.onnx",
+        "tokens.txt",
+        "test_wavs/en.wav",
+    ] {
+        touch(&d.join(f), b"x");
+    }
+    d
+}
+
+fn single(root: &Path, name: &str, file: &str) -> PathBuf {
+    let d = root.join(name);
+    touch(&d.join(file), b"x");
+    touch(&d.join("tokens.txt"), b"x");
+    d
+}
+
+fn vad() -> PathBuf {
+    PathBuf::from("vad/silero_vad.onnx")
+}
+
+fn params() -> Params {
+    Params {
+        vad: vad(),
+        language: None,
+        threads: 3,
+    }
+}
+
+#[test]
+fn a_parakeet_folder_is_a_nemo_transducer() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = parakeet_dir(tmp.path());
+    let m = detect(&dir).unwrap();
+    assert_eq!(m.family, AsrFamily::NemoTransducer);
+    assert_eq!(m.name, "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8");
+    assert_eq!(m.quantization, "int8");
+    assert_eq!(m.id, dir.join("encoder.int8.onnx").to_string_lossy());
+    assert!(m.decoder.is_some() && m.joiner.is_some());
+    // The catalog knows this folder's languages.
+    assert!(m.languages.iter().any(|l| l == "de"));
+}
+
+#[test]
+fn single_file_families_are_told_by_their_folder_name() {
+    let tmp = tempfile::tempdir().unwrap();
+    for (name, family) in [
+        (
+            "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17",
+            AsrFamily::SenseVoice,
+        ),
+        (
+            "sherpa-onnx-paraformer-zh-2024-03-09",
+            AsrFamily::Paraformer,
+        ),
+        (
+            "sherpa-onnx-omnilingual-asr-1600-languages-300M-ctc-int8",
+            AsrFamily::Omnilingual,
+        ),
+        (
+            "sherpa-onnx-dolphin-base-ctc-multi-lang-int8-2025-04-02",
+            AsrFamily::Dolphin,
+        ),
+        (
+            "sherpa-onnx-nemo-ctc-en-conformer-medium",
+            AsrFamily::NemoCtc,
+        ),
+    ] {
+        let d = single(tmp.path(), name, "model.int8.onnx");
+        assert_eq!(detect(&d).unwrap().family, family, "{name}");
+    }
+}
+
+#[test]
+fn zipformer_is_a_plain_transducer_and_int8_wins() {
+    let tmp = tempfile::tempdir().unwrap();
+    let d = tmp.path().join("sherpa-onnx-zipformer-en-2023-06-26");
+    for f in [
+        "encoder-epoch-99-avg-1.onnx",
+        "encoder-epoch-99-avg-1.int8.onnx",
+        "decoder-epoch-99-avg-1.onnx",
+        "joiner-epoch-99-avg-1.onnx",
+        "joiner-epoch-99-avg-1.int8.onnx",
+        "tokens.txt",
+    ] {
+        touch(&d.join(f), b"x");
+    }
+    let m = detect(&d).unwrap();
+    assert_eq!(m.family, AsrFamily::Transducer);
+    assert!(m.model_file.ends_with("encoder-epoch-99-avg-1.int8.onnx"));
+    assert!(m
+        .joiner
+        .unwrap()
+        .ends_with("joiner-epoch-99-avg-1.int8.onnx"));
+    assert!(m.decoder.unwrap().ends_with("decoder-epoch-99-avg-1.onnx"));
+}
+
+#[test]
+fn what_the_offline_tool_cannot_run_is_not_detected() {
+    let tmp = tempfile::tempdir().unwrap();
+    // Streaming models need the online tool.
+    let d = tmp
+        .path()
+        .join("sherpa-onnx-streaming-zipformer-en-2023-06-26");
+    for f in ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"] {
+        touch(&d.join(f), b"x");
+    }
+    assert!(detect(&d).is_none());
+    // Whisper is whisper.cpp's; Canary has no joiner; no tokens, no model.
+    let d = tmp.path().join("sherpa-onnx-whisper-tiny");
+    for f in ["tiny-encoder.onnx", "tiny-decoder.onnx", "tiny-tokens.txt"] {
+        touch(&d.join(f), b"x");
+    }
+    assert!(detect(&d).is_none());
+    let d = tmp
+        .path()
+        .join("sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8");
+    for f in ["encoder.int8.onnx", "decoder.int8.onnx", "tokens.txt"] {
+        touch(&d.join(f), b"x");
+    }
+    assert!(detect(&d).is_none());
+    let d = tmp.path().join("sherpa-onnx-paraformer-zh-2024-03-09");
+    touch(&d.join("model.onnx"), b"x");
+    assert!(detect(&d).is_none(), "no tokens.txt");
+    // A text-to-speech folder is not one of these (and the other way round).
+    let d = tmp.path().join("vits-piper-tr_TR-fettah-medium-int8");
+    for f in ["tr_TR-fettah-medium.onnx", "tokens.txt"] {
+        touch(&d.join(f), b"x");
+    }
+    touch(&d.join("espeak-ng-data/tr_dict"), b"x");
+    assert!(detect(&d).is_none());
+    assert!(crate::tts::detect(&parakeet_dir(tmp.path())).is_none());
+}
+
+#[test]
+fn scan_finds_models_in_roots_and_skips_hidden_folders() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().to_path_buf();
+    parakeet_dir(&root.join("asr"));
+    single(
+        &root.join("elsewhere/deep"),
+        "sherpa-onnx-paraformer-zh-2024-03-09",
+        "model.onnx",
+    );
+    // The VAD model's folder and the download staging are not scanned.
+    parakeet_dir(&root.join("asr/.staging-x"));
+    touch(&root.join("asr/.vad/silero_vad.onnx"), b"x");
+    let found = scan(std::slice::from_ref(&root));
+    let names: Vec<&str> = found.iter().map(|m| m.name.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+            "sherpa-onnx-paraformer-zh-2024-03-09"
+        ]
+    );
+    // The library sees them as speech-recognition files of the sherpa-onnx runtime.
+    let library = library_models(std::slice::from_ref(&root));
+    assert_eq!(library.len(), 2);
+    assert!(library
+        .iter()
+        .all(|m| m.kind == crate::domain::ModelKind::Asr && is_sherpa_file(&m.path)));
+    assert!(library[0]
+        .shard_paths
+        .iter()
+        .any(|p| p.ends_with("tokens.txt")));
+}
+
+#[test]
+fn deleting_removes_the_folder_inside_a_root_only() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("models");
+    let dir = parakeet_dir(&root.join("asr"));
+    let outside = tempfile::tempdir().unwrap();
+    let other = parakeet_dir(outside.path());
+    let roots = vec![root.clone()];
+    let e = delete_model_dir(&other.join("encoder.int8.onnx"), &roots).unwrap_err();
+    assert!(e.contains("library.outside_library"), "{e}");
+    assert!(other.exists());
+    let e = delete_model_dir(&root.join("nope/encoder.int8.onnx"), &roots).unwrap_err();
+    assert!(e.contains("stt.model_not_found"), "{e}");
+    delete_model_dir(&dir.join("encoder.int8.onnx"), &roots).unwrap();
+    assert!(!dir.exists());
+    assert!(root.join("asr").exists(), "only the model folder goes");
+}
+
+#[test]
+fn models_are_found_by_name_path_or_unique_part() {
+    let tmp = tempfile::tempdir().unwrap();
+    parakeet_dir(tmp.path());
+    single(
+        tmp.path(),
+        "sherpa-onnx-paraformer-zh-2024-03-09",
+        "model.onnx",
+    );
+    single(
+        tmp.path(),
+        "sherpa-onnx-paraformer-en-2024-03-09",
+        "model.onnx",
+    );
+    let models = scan(&[tmp.path().to_path_buf()]);
+    assert_eq!(models.len(), 3);
+    let name = |w: Option<&str>, exact| find_model(&models, w, exact).map(|m| m.name.clone());
+    // Nothing named: the first.
+    assert_eq!(name(None, false).unwrap(), models[0].name);
+    assert_eq!(
+        name(Some("SHERPA-ONNX-PARAFORMER-ZH-2024-03-09"), true).unwrap(),
+        "sherpa-onnx-paraformer-zh-2024-03-09"
+    );
+    assert_eq!(
+        name(Some(&models[0].id), true).unwrap(),
+        models[0].name,
+        "by path"
+    );
+    assert_eq!(
+        name(Some("parakeet"), false).unwrap(),
+        "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
+    );
+    // The gateway matches whole names only: a part must not take a request from a whisper alias.
+    assert!(name(Some("parakeet"), true)
+        .unwrap_err()
+        .contains("stt.model_not_found"));
+    let e = name(Some("paraformer"), false).unwrap_err();
+    assert!(
+        e.contains("stt.model_ambiguous") && e.contains("paraformer-en"),
+        "{e}"
+    );
+    assert!(name(Some("whisper-1"), false)
+        .unwrap_err()
+        .contains("stt.model_not_found"));
+    assert!(find_model(&[], None, false)
+        .unwrap_err()
+        .contains("stt.no_model"));
+}
+
+fn model(family: AsrFamily, name: &str) -> AsrModel {
+    let dir = PathBuf::from("m").join(name);
+    AsrModel {
+        id: "x".into(),
+        name: name.into(),
+        family,
+        model_file: dir.join("model.int8.onnx"),
+        decoder: Some(dir.join("decoder.int8.onnx")),
+        joiner: Some(dir.join("joiner.int8.onnx")),
+        tokens: dir.join("tokens.txt"),
+        dir,
+        size_bytes: 1,
+        quantization: "int8".into(),
+        languages: vec![],
+    }
+}
+
+fn has(args: &[String], wanted: &str) -> bool {
+    args.iter().any(|a| a == wanted)
+}
+
+fn arg_path(args: &[String], flag: &str) -> String {
+    args.iter()
+        .find_map(|a| a.strip_prefix(&format!("{flag}=")))
+        .unwrap_or_else(|| panic!("{flag} in {args:?}"))
+        .replace('\\', "/")
+}
+
+#[test]
+fn transducer_arguments() {
+    let m = model(AsrFamily::NemoTransducer, "p");
+    let a = build_args(&m, &params());
+    assert_eq!(arg_path(&a, "--encoder"), "m/p/model.int8.onnx");
+    assert_eq!(arg_path(&a, "--decoder"), "m/p/decoder.int8.onnx");
+    assert_eq!(arg_path(&a, "--joiner"), "m/p/joiner.int8.onnx");
+    assert_eq!(arg_path(&a, "--tokens"), "m/p/tokens.txt");
+    assert_eq!(arg_path(&a, "--silero-vad-model"), "vad/silero_vad.onnx");
+    assert!(has(&a, "--model-type=nemo_transducer"));
+    assert!(has(&a, "--silero-vad-max-speech-duration=25"));
+    assert!(has(&a, "--num-threads=3"));
+    assert!(has(&a, "--print-args=false"));
+    let a = build_args(&model(AsrFamily::Transducer, "z"), &params());
+    assert!(has(&a, "--model-type=transducer"));
+}
+
+#[test]
+fn single_model_arguments() {
+    let p = params();
+    let a = build_args(&model(AsrFamily::Omnilingual, "o"), &p);
+    assert_eq!(
+        arg_path(&a, "--omnilingual-asr-model"),
+        "m/o/model.int8.onnx"
+    );
+    assert!(!a.iter().any(|x| x.starts_with("--encoder")));
+    let a = build_args(&model(AsrFamily::Paraformer, "p"), &p);
+    assert_eq!(arg_path(&a, "--paraformer"), "m/p/model.int8.onnx");
+    assert!(has(&a, "--model-type=paraformer"));
+    let a = build_args(&model(AsrFamily::NemoCtc, "c"), &p);
+    assert_eq!(arg_path(&a, "--nemo-ctc-model"), "m/c/model.int8.onnx");
+    assert!(has(&a, "--model-type=nemo_ctc"));
+    let a = build_args(&model(AsrFamily::Dolphin, "d"), &p);
+    assert_eq!(arg_path(&a, "--dolphin-model"), "m/d/model.int8.onnx");
+    // Threads never go below one.
+    let a = build_args(&model(AsrFamily::Dolphin, "d"), &Params { threads: 0, ..p });
+    assert!(has(&a, "--num-threads=1"));
+}
+
+#[test]
+fn sense_voice_takes_the_requested_language() {
+    let m = model(AsrFamily::SenseVoice, "s");
+    let a = build_args(&m, &params());
+    assert!(has(&a, "--sense-voice-language=auto"));
+    assert!(has(&a, "--sense-voice-use-itn=true"));
+    assert_eq!(arg_path(&a, "--sense-voice-model"), "m/s/model.int8.onnx");
+    for (given, wanted) in [
+        (Some("ja"), "ja"),
+        (Some("Japanese"), "ja"),
+        (Some("zh-CN"), "zh"),
+        (Some("EN"), "en"),
+        (Some("yue"), "yue"),
+        (Some("ko_KR"), "ko"),
+        (Some("tr"), "auto"),
+        (Some(""), "auto"),
+        (None, "auto"),
+    ] {
+        assert_eq!(sense_voice_language(given), wanted, "{given:?}");
+    }
+}
+
+#[test]
+fn the_tools_lines_become_segments_moved_back_by_the_padding() {
+    let out = "Started!\n0.550 -- 3.020: The quick brown fox.\n  3.900 -- 10.188: Second one, with: a colon.\n11.000 -- 11.500: \nElapsed seconds: 0.3 s\n";
+    let s = parse_output(out, 0.5, 10.0);
+    assert_eq!(s.len(), 2);
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
+    assert!(near(s[0].start, 0.05) && near(s[0].end, 2.52), "{:?}", s[0]);
+    assert_eq!(s[0].text, "The quick brown fox.");
+    assert!(near(s[1].start, 3.4) && near(s[1].end, 9.688), "{:?}", s[1]);
+    assert_eq!(s[1].text, "Second one, with: a colon.");
+    // Times stay inside the audio: padding at the end, speech in the first padding.
+    let s = parse_output("0.100 -- 0.900: early\n10.400 -- 11.200: late\n", 0.5, 10.0);
+    assert_eq!((s[0].start, s[0].end), (0.0, 0.4));
+    assert!(near(s[1].start, 9.9) && near(s[1].end, 10.0));
+    assert!(parse_output("", 0.5, 10.0).is_empty());
+    assert!(parse_output("garbage in -- garbage: out", 0.5, 10.0).is_empty());
+}
+
+fn transcript() -> Transcript {
+    Transcript::new(
+        vec![
+            Segment {
+                start: 0.05,
+                end: 2.5,
+                text: "Hello there.".into(),
+            },
+            Segment {
+                start: 3725.0049,
+                end: 3727.5,
+                text: "Second line.".into(),
+            },
+        ],
+        3730.0,
+        Some("en".into()),
+        "m".into(),
+        1200,
+    )
+}
+
+#[test]
+fn a_transcript_is_shaped_like_openais() {
+    let t = transcript();
+    assert_eq!(t.text, "Hello there. Second line.");
+    assert_eq!(
+        t.to_json(),
+        serde_json::json!({"text": "Hello there. Second line."})
+    );
+    let v = t.to_verbose_json("transcribe");
+    assert_eq!(v["task"], "transcribe");
+    assert_eq!(v["language"], "en");
+    assert_eq!(v["duration"], 3730.0);
+    assert_eq!(v["segments"].as_array().unwrap().len(), 2);
+    assert_eq!(v["segments"][1]["id"], 1);
+    assert_eq!(v["segments"][1]["start"], 3725.005);
+    assert_eq!(v["segments"][0]["text"], "Hello there.");
+    // No language asked: the field is left out.
+    let mut t = transcript();
+    t.language = None;
+    assert!(t.to_verbose_json("transcribe").get("language").is_none());
+}
+
+#[test]
+fn subtitles() {
+    let t = transcript();
+    assert_eq!(
+        t.to_srt(),
+        "1\n00:00:00,050 --> 00:00:02,500\nHello there.\n\n2\n01:02:05,005 --> 01:02:07,500\nSecond line.\n\n"
+    );
+    assert_eq!(
+        t.to_vtt(),
+        "WEBVTT\n\n00:00:00.050 --> 00:00:02.500\nHello there.\n\n01:02:05.005 --> 01:02:07.500\nSecond line.\n\n"
+    );
+    assert_eq!(format_time(59.9996, ','), "00:01:00,000");
+    assert_eq!(format_time(-3.0, '.'), "00:00:00.000");
+}
+
+#[test]
+fn cjk_segments_join_without_spaces() {
+    let seg = |t: &str| Segment {
+        start: 0.0,
+        end: 1.0,
+        text: t.into(),
+    };
+    assert_eq!(join_segments(&[seg("你好，"), seg("世界")]), "你好，世界");
+    assert_eq!(
+        join_segments(&[seg("こんにちは"), seg("世界")]),
+        "こんにちは世界"
+    );
+    assert_eq!(join_segments(&[seg("hello"), seg("世界")]), "hello 世界");
+    assert_eq!(join_segments(&[seg("a"), seg("  "), seg("b")]), "a b");
+    assert_eq!(join_segments(&[]), "");
+}

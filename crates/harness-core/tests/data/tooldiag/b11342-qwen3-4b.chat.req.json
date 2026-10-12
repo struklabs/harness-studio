@@ -1,0 +1,1 @@
+{"model":"m","max_tokens":200,"temperature":0,"messages":[{"role":"user","content":"What is the weather in Ankara?"}],"tools":[{"type":"function","function":{"name":"get_weather","description":"Current weather of a city","parameters":{"type":"object","properties":{"city":{"type":"string"},"unit":{"type":"string","enum":["celsius","fahrenheit"]}},"required":["city"]}}}]}

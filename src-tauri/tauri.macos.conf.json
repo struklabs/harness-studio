@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Harness Studio",
+        "visible": false,
+        "width": 1150,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 600,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 16,
+          "y": 16
+        }
+      }
+    ]
+  },
+  "bundle": {
+    "macOS": {
+      "entitlements": "Entitlements.plist",
+      "files": {
+        "Resources/tr.lproj/InfoPlist.strings": "macos/tr.lproj/InfoPlist.strings",
+        "Resources/en.lproj/InfoPlist.strings": "macos/en.lproj/InfoPlist.strings"
+      },
+      "signingIdentity": "-",
+      "minimumSystemVersion": "13.3"
+    }
+  }
+}

@@ -1,0 +1,211 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 0.23373029998037964,
+   "ttfb": 0.23373029998037964,
+   "wall": 1.5985981000121683,
+   "decode_tps": 186.86122315303535,
+   "completion_tokens": 256,
+   "prompt_tokens": 486,
+   "server_decode_tps": 185.9114015976761,
+   "server_prompt_tps": 10800,
+   "server_cache_n": null,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "Okay, so I need to take this passage and write a detailed story that continues it. Let me start by reading through the o"
+  },
+  {
+   "ok": true,
+   "ttft": 0.26095609995536506,
+   "ttfb": 0.26095609995536506,
+   "wall": 1.613348999992013,
+   "decode_tps": 188.5814592074565,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 187.54578754578753,
+   "server_prompt_tps": 10844.444444444445,
+   "server_cache_n": null,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "Okay, let's see. The user provided a list of observations and counts from different locations near a cellar, station, an"
+  },
+  {
+   "ok": true,
+   "ttft": 0.23948220000602305,
+   "ttfb": 0.23948220000602305,
+   "wall": 1.596803899970837,
+   "decode_tps": 187.901002845432,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 186.99780861943023,
+   "server_prompt_tps": 10844.444444444445,
+   "server_cache_n": null,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "Okay, I need to take this passage and write a detailed story that continues it. Let me first read through the given info"
+  },
+  {
+   "ok": true,
+   "ttft": 0.25984189996961504,
+   "ttfb": 0.25984189996961504,
+   "wall": 1.6194416999351233,
+   "decode_tps": 187.5770169106362,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "server_decode_tps": 186.58892128279882,
+   "server_prompt_tps": 10866.666666666666,
+   "server_cache_n": null,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "Okay, let's see. The user provided a list of observations and counts from different locations near a station, and they w"
+  },
+  {
+   "ok": true,
+   "ttft": 0.24229429999832064,
+   "ttfb": 0.24229429999832064,
+   "wall": 1.6027682999847457,
+   "decode_tps": 187.46427151797843,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 186.4530225782957,
+   "server_prompt_tps": 10844.444444444445,
+   "server_cache_n": null,
+   "cached_tokens": 5,
+   "finish_reason": "length",
+   "text_head": "Okay, so I need to take this passage and write a detailed story that continues it. Let me start by reading through the o"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": false,
+   "ttft": null,
+   "ttfb": 0.7986421999521554,
+   "wall": 0.7988072000443935,
+   "completion_tokens": 1,
+   "prompt_tokens": 3986,
+   "server_decode_tps": 0,
+   "server_prompt_tps": 9079.726651480638,
+   "server_cache_n": null,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": ""
+  },
+  {
+   "ok": false,
+   "ttft": null,
+   "ttfb": 0.7857174000237137,
+   "wall": 0.7859301000135019,
+   "completion_tokens": 1,
+   "prompt_tokens": 3987,
+   "server_decode_tps": 0,
+   "server_prompt_tps": 9102.739726027397,
+   "server_cache_n": null,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": ""
+  },
+  {
+   "ok": false,
+   "ttft": null,
+   "ttfb": 0.7955814999295399,
+   "wall": 0.7957439000019804,
+   "completion_tokens": 1,
+   "prompt_tokens": 3989,
+   "server_decode_tps": 0,
+   "server_prompt_tps": 9086.560364464693,
+   "server_cache_n": null,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": ""
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 0.24229429999832064,
+  "decode_tps": 187.5770169106362,
+  "server_decode_tps": 186.58892128279882,
+  "prompt_tokens_500": 488,
+  "completion_tokens": 256,
+  "pp4k_tps_client": null,
+  "pp4k_tps_server": 9086.560364464693,
+  "pp4k_prompt_tokens": 3987,
+  "pp4k_ttft_s": null,
+  "errors": []
+ },
+ "meta": {
+  "backend": "ollama",
+  "mode": "out_of_box",
+  "model": "14b",
+  "endpoint_info": {
+   "env": {},
+   "server_env_stripped": [
+    "OLLAMA_FLASH_ATTENTION",
+    "OLLAMA_KV_CACHE_TYPE",
+    "OLLAMA_NUM_PARALLEL",
+    "OLLAMA_MAX_LOADED_MODELS",
+    "OLLAMA_CONTEXT_LENGTH",
+    "OLLAMA_NUM_CTX",
+    "OLLAMA_GPU_OVERHEAD"
+   ],
+   "load_s": 15.0,
+   "ps": {
+    "size": 1134727003,
+    "size_vram": 1134727003,
+    "context_length": 4096
+   },
+   "log_lines": [
+    "common_params_fit_impl: - CUDA0 (NVIDIA GeForce RTX 3050 Ti Laptop GPU): 26 layers, 2230 MiB used, 1065 MiB free",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 25 repeating layers to GPU",
+    "load_tensors: offloaded 26/37 layers to GPU",
+    "llama_context: flash_attn = auto",
+    "llama_kv_cache: size = 576.00 MiB ( 4096 cells, 36 layers, 1/1 seqs), K (f16): 288.00 MiB, V (f16): 288.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled",
+    "time=2026-10-12T04:34:26.996+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\Documents\\\\Proje\\\\harness-studio\\\\scratch\\\\tools\\\\ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\Document",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 27 repeating layers to GPU",
+    "load_tensors: offloaded 29/29 layers to GPU",
+    "llama_context: flash_attn = auto",
+    "llama_kv_cache: size = 448.00 MiB ( 4096 cells, 28 layers, 1/1 seqs), K (f16): 224.00 MiB, V (f16): 224.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled"
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 654
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 1181,
+   "shared_mib": 247
+  },
+  "date": "2026-10-12 04:34:42",
+  "gpu_after_run": {
+   "dedicated_mib": 1183,
+   "shared_mib": 247
+  },
+  "elapsed_s": 18.9,
+  "endpoint_info_after": {
+   "ps": {
+    "size": 1134727003,
+    "size_vram": 1134727003,
+    "context_length": 4096
+   },
+   "log_lines": [
+    "common_params_fit_impl: - CUDA0 (NVIDIA GeForce RTX 3050 Ti Laptop GPU): 26 layers, 2230 MiB used, 1065 MiB free",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 25 repeating layers to GPU",
+    "load_tensors: offloaded 26/37 layers to GPU",
+    "llama_context: flash_attn = auto",
+    "llama_kv_cache: size = 576.00 MiB ( 4096 cells, 36 layers, 1/1 seqs), K (f16): 288.00 MiB, V (f16): 288.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled",
+    "time=2026-10-12T04:34:26.996+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\Documents\\\\Proje\\\\harness-studio\\\\scratch\\\\tools\\\\ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\Document",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 27 repeating layers to GPU",
+    "load_tensors: offloaded 29/29 layers to GPU",
+    "llama_context: flash_attn = auto",
+    "llama_kv_cache: size = 448.00 MiB ( 4096 cells, 28 layers, 1/1 seqs), K (f16): 224.00 MiB, V (f16): 224.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled"
+   ]
+  }
+ }
+}

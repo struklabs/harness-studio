@@ -1,0 +1,204 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 0.44238669995684177,
+   "ttfb": 0.42811549990437925,
+   "wall": 2.068529399926774,
+   "decode_tps": 157.3994597027834,
+   "completion_tokens": 256,
+   "prompt_tokens": 485,
+   "server_decode_tps": 155.9873448384705,
+   "server_prompt_tps": 1902.3787628223092,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "Okay, let's see. The user provided a list of observations and counts from different locations in a passage and wants me "
+  },
+  {
+   "ok": true,
+   "ttft": 0.4355282000033185,
+   "ttfb": 0.42043769999872893,
+   "wall": 2.050804300000891,
+   "decode_tps": 157.88687672458533,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "server_decode_tps": 156.41005195267218,
+   "server_prompt_tps": 1897.4218536051014,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "Okay, so I need to take this list of observations and create a detailed story that continues it. Let me start by underst"
+  },
+  {
+   "ok": true,
+   "ttft": 0.4374563000164926,
+   "ttfb": 0.42303379997611046,
+   "wall": 2.0599801000207663,
+   "decode_tps": 157.18158016577604,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "server_decode_tps": 155.78465063001147,
+   "server_prompt_tps": 1892.7272443452332,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "Okay, so I need to take this passage and write a detailed story that continues it. Let me start by reading through the o"
+  },
+  {
+   "ok": true,
+   "ttft": 0.43913199997041374,
+   "ttfb": 0.4246946000494063,
+   "wall": 2.0568656000541523,
+   "decode_tps": 157.64638764982416,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 156.2434898545894,
+   "server_prompt_tps": 1898.0541023851167,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "Okay, so I need to write a detailed story based on the given passage. Let me start by understanding the structure of the"
+  },
+  {
+   "ok": true,
+   "ttft": 0.4408404000569135,
+   "ttfb": 0.4257886999985203,
+   "wall": 2.054897000081837,
+   "decode_tps": 158.00695602504948,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "server_decode_tps": 156.51690351868413,
+   "server_prompt_tps": 1893.5179220495281,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "Okay, so I need to take this passage and write a detailed story that continues it. Let me start by reading through the o"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": false,
+   "ttft": null,
+   "ttfb": 3.0579183000372723,
+   "wall": 3.0582293999614194,
+   "completion_tokens": 1,
+   "prompt_tokens": 3989,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 1435.672849607054,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": ""
+  },
+  {
+   "ok": false,
+   "ttft": null,
+   "ttfb": 3.120065600029193,
+   "wall": 3.1203062999993563,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 1436.005310047748,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": ""
+  },
+  {
+   "ok": false,
+   "ttft": null,
+   "ttfb": 3.088942499947734,
+   "wall": 3.08913879992906,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 1435.4610031292618,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": ""
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 0.43913199997041374,
+  "decode_tps": 157.64638764982416,
+  "server_decode_tps": 156.2434898545894,
+  "prompt_tokens_500": 489,
+  "completion_tokens": 256,
+  "pp4k_tps_client": null,
+  "pp4k_tps_server": 1435.672849607054,
+  "pp4k_prompt_tokens": 3988,
+  "pp4k_ttft_s": null,
+  "errors": []
+ },
+ "meta": {
+  "backend": "llamacpp_b11552",
+  "mode": "equal",
+  "model": "14b",
+  "endpoint_info": {
+   "args": [
+    "-m",
+    "C:\\Users\\user\\Documents\\Proje\\harness-studio\\scratch\\nv1012\\appdata\\com.harnessstudio.app\\models\\Qwen3-0.6B-Q8_0.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8091",
+    "-c",
+    "32768",
+    "-ngl",
+    "999",
+    "-fa",
+    "on",
+    "-ctk",
+    "f16",
+    "-ctv",
+    "f16",
+    "-np",
+    "1"
+   ],
+   "load_s": 2.44,
+   "probe_lines": [
+    "cmn common_init_: fitting params to device memory ...",
+    "cmn common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)",
+    "common_params_fit_impl: getting device memory data for initial parameters:",
+    "common_params_fit_impl: projected to use 4246 MiB of device memory vs. 3295 MiB of free device memory",
+    "common_params_fit_impl: cannot meet free memory target of 1024 MiB, need to reduce device memory by 1974 MiB",
+    "common_params_fit_impl: context size set by user to 32768 -> no change",
+    "common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 999, abort",
+    "common_fit_params: fitting params to free memory took 0.25 seconds",
+    "load_tensors: offloaded 29/29 layers to GPU",
+    "llama_context: n_seq_max = 1",
+    "llama_context: n_ctx = 32768",
+    "llama_context: n_ctx_seq = 32768",
+    "llama_context: flash_attn = enabled",
+    "llama_context: n_ctx_seq (32768) < n_ctx_train (40960) -- the full capacity of the model will not be utilized",
+    "llama_kv_cache: CUDA0 KV buffer size = 3584.00 MiB",
+    "slot load_model: id 0 | task -1 | new slot, n_ctx = 32768"
+   ],
+   "log_lines": [
+    "0.00.929.976 W common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 999, abort",
+    "0.01.800.076 I srv load_model: initializing, n_slots = 1, n_ctx_slot = 32768, kv_unified = 'false'"
+   ],
+   "props": {
+    "total_slots": 1,
+    "n_ctx": 32768,
+    "build_info": "b11342-f1cee9941"
+   }
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 655
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 3854,
+   "shared_mib": 609
+  },
+  "date": "2026-10-12 05:14:06",
+  "gpu_after_run": {
+   "dedicated_mib": 3856,
+   "shared_mib": 609
+  },
+  "elapsed_s": 24.8
+ }
+}

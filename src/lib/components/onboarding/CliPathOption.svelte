@@ -1,0 +1,49 @@
+<script lang="ts">
+  // Offers the bundled `harness` CLI on the user's PATH (same backend as Settings > Developer > CLI).
+  // Nothing is changed here: the wizard applies the choice when it finishes. Hidden when there is
+  // no CLI binary or it is already reachable from new terminals.
+  import { onMount } from 'svelte';
+  import { invoke } from '$lib/ipc';
+  import { t } from '$lib/i18n.svelte';
+  import { Switch } from '$lib/components/ui/switch';
+
+  interface CliStatus {
+    path: string | null;
+    source: 'app' | 'path' | 'user' | null;
+    mode: 'windows' | 'symlink';
+    registered: boolean;
+  }
+
+  interface Props {
+    /** Whether the wizard should add the CLI to PATH on finish. */
+    enabled: boolean;
+  }
+
+  let { enabled = $bindable() }: Props = $props();
+
+  let offer = $state(false);
+
+  onMount(async () => {
+    try {
+      const s = await invoke<CliStatus>('cli_status', { userPath: null });
+      offer = Boolean(s.path) && !s.registered && s.source !== 'path';
+      // The Windows installer does not touch PATH, so on Windows this is on by default.
+      enabled = offer && s.mode === 'windows';
+    } catch {
+      offer = false;
+      enabled = false;
+    }
+  });
+</script>
+
+{#if offer}
+  <div class="overflow-hidden rounded-lg border border-border bg-card">
+    <div class="flex items-center justify-between gap-6 px-4 py-3">
+      <label for="wiz-cli-path" class="flex min-w-0 flex-col gap-0.5">
+        <span class="text-sm font-medium">{t('onboarding.wizard_cli_path_title')}</span>
+        <span class="text-xs text-muted-foreground">{t('onboarding.wizard_cli_path_note')}</span>
+      </label>
+      <Switch id="wiz-cli-path" bind:checked={enabled} />
+    </div>
+  </div>
+{/if}

@@ -1,0 +1,174 @@
+[
+ {
+  "url": "http://users.rust-lang.org",
+  "title": [
+   {
+    "value": "The ",
+    "is_bold": false
+   },
+   {
+    "value": "Rust",
+    "is_bold": true
+   },
+   {
+    "value": " ",
+    "is_bold": false
+   },
+   {
+    "value": "Programming",
+    "is_bold": true
+   },
+   {
+    "value": " ",
+    "is_bold": false
+   },
+   {
+    "value": "Language",
+    "is_bold": true
+   },
+   {
+    "value": " Forum",
+    "is_bold": false
+   }
+  ],
+  "extract": [
+   {
+    "value": " This forum is for help, discussion, and announcements related to the ",
+    "is_bold": false
+   },
+   {
+    "value": "Rust",
+    "is_bold": true
+   },
+   {
+    "value": " ",
+    "is_bold": false
+   },
+   {
+    "value": "programming",
+    "is_bold": true
+   },
+   {
+    "value": " ",
+    "is_bold": false
+   },
+   {
+    "value": "language",
+    "is_bold": true
+   },
+   {
+    "value": ".\nPlease read our code of conduct before participating. We …",
+    "is_bold": false
+   }
+  ],
+  "source": "mwmbl"
+ },
+ {
+  "url": "https://en.wikipedia.org/wiki/Rust_(programming_language)",
+  "title": [
+   {
+    "value": "Rust",
+    "is_bold": true
+   },
+   {
+    "value": " (",
+    "is_bold": false
+   },
+   {
+    "value": "programming",
+    "is_bold": true
+   },
+   {
+    "value": " ",
+    "is_bold": false
+   },
+   {
+    "value": "language",
+    "is_bold": true
+   },
+   {
+    "value": ")",
+    "is_bold": false
+   }
+  ],
+  "extract": [
+   {
+    "value": "Rust",
+    "is_bold": true
+   },
+   {
+    "value": " is a general-purpose ",
+    "is_bold": false
+   },
+   {
+    "value": "programming",
+    "is_bold": true
+   },
+   {
+    "value": " ",
+    "is_bold": false
+   },
+   {
+    "value": "language",
+    "is_bold": true
+   },
+   {
+    "value": " that emphasizes performance, type safety, concurrency, and memory safety. ",
+    "is_bold": false
+   },
+   {
+    "value": "Rust",
+    "is_bold": true
+   },
+   {
+    "value": " supports multiple ",
+    "is_bold": false
+   },
+   {
+    "value": "programming",
+    "is_bold": true
+   }
+  ],
+  "source": "wikipedia"
+ },
+ {
+  "url": "http://blog.rust-lang.org",
+  "title": [
+   {
+    "value": "The ",
+    "is_bold": false
+   },
+   {
+    "value": "Rust",
+    "is_bold": true
+   },
+   {
+    "value": " ",
+    "is_bold": false
+   },
+   {
+    "value": "Programming",
+    "is_bold": true
+   },
+   {
+    "value": " ",
+    "is_bold": false
+   },
+   {
+    "value": "Language",
+    "is_bold": true
+   },
+   {
+    "value": " Blog",
+    "is_bold": false
+   }
+  ],
+  "extract": [
+   {
+    "value": "Empowering everyone to build reliable and efficient software.",
+    "is_bold": false
+   }
+  ],
+  "source": "mwmbl"
+ }
+]

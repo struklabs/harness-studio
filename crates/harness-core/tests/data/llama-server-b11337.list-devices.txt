@@ -1,0 +1,2 @@
+Available devices:
+  CUDA0: NVIDIA GeForce RTX 3050 Ti Laptop GPU (4095 MiB, 3295 MiB free)

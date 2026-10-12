@@ -1,0 +1,887 @@
+//! The managed ONNX Runtime: the shared library the `harness-onnx` sidecar loads.
+//!
+//! **Why a download and not a bundle.** `harness-onnx` links no ONNX Runtime (`ort` with
+//! `load-dynamic`); it loads `onnxruntime.dll` / `libonnxruntime.so` from a folder Harness
+//! manages, like the llama.cpp builds. The library is 15-25 MB, the DirectML build with its
+//! `DirectML.dll` 36 MB, a CUDA build several hundred MB: bundling them would make every
+//! installer pay for a feature most users never open, and a CUDA build cannot be bundled at
+//! all (NVIDIA libraries are not redistributable here). So the installer carries only the
+//! small sidecar, and the first ONNX model that is loaded (or Settings > Runtime) fetches the
+//! library into `<data>/bin/onnxruntime/<variant>-<version>/`.
+//!
+//! **Integrity.** Every file Harness puts there has a SHA-256 pinned in this source (computed
+//! from the official Microsoft release / NuGet packages when the version was chosen), and an
+//! install fails when a downloaded byte differs. Archives that cannot be read in parts
+//! (`.tgz`) are pinned as a whole (the digest GitHub publishes for the release asset).
+//! `manifest.json` records what was installed; [`installed`] re-checks the file sizes on every
+//! use.
+//!
+//! **Variants.** Windows x64: `directml` (ONNX Runtime 1.24.4, the last release Microsoft
+//! publishes with the DirectML execution provider, plus DirectML 1.15.4: AMD, NVIDIA and Intel
+//! GPUs through DirectX 12, and the CPU as fallback), `cpu` and `cuda` (1.28.3, CUDA 12; the
+//! 450 MB archive is opt-in and needs the CUDA 12 runtime and cuDNN 9 DLLs on the PATH, which
+//! NVIDIA does not allow Harness to redistribute). Linux x64 and macOS arm64: `cpu`.
+//! The sidecar asks ONNX Runtime for API level 24, which every version above serves.
+//!
+//! **GenAI.** The Windows builds also carry `onnxruntime-genai.dll` (ONNX Runtime GenAI 0.17.0,
+//! MIT; the `winml` release asset, which is the build with the DirectML code path and runs on
+//! the CPU as well; the CUDA build adds `onnxruntime-genai-cuda.dll`). It is what runs the chat
+//! models of Hugging Face's ONNX repos (`genai_config.json` next to the graph): the sidecar loads
+//! it from the folder of the ONNX Runtime it is started with. Linux and macOS have no GenAI
+//! library yet (chat models need Windows for now).
+//!
+//! Windows archives are read with HTTP range requests ([`remote_zip`]): only the wanted DLLs
+//! come over the wire (7 MB instead of 78 MB for the CPU release, 7 MB instead of 202 MB for
+//! DirectML.dll).
+
+pub mod remote_zip;
+
+use crate::error_key::err;
+use crate::paths;
+use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+/// Runtime family id of the ONNX engine (`Compatibility::Runnable { runtime }`).
+pub const ONNX_FAMILY: &str = "onnxruntime";
+
+/// Which ONNX Runtime build.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub enum OrtVariant {
+    /// DirectX 12 GPUs (Windows), CPU fallback.
+    Directml,
+    /// NVIDIA CUDA 12.
+    Cuda,
+    Cpu,
+}
+
+impl OrtVariant {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            OrtVariant::Directml => "directml",
+            OrtVariant::Cuda => "cuda",
+            OrtVariant::Cpu => "cpu",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "directml" | "dml" => Some(Self::Directml),
+            "cuda" => Some(Self::Cuda),
+            "cpu" => Some(Self::Cpu),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArchiveFormat {
+    /// Read with range requests, files checked one by one.
+    Zip,
+    /// Downloaded whole, checked as a whole.
+    TarGz,
+}
+
+/// A file taken out of an archive.
+#[derive(Debug, Clone, Copy)]
+pub struct FileSpec {
+    /// Path inside the archive.
+    pub inner: &'static str,
+    /// Name in the install folder.
+    pub out: &'static str,
+    /// SHA-256 of the extracted file (`""` for tarballs, which are pinned whole).
+    pub sha256: &'static str,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ArchiveSpec {
+    pub url: &'static str,
+    /// Size of the whole archive (progress only).
+    pub size: u64,
+    /// SHA-256 of the whole archive.
+    pub sha256: &'static str,
+    pub format: ArchiveFormat,
+    pub files: &'static [FileSpec],
+}
+
+/// One installable build.
+#[derive(Debug, Clone, Copy)]
+pub struct VariantSpec {
+    pub variant: OrtVariant,
+    /// ONNX Runtime version.
+    pub version: &'static str,
+    pub archives: &'static [ArchiveSpec],
+    /// File name of the library the sidecar loads (`--ort-lib`).
+    pub lib: &'static str,
+}
+
+/// File name of the GenAI library in an install folder.
+#[cfg(windows)]
+pub const GENAI_LIB: &str = "onnxruntime-genai.dll";
+#[cfg(target_os = "macos")]
+pub const GENAI_LIB: &str = "libonnxruntime-genai.dylib";
+#[cfg(not(any(windows, target_os = "macos")))]
+pub const GENAI_LIB: &str = "libonnxruntime-genai.so";
+
+/// ONNX Runtime GenAI 0.17.0 for Windows x64: DirectML-capable `onnxruntime-genai.dll` (it
+/// loads `onnxruntime.dll` and `DirectML.dll` of the same folder on demand). Pinned with the
+/// digest GitHub shows for the release asset and the digest of the extracted DLL.
+#[cfg(all(windows, target_arch = "x86_64"))]
+const GENAI_WIN: ArchiveSpec = ArchiveSpec {
+    url: concat!(
+        "https://github.com/microsoft/onnxruntime-genai/releases/download/v0.17.0/",
+        "onnxruntime-genai-0.17.0-win-x64-winml.zip"
+    ),
+    size: 8_112_532,
+    sha256: "c03cf8bbec9c521e9494df26c14443b74b13d7f83f94a91f9430d551e95f18c1",
+    format: ArchiveFormat::Zip,
+    files: &[FileSpec {
+        inner: "onnxruntime-genai-0.17.0-win-x64-winml/lib/onnxruntime-genai.dll",
+        out: "onnxruntime-genai.dll",
+        sha256: "f650d6f4f1224e0d1c108f1610a0d8ed732114a859297d50ab2eea8f0538e3ae",
+    }],
+};
+
+/// The same release asset for the CUDA build, which also needs the CUDA execution provider
+/// library of GenAI.
+#[cfg(all(windows, target_arch = "x86_64"))]
+const GENAI_WIN_CUDA: ArchiveSpec = ArchiveSpec {
+    files: &[
+        FileSpec {
+            inner: "onnxruntime-genai-0.17.0-win-x64-winml/lib/onnxruntime-genai.dll",
+            out: "onnxruntime-genai.dll",
+            sha256: "f650d6f4f1224e0d1c108f1610a0d8ed732114a859297d50ab2eea8f0538e3ae",
+        },
+        FileSpec {
+            inner: "onnxruntime-genai-0.17.0-win-x64-winml/lib/onnxruntime-genai-cuda.dll",
+            out: "onnxruntime-genai-cuda.dll",
+            sha256: "788aff404b557f8bc409dfb0e056e2dbe0e5788f1a69ffb2b861954f5b8dda9d",
+        },
+    ],
+    ..GENAI_WIN
+};
+
+#[cfg(all(windows, target_arch = "x86_64"))]
+const SPECS: &[VariantSpec] = &[
+    VariantSpec {
+        variant: OrtVariant::Directml,
+        version: "1.24.4",
+        lib: "onnxruntime.dll",
+        archives: &[
+            ArchiveSpec {
+                url: "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.24.4/microsoft.ml.onnxruntime.directml.1.24.4.nupkg",
+                size: 12_458_649,
+                sha256: "57e9f11b73437bef7a309496135d4c1f96b1a8e9ddba60013fa27bfc1d788681",
+                format: ArchiveFormat::Zip,
+                files: &[
+                    FileSpec {
+                        inner: "runtimes/win-x64/native/onnxruntime.dll",
+                        out: "onnxruntime.dll",
+                        sha256: "e7eedec6a6f26dc39dc948276a75ef6d2bee3fff944d874ceed0bbd3b97bff40",
+                    },
+                    FileSpec {
+                        inner: "runtimes/win-x64/native/onnxruntime_providers_shared.dll",
+                        out: "onnxruntime_providers_shared.dll",
+                        sha256: "265c8daf29637cb259cac8be9f08f2cd45f3883f0f0e4949cbfddd5b4cbec3b6",
+                    },
+                ],
+            },
+            ArchiveSpec {
+                url: "https://api.nuget.org/v3-flatcontainer/microsoft.ai.directml/1.15.4/microsoft.ai.directml.1.15.4.nupkg",
+                size: 202_292_617,
+                sha256: "4e7cb7ddce8cf837a7a75dc029209b520ca0101470fcdf275c1f49736a3615b9",
+                format: ArchiveFormat::Zip,
+                files: &[FileSpec {
+                    inner: "bin/x64-win/DirectML.dll",
+                    out: "DirectML.dll",
+                    sha256: "9c9e6d822561c6c41b90e6994b3e8857cf1d66dbfb1e0c4c799c7c89b4e92da1",
+                }],
+            },
+            GENAI_WIN,
+        ],
+    },
+    VariantSpec {
+        variant: OrtVariant::Cpu,
+        version: "1.28.3",
+        lib: "onnxruntime.dll",
+        archives: &[ArchiveSpec {
+            url: concat!(
+                "https://github.com/microsoft/onnxruntime/releases/download/v1.28.3/",
+                "onnxruntime-win-x64-1.28.3.zip"
+            ),
+            size: 78_606_946,
+            sha256: "1d6fab48e85f948436af7c8c971d2c145cf224e2c444755dec894f8b0de11a83",
+            format: ArchiveFormat::Zip,
+            files: &[
+                FileSpec {
+                    inner: "onnxruntime-win-x64-1.28.3/lib/onnxruntime.dll",
+                    out: "onnxruntime.dll",
+                    sha256: "4d2774a5f64e4a230b16b74b167171e92f65b0683c19680c1d04fb284b92a6e2",
+                },
+                FileSpec {
+                    inner: "onnxruntime-win-x64-1.28.3/lib/onnxruntime_providers_shared.dll",
+                    out: "onnxruntime_providers_shared.dll",
+                    sha256: "6582418469facb25b33bc212d8efdc8f7ee57d0c8161e57a59434377780a38b4",
+                },
+            ],
+        },
+        GENAI_WIN],
+    },
+    VariantSpec {
+        variant: OrtVariant::Cuda,
+        version: "1.28.3",
+        lib: "onnxruntime.dll",
+        archives: &[ArchiveSpec {
+            url: concat!(
+                "https://github.com/microsoft/onnxruntime/releases/download/v1.28.3/",
+                "onnxruntime-win-x64-gpu_cuda12-1.28.3.zip"
+            ),
+            size: 454_803_675,
+            sha256: "65d7f956649df80a8ccdcafa7843e4b02f38bfc9e6de28711ed8384508040330",
+            format: ArchiveFormat::Zip,
+            files: &[
+                FileSpec {
+                    inner: "onnxruntime-win-x64-gpu_cuda12-1.28.3/lib/onnxruntime.dll",
+                    out: "onnxruntime.dll",
+                    sha256: "40f8e2ef3bb42d9aa33041de3c83e040450e17dcef534b07aa771adb7518c060",
+                },
+                FileSpec {
+                    inner: "onnxruntime-win-x64-gpu_cuda12-1.28.3/lib/onnxruntime_providers_shared.dll",
+                    out: "onnxruntime_providers_shared.dll",
+                    sha256: "acb3d562836ba5d139c4b323724cbe08ac0b9e1352089eecf82a525aa5a7f40f",
+                },
+                FileSpec {
+                    inner: "onnxruntime-win-x64-gpu_cuda12-1.28.3/lib/onnxruntime_providers_cuda.dll",
+                    out: "onnxruntime_providers_cuda.dll",
+                    sha256: "d1354ce9f082972dcd957a7472d95e37e20625a3f1c2a24db56b9db611dbdd9b",
+                },
+            ],
+        },
+        GENAI_WIN_CUDA],
+    },
+];
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+const SPECS: &[VariantSpec] = &[VariantSpec {
+    variant: OrtVariant::Cpu,
+    version: "1.28.3",
+    lib: "libonnxruntime.so",
+    archives: &[ArchiveSpec {
+        url: concat!(
+            "https://github.com/microsoft/onnxruntime/releases/download/v1.28.3/",
+            "onnxruntime-linux-x64-1.28.3.tgz"
+        ),
+        size: 9_130_098,
+        sha256: "db14e4863bd37893fc59729d986ab2a0d043d10b7d44da1913c4982b7e3d009c",
+        format: ArchiveFormat::TarGz,
+        files: &[
+            FileSpec {
+                inner: "onnxruntime-linux-x64-1.28.3/lib/libonnxruntime.so.1.28.3",
+                out: "libonnxruntime.so",
+                sha256: "",
+            },
+            FileSpec {
+                inner: "onnxruntime-linux-x64-1.28.3/lib/libonnxruntime_providers_shared.so",
+                out: "libonnxruntime_providers_shared.so",
+                sha256: "",
+            },
+        ],
+    }],
+}];
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+const SPECS: &[VariantSpec] = &[VariantSpec {
+    variant: OrtVariant::Cpu,
+    version: "1.28.3",
+    lib: "libonnxruntime.dylib",
+    archives: &[ArchiveSpec {
+        url: concat!(
+            "https://github.com/microsoft/onnxruntime/releases/download/v1.28.3/",
+            "onnxruntime-osx-arm64-1.28.3.tgz"
+        ),
+        size: 33_057_743,
+        sha256: "c436bd9f47dbce6f6311ccc21de97f829b3c862c09d24aa321958cb72f0a1d32",
+        format: ArchiveFormat::TarGz,
+        files: &[FileSpec {
+            inner: "onnxruntime-osx-arm64-1.28.3/lib/libonnxruntime.1.28.3.dylib",
+            out: "libonnxruntime.dylib",
+            sha256: "",
+        }],
+    }],
+}];
+
+#[cfg(not(any(
+    all(windows, target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "aarch64")
+)))]
+const SPECS: &[VariantSpec] = &[];
+
+/// Builds available on this OS/architecture.
+pub fn specs() -> &'static [VariantSpec] {
+    SPECS
+}
+
+pub fn spec_for(variant: OrtVariant) -> Option<&'static VariantSpec> {
+    specs().iter().find(|s| s.variant == variant)
+}
+
+/// The build used when nothing asks for a particular one: DirectML on Windows (it covers AMD,
+/// NVIDIA and Intel GPUs), else the CPU build.
+pub fn default_variant() -> OrtVariant {
+    specs()
+        .iter()
+        .map(|s| s.variant)
+        .find(|v| *v == OrtVariant::Directml)
+        .unwrap_or(OrtVariant::Cpu)
+}
+
+/// The build the sidecar needs for `--provider <choice>` (`auto`, `cpu`, `directml`, `cuda`).
+/// A CPU choice reuses any build that is already installed (every build runs on the CPU).
+pub fn variant_for_provider(choice: &str) -> OrtVariant {
+    match choice.trim().to_ascii_lowercase().as_str() {
+        "directml" | "dml" => OrtVariant::Directml,
+        "cuda" => OrtVariant::Cuda,
+        "cpu" => specs()
+            .iter()
+            .map(|s| s.variant)
+            .find(|v| installed(*v).is_some())
+            .unwrap_or_else(default_variant),
+        _ => default_variant(),
+    }
+}
+
+/// `<data>/bin/onnxruntime`.
+pub fn root() -> PathBuf {
+    paths::bin_dir().join("onnxruntime")
+}
+
+fn dir_of(root: &Path, spec: &VariantSpec) -> PathBuf {
+    root.join(format!("{}-{}", spec.variant.as_str(), spec.version))
+}
+
+/// One file of an installed build.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct InstalledFile {
+    pub name: String,
+    pub size: u64,
+    pub sha256: String,
+}
+
+/// An archive a build came from.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct InstalledSource {
+    pub url: String,
+    pub sha256: String,
+}
+
+/// `manifest.json` of an installed build.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct Manifest {
+    pub variant: OrtVariant,
+    pub version: String,
+    pub files: Vec<InstalledFile>,
+    pub sources: Vec<InstalledSource>,
+    pub installed_at: u64,
+}
+
+/// An installed build.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct Installed {
+    pub variant: OrtVariant,
+    pub version: String,
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
+    pub dir: PathBuf,
+    /// The library the sidecar loads.
+    #[cfg_attr(feature = "openapi", schema(value_type = String))]
+    pub lib: PathBuf,
+    pub files: Vec<InstalledFile>,
+    pub size_bytes: u64,
+    pub installed_at: u64,
+}
+
+fn read_manifest(dir: &Path) -> Option<Manifest> {
+    serde_json::from_slice(&std::fs::read(dir.join("manifest.json")).ok()?).ok()
+}
+
+/// [`installed`] under `root`: the manifest exists and every file is there with its size.
+pub fn installed_in(root: &Path, variant: OrtVariant) -> Option<Installed> {
+    let spec = spec_for(variant)?;
+    let dir = dir_of(root, spec);
+    let m = read_manifest(&dir)?;
+    if m.variant != variant || m.version != spec.version {
+        return None;
+    }
+    // Every file the pinned spec names is in the manifest (an install from before GenAI was
+    // added lacks the GenAI library and is installed again), and on disk with its size.
+    let all_named = spec
+        .archives
+        .iter()
+        .flat_map(|a| a.files.iter())
+        .all(|f| m.files.iter().any(|i| i.name == f.out));
+    let complete = all_named
+        && m.files
+            .iter()
+            .all(|f| std::fs::metadata(dir.join(&f.name)).is_ok_and(|md| md.len() == f.size));
+    let lib = dir.join(spec.lib);
+    if !complete || !lib.is_file() {
+        return None;
+    }
+    Some(Installed {
+        variant,
+        version: m.version,
+        size_bytes: m.files.iter().map(|f| f.size).sum(),
+        installed_at: m.installed_at,
+        files: m.files,
+        lib,
+        dir,
+    })
+}
+
+/// The installed build of `variant`, if complete.
+pub fn installed(variant: OrtVariant) -> Option<Installed> {
+    installed_in(&root(), variant)
+}
+
+/// Where a build lives, whether or not it is installed.
+pub fn target_dir(variant: OrtVariant) -> Option<PathBuf> {
+    spec_for(variant).map(|s| dir_of(&root(), s))
+}
+
+/// Re-hashes every file of an installed build against its manifest (Settings > Runtime >
+/// Verify). Blocking. Returns the names of the files that differ.
+pub fn verify_in(root: &Path, variant: OrtVariant) -> Result<Vec<String>, String> {
+    let installed = installed_in(root, variant).ok_or_else(|| {
+        String::from(err("onnx.runtime_missing").with("variant", variant.as_str()))
+    })?;
+    let mut changed = Vec::new();
+    for f in &installed.files {
+        let actual = crate::downloader::sha256_file(&installed.dir.join(&f.name))?;
+        if actual != f.sha256 {
+            changed.push(f.name.clone());
+        }
+    }
+    Ok(changed)
+}
+
+/// Removes an installed build.
+pub fn remove_in(root: &Path, variant: OrtVariant) -> Result<(), String> {
+    let spec = spec_for(variant).ok_or_else(|| {
+        String::from(err("onnx.unsupported_platform").with("variant", variant.as_str()))
+    })?;
+    let dir = dir_of(root, spec);
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir).map_err(|e| {
+            String::from(
+                err("fs.remove_failed")
+                    .with("path", dir.display())
+                    .with("error", e),
+            )
+        })?;
+    }
+    Ok(())
+}
+
+/// Download progress of the running install (`None` when idle).
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct InstallProgress {
+    pub variant: Option<OrtVariant>,
+    pub current: String,
+    pub downloaded_bytes: u64,
+    pub total_bytes: u64,
+}
+
+static PROGRESS: Mutex<Option<InstallProgress>> = Mutex::new(None);
+/// One install at a time.
+static INSTALLING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+pub fn progress() -> Option<InstallProgress> {
+    PROGRESS.lock().unwrap().clone()
+}
+
+fn set_progress(f: impl FnOnce(&mut InstallProgress)) {
+    if let Some(p) = PROGRESS.lock().unwrap().as_mut() {
+        f(p);
+    }
+}
+
+fn client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .user_agent("HarnessStudio/0.1.0")
+        .build()
+        .map_err(|e| crate::http_error::transport(&e, "HTTP client"))
+}
+
+fn hex(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn write_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    std::fs::write(path, bytes).map_err(|e| {
+        String::from(
+            err("fs.write_failed")
+                .with("path", path.display())
+                .with("error", e),
+        )
+    })
+}
+
+fn digest_mismatch(name: &str, expected: &str, actual: &str) -> String {
+    err("runtime.digest_mismatch")
+        .with("file", name)
+        .with("expected", expected)
+        .with("actual", actual)
+        .into()
+}
+
+/// Downloads `url` into `dest`, returning its SHA-256. Progress counts into the running
+/// install.
+async fn download_whole(
+    client: &reqwest::Client,
+    url: &str,
+    dest: &Path,
+) -> Result<String, String> {
+    use tokio::io::AsyncWriteExt;
+    let res = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| crate::http_error::transport(&e, url))?;
+    if !res.status().is_success() {
+        return Err(err("http.status")
+            .with("status", res.status())
+            .with("url", url)
+            .into());
+    }
+    let mut file = tokio::fs::File::create(dest).await.map_err(|e| {
+        String::from(
+            err("fs.write_failed")
+                .with("path", dest.display())
+                .with("error", e),
+        )
+    })?;
+    let mut hasher = Sha256::new();
+    let mut stream = res.bytes_stream();
+    let mut got = 0u64;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| crate::http_error::transport(&e, url))?;
+        hasher.update(&chunk);
+        file.write_all(&chunk).await.map_err(|e| {
+            String::from(
+                err("fs.write_failed")
+                    .with("path", dest.display())
+                    .with("error", e),
+            )
+        })?;
+        got += chunk.len() as u64;
+        set_progress(|p| p.downloaded_bytes = got);
+    }
+    file.flush().await.ok();
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+/// Takes the wanted files out of a `.tgz`.
+fn extract_tar_gz(archive: &Path, files: &[FileSpec]) -> Result<Vec<(String, Vec<u8>)>, String> {
+    use std::io::Read;
+    let file = std::fs::File::open(archive).map_err(|e| e.to_string())?;
+    let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(file));
+    let mut found: Vec<(String, Vec<u8>)> = Vec::new();
+    for entry in tar.entries().map_err(|e| e.to_string())? {
+        let mut entry = entry.map_err(|e| e.to_string())?;
+        let path = entry
+            .path()
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+        if let Some(spec) = files.iter().find(|f| f.inner == path) {
+            let mut bytes = Vec::new();
+            entry.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+            found.push((spec.out.to_string(), bytes));
+        }
+    }
+    for f in files {
+        if !found.iter().any(|(n, _)| n == f.out) {
+            return Err(format!("{} is not in the archive", f.inner));
+        }
+    }
+    Ok(found)
+}
+
+/// Files of one ZIP archive: range requests first, the whole archive when the server does not
+/// do ranges. Every file is checked against its pinned SHA-256.
+async fn fetch_zip_files(
+    client: &reqwest::Client,
+    archive: &ArchiveSpec,
+    staging: &Path,
+    base: u64,
+) -> Result<Vec<(String, Vec<u8>)>, String> {
+    let wanted: Vec<&str> = archive.files.iter().map(|f| f.inner).collect();
+    let on_bytes = move |n: u64| set_progress(|p| p.downloaded_bytes = base + n);
+    let ranged = remote_zip::fetch_entries(client, archive.url, &wanted, &on_bytes).await;
+    let contents = match ranged {
+        Ok(c) => c,
+        Err(partial_error) => {
+            // No ranges (or an unreadable table of contents): the archive as a whole, checked
+            // against its own digest.
+            let part = staging.join(".archive.part");
+            let digest = download_whole(client, archive.url, &part)
+                .await
+                .map_err(|e| format!("{} (range requests failed first: {})", e, partial_error))?;
+            if digest != archive.sha256 {
+                let _ = std::fs::remove_file(&part);
+                return Err(digest_mismatch(archive.url, archive.sha256, &digest));
+            }
+            let part2 = part.clone();
+            let names: Vec<String> = wanted.iter().map(|s| s.to_string()).collect();
+            let read =
+                tokio::task::spawn_blocking(move || -> Result<Vec<(String, Vec<u8>)>, String> {
+                    let mut zip = zip::ZipArchive::new(
+                        std::fs::File::open(&part2).map_err(|e| e.to_string())?,
+                    )
+                    .map_err(|e| e.to_string())?;
+                    let mut out = Vec::new();
+                    for name in names {
+                        let mut f = zip.by_name(&name).map_err(|e| format!("{}: {}", name, e))?;
+                        let mut bytes = Vec::new();
+                        std::io::Read::read_to_end(&mut f, &mut bytes)
+                            .map_err(|e| e.to_string())?;
+                        out.push((name, bytes));
+                    }
+                    Ok(out)
+                })
+                .await
+                .map_err(|e| e.to_string())??;
+            let _ = std::fs::remove_file(&part);
+            read
+        }
+    };
+    let mut out = Vec::new();
+    for spec in archive.files {
+        let bytes = contents
+            .iter()
+            .find(|(n, _)| n == spec.inner)
+            .map(|(_, b)| b.clone())
+            .ok_or_else(|| format!("{} was not read", spec.inner))?;
+        let actual = hex(&bytes);
+        if actual != spec.sha256 {
+            return Err(digest_mismatch(spec.out, spec.sha256, &actual));
+        }
+        out.push((spec.out.to_string(), bytes));
+    }
+    Ok(out)
+}
+
+/// Installs `variant` under `root` (a no-op when it is already complete).
+pub async fn install_in(root: &Path, variant: OrtVariant) -> Result<Installed, String> {
+    let spec = spec_for(variant).ok_or_else(|| {
+        String::from(err("onnx.unsupported_platform").with("variant", variant.as_str()))
+    })?;
+    let _one_at_a_time = INSTALLING.lock().await;
+    if let Some(done) = installed_in(root, variant) {
+        return Ok(done);
+    }
+    let total: u64 = spec.archives.iter().map(|a| a.size).sum();
+    *PROGRESS.lock().unwrap() = Some(InstallProgress {
+        variant: Some(variant),
+        current: spec.version.to_string(),
+        downloaded_bytes: 0,
+        total_bytes: total,
+    });
+    let result = install_inner(root, spec).await;
+    *PROGRESS.lock().unwrap() = None;
+    result
+}
+
+async fn install_inner(root: &Path, spec: &'static VariantSpec) -> Result<Installed, String> {
+    let dir = dir_of(root, spec);
+    let staging = root.join(format!(".staging-{}", spec.variant.as_str()));
+    let _ = tokio::fs::remove_dir_all(&staging).await;
+    tokio::fs::create_dir_all(&staging).await.map_err(|e| {
+        String::from(
+            err("fs.create_dir_failed")
+                .with("path", staging.display())
+                .with("error", e),
+        )
+    })?;
+    let client = client()?;
+    let outcome = async {
+        let mut files: Vec<InstalledFile> = Vec::new();
+        let mut sources = Vec::new();
+        let mut base = 0u64;
+        for archive in spec.archives {
+            set_progress(|p| {
+                p.current = archive.url.rsplit('/').next().unwrap_or("").to_string();
+            });
+            let contents = match archive.format {
+                ArchiveFormat::Zip => fetch_zip_files(&client, archive, &staging, base).await?,
+                ArchiveFormat::TarGz => {
+                    let part = staging.join(".archive.part");
+                    let digest = download_whole(&client, archive.url, &part).await?;
+                    if digest != archive.sha256 {
+                        return Err(digest_mismatch(archive.url, archive.sha256, &digest));
+                    }
+                    let (p, f) = (part.clone(), archive.files);
+                    let read = tokio::task::spawn_blocking(move || extract_tar_gz(&p, f))
+                        .await
+                        .map_err(|e| e.to_string())??;
+                    let _ = std::fs::remove_file(&part);
+                    read
+                }
+            };
+            for (name, bytes) in contents {
+                let path = staging.join(&name);
+                write_file(&path, &bytes)?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755));
+                }
+                files.push(InstalledFile {
+                    size: bytes.len() as u64,
+                    sha256: hex(&bytes),
+                    name,
+                });
+            }
+            sources.push(InstalledSource {
+                url: archive.url.to_string(),
+                sha256: archive.sha256.to_string(),
+            });
+            base += archive.size;
+            set_progress(|p| p.downloaded_bytes = base);
+        }
+        let manifest = Manifest {
+            variant: spec.variant,
+            version: spec.version.to_string(),
+            files,
+            sources,
+            installed_at: crate::capabilities::now_secs(),
+        };
+        write_file(
+            &staging.join("manifest.json"),
+            &serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?,
+        )?;
+        Ok::<(), String>(())
+    }
+    .await;
+    if let Err(e) = outcome {
+        let _ = tokio::fs::remove_dir_all(&staging).await;
+        return Err(e);
+    }
+    let _ = tokio::fs::remove_dir_all(&dir).await;
+    {
+        let (s, d) = (staging.clone(), dir.clone());
+        tokio::task::spawn_blocking(move || crate::paths::rename_retrying(&s, &d))
+            .await
+            .map_err(|e| std::io::Error::other(e.to_string()))
+            .and_then(|r| r)
+    }
+    .map_err(|e| {
+        String::from(
+            err("fs.rename_failed")
+                .with("from", staging.display())
+                .with("to", dir.display())
+                .with("error", e),
+        )
+    })?;
+    installed_in(root, spec.variant).ok_or_else(|| {
+        String::from(err("onnx.runtime_missing").with("variant", spec.variant.as_str()))
+    })
+}
+
+/// [`install_in`] in the data folder.
+pub async fn install(variant: OrtVariant) -> Result<Installed, String> {
+    install_in(&root(), variant).await
+}
+
+/// The library for a launch with `--provider <choice>`: installed, or an error that says to
+/// install it.
+pub fn lib_for_provider(choice: &str) -> Result<PathBuf, String> {
+    let variant = variant_for_provider(choice);
+    installed(variant).map(|i| i.lib).ok_or_else(|| {
+        err("onnx.runtime_missing")
+            .with("variant", variant.as_str())
+            .into()
+    })
+}
+
+/// The GenAI library next to the ONNX Runtime of a launch with `--provider <choice>`:
+/// `None` when that build is not installed or has no GenAI library (Linux, macOS).
+pub fn genai_lib_for_provider(choice: &str) -> Option<PathBuf> {
+    let lib = installed(variant_for_provider(choice))?.dir.join(GENAI_LIB);
+    lib.is_file().then_some(lib)
+}
+
+/// Settings > Runtime view: every build of this platform with its state.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct VariantView {
+    pub variant: OrtVariant,
+    pub version: String,
+    /// Download size of the pinned archives (the real transfer is smaller for ZIPs).
+    pub download_bytes: u64,
+    pub default: bool,
+    pub installed: Option<Installed>,
+}
+
+pub fn view_in(root: &Path) -> Vec<VariantView> {
+    specs()
+        .iter()
+        .map(|s| VariantView {
+            variant: s.variant,
+            version: s.version.to_string(),
+            download_bytes: s.archives.iter().map(|a| a.size).sum(),
+            default: s.variant == default_variant(),
+            installed: installed_in(root, s.variant),
+        })
+        .collect()
+}
+
+pub fn view() -> Vec<VariantView> {
+    view_in(&root())
+}
+
+/// The sidecar binary: `HARNESS_ONNX_BIN`, else `harness-onnx` next to the running
+/// executable (the Tauri bundle puts it there), else in the cargo target folder the
+/// executable was built into (development and tests).
+pub fn sidecar_binary() -> Result<PathBuf, String> {
+    let name = if cfg!(windows) {
+        "harness-onnx.exe"
+    } else {
+        "harness-onnx"
+    };
+    if let Some(p) = std::env::var_os("HARNESS_ONNX_BIN").map(PathBuf::from) {
+        return if p.is_file() {
+            Ok(p)
+        } else {
+            Err(err("onnx.sidecar_missing").with("path", p.display()).into())
+        };
+    }
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let dir = exe.parent().unwrap_or(Path::new("."));
+    // `target/debug/deps/<test>.exe` is two levels below the binaries.
+    let candidates = [
+        dir.join(name),
+        dir.join("..").join(name),
+        dir.join("binaries").join(name),
+    ];
+    for c in &candidates {
+        if c.is_file() {
+            return Ok(paths::normalize(c));
+        }
+    }
+    Err(err("onnx.sidecar_missing")
+        .with("path", candidates[0].display())
+        .into())
+}
+
+#[cfg(test)]
+mod tests;

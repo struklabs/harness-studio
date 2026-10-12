@@ -1,0 +1,830 @@
+# llama-server parameter catalog: one source for the Dashboard and `build_args`.
+#
+# Fields:
+#   id            stable key (stored in presets/profiles as `params.<id>`)
+#   flags         spellings in preference order (renamed/older spellings last); the first one
+#                 the binary accepts is emitted. A flag the help marks "removed" never counts.
+#   off_flags     spellings for `false` of a bool (`--no-x`)
+#   kind          bool | int | float | enum | multi_enum | string | path | list | json
+#   values        allowed values (enum/multi_enum); `values_from_help = true` takes them from
+#                 the binary's --help (the listed values are then only extra accepted ones)
+#   group         performance | memory | context | reasoning | speculative | model_files |
+#                 embeddings | server | router
+#   level         basic | advanced
+#   label_key / help_key   i18n keys (src/lib/locales/params.ts)
+#   requires      param ids (or `legacy:<field>` / `mode:router`) that must be set too
+#   conflicts     param ids (or `legacy:<field>`) that must not be set at the same time
+#   deprecated_by id of the param that replaces this one
+#   legacy_field  typed LaunchConfig field that already emits this flag; such entries only
+#                 describe the flag (UI gating, flag explorer) and are never rendered here
+#   feature       feature id for the capability badge (capabilities::features)
+#   min / max     numeric bounds;  separator  list join string (default ",")
+#   loopback_only only emitted when the server binds to a loopback address
+#   value_fallbacks  for binaries without any of `flags`: value -> args (legacy mappings)
+#   harness_default  int sent when the user set neither the param nor its flag in custom
+#                 args, and the runtime has the flag (lower memory than llama-server's own
+#                 default; see docs/en/PERFORMANCE.md)
+
+schema_version = 1
+
+# ---------------------------------------------------------------------------------------
+# Existing typed LaunchConfig fields (emitted by build_args' typed code; described here).
+# ---------------------------------------------------------------------------------------
+
+[[param]]
+id = "gpu_layers"
+flags = ["-ngl", "--gpu-layers", "--n-gpu-layers"]
+kind = "int"
+group = "performance"
+level = "basic"
+label_key = "dash.lp_gpu_layers_label_short"
+help_key = "dash.lp_help_gpu_layers"
+legacy_field = "gpu_layers"
+
+[[param]]
+id = "context_size"
+flags = ["-c", "--ctx-size"]
+kind = "int"
+group = "context"
+level = "basic"
+label_key = "dash.lp_ctx_label_short"
+help_key = "dash.lp_help_ctx"
+legacy_field = "context_size"
+
+[[param]]
+id = "threads"
+flags = ["-t", "--threads"]
+kind = "int"
+group = "performance"
+level = "basic"
+label_key = "dash.lp_threads_label_short"
+help_key = "dash.lp_help_threads"
+legacy_field = "threads"
+
+[[param]]
+id = "flash_attn"
+flags = ["--flash-attn", "-fa"]
+kind = "bool"
+group = "performance"
+level = "basic"
+label_key = "dash.adv_flash_attn_label"
+help_key = "dash.adv_flash_attn_sub"
+legacy_field = "flash_attn"
+feature = "flash_attn"
+
+[[param]]
+id = "cache_type_k"
+flags = ["-ctk", "--cache-type-k"]
+kind = "enum"
+values_from_help = true
+group = "memory"
+level = "basic"
+label_key = "dash.adv_cache_k_label"
+help_key = "param.kv_quant_help"
+legacy_field = "cache_type_k"
+feature = "kv_quant"
+
+[[param]]
+id = "cache_type_v"
+flags = ["-ctv", "--cache-type-v"]
+kind = "enum"
+values_from_help = true
+group = "memory"
+level = "basic"
+label_key = "dash.adv_cache_v_label"
+help_key = "param.kv_quant_help"
+legacy_field = "cache_type_v"
+feature = "kv_quant"
+
+[[param]]
+id = "parallel_slots"
+flags = ["-np", "--parallel"]
+kind = "int"
+group = "performance"
+level = "basic"
+label_key = "dash.adv_parallel_slots_label"
+help_key = "param.parallel_slots_help"
+legacy_field = "parallel_slots"
+
+[[param]]
+id = "logical_batch"
+flags = ["-b", "--batch-size"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "dash.adv_logical_batch_label"
+help_key = "param.batch_help"
+legacy_field = "logical_batch"
+
+[[param]]
+id = "physical_batch"
+flags = ["-ub", "--ubatch-size"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "dash.adv_physical_batch_label"
+help_key = "param.batch_help"
+legacy_field = "physical_batch"
+
+[[param]]
+id = "context_shift"
+flags = ["--context-shift"]
+off_flags = ["--no-context-shift"]
+kind = "bool"
+group = "memory"
+level = "basic"
+label_key = "dash.adv_ctxshift_label"
+help_key = "dash.adv_ctxshift_hint"
+legacy_field = "context_shift"
+feature = "context_shift"
+
+[[param]]
+id = "split_mode"
+flags = ["--split-mode", "-sm"]
+kind = "enum"
+values_from_help = true
+group = "performance"
+level = "advanced"
+label_key = "dash.adv_splitmode_label"
+help_key = "param.split_mode_help"
+legacy_field = "split_mode"
+feature = "split_mode_tensor"
+
+[[param]]
+id = "main_gpu"
+flags = ["--main-gpu", "-mg"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "dash.adv_maingpu_label"
+help_key = "dash.lp_help_gpu_select"
+legacy_field = "main_gpu"
+feature = "main_gpu"
+
+[[param]]
+id = "tensor_split"
+flags = ["-ts", "--tensor-split"]
+kind = "string"
+group = "performance"
+level = "advanced"
+label_key = "dash.adv_tensorsplit_label"
+help_key = "param.tensor_split_help"
+legacy_field = "tensor_split"
+feature = "tensor_split"
+
+[[param]]
+id = "rope_scaling"
+flags = ["--rope-scaling"]
+kind = "enum"
+values_from_help = true
+group = "context"
+level = "advanced"
+label_key = "dash.adv_rope_mode_label"
+help_key = "param.rope_help"
+legacy_field = "rope_scaling"
+
+[[param]]
+id = "rope_freq_base"
+flags = ["--rope-freq-base"]
+kind = "float"
+group = "context"
+level = "advanced"
+label_key = "dash.adv_freqbase_label"
+help_key = "param.rope_help"
+legacy_field = "rope_freq_base"
+
+[[param]]
+id = "rope_freq_scale"
+flags = ["--rope-freq-scale"]
+kind = "float"
+group = "context"
+level = "advanced"
+label_key = "dash.adv_freqscale_label"
+help_key = "param.rope_help"
+legacy_field = "rope_freq_scale"
+
+[[param]]
+id = "rope_scale"
+flags = ["--rope-scale"]
+kind = "float"
+min = 0
+group = "context"
+level = "advanced"
+label_key = "param.rope_scale"
+help_key = "param.rope_scale_help"
+placeholder = "4"
+
+[[param]]
+id = "chat_template"
+flags = ["--chat-template"]
+kind = "string"
+group = "model_files"
+level = "advanced"
+label_key = "dash.adv_chat_template_label"
+help_key = "param.chat_template_help"
+legacy_field = "chat_template"
+
+# A Jinja file (`chat-templates/` in the config dir for templates saved in the editor). No
+# `--jinja` is added: llama-server enables it by default; the UI warns when `jinja` is off.
+[[param]]
+id = "chat_template_file"
+flags = ["--chat-template-file"]
+kind = "path"
+group = "model_files"
+level = "advanced"
+label_key = "param.chat_template_file"
+help_key = "param.chat_template_file_help"
+conflicts = ["legacy:chat_template"]
+
+[[param]]
+id = "draft_model_path"
+flags = ["-md", "--spec-draft-model", "--model-draft"]
+kind = "path"
+group = "speculative"
+level = "basic"
+label_key = "dash.adv_draft_model_label"
+help_key = "dash.adv_spec_hint"
+legacy_field = "draft_model_path"
+feature = "speculative"
+
+[[param]]
+id = "draft_gpu_layers"
+flags = ["-ngld", "--spec-draft-ngl", "--gpu-layers-draft", "--n-gpu-layers-draft"]
+kind = "int"
+group = "speculative"
+level = "basic"
+label_key = "dash.adv_draft_ngl_label"
+help_key = "dash.adv_spec_hint"
+legacy_field = "draft_gpu_layers"
+feature = "speculative"
+
+[[param]]
+id = "lora_path"
+flags = ["--lora", "--lora-scaled"]
+kind = "path"
+group = "model_files"
+level = "basic"
+label_key = "dash.adv_lora_path_label"
+help_key = "param.lora_help"
+legacy_field = "lora_path"
+feature = "lora"
+
+[[param]]
+id = "mmproj_path"
+flags = ["--mmproj", "-mm"]
+kind = "path"
+group = "model_files"
+level = "basic"
+label_key = "dash.adv_mmproj_label"
+help_key = "dash.adv_mmproj_hint"
+legacy_field = "mmproj_path"
+feature = "vision"
+
+[[param]]
+id = "mcp_enabled"
+flags = ["--mcp-servers-config"]
+kind = "bool"
+group = "server"
+level = "advanced"
+label_key = "dash.adv_mcp_label"
+help_key = "dash.adv_mcp_hint"
+legacy_field = "mcp_enabled"
+feature = "mcp"
+
+[[param]]
+id = "router_mode"
+flags = ["--models-dir", "--models-path"]
+kind = "bool"
+group = "router"
+level = "basic"
+label_key = "param.router_mode"
+help_key = "param.router_mode_help"
+legacy_field = "router_mode"
+feature = "router"
+
+# ---------------------------------------------------------------------------------------
+# Catalog-rendered parameters (LaunchConfig.params).
+# ---------------------------------------------------------------------------------------
+
+# --- performance -------------------------------------------------------------------------
+
+[[param]]
+id = "cont_batching"
+flags = ["--cont-batching", "-cb"]
+off_flags = ["--no-cont-batching", "-nocb"]
+kind = "bool"
+group = "performance"
+level = "advanced"
+label_key = "param.cont_batching"
+help_key = "param.cont_batching_help"
+
+[[param]]
+id = "threads_batch"
+flags = ["-tb", "--threads-batch"]
+kind = "int"
+min = 1
+group = "performance"
+level = "advanced"
+label_key = "param.threads_batch"
+help_key = "param.threads_batch_help"
+
+[[param]]
+id = "numa"
+flags = ["--numa"]
+kind = "enum"
+values_from_help = true
+group = "performance"
+level = "advanced"
+label_key = "param.numa"
+help_key = "param.numa_help"
+
+# --- memory ------------------------------------------------------------------------------
+
+[[param]]
+id = "fit"
+flags = ["--fit", "-fit"]
+kind = "enum"
+values_from_help = true
+group = "memory"
+level = "basic"
+label_key = "param.fit"
+help_key = "param.fit_help"
+feature = "fit"
+
+[[param]]
+id = "fit_target"
+flags = ["--fit-target", "-fitt"]
+kind = "string"
+group = "memory"
+level = "advanced"
+label_key = "param.fit_target"
+help_key = "param.fit_target_help"
+feature = "fit"
+placeholder = "1024"
+
+[[param]]
+id = "fit_ctx"
+flags = ["--fit-ctx", "-fitc"]
+kind = "int"
+min = 0
+group = "memory"
+level = "advanced"
+label_key = "param.fit_ctx"
+help_key = "param.fit_ctx_help"
+feature = "fit"
+placeholder = "4096"
+
+[[param]]
+id = "kv_offload"
+flags = ["--kv-offload", "-kvo"]
+off_flags = ["--no-kv-offload", "-nkvo"]
+kind = "bool"
+group = "memory"
+level = "advanced"
+label_key = "param.kv_offload"
+help_key = "param.kv_offload_help"
+feature = "kv_offload"
+
+[[param]]
+id = "kv_unified"
+flags = ["--kv-unified", "-kvu"]
+off_flags = ["--no-kv-unified", "-no-kvu"]
+kind = "bool"
+group = "memory"
+level = "advanced"
+label_key = "param.kv_unified"
+help_key = "param.kv_unified_help"
+feature = "kv_unified"
+
+[[param]]
+id = "swa_full"
+flags = ["--swa-full"]
+kind = "bool"
+group = "memory"
+level = "advanced"
+label_key = "param.swa_full"
+help_key = "param.swa_full_help"
+feature = "swa_full"
+
+[[param]]
+id = "cache_ram"
+flags = ["--cache-ram", "-cram"]
+kind = "int"
+min = -1
+group = "memory"
+level = "advanced"
+label_key = "param.cache_ram"
+help_key = "param.cache_ram_help"
+feature = "cache_ram"
+placeholder = "1024"
+harness_default = 1024
+
+[[param]]
+id = "ctx_checkpoints"
+flags = ["--ctx-checkpoints", "-ctxcp", "--swa-checkpoints"]
+kind = "int"
+min = 0
+group = "memory"
+level = "advanced"
+label_key = "param.ctx_checkpoints"
+help_key = "param.ctx_checkpoints_help"
+placeholder = "4"
+harness_default = 4
+
+[[param]]
+id = "load_mode"
+flags = ["--load-mode", "-lm"]
+kind = "enum"
+values_from_help = true
+values = ["auto", "none", "mmap", "mlock", "mmap+mlock"]
+group = "memory"
+level = "advanced"
+label_key = "param.load_mode"
+help_key = "param.load_mode_help"
+feature = "load_mode"
+# Builds before --load-mode had --no-mmap / --mlock.
+value_fallbacks = [
+  { value = "none", args = ["--no-mmap"] },
+  { value = "mlock", args = ["--no-mmap", "--mlock"] },
+  { value = "mmap+mlock", args = ["--mlock"] },
+  { value = "mmap", args = [] },
+  { value = "auto", args = [] },
+]
+
+[[param]]
+id = "cpu_moe"
+flags = ["--cpu-moe", "-cmoe"]
+kind = "bool"
+group = "memory"
+level = "basic"
+label_key = "param.cpu_moe"
+help_key = "param.cpu_moe_help"
+feature = "moe_cpu_offload"
+conflicts = ["n_cpu_moe"]
+
+[[param]]
+id = "n_cpu_moe"
+flags = ["--n-cpu-moe", "-ncmoe"]
+kind = "int"
+min = 0
+group = "memory"
+level = "basic"
+label_key = "param.n_cpu_moe"
+help_key = "param.n_cpu_moe_help"
+feature = "moe_cpu_offload"
+conflicts = ["cpu_moe"]
+
+[[param]]
+id = "override_tensor"
+flags = ["--override-tensor", "-ot"]
+kind = "list"
+separator = ","
+group = "memory"
+level = "advanced"
+label_key = "param.override_tensor"
+help_key = "param.override_tensor_help"
+placeholder = "blk\\.\\d+\\.ffn_.*_exps\\.=CPU"
+
+[[param]]
+id = "override_kv"
+flags = ["--override-kv"]
+kind = "list"
+separator = ","
+group = "model_files"
+level = "advanced"
+label_key = "param.override_kv"
+help_key = "param.override_kv_help"
+
+# --- context -----------------------------------------------------------------------------
+
+[[param]]
+id = "cache_reuse"
+flags = ["--cache-reuse"]
+kind = "int"
+min = 0
+group = "context"
+level = "advanced"
+label_key = "param.cache_reuse"
+help_key = "param.cache_reuse_help"
+feature = "cache_reuse"
+placeholder = "256"
+
+[[param]]
+id = "yarn_orig_ctx"
+flags = ["--yarn-orig-ctx"]
+kind = "int"
+min = 0
+group = "context"
+level = "advanced"
+label_key = "param.yarn_orig_ctx"
+help_key = "param.yarn_help"
+
+[[param]]
+id = "yarn_ext_factor"
+flags = ["--yarn-ext-factor"]
+kind = "float"
+group = "context"
+level = "advanced"
+label_key = "param.yarn_ext_factor"
+help_key = "param.yarn_help"
+
+[[param]]
+id = "yarn_attn_factor"
+flags = ["--yarn-attn-factor"]
+kind = "float"
+group = "context"
+level = "advanced"
+label_key = "param.yarn_attn_factor"
+help_key = "param.yarn_help"
+
+[[param]]
+id = "yarn_beta_slow"
+flags = ["--yarn-beta-slow"]
+kind = "float"
+group = "context"
+level = "advanced"
+label_key = "param.yarn_beta_slow"
+help_key = "param.yarn_help"
+
+[[param]]
+id = "yarn_beta_fast"
+flags = ["--yarn-beta-fast"]
+kind = "float"
+group = "context"
+level = "advanced"
+label_key = "param.yarn_beta_fast"
+help_key = "param.yarn_help"
+
+# --- reasoning / chat template ------------------------------------------------------------
+
+[[param]]
+id = "jinja"
+flags = ["--jinja"]
+off_flags = ["--no-jinja"]
+kind = "bool"
+group = "reasoning"
+level = "basic"
+label_key = "param.jinja"
+help_key = "param.jinja_help"
+feature = "jinja"
+
+[[param]]
+id = "chat_template_kwargs"
+flags = ["--chat-template-kwargs"]
+kind = "json"
+group = "reasoning"
+level = "advanced"
+label_key = "param.chat_template_kwargs"
+help_key = "param.chat_template_kwargs_help"
+placeholder = "{\"enable_thinking\": false}"
+
+[[param]]
+id = "reasoning"
+flags = ["--reasoning", "-rea"]
+kind = "enum"
+values_from_help = true
+group = "reasoning"
+level = "basic"
+label_key = "param.reasoning"
+help_key = "param.reasoning_help"
+feature = "reasoning_format"
+
+[[param]]
+id = "reasoning_format"
+flags = ["--reasoning-format"]
+kind = "enum"
+values_from_help = true
+values = ["auto"]
+group = "reasoning"
+level = "advanced"
+label_key = "param.reasoning_format"
+help_key = "param.reasoning_format_help"
+feature = "reasoning_format"
+
+[[param]]
+id = "reasoning_budget"
+flags = ["--reasoning-budget"]
+kind = "int"
+min = -1
+group = "reasoning"
+level = "basic"
+label_key = "param.reasoning_budget"
+help_key = "param.reasoning_budget_help"
+feature = "reasoning_budget"
+placeholder = "-1"
+
+[[param]]
+id = "reasoning_effort"
+flags = ["--reasoning-effort"]
+kind = "enum"
+values = ["default", "minimal", "low", "medium", "high", "xhigh", "max"]
+group = "reasoning"
+level = "advanced"
+label_key = "param.reasoning_effort"
+help_key = "param.reasoning_effort_help"
+feature = "reasoning_effort"
+
+# --- speculative -------------------------------------------------------------------------
+
+[[param]]
+id = "spec_type"
+flags = ["--spec-type"]
+kind = "multi_enum"
+values_from_help = true
+group = "speculative"
+level = "advanced"
+label_key = "param.spec_type"
+help_key = "param.spec_type_help"
+feature = "spec_type"
+
+[[param]]
+id = "spec_draft_n_max"
+flags = ["--spec-draft-n-max", "--draft-max", "--draft-n", "--draft"]
+kind = "int"
+min = 0
+group = "speculative"
+level = "advanced"
+label_key = "param.spec_draft_n_max"
+help_key = "param.spec_draft_n_help"
+feature = "speculative"
+placeholder = "3"
+
+[[param]]
+id = "spec_draft_n_min"
+flags = ["--spec-draft-n-min", "--draft-min", "--draft-n-min"]
+kind = "int"
+min = 0
+group = "speculative"
+level = "advanced"
+label_key = "param.spec_draft_n_min"
+help_key = "param.spec_draft_n_help"
+feature = "speculative"
+placeholder = "0"
+
+[[param]]
+id = "spec_draft_p_min"
+flags = ["--spec-draft-p-min", "--draft-p-min"]
+kind = "float"
+min = 0
+max = 1
+group = "speculative"
+level = "advanced"
+label_key = "param.spec_draft_p_min"
+help_key = "param.spec_draft_p_min_help"
+feature = "speculative"
+
+# --- model files (LoRA) ------------------------------------------------------------------
+
+[[param]]
+id = "lora_adapters"
+flags = ["--lora"]
+kind = "list"
+separator = ","
+group = "model_files"
+level = "advanced"
+label_key = "param.lora_adapters"
+help_key = "param.lora_adapters_help"
+feature = "lora"
+conflicts = ["legacy:lora_path"]
+
+[[param]]
+id = "lora_scaled"
+flags = ["--lora-scaled"]
+kind = "list"
+separator = ","
+group = "model_files"
+level = "advanced"
+label_key = "param.lora_scaled"
+help_key = "param.lora_scaled_help"
+feature = "lora"
+conflicts = ["legacy:lora_path"]
+
+[[param]]
+id = "lora_init_without_apply"
+flags = ["--lora-init-without-apply"]
+kind = "bool"
+group = "model_files"
+level = "advanced"
+label_key = "param.lora_init_without_apply"
+help_key = "param.lora_init_without_apply_help"
+feature = "lora_live_scale"
+
+# --- embeddings / rerank -----------------------------------------------------------------
+
+[[param]]
+id = "embeddings"
+flags = ["--embeddings", "--embedding"]
+kind = "bool"
+group = "embeddings"
+level = "basic"
+label_key = "param.embeddings"
+help_key = "param.embeddings_help"
+feature = "embeddings"
+
+[[param]]
+id = "rerank"
+flags = ["--rerank", "--reranking"]
+kind = "bool"
+group = "embeddings"
+level = "basic"
+label_key = "param.rerank"
+help_key = "param.rerank_help"
+feature = "rerank"
+
+[[param]]
+id = "pooling"
+flags = ["--pooling"]
+kind = "enum"
+values_from_help = true
+group = "embeddings"
+level = "advanced"
+label_key = "param.pooling"
+help_key = "param.pooling_help"
+feature = "pooling"
+
+# --- server ------------------------------------------------------------------------------
+
+[[param]]
+id = "timeout"
+flags = ["--timeout", "-to"]
+kind = "int"
+min = 1
+group = "server"
+level = "advanced"
+label_key = "param.timeout"
+help_key = "param.timeout_help"
+feature = "timeout"
+placeholder = "3600"
+
+[[param]]
+id = "sleep_idle_seconds"
+flags = ["--sleep-idle-seconds"]
+kind = "int"
+min = -1
+group = "server"
+level = "advanced"
+label_key = "param.sleep_idle_seconds"
+help_key = "param.sleep_idle_seconds_help"
+feature = "sleep_idle"
+placeholder = "-1"
+
+[[param]]
+id = "cors_origins"
+flags = ["--cors-origins"]
+kind = "string"
+group = "server"
+level = "advanced"
+label_key = "param.cors_origins"
+help_key = "param.cors_origins_help"
+feature = "cors"
+placeholder = "localhost"
+# Settings > Network & security owns this flag (LaunchConfig.cors_origins, protected flag).
+legacy_field = "cors_origins"
+
+[[param]]
+id = "threads_http"
+flags = ["--threads-http"]
+kind = "int"
+min = -1
+group = "server"
+level = "advanced"
+label_key = "param.threads_http"
+help_key = "param.threads_http_help"
+
+[[param]]
+id = "props"
+flags = ["--props"]
+kind = "bool"
+group = "server"
+level = "advanced"
+label_key = "param.props"
+help_key = "param.props_help"
+feature = "props"
+loopback_only = true
+
+# --- router ------------------------------------------------------------------------------
+
+[[param]]
+id = "models_max"
+flags = ["--models-max"]
+kind = "int"
+min = 0
+group = "router"
+level = "basic"
+label_key = "param.models_max"
+help_key = "param.models_max_help"
+feature = "router_models_max"
+requires = ["mode:router"]
+placeholder = "4"
+
+[[param]]
+id = "models_autoload"
+flags = ["--models-autoload"]
+off_flags = ["--no-models-autoload"]
+kind = "bool"
+group = "router"
+level = "basic"
+label_key = "param.models_autoload"
+help_key = "param.models_autoload_help"
+feature = "router_autoload"
+requires = ["mode:router"]

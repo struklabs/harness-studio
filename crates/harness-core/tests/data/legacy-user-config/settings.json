@@ -1,0 +1,40 @@
+{
+  "runtime_mode": "Managed",
+  "managed_runtime": {
+    "installed_version": null,
+    "previous_version": null,
+    "auto_update": true,
+    "backend": null
+  },
+  "custom_binary": {
+    "binary_path": null,
+    "version": null,
+    "supports_metrics": false,
+    "is_valid": false
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8080,
+    "default_ngl": 33,
+    "default_ctx": 4096
+  },
+  "privacy": {
+    "onboarding_completed": true,
+    "crash_reports": true,
+    "app_errors": true,
+    "llama_errors": true,
+    "hardware_info": true,
+    "performance_metrics": false,
+    "anonymous_analytics": false
+  },
+  "models_dir": "D:\\Models",
+  "extra_models_dirs": [],
+  "hf_token_set": false,
+  "theme": "dark",
+  "language": "tr",
+  "startup": {
+    "close_to_tray": false,
+    "start_minimized": false,
+    "restore_last_session": false
+  }
+}

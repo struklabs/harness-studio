@@ -1,0 +1,115 @@
+[workspace]
+members = ["src-tauri", "crates/harness-core", "crates/harness-api", "crates/harness-cli", "crates/harness-gateway", "crates/harness-mcp", "crates/harness-onnx"]
+resolver = "2"
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
+
+# Size over speed for code that is not on a hot path (HTTP routing glue, CLI parsing,
+# OpenAPI, OTLP export, UI shell): `opt-level = "s"` per package. Hashing (sha2), GGUF and
+# RAG code (harness-core), PDF/zip decoding, JSON, SQLite, tokio and hyper stay at 3.
+# Measured in docs/en/PERFORMANCE.md (idle footprint section).
+
+[profile.release.package.axum]
+opt-level = "s"
+
+[profile.release.package.axum-core]
+opt-level = "s"
+
+[profile.release.package.tower]
+opt-level = "s"
+
+[profile.release.package.tower-http]
+opt-level = "s"
+
+[profile.release.package.clap_builder]
+opt-level = "s"
+
+[profile.release.package.clap_complete]
+opt-level = "s"
+
+[profile.release.package.utoipa]
+opt-level = "s"
+
+[profile.release.package.opentelemetry]
+opt-level = "s"
+
+[profile.release.package.opentelemetry_sdk]
+opt-level = "s"
+
+[profile.release.package.opentelemetry-otlp]
+opt-level = "s"
+
+[profile.release.package.opentelemetry-proto]
+opt-level = "s"
+
+[profile.release.package.tonic]
+opt-level = "s"
+
+[profile.release.package.prost]
+opt-level = "s"
+
+[profile.release.package.rustls]
+opt-level = "s"
+
+[profile.release.package.harness-api]
+opt-level = "s"
+
+[profile.release.package.harness-mcp]
+opt-level = "s"
+
+[profile.release.package.harness-cli]
+opt-level = "s"
+
+[profile.release.package.harness-gateway]
+opt-level = "s"
+
+[profile.release.package.harness-studio]
+opt-level = "s"
+
+[profile.release.package.tauri]
+opt-level = "s"
+
+[profile.release.package.tauri-runtime]
+opt-level = "s"
+
+[profile.release.package.tauri-runtime-wry]
+opt-level = "s"
+
+[profile.release.package.tauri-utils]
+opt-level = "s"
+
+[profile.release.package.tauri-plugin-updater]
+opt-level = "s"
+
+[profile.release.package.tauri-plugin-dialog]
+opt-level = "s"
+
+[profile.release.package.tauri-plugin-opener]
+opt-level = "s"
+
+[profile.release.package.tauri-plugin-autostart]
+opt-level = "s"
+
+[profile.release.package.tauri-plugin-single-instance]
+opt-level = "s"
+
+[profile.release.package.wry]
+opt-level = "s"
+
+[profile.release.package.tao]
+opt-level = "s"
+
+[profile.release.package.muda]
+opt-level = "s"
+
+[profile.release.package.tray-icon]
+opt-level = "s"
+
+[profile.release.package.webview2-com]
+opt-level = "s"

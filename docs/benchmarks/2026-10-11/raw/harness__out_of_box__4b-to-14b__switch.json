@@ -1,0 +1,26 @@
+{
+ "request": {
+  "ok": true,
+  "ttft": 6.495820400072262,
+  "ttfb": 6.495800100034103,
+  "wall": 6.6775446000974625,
+  "decode_tps": 55.52662688376809,
+  "completion_tokens": 10,
+  "prompt_tokens": 51,
+  "server_decode_tps": 49.6338127591988,
+  "server_prompt_tps": 464.5612628779115,
+  "server_cache_n": 0,
+  "cached_tokens": 0,
+  "finish_reason": "stop",
+  "text_head": "The sea is vast and full of mysteries."
+ },
+ "info": {
+  "alias": "bench-14b-default"
+ },
+ "outcome": "switched",
+ "ttft_s": 6.495820400072262,
+ "gpu_after": {
+  "dedicated_mib": 13873,
+  "shared_mib": 157
+ }
+}

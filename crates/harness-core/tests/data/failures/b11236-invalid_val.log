@@ -1,0 +1,9 @@
+error while handling argument "-ngl": invalid stoi argument
+
+usage:
+-ngl,  --gpu-layers, --n-gpu-layers N   max. number of layers to store in VRAM, either an exact number,
+                                        'auto', or 'all' (default: auto)
+                                        (env: LLAMA_ARG_N_GPU_LAYERS)
+
+
+to show complete usage, run with -h

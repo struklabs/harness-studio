@@ -1,0 +1,252 @@
+{
+ "rounds": [
+  {
+   "wall_s": 6.563408599933609,
+   "completion_tokens": 1024,
+   "aggregate_tps": 156.01649423599164,
+   "per_request": [
+    {
+     "ok": true,
+     "ttft": 3.768037599977106,
+     "ttfb": 3.768037599977106,
+     "wall": 6.562432500068098,
+     "decode_tps": 91.25927928153139,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "finish_reason": "length",
+     "text_head": "On the jagged coast of northern Scotland, where the sea roared like a wounded beast and fog clung to cliffs like damp wo"
+    },
+    {
+     "ok": true,
+     "ttft": 3.7620015998836607,
+     "ttfb": 3.7620015998836607,
+     "wall": 6.557437099982053,
+     "decode_tps": 91.22580870248451,
+     "completion_tokens": 256,
+     "prompt_tokens": 42,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Sahel, where the sun blazed like molten gold and the dunes stretched into infinity, a caravan moved "
+    },
+    {
+     "ok": true,
+     "ttft": 3.7614587999414653,
+     "ttfb": 3.7614587999414653,
+     "wall": 6.555309399962425,
+     "decode_tps": 91.27881403577756,
+     "completion_tokens": 256,
+     "prompt_tokens": 43,
+     "finish_reason": "length",
+     "text_head": "In the heart of the cobblestone district of Elderglen, where fog clung to rooftops like damp lace and chimneys belched w"
+    },
+    {
+     "ok": true,
+     "ttft": 3.7630260998848826,
+     "ttfb": 3.7630260998848826,
+     "wall": 6.558088599937037,
+     "decode_tps": 91.2359138896335,
+     "completion_tokens": 256,
+     "prompt_tokens": 38,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Himalayas, where snow-capped peaks pierced the sky like ancient sentinels and valleys whispered secr"
+    }
+   ],
+   "latency_median_s": 6.557762849959545,
+   "latency_max_s": 6.562432500068098,
+   "ttft_median_s": 3.7625138498842716,
+   "ttft_max_s": 3.768037599977106,
+   "errors": []
+  },
+  {
+   "wall_s": 7.0496499999426305,
+   "completion_tokens": 1024,
+   "aggregate_tps": 145.2554382144267,
+   "per_request": [
+    {
+     "ok": true,
+     "ttft": 4.375426199985668,
+     "ttfb": 4.375426199985668,
+     "wall": 7.045843199826777,
+     "decode_tps": 95.4967657552856,
+     "completion_tokens": 256,
+     "prompt_tokens": 40,
+     "finish_reason": "length",
+     "text_head": "On the jagged coast of northern Scotland, where the sea roared like a wounded beast and the wind howled through cliffs a"
+    },
+    {
+     "ok": true,
+     "ttft": 4.376503000035882,
+     "ttfb": 4.376503000035882,
+     "wall": 7.047279100166634,
+     "decode_tps": 95.48312758218898,
+     "completion_tokens": 256,
+     "prompt_tokens": 42,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Saharan expanse, where the sun blazed like molten gold and the dunes stretched into infinity, a cara"
+    },
+    {
+     "ok": true,
+     "ttft": 4.381039299769327,
+     "ttfb": 4.381039299769327,
+     "wall": 7.047538599930704,
+     "decode_tps": 95.63417609670148,
+     "completion_tokens": 256,
+     "prompt_tokens": 43,
+     "finish_reason": "length",
+     "text_head": "In the heart of a fog-drenched city where cobblestone streets whispered secrets and gas lamps flickered like dying stars"
+    },
+    {
+     "ok": true,
+     "ttft": 4.37709950003773,
+     "ttfb": 4.37709950003773,
+     "wall": 7.048536299960688,
+     "decode_tps": 95.4630028626719,
+     "completion_tokens": 256,
+     "prompt_tokens": 40,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Himalayas, where snow-capped peaks pierced the sky like ancient sentinels and valleys whispered secr"
+    }
+   ],
+   "latency_median_s": 7.047408850048669,
+   "latency_max_s": 7.048536299960688,
+   "ttft_median_s": 4.376801250036806,
+   "ttft_max_s": 4.381039299769327,
+   "errors": []
+  },
+  {
+   "wall_s": 6.454723400063813,
+   "completion_tokens": 1024,
+   "aggregate_tps": 158.64351367711225,
+   "per_request": [
+    {
+     "ok": true,
+     "ttft": 3.7574271999765188,
+     "ttfb": 3.7574271999765188,
+     "wall": 6.453388100024313,
+     "decode_tps": 94.59048514296799,
+     "completion_tokens": 256,
+     "prompt_tokens": 43,
+     "finish_reason": "length",
+     "text_head": "On the jagged coast of northern Scotland, where the sea roared like a wounded beast and fog clung to cliffs like damp wo"
+    },
+    {
+     "ok": true,
+     "ttft": 3.7632806000765413,
+     "ttfb": 3.7632806000765413,
+     "wall": 6.452976200031117,
+     "decode_tps": 94.814011903715,
+     "completion_tokens": 256,
+     "prompt_tokens": 39,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Sahel, where the sun blazed like molten gold and the dunes stretched into infinity, a caravan moved "
+    },
+    {
+     "ok": true,
+     "ttft": 3.756860600085929,
+     "ttfb": 3.756860600085929,
+     "wall": 6.450465500121936,
+     "decode_tps": 94.67498505187757,
+     "completion_tokens": 256,
+     "prompt_tokens": 42,
+     "finish_reason": "length",
+     "text_head": "In the heart of the fog-drenched town of Elderglen, nestled between ancient oaks and crumbling stone cottages, stood a w"
+    },
+    {
+     "ok": true,
+     "ttft": 3.7587173997890204,
+     "ttfb": 3.7587173997890204,
+     "wall": 6.45245199999772,
+     "decode_tps": 94.6700677570925,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Himalayas, where snow-capped peaks pierced the sky like ancient sentinels and valleys whispered secr"
+    }
+   ],
+   "latency_median_s": 6.452714100014418,
+   "latency_max_s": 6.453388100024313,
+   "ttft_median_s": 3.7580722998827696,
+   "ttft_max_s": 3.7632806000765413,
+   "errors": []
+  }
+ ],
+ "summary": {
+  "aggregate_tps": 156.01649423599164,
+  "wall_s": 6.563408599933609,
+  "latency_median_s": 6.557762849959545,
+  "latency_max_s": 6.562432500068098,
+  "ttft_median_s": 3.7625138498842716,
+  "ttft_max_s": 3.768037599977106,
+  "completion_tokens": 1024,
+  "errors": []
+ },
+ "meta": {
+  "backend": "lmstudio",
+  "mode": "equal4",
+  "model": "4b",
+  "endpoint_info": {
+   "load_s": 2.8,
+   "flags": [
+    "--context-length",
+    "32768",
+    "--gpu",
+    "max",
+    "--parallel",
+    "4"
+   ],
+   "lms_load_tail": "n3-4b-instruct-2507 26% ⠼\nLoading qwen3-4b-instruct-2507 27% ⠼\nLoading qwen3-4b-instruct-2507 27% ⠴\nLoading qwen3-4b-instruct-2507 28% ⠴\nLoading qwen3-4b-instruct-2507 100% ⠴\nModel loaded successfully in 2.40s.\n(2.33 GiB)\nTo use the model in the API/SDK, use the identifier \"qwen3-4b-instruct-2507\".\n",
+   "ps": [
+    {
+     "sizeBytes": 2497281120,
+     "identifier": "qwen3-4b-instruct-2507",
+     "contextLength": 32768,
+     "status": "idle",
+     "parallel": 4
+    }
+   ],
+   "rest_config": {
+    "context_length": 32768,
+    "eval_batch_size": 2048,
+    "physical_batch_size": 512,
+    "parallel": 4,
+    "flash_attention": true,
+    "context_checkpoints": 32,
+    "reasoning_budget_message": "",
+    "speculative_draft_mtp": false,
+    "speculative_draft_simple": false,
+    "speculative_draft_model": "",
+    "speculative_draft_max_tokens": 3,
+    "speculative_draft_min_tokens": 0,
+    "speculative_draft_min_continue_probability": 0,
+    "offload_kv_cache_to_gpu": true
+   },
+   "log_lines": [
+    "[2026-10-11 14:52:18][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10847 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:18][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10824 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (11173 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10847 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10823 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (11172 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:20][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10846 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:53:03][DEBUG] 0.05.462.821 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'",
+    "[2026-10-11 14:55:38][DEBUG] 0.02.094.052 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'",
+    "[2026-10-11 14:55:54][DEBUG] 0.02.027.503 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 32768, kv_unified = 'true'",
+    "[2026-10-11 14:57:31][DEBUG] 0.09.861.033 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 32768, kv_unified = 'true'",
+    "[2026-10-11 15:00:24][DEBUG] 0.02.204.241 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'"
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 4397,
+   "shared_mib": 364
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 11626,
+   "shared_mib": 409
+  },
+  "date": "2026-10-11 15:00:26",
+  "gpu_after_run": {
+   "dedicated_mib": 11649,
+   "shared_mib": 417
+  },
+  "elapsed_s": 24.6
+ }
+}

@@ -1,0 +1,84 @@
+name: Release
+
+# Push a tag like `v0.2.0` (matching the version in tauri.conf.json / Cargo.toml / package.json).
+# Builds the Windows NSIS installer and creates a DRAFT GitHub release with the installer, the
+# updater signature and `latest.json`. Review the draft and publish it to roll it out.
+# Linux and macOS builds are not published yet; add entries to the matrix below when they are
+# verified (the bundle targets are already configured in src-tauri/tauri.conf.json).
+#
+# Repository secrets (Settings > Secrets and variables > Actions):
+#   TAURI_SIGNING_PRIVATE_KEY           contents of the updater signing key (`npm run tauri signer generate`)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password (empty if generated with --ci)
+# Without TAURI_SIGNING_PRIVATE_KEY the installer is still built, but no updater artifacts or
+# latest.json are produced. This workflow never runs for pull requests, so fork PRs get no secrets.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+# Least privilege by default; only the release job may write.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Windows installer
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: '--bundles nsis'
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - run: npm ci
+
+      # Passes the signing key only when it is defined (an empty value would be taken as "given"
+      # by Tauri and fail). The updater artifacts are built only with a signing key.
+      - name: Signing secrets (only the defined ones)
+        id: secrets
+        shell: bash
+        env:
+          S_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          S_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$S_TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "has_updater_key=true" >> "$GITHUB_OUTPUT"
+            delim="EOF_${RANDOM}${RANDOM}${RANDOM}"
+            { echo "TAURI_SIGNING_PRIVATE_KEY<<$delim"; echo "$S_TAURI_SIGNING_PRIVATE_KEY"; echo "$delim"; } >> "$GITHUB_ENV"
+            # Always set, even empty: a key made with `--ci` has no password, and an unset
+            # variable would make the signer ask for one.
+            d="EOF_${RANDOM}${RANDOM}${RANDOM}"
+            { echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD<<$d"; echo "$S_TAURI_SIGNING_PRIVATE_KEY_PASSWORD"; echo "$d"; } >> "$GITHUB_ENV"
+          else
+            echo "has_updater_key=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::TAURI_SIGNING_PRIVATE_KEY is not set: building without updater artifacts."
+          fi
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Harness Studio ${{ github.ref_name }}'
+          releaseBody: 'Download the Windows installer (`*-setup.exe`) below. The installer is not code-signed yet: if SmartScreen warns you, choose "More info" and then "Run anyway". See the changelog for what is new.'
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: ${{ steps.secrets.outputs.has_updater_key == 'true' }}
+          args: ${{ steps.secrets.outputs.has_updater_key == 'true' && '--config src-tauri/tauri.release.conf.json ' || '' }}${{ matrix.args }}

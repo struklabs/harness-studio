@@ -1,0 +1,1 @@
+{"model":"D:/Models/gpustack/bge-reranker-v2-m3-GGUF/bge-reranker-v2-m3-Q4_K_M.gguf","object":"list","usage":{"prompt_tokens":49,"total_tokens":49},"results":[{"index":1,"relevance_score":0.08229732513427734},{"index":0,"relevance_score":-8.416086196899414},{"index":2,"relevance_score":-10.973636627197266}]}

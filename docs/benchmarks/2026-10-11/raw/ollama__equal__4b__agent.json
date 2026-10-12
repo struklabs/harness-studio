@@ -1,0 +1,265 @@
+{
+ "runs": [
+  {
+   "warmup": true,
+   "turn1": {
+    "ok": true,
+    "ttft": 3.786437700036913,
+    "ttfb": 3.786437700036913,
+    "wall": 3.7980923999566585,
+    "completion_tokens": 2,
+    "prompt_tokens": 10769,
+    "server_decode_tps": 181.8181818181818,
+    "server_prompt_tps": 3113.327551315409,
+    "server_cache_n": null,
+    "cached_tokens": 3,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn2": {
+    "ok": true,
+    "ttft": 0.38802789989858866,
+    "ttfb": 0.38802789989858866,
+    "wall": 0.3995909998193383,
+    "completion_tokens": 2,
+    "prompt_tokens": 11118,
+    "server_decode_tps": 181.8181818181818,
+    "server_prompt_tps": 63531.42857142857,
+    "server_cache_n": null,
+    "cached_tokens": 10769,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn3": {
+    "ok": true,
+    "ttft": 0.27796880016103387,
+    "ttfb": 0.27796880016103387,
+    "wall": 0.37786740018054843,
+    "decode_tps": 101.53486893521641,
+    "completion_tokens": 10,
+    "prompt_tokens": 11155,
+    "server_decode_tps": 101.01010101010101,
+    "server_prompt_tps": 328088.23529411765,
+    "server_cache_n": null,
+    "cached_tokens": 11118,
+    "finish_reason": "stop",
+    "text_head": "The README described a harbor-themed demo project."
+   }
+  },
+  {
+   "warmup": false,
+   "turn1": {
+    "ok": true,
+    "ttft": 3.9853484998457134,
+    "ttfb": 3.9853484998457134,
+    "wall": 3.997012199833989,
+    "completion_tokens": 2,
+    "prompt_tokens": 10768,
+    "server_decode_tps": 181.8181818181818,
+    "server_prompt_tps": 3117.544875506659,
+    "server_cache_n": null,
+    "cached_tokens": 5,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn2": {
+    "ok": true,
+    "ttft": 0.405763000017032,
+    "ttfb": 0.405763000017032,
+    "wall": 0.4176576000172645,
+    "completion_tokens": 2,
+    "prompt_tokens": 11117,
+    "server_decode_tps": 181.8181818181818,
+    "server_prompt_tps": 64633.72093023256,
+    "server_cache_n": null,
+    "cached_tokens": 10768,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn3": {
+    "ok": true,
+    "ttft": 0.26118250004947186,
+    "ttfb": 0.26118250004947186,
+    "wall": 0.3616465001832694,
+    "decode_tps": 100.68713367889848,
+    "completion_tokens": 10,
+    "prompt_tokens": 11154,
+    "server_decode_tps": 100,
+    "server_prompt_tps": 338000,
+    "server_cache_n": null,
+    "cached_tokens": 11117,
+    "finish_reason": "stop",
+    "text_head": "The README described a harbor-themed demo project."
+   }
+  },
+  {
+   "warmup": false,
+   "turn1": {
+    "ok": true,
+    "ttft": 3.9777899000328034,
+    "ttfb": 3.9777899000328034,
+    "wall": 3.989199999952689,
+    "completion_tokens": 2,
+    "prompt_tokens": 10766,
+    "server_decode_tps": 181.8181818181818,
+    "server_prompt_tps": 3105.2783386212864,
+    "server_cache_n": null,
+    "cached_tokens": 5,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn2": {
+    "ok": true,
+    "ttft": 0.39918990014120936,
+    "ttfb": 0.39918990014120936,
+    "wall": 0.4107542000710964,
+    "completion_tokens": 2,
+    "prompt_tokens": 11115,
+    "server_decode_tps": 181.8181818181818,
+    "server_prompt_tps": 63153.40909090909,
+    "server_cache_n": null,
+    "cached_tokens": 10766,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn3": {
+    "ok": true,
+    "ttft": 0.25039449986070395,
+    "ttfb": 0.25039449986070395,
+    "wall": 0.351902199909091,
+    "decode_tps": 99.89810384046977,
+    "completion_tokens": 10,
+    "prompt_tokens": 11152,
+    "server_decode_tps": 99.00990099009901,
+    "server_prompt_tps": 328000,
+    "server_cache_n": null,
+    "cached_tokens": 11115,
+    "finish_reason": "stop",
+    "text_head": "The README described a harbor-themed demo project."
+   }
+  },
+  {
+   "warmup": false,
+   "turn1": {
+    "ok": true,
+    "ttft": 3.8863018001429737,
+    "ttfb": 3.8863018001429737,
+    "wall": 3.897835300071165,
+    "completion_tokens": 2,
+    "prompt_tokens": 10771,
+    "server_decode_tps": 181.8181818181818,
+    "server_prompt_tps": 3178.2236647978757,
+    "server_cache_n": null,
+    "cached_tokens": 5,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn2": {
+    "ok": true,
+    "ttft": 0.4145170000847429,
+    "ttfb": 0.4145170000847429,
+    "wall": 0.4388773001264781,
+    "decode_tps": 181.12168802818908,
+    "completion_tokens": 3,
+    "prompt_tokens": 11120,
+    "server_decode_tps": 125,
+    "server_prompt_tps": 63181.818181818184,
+    "server_cache_n": null,
+    "cached_tokens": 10771,
+    "finish_reason": "stop",
+    "text_head": "READY."
+   },
+   "turn3": {
+    "ok": true,
+    "ttft": 0.2695388998836279,
+    "ttfb": 0.2695388998836279,
+    "wall": 0.36983409989625216,
+    "decode_tps": 100.97746186526616,
+    "completion_tokens": 10,
+    "prompt_tokens": 11157,
+    "server_decode_tps": 100,
+    "server_prompt_tps": 338090.9090909091,
+    "server_cache_n": null,
+    "cached_tokens": 11120,
+    "finish_reason": "stop",
+    "text_head": "The README described a harbor-themed demo project."
+   }
+  }
+ ],
+ "summary": {
+  "turn1_ttft_s": 3.9777899000328034,
+  "turn2_ttft_s": 0.405763000017032,
+  "turn3_ttft_s": 0.26118250004947186,
+  "turn1_prompt_tokens": 10768,
+  "turn3_prompt_tokens": 11154,
+  "turn2_cached_tokens": 10768,
+  "turn3_cached_tokens": 11117,
+  "errors": []
+ },
+ "meta": {
+  "backend": "ollama",
+  "mode": "equal",
+  "model": "4b",
+  "endpoint_info": {
+   "env": {
+    "OLLAMA_FLASH_ATTENTION": "1",
+    "OLLAMA_KV_CACHE_TYPE": "f16",
+    "OLLAMA_NUM_PARALLEL": "1"
+   },
+   "server_env_stripped": [
+    "OLLAMA_FLASH_ATTENTION",
+    "OLLAMA_KV_CACHE_TYPE",
+    "OLLAMA_NUM_PARALLEL",
+    "OLLAMA_MAX_LOADED_MODELS",
+    "OLLAMA_CONTEXT_LENGTH",
+    "OLLAMA_NUM_CTX",
+    "OLLAMA_GPU_OVERHEAD"
+   ],
+   "load_s": 3.11,
+   "ps": {
+    "size": 7547576647,
+    "size_vram": 7547576647,
+    "context_length": 32768
+   },
+   "log_lines": [
+    "time=2026-10-11T15:06:01.100+03:00 level=INFO source=routes.go:2117 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+    "time=2026-10-11T15:06:08.973+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Programs\\\\Ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\.ollama\\\\models\\\\blobs\\\\sha256-3605803b982cb64",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 35 repeating layers to GPU",
+    "load_tensors: offloaded 37/37 layers to GPU",
+    "llama_context: flash_attn = enabled",
+    "llama_kv_cache: size = 4608.00 MiB ( 32768 cells, 36 layers, 1/1 seqs), K (f16): 2304.00 MiB, V (f16): 2304.00 MiB"
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 4375,
+   "shared_mib": 364
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 11893,
+   "shared_mib": 526
+  },
+  "date": "2026-10-11 15:06:12",
+  "gpu_after_run": {
+   "dedicated_mib": 12016,
+   "shared_mib": 536
+  },
+  "elapsed_s": 20.4,
+  "endpoint_info_after": {
+   "ps": {
+    "size": 7547576647,
+    "size_vram": 7547576647,
+    "context_length": 32768
+   },
+   "log_lines": [
+    "time=2026-10-11T15:06:01.100+03:00 level=INFO source=routes.go:2117 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+    "time=2026-10-11T15:06:08.973+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Programs\\\\Ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\.ollama\\\\models\\\\blobs\\\\sha256-3605803b982cb64",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 35 repeating layers to GPU",
+    "load_tensors: offloaded 37/37 layers to GPU",
+    "llama_context: flash_attn = enabled",
+    "llama_kv_cache: size = 4608.00 MiB ( 32768 cells, 36 layers, 1/1 seqs), K (f16): 2304.00 MiB, V (f16): 2304.00 MiB"
+   ]
+  }
+ }
+}

@@ -1,0 +1,53 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+
+# Dependencies and build output
+node_modules
+/build
+/.svelte-kit
+/package
+/target/
+/src-tauri/binaries/
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Environment files and signing keys (never commit secrets)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local runtime data (the app uses the per-user app data dir; these only appear when run from the repo)
+/config/
+/bin/
+/logs/
+/models/
+/src-tauri/config/
+/src-tauri/bin/
+/src-tauri/logs/
+/src-tauri/models/
+
+# Local scratch space and test artifacts
+/scratch/
+/test/
+*.log
+# Real llama-server stderr captures used as failure-classification fixtures.
+!crates/harness-core/tests/data/failures/*.log
+
+# Local tooling files
+.claude/
+CLAUDE.md
+AGENTS.md
+
+# Benchmark suite virtualenv
+/bench/compare/.venv/
+__pycache__/
+
+# Screenshots written by the UI test scripts
+/docs/screenshots/menus-*.png
+/docs/screenshots/ui-open/

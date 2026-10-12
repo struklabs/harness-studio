@@ -1,0 +1,34 @@
+[package]
+name = "harness-api"
+version = "0.1.0"
+description = "Harness Control API: local HTTP management API (axum + OpenAPI) over harness-core"
+authors = ["struklabs and Harness Studio contributors"]
+repository = "https://github.com/struklabs/harness-studio"
+homepage = "https://github.com/struklabs/harness-studio"
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+harness-core = { path = "../harness-core", features = ["openapi"] }
+harness-mcp = { path = "../harness-mcp" }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "matched-path", "query", "tokio"] }
+tower-http = { version = "0.6", features = ["cors"] }
+tower = { version = "0.5", default-features = false, features = ["util"] }
+utoipa = { version = "5", features = ["axum_extras", "preserve_order"] }
+utoipa-axum = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+sha2 = "0.10"
+subtle = "2.6"
+getrandom = "0.3"
+
+[features]
+# OTLP/gRPC export (harness-core `otel-grpc`); off in the default builds.
+otel-grpc = ["harness-core/otel-grpc"]
+
+[dev-dependencies]
+harness-core = { path = "../harness-core", features = ["openapi", "otel"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+tempfile = "3"

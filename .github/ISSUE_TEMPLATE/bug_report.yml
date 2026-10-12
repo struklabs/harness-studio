@@ -1,0 +1,91 @@
+name: Bug report
+description: Something does not work as expected.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please search [existing issues](https://github.com/struklabs/harness-studio/issues) first.
+        For security problems, do **not** open an issue; see the [security policy](https://github.com/struklabs/harness-studio/security/policy).
+  - type: input
+    id: version
+    attributes:
+      label: Harness Studio version
+      description: Run `harness --version`, or check the installer file name or the Windows "Apps" list.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version
+      placeholder: "Windows 11 24H2, Ubuntu 24.04, macOS 15..."
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and driver
+      description: Model, VRAM, and driver version. Write "none" if you use the CPU only.
+      placeholder: "AMD RX 7900 GRE 16 GB, Adrenalin 25.x"
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Backend (model engine build)
+      options:
+        - Vulkan
+        - CUDA
+        - ROCm / HIP
+        - SYCL
+        - Metal
+        - CPU
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model and quantization
+      placeholder: "Qwen3-4B-Instruct-2507, Q4_K_M"
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs, error text, or screenshots
+      description: Paste the error message or the relevant server log. Remove tokens, API keys, and personal paths first.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and the troubleshooting guide.
+          required: true
+        - label: I removed secrets (tokens, API keys) from anything I pasted.
+          required: true

@@ -1,0 +1,32 @@
+{
+ "date": "2026-10-11 15:48:33",
+ "python": "3.14.0",
+ "httpx": "0.28.1",
+ "os": "Windows-11-10.0.26200-SP0",
+ "versions": {
+  "harness": "Harness Studio 0.1.0, installer-built release build, installed; managed runtime llama.cpp b11556-a9d27ac69 Vulkan; ran as `harness serve --gateway` (headless, GUI closed) in the re-run",
+  "lmstudio": "lms CLI commit 69d945a; selected engine llama.cpp-win-x86_64-vulkan-avx2@2.51.0",
+  "ollama": "ollama version is 0.35.1",
+  "llamacpp": "llama-server version 0.4.1-dev (build 11026, commit b49650adb), winget ggml.llamacpp, Vulkan",
+  "llamacpp_b11552": "llama-server version 0.6.0-dev (build 11552, commit 23b0202a1), Harness managed runtime, Vulkan",
+  "harness_prefix": "Harness Studio 0.1.0 (earlier build, before the fixes), managed runtime llama.cpp b11552 Vulkan; ran as `harness serve --gateway`",
+  "lmstudio_control": "same LM Studio as above, out_of_box speed repeated at 17:37 (dedicated baseline 4188 MiB, dwm.exe 5.85 GiB)"
+ },
+ "gpu_baseline": {
+  "dedicated_mib": 4375,
+  "shared_mib": 372
+ },
+ "note": "gpu_baseline dedicated MiB varied between 4.4 and 6.2 GB across the session (desktop apps)",
+ "rerun_2026-10-11": {
+  "installed_build": "release build (NSIS installer, installed to %LOCALAPPDATA%\\Harness Studio; ran as `harness serve --gateway` headless, GUI closed during the run)",
+  "harness_version": "Harness Studio 0.1.0, managed runtime llama.cpp b11556-a9d27ac69 Vulkan",
+  "gpu_baseline": {
+   "dedicated_mib": 4195,
+   "shared_mib": 114
+  },
+  "dwm_dedicated_gib": 5.85,
+  "harness_run_started": "17:26",
+  "lmstudio_control_run": "17:37, baseline 4188 MiB dedicated, dwm 5.85 GiB",
+  "note": "files harness__* are the re-run; the earlier build's rows are in raw/pre-fix/; lmstudio_control__* is a repeat of LM Studio out_of_box speed as a control"
+ }
+}

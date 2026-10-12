@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or idea (Discussions)
+    url: https://github.com/struklabs/harness-studio/discussions
+    about: Ask how to do something or share an idea. Issues are for bugs and concrete feature requests.
+  - name: Report a security vulnerability
+    url: https://github.com/struklabs/harness-studio/security/advisories/new
+    about: Report security problems privately. Please do not open a public issue.
+  - name: Troubleshooting guide
+    url: https://github.com/struklabs/harness-studio/blob/main/docs/guide/en/10-troubleshooting.md
+    about: Common problems and fixes (model will not load, out of memory, port conflicts).

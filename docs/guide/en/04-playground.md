@@ -1,0 +1,126 @@
+# Playground
+
+Türkçe: [../tr/04-playground.md](../tr/04-playground.md)
+
+**What you do here:** chat with a local model, organize chats, use documents and tools, compare two answers, work with embeddings and reranking, turn speech into text and text into speech, and generate images.
+
+## How the Screen Is Laid Out
+
+At the top of the Playground are the mode tabs (**Playground mode**): **Chat**, **Embedding**, **Rerank**, **Speech**, and **Image**. In the **Simple** interface level you see **Chat**, **Speech**, and **Image**; **Embedding** and **Rerank** appear in **Advanced**. In Chat mode, the chat list is on the left (**Show chats**), the conversation and the **Your message** box are in the middle, and the **Session Settings** panel (**Show settings**) is on the right. Session Settings is split into these pages:
+
+| Group | Page | Purpose |
+| --- | --- | --- |
+| Session | **Model and Preset** | Choose the model and a preset (a saved set of settings). |
+| Session | **System Prompt** | The general instruction given to the model. |
+| Generation (Advanced) | **Sampling**, **Output Limits** | Creativity and answer length. |
+| Context (Advanced) | **History and Compaction**, **RAG** | Summarizing long chats and searching documents. |
+| Tools | **Selection and Permissions** | Which tools the model may use, and the working folder. |
+
+## Your First Chat
+
+1. [Start a chat server from the Dashboard](03-dashboard-and-servers.md), or turn on the gateway and pick a model definition.
+2. Open **Playground > Chat**. Check the model picker. If you use the gateway, the model may load on the first request, which takes anywhere from a few seconds to a few minutes.
+3. Type your request in **Your message** and press **Send**.
+4. Use **Stop** to cut generation short.
+5. Under the answer, check the token count, generation speed, and time to first token. A token is a word or a piece of a word.
+
+If you see **Server is not running**, use **Go to Dashboard** to check the server. A server started in embedding or rerank mode does not answer chat; use the **Open the Embedding Tab** / **Open the Rerank Tab** links in the banner.
+
+The message box also has an **Attach Image** button (PNG, JPEG, WebP, and GIF; you can drag or paste images too) for vision models, which need their projector (mmproj) file loaded, a **Dictation** button for speaking instead of typing, and a **Web and Tools** switch that offers web search and your selected tools to the model.
+
+## Chat List and Folders
+
+Sending your first message creates the chat record, which is stored in a local database. Open the list with **Show chats**; find an old conversation with **Search chats**.
+
+1. **New Chat** starts a separate conversation.
+2. From a chat's action menu, choose **Rename**, **Pin**, **Add to favorites**, or **Duplicate**.
+3. **New Folder** creates a folder for organizing chats; place a chat with **Move to Folder** (or drag it onto a folder).
+4. **Export** saves JSON or Markdown. **Import Chat (JSON)** adds a saved conversation.
+
+A chat folder is not a working folder for file tools (see [Use Tools and Review Approvals](#use-tools-and-review-approvals)). Deleting a chat folder does not delete the chats inside; deleting a chat with **Delete** removes it permanently along with its branches and answer versions.
+
+To get a different answer, choose **Regenerate Response**; this works for an answer anywhere in the history. The new answer becomes a new version of that message, later messages stay with the old version, and the **< 1/3 >** arrows show each version's own continuation. To change an earlier message of yours, use the **Edit and Resend** icon: the text is edited in place, and when you save, the answer is regenerated from there, with the old continuation kept as a side branch. **Fork From Here** copies the history up to that message into a new chat.
+
+Answers render full Markdown (lists, tables, headings), and `mermaid` code blocks appear as diagrams you can switch to source, copy, or save as SVG. **Read Aloud** on an answer reads it out (see [Text to Speech](#text-to-speech)).
+
+## System Prompt, Presets, and Sampling
+
+1. Open the **Session Settings** panel with **Show settings**.
+2. On the **System Prompt** page, write the general instruction you want the model to follow. Example: "Answer in short sentences."
+3. On the **Sampling** page you can edit **Temperature**, **Top P**, **Top K**, **Min P**, **Repeat penalty**, and **Seed**. Use the defaults if you do not need to change them; empty fields are not sent with the request.
+4. On the **Output Limits** page, set the upper limit of the answer with **Max tokens**. Watch the **Context usage** indicator so there is room left for the output.
+
+What they do: as **Temperature** rises, answers become more varied and unpredictable; as it falls they become consistent and repetitive. **Top P**, **Top K**, and **Min P** narrow which word candidates the model chooses from. **Repeat penalty** reduces repeated phrases. With a fixed **Seed**, the same prompt gives a similar answer.
+
+A **Preset** collects these request parameters (sampling, penalties, reasoning, output limit) and an optional system prompt under one name. Pick it from the **Preset** selector on the **Model and Preset** page. Built-in presets cannot be changed; use **Copy** to duplicate and edit one. **Manage Presets** creates new presets and imports or exports them. If you assign a **Default preset** to a model definition, new chats opened with that model start with it selected.
+
+To see how confident the model was in each word, turn on **Token probabilities** in a preset's sampling settings (you can also set how many **Alternatives per token** to return). Answers then offer **Show token probabilities**: each token is tinted (faint means confident, strong means uncertain) and hovering shows the chosen token and its alternatives. **Back to normal view** returns to plain text. Probabilities are kept for the current session only.
+
+When the context fills, the model may forget old messages or the request may be rejected. Start a new chat or use context compression on the **History and Compaction** page: when a chat gets close to filling the context, older messages are replaced by a summary the model writes, recent turns stay as they are, the original messages are not deleted, and compaction can be undone with **Undo**. You can also compact by hand by typing `/compact` in the message box; see the [compaction reference](../../en/COMPACTION.md). For a bigger context, change the server's load settings, which needs more memory.
+
+## Compare Two Answers
+
+Comparison sends the same message to two models, or to two presets of the same model, and shows the answers side by side.
+
+1. Open **Compare** (shortcut: Ctrl+Shift+M).
+2. Choose the models or presets for A and B. Gateway models (including ones that load on first request) and running servers appear in separate groups.
+3. Send the same message. You see the answers, times, word counts, similarity ratio, and speed difference; **Show Differences** marks word-level differences.
+4. If two models do not fit in memory together, or the gateway keeps only one model at a time, the app switches to running them in turn by itself and tells you why. To force it, turn on **Run sequentially**.
+5. Press **Continue with this answer ({side})** to carry on with the side you picked; `{side}` shows A or B. The comparison closes and the other side stays as an answer version.
+
+Document search is not used during a comparison. If tools are on, each side runs its own tool loop; review the permissions for each call separately.
+
+## Use Tools and Review Approvals
+
+A tool is something the model does besides generating text, such as reading a file, running a command, or searching the web. Tools ask for approval by default.
+
+1. On **Session Settings > Selection and Permissions**, turn on **Enable tool use**.
+2. Choose which tools to offer the model (**All tools in the group** toggles a whole group at once). The model's chat template must support tool calling; a model that does not support it will not call tools.
+3. For file or command tools, set a folder under **Working folder** with **Choose Folder** (the folder button in the input does the same). This choice belongs to that chat. You can also use the **Default folder** in **Settings > Tools > Built-In Tools**. File tools work only inside this folder; they cannot reach a parent folder, an absolute path, or a symbolic link. The command tool (`exec_shell_command`) starts its command in this folder but is not limited to it: a command can do anything on your computer that your user account can (it is in the dangerous class). Read the command carefully before you approve it. Without a folder, file and command tools return an error.
+4. When the model calls a tool, read the **Parameters** on the tool card. Press **Approve** to accept the action or **Deny** to refuse it.
+
+Approval lets the tool run on your computer. For file writes and commands, check the target and the content. Set the policy and trusted tools on the [Tools chapter](06-tools.md). Network tools send their queries or requests to outside services.
+
+## Add Documents
+
+1. Pick a PDF, DOCX, Markdown, text, or code file with **Add document**, or drag a file into the chat.
+2. Wait for reading and indexing to finish (**reading**, with a chunk counter).
+3. Send a concrete question about the document.
+4. Check the quotes and page information under **Sources of the answer**; the quote the answer cites is marked.
+
+The **Use** choice next to a document decides how it is used. With **Auto**, a document that fits comfortably in the context is added as full text, and for large documents the relevant parts are searched for on every question. You can change this with **Full Text** and **Search**. If no **Embedding model** is selected on **Session Settings > RAG**, only keyword search is used; for semantic search, download a small embedding model (for example nomic-embed-text) from Model Hub. Optional **Reranking** orders results more accurately with a reranker model at a small cost in speed. **Chunks per question** is the number of quotes added to the answer in search mode. Document processing and indexes run locally. Document search is not used in the comparison view.
+
+## Embedding and Rerank
+
+**Embedding** turns text into a numeric vector, used for search and similarity. Start a server with a suitable embedding model (a server whose model type is embedding starts in this mode on its own), fill in the **Texts** boxes on the **Embedding** tab, and press **Get Embeddings**. A similarity matrix needs at least two non-empty texts.
+
+**Rerank** orders documents by how well they match a question. Start a suitable reranker model, fill in **Query** and **Documents**, and press **Rank**. Compare scores only among the documents of the same query.
+
+## Speech: Speech to Text and Text to Speech
+
+The **Speech** tab covers both directions. Audio goes through the gateway; if it is off, use **Turn the Gateway On**. Models load on the first request.
+
+### Speech to Text
+
+1. In **Model Hub**, search for `whisper` and download a Whisper ggml model. For Turkish or other languages, do not pick a model that only knows English (a `.en` model).
+2. Install the whisper.cpp engine. Model Hub may show a **Required: Speech module (whisper.cpp)** note with an **Install** button. On macOS there is no ready-made whisper server package; you can add the folder of a `whisper-server` you built yourself.
+3. Open the **Playground > Speech** tab.
+4. Choose a **Model**. Add audio with **Choose File**, or start a microphone recording with **Record** and end it with **Stop**. The operating system may ask for microphone permission.
+5. You can type a language code such as `tr` into **Language** or leave it automatic. For **Task**, choose **Transcribe** or **Translate to English**, then press **Transcribe**.
+6. Look at the result. **Add to Chat** puts the text in the chat draft; you still have to press **Send** to send it.
+
+Besides Whisper, the **Recommended sherpa-onnx Recognition Models** section lets you download NVIDIA Parakeet (25 European languages), SenseVoice (Chinese, English, Japanese, Korean, Cantonese), and Omnilingual (1600 languages, Turkish included). Press **Install Engine** first to install the sherpa-onnx engine. Long recordings are cut at pauses and read as timed segments, and the chat **Dictation** button uses the same model choice. These models only transcribe (**Translate to English** is a Whisper task), and Omnilingual output has no punctuation or capital letters. For these models only 16-bit mono WAV is read directly; other formats, MP3 included, need ffmpeg.
+
+WAV, MP3, FLAC, and Ogg are read directly. Formats such as M4A, WebM, and Opus need ffmpeg. Microphone recording produces 16 kHz WAV. If microphone permission is denied, allow Harness Studio in your system privacy settings.
+
+### Text to Speech
+
+The **Text to Speech** section of the **Speech** tab turns text into audio. Press **Install Engine** to install the sherpa-onnx engine (about 20 MB, verified), then download a voice under **Recommended Voice Models**: Kokoro (multilingual) and Piper voices, which are recommended for Turkish. Choose a **Model**, a **Voice**, and a **Speed**, type the **Text to read**, and press **Speak**. The audio plays in the app and can be downloaded. Once a voice model is installed, the **Read Aloud** button on a chat answer reads it with that voice; without a voice model the app points you to this section.
+
+## Generate Images
+
+The **Image** tab generates pictures from diffusion models through stable-diffusion.cpp. Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it) and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
+
+See also the [Tools reference](../../en/TOOLS.md) and the [Features reference](../../en/FEATURES.md).
+
+Next: [Connections and the Gateway](05-connections-and-gateway.md).

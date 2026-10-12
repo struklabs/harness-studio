@@ -1,0 +1,207 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 1.0619144999654964,
+   "ttfb": 1.0618956999387592,
+   "wall": 6.975264800013974,
+   "decode_tps": 43.12446744443092,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "server_decode_tps": 43.123158387471214,
+   "server_prompt_tps": 541.6216711206208,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "The heavy anchor watched the rapid engine near the cellar, and 59 people noticed it. That night, the wind howled through"
+  },
+  {
+   "ok": true,
+   "ttft": 1.0752467999700457,
+   "ttfb": 1.0752266999334097,
+   "wall": 7.014971899916418,
+   "decode_tps": 42.932902473437494,
+   "completion_tokens": 256,
+   "prompt_tokens": 487,
+   "server_decode_tps": 42.93250202540392,
+   "server_prompt_tps": 539.3629054276179,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "The heavy anchor watched the rapid engine near the cellar, and 59 people noticed it. That night, the wind howled through"
+  },
+  {
+   "ok": true,
+   "ttft": 1.103804099955596,
+   "ttfb": 1.103783900034614,
+   "wall": 7.052405899972655,
+   "decode_tps": 42.92306474932937,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 42.922652202462274,
+   "server_prompt_tps": 541.4783587288545,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where time moved like a slow river and shadows clung to stone like mo"
+  },
+  {
+   "ok": true,
+   "ttft": 1.1006054999306798,
+   "ttfb": 1.100576899945736,
+   "wall": 7.050320200040005,
+   "decode_tps": 42.86053135963022,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "server_decode_tps": 42.85841060172537,
+   "server_prompt_tps": 542.7356787720969,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "The heavy anchor watched the rapid engine near the cellar, and 59 people noticed it. That night, the wind howled through"
+  },
+  {
+   "ok": true,
+   "ttft": 1.0968839999986812,
+   "ttfb": 1.0968643999658525,
+   "wall": 7.0358743000542745,
+   "decode_tps": 42.94002938211423,
+   "completion_tokens": 256,
+   "prompt_tokens": 486,
+   "server_decode_tps": 42.94070763928661,
+   "server_prompt_tps": 539.6913367808027,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "The heavy anchor watched the rapid engine near the cellar, and 59 people noticed it. That night, the wind howled through"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": true,
+   "ttft": 12.048551200074144,
+   "ttfb": 12.04853130003903,
+   "wall": 12.048766699968837,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 339.750250741653,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 330.9941530543074
+  },
+  {
+   "ok": true,
+   "ttft": 11.9958120000083,
+   "ttfb": 11.995791000081226,
+   "wall": 11.996027000015602,
+   "completion_tokens": 1,
+   "prompt_tokens": 3987,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 341.37044811554773,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 332.3659957322807
+  },
+  {
+   "ok": true,
+   "ttft": 12.051940700039268,
+   "ttfb": 12.051919299992733,
+   "wall": 12.05216850002762,
+   "completion_tokens": 1,
+   "prompt_tokens": 3987,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 340.44158965713837,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 330.81808973612107
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 1.0968839999986812,
+  "decode_tps": 42.932902473437494,
+  "server_decode_tps": 42.93250202540392,
+  "prompt_tokens_500": 488,
+  "completion_tokens": 256,
+  "pp4k_tps_client": 330.9941530543074,
+  "pp4k_tps_server": 340.44158965713837,
+  "pp4k_prompt_tokens": 3987,
+  "pp4k_ttft_s": 12.048551200074144,
+  "errors": []
+ },
+ "meta": {
+  "backend": "llamacpp_b11552",
+  "mode": "equal",
+  "model": "4b",
+  "endpoint_info": {
+   "args": [
+    "-m",
+    "C:\\Users\\user\\Documents\\Proje\\harness-studio\\scratch\\nv1012\\appdata\\com.harnessstudio.app\\models\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8091",
+    "-c",
+    "32768",
+    "-ngl",
+    "999",
+    "-fa",
+    "on",
+    "-ctk",
+    "f16",
+    "-ctv",
+    "f16",
+    "-np",
+    "1"
+   ],
+   "load_s": 4.39,
+   "probe_lines": [
+    "cmn common_init_: fitting params to device memory ...",
+    "cmn common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)",
+    "common_params_fit_impl: getting device memory data for initial parameters:",
+    "common_params_fit_impl: projected to use 7090 MiB of device memory vs. 3295 MiB of free device memory",
+    "common_params_fit_impl: cannot meet free memory target of 1024 MiB, need to reduce device memory by 4819 MiB",
+    "common_params_fit_impl: context size set by user to 32768 -> no change",
+    "common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 999, abort",
+    "common_fit_params: fitting params to free memory took 0.22 seconds",
+    "load_tensors: offloaded 37/37 layers to GPU",
+    "llama_context: n_seq_max = 1",
+    "llama_context: n_ctx = 32768",
+    "llama_context: n_ctx_seq = 32768",
+    "llama_context: flash_attn = enabled",
+    "llama_context: n_ctx_seq (32768) < n_ctx_train (262144) -- the full capacity of the model will not be utilized",
+    "llama_kv_cache: CUDA0 KV buffer size = 4608.00 MiB",
+    "slot load_model: id 0 | task -1 | new slot, n_ctx = 32768"
+   ],
+   "log_lines": [
+    "0.01.456.465 W common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 999, abort",
+    "0.04.094.452 I srv load_model: initializing, n_slots = 1, n_ctx_slot = 32768, kv_unified = 'false'"
+   ],
+   "props": {
+    "total_slots": 1,
+    "n_ctx": 32768,
+    "build_info": "b11342-f1cee9941"
+   }
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 654
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 3901,
+   "shared_mib": 3415
+  },
+  "date": "2026-10-12 05:07:26",
+  "gpu_after_run": {
+   "dedicated_mib": 3905,
+   "shared_mib": 3415
+  },
+  "elapsed_s": 87.0
+ }
+}

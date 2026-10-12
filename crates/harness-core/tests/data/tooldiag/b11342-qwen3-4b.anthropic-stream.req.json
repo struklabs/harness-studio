@@ -1,0 +1,1 @@
+{"model":"m","stream":true,"max_tokens":200,"temperature":0,"tools":[{"name":"get_weather","description":"Current weather of a city","input_schema":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}],"messages":[{"role":"user","content":"What is the weather in Ankara?"}]}

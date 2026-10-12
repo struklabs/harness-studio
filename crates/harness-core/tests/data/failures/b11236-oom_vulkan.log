@@ -1,0 +1,15 @@
+0.00.158.937 I srv  llama_server: initializing ...
+0.00.158.945 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.00.159.325 W srv  llama_server: security: no API key is set and CORS allows all origins (see https://github.com/ggml-org/llama.cpp/pull/25655)
+0.00.168.211 I srv    load_model: loading model 'D:/Models/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/qwen2.5-coder-14b-instruct-q4_k_m.gguf'
+0.00.413.868 W common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 99, abort
+0.00.539.750 W load: control-looking token: 128247 '</s>' was not control-type; this is probably a bug in the model. its type will be overridden
+ggml_vulkan: Device memory allocation of size 1073741824 failed.
+ggml_vulkan: vk::Device::allocateMemory: ErrorOutOfDeviceMemory
+0.12.737.699 E alloc_tensor_range: failed to allocate Vulkan0 buffer of size 1073741824
+0.14.506.921 E llama_init_from_model: failed to initialize the context: failed to allocate buffer for kv cache
+0.14.507.312 E cmn  common_init_: failed to create context with model 'D:/Models/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/qwen2.5-coder-14b-instruct-q4_k_m.gguf'
+0.14.507.333 E cmn  common_init_: failed to create context with model 'D:/Models/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/qwen2.5-coder-14b-instruct-q4_k_m.gguf'
+0.14.507.374 E srv    load_model: failed to create_context with model 'D:/Models/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/qwen2.5-coder-14b-instruct-q4_k_m.gguf'
+0.14.508.127 I srv    operator(): operator(): cleaning up before exit...
+0.14.516.490 E srv  llama_server: exiting due to model loading error

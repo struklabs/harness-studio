@@ -1,0 +1,253 @@
+{
+ "runs": [
+  {
+   "warmup": true,
+   "turn1": {
+    "ok": true,
+    "ttft": 6.304942300077528,
+    "ttfb": 6.304922099923715,
+    "wall": 6.316847099922597,
+    "completion_tokens": 2,
+    "prompt_tokens": 10825,
+    "server_decode_tps": 84.83922965979468,
+    "server_prompt_tps": 1778.152479203551,
+    "server_cache_n": 1,
+    "cached_tokens": 1,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn2": {
+    "ok": true,
+    "ttft": 0.41419579996727407,
+    "ttfb": 0.41417660005390644,
+    "wall": 0.42609329987317324,
+    "completion_tokens": 2,
+    "prompt_tokens": 11174,
+    "server_decode_tps": 85.32423208191126,
+    "server_prompt_tps": 1471.121340111451,
+    "server_cache_n": 10825,
+    "cached_tokens": 10825,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn3": {
+    "ok": true,
+    "ttft": 0.25472780014388263,
+    "ttfb": 0.25470330007374287,
+    "wall": 0.3489516000263393,
+    "decode_tps": 107.6659340527359,
+    "completion_tokens": 10,
+    "prompt_tokens": 11211,
+    "server_decode_tps": 95.75792396820836,
+    "server_prompt_tps": 558.0104664665872,
+    "server_cache_n": 11174,
+    "cached_tokens": 11174,
+    "finish_reason": "stop",
+    "text_head": "The README described a harbor-themed demo project."
+   }
+  },
+  {
+   "warmup": false,
+   "turn1": {
+    "ok": true,
+    "ttft": 6.257551500108093,
+    "ttfb": 6.25753160007298,
+    "wall": 6.270514000207186,
+    "completion_tokens": 2,
+    "prompt_tokens": 10823,
+    "server_decode_tps": 78.47445656438829,
+    "server_prompt_tps": 1785.165407454105,
+    "server_cache_n": 3,
+    "cached_tokens": 3,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn2": {
+    "ok": true,
+    "ttft": 0.44269119994714856,
+    "ttfb": 0.44267100002616644,
+    "wall": 0.45534510002471507,
+    "completion_tokens": 2,
+    "prompt_tokens": 11172,
+    "server_decode_tps": 79.82120051085568,
+    "server_prompt_tps": 1432.711807351577,
+    "server_cache_n": 10823,
+    "cached_tokens": 10823,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn3": {
+    "ok": true,
+    "ttft": 0.2534142998047173,
+    "ttfb": 0.25339529989287257,
+    "wall": 0.35614829999394715,
+    "decode_tps": 98.49499637021962,
+    "completion_tokens": 10,
+    "prompt_tokens": 11209,
+    "server_decode_tps": 87.70562095579638,
+    "server_prompt_tps": 588.6377014493214,
+    "server_cache_n": 11172,
+    "cached_tokens": 11172,
+    "finish_reason": "stop",
+    "text_head": "The README described a harbor-themed demo project."
+   }
+  },
+  {
+   "warmup": false,
+   "turn1": {
+    "ok": true,
+    "ttft": 6.728812500135973,
+    "ttfb": 6.728784800041467,
+    "wall": 6.74235299997963,
+    "completion_tokens": 2,
+    "prompt_tokens": 10824,
+    "server_decode_tps": 74.25007425007425,
+    "server_prompt_tps": 1654.3868082030433,
+    "server_cache_n": 3,
+    "cached_tokens": 3,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn2": {
+    "ok": true,
+    "ttft": 0.4462506999261677,
+    "ttfb": 0.4462309000082314,
+    "wall": 0.4598654001019895,
+    "completion_tokens": 2,
+    "prompt_tokens": 11173,
+    "server_decode_tps": 73.95902669920864,
+    "server_prompt_tps": 1393.2858791074989,
+    "server_cache_n": 10824,
+    "cached_tokens": 10824,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn3": {
+    "ok": true,
+    "ttft": 0.2515760001260787,
+    "ttfb": 0.25155610009096563,
+    "wall": 0.3627955000847578,
+    "decode_tps": 91.21729495913296,
+    "completion_tokens": 10,
+    "prompt_tokens": 11210,
+    "server_decode_tps": 81.05625303960949,
+    "server_prompt_tps": 533.2487821750785,
+    "server_cache_n": 11173,
+    "cached_tokens": 11173,
+    "finish_reason": "stop",
+    "text_head": "The README described a harbor-themed demo project."
+   }
+  },
+  {
+   "warmup": false,
+   "turn1": {
+    "ok": true,
+    "ttft": 6.553236400010064,
+    "ttfb": 6.553216400090605,
+    "wall": 6.565900899935514,
+    "completion_tokens": 2,
+    "prompt_tokens": 10825,
+    "server_decode_tps": 79.61783439490445,
+    "server_prompt_tps": 1705.1094688154774,
+    "server_cache_n": 0,
+    "cached_tokens": 0,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn2": {
+    "ok": true,
+    "ttft": 0.45519229979254305,
+    "ttfb": 0.45517149986699224,
+    "wall": 0.46828669984824955,
+    "completion_tokens": 2,
+    "prompt_tokens": 11174,
+    "server_decode_tps": 78.96399241945673,
+    "server_prompt_tps": 1442.8522998817605,
+    "server_cache_n": 10825,
+    "cached_tokens": 10825,
+    "finish_reason": "stop",
+    "text_head": "READY"
+   },
+   "turn3": {
+    "ok": true,
+    "ttft": 0.2590105999261141,
+    "ttfb": 0.2589890998788178,
+    "wall": 0.3629260999150574,
+    "decode_tps": 97.45026778871943,
+    "completion_tokens": 10,
+    "prompt_tokens": 11211,
+    "server_decode_tps": 86.70603763042033,
+    "server_prompt_tps": 570.028809564159,
+    "server_cache_n": 11174,
+    "cached_tokens": 11174,
+    "finish_reason": "stop",
+    "text_head": "The README described a harbor-themed demo project."
+   }
+  }
+ ],
+ "summary": {
+  "turn1_ttft_s": 6.553236400010064,
+  "turn2_ttft_s": 0.4462506999261677,
+  "turn3_ttft_s": 0.2534142998047173,
+  "turn1_prompt_tokens": 10824,
+  "turn3_prompt_tokens": 11210,
+  "turn2_cached_tokens": 10824,
+  "turn3_cached_tokens": 11173,
+  "errors": []
+ },
+ "meta": {
+  "backend": "harness",
+  "mode": "out_of_box",
+  "model": "4b",
+  "endpoint_info": {
+   "alias": "bench-4b-default",
+   "server_id": "gw-bench-4b-default",
+   "config": {
+    "gpu_layers": 37,
+    "context_size": 32768,
+    "flash_attn": false
+   },
+   "values": {
+    "n_ctx": 32768,
+    "total_slots": 4,
+    "n_ctx_train": 262144,
+    "kv_unified": true,
+    "gpu_layers_offloaded": 37,
+    "gpu_layers_total": 37,
+    "gpu_layers_by_fit": false,
+    "ctx_adjusted": false,
+    "build_info": "b11556-a9d27ac69",
+    "chat_format": "Content-only",
+    "kv_fa_fallback": null,
+    "fit_failed": false,
+    "shared_memory_slowdown": false,
+    "shared_memory_bytes": 58208256
+   },
+   "cmdline": "-m D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf --alias bench-4b-default -ngl 37 -c 32768 --host 127.0.0.1 --port 11441 --metrics --split-mode none --main-gpu 0 --kv-unified --cache-ram 0 --ctx-checkpoints 4",
+   "load_s": 4.4,
+   "log_lines": [
+    "[+0.333s] [Harness Studio] Eşzamanlı istek: 4 (otomatik; ek istekler bağlam belleğini paylaşır, neredeyse ek bellek istemez).",
+    "[+0.333s] [Harness Studio] Ortak bağlamda birden çok eşzamanlı istek: llama.cpp'nin ana bellek istem önbelleği kapatıldı (--cache-ram 0); açıkken her istek dalgası ~3,7 sn takılıyor. Açmak için Önbellek RAM değerini elle girin.",
+    "[+0.340s] [Harness Studio] Starting llama-server: \"D:\\\\Models\\\\unsloth\\\\Qwen3-4B-Instruct-2507-GGUF\\\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf\"",
+    "[+0.341s] [Harness Studio] Target GPU: adapter index 0 → --main-gpu 0 (split-mode: none)",
+    "[+2.975s] [stderr] 0.02.483.230 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'",
+    "[+3.066s] [Harness Studio] Sunucu hazır (2.6 sn).",
+    "[+3.188s] [Harness Studio] Tanım bağlam belirtmiyor: llama.cpp'nin 4096 varsayılanı yerine modelin eğitim bağlamıyla (en çok 32768) yüklendi: 32768 (tanım değişmedi)."
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 4195,
+   "shared_mib": 114
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 11445,
+   "shared_mib": 169
+  },
+  "date": "2026-10-11 17:26:14",
+  "gpu_after_run": {
+   "dedicated_mib": 11487,
+   "shared_mib": 155
+  },
+  "elapsed_s": 30.7
+ }
+}

@@ -1,0 +1,808 @@
+{
+ "ggml-org/models-moved": {
+  "id": "ggml-org/models-moved",
+  "tags": [
+   "gguf",
+   "endpoints_compatible",
+   "region:us"
+  ],
+  "downloads": 538217,
+  "gguf": {
+   "total": 7241732096,
+   "architecture": "llama",
+   "context_length": 32768,
+   "bos_token": "<s>",
+   "eos_token": "</s>",
+   "totalFileSize": 3182393056
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "bert-bge-small/ggml-model-f16-big-endian.gguf"
+   },
+   {
+    "rfilename": "bert-bge-small/ggml-model-f16.gguf"
+   },
+   {
+    "rfilename": "jina-reranker-v1-tiny-en/ggml-model-f16.gguf"
+   },
+   {
+    "rfilename": "mel_filters.npz"
+   },
+   {
+    "rfilename": "mistral-7b-v0.2-iq3_s-imat.gguf"
+   },
+   {
+    "rfilename": "phi-2/ggml-model-f16.gguf"
+   },
+   {
+    "rfilename": "phi-2/ggml-model-q4_0.gguf"
+   },
+   {
+    "rfilename": "phi-2/ggml-model-q8_0.gguf"
+   },
+   {
+    "rfilename": "tinyllama-1.1b/.gitignore"
+   },
+   {
+    "rfilename": "tinyllama-1.1b/ggml-model-f16.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/split/stories15M-00001-of-00003.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/split/stories15M-00002-of-00003.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/split/stories15M-00003-of-00003.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/split/stories15M-q8_0-00001-of-00003.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/split/stories15M-q8_0-00002-of-00003.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/split/stories15M-q8_0-00003-of-00003.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/stories15M-be.Q4_0.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/stories15M-be.Q8_0.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/stories15M-be.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/stories15M-q4_0.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/stories15M-q8_0.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/stories15M.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/stories260K-be.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/stories260K-infill.gguf"
+   },
+   {
+    "rfilename": "tinyllamas/stories260K.gguf"
+   },
+   {
+    "rfilename": "yolo/dog.jpg"
+   },
+   {
+    "rfilename": "yolo/yolov3-tiny.weights"
+   }
+  ]
+ },
+ "caliex/all-MiniLM-L6-v2-f16.gguf": {
+  "id": "caliex/all-MiniLM-L6-v2-f16.gguf",
+  "tags": [
+   "gguf",
+   "license:apache-2.0",
+   "endpoints_compatible",
+   "region:us"
+  ],
+  "cardData": {
+   "license": "apache-2.0"
+  },
+  "downloads": 71,
+  "gguf": {
+   "total": 22565376,
+   "architecture": "bert",
+   "context_length": 512,
+   "totalFileSize": 45887744
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "all-MiniLM-L6-v2-f16.gguf"
+   }
+  ]
+ },
+ "Qwen/Qwen3-0.6B": {
+  "id": "Qwen/Qwen3-0.6B",
+  "pipeline_tag": "text-generation",
+  "library_name": "transformers",
+  "tags": [
+   "transformers",
+   "safetensors",
+   "qwen3",
+   "text-generation",
+   "conversational",
+   "arxiv:2505.09388",
+   "base_model:Qwen/Qwen3-0.6B-Base",
+   "base_model:finetune:Qwen/Qwen3-0.6B-Base",
+   "license:apache-2.0",
+   "text-generation-inference",
+   "endpoints_compatible",
+   "deploy:sagemaker",
+   "deploy:azure",
+   "region:us"
+  ],
+  "cardData": {
+   "library_name": "transformers",
+   "license": "apache-2.0",
+   "license_link": "https://huggingface.co/Qwen/Qwen3-0.6B/blob/main/LICENSE",
+   "pipeline_tag": "text-generation",
+   "base_model": [
+    "Qwen/Qwen3-0.6B-Base"
+   ]
+  },
+  "downloads": 29423291,
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "LICENSE"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "config.json"
+   },
+   {
+    "rfilename": "generation_config.json"
+   },
+   {
+    "rfilename": "merges.txt"
+   },
+   {
+    "rfilename": "model.safetensors"
+   },
+   {
+    "rfilename": "tokenizer.json"
+   },
+   {
+    "rfilename": "tokenizer_config.json"
+   },
+   {
+    "rfilename": "vocab.json"
+   }
+  ]
+ },
+ "ggml-org/LoRA-Qwen2.5-1.5B-Instruct-abliterated-F16-GGUF": {
+  "id": "ggml-org/LoRA-Qwen2.5-1.5B-Instruct-abliterated-F16-GGUF",
+  "library_name": "transformers",
+  "tags": [
+   "transformers",
+   "gguf",
+   "mergekit",
+   "peft",
+   "llama-cpp",
+   "gguf-my-lora",
+   "base_model:ngxson/LoRA-Qwen2.5-1.5B-Instruct-abliterated",
+   "base_model:quantized:ngxson/LoRA-Qwen2.5-1.5B-Instruct-abliterated",
+   "endpoints_compatible",
+   "region:us"
+  ],
+  "cardData": {
+   "base_model": "ngxson/LoRA-Qwen2.5-1.5B-Instruct-abliterated",
+   "library_name": "transformers",
+   "tags": [
+    "mergekit",
+    "peft",
+    "llama-cpp",
+    "gguf-my-lora"
+   ]
+  },
+  "downloads": 114,
+  "gguf": {
+   "total": 93591040,
+   "architecture": "qwen2",
+   "totalFileSize": 374395136
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "LoRA-Qwen2.5-1.5B-Instruct-abliterated-f16.gguf"
+   },
+   {
+    "rfilename": "README.md"
+   }
+  ]
+ },
+ "sinjab/ms-marco-MiniLM-L6-v2-Q8_0-GGUF": {
+  "id": "sinjab/ms-marco-MiniLM-L6-v2-Q8_0-GGUF",
+  "library_name": "gguf",
+  "tags": [
+   "gguf",
+   "reranker",
+   "llama.cpp",
+   "en",
+   "base_model:cross-encoder/ms-marco-MiniLM-L6-v2",
+   "base_model:quantized:cross-encoder/ms-marco-MiniLM-L6-v2",
+   "license:apache-2.0",
+   "endpoints_compatible",
+   "region:us",
+   "feature-extraction"
+  ],
+  "cardData": {
+   "language": [
+    "en"
+   ],
+   "license": "apache-2.0",
+   "library_name": "gguf",
+   "tags": [
+    "reranker",
+    "gguf",
+    "llama.cpp"
+   ],
+   "base_model": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  },
+  "downloads": 3135,
+  "gguf": {
+   "total": 22565761,
+   "architecture": "bert",
+   "context_length": 512,
+   "causal": false,
+   "bos_token": "[CLS]",
+   "eos_token": "[SEP]",
+   "totalFileSize": 25281216
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "ms-marco-MiniLM-L6-v2-Q8_0.gguf"
+   }
+  ]
+ },
+ "RichardErkhov/Josephgflowers_-_GPT2-774M-CINDER-SHOW-MULTI-CHAT-gguf": {
+  "id": "RichardErkhov/Josephgflowers_-_GPT2-774M-CINDER-SHOW-MULTI-CHAT-gguf",
+  "tags": [
+   "gguf",
+   "endpoints_compatible",
+   "region:us"
+  ],
+  "downloads": 5226,
+  "gguf": {
+   "total": 838359040,
+   "architecture": "gpt2",
+   "context_length": 1024,
+   "bos_token": "<|endoftext|>",
+   "eos_token": "<|endoftext|>",
+   "totalFileSize": 428795840
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.IQ3_M.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.IQ3_S.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.IQ3_XS.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.IQ4_NL.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.IQ4_XS.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q2_K.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q3_K.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q3_K_L.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q3_K_M.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q3_K_S.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q4_0.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q4_1.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q4_K.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q4_K_M.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q4_K_S.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q5_0.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q5_1.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q5_K.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q5_K_M.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q5_K_S.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q6_K.gguf"
+   },
+   {
+    "rfilename": "GPT2-774M-CINDER-SHOW-MULTI-CHAT.Q8_0.gguf"
+   },
+   {
+    "rfilename": "README.md"
+   }
+  ]
+ },
+ "DeepBeepMeep/MiniMax-H3": {
+  "id": "DeepBeepMeep/MiniMax-H3",
+  "library_name": "diffusion-single-file",
+  "tags": [
+   "diffusion-single-file",
+   "onnx",
+   "gguf",
+   "region:us"
+  ],
+  "cardData": {
+   "tags": [
+    "diffusion-single-file"
+   ]
+  },
+  "downloads": 513023,
+  "gguf": {
+   "total": 25753095920,
+   "architecture": "qwen3vl",
+   "totalFileSize": 8487968160
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "MiniMax-H3-FL2VA-pruned_bf16.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-FL2VA-pruned_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-FL2VA-pruned_rank8_bf16.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-FL2VA-pruned_rank8_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-FL2VA_bf16.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-FL2VA_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-Fun-Control-Union-2.0-pruned_rank8_bf16.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-Fun-Control-Union-2.0-pruned_rank8_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-Fun-Control-Union-2.0_bf16.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-Fun-Control-Union-2.0_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-Ref2VA-pruned_bf16.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-Ref2VA-pruned_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-Ref2VA-pruned_rank8_bf16.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-Ref2VA-pruned_rank8_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-Ref2VA_bf16.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-Ref2VA_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-audio_vae_fp32.safetensors"
+   },
+   {
+    "rfilename": "MiniMax-H3-video_vae_fp16.safetensors"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/Qwen3-VL-32B-Instruct-layer50_bf16.safetensors"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/Qwen3-VL-32B-Instruct-layer50_quanto_bf16_int8.safetensors"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/TEXT_ENCODER_SOURCES.txt"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/chat_template.json"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/config.json"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/preprocessor_config.json"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/qwen3vl-32B-MiniMax-H3-Q2_K.gguf"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/qwen3vl-32B-MiniMax-H3-Q4_K_M.gguf"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/tokenizer.json"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/tokenizer_config.json"
+   },
+   {
+    "rfilename": "Qwen3-VL-32B-Instruct/vocab.json"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "SeedVR2/SeedVR2_3B_bf16.safetensors"
+   },
+   {
+    "rfilename": "SeedVR2/SeedVR2_VAE_bf16.safetensors"
+   },
+   {
+    "rfilename": "SeedVR2/SeedVR2_pos_emb_bf16.safetensors"
+   },
+   {
+    "rfilename": "Viggle-Animate-pruned_rank8_bf16.safetensors"
+   },
+   {
+    "rfilename": "Viggle-Animate-pruned_rank8_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "buffalo_l/2d106det.onnx"
+   },
+   {
+    "rfilename": "buffalo_l/det_10g.onnx"
+   },
+   {
+    "rfilename": "buffalo_l/face_yolov8m.pt"
+   },
+   {
+    "rfilename": "buffalo_l/person_yolov8m-seg.safetensors"
+   },
+   {
+    "rfilename": "buffalo_l/w600k_r50.onnx"
+   },
+   {
+    "rfilename": "loras/minimax_h3_fl2va_pdd_8step_lora_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_hybrid_fl2va_ref2va_b15-49_pdd_8step_lora_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_hybrid_fl2va_ref2va_b20-49_pdd_8step_lora_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_hybrid_fl2va_ref2va_b25-49_pdd_8step_lora_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_hybrid_fl2va_ref2va_b30-49_pdd_8step_lora_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_hyperflow_8step_v1.0.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_joyfox_fl2va_4step_lora.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_larryvrh_v4_step600_ema.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_light2xv_fl2v_turbo_4step_alpha128_v1.0_768p_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_light2xv_fl2v_turbo_8step_alpha8_v1.0_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_lightx2v_fl2v_turbo_4step_alpha128_v1.0_768p_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_lightx2v_fl2v_turbo_4step_alpha128_v1.1_768p_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_lightx2v_fl2v_turbo_4step_alpha16_v0.1.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_lightx2v_fl2v_turbo_4step_alpha8_v1.2_768p_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_lightx2v_fl2v_turbo_8step_alpha8_v1.0_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_lightx2v_ref2v_turbo_4step_alpha8_v0.1_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_lightx2v_ref2v_turbo_8step_alpha8_v1.0_768p_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_ref2va_pdd_8step_lora_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_taomate_3step_lora_avg_rank_19_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_turbo_4step_ema_ckpt850.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_vdn_default_lora_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/minimax_h3_vdn_turbo_8step_lora_bf16.safetensors"
+   },
+   {
+    "rfilename": "loras/viggle_animate_distillation_bf16.safetensors"
+   },
+   {
+    "rfilename": "minimax_h3/minimax_h3_latent_upscaler_3d_bf16.safetensors"
+   },
+   {
+    "rfilename": "minimax_h3/minimax_h3_video_vae_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "minimax_h3_fl2va_pdd_8step_heads_bf16.safetensors"
+   },
+   {
+    "rfilename": "minimax_h3_hybrid_fl2va_ref2va_b15-49_pdd_8step_heads_bf16.safetensors"
+   },
+   {
+    "rfilename": "minimax_h3_hybrid_fl2va_ref2va_b20-49_pdd_8step_heads_bf16.safetensors"
+   },
+   {
+    "rfilename": "minimax_h3_hybrid_fl2va_ref2va_b25-49_pdd_8step_heads_bf16.safetensors"
+   },
+   {
+    "rfilename": "minimax_h3_hybrid_fl2va_ref2va_b30-49_pdd_8step_heads_bf16.safetensors"
+   },
+   {
+    "rfilename": "minimax_h3_ref2va_pdd_8step_heads_bf16.safetensors"
+   },
+   {
+    "rfilename": "minimax_h3_video_vae_fp8mix.safetensors"
+   },
+   {
+    "rfilename": "modules/minimax_h3_vdn_module_bf16.safetensors"
+   },
+   {
+    "rfilename": "modules/minimax_h3_vdn_module_int8_convrot.safetensors"
+   },
+   {
+    "rfilename": "preview_decoders/README.md"
+   },
+   {
+    "rfilename": "preview_decoders/sources.json"
+   },
+   {
+    "rfilename": "preview_decoders/taeh3-Apache-2.0.txt"
+   },
+   {
+    "rfilename": "preview_decoders/taeh3.safetensors"
+   },
+   {
+    "rfilename": "viggle_animate/viggle_animate_fixed_prompt.safetensors"
+   }
+  ]
+ },
+ "ggml-org/gemma-3-4b-it-GGUF": {
+  "id": "ggml-org/gemma-3-4b-it-GGUF",
+  "pipeline_tag": "image-text-to-text",
+  "tags": [
+   "gguf",
+   "image-text-to-text",
+   "arxiv:1905.07830",
+   "arxiv:1905.10044",
+   "arxiv:1911.11641",
+   "arxiv:1904.09728",
+   "arxiv:1705.03551",
+   "arxiv:1911.01547",
+   "arxiv:1907.10641",
+   "arxiv:1903.00161",
+   "arxiv:2009.03300",
+   "arxiv:2304.06364",
+   "arxiv:2103.03874",
+   "arxiv:2110.14168",
+   "arxiv:2311.12022",
+   "arxiv:2108.07732",
+   "arxiv:2107.03374",
+   "arxiv:2210.03057",
+   "arxiv:2106.03193",
+   "arxiv:1910.11856",
+   "arxiv:2502.12404",
+   "arxiv:2502.21228",
+   "arxiv:2404.16816",
+   "arxiv:2104.12756",
+   "arxiv:2311.16502",
+   "arxiv:2203.10244",
+   "arxiv:2404.12390",
+   "arxiv:1810.12440",
+   "arxiv:1908.02660",
+   "arxiv:2312.11805",
+   "base_model:google/gemma-3-4b-it",
+   "base_model:quantized:google/gemma-3-4b-it",
+   "license:gemma",
+   "endpoints_compatible",
+   "region:us",
+   "conversational"
+  ],
+  "cardData": {
+   "license": "gemma",
+   "base_model": [
+    "google/gemma-3-4b-it"
+   ],
+   "pipeline_tag": "image-text-to-text"
+  },
+  "downloads": 62783,
+  "gguf": {
+   "total": 3880099328,
+   "architecture": "gemma3",
+   "context_length": 131072,
+   "chat_template": "{{ bos_token }}\n{%- if messages[0]['role'] == 'system' -%}\n    {%- if messages[0]['content'] is string -%}\n        {%- s",
+   "bos_token": "<bos>",
+   "eos_token": "<eos>",
+   "totalFileSize": 7767474336
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "gemma-3-4b-it-Q4_K_M.gguf"
+   },
+   {
+    "rfilename": "gemma-3-4b-it-Q8_0.gguf"
+   },
+   {
+    "rfilename": "gemma-3-4b-it-f16.gguf"
+   },
+   {
+    "rfilename": "mmproj-model-f16.gguf"
+   }
+  ]
+ },
+ "city96/FLUX.1-dev-gguf": {
+  "id": "city96/FLUX.1-dev-gguf",
+  "pipeline_tag": "text-to-image",
+  "library_name": "gguf",
+  "tags": [
+   "gguf",
+   "text-to-image",
+   "image-generation",
+   "flux",
+   "base_model:black-forest-labs/FLUX.1-dev",
+   "base_model:quantized:black-forest-labs/FLUX.1-dev",
+   "license:other",
+   "region:us"
+  ],
+  "cardData": {
+   "base_model": "black-forest-labs/FLUX.1-dev",
+   "library_name": "gguf",
+   "license": "other",
+   "license_name": "flux-1-dev-non-commercial-license",
+   "license_link": "LICENSE.md",
+   "quantized_by": "city96",
+   "tags": [
+    "text-to-image",
+    "image-generation",
+    "flux"
+   ]
+  },
+  "downloads": 194999,
+  "gguf": {
+   "total": 11901408320,
+   "architecture": "flux",
+   "totalFileSize": 23802870944
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "LICENSE.md"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "flux1-dev-F16.gguf"
+   },
+   {
+    "rfilename": "flux1-dev-Q2_K.gguf"
+   },
+   {
+    "rfilename": "flux1-dev-Q3_K_S.gguf"
+   },
+   {
+    "rfilename": "flux1-dev-Q4_0.gguf"
+   },
+   {
+    "rfilename": "flux1-dev-Q4_1.gguf"
+   },
+   {
+    "rfilename": "flux1-dev-Q4_K_S.gguf"
+   },
+   {
+    "rfilename": "flux1-dev-Q5_0.gguf"
+   },
+   {
+    "rfilename": "flux1-dev-Q5_1.gguf"
+   },
+   {
+    "rfilename": "flux1-dev-Q5_K_S.gguf"
+   },
+   {
+    "rfilename": "flux1-dev-Q6_K.gguf"
+   },
+   {
+    "rfilename": "flux1-dev-Q8_0.gguf"
+   }
+  ]
+ }
+}

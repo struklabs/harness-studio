@@ -1,0 +1,85 @@
+//! Harness Studio core: llama.cpp runtime, server processes, models, downloads,
+//! telemetry and integrations. No Tauri dependency; the GUI shell (`src-tauri`)
+//! wraps these services in `#[tauri::command]`s.
+
+pub mod analytics;
+pub mod asr;
+pub mod audio;
+pub mod auto_bench;
+pub mod backend_support;
+pub mod benchmark;
+pub mod capabilities;
+pub mod changes;
+pub mod chat_template;
+pub mod compaction;
+pub mod config;
+pub mod control_api;
+pub mod convert;
+pub mod devices;
+pub mod diagnostics;
+pub mod doctor;
+pub mod domain;
+pub mod downloader;
+pub mod engine;
+pub mod error_key;
+pub mod events;
+pub mod failure;
+pub mod full_offload;
+pub mod gateway;
+pub mod gguf;
+pub mod gpu;
+pub mod hardware;
+pub mod hf_auth;
+pub mod hf_avatar;
+pub mod http_error;
+pub mod hub_compat;
+pub mod hub_tasks;
+pub mod image_bundles;
+pub mod importer;
+pub mod instance;
+pub mod integrations;
+pub mod kv_policy;
+pub mod lemonade;
+pub mod library;
+pub mod lora_live;
+pub mod mcp;
+pub mod model_registry;
+pub mod modelfile;
+pub mod models;
+pub mod network;
+#[cfg(any(windows, target_os = "linux"))]
+pub mod nvml;
+pub mod onnx_runtime;
+pub mod operation_gate;
+pub mod orchestrator;
+pub mod otel;
+pub mod params;
+pub mod paths;
+pub mod perf;
+pub mod ports;
+pub mod prepare;
+pub mod process;
+pub mod rag;
+pub mod recovery;
+pub mod router;
+pub mod runtime;
+pub mod runtime_update;
+pub mod runtimes;
+pub mod secrets;
+pub mod serve_mode;
+pub mod server_logs;
+pub mod servers;
+pub mod shared_libs;
+pub mod slots;
+pub mod state;
+pub mod storage;
+pub mod store;
+pub mod telemetry;
+pub mod token_policy;
+pub mod tools;
+pub mod tts;
+pub mod vram;
+pub mod watchdog;
+
+#[cfg(test)]
+mod engine_golden_tests;

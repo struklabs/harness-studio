@@ -1,0 +1,31 @@
+const tr = {
+  'uiLevel.label': 'Arayüz düzeyi',
+  'uiLevel.simple': 'Basit',
+  'uiLevel.advanced': 'Gelişmiş',
+  'uiLevel.hint': 'Basit düzey temel akışları gösterir; Gelişmiş düzey tüm teknik ayarları açar. Ayarlarınız korunur.',
+  'uiLevel.tooltip': 'Arayüz düzeyi: {level}',
+  'uiLevel.switch_simple': 'Basit Düzeye Geç',
+  'uiLevel.switch_advanced': 'Gelişmiş Düzeye Geç',
+  'uiLevel.page_notice': 'Bu sayfa Gelişmiş düzeyde.',
+  'uiLevel.save_failed': 'Arayüz düzeyi kaydedilemedi: {error}',
+  'uiLevel.onboarding_title': 'Harness Studio’yu nasıl kullanacaksınız?',
+  'uiLevel.recommended': 'Önerilen',
+  'uiLevel.simple_desc': 'Model bul, indir, sohbet et; teknik ayarlar gizli.',
+  'uiLevel.advanced_desc': 'Tüm llama.cpp parametreleri, ağ, gateway, MCP ve ölçümler.',
+};
+const en: Record<keyof typeof tr, string> = {
+  'uiLevel.label': 'Interface level',
+  'uiLevel.simple': 'Simple',
+  'uiLevel.advanced': 'Advanced',
+  'uiLevel.hint': 'Simple shows the core workflows; Advanced opens all technical settings. Your settings are preserved.',
+  'uiLevel.tooltip': 'Interface level: {level}',
+  'uiLevel.switch_simple': 'Switch to Simple Level',
+  'uiLevel.switch_advanced': 'Switch to Advanced Level',
+  'uiLevel.page_notice': 'This page is at the Advanced level.',
+  'uiLevel.save_failed': 'Could not save the interface level: {error}',
+  'uiLevel.onboarding_title': 'How will you use Harness Studio?',
+  'uiLevel.recommended': 'Recommended',
+  'uiLevel.simple_desc': 'Find a model, download it, and chat; technical settings stay hidden.',
+  'uiLevel.advanced_desc': 'All llama.cpp parameters, networking, gateway, MCP, and metrics.',
+};
+export default { tr, en };

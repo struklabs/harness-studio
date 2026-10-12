@@ -1,0 +1,1729 @@
+[{
+    "tag_name":  "v1.13.8",
+    "published_at":  "2026-09-10T14:00:23Z",
+    "assets":  [
+                   {
+                       "name":  "sherpa-onnx-1.13.8-rknn.aar",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8-rknn.aar",
+                       "size":  26598297,
+                       "digest":  "sha256:33489f8d039e8f29907a0abeeacd3ddc006a78335799928855ce5f98280fc876"
+                   },
+                   {
+                       "name":  "sherpa-onnx-1.13.8.aar",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar",
+                       "size":  50129134,
+                       "digest":  "sha256:633c24321e06b1fe79feafa03ea16cbc0f8a286641e2da3559bac91bdb13bd96"
+                   },
+                   {
+                       "name":  "sherpa-onnx-jvm-1.13.8.jar",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-jvm-1.13.8.jar",
+                       "size":  187490,
+                       "digest":  "sha256:77b7b047fade4eadada96b568eb92615049aaf1dc317c7244e46c1ea38b9a63b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-native-lib-linux-aarch64-1.13.8.jar",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-native-lib-linux-aarch64-1.13.8.jar",
+                       "size":  13224859,
+                       "digest":  "sha256:5123d2e48ae1a7ce82ba89ce153906c651bf418a63db2f7dff82265e6d49c104"
+                   },
+                   {
+                       "name":  "sherpa-onnx-native-lib-linux-x64-1.13.8.jar",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-native-lib-linux-x64-1.13.8.jar",
+                       "size":  10515871,
+                       "digest":  "sha256:30c93b59381113f9c20aedbbf9fc1ad399158f6bc03dddc0f8934a6e28e069ba"
+                   },
+                   {
+                       "name":  "sherpa-onnx-native-lib-osx-aarch64-1.13.8.jar",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-native-lib-osx-aarch64-1.13.8.jar",
+                       "size":  9460832,
+                       "digest":  "sha256:42e272180c8836127f024f3335d7afcdfb30fe0164b78330d5d449034e34ce34"
+                   },
+                   {
+                       "name":  "sherpa-onnx-native-lib-osx-x64-1.13.8.jar",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-native-lib-osx-x64-1.13.8.jar",
+                       "size":  10782466,
+                       "digest":  "sha256:9190c28951d85efdbd376bae6b6dff12993311ad605945289e8459bf9c886a96"
+                   },
+                   {
+                       "name":  "sherpa-onnx-native-lib-win-arm64-1.13.8.jar",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-native-lib-win-arm64-1.13.8.jar",
+                       "size":  7889954,
+                       "digest":  "sha256:986660bef51f0ca4f5635b763c172c64bb056eabebcd319f42185d7b23337fb8"
+                   },
+                   {
+                       "name":  "sherpa-onnx-native-lib-win-x64-1.13.8.jar",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-native-lib-win-x64-1.13.8.jar",
+                       "size":  8277046,
+                       "digest":  "sha256:33fbdbd5410e9ba9bdda94aa164ec8f7825bb49246420d8ce9bdd88219d97039"
+                   },
+                   {
+                       "name":  "sherpa-onnx-non-streaming-asr-x64-v1.13.8.exe",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-non-streaming-asr-x64-v1.13.8.exe",
+                       "size":  23361024,
+                       "digest":  "sha256:b8b540b59cc7951e4a5b6866f5f0260ea3850c6d24c1c6f5d4877e1e42bff528"
+                   },
+                   {
+                       "name":  "sherpa-onnx-non-streaming-asr-x86-v1.13.8.exe",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-non-streaming-asr-x86-v1.13.8.exe",
+                       "size":  20211200,
+                       "digest":  "sha256:2fc2e1a9c6e2e66b0e1df88ecd5830a3a07cf34e0033740d3d5b269fd07b4cc2"
+                   },
+                   {
+                       "name":  "sherpa-onnx-non-streaming-tts-x64-v1.13.8.exe",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-non-streaming-tts-x64-v1.13.8.exe",
+                       "size":  22974464,
+                       "digest":  "sha256:79e9cb94df59b8baaa1abd31c31afbe5fbe4cad8c0d5438650cb60133b7aa946"
+                   },
+                   {
+                       "name":  "sherpa-onnx-non-streaming-tts-x86-v1.13.8.exe",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-non-streaming-tts-x86-v1.13.8.exe",
+                       "size":  19872256,
+                       "digest":  "sha256:4c326ff6e5f11b43677d660bfb752571942a1ed552c0bd44e3d1103a35466bcf"
+                   },
+                   {
+                       "name":  "sherpa-onnx-static-link-onnxruntime-1.13.8.aar",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-static-link-onnxruntime-1.13.8.aar",
+                       "size":  38691998,
+                       "digest":  "sha256:b22c3fc1b6a45666d28892bb2f7694beeb77a8362d7ebd77c1a5431ec9435471"
+                   },
+                   {
+                       "name":  "sherpa-onnx-streaming-asr-x64-v1.13.8.exe",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-streaming-asr-x64-v1.13.8.exe",
+                       "size":  23023616,
+                       "digest":  "sha256:30c2eb863b47a19c82bce82d4a083fab9c7b630d4b704b2a40a0e31ffe0f5793"
+                   },
+                   {
+                       "name":  "sherpa-onnx-streaming-asr-x86-v1.13.8.exe",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-streaming-asr-x86-v1.13.8.exe",
+                       "size":  19907072,
+                       "digest":  "sha256:4143c3b82309cfca2bd92b94aee78feca6788eb1a3019347118017db8ebff514"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android-aarch64-termux-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android-aarch64-termux-shared.tar.bz2",
+                       "size":  16451109,
+                       "digest":  "sha256:ad7bac42adc6295293fe6d36475936afb227cdc757cf293c02a706f6aca4e0a2"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android-aarch64-termux-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android-aarch64-termux-static.tar.bz2",
+                       "size":  156475962,
+                       "digest":  "sha256:e212d6c41a55b3d0ef0a7926796b4fa48d42ea173b759fafff60ced024dd0883"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android-armeabi-v7a-termux-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android-armeabi-v7a-termux-shared.tar.bz2",
+                       "size":  16066031,
+                       "digest":  "sha256:c0035cdb556ba1207fce6a869a2160f0075389bdd17a6043e2deeb67789d45f6"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android-armeabi-v7a-termux-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android-armeabi-v7a-termux-static.tar.bz2",
+                       "size":  146045328,
+                       "digest":  "sha256:f0e89c2f698cd76e0aa0bfc9ac59deccffd38a5a5f09159860cb8b575e57791e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android-rknn.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android-rknn.tar.bz2",
+                       "size":  24946383,
+                       "digest":  "sha256:2c075a1e31fc560c5101020cb0597d908b8bbe6032c2f223e5093ba2f5a0a42b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android-static-link-onnxruntime.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android-static-link-onnxruntime.tar.bz2",
+                       "size":  35101751,
+                       "digest":  "sha256:7583ca385ae7d981e65468455c2ea2c9f2da383921dccfc5658d0dc19d309e6f"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android-x86-termux-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android-x86-termux-shared.tar.bz2",
+                       "size":  17894832,
+                       "digest":  "sha256:6e0355868ed26c5af29c24fab5c58315b35059287e9c2aa9727868f0ca4d9cf1"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android-x86-termux-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android-x86-termux-static.tar.bz2",
+                       "size":  172967915,
+                       "digest":  "sha256:4edabb91b52e3920d7bca4f9fe494a267dd675d001fb1989d32cc108c8e36a28"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android-x86_64-termux-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android-x86_64-termux-shared.tar.bz2",
+                       "size":  17929459,
+                       "digest":  "sha256:d2616a94c166a28846af1b53483c759463f43308bd9fd1f5374d3e81f898c384"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android-x86_64-termux-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android-x86_64-termux-static.tar.bz2",
+                       "size":  170740613,
+                       "digest":  "sha256:ae2ad59085b46d639731791eb860bbc910704caf92eac4ea2e48e97bd2908009"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-android.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-android.tar.bz2",
+                       "size":  46093321,
+                       "digest":  "sha256:2ff63469a71cb6009aa2e3ed5f4a670f8abdcbe4bb9ffd23776afc792a6b4f44"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-axcl-linux-aarch64-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-axcl-linux-aarch64-shared.tar.bz2",
+                       "size":  30052538,
+                       "digest":  "sha256:7316f225a0550a6b9098e669680c04ecb3221bee8f09683613b189ffe171e5b4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-axera-ax620q-linux-aarch64-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-axera-ax620q-linux-aarch64-shared.tar.bz2",
+                       "size":  27749550,
+                       "digest":  "sha256:20a38f75c934d7a70e44303da45104f5be309224e16994dd3eb66fb052aa4ccd"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-axera-ax630c-linux-aarch64-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-axera-ax630c-linux-aarch64-shared.tar.bz2",
+                       "size":  27750084,
+                       "digest":  "sha256:089150efaaa8a3a43a949e20befe4b6fb1251c1f75d147cc936e1c68ca6b251f"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-axera-ax650-linux-aarch64-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-axera-ax650-linux-aarch64-shared.tar.bz2",
+                       "size":  27747492,
+                       "digest":  "sha256:a6e5322f6728918f6a002f66197a51a0cfba054ddb6f65a3303d4b3c255a5b95"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-cuda-12.x-cudnn-9.x-onnxruntime1.28.2-linux-x64-gpu.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-cuda-12.x-cudnn-9.x-onnxruntime1.28.2-linux-x64-gpu.tar.bz2",
+                       "size":  393010348,
+                       "digest":  "sha256:2132af1ae8c84c84f86ac091e4311839287851d2bf5e660332ebce3898a1e0b2"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-cuda-12.x-cudnn-9.x-onnxruntime1.28.2-win-x64-cuda.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-cuda-12.x-cudnn-9.x-onnxruntime1.28.2-win-x64-cuda.tar.bz2",
+                       "size":  595017373,
+                       "digest":  "sha256:066c5b54dbafaa1388001a9c9837ac1374dbba6d6678f193ca06aa0d8e94d8c3"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-cuda-13.x-cudnn-9.x-onnxruntime1.28.2-linux-x64-gpu.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-cuda-13.x-cudnn-9.x-onnxruntime1.28.2-linux-x64-gpu.tar.bz2",
+                       "size":  254858007,
+                       "digest":  "sha256:7eddaee14a42d143ec995ed68e9ec3623dd6ca9d22076139d4c0879c3121c819"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-cuda-13.x-cudnn-9.x-onnxruntime1.28.2-win-x64-cuda.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-cuda-13.x-cudnn-9.x-onnxruntime1.28.2-win-x64-cuda.tar.bz2",
+                       "size":  478110488,
+                       "digest":  "sha256:1702e4a1ee68a07422469a7ec1d304a54b43a345ad888daf8e0b0257004a3273"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-jni.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-jni.tar.bz2",
+                       "size":  12626110,
+                       "digest":  "sha256:202625952edeb9d549f544fd49d618f79abda49edcbbc7dbb4bb6ead06af8008"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-shared-cpu-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-cpu-lib.tar.bz2",
+                       "size":  12595068,
+                       "digest":  "sha256:fb98b80628a383909bf83626daca2e0d0ffc93bf1f7d222eaaa4282b388f072f"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-shared-cpu.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-cpu.tar.bz2",
+                       "size":  28091778,
+                       "digest":  "sha256:4e3734f82bc1379fd91f219f5869c7e9d03b7a4f7561907d8abca4849c51a789"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.11.0-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.11.0-lib.tar.bz2",
+                       "size":  20663794,
+                       "digest":  "sha256:24ffafa6c6aff8a38c60b1aae7c9f5efe83d47536d2b395d888de87a3996619d"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.11.0.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.11.0.tar.bz2",
+                       "size":  35486296,
+                       "digest":  "sha256:70283d36e5b347788e3247014c22b247dbd04c12e6f47c77501c3e2547fdcbe0"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.16.0-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.16.0-lib.tar.bz2",
+                       "size":  41554864,
+                       "digest":  "sha256:e849e7ec6fa268af35a8bf61c66ca6f52c8697d7896a7334b6112efb9f7bcfb7"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.16.0.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.16.0.tar.bz2",
+                       "size":  56554858,
+                       "digest":  "sha256:d541f79658f5169d1d50e76a34f4015d57f4c9c35a34f4e371aad0af9ee5652b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.18.0-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.18.0-lib.tar.bz2",
+                       "size":  54351481,
+                       "digest":  "sha256:3d8bcd01a154466b31b58f826863b3d3f3d4bffa1961a3d8daa5ba408a1aa63a"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.18.0.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.18.0.tar.bz2",
+                       "size":  69216049,
+                       "digest":  "sha256:d139498eb2e7a3d6113e2b47dad2aec7b926b728dd4d20dbc188c7e7583a0f3b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.18.1-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.18.1-lib.tar.bz2",
+                       "size":  53504161,
+                       "digest":  "sha256:2fca50d5707d33e0f18bf5154ed75a450217485abf639c65ee831ebe05c257ae"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.18.1.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-shared-gpu-onnxruntime-1.18.1.tar.bz2",
+                       "size":  68414362,
+                       "digest":  "sha256:bfb045486bac530976f2bff9bfbb88a96efad4c87a839cce334714e4c513bc5a"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-static-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-static-lib.tar.bz2",
+                       "size":  21325380,
+                       "digest":  "sha256:77983e3cf29aa60f2e531d249dbd01d15596530550c8db2e9e02fc6a655da6bb"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-aarch64-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-aarch64-static.tar.bz2",
+                       "size":  357653027,
+                       "digest":  "sha256:d1c621ed68f2ff77738505ba0137b947141c27e431c12f266a6b4ba218e78a4e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-arm-gnueabihf-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-arm-gnueabihf-shared.tar.bz2",
+                       "size":  32556415,
+                       "digest":  "sha256:832c200eb361e361c587812f116436760e7728d2ee93ea4759ad5d59ab5c2e6c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-arm-gnueabihf-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-arm-gnueabihf-static.tar.bz2",
+                       "size":  313994689,
+                       "digest":  "sha256:6ac8452d92bc0d5d2b6c566f22ea25675a1b6478660b772ffe01ceeb905aa9b1"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-riscv64-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-riscv64-shared.tar.bz2",
+                       "size":  15092445,
+                       "digest":  "sha256:56c379bdea52a785bd590ac7d4a70fc6806015375a014b957a0627e3bea628e5"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-riscv64-spacemit-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-riscv64-spacemit-shared.tar.bz2",
+                       "size":  23305088,
+                       "digest":  "sha256:09ca79d37f0662567f2cffd92e27eb20d6c539ddd34d9dac076d4fd384a03159"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-x64-jni.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-jni.tar.bz2",
+                       "size":  27950179,
+                       "digest":  "sha256:f18bf581b408d8c28539c1b28899b4d4811faebb74eede08db21fd6e9243e346"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-x64-shared-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-shared-lib.tar.bz2",
+                       "size":  9816899,
+                       "digest":  "sha256:3892d184be41027e18165e67f549cd4e4cdd8dcd73ac5579e97afd55e14e30b6"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-x64-shared-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-shared-no-tts-lib.tar.bz2",
+                       "size":  9249201,
+                       "digest":  "sha256:bf2d998c8b07012cd5098f3b92673bc1333fd9b927767d7cb664be8190d8bc0b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-x64-shared-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-shared-no-tts.tar.bz2",
+                       "size":  24802494,
+                       "digest":  "sha256:d0f96c8b65c6cd0974fada22737e337de81bc8cd2abbec2e39caf358b1eec5fc"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-x64-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-shared.tar.bz2",
+                       "size":  28156791,
+                       "digest":  "sha256:c0bdb7907d3a74bba1d55d22bf4d9fa75586cf1530614ebe88a27b9118e015c4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-x64-static-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-static-lib.tar.bz2",
+                       "size":  22952328,
+                       "digest":  "sha256:e1fdc5b67530e15741ef897fa5ffff297056f3bf0c6d829a27af9225a4c4b5a6"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-x64-static-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-static-no-tts-lib.tar.bz2",
+                       "size":  21755415,
+                       "digest":  "sha256:36f2ebd0b9aa09248ff6461a30dcb7edfe7eecf2deb67dfb0ceb3aaf4906051f"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-x64-static-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-static-no-tts.tar.bz2",
+                       "size":  369971955,
+                       "digest":  "sha256:cb9efc3014d66b4c68f602db2447ac0fc847d6b6e9152216e12ccb6b6e4c4d10"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-linux-x64-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-linux-x64-static.tar.bz2",
+                       "size":  404135811,
+                       "digest":  "sha256:d265986f7b990026e45bca573415575140106a2c663014924037d8f2c2e297cc"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-ohos-arm64-v8a.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-ohos-arm64-v8a.tar.bz2",
+                       "size":  5662478,
+                       "digest":  "sha256:7473e1f6138c2d33a26adda01dd94f4d618089370957ed374f8cc0d50b8cdfa7"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-ohos-armeabi-v7a.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-ohos-armeabi-v7a.tar.bz2",
+                       "size":  6575930,
+                       "digest":  "sha256:3f794298d0ac8e142c6bbdf53603492fcfb4b882a657fed0c05717e91bd89523"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-ohos-x86_64.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-ohos-x86_64.tar.bz2",
+                       "size":  6379061,
+                       "digest":  "sha256:64134d7f176e4fe8581f32208ddd1ca6b57663d3755dbbd8bc6ef59514a242d0"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-arm64-jni.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-jni.tar.bz2",
+                       "size":  22095075,
+                       "digest":  "sha256:2505fd9bd46a28615ab3a14833caae8479c80993658402d57a949d7403c931ad"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-arm64-shared-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-shared-lib.tar.bz2",
+                       "size":  8773198,
+                       "digest":  "sha256:ae77050cdae565496059d96f5ab33d77b397a0864282a4e4a26e3b3b3effb948"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-arm64-shared-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-shared-no-tts-lib.tar.bz2",
+                       "size":  8292111,
+                       "digest":  "sha256:f3e0cbd86cc3f38dad30c97921b40e9a8bcc6f2c943777eb76ad77176993e417"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-arm64-shared-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-shared-no-tts.tar.bz2",
+                       "size":  18252168,
+                       "digest":  "sha256:91b96512c4fa1960f8a9ed5360a6c8dda53a4b5015d0590244f14086a234557a"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-arm64-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-shared.tar.bz2",
+                       "size":  20314448,
+                       "digest":  "sha256:b10e5c7e2c30ea03de9c442655d14860d9edc475c6251d58a8f5f06e913a1d56"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-arm64-static-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-static-lib.tar.bz2",
+                       "size":  20965936,
+                       "digest":  "sha256:9091bf160dc7fdacedbc906b212badf53c2993f4e5277a0e03998e96c31d60da"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-arm64-static-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-static-no-tts-lib.tar.bz2",
+                       "size":  19756929,
+                       "digest":  "sha256:3d7f9b8a496694af13d9802c33b8133231e397bdef302f543d19468765e83136"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-arm64-static-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-static-no-tts.tar.bz2",
+                       "size":  233407097,
+                       "digest":  "sha256:1038a379fff5365b684e05cbbb9ab3577c1a2f6b1736a4d53a6746860d7eddd4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-arm64-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-arm64-static.tar.bz2",
+                       "size":  250713094,
+                       "digest":  "sha256:d97d56f677168b0a35cf96e587f65e4f036fe5776e40476e4f84e3f47cd4d978"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-universal2-shared-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-universal2-shared-lib.tar.bz2",
+                       "size":  18819320,
+                       "digest":  "sha256:c1cca5b4a1867543e27d42fbea513983e73f629d0aa53b43b51555a71d2108d9"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-universal2-shared-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-universal2-shared-no-tts-lib.tar.bz2",
+                       "size":  17827519,
+                       "digest":  "sha256:bdcc7c266d355697584dd4efb9dc766e45e18e87cec1fc553002a32cfcfab9a7"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-universal2-shared-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-universal2-shared-no-tts.tar.bz2",
+                       "size":  39292122,
+                       "digest":  "sha256:636b439c75031d892636dfdd2000a0233e4a30a08b030697e91f8aa389431b83"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-universal2-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-universal2-shared.tar.bz2",
+                       "size":  43567145,
+                       "digest":  "sha256:2249f97f10df7d828af1b0d10e3d1eeaa2198b60b9a999a7ed853c150181ccfd"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-universal2-static-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-universal2-static-lib.tar.bz2",
+                       "size":  41389322,
+                       "digest":  "sha256:5c8fd6490eafed66374e3b0cd6f7ef8e1bc87a64550d38bedde57775cf914d7e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-universal2-static-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-universal2-static-no-tts-lib.tar.bz2",
+                       "size":  39379910,
+                       "digest":  "sha256:7bbaa4bf1c73a68cc9ea126967278873c86eeeb99774b544f3644e0a6200e993"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-universal2-static-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-universal2-static-no-tts.tar.bz2",
+                       "size":  500091444,
+                       "digest":  "sha256:c48ce9c8c33f88bb51a5f13170b75cccb1fbeb5dd0ecbd376bc076adb8deb427"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-universal2-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-universal2-static.tar.bz2",
+                       "size":  537117584,
+                       "digest":  "sha256:57ef55a8fc8ef849402982ad878d0e3e71306ef221635ba50f9f34fdf15b483c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-x64-shared-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-shared-lib.tar.bz2",
+                       "size":  10014197,
+                       "digest":  "sha256:0f88371565a06372889c76266e253abd1b415fcc6f98232cabd968933efb0711"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-x64-shared-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-shared-no-tts-lib.tar.bz2",
+                       "size":  9538955,
+                       "digest":  "sha256:c4d94cce92b6e04df1f17d247c3ac4e61b21359be80e940a0408e039e36a4d7e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-x64-shared-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-shared-no-tts.tar.bz2",
+                       "size":  20646120,
+                       "digest":  "sha256:03fd4cffd98b239d74b9253c270ff637661adb4d51a5a6c9e1f7486e48306db3"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-x64-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-shared.tar.bz2",
+                       "size":  22846038,
+                       "digest":  "sha256:54aad64acee9d2d596535a6080d6f22602a720af5460e1d50461b1e1b06bee40"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-x64-static-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-static-lib.tar.bz2",
+                       "size":  20575933,
+                       "digest":  "sha256:a3f88da3e54c850a12d61431e73f8affcd1f13738b75b768847dd79541835b4b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-x64-static-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-static-no-tts-lib.tar.bz2",
+                       "size":  19433402,
+                       "digest":  "sha256:8ffc3ede9f997fec547b5c99b8e2073b8e04fd48a5f65e1a6d5d314ad0106ad9"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-x64-static-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-static-no-tts.tar.bz2",
+                       "size":  266494490,
+                       "digest":  "sha256:3a6d8782d43de418a22404dd0032ec5ca2e3d049618b43a32100de25c09c392c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-x64-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x64-static.tar.bz2",
+                       "size":  286373738,
+                       "digest":  "sha256:74dccfe7e35c6d0cc63021d4e85e4c83d73d93a30de336f358046eb7f41f36d8"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-osx-x86_64-jni.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-osx-x86_64-jni.tar.bz2",
+                       "size":  24106314,
+                       "digest":  "sha256:e5f5beeed5889887f53fbf5df078ac7334a04113bb4a999faac92602bc383e04"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-rknn-linux-aarch64-shared.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-rknn-linux-aarch64-shared.tar.bz2",
+                       "size":  28250944,
+                       "digest":  "sha256:6fa85c2615feb5d3e501cbeee00f6f321720164ea50239683e7c37a3baea8353"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-rknn-linux-aarch64-static.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-rknn-linux-aarch64-static.tar.bz2",
+                       "size":  344453417,
+                       "digest":  "sha256:7f5b3a13b5553855d2f4d8d7da61b3c4e80f7bd172c6f1e9a49c6dae5fd3943d"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-jni.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-jni.tar.bz2",
+                       "size":  7515032,
+                       "digest":  "sha256:312daf4ea8a98a1d69383fe18c20f5b03b3ab8d67265be266ea4b0d06de18f0b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-Debug-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-Debug-lib.tar.bz2",
+                       "size":  15745878,
+                       "digest":  "sha256:2a9f4449810e63eb2d0ff23c8c455fa8ab20feb5c744081b301af97e6710f455"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-Debug-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-Debug-no-tts-lib.tar.bz2",
+                       "size":  15088740,
+                       "digest":  "sha256:99e877f800f10dd57e17e04bc677a6dfc1975ba63c269dc8f8788450fcc2a674"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-Debug-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-Debug-no-tts.tar.bz2",
+                       "size":  116077990,
+                       "digest":  "sha256:f1f90bb212c0cca33df46ba07f3b8e75197f605d7b83a20ff7a31e35257cd00c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-Debug.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-Debug.tar.bz2",
+                       "size":  123911306,
+                       "digest":  "sha256:3f11e570f6558dcd39cdc5dae77abf50f4f5ce55cde5438c4791fd7ab1bc50e8"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-MinSizeRel-lib.tar.bz2",
+                       "size":  6052234,
+                       "digest":  "sha256:8bd5b563cdaf65c24e57e1efdb1fe0594f79b504072a2e8bf6d537612da57e43"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  5627904,
+                       "digest":  "sha256:e9940b7762bfc132a7224c0d4a34fdc7171a43220daf8a8ae6ed9004fecb9387"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-MinSizeRel-no-tts.tar.bz2",
+                       "size":  15722789,
+                       "digest":  "sha256:662320e7417f23ae54fd4233c945cb19612e3c05155d7c25335a119b1c1da39e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-MinSizeRel.tar.bz2",
+                       "size":  16846406,
+                       "digest":  "sha256:85f1ae08ab777518007ee6eae6f6a4f377603fb516191d89a100889ec33bdbc5"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-Release-lib.tar.bz2",
+                       "size":  7062508,
+                       "digest":  "sha256:d90895499e89f718cd96638fe447dc19d614c4e907a073928a6139fdfa9a3f7b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-Release-no-tts-lib.tar.bz2",
+                       "size":  6569191,
+                       "digest":  "sha256:bdd1e9a1334d2f79ce64fac4cc417d88a954f961f6055056c213c9f5321efdd4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-Release-no-tts.tar.bz2",
+                       "size":  18407595,
+                       "digest":  "sha256:39446be8a2a933308bb0b4b7a77fd21fdffaa68d3d73fc6f1e63634bb42d9cca"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-Release.tar.bz2",
+                       "size":  19715599,
+                       "digest":  "sha256:40fd749779c41e357c4a1382b071970999d4828ceb50b133b1643878ca08ead8"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-RelWithDebInfo-lib.tar.bz2",
+                       "size":  7893198,
+                       "digest":  "sha256:f331fff76de83ab1c564b089c50a500a00b7b8ad2af11ba919acce7ca843b57e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  7273795,
+                       "digest":  "sha256:f0db23aaee57b301ca76ca1d1f86a5eea60658992d76a5cdef703d8a6cd014f2"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  121407074,
+                       "digest":  "sha256:7e18236e4679ef9c6a2f74ed7bba2c3c8f10d5132ed4d23c0cc504e899433bca"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MD-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MD-RelWithDebInfo.tar.bz2",
+                       "size":  130560377,
+                       "digest":  "sha256:1e6ebd0cdbad61d9ea8e370977627487221958c3c40f05a68112cf86e556bb65"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-Debug-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-Debug-lib.tar.bz2",
+                       "size":  17162854,
+                       "digest":  "sha256:5cd0e766371a44403d874698af623702effe743a806e2554b80877e30b5b3d5c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-Debug-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-Debug-no-tts-lib.tar.bz2",
+                       "size":  16460478,
+                       "digest":  "sha256:bae37720434f6007f14a22ba72d0dde5912857c3d2373a51fc00d63c3dace616"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-Debug-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-Debug-no-tts.tar.bz2",
+                       "size":  154952006,
+                       "digest":  "sha256:4d7e609da0707b099f19659867c1ce9fcb334f9909ecd843cb2a31e6d373e10e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-Debug.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-Debug.tar.bz2",
+                       "size":  164905450,
+                       "digest":  "sha256:aea2daee0008fbf59c311872ca0e01bfffea692d2d200e8a42f57a628acda372"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-MinSizeRel-lib.tar.bz2",
+                       "size":  6578727,
+                       "digest":  "sha256:9062e6b7e4fe682a3db24eb9f5f05a5c0079b98f2d43f0ea7b93a7a93f52de7d"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  6150708,
+                       "digest":  "sha256:8c5351ce1064c7967d4369599dde63ff7908e3f4f148dd3c620ff26638739ebf"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-MinSizeRel-no-tts.tar.bz2",
+                       "size":  18939607,
+                       "digest":  "sha256:755a4de5f9bbe0ff6b797119216c9533c143291b5129949c10db6f7325623502"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-MinSizeRel.tar.bz2",
+                       "size":  20389536,
+                       "digest":  "sha256:a52177f12fd67fe85d41156923403e0f70536d5d8d10c5fcfcdc3c76b2e73358"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-Release-lib.tar.bz2",
+                       "size":  7622849,
+                       "digest":  "sha256:22cd2b2b5e35c1132abc74a91ee77f683645437382617af6a4bd5818b9c509f4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-Release-no-tts-lib.tar.bz2",
+                       "size":  7108814,
+                       "digest":  "sha256:99dfc042b3d8038cdada8f952faf09d4635c3707c174d2ecf4c16bd8c0e71feb"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-Release-no-tts.tar.bz2",
+                       "size":  21872501,
+                       "digest":  "sha256:29a864324e658bef2a8b83bd3e12adae8b415a5a232d83902030e8c6efa37dbc"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-Release.tar.bz2",
+                       "size":  23341583,
+                       "digest":  "sha256:455ea18dc44aea188b4f7976037dea3d77e3f8d7afe0760f34244a7a0db53c4c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-RelWithDebInfo-lib.tar.bz2",
+                       "size":  8769156,
+                       "digest":  "sha256:62a331e2f046b9afd40308a1dee7dcafec114ec5385c36eabe5db05f8d7676f6"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  8113632,
+                       "digest":  "sha256:8d9340276848456db59a39580380a713df1821b72ba6ca6193bb4d93edd633ff"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  164872513,
+                       "digest":  "sha256:74cfb606c4dd1c98be341c0d0d83d6f188b7c99ca45a4bd3ff691a36a1ab3709"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-shared-MT-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-shared-MT-RelWithDebInfo.tar.bz2",
+                       "size":  176626720,
+                       "digest":  "sha256:b2e2aa34c7e4ad5bcac9d0f96971f073cadb21f42b238e72f1bda909f965619d"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-MinSizeRel-lib.tar.bz2",
+                       "size":  91548726,
+                       "digest":  "sha256:57e928ae0ab7a3fd6cf8051d24878a24771206c3886d0c3eb545a78fcc98e34a"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  87732596,
+                       "digest":  "sha256:f17710b28cb6a2dc0372d118d08bbb24eae62066ea0d8dcbaf7af67539340ef8"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-MinSizeRel-no-tts.tar.bz2",
+                       "size":  179237296,
+                       "digest":  "sha256:9eab80cdf2b6de8719dbd613781615cd58fc2eee8e6ed01eb380957ec626d47c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-MinSizeRel.tar.bz2",
+                       "size":  188329148,
+                       "digest":  "sha256:7eabc04b4541a7406754a23a4c6cfed928a5341bd4ed3cc3e732e9b3d6c99497"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-Release-lib.tar.bz2",
+                       "size":  109888719,
+                       "digest":  "sha256:b9c4c0c652cafae44cef9d041c75ac745088747cbcf669b335b58195210e1b2a"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-Release-no-tts-lib.tar.bz2",
+                       "size":  105454553,
+                       "digest":  "sha256:2cd45adcfe4eb4f9f6ae9b37eab03609ab0f9eb624d126a7e10e36eb666a4703"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-Release-no-tts.tar.bz2",
+                       "size":  212642033,
+                       "digest":  "sha256:8c31d913e2118a4f1277906f1bca8c335deac17a8c03578da3606330dc12c606"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-Release.tar.bz2",
+                       "size":  223228376,
+                       "digest":  "sha256:4868ad014d2508a8d57d4c225988dfb7d406de9ec064d1bd6b3d59dfafc324fc"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-RelWithDebInfo-lib.tar.bz2",
+                       "size":  286267359,
+                       "digest":  "sha256:46e2e3f25919ac29377d8d440879c969397bb6b1d0d8f7dbeb180a85d47cb565"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  275985991,
+                       "digest":  "sha256:f74460fc172fd873657571249265a5f6b97d4096185fd239f835105624b1f80d"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  817258323,
+                       "digest":  "sha256:b4333bb8b961d6435af7376f3315231116235f80be4bc39accf7aa315b88fb67"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MD-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MD-RelWithDebInfo.tar.bz2",
+                       "size":  859277483,
+                       "digest":  "sha256:433567ca413d5eacc77716199434b235c3da93cd8be85e44b63174843a65b9d5"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MT-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MT-MinSizeRel-lib.tar.bz2",
+                       "size":  116428238,
+                       "digest":  "sha256:9ad7ed755d989f0b6b5ad0aa00f7ebcd652ebdd7f06f3b8310f9f46b83245f48"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  111671241,
+                       "digest":  "sha256:af7a06e44fa15edbad143cc19b08e882a72144d559d6906c7700ef985f57dbca"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MT-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MT-MinSizeRel-no-tts.tar.bz2",
+                       "size":  207602779,
+                       "digest":  "sha256:9c74253d524784fb6496e306058ea211f90d0c42019a1ed6cf9c0705b9f2ce4a"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MT-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MT-MinSizeRel.tar.bz2",
+                       "size":  217750814,
+                       "digest":  "sha256:4dc65df2c479e74727e4aa958bbdc67afaf87e4ed9b7845f2a4daedb478b06db"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MT-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MT-Release-lib.tar.bz2",
+                       "size":  140595209,
+                       "digest":  "sha256:609988769f805ca2a602622174ac737edf6dce8a50efa2da9da2d915947da31b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MT-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MT-Release-no-tts-lib.tar.bz2",
+                       "size":  135017925,
+                       "digest":  "sha256:67af89ed1c111206f2b434f8ed32700e0cb6cd8e20632e97ccf29127748f29a3"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MT-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MT-Release-no-tts.tar.bz2",
+                       "size":  247529057,
+                       "digest":  "sha256:e7f606ab1a9b20817b087cb0f9b6db351103fab3d7ecb524f3b516dbc38d34ac"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MT-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MT-Release.tar.bz2",
+                       "size":  259496105,
+                       "digest":  "sha256:3bc774a26779fd1f36f8775b85cbf517ea860241a9d8cce5b0e6e3c3a4e0b234"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  339197235,
+                       "digest":  "sha256:7bd849bb92a8c05d9f6c99181982a8591bdbeccff9efb10444da62b5ec8979ac"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-arm64-static-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-arm64-static-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  928893950,
+                       "digest":  "sha256:6f8bc1b0b4f36ba09f8412f1efe9e15339238ab300dec01090e1411990036564"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-jni.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-jni.tar.bz2",
+                       "size":  7894669,
+                       "digest":  "sha256:d1da3b30a1ce347461dbe62d3114255b3e5bb1d6180f0b404a7915d1c5a956b4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-Debug-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-Debug-lib.tar.bz2",
+                       "size":  16368444,
+                       "digest":  "sha256:6c2d6afc7af70c0df63d37d61ec84a3e1f680c4fb2b30627ac6b6c0031d48dfe"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-Debug-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-Debug-no-tts-lib.tar.bz2",
+                       "size":  15681313,
+                       "digest":  "sha256:1d16b8673f2057e6bf8a9674182475a3b6b7689159f4807a49bea30c9460e6eb"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-Debug-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-Debug-no-tts.tar.bz2",
+                       "size":  123583979,
+                       "digest":  "sha256:d27d1fcea1fc8199428029d1a9a738ff0594c823633ff3771e3a2b2406d4241c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-Debug.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-Debug.tar.bz2",
+                       "size":  131987591,
+                       "digest":  "sha256:acc599e494872b3b5dea784266d10e097605c8ad532d7af9dec86e39b38c4900"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-MinSizeRel-lib.tar.bz2",
+                       "size":  6175461,
+                       "digest":  "sha256:3d3afa1da26239d51e9efcd4831537897d8a6a50cefa980461bfa93e24b2b0a3"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  5746841,
+                       "digest":  "sha256:aac2ff10d584cd0fe1c9ad09aec8f59f1234a8257029ae6ba26b47666b2d979f"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-MinSizeRel-no-tts.tar.bz2",
+                       "size":  16168344,
+                       "digest":  "sha256:8d1a53966701b24d7353b234f0b02a07992c3433612ab42fcbaa50e4ac7edce4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-MinSizeRel.tar.bz2",
+                       "size":  17324649,
+                       "digest":  "sha256:416011eabb9a1e26fd4433b41871d67c7a00b1f0a11b75fe66ff8182b8224f95"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-Release-lib.tar.bz2",
+                       "size":  7383373,
+                       "digest":  "sha256:3c43d1efba780d7ae7f5d64cae08803dcecf417109a5f593684e536f3cbd5cf1"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-Release-no-tts-lib.tar.bz2",
+                       "size":  6907798,
+                       "digest":  "sha256:b90992b888710715d613a4fedcd75d5b4db294ef64f3194e4f77ea0a8b387441"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-Release-no-tts.tar.bz2",
+                       "size":  19164933,
+                       "digest":  "sha256:876e6b89b8cf84a3a1b375a397507f2cfe9c227c2a945411a11a668475fcb5d3"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-Release.tar.bz2",
+                       "size":  20494724,
+                       "digest":  "sha256:3e971a04b2e0ba4dfa53d381a006367ce8c9f5f09b4ae00043e9845c2baded22"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-RelWithDebInfo-lib.tar.bz2",
+                       "size":  7803229,
+                       "digest":  "sha256:d9952d81773580ce51ce198a9b992c18a8436f8705ebd4db99b35458da016feb"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  7242353,
+                       "digest":  "sha256:6c1b1ccf7eb9e9ba853f4df34e93a722a87c04e437281aeb23bc6a980aca3f7d"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  101197967,
+                       "digest":  "sha256:3d31d03cd23238f8f03d64d3a5ee6c02bdceae3ea00513b24c8e9345c780cd77"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MD-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MD-RelWithDebInfo.tar.bz2",
+                       "size":  109401446,
+                       "digest":  "sha256:1cc46a3c2d33ec51afbb2784af0326c1adcfcb5f95e42b67de8806fc137f3c2c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-Debug-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Debug-lib.tar.bz2",
+                       "size":  17901943,
+                       "digest":  "sha256:44bc7c788cb38949100af5a791118cad7fc159ab95d3d9644a01b9e5e499e9ed"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-Debug-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Debug-no-tts-lib.tar.bz2",
+                       "size":  17199013,
+                       "digest":  "sha256:569b43f461d281705e45ed5d26c4b696923db3466165cb3ae81b6f7b466d45df"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-Debug-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Debug-no-tts.tar.bz2",
+                       "size":  165139956,
+                       "digest":  "sha256:ebf1ec37e49c78758df5cdd1d4ea7c29f902b11239f496d176a42ee872eeb3ab"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-Debug.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Debug.tar.bz2",
+                       "size":  175755803,
+                       "digest":  "sha256:efb6203b5bb97cb8d74b277711b8df26bdb3e1f77833e94ce4141bb7b8572a8f"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-MinSizeRel-lib.tar.bz2",
+                       "size":  6780712,
+                       "digest":  "sha256:38ab8fff5841355a7e5e8e95995c778b61615cd1d25aad5f5d00542712f0ee29"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  6344245,
+                       "digest":  "sha256:088b23596740a9dc7ce1a002978a8662408194b05d393d73d6947c1afb815796"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-MinSizeRel-no-tts.tar.bz2",
+                       "size":  20112368,
+                       "digest":  "sha256:a0ec3b679b6da3da5d79b398b0ed696e19c594c9f26ab03e6ce551ac4e55f9a4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-MinSizeRel.tar.bz2",
+                       "size":  21480254,
+                       "digest":  "sha256:5d39e1510923e88471276adebb5b40e3bd15fe09a20b79bed34f01af4a8e4b20"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Release-lib.tar.bz2",
+                       "size":  8032957,
+                       "digest":  "sha256:b8eedf41bd6d3779218887b48367bb7a3ece5aaa7667f01f69ee823a12b0a9e7"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Release-no-tts-lib.tar.bz2",
+                       "size":  7536080,
+                       "digest":  "sha256:a1253e665c4f236119c443c8932a8acfca32a546c78c05962d483c9a0eae21b7"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Release-no-tts.tar.bz2",
+                       "size":  23271851,
+                       "digest":  "sha256:4b0a94f7b5c606b1b64a19a831c2127559e4b3d34e195465ebc7be73d9ed4783"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-Release.tar.bz2",
+                       "size":  24805859,
+                       "digest":  "sha256:6dffdc715a4465b989446a6105265d2cb345e7101591a17d35534b6758f6e8df"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-RelWithDebInfo-lib.tar.bz2",
+                       "size":  8829616,
+                       "digest":  "sha256:47282964a7593850e87bd893bc42570b6e5bc4d0c4243b9c047e0097850a3a18"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  8220252,
+                       "digest":  "sha256:8b06268c5f4a94a1965ff15c8cad0bf88ca55a81585bc23f82540eb81b718c03"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  149605402,
+                       "digest":  "sha256:7e71b06b1bf46acc85dc6e70e8a2393546db01330ce5e172150fd9ecac9998e4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-shared-MT-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-shared-MT-RelWithDebInfo.tar.bz2",
+                       "size":  160418773,
+                       "digest":  "sha256:346adbe18af7117f7e87021f2dbd72504639f18742bd3fdacb31e7148d101910"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-Debug-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-Debug-lib.tar.bz2",
+                       "size":  271141981,
+                       "digest":  "sha256:f9177e07f180aa81b15ff7215c25a6cbb268a2010d0f1dfad21aaf604b9a41a9"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-Debug-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-Debug-no-tts-lib.tar.bz2",
+                       "size":  261870076,
+                       "digest":  "sha256:f89c61a43e7851601864b8c3bef77b08f3b56d94403a23a5d5cb41fe6464a0af"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-Debug-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-Debug-no-tts.tar.bz2",
+                       "size":  826731657,
+                       "digest":  "sha256:945891eba497ae09122dda60147f8c4ea50e0d748482a224392147393981d52e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-Debug.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-Debug.tar.bz2",
+                       "size":  868574376,
+                       "digest":  "sha256:876db593f99da85e09548999dbf6c953c2cccd775b6f573205c73486b1842262"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-MinSizeRel-lib.tar.bz2",
+                       "size":  82846363,
+                       "digest":  "sha256:d69712f4d1920cd269fa0f5822963e7188c28308128ba94f119374ffdb39dcf4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  80597247,
+                       "digest":  "sha256:bb64dcf7a77765834aaab83d8fb9a712b9b3c05e6812eced9c10e7e05ffd543b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-MinSizeRel-no-tts.tar.bz2",
+                       "size":  174538755,
+                       "digest":  "sha256:721ed0cd19930da10a5034e1b60a94d3719a07701f1c16fcd5522e0d148101e2"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-MinSizeRel.tar.bz2",
+                       "size":  181897944,
+                       "digest":  "sha256:d0d9d937d5e423054adab4d34a22b790414b124761c19560898be27d670b3389"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-Release-lib.tar.bz2",
+                       "size":  96599351,
+                       "digest":  "sha256:a0f44cd91486e448c2be1f1d3662edb4f473ca3cb38a803cee158760cc588428"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-Release-no-tts-lib.tar.bz2",
+                       "size":  94095902,
+                       "digest":  "sha256:542348e56e827b59c6d249fd0dfd38dc34b7bd0c521a1ebe9eb6e2db154fa15d"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-Release-no-tts.tar.bz2",
+                       "size":  207277150,
+                       "digest":  "sha256:4dc8857091cab2eaca8913b60636f4cca56e5de7de05658bb6b659fd4bd3d672"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-Release.tar.bz2",
+                       "size":  216245683,
+                       "digest":  "sha256:c4547b0fdf93a266d241c4d28dbb55a70a8e64804e1d5eee77412bd0f3d93f6f"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-RelWithDebInfo-lib.tar.bz2",
+                       "size":  267962926,
+                       "digest":  "sha256:1db2f4dacdfa892832a455cf4120a36aac4adfe4a6bfb860f0f872ff22ec7480"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  262444260,
+                       "digest":  "sha256:9b5504784888b2d4c5ea3ab4d8a75af19d684b9bc052bd97986131054b72cd9d"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  787791416,
+                       "digest":  "sha256:a3fcc5808ffeed6cc3d5c0c94d11a4fb39d73994fac6bef2ad74a5a5c16bc63a"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MD-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MD-RelWithDebInfo.tar.bz2",
+                       "size":  823712418,
+                       "digest":  "sha256:4f3f6a3e0e2c282ed45ae79fa10835b242dcd9a2f6c4957d44214db0df1a223c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-Debug-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-Debug-lib.tar.bz2",
+                       "size":  322227512,
+                       "digest":  "sha256:ff6117af22568652370cfefeb881e9e78d9b54d373c7290fd76131ae4b5c85ad"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-Debug-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-Debug-no-tts-lib.tar.bz2",
+                       "size":  310530690,
+                       "digest":  "sha256:33f6294d7c38ac3261bc4209cdd36cba92fb408e34b67cfc3a2c30aa9e57296e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-Debug-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-Debug-no-tts.tar.bz2",
+                       "size":  920407180,
+                       "digest":  "sha256:8c335ae41918ce585ff337e6ae986dbda4a11176864da3f2852e1294f6d88889"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-Debug.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-Debug.tar.bz2",
+                       "size":  966519924,
+                       "digest":  "sha256:0231cf38a058382dace971a42aad102da1563c462d057ed7c9a4422812fc8f8e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-MinSizeRel-lib.tar.bz2",
+                       "size":  105665523,
+                       "digest":  "sha256:dd01f77c2644243769efff8504fa8833f036d2c3e79c5132647792ebb246edbe"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  102805631,
+                       "digest":  "sha256:ac5fa690ec6d6d6637afb91058a00313012a20b3d26a7931cb505eeec095f6ab"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-MinSizeRel-no-tts.tar.bz2",
+                       "size":  201590088,
+                       "digest":  "sha256:83d5ff443806de50f6918a514479563d2d51e1dffb71b288bd99ea3882957bc5"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-MinSizeRel.tar.bz2",
+                       "size":  210337586,
+                       "digest":  "sha256:da4632767384c447912ecce78c28d8ad0874153b6732d947dcfe9fe45b6fdd55"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-Release-lib.tar.bz2",
+                       "size":  123206268,
+                       "digest":  "sha256:56ffcf3c454c1f14f7bc9887286cc8143e7e542dc632804e1c447d5f8d534eaf"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-Release-no-tts-lib.tar.bz2",
+                       "size":  120099517,
+                       "digest":  "sha256:f0aa074ddc39553b30208b53e84c12275d09702911c9faa8d34fa932428e4641"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-Release-no-tts.tar.bz2",
+                       "size":  238840069,
+                       "digest":  "sha256:d2ce464a9e28d9128ab1fd15720df6f0e5e19053f725035d630af20a09c17e36"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-Release.tar.bz2",
+                       "size":  249216829,
+                       "digest":  "sha256:849ea51f860cefbe0ae0074ed01190cd24b91ae3da80c2637261a9e7dabe39c9"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-RelWithDebInfo-lib.tar.bz2",
+                       "size":  328095786,
+                       "digest":  "sha256:456dc8398bfedd228a22a011c23ce00479a84b13b1f9df1ba4ab102e3f5cdbf2"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  320480117,
+                       "digest":  "sha256:36f954bb4ee643469e6767b27000f61a208729472419cd7f09e009e616d05d91"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  897532076,
+                       "digest":  "sha256:f052f9e2b1443839fdc4876d6ccbdc105ff0e8b7fa4897da0fcb73c5487c2d76"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x64-static-MT-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x64-static-MT-RelWithDebInfo.tar.bz2",
+                       "size":  938770201,
+                       "digest":  "sha256:62c21f64ea74ca94fc76584e4eca7df76959c83ecac3be314a6fd9810abd5aa2"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-Debug-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-Debug-lib.tar.bz2",
+                       "size":  14393574,
+                       "digest":  "sha256:3df41928ddf9d86fe4a70384e4877c9ac652d4421df1171188d1d8cdb56b5d19"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-Debug-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-Debug-no-tts-lib.tar.bz2",
+                       "size":  13765969,
+                       "digest":  "sha256:a55178c700356aaa4bef9a8a90300d5af86f4842b2ca7616596b70fceece327e"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-Debug-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-Debug-no-tts.tar.bz2",
+                       "size":  118529875,
+                       "digest":  "sha256:41a56a7febf47d437addcf246ac5d90a9cb514aa014c16fe70be4af04ee1dd6b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-Debug.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-Debug.tar.bz2",
+                       "size":  126379767,
+                       "digest":  "sha256:18ded11a6cf54f9558202854d07012652700c937e226e75b51d269d64a7de8a9"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-MinSizeRel-lib.tar.bz2",
+                       "size":  5324027,
+                       "digest":  "sha256:a6ae44511b7dbbc02cb904e1ed56303780655eb2a8cb9305d932aebfdabda6fd"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  4956568,
+                       "digest":  "sha256:7b08252480e677aa9cda97fd0ce5c9ca4f93a2744ff418e40b98cef6ce1c5729"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-MinSizeRel-no-tts.tar.bz2",
+                       "size":  13669278,
+                       "digest":  "sha256:a79f6b4a3d0b07eb4fdfef7049ec7a5788395123b16d2fcabac99644ea3266b5"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-MinSizeRel.tar.bz2",
+                       "size":  14723401,
+                       "digest":  "sha256:1ab6dc31dc030f487b9b16daf1780fdaa7cd320c4bf281dc53ced322584f0258"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-Release-lib.tar.bz2",
+                       "size":  6370119,
+                       "digest":  "sha256:b72a1cbeb04223ecd9a6224944681276b9697ea600cfb23c7964e4847c3a3fda"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-Release-no-tts-lib.tar.bz2",
+                       "size":  5933084,
+                       "digest":  "sha256:526da947e1af22b0722236999dae05cc09e79675bcb064f07567f3da26278eba"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-Release-no-tts.tar.bz2",
+                       "size":  16343316,
+                       "digest":  "sha256:db39f4bab9d3233c631120fcc62848fa2ccfcae363d3900dd3a2875974a647ca"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-Release.tar.bz2",
+                       "size":  17536057,
+                       "digest":  "sha256:6dc1ab218fdcb57f7a98672db2535f2de53f50dc94ce6b637c7958c294287096"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-RelWithDebInfo-lib.tar.bz2",
+                       "size":  6704853,
+                       "digest":  "sha256:7fcdef36fd4b51cfb82c5ccbb8fb4e8ad85e5133bca3036d8b73e94e97a43daf"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  6222469,
+                       "digest":  "sha256:8b75cc8e9d38fa335e956a38d992e3eec4440fce8e50d0c69ab30863683cc826"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  96549620,
+                       "digest":  "sha256:576fa07e9069bffea7860a701d534b7f2433a11ee2ba6d10c5ac7f14056178da"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MD-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MD-RelWithDebInfo.tar.bz2",
+                       "size":  104173844,
+                       "digest":  "sha256:c7a58a655ef5d62d1444f3f0e227cb2ed781af711c80af52159c8a93770817c2"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-Debug-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-Debug-lib.tar.bz2",
+                       "size":  15638729,
+                       "digest":  "sha256:125e78ea2cc5eacfc60483e567d367ef57e94401fc7bded901286c887dccdba9"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-Debug-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-Debug-no-tts-lib.tar.bz2",
+                       "size":  14982368,
+                       "digest":  "sha256:7eb4c84cc25b83714a52f50825a1fda054bf10dbe446be9072b46ccb6417c2a0"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-Debug-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-Debug-no-tts.tar.bz2",
+                       "size":  157739408,
+                       "digest":  "sha256:3323c536a8819415296a9f1725cf468ecaf2eb30aec067b96a08d0937c90fb31"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-Debug.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-Debug.tar.bz2",
+                       "size":  167884928,
+                       "digest":  "sha256:9ac6cce0ae735df91c3763f6e68b95d2f7483ba760d80be8126ba463d3408ecd"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-MinSizeRel-lib.tar.bz2",
+                       "size":  5815630,
+                       "digest":  "sha256:623ad899bbe92b462ceae0be84e89eec4130d4160df91ec91a8a5ed487998e40"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  5421102,
+                       "digest":  "sha256:913f93f3054965f05ce30ab7b7212cdbd9136eaee85924e5f70fff4ec2b458f4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-MinSizeRel-no-tts.tar.bz2",
+                       "size":  16846121,
+                       "digest":  "sha256:2315c1da16f4f4191dc1a020004315beb60c8f77415852892755ef26be59bc48"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-MinSizeRel.tar.bz2",
+                       "size":  18074379,
+                       "digest":  "sha256:f62e0707ee29d4c965f5db66fed5722ae2c5b8cfcc60f3079d52bed515efd2c3"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-Release-lib.tar.bz2",
+                       "size":  6921399,
+                       "digest":  "sha256:d0c4850d98693336a9e3446dc0969b32b599540830dd0b64c0368a0817d5d440"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-Release-no-tts-lib.tar.bz2",
+                       "size":  6459391,
+                       "digest":  "sha256:7de92543d7c92608802b913c0e5f2f68e851e2edaa6e5b2b7fe2e22a88b2d9d0"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-Release-no-tts.tar.bz2",
+                       "size":  19795683,
+                       "digest":  "sha256:3b25da29441b20b1b967ef1cac7834258b23c5c1baa8f26a1269debd384b79b5"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-Release.tar.bz2",
+                       "size":  21105780,
+                       "digest":  "sha256:78bac9926a7fb77042171d60db53aad71e813deb2d04e9853937d7ac357e01f2"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-RelWithDebInfo-lib.tar.bz2",
+                       "size":  7562573,
+                       "digest":  "sha256:35a6e66793fd03001abdfc9ae925f930bb6a0d6cb2c49ac27254691e9722478c"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  7034092,
+                       "digest":  "sha256:fd947a340edcb62b77fae5594ca3e36b944ec5f51e71bece87f5fc74acd11dbe"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  142022041,
+                       "digest":  "sha256:4bb4b99f28d6fc02d91c7bff2a9337c89107022f7fc0cc7da202b7b630f63116"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-shared-MT-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-shared-MT-RelWithDebInfo.tar.bz2",
+                       "size":  152422591,
+                       "digest":  "sha256:8200bdb0bde5edd7f0f9569ca8519a3d41d17211dde1ae8de7a7ec56452aa4f1"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-Debug-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-Debug-lib.tar.bz2",
+                       "size":  212288953,
+                       "digest":  "sha256:81300f88862d1c6ecce8226b2a8005ca8b803c67d6f30ae523c35390ce600ed9"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-Debug-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-Debug-no-tts-lib.tar.bz2",
+                       "size":  204983811,
+                       "digest":  "sha256:b2ad793cfef8b8d32b1e40f6b72057dc413c54526f5802b967d53a573f7da8a0"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-Debug-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-Debug-no-tts.tar.bz2",
+                       "size":  717679817,
+                       "digest":  "sha256:bb2d956e7666aab0b4507ff6950c2f7850174d6984a75cc37727b058f1579cb4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-Debug.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-Debug.tar.bz2",
+                       "size":  754318041,
+                       "digest":  "sha256:5ed40c7aad22d0283e78216571316e1dc61d7f046fac5b08b181de26345884fc"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-MinSizeRel-lib.tar.bz2",
+                       "size":  58876603,
+                       "digest":  "sha256:fba0ecf8294e61983d80d75490599a46c23733fe59b179ce31f41bd4c3523991"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  57122463,
+                       "digest":  "sha256:4f411c55c1ddfb6b5ac48a3343eb4b746019b40ece294e2432f5c35f3156dc92"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-MinSizeRel-no-tts.tar.bz2",
+                       "size":  137989078,
+                       "digest":  "sha256:b4ef6f4462e5a3e745473063f42c805a79e482dc63568742cbf4e209e1dbf4dd"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-MinSizeRel.tar.bz2",
+                       "size":  144332291,
+                       "digest":  "sha256:e2787e51a220d7e5b81f7909def8ba01897b6340fe385a307bc0526bdba8bcaa"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-Release-lib.tar.bz2",
+                       "size":  66239966,
+                       "digest":  "sha256:7db72e3908b9eac1f028b6d611bb75e3f1bb4b6534f4b94c712cd7896bdc1027"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-Release-no-tts-lib.tar.bz2",
+                       "size":  64774198,
+                       "digest":  "sha256:3a2c4205dc3a160b9f8d77ade4f402c5f3873699a5d1b920a129da4517e43b07"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-Release-no-tts.tar.bz2",
+                       "size":  162542729,
+                       "digest":  "sha256:a1ea6ad71fdda4f7906cd9a36c3db696facf390882a36b573c168a293da2beff"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-Release.tar.bz2",
+                       "size":  169821053,
+                       "digest":  "sha256:7f2505dfa1f1e4bf5c8c68e28452f06fd8f9785232afab28b6f2f41401c4fb3f"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-RelWithDebInfo-lib.tar.bz2",
+                       "size":  240422977,
+                       "digest":  "sha256:61fa0379e852f2271ee50ffb4e6c1e87e768247b834b50302858fbf7e0c81a05"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  235228496,
+                       "digest":  "sha256:3958f97954c1e1cedb175404993ed3021c9bb971320b073ae2b191f2e7d3cef8"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  697367293,
+                       "digest":  "sha256:2dc59581b491ec3033699922f9073f7ab0ac56f5459354d64c7e9513eaeb63e6"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MD-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MD-RelWithDebInfo.tar.bz2",
+                       "size":  729438479,
+                       "digest":  "sha256:ffda52818dac9b0a06b939803fae1b3ac455782a3aa25a984922198603897f21"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-Debug-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-Debug-lib.tar.bz2",
+                       "size":  249182811,
+                       "digest":  "sha256:e3caa562df34d353305e1bef4be0c56c001160c8dac94b77ab843a75ac2142ec"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-Debug-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-Debug-no-tts-lib.tar.bz2",
+                       "size":  240625836,
+                       "digest":  "sha256:2b76b495c5916cdf75571359801bef0109227831f2a5dec15d717314d5d72261"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-Debug-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-Debug-no-tts.tar.bz2",
+                       "size":  795029274,
+                       "digest":  "sha256:bd7ea1b5fb65366aba743255e39935d32d72559d6a2588ec68cbb589b77b0912"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-Debug.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-Debug.tar.bz2",
+                       "size":  835413533,
+                       "digest":  "sha256:499343a223a6bc17966a54665e3f419099f07084db121429f581bd0beb374d5d"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-MinSizeRel-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-MinSizeRel-lib.tar.bz2",
+                       "size":  73340808,
+                       "digest":  "sha256:5714e1bc388780318a495f30f480d8d5674124322b31153d0c8f03f46e46631b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-MinSizeRel-no-tts-lib.tar.bz2",
+                       "size":  71048079,
+                       "digest":  "sha256:f3880d7624d5d83cbfdc5b0f0c41d74849cbed02748269d2168b6737411c8e87"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-MinSizeRel-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-MinSizeRel-no-tts.tar.bz2",
+                       "size":  156486149,
+                       "digest":  "sha256:39f0feafaf26eefacf6efd7d15055a624d2c526ffe8aeaf08ac4835bd27528a8"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-MinSizeRel.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-MinSizeRel.tar.bz2",
+                       "size":  163256918,
+                       "digest":  "sha256:f7f816edb2756a504556ad87fce2421afc13a2f8dd1401a319e576e1151cd602"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-Release-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-Release-lib.tar.bz2",
+                       "size":  82646129,
+                       "digest":  "sha256:4af2c3e914c2ec28c7149de5d109de88316c0f56c5039e37873cb186f7cfd4f1"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-Release-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-Release-no-tts-lib.tar.bz2",
+                       "size":  80756292,
+                       "digest":  "sha256:366aad0be0fed8abf93420dee8a55e9d160c795b5bbe9c6e9dc3fde799188ca5"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-Release-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-Release-no-tts.tar.bz2",
+                       "size":  183534049,
+                       "digest":  "sha256:e692e4a275ecb605326af953bf5d9f9e33bf15783276c7f8ccf3758b165b726a"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-Release.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-Release.tar.bz2",
+                       "size":  191532580,
+                       "digest":  "sha256:d8fa4e8dbea7813c417c7d76718b70a279aa1ed7bcccbc4301b21bd1d4f5a19f"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-RelWithDebInfo-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-RelWithDebInfo-lib.tar.bz2",
+                       "size":  291082801,
+                       "digest":  "sha256:e34eb43fdd35b7b5f7dcb9c7cfda1cf0766e5240b64db485ba12cfea5aa09ca5"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-RelWithDebInfo-no-tts-lib.tar.bz2",
+                       "size":  284424028,
+                       "digest":  "sha256:410c5d049e949a9b039d3414a2b52f839dabf49c014c0aa83ae1fecb3decc12b"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-RelWithDebInfo-no-tts.tar.bz2",
+                       "size":  796547613,
+                       "digest":  "sha256:02c6e38eaff20bdbcdd563510e4ad283a186dbc8ac98b31820007f0ee9d72d19"
+                   },
+                   {
+                       "name":  "sherpa-onnx-v1.13.8-win-x86-static-MT-RelWithDebInfo.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-v1.13.8-win-x86-static-MT-RelWithDebInfo.tar.bz2",
+                       "size":  832825021,
+                       "digest":  "sha256:be10ecbd5d9150032eee31933244e4788a7f50e9343752ff8a8a8ed40ade02ef"
+                   },
+                   {
+                       "name":  "sherpa-onnx-wasm-simd-1.13.8-kokoro-multi-lang-v1_0.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-wasm-simd-1.13.8-kokoro-multi-lang-v1_0.tar.bz2",
+                       "size":  347819262,
+                       "digest":  "sha256:39180cc8851bc5c4a2b8f47e2546b31f58704169421fd2e2dc06c459b7d367e7"
+                   },
+                   {
+                       "name":  "sherpa-onnx-wasm-simd-1.13.8-matcha-icefall-en_US-ljspeech.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-wasm-simd-1.13.8-matcha-icefall-en_US-ljspeech.tar.bz2",
+                       "size":  131498956,
+                       "digest":  "sha256:8d2be41940973446a836cf488161372d400e79f13496c715043b9151bb0e7ebe"
+                   },
+                   {
+                       "name":  "sherpa-onnx-wasm-simd-1.13.8-matcha-icefall-zh-baker.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-wasm-simd-1.13.8-matcha-icefall-zh-baker.tar.bz2",
+                       "size":  126139751,
+                       "digest":  "sha256:bf17d3373493ae69695c3671b1c637e41c6937f755dd2c7ac9be07ca35f03cc4"
+                   },
+                   {
+                       "name":  "sherpa-onnx-wasm-simd-1.13.8-matcha-icefall-zh-en.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-wasm-simd-1.13.8-matcha-icefall-zh-en.tar.bz2",
+                       "size":  133789706,
+                       "digest":  "sha256:bf891447a28294e43b3925e35d52fec550bd7ff1dfa051fb3026da44655e22d6"
+                   },
+                   {
+                       "name":  "sherpa-onnx-wasm-simd-1.13.8-sherpa-onnx-pocket-tts-int8-2026-01-26.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-wasm-simd-1.13.8-sherpa-onnx-pocket-tts-int8-2026-01-26.tar.bz2",
+                       "size":  98549229,
+                       "digest":  "sha256:9be5f21a78c1643113a61a59c122c716a27fd1ed888fd2f37aa2f55835643290"
+                   },
+                   {
+                       "name":  "sherpa-onnx-wasm-simd-1.13.8-sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-wasm-simd-1.13.8-sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2",
+                       "size":  163450923,
+                       "digest":  "sha256:5ba949cfb15385986ef0c673072d734defc604a265324afd22e589cf94117503"
+                   },
+                   {
+                       "name":  "sherpa-onnx-wasm-simd-1.13.8-vits-piper-de_DE-thorsten_emotional-medium.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-wasm-simd-1.13.8-vits-piper-de_DE-thorsten_emotional-medium.tar.bz2",
+                       "size":  83623156,
+                       "digest":  "sha256:2d1bb1c102290a62b437bc4e352c72814ee327dd37cbc46796cf3215e04d022f"
+                   },
+                   {
+                       "name":  "sherpa-onnx-wasm-simd-1.13.8-vits-piper-en_US-libritts_r-medium.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-wasm-simd-1.13.8-vits-piper-en_US-libritts_r-medium.tar.bz2",
+                       "size":  85430888,
+                       "digest":  "sha256:7c2ca382378b07f2e13ed7ccc7d02f07cc5ff4e5a001e42664a44a6e58c6fea1"
+                   },
+                   {
+                       "name":  "sherpa-onnx-wasm-simd-v1.13.8-speech-enhancement-gtcrn.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-wasm-simd-v1.13.8-speech-enhancement-gtcrn.tar.bz2",
+                       "size":  3159146,
+                       "digest":  "sha256:1cc9fd48a42ef469c10325f18f2c512cf51e829a2f19fd94df3b21d8402a3925"
+                   },
+                   {
+                       "name":  "sherpa-onnx-wasm-simd-v1.13.8-vad.tar.bz2",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-wasm-simd-v1.13.8-vad.tar.bz2",
+                       "size":  3553978,
+                       "digest":  "sha256:3cdb74810359a3ddf44956d58d97a2b9ec1c8c2d433d289b2ddde5580a076408"
+                   },
+                   {
+                       "name":  "sherpa_onnx-v1.13.8.har",
+                       "browser_download_url":  "https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa_onnx-v1.13.8.har",
+                       "size":  14774722,
+                       "digest":  "sha256:3ac965bf79bef8dfa8858fdbe3794e78ec6c66e8668e489fde58e17fee29fc46"
+                   }
+               ],
+    "draft":  false
+}]

@@ -1,0 +1,73 @@
+Start an OpenAI-compatible HTTP server
+
+Usage: mistralrs serve [OPTIONS]
+
+Options:
+  -m, --model-id <MODEL_ID>
+          Model ID: a Hugging Face model id or a local model directory
+
+  -p, --port <PORT>
+          Port to serve on
+
+          [default: 1234]
+
+      --host <HOST>
+          IP address to serve on
+
+          [default: 0.0.0.0]
+
+      --no-ui
+          Do not serve the built-in web UI
+
+  -a, --arch <ARCH>
+          Model architecture (detected from config.json when not given)
+
+      --dtype <DTYPE>
+          Model data type
+
+          [default: auto]
+
+      --isq <ISQ>
+          In-situ quantization to apply while loading (2, 3, 4, 5, 6, 8, q4k, q8_0...)
+
+      --cpu
+          Run on the CPU only
+
+      --max-seqs <MAX_SEQS>
+          Maximum number of running sequences at any time
+
+          [default: 32]
+
+      --max-seq-len <MAX_SEQ_LEN>
+          Maximum prompt sequence length expected (automatic device mapping)
+
+          [default: 4096]
+
+      --max-model-len <MAX_MODEL_LEN>
+          Maximum model context length
+
+      --paged-attn <PAGED_ATTN>
+          PagedAttention
+
+          [default: auto]
+          [possible values: auto, on, off]
+
+      --pa-context-len <PA_CONTEXT_LEN>
+          PagedAttention KV cache size, in tokens
+
+      --pa-memory-mb <PA_MEMORY_MB>
+          PagedAttention KV cache size, in MB
+
+      --pa-memory-fraction <PA_MEMORY_FRACTION>
+          PagedAttention KV cache size, as a fraction of the free GPU memory
+
+      --pa-cache-type <PA_CACHE_TYPE>
+          PagedAttention KV cache type
+
+          [default: auto]
+
+      --hf-cache <HF_CACHE>
+          Hugging Face cache directory
+
+  -h, --help
+          Print help (see a summary with '-h')

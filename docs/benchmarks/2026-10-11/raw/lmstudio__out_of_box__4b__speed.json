@@ -1,0 +1,161 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 0.3706759999040514,
+   "ttfb": 0.3706759999040514,
+   "wall": 2.166691199876368,
+   "decode_tps": 141.99386785939578,
+   "completion_tokens": 256,
+   "prompt_tokens": 487,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where time moved like a slow river through stone and shadow, the even"
+  },
+  {
+   "ok": true,
+   "ttft": 0.4204287000466138,
+   "ttfb": 0.4204287000466138,
+   "wall": 2.2229691001120955,
+   "decode_tps": 141.48076095497962,
+   "completion_tokens": 256,
+   "prompt_tokens": 486,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where mist curled around ancient stone towers and time seemed to move"
+  },
+  {
+   "ok": true,
+   "ttft": 0.34110480011440814,
+   "ttfb": 0.34110480011440814,
+   "wall": 2.130991999991238,
+   "decode_tps": 142.4804198380229,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where mist curled around ancient stone towers and time seemed to move"
+  },
+  {
+   "ok": true,
+   "ttft": 0.37854079995304346,
+   "ttfb": 0.37854079995304346,
+   "wall": 2.172427700133994,
+   "decode_tps": 142.16292583598528,
+   "completion_tokens": 256,
+   "prompt_tokens": 487,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where mist curled around ancient stone towers and time seemed to move"
+  },
+  {
+   "ok": true,
+   "ttft": 0.36856720014475286,
+   "ttfb": 0.36856720014475286,
+   "wall": 2.1642144001089036,
+   "decode_tps": 142.031901714363,
+   "completion_tokens": 256,
+   "prompt_tokens": 486,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where time moved like a slow river through stone and shadow, the even"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": true,
+   "ttft": 1.7109791000839323,
+   "ttfb": 1.7109791000839323,
+   "wall": 1.7121346001513302,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 2330.829172492153
+  },
+  {
+   "ok": true,
+   "ttft": 1.7381025000941008,
+   "ttfb": 1.7381025000941008,
+   "wall": 1.7387606999836862,
+   "completion_tokens": 1,
+   "prompt_tokens": 3985,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 2292.730146688272
+  },
+  {
+   "ok": true,
+   "ttft": 1.7281259999144822,
+   "ttfb": 1.7281259999144822,
+   "wall": 1.7287715999409556,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 2307.7021005397464
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 0.3706759999040514,
+  "decode_tps": 142.031901714363,
+  "server_decode_tps": null,
+  "prompt_tokens_500": 487,
+  "completion_tokens": 256,
+  "pp4k_tps_client": 2307.7021005397464,
+  "pp4k_tps_server": null,
+  "pp4k_prompt_tokens": 3988,
+  "pp4k_ttft_s": 1.7281259999144822,
+  "errors": []
+ },
+ "meta": {
+  "backend": "lmstudio",
+  "mode": "out_of_box",
+  "model": "4b",
+  "endpoint_info": {
+   "load_s": 2.91,
+   "flags": [],
+   "lms_load_tail": "n3-4b-instruct-2507 27% ⠼\nLoading qwen3-4b-instruct-2507 27% ⠴\nLoading qwen3-4b-instruct-2507 27% ⠦\nLoading qwen3-4b-instruct-2507 28% ⠦\nLoading qwen3-4b-instruct-2507 100% ⠦\nModel loaded successfully in 2.48s.\n(2.33 GiB)\nTo use the model in the API/SDK, use the identifier \"qwen3-4b-instruct-2507\".\n",
+   "ps": [
+    {
+     "sizeBytes": 2497281120,
+     "identifier": "qwen3-4b-instruct-2507",
+     "contextLength": 8192,
+     "status": "idle",
+     "parallel": 4
+    }
+   ],
+   "rest_config": {
+    "context_length": 8192,
+    "eval_batch_size": 2048,
+    "physical_batch_size": 512,
+    "parallel": 4,
+    "flash_attention": true,
+    "context_checkpoints": 32,
+    "reasoning_budget_message": "",
+    "speculative_draft_mtp": false,
+    "speculative_draft_simple": false,
+    "speculative_draft_model": "",
+    "speculative_draft_max_tokens": 3,
+    "speculative_draft_min_tokens": 0,
+    "speculative_draft_min_continue_probability": 0,
+    "offload_kv_cache_to_gpu": true
+   },
+   "log_lines": [
+    "[2026-10-11 14:14:08][INFO] Just-in-time model loading inactive.",
+    "[2026-10-11 14:14:15][DEBUG] 0.03.641.718 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'",
+    "[2026-10-11 14:24:39][DEBUG] 0.09.951.799 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'",
+    "[2026-10-11 14:51:29][DEBUG] 0.02.100.231 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'"
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 4408,
+   "shared_mib": 372
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 8152,
+   "shared_mib": 393
+  },
+  "date": "2026-10-11 14:51:32",
+  "gpu_after_run": {
+   "dedicated_mib": 8190,
+   "shared_mib": 401
+  },
+  "elapsed_s": 20.5
+ }
+}

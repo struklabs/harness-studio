@@ -1,0 +1,18 @@
+{
+ "date": "2026-10-11 15:48:33",
+ "python": "3.14.0",
+ "httpx": "0.28.1",
+ "os": "Windows-11-10.0.26200-SP0",
+ "versions": {
+  "harness": "Harness Studio 0.1.0 (installed build), managed runtime llama.cpp b11552 Vulkan; ran as `harness serve --gateway`",
+  "lmstudio": "lms CLI commit 69d945a; selected engine llama.cpp-win-x86_64-vulkan-avx2@2.51.0",
+  "ollama": "ollama version is 0.35.1",
+  "llamacpp": "llama-server version 0.4.1-dev (build 11026, commit b49650adb), winget ggml.llamacpp, Vulkan",
+  "llamacpp_b11552": "llama-server version 0.6.0-dev (build 11552, commit 23b0202a1), Harness managed runtime, Vulkan"
+ },
+ "gpu_baseline": {
+  "dedicated_mib": 4375,
+  "shared_mib": 372
+ },
+ "note": "gpu_baseline dedicated MiB varied between 4.4 and 6.2 GB across the session (desktop apps)"
+}

@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest an improvement or a new capability.
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Please check the [roadmap](https://github.com/struklabs/harness-studio/blob/main/docs/en/ROADMAP.md) and existing issues first.
+        For open-ended discussion, use [Discussions](https://github.com/struklabs/harness-studio/discussions).
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what is hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How would you like it to work? Sketches and examples help.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other tools or workarounds you tried (LM Studio, Ollama, llama.cpp, scripts).
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Model Hub / Library
+        - Dashboard / servers
+        - Playground
+        - Gateway / API
+        - Tools / MCP
+        - Integrations
+        - CLI
+        - Interface / accessibility
+        - Documentation
+        - Other
+  - type: input
+    id: platform
+    attributes:
+      label: Platform, GPU, and backend (if relevant)
+      placeholder: "Linux, NVIDIA RTX 4070, CUDA"
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to help implement this.

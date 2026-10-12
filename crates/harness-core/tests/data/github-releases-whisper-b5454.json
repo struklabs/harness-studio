@@ -1,0 +1,93 @@
+[
+ {
+  "tag_name": "v1.9.5",
+  "name": "v1.9.5",
+  "published_at": "2026-10-06T17:39:17Z",
+  "prerelease": false,
+  "draft": false,
+  "html_url": "https://github.com/ggml-org/whisper.cpp/releases/tag/v1.9.5",
+  "assets": []
+ },
+ {
+  "tag_name": "b5454",
+  "name": "b5454",
+  "published_at": "2026-10-06T16:51:27Z",
+  "prerelease": true,
+  "draft": false,
+  "html_url": "https://github.com/ggml-org/whisper.cpp/releases/tag/b5454",
+  "assets": [
+   {
+    "name": "whisper-b5454-xcframework.zip",
+    "size": 65816082,
+    "digest": "sha256:e57f8c48933000acabc13bb913fbe82805d483a2deff692cc6738836bd92393b",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-b5454-xcframework.zip"
+   },
+   {
+    "name": "whisper-bin-ubuntu-arm64.tar.gz",
+    "size": 4608377,
+    "digest": "sha256:6b95ebfc60447df48e70ef00a73bdc3f41679ed2d01ef465827206a2ff325149",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-ubuntu-arm64.tar.gz"
+   },
+   {
+    "name": "whisper-bin-ubuntu-x64.tar.gz",
+    "size": 10364195,
+    "digest": "sha256:a72becf15d7917f990f6313867a52638b82b7f9ef237fb0c980dac56a135781c",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-ubuntu-x64.tar.gz"
+   },
+   {
+    "name": "whisper-bin-win-cpu-arm64.zip",
+    "size": 4371193,
+    "digest": "sha256:28c37e7b598c3d9bbfef94f3bd67f2ee6f12b7c86f3da5edcf5e4308d615ff6d",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-win-cpu-arm64.zip"
+   },
+   {
+    "name": "whisper-bin-win-cuda-11.8.0-x64.zip",
+    "size": 284761231,
+    "digest": "sha256:e81c86c542be6e3d7b7245392d4e1c52ab6e5c61dbe38721754bc0ab59d4d027",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-win-cuda-11.8.0-x64.zip"
+   },
+   {
+    "name": "whisper-bin-win-cuda-12.4.0-x64.zip",
+    "size": 684913404,
+    "digest": "sha256:afef0b881c500958921c3f5523b50e59ee2ec9b6f5cbd25b324c51ed308a957a",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-win-cuda-12.4.0-x64.zip"
+   },
+   {
+    "name": "whisper-bin-win-cuda-13.4-arm64.zip",
+    "size": 291157544,
+    "digest": "sha256:6184ae8887d38ea9add68e883b9c846e7bf562ba1bf619ffc7ee9f8ec7e1699c",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-win-cuda-13.4-arm64.zip"
+   },
+   {
+    "name": "whisper-bin-win-opencl-adreno-arm64.zip",
+    "size": 4944716,
+    "digest": "sha256:915b48289f362c5f4cf33f3ffdd30f1f43de68f6103a3088858e346635719007",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-win-opencl-adreno-arm64.zip"
+   },
+   {
+    "name": "whisper-bin-Win32.zip",
+    "size": 5523979,
+    "digest": "sha256:b6cb078ee5d4df0f9dcdb4f820210c59bd6534c84fdb13c35bc8a51d1233451f",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-Win32.zip"
+   },
+   {
+    "name": "whisper-bin-x64.zip",
+    "size": 8928640,
+    "digest": "sha256:6ba69e3482d7826214f90a6a9c84ca07782aec1e1d0c6a7c30c994fd5d816ccb",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-bin-x64.zip"
+   },
+   {
+    "name": "whisper-blas-bin-Win32.zip",
+    "size": 12555466,
+    "digest": "sha256:d53f98a031ae73f5f4fff8e134c0c0b5eafe3361f69c660d9fb1c85d102db34a",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-blas-bin-Win32.zip"
+   },
+   {
+    "name": "whisper-blas-bin-x64.zip",
+    "size": 21715607,
+    "digest": "sha256:b1158bd10edf92c9799149a6fc5d3e58da3f495241d6fb3423088130e88ffbf3",
+    "browser_download_url": "https://github.com/ggml-org/whisper.cpp/releases/download/b5454/whisper-blas-bin-x64.zip"
+   }
+  ]
+ }
+]
