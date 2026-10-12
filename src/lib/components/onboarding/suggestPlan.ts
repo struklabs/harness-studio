@@ -43,23 +43,49 @@ export function pickBest<T extends Pickable>(found: T[], toolRank?: (c: T) => nu
 
 // --- Chat: a general assistant, not a specialist ---
 
-/** Repos that are no general chat model: code, math, embedding, reranking, vision-only, speech... */
-const NOT_GENERAL_CHAT =
-  /coder|code|math|embed|rerank|reward|guard|safety|vision|ocr|whisper|tts|diffusion|translat|(^|[-_/])vl([-_]|$)|(^|[-_/])(base|pt)([-_]|$)/i;
+/**
+ * Repos that are no general chat model: code, math, embedding, reranking, vision-only, speech,
+ * and reasoning distills / community fine-tunes / merges (slow and verbose for everyday chat).
+ */
+const NOT_GENERAL_CHAT = new RegExp(
+  [
+    'coder|code|math|embed|rerank|reward|guard|safety|vision|ocr|whisper|tts|diffusion|translat',
+    '(^|[-_/])vl([-_]|$)|(^|[-_/])(base|pt)([-_]|$)',
+    '(^|[-_/])r1([-_]|$)|distill|reason|think|abliterat|uncensor|roleplay|(^|[-_/])rp([-_]|$)|merge',
+  ].join('|'),
+  'i',
+);
 
 export function isGeneralChatRepo(repoId: string): boolean {
   return !NOT_GENERAL_CHAT.test(repoId);
 }
 
-/** Well-known general instruct families a first suggestion prefers. */
-const KNOWN_CHAT = [/qwen3/i, /gemma-?[34](?!n)/i, /llama-?3(\.\d)?.*instruct/i, /ministral|mistral.*instruct/i, /phi-?4-mini/i];
+/**
+ * Official instruct releases, best first. The repo name must start with the family (after an
+ * optional publisher prefix as bartowski writes it), so "DeepSeek-...-Qwen3" never matches.
+ */
+const ORG = '((qwen|google|meta-llama|mistralai|microsoft)[_-])?';
+const FAMILIES: RegExp[] = [
+  new RegExp(`^${ORG}qwen3(?![-_.]?(coder|vl))`, 'i'),
+  new RegExp(`^${ORG}gemma-?[34]-.*it`, 'i'),
+  new RegExp(`^${ORG}(meta-)?llama-?3(\\.\\d)?-.*instruct`, 'i'),
+  new RegExp(`^${ORG}(ministral|mistral).*instruct`, 'i'),
+  new RegExp(`^${ORG}phi-?4-mini.*instruct`, 'i'),
+];
 
-export function isKnownChatFamily(repoId: string): boolean {
-  return isGeneralChatRepo(repoId) && KNOWN_CHAT.some((r) => r.test(repoId));
+/** Rank of the family of a repo (0 = Qwen3 ... 4 = Phi-4-mini), -1 when it is none of them. */
+export function familyRank(repoId: string): number {
+  if (!isGeneralChatRepo(repoId)) return -1;
+  const name = repoId.split('/').pop() ?? repoId;
+  return FAMILIES.findIndex((r) => r.test(name));
 }
 
-/** Search terms (per trusted publisher) that bring the known families into the pool. */
-export const CHAT_FAMILY_QUERIES = ['qwen3-4b-instruct', 'qwen3-8b', 'gemma-3-4b-it', 'gemma-3-12b-it', 'llama-3.2-3b-instruct', 'llama-3.1-8b-instruct', 'ministral', 'phi-4-mini'];
+export function isKnownChatFamily(repoId: string): boolean {
+  return familyRank(repoId) >= 0;
+}
+
+/** Search terms (per trusted publisher) that bring the official releases into the pool. */
+export const CHAT_FAMILY_QUERIES = ['qwen3-4b-instruct-2507', 'qwen3-8b', 'gemma-3-4b-it', 'gemma-3-12b-it', 'llama-3.2-3b-instruct', 'llama-3.1-8b-instruct', 'ministral', 'phi-4-mini-instruct'];
 
 /** A first download should stay modest: a 4B-8B Q4_K_M is 2.5-5 GB. */
 export const CHAT_COMFORT_BYTES = 6 * 1024 ** 3;
@@ -69,18 +95,27 @@ export interface ChatCandidate extends Pickable {
 }
 
 /**
- * The chat pick: general models only, known families first. Of those that fit the GPU fully and
- * stay under the comfort size, the largest; else the best fit tier with the smallest file.
+ * The chat pick: official general instruct releases only (any other general repo only when none
+ * of those exists). Of those that fit the GPU fully and stay under the comfort size, the best
+ * family (Qwen3, Gemma, Llama, Mistral, Phi) and in it the largest file; otherwise the best fit
+ * tier, then the best family, then the smallest file.
  */
 export function pickChat<T extends ChatCandidate>(found: T[]): T | null {
   const general = found.filter((c) => isGeneralChatRepo(c.repoId));
   const known = general.filter((c) => isKnownChatFamily(c.repoId));
   const pool = known.length > 0 ? known : general;
   if (pool.length === 0) return null;
+  const rank = (c: T) => (familyRank(c.repoId) < 0 ? 99 : familyRank(c.repoId));
   const comfortable = pool.filter((c) => c.category === 'full_gpu' && c.sizeBytes <= CHAT_COMFORT_BYTES);
-  if (comfortable.length > 0) return comfortable.reduce((a, b) => (b.sizeBytes > a.sizeBytes ? b : a));
+  if (comfortable.length > 0) {
+    return comfortable.reduce((a, b) => {
+      if (rank(b) !== rank(a)) return rank(b) < rank(a) ? b : a;
+      return b.sizeBytes > a.sizeBytes ? b : a;
+    });
+  }
   return pool.reduce((a, b) => {
     if (TIER_RANK[b.category] !== TIER_RANK[a.category]) return TIER_RANK[b.category] < TIER_RANK[a.category] ? b : a;
+    if (rank(b) !== rank(a)) return rank(b) < rank(a) ? b : a;
     return b.sizeBytes < a.sizeBytes ? b : a;
   });
 }

@@ -62,3 +62,41 @@ test('chat on a small card takes the best fitting known model, smallest file whe
   assert.equal(pickChat(tight).repoId, 'unsloth/Qwen3-4B-Instruct-2507-GGUF');
   assert.equal(pickChat([{ repoId: 'a/Qwen3-Coder-GGUF', category: 'full_gpu', sizeBytes: GIB }]), null);
 });
+
+import { familyRank } from '../src/lib/components/onboarding/suggestPlan.ts';
+
+test('chat skips reasoning distills, fine-tunes and merges', () => {
+  for (const id of ['unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF', 'bartowski/DeepSeek-R1-Distill-Qwen-7B-GGUF', 'unsloth/Qwen3-4B-Thinking-2507-GGUF', 'x/Qwen3-8B-abliterated-GGUF', 'x/Qwen3-8B-uncensored-GGUF', 'x/Llama-3.1-8B-roleplay-GGUF', 'x/Llama-3-8B-RP-GGUF', 'x/Qwen3-merge-GGUF', 'x/QwQ-32B-reasoning-GGUF']) {
+    assert.equal(isGeneralChatRepo(id), false, id);
+  }
+  // A foreign name in front of the family is no official release.
+  assert.equal(isKnownChatFamily('someone/Hermes-Qwen3-8B-GGUF'), false);
+});
+
+test('official instruct releases rank Qwen3, Gemma, Llama, Mistral, Phi', () => {
+  const ids = ['unsloth/Qwen3-4B-Instruct-2507-GGUF', 'bartowski/google_gemma-3-4b-it-GGUF', 'bartowski/Llama-3.2-3B-Instruct-GGUF', 'bartowski/Ministral-8B-Instruct-2410-GGUF', 'unsloth/Phi-4-mini-instruct-GGUF'];
+  assert.deepEqual(ids.map(familyRank), [0, 1, 2, 3, 4]);
+});
+
+test('chat picks Qwen3 over other families, and not the reasoning distill', () => {
+  const found = [
+    { repoId: 'unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF', category: 'full_gpu', sizeBytes: 4.7 * GIB },
+    { repoId: 'unsloth/gemma-3-12b-it-GGUF', category: 'full_gpu', sizeBytes: 5.9 * GIB },
+    { repoId: 'unsloth/Qwen3-4B-Instruct-2507-GGUF', category: 'full_gpu', sizeBytes: 2.5 * GIB },
+    { repoId: 'unsloth/Qwen3-8B-GGUF', category: 'full_gpu', sizeBytes: 5 * GIB },
+  ];
+  assert.equal(pickChat(found).repoId, 'unsloth/Qwen3-8B-GGUF');
+  // 4 GB card: only the 4B instruct fits whole.
+  const small = [
+    { repoId: 'unsloth/Qwen3-8B-GGUF', category: 'hybrid', sizeBytes: 5 * GIB },
+    { repoId: 'unsloth/Qwen3-4B-Instruct-2507-GGUF', category: 'full_gpu', sizeBytes: 2.5 * GIB },
+    { repoId: 'unsloth/gemma-3-1b-it-GGUF', category: 'full_gpu', sizeBytes: 0.8 * GIB },
+  ];
+  assert.equal(pickChat(small).repoId, 'unsloth/Qwen3-4B-Instruct-2507-GGUF');
+  // CPU only: nothing fits whole, the smallest of the best family.
+  const cpu = [
+    { repoId: 'unsloth/Qwen3-8B-GGUF', category: 'cpu_heavy', sizeBytes: 5 * GIB },
+    { repoId: 'unsloth/Qwen3-4B-Instruct-2507-GGUF', category: 'cpu_heavy', sizeBytes: 2.5 * GIB },
+  ];
+  assert.equal(pickChat(cpu).repoId, 'unsloth/Qwen3-4B-Instruct-2507-GGUF');
+});
