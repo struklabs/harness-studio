@@ -8,20 +8,6 @@ Release notes with system requirements and known limitations (English and Turkis
 
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
-### Fixed
-- Turkish UI: the two "Görsel" entries in the Library list are now "Görsel Anlama" (vision) and "Görsel Üretimi" (image generation); the English Image entries read "Image Generation".
-- Dashboard: right after the first-run wizard it no longer shows "runtime info could not be read" although the runtime works; the runtime is probed again once the registry changes or the wizard finishes.
-- First-run wizard: "Add Command-Line Tool to PATH" is now off by default, sits under its own "Command Line" heading, and says what it changes.
-- Gateway: parallel requests to a one-slot server no longer fail now and then with `upstream_unreachable` (502). The gateway reused a connection that the model server closes after a streamed answer.
-- GGUF conversion: the size estimate reads the repository's `config.json`, so the token embedding is counted. Small models were shown about a quarter smaller than the converted file.
-- GGUF conversion: the size estimate counts the wider type `llama-quantize` uses for matrices a k-quant cannot hold (rows not a multiple of 256, common in small models). SmolLM2-135M Q4_K_M: 103.2 MB estimated, 105.5 MB converted.
-- Fixed: a tool call right after an MCP server crashed could fail instead of restarting the server; the call now reconnects and is retried once.
-- First-run wizard: the Chat purpose now always finds a model for your hardware. When none of the most downloaded models fits (for example a 4 GB card), small models of the same publishers are suggested.
-- After the first-run wizard the app opens the Model Hub when you have no model yet, otherwise the Playground, instead of a page remembered from an earlier session.
-- `harness lemonade status` asks the running Harness Studio (or `--host`) first, so it reports the `lemond` the window started.
-- The Dashboard form shows what the automatic launch really uses: concurrent slots, context, KV cache types and flash attention. `harness show` prints the same default load and no longer assumes 32k context and 4 slots.
-- Image generation: a size that does not fit in GPU memory no longer ends with a bare "HTTP 500: generate_image returned no results". The gateway answers `image_out_of_memory` with the memory needed and free, and the Playground says to try a smaller size (SD-Turbo at 1024x1024 needs about 5.8 GB).
-
 ## [0.1.0] - 2026-10-12
 
 First public release. Windows installer (NSIS) and signed, notarized macOS DMGs (Apple Silicon and Intel) on GitHub Releases; Linux `.deb` and AppImage as a preview.
@@ -81,6 +67,18 @@ First public release. Windows installer (NSIS) and signed, notarized macOS DMGs 
 - System tray, launch at login, and background mode.
 - On macOS the menu bar follows the interface language (Turkish or English).
 - The Control API settings page no longer shows a stray help icon above the first setting.
+
+### First run and reliability
+- First-run wizard: the Chat purpose always finds a general instruction model that fits your hardware (for example Qwen3-4B-Instruct-2507 on a 4 GB card); coding, math, vision, embedding, and reasoning-distilled models are not offered for chat. "Add Command-Line Tool to PATH" is off by default.
+- After the wizard the app opens the Model Hub when you have no model yet, otherwise the Playground, which offers **Start {model}** when no server is running.
+- The Dashboard form shows what the automatic launch really uses (context, GPU layers, concurrent slots, KV cache types, flash attention), and `harness show` prints the same default load and memory estimate.
+- On Apple Silicon Macs with 8 to 16 GB, the automatic launch tries a q8_0 KV cache with flash attention before lowering the context (Qwen3-4B on an 8 GB Mac: 12k context instead of 8k, in less memory).
+- Image generation that does not fit in GPU memory says how much memory it needs and how much is free, instead of a bare HTTP 500.
+- A regenerated answer is always listed after the original, also when messages are written within the same millisecond.
+- Gateway: parallel requests to a one-slot server no longer fail now and then with `upstream_unreachable` (502).
+- A tool call right after an MCP server crashed reconnects and is retried once.
+- GGUF conversion size estimates count the token embedding and the wider fallback types `llama-quantize` uses (SmolLM2-135M Q4_K_M: 103.2 MB estimated, 105.5 MB converted).
+- macOS: the sherpa-onnx one-click install works (its shared libraries are installed next to the binaries); Lemonade is described with its Metal backend, as the Ryzen AI NPU is Windows and Linux only.
 
 ### Known limitations
 - The Windows installer is unsigned; SmartScreen may show a warning (**More info > Run anyway**).
