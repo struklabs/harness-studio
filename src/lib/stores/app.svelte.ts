@@ -71,6 +71,8 @@ class AppState {
   requestedHubSearch = $state<string | null>(null);
   /** Playground tab another component wants shown (consumed by the Playground, then null). */
   requestedPlaygroundTab = $state<'chat' | 'embedding' | 'rerank' | 'transcription' | 'image' | null>(null);
+  /** Alias to select in the tab `requestedPlaygroundTab` opens (Embedding / Rerank; consumed with it, then null). */
+  requestedPlaygroundModel = $state<string | null>(null);
   /** Text to append to the chat composer's draft (consumed by the Playground, then null). */
   requestedComposerText = $state<string | null>(null);
   /** Bumped to make open overlays (the Hub's variant drawer, dialogs) close before a navigation. */

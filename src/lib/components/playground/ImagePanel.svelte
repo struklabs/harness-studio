@@ -9,6 +9,8 @@
   import { app } from '$lib/stores/app.svelte';
   import { domain } from '$lib/stores/domain.svelte';
   import { library } from '$lib/stores/library.svelte';
+  import { libraryDefinitions } from '$lib/stores/downloads.svelte';
+  import { filesNeedingDefinition } from '$lib/libraryDefinitions';
   import { Button } from '$lib/components/ui/button';
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import { familyFromError } from '$lib/engines';
@@ -30,6 +32,8 @@
 
   /** Image definitions: the gateway loads the diffusion model on the first request (JIT). */
   let models = $derived(domain.definitions.filter((d) => isImageDefinition(d, library.models)));
+  /** Image files of the library that still have no definition after the default ones were made: their companion files are missing. */
+  let incomplete = $derived(filesNeedingDefinition(library.models, domain.definitions, ['image']));
   let busy = $state(false);
   let error = $state('');
   /** Engine family the failed run was missing; shown with its install button. */
@@ -133,10 +137,10 @@
       </Button>
     </div>
   {/if}
-  {#if models.length === 0}
+  {#if models.length === 0 && !libraryDefinitions.busy}
     <div class="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground" role="status">
       <TriangleAlert class="mt-px size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span class="min-w-0 flex-1">{t('img.no_model')}</span>
+      <span class="min-w-0 flex-1">{incomplete.length > 0 ? t('img.files_incomplete') : t('img.no_model')}</span>
       <Button
         variant="outline"
         size="sm"

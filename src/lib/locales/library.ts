@@ -106,6 +106,9 @@ const tr = {
   // Definitions
   'lib.definitions': 'Tanımlar (Alias)',
   'lib.new_definition': 'Yeni Tanım',
+  'lib.open_in_playground': 'Playground\'da Aç',
+  'lib.open_playground_incomplete': 'Bu görsel modelin gerekli dosyaları eksik. Eksik dosyaları Model Hub\'dan indirin.',
+  'lib.open_playground_failed': 'Playground açılamadı: {error}',
   'lib.no_definitions': 'Bu dosyanın tanımı yok. Yüklemek için bir tanım oluşturun.',
   'lib.incomplete_hint': 'Eksik parçalar inince tanım oluşturulabilir.',
   'lib.definition_menu': '"{alias}" tanımı',
@@ -256,6 +259,9 @@ const en: Record<keyof typeof tr, string> = {
 
   'lib.definitions': 'Definitions (Aliases)',
   'lib.new_definition': 'New Definition',
+  'lib.open_in_playground': 'Open in Playground',
+  'lib.open_playground_incomplete': 'This image model is missing files it needs. Download the missing files from Model Hub.',
+  'lib.open_playground_failed': 'Could not open the Playground: {error}',
   'lib.no_definitions': 'This file has no definition. Create one to load it.',
   'lib.incomplete_hint': 'A definition can be created once the missing parts are downloaded.',
   'lib.definition_menu': 'Definition "{alias}"',

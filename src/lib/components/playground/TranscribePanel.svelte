@@ -8,6 +8,7 @@
   import type { GatewayOverview } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { domain } from '$lib/stores/domain.svelte';
+  import { libraryDefinitions } from '$lib/stores/downloads.svelte';
   import { Button } from '$lib/components/ui/button';
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import { familyFromError } from '$lib/engines';
@@ -39,6 +40,7 @@
   let sherpaModels = $derived(asr.models);
   let sherpaChosen = $derived(isSherpaChoice(speech.model, domain.definitions, asr.names));
   let noModel = $derived(models.length === 0 && sherpaModels.length === 0);
+  let noModelNotice = $derived(noModel && !libraryDefinitions.busy);
   let installingRuntime = $derived(tts.installingRuntime);
   let progressPct = $derived(
     asr.modelProgress && asr.modelProgress.total_bytes > 0 ? (asr.modelProgress.downloaded_bytes / asr.modelProgress.total_bytes) * 100 : 0,
@@ -204,7 +206,7 @@
       </Button>
     </div>
   {/if}
-  {#if noModel}
+  {#if noModelNotice}
     <div class="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground" role="status">
       <TriangleAlert class="mt-px size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       <span class="min-w-0 flex-1">{t('sasr.no_model')}</span>
