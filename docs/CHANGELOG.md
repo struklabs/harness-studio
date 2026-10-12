@@ -11,6 +11,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 ### Fixed
 - Gateway: parallel requests to a one-slot server no longer fail now and then with `upstream_unreachable` (502). The gateway reused a connection that the model server closes after a streamed answer.
 - GGUF conversion: the size estimate reads the repository's `config.json`, so the token embedding is counted. Small models were shown about a quarter smaller than the converted file.
+- GGUF conversion: the size estimate counts the wider type `llama-quantize` uses for matrices a k-quant cannot hold (rows not a multiple of 256, common in small models). SmolLM2-135M Q4_K_M: 103.2 MB estimated, 105.5 MB converted.
 - Fixed: a tool call right after an MCP server crashed could fail instead of restarting the server; the call now reconnects and is retried once.
 
 ## [0.1.0] - 2026-10-12

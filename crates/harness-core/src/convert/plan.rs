@@ -65,6 +65,10 @@ pub struct ConvertPlan {
     /// parameter count says.
     #[serde(default)]
     pub embedding_parameters: u64,
+    /// Weights of matrices whose rows are not a multiple of 256 (0 unknown or none): a k-quant
+    /// target cannot hold them, so `llama-quantize` stores them in a wider fallback type.
+    #[serde(default)]
+    pub fallback_parameters: u64,
     pub quants: Vec<QuantEstimate>,
     pub default_quant: String,
     /// Free bytes on the drive of the model library.
@@ -89,9 +93,10 @@ impl ConvertPlan {
             .find(|q| q.quant == quant)
             .cloned()
             .unwrap_or_else(|| {
-                estimate(
+                estimate_with(
                     self.parameters,
                     self.embedding_parameters,
+                    self.fallback_parameters,
                     self.download_bytes,
                     quant,
                 )
@@ -126,12 +131,39 @@ const EMBEDDING_BITS: f64 = 8.5;
 /// entries, several MB at 150k).
 const METADATA_BYTES: f64 = 2.0 * 1024.0 * 1024.0;
 
-/// Estimated result size and peak disk need of a run. `embedding_parameters`: the token
-/// embedding's weights (0 when the config does not say), which stay at a higher precision when
-/// the target is quantized.
+/// K-quant row size: `llama-quantize` stores a matrix whose rows are not a multiple of it in
+/// a fallback type instead.
+const QK_K: u64 = 256;
+
+/// Bits per weight of the type `llama-quantize` falls back to when a k-quant cannot hold a
+/// matrix (`Q4_K` -> `Q5_0`, `Q5_K` -> `Q5_1`, `Q6_K` -> `Q8_0`); `None` for the other types.
+fn fallback_bits(quant: &str) -> Option<f64> {
+    match quant {
+        "Q4_K_M" | "Q4_K_S" => Some(5.5),
+        "Q5_K_M" | "Q5_K_S" => Some(6.0),
+        "Q6_K" => Some(8.5),
+        _ => None,
+    }
+}
+
+/// [`estimate_with`] without fallback weights.
 pub fn estimate(
     parameters: u64,
     embedding_parameters: u64,
+    download_bytes: u64,
+    quant: &str,
+) -> QuantEstimate {
+    estimate_with(parameters, embedding_parameters, 0, download_bytes, quant)
+}
+
+/// Estimated result size and peak disk need of a run. `embedding_parameters`: the token
+/// embedding's weights (0 when the config does not say), which stay at a higher precision when
+/// the target is quantized. `fallback_parameters`: weights of matrices a k-quant cannot hold
+/// ([`fallback_parameters_of`]), counted at the fallback type.
+pub fn estimate_with(
+    parameters: u64,
+    embedding_parameters: u64,
+    fallback_parameters: u64,
     download_bytes: u64,
     quant: &str,
 ) -> QuantEstimate {
@@ -142,9 +174,15 @@ pub fn estimate(
         params * bpw / 8.0
     } else {
         let embedding = (embedding_parameters as f64).min(params);
-        (params - embedding) * bpw / 8.0
-            + embedding * bpw.max(EMBEDDING_BITS) / 8.0
-            + METADATA_BYTES
+        let body = params - embedding;
+        let (fallback, rest) = match fallback_bits(quant) {
+            Some(bits) => {
+                let n = (fallback_parameters as f64).min(body);
+                (n * bits / 8.0, body - n)
+            }
+            None => (0.0, body),
+        };
+        fallback + rest * bpw / 8.0 + embedding * bpw.max(EMBEDDING_BITS) / 8.0 + METADATA_BYTES
     };
     // Peak: the downloaded weights, the 16-bit GGUF, and the result next to it (a 16-bit
     // target is the 16-bit GGUF itself).
@@ -298,6 +336,35 @@ async fn fetch_config(repo_id: &str, info: &Value, token: Option<&str>) -> Optio
     res.json().await.ok()
 }
 
+/// Weights of the per-layer matrices whose rows are not a multiple of [`QK_K`], from the
+/// repo's config (0 when it does not say): the attention and gate / up projections read rows of
+/// `hidden_size`, the down projection rows of `intermediate_size`. SmolLM2-135M (hidden 576):
+/// 79.7 M of its 106 M body weights end up as `Q5_0` in a `Q4_K_M` file.
+fn fallback_parameters_of(info: &Value, parameters: u64, embedding_parameters: u64) -> u64 {
+    let Some(config) = info.get("config") else {
+        return 0;
+    };
+    let number = |key: &str| {
+        config
+            .get(key)
+            .or_else(|| config.get("text_config").and_then(|t| t.get(key)))
+            .and_then(Value::as_u64)
+    };
+    let (Some(hidden), Some(layers)) = (number("hidden_size"), number("num_hidden_layers")) else {
+        return 0;
+    };
+    let body = parameters.saturating_sub(embedding_parameters);
+    let down = number("intermediate_size").map_or(0, |i| layers * i * hidden);
+    let down_falls_back = number("intermediate_size").is_some_and(|i| i % QK_K != 0);
+    let n = match (hidden % QK_K != 0, down_falls_back) {
+        (true, true) => body,
+        (true, false) => body.saturating_sub(down),
+        (false, true) => down,
+        (false, false) => 0,
+    };
+    n.min(body)
+}
+
 fn architecture_of(info: &Value) -> Option<String> {
     info.get("config")
         .and_then(|c| c.get("architectures"))
@@ -341,6 +408,7 @@ pub fn build_plan(
     let download_bytes: u64 = files.iter().map(|f| f.size).sum();
     let parameters = parameters_of(info, &files);
     let embedding_parameters = embedding_parameters_of(info);
+    let fallback_parameters = fallback_parameters_of(info, parameters, embedding_parameters);
     let architecture = architecture_of(info);
     let task = info
         .get("pipeline_tag")
@@ -384,7 +452,15 @@ pub fn build_plan(
 
     let quants = CHOICES
         .iter()
-        .map(|c| estimate(parameters, embedding_parameters, download_bytes, c.name))
+        .map(|c| {
+            estimate_with(
+                parameters,
+                embedding_parameters,
+                fallback_parameters,
+                download_bytes,
+                c.name,
+            )
+        })
         .collect();
     ConvertPlan {
         repo_id: repo_id.to_string(),
@@ -399,6 +475,7 @@ pub fn build_plan(
         download_bytes,
         parameters,
         embedding_parameters,
+        fallback_parameters,
         quants,
         default_quant: DEFAULT_QUANT.to_string(),
         free_bytes,
