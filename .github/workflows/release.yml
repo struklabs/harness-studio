@@ -56,12 +56,12 @@ jobs:
             args: '--target x86_64-apple-darwin --bundles dmg'
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -127,7 +127,7 @@ jobs:
           done
           echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
