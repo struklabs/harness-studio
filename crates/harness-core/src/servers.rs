@@ -615,8 +615,12 @@ mod tests {
             let port = listener.local_addr().unwrap().port();
             taken(port);
             drop(listener);
-            if free(port) {
-                return;
+            // macOS can take a moment to release a just-closed listening socket; poll briefly.
+            for _ in 0..20 {
+                if free(port) {
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
             }
         }
         panic!("a released port was taken again every time");
