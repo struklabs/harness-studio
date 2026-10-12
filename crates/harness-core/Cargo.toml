@@ -29,7 +29,7 @@ tar = "0.4"
 # sherpa-onnx releases are `.tar.bz2`; the pure-Rust libbz2 port needs no C compiler.
 bzip2 = "0.6"
 serde_norway = "0.9.42"
-rusqlite = { version = "0.37", features = ["bundled"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
 uuid = { version = "1", features = ["v4"] }
 toml = "1"
 toml_edit = "0.25"
