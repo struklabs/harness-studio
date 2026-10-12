@@ -991,14 +991,34 @@ mod tests {
         let cap = unified_kv_cap(8 << 30).unwrap();
         assert!(f.whole, "{f:?}");
         assert_eq!((f.context, f.layers, f.slots), (12_288, 37, None), "{f:?}");
-        assert!(16_384 * QWEN3_4B_KV_F16_PER_TOKEN / 32 * 17 > cap, "q8_0 at 16k");
-        assert_eq!((f.cache_type_k, f.cache_type_v), (Some("q8_0"), Some("q8_0")));
+        assert!(
+            16_384 * QWEN3_4B_KV_F16_PER_TOKEN / 32 * 17 > cap,
+            "q8_0 at 16k"
+        );
+        assert_eq!(
+            (f.cache_type_k, f.cache_type_v),
+            (Some("q8_0"), Some("q8_0"))
+        );
         // f16 at this context would break the cap; q8_0 does not.
-        assert!(u64::from(f.context) * QWEN3_4B_KV_F16_PER_TOKEN > cap, "{f:?}");
+        assert!(
+            u64::from(f.context) * QWEN3_4B_KV_F16_PER_TOKEN > cap,
+            "{f:?}"
+        );
         let kv = r.kv.as_ref().unwrap();
-        assert_eq!(kv.level, crate::kv_policy::KvLevel::Balanced, "the launch's own choice");
-        assert!(r.estimate.kv_bytes <= cap, "{} > {cap}", r.estimate.kv_bytes);
-        assert!(r.estimate.kv_bytes < 8192 * QWEN3_4B_KV_F16_PER_TOKEN, "less than f16 at 8k");
+        assert_eq!(
+            kv.level,
+            crate::kv_policy::KvLevel::Balanced,
+            "the launch's own choice"
+        );
+        assert!(
+            r.estimate.kv_bytes <= cap,
+            "{} > {cap}",
+            r.estimate.kv_bytes
+        );
+        assert!(
+            r.estimate.kv_bytes < 8192 * QWEN3_4B_KV_F16_PER_TOKEN,
+            "less than f16 at 8k"
+        );
         assert!(unified_fits(&r, f.context));
         // The launch's KV policy picks the same types and turns flash attention on.
         let (_, meta) = shape_of("Qwen3-4B-Instruct-2507-Q4_K_M.gguf");
@@ -1063,7 +1083,10 @@ mod tests {
         // the card's own memory needs, as before.
         let (f, r) = default_load("Qwen3-4B-Instruct-2507-Q4_K_M.gguf", None, 4, true);
         assert_eq!(f.context, 12_288, "{f:?}");
-        assert_eq!((f.cache_type_k, f.cache_type_v), (Some("q8_0"), Some("q8_0")));
+        assert_eq!(
+            (f.cache_type_k, f.cache_type_v),
+            (Some("q8_0"), Some("q8_0"))
+        );
         assert_eq!(r, 36, "layers");
         // The unified limits hold only on Apple unified memory.
         let mut fit = crate::vram::fit_with(
