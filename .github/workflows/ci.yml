@@ -13,8 +13,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  # Superseded pull request runs are cancelled; every push to main runs to completion.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Smaller debug info keeps the test binaries within the runners' disk space.
