@@ -306,6 +306,30 @@ pub fn automatic_choice(
     )
 }
 
+/// The launch as Start runs it when its context is automatic (`ProcessManager::start`): the
+/// default chat context ([`default_context_for`]), shrunk on a small card so the whole model
+/// stays on the GPU, with one slot when only one keeps it there. For estimates of a form, which
+/// otherwise describe the full default context and its slot advice, not the load Start runs.
+/// Leaves `config` as it is when the context is set or the server is no llama.cpp chat one.
+/// Blocking.
+pub fn resolve_for_start(
+    config: &mut crate::process::LaunchConfig,
+    hw: &crate::hardware::SystemHardwareInfo,
+) {
+    let Some(context) = default_context_for(config) else {
+        return;
+    };
+    config.context_size = context;
+    if applies_to_start(config, true) {
+        apply_to_launch_with(
+            config,
+            context,
+            |c| crate::vram::fit_launch(c, hw),
+            os_need_limit(hw, 0),
+        );
+    }
+}
+
 /// Server-log line for a default context shrunk so more of the model stays on the GPU.
 pub fn full_offload_log_line(context: u32, requested: u32, lang: &str) -> String {
     if lang == "tr" {

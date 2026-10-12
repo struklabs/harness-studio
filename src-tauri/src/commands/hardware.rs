@@ -59,7 +59,10 @@ pub(crate) async fn estimate_launch_fit(
             &settings,
             resolved.runtime.as_deref(),
         )?;
-        Ok(crate::vram::fit_launch(&resolved, &detect_hardware()))
+        let hw = detect_hardware();
+        // An automatic context is estimated as Start resolves it (small-card full offload).
+        harness_core::full_offload::resolve_for_start(&mut resolved, &hw);
+        Ok(crate::vram::fit_launch(&resolved, &hw))
     })
     .await?
 }
@@ -138,7 +141,10 @@ pub(crate) async fn estimate_definition_load_fit(
             &settings,
             resolved.runtime.as_deref(),
         )?;
-        Ok(crate::vram::fit_launch(&resolved, &detect_hardware()))
+        let hw = detect_hardware();
+        // An automatic context is estimated as Start resolves it (small-card full offload).
+        harness_core::full_offload::resolve_for_start(&mut resolved, &hw);
+        Ok(crate::vram::fit_launch(&resolved, &hw))
     })
     .await?
 }
