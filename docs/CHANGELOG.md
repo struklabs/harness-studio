@@ -8,6 +8,9 @@ Release notes with system requirements and known limitations (English and Turkis
 
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
+### Fixed
+- GGUF conversion: the size estimate reads the repository's `config.json`, so the token embedding is counted. Small models were shown about a quarter smaller than the converted file.
+
 ## [0.1.0] - 2026-10-12
 
 First public release. Windows installer (NSIS) on GitHub Releases; Linux and macOS builds are coming soon.
