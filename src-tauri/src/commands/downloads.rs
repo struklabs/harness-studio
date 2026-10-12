@@ -39,6 +39,20 @@ pub(crate) async fn sync_image_definitions() -> Result<Vec<String>, String> {
     blocking(harness_core::image_bundles::sync_library_definitions).await?
 }
 
+/// Makes the default definition of every ready library file of `kinds` (image, speech,
+/// embedding, reranker) that was found by a scan and has none, so the Playground pickers and
+/// the gateway list it. Returns the aliases it created.
+#[tauri::command]
+pub(crate) async fn ensure_library_definitions(
+    kinds: Vec<harness_core::domain::ModelKind>,
+) -> Result<Vec<String>, String> {
+    blocking(move || {
+        let models = harness_core::models::ModelManager.scan_models();
+        harness_core::library_definitions::ensure(&models, &kinds)
+    })
+    .await?
+}
+
 /// Saves a generated image (base64 of a PNG, JPEG or WebP, as the gateway answered it) to a file
 /// the user picks. Returns the path, or `None` when the dialog was cancelled.
 #[tauri::command]

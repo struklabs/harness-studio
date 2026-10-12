@@ -1,0 +1,76 @@
+// Which library files the Playground and the gateway cannot reach yet, and where a library file
+// is opened in the Playground. Pure helpers (no stores, no IPC) so they can be unit-tested.
+import type { LocalModel, ModelDefinition, ModelKind } from './types';
+
+/** Kinds that are served through a model definition but get none from "Load and Chat". */
+export const DEFINITION_KINDS: readonly ModelKind[] = ['image', 'asr', 'embedding', 'reranker'];
+
+const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+
+/** A sherpa-onnx recognition model (ONNX): run per request, no definition. whisper.cpp's are ggml `.bin`. */
+function isOnnxAsr(file: Pick<LocalModel, 'kind' | 'path'>): boolean {
+  return file.kind === 'asr' && /\.onnx$/i.test(file.path);
+}
+
+/** Ready library files of `kinds` that no definition points at: the ones the pickers and `/v1/models` do not list yet. */
+export function filesNeedingDefinition(
+  files: readonly LocalModel[],
+  definitions: readonly ModelDefinition[],
+  kinds: readonly ModelKind[],
+): LocalModel[] {
+  const taken = new Set(definitions.flatMap((d) => (d.base.kind === 'local' ? [norm(d.base.path)] : [])));
+  return files.filter(
+    (f) =>
+      f.is_ready &&
+      !!f.kind &&
+      kinds.includes(f.kind) &&
+      DEFINITION_KINDS.includes(f.kind) &&
+      !isOnnxAsr(f) &&
+      !taken.has(norm(f.path)),
+  );
+}
+
+/** The kinds a Playground tab lists. */
+export function kindsForTab(tab: string): ModelKind[] {
+  switch (tab) {
+    case 'image':
+      return ['image'];
+    case 'transcription':
+      return ['asr'];
+    case 'embedding':
+      return ['embedding'];
+    case 'rerank':
+      return ['reranker'];
+    default:
+      return [];
+  }
+}
+
+export type PlaygroundTab = 'embedding' | 'rerank' | 'transcription' | 'image';
+
+/**
+ * The Playground tab a library file opens in, and whether it is picked by definition alias
+ * (`definition`) or by the name its engine lists it under (`name`: Kokoro / Piper voices and
+ * sherpa-onnx recognition models, which run per request). Null for files without a tab.
+ */
+export function playgroundTarget(
+  file: Pick<LocalModel, 'kind' | 'path' | 'is_ready'>,
+): { tab: PlaygroundTab; pick: 'definition' | 'name'; speech?: 'transcribe' | 'speak' } | null {
+  if (!file.is_ready) return null;
+  switch (file.kind) {
+    case 'image':
+      return { tab: 'image', pick: 'definition' };
+    case 'asr':
+      return isOnnxAsr(file)
+        ? { tab: 'transcription', pick: 'name', speech: 'transcribe' }
+        : { tab: 'transcription', pick: 'definition', speech: 'transcribe' };
+    case 'tts':
+      return { tab: 'transcription', pick: 'name', speech: 'speak' };
+    case 'embedding':
+      return { tab: 'embedding', pick: 'definition' };
+    case 'reranker':
+      return { tab: 'rerank', pick: 'definition' };
+    default:
+      return null;
+  }
+}

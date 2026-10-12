@@ -102,7 +102,7 @@ Belgenin yanındaki **Kullanım** seçimi belgenin nasıl kullanılacağını be
 
 ### Konuşmayı Yazıya Dökme
 
-1. **Model Hub**'da `whisper` aratın ve bir Whisper ggml modeli indirin. Türkçe veya başka diller için yalnızca İngilizce bilen bir model (`.en` modeli) seçmeyin.
+1. **Model Hub**'da `whisper` aratın ve bir Whisper ggml modeli indirin. Klasörlerinizde zaten bulunan bir `ggml-*.bin` dosyası **Model** listesinde kendiliğinden görünür. Türkçe veya başka diller için yalnızca İngilizce bilen bir model (`.en` modeli) seçmeyin.
 2. whisper.cpp motorunu kurun: Kütüphane kartında, Model Hub'da ya da bu sekmedeki hata mesajında görünen **whisper.cpp Kur** düğmesine basın; **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasındaki **Diğer Model Motorları** listesinden de kurabilirsiniz. macOS'ta hazır bir whisper sunucu paketi yoktur; kendi derlediğiniz bir `whisper-server`'ın klasörünü ekleyebilirsiniz.
 3. **Playground > Konuşma** sekmesini açın.
 4. Bir **Model** seçin. **Dosya Seç** ile ses ekleyin ya da **Kaydet** ile mikrofon kaydını başlatıp **Durdur** ile bitirin. İşletim sistemi mikrofon izni isteyebilir.
@@ -119,7 +119,7 @@ WAV, MP3, FLAC ve Ogg doğrudan okunur. M4A, WebM ve Opus gibi biçimler ffmpeg 
 
 ## Görsel Üretme
 
-**Görsel** sekmesi, stable-diffusion.cpp üzerinden difüzyon modellerinden resim üretir. Model Hub'dan bir görsel modeli indirin (VAE ve metin kodlayıcılar gibi gereken ek dosyalar onunla birlikte gelir) ve istendiğinde **Görsel modülü (stable-diffusion.cpp)** kurun. Ağ geçidini açın, **Model**'i seçin ve bir **Prompt** yazın (isteğe bağlı olarak bir **Olmaması Gerekenler** alanı da doldurulabilir). **Boyut**, **Adım**, **Tohum**, **Adet** ve **CFG Ölçeği** ayarlanabilir; boş alanlarda modelin kendi değerleri kullanılır. **Üret**'e basın: model ilk istekte yüklenir. Resimler **Üretilenler** altında görünür ve yalnızca bu oturum boyunca saklanır; bir tanesini tutmak için **Kaydet**'i kullanın.
+**Görsel** sekmesi, stable-diffusion.cpp üzerinden difüzyon modellerinden resim üretir. Model Hub'dan bir görsel modeli indirin (VAE ve metin kodlayıcılar gibi gereken ek dosyalar onunla birlikte gelir) ya da klasörlerinizde zaten bulunan birini kullanın: **Model** listesinde kendiliğinden görünür ve kütüphane kartındaki **Playground'da Aç** bu sekmeyi o model seçili olarak açar. Dosya orada olduğu halde liste boş kalıyorsa gereken ek dosyalardan bazıları eksiktir; sekme bunu belirtir ve istendiğinde **Görsel modülü (stable-diffusion.cpp)** kurun. Ağ geçidini açın, **Model**'i seçin ve bir **Prompt** yazın (isteğe bağlı olarak bir **Olmaması Gerekenler** alanı da doldurulabilir). **Boyut**, **Adım**, **Tohum**, **Adet** ve **CFG Ölçeği** ayarlanabilir; boş alanlarda modelin kendi değerleri kullanılır. **Üret**'e basın: model ilk istekte yüklenir. Resimler **Üretilenler** altında görünür ve yalnızca bu oturum boyunca saklanır; bir tanesini tutmak için **Kaydet**'i kullanın.
 
 Ayrıca [Araçlar başvurusuna](../../tr/TOOLS.md) ve [Özellikler başvurusuna](../../tr/FEATURES.md) bakın.
 

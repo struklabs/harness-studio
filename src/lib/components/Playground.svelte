@@ -52,6 +52,8 @@
   import { gatewayModelStates, type GatewayModelEntry, type ModelLoadState } from './playground/gatewayModels';
   import EmbeddingPanel from './playground/EmbeddingPanel.svelte';
   import RerankPanel from './playground/RerankPanel.svelte';
+  import { ensureLibraryDefinitions } from '$lib/stores/downloads.svelte';
+  import { kindsForTab } from '$lib/libraryDefinitions';
   import TranscribePanel from './playground/TranscribePanel.svelte';
   import ImagePanel from './playground/ImagePanel.svelte';
   import { imageSession } from './playground/image.svelte';
@@ -264,6 +266,13 @@
     if (!tab) return;
     app.requestedPlaygroundTab = null;
     pgTab = tab;
+    const alias = app.requestedPlaygroundModel;
+    app.requestedPlaygroundModel = null;
+    if (alias && (tab === 'embedding' || tab === 'rerank')) modeModels[tab] = alias;
+  });
+  // Embedding / Rerank list definitions: library files found by a scan get their default one first.
+  $effect(() => {
+    void ensureLibraryDefinitions(kindsForTab(pgTab));
   });
   // The Speech tab's "Add to chat": the transcript goes into the draft, the composer gets focus.
   $effect(() => {
