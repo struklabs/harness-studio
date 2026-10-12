@@ -326,6 +326,47 @@ pub fn specs() -> &'static [VariantSpec] {
     SPECS
 }
 
+/// Whether ONNX Runtime runs here at all: this OS/architecture has at least one pinned build.
+/// Intel Macs have none (Microsoft's last x86_64 / universal2 macOS release is 1.23.2, below
+/// the API level 24 the sidecar asks for), so ONNX models cannot run there.
+pub fn supported() -> bool {
+    !specs().is_empty()
+}
+
+/// [`supported`] with the OS and architecture it was decided for (the UI names them).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct PlatformSupport {
+    pub supported: bool,
+    /// `std::env::consts::OS` (`macos`, `windows`, `linux`).
+    pub os: String,
+    /// `std::env::consts::ARCH` (`x86_64`, `aarch64`).
+    pub arch: String,
+}
+
+pub fn platform_support() -> PlatformSupport {
+    PlatformSupport {
+        supported: supported(),
+        os: std::env::consts::OS.to_string(),
+        arch: std::env::consts::ARCH.to_string(),
+    }
+}
+
+/// The error for a build this platform does not have: `onnx.platform_unsupported` when it has
+/// none at all, else `onnx.unsupported_platform` for that one variant.
+fn no_spec(variant: OrtVariant) -> String {
+    if supported() {
+        err("onnx.unsupported_platform")
+            .with("variant", variant.as_str())
+            .into()
+    } else {
+        err("onnx.platform_unsupported")
+            .with("os", std::env::consts::OS)
+            .with("arch", std::env::consts::ARCH)
+            .into()
+    }
+}
+
 pub fn spec_for(variant: OrtVariant) -> Option<&'static VariantSpec> {
     specs().iter().find(|s| s.variant == variant)
 }
@@ -474,9 +515,7 @@ pub fn verify_in(root: &Path, variant: OrtVariant) -> Result<Vec<String>, String
 
 /// Removes an installed build.
 pub fn remove_in(root: &Path, variant: OrtVariant) -> Result<(), String> {
-    let spec = spec_for(variant).ok_or_else(|| {
-        String::from(err("onnx.unsupported_platform").with("variant", variant.as_str()))
-    })?;
+    let spec = spec_for(variant).ok_or_else(|| no_spec(variant))?;
     let dir = dir_of(root, spec);
     if dir.exists() {
         std::fs::remove_dir_all(&dir).map_err(|e| {
@@ -682,9 +721,7 @@ async fn fetch_zip_files(
 
 /// Installs `variant` under `root` (a no-op when it is already complete).
 pub async fn install_in(root: &Path, variant: OrtVariant) -> Result<Installed, String> {
-    let spec = spec_for(variant).ok_or_else(|| {
-        String::from(err("onnx.unsupported_platform").with("variant", variant.as_str()))
-    })?;
+    let spec = spec_for(variant).ok_or_else(|| no_spec(variant))?;
     let _one_at_a_time = INSTALLING.lock().await;
     if let Some(done) = installed_in(root, variant) {
         return Ok(done);
@@ -806,6 +843,9 @@ pub async fn install(variant: OrtVariant) -> Result<Installed, String> {
 /// install it.
 pub fn lib_for_provider(choice: &str) -> Result<PathBuf, String> {
     let variant = variant_for_provider(choice);
+    if !supported() {
+        return Err(no_spec(variant));
+    }
     installed(variant).map(|i| i.lib).ok_or_else(|| {
         err("onnx.runtime_missing")
             .with("variant", variant.as_str())
