@@ -25,6 +25,7 @@
   import EffectiveValues from './dashboard/EffectiveValues.svelte';
   import LoraLiveScales from './dashboard/LoraLiveScales.svelte';
   import { capsStore } from '$lib/stores/caps.svelte';
+  import { runtimesStore } from '$lib/stores/runtimes.svelte';
   import LogConsole from './dashboard/LogConsole.svelte';
   import { serverLogs } from '$lib/stores/serverLogs.svelte';
   import { logFilter } from '$lib/stores/serverFilter.svelte';
@@ -299,11 +300,15 @@
 
   // Runtime capabilities of the binary the form's runtime selects (probed once per binary):
   // the parameter catalog is gated by that build's flags.
+  // A runtime that is installed, added or fixed after the first probe (first-run wizard) changes
+  // the registry: re-probe then, instead of keeping a stale "could not read" result.
   $effect(() => {
     const id = app.selectedServerId;
     const runtime = params.runtime || 'official';
+    void runtimesStore.list.map((r) => `${r.id}|${r.available}|${r.binary_path ?? ''}|${r.version?.build ?? ''}`).join(',');
     untrack(() => capsStore.load(id, false, runtime));
   });
+  onMount(() => void runtimesStore.load());
 
   // Feature levels depend on the model, the mmproj and what the last run verified.
   $effect(() => {
