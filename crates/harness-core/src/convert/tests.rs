@@ -213,6 +213,7 @@ fn smol_config() -> serde_json::Value {
         "model_type": "llama",
         "vocab_size": 49152,
         "hidden_size": 576,
+        "intermediate_size": 1536,
         "num_hidden_layers": 30
     })
 }
@@ -254,10 +255,15 @@ fn a_supported_repo_is_convertible_with_size_estimates() {
     let q4 = plan.estimate("Q4_K_M");
     let f16 = plan.estimate("F16");
     // 134.5 M weights, 28.3 M of them the token embedding (kept at a higher precision):
-    // measured 100.6 MiB (105.5 MB) for Q4_K_M, within 10%; ~269 MB at 16 bits.
+    // the attention and gate / up matrices (rows of 576, not a multiple of 256) fall back to
+    // Q5_0. Measured 105,453,984 bytes for Q4_K_M (b11342): within 3%; ~269 MB at 16 bits.
     assert_eq!(plan.embedding_parameters, 49_152 * 576);
+    assert_eq!(
+        plan.fallback_parameters,
+        134_515_008 - 49_152 * 576 - 30 * 1536 * 576
+    );
     assert!(
-        (94_900_000..116_100_000).contains(&q4.size_bytes),
+        (102_290_000..108_620_000).contains(&q4.size_bytes),
         "{}",
         q4.size_bytes
     );
@@ -292,6 +298,12 @@ fn the_size_estimate_needs_the_repo_config_the_hub_record_leaves_out() {
     assert_eq!(plan.embedding_parameters, 49_152 * 576);
     assert!(plan.estimate("Q4_K_M").size_bytes > 94_900_000);
     // A record without any config gets one.
+    // A hidden size that is a multiple of 256 (Llama-3.2-1B: 2048 / 8192): nothing falls back.
+    let mut llama = smol_info();
+    llama["config"]["hidden_size"] = json!(2048);
+    llama["config"]["intermediate_size"] = json!(8192);
+    let plan = plan_for(&llama, Some(&archs), 50_000_000_000);
+    assert_eq!(plan.fallback_parameters, 0);
     let mut none = json!({"siblings": []});
     merge_config(&mut none, smol_config());
     assert_eq!(none["config"]["hidden_size"], 576);

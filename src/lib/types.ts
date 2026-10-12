@@ -2400,6 +2400,8 @@ export interface ConvertPlan {
   parameters: number;
   /** vocab_size x hidden_size of the config (0 unknown). */
   embedding_parameters?: number;
+  /** Weights a k-quant cannot hold (rows not a multiple of 256), stored in a fallback type. */
+  fallback_parameters?: number;
   quants: ConvertQuantEstimate[];
   default_quant: string;
   free_bytes: number;
