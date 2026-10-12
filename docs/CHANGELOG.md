@@ -8,6 +8,8 @@ Release notes with system requirements and known limitations (English and Turkis
 
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
+- Fixed: a tool call right after an MCP server crashed could fail instead of restarting the server; the call now reconnects and is retried once.
+
 ## [0.1.0] - 2026-10-12
 
 First public release. Windows installer (NSIS) on GitHub Releases; Linux and macOS builds are coming soon.
