@@ -24,7 +24,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ## [0.1.0] - 2026-10-12
 
-First public release. Windows installer (NSIS) and signed, notarized macOS DMGs (Apple Silicon and Intel) on GitHub Releases; Linux builds are coming soon.
+First public release. Windows installer (NSIS) and signed, notarized macOS DMGs (Apple Silicon and Intel) on GitHub Releases; Linux `.deb` and AppImage as a preview.
 
 ### Model discovery and library
 - Model Hub: Hugging Face search with filters, model cards, quantization variants, and a "fits your hardware" indication.
@@ -84,7 +84,7 @@ First public release. Windows installer (NSIS) and signed, notarized macOS DMGs 
 
 ### Known limitations
 - The Windows installer is unsigned; SmartScreen may show a warning (**More info > Run anyway**).
-- Linux builds are not yet verified on real machines and are not offered as downloads.
+- The Linux packages are a preview, tested on one Ubuntu 24.04 machine so far.
 
 [Unreleased]: https://github.com/struklabs/harness-studio/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/struklabs/harness-studio/releases/tag/v0.1.0
