@@ -597,6 +597,19 @@ fn login_shell_path_if_known() -> &'static [PathBuf] {
     LOGIN_SHELL_PATH.get().map(Vec::as_slice).unwrap_or(&[])
 }
 
+/// The login shell's `PATH` folders, asked now rather than cached (a profile may just have
+/// changed). Empty on other systems or when the shell does not answer.
+pub fn login_shell_path_now() -> Vec<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        query_login_shell_path()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Vec::new()
+    }
+}
+
 /// After a lookup on [`search_path`] missed: macOS asks the login shell for its `PATH` (once
 /// per process) and returns `file_name` in its folders. `None` elsewhere.
 fn find_on_login_shell_path(file_name: &str) -> Option<PathBuf> {
