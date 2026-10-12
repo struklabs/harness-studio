@@ -36,7 +36,7 @@
     "@tauri-apps/plugin-opener": "^2",
     "dompurify": "^3.4.16",
     "marked": "^18.0.14",
-    "mermaid": "^12.0.0"
+    "mermaid": "^12.1.0"
   },
   "devDependencies": {
     "@internationalized/date": "^3.12.4",
