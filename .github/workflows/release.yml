@@ -5,14 +5,21 @@ name: Release
 # DRAFT GitHub release with the installers, the updater signatures and `latest.json`. Review the
 # draft and publish it to roll it out. To rebuild an existing tag, run the workflow by hand with
 # the `tag` input: it checks out that tag and uploads to its release.
-# The macOS DMGs are ad-hoc signed (`signingIdentity: "-"` in src-tauri/tauri.macos.conf.json)
-# and not notarized, so Gatekeeper asks for confirmation on the first open.
+# The macOS DMGs are signed with the Developer ID certificate and notarized by Apple when the
+# APPLE_* secrets below are set; without them they fall back to the ad-hoc signature
+# (`signingIdentity: "-"` in src-tauri/tauri.macos.conf.json) and Gatekeeper asks for
+# confirmation on the first open.
 # Linux builds are not published yet; add entries to the matrix below when they are verified
 # (the bundle targets are already configured in src-tauri/tauri.conf.json).
 #
 # Repository secrets (Settings > Secrets and variables > Actions):
 #   TAURI_SIGNING_PRIVATE_KEY           contents of the updater signing key (`npm run tauri signer generate`)
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password (empty if generated with --ci)
+#   APPLE_CERTIFICATE                   base64 of the Developer ID Application certificate (.p12)
+#   APPLE_CERTIFICATE_PASSWORD          the .p12 password
+#   APPLE_SIGNING_IDENTITY              "Developer ID Application: <name> (<team id>)"
+#   APPLE_API_ISSUER, APPLE_API_KEY     App Store Connect API key (issuer id, key id) for notarization
+#   APPLE_API_KEY_P8                    contents of that key's AuthKey_<key id>.p8
 # Without TAURI_SIGNING_PRIVATE_KEY the installer is still built, but no updater artifacts or
 # latest.json are produced. This workflow never runs for pull requests, so fork PRs get no secrets.
 
@@ -93,13 +100,40 @@ jobs:
             echo "::notice::TAURI_SIGNING_PRIVATE_KEY is not set: building without updater artifacts."
           fi
 
+      # macOS: Developer ID signing and notarization, only when all Apple secrets are defined.
+      # Tauri imports the certificate into a temporary keychain and notarizes with the API key.
+      - name: Apple signing secrets (only when defined)
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          S_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          S_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          S_APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          S_APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          S_APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          S_APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: |
+          if [ -z "$S_APPLE_CERTIFICATE" ] || [ -z "$S_APPLE_SIGNING_IDENTITY" ] || [ -z "$S_APPLE_API_KEY_P8" ]; then
+            echo "::notice::Apple secrets are not set: the DMG is ad-hoc signed and not notarized."
+            exit 0
+          fi
+          key_path="$RUNNER_TEMP/AuthKey_${S_APPLE_API_KEY}.p8"
+          printf '%s\n' "$S_APPLE_API_KEY_P8" > "$key_path"
+          chmod 600 "$key_path"
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_API_ISSUER APPLE_API_KEY; do
+            value="S_$name"
+            d="EOF_${RANDOM}${RANDOM}${RANDOM}"
+            { echo "$name<<$d"; echo "${!value}"; echo "$d"; } >> "$GITHUB_ENV"
+          done
+          echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: 'Harness Studio ${{ inputs.tag || github.ref_name }}'
-          releaseBody: 'Windows: download the installer (`*-setup.exe`) below. It is not code-signed yet: if SmartScreen warns you, choose "More info" and then "Run anyway". macOS 13.3 or later: download `*_aarch64.dmg` for Apple Silicon or `*_x64.dmg` for Intel, open it and drag Harness Studio to Applications. The app is not notarized, so the first open is blocked: on macOS 15 or later choose "Done" in the warning, then go to System Settings > Privacy & Security and click "Open Anyway" (on macOS 13 and 14, right-click the app and choose "Open" also works). See the changelog for what is new.'
+          releaseBody: 'Windows: download the installer (`*-setup.exe`) below. It is not code-signed yet: if SmartScreen warns you, choose "More info" and then "Run anyway". macOS 13.3 or later: download `*_aarch64.dmg` for Apple Silicon or `*_x64.dmg` for Intel, open it and drag Harness Studio to Applications. The app is signed with a Developer ID and notarized by Apple. See the changelog for what is new.'
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: ${{ steps.secrets.outputs.has_updater_key == 'true' }}
