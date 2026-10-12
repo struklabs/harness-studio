@@ -8,6 +8,9 @@ Release notes with system requirements and known limitations (English and Turkis
 
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
+### Fixed
+- Gateway: parallel requests to a one-slot server no longer fail now and then with `upstream_unreachable` (502). The gateway reused a connection that the model server closes after a streamed answer.
+
 ## [0.1.0] - 2026-10-12
 
 First public release. Windows installer (NSIS) on GitHub Releases; Linux and macOS builds are coming soon.
