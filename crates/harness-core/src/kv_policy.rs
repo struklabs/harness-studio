@@ -28,6 +28,11 @@
 //!   fast as f16 or faster (`docs/en/PERFORMANCE.md` "Metal").
 //! - On **ROCm** the ladder also uses equal pairs only (decision 06.10): mixed pairs lose
 //!   20-33 % generation speed at depth 16k; q4_0 / q4_0 keeps speed but lowers K precision.
+//! - On **Apple unified memory** a rung must also leave macOS its share of RAM and, on Macs up
+//!   to 16 GB, keep the cache under the default load's cap (one eighth of RAM, contexts above
+//!   8k; [`crate::full_offload::unified_fits`]). Measured on an 8 GB M1: f16 fit Metal's working
+//!   set but not the cap, so the default load of Qwen3-4B fell to 8k; q8_0 / q8_0 at the same
+//!   context stays under it. Only with flash attention (the q8_0 / f16 step is slow on Metal).
 //! - **Explicit** choices (Full / Balanced / Saver or custom K/V types) are used as given.
 //! - A quantized V cache needs flash attention (llama.cpp refuses to start otherwise, and
 //!   `-fa auto` can resolve to off): it is launched with `--flash-attn on`; when the user's
@@ -307,6 +312,15 @@ pub fn choose(
     // CUDA, Metal and ROCm are slow with mixed pairs. Apple Silicon is the unified budget that is not
     // an integrated GPU's share of RAM.
     let ladder = ladder_for(budget, v_quant_ok);
+    // Apple unified memory: a rung must also leave macOS its share and stay under the cache cap
+    // of a small Mac (`full_offload::unified_fits`), so f16 that only fits Metal's working set
+    // gives way to q8_0 / q8_0 at the same context instead of the default load stepping the
+    // context down. Only where V can be quantized: without flash attention the next rung is the
+    // slow mixed q8_0 / f16 pair, and the context steps down as before.
+    let unified_rule = v_quant_ok && budget.unified && !budget.shared_igpu;
+    let ok = |r: &FitResult| {
+        fits(r) && (!unified_rule || crate::full_offload::unified_fits(r, input.context_size))
+    };
     let full = eval(KvLevel::Full);
     let kv_f16 = full.estimate.kv_bytes;
     let pick = |level: KvLevel, reason: KvReason, r: FitResult| {
@@ -324,13 +338,13 @@ pub fn choose(
             r,
         )
     };
-    if fits(&full) {
+    if ok(&full) {
         return pick(KvLevel::Full, KvReason::Fits, full);
     }
     let mut last = None;
     for &level in ladder.iter().skip(1) {
         let r = eval(level);
-        if fits(&r) {
+        if ok(&r) {
             return pick(level, KvReason::ToFit, r);
         }
         last = Some((level, r));
