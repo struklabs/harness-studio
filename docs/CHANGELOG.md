@@ -9,6 +9,7 @@ Release notes with system requirements and known limitations (English and Turkis
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Fixed
+- Gateway: parallel requests to a one-slot server no longer fail now and then with `upstream_unreachable` (502). The gateway reused a connection that the model server closes after a streamed answer.
 - GGUF conversion: the size estimate reads the repository's `config.json`, so the token embedding is counted. Small models were shown about a quarter smaller than the converted file.
 - Fixed: a tool call right after an MCP server crashed could fail instead of restarting the server; the call now reconnects and is retried once.
 

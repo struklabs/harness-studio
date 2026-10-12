@@ -175,7 +175,13 @@ pub struct GatewayServer {
 fn upstream_client() -> reqwest::Client {
     reqwest::Client::builder()
         .connect_timeout(std::time::Duration::from_secs(5))
-        .pool_idle_timeout(std::time::Duration::from_secs(30))
+        // No pooled connections. llama-server closes the connection after a streamed answer
+        // while its headers still say keep-alive (`timeout=5, max=100`); a request sent on it
+        // right after the stream ends fails with "error sending request" (502
+        // `upstream_unreachable`). On a one-slot server that is the queued request released
+        // by that very stream: one of four parallel streams failed every few rounds. Upstreams
+        // are on loopback, so a new connection per request costs next to nothing.
+        .pool_max_idle_per_host(0)
         // Loopback upstreams only: never through a system proxy.
         .no_proxy()
         .build()
