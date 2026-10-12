@@ -66,14 +66,16 @@ export function isGeneralChatRepo(repoId: string): boolean {
  */
 const ORG = '((qwen|google|meta-llama|mistralai|microsoft)[_-])?';
 const FAMILIES: RegExp[] = [
-  new RegExp(`^${ORG}qwen3(?![-_.]?(coder|vl))`, 'i'),
+  // The non-thinking Qwen3 releases; plain Qwen3 models think by default (slow, verbose).
+  new RegExp(`^${ORG}qwen3-.*instruct-2507`, 'i'),
   new RegExp(`^${ORG}gemma-?[34]-.*it`, 'i'),
+  new RegExp(`^${ORG}qwen3(?![-_.]?(coder|vl))`, 'i'),
   new RegExp(`^${ORG}(meta-)?llama-?3(\\.\\d)?-.*instruct`, 'i'),
   new RegExp(`^${ORG}(ministral|mistral).*instruct`, 'i'),
   new RegExp(`^${ORG}phi-?4-mini.*instruct`, 'i'),
 ];
 
-/** Rank of the family of a repo (0 = Qwen3 ... 4 = Phi-4-mini), -1 when it is none of them. */
+/** Rank of the family of a repo (0 = Qwen3 Instruct-2507, 1 = Gemma, 2 = hybrid Qwen3 ... 5 = Phi-4-mini), -1 when none. */
 export function familyRank(repoId: string): number {
   if (!isGeneralChatRepo(repoId)) return -1;
   const name = repoId.split('/').pop() ?? repoId;
@@ -97,7 +99,7 @@ export interface ChatCandidate extends Pickable {
 /**
  * The chat pick: official general instruct releases only (any other general repo only when none
  * of those exists). Of those that fit the GPU fully and stay under the comfort size, the best
- * family (Qwen3, Gemma, Llama, Mistral, Phi) and in it the largest file; otherwise the best fit
+ * family (Qwen3 Instruct-2507, Gemma, hybrid Qwen3, Llama, Mistral, Phi) and in it the largest file; otherwise the best fit
  * tier, then the best family, then the smallest file.
  */
 export function pickChat<T extends ChatCandidate>(found: T[]): T | null {

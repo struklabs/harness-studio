@@ -51,7 +51,7 @@ test('chat picks a modest known instruct model, not the 9 GB coder', () => {
     { repoId: 'unsloth/gemma-3-27b-it-GGUF', category: 'full_gpu', sizeBytes: 16 * GIB },
     { repoId: 'someone/random-finetune-GGUF', category: 'full_gpu', sizeBytes: 5.5 * GIB },
   ];
-  assert.equal(pickChat(found).repoId, 'unsloth/Qwen3-8B-GGUF');
+  assert.equal(pickChat(found).repoId, 'unsloth/Qwen3-4B-Instruct-2507-GGUF');
 });
 
 test('chat on a small card takes the best fitting known model, smallest file when nothing is comfortable', () => {
@@ -73,19 +73,25 @@ test('chat skips reasoning distills, fine-tunes and merges', () => {
   assert.equal(isKnownChatFamily('someone/Hermes-Qwen3-8B-GGUF'), false);
 });
 
-test('official instruct releases rank Qwen3, Gemma, Llama, Mistral, Phi', () => {
-  const ids = ['unsloth/Qwen3-4B-Instruct-2507-GGUF', 'bartowski/google_gemma-3-4b-it-GGUF', 'bartowski/Llama-3.2-3B-Instruct-GGUF', 'bartowski/Ministral-8B-Instruct-2410-GGUF', 'unsloth/Phi-4-mini-instruct-GGUF'];
-  assert.deepEqual(ids.map(familyRank), [0, 1, 2, 3, 4]);
+test('official instruct releases rank Qwen3 Instruct-2507, Gemma, hybrid Qwen3, Llama, Mistral, Phi', () => {
+  const ids = ['unsloth/Qwen3-4B-Instruct-2507-GGUF', 'bartowski/google_gemma-3-4b-it-GGUF', 'unsloth/Qwen3-8B-GGUF', 'bartowski/Llama-3.2-3B-Instruct-GGUF', 'bartowski/Ministral-8B-Instruct-2410-GGUF', 'unsloth/Phi-4-mini-instruct-GGUF'];
+  assert.deepEqual(ids.map(familyRank), [0, 1, 2, 3, 4, 5]);
+  assert.equal(familyRank('unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF'), 0);
 });
 
-test('chat picks Qwen3 over other families, and not the reasoning distill', () => {
+test('chat picks the non-thinking Qwen3 Instruct-2507, then Gemma, before hybrid Qwen3', () => {
   const found = [
     { repoId: 'unsloth/DeepSeek-R1-0528-Qwen3-8B-GGUF', category: 'full_gpu', sizeBytes: 4.7 * GIB },
     { repoId: 'unsloth/gemma-3-12b-it-GGUF', category: 'full_gpu', sizeBytes: 5.9 * GIB },
     { repoId: 'unsloth/Qwen3-4B-Instruct-2507-GGUF', category: 'full_gpu', sizeBytes: 2.5 * GIB },
     { repoId: 'unsloth/Qwen3-8B-GGUF', category: 'full_gpu', sizeBytes: 5 * GIB },
   ];
-  assert.equal(pickChat(found).repoId, 'unsloth/Qwen3-8B-GGUF');
+  assert.equal(pickChat(found).repoId, 'unsloth/Qwen3-4B-Instruct-2507-GGUF');
+  // Without the 2507 release Gemma beats the plain hybrid Qwen3.
+  assert.equal(pickChat(found.filter((c) => !c.repoId.includes('2507'))).repoId, 'unsloth/gemma-3-12b-it-GGUF');
+  // The 30B-A3B is far above the comfort size: the 4B stays the pick.
+  const big = [...found, { repoId: 'unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF', category: 'full_gpu', sizeBytes: 18 * GIB }];
+  assert.equal(pickChat(big).repoId, 'unsloth/Qwen3-4B-Instruct-2507-GGUF');
   // 4 GB card: only the 4B instruct fits whole.
   const small = [
     { repoId: 'unsloth/Qwen3-8B-GGUF', category: 'hybrid', sizeBytes: 5 * GIB },
