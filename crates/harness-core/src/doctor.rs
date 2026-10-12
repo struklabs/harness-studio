@@ -945,6 +945,10 @@ mod tests {
         );
     }
 
+    // Not on Windows: a test binary listening on every interface opens a Windows Firewall
+    // prompt on each new build, which also steals focus from UI automation. The regression
+    // it guards is macOS-only (SO_REUSEADDR); Linux runs it too.
+    #[cfg(not(windows))]
     #[test]
     fn a_wildcard_listener_counts_as_in_use() {
         // macOS lets 127.0.0.1 bind next to it (SO_REUSEADDR), so a bind alone said "free".
