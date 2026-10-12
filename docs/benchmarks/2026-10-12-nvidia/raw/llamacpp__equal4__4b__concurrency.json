@@ -1,0 +1,302 @@
+{
+ "rounds": [
+  {
+   "wall_s": 9.137184699997306,
+   "completion_tokens": 1024,
+   "aggregate_tps": 112.0695305634242,
+   "per_request": [
+    {
+     "ok": true,
+     "ttft": 0.6474998000776395,
+     "ttfb": 0.647482700063847,
+     "wall": 9.136241400032304,
+     "decode_tps": 30.041762998576647,
+     "completion_tokens": 256,
+     "prompt_tokens": 42,
+     "server_decode_tps": 30.050750414376278,
+     "server_prompt_tps": 129.19149919935268,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "On the jagged coast of northern Scotland, where the sea roared like a wounded beast and the wind carried the scent of sa"
+    },
+    {
+     "ok": true,
+     "ttft": 0.6479605999775231,
+     "ttfb": 0.6479442999698222,
+     "wall": 9.136171799967997,
+     "decode_tps": 30.042464493338873,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "server_decode_tps": 30.050690211323523,
+     "server_prompt_tps": 125.54842606385326,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Sahel, where the sun bleeds gold over endless dunes and the wind carries whispers of forgotten gods,"
+    },
+    {
+     "ok": true,
+     "ttft": 0.6463426999980584,
+     "ttfb": 0.6463200999423862,
+     "wall": 9.13628879992757,
+     "decode_tps": 30.048666112786904,
+     "completion_tokens": 256,
+     "prompt_tokens": 42,
+     "server_decode_tps": 30.049178131410123,
+     "server_prompt_tps": 129.66672240060873,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "In the heart of the cobblestone district of Elderglen, where fog clung to the rooftops like a forgotten memory, stood a "
+    },
+    {
+     "ok": true,
+     "ttft": 0.6470686999382451,
+     "ttfb": 0.6470449999906123,
+     "wall": 9.135962200001813,
+     "decode_tps": 30.050030118225788,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "server_decode_tps": 30.049996122961282,
+     "server_prompt_tps": 129.44675139751394,
+     "server_cache_n": 3,
+     "cached_tokens": 3,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Carpathian Mountains, where snow-draped peaks pierced the sky like ancient sentinels and the wind wh"
+    }
+   ],
+   "latency_median_s": 9.13620660000015,
+   "latency_max_s": 9.13628879992757,
+   "ttft_median_s": 0.6472842500079423,
+   "ttft_max_s": 0.6479605999775231,
+   "errors": []
+  },
+  {
+   "wall_s": 9.203790899948217,
+   "completion_tokens": 1024,
+   "aggregate_tps": 111.2585032767054,
+   "per_request": [
+    {
+     "ok": true,
+     "ttft": 0.6812919999938458,
+     "ttfb": 0.6812772999983281,
+     "wall": 9.201586000039242,
+     "decode_tps": 29.92984655231504,
+     "completion_tokens": 256,
+     "prompt_tokens": 43,
+     "server_decode_tps": 29.92957395192794,
+     "server_prompt_tps": 118.14207948235594,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "On the jagged coast of northern Scotland, where the sea roared like a wounded beast and the wind carried the scent of sa"
+    },
+    {
+     "ok": true,
+     "ttft": 0.6826330000767484,
+     "ttfb": 0.6826179000781849,
+     "wall": 9.202616999973543,
+     "decode_tps": 29.930295159625345,
+     "completion_tokens": 256,
+     "prompt_tokens": 42,
+     "server_decode_tps": 29.931709923465203,
+     "server_prompt_tps": 117.73727078968503,
+     "server_cache_n": 3,
+     "cached_tokens": 3,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Sahel, where the sun bleeds gold over endless dunes and the wind carries whispers of forgotten gods,"
+    },
+    {
+     "ok": true,
+     "ttft": 0.6807720999931917,
+     "ttfb": 0.680753399967216,
+     "wall": 9.201262300019152,
+     "decode_tps": 29.929017876633495,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "server_decode_tps": 29.928621997044225,
+     "server_prompt_tps": 112.23821195427962,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "In the heart of a fog-drenched city where cobblestone streets whispered secrets and gas lamps flickered like dying stars"
+    },
+    {
+     "ok": true,
+     "ttft": 0.6819085000315681,
+     "ttfb": 0.6818983999546617,
+     "wall": 9.202367400052026,
+     "decode_tps": 29.92908813152137,
+     "completion_tokens": 256,
+     "prompt_tokens": 40,
+     "server_decode_tps": 29.93036787943344,
+     "server_prompt_tps": 108.89720406428566,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Himalayas, where the sky bleeds into the peaks like a bruise, there stood the *Sangam Express*, a mo"
+    }
+   ],
+   "latency_median_s": 9.201976700045634,
+   "latency_max_s": 9.202616999973543,
+   "ttft_median_s": 0.681600250012707,
+   "ttft_max_s": 0.6826330000767484,
+   "errors": []
+  },
+  {
+   "wall_s": 9.214826700044796,
+   "completion_tokens": 1024,
+   "aggregate_tps": 111.12525860036219,
+   "per_request": [
+    {
+     "ok": true,
+     "ttft": 0.6799325000029057,
+     "ttfb": 0.6799159999936819,
+     "wall": 9.213354999898002,
+     "decode_tps": 29.8841997808491,
+     "completion_tokens": 256,
+     "prompt_tokens": 43,
+     "server_decode_tps": 29.884992003127728,
+     "server_prompt_tps": 118.0555345342709,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "On the jagged coast of northern Scotland, where the sea roared like a wounded beast and the wind howled through the clif"
+    },
+    {
+     "ok": true,
+     "ttft": 0.6794573999941349,
+     "ttfb": 0.6794356000609696,
+     "wall": 9.213376200059429,
+     "decode_tps": 29.88333720918782,
+     "completion_tokens": 256,
+     "prompt_tokens": 39,
+     "server_decode_tps": 29.884319556896404,
+     "server_prompt_tps": 109.07768755302386,
+     "server_cache_n": 3,
+     "cached_tokens": 3,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Sahel, where the sun blazed like a molten coin and the dunes stretched into infinity, a caravan move"
+    },
+    {
+     "ok": true,
+     "ttft": 0.6811939999461174,
+     "ttfb": 0.6811729999026284,
+     "wall": 9.213736100005917,
+     "decode_tps": 29.886805307264428,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "server_decode_tps": 29.885629454057522,
+     "server_prompt_tps": 111.83518516279577,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "In the heart of the fog-drenched city of Veridian, nestled between a shuttered apothecary and a bakery that never closed"
+    },
+    {
+     "ok": true,
+     "ttft": 0.6813012999482453,
+     "ttfb": 0.6812778000021353,
+     "wall": 9.213924899930134,
+     "decode_tps": 29.88581719198098,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "server_decode_tps": 29.886228402511943,
+     "server_prompt_tps": 114.70555386180395,
+     "server_cache_n": 3,
+     "cached_tokens": 3,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Himalayas, where the sky bleeds into the peaks like a bruise, there stood a mountain train known onl"
+    }
+   ],
+   "latency_median_s": 9.213556150032673,
+   "latency_max_s": 9.213924899930134,
+   "ttft_median_s": 0.6805632499745116,
+   "ttft_max_s": 0.6813012999482453,
+   "errors": []
+  }
+ ],
+ "summary": {
+  "aggregate_tps": 111.2585032767054,
+  "wall_s": 9.203790899948217,
+  "latency_median_s": 9.201976700045634,
+  "latency_max_s": 9.202616999973543,
+  "ttft_median_s": 0.6805632499745116,
+  "ttft_max_s": 0.6813012999482453,
+  "completion_tokens": 1024,
+  "errors": []
+ },
+ "meta": {
+  "backend": "llamacpp",
+  "mode": "equal4",
+  "model": "4b",
+  "endpoint_info": {
+   "args": [
+    "-m",
+    "C:\\Users\\user\\Documents\\Proje\\harness-studio\\scratch\\nv1012\\appdata\\com.harnessstudio.app\\models\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8090",
+    "-c",
+    "32768",
+    "-ngl",
+    "999",
+    "-fa",
+    "on",
+    "-ctk",
+    "f16",
+    "-ctv",
+    "f16",
+    "-np",
+    "4"
+   ],
+   "load_s": 3.89,
+   "probe_lines": [
+    "cmn common_init_: fitting params to device memory ...",
+    "cmn common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)",
+    "common_params_fit_impl: getting device memory data for initial parameters:",
+    "common_params_fit_impl: projected to use 7066 MiB of device memory vs. 3295 MiB of free device memory",
+    "common_params_fit_impl: cannot meet free memory target of 1024 MiB, need to reduce device memory by 4795 MiB",
+    "common_params_fit_impl: context size set by user to 32768 -> no change",
+    "common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 999, abort",
+    "common_fit_params: fitting params to free memory took 0.28 seconds",
+    "load_tensors: offloaded 37/37 layers to GPU",
+    "llama_context: n_seq_max = 4",
+    "llama_context: n_ctx = 32768",
+    "llama_context: n_ctx_seq = 8192",
+    "llama_context: flash_attn = enabled",
+    "llama_context: n_ctx_seq (8192) < n_ctx_train (262144) -- the full capacity of the model will not be utilized",
+    "llama_kv_cache: CUDA0 KV buffer size = 4608.00 MiB",
+    "slot load_model: id 0 | task -1 | new slot, n_ctx = 8192",
+    "slot load_model: id 1 | task -1 | new slot, n_ctx = 8192",
+    "slot load_model: id 2 | task -1 | new slot, n_ctx = 8192",
+    "slot load_model: id 3 | task -1 | new slot, n_ctx = 8192"
+   ],
+   "log_lines": [
+    "0.00.973.473 W common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 999, abort",
+    "0.03.718.471 I srv load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'false'"
+   ],
+   "props": {
+    "total_slots": 4,
+    "n_ctx": 8192,
+    "build_info": "b11026-b49650adb"
+   }
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 654
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 3923,
+   "shared_mib": 3349
+  },
+  "date": "2026-10-12 05:00:14",
+  "gpu_after_run": {
+   "dedicated_mib": 3923,
+   "shared_mib": 3349
+  },
+  "elapsed_s": 38.9
+ }
+}

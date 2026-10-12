@@ -1,0 +1,5 @@
+0.00.264.613 I srv  llama_server: initializing ...
+0.00.264.620 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.00.264.869 W srv  llama_server: security: no API key is set and CORS allows all origins (see https://github.com/ggml-org/llama.cpp/pull/25655)
+0.00.268.110 I srv    load_model: loading model 'D:/Models/Qwen/Qwen2.5-0.5B-Instruct-GGUF/qwen2.5-0.5b-instruct-q4_k_m.gguf'
+D:/a/llama.cpp/llama.cpp/ggml/src/ggml-backend.cpp:1081: pre-allocated tensor (cache_k_l0) in a buffer (Vulkan0) that cannot run the operation (NONE)

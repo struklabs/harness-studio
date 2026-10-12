@@ -1,0 +1,92 @@
+{
+ "target_tokens": 20000,
+ "runs": [
+  {
+   "ok": false,
+   "error": "HTTP 400: {\"error\":{\"code\":400,\"message\":\"request (19899 tokens) exceeds the available context size (16384 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":19899,\"n_ctx\":16384}}",
+   "wall": 0.2191709999460727,
+   "text_head": "",
+   "answer_correct": false,
+   "verdict": "error_reported"
+  },
+  {
+   "ok": false,
+   "error": "HTTP 400: {\"error\":{\"code\":400,\"message\":\"request (19968 tokens) exceeds the available context size (16384 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":19968,\"n_ctx\":16384}}",
+   "wall": 0.18690900004003197,
+   "text_head": "",
+   "answer_correct": false,
+   "verdict": "error_reported"
+  }
+ ],
+ "summary": {
+  "verdicts": [
+   "error_reported",
+   "error_reported"
+  ],
+  "prompt_tokens_reported": [
+   null,
+   null
+  ]
+ },
+ "meta": {
+  "backend": "harness",
+  "mode": "out_of_box",
+  "model": "4b",
+  "endpoint_info": {
+   "alias": "bench-4b-default",
+   "server_id": "gw-bench-4b-default",
+   "config": {
+    "gpu_layers": 22,
+    "context_size": 16384,
+    "flash_attn": false,
+    "cache_type_k": "q8_0",
+    "cache_type_v": "q8_0"
+   },
+   "values": {
+    "n_ctx": 16384,
+    "total_slots": 2,
+    "n_ctx_train": 262144,
+    "kv_unified": true,
+    "gpu_layers_offloaded": 22,
+    "gpu_layers_total": 37,
+    "gpu_layers_by_fit": false,
+    "ctx_adjusted": false,
+    "build_info": "b11342-f1cee9941",
+    "chat_format": "Content-only",
+    "kv_fa_fallback": null,
+    "fit_failed": false,
+    "shared_memory_slowdown": false,
+    "shared_memory_bytes": 111149056
+   },
+   "cmdline": "-m C:\\Users\\user\\Documents\\Proje\\harness-studio\\scratch\\nv1012\\appdata\\com.harnessstudio.app\\models\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf --alias bench-4b-default -ngl 22 -c 16384 --host 127.0.0.1 --port 11441 --metrics --flash-attn on -ctk q8_0 -ctv q8_0 -np 2 --split-mode none --main-gpu 0 --kv-unified --cache-ram 0 --ctx-checkpoints 4",
+   "load_s": 8.8,
+   "log_lines": [
+    "[+0.001s] [Harness Studio] Eşzamanlı istek: 2 (otomatik; her eşzamanlı isteğe ~8192 token bağlam kalsın diye).",
+    "[+0.001s] [Harness Studio] Ortak bağlamda birden çok eşzamanlı istek: llama.cpp'nin ana bellek istem önbelleği kapatıldı (--cache-ram 0); açıkken her istek dalgası ~3,7 sn takılıyor. Açmak için Önbellek RAM değerini elle girin.",
+    "[+0.006s] [Harness Studio] Starting llama-server: \"C:\\\\Users\\\\user\\\\Documents\\\\Proje\\\\harness-studio\\\\scratch\\\\nv1012\\\\appdata\\\\com.harnessstudio.app\\\\models\\\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf\"",
+    "[+0.006s] [Harness Studio] V önbelleği nicemlendiği için flash attention açıldı (--flash-attn on).",
+    "[+0.008s] [Harness Studio] Target GPU: adapter index 1 → --main-gpu 0 (split-mode: none)",
+    "[+1.033s] [stderr] 0.00.985.727 W common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 22, abort",
+    "[+7.081s] [stderr] 0.07.034.400 I srv    load_model: initializing, n_slots = 2, n_ctx_slot = 16384, kv_unified = 'true'",
+    "[+7.175s] [Harness Studio] Sunucu hazır (7.1 sn).",
+    "[+7.223s] [Harness Studio] Tanım bağlam belirtmiyor: llama.cpp'nin 4096 varsayılanı yerine modelin eğitim bağlamıyla (en çok 32768) yüklendi: 32768 (tanım değişmedi).",
+    "[+7.223s] [Harness Studio] Ekran kartında daha çok katman kalsın diye bağlam 16384 (otomatik 32768 yerine; tanım değişmedi).",
+    "[+7.223s] [Harness Studio] Belleğe sığdırmak için K q8_0 / V q8_0 önbellek ve 16384 bağlamla yüklendi, ekran kartında 22 katman (tanım 32768 istiyordu; tanım değişmedi)."
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 688
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 2489,
+   "shared_mib": 106
+  },
+  "date": "2026-10-12 04:19:48",
+  "gpu_after_run": {
+   "dedicated_mib": 2519,
+   "shared_mib": 106
+  },
+  "elapsed_s": 1.8
+ }
+}

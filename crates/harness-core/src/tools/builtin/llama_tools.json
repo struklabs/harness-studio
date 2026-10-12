@@ -1,0 +1,286 @@
+[
+  {
+    "display_name": "Read file",
+    "tool": "read_file",
+    "type": "server",
+    "permissions": {
+      "write": false
+    },
+    "uses_cwd": true,
+    "definition": {
+      "type": "function",
+      "function": {
+        "name": "read_file",
+        "description": "Read the contents of a file. Optionally specify a 1-based line range. If append_loc is true, each line is prefixed with its line number (e.g. \"1→...\").",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Path to the file"
+            },
+            "start_line": {
+              "type": "integer",
+              "description": "First line to read, 1-based (default: 1)"
+            },
+            "end_line": {
+              "type": "integer",
+              "description": "Last line to read, 1-based inclusive (default: end of file)"
+            },
+            "append_loc": {
+              "type": "boolean",
+              "description": "Prefix each line with its line number"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "display_name": "File search",
+    "tool": "file_glob_search",
+    "type": "server",
+    "permissions": {
+      "write": false
+    },
+    "uses_cwd": true,
+    "definition": {
+      "type": "function",
+      "function": {
+        "name": "file_glob_search",
+        "description": "Recursively search for files matching a glob pattern under a directory. Automatically skips files ignored by .gitignore (when the directory is inside a git repo) and common junk directories (.git, node_modules, build, dist, etc.) otherwise. A pattern with no '/' (e.g. \"*.cpp\") matches the file's basename at any depth. A pattern containing '/' matches the full relative path; unless already anchored with \"**/\" or a leading '/', it is automatically prefixed with \"**/\". Use type=\"dir\" or \"all\" to also list directories; directory entries are suffixed with '/' in the output. Note: directory listings do not apply .gitignore filtering.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Base directory to search in"
+            },
+            "include": {
+              "type": "string",
+              "description": "Glob pattern for files to include (e.g. \"*.cpp\" or \"src/**/*.cpp\"). Default: **"
+            },
+            "exclude": {
+              "type": "string",
+              "description": "Glob pattern for files to exclude"
+            },
+            "type": {
+              "type": "string",
+              "description": "Entry type to return: \"file\" (default), \"dir\" or \"all\""
+            },
+            "max_depth": {
+              "type": "integer",
+              "description": "Maximum depth to descend into subdirectories (default: 0 = unlimited; 1 = direct children only)"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of results to return, capped at 100 (default 100)"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "display_name": "Grep search",
+    "tool": "grep_search",
+    "type": "server",
+    "permissions": {
+      "write": false
+    },
+    "uses_cwd": true,
+    "definition": {
+      "type": "function",
+      "function": {
+        "name": "grep_search",
+        "description": "Search for a pattern in files under a path. Returns matching lines with file paths (and, unless searching a single file, paths relative to the given directory). Automatically skips files ignored by .gitignore (when the directory is inside a git repo) and common junk directories (.git, node_modules, build, dist, etc.) otherwise. include/exclude: a pattern with no '/' matches the basename at any depth; a pattern containing '/' matches the full relative path (auto-anchored with \"**/\" unless already anchored).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "File or directory to search in"
+            },
+            "pattern": {
+              "type": "string",
+              "description": "Pattern to search for (regular expression unless literal is true)"
+            },
+            "include": {
+              "type": "string",
+              "description": "Glob pattern to filter files (default: **)"
+            },
+            "exclude": {
+              "type": "string",
+              "description": "Glob pattern to exclude files"
+            },
+            "return_line_numbers": {
+              "type": "boolean",
+              "description": "If true, include line numbers in results"
+            },
+            "literal": {
+              "type": "boolean",
+              "description": "Treat pattern as a literal string instead of a regular expression (default: false)"
+            },
+            "ignore_case": {
+              "type": "boolean",
+              "description": "Case-insensitive search (default: false)"
+            },
+            "context_lines": {
+              "type": "integer",
+              "description": "Number of lines of context to show before and after each match (default: 0)"
+            }
+          },
+          "required": [
+            "path",
+            "pattern"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "display_name": "Execute shell command",
+    "tool": "exec_shell_command",
+    "type": "server",
+    "permissions": {
+      "write": true
+    },
+    "uses_cwd": true,
+    "definition": {
+      "type": "function",
+      "function": {
+        "name": "exec_shell_command",
+        "description": "Execute a shell command and return its output (stdout and stderr combined).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "Shell command to execute"
+            },
+            "timeout": {
+              "type": "integer",
+              "description": "Timeout in seconds (default 10, max 60)"
+            },
+            "max_output_size": {
+              "type": "integer",
+              "description": "Maximum output size in bytes (default 16384)"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "display_name": "Write file",
+    "tool": "write_file",
+    "type": "server",
+    "permissions": {
+      "write": true
+    },
+    "uses_cwd": true,
+    "definition": {
+      "type": "function",
+      "function": {
+        "name": "write_file",
+        "description": "Write content to a file, creating it (including parent directories) if it does not exist. May use with edit_file for more complex edits.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Path of the file to write"
+            },
+            "content": {
+              "type": "string",
+              "description": "Content to write"
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "display_name": "Edit file",
+    "tool": "edit_file",
+    "type": "server",
+    "permissions": {
+      "write": true
+    },
+    "uses_cwd": true,
+    "definition": {
+      "type": "function",
+      "function": {
+        "name": "edit_file",
+        "description": "Edit a file using exact text replacement. Each edits[].old_text must be unique in the file and is matched against the original content, not incrementally. Merge nearby changes into one edit instead of overlapping edits. Use write_file to replace the whole file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Path to the file to edit"
+            },
+            "edits": {
+              "type": "array",
+              "description": "One or more exact text replacements to apply",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "old_text": {
+                    "type": "string",
+                    "description": "Exact text to find; must be unique in the file and must not overlap with other edits"
+                  },
+                  "new_text": {
+                    "type": "string",
+                    "description": "Text to replace old_text with"
+                  }
+                },
+                "required": [
+                  "old_text",
+                  "new_text"
+                ]
+              }
+            }
+          },
+          "required": [
+            "path",
+            "edits"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "display_name": "Get Runtime Info",
+    "tool": "get_info",
+    "type": "server",
+    "permissions": {
+      "write": false
+    },
+    "uses_cwd": true,
+    "definition": {
+      "type": "function",
+      "function": {
+        "name": "get_info",
+        "description": "Returns runtime info: the OS name/version and the current working directory",
+        "parameters": {
+          "type": "object",
+          "properties": {}
+        }
+      }
+    }
+  }
+]

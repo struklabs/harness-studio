@@ -1,0 +1,607 @@
+//! The model: ONNX Runtime session + tokenizer + the pooling rules of the repo.
+//!
+//! * [`load`] picks the execution provider (DirectML, CUDA, CPU), builds the session and
+//!   checks that the graph's inputs are ones this server knows how to feed.
+//! * [`Engine::embed`] tokenizes, runs the graph in length-sorted batches, pools token vectors
+//!   per [`ModelPackage::pooling`] (unless the graph already outputs a sentence vector) and
+//!   normalizes.
+//! * [`Engine::rerank`] encodes `(query, document)` pairs and returns the classifier logit.
+
+use crate::api::ApiError;
+use crate::package::{ModelPackage, Pooling, Task};
+use crate::pooling;
+use ort::ep::ExecutionProvider as _;
+use ort::session::Session;
+use ort::value::{Tensor, TensorElementType};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use tokenizers::{
+    EncodeInput, Tokenizer, TruncationDirection, TruncationParams, TruncationStrategy,
+};
+
+/// Which execution provider to use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Provider {
+    /// DirectML on Windows, CUDA where the runtime has it, else CPU.
+    Auto,
+    Cpu,
+    DirectMl,
+    Cuda,
+}
+
+impl Provider {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "auto" | "" => Some(Self::Auto),
+            "cpu" => Some(Self::Cpu),
+            "directml" | "dml" => Some(Self::DirectMl),
+            "cuda" => Some(Self::Cuda),
+            _ => None,
+        }
+    }
+}
+
+/// How the server was asked to load the model.
+#[derive(Debug, Clone)]
+pub struct LoadOptions {
+    pub model: PathBuf,
+    /// `onnxruntime.dll` / `libonnxruntime.so` of the managed runtime. `None`: the default
+    /// name, looked up by the OS (`ORT_DYLIB_PATH` is honoured).
+    pub ort_lib: Option<PathBuf>,
+    pub provider: Provider,
+    pub threads: Option<usize>,
+    /// Overrides of what the repo files say (`--task`, `--pooling`, `--max-length`).
+    pub task: Option<Task>,
+    pub pooling: Option<Pooling>,
+    pub normalize: Option<bool>,
+    pub max_length: Option<usize>,
+    /// Texts per graph run.
+    pub batch_size: usize,
+}
+
+impl LoadOptions {
+    pub fn new(model: PathBuf) -> Self {
+        Self {
+            model,
+            ort_lib: None,
+            provider: Provider::Auto,
+            threads: None,
+            task: None,
+            pooling: None,
+            normalize: None,
+            max_length: None,
+            batch_size: 16,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IdType {
+    Int64,
+    Int32,
+}
+
+/// How the graph's inputs are named.
+#[derive(Debug, Clone)]
+struct Inputs {
+    ids: (String, IdType),
+    mask: Option<(String, IdType)>,
+    type_ids: Option<(String, IdType)>,
+    position_ids: Option<(String, IdType)>,
+}
+
+/// Which output carries the result.
+#[derive(Debug, Clone)]
+struct OutputSpec {
+    name: String,
+}
+
+pub struct Engine {
+    session: Mutex<Session>,
+    tokenizer: Tokenizer,
+    pub package: ModelPackage,
+    inputs: Inputs,
+    output: OutputSpec,
+    pad_id: u32,
+    /// `DirectML`, `CUDA` or `CPU`.
+    pub provider: String,
+    batch_size: usize,
+    /// Token budget of one graph run (batch x longest text).
+    token_budget: usize,
+}
+
+/// Loads the ONNX Runtime library (once per process). Call before [`load`].
+pub fn init_runtime(lib: Option<&Path>) -> Result<(), String> {
+    let builder = match lib {
+        Some(path) => ort::init_from(path)
+            .map_err(|e| format!("cannot load ONNX Runtime from {}: {}", path.display(), e))?,
+        None => ort::init_from(default_lib_name()).map_err(|e| {
+            format!(
+                "cannot load ONNX Runtime ({}): {}",
+                default_lib_name().display(),
+                e
+            )
+        })?,
+    };
+    builder.with_name("harness-onnx").commit();
+    Ok(())
+}
+
+fn default_lib_name() -> PathBuf {
+    if let Some(p) = std::env::var_os("ORT_DYLIB_PATH") {
+        return PathBuf::from(p);
+    }
+    PathBuf::from(if cfg!(windows) {
+        "onnxruntime.dll"
+    } else if cfg!(target_os = "macos") {
+        "libonnxruntime.dylib"
+    } else {
+        "libonnxruntime.so"
+    })
+}
+
+fn id_type(t: Option<TensorElementType>) -> Option<IdType> {
+    match t? {
+        TensorElementType::Int64 => Some(IdType::Int64),
+        TensorElementType::Int32 => Some(IdType::Int32),
+        _ => None,
+    }
+}
+
+fn classify_inputs(session: &Session) -> Result<Inputs, String> {
+    let mut ids = None;
+    let mut mask = None;
+    let mut type_ids = None;
+    let mut position_ids = None;
+    let mut unknown = Vec::new();
+    for input in session.inputs() {
+        let name = input.name().to_string();
+        let ty = id_type(input.dtype().tensor_type());
+        let entry = ty.map(|t| (name.clone(), t));
+        match (name.as_str(), entry) {
+            ("input_ids", Some(e)) => ids = Some(e),
+            ("attention_mask", Some(e)) => mask = Some(e),
+            ("token_type_ids", Some(e)) => type_ids = Some(e),
+            ("position_ids", Some(e)) => position_ids = Some(e),
+            _ => unknown.push(name),
+        }
+    }
+    if !unknown.is_empty() {
+        return Err(format!(
+            "the graph needs inputs this server cannot feed: {} (supported: input_ids, attention_mask, token_type_ids, position_ids as int32/int64)",
+            unknown.join(", ")
+        ));
+    }
+    Ok(Inputs {
+        ids: ids.ok_or("the graph has no input_ids input (not a text encoder)")?,
+        mask,
+        type_ids,
+        position_ids,
+    })
+}
+
+/// Output to read: a ready sentence vector when the graph makes one, else the token vectors.
+fn pick_output(session: &Session, task: Task) -> Result<OutputSpec, String> {
+    let names: Vec<&str> = session.outputs().iter().map(|o| o.name()).collect();
+    if names.is_empty() {
+        return Err("the graph has no outputs".into());
+    }
+    let preference: &[&str] = match task {
+        Task::Embedding => &[
+            "sentence_embedding",
+            "dense_vecs",
+            "last_hidden_state",
+            "token_embeddings",
+        ],
+        Task::Rerank => &["logits", "scores", "score"],
+    };
+    let name = preference
+        .iter()
+        .find(|p| names.contains(p))
+        .copied()
+        .unwrap_or(names[0]);
+    Ok(OutputSpec {
+        name: name.to_string(),
+    })
+}
+
+fn register_provider(
+    builder: &mut ort::session::builder::SessionBuilder,
+    choice: Provider,
+) -> &'static str {
+    let wants_dml = matches!(choice, Provider::Auto | Provider::DirectMl) && cfg!(windows);
+    let wants_cuda = matches!(choice, Provider::Auto | Provider::Cuda);
+    // A provider that was asked for by name and does not load says why (missing CUDA / cuDNN
+    // libraries, a runtime build without it); `auto` falls through quietly.
+    let explain = |name: &str, why: String| {
+        if choice != Provider::Auto {
+            eprintln!("harness-onnx: {name} is not usable, running on the CPU: {why}");
+        }
+    };
+    if wants_dml {
+        let ep = ort::ep::DirectML::default();
+        match ep.is_available() {
+            Ok(true) => match ep.register(builder) {
+                Ok(()) => return "DirectML",
+                Err(e) => explain("DirectML", e.to_string()),
+            },
+            Ok(false) => explain("DirectML", "this ONNX Runtime build has no DirectML".into()),
+            Err(e) => explain("DirectML", e.to_string()),
+        }
+    }
+    if wants_cuda {
+        let ep = ort::ep::CUDA::default();
+        match ep.is_available() {
+            Ok(true) => match ep.register(builder) {
+                Ok(()) => return "CUDA",
+                Err(e) => explain("CUDA", e.to_string()),
+            },
+            Ok(false) => explain("CUDA", "this ONNX Runtime build has no CUDA".into()),
+            Err(e) => explain("CUDA", e.to_string()),
+        }
+    }
+    "CPU"
+}
+
+fn build_session(
+    model: &Path,
+    choice: Provider,
+    threads: Option<usize>,
+) -> Result<(Session, &'static str), String> {
+    let make = |choice: Provider| -> Result<(Session, &'static str), String> {
+        let mut builder = Session::builder().map_err(|e| e.to_string())?;
+        if let Some(n) = threads {
+            builder = builder.with_intra_threads(n).map_err(|e| e.to_string())?;
+        }
+        // DirectML needs sequential execution and no memory pattern (ORT's own requirement).
+        let name = register_provider(&mut builder, choice);
+        if name == "DirectML" {
+            builder = builder
+                .with_memory_pattern(false)
+                .map_err(|e| e.to_string())?;
+            builder = builder
+                .with_parallel_execution(false)
+                .map_err(|e| e.to_string())?;
+        }
+        let session = builder
+            .commit_from_file(model)
+            .map_err(|e| format!("cannot load {} on {}: {}", model.display(), name, e))?;
+        Ok((session, name))
+    };
+    match make(choice) {
+        Ok(ok) => Ok(ok),
+        // A GPU provider that registered but cannot build the graph: the CPU still can.
+        Err(first) if choice != Provider::Cpu => match make(Provider::Cpu) {
+            Ok(ok) => {
+                eprintln!("harness-onnx: {} (falling back to the CPU)", first);
+                Ok(ok)
+            }
+            Err(_) => Err(first),
+        },
+        Err(e) => Err(e),
+    }
+}
+
+/// Loads the model: package files, tokenizer, ONNX session. Runs one warm-up inference so a
+/// graph that loads but cannot run fails here, not on the first request.
+pub fn load(opts: &LoadOptions) -> Result<Engine, String> {
+    let mut package = ModelPackage::discover(&opts.model).map_err(|e| e.to_string())?;
+    if let Some(t) = opts.task {
+        package.task = t;
+    }
+    if let Some(p) = opts.pooling {
+        package.pooling = p;
+    }
+    if let Some(n) = opts.normalize {
+        package.normalize = n;
+    }
+    if let Some(n) = opts.max_length {
+        package.max_length = n.clamp(8, crate::package::MAX_SEQUENCE_LENGTH);
+    }
+    if !package.unsupported_modules.is_empty() && package.task == Task::Embedding {
+        return Err(format!(
+            "{} uses sentence-transformers modules this server cannot run ({}); its vectors would be wrong",
+            package.name,
+            package.unsupported_modules.join(", ")
+        ));
+    }
+
+    let mut tokenizer = Tokenizer::from_file(&package.tokenizer_path)
+        .map_err(|e| format!("cannot read {}: {}", package.tokenizer_path.display(), e))?;
+    let pad_id = tokenizer
+        .get_padding()
+        .map(|p| p.pad_id)
+        .or_else(|| {
+            ["<pad>", "[PAD]", "<|endoftext|>"]
+                .iter()
+                .find_map(|t| tokenizer.token_to_id(t))
+        })
+        .unwrap_or(0);
+    tokenizer.with_padding(None);
+    tokenizer
+        .with_truncation(Some(TruncationParams {
+            direction: TruncationDirection::Right,
+            max_length: package.max_length,
+            strategy: TruncationStrategy::LongestFirst,
+            stride: 0,
+        }))
+        .map_err(|e| format!("tokenizer truncation: {}", e))?;
+
+    let (session, provider) = build_session(&package.onnx_path, opts.provider, opts.threads)?;
+    let inputs = classify_inputs(&session)?;
+    let output = pick_output(&session, package.task)?;
+    let engine = Engine {
+        session: Mutex::new(session),
+        tokenizer,
+        package,
+        inputs,
+        output,
+        pad_id,
+        provider: provider.to_string(),
+        batch_size: opts.batch_size.max(1),
+        token_budget: 16384,
+    };
+    // Warm-up: also settles the output kind (vector or per-token) before the first request.
+    match engine.package.task {
+        Task::Embedding => {
+            engine
+                .embed(&["warm up".to_string()], None)
+                .map_err(|e| e.message)?;
+        }
+        Task::Rerank => {
+            engine
+                .rerank("warm up", &["warm up".to_string()])
+                .map_err(|e| e.message)?;
+        }
+    }
+    Ok(engine)
+}
+
+/// One text (or pair) turned into model inputs.
+struct Encoded {
+    ids: Vec<u32>,
+    type_ids: Vec<u32>,
+}
+
+/// Raw output of one graph run.
+enum Raw {
+    /// `[batch, seq, dim]`
+    Tokens {
+        data: Vec<f32>,
+        seq: usize,
+        dim: usize,
+    },
+    /// `[batch, dim]`
+    Rows { data: Vec<f32>, dim: usize },
+}
+
+fn to_f32(values: &[half::f16]) -> Vec<f32> {
+    values.iter().map(|v| v.to_f32()).collect()
+}
+
+impl Engine {
+    fn encode(&self, inputs: Vec<EncodeInput<'_>>) -> Result<Vec<Encoded>, ApiError> {
+        let encodings = self
+            .tokenizer
+            .encode_batch(inputs, true)
+            .map_err(|e| ApiError::invalid(format!("tokenization failed: {}", e)))?;
+        Ok(encodings
+            .iter()
+            .map(|e| Encoded {
+                ids: e.get_ids().to_vec(),
+                type_ids: e.get_type_ids().to_vec(),
+            })
+            .collect())
+    }
+
+    /// Runs the graph on `batch` (right-padded to the longest). Returns the raw output.
+    fn run(&self, batch: &[&Encoded]) -> Result<Raw, ApiError> {
+        let n = batch.len();
+        let seq = batch.iter().map(|e| e.ids.len()).max().unwrap_or(1).max(1);
+        let shape = [n, seq];
+        let fill = |value: &dyn Fn(&Encoded, usize) -> i64| -> Vec<i64> {
+            let mut out = Vec::with_capacity(n * seq);
+            for e in batch {
+                for t in 0..seq {
+                    out.push(value(e, t));
+                }
+            }
+            out
+        };
+        let ids = fill(&|e, t| e.ids.get(t).map_or(self.pad_id as i64, |&v| v as i64));
+        let mask = fill(&|e, t| (t < e.ids.len()) as i64);
+        let type_ids = fill(&|e, t| e.type_ids.get(t).map_or(0, |&v| v as i64));
+        let positions = fill(&|e, t| t.min(e.ids.len().saturating_sub(1)) as i64);
+
+        let tensor = |data: Vec<i64>, ty: IdType| -> Result<ort::value::DynTensor, ApiError> {
+            let err = |e: ort::Error| ApiError::server(format!("tensor: {}", e));
+            Ok(match ty {
+                IdType::Int64 => Tensor::from_array((shape, data)).map_err(err)?.upcast(),
+                IdType::Int32 => Tensor::from_array((
+                    shape,
+                    data.into_iter().map(|v| v as i32).collect::<Vec<i32>>(),
+                ))
+                .map_err(err)?
+                .upcast(),
+            })
+        };
+        let mut feeds: Vec<(String, ort::value::DynTensor)> =
+            vec![(self.inputs.ids.0.clone(), tensor(ids, self.inputs.ids.1)?)];
+        if let Some((name, ty)) = &self.inputs.mask {
+            feeds.push((name.clone(), tensor(mask, *ty)?));
+        }
+        if let Some((name, ty)) = &self.inputs.type_ids {
+            feeds.push((name.clone(), tensor(type_ids, *ty)?));
+        }
+        if let Some((name, ty)) = &self.inputs.position_ids {
+            feeds.push((name.clone(), tensor(positions, *ty)?));
+        }
+
+        let mut session = self
+            .session
+            .lock()
+            .map_err(|_| ApiError::server("the model session is poisoned"))?;
+        let outputs = session
+            .run(feeds)
+            .map_err(|e| ApiError::server(format!("inference failed: {}", e)))?;
+        let value = outputs
+            .get(&self.output.name)
+            .ok_or_else(|| ApiError::server(format!("output {} missing", self.output.name)))?;
+        let err = |e: ort::Error| ApiError::server(format!("output: {}", e));
+        let (shape, data) = match value.dtype().tensor_type() {
+            Some(TensorElementType::Float16) => {
+                let (s, d) = value.try_extract_tensor::<half::f16>().map_err(err)?;
+                (s.to_vec(), to_f32(d))
+            }
+            _ => {
+                let (s, d) = value.try_extract_tensor::<f32>().map_err(err)?;
+                (s.to_vec(), d.to_vec())
+            }
+        };
+        match shape.as_slice() {
+            [b, s, d] if *b as usize == n => Ok(Raw::Tokens {
+                data,
+                seq: *s as usize,
+                dim: *d as usize,
+            }),
+            [b, d] if *b as usize == n => Ok(Raw::Rows {
+                data,
+                dim: *d as usize,
+            }),
+            [b] if *b as usize == n => Ok(Raw::Rows { data, dim: 1 }),
+            other => Err(ApiError::server(format!(
+                "unexpected output shape {:?} for a batch of {}",
+                other, n
+            ))),
+        }
+    }
+
+    /// Groups texts into graph runs: sorted by length (little padding), at most
+    /// `batch_size` texts and `token_budget` padded tokens each. Returns index groups.
+    fn plan(&self, lengths: &[usize]) -> Vec<Vec<usize>> {
+        let mut order: Vec<usize> = (0..lengths.len()).collect();
+        order.sort_by_key(|&i| lengths[i]);
+        let mut groups: Vec<Vec<usize>> = Vec::new();
+        let mut current: Vec<usize> = Vec::new();
+        for i in order {
+            let longest = lengths[i].max(1);
+            if !current.is_empty()
+                && (current.len() >= self.batch_size
+                    || (current.len() + 1) * longest > self.token_budget)
+            {
+                groups.push(std::mem::take(&mut current));
+            }
+            current.push(i);
+        }
+        if !current.is_empty() {
+            groups.push(current);
+        }
+        groups
+    }
+
+    /// Embeddings of `texts` and the number of tokens read.
+    pub fn embed(
+        &self,
+        texts: &[String],
+        dimensions: Option<usize>,
+    ) -> Result<(Vec<Vec<f32>>, usize), ApiError> {
+        if self.package.task != Task::Embedding {
+            return Err(ApiError::unavailable(
+                "this model is a reranker: use /v1/rerank (embeddings need an embedding model)",
+            ));
+        }
+        let encoded = self.encode(
+            texts
+                .iter()
+                .map(|t| EncodeInput::from(t.as_str()))
+                .collect(),
+        )?;
+        let lengths: Vec<usize> = encoded.iter().map(|e| e.ids.len()).collect();
+        let tokens = lengths.iter().sum();
+        let mut out: Vec<Vec<f32>> = vec![Vec::new(); texts.len()];
+        for group in self.plan(&lengths) {
+            let batch: Vec<&Encoded> = group.iter().map(|&i| &encoded[i]).collect();
+            let lens: Vec<usize> = batch.iter().map(|e| e.ids.len()).collect();
+            let vectors = match self.run(&batch)? {
+                Raw::Tokens { data, seq, dim } => {
+                    pooling::pool(self.package.pooling, &data, batch.len(), seq, dim, &lens)
+                }
+                Raw::Rows { data, dim } => data.chunks(dim).map(<[f32]>::to_vec).collect(),
+            };
+            for (slot, mut v) in group.iter().zip(vectors) {
+                if self.package.normalize {
+                    pooling::l2_normalize(&mut v);
+                }
+                if let Some(d) = dimensions {
+                    pooling::truncate_dims(&mut v, d, self.package.normalize);
+                }
+                out[*slot] = v;
+            }
+        }
+        Ok((out, tokens))
+    }
+
+    /// Relevance logits of `documents` for `query` (input order) and tokens read.
+    pub fn rerank(&self, query: &str, documents: &[String]) -> Result<(Vec<f32>, usize), ApiError> {
+        if self.package.task != Task::Rerank {
+            return Err(ApiError::unavailable(
+                "this model is an embedding model: use /v1/embeddings (reranking needs a cross-encoder)",
+            ));
+        }
+        let encoded = self.encode(
+            documents
+                .iter()
+                .map(|d| EncodeInput::from((query, d.as_str())))
+                .collect(),
+        )?;
+        let lengths: Vec<usize> = encoded.iter().map(|e| e.ids.len()).collect();
+        let tokens = lengths.iter().sum();
+        let mut scores = vec![0f32; documents.len()];
+        for group in self.plan(&lengths) {
+            let batch: Vec<&Encoded> = group.iter().map(|&i| &encoded[i]).collect();
+            match self.run(&batch)? {
+                Raw::Rows { data, dim } => {
+                    for (slot, row) in group.iter().zip(data.chunks(dim)) {
+                        scores[*slot] = pooling::rerank_score(row);
+                    }
+                }
+                Raw::Tokens { .. } => return Err(ApiError::server(
+                    "the graph outputs token vectors, not classifier logits: not a cross-encoder",
+                )),
+            }
+        }
+        Ok((scores, tokens))
+    }
+
+    /// One line for the startup log.
+    pub fn describe(&self) -> String {
+        format!(
+            "{} ({}), {}, max {} tokens, output {}",
+            self.package.name,
+            self.package.task.as_str(),
+            self.provider,
+            self.package.max_length,
+            self.output.name
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn provider_names() {
+        assert_eq!(Provider::parse("DML"), Some(Provider::DirectMl));
+        assert_eq!(Provider::parse("auto"), Some(Provider::Auto));
+        assert_eq!(Provider::parse("cuda"), Some(Provider::Cuda));
+        assert_eq!(Provider::parse("tpu"), None);
+    }
+
+    #[test]
+    fn id_types() {
+        assert_eq!(id_type(Some(TensorElementType::Int64)), Some(IdType::Int64));
+        assert_eq!(id_type(Some(TensorElementType::Float32)), None);
+        assert_eq!(id_type(None), None);
+    }
+}

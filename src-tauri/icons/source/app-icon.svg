@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <!-- BrandLogo.svelte isaretinin (24x24) 1024 tuvale olceklenmis hali; koyu tema renkleri -->
+  <rect x="64" y="64" width="896" height="896" rx="224" fill="#0f1115" />
+  <g transform="translate(-25.6 -25.6) scale(44.8)">
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#e6e8eb" fill-opacity="0.06" stroke="#e6e8eb" stroke-opacity="0.35" stroke-width="1.5" />
+    <path d="M7 8H17M7 12H17M7 16H12.5" stroke="#e6e8eb" stroke-width="2" stroke-linecap="round" />
+    <circle cx="16.5" cy="16" r="2.25" fill="#e27c3a" />
+  </g>
+</svg>

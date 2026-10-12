@@ -1,0 +1,51 @@
+/*
+ * Legacy baseline for screens not yet migrated to Tailwind.
+ * Everything lives in the `base` cascade layer so Tailwind utilities always win.
+ */
+@import './tokens.css';
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font-family: inherit;
+    font-size: 13px;
+    color: inherit;
+  }
+
+  code,
+  pre,
+  kbd,
+  samp {
+    font-family: var(--font-mono);
+  }
+
+  .control-default {
+    height: var(--control-height-default);
+  }
+
+  .control-compact {
+    height: var(--control-height-compact);
+  }
+
+  .control-large {
+    height: var(--control-height-large);
+  }
+}
+
+/* A side panel is being resized (common/ResizablePane.svelte): keep the resize cursor and stop
+   text selection everywhere until the pointer is released. */
+html.pane-resizing,
+html.pane-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}

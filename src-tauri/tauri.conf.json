@@ -1,0 +1,72 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Harness Studio",
+  "version": "0.1.0",
+  "identifier": "com.harnessstudio.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Harness Studio",
+        "visible": false,
+        "width": 1150,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 600,
+        "decorations": false,
+        "shadow": true
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: https://cdn-avatars.huggingface.co",
+        "font-src": "'self' data:",
+        "media-src": "'self' blob:",
+        "connect-src": "'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:* http://[::1]:*",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "frame-ancestors": "'none'"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "externalBin": ["binaries/harness", "binaries/harness-hidden", "binaries/harness-onnx"],
+    "publisher": "struklabs",
+    "copyright": "Copyright (c) 2026 struklabs and Harness Studio contributors",
+    "homepage": "https://github.com/struklabs/harness-studio",
+    "targets": ["nsis", "msi", "dmg", "app", "appimage", "deb"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "windows/hooks.nsh"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ2NEY5RkY3RDU4NUU1NDUKUldSRjVZWFY5NTlQMWppcUlUY2h1dGtjWXc0NUJWWVdIYm5iamsvUE9IdDNVL1RCQjEySWptV0QK",
+      "endpoints": [
+        "https://github.com/struklabs/harness-studio/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+FROM ./Qwen3-4B-hf
+PARAMETER temperature 0.5

@@ -1,0 +1,287 @@
+{
+ "rounds": [
+  {
+   "wall_s": 2.5663158998358995,
+   "completion_tokens": 1024,
+   "aggregate_tps": 399.01556938702623,
+   "per_request": [
+    {
+     "ok": true,
+     "ttft": 0.26279770000837743,
+     "ttfb": 0.2627630999777466,
+     "wall": 2.5549896999727935,
+     "decode_tps": 111.26067066426447,
+     "completion_tokens": 256,
+     "prompt_tokens": 42,
+     "server_decode_tps": 111.25601055143278,
+     "server_prompt_tps": 980.4680444822872,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "On the jagged coast of northern Scotland, where the sea roared like a wounded beast and the wind carried the scent of sa"
+    },
+    {
+     "ok": true,
+     "ttft": 0.3118906000163406,
+     "ttfb": 0.3118804001715034,
+     "wall": 2.56532400008291,
+     "decode_tps": 113.18340807030008,
+     "completion_tokens": 256,
+     "prompt_tokens": 39,
+     "server_decode_tps": 113.191114985749,
+     "server_prompt_tps": 736.3920878761224,
+     "server_cache_n": 3,
+     "cached_tokens": 3,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Sahel, where the sun blazed like a molten coin and the dunes stretched into infinity, a caravan move"
+    },
+    {
+     "ok": true,
+     "ttft": 0.3113450000528246,
+     "ttfb": 0.3113257000222802,
+     "wall": 2.565097500104457,
+     "decode_tps": 113.17042827509573,
+     "completion_tokens": 256,
+     "prompt_tokens": 42,
+     "server_decode_tps": 113.17649586040322,
+     "server_prompt_tps": 784.7996695580339,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "In the heart of a fog-drenched city where cobblestone streets whispered secrets and gas lamps flickered like dying stars"
+    },
+    {
+     "ok": true,
+     "ttft": 0.3118159999139607,
+     "ttfb": 0.3118036000523716,
+     "wall": 2.5654424999374896,
+     "decode_tps": 113.16667151447733,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "server_decode_tps": 113.18101683600916,
+     "server_prompt_tps": 782.5048391746633,
+     "server_cache_n": 3,
+     "cached_tokens": 3,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Himalayas, where the sky bleeds into the peaks like a bruise, there stood the *Sangam Express*—a mou"
+    }
+   ],
+   "latency_median_s": 2.5652107500936836,
+   "latency_max_s": 2.5654424999374896,
+   "ttft_median_s": 0.31158049998339266,
+   "ttft_max_s": 0.3118906000163406,
+   "errors": []
+  },
+  {
+   "wall_s": 2.567575399996713,
+   "completion_tokens": 1024,
+   "aggregate_tps": 398.8198360216845,
+   "per_request": [
+    {
+     "ok": true,
+     "ttft": 0.3134369000326842,
+     "ttfb": 0.3134072001557797,
+     "wall": 2.5663045002147555,
+     "decode_tps": 113.22370761480178,
+     "completion_tokens": 256,
+     "prompt_tokens": 43,
+     "server_decode_tps": 113.2183035369398,
+     "server_prompt_tps": 755.4772097708385,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "On the jagged coast of northern Scotland, where the sea roared like a wounded beast and the wind carried the scent of sa"
+    },
+    {
+     "ok": true,
+     "ttft": 0.3134773999918252,
+     "ttfb": 0.31346640014089644,
+     "wall": 2.566364200087264,
+     "decode_tps": 113.2040392261645,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "server_decode_tps": 113.22549234218252,
+     "server_prompt_tps": 733.7748855890475,
+     "server_cache_n": 3,
+     "cached_tokens": 3,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Sahel, where the sun blazed like a molten coin and the dunes stretched into infinity, a caravan move"
+    },
+    {
+     "ok": true,
+     "ttft": 0.2613852000795305,
+     "ttfb": 0.2613604001235217,
+     "wall": 2.55564310005866,
+     "decode_tps": 111.15927044502862,
+     "completion_tokens": 256,
+     "prompt_tokens": 44,
+     "server_decode_tps": 111.1356142138528,
+     "server_prompt_tps": 1026.9576379974324,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "In the heart of the fog-drenched city of Veridion, nestled between a shuttered apothecary and a crumbling clock tower, s"
+    },
+    {
+     "ok": true,
+     "ttft": 0.31433609989471734,
+     "ttfb": 0.3143261999357492,
+     "wall": 2.566490799887106,
+     "decode_tps": 113.24568117078667,
+     "completion_tokens": 256,
+     "prompt_tokens": 40,
+     "server_decode_tps": 113.251037579359,
+     "server_prompt_tps": 706.5923153311436,
+     "server_cache_n": 3,
+     "cached_tokens": 3,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Himalayas, where the sky bleeds into the peaks like a bruise, there stood the *Sangam Express*—a mou"
+    }
+   ],
+   "latency_median_s": 2.56633435015101,
+   "latency_max_s": 2.566490799887106,
+   "ttft_median_s": 0.3134571500122547,
+   "ttft_max_s": 0.31433609989471734,
+   "errors": []
+  },
+  {
+   "wall_s": 2.5450883000157773,
+   "completion_tokens": 1024,
+   "aggregate_tps": 402.34360434317824,
+   "per_request": [
+    {
+     "ok": true,
+     "ttft": 0.3009892001282424,
+     "ttfb": 0.3009669000748545,
+     "wall": 2.5438757000956684,
+     "decode_tps": 113.72026019928607,
+     "completion_tokens": 256,
+     "prompt_tokens": 40,
+     "server_decode_tps": 113.71597495394504,
+     "server_prompt_tps": 689.6023293234235,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "On the jagged coast of northern Scotland, where the sea roared like a wounded beast and the wind carved the cliffs into "
+    },
+    {
+     "ok": true,
+     "ttft": 0.24829620006494224,
+     "ttfb": 0.24826960009522736,
+     "wall": 2.5336229000240564,
+     "decode_tps": 111.59819957124554,
+     "completion_tokens": 256,
+     "prompt_tokens": 40,
+     "server_decode_tps": 111.58863266291176,
+     "server_prompt_tps": 949.7964721845318,
+     "server_cache_n": 5,
+     "cached_tokens": 5,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Sahel, where the sun blazed like a molten coin and the dunes stretched into infinity, a caravan move"
+    },
+    {
+     "ok": true,
+     "ttft": 0.300925400108099,
+     "ttfb": 0.300913899904117,
+     "wall": 2.543537300080061,
+     "decode_tps": 113.7196465654377,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "server_decode_tps": 113.71754701886104,
+     "server_prompt_tps": 706.7272796729955,
+     "server_cache_n": 4,
+     "cached_tokens": 4,
+     "finish_reason": "length",
+     "text_head": "In the heart of a fog-drenched city where cobblestone streets whispered secrets and gas lamps flickered like dying stars"
+    },
+    {
+     "ok": true,
+     "ttft": 0.3014740999788046,
+     "ttfb": 0.3014684999361634,
+     "wall": 2.5440736999735236,
+     "decode_tps": 113.71606116469069,
+     "completion_tokens": 256,
+     "prompt_tokens": 41,
+     "server_decode_tps": 113.7259151925781,
+     "server_prompt_tps": 721.2816035228911,
+     "server_cache_n": 3,
+     "cached_tokens": 3,
+     "finish_reason": "length",
+     "text_head": "In the heart of the Himalayas, where snow-capped peaks pierced the sky like ancient sentinels and the wind whispered sec"
+    }
+   ],
+   "latency_median_s": 2.5437065000878647,
+   "latency_max_s": 2.5440736999735236,
+   "ttft_median_s": 0.3009573001181707,
+   "ttft_max_s": 0.3014740999788046,
+   "errors": []
+  }
+ ],
+ "summary": {
+  "aggregate_tps": 399.01556938702623,
+  "wall_s": 2.5663158998358995,
+  "latency_median_s": 2.5652107500936836,
+  "latency_max_s": 2.5654424999374896,
+  "ttft_median_s": 0.31158049998339266,
+  "ttft_max_s": 0.3118906000163406,
+  "completion_tokens": 1024,
+  "errors": []
+ },
+ "meta": {
+  "backend": "harness",
+  "mode": "equal4",
+  "model": "4b",
+  "endpoint_info": {
+   "alias": "bench-4b-equal4",
+   "server_id": "gw-bench-4b-equal4",
+   "config": {
+    "gpu_layers": 999,
+    "context_size": 32768,
+    "flash_attn": true,
+    "cache_type_k": "f16",
+    "cache_type_v": "f16",
+    "parallel_slots": 4
+   },
+   "values": {
+    "n_ctx": 32768,
+    "total_slots": 4,
+    "n_ctx_train": 262144,
+    "kv_unified": true,
+    "gpu_layers_offloaded": 37,
+    "gpu_layers_total": 37,
+    "gpu_layers_by_fit": false,
+    "ctx_adjusted": false,
+    "build_info": "b11556-a9d27ac69",
+    "chat_format": "Content-only",
+    "kv_fa_fallback": null,
+    "fit_failed": false,
+    "shared_memory_slowdown": false,
+    "shared_memory_bytes": 58208256
+   },
+   "cmdline": "-m D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf --alias bench-4b-equal4 -ngl 999 -c 32768 --host 127.0.0.1 --port 11441 --metrics --flash-attn on -ctk f16 -ctv f16 -np 4 --split-mode none --main-gpu 0 --kv-unified --cache-ram 0 --ctx-checkpoints 4",
+   "load_s": 3.27,
+   "log_lines": [
+    "[+0.001s] [Harness Studio] Eşzamanlı istek: 4 (elle seçildi; önerilen 4: ek istekler bağlam belleğini paylaşır, neredeyse ek bellek istemez).",
+    "[+0.001s] [Harness Studio] Ortak bağlamda birden çok eşzamanlı istek: llama.cpp'nin ana bellek istem önbelleği kapatıldı (--cache-ram 0); açıkken her istek dalgası ~3,7 sn takılıyor. Açmak için Önbellek RAM değerini elle girin.",
+    "[+0.007s] [Harness Studio] Starting llama-server: \"D:\\\\Models\\\\unsloth\\\\Qwen3-4B-Instruct-2507-GGUF\\\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf\"",
+    "[+0.008s] [Harness Studio] Target GPU: adapter index 0 → --main-gpu 0 (split-mode: none)",
+    "[+2.199s] [stderr] 0.02.109.202 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'",
+    "[+2.423s] [Harness Studio] Sunucu hazır (2.4 sn)."
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 4190,
+   "shared_mib": 100
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 11437,
+   "shared_mib": 154
+  },
+  "date": "2026-10-11 17:32:37",
+  "gpu_after_run": {
+   "dedicated_mib": 11455,
+   "shared_mib": 154
+  },
+  "elapsed_s": 11.8
+ }
+}

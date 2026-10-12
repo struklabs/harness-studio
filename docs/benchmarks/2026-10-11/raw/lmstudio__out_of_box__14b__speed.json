@@ -1,0 +1,169 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 0.6949086000677198,
+   "ttfb": 0.6949086000677198,
+   "wall": 6.766626100055873,
+   "decode_tps": 41.99918837749435,
+   "completion_tokens": 256,
+   "prompt_tokens": 509,
+   "finish_reason": "length",
+   "text_head": "In a world where objects come to life and possess their own consciousness, the passage describes a series of events that"
+  },
+  {
+   "ok": true,
+   "ttft": 0.7187813001219183,
+   "ttfb": 0.7187813001219183,
+   "wall": 6.778534099925309,
+   "decode_tps": 42.08223423065994,
+   "completion_tokens": 256,
+   "prompt_tokens": 507,
+   "finish_reason": "length",
+   "text_head": "In a world where objects come to life and possess their own consciousness, the passage describes a series of events that"
+  },
+  {
+   "ok": true,
+   "ttft": 0.7279790001921356,
+   "ttfb": 0.7279790001921356,
+   "wall": 6.757155700121075,
+   "decode_tps": 42.29551387956483,
+   "completion_tokens": 256,
+   "prompt_tokens": 507,
+   "finish_reason": "length",
+   "text_head": "In a world where objects come to life and possess their own thoughts and desires, the passage describes a series of even"
+  },
+  {
+   "ok": true,
+   "ttft": 0.7723099999129772,
+   "ttfb": 0.7723099999129772,
+   "wall": 6.855412699980661,
+   "decode_tps": 41.92062413585665,
+   "completion_tokens": 256,
+   "prompt_tokens": 508,
+   "finish_reason": "length",
+   "text_head": "In a world where objects come to life and possess their own thoughts and desires, the passage describes a series of even"
+  },
+  {
+   "ok": true,
+   "ttft": 0.7240299000404775,
+   "ttfb": 0.7240299000404775,
+   "wall": 6.800946000032127,
+   "decode_tps": 41.96332888864645,
+   "completion_tokens": 256,
+   "prompt_tokens": 506,
+   "finish_reason": "length",
+   "text_head": "In a world where objects come to life and possess their own consciousness, the passage describes a series of events that"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": true,
+   "ttft": 8.759471700061113,
+   "ttfb": 8.759471700061113,
+   "wall": 8.759692199993879,
+   "completion_tokens": 1,
+   "prompt_tokens": 4009,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 457.6760034480196
+  },
+  {
+   "ok": true,
+   "ttft": 9.077811199938878,
+   "ttfb": 9.077811199938878,
+   "wall": 9.078024100046605,
+   "completion_tokens": 1,
+   "prompt_tokens": 4008,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 441.5161223034674
+  },
+  {
+   "ok": true,
+   "ttft": 9.078652899945155,
+   "ttfb": 9.078652899945155,
+   "wall": 9.07915690005757,
+   "completion_tokens": 1,
+   "prompt_tokens": 4009,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 441.58533696383734
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 0.7240299000404775,
+  "decode_tps": 41.99918837749435,
+  "server_decode_tps": null,
+  "prompt_tokens_500": 507,
+  "completion_tokens": 256,
+  "pp4k_tps_client": 441.58533696383734,
+  "pp4k_tps_server": null,
+  "pp4k_prompt_tokens": 4009,
+  "pp4k_ttft_s": 9.077811199938878,
+  "errors": []
+ },
+ "meta": {
+  "backend": "lmstudio",
+  "mode": "out_of_box",
+  "model": "14b",
+  "endpoint_info": {
+   "load_s": 5.96,
+   "flags": [],
+   "lms_load_tail": "46% ⠧\nLoading qwen2.5-coder-14b-instruct 46% ⠇\nLoading qwen2.5-coder-14b-instruct 47% ⠇\nLoading qwen2.5-coder-14b-instruct 47% ⠏\nLoading qwen2.5-coder-14b-instruct 100% ⠏\nModel loaded successfully in 5.55s.\n(8.37 GiB)\nTo use the model in the API/SDK, use the identifier \"qwen2.5-coder-14b-instruct\".\n",
+   "ps": [
+    {
+     "sizeBytes": 8988110272,
+     "identifier": "qwen2.5-coder-14b-instruct",
+     "contextLength": 8192,
+     "status": "idle",
+     "parallel": 4
+    }
+   ],
+   "rest_config": {
+    "context_length": 8192,
+    "eval_batch_size": 2048,
+    "physical_batch_size": 512,
+    "parallel": 4,
+    "flash_attention": true,
+    "context_checkpoints": 32,
+    "reasoning_budget_message": "",
+    "speculative_draft_mtp": false,
+    "speculative_draft_simple": false,
+    "speculative_draft_model": "",
+    "speculative_draft_max_tokens": 3,
+    "speculative_draft_min_tokens": 0,
+    "speculative_draft_min_continue_probability": 0,
+    "offload_kv_cache_to_gpu": true
+   },
+   "log_lines": [
+    "[2026-10-11 14:52:17][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (11173 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:17][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10847 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:17][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10824 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:18][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (11173 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:18][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10847 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:18][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10824 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (11173 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10847 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10823 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (11172 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:52:20][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10846 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+    "[2026-10-11 14:53:03][DEBUG] 0.05.462.821 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'"
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 4397,
+   "shared_mib": 372
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 13311,
+   "shared_mib": 1427
+  },
+  "date": "2026-10-11 14:53:05",
+  "gpu_after_run": {
+   "dedicated_mib": 13368,
+   "shared_mib": 1427
+  },
+  "elapsed_s": 73.6
+ }
+}

@@ -1,0 +1,104 @@
+{
+ "gpu_before": {
+  "dedicated_mib": 4397,
+  "shared_mib": 372
+ },
+ "outcome": "loaded",
+ "info": {
+  "load_s": 15.15,
+  "flags": [
+   "--context-length",
+   "65536"
+  ],
+  "lms_load_tail": "0% ⠴\nLoading qwen2.5-coder-14b-instruct 70% ⠴\nLoading qwen2.5-coder-14b-instruct 70% ⠦\nLoading qwen2.5-coder-14b-instruct 70% ⠦\nLoading qwen2.5-coder-14b-instruct 100% ⠦\nModel loaded successfully in 14.73s.\n(8.37 GiB)\nTo use the model in the API/SDK, use the identifier \"qwen2.5-coder-14b-instruct\".\n",
+  "ps": [
+   {
+    "sizeBytes": 8988110272,
+    "identifier": "qwen2.5-coder-14b-instruct",
+    "contextLength": 65536,
+    "status": "idle",
+    "parallel": 4
+   }
+  ],
+  "rest_config": {
+   "context_length": 65536,
+   "eval_batch_size": 2048,
+   "physical_batch_size": 512,
+   "parallel": 4,
+   "flash_attention": true,
+   "context_checkpoints": 32,
+   "reasoning_budget_message": "",
+   "speculative_draft_mtp": false,
+   "speculative_draft_simple": false,
+   "speculative_draft_model": "",
+   "speculative_draft_max_tokens": 3,
+   "speculative_draft_min_tokens": 0,
+   "speculative_draft_min_continue_probability": 0,
+   "offload_kv_cache_to_gpu": true
+  },
+  "log_lines": [
+   "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (11173 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+   "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10847 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+   "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10823 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+   "[2026-10-11 14:52:19][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (11172 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+   "[2026-10-11 14:52:20][ERROR][qwen3-4b-instruct-2507] Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message\":\"request (10846 tokens) exceeds the available context size (8192 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n",
+   "[2026-10-11 14:53:03][DEBUG] 0.05.462.821 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'",
+   "[2026-10-11 14:55:38][DEBUG] 0.02.094.052 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'",
+   "[2026-10-11 14:55:54][DEBUG] 0.02.027.503 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 32768, kv_unified = 'true'",
+   "[2026-10-11 14:57:31][DEBUG] 0.09.861.033 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 32768, kv_unified = 'true'",
+   "[2026-10-11 15:00:24][DEBUG] 0.02.204.241 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'",
+   "[2026-10-11 15:01:03][DEBUG] 0.00.369.480 W common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 999999, abort",
+   "[2026-10-11 15:01:17][DEBUG] 0.14.575.482 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 65536, kv_unified = 'true'"
+  ]
+ },
+ "gpu_after_load": {
+  "dedicated_mib": 12883,
+  "shared_mib": 12739
+ },
+ "decode": {
+  "runs": [
+   {
+    "ok": true,
+    "ttft": 0.3060039000120014,
+    "ttfb": 0.3060039000120014,
+    "wall": 5.8438238999806345,
+    "decode_tps": 46.04859864250648,
+    "completion_tokens": 256,
+    "prompt_tokens": 61,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and rolling hills, lay a picturesque harbor. Th"
+   },
+   {
+    "ok": true,
+    "ttft": 0.308386699995026,
+    "ttfb": 0.308386699995026,
+    "wall": 5.850127300014719,
+    "decode_tps": 46.016090220658015,
+    "completion_tokens": 256,
+    "prompt_tokens": 59,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and rolling hills, lay a picturesque harbor. Th"
+   },
+   {
+    "ok": true,
+    "ttft": 0.32550629996694624,
+    "ttfb": 0.32550629996694624,
+    "wall": 5.896889999974519,
+    "decode_tps": 45.771834012687194,
+    "completion_tokens": 256,
+    "prompt_tokens": 62,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and rolling hills, lay a picturesque harbor. Th"
+   }
+  ],
+  "decode_tps": 46.016090220658015,
+  "server_decode_tps": null,
+  "errors": []
+ },
+ "gpu_after_run": {
+  "dedicated_mib": 12931,
+  "shared_mib": 12748
+ },
+ "shared_growth_mib": 12376,
+ "spilled_to_shared_memory": true
+}

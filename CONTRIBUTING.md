@@ -1,0 +1,184 @@
+# Contributing to Harness Studio
+
+Thank you for your interest in Harness Studio, an open-source project by [struklabs](https://github.com/struklabs). Bug reports, ideas, documentation fixes, translations, and code are all welcome.
+
+[Türkçe bölüme geç](#türkçe)
+
+## Ways to contribute
+
+- **Report a bug or request a feature** through [GitHub Issues](https://github.com/struklabs/harness-studio/issues/new/choose). Please search first, and include your OS, GPU, backend (CUDA, ROCm, Vulkan, Metal, CPU), and Harness Studio version.
+- **Ask a question or share an idea** in [GitHub Discussions](https://github.com/struklabs/harness-studio/discussions).
+- **Report a security problem** privately. Do not open a public issue; see [SECURITY.md](SECURITY.md).
+- **Improve the docs or translations** (English and Turkish are both first-class).
+- **Send code.** For anything larger than a small fix, open an issue or a discussion first so we can agree on the approach before you invest time.
+
+By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Development setup
+
+Requirements:
+
+- Node.js 22 or newer
+- Rust (stable toolchain, with `rustfmt` and `clippy`)
+- The [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your operating system (on Linux: WebKitGTK, libdbus, and related packages; see `.github/workflows/ci.yml` for the exact list)
+
+```sh
+git clone https://github.com/struklabs/harness-studio.git
+cd harness-studio
+npm ci
+npm run tauri dev
+```
+
+The interface depends on Tauri commands, so running the frontend alone in a browser is not supported. Always use `npm run tauri dev`.
+
+Repository layout:
+
+| Path | Contents |
+|---|---|
+| `src/` | SvelteKit (Svelte 5) frontend; UI strings in `src/lib/locales/` |
+| `src-tauri/` | Tauri shell (desktop integration, commands) |
+| `crates/harness-core` | Core services: servers, downloads, runtimes, tools, storage |
+| `crates/harness-gateway`, `harness-api`, `harness-mcp`, `harness-cli`, `harness-onnx` | Gateway, Control API, MCP server, CLI, ONNX sidecar |
+| `docs/` | Documentation ([architecture](docs/en/ARCHITECTURE.md), [security model](docs/en/SECURITY_MODEL.md), guides) |
+| `bench/compare/` | Benchmark suite against other local-AI tools |
+| `scripts/` | Frontend checks and UI test scripts |
+
+## Build
+
+```sh
+npm run build                    # frontend only
+npm run tauri build              # installer for your platform
+cargo build --release -p harness-cli   # the `harness` command
+```
+
+## Checks before opening a pull request
+
+CI runs the same checks. Please run them locally first:
+
+```sh
+npm run check                                   # svelte-check / TypeScript, must report 0 errors
+npm run check:locales                           # Turkish and English keys must match
+npm run build
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+Some end-to-end tests are marked `#[ignore]` because they start a real `llama-server`:
+
+```sh
+HS_LLAMA_SERVER=/path/to/llama-server HS_TEST_MODEL=/path/to/model.gguf \
+  cargo test --workspace -- --ignored --test-threads=1
+```
+
+Tests use real components rather than mocks wherever possible. Add or update a test for every behavior change. The `scripts/test-*.mjs` files that drive the user interface launch the application; run them one at a time, and do not run them with a glob.
+
+## Interface and translations
+
+- The UI uses shadcn-svelte and Tailwind v4. Palette, spacing, and component rules are in [DESIGN.md](docs/en/DESIGN.md).
+- Every user-visible string goes through `t('key')`; do not hard-code text. Add each new key to `src/lib/locales/` for **both** Turkish and English. `npm run check:locales` verifies parity.
+- Use Title Case for navigation, headings, and buttons in English.
+
+## Commit style
+
+We use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): short description`, for example `feat(ui): add download queue filters` or `fix(core): handle missing mmproj`. Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `chore`, `ci`. English or Turkish messages are both fine.
+
+Add user-facing changes to the `[Unreleased]` section of [docs/CHANGELOG.md](docs/CHANGELOG.md). Planned work lives in [docs/en/ROADMAP.md](docs/en/ROADMAP.md).
+
+### Sign-off and licensing
+
+Harness Studio is released under the [MIT License](LICENSE). By submitting a contribution you confirm that you have the right to submit it and agree that it is licensed under the same terms. No Contributor License Agreement (CLA) is required. A [Developer Certificate of Origin](https://developercertificate.org/) sign-off (`git commit -s`) is welcome but optional.
+
+## Pull request process
+
+1. Fork the repository and create a branch from `main` (for example `fix/gateway-timeout`).
+2. Make focused changes. Keep unrelated cleanups in separate pull requests.
+3. Run the checks above and update documentation and both locales where relevant.
+4. Open a pull request and fill in the template. Link the issue it addresses.
+5. A maintainer reviews it. All changes go through pull requests: nobody, including maintainers, pushes directly to `main`. At least one maintainer approval and passing CI are required to merge.
+6. Maintainers squash or merge once feedback is addressed. Please be patient; this is a small team.
+
+---
+
+## For maintainers
+
+### Branch protection
+
+Configure `main` with: pull request required, at least one approving review (code owners, see `.github/CODEOWNERS`), required status checks (`CI`), no force pushes, and no direct pushes.
+
+### CI
+
+`.github/workflows/ci.yml` runs on pull requests and pushes to `main` (Windows, Linux, macOS: type check, locale parity, frontend build, `rustfmt`, `clippy`, tests; plus `cargo audit`). It needs **no secrets**, uses read-only permissions, and pull requests from forks run without access to any secret.
+
+### Releases
+
+1. Bump the version in `package.json`, `src-tauri/tauri.conf.json`, and the `Cargo.toml` files, and move the `[Unreleased]` changelog entries under the new version.
+2. Merge to `main`, then push a tag such as `v0.2.0`.
+3. `.github/workflows/release.yml` builds the Windows NSIS installer and uploads it to a **draft** GitHub release, together with the updater signature and `latest.json`. Review the draft and publish it.
+
+Repository secrets used by the release workflow (Settings > Secrets and variables > Actions):
+
+| Secret | Purpose |
+|---|---|
+| `TAURI_SIGNING_PRIVATE_KEY` | Contents of the updater signing key (generated with `npm run tauri signer generate`). Without it, no updater artifacts or `latest.json` are produced. The public key lives in `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`. |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password of that key (empty if generated with `--ci`). |
+
+The workflow also accepts optional Apple signing secrets (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`) for the macOS build, which is not published yet. Windows code signing is not configured; the installer is unsigned for now. Never commit signing keys (`*.key` is git-ignored).
+
+---
+
+<a id="türkçe"></a>
+
+# Harness Studio'ya Katkıda Bulunma (Türkçe)
+
+Harness Studio, [struklabs](https://github.com/struklabs) tarafından geliştirilen açık kaynaklı bir projedir. Hata bildirimleri, fikirler, belge düzeltmeleri, çeviriler ve kod katkıları memnuniyetle karşılanır.
+
+## Nasıl katkıda bulunabilirsiniz
+
+- **Hata bildirimi veya özellik isteği:** [GitHub Issues](https://github.com/struklabs/harness-studio/issues/new/choose). Önce arama yapın; işletim sistemi, GPU, backend (CUDA, ROCm, Vulkan, Metal, CPU) ve Harness Studio sürümünü yazın.
+- **Soru ve fikirler:** [GitHub Discussions](https://github.com/struklabs/harness-studio/discussions).
+- **Güvenlik sorunları:** herkese açık issue açmayın, özel olarak bildirin: [SECURITY.md](SECURITY.md).
+- **Belge ve çeviri:** Türkçe ve İngilizce eşit önemdedir.
+- **Kod:** küçük düzeltmeler dışında önce bir issue veya tartışma açın.
+
+Katılımınızla [Davranış Kuralları](CODE_OF_CONDUCT.md)'nı kabul etmiş olursunuz.
+
+## Geliştirme
+
+Gereksinimler: Node.js 22+, Rust (stable; `rustfmt` ve `clippy` ile), işletim sisteminiz için [Tauri önkoşulları](https://v2.tauri.app/start/prerequisites/).
+
+```sh
+git clone https://github.com/struklabs/harness-studio.git
+cd harness-studio
+npm ci
+npm run tauri dev
+```
+
+Arayüz Tauri komutlarına bağlıdır; ön yüzü tek başına tarayıcıda çalıştırmak desteklenmez.
+
+## PR öncesi kontroller
+
+```sh
+npm run check
+npm run check:locales
+npm run build
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+```
+
+Her davranış değişikliği için test ekleyin veya güncelleyin. Arayüzde kullanıcıya görünen her metin `t('anahtar')` ile alınır; yeni anahtarı `src/lib/locales/` altında **hem Türkçe hem İngilizce** ekleyin. Başlık, menü ve düğmelerde Türkçe için TDK, İngilizce için Chicago başlık yazımı kullanılır.
+
+## Commit stili ve lisans
+
+Conventional Commits: `tür(kapsam): kısa açıklama` (`feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `chore`, `ci`). Türkçe veya İngilizce yazabilirsiniz. Kullanıcıya görünen değişiklikleri [docs/CHANGELOG.md](docs/CHANGELOG.md) içindeki `[Unreleased]` bölümüne ekleyin.
+
+Katkılar [MIT Lisansı](LICENSE) ile lisanslanır. CLA gerekmez; DCO imzası (`git commit -s`) isteğe bağlıdır.
+
+## Pull request süreci
+
+1. Depoyu fork'layın, `main`'den bir dal açın.
+2. Değişiklikleri odaklı tutun; ilgisiz temizlikleri ayrı PR'a bırakın.
+3. Yukarıdaki kontrolleri çalıştırın; belge ve iki dili güncelleyin.
+4. PR şablonunu doldurun ve ilgili issue'yu bağlayın.
+5. Bakımcılar inceler. Tüm değişiklikler PR ile girer; bakımcılar dahil kimse `main`'e doğrudan push yapmaz. Birleştirmek için en az bir bakımcı onayı ve geçen CI gerekir.

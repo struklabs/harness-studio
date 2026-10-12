@@ -1,0 +1,92 @@
+[package]
+name = "harness-core"
+version = "0.1.0"
+description = "Harness Studio core services (llama.cpp runtime, servers, models) without Tauri"
+authors = ["struklabs and Harness Studio contributors"]
+repository = "https://github.com/struklabs/harness-studio"
+homepage = "https://github.com/struklabs/harness-studio"
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+# Only what is read (processes, memory, CPU, disks): no rayon pool, network, components, users.
+sysinfo = { version = "0.38", default-features = false, features = ["system", "disk"] }
+command-group = { version = "5.0", features = ["with-tokio"] }
+# Reads llama.cpp release zips and DOCX (Deflate; Deflate64 for 7-Zip archives). The default
+# features add zstd, bzip2, xz and AES in C/Rust that no archive here uses.
+zip = { version = "2.2", default-features = false, features = ["deflate", "deflate64"] }
+futures-util = "0.3"
+bytes = "1"
+base64 = "0.22"
+regex = "1.10"
+sha2 = "0.10"
+flate2 = "1"
+tar = "0.4"
+# sherpa-onnx releases are `.tar.bz2`; the pure-Rust libbz2 port needs no C compiler.
+bzip2 = "0.6"
+serde_norway = "0.9.42"
+rusqlite = { version = "0.37", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+toml = "1"
+toml_edit = "0.25"
+getrandom = "0.3"
+utoipa = { version = "5", features = ["preserve_order"], optional = true }
+jsonc-parser = { version = "0.34", features = ["cst", "serde_json"] }
+# OpenTelemetry OTLP trace, log and metric export (feature `otel`; runtime opt-in in Settings).
+# OTLP/HTTP goes through the reqwest 0.12 above (an `opentelemetry_http::HttpClient` adapter in
+# `otel/export.rs`), so no second reqwest; gRPC (tonic, rustls/ring, OS roots) only with
+# `otel-grpc`.
+opentelemetry = { version = "0.33", default-features = false, features = ["trace", "metrics", "logs"], optional = true }
+opentelemetry_sdk = { version = "0.33", default-features = false, features = ["trace", "metrics", "logs"], optional = true }
+opentelemetry-otlp = { version = "0.33", default-features = false, features = ["trace", "metrics", "logs", "http-proto"], optional = true }
+opentelemetry-http = { version = "0.33", default-features = false, optional = true }
+async-trait = { version = "0.1", optional = true }
+# Document text for the Playground's local RAG (MIT; pure Rust, no external services).
+pdf-extract = "0.12"
+encoding_rs = "0.8"
+# Built-in clock tool: IANA timezone database and ISO-8601 formatting.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+chrono-tz = "0.10"
+# DOM parsing for the fetch_url readability pass; scripts/styles/navigation are removed.
+scraper = "0.24"
+# Embedded JS engine for installed tools (ROADMAP Faz 13 / G1): QuickJS, no ambient file or network access,
+# a heap limit and an interrupt hook (wall time, cancellation). Needs only a C compiler, like rusqlite.
+# 0.11 also polls the interrupt hook during RegExp backtracking (matches and run()).
+rquickjs = { version = "0.11", default-features = false, features = ["std"] }
+
+tempfile = "3"
+# Layout of Hugging Face ONNX encoder repos (pooling, tokenizer, embedder or reranker); the
+# ONNX Runtime engine of that crate is left out.
+harness-onnx = { path = "../harness-onnx", default-features = false }
+
+[features]
+# OpenAPI schemas (utoipa::ToSchema) for the types the Control API exposes.
+openapi = ["dep:utoipa"]
+# OpenTelemetry OTLP export of gateway traces, logs and metrics over OTLP/HTTP (protobuf). The
+# shipped binaries (GUI, `harness`) enable it; nothing is sent unless the user turns it on.
+otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", "dep:opentelemetry-http", "dep:async-trait"]
+# OTLP/gRPC as well (tonic, rustls/ring, OS root certificates; +1.5 MB). Opt-in: the default
+# builds leave it out, choosing gRPC there is the error `otel.grpc_not_built`.
+otel-grpc = ["otel", "opentelemetry-otlp/grpc-tonic", "opentelemetry-otlp/tls-ring", "opentelemetry-otlp/tls-roots"]
+
+[dev-dependencies]
+# The OTLP/gRPC test (`tests/otel_grpc.rs`, feature `otel-grpc`) runs a real gRPC receiver
+# built from the official OTLP service definitions.
+opentelemetry-proto = { version = "0.33", default-features = false, features = ["gen-tonic", "trace", "metrics", "logs"] }
+tonic = { version = "0.14", default-features = false, features = ["server", "router", "codegen"] }
+
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+windows = { version = "0.62", features = ["Win32_Devices_DeviceAndDriverInstallation", "Win32_Foundation", "Win32_Globalization", "Win32_Graphics_Dxgi", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_LibraryLoader", "Win32_System_Performance", "Win32_System_Registry", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", features = ["apple-native"] }
+libc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring = { version = "3", features = ["sync-secret-service", "crypto-rust"] }
+libc = "0.2"

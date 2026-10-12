@@ -1,0 +1,198 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 0.38844350003637373,
+   "ttfb": 0.38842710002791137,
+   "wall": 4.871592200011946,
+   "decode_tps": 56.88560418742586,
+   "completion_tokens": 256,
+   "prompt_tokens": 486,
+   "server_decode_tps": 56.8863491055012,
+   "server_prompt_tps": 2241.0081288742067,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where mist curled around ancient stone towers and time seemed to move"
+  },
+  {
+   "ok": true,
+   "ttft": 0.40122229990083724,
+   "ttfb": 0.40120089997071773,
+   "wall": 4.869429999962449,
+   "decode_tps": 57.073398336841066,
+   "completion_tokens": 256,
+   "prompt_tokens": 487,
+   "server_decode_tps": 57.07191531333489,
+   "server_prompt_tps": 2240.0459116848015,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley, where time moved like a slow river and shadows stretched long across the stone pat"
+  },
+  {
+   "ok": true,
+   "ttft": 0.3819162999279797,
+   "ttfb": 0.38189830002374947,
+   "wall": 4.854809399927035,
+   "decode_tps": 57.01418331785441,
+   "completion_tokens": 256,
+   "prompt_tokens": 487,
+   "server_decode_tps": 57.01273396181488,
+   "server_prompt_tps": 2238.8025181902703,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where time moved like a slow river and shadows clung to stone like mo"
+  },
+  {
+   "ok": true,
+   "ttft": 0.3777362999971956,
+   "ttfb": 0.37771989998873323,
+   "wall": 4.8562879000091925,
+   "decode_tps": 56.94092071422759,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 56.94063971803888,
+   "server_prompt_tps": 2230.5824349681743,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where mist curled around ancient stone walls and time seemed to move "
+  },
+  {
+   "ok": true,
+   "ttft": 0.40790929994545877,
+   "ttfb": 0.4078922999324277,
+   "wall": 4.898132599890232,
+   "decode_tps": 56.79422649950011,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 56.79235445734237,
+   "server_prompt_tps": 2233.9215225672133,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where time moved like a slow river and shadows whispered secrets, the"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": true,
+   "ttft": 2.2042759999167174,
+   "ttfb": 2.204256400000304,
+   "wall": 2.2045928000006825,
+   "completion_tokens": 1,
+   "prompt_tokens": 3987,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 2027.6189908942956,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 1808.7571611498006
+  },
+  {
+   "ok": true,
+   "ttft": 2.23683140007779,
+   "ttfb": 2.2368150000693277,
+   "wall": 2.2370168000925332,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 2026.5486005420407,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 1782.8791208230132
+  },
+  {
+   "ok": true,
+   "ttft": 2.2433867000509053,
+   "ttfb": 2.243369200034067,
+   "wall": 2.2435598000884056,
+   "completion_tokens": 1,
+   "prompt_tokens": 3986,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 2025.457075773051,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 1776.777940205116
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 0.38844350003637373,
+  "decode_tps": 56.94092071422759,
+  "server_decode_tps": 56.94063971803888,
+  "prompt_tokens_500": 487,
+  "completion_tokens": 256,
+  "pp4k_tps_client": 1782.8791208230132,
+  "pp4k_tps_server": 2026.5486005420407,
+  "pp4k_prompt_tokens": 3987,
+  "pp4k_ttft_s": 2.23683140007779,
+  "errors": []
+ },
+ "meta": {
+  "backend": "harness",
+  "mode": "out_of_box",
+  "model": "4b",
+  "endpoint_info": {
+   "alias": "bench-4b-default",
+   "server_id": "gw-bench-4b-default",
+   "config": {
+    "gpu_layers": 37,
+    "context_size": 12288,
+    "flash_attn": false,
+    "cache_type_k": "q8_0",
+    "cache_type_v": "q8_0"
+   },
+   "values": {
+    "n_ctx": 12288,
+    "total_slots": 1,
+    "n_ctx_train": 262144,
+    "kv_unified": false,
+    "gpu_layers_offloaded": 37,
+    "gpu_layers_total": 37,
+    "gpu_layers_by_fit": false,
+    "ctx_adjusted": false,
+    "build_info": "b11342-f1cee9941",
+    "chat_format": "Content-only",
+    "kv_fa_fallback": null,
+    "fit_failed": false,
+    "shared_memory_slowdown": false,
+    "shared_memory_bytes": 106954752
+   },
+   "cmdline": "-m C:\\Users\\user\\Documents\\Proje\\harness-studio\\scratch\\nv1012\\appdata\\com.harnessstudio.app\\models\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf --alias bench-4b-default -ngl 37 -c 12288 --host 127.0.0.1 --port 11441 --metrics --flash-attn on -ctk q8_0 -ctv q8_0 -np 1 --split-mode none --main-gpu 0 --cache-ram 1024 --ctx-checkpoints 4",
+   "load_s": 9.25,
+   "log_lines": [
+    "[+0.001s] [Harness Studio] Eşzamanlı istek: 1 (otomatik; her eşzamanlı isteğe ~12288 token bağlam kalsın diye).",
+    "[+0.006s] [Harness Studio] Starting llama-server: \"C:\\\\Users\\\\user\\\\Documents\\\\Proje\\\\harness-studio\\\\scratch\\\\nv1012\\\\appdata\\\\com.harnessstudio.app\\\\models\\\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf\"",
+    "[+0.006s] [Harness Studio] V önbelleği nicemlendiği için flash attention açıldı (--flash-attn on).",
+    "[+0.007s] [Harness Studio] Target GPU: adapter index 1 → --main-gpu 0 (split-mode: none)",
+    "[+1.008s] [stderr] 0.00.953.486 W common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 37, abort",
+    "[+6.662s] [stderr] 0.06.614.265 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 12288, kv_unified = 'false'",
+    "[+6.917s] [Harness Studio] Sunucu hazır (6.9 sn).",
+    "[+6.979s] [Harness Studio] Tanım bağlam belirtmiyor: llama.cpp'nin 4096 varsayılanı yerine modelin eğitim bağlamıyla (en çok 32768) yüklendi: 32768 (tanım değişmedi).",
+    "[+6.979s] [Harness Studio] Ekran kartında daha çok katman kalsın diye bağlam 12288 (otomatik 32768 yerine; tanım değişmedi).",
+    "[+6.979s] [Harness Studio] Belleğe sığdırmak için K q8_0 / V q8_0 önbellek ve 12288 bağlamla yüklendi (tanım 32768 istiyordu; tanım değişmedi)."
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 652
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 3479,
+   "shared_mib": 102
+  },
+  "date": "2026-10-12 10:46:26",
+  "gpu_after_run": {
+   "dedicated_mib": 3483,
+   "shared_mib": 102
+  },
+  "elapsed_s": 36.1
+ }
+}

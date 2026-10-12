@@ -1,0 +1,154 @@
+{
+ "object": "list",
+ "data": [
+  {
+   "checkpoint": "unsloth/Qwen3-0.6B-GGUF:Q4_0",
+   "checkpoints": {
+    "main": "unsloth/Qwen3-0.6B-GGUF:Q4_0"
+   },
+   "components": [],
+   "created": 1234567890,
+   "downloaded": false,
+   "id": "Qwen3-0.6B-GGUF",
+   "labels": [
+    "chat",
+    "reasoning"
+   ],
+   "object": "model",
+   "owned_by": "lemonade",
+   "recipe": "llamacpp",
+   "recipe_options": {},
+   "registry_source": "huggingface",
+   "size": 0.38,
+   "source": "huggingface",
+   "suggested": true,
+   "update_available": false
+  },
+  {
+   "checkpoint": "ggerganov/whisper.cpp:ggml-tiny.bin",
+   "checkpoints": {
+    "main": "ggerganov/whisper.cpp:ggml-tiny.bin",
+    "npu_cache": "amd/whisper-tiny-onnx-npu:ggml-tiny-encoder-vitisai.rai"
+   },
+   "components": [],
+   "created": 1234567890,
+   "downloaded": false,
+   "id": "Whisper-Tiny",
+   "labels": [
+    "transcription",
+    "realtime-transcription"
+   ],
+   "object": "model",
+   "owned_by": "lemonade",
+   "recipe": "whispercpp",
+   "recipe_options": {},
+   "registry_source": "huggingface",
+   "size": 0.075,
+   "source": "huggingface",
+   "suggested": true,
+   "update_available": false
+  },
+  {
+   "checkpoint": "pqnet/bge-reranker-v2-m3-Q8_0-GGUF",
+   "checkpoints": {
+    "main": "pqnet/bge-reranker-v2-m3-Q8_0-GGUF"
+   },
+   "components": [],
+   "created": 1234567890,
+   "downloaded": false,
+   "id": "bge-reranker-v2-m3-GGUF",
+   "labels": [
+    "reranking"
+   ],
+   "object": "model",
+   "owned_by": "lemonade",
+   "recipe": "llamacpp",
+   "recipe_options": {},
+   "registry_source": "huggingface",
+   "size": 0.636,
+   "source": "huggingface",
+   "suggested": true,
+   "update_available": false
+  },
+  {
+   "checkpoint": "mikkoph/kokoro-onnx",
+   "checkpoints": {
+    "main": "mikkoph/kokoro-onnx"
+   },
+   "components": [],
+   "created": 1234567890,
+   "downloaded": false,
+   "id": "kokoro-v1",
+   "labels": [
+    "tts"
+   ],
+   "object": "model",
+   "owned_by": "lemonade",
+   "recipe": "kokoro",
+   "recipe_options": {},
+   "registry_source": "huggingface",
+   "size": 0.354,
+   "source": "huggingface",
+   "suggested": true,
+   "update_available": false
+  },
+  {
+   "checkpoint": "nomic-ai/nomic-embed-text-v1-GGUF:Q4_K_S",
+   "checkpoints": {
+    "main": "nomic-ai/nomic-embed-text-v1-GGUF:Q4_K_S"
+   },
+   "components": [],
+   "created": 1234567890,
+   "downloaded": false,
+   "id": "nomic-embed-text-v1-GGUF",
+   "labels": [
+    "embeddings"
+   ],
+   "object": "model",
+   "owned_by": "lemonade",
+   "recipe": "llamacpp",
+   "recipe_options": {},
+   "registry_source": "huggingface",
+   "size": 0.0781,
+   "source": "huggingface",
+   "suggested": true,
+   "update_available": false
+  },
+  {
+   "checkpoint": "black-forest-labs/FLUX.2-klein-4B:flux-2-klein-4b.safetensors",
+   "checkpoints": {
+    "main": "black-forest-labs/FLUX.2-klein-4B:flux-2-klein-4b.safetensors",
+    "text_encoder": "Comfy-Org/vae-text-encorder-for-flux-klein-4b:split_files/text_encoders/qwen_3_4b.safetensors",
+    "vae": "Comfy-Org/vae-text-encorder-for-flux-klein-4b:split_files/vae/flux2-vae.safetensors"
+   },
+   "components": [],
+   "created": 1234567890,
+   "downloaded": false,
+   "id": "Flux-2-Klein-4B",
+   "image_defaults": {
+    "cfg_scale": 1.0,
+    "height": 1024,
+    "steps": 4,
+    "width": 1024
+   },
+   "labels": [
+    "image",
+    "edit"
+   ],
+   "object": "model",
+   "owned_by": "lemonade",
+   "recipe": "sd-cpp",
+   "recipe_options": {
+    "cfg_scale": 1.0,
+    "height": 1024,
+    "steps": 4,
+    "width": 1024
+   },
+   "registry_source": "huggingface",
+   "size": 16.1,
+   "source": "huggingface",
+   "suggested": true,
+   "update_available": false
+  }
+ ]
+}

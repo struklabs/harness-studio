@@ -1,0 +1,108 @@
+{
+ "gpu_before": {
+  "dedicated_mib": 4186,
+  "shared_mib": 100
+ },
+ "outcome": "loaded",
+ "info": {
+  "alias": "bench-14b-ctx65536",
+  "server_id": "gw-bench-14b-ctx65536",
+  "config": {
+   "gpu_layers": 34,
+   "context_size": 65536,
+   "flash_attn": false,
+   "cache_type_k": "q8_0",
+   "cache_type_v": "q4_0"
+  },
+  "values": {
+   "n_ctx": 65536,
+   "total_slots": 4,
+   "n_ctx_train": 131072,
+   "kv_unified": true,
+   "gpu_layers_offloaded": 34,
+   "gpu_layers_total": 49,
+   "gpu_layers_by_fit": false,
+   "ctx_adjusted": false,
+   "build_info": "b11556-a9d27ac69",
+   "chat_format": "Content-only",
+   "kv_fa_fallback": null,
+   "fit_failed": false,
+   "shared_memory_slowdown": false,
+   "shared_memory_bytes": 112820224
+  },
+  "cmdline": "-m D:\\Models\\Qwen\\Qwen2.5-Coder-14B-Instruct-GGUF\\qwen2.5-coder-14b-instruct-q4_k_m.gguf --alias bench-14b-ctx65536 -ngl 34 -c 65536 --host 127.0.0.1 --port 11441 --metrics --flash-attn on -ctk q8_0 -ctv q4_0 --split-mode none --main-gpu 0 --kv-unified --cache-ram 0 --ctx-checkpoints 4",
+  "load_s": 8.51,
+  "log_lines": [
+   "[+0.001s] [Harness Studio] Eşzamanlı istek: 4 (otomatik; ek istekler bağlam belleğini paylaşır, neredeyse ek bellek istemez).",
+   "[+0.001s] [Harness Studio] Ortak bağlamda birden çok eşzamanlı istek: llama.cpp'nin ana bellek istem önbelleği kapatıldı (--cache-ram 0); açıkken her istek dalgası ~3,7 sn takılıyor. Açmak için Önbellek RAM değerini elle girin.",
+   "[+0.007s] [Harness Studio] Starting llama-server: \"D:\\\\Models\\\\Qwen\\\\Qwen2.5-Coder-14B-Instruct-GGUF\\\\qwen2.5-coder-14b-instruct-q4_k_m.gguf\"",
+   "[+0.007s] [Harness Studio] V önbelleği nicemlendiği için flash attention açıldı (--flash-attn on).",
+   "[+0.008s] [Harness Studio] Target GPU: adapter index 0 → --main-gpu 0 (split-mode: none)",
+   "[+7.249s] [stderr] 0.07.164.378 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 65536, kv_unified = 'true'",
+   "[+7.385s] [Harness Studio] Sunucu hazır (7.3 sn).",
+   "[+7.417s] [Harness Studio] Belleğe sığdırmak için K q8_0 / V q4_0 önbellek ve 65536 bağlamla yüklendi (tanım 65536 istiyordu; tanım değişmedi)."
+  ]
+ },
+ "gpu_after_load": {
+  "dedicated_mib": 13782,
+  "shared_mib": 206
+ },
+ "decode": {
+  "runs": [
+   {
+    "ok": true,
+    "ttft": 0.44551079999655485,
+    "ttfb": 0.44549029995687306,
+    "wall": 16.88007829990238,
+    "decode_tps": 15.516302973397336,
+    "completion_tokens": 256,
+    "prompt_tokens": 57,
+    "server_decode_tps": 15.516246514092678,
+    "server_prompt_tps": 140.05364479000443,
+    "server_cache_n": 24,
+    "cached_tokens": 24,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+   },
+   {
+    "ok": true,
+    "ttft": 0.4465937002096325,
+    "ttfb": 0.4465736001729965,
+    "wall": 16.98569710017182,
+    "decode_tps": 15.418253222629218,
+    "completion_tokens": 256,
+    "prompt_tokens": 61,
+    "server_decode_tps": 15.418070038548198,
+    "server_prompt_tps": 157.13454539277262,
+    "server_cache_n": 24,
+    "cached_tokens": 24,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+   },
+   {
+    "ok": true,
+    "ttft": 0.4272215000819415,
+    "ttfb": 0.427200400037691,
+    "wall": 16.932312600081787,
+    "decode_tps": 15.45006484210625,
+    "completion_tokens": 256,
+    "prompt_tokens": 59,
+    "server_decode_tps": 15.450051830379758,
+    "server_prompt_tps": 143.98421255457637,
+    "server_cache_n": 25,
+    "cached_tokens": 25,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+   }
+  ],
+  "decode_tps": 15.45006484210625,
+  "server_decode_tps": 15.450051830379758,
+  "errors": []
+ },
+ "gpu_after_run": {
+  "dedicated_mib": 13782,
+  "shared_mib": 198
+ },
+ "shared_growth_mib": 98,
+ "spilled_to_shared_memory": false
+}

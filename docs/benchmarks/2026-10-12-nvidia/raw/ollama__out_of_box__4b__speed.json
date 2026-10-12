@@ -1,0 +1,206 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 0.5677732999902219,
+   "ttfb": 0.5677732999902219,
+   "wall": 9.60188550001476,
+   "decode_tps": 28.22742622572811,
+   "completion_tokens": 256,
+   "prompt_tokens": 486,
+   "server_decode_tps": 28.337392074385654,
+   "server_prompt_tps": 1670.1030927835052,
+   "server_cache_n": null,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "The heavy anchor watched the rapid engine near the cellar, and 59 people noticed it. That night, the wind howled through"
+  },
+  {
+   "ok": true,
+   "ttft": 0.6331826000241563,
+   "ttfb": 0.6331826000241563,
+   "wall": 9.757141800015233,
+   "decode_tps": 27.949603904763407,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 28.356225077536553,
+   "server_prompt_tps": 1439.52802359882,
+   "server_cache_n": null,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "The heavy anchor watched the rapid engine near the cellar, and 59 people noticed it. That night, the wind howled through"
+  },
+  {
+   "ok": true,
+   "ttft": 0.5407722999807447,
+   "ttfb": 0.5407722999807447,
+   "wall": 9.606540099950507,
+   "decode_tps": 28.152452574234992,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "server_decode_tps": 28.262309560609406,
+   "server_prompt_tps": 1608.5526315789473,
+   "server_cache_n": null,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where mist curled around ancient stone walls and time seemed to move "
+  },
+  {
+   "ok": true,
+   "ttft": 0.6274823999265209,
+   "ttfb": 0.6274823999265209,
+   "wall": 9.664767000009306,
+   "decode_tps": 28.21779588151404,
+   "completion_tokens": 256,
+   "prompt_tokens": 486,
+   "server_decode_tps": 28.3311199645861,
+   "server_prompt_tps": 1433.6283185840707,
+   "server_cache_n": null,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where time moved like a slow river and shadows whispered secrets, the"
+  },
+  {
+   "ok": true,
+   "ttft": 0.6152791000204161,
+   "ttfb": 0.6152791000204161,
+   "wall": 9.672731900005601,
+   "decode_tps": 28.15490475291436,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 28.2654300541018,
+   "server_prompt_tps": 1487.8048780487804,
+   "server_cache_n": null,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where mist curled around ancient stone towers and time seemed to move"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": true,
+   "ttft": 2.7981236999621615,
+   "ttfb": 2.7981236999621615,
+   "wall": 2.7983010999159887,
+   "completion_tokens": 1,
+   "prompt_tokens": 3984,
+   "server_decode_tps": 0,
+   "server_prompt_tps": 1643.5643564356435,
+   "server_cache_n": null,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 1423.8112489643952
+  },
+  {
+   "ok": true,
+   "ttft": 2.7998020000522956,
+   "ttfb": 2.7998020000522956,
+   "wall": 2.799964700010605,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0,
+   "server_prompt_tps": 1638.455217748562,
+   "server_cache_n": null,
+   "cached_tokens": 5,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 1424.386438728707
+  },
+  {
+   "ok": true,
+   "ttft": 2.8510809000581503,
+   "ttfb": 2.8510809000581503,
+   "wall": 2.851291300030425,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0,
+   "server_prompt_tps": 1634.4262295081967,
+   "server_cache_n": null,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 1398.7677445135496
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 0.6152791000204161,
+  "decode_tps": 28.15490475291436,
+  "server_decode_tps": 28.3311199645861,
+  "prompt_tokens_500": 488,
+  "completion_tokens": 256,
+  "pp4k_tps_client": 1423.8112489643952,
+  "pp4k_tps_server": 1638.455217748562,
+  "pp4k_prompt_tokens": 3988,
+  "pp4k_ttft_s": 2.7998020000522956,
+  "errors": []
+ },
+ "meta": {
+  "backend": "ollama",
+  "mode": "out_of_box",
+  "model": "4b",
+  "endpoint_info": {
+   "env": {},
+   "server_env_stripped": [
+    "OLLAMA_FLASH_ATTENTION",
+    "OLLAMA_KV_CACHE_TYPE",
+    "OLLAMA_NUM_PARALLEL",
+    "OLLAMA_MAX_LOADED_MODELS",
+    "OLLAMA_CONTEXT_LENGTH",
+    "OLLAMA_NUM_CTX",
+    "OLLAMA_GPU_OVERHEAD"
+   ],
+   "load_s": 45.89,
+   "ps": {
+    "size": 3525071338,
+    "size_vram": 2338869739,
+    "context_length": 4096
+   },
+   "log_lines": [
+    "time=2026-10-12T04:28:30.029+03:00 level=INFO source=routes.go:2373 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+    "time=2026-10-12T04:28:46.215+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\Documents\\\\Proje\\\\harness-studio\\\\scratch\\\\tools\\\\ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\Document",
+    "common_params_fit_impl: filling dense layers back-to-front:",
+    "common_params_fit_impl: - CUDA0 (NVIDIA GeForce RTX 3050 Ti Laptop GPU): 26 layers, 2230 MiB used, 1065 MiB free",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 25 repeating layers to GPU",
+    "load_tensors: offloaded 26/37 layers to GPU",
+    "llama_context: flash_attn = auto",
+    "llama_kv_cache: size = 576.00 MiB ( 4096 cells, 36 layers, 1/1 seqs), K (f16): 288.00 MiB, V (f16): 288.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled"
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 712
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 2327,
+   "shared_mib": 1037
+  },
+  "date": "2026-10-12 04:29:32",
+  "gpu_after_run": {
+   "dedicated_mib": 2345,
+   "shared_mib": 1037
+  },
+  "elapsed_s": 63.9,
+  "endpoint_info_after": {
+   "ps": {
+    "size": 3525071338,
+    "size_vram": 2338869739,
+    "context_length": 4096
+   },
+   "log_lines": [
+    "time=2026-10-12T04:28:30.029+03:00 level=INFO source=routes.go:2373 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+    "time=2026-10-12T04:28:46.215+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\Documents\\\\Proje\\\\harness-studio\\\\scratch\\\\tools\\\\ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\Document",
+    "common_params_fit_impl: filling dense layers back-to-front:",
+    "common_params_fit_impl: - CUDA0 (NVIDIA GeForce RTX 3050 Ti Laptop GPU): 26 layers, 2230 MiB used, 1065 MiB free",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 25 repeating layers to GPU",
+    "load_tensors: offloaded 26/37 layers to GPU",
+    "llama_context: flash_attn = auto",
+    "llama_kv_cache: size = 576.00 MiB ( 4096 cells, 36 layers, 1/1 seqs), K (f16): 288.00 MiB, V (f16): 288.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled"
+   ]
+  }
+ }
+}

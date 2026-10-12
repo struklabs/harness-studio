@@ -1,0 +1,98 @@
+[
+ {
+  "tag_name": "v2026.41.1",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-07T19:24:50Z",
+  "assets": [
+   {
+    "name": "lemonade-embeddable-2026.41.1-macos-arm64.tar.gz",
+    "size": 5724167,
+    "digest": "sha256:c1d6166346bb74f091a8c69c5d70bef0270f3a43f0f859bc045d07e936b88094",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/v2026.41.1/lemonade-embeddable-2026.41.1-macos-arm64.tar.gz"
+   },
+   {
+    "name": "lemonade-embeddable-2026.41.1-ubuntu-arm64.tar.gz",
+    "size": 6828318,
+    "digest": "sha256:903392f17de9521df8e45528aafbdac7c7f596acbf925651a9406edc616fea3e",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/v2026.41.1/lemonade-embeddable-2026.41.1-ubuntu-arm64.tar.gz"
+   },
+   {
+    "name": "lemonade-embeddable-2026.41.1-ubuntu-x64.tar.gz",
+    "size": 7423912,
+    "digest": "sha256:8029760a9c0ca4574783dcb8b9fbb1183b25de45cd347e4960c82342184fbea4",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/v2026.41.1/lemonade-embeddable-2026.41.1-ubuntu-x64.tar.gz"
+   },
+   {
+    "name": "lemonade-embeddable-2026.41.1-windows-x64.zip",
+    "size": 5379955,
+    "digest": "sha256:055b582d6c64f3a7a60438edf371b1fc75bfdd481b4f104175ba521f57eadb08",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/v2026.41.1/lemonade-embeddable-2026.41.1-windows-x64.zip"
+   }
+  ]
+ },
+ {
+  "tag_name": "candidate-v2026.42.0",
+  "draft": false,
+  "prerelease": true,
+  "published_at": "2026-10-07T16:50:12Z",
+  "assets": [
+   {
+    "name": "lemonade-embeddable-2026.42.0-macos-arm64.tar.gz",
+    "size": 5747223,
+    "digest": "sha256:1a5b81e79d7a95a6cdfaf2988ee76a507d2750616bd4ce5964766aa1d8c06f72",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/candidate-v2026.42.0/lemonade-embeddable-2026.42.0-macos-arm64.tar.gz"
+   },
+   {
+    "name": "lemonade-embeddable-2026.42.0-ubuntu-arm64.tar.gz",
+    "size": 6856320,
+    "digest": "sha256:46452a3fe8b766ac9ba9c392cbb739951917c2bd7359083987614c7f85cfb14c",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/candidate-v2026.42.0/lemonade-embeddable-2026.42.0-ubuntu-arm64.tar.gz"
+   },
+   {
+    "name": "lemonade-embeddable-2026.42.0-ubuntu-x64.tar.gz",
+    "size": 7456060,
+    "digest": "sha256:b1761ddddb8c408cb8c8622580ff8a9c3dfc25e9028edf87d9fbac8de782e3bc",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/candidate-v2026.42.0/lemonade-embeddable-2026.42.0-ubuntu-x64.tar.gz"
+   },
+   {
+    "name": "lemonade-embeddable-2026.42.0-windows-x64.zip",
+    "size": 5399465,
+    "digest": "sha256:a2376dea500e05d43fb0fefae6d0778936e46c8bffe1b9794b7acab5a773a732",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/candidate-v2026.42.0/lemonade-embeddable-2026.42.0-windows-x64.zip"
+   }
+  ]
+ },
+ {
+  "tag_name": "candidate-v2026.41.1",
+  "draft": false,
+  "prerelease": true,
+  "published_at": "2026-10-06T20:46:23Z",
+  "assets": [
+   {
+    "name": "lemonade-embeddable-2026.41.1-macos-arm64.tar.gz",
+    "size": 5724168,
+    "digest": "sha256:3a6cab08d2cc242e2535b0c8d62b29c47479e17d57a4ece24b16d22423c34d19",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/candidate-v2026.41.1/lemonade-embeddable-2026.41.1-macos-arm64.tar.gz"
+   },
+   {
+    "name": "lemonade-embeddable-2026.41.1-ubuntu-arm64.tar.gz",
+    "size": 6828312,
+    "digest": "sha256:3e96c37520437b0b80ccc3c8b72ab920350546db3eb5ced1e158b858c0619a79",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/candidate-v2026.41.1/lemonade-embeddable-2026.41.1-ubuntu-arm64.tar.gz"
+   },
+   {
+    "name": "lemonade-embeddable-2026.41.1-ubuntu-x64.tar.gz",
+    "size": 7423917,
+    "digest": "sha256:6805e6f350d5d3ee323330c900c6f1115899cc8cd5a36a8a8e3648a8755e5e41",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/candidate-v2026.41.1/lemonade-embeddable-2026.41.1-ubuntu-x64.tar.gz"
+   },
+   {
+    "name": "lemonade-embeddable-2026.41.1-windows-x64.zip",
+    "size": 5379951,
+    "digest": "sha256:3db032604af0ecb67e484c12aed074a20c538bb91aef85b41118430d9955191c",
+    "browser_download_url": "https://github.com/lemonade-sdk/lemonade/releases/download/candidate-v2026.41.1/lemonade-embeddable-2026.41.1-windows-x64.zip"
+   }
+  ]
+ }
+]

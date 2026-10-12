@@ -1,0 +1,38 @@
+[package]
+name = "harness-gateway"
+version = "0.1.0"
+description = "Harness gateway: one OpenAI/Anthropic-compatible endpoint for every model definition (JIT load, TTL, queue) over harness-core"
+authors = ["struklabs and Harness Studio contributors"]
+repository = "https://github.com/struklabs/harness-studio"
+homepage = "https://github.com/struklabs/harness-studio"
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+harness-core = { path = "../harness-core" }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "matched-path", "multipart", "query", "tokio"] }
+tower-http = { version = "0.6", features = ["cors"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+bytes = "1"
+http-body = "1"
+http-body-util = "0.1"
+sha2 = "0.10"
+
+[features]
+# OTLP/gRPC export (harness-core `otel-grpc`); off in the default builds. Runs the gRPC test
+# of `tests/otel.rs`.
+otel-grpc = ["harness-core/otel-grpc"]
+
+[dev-dependencies]
+base64 = "0.22"
+tempfile = "3"
+# The OTLP tests run real OTLP receivers (HTTP/protobuf and gRPC) built from the official
+# protocol definitions.
+harness-core = { path = "../harness-core", features = ["otel"] }
+opentelemetry-proto = { version = "0.33", default-features = false, features = ["gen-tonic", "trace", "metrics", "logs"] }
+prost = "0.14"
+tonic = { version = "0.14", default-features = false, features = ["server", "router", "codegen"] }

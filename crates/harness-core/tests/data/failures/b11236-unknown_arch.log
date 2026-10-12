@@ -1,0 +1,13 @@
+0.00.002.347 I srv  llama_server: initializing ...
+0.00.144.673 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.00.144.930 W srv  llama_server: security: no API key is set and CORS allows all origins (see https://github.com/ggml-org/llama.cpp/pull/25655)
+0.00.156.104 I srv    load_model: loading model 'C:/tmp/hs-test/fake.gguf'
+0.00.160.695 E llama_model_load: error loading model: unknown model architecture: 'fakearch'
+0.00.160.702 E llama_model_load_from_file_impl: failed to load model
+0.00.160.728 E common_fit_params: encountered an error while trying to fit params to free device memory: failed to load model
+0.00.160.881 E llama_model_load: error loading model: unknown model architecture: 'fakearch'
+0.00.160.882 E llama_model_load_from_file_impl: failed to load model
+0.00.160.884 E cmn  common_init_: failed to load model 'C:/tmp/hs-test/fake.gguf'
+0.00.160.887 E srv    load_model: failed to load model, 'C:/tmp/hs-test/fake.gguf'
+0.00.160.892 I srv    operator(): operator(): cleaning up before exit...
+0.00.161.569 E srv  llama_server: exiting due to model loading error

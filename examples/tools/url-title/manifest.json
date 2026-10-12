@@ -1,0 +1,21 @@
+{
+  "name": "url_title",
+  "version": "1.0.0",
+  "description": "Fetches a web page and returns its <title>. Use it to name a link or check what a URL is about without reading the whole page.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "url": { "type": "string", "description": "http or https address of the page. Only hosts the tool is allowed to contact work." }
+    },
+    "required": ["url"],
+    "additionalProperties": false
+  },
+  "output": "The page title as plain text, or a sentence saying the page has no title.",
+  "permissions": {
+    "network": ["example.com", "*.wikipedia.org"],
+    "fs": { "read": [], "write": [] },
+    "shell": false
+  },
+  "runtime": "js",
+  "entry": "index.js"
+}

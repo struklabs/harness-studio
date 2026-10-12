@@ -1,0 +1,198 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 0.23040060000494123,
+   "ttfb": 0.21772119996603578,
+   "wall": 1.5816652999492362,
+   "decode_tps": 188.74316518480185,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 186.98757155941033,
+   "server_prompt_tps": 10738.255033557047,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "Okay, so I need to take this list of observations and create a detailed story that continues it. Let me start by underst"
+  },
+  {
+   "ok": true,
+   "ttft": 0.22790200007148087,
+   "ttfb": 0.21533959999214858,
+   "wall": 1.595526900026016,
+   "decode_tps": 186.48024103970525,
+   "completion_tokens": 256,
+   "prompt_tokens": 487,
+   "server_decode_tps": 184.75235215102452,
+   "server_prompt_tps": 10716.957880374985,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "Okay, so I need to write a detailed story based on this passage. Let me start by understanding the structure of the orig"
+  },
+  {
+   "ok": true,
+   "ttft": 0.24154079996515065,
+   "ttfb": 0.22915959998499602,
+   "wall": 1.599058499909006,
+   "decode_tps": 187.8751978177954,
+   "completion_tokens": 256,
+   "prompt_tokens": 486,
+   "server_decode_tps": 186.15801968748812,
+   "server_prompt_tps": 10780.355796104875,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "Okay, so I need to take this passage and write a detailed story that continues it. Let me start by reading through the g"
+  },
+  {
+   "ok": true,
+   "ttft": 0.24286040000151843,
+   "ttfb": 0.23021919990424067,
+   "wall": 1.5948859999189153,
+   "decode_tps": 188.63148377487394,
+   "completion_tokens": 256,
+   "prompt_tokens": 486,
+   "server_decode_tps": 186.87273966428862,
+   "server_prompt_tps": 10763.404424955153,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "Okay, so I need to take this passage and write a detailed story that continues it. Let me start by reading through the g"
+  },
+  {
+   "ok": true,
+   "ttft": 0.22821949992794544,
+   "ttfb": 0.21568189992103726,
+   "wall": 1.580426099942997,
+   "decode_tps": 188.60796081874565,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "server_decode_tps": 186.86383854964348,
+   "server_prompt_tps": 10710.530926931839,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "Okay, let's see. The user provided a list of observations and counts from various locations near a station, and they wan"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": false,
+   "ttft": null,
+   "ttfb": 0.6957287000259385,
+   "wall": 0.6959620000561699,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 9338.659897621312,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": ""
+  },
+  {
+   "ok": false,
+   "ttft": null,
+   "ttfb": 0.7060276999836788,
+   "wall": 0.7062726999865845,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 9307.731625515507,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": ""
+  },
+  {
+   "ok": false,
+   "ttft": null,
+   "ttfb": 0.7214314000448212,
+   "wall": 0.7216539999935776,
+   "completion_tokens": 1,
+   "prompt_tokens": 3987,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 9336.624296299071,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": ""
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 0.23040060000494123,
+  "decode_tps": 188.60796081874565,
+  "server_decode_tps": 186.86383854964348,
+  "prompt_tokens_500": 487,
+  "completion_tokens": 256,
+  "pp4k_tps_client": null,
+  "pp4k_tps_server": 9336.624296299071,
+  "pp4k_prompt_tokens": 3988,
+  "pp4k_ttft_s": null,
+  "errors": []
+ },
+ "meta": {
+  "backend": "llamacpp",
+  "mode": "out_of_box",
+  "model": "14b",
+  "endpoint_info": {
+   "args": [
+    "-m",
+    "C:\\Users\\user\\Documents\\Proje\\harness-studio\\scratch\\nv1012\\appdata\\com.harnessstudio.app\\models\\Qwen3-0.6B-Q8_0.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8090"
+   ],
+   "load_s": 1.98,
+   "probe_lines": [
+    "srv llama_server: n_parallel is set to auto, using n_parallel = 4 and kv_unified = true",
+    "cmn common_init_: fitting params to device memory ...",
+    "cmn common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)",
+    "common_params_fit_impl: getting device memory data for initial parameters:",
+    "common_params_fit_impl: context size unset -> using 163840 for 4 sequences:",
+    "common_params_fit_impl: projected to use 18710 MiB of device memory vs. 3295 MiB of free device memory",
+    "common_params_fit_impl: cannot meet free memory target of 1024 MiB, need to reduce device memory by 16438 MiB",
+    "common_params_fit_impl: context size reduced from 163840 to 14848 -> need 16441 MiB less memory in total",
+    "common_params_fit_impl: entire model can be fit by reducing context",
+    "common_fit_params: successfully fit params to free device memory",
+    "common_fit_params: fitting params to free memory took 0.66 seconds",
+    "load_tensors: offloaded 29/29 layers to GPU",
+    "llama_context: n_seq_max = 4",
+    "llama_context: n_ctx = 14848",
+    "llama_context: n_ctx_seq = 14848",
+    "llama_context: flash_attn = auto",
+    "llama_context: n_ctx_seq (14848) < n_ctx_train (40960) -- the full capacity of the model will not be utilized",
+    "llama_kv_cache: CUDA0 KV buffer size = 1624.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled",
+    "slot load_model: id 0 | task -1 | new slot, n_ctx = 14848",
+    "slot load_model: id 1 | task -1 | new slot, n_ctx = 14848",
+    "slot load_model: id 2 | task -1 | new slot, n_ctx = 14848",
+    "slot load_model: id 3 | task -1 | new slot, n_ctx = 14848"
+   ],
+   "log_lines": [
+    "0.01.542.160 I srv load_model: initializing, n_slots = 4, n_ctx_slot = 14848, kv_unified = 'true'"
+   ],
+   "props": {
+    "total_slots": 4,
+    "n_ctx": 14848,
+    "build_info": "b11026-b49650adb"
+   }
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 730
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 2367,
+   "shared_mib": 101
+  },
+  "date": "2026-10-12 04:49:41",
+  "gpu_after_run": {
+   "dedicated_mib": 2369,
+   "shared_mib": 101
+  },
+  "elapsed_s": 12.8
+ }
+}

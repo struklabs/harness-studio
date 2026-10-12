@@ -1,0 +1,23 @@
+{
+ "request": {
+  "ok": true,
+  "ttft": 0.23629299993626773,
+  "ttfb": 0.23629299993626773,
+  "wall": 0.3274064001161605,
+  "decode_tps": 156.35448682505506,
+  "completion_tokens": 14,
+  "prompt_tokens": 29,
+  "finish_reason": "stop",
+  "text_head": "The sea whispers secrets to the shore, endless and ever-changing."
+ },
+ "info": {
+  "jit_active": false
+ },
+ "outcome": "NOT_SWITCHED_silently_answered_by_loaded_4B",
+ "ttft_s": 0.23629299993626773,
+ "gpu_after": {
+  "dedicated_mib": 8164,
+  "shared_mib": 393
+ },
+ "reason": "JIT loading inactive on this install: the request for the 14B returned HTTP 200 answered by qwen3-4b-instruct-2507 (response 'model' field and `lms ps` confirm; an unknown model name behaves the same). Verified manually after the run."
+}

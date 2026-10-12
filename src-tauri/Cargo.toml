@@ -1,0 +1,50 @@
+[package]
+name = "harness-studio"
+version = "0.1.0"
+description = "Harness Studio - Lightweight llama.cpp Control Center"
+authors = ["struklabs and Harness Studio contributors"]
+repository = "https://github.com/struklabs/harness-studio"
+homepage = "https://github.com/struklabs/harness-studio"
+license = "MIT"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "harness_studio_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+qa-cdp = []
+# OTLP/gRPC export in the GUI (tonic, rustls; about +1.5 MB). Off by default, where Settings >
+# OpenTelemetry offers only HTTP/protobuf.
+otel-grpc = ["harness-core/otel-grpc", "harness-api/otel-grpc", "harness-gateway/otel-grpc"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+harness-core = { path = "../crates/harness-core", features = ["otel"] }
+harness-api = { path = "../crates/harness-api" }
+harness-gateway = { path = "../crates/harness-gateway" }
+tauri = { version = "2", features = ["tray-icon", "image-png", "image-ico"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["full"] }
+tauri-plugin-dialog = "2"
+base64 = "0.22"
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
+
+# WebView2 memory target while the window is hidden (same versions as wry uses); waiting for the
+# released page's browser process before the window is built again (`windows`, as harness-core).
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+windows-core = "0.62"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
+
+# Microphone for the Speech tab: WebKitGTK ships with media streams off (same version wry uses).
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = "=2.0.2"

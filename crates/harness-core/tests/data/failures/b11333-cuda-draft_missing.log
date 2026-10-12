@@ -1,0 +1,20 @@
+0.01.345.779 I srv  llama_server: initializing ...
+0.01.345.786 I cmn  common_param: common_params_print_info: verbosity = 3 (adjust with the `-lv N` CLI arg)
+0.01.346.076 W srv  llama_server: security: no API key is set and CORS allows all origins (see https://github.com/ggml-org/llama.cpp/pull/25655)
+0.01.346.134 E gguf_init_from_file: failed to open GGUF file 'C:\models\nope-draft.gguf' (No such file or directory)
+0.01.350.554 I srv    load_model: loading model 'C:\models\Qwen3-4B-Instruct-2507-Q4_K_M.gguf'
+0.01.621.197 E gguf_init_from_file: failed to open GGUF file 'C:\models\nope-draft.gguf' (No such file or directory)
+0.01.622.356 E llama_model_load: error loading model: llama_model_loader: failed to load model from C:\models\nope-draft.gguf
+0.01.622.358 E llama_model_load_from_file_impl: failed to load model
+0.01.626.942 W operator(): failed to measure the memory of the extra model, fitting without it: failed to load model
+0.01.626.971 W common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 99, abort
+0.01.782.989 W load: control-looking token: 128247 '</s>' was not control-type; this is probably a bug in the model. its type will be overridden
+0.02.768.179 I cmn          init: llama threadpool init, n_threads = 14
+0.02.819.609 I common_speculative_init_result: loading draft model 'C:\models\nope-draft.gguf'
+0.02.819.688 E gguf_init_from_file: failed to open GGUF file 'C:\models\nope-draft.gguf' (No such file or directory)
+0.02.819.710 E llama_model_load: error loading model: llama_model_loader: failed to load model from C:\models\nope-draft.gguf
+0.02.819.711 E llama_model_load_from_file_impl: failed to load model
+0.02.819.712 E common_speculative_init_result: failed to load draft model, 'C:\models\nope-draft.gguf'
+0.02.819.713 E srv    load_model: failed to load draft model, 'C:\models\nope-draft.gguf'
+0.02.819.723 I srv    operator(): operator(): cleaning up before exit...
+0.02.820.574 E srv  llama_server: exiting due to model loading error

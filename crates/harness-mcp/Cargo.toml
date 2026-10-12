@@ -1,0 +1,18 @@
+[package]
+name = "harness-mcp"
+version = "0.1.0"
+description = "Harness MCP server: Model Context Protocol tools over the Harness Control API (stdio and streamable HTTP)"
+authors = ["struklabs and Harness Studio contributors"]
+repository = "https://github.com/struklabs/harness-studio"
+homepage = "https://github.com/struklabs/harness-studio"
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+harness-core = { path = "../harness-core" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["io-util", "macros", "rt", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

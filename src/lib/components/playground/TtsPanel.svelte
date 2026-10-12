@@ -1,0 +1,243 @@
+<script lang="ts">
+  import { t, locale } from '$lib/i18n.svelte';
+  import { invoke } from '$lib/ipc';
+  import { toast } from 'svelte-sonner';
+  import { localizeError } from '$lib/network';
+  import type { GatewayOverview } from '$lib/types';
+  import { app } from '$lib/stores/app.svelte';
+  import { Button } from '$lib/components/ui/button';
+  import { Badge } from '$lib/components/ui/badge';
+  import { Label } from '$lib/components/ui/label';
+  import { Textarea } from '$lib/components/ui/textarea';
+  import { Progress } from '$lib/components/ui/progress';
+  import AdvancedOnly from '../common/AdvancedOnly.svelte';
+  import { formatBytes } from '$lib/format';
+  import { Download, LoaderCircle, Power, Square, Volume2, TriangleAlert } from '@lucide/svelte';
+  import { onDestroy, onMount } from 'svelte';
+  import { fetchSpeech, pickTtsModel, pickTtsVoice, voicesOf, type SpeechResult } from './tts';
+  import { readAloud, tts } from './tts.svelte';
+  import { MAX_SPEECH_CHARS } from './ttsText';
+
+  let text = $state('');
+  let busy = $state(false);
+  let error = $state('');
+  let result = $state<{ url: string; info: SpeechResult } | null>(null);
+  let controller: AbortController | null = null;
+
+  onMount(() => void tts.load());
+  onDestroy(() => {
+    controller?.abort();
+    if (result) URL.revokeObjectURL(result.url);
+  });
+
+  $effect(() => {
+    tts.model = pickTtsModel(tts.model, tts.models);
+    tts.voice = pickTtsVoice(tts.voice, tts.models, tts.model);
+  });
+
+  let voices = $derived(voicesOf(tts.models, tts.model));
+  let runtimeMissing = $derived(!!tts.overview && !tts.overview.runtime_installed);
+  let canRun = $derived(!busy && app.gatewayRunning && !runtimeMissing && tts.models.length > 0 && text.trim().length > 0);
+  let progressPct = $derived(
+    tts.modelProgress && tts.modelProgress.total_bytes > 0 ? (tts.modelProgress.downloaded_bytes / tts.modelProgress.total_bytes) * 100 : 0,
+  );
+
+  async function run() {
+    if (!canRun) return;
+    readAloud.stop();
+    controller?.abort();
+    const c = new AbortController();
+    controller = c;
+    busy = true;
+    error = '';
+    try {
+      const info = await fetchSpeech(
+        app.inferenceUrl,
+        { model: tts.model, input: text.trim(), voice: tts.voice, speed: tts.speed },
+        app.inferenceHeaders(),
+        c.signal,
+      );
+      if (result) URL.revokeObjectURL(result.url);
+      result = { url: URL.createObjectURL(info.blob), info };
+    } catch (e) {
+      if (!c.signal.aborted) {
+        const msg = e instanceof Error ? e.message : String(e);
+        const family = /runtime\.family_not_installed:\s*([\w.+-]+)/.exec(msg)?.[1];
+        error = family ? t('lib.runtime_needs_hint', { runtime: family }) : localizeError(e);
+      }
+    } finally {
+      if (controller === c) {
+        controller = null;
+        busy = false;
+      }
+    }
+  }
+
+  function cancel() {
+    controller?.abort();
+    controller = null;
+    busy = false;
+  }
+
+  let enablingGateway = $state(false);
+  /** Same call as the Settings > Gateway switch: the stored settings with `enabled` on. */
+  async function enableGateway() {
+    enablingGateway = true;
+    try {
+      const current = app.gateway ?? (await invoke<GatewayOverview>('get_gateway_status'));
+      const next = await invoke<GatewayOverview>('set_gateway_settings', {
+        settings: { ...current.settings, enabled: true },
+      });
+      app.setGateway(next);
+      toast.success(t('asr.gateway_on'));
+    } catch (e) {
+      toast.error(t('asr.gateway_on_failed', { error: localizeError(e) }));
+    } finally {
+      enablingGateway = false;
+    }
+  }
+
+  const seconds = (b: SpeechResult) => (b.sampleRate ? Math.max(0, (b.blob.size - 44) / 2 / b.sampleRate) : null);
+</script>
+
+<div class="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-4 py-6">
+  <h3 id="tts-title" class="text-base font-semibold text-foreground">{t('speak.title')}</h3>
+
+  {#if !app.gatewayRunning}
+    <div class="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
+      <TriangleAlert class="mt-px size-4 shrink-0 text-warning" aria-hidden="true" />
+      <span class="min-w-0 flex-1">{t('speak.need_gateway')}</span>
+      <Button variant="outline" size="sm" class="shrink-0" disabled={enablingGateway} onclick={enableGateway}>
+        {#if enablingGateway}<LoaderCircle class="animate-spin" />{:else}<Power />{/if}
+        {t('asr.enable_gateway')}
+      </Button>
+    </div>
+  {/if}
+  {#if runtimeMissing}
+    <div class="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground" role="status">
+      <TriangleAlert class="mt-px size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span class="min-w-0 flex-1">{t('speak.no_runtime')}</span>
+      <Button variant="outline" size="sm" class="shrink-0" disabled={tts.installingRuntime} onclick={() => tts.installRuntime()}>
+        {#if tts.installingRuntime}<LoaderCircle class="animate-spin" />{:else}<Download />{/if}
+        {tts.installingRuntime ? t('speak.installing') : t('speak.install_runtime')}
+      </Button>
+    </div>
+  {/if}
+
+  {#if tts.overview}
+    <section class="flex flex-col gap-2" aria-labelledby="tts-catalog">
+      <h4 id="tts-catalog" class="text-sm font-semibold text-foreground">{t('speak.catalog_title')}</h4>
+      {#if tts.models.length === 0}
+        <p class="text-xs text-muted-foreground">{t('speak.no_model')}</p>
+      {/if}
+      <ul class="flex flex-col gap-2">
+        {#each tts.overview.catalog as row (row.id)}
+          <li class="flex flex-wrap items-center gap-3 rounded-md border border-border px-3 py-2">
+            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span class="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">
+                {row.title}
+                {#if row.recommended}<Badge variant="outline">{t('speak.recommended')}</Badge>{/if}
+              </span>
+              <span class="text-xs text-muted-foreground">
+                {row.languages.join(', ')} · {t('speak.voices_count', { count: row.voices })} · {formatBytes(row.size_bytes)} · {t('speak.license', { license: row.license })}
+              </span>
+              {#if tts.installingModel === row.id && tts.modelProgress}
+                <Progress value={progressPct} class="mt-1" aria-label={t('speak.installing')} />
+              {/if}
+            </div>
+            {#if row.installed}
+              <Badge variant="secondary">{t('speak.installed')}</Badge>
+            {:else}
+              <Button variant="outline" size="sm" disabled={!!tts.installingModel} onclick={() => tts.installModel(row.id)}>
+                {#if tts.installingModel === row.id}<LoaderCircle class="animate-spin" />{:else}<Download />{/if}
+                {tts.installingModel === row.id ? t('speak.installing') : t('speak.install')}
+              </Button>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
+
+  <section class="flex flex-col gap-3" aria-labelledby="tts-title">
+    <div class="grid gap-3 sm:grid-cols-3">
+      <div class="flex flex-col gap-1.5">
+        <Label for="tts-model" class="text-sm font-semibold text-foreground">{t('speak.model_label')}</Label>
+        <select
+          id="tts-model"
+          bind:value={tts.model}
+          disabled={busy || tts.models.length === 0}
+          class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+        >
+          {#each tts.models as m (m.id)}
+            <option value={m.name}>{m.name}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label for="tts-voice" class="text-sm font-semibold text-foreground">{t('speak.voice_label')}</Label>
+        <select
+          id="tts-voice"
+          bind:value={tts.voice}
+          disabled={busy || voices.length === 0}
+          class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+        >
+          <option value="">{t('speak.voice_default')}</option>
+          {#each voices as v (v.id)}
+            <option value={v.id}>{v.id}{v.language ? ` (${v.language})` : ''}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <Label for="tts-speed" class="text-sm font-semibold text-foreground">{t('speak.speed_label')}</Label>
+        <div class="flex h-9 items-center gap-2">
+          <input id="tts-speed" type="range" min="0.5" max="2" step="0.05" bind:value={tts.speed} disabled={busy} class="min-w-0 flex-1" />
+          <span class="font-num w-10 text-right text-xs text-muted-foreground">{tts.speed.toFixed(2)}×</span>
+        </div>
+      </div>
+    </div>
+    <div class="flex flex-col gap-1.5">
+      <Label for="tts-text" class="text-sm font-semibold text-foreground">{t('speak.text_label')}</Label>
+      <Textarea
+        id="tts-text"
+        bind:value={text}
+        maxlength={MAX_SPEECH_CHARS}
+        rows={5}
+        placeholder={t('speak.text_placeholder')}
+        disabled={busy}
+      />
+      <span class="font-num self-end text-xs text-muted-foreground">{t('speak.chars', { count: text.length, max: MAX_SPEECH_CHARS })}</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <Button size="sm" onclick={run} disabled={!canRun}>
+        {#if busy}<LoaderCircle class="animate-spin" />{:else}<Volume2 />{/if}
+        {busy ? t('speak.running') : t('speak.run')}
+      </Button>
+      {#if busy}
+        <Button variant="ghost" size="sm" onclick={cancel}><Square />{t('speak.stop')}</Button>
+      {/if}
+    </div>
+  </section>
+
+  {#if error}
+    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
+      {error}
+    </div>
+  {/if}
+
+  {#if result}
+    <section class="flex flex-col gap-3" aria-labelledby="tts-result">
+      <div class="flex flex-wrap items-center gap-2">
+        <h4 id="tts-result" class="text-sm font-semibold text-foreground">{t('speak.result_title')}</h4>
+        <AdvancedOnly><span class="font-num text-xs text-muted-foreground">{t('emb.stat_time', { value: Math.round(result.info.ms) })}</span></AdvancedOnly>
+        {#if result.info.voice}<Badge variant="outline">{result.info.voice}</Badge>{/if}
+        {#if seconds(result.info) !== null}
+          <Badge variant="outline" class="font-num">{t('asr.stat_duration', { value: (seconds(result.info) ?? 0).toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}</Badge>
+        {/if}
+        <Button variant="ghost" size="sm" href={result.url} download="speech.wav"><Download />{t('speak.download')}</Button>
+      </div>
+      <!-- svelte-ignore a11y_media_has_caption -->
+      <audio controls autoplay src={result.url} class="w-full" aria-label={t('speak.result_title')}></audio>
+    </section>
+  {/if}
+</div>

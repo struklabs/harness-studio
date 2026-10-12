@@ -1,0 +1,1 @@
+{"model":"m","max_output_tokens":200,"temperature":0,"tools":[{"type":"function","name":"get_weather","description":"Current weather of a city","parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}],"input":"What is the weather in Ankara?"}

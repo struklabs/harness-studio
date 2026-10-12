@@ -1,0 +1,170 @@
+{
+ "runs": [
+  {
+   "warmup": true,
+   "turn1": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10769 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10769,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.4082264999160543,
+    "text_head": ""
+   },
+   "turn2": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (11072 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":11072,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.30516510002780706,
+    "text_head": ""
+   },
+   "turn3": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10771 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10771,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.37879670003894717,
+    "text_head": ""
+   }
+  },
+  {
+   "warmup": false,
+   "turn1": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10770 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10770,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.24591269996017218,
+    "text_head": ""
+   },
+   "turn2": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (11073 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":11073,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.30636179994326085,
+    "text_head": ""
+   },
+   "turn3": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10772 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10772,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.3705854000290856,
+    "text_head": ""
+   }
+  },
+  {
+   "warmup": false,
+   "turn1": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10770 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10770,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.25997000001370907,
+    "text_head": ""
+   },
+   "turn2": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (11073 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":11073,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.3290561999892816,
+    "text_head": ""
+   },
+   "turn3": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10772 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10772,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.39748480007983744,
+    "text_head": ""
+   }
+  },
+  {
+   "warmup": false,
+   "turn1": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10769 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10769,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.23926699999719858,
+    "text_head": ""
+   },
+   "turn2": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (11072 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":11072,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.30479189998004586,
+    "text_head": ""
+   },
+   "turn3": {
+    "ok": false,
+    "error": "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10771 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10771,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+    "wall": 0.36520790006034076,
+    "text_head": ""
+   }
+  }
+ ],
+ "summary": {
+  "turn1_ttft_s": null,
+  "turn2_ttft_s": null,
+  "turn3_ttft_s": null,
+  "turn1_prompt_tokens": null,
+  "turn3_prompt_tokens": null,
+  "turn2_cached_tokens": null,
+  "turn3_cached_tokens": null,
+  "errors": [
+   "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10770 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10770,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+   "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (11073 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":11073,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+   "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10772 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10772,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n"
+  ]
+ },
+ "meta": {
+  "backend": "ollama",
+  "mode": "out_of_box",
+  "model": "4b",
+  "endpoint_info": {
+   "env": {},
+   "server_env_stripped": [
+    "OLLAMA_FLASH_ATTENTION",
+    "OLLAMA_KV_CACHE_TYPE",
+    "OLLAMA_NUM_PARALLEL",
+    "OLLAMA_MAX_LOADED_MODELS",
+    "OLLAMA_CONTEXT_LENGTH",
+    "OLLAMA_NUM_CTX",
+    "OLLAMA_GPU_OVERHEAD"
+   ],
+   "load_s": 45.89,
+   "ps": {
+    "size": 3525071338,
+    "size_vram": 2338869739,
+    "context_length": 4096
+   },
+   "log_lines": [
+    "time=2026-10-12T04:28:30.029+03:00 level=INFO source=routes.go:2373 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+    "time=2026-10-12T04:28:46.215+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\Documents\\\\Proje\\\\harness-studio\\\\scratch\\\\tools\\\\ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\Document",
+    "common_params_fit_impl: filling dense layers back-to-front:",
+    "common_params_fit_impl: - CUDA0 (NVIDIA GeForce RTX 3050 Ti Laptop GPU): 26 layers, 2230 MiB used, 1065 MiB free",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 25 repeating layers to GPU",
+    "load_tensors: offloaded 26/37 layers to GPU",
+    "llama_context: flash_attn = auto",
+    "llama_kv_cache: size = 576.00 MiB ( 4096 cells, 36 layers, 1/1 seqs), K (f16): 288.00 MiB, V (f16): 288.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled"
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 712
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 2327,
+   "shared_mib": 1037
+  },
+  "date": "2026-10-12 04:29:32",
+  "gpu_after_run": {
+   "dedicated_mib": 2357,
+   "shared_mib": 1037
+  },
+  "elapsed_s": 5.3,
+  "endpoint_info_after": {
+   "ps": {
+    "size": 3525071338,
+    "size_vram": 2338869739,
+    "context_length": 4096
+   },
+   "log_lines": [
+    "time=2026-10-12T04:28:30.029+03:00 level=INFO source=routes.go:2373 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+    "time=2026-10-12T04:28:46.215+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\Documents\\\\Proje\\\\harness-studio\\\\scratch\\\\tools\\\\ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\Document",
+    "common_params_fit_impl: filling dense layers back-to-front:",
+    "common_params_fit_impl: - CUDA0 (NVIDIA GeForce RTX 3050 Ti Laptop GPU): 26 layers, 2230 MiB used, 1065 MiB free",
+    "load_tensors: offloading output layer to GPU",
+    "load_tensors: offloading 25 repeating layers to GPU",
+    "load_tensors: offloaded 26/37 layers to GPU",
+    "llama_context: flash_attn = auto",
+    "llama_kv_cache: size = 576.00 MiB ( 4096 cells, 36 layers, 1/1 seqs), K (f16): 288.00 MiB, V (f16): 288.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled"
+   ]
+  }
+ }
+}

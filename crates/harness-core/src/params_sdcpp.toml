@@ -1,0 +1,355 @@
+# stable-diffusion.cpp (sd-server) parameter catalog (ROADMAP D1): same shape as params.toml; the
+# flags are checked against a real sd-server --help (master-956) by a test. The typed
+# LaunchConfig field (`legacy_field`) and `main_model_role` are rendered by
+# `SdCppEngine::build_launch`; every other value goes through `params::render_params` for the
+# chosen build. Path params are the components of a model "bundle" (VAE, text encoders...); the
+# generation defaults are what sd-server uses for a request that does not set them.
+# Groups: components | performance | generation (labels: src/lib/locales/sdcpp.ts).
+
+schema_version = 1
+
+[[param]]
+id = "main_model_role"
+flags = ["--diffusion-model"]
+kind = "enum"
+group = "components"
+level = "advanced"
+label_key = "sdparam.main_model_role"
+help_key = "sdparam.main_model_role_help"
+values = ["auto", "checkpoint", "diffusion"]
+legacy_field = "main_model_role"
+
+[[param]]
+id = "vae"
+flags = ["--vae"]
+kind = "path"
+group = "components"
+level = "basic"
+label_key = "sdparam.vae"
+help_key = "sdparam.vae_help"
+
+[[param]]
+id = "clip_l"
+flags = ["--clip_l"]
+kind = "path"
+group = "components"
+level = "basic"
+label_key = "sdparam.clip_l"
+help_key = "sdparam.clip_l_help"
+
+[[param]]
+id = "clip_g"
+flags = ["--clip_g"]
+kind = "path"
+group = "components"
+level = "basic"
+label_key = "sdparam.clip_g"
+help_key = "sdparam.clip_g_help"
+
+[[param]]
+id = "t5xxl"
+flags = ["--t5xxl"]
+kind = "path"
+group = "components"
+level = "basic"
+label_key = "sdparam.t5xxl"
+help_key = "sdparam.t5xxl_help"
+
+[[param]]
+id = "llm"
+flags = ["--llm"]
+kind = "path"
+group = "components"
+level = "basic"
+label_key = "sdparam.llm"
+help_key = "sdparam.llm_help"
+
+[[param]]
+id = "llm_vision"
+flags = ["--llm_vision"]
+kind = "path"
+group = "components"
+level = "advanced"
+label_key = "sdparam.llm_vision"
+help_key = "sdparam.llm_vision_help"
+
+[[param]]
+id = "high_noise_diffusion_model"
+flags = ["--high-noise-diffusion-model"]
+kind = "path"
+group = "components"
+level = "advanced"
+label_key = "sdparam.high_noise_diffusion_model"
+help_key = "sdparam.high_noise_diffusion_model_help"
+
+[[param]]
+id = "taesd"
+flags = ["--taesd", "--tae"]
+kind = "path"
+group = "components"
+level = "advanced"
+label_key = "sdparam.taesd"
+help_key = "sdparam.taesd_help"
+
+[[param]]
+id = "control_net"
+flags = ["--control-net"]
+kind = "path"
+group = "components"
+level = "advanced"
+label_key = "sdparam.control_net"
+help_key = "sdparam.control_net_help"
+
+[[param]]
+id = "lora_model_dir"
+flags = ["--lora-model-dir"]
+kind = "path"
+group = "components"
+level = "basic"
+label_key = "sdparam.lora_model_dir"
+help_key = "sdparam.lora_model_dir_help"
+
+[[param]]
+id = "embd_dir"
+flags = ["--embd-dir"]
+kind = "path"
+group = "components"
+level = "advanced"
+label_key = "sdparam.embd_dir"
+help_key = "sdparam.embd_dir_help"
+
+[[param]]
+id = "upscale_model"
+flags = ["--upscale-model"]
+kind = "path"
+group = "components"
+level = "advanced"
+label_key = "sdparam.upscale_model"
+help_key = "sdparam.upscale_model_help"
+
+[[param]]
+id = "threads"
+flags = ["-t", "--threads"]
+kind = "int"
+group = "performance"
+level = "basic"
+label_key = "sdparam.threads"
+help_key = "sdparam.threads_help"
+legacy_field = "threads"
+
+[[param]]
+id = "fa"
+flags = ["--fa"]
+kind = "bool"
+group = "performance"
+level = "basic"
+label_key = "sdparam.fa"
+help_key = "sdparam.fa_help"
+
+[[param]]
+id = "diffusion_fa"
+flags = ["--diffusion-fa"]
+kind = "bool"
+group = "performance"
+level = "advanced"
+label_key = "sdparam.diffusion_fa"
+help_key = "sdparam.diffusion_fa_help"
+
+[[param]]
+id = "offload_to_cpu"
+flags = ["--offload-to-cpu"]
+kind = "bool"
+group = "performance"
+level = "basic"
+label_key = "sdparam.offload_to_cpu"
+help_key = "sdparam.offload_to_cpu_help"
+
+[[param]]
+id = "vae_tiling"
+flags = ["--vae-tiling"]
+kind = "bool"
+group = "performance"
+level = "basic"
+label_key = "sdparam.vae_tiling"
+help_key = "sdparam.vae_tiling_help"
+
+[[param]]
+id = "mmap"
+flags = ["--mmap"]
+kind = "bool"
+group = "performance"
+level = "advanced"
+label_key = "sdparam.mmap"
+help_key = "sdparam.mmap_help"
+
+[[param]]
+id = "auto_fit"
+flags = ["--auto-fit"]
+kind = "enum"
+group = "performance"
+level = "advanced"
+label_key = "sdparam.auto_fit"
+help_key = "sdparam.auto_fit_help"
+values = ["on", "off"]
+
+[[param]]
+id = "backend"
+flags = ["--backend"]
+kind = "string"
+group = "performance"
+level = "advanced"
+label_key = "sdparam.backend"
+help_key = "sdparam.backend_help"
+placeholder = "vulkan0"
+
+[[param]]
+id = "max_vram"
+flags = ["--max-vram"]
+kind = "string"
+group = "performance"
+level = "advanced"
+label_key = "sdparam.max_vram"
+help_key = "sdparam.max_vram_help"
+placeholder = "6"
+
+[[param]]
+id = "weight_type"
+flags = ["--type"]
+kind = "enum"
+group = "performance"
+level = "advanced"
+label_key = "sdparam.weight_type"
+help_key = "sdparam.weight_type_help"
+values = ["f32", "f16", "q8_0", "q5_0", "q5_1", "q4_0", "q4_1", "q2_K", "q3_K", "q4_K"]
+
+[[param]]
+id = "rng"
+flags = ["--rng"]
+kind = "enum"
+group = "performance"
+level = "advanced"
+label_key = "sdparam.rng"
+help_key = "sdparam.rng_help"
+values = ["std_default", "cuda", "cpu"]
+values_from_help = true
+
+[[param]]
+id = "prediction"
+flags = ["--prediction"]
+kind = "enum"
+group = "performance"
+level = "advanced"
+label_key = "sdparam.prediction"
+help_key = "sdparam.prediction_help"
+values = ["eps", "v", "edm_v", "sd3_flow", "flux_flow", "sefi_flow"]
+values_from_help = true
+
+[[param]]
+id = "lora_apply_mode"
+flags = ["--lora-apply-mode"]
+kind = "enum"
+group = "performance"
+level = "advanced"
+label_key = "sdparam.lora_apply_mode"
+help_key = "sdparam.lora_apply_mode_help"
+values = ["auto", "immediately", "at_runtime"]
+values_from_help = true
+
+[[param]]
+id = "width"
+flags = ["-W", "--width"]
+kind = "int"
+group = "generation"
+level = "basic"
+label_key = "sdparam.width"
+help_key = "sdparam.width_help"
+min = 64
+max = 4096
+
+[[param]]
+id = "height"
+flags = ["-H", "--height"]
+kind = "int"
+group = "generation"
+level = "basic"
+label_key = "sdparam.height"
+help_key = "sdparam.height_help"
+min = 64
+max = 4096
+
+[[param]]
+id = "steps"
+flags = ["--steps"]
+kind = "int"
+group = "generation"
+level = "basic"
+label_key = "sdparam.steps"
+help_key = "sdparam.steps_help"
+min = 1
+max = 200
+
+[[param]]
+id = "cfg_scale"
+flags = ["--cfg-scale"]
+kind = "float"
+group = "generation"
+level = "basic"
+label_key = "sdparam.cfg_scale"
+help_key = "sdparam.cfg_scale_help"
+min = 0
+max = 30
+
+[[param]]
+id = "guidance"
+flags = ["--guidance"]
+kind = "float"
+group = "generation"
+level = "advanced"
+label_key = "sdparam.guidance"
+help_key = "sdparam.guidance_help"
+min = 0
+max = 30
+
+[[param]]
+id = "sampling_method"
+flags = ["--sampling-method"]
+kind = "enum"
+group = "generation"
+level = "basic"
+label_key = "sdparam.sampling_method"
+help_key = "sdparam.sampling_method_help"
+values = ["euler", "euler_a", "heun", "dpm2", "dpm++2s_a", "dpm++2m", "dpm++2mv2", "ipndm", "ipndm_v", "lcm", "ddim_trailing", "tcd"]
+values_from_help = true
+
+[[param]]
+id = "scheduler"
+flags = ["--scheduler"]
+kind = "enum"
+group = "generation"
+level = "advanced"
+label_key = "sdparam.scheduler"
+help_key = "sdparam.scheduler_help"
+values = ["discrete", "karras", "exponential", "ays", "gits", "sgm_uniform", "simple", "smoothstep"]
+values_from_help = true
+
+[[param]]
+id = "clip_skip"
+flags = ["--clip-skip"]
+kind = "int"
+group = "generation"
+level = "advanced"
+label_key = "sdparam.clip_skip"
+help_key = "sdparam.clip_skip_help"
+min = -1
+max = 12
+
+[[param]]
+id = "flow_shift"
+flags = ["--flow-shift"]
+kind = "float"
+group = "generation"
+level = "advanced"
+label_key = "sdparam.flow_shift"
+help_key = "sdparam.flow_shift_help"
+min = 0
+max = 100

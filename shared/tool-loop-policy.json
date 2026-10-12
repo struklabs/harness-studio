@@ -1,0 +1,9 @@
+{
+  "description": "Hold tool calls until finish_reason or a loop decision. Compare name + normalized arguments. Keep a repeated parallel prefix only when its zero-based repeat index is at most short_repeat_prefix; otherwise keep the first call, because calls after it in a model loop are menu enumeration. On count overflow keep only the first call. Normal turns retain all calls in order with original IDs and indices. Limit: max_calls, or 75% of menus with at least menu_min_tools tools (minimum menu_min_calls).",
+  "max_calls": 8,
+  "short_repeat_prefix": 3,
+  "menu_min_tools": 6,
+  "menu_min_calls": 4,
+  "menu_ratio_numerator": 3,
+  "menu_ratio_denominator": 4
+}

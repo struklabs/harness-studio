@@ -1,0 +1,145 @@
+{
+  "b11236-qwen3-4b.slots.json": {
+    "snapshot": {
+      "server_online": false,
+      "predicted_tokens_per_sec": 0.0,
+      "prompt_tokens_per_sec": 0.0,
+      "avg_predicted_tokens_per_sec": 0.0,
+      "avg_prompt_tokens_per_sec": 0.0,
+      "kv_cache_usage_ratio": 0.0,
+      "kv_cache_available": false,
+      "active_slots": 0,
+      "total_slots": 2,
+      "requests_processing": 0,
+      "requests_deferred": 0,
+      "spec_acceptance_rate": null,
+      "system_ram_used_bytes": 0,
+      "system_ram_total_bytes": 0,
+      "ram_breakdown": null,
+      "vram_used_bytes": 0,
+      "vram_total_bytes": 0,
+      "vram_breakdown": null,
+      "gpus": [],
+      "context_size": null,
+      "context_used_tokens": null,
+      "slots": [],
+      "totals": null,
+      "last_request": null
+    },
+    "slots": [
+      {
+        "id": 0,
+        "busy": false,
+        "prompt_tokens": 0,
+        "decoded_tokens": 0
+      },
+      {
+        "id": 1,
+        "busy": false,
+        "prompt_tokens": 0,
+        "decoded_tokens": 0
+      }
+    ],
+    "progress": {},
+    "context_tokens": [
+      -0.0,
+      4096.0
+    ]
+  },
+  "b11337-qwen3-0.6b.slots-busy.json": {
+    "snapshot": {
+      "server_online": false,
+      "predicted_tokens_per_sec": 0.0,
+      "prompt_tokens_per_sec": 0.0,
+      "avg_predicted_tokens_per_sec": 0.0,
+      "avg_prompt_tokens_per_sec": 0.0,
+      "kv_cache_usage_ratio": 0.0,
+      "kv_cache_available": false,
+      "active_slots": 1,
+      "total_slots": 2,
+      "requests_processing": 0,
+      "requests_deferred": 0,
+      "spec_acceptance_rate": null,
+      "system_ram_used_bytes": 0,
+      "system_ram_total_bytes": 0,
+      "ram_breakdown": null,
+      "vram_used_bytes": 0,
+      "vram_total_bytes": 0,
+      "vram_breakdown": null,
+      "gpus": [],
+      "context_size": null,
+      "context_used_tokens": null,
+      "slots": [],
+      "totals": null,
+      "last_request": null
+    },
+    "slots": [
+      {
+        "id": 0,
+        "busy": false,
+        "prompt_tokens": 0,
+        "decoded_tokens": 0
+      },
+      {
+        "id": 1,
+        "busy": true,
+        "prompt_tokens": 76,
+        "decoded_tokens": 60
+      }
+    ],
+    "progress": {
+      "1": "SlotProgress { task: 0, prompt_done: 16.0, decoded: 60.0 }"
+    },
+    "context_tokens": [
+      136.0,
+      2048.0
+    ]
+  },
+  "b11337-qwen3-0.6b.slots-idle.json": {
+    "snapshot": {
+      "server_online": false,
+      "predicted_tokens_per_sec": 0.0,
+      "prompt_tokens_per_sec": 0.0,
+      "avg_predicted_tokens_per_sec": 0.0,
+      "avg_prompt_tokens_per_sec": 0.0,
+      "kv_cache_usage_ratio": 0.0,
+      "kv_cache_available": false,
+      "active_slots": 0,
+      "total_slots": 2,
+      "requests_processing": 0,
+      "requests_deferred": 0,
+      "spec_acceptance_rate": null,
+      "system_ram_used_bytes": 0,
+      "system_ram_total_bytes": 0,
+      "ram_breakdown": null,
+      "vram_used_bytes": 0,
+      "vram_total_bytes": 0,
+      "vram_breakdown": null,
+      "gpus": [],
+      "context_size": null,
+      "context_used_tokens": null,
+      "slots": [],
+      "totals": null,
+      "last_request": null
+    },
+    "slots": [
+      {
+        "id": 0,
+        "busy": false,
+        "prompt_tokens": 0,
+        "decoded_tokens": 0
+      },
+      {
+        "id": 1,
+        "busy": false,
+        "prompt_tokens": 0,
+        "decoded_tokens": 0
+      }
+    ],
+    "progress": {},
+    "context_tokens": [
+      -0.0,
+      2048.0
+    ]
+  }
+}

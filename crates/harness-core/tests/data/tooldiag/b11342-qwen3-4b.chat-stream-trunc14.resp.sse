@@ -1,0 +1,12 @@
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":null}}],"created":1790924492,"id":"chatcmpl-EL5timQ9FotIxUyyxSulOKbDK9k0xeMS","model":"D:/Models/unsloth/Qwen3-4B-Instruct-2507-GGUF/Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"id":"sgblWwwGGn6KJvPeYc7N5qeCX5NGrqpT","type":"function","function":{"name":"get_weather","arguments":"{"}}]}}],"created":1790924492,"id":"chatcmpl-EL5timQ9FotIxUyyxSulOKbDK9k0xeMS","model":"D:/Models/unsloth/Qwen3-4B-Instruct-2507-GGUF/Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\""}}]}}],"created":1790924493,"id":"chatcmpl-EL5timQ9FotIxUyyxSulOKbDK9k0xeMS","model":"D:/Models/unsloth/Qwen3-4B-Instruct-2507-GGUF/Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":null,"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"city"}}]}}],"created":1790924493,"id":"chatcmpl-EL5timQ9FotIxUyyxSulOKbDK9k0xeMS","model":"D:/Models/unsloth/Qwen3-4B-Instruct-2507-GGUF/Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk"}
+
+data: {"choices":[{"finish_reason":"length","index":0,"delta":{}}],"created":1790924493,"id":"chatcmpl-EL5timQ9FotIxUyyxSulOKbDK9k0xeMS","model":"D:/Models/unsloth/Qwen3-4B-Instruct-2507-GGUF/Qwen3-4B-Instruct-2507-Q4_K_M.gguf","system_fingerprint":"b11342-f1cee9941","object":"chat.completion.chunk","timings":{"cache_n":172,"prompt_n":1,"prompt_ms":7.556,"prompt_per_token_ms":7.556,"prompt_per_second":132.34515616728427,"predicted_n":14,"predicted_ms":109.91,"predicted_per_token_ms":8.454615384615384,"predicted_per_second":118.27859157492495}}
+
+data: [DONE]
+

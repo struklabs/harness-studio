@@ -1,0 +1,203 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 0.3226598999463022,
+   "ttfb": 0.3226357998792082,
+   "wall": 2.08842879999429,
+   "decode_tps": 144.43187918254955,
+   "completion_tokens": 256,
+   "prompt_tokens": 487,
+   "server_decode_tps": 144.41422757643477,
+   "server_prompt_tps": 3353.491310777691,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where time moved like a slow river and shadows clung to stone walls, "
+  },
+  {
+   "ok": true,
+   "ttft": 0.32307839998975396,
+   "ttfb": 0.3230552999302745,
+   "wall": 2.111908599967137,
+   "decode_tps": 142.57195900469105,
+   "completion_tokens": 256,
+   "prompt_tokens": 485,
+   "server_decode_tps": 142.55956474049125,
+   "server_prompt_tps": 3328.959182263969,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where time moved like a slow river and shadows clung to stone like mo"
+  },
+  {
+   "ok": true,
+   "ttft": 0.33222740003839135,
+   "ttfb": 0.3321968999225646,
+   "wall": 2.0982305998913944,
+   "decode_tps": 144.41575701070153,
+   "completion_tokens": 256,
+   "prompt_tokens": 484,
+   "server_decode_tps": 144.3985263422551,
+   "server_prompt_tps": 3340.4865581876643,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where time moved like a slow river and shadows whispered secrets, the"
+  },
+  {
+   "ok": true,
+   "ttft": 0.336483099963516,
+   "ttfb": 0.33645960013382137,
+   "wall": 2.1002487000077963,
+   "decode_tps": 144.61057647136556,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "server_decode_tps": 144.59856320062966,
+   "server_prompt_tps": 3346.281487818845,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where mist curled around ancient stone towers and time seemed to move"
+  },
+  {
+   "ok": true,
+   "ttft": 0.32130709988996387,
+   "ttfb": 0.321276200003922,
+   "wall": 2.0809486999642104,
+   "decode_tps": 144.93701746883218,
+   "completion_tokens": 256,
+   "prompt_tokens": 489,
+   "server_decode_tps": 144.91691146258674,
+   "server_prompt_tps": 3347.6442247960354,
+   "server_cache_n": 4,
+   "cached_tokens": 4,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where mist curled around ancient stone towers and time seemed to move"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": true,
+   "ttft": 1.7769861998967826,
+   "ttfb": 1.7769613000564277,
+   "wall": 1.7772633000276983,
+   "completion_tokens": 1,
+   "prompt_tokens": 3986,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 2664.7059925444432,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 2243.1237790318964
+  },
+  {
+   "ok": true,
+   "ttft": 1.7790655000135303,
+   "ttfb": 1.7790425000712276,
+   "wall": 1.7793836002238095,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 2671.454055347702,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 2241.626291988502
+  },
+  {
+   "ok": true,
+   "ttft": 1.7781870998442173,
+   "ttfb": 1.7781622000038624,
+   "wall": 1.7784714000299573,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 2683.232456810731,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 2242.7336247965013
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 0.32307839998975396,
+  "decode_tps": 144.43187918254955,
+  "server_decode_tps": 144.41422757643477,
+  "prompt_tokens_500": 487,
+  "completion_tokens": 256,
+  "pp4k_tps_client": 2242.7336247965013,
+  "pp4k_tps_server": 2671.454055347702,
+  "pp4k_prompt_tokens": 3988,
+  "pp4k_ttft_s": 1.7781870998442173,
+  "errors": []
+ },
+ "meta": {
+  "backend": "llamacpp_b11552",
+  "mode": "equal",
+  "model": "4b",
+  "endpoint_info": {
+   "args": [
+    "-m",
+    "D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8091",
+    "-c",
+    "32768",
+    "-ngl",
+    "999",
+    "-fa",
+    "on",
+    "-ctk",
+    "f16",
+    "-ctv",
+    "f16",
+    "-np",
+    "1"
+   ],
+   "load_s": 2.65,
+   "probe_lines": [
+    "cmn common_init_: fitting params to device memory ...",
+    "cmn common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)",
+    "common_params_fit_impl: getting device memory data for initial parameters:",
+    "common_params_fit_impl: projected to use 7092 MiB of device memory vs. 15557 MiB of free device memory",
+    "common_params_fit_impl: will leave 8464 >= 1024 MiB of free device memory, no changes needed",
+    "common_fit_params: successfully fit params to free device memory",
+    "common_fit_params: fitting params to free memory took 0.27 seconds",
+    "load_tensors: offloaded 37/37 layers to GPU",
+    "llama_context: n_seq_max = 1",
+    "llama_context: n_ctx_seq = 32768",
+    "llama_context: flash_attn = enabled",
+    "llama_context: n_ctx_seq (32768) < n_ctx_train (262144) -- the full capacity of the model will not be utilized",
+    "llama_kv_cache: Vulkan0 KV buffer size = 4608.00 MiB"
+   ],
+   "log_lines": [
+    "0.01.995.416 I srv load_model: initializing, n_slots = 1, n_ctx_slot = 32768, kv_unified = 'false'"
+   ],
+   "props": {
+    "total_slots": 1,
+    "n_ctx": 32768,
+    "build_info": "b11552-23b0202a1"
+   }
+  },
+  "gpu_before": {
+   "dedicated_mib": 4375,
+   "shared_mib": 372
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 11606,
+   "shared_mib": 425
+  },
+  "date": "2026-10-11 15:38:14",
+  "gpu_after_run": {
+   "dedicated_mib": 11646,
+   "shared_mib": 433
+  },
+  "elapsed_s": 19.9
+ }
+}

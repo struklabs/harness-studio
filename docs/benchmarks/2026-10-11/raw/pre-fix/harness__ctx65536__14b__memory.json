@@ -1,0 +1,108 @@
+{
+ "gpu_before": {
+  "dedicated_mib": 4421,
+  "shared_mib": 372
+ },
+ "outcome": "loaded",
+ "info": {
+  "alias": "bench-14b-ctx65536",
+  "server_id": "gw-bench-14b-ctx65536",
+  "config": {
+   "gpu_layers": 35,
+   "context_size": 65536,
+   "flash_attn": false,
+   "cache_type_k": "q8_0",
+   "cache_type_v": "q8_0"
+  },
+  "values": {
+   "n_ctx": 65536,
+   "total_slots": 2,
+   "n_ctx_train": 131072,
+   "kv_unified": true,
+   "gpu_layers_offloaded": 35,
+   "gpu_layers_total": 49,
+   "gpu_layers_by_fit": false,
+   "ctx_adjusted": false,
+   "build_info": "b11552-23b0202a1",
+   "chat_format": "Content-only",
+   "kv_fa_fallback": null,
+   "fit_failed": false,
+   "shared_memory_slowdown": true,
+   "shared_memory_bytes": 1181151232
+  },
+  "cmdline": "-m D:\\Models\\Qwen\\Qwen2.5-Coder-14B-Instruct-GGUF\\qwen2.5-coder-14b-instruct-q4_k_m.gguf --alias bench-14b-ctx65536 -ngl 35 -c 65536 --host 127.0.0.1 --port 11441 --metrics --flash-attn on -ctk q8_0 -ctv q8_0 -np 2 --split-mode none --main-gpu 0 --kv-unified --cache-ram 1024 --ctx-checkpoints 4",
+  "load_s": 8.93,
+  "log_lines": [
+   "[+0.001s] [Harness Studio] Eşzamanlı istek: 2 (otomatik; her eşzamanlı isteğe ~32768 token bağlam kalsın diye).",
+   "[+0.007s] [Harness Studio] Starting llama-server: \"D:\\\\Models\\\\Qwen\\\\Qwen2.5-Coder-14B-Instruct-GGUF\\\\qwen2.5-coder-14b-instruct-q4_k_m.gguf\"",
+   "[+0.007s] [Harness Studio] V önbelleği nicemlendiği için flash attention açıldı (--flash-attn on).",
+   "[+0.008s] [Harness Studio] Target GPU: adapter index 0 → --main-gpu 0 (split-mode: none)",
+   "[+7.469s] [stderr] 0.07.364.988 I srv    load_model: initializing, n_slots = 2, n_ctx_slot = 65536, kv_unified = 'true'",
+   "[+7.657s] [Harness Studio] Sunucu hazır (7.6 sn).",
+   "[+7.666s] [Harness Studio Warn] Model yavaşlayabilir: 1126 MiB paylaşılan sistem belleği kullanıyor. Özellikle uzun istemlerde bağlamı veya KV hassasiyetini azaltmayı deneyin.",
+   "[+7.743s] [Harness Studio] Belleğe sığdırmak için K q8_0 / V q8_0 önbellek ve 65536 bağlamla yüklendi (tanım 65536 istiyordu; tanım değişmedi)."
+  ]
+ },
+ "gpu_after_load": {
+  "dedicated_mib": 14385,
+  "shared_mib": 1498
+ },
+ "decode": {
+  "runs": [
+   {
+    "ok": true,
+    "ttft": 0.43959570000879467,
+    "ttfb": 0.4395742998458445,
+    "wall": 16.397435599938035,
+    "decode_tps": 15.97987373130744,
+    "completion_tokens": 256,
+    "prompt_tokens": 61,
+    "server_decode_tps": 15.980111967317852,
+    "server_prompt_tps": 159.2990840302668,
+    "server_cache_n": 25,
+    "cached_tokens": 25,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+   },
+   {
+    "ok": true,
+    "ttft": 0.43418160011060536,
+    "ttfb": 0.4341599000617862,
+    "wall": 16.46441140002571,
+    "decode_tps": 15.907719952960125,
+    "completion_tokens": 256,
+    "prompt_tokens": 60,
+    "server_decode_tps": 15.90762547934978,
+    "server_prompt_tps": 153.90162608060928,
+    "server_cache_n": 25,
+    "cached_tokens": 25,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+   },
+   {
+    "ok": true,
+    "ttft": 0.4535288999322802,
+    "ttfb": 0.4535060999915004,
+    "wall": 16.410688599804416,
+    "decode_tps": 15.980547900554534,
+    "completion_tokens": 256,
+    "prompt_tokens": 61,
+    "server_decode_tps": 15.980722861364097,
+    "server_prompt_tps": 155.23196398618438,
+    "server_cache_n": 25,
+    "cached_tokens": 25,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+   }
+  ],
+  "decode_tps": 15.97987373130744,
+  "server_decode_tps": 15.980111967317852,
+  "errors": []
+ },
+ "gpu_after_run": {
+  "dedicated_mib": 14379,
+  "shared_mib": 1498
+ },
+ "shared_growth_mib": 1126,
+ "spilled_to_shared_memory": true
+}

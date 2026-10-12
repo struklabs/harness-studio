@@ -1,0 +1,98 @@
+{
+ "gpu_before": {
+  "dedicated_mib": 4375,
+  "shared_mib": 372
+ },
+ "outcome": "loaded",
+ "info": {
+  "env": {},
+  "server_env_stripped": [
+   "OLLAMA_FLASH_ATTENTION",
+   "OLLAMA_KV_CACHE_TYPE",
+   "OLLAMA_NUM_PARALLEL",
+   "OLLAMA_MAX_LOADED_MODELS",
+   "OLLAMA_CONTEXT_LENGTH",
+   "OLLAMA_NUM_CTX",
+   "OLLAMA_GPU_OVERHEAD"
+  ],
+  "load_s": 16.03,
+  "ps": {
+   "size": 21612608879,
+   "size_vram": 21612608879,
+   "context_length": 65536
+  },
+  "log_lines": [
+   "time=2026-10-11T15:11:41.182+03:00 level=INFO source=routes.go:2117 msg=\"server config\" env=\"map[CUDA_VISIBLE_DEVICES: GGML_VK_VISIBLE_DEVICES: GPU_DEVICE_ORDINAL: HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: LLAMA_ARG_FIT: LLAMA_ARG",
+   "time=2026-10-11T15:11:49.015+03:00 level=INFO source=llama_server.go:436 msg=\"starting llama-server\" cmd=\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Programs\\\\Ollama\\\\lib\\\\ollama\\\\llama-server.exe --model C:\\\\Users\\\\user\\\\.ollama\\\\models\\\\blobs\\\\sha256-c1e659736d89ac1",
+   "common_fit_params: failed to fit params to free device memory: n_gpu_layers already set by user to 999, abort",
+   "load_tensors: offloading output layer to GPU",
+   "load_tensors: offloading 47 repeating layers to GPU",
+   "load_tensors: offloaded 49/49 layers to GPU",
+   "llama_context: flash_attn = auto",
+   "llama_kv_cache: size = 12288.00 MiB ( 65536 cells, 48 layers, 1/1 seqs), K (f16): 6144.00 MiB, V (f16): 6144.00 MiB",
+   "resolve_fused_ops: Flash Attention enabled"
+  ]
+ },
+ "gpu_after_load": {
+  "dedicated_mib": 15189,
+  "shared_mib": 10694
+ },
+ "decode": {
+  "runs": [
+   {
+    "ok": true,
+    "ttft": 0.26551509997807443,
+    "ttfb": 0.26551509997807443,
+    "wall": 6.106277999933809,
+    "decode_tps": 43.66084658566238,
+    "completion_tokens": 256,
+    "prompt_tokens": 60,
+    "server_decode_tps": 43.83561643835616,
+    "server_prompt_tps": 810.8108108108108,
+    "server_cache_n": null,
+    "cached_tokens": 24,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+   },
+   {
+    "ok": true,
+    "ttft": 0.26690679998137057,
+    "ttfb": 0.26690679998137057,
+    "wall": 6.080185200087726,
+    "decode_tps": 43.866850860969016,
+    "completion_tokens": 256,
+    "prompt_tokens": 60,
+    "server_decode_tps": 44.03922243247893,
+    "server_prompt_tps": 800,
+    "server_cache_n": null,
+    "cached_tokens": 24,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+   },
+   {
+    "ok": true,
+    "ttft": 0.2864908000919968,
+    "ttfb": 0.2864908000919968,
+    "wall": 6.114403699990362,
+    "decode_tps": 43.756319035242704,
+    "completion_tokens": 256,
+    "prompt_tokens": 61,
+    "server_decode_tps": 43.925875085792725,
+    "server_prompt_tps": 835.6164383561644,
+    "server_cache_n": null,
+    "cached_tokens": 25,
+    "finish_reason": "length",
+    "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+   }
+  ],
+  "decode_tps": 43.756319035242704,
+  "server_decode_tps": 43.925875085792725,
+  "errors": []
+ },
+ "gpu_after_run": {
+  "dedicated_mib": 15183,
+  "shared_mib": 10698
+ },
+ "shared_growth_mib": 10326,
+ "spilled_to_shared_memory": true
+}

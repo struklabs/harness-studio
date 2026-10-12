@@ -1,0 +1,324 @@
+# whisper-server parameter catalog (ROADMAP Faz 13 R2): same shape as params.toml; the flags
+# are checked against a real whisper-server --help (b5130) by a test. The typed LaunchConfig
+# field (`legacy_field`) is rendered by `WhisperCppEngine::build_launch`; every other value
+# goes through `params::render_params` for the chosen build.
+# Groups: performance | transcription | vad | server (labels: src/lib/locales/whisper.ts).
+
+schema_version = 1
+
+[[param]]
+id = "threads"
+flags = ["-t", "--threads"]
+kind = "int"
+group = "performance"
+level = "basic"
+label_key = "wparam.threads"
+help_key = "wparam.threads_help"
+legacy_field = "threads"
+
+[[param]]
+id = "processors"
+flags = ["-p", "--processors"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "wparam.processors"
+help_key = "wparam.processors_help"
+min = 1
+
+[[param]]
+id = "no_gpu"
+flags = ["-ng", "--no-gpu"]
+kind = "bool"
+group = "performance"
+level = "basic"
+label_key = "wparam.no_gpu"
+help_key = "wparam.no_gpu_help"
+
+[[param]]
+id = "gpu_device"
+flags = ["-dev", "--device"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "wparam.gpu_device"
+help_key = "wparam.gpu_device_help"
+conflicts = ["no_gpu"]
+min = 0
+
+[[param]]
+id = "no_flash_attn"
+flags = ["-nfa", "--no-flash-attn"]
+kind = "bool"
+group = "performance"
+level = "advanced"
+label_key = "wparam.no_flash_attn"
+help_key = "wparam.no_flash_attn_help"
+
+[[param]]
+id = "language"
+flags = ["-l", "--language"]
+kind = "string"
+group = "transcription"
+level = "basic"
+label_key = "wparam.language"
+help_key = "wparam.language_help"
+placeholder = "auto"
+
+[[param]]
+id = "translate"
+flags = ["-tr", "--translate"]
+kind = "bool"
+group = "transcription"
+level = "basic"
+label_key = "wparam.translate"
+help_key = "wparam.translate_help"
+
+[[param]]
+id = "prompt"
+flags = ["--prompt"]
+kind = "string"
+group = "transcription"
+level = "basic"
+label_key = "wparam.prompt"
+help_key = "wparam.prompt_help"
+
+[[param]]
+id = "carry_initial_prompt"
+flags = ["--carry-initial-prompt"]
+kind = "bool"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.carry_initial_prompt"
+help_key = "wparam.carry_initial_prompt_help"
+requires = ["prompt"]
+
+[[param]]
+id = "beam_size"
+flags = ["-bs", "--beam-size"]
+kind = "int"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.beam_size"
+help_key = "wparam.beam_size_help"
+min = -1
+
+[[param]]
+id = "best_of"
+flags = ["-bo", "--best-of"]
+kind = "int"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.best_of"
+help_key = "wparam.best_of_help"
+min = 1
+
+[[param]]
+id = "no_fallback"
+flags = ["-nf", "--no-fallback"]
+kind = "bool"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.no_fallback"
+help_key = "wparam.no_fallback_help"
+
+[[param]]
+id = "suppress_nst"
+flags = ["-sns", "--suppress-nst"]
+kind = "bool"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.suppress_nst"
+help_key = "wparam.suppress_nst_help"
+
+[[param]]
+id = "no_speech_thold"
+flags = ["-nth", "--no-speech-thold"]
+kind = "float"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.no_speech_thold"
+help_key = "wparam.no_speech_thold_help"
+min = 0
+max = 1
+
+[[param]]
+id = "entropy_thold"
+flags = ["-et", "--entropy-thold"]
+kind = "float"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.entropy_thold"
+help_key = "wparam.entropy_thold_help"
+
+[[param]]
+id = "logprob_thold"
+flags = ["-lpt", "--logprob-thold"]
+kind = "float"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.logprob_thold"
+help_key = "wparam.logprob_thold_help"
+
+[[param]]
+id = "word_thold"
+flags = ["-wt", "--word-thold"]
+kind = "float"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.word_thold"
+help_key = "wparam.word_thold_help"
+min = 0
+max = 1
+
+[[param]]
+id = "max_len"
+flags = ["-ml", "--max-len"]
+kind = "int"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.max_len"
+help_key = "wparam.max_len_help"
+min = 0
+
+[[param]]
+id = "split_on_word"
+flags = ["-sow", "--split-on-word"]
+kind = "bool"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.split_on_word"
+help_key = "wparam.split_on_word_help"
+
+[[param]]
+id = "max_context"
+flags = ["-mc", "--max-context"]
+kind = "int"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.max_context"
+help_key = "wparam.max_context_help"
+min = -1
+
+[[param]]
+id = "audio_ctx"
+flags = ["-ac", "--audio-ctx"]
+kind = "int"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.audio_ctx"
+help_key = "wparam.audio_ctx_help"
+min = 0
+
+[[param]]
+id = "diarize"
+flags = ["-di", "--diarize"]
+kind = "bool"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.diarize"
+help_key = "wparam.diarize_help"
+
+[[param]]
+id = "tinydiarize"
+flags = ["-tdrz", "--tinydiarize"]
+kind = "bool"
+group = "transcription"
+level = "advanced"
+label_key = "wparam.tinydiarize"
+help_key = "wparam.tinydiarize_help"
+
+[[param]]
+id = "convert"
+flags = ["--convert"]
+kind = "bool"
+group = "server"
+level = "advanced"
+label_key = "wparam.convert"
+help_key = "wparam.convert_help"
+
+[[param]]
+id = "vad"
+flags = ["--vad"]
+kind = "bool"
+group = "vad"
+level = "basic"
+label_key = "wparam.vad"
+help_key = "wparam.vad_help"
+requires = ["vad_model"]
+
+[[param]]
+id = "vad_model"
+flags = ["-vm", "--vad-model"]
+kind = "path"
+group = "vad"
+level = "basic"
+label_key = "wparam.vad_model"
+help_key = "wparam.vad_model_help"
+
+[[param]]
+id = "vad_threshold"
+flags = ["-vt", "--vad-threshold"]
+kind = "float"
+group = "vad"
+level = "advanced"
+label_key = "wparam.vad_threshold"
+help_key = "wparam.vad_threshold_help"
+requires = ["vad"]
+min = 0
+max = 1
+
+[[param]]
+id = "vad_min_speech_ms"
+flags = ["-vspd", "--vad-min-speech-duration-ms"]
+kind = "int"
+group = "vad"
+level = "advanced"
+label_key = "wparam.vad_min_speech_ms"
+help_key = "wparam.vad_min_speech_ms_help"
+requires = ["vad"]
+min = 0
+
+[[param]]
+id = "vad_min_silence_ms"
+flags = ["-vsd", "--vad-min-silence-duration-ms"]
+kind = "int"
+group = "vad"
+level = "advanced"
+label_key = "wparam.vad_min_silence_ms"
+help_key = "wparam.vad_min_silence_ms_help"
+requires = ["vad"]
+min = 0
+
+[[param]]
+id = "vad_max_speech_s"
+flags = ["-vmsd", "--vad-max-speech-duration-s"]
+kind = "float"
+group = "vad"
+level = "advanced"
+label_key = "wparam.vad_max_speech_s"
+help_key = "wparam.vad_max_speech_s_help"
+requires = ["vad"]
+min = 0
+
+[[param]]
+id = "vad_speech_pad_ms"
+flags = ["-vp", "--vad-speech-pad-ms"]
+kind = "int"
+group = "vad"
+level = "advanced"
+label_key = "wparam.vad_speech_pad_ms"
+help_key = "wparam.vad_speech_pad_ms_help"
+requires = ["vad"]
+min = 0
+
+[[param]]
+id = "vad_overlap"
+flags = ["-vo", "--vad-samples-overlap"]
+kind = "float"
+group = "vad"
+level = "advanced"
+label_key = "wparam.vad_overlap"
+help_key = "wparam.vad_overlap_help"
+requires = ["vad"]
+min = 0

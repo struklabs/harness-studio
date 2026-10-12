@@ -1,0 +1,196 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 0.6805226998403668,
+   "ttfb": 0.6804992998950183,
+   "wall": 6.94256899994798,
+   "decode_tps": 40.72362918510501,
+   "completion_tokens": 256,
+   "prompt_tokens": 508,
+   "server_decode_tps": 40.72336839429036,
+   "server_prompt_tps": 1105.57597679161,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "In the heart of a sprawling industrial city, where the hum of machinery and the clatter of metal never ceased, there lay"
+  },
+  {
+   "ok": true,
+   "ttft": 0.6837259000167251,
+   "ttfb": 0.6836926999967545,
+   "wall": 6.923063300084323,
+   "decode_tps": 40.87163980914952,
+   "completion_tokens": 256,
+   "prompt_tokens": 507,
+   "server_decode_tps": 40.87059168595999,
+   "server_prompt_tps": 1082.8613168618808,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "In the heart of a sprawling industrial city, where the hum of machinery and the clatter of metal never ceased, there lay"
+  },
+  {
+   "ok": true,
+   "ttft": 0.7236140000168234,
+   "ttfb": 0.7235898999497294,
+   "wall": 6.917461599921808,
+   "decode_tps": 41.1715950550867,
+   "completion_tokens": 256,
+   "prompt_tokens": 507,
+   "server_decode_tps": 41.17090705482059,
+   "server_prompt_tps": 1006.8813488635348,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "In the heart of a sprawling industrial city, where the hum of machinery and the clatter of metal never ceased, there lay"
+  },
+  {
+   "ok": true,
+   "ttft": 0.6970333999488503,
+   "ttfb": 0.6970006998162717,
+   "wall": 6.929038799833506,
+   "decode_tps": 40.919343720580336,
+   "completion_tokens": 256,
+   "prompt_tokens": 508,
+   "server_decode_tps": 40.91849340995629,
+   "server_prompt_tps": 1086.3544894454674,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "In the heart of a sprawling industrial city, where the hum of machinery and the clatter of metal never ceased, there lay"
+  },
+  {
+   "ok": true,
+   "ttft": 0.6771648998837918,
+   "ttfb": 0.6771396000403911,
+   "wall": 6.871591700008139,
+   "decode_tps": 41.16766678533509,
+   "completion_tokens": 256,
+   "prompt_tokens": 508,
+   "server_decode_tps": 41.167364386226076,
+   "server_prompt_tps": 1085.1477873024892,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "In the heart of a sprawling industrial city, where the hum of machinery and the clatter of metal never ceased, there lay"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": true,
+   "ttft": 9.907121099997312,
+   "ttfb": 9.907097299816087,
+   "wall": 9.907353299902752,
+   "completion_tokens": 1,
+   "prompt_tokens": 4008,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 422.49365495276305,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 404.55748542339785
+  },
+  {
+   "ok": true,
+   "ttft": 9.965122600086033,
+   "ttfb": 9.965100000146776,
+   "wall": 9.965345100034028,
+   "completion_tokens": 1,
+   "prompt_tokens": 4010,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 419.85004966480574,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 402.4034787053578
+  },
+  {
+   "ok": true,
+   "ttft": 10.005826499778777,
+   "ttfb": 10.00579069997184,
+   "wall": 10.006083199987188,
+   "completion_tokens": 1,
+   "prompt_tokens": 4010,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 418.7771310925937,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 400.76649341147964
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 0.6837259000167251,
+  "decode_tps": 40.919343720580336,
+  "server_decode_tps": 40.91849340995629,
+  "prompt_tokens_500": 508,
+  "completion_tokens": 256,
+  "pp4k_tps_client": 402.4034787053578,
+  "pp4k_tps_server": 419.85004966480574,
+  "pp4k_prompt_tokens": 4010,
+  "pp4k_ttft_s": 9.965122600086033,
+  "errors": []
+ },
+ "meta": {
+  "backend": "llamacpp",
+  "mode": "out_of_box",
+  "model": "14b",
+  "endpoint_info": {
+   "args": [
+    "-m",
+    "D:\\Models\\Qwen\\Qwen2.5-Coder-14B-Instruct-GGUF\\qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8090"
+   ],
+   "load_s": 6.77,
+   "probe_lines": [
+    "srv llama_server: n_parallel is set to auto, using n_parallel = 4 and kv_unified = true",
+    "cmn common_init_: fitting params to device memory ...",
+    "cmn common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)",
+    "common_params_fit_impl: getting device memory data for initial parameters:",
+    "common_params_fit_impl: context size unset -> using 524288 for 4 sequences:",
+    "common_params_fit_impl: projected to use 107065 MiB of device memory vs. 15557 MiB of free device memory",
+    "common_params_fit_impl: cannot meet free memory target of 1024 MiB, need to reduce device memory by 92532 MiB",
+    "common_params_fit_impl: context size reduced from 524288 to 33280 -> need 92543 MiB less memory in total",
+    "common_params_fit_impl: entire model can be fit by reducing context",
+    "common_fit_params: successfully fit params to free device memory",
+    "common_fit_params: fitting params to free memory took 0.70 seconds",
+    "load_tensors: offloaded 49/49 layers to GPU",
+    "llama_context: n_seq_max = 4",
+    "llama_context: n_ctx_seq = 33280",
+    "llama_context: flash_attn = auto",
+    "llama_context: n_ctx_seq (33280) < n_ctx_train (131072) -- the full capacity of the model will not be utilized",
+    "llama_kv_cache: Vulkan0 KV buffer size = 6240.00 MiB",
+    "resolve_fused_ops: Flash Attention enabled"
+   ],
+   "log_lines": [
+    "0.06.283.004 I srv load_model: initializing, n_slots = 4, n_ctx_slot = 33280, kv_unified = 'true'"
+   ],
+   "props": {
+    "total_slots": 4,
+    "n_ctx": 33280,
+    "build_info": "b11026-b49650adb"
+   }
+  },
+  "gpu_before": {
+   "dedicated_mib": 4375,
+   "shared_mib": 364
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 13201,
+   "shared_mib": 6278
+  },
+  "date": "2026-10-11 15:20:39",
+  "gpu_after_run": {
+   "dedicated_mib": 13264,
+   "shared_mib": 6285
+  },
+  "elapsed_s": 78.1
+ }
+}

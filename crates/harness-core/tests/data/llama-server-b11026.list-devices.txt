@@ -1,0 +1,3 @@
+Available devices:
+  Vulkan0: AMD Radeon RX 7900 GRE (16368 MiB, 15557 MiB free)
+  Vulkan1: AMD Radeon(TM) Graphics (16171 MiB, 15363 MiB free)

@@ -1,0 +1,276 @@
+[
+  {
+    "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "meta": {
+      "architecture": "qwen3",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": true,
+      "quantization": "Q4_K_M"
+    },
+    "expected": "llm"
+  },
+  {
+    "file": "qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+    "meta": {
+      "architecture": "qwen2",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": true,
+      "quantization": "Q4_K_M"
+    },
+    "expected": "llm"
+  },
+  {
+    "file": "gpt-oss-20b-MXFP4.gguf",
+    "meta": {
+      "architecture": "gpt-oss",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": true,
+      "quantization": "MXFP4_MOE"
+    },
+    "expected": "llm"
+  },
+  {
+    "file": "mmproj-Qwen3.6-27B-BF16.gguf",
+    "meta": {
+      "architecture": "clip",
+      "general_type": "mmproj",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": true,
+      "has_vision_encoder": true,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": false,
+      "quantization": "BF16"
+    },
+    "expected": "mmproj"
+  },
+  {
+    "file": "Qwen3.6-27B-Q4_K_M.gguf",
+    "meta": {
+      "architecture": "qwen35",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": true,
+      "quantization": "Q4_K_M"
+    },
+    "expected": "llm"
+  },
+  {
+    "file": "gemma-4-26B-A4B-it-QAT-Q4_0.gguf",
+    "meta": {
+      "architecture": "gemma4",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": true,
+      "quantization": "Q4_0"
+    },
+    "expected": "llm"
+  },
+  {
+    "file": "mmproj-gemma-4-26B-A4B-it-QAT-BF16.gguf",
+    "meta": {
+      "architecture": "clip",
+      "general_type": "mmproj",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": true,
+      "has_vision_encoder": true,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": false,
+      "quantization": "BF16"
+    },
+    "expected": "mmproj"
+  },
+  {
+    "file": "gemma-4-12B-it-Q4_K_M.gguf",
+    "meta": {
+      "architecture": "gemma4",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": true,
+      "quantization": "Q4_K_M"
+    },
+    "expected": "llm"
+  },
+  {
+    "file": "gemma-4-12B-it-Q8_0.gguf",
+    "meta": {
+      "architecture": "gemma4",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": true,
+      "quantization": "Q8_0"
+    },
+    "expected": "llm"
+  },
+  {
+    "file": "mmproj-gemma-4-12B-it-BF16.gguf",
+    "meta": {
+      "architecture": "clip",
+      "general_type": "mmproj",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": true,
+      "has_vision_encoder": true,
+      "has_audio_encoder": true,
+      "has_classifier_labels": false,
+      "has_chat_template": false,
+      "quantization": "BF16"
+    },
+    "expected": "mmproj"
+  },
+  {
+    "file": "bge-m3-q8_0.gguf",
+    "meta": {
+      "architecture": "bert",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": 2,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": false,
+      "quantization": "Q8_0"
+    },
+    "expected": "embedding"
+  },
+  {
+    "file": "embeddinggemma-300M-Q8_0.gguf",
+    "meta": {
+      "architecture": "gemma-embedding",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": 1,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": false,
+      "quantization": "Q8_0"
+    },
+    "expected": "embedding"
+  },
+  {
+    "file": "multilingual-e5-large-instruct-q8_0.gguf",
+    "meta": {
+      "architecture": "bert",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": 1,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": false,
+      "quantization": "Q8_0"
+    },
+    "expected": "embedding"
+  },
+  {
+    "file": "Qwen3-Embedding-0.6B-Q8_0.gguf",
+    "meta": {
+      "architecture": "qwen3",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": 3,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": true,
+      "quantization": "Q8_0"
+    },
+    "expected": "embedding"
+  },
+  {
+    "file": "voyage-4-nano-q8_0.gguf",
+    "meta": {
+      "architecture": "qwen3",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": 1,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_chat_template": true,
+      "quantization": "Q8_0"
+    },
+    "expected": "embedding"
+  },
+  {
+    "file": "nomic-embed-text-v1.5.Q8_0.gguf",
+    "meta": {
+      "architecture": "nomic-bert",
+      "general_type": null,
+      "adapter_type": null,
+      "pooling_type": 1,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_cls_head": false,
+      "has_chat_template": false,
+      "quantization": "Q8_0"
+    },
+    "expected": "embedding"
+  },
+  {
+    "file": "bge-reranker-v2-m3-Q4_K_M.gguf",
+    "meta": {
+      "architecture": "bert",
+      "general_type": "model",
+      "adapter_type": null,
+      "pooling_type": null,
+      "is_mmproj": false,
+      "has_vision_encoder": false,
+      "has_audio_encoder": false,
+      "has_classifier_labels": false,
+      "has_cls_head": true,
+      "has_chat_template": false,
+      "quantization": "Q4_K_M"
+    },
+    "expected": "reranker"
+  }
+]

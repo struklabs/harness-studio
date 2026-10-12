@@ -1,0 +1,203 @@
+{
+ "decode": [
+  {
+   "ok": true,
+   "ttft": 0.5856131999753416,
+   "ttfb": 0.5855908999219537,
+   "wall": 9.370800199918449,
+   "decode_tps": 29.027268899394446,
+   "completion_tokens": 256,
+   "prompt_tokens": 487,
+   "server_decode_tps": 29.027424199719608,
+   "server_prompt_tps": 1630.1528059047012,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where mist curled around ancient stone towers and time seemed to move"
+  },
+  {
+   "ok": true,
+   "ttft": 0.5789799999911338,
+   "ttfb": 0.5789599000709131,
+   "wall": 9.364207800012082,
+   "decode_tps": 29.027293020198123,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 29.0275861103342,
+   "server_prompt_tps": 1566.8747270812464,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "The heavy anchor watched the rapid engine near the cellar, and 59 people noticed it. That night, the wind howled through"
+  },
+  {
+   "ok": true,
+   "ttft": 0.6225192999700084,
+   "ttfb": 0.6224863999523222,
+   "wall": 9.446330099948682,
+   "decode_tps": 28.90041011600187,
+   "completion_tokens": 256,
+   "prompt_tokens": 488,
+   "server_decode_tps": 28.90093812445152,
+   "server_prompt_tps": 1523.4051851967472,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "The heavy anchor watched the rapid engine near the cellar, and 59 people noticed it. That night, the wind howled through"
+  },
+  {
+   "ok": true,
+   "ttft": 0.6278694000793621,
+   "ttfb": 0.6278501000488177,
+   "wall": 9.398415800067596,
+   "decode_tps": 29.075802029814593,
+   "completion_tokens": 256,
+   "prompt_tokens": 486,
+   "server_decode_tps": 29.07573704998028,
+   "server_prompt_tps": 1484.3048505616537,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "In the heart of the forgotten valley of Elderglen, where time moved like a slow river and shadows whispered secrets, the"
+  },
+  {
+   "ok": true,
+   "ttft": 0.6616326000075787,
+   "ttfb": 0.6616119000827894,
+   "wall": 9.453774700057693,
+   "decode_tps": 29.004392493364225,
+   "completion_tokens": 256,
+   "prompt_tokens": 487,
+   "server_decode_tps": 29.004236779669828,
+   "server_prompt_tps": 1395.2395686503708,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "The heavy anchor watched the rapid engine near the cellar, and 59 people noticed it. That night, the wind howled through"
+  }
+ ],
+ "pp4k": [
+  {
+   "ok": true,
+   "ttft": 2.875463599921204,
+   "ttfb": 2.875442499993369,
+   "wall": 2.875700999982655,
+   "completion_tokens": 1,
+   "prompt_tokens": 3987,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 1549.9476158913365,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 1386.559023076924
+  },
+  {
+   "ok": true,
+   "ttft": 2.8838264999212697,
+   "ttfb": 2.883806400001049,
+   "wall": 2.8840386999072507,
+   "completion_tokens": 1,
+   "prompt_tokens": 3985,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 1552.69520223027,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 1381.8445735583582
+  },
+  {
+   "ok": true,
+   "ttft": 2.9617217000341043,
+   "ttfb": 2.9616986999753863,
+   "wall": 2.9619459999958053,
+   "completion_tokens": 1,
+   "prompt_tokens": 3988,
+   "server_decode_tps": 0.0,
+   "server_prompt_tps": 1556.2938975952372,
+   "server_cache_n": 0,
+   "cached_tokens": 0,
+   "finish_reason": "length",
+   "text_head": "done",
+   "client_pp_tps": 1346.514090082832
+  }
+ ],
+ "summary": {
+  "ttft_500_s": 0.6225192999700084,
+  "decode_tps": 29.027268899394446,
+  "server_decode_tps": 29.027424199719608,
+  "prompt_tokens_500": 487,
+  "completion_tokens": 256,
+  "pp4k_tps_client": 1381.8445735583582,
+  "pp4k_tps_server": 1552.69520223027,
+  "pp4k_prompt_tokens": 3987,
+  "pp4k_ttft_s": 2.8838264999212697,
+  "errors": []
+ },
+ "meta": {
+  "backend": "llamacpp",
+  "mode": "out_of_box",
+  "model": "4b",
+  "endpoint_info": {
+   "args": [
+    "-m",
+    "C:\\Users\\user\\Documents\\Proje\\harness-studio\\scratch\\nv1012\\appdata\\com.harnessstudio.app\\models\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "8090"
+   ],
+   "load_s": 3.91,
+   "probe_lines": [
+    "srv llama_server: n_parallel is set to auto, using n_parallel = 4 and kv_unified = true",
+    "cmn common_init_: fitting params to device memory ...",
+    "cmn common_init_: (for bugs during this step try to reproduce them with -fit off, or provide --verbose logs if the bug only occurs with -fit on)",
+    "common_params_fit_impl: getting device memory data for initial parameters:",
+    "common_params_fit_impl: context size unset -> using 1048576 for 4 sequences:",
+    "common_params_fit_impl: projected to use 150930 MiB of device memory vs. 3295 MiB of free device memory",
+    "common_params_fit_impl: cannot meet free memory target of 1024 MiB, need to reduce device memory by 148659 MiB",
+    "common_params_fit_impl: context size reduced from 1048576 to 4096 -> need 147900 MiB less memory in total",
+    "common_params_fit_impl: id=0, target=2271 MiB",
+    "common_params_fit_impl: memory for test allocation by device:",
+    "common_params_fit_impl: id=0, n_layer= 0, n_part= 0, overflow_type=4, mem= 90 MiB",
+    "common_params_fit_impl: filling dense layers back-to-front:",
+    "common_params_fit_impl: id=0, n_layer=37, n_part= 0, overflow_type=4, mem= 3030 MiB",
+    "common_params_fit_impl: start filling device 0, delta=37",
+    "common_params_fit_impl: id=0, n_layer=27, n_part= 0, overflow_type=4, mem= 2300 MiB",
+    "common_params_fit_impl: set ngl_per_device_high[0].n_layer=27",
+    "common_params_fit_impl: id=0, n_layer=26, n_part= 0, overflow_type=4, mem= 2230 MiB",
+    "common_params_fit_impl: set ngl_per_device[0].n_layer=26",
+    "common_params_fit_impl: - CUDA0 (NVIDIA GeForce RTX 3050 Ti Laptop GPU): 26 layers, 2230 MiB used, 1065 MiB free",
+    "common_fit_params: successfully fit params to free device memory",
+    "common_fit_params: fitting params to free memory took 1.60 seconds",
+    "load_tensors: offloaded 26/37 layers to GPU",
+    "llama_context: n_seq_max = 4",
+    "llama_context: n_ctx = 4096",
+    "llama_context: n_ctx_seq = 4096"
+   ],
+   "log_lines": [
+    "0.03.673.399 I srv load_model: initializing, n_slots = 4, n_ctx_slot = 4096, kv_unified = 'true'"
+   ],
+   "props": {
+    "total_slots": 4,
+    "n_ctx": 4096,
+    "build_info": "b11026-b49650adb"
+   }
+  },
+  "gpu_before": {
+   "dedicated_mib": 0,
+   "shared_mib": 654
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 2327,
+   "shared_mib": 97
+  },
+  "date": "2026-10-12 04:46:05",
+  "gpu_after_run": {
+   "dedicated_mib": 2363,
+   "shared_mib": 97
+  },
+  "elapsed_s": 62.8
+ }
+}

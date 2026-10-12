@@ -1,0 +1,71 @@
+# harness-onnx parameter catalog (ROADMAP D2): same shape as params.toml; the flags are the ones
+# `harness-onnx --help` lists (checked by a test against the sidecar's own help text).
+# The typed LaunchConfig field (`legacy_field`) is rendered by `OnnxEngine::build_launch`;
+# `provider` is rendered there too, not here (it also decides which ONNX Runtime build is loaded).
+# Everything else goes through `params::render_params`. The sidecar reads pooling,
+# normalization and the maximum length from the repo's sentence-transformers files; these
+# values only override what is there. Groups: performance | model (labels: src/lib/locales/onnx.ts).
+
+schema_version = 1
+
+[[param]]
+id = "threads"
+flags = ["--threads"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "oparam.threads"
+help_key = "oparam.threads_help"
+legacy_field = "threads"
+min = 1
+
+[[param]]
+id = "provider"
+flags = ["--provider"]
+kind = "enum"
+values = ["auto", "cpu", "directml", "cuda"]
+group = "performance"
+level = "basic"
+label_key = "oparam.provider"
+help_key = "oparam.provider_help"
+
+[[param]]
+id = "batch_size"
+flags = ["--batch-size"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "oparam.batch_size"
+help_key = "oparam.batch_size_help"
+min = 1
+
+[[param]]
+id = "pooling"
+flags = ["--pooling"]
+kind = "enum"
+values = ["mean", "cls", "max", "last"]
+group = "model"
+level = "advanced"
+label_key = "oparam.pooling"
+help_key = "oparam.pooling_help"
+
+[[param]]
+id = "normalize"
+flags = ["--normalize"]
+kind = "enum"
+values = ["on", "off"]
+group = "model"
+level = "advanced"
+label_key = "oparam.normalize"
+help_key = "oparam.normalize_help"
+
+[[param]]
+id = "max_length"
+flags = ["--max-length"]
+kind = "int"
+group = "model"
+level = "advanced"
+label_key = "oparam.max_length"
+help_key = "oparam.max_length_help"
+min = 8
+max = 8192

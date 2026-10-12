@@ -1,0 +1,80 @@
+[
+  {
+    "progress": {
+      "id": 1,
+      "repo_id": "Qwen/Qwen2.5-Coder-14B-Instruct-GGUF",
+      "variant_name": "qwen2.5-coder-14b-instruct-q4_k_m",
+      "total_bytes": 8988110272,
+      "downloaded_bytes": 8988110272,
+      "current_shard_name": "qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+      "current_shard_index": 1,
+      "total_shards": 1,
+      "speed_bytes_per_sec": 0,
+      "status": "Completed",
+      "created_at": 1790624700
+    },
+    "items": [
+      {
+        "url": "https://huggingface.co/Qwen/Qwen2.5-Coder-14B-Instruct-GGUF/resolve/main/qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+        "filename": "qwen2.5-coder-14b-instruct-q4_k_m.gguf",
+        "size": 8988110272,
+        "shard_index": 1,
+        "sha256": "c1e659736d89ac1065fb495330fb824d94001974a4bfa78e7270e43476a8d940",
+        "custom_url": false
+      }
+    ],
+    "target_dir": "D:\\Models\\Qwen/Qwen2.5-Coder-14B-Instruct-GGUF"
+  },
+  {
+    "progress": {
+      "id": 3,
+      "repo_id": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+      "variant_name": "Qwen3-4B-Instruct-2507-Q4_K_M",
+      "total_bytes": 2497281120,
+      "downloaded_bytes": 2497281120,
+      "current_shard_name": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+      "current_shard_index": 1,
+      "total_shards": 1,
+      "speed_bytes_per_sec": 0,
+      "status": "Completed",
+      "created_at": 1790698674
+    },
+    "items": [
+      {
+        "url": "https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF/resolve/main/Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+        "filename": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+        "size": 2497281120,
+        "shard_index": 1,
+        "sha256": "3605803b982cb64aead44f6c1b2ae36e3acdb41d8e46c8a94c6533bc4c67e597",
+        "custom_url": false
+      }
+    ],
+    "target_dir": "D:\\Models\\unsloth/Qwen3-4B-Instruct-2507-GGUF"
+  },
+  {
+    "progress": {
+      "id": 5,
+      "repo_id": "ggml-org/gpt-oss-20b-GGUF",
+      "variant_name": "gpt-oss-20b-MXFP4",
+      "total_bytes": 12109566624,
+      "downloaded_bytes": 12109566624,
+      "current_shard_name": "gpt-oss-20b-MXFP4.gguf",
+      "current_shard_index": 1,
+      "total_shards": 1,
+      "speed_bytes_per_sec": 0,
+      "status": "Completed",
+      "created_at": 1790705685
+    },
+    "items": [
+      {
+        "url": "https://huggingface.co/ggml-org/gpt-oss-20b-GGUF/resolve/main/gpt-oss-20b-MXFP4.gguf",
+        "filename": "gpt-oss-20b-MXFP4.gguf",
+        "size": 12109566624,
+        "shard_index": 1,
+        "sha256": "27cd6c432c7672cb812a92f611cf3ba7bbc35928262bb1e1253ff4ee6ae35901",
+        "custom_url": false
+      }
+    ],
+    "target_dir": "D:\\Models\\ggml-org/gpt-oss-20b-GGUF"
+  }
+]

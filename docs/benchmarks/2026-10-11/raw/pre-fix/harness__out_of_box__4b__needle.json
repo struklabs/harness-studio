@@ -1,0 +1,103 @@
+{
+ "target_tokens": 20000,
+ "runs": [
+  {
+   "ok": true,
+   "ttft": 18.54763469984755,
+   "ttfb": 18.54761409992352,
+   "wall": 19.079818499973044,
+   "decode_tps": 17.19323454259388,
+   "completion_tokens": 9,
+   "prompt_tokens": 19894,
+   "server_decode_tps": 15.045229721851316,
+   "server_prompt_tps": 1089.1064388415073,
+   "server_cache_n": 3,
+   "cached_tokens": 3,
+   "finish_reason": "stop",
+   "text_head": "amber-falcon-7421",
+   "answer_correct": true,
+   "verdict": "correct"
+  },
+  {
+   "ok": true,
+   "ttft": 18.716030600015074,
+   "ttfb": 18.716004200046882,
+   "wall": 19.258356699952856,
+   "decode_tps": 17.011178470615334,
+   "completion_tokens": 9,
+   "prompt_tokens": 19968,
+   "server_decode_tps": 14.763525234555509,
+   "server_prompt_tps": 1079.41792654637,
+   "server_cache_n": 7,
+   "cached_tokens": 7,
+   "finish_reason": "stop",
+   "text_head": "amber-falcon-7421",
+   "answer_correct": true,
+   "verdict": "correct"
+  }
+ ],
+ "summary": {
+  "verdicts": [
+   "correct",
+   "correct"
+  ],
+  "prompt_tokens_reported": [
+   19894,
+   19968
+  ]
+ },
+ "meta": {
+  "backend": "harness",
+  "mode": "out_of_box",
+  "model": "4b",
+  "endpoint_info": {
+   "alias": "bench-4b-default",
+   "server_id": "gw-bench-4b-default",
+   "config": {
+    "gpu_layers": 29,
+    "context_size": 32768,
+    "flash_attn": false
+   },
+   "values": {
+    "n_ctx": 32768,
+    "total_slots": 1,
+    "n_ctx_train": 262144,
+    "kv_unified": false,
+    "gpu_layers_offloaded": 29,
+    "gpu_layers_total": 37,
+    "gpu_layers_by_fit": false,
+    "ctx_adjusted": false,
+    "build_info": "b11552-23b0202a1",
+    "chat_format": "Content-only",
+    "kv_fa_fallback": null,
+    "fit_failed": false,
+    "shared_memory_slowdown": false,
+    "shared_memory_bytes": 56385536
+   },
+   "cmdline": "-m D:\\Models\\unsloth\\Qwen3-4B-Instruct-2507-GGUF\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf --alias bench-4b-default -ngl 29 -c 32768 --host 127.0.0.1 --port 11441 --metrics -np 1 --split-mode none --main-gpu 0 --cache-ram 1024 --ctx-checkpoints 4",
+   "load_s": 3.08,
+   "log_lines": [
+    "[+0.001s] [Harness Studio] Eşzamanlı istek: 1 (otomatik; her eşzamanlı isteğe ~32768 token bağlam kalsın diye).",
+    "[+0.008s] [Harness Studio] Starting llama-server: \"D:\\\\Models\\\\unsloth\\\\Qwen3-4B-Instruct-2507-GGUF\\\\Qwen3-4B-Instruct-2507-Q4_K_M.gguf\"",
+    "[+0.008s] [Harness Studio] Target GPU: adapter index 0 → --main-gpu 0 (split-mode: none)",
+    "[+2.143s] [stderr] 0.02.047.478 I srv    load_model: initializing, n_slots = 1, n_ctx_slot = 32768, kv_unified = 'false'",
+    "[+2.160s] [Harness Studio] Sunucu hazır (2.1 sn).",
+    "[+2.238s] [Harness Studio] Tanım bağlam belirtmiyor: llama.cpp'nin 4096 varsayılanı yerine modelin eğitim bağlamıyla (en çok 32768) yüklendi: 32768 (tanım değişmedi)."
+   ]
+  },
+  "gpu_before": {
+   "dedicated_mib": 4415,
+   "shared_mib": 373
+  },
+  "gpu_after_load": {
+   "dedicated_mib": 10280,
+   "shared_mib": 426
+  },
+  "date": "2026-10-11 14:38:22",
+  "gpu_after_run": {
+   "dedicated_mib": 10315,
+   "shared_mib": 434
+  },
+  "elapsed_s": 39.9
+ }
+}

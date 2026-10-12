@@ -1,0 +1,1564 @@
+{
+ "env": {
+  "date": "2026-10-11 15:48:33",
+  "python": "3.14.0",
+  "httpx": "0.28.1",
+  "os": "Windows-11-10.0.26200-SP0",
+  "versions": {
+   "harness": "Harness Studio 0.1.0, installer-built release build, installed; managed runtime llama.cpp b11556-a9d27ac69 Vulkan; ran as `harness serve --gateway` (headless, GUI closed) in the re-run",
+   "lmstudio": "lms CLI commit 69d945a; selected engine llama.cpp-win-x86_64-vulkan-avx2@2.51.0",
+   "ollama": "ollama version is 0.35.1",
+   "llamacpp": "llama-server version 0.4.1-dev (build 11026, commit b49650adb), winget ggml.llamacpp, Vulkan",
+   "llamacpp_b11552": "llama-server version 0.6.0-dev (build 11552, commit 23b0202a1), Harness managed runtime, Vulkan",
+   "harness_prefix": "Harness Studio 0.1.0 (earlier build, before the fixes), managed runtime llama.cpp b11552 Vulkan; ran as `harness serve --gateway`",
+   "lmstudio_control": "same LM Studio as above, out_of_box speed repeated at 17:37 (dedicated baseline 4188 MiB, dwm.exe 5.85 GiB)"
+  },
+  "gpu_baseline": {
+   "dedicated_mib": 4375,
+   "shared_mib": 372
+  },
+  "note": "gpu_baseline dedicated MiB varied between 4.4 and 6.2 GB across the session (desktop apps)",
+  "rerun_2026-10-11": {
+   "installed_build": "release build (NSIS installer, installed to %LOCALAPPDATA%\\Harness Studio; ran as `harness serve --gateway` headless, GUI closed during the run)",
+   "harness_version": "Harness Studio 0.1.0, managed runtime llama.cpp b11556-a9d27ac69 Vulkan",
+   "gpu_baseline": {
+    "dedicated_mib": 4195,
+    "shared_mib": 114
+   },
+   "dwm_dedicated_gib": 5.85,
+   "harness_run_started": "17:26",
+   "lmstudio_control_run": "17:37, baseline 4188 MiB dedicated, dwm 5.85 GiB",
+   "note": "files harness__* are the re-run; the earlier build's rows are in raw/pre-fix/; lmstudio_control__* is a repeat of LM Studio out_of_box speed as a control"
+  }
+ },
+ "results": {
+  "harness": {
+   "out_of_box": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.32345150015316904,
+      "decode_tps": 140.88076332679577,
+      "server_decode_tps": 140.8698130906174,
+      "prompt_tokens_500": 488,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 2459.5608285331964,
+      "pp4k_tps_server": 2736.495719804813,
+      "pp4k_prompt_tokens": 3988,
+      "pp4k_ttft_s": 1.6210211000870913,
+      "errors": []
+     },
+     "needle": {
+      "verdicts": [
+       "correct",
+       "correct"
+      ],
+      "prompt_tokens_reported": [
+       19896,
+       19969
+      ]
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": 6.553236400010064,
+      "turn2_ttft_s": 0.4462506999261677,
+      "turn3_ttft_s": 0.2534142998047173,
+      "turn1_prompt_tokens": 10824,
+      "turn3_prompt_tokens": 11210,
+      "turn2_cached_tokens": 10824,
+      "turn3_cached_tokens": 11173,
+      "errors": []
+     },
+     "concurrency": {
+      "aggregate_tps": 343.5558995198554,
+      "wall_s": 2.9805920999497175,
+      "latency_median_s": 2.979187250020914,
+      "latency_max_s": 2.979540399974212,
+      "ttft_median_s": 0.3172996499342844,
+      "ttft_max_s": 0.31741859996691346,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 0.6435371001716703,
+      "decode_tps": 48.55625127531789,
+      "server_decode_tps": 48.55431895427325,
+      "prompt_tokens_500": 508,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 737.0920997740045,
+      "pp4k_tps_server": 759.1366910860398,
+      "pp4k_prompt_tokens": 4009,
+      "pp4k_ttft_s": 5.438940400024876,
+      "errors": []
+     },
+     "tools": {
+      "passed": 36,
+      "total": 38,
+      "pct": 94.7,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "8/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    },
+    "switch": {
+     "request": {
+      "ok": true,
+      "ttft": 6.495820400072262,
+      "ttfb": 6.495800100034103,
+      "wall": 6.6775446000974625,
+      "decode_tps": 55.52662688376809,
+      "completion_tokens": 10,
+      "prompt_tokens": 51,
+      "server_decode_tps": 49.6338127591988,
+      "server_prompt_tps": 464.5612628779115,
+      "server_cache_n": 0,
+      "cached_tokens": 0,
+      "finish_reason": "stop",
+      "text_head": "The sea is vast and full of mysteries."
+     },
+     "info": {
+      "alias": "bench-14b-default"
+     },
+     "outcome": "switched",
+     "ttft_s": 6.495820400072262,
+     "gpu_after": {
+      "dedicated_mib": 13873,
+      "shared_mib": 157
+     }
+    }
+   },
+   "equal": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.3453485001809895,
+      "decode_tps": 144.3030186886139,
+      "server_decode_tps": 144.28112073048115,
+      "prompt_tokens_500": 487,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 2198.982624553689,
+      "pp4k_tps_server": 2718.401566235884,
+      "pp4k_prompt_tokens": 3989,
+      "pp4k_ttft_s": 1.8140207000542432,
+      "errors": []
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": 6.350054299924523,
+      "turn2_ttft_s": 0.4250706001184881,
+      "turn3_ttft_s": 0.2594161001034081,
+      "turn1_prompt_tokens": 10825,
+      "turn3_prompt_tokens": 11211,
+      "turn2_cached_tokens": 10825,
+      "turn3_cached_tokens": 11174,
+      "errors": []
+     }
+    }
+   },
+   "equal4": {
+    "4b": {
+     "concurrency": {
+      "aggregate_tps": 399.01556938702623,
+      "wall_s": 2.5663158998358995,
+      "latency_median_s": 2.5652107500936836,
+      "latency_max_s": 2.5654424999374896,
+      "ttft_median_s": 0.31158049998339266,
+      "ttft_max_s": 0.3118906000163406,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    }
+   },
+   "ctx65536": {
+    "14b": {
+     "outcome": "loaded",
+     "decode": {
+      "runs": [
+       {
+        "ok": true,
+        "ttft": 0.44551079999655485,
+        "ttfb": 0.44549029995687306,
+        "wall": 16.88007829990238,
+        "decode_tps": 15.516302973397336,
+        "completion_tokens": 256,
+        "prompt_tokens": 57,
+        "server_decode_tps": 15.516246514092678,
+        "server_prompt_tps": 140.05364479000443,
+        "server_cache_n": 24,
+        "cached_tokens": 24,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       },
+       {
+        "ok": true,
+        "ttft": 0.4465937002096325,
+        "ttfb": 0.4465736001729965,
+        "wall": 16.98569710017182,
+        "decode_tps": 15.418253222629218,
+        "completion_tokens": 256,
+        "prompt_tokens": 61,
+        "server_decode_tps": 15.418070038548198,
+        "server_prompt_tps": 157.13454539277262,
+        "server_cache_n": 24,
+        "cached_tokens": 24,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       },
+       {
+        "ok": true,
+        "ttft": 0.4272215000819415,
+        "ttfb": 0.427200400037691,
+        "wall": 16.932312600081787,
+        "decode_tps": 15.45006484210625,
+        "completion_tokens": 256,
+        "prompt_tokens": 59,
+        "server_decode_tps": 15.450051830379758,
+        "server_prompt_tps": 143.98421255457637,
+        "server_cache_n": 25,
+        "cached_tokens": 25,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       }
+      ],
+      "decode_tps": 15.45006484210625,
+      "server_decode_tps": 15.450051830379758,
+      "errors": []
+     },
+     "spilled_to_shared_memory": false,
+     "shared_growth_mib": 98
+    }
+   }
+  },
+  "harness_prefix": {
+   "out_of_box": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.4104764999356121,
+      "decode_tps": 47.87040613791724,
+      "server_decode_tps": 47.86920106866584,
+      "prompt_tokens_500": 487,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 1931.3714189994296,
+      "pp4k_tps_server": 2324.1247060580044,
+      "pp4k_prompt_tokens": 3988,
+      "pp4k_ttft_s": 2.064853999996558,
+      "errors": []
+     },
+     "needle": {
+      "verdicts": [
+       "correct",
+       "correct"
+      ],
+      "prompt_tokens_reported": [
+       19894,
+       19968
+      ]
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": 7.0948580000549555,
+      "turn2_ttft_s": 0.5360346001107246,
+      "turn3_ttft_s": 0.3493081999476999,
+      "turn1_prompt_tokens": 10825,
+      "turn3_prompt_tokens": 11211,
+      "turn2_cached_tokens": 10825,
+      "turn3_cached_tokens": 11174,
+      "errors": []
+     },
+     "concurrency": {
+      "aggregate_tps": 53.08790325595125,
+      "wall_s": 19.28876330005005,
+      "latency_median_s": 12.239155050017871,
+      "latency_max_s": 19.287279999814928,
+      "ttft_median_s": 7.60712884995155,
+      "ttft_max_s": 14.695016899844632,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 0.8673215000890195,
+      "decode_tps": 14.169000064908817,
+      "server_decode_tps": 14.16886284040693,
+      "prompt_tokens_500": 508,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 571.0862940135105,
+      "pp4k_tps_server": 599.4840375528235,
+      "pp4k_prompt_tokens": 4009,
+      "pp4k_ttft_s": 7.021705899853259,
+      "errors": []
+     },
+     "tools": {
+      "passed": 5,
+      "total": 38,
+      "pct": 13.2,
+      "by_category": {
+       "single": "0/5",
+       "choose": "0/5",
+       "parallel": "0/3",
+       "none": "4/4",
+       "nested": "0/3",
+       "enum": "0/3",
+       "turkish": "0/10",
+       "many_tools": "1/5"
+      },
+      "text_format_calls": 33,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    },
+    "switch": {
+     "request": {
+      "ok": true,
+      "ttft": 9.122853999957442,
+      "ttfb": 9.122830099891871,
+      "wall": 9.750831699930131,
+      "decode_tps": 16.09769656033207,
+      "completion_tokens": 10,
+      "prompt_tokens": 52,
+      "server_decode_tps": 14.346676273626183,
+      "server_prompt_tps": 125.7049752578765,
+      "server_cache_n": 0,
+      "cached_tokens": 0,
+      "finish_reason": "stop",
+      "text_head": "The sea is vast and full of mysteries."
+     },
+     "info": {
+      "alias": "bench-14b-default"
+     },
+     "outcome": "switched",
+     "ttft_s": 9.122853999957442,
+     "gpu_after": {
+      "dedicated_mib": 13488,
+      "shared_mib": 1469
+     }
+    }
+   },
+   "equal": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.35487619997002184,
+      "decode_tps": 141.5778894533151,
+      "server_decode_tps": 141.5542097111739,
+      "prompt_tokens_500": 487,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 2222.820199918068,
+      "pp4k_tps_server": 2752.691559011214,
+      "pp4k_prompt_tokens": 3989,
+      "pp4k_ttft_s": 1.7945671000052243,
+      "errors": []
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": 6.297380700008944,
+      "turn2_ttft_s": 0.42392790014855564,
+      "turn3_ttft_s": 0.2668515001423657,
+      "turn1_prompt_tokens": 10824,
+      "turn3_prompt_tokens": 11210,
+      "turn2_cached_tokens": 10824,
+      "turn3_cached_tokens": 11173,
+      "errors": []
+     }
+    }
+   },
+   "equal4": {
+    "4b": {
+     "concurrency": {
+      "aggregate_tps": 170.18049785627383,
+      "wall_s": 6.017140700016171,
+      "latency_median_s": 6.015895100077614,
+      "latency_max_s": 6.016288900049403,
+      "ttft_median_s": 3.768567300052382,
+      "ttft_max_s": 3.76907330006361,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    }
+   },
+   "ctx65536": {
+    "14b": {
+     "outcome": "loaded",
+     "decode": {
+      "runs": [
+       {
+        "ok": true,
+        "ttft": 0.43959570000879467,
+        "ttfb": 0.4395742998458445,
+        "wall": 16.397435599938035,
+        "decode_tps": 15.97987373130744,
+        "completion_tokens": 256,
+        "prompt_tokens": 61,
+        "server_decode_tps": 15.980111967317852,
+        "server_prompt_tps": 159.2990840302668,
+        "server_cache_n": 25,
+        "cached_tokens": 25,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       },
+       {
+        "ok": true,
+        "ttft": 0.43418160011060536,
+        "ttfb": 0.4341599000617862,
+        "wall": 16.46441140002571,
+        "decode_tps": 15.907719952960125,
+        "completion_tokens": 256,
+        "prompt_tokens": 60,
+        "server_decode_tps": 15.90762547934978,
+        "server_prompt_tps": 153.90162608060928,
+        "server_cache_n": 25,
+        "cached_tokens": 25,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       },
+       {
+        "ok": true,
+        "ttft": 0.4535288999322802,
+        "ttfb": 0.4535060999915004,
+        "wall": 16.410688599804416,
+        "decode_tps": 15.980547900554534,
+        "completion_tokens": 256,
+        "prompt_tokens": 61,
+        "server_decode_tps": 15.980722861364097,
+        "server_prompt_tps": 155.23196398618438,
+        "server_cache_n": 25,
+        "cached_tokens": 25,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       }
+      ],
+      "decode_tps": 15.97987373130744,
+      "server_decode_tps": 15.980111967317852,
+      "errors": []
+     },
+     "spilled_to_shared_memory": true,
+     "shared_growth_mib": 1126
+    }
+   }
+  },
+  "lmstudio": {
+   "out_of_box": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.3706759999040514,
+      "decode_tps": 142.031901714363,
+      "server_decode_tps": null,
+      "prompt_tokens_500": 487,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 2307.7021005397464,
+      "pp4k_tps_server": null,
+      "pp4k_prompt_tokens": 3988,
+      "pp4k_ttft_s": 1.7281259999144822,
+      "errors": []
+     },
+     "needle": {
+      "verdicts": [
+       "error_reported",
+       "error_reported"
+      ],
+      "prompt_tokens_reported": [
+       null,
+       null
+      ]
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": null,
+      "turn2_ttft_s": null,
+      "turn3_ttft_s": null,
+      "turn1_prompt_tokens": null,
+      "turn3_prompt_tokens": null,
+      "turn2_cached_tokens": null,
+      "turn3_cached_tokens": null,
+      "errors": [
+       "{\"message\": \"Engine protocol predict request returned 400: {\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10824 tokens) exceeds the available context size (8192 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10824,\\\"n_ctx\\\":8192}}\"}",
+       "{\"message\": \"Engine protocol predict request returned 400: {\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (11173 tokens) exceeds the available context size (8192 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":11173,\\\"n_ctx\\\":8192}}\"}",
+       "{\"message\": \"Engine protocol predict request returned 400: {\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10847 tokens) exceeds the available context size (8192 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10847,\\\"n_ctx\\\":8192}}\"}"
+      ]
+     },
+     "concurrency": {
+      "aggregate_tps": 157.40788805811002,
+      "wall_s": 6.505391900194809,
+      "latency_median_s": 6.503070399980061,
+      "latency_max_s": 6.503931399900466,
+      "ttft_median_s": 3.823003749945201,
+      "ttft_max_s": 3.8256433000788093,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 0.7240299000404775,
+      "decode_tps": 41.99918837749435,
+      "server_decode_tps": null,
+      "prompt_tokens_500": 507,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 441.58533696383734,
+      "pp4k_tps_server": null,
+      "pp4k_prompt_tokens": 4009,
+      "pp4k_ttft_s": 9.077811199938878,
+      "errors": []
+     },
+     "tools": {
+      "passed": 5,
+      "total": 38,
+      "pct": 13.2,
+      "by_category": {
+       "single": "0/5",
+       "choose": "0/5",
+       "parallel": "0/3",
+       "none": "4/4",
+       "nested": "0/3",
+       "enum": "0/3",
+       "turkish": "0/10",
+       "many_tools": "1/5"
+      },
+      "text_format_calls": 33,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    },
+    "switch": {
+     "request": {
+      "ok": true,
+      "ttft": 0.23629299993626773,
+      "ttfb": 0.23629299993626773,
+      "wall": 0.3274064001161605,
+      "decode_tps": 156.35448682505506,
+      "completion_tokens": 14,
+      "prompt_tokens": 29,
+      "finish_reason": "stop",
+      "text_head": "The sea whispers secrets to the shore, endless and ever-changing."
+     },
+     "info": {
+      "jit_active": false
+     },
+     "outcome": "NOT_SWITCHED_silently_answered_by_loaded_4B",
+     "ttft_s": 0.23629299993626773,
+     "gpu_after": {
+      "dedicated_mib": 8164,
+      "shared_mib": 393
+     },
+     "reason": "JIT loading inactive on this install: the request for the 14B returned HTTP 200 answered by qwen3-4b-instruct-2507 (response 'model' field and `lms ps` confirm; an unknown model name behaves the same). Verified manually after the run."
+    }
+   },
+   "equal": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.3469703998416662,
+      "decode_tps": 143.3379150812924,
+      "server_decode_tps": null,
+      "prompt_tokens_500": 488,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 2317.088946209775,
+      "pp4k_tps_server": null,
+      "pp4k_prompt_tokens": 3987,
+      "pp4k_ttft_s": 1.7215567000675946,
+      "errors": []
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": 6.576680999947712,
+      "turn2_ttft_s": 0.43843009998090565,
+      "turn3_ttft_s": 0.2737257000990212,
+      "turn1_prompt_tokens": 10825,
+      "turn3_prompt_tokens": 11211,
+      "turn2_cached_tokens": null,
+      "turn3_cached_tokens": null,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 0.7336903000250459,
+      "decode_tps": 39.66803732924483,
+      "server_decode_tps": null,
+      "prompt_tokens_500": 509,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 348.67983120511343,
+      "pp4k_tps_server": null,
+      "pp4k_prompt_tokens": 4010,
+      "pp4k_ttft_s": 11.500521800015122,
+      "errors": []
+     },
+     "tools": {
+      "passed": 5,
+      "total": 38,
+      "pct": 13.2,
+      "by_category": {
+       "single": "0/5",
+       "choose": "0/5",
+       "parallel": "0/3",
+       "none": "4/4",
+       "nested": "0/3",
+       "enum": "0/3",
+       "turkish": "0/10",
+       "many_tools": "1/5"
+      },
+      "text_format_calls": 33,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    }
+   },
+   "equal4": {
+    "4b": {
+     "concurrency": {
+      "aggregate_tps": 156.01649423599164,
+      "wall_s": 6.563408599933609,
+      "latency_median_s": 6.557762849959545,
+      "latency_max_s": 6.562432500068098,
+      "ttft_median_s": 3.7625138498842716,
+      "ttft_max_s": 3.768037599977106,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    }
+   },
+   "ctx65536": {
+    "14b": {
+     "outcome": "loaded",
+     "decode": {
+      "runs": [
+       {
+        "ok": true,
+        "ttft": 0.3060039000120014,
+        "ttfb": 0.3060039000120014,
+        "wall": 5.8438238999806345,
+        "decode_tps": 46.04859864250648,
+        "completion_tokens": 256,
+        "prompt_tokens": 61,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and rolling hills, lay a picturesque harbor. Th"
+       },
+       {
+        "ok": true,
+        "ttft": 0.308386699995026,
+        "ttfb": 0.308386699995026,
+        "wall": 5.850127300014719,
+        "decode_tps": 46.016090220658015,
+        "completion_tokens": 256,
+        "prompt_tokens": 59,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and rolling hills, lay a picturesque harbor. Th"
+       },
+       {
+        "ok": true,
+        "ttft": 0.32550629996694624,
+        "ttfb": 0.32550629996694624,
+        "wall": 5.896889999974519,
+        "decode_tps": 45.771834012687194,
+        "completion_tokens": 256,
+        "prompt_tokens": 62,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and rolling hills, lay a picturesque harbor. Th"
+       }
+      ],
+      "decode_tps": 46.016090220658015,
+      "server_decode_tps": null,
+      "errors": []
+     },
+     "spilled_to_shared_memory": true,
+     "shared_growth_mib": 12376
+    }
+   }
+  },
+  "lmstudio_control": {
+   "out_of_box": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.35758970002643764,
+      "decode_tps": 142.71453225381765,
+      "server_decode_tps": null,
+      "prompt_tokens_500": 488,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 2314.6422199825943,
+      "pp4k_tps_server": null,
+      "pp4k_prompt_tokens": 3988,
+      "pp4k_ttft_s": 1.7220803999807686,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 0.7060429998673499,
+      "decode_tps": 50.7393751688612,
+      "server_decode_tps": null,
+      "prompt_tokens_500": 508,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 822.3735986486583,
+      "pp4k_tps_server": null,
+      "pp4k_prompt_tokens": 4008,
+      "pp4k_ttft_s": 4.874993299832568,
+      "errors": []
+     }
+    }
+   }
+  },
+  "ollama": {
+   "out_of_box": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.316375499824062,
+      "decode_tps": 128.8980280029441,
+      "server_decode_tps": 129.42366026289181,
+      "prompt_tokens_500": 488,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 2997.221181714598,
+      "pp4k_tps_server": 3819.9233716475096,
+      "pp4k_prompt_tokens": 3988,
+      "pp4k_ttft_s": 1.3305658001918346,
+      "errors": []
+     },
+     "needle": {
+      "verdicts": [
+       "error_reported",
+       "error_reported"
+      ],
+      "prompt_tokens_reported": [
+       null,
+       null
+      ]
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": null,
+      "turn2_ttft_s": null,
+      "turn3_ttft_s": null,
+      "turn1_prompt_tokens": null,
+      "turn3_prompt_tokens": null,
+      "turn2_cached_tokens": null,
+      "turn3_cached_tokens": null,
+      "errors": [
+       "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10768 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10768,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+       "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (11071 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":11071,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n",
+       "HTTP 400: {\"error\":{\"message\":\"{\\\"error\\\":{\\\"code\\\":400,\\\"message\\\":\\\"request (10770 tokens) exceeds the available context size (4096 tokens), try increasing it\\\",\\\"type\\\":\\\"exceed_context_size_error\\\",\\\"n_prompt_tokens\\\":10770,\\\"n_ctx\\\":4096}}\",\"type\":\"invalid_request_error\",\"param\":null,\"code\":null}}\n"
+      ]
+     },
+     "concurrency": {
+      "aggregate_tps": 126.02230983840047,
+      "wall_s": 8.125545399961993,
+      "latency_median_s": 5.159490299876779,
+      "latency_max_s": 8.124609500169754,
+      "ttft_median_s": 3.223440949921496,
+      "ttft_max_s": 6.185553299961612,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 0.5573673001490533,
+      "decode_tps": 49.003030463230175,
+      "server_decode_tps": 49.183477425552354,
+      "prompt_tokens_500": 509,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 1108.9192624323798,
+      "pp4k_tps_server": 1224.3276283618582,
+      "pp4k_prompt_tokens": 4008,
+      "pp4k_ttft_s": 3.6125262998975813,
+      "errors": []
+     },
+     "tools": {
+      "passed": 4,
+      "total": 38,
+      "pct": 10.5,
+      "by_category": {
+       "single": "0/5",
+       "choose": "0/5",
+       "parallel": "0/3",
+       "none": "3/4",
+       "nested": "0/3",
+       "enum": "0/3",
+       "turkish": "0/10",
+       "many_tools": "1/5"
+      },
+      "text_format_calls": 34,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    },
+    "switch": {
+     "request": {
+      "ok": true,
+      "ttft": 5.638728499878198,
+      "ttfb": 5.638728499878198,
+      "wall": 6.186122899875045,
+      "decode_tps": 18.465576261252863,
+      "completion_tokens": 10,
+      "prompt_tokens": 50,
+      "server_decode_tps": 18.281535648994517,
+      "server_prompt_tps": 335.5704697986577,
+      "server_cache_n": null,
+      "cached_tokens": 0,
+      "finish_reason": "stop",
+      "text_head": "The sea is vast and full of mysteries."
+     },
+     "info": {},
+     "outcome": "switched",
+     "ttft_s": 5.638728499878198,
+     "gpu_after": {
+      "dedicated_mib": 15289,
+      "shared_mib": 2351
+     }
+    }
+   },
+   "equal": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.30535089992918074,
+      "decode_tps": 128.86016413203595,
+      "server_decode_tps": 129.35826174835776,
+      "prompt_tokens_500": 487,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 2939.7378078301945,
+      "pp4k_tps_server": 3849.420849420849,
+      "pp4k_prompt_tokens": 3988,
+      "pp4k_ttft_s": 1.3562434001360089,
+      "errors": []
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": 3.9777899000328034,
+      "turn2_ttft_s": 0.405763000017032,
+      "turn3_ttft_s": 0.26118250004947186,
+      "turn1_prompt_tokens": 10768,
+      "turn3_prompt_tokens": 11154,
+      "turn2_cached_tokens": 10768,
+      "turn3_cached_tokens": 11117,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 2.1499946999829262,
+      "decode_tps": 40.63651507468267,
+      "server_decode_tps": 40.79681274900398,
+      "prompt_tokens_500": 509,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 234.25404016246165,
+      "pp4k_tps_server": 239.928165219994,
+      "pp4k_prompt_tokens": 4008,
+      "pp4k_ttft_s": 17.109630199847743,
+      "errors": []
+     },
+     "tools": {
+      "passed": 4,
+      "total": 38,
+      "pct": 10.5,
+      "by_category": {
+       "single": "0/5",
+       "choose": "0/5",
+       "parallel": "0/3",
+       "none": "3/4",
+       "nested": "0/3",
+       "enum": "0/3",
+       "turkish": "0/10",
+       "many_tools": "1/5"
+      },
+      "text_format_calls": 34,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    }
+   },
+   "equal4": {
+    "4b": {
+     "concurrency": {
+      "aggregate_tps": 266.26186541977916,
+      "wall_s": 3.8458380000665784,
+      "latency_median_s": 3.8447095999727026,
+      "latency_max_s": 3.844764100154862,
+      "ttft_median_s": 0.3751621999545023,
+      "ttft_max_s": 0.3756528999656439,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    }
+   },
+   "ctx65536": {
+    "14b": {
+     "outcome": "loaded",
+     "decode": {
+      "runs": [
+       {
+        "ok": true,
+        "ttft": 0.26551509997807443,
+        "ttfb": 0.26551509997807443,
+        "wall": 6.106277999933809,
+        "decode_tps": 43.66084658566238,
+        "completion_tokens": 256,
+        "prompt_tokens": 60,
+        "server_decode_tps": 43.83561643835616,
+        "server_prompt_tps": 810.8108108108108,
+        "server_cache_n": null,
+        "cached_tokens": 24,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       },
+       {
+        "ok": true,
+        "ttft": 0.26690679998137057,
+        "ttfb": 0.26690679998137057,
+        "wall": 6.080185200087726,
+        "decode_tps": 43.866850860969016,
+        "completion_tokens": 256,
+        "prompt_tokens": 60,
+        "server_decode_tps": 44.03922243247893,
+        "server_prompt_tps": 800,
+        "server_cache_n": null,
+        "cached_tokens": 24,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       },
+       {
+        "ok": true,
+        "ttft": 0.2864908000919968,
+        "ttfb": 0.2864908000919968,
+        "wall": 6.114403699990362,
+        "decode_tps": 43.756319035242704,
+        "completion_tokens": 256,
+        "prompt_tokens": 61,
+        "server_decode_tps": 43.925875085792725,
+        "server_prompt_tps": 835.6164383561644,
+        "server_cache_n": null,
+        "cached_tokens": 25,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       }
+      ],
+      "decode_tps": 43.756319035242704,
+      "server_decode_tps": 43.925875085792725,
+      "errors": []
+     },
+     "spilled_to_shared_memory": true,
+     "shared_growth_mib": 10326
+    }
+   }
+  },
+  "llamacpp": {
+   "out_of_box": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.3487831999082118,
+      "decode_tps": 114.48787485317726,
+      "server_decode_tps": 114.48227747002248,
+      "prompt_tokens_500": 488,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 1380.801161883258,
+      "pp4k_tps_server": 1629.0052850718382,
+      "pp4k_prompt_tokens": 3987,
+      "pp4k_ttft_s": 2.886729900026694,
+      "errors": []
+     },
+     "needle": {
+      "verdicts": [
+       "correct",
+       "correct"
+      ],
+      "prompt_tokens_reported": [
+       19898,
+       19969
+      ]
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": 27.6014764001593,
+      "turn2_ttft_s": 0.9547830999363214,
+      "turn3_ttft_s": 0.2999106999486685,
+      "turn1_prompt_tokens": 10826,
+      "turn3_prompt_tokens": 11212,
+      "turn2_cached_tokens": 10826,
+      "turn3_cached_tokens": 11175,
+      "errors": []
+     },
+     "concurrency": {
+      "aggregate_tps": 152.25640573659754,
+      "wall_s": 6.7254969999194145,
+      "latency_median_s": 6.723779550055042,
+      "latency_max_s": 6.723902200115845,
+      "ttft_median_s": 3.963783400016837,
+      "ttft_max_s": 3.9643544000573456,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 0.6837259000167251,
+      "decode_tps": 40.919343720580336,
+      "server_decode_tps": 40.91849340995629,
+      "prompt_tokens_500": 508,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 402.4034787053578,
+      "pp4k_tps_server": 419.85004966480574,
+      "pp4k_prompt_tokens": 4010,
+      "pp4k_ttft_s": 9.965122600086033,
+      "errors": []
+     },
+     "tools": {
+      "passed": 5,
+      "total": 38,
+      "pct": 13.2,
+      "by_category": {
+       "single": "0/5",
+       "choose": "0/5",
+       "parallel": "0/3",
+       "none": "4/4",
+       "nested": "0/3",
+       "enum": "0/3",
+       "turkish": "0/10",
+       "many_tools": "1/5"
+      },
+      "text_format_calls": 33,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    },
+    "switch": {
+     "manual_restart_ready_s": 22.92,
+     "outcome": "not_supported_on_demand",
+     "reason": "llama-server serves exactly one model per process; switching needs a kill and restart"
+    }
+   },
+   "equal": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.3457148000597954,
+      "decode_tps": 146.91474710363912,
+      "server_decode_tps": 146.9048868630737,
+      "prompt_tokens_500": 487,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 2351.3698027750893,
+      "pp4k_tps_server": 3214.995565662492,
+      "pp4k_prompt_tokens": 3987,
+      "pp4k_ttft_s": 1.6951820999383926,
+      "errors": []
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": 5.792391299968585,
+      "turn2_ttft_s": 0.41588250012136996,
+      "turn3_ttft_s": 0.26473430008627474,
+      "turn1_prompt_tokens": 10825,
+      "turn3_prompt_tokens": 11211,
+      "turn2_cached_tokens": 10825,
+      "turn3_cached_tokens": 11174,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 0.6861813999712467,
+      "decode_tps": 40.57680549552204,
+      "server_decode_tps": 40.57682099225126,
+      "prompt_tokens_500": 507,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 390.262218422644,
+      "pp4k_tps_server": 404.0213005062138,
+      "pp4k_prompt_tokens": 4008,
+      "pp4k_ttft_s": 10.267455599969253,
+      "errors": []
+     },
+     "tools": {
+      "passed": 5,
+      "total": 38,
+      "pct": 13.2,
+      "by_category": {
+       "single": "0/5",
+       "choose": "0/5",
+       "parallel": "0/3",
+       "none": "4/4",
+       "nested": "0/3",
+       "enum": "0/3",
+       "turkish": "0/10",
+       "many_tools": "1/5"
+      },
+      "text_format_calls": 33,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    }
+   },
+   "equal4": {
+    "4b": {
+     "concurrency": {
+      "aggregate_tps": 398.1402031348224,
+      "wall_s": 2.5719582999590784,
+      "latency_median_s": 2.5707629000535235,
+      "latency_max_s": 2.5710992999374866,
+      "ttft_median_s": 0.3461388999130577,
+      "ttft_max_s": 0.3464208000805229,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    }
+   },
+   "ctx65536": {
+    "14b": {
+     "outcome": "loaded",
+     "decode": {
+      "runs": [
+       {
+        "ok": true,
+        "ttft": 0.4903953999746591,
+        "ttfb": 0.490362900076434,
+        "wall": 17.897369100013748,
+        "decode_tps": 14.649586375042304,
+        "completion_tokens": 256,
+        "prompt_tokens": 60,
+        "server_decode_tps": 14.649549175922646,
+        "server_prompt_tps": 133.13166351711666,
+        "server_cache_n": 24,
+        "cached_tokens": 24,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       },
+       {
+        "ok": true,
+        "ttft": 0.444836099864915,
+        "ttfb": 0.44481179979629815,
+        "wall": 17.743197199888527,
+        "decode_tps": 14.741541069481501,
+        "completion_tokens": 256,
+        "prompt_tokens": 61,
+        "server_decode_tps": 14.741509367535484,
+        "server_prompt_tps": 160.3272408981792,
+        "server_cache_n": 24,
+        "cached_tokens": 24,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       },
+       {
+        "ok": true,
+        "ttft": 0.47070310008712113,
+        "ttfb": 0.47068040003068745,
+        "wall": 18.054732900112867,
+        "decode_tps": 14.502040039052703,
+        "completion_tokens": 256,
+        "prompt_tokens": 60,
+        "server_decode_tps": 14.502047461618485,
+        "server_prompt_tps": 157.04202619112016,
+        "server_cache_n": 24,
+        "cached_tokens": 24,
+        "finish_reason": "length",
+        "text_head": "In the heart of a bustling coastal town, nestled between towering cliffs and the shimmering sea, lay the ancient harbor "
+       }
+      ],
+      "decode_tps": 14.649586375042304,
+      "server_decode_tps": 14.649549175922646,
+      "errors": []
+     },
+     "spilled_to_shared_memory": true,
+     "shared_growth_mib": 5208
+    }
+   }
+  },
+  "llamacpp_b11552": {
+   "out_of_box": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.34404710005037487,
+      "decode_tps": 112.19425250616202,
+      "server_decode_tps": 112.18564921175283,
+      "prompt_tokens_500": 487,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 1261.941544956149,
+      "pp4k_tps_server": 1402.3332378288972,
+      "pp4k_prompt_tokens": 3988,
+      "pp4k_ttft_s": 3.1610022000968456,
+      "errors": []
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": 29.587245399830863,
+      "turn2_ttft_s": 0.853284299839288,
+      "turn3_ttft_s": 0.27856220002286136,
+      "turn1_prompt_tokens": 10825,
+      "turn3_prompt_tokens": 11211,
+      "turn2_cached_tokens": 10825,
+      "turn3_cached_tokens": 11174,
+      "errors": []
+     },
+     "concurrency": {
+      "aggregate_tps": 152.62403568139482,
+      "wall_s": 6.70929710008204,
+      "latency_median_s": 6.707855150103569,
+      "latency_max_s": 6.708262200001627,
+      "ttft_median_s": 3.959660749998875,
+      "ttft_max_s": 3.9601833999622613,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 0.7237169998697937,
+      "decode_tps": 40.32300019828243,
+      "server_decode_tps": 40.322115193799945,
+      "prompt_tokens_500": 508,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 384.74272394160283,
+      "pp4k_tps_server": 403.51016584801533,
+      "pp4k_prompt_tokens": 4008,
+      "pp4k_ttft_s": 10.417351000010967,
+      "errors": []
+     },
+     "tools": {
+      "passed": 5,
+      "total": 38,
+      "pct": 13.2,
+      "by_category": {
+       "single": "0/5",
+       "choose": "0/5",
+       "parallel": "0/3",
+       "none": "4/4",
+       "nested": "0/3",
+       "enum": "0/3",
+       "turkish": "0/10",
+       "many_tools": "1/5"
+      },
+      "text_format_calls": 33,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    }
+   },
+   "equal": {
+    "4b": {
+     "speed": {
+      "ttft_500_s": 0.32307839998975396,
+      "decode_tps": 144.43187918254955,
+      "server_decode_tps": 144.41422757643477,
+      "prompt_tokens_500": 487,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 2242.7336247965013,
+      "pp4k_tps_server": 2671.454055347702,
+      "pp4k_prompt_tokens": 3988,
+      "pp4k_ttft_s": 1.7781870998442173,
+      "errors": []
+     },
+     "tools": {
+      "passed": 38,
+      "total": 38,
+      "pct": 100.0,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "10/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     },
+     "agent": {
+      "turn1_ttft_s": 6.904555500019342,
+      "turn2_ttft_s": 0.4024918000213802,
+      "turn3_ttft_s": 0.25005619996227324,
+      "turn1_prompt_tokens": 10823,
+      "turn3_prompt_tokens": 11209,
+      "turn2_cached_tokens": 10823,
+      "turn3_cached_tokens": 11172,
+      "errors": []
+     }
+    },
+    "14b": {
+     "speed": {
+      "ttft_500_s": 0.7162935000378639,
+      "decode_tps": 39.42728147396549,
+      "server_decode_tps": 39.42642742607429,
+      "prompt_tokens_500": 508,
+      "completion_tokens": 256,
+      "pp4k_tps_client": 358.7820158675468,
+      "pp4k_tps_server": 370.3421388745838,
+      "pp4k_prompt_tokens": 4009,
+      "pp4k_ttft_s": 11.173915700055659,
+      "errors": []
+     },
+     "tools": {
+      "passed": 5,
+      "total": 38,
+      "pct": 13.2,
+      "by_category": {
+       "single": "0/5",
+       "choose": "0/5",
+       "parallel": "0/3",
+       "none": "4/4",
+       "nested": "0/3",
+       "enum": "0/3",
+       "turkish": "0/10",
+       "many_tools": "1/5"
+      },
+      "text_format_calls": 33,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    }
+   },
+   "equal4": {
+    "4b": {
+     "concurrency": {
+      "aggregate_tps": 397.9547148509661,
+      "wall_s": 2.573157100006938,
+      "latency_median_s": 2.5721110498998314,
+      "latency_max_s": 2.5723679999355227,
+      "ttft_median_s": 0.33230360003653914,
+      "ttft_max_s": 0.33306790003553033,
+      "completion_tokens": 1024,
+      "errors": []
+     }
+    }
+   }
+  },
+  "harness_prefix_textrecovery": {
+   "out_of_box": {
+    "14b": {
+     "tools": {
+      "passed": 36,
+      "total": 38,
+      "pct": 94.7,
+      "by_category": {
+       "single": "5/5",
+       "choose": "5/5",
+       "parallel": "3/3",
+       "none": "4/4",
+       "nested": "3/3",
+       "enum": "3/3",
+       "turkish": "8/10",
+       "many_tools": "5/5"
+      },
+      "text_format_calls": 0,
+      "text_format_converted_and_passed": 0,
+      "request_errors": 0,
+      "n_tools_many": 38
+     }
+    }
+   }
+  }
+ }
+}

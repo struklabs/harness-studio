@@ -1,0 +1,7 @@
+{
+  "strong": ["<tool_call", "<tools", "<function=", "[TOOL_CALLS]", "<|python_tag|>", "<function_calls", "<function>"],
+  "fence": "```",
+  "initialJson": ["{", "["],
+  "introMaxChars": 240,
+  "weakPrefixes": [">"]
+}

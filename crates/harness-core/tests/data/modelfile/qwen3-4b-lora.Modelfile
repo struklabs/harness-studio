@@ -1,0 +1,15 @@
+from D:/Models/unsloth/Qwen3-4B-Instruct-2507-GGUF/Qwen3-4B-Instruct-2507-Q4_K_M.gguf
+adapter ./style-lora.gguf
+parameter mirostat 2
+parameter mirostat_tau 5.0
+parameter mirostat_eta 0.1
+PARAMETER num_gpu 99
+PARAMETER num_thread 8
+PARAMETER num_batch 512
+PARAMETER num_predict -1
+PARAMETER tfs_z 1.0
+PARAMETER num_keep 24
+PARAMETER penalize_newline true
+PARAMETER not_a_real_option 3
+SYSTEM You are a terse assistant.
+REQUIRES 0.14.0

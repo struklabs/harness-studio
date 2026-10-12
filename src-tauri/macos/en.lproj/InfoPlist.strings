@@ -1,0 +1,4 @@
+/* Microphone permission prompt (Playground > Speech > Record). */
+"NSMicrophoneUsageDescription" = "Harness Studio records from the microphone only when you press Record in Playground > Speech, to transcribe it with your local Whisper model.";
+/* Terminal automation prompt (Connections > Start). */
+"NSAppleEventsUsageDescription" = "Harness Studio asks Terminal (or iTerm) to open a window only when you press Start for a coding agent in Connections.";
