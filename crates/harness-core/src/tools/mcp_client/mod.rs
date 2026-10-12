@@ -965,6 +965,20 @@ impl McpConnection {
         timeout: Duration,
         cancel: &CancelToken,
     ) -> Result<ToolOutput, ToolError> {
+        self.call_tool_once(tool, args, timeout, cancel)
+            .await
+            .map_err(|(e, _)| e)
+    }
+
+    /// Like [`call_tool`](Self::call_tool); the flag on an error says the connection was lost
+    /// before any answer for this request arrived (the caller may reconnect and try again).
+    pub async fn call_tool_once(
+        &self,
+        tool: &str,
+        args: Value,
+        timeout: Duration,
+        cancel: &CancelToken,
+    ) -> Result<ToolOutput, (ToolError, bool)> {
         let extra = self
             .s
             .tools
@@ -985,25 +999,31 @@ impl McpConnection {
             )
             .await;
         match r {
-            Ok(result) => tool_result(&result),
-            Err(McpError::Timeout) => Err(ToolError::new(
-                ToolErrorCode::Timeout,
-                format!(
-                    "the tool did not finish within {} seconds and was stopped",
-                    timeout.as_secs().max(1)
+            Ok(result) => tool_result(&result).map_err(|e| (e, false)),
+            Err(McpError::Timeout) => Err((
+                ToolError::new(
+                    ToolErrorCode::Timeout,
+                    format!(
+                        "the tool did not finish within {} seconds and was stopped",
+                        timeout.as_secs().max(1)
+                    ),
                 ),
+                false,
             )),
-            Err(McpError::Cancelled) => Err(ToolError::new(
-                ToolErrorCode::Cancelled,
-                "the call was cancelled",
+            Err(McpError::Cancelled) => Err((
+                ToolError::new(ToolErrorCode::Cancelled, "the call was cancelled"),
+                false,
             )),
             Err(e @ McpError::Rpc { .. }) if e.code() == Some(-32602) => {
-                Err(ToolError::invalid(e.to_string()))
+                Err((ToolError::invalid(e.to_string()), false))
             }
             Err(McpError::Transport(message)) if crate::error_key::parse(&message).is_some() => {
-                Err(ToolError::failed(message))
+                Err((ToolError::failed(message), false))
             }
-            Err(e) => Err(ToolError::failed(format!("MCP server error: {e}"))),
+            Err(e) => {
+                let lost = e.is_connection_lost();
+                Err((ToolError::failed(format!("MCP server error: {e}")), lost))
+            }
         }
     }
 
