@@ -21,6 +21,7 @@ const tr = {
   'eng.desc_sherpa': 'Seslendirme ve sherpa-onnx konuşma tanıma modelleri.',
   'eng.desc_onnx': 'ONNX modelleri: gömme, yeniden sıralama ve sohbet.',
   'eng.desc_lemonade': 'Ryzen AI NPU ve kendi llama.cpp arka uçlarıyla çalışan Lemonade sunucusu.',
+  'eng.desc_lemonade_mac': 'Kendi llama.cpp (Metal) arka ucuyla çalışan Lemonade sunucusu. Ryzen AI NPU desteği yalnız Windows ve Linux’ta.',
   'eng.desc_mistralrs': 'Safetensors sohbet modelleri. Hazır indirme yok; kendi derlemenizi eklersiniz.',
 };
 
@@ -44,6 +45,7 @@ const en: Record<keyof typeof tr, string> = {
   'eng.desc_sherpa': 'Text to speech and sherpa-onnx speech recognition models.',
   'eng.desc_onnx': 'ONNX models: embeddings, reranking and chat.',
   'eng.desc_lemonade': 'The Lemonade server, with the Ryzen AI NPU and its own llama.cpp backends.',
+  'eng.desc_lemonade_mac': 'The Lemonade server, with its own llama.cpp (Metal) backend. Ryzen AI NPU support is Windows and Linux only.',
   'eng.desc_mistralrs': 'Safetensors chat models. There is no ready download; you add your own build.',
 };
 

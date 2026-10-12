@@ -16,6 +16,7 @@
   } from '$lib/types';
   import { t, type TKey } from '$lib/i18n.svelte';
   import { formatBytes } from '$lib/format';
+  import { isMac } from '$lib/platform';
   import { localizeError } from '$lib/network';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
@@ -194,7 +195,7 @@
   const backends = $derived((status?.backends ?? []).filter((b) => b.state !== 'unsupported' || b.backend === 'npu'));
 </script>
 
-<SettingGroup title={t('lem.title')} hint={t('lem.hint')}>
+<SettingGroup title={t(isMac ? 'lem.title_mac' : 'lem.title')} hint={t(isMac ? 'lem.hint_mac' : 'lem.hint')}>
   <div class="flex flex-col divide-y divide-border">
     {#if status && !status.supported}
       <p class="px-4 py-3 text-sm text-muted-foreground">{t('lem.unsupported')}</p>

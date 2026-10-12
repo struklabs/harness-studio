@@ -4,7 +4,8 @@
   // and a one-click install button. The same installer as the "needs an engine" hints.
   import { onMount } from 'svelte';
   import { t } from '$lib/i18n.svelte';
-  import { ENGINES, onnxUnsupportedText } from '$lib/engines';
+  import { ENGINES, engineDescKey, onnxUnsupportedText } from '$lib/engines';
+  import { isMac } from '$lib/platform';
   import { engineInstall } from '$lib/stores/engineInstall.svelte';
   import { uiLevel } from '$lib/stores/uiLevel.svelte';
   import { security } from '$lib/stores/security.svelte';
@@ -34,7 +35,7 @@
                 {installed ? t('eng.state_installed') : unsupported ? t('ort.state_unsupported') : t('eng.state_missing')}
               </Badge>
             </span>
-            <span class="text-xs text-muted-foreground">{t(e.descKey)}</span>
+            <span class="text-xs text-muted-foreground">{t(engineDescKey(e, isMac))}</span>
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
             {#if unsupported}
