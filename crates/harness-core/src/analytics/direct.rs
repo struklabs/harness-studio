@@ -128,8 +128,8 @@ fn retract_direct(
                 .query_map([server_id], |r| {
                     Ok((
                         r.get::<_, i64>(0)?,
-                        r.get::<_, i64>(1)?.max(0) as u64,
-                        r.get::<_, i64>(2)?.max(0) as u64,
+                        u64::try_from(r.get::<_, i64>(1)?).unwrap_or(0),
+                        u64::try_from(r.get::<_, i64>(2)?).unwrap_or(0),
                     ))
                 })
                 .map_err(db_err)?
@@ -143,7 +143,7 @@ fn retract_direct(
             conn.execute(&format!(
                     "UPDATE {table} SET prompt_tokens=prompt_tokens-?1,completion_tokens=completion_tokens-?2
                      WHERE {time}=?3 AND server_id=?4 AND client='direct_usage'"
-                ), params![p as i64, c as i64, at, server_id]).map_err(db_err)?;
+                ), params![i64::try_from(p).unwrap_or(i64::MAX), i64::try_from(c).unwrap_or(i64::MAX), at, server_id]).map_err(db_err)?;
             tokens.prompt -= p;
             tokens.completion -= c;
         }

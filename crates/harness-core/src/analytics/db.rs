@@ -1819,7 +1819,7 @@ mod tests {
                 "INSERT INTO requests (id, started_at_ms, day, endpoint, alias, status, total_ms,
                     prompt_tokens, completion_tokens, cached_tokens, prompt_ms)
                  VALUES ('r1', ?1, 0, '/v1/chat', 'model1', 200, 10, 50, 50, 0, 10.0)",
-                rusqlite::params![min0 as i64],
+                rusqlite::params![i64::try_from(min0).unwrap()],
             )
             .unwrap();
         }
