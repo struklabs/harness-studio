@@ -79,12 +79,52 @@ pub fn full_offload_context(
 /// admission accepts such a load against, so the rule and the admission agree. `None` when the
 /// card's usage is unknown (the rule then judges by the card's size alone).
 pub fn os_need_limit(hw: &crate::hardware::SystemHardwareInfo, configured_mib: u64) -> Option<u64> {
+    // Apple Silicon has no separate VRAM: the GPU draws from the same pool as the OS, the
+    // browser and everything else, so what the OS says is free (not the Metal working set,
+    // which is a fixed share of the total) is the live limit. A small margin stays for the
+    // server's host-side buffers.
+    if hw.unified_memory_budget_bytes.is_some_and(|b| b > 0) && hw.total_ram_bytes > 0 {
+        return Some(
+            hw.available_ram_bytes
+                .saturating_sub(UNIFIED_AVAILABLE_MARGIN),
+        );
+    }
     let (available, total) = crate::vram::os_available_vram(hw)?;
     Some(crate::vram::full_offload_need_limit(
         available,
         total,
         configured_mib * 1024 * 1024,
     ))
+}
+
+/// Left out of the free memory of an Apple Silicon Mac when sizing a default load (the server's
+/// host buffers, thread stacks and the Metal driver's own use).
+pub const UNIFIED_AVAILABLE_MARGIN: u64 = 512 * 1024 * 1024;
+/// Unified-memory Macs up to this much RAM get the stricter default-load limits below.
+const UNIFIED_SMALL_RAM: u64 = 16 * 1024 * 1024 * 1024;
+
+/// Memory an Apple Silicon Mac keeps for macOS and the apps around the model; a default load
+/// never plans into it. Metal's working set (2/3 of RAM) is a ceiling for the GPU, not a promise
+/// that the remaining third is enough for the rest of the system: measured on an 8 GB M1, a
+/// default Qwen3-0.6B load (32k, f16 KV, 3.7 GB) left the machine at 89% memory. Rule: at least
+/// 2.5 GiB, and 30% of RAM on machines up to 16 GiB (the OS and a browser take the same few
+/// gigabytes however small the machine is), 15% above that.
+pub fn unified_os_reserve(ram_bytes: u64) -> u64 {
+    let share = if ram_bytes <= UNIFIED_SMALL_RAM {
+        ram_bytes / 10 * 3
+    } else {
+        ram_bytes / 20 * 3
+    };
+    share.max(5 * 1024 * 1024 * 1024 / 2)
+}
+
+/// Largest KV cache (bytes) a default load may reserve on a small unified-memory Mac: one eighth
+/// of RAM (1 GiB on 8 GB, 2 GiB on 16 GB). A tiny model has so few weights that the working set
+/// alone would allow a multi-gigabyte cache at 32k that nothing in a chat needs. `None`: no cap
+/// (bigger machines). The floor context ([`FULL_OFFLOAD_MIN_CONTEXT`]) is exempt, so a model
+/// with a heavy cache still gets 8k.
+pub fn unified_kv_cap(ram_bytes: u64) -> Option<u64> {
+    (ram_bytes > 0 && ram_bytes <= UNIFIED_SMALL_RAM).then_some(ram_bytes / 8)
 }
 
 /// [`full_offload_context`] with the fit and the largest estimate (`need_limit`, see
@@ -112,8 +152,18 @@ pub fn full_offload_context_with(
         }
         fit(&c)
     };
-    let whole = |r: &crate::vram::FitResult| {
+    let whole = |r: &crate::vram::FitResult, ctx: u32| {
+        // Apple unified memory (not an iGPU on Windows / Linux, which keeps its own rule):
+        // leave the OS its share and do not reserve a huge cache for a small model.
+        let unified = r.budget.unified && !r.budget.shared_igpu;
+        let unified_ok = !unified || {
+            let ram = r.budget.ram_bytes;
+            r.estimate.vram_bytes <= ram.saturating_sub(unified_os_reserve(ram))
+                && (ctx <= FULL_OFFLOAD_MIN_CONTEXT
+                    || unified_kv_cap(ram).is_none_or(|cap| r.estimate.kv_bytes <= cap))
+        };
         u64::from(r.recommended_gpu_layers) > r.estimate.total_layers
+            && unified_ok
             && need_limit.is_none_or(|limit| r.estimate.vram_bytes <= limit)
     };
     let mut contexts = vec![context];
@@ -132,7 +182,7 @@ pub fn full_offload_context_with(
     for &ctx in &contexts {
         for &slots in slot_tries {
             let r = at(ctx, slots);
-            if whole(&r) {
+            if whole(&r, ctx) {
                 return Some(FullOffload {
                     context: ctx,
                     layers: r.recommended_gpu_layers,
@@ -672,5 +722,92 @@ mod tests {
                 "the user's slots are never changed"
             );
         }
+    }
+
+    /// The default load on an Apple Silicon Mac of `ram_gib` with the usual Metal working set
+    /// (2/3 of RAM), for a Qwen3-0.6B Q8_0 shaped model (28 layers, 8 KV heads of 128).
+    fn unified_load(ram_gib: u64, need_limit: Option<u64>) -> FullOffload {
+        let (_, mut meta) = shape_of("Qwen3-4B-Instruct-2507-Q4_K_M.gguf");
+        meta.block_count = Some(28);
+        meta.embedding_length = Some(1024);
+        meta.head_count = Some(16);
+        meta.feed_forward_length = Some(3072);
+        let budget = crate::vram::MemoryBudget {
+            vram_bytes: crate::hardware::macos_gpu_budget(ram_gib << 30, None),
+            ram_bytes: ram_gib << 30,
+            unified: true,
+            shared_igpu: false,
+            igpu_offload_faster: None,
+            cuda: false,
+            rocm: false,
+        };
+        let fit = |c: &crate::process::LaunchConfig| {
+            let mut base = crate::vram::base_input_from_launch(c);
+            base.model_size_bytes = 640 << 20;
+            crate::vram::fit_launch_with(
+                c,
+                &base,
+                Some(&meta),
+                &budget,
+                &[],
+                true,
+                crate::hardware::RecommendedBackend::Metal,
+            )
+        };
+        let config = crate::process::LaunchConfig {
+            context_size: 32_768,
+            gpu_layers: 999,
+            launched_by: crate::slots::SlotOrigin::Gateway,
+            ..Default::default()
+        };
+        full_offload_context_with(&config, 32_768, fit, need_limit).unwrap()
+    }
+
+    #[test]
+    fn an_8gb_unified_memory_mac_does_not_reserve_32k_of_cache_for_a_tiny_model() {
+        // Live (MacBook Air M1 8 GB): Qwen3-0.6B Q8_0 started at -c 32768 with f16 KV; the
+        // server took 3.7 GB and the machine sat at 89% memory.
+        let f = unified_load(8, None);
+        assert!(f.whole, "{f:?}");
+        assert!(f.context < 32_768, "{f:?}");
+        let kv_per_token = 28u64 * 2 * 8 * 128 * 2;
+        assert!(
+            u64::from(f.context) * kv_per_token <= unified_kv_cap(8 << 30).unwrap() * 2,
+            "{f:?}"
+        );
+        // The same model on a 64 GB Mac keeps the full default context.
+        assert_eq!(unified_load(64, None).context, 32_768);
+    }
+
+    #[test]
+    fn free_memory_of_an_8gb_mac_limits_the_default_load_further() {
+        // Only 1.5 GiB free (+ margin): even 8k does not fit, the rule falls back instead of
+        // starting a load the machine cannot hold.
+        let tight = unified_load(8, Some(900 << 20));
+        assert!(!tight.whole, "{tight:?}");
+        let roomy = unified_load(8, Some(4 << 30));
+        assert!(roomy.whole);
+    }
+
+    #[test]
+    fn the_unified_reserve_is_2_5_gib_or_a_share_of_ram() {
+        let gib = 1u64 << 30;
+        assert_eq!(unified_os_reserve(8 * gib), 5 * gib / 2);
+        assert_eq!(unified_os_reserve(16 * gib), 16 * gib / 10 * 3);
+        assert_eq!(unified_os_reserve(64 * gib), 64 * gib / 20 * 3);
+        assert_eq!(unified_kv_cap(8 * gib), Some(gib));
+        assert_eq!(unified_kv_cap(32 * gib), None);
+    }
+
+    #[test]
+    fn the_os_limit_on_apple_silicon_is_the_free_memory_minus_a_margin() {
+        let mut hw = crate::hardware::detect_hardware();
+        hw.unified_memory_budget_bytes = Some(5 << 30);
+        hw.total_ram_bytes = 8 << 30;
+        hw.available_ram_bytes = 3 << 30;
+        assert_eq!(
+            os_need_limit(&hw, 0),
+            Some((3 << 30) - UNIFIED_AVAILABLE_MARGIN)
+        );
     }
 }

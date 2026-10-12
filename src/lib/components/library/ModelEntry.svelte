@@ -111,6 +111,11 @@
 
   // Rust estimate (batched with the other rows), corrected with measured loads of this file.
   let fit = $state<HardwareFitResult | null>(null);
+  /** Memory figure label: Apple Silicon has no separate VRAM. */
+  function fitMemKey(f: HardwareFitResult): TKey {
+    const apple = f.unifiedMemory && !f.sharedIgpu;
+    return f.source === 'estimate' ? (apple ? 'lib.mem_est' : 'lib.vram_est') : apple ? 'lib.mem_measured' : 'lib.vram_measured';
+  }
   $effect(() => {
     const eligible = m.is_ready && !sherpaAsr && ['llm', 'embedding', 'reranker', 'asr', 'image'].includes(m.kind ?? '');
     const ctx = Math.min(m.context_length || 32768, app.settings?.server.default_ctx || 32768);
@@ -442,7 +447,7 @@
   {/if}
 
   {#if fit}
-    <p class="flex min-w-0 items-center gap-1.5 text-xs" title={uiLevel.advanced ? `${fit.description} · ${t(fit.source === 'estimate' ? 'lib.vram_est' : 'lib.vram_measured', { vram: formatBytes(fit.requiredVramBytes, 1) })}` : undefined}>
+    <p class="flex min-w-0 items-center gap-1.5 text-xs" title={uiLevel.advanced ? `${fit.description} · ${t(fitMemKey(fit), { vram: formatBytes(fit.requiredVramBytes, 1) })}` : undefined}>
       <span class={cn('size-1.5 shrink-0 rounded-full', FIT_DOT[fit.category])} aria-hidden="true"></span>
       <span class={cn('truncate', FIT_TONE[fit.category])}>{fit.label}</span>
     </p>
@@ -507,7 +512,7 @@
       <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
         {#if m.architecture}<dt class="text-muted-foreground">{t('lib.arch')}</dt><dd class="truncate font-mono">{m.architecture}</dd>{/if}
         {#if m.context_length}<dt class="text-muted-foreground">{t('lib.ctx')}</dt><dd class="font-num">{m.context_length.toLocaleString(locale())}</dd>{/if}
-        {#if fit}<dt class="text-muted-foreground">{t('lib.fit')}</dt><dd class="font-num">{t(fit.source ==='estimate' ? 'lib.vram_est' : 'lib.vram_measured', { vram: formatBytes(fit.requiredVramBytes, 1) })}</dd>{/if}
+        {#if fit}<dt class="text-muted-foreground">{t('lib.fit')}</dt><dd class="font-num">{t(fitMemKey(fit), { vram: formatBytes(fit.requiredVramBytes, 1) })}</dd>{/if}
         {#if caps.length > 0}<dt class="text-muted-foreground">{t('lib.caps')}</dt><dd>{caps.join(', ')}</dd>{/if}
         {#if runtimeText}<dt class="text-muted-foreground">{t('lib.runtime')}</dt><dd class="truncate">{formatLabel} · {runtimeText}</dd>{/if}
         {#if capsSource}<dt class="text-muted-foreground">{t('lib.caps_source')}</dt><dd class="font-num text-xs">{capsSource}</dd>{/if}

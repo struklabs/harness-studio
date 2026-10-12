@@ -127,7 +127,7 @@ pub fn base(code: &str) -> Option<&'static str> {
         "api.not_owner" => "Another Harness instance manages the data directory; the Control API only runs in the owner.",
         "gateway.invalid_port" => "Invalid port: enter a value between 1024 and 65535.",
         "gateway.network_not_allowed" => "The gateway would bind a network address but \"Allow network access\" is off.",
-        "gateway.network_without_token" => "Create a named token with the \"inference\" scope first (Settings > Developer API) to open the gateway to the network. There is no keyless network access.",
+        "gateway.network_without_token" => "Create a named token with the \"inference\" scope first (Settings > Developer > Control API) to open the gateway to the network. There is no keyless network access.",
         "gateway.invalid_origin" => "Invalid origin: only http(s)://host[:port] (* and localhost are not accepted).",
         "gateway.port_conflict" => "The gateway port cannot be the Control API port.",
         "gateway.not_owner" => "Another Harness instance manages the data directory; the gateway only runs in the owner.",
@@ -210,7 +210,7 @@ pub fn base(code: &str) -> Option<&'static str> {
         "runtime.not_available" => "No llama-server runtime is installed or configured.",
         // CLI.
         "cli.no_instance" => "No running Harness instance. Start one (`harness serve` or the GUI with the Control API on), or pass --headless to run a temporary one for this command.",
-        "cli.owner_without_api" => "Another Harness process owns the data directory but its Control API is off. Turn it on in Settings > Developer API (or close that process) and try again.",
+        "cli.owner_without_api" => "Another Harness process owns the data directory but its Control API is off. Turn it on in Settings > Developer > Control API (or close that process) and try again.",
         "cli.connection_failed" => "Could not reach the Harness Control API.",
         "cli.server_unreachable" => "Could not reach the llama-server endpoint.",
         "cli.confirmation_required" => "This command changes data; pass --yes to confirm when not running in a terminal.",

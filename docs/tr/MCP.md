@@ -13,7 +13,7 @@ Kodlama ajanları (Claude Code, Codex, OpenCode, Cursor...) Harness'ı araç ola
 | Kapsam | `--scope` (varsayılan `read,servers:write,tools`) | Token'ın kapsamları |
 | Önerilen | Evet: yapılandırmaya sır yazılmaz | Uzak makine, stdio başlatamayan istemciler |
 
-`harness mcp` diğer CLI komutları gibi çalışır ([CLI.md](CLI.md)): çalışan sahibin (GUI'de Ayarlar > Geliştirici API açık, ya da `harness serve`) Control API'sini kullanır. Sahip her araç çağrısında yeniden bulunur. Böylece GUI sonradan açılsa da, oturum token'ı yenilense de bağlantı çalışır. Çalışan örnek yoksa araçlar `cli.no_instance` hatası döner; MCP bağlantısı yine kurulur. `--headless` verilirse süreç içinde geçici bir örnek açılır, stdin kapanınca başlattığı sunucularla birlikte kapanır. stdout'a yalnız MCP mesajı yazılır, günlük stderr'e gider.
+`harness mcp` diğer CLI komutları gibi çalışır ([CLI.md](CLI.md)): çalışan sahibin (GUI'de Ayarlar > Geliştirici > Control API açık, ya da `harness serve`) Control API'sini kullanır. Sahip her araç çağrısında yeniden bulunur. Böylece GUI sonradan açılsa da, oturum token'ı yenilense de bağlantı çalışır. Çalışan örnek yoksa araçlar `cli.no_instance` hatası döner; MCP bağlantısı yine kurulur. `--headless` verilirse süreç içinde geçici bir örnek açılır, stdin kapanınca başlattığı sunucularla birlikte kapanır. stdout'a yalnız MCP mesajı yazılır, günlük stderr'e gider.
 
 HTTP'de her araç, API yönlendiricisine süreç içinde, çağıranın token'ıyla istek atar. Kapsam ve çekirdek kuralları böylece bir kez MCP'de, bir kez API'de, aynı tabloyla denetlenir.
 
@@ -157,7 +157,7 @@ Bağlantılar > Araçlar ve İstemciler. Çekirdek: `harness_core::integrations:
 - Sağlayıcı entegrasyonlarıyla aynı yazma yolu (`keyed`): yalnız `harness` kaydı yerinde düzenlenir, JSONC/TOML yorumları, girinti ve anahtar sırası korunur; her yazmadan önce `<dosya>.harness-<tarih>.bak` yedeği (dosya başına son 5), atomik yazma. Ayrıştırılamayan dosyaya dokunulmaz.
 - Defter (`config/integrations.json`, `harness-mcp:<araç>`): "Kaldır" kaydı siler, Harness'ın yarattığı üst nesneleri de kaldırır ve Harness'ın yarattığı dosyayı geri siler; dosya Harness yazdıktan sonra değişmediyse eski haline bayt bayt döner. Defteri olmayan eski kayıtlar `harness` adıyla bulunup silinir. Diğer MCP sunucuları ve ayarlar korunur. Kaldırmadan sonra Harness'ın yedeklerindeki isimli token'lar `removed-by-harness` ile değiştirilir.
 - stdio komutu: uygulamayla birlikte gelen `harness` (sidecar; bkz. [CLI.md](CLI.md#kurulum-ve-path)), sonra PATH'teki `harness` (`cli_install::locate`); bulunamazsa (ör. geliştirme derlemesinde `cargo build -p harness-cli` yapılmadıysa) kullanıcı yolu girer. "İndirme ve model silmeye izin ver" `--scope read,servers:write,tools,models:write` ekler. GUI'nin veri dizini CLI varsayılanı değilse `HARNESS_DATA_DIR` ortam değişkeni yazılır.
-- HTTP: Control API adresi + isimli token (Ayarlar > Geliştirici API). Token aracın dosyasına düz metin olarak yazılır; stdio bu yüzden önerilir.
+- HTTP: Control API adresi + isimli token (Ayarlar > Geliştirici > Control API). Token aracın dosyasına düz metin olarak yazılır; stdio bu yüzden önerilir.
 - Claude Code ve Codex için elle eklenecek tek satırlık komut da gösterilir (`claude mcp add -s user harness -- <harness> mcp`, `codex mcp add harness -- <harness> mcp`).
 
 ## Testler

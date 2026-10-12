@@ -713,7 +713,7 @@ impl From<LaunchToolArg> for harness_core::integrations::launch::LaunchTool {
 #[command(
     long_about = "Runs the Harness MCP server over stdio: MCP clients (Claude Code, Codex, OpenCode, Cursor...) start `harness mcp` and call its tools (list_models, load_model, get_endpoint...).
 
-Tools go through the running instance's Control API (the GUI with Settings > Developer API on, or `harness serve`); with --headless and no running instance a temporary instance lives as long as this process. stdout carries only MCP messages."
+Tools go through the running instance's Control API (the GUI with Settings > Developer > Control API on, or `harness serve`); with --headless and no running instance a temporary instance lives as long as this process. stdout carries only MCP messages."
 )]
 pub struct McpArgs {
     /// Scopes the tools may use: read, servers:write (load/unload/start/stop/benchmark),

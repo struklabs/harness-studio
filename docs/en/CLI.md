@@ -11,7 +11,7 @@ harness --help
 
 ## Installation and PATH
 
-Installing the desktop app places `harness` next to the application (a Tauri sidecar: on Windows/Linux in the same folder as `harness-studio(.exe)`, on macOS at `Harness Studio.app/Contents/MacOS/harness`; in the Linux `.deb` package at `/usr/bin/harness`, which is already on PATH). To make it work from any terminal, use the **Add to PATH** button in **Settings > Developer API > Use in Terminal**; it acts only when you click it, and **Remove** reverses it:
+Installing the desktop app places `harness` next to the application (a Tauri sidecar: on Windows/Linux in the same folder as `harness-studio(.exe)`, on macOS at `Harness Studio.app/Contents/MacOS/harness`; in the Linux `.deb` package at `/usr/bin/harness`, which is already on PATH). To make it work from any terminal, use the **Add to PATH** button in **Settings > Developer > CLI > Use in a Terminal**; it acts only when you click it, and **Remove** reverses it:
 
 - **Windows:** The application's folder is added to the user PATH (`HKCU\Environment\Path`, the value type is preserved, other entries are untouched), and `WM_SETTINGCHANGE` is broadcast. Open terminals do not see the change; open a new terminal.
 - **macOS/Linux:** A `~/.local/bin/harness` symbolic link is created. If `~/.local/bin` is not on PATH, the UI shows the line `export PATH="$HOME/.local/bin:$PATH"`. On removal only a link pointing to this CLI is deleted; if another `harness` file exists, adding is refused.
@@ -24,7 +24,7 @@ Every command talks to a Control API. Which one is decided in this order:
 
 1. If **`--host` / `HARNESS_HOST`** is given, that remote API. The token is given with `--token` / `HARNESS_TOKEN` (a named token; scopes apply).
 2. **If a running owner exists** (the GUI or `harness serve`): `instance.json` in the data directory is read, and the API address and session token file are taken from it. The command goes through the owner's API; the CLI never writes to another process's data directory.
-3. **If an owner exists but its Control API is off** (Settings > Developer API is off in the GUI): exit code 4, `cli.owner_without_api`.
+3. **If an owner exists but its Control API is off** (Settings > Developer > Control API is off in the GUI): exit code 4, `cli.owner_without_api`.
 4. **If there is no owner** (or `instance.json` is left over from a crash): the command opens a **temporary instance** inside this process. The temporary instance takes `instance.lock`, starts the same Control API on a random loopback port, closes everything it started when the command ends, and releases the lock. `--json` output therefore has the same schema on every path.
    - Commands that start llama-server (`load`, `run`, `chat`, `profile run`) open the temporary instance only with **`--headless`**; in that case the servers they start stop when the command ends.
    - Commands that work on existing servers (`stop`, `unload`, `logs`, `shutdown`, `pull --detach`) do not open a temporary instance; they need a running instance (otherwise exit 6).

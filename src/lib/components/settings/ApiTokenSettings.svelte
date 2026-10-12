@@ -1,6 +1,6 @@
 <script lang="ts">
   import FieldHelp from '$lib/components/common/FieldHelp.svelte';
-  // Settings > Developer API > Named tokens: create (value shown once), edit scopes and the
+  // Settings > Developer > Control API > Named tokens: create (value shown once), edit scopes and the
   // gateway policy (allowed models and endpoints, rate limits), revoke. Validated again in the
   // core (harness_core::control_api / token_policy).
   import { onMount } from 'svelte';

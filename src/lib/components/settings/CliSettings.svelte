@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Settings > Developer API > "Terminalde kullan": where the bundled `harness` CLI is, its
+  // Settings > Developer > CLI > "Terminalde Kullan": where the bundled `harness` CLI is, its
   // version, and an optional PATH entry (Windows: user PATH; macOS/Linux: ~/.local/bin symlink).
   // Nothing is changed until the button is clicked; "Kaldır" undoes it.
   import { onMount } from 'svelte';
