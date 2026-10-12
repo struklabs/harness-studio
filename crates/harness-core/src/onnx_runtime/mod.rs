@@ -6,7 +6,7 @@
 //! `DirectML.dll` 36 MB, a CUDA build several hundred MB: bundling them would make every
 //! installer pay for a feature most users never open, and a CUDA build cannot be bundled at
 //! all (NVIDIA libraries are not redistributable here). So the installer carries only the
-//! small sidecar, and the first ONNX model that is loaded (or Settings > Runtime) fetches the
+//! small sidecar, and the first ONNX model that is loaded (or the Install button in Settings > Installed Runtime) fetches the
 //! library into `<data>/bin/onnxruntime/<variant>-<version>/`.
 //!
 //! **Integrity.** Every file Harness puts there has a SHA-256 pinned in this source (computed
