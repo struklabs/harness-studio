@@ -48,7 +48,7 @@ const tr = {
   'lib.caps_template': 'Sohbet şablonundan çıkarıldı; model henüz yüklenmedi, /props ile doğrulanmadı.',
   'lib.caps_verified': 'Çalışan sunucunun /props yanıtıyla doğrulandı ({date}).',
   'lib.caps_verified_template_reasoning': 'Araç desteği /props ile doğrulandı ({date}); akıl yürütme model şablonunda var ama sunucu bildirmedi (düzey ya da geçmiş akıl yürütmesi yok), bu yüzden doğrulanmadı sayılır.',
-  'lib.cap_vision': 'Görsel',
+  'lib.cap_vision': 'Görsel Anlama',
   'lib.cap_audio': 'Ses',
   'lib.cap_embedding': 'Embedding',
   'lib.cap_rerank': 'Rerank',

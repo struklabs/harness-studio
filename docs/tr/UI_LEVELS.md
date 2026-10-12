@@ -41,7 +41,7 @@ Neden iki ayrı görünüm değil: Bakım yükü iki katına çıkardı. Her yen
 | Dashboard | Özet; Model (model seçici, sığma göstergesi); Bağlam ve Bellek (yalnız bağlam boyutu) | Ağ, GPU, Örnekleme, Şablon ve Reasoning, Araçlar, Diğer Parametreler; Router modu, model motoru seçici, bayrak sayısı satırı, eşzamanlı istek, KV önbellek ve tüm "Bellek ve KV Cache" bölümü; llama.cpp Web Arayüzü ve "Sunucu Olarak Kaydet" düğmeleri |
 | Dashboard sağ panel | Telemetri (bellek çubukları); Sunucu Logları **kapalı katlanmış** ("Logları Göster"), hata olunca kendiliğinden açılır | Log süzgeçleri ve araç çubuğu açık |
 | Playground | Sohbet ve Konuşma; giriş satırında Web ve Araçlar anahtarı, dikte (başlat/durdur, süre ve iptal); sağ panel: Model ve Preset, Sistem İstemi, Araçlar (izinler) | Embedding, Rerank sekmeleri; Örnekleme, Çıktı Sınırları, Geçmiş ve Compaction, RAG ayarları; giriş satırındaki token sayacı |
-| Kütüphanem | Modeller grubu (Tümü, Sohbet, Görsel, Embedding, Reranker, Konuşma), İçe Aktarma | Yardımcı Dosyalar (Draft, Adapter, Projektör), Model Tanımları |
+| Kütüphanem | Modeller grubu (Tümü, Sohbet, Görsel Anlama, Embedding, Reranker, Konuşma, Görsel Üretimi), İçe Aktarma | Yardımcı Dosyalar (Draft, Adapter, Projektör), Model Tanımları |
 | Model Hub | Arama, görev süzgeci, model kartları, indirme | Ayrıntılı süzgeç paneli, kuant listesindeki teknik ayrıntılar |
 | Bağlantılar | Otomatik Yapılandırma, Adım Adım Kurulum, Uç Nokta Listesi | Ollama Uç Noktası, Port Notları, SDK ve Kod Örnekleri, Harness MCP, MCP Sunucuları grubu, Test grubu |
 | Ayarlar | Kurulu Model Motoru, Dizinler, Hugging Face Hesabı, Görünüm ve Başlangıç, Güncellemeler, Gizlilik | Registry, Ollama, Ağ, Güvenlik, Ağ Geçidi, Araçlar, Geliştirici, OpenTelemetry, Tanılama |

@@ -78,8 +78,8 @@ const tr = {
 
   // ---- Playground: Image tab ----
   'emb.mode_image': 'Görsel üretimi',
-  'menus.image': 'Görsel',
-  'img.tab': 'Görsel',
+  'menus.image': 'Görsel Üretimi',
+  'img.tab': 'Görsel Üretimi',
   'img.title': 'Görsel Üretimi',
   'img.model_label': 'Model',
   'img.prompt_label': 'İstem',
@@ -229,8 +229,8 @@ const en: Record<keyof typeof tr, string> = {
 
   // ---- Playground: Image tab ----
   'emb.mode_image': 'Image generation',
-  'menus.image': 'Image',
-  'img.tab': 'Image',
+  'menus.image': 'Image Generation',
+  'img.tab': 'Image Generation',
   'img.title': 'Image Generation',
   'img.model_label': 'Model',
   'img.prompt_label': 'Prompt',

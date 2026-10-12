@@ -102,7 +102,7 @@ const tr = {
   'hub.downloads_count': '{count} indirme',
   'hub.likes_count': '{count} beğeni',
   'hub.cap_chat': 'Chat',
-  'hub.cap_vision': 'Vision',
+  'hub.cap_vision': 'Görsel Anlama',
   'hub.cap_embedding': 'Embedding',
   'hub.cap_audio': 'Ses',
   'hub.cap_rerank': 'Rerank',
