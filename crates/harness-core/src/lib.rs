@@ -30,6 +30,7 @@ pub mod gguf;
 pub mod gpu;
 pub mod hardware;
 pub mod hf_auth;
+pub mod hex;
 pub mod hf_avatar;
 pub mod http_error;
 pub mod hub_compat;
