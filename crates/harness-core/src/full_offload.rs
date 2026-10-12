@@ -247,15 +247,87 @@ pub fn step_down(
         .then_some(stepped)
 }
 
+/// Everything an automatic default load starts with, for forms and `harness show` that display it
+/// before Start: the full-offload choice plus the slot count and the KV cache the launch ends
+/// up with (the cache types and the flash attention they need).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct AutomaticLaunch {
+    pub context: u32,
+    pub layers: u32,
+    /// Concurrent requests (`-np`) the launch runs with; `None` when no slot plan applies.
+    pub slots: Option<u32>,
+    /// Cache types of the automatic KV precision (`f16` for the full level).
+    pub cache_type_k: Option<String>,
+    pub cache_type_v: Option<String>,
+    /// A quantized V cache needs flash attention: the launch turns it on.
+    pub flash_attn: bool,
+}
+
+/// [`automatic_launch`] with the fit and the largest estimate given (tests, callers that
+/// already have the machine facts). The launch the choice produces is estimated once more, so
+/// the slot count and the KV precision are the ones that launch's plan arrives at.
+pub fn automatic_launch_with(
+    config: &crate::process::LaunchConfig,
+    context: u32,
+    fit: impl Fn(&crate::process::LaunchConfig) -> crate::vram::FitResult,
+    need_limit: Option<u64>,
+) -> Option<AutomaticLaunch> {
+    let mut launch = config.clone();
+    let choice = apply_to_launch_with(&mut launch, context, &fit, need_limit)?;
+    let result = fit(&launch);
+    let kv = result.kv;
+    let quantized = kv
+        .as_ref()
+        .is_some_and(|k| crate::kv_policy::is_quantized(Some(&k.cache_type_v)));
+    Some(AutomaticLaunch {
+        context: choice.context,
+        layers: choice.layers,
+        slots: result.slots.map(|s| s.slots).or(choice.slots),
+        cache_type_k: kv.as_ref().map(|k| k.cache_type_k.clone()),
+        cache_type_v: kv.as_ref().map(|k| k.cache_type_v.clone()),
+        flash_attn: quantized,
+    })
+}
+
 /// What the default load of `config` (context and `-ngl` automatic) starts with on this
 /// machine: the same choice the launch makes, for forms that show it before Start. `None` when
 /// the rule does not apply (set values, non-chat or router server, user cache types). Blocking.
 pub fn automatic_choice(
     config: &crate::process::LaunchConfig,
     hw: &crate::hardware::SystemHardwareInfo,
-) -> Option<FullOffload> {
+) -> Option<AutomaticLaunch> {
     let context = default_context_for(config)?;
-    full_offload_context(config, context, hw)
+    automatic_launch_with(
+        config,
+        context,
+        |c| crate::vram::fit_launch(c, hw),
+        os_need_limit(hw, 0),
+    )
+}
+
+/// The launch as Start runs it when its context is automatic (`ProcessManager::start`): the
+/// default chat context ([`default_context_for`]), shrunk on a small card so the whole model
+/// stays on the GPU, with one slot when only one keeps it there. For estimates of a form, which
+/// otherwise describe the full default context and its slot advice, not the load Start runs.
+/// Leaves `config` as it is when the context is set or the server is no llama.cpp chat one.
+/// Blocking.
+pub fn resolve_for_start(
+    config: &mut crate::process::LaunchConfig,
+    hw: &crate::hardware::SystemHardwareInfo,
+) {
+    let Some(context) = default_context_for(config) else {
+        return;
+    };
+    config.context_size = context;
+    if applies_to_start(config, true) {
+        apply_to_launch_with(
+            config,
+            context,
+            |c| crate::vram::fit_launch(c, hw),
+            os_need_limit(hw, 0),
+        );
+    }
 }
 
 /// Server-log line for a default context shrunk so more of the model stays on the GPU.
@@ -412,6 +484,65 @@ mod tests {
         let total = fit(&config).estimate.total_layers;
         let r = full_offload_context_with(&config, 32_768, fit, need_limit).unwrap();
         (r, total)
+    }
+
+    /// The automatic launch of Qwen3-4B on a machine with the given budget.
+    fn automatic_of(budget: crate::vram::MemoryBudget) -> AutomaticLaunch {
+        let (size, meta) = shape_of("Qwen3-4B-Instruct-2507-Q4_K_M.gguf");
+        let fit = |c: &crate::process::LaunchConfig| {
+            let mut base = crate::vram::base_input_from_launch(c);
+            base.model_size_bytes = size;
+            crate::vram::fit_launch_with(
+                c,
+                &base,
+                Some(&meta),
+                &budget,
+                &[],
+                false,
+                crate::hardware::RecommendedBackend::Cuda12,
+            )
+        };
+        let config = crate::process::LaunchConfig {
+            gpu_layers: 999,
+            launched_by: crate::slots::SlotOrigin::Gateway,
+            ..Default::default()
+        };
+        automatic_launch_with(&config, 32_768, fit, None).unwrap()
+    }
+
+    #[test]
+    fn the_form_preview_shows_the_slots_and_cache_the_automatic_launch_uses() {
+        // 4 GB card: the form used to show "Auto (4)" slots while the launch ran one.
+        let small = automatic_of(crate::vram::MemoryBudget {
+            vram_bytes: 4_154_458_112,
+            ram_bytes: 16 << 30,
+            unified: false,
+            shared_igpu: false,
+            igpu_offload_faster: None,
+            cuda: true,
+            rocm: false,
+        });
+        assert_eq!(small.context, 12_288, "{small:?}");
+        assert_eq!(small.slots, Some(1), "{small:?}");
+        assert!(small.cache_type_k.is_some() && small.cache_type_v.is_some());
+        // Flash attention is on exactly when the V cache is quantized.
+        assert_eq!(
+            small.flash_attn,
+            crate::kv_policy::is_quantized(small.cache_type_v.as_deref())
+        );
+        // A roomy card keeps the full context, f16 and no forced flash attention.
+        let big = automatic_of(crate::vram::MemoryBudget {
+            vram_bytes: 24 << 30,
+            ram_bytes: 32 << 30,
+            unified: false,
+            shared_igpu: false,
+            igpu_offload_faster: None,
+            cuda: true,
+            rocm: false,
+        });
+        assert_eq!(big.context, 32_768, "{big:?}");
+        assert!(big.slots.is_some_and(|n| n >= 1));
+        assert!(!big.flash_attn, "{big:?}");
     }
 
     #[test]
