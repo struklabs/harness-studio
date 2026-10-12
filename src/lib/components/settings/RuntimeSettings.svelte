@@ -35,6 +35,7 @@
   import LemonadeSettings from './LemonadeSettings.svelte';
   import ConvertEnvSettings from './ConvertEnvSettings.svelte';
   import RuntimeCurrentState from './RuntimeCurrentState.svelte';
+  import EngineFamiliesSettings from './EngineFamiliesSettings.svelte';
   import { pathExample } from '$lib/platform';
 
   interface Props {
@@ -663,6 +664,7 @@
     </SettingGroup>
   {/if}
 
+  <EngineFamiliesSettings />
 </div>
 <div hidden={page !== 'runtime-registry'} class="flex flex-col gap-3">
   <RuntimeRegistrySettings />

@@ -103,7 +103,7 @@ Belgenin yanındaki **Kullanım** seçimi belgenin nasıl kullanılacağını be
 ### Konuşmayı Yazıya Dökme
 
 1. **Model Hub**'da `whisper` aratın ve bir Whisper ggml modeli indirin. Türkçe veya başka diller için yalnızca İngilizce bilen bir model (`.en` modeli) seçmeyin.
-2. whisper.cpp motorunu kurun. Model Hub, **Kur** düğmeli bir **Gerekli: Konuşma modülü (whisper.cpp)** notu gösterebilir. macOS'ta hazır bir whisper sunucu paketi yoktur; kendi derlediğiniz bir `whisper-server`'ın klasörünü ekleyebilirsiniz.
+2. whisper.cpp motorunu kurun: Kütüphane kartında, Model Hub'da ya da bu sekmedeki hata mesajında görünen **whisper.cpp Kur** düğmesine basın; **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasındaki **Diğer Model Motorları** listesinden de kurabilirsiniz. macOS'ta hazır bir whisper sunucu paketi yoktur; kendi derlediğiniz bir `whisper-server`'ın klasörünü ekleyebilirsiniz.
 3. **Playground > Konuşma** sekmesini açın.
 4. Bir **Model** seçin. **Dosya Seç** ile ses ekleyin ya da **Kaydet** ile mikrofon kaydını başlatıp **Durdur** ile bitirin. İşletim sistemi mikrofon izni isteyebilir.
 5. **Dil** alanına `tr` gibi bir dil kodu yazabilir veya otomatik bırakabilirsiniz. **İş** için **Yazıya dök** ya da **İngilizceye çevir** seçin, sonra **Yazıya Dök**'e basın.

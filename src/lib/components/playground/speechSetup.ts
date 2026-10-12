@@ -9,10 +9,15 @@ export function speechModel(current: string, definitions: ModelDefinition[], she
   return all.includes(current) ? current : all[0] ?? '';
 }
 
+/** The engine family `model` transcribes with: sherpa-onnx for its recognition models, else whisper.cpp. */
+export function dictationFamily(model: string, sherpa: string[] = []): string {
+  return sherpa.includes(model) ? SHERPA_FAMILY : 'whisper.cpp';
+}
+
 /** What is missing before `model` can transcribe; a sherpa-onnx model needs the sherpa-onnx runtime, a whisper one whisper.cpp. */
 export function dictationRequirement(model: string, runtimes: RuntimeView[], gatewayRunning: boolean, sherpa: string[] = []): 'model' | 'runtime' | 'gateway' | null {
   if (!model) return 'model';
-  const family = sherpa.includes(model) ? SHERPA_FAMILY : 'whisper.cpp';
+  const family = dictationFamily(model, sherpa);
   if (!runtimes.some(r => r.available && r.entry?.family === family)) return 'runtime';
   return gatewayRunning ? null : 'gateway';
 }

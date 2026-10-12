@@ -17,6 +17,7 @@ First public release. Windows installer (NSIS) on GitHub Releases; Linux and mac
 - Resumable download queue with pause and resume, SHA-256 verification, split (multi-file) models, and an update badge for models you already have.
 - Library: scan several model folders, import from Ollama and LM Studio, detect duplicates and missing files, and save model definitions (aliases, load settings, presets).
 - Convert safetensors repositories to GGUF from the Hub (managed, temporary Python environment; quantization with `llama-quantize`).
+- Optional engines (whisper.cpp, stable-diffusion.cpp, sherpa-onnx, ONNX Runtime, Lemonade) install with one click right where a model needs them (library card, Model Hub, Playground errors), and are listed with their install state under Settings > Runtime > Installed Runtime at both interface levels.
 - Sign in to Hugging Face with OAuth or a pasted token; tokens are kept in the operating system keychain.
 
 ### Running models

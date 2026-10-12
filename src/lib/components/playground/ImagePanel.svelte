@@ -10,6 +10,8 @@
   import { domain } from '$lib/stores/domain.svelte';
   import { library } from '$lib/stores/library.svelte';
   import { Button } from '$lib/components/ui/button';
+  import EngineNeeded from '../common/EngineNeeded.svelte';
+  import { familyFromError } from '$lib/engines';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
@@ -30,6 +32,8 @@
   let models = $derived(domain.definitions.filter((d) => isImageDefinition(d, library.models)));
   let busy = $state(false);
   let error = $state('');
+  /** Engine family the failed run was missing; shown with its install button. */
+  let needFamily = $state<string | null>(null);
   let lastMs = $state<number | null>(null);
   let controller: AbortController | null = null;
   // A picture in the gallery would be lost with the page; a request in flight counts as one.
@@ -52,6 +56,7 @@
     controller = c;
     busy = true;
     error = '';
+    needFamily = null;
     try {
       const { images, ms } = await fetchImages(app.inferenceUrl, form.model, form, app.inferenceHeaders(), c.signal);
       lastMs = ms;
@@ -68,8 +73,8 @@
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
         // The gateway passes the load failure through as raw keys; say what is missing instead.
-        const family = /runtime\.family_not_installed:\s*([\w.+-]+)/.exec(msg)?.[1];
-        error = family ? t('lib.runtime_needs_hint', { runtime: family }) : msg;
+        needFamily = familyFromError(msg);
+        error = needFamily ? '' : msg;
       }
     } finally {
       if (controller === c) {
@@ -226,7 +231,11 @@
     </div>
   </section>
 
-  {#if error}
+  {#if needFamily}
+    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
+      <EngineNeeded family={needFamily} onInstalled={() => (needFamily = null)} />
+    </div>
+  {:else if error}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
       {error}
     </div>

@@ -1,0 +1,50 @@
+// One-click engine installer (whisper.cpp, stable-diffusion.cpp, sherpa-onnx, ONNX Runtime,
+// Lemonade): the Install buttons next to "this model needs an engine" hints and the Other
+// Engines group on Settings > Installed Runtime.
+const tr = {
+  'eng.install': '{runtime} Kur',
+  'eng.installing': '{runtime} Kuruluyor…',
+  'eng.installing_pct': '{runtime} Kuruluyor… %{pct}',
+  'eng.installed_ok': '{runtime} motoru kuruldu.',
+  'eng.failed': '{runtime} kurulamadı: {error}',
+  'eng.unverified': '{runtime} sürümündeki bazı dosyaların SHA-256 özeti yok; doğrulanamayan dosyalar kendiliğinden kurulmaz. Gelişmiş düzeyde Ayarlar > Registry sayfasından onaylayarak kurabilirsiniz.',
+  'eng.manual': '{runtime} için tek tıkla kurulum yok; kendi derlemenizi Gelişmiş düzeyde Ayarlar > Registry sayfasından yerel klasör olarak ekleyin.',
+  'eng.open_registry': 'Registry’yi Aç',
+  'eng.list_banner': 'Listedeki bazı modeller için {runtime} motoru gerekli.',
+  'eng.drawer_note': 'Bu model için {runtime} motoru gerekli. Modeli indirebilirsiniz ama çalıştırmak için motoru kurmanız gerekir.',
+  'eng.group_title': 'Diğer Model Motorları',
+  'eng.group_desc': 'Konuşma, görsel, ses ve ONNX modellerinin ihtiyaç duyduğu ek motorlar. Bir model bunlardan birini istiyorsa buradan tek tıkla kurabilirsiniz; indirilen her dosya doğrulanır.',
+  'eng.state_installed': 'Kurulu',
+  'eng.state_missing': 'Kurulu Değil',
+  'eng.desc_whisper': 'Konuşma tanıma ve dikte (whisper ggml modelleri).',
+  'eng.desc_sdcpp': 'Görsel üretimi (SD1.x, SDXL, SD3.5, FLUX, Qwen-Image).',
+  'eng.desc_sherpa': 'Seslendirme ve sherpa-onnx konuşma tanıma modelleri.',
+  'eng.desc_onnx': 'ONNX modelleri: gömme, yeniden sıralama ve sohbet.',
+  'eng.desc_lemonade': 'Ryzen AI NPU ve kendi llama.cpp arka uçlarıyla çalışan Lemonade sunucusu.',
+  'eng.desc_mistralrs': 'Safetensors sohbet modelleri. Hazır indirme yok; kendi derlemenizi eklersiniz.',
+};
+
+const en: Record<keyof typeof tr, string> = {
+  'eng.install': 'Install {runtime}',
+  'eng.installing': 'Installing {runtime}…',
+  'eng.installing_pct': 'Installing {runtime}… {pct}%',
+  'eng.installed_ok': 'The {runtime} runtime is installed.',
+  'eng.failed': 'Couldn’t install {runtime}: {error}',
+  'eng.unverified': 'Some files in the {runtime} release have no SHA-256 digest, and unverified files are never installed automatically. At the Advanced level you can install it with confirmation from Settings > Registry.',
+  'eng.manual': '{runtime} has no one-click install. At the Advanced level, add your own build as a local folder in Settings > Registry.',
+  'eng.open_registry': 'Open Registry',
+  'eng.list_banner': 'Some models in this list need the {runtime} runtime.',
+  'eng.drawer_note': 'This model needs the {runtime} runtime. You can download the model, but you need to install the runtime to run it.',
+  'eng.group_title': 'Other Runtimes',
+  'eng.group_desc': 'Extra runtimes that speech, image, voice and ONNX models need. When a model asks for one, you can install it here in one click; every downloaded file is verified.',
+  'eng.state_installed': 'Installed',
+  'eng.state_missing': 'Not Installed',
+  'eng.desc_whisper': 'Speech recognition and dictation (whisper ggml models).',
+  'eng.desc_sdcpp': 'Image generation (SD1.x, SDXL, SD3.5, FLUX, Qwen-Image).',
+  'eng.desc_sherpa': 'Text to speech and sherpa-onnx speech recognition models.',
+  'eng.desc_onnx': 'ONNX models: embeddings, reranking and chat.',
+  'eng.desc_lemonade': 'The Lemonade server, with the Ryzen AI NPU and its own llama.cpp backends.',
+  'eng.desc_mistralrs': 'Safetensors chat models. There is no ready download; you add your own build.',
+};
+
+export default { tr, en };

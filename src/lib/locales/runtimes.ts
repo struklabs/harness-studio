@@ -33,7 +33,7 @@ const tr = {
   'rt.advice_use': '{name} Kullan',
   'rt.advice_add_fork': '{name} Ekle',
   'rt.advice_none': 'Kayıtlı model motorlarından hiçbiri bu türü yükleyemiyor.',
-  'rt.advice_fork_hint': 'Bu tür {repo} fork’unda tanımlı. Ayarlar > Model Motoru bölümünden ekleyebilirsiniz.',
+  'rt.advice_fork_hint': 'Bu tür {repo} fork’unda tanımlı. Ayarlar > Registry sayfasından ekleyebilirsiniz.',
   'rt.advice_legacy_prism':
     'Dosya eski Prism 128’li Q2_0 düzenini kullanıyor. Yalnız son prism-v5 sürümü prism-b9601 çalıştırabilir; güncel Prism ve resmi llama.cpp bu biçimi reddeder.',
 
@@ -148,7 +148,7 @@ const en: Record<keyof typeof tr, string> = {
   'rt.advice_use': 'Use {name}',
   'rt.advice_add_fork': 'Add {name}',
   'rt.advice_none': 'None of the registered runtimes can load this type.',
-  'rt.advice_fork_hint': 'This type is defined in the {repo} fork. Add it in Settings > Runtime.',
+  'rt.advice_fork_hint': 'This type is defined in the {repo} fork. Add it in Settings > Registry.',
   'rt.advice_legacy_prism':
     'This file uses the legacy Prism group-128 Q2_0 layout. Only the final prism-v5 release, prism-b9601, can run it; current Prism and official llama.cpp reject it.',
 
