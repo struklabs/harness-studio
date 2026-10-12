@@ -11,7 +11,7 @@ harness --help
 
 ## Kurulum ve PATH
 
-Masaüstü uygulamasının kurulumu `harness`'i uygulamanın yanına koyar (Tauri sidecar: Windows/Linux'ta `harness-studio(.exe)` ile aynı klasör, macOS'ta `Harness Studio.app/Contents/MacOS/harness`; Linux `.deb` paketinde `/usr/bin/harness`, yani zaten PATH'te). Terminalden her yerde çalışması için **Ayarlar > Geliştirici API > Terminalde Kullan** bölümündeki **PATH'e Ekle** düğmesi kullanılır; yalnız tıklayınca çalışır, **Kaldır** geri alır:
+Masaüstü uygulamasının kurulumu `harness`'i uygulamanın yanına koyar (Tauri sidecar: Windows/Linux'ta `harness-studio(.exe)` ile aynı klasör, macOS'ta `Harness Studio.app/Contents/MacOS/harness`; Linux `.deb` paketinde `/usr/bin/harness`, yani zaten PATH'te). Terminalden her yerde çalışması için **Ayarlar > Geliştirici > CLI > Terminalde Kullan** bölümündeki **PATH'e Ekle** düğmesi kullanılır; yalnız tıklayınca çalışır, **Kaldır** geri alır:
 
 - **Windows:** uygulamanın klasörü kullanıcı PATH'ine (`HKCUEnvironmentPath`, değer türü korunur, diğer girdilere dokunulmaz) eklenir ve `WM_SETTINGCHANGE` yayınlanır. Açık terminaller değişikliği görmez, yeni terminal açın.
 - **macOS/Linux:** `~/.local/bin/harness` sembolik bağı oluşturulur. `~/.local/bin` PATH'te değilse arayüz `export PATH="$HOME/.local/bin:$PATH"` satırını gösterir. Kaldırırken yalnız bu CLI'a işaret eden bağ silinir; başka bir `harness` dosyası varsa ekleme reddedilir.
@@ -24,7 +24,7 @@ Her komut bir Control API ile konuşur. Hangisiyle konuşacağı sırayla şöyl
 
 1. **`--host` / `HARNESS_HOST`** verildiyse o uzak API. Token `--token` / `HARNESS_TOKEN` ile verilir (isimli token; kapsamlar geçerli).
 2. **Çalışan bir sahip varsa** (GUI ya da `harness serve`): veri dizinindeki `instance.json` okunur, API adresi ve oturum token dosyası oradan alınır. Komut sahibin API'si üzerinden yürür; CLI başka bir sürecin veri dizinine hiçbir zaman yazmaz.
-3. **Sahip var ama Control API'si kapalıysa** (GUI'de Ayarlar > Geliştirici API kapalı): çıkış kodu 4, `cli.owner_without_api`.
+3. **Sahip var ama Control API'si kapalıysa** (GUI'de Ayarlar > Geliştirici > Control API kapalı): çıkış kodu 4, `cli.owner_without_api`.
 4. **Sahip yoksa** (ya da `instance.json` bir çökmeden kalmışsa): komut, bu süreç içinde **geçici bir örnek** açar. Geçici örnek `instance.lock`'u alır, aynı Control API'yi rastgele bir loopback portunda başlatır, komut bitince durdurduğu her şeyi kapatır ve kilidi bırakır. `--json` çıktısı bu yüzden her yolda aynı şemadadır.
    - llama-server başlatan komutlar (`load`, `run`, `chat`, `profile run`) geçici örneği yalnız **`--headless`** ile açar; bu durumda başlattıkları sunucular komut bitince durur.
    - Var olan sunucular üzerinde çalışan komutlar (`stop`, `unload`, `logs`, `shutdown`, `pull --detach`) geçici örnek açmaz; çalışan bir örnek ister (yoksa çıkış 6).

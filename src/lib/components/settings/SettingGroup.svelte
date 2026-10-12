@@ -35,7 +35,9 @@
           {title}
           {#if hint && uiLevel.advanced}<HelpPopover text={hint} label={title} />{/if}
         </h3>{/if}
-        {#if hint && (!uiLevel.advanced || !showTitle)}<div class="flex items-center gap-1.5">{#if uiLevel.advanced}<HelpPopover text={hint} label={title} />{:else}<FieldHelp text={hint} />{/if}</div>{/if}
+        <!-- Without a visible title the hint is written out: a lone "?" above the first row has no label to belong to. -->
+        {#if hint && !showTitle}<p class="text-xs text-muted-foreground">{hint}</p>
+        {:else if hint && !uiLevel.advanced}<div class="flex items-center gap-1.5"><FieldHelp text={hint} /></div>{/if}
         {#if hint}<span id={uid} class="sr-only" data-field-help-text>{hint}</span>{/if}
         {#if description}<p class="text-xs text-muted-foreground">{description}</p>{/if}
         {#if note}<p class="text-xs text-muted-foreground">{note}</p>{/if}

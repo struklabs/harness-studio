@@ -2,6 +2,10 @@
 const tr = {
   'fit.full_gpu': "VRAM'e sığıyor",
   'fit.full_gpu_desc': "Model ve bağlam tamamen VRAM'e sığıyor. Maksimum çıkarım hızı.",
+  'fit.unified_full': 'Belleğe sığıyor',
+  'fit.unified_full_desc': "Model ve bağlam, GPU'nun kullanabileceği belleğe sığıyor (Apple Silicon'da ayrı VRAM yoktur, bellek paylaşılır). Maksimum çıkarım hızı.",
+  'fit.unified_tight': 'Bellek sınırda',
+  'fit.unified_tight_desc': "Model belleğe ancak sığıyor. macOS ve diğer uygulamalar da bellek kullandığında sistem yavaşlayabilir. Gelişmiş'ten KV önbelleğini q8_0 yapın ya da bağlam boyutunu küçültün.",
   'fit.tight': "VRAM sınırda",
   'fit.tight_desc': "Model VRAM'e ancak sığıyor. Diğer uygulamalar da ekran kartını kullandığında bir kısmı sistem RAM'ine taşar ve uzun istemler çok yavaşlar. Gelişmiş'ten KV önbelleğini q8_0 yapın ya da bağlam boyutunu küçültün.",
   'fit.hybrid': 'Kısmi aktarım',
@@ -36,6 +40,10 @@ const tr = {
 const en: Record<keyof typeof tr, string> = {
   'fit.full_gpu': 'Fits in VRAM',
   'fit.full_gpu_desc': 'Model and context fit entirely in VRAM. Maximum inference speed.',
+  'fit.unified_full': 'Fits in memory',
+  'fit.unified_full_desc': 'Model and context fit in the memory the GPU can use (Apple Silicon has no separate VRAM; the memory is shared). Maximum inference speed.',
+  'fit.unified_tight': 'Memory is tight',
+  'fit.unified_tight_desc': 'The model barely fits in memory. When macOS and other apps also need memory, the system can slow down. Set the KV cache to q8_0 under Advanced or lower the context size.',
   'fit.tight': 'VRAM is tight',
   'fit.tight_desc': 'The model barely fits in VRAM. When other apps also use the GPU, part of it spills into system RAM and long prompts get very slow. Set the KV cache to q8_0 under Advanced or lower the context size.',
   'fit.hybrid': 'Partial offload',

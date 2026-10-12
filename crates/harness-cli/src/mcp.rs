@@ -59,7 +59,7 @@ impl CliBackend {
                 let mut b = to_backend_error(e);
                 if b.code == "cli.no_instance" {
                     b.message = "No Harness instance is running. Start Harness Studio with \
-Settings > Developer API on, or `harness serve`, or run `harness mcp --headless`."
+Settings > Developer > Control API on, or `harness serve`, or run `harness mcp --headless`."
                         .into();
                 }
                 b

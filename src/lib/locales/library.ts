@@ -70,6 +70,7 @@ const tr = {
   'lib.size': 'Boyut',
   'lib.fit': 'Donanım',
   'lib.vram_est': '~{vram} VRAM',
+  'lib.mem_est': '~{vram} bellek',
   'lib.running': 'Çalışıyor',
   'lib.running_on': 'Çalışıyor: {servers}',
   'lib.last_used': 'Son kullanım {when}',
@@ -152,6 +153,7 @@ const tr = {
   'lib.dupes_recorded': 'indirmede kaydedilen özet',
   'lib.dupes_not_identical': 'Tam doğrulamada dosyalar farklı çıktı; bunlar kopya değil.',
   'lib.vram_measured': '~{vram} VRAM (ölçülen)',
+  'lib.mem_measured': '~{vram} bellek (ölçülen)',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -222,6 +224,7 @@ const en: Record<keyof typeof tr, string> = {
   'lib.size': 'Size',
   'lib.fit': 'Hardware',
   'lib.vram_est': '~{vram} VRAM',
+  'lib.mem_est': '~{vram} memory',
   'lib.running': 'Running',
   'lib.running_on': 'Running: {servers}',
   'lib.last_used': 'Last used {when}',
@@ -300,6 +303,7 @@ const en: Record<keyof typeof tr, string> = {
   'lib.dupes_recorded': 'digest recorded at download',
   'lib.dupes_not_identical': 'The full check found different files; these are not copies.',
   'lib.vram_measured': '~{vram} VRAM (measured)',
+  'lib.mem_measured': '~{vram} memory (measured)',
 };
 
 export default { tr, en };

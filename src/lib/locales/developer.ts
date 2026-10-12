@@ -1,4 +1,4 @@
-// Settings > Developer API (Harness Control API) and the error keys the core / API return
+// Settings > Developer > Control API (Harness Control API) and the error keys the core / API return
 // (harness_core::control_api, orchestrator, downloader, benchmark).
 const tr = {
   'otelui.content_help': 'İstek içeriğini gözlemleme sistemine dışa aktarmayı açar.',

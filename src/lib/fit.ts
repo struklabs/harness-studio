@@ -92,9 +92,20 @@ const IGPU_LABELS: Partial<Record<FitCategory, { label: TKey; desc: TKey }>> = {
   tight: { label: 'fit.igpu_full', desc: 'fit.igpu_full_desc' },
 };
 
+// Apple Silicon (unified memory, no separate VRAM): the same verdicts, worded for one memory pool.
+const UNIFIED_LABELS: Partial<Record<FitCategory, { label: TKey; desc: TKey }>> = {
+  full_gpu: { label: 'fit.unified_full', desc: 'fit.unified_full_desc' },
+  tight: { label: 'fit.unified_tight', desc: 'fit.unified_tight_desc' },
+};
+
 export function toHardwareFit(r: FitResult): HardwareFitResult {
   const sharedIgpu = !!r.budget.shared_igpu;
-  const l = { ...LABELS[r.category], ...(sharedIgpu ? IGPU_LABELS[r.category] : undefined) };
+  const appleUnified = r.budget.unified && !sharedIgpu;
+  const l = {
+    ...LABELS[r.category],
+    ...(sharedIgpu ? IGPU_LABELS[r.category] : undefined),
+    ...(appleUnified ? UNIFIED_LABELS[r.category] : undefined),
+  };
   return {
     category: r.category,
     label: t(l.label),

@@ -249,6 +249,7 @@ pub fn run() {
 
             #[cfg(target_os = "macos")]
             desktop::migrate_launch_agent(app.handle());
+            desktop::set_app_menu(app.handle(), &AppSettings::load().language);
             if let Err(e) = desktop::setup_tray(app.handle()) {
                 eprintln!("[Harness Studio] Tray unavailable: {}", e);
             }

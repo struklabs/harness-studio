@@ -9,7 +9,7 @@ const tr = {
   'gateway.invalid_port': 'Geçersiz port: 1024-65535 arasında bir değer girin.',
   'gateway.network_not_allowed': 'Gateway ağa açık bir adrese bağlanacak ama "Ağdan erişime izin ver" kapalı.',
   'gateway.network_without_token':
-    'Gateway\'i ağa açmak için önce "inference" kapsamlı bir isimli token oluşturun (Ayarlar > Geliştirici API). Anahtarsız ağ erişimi yok.',
+    'Gateway\'i ağa açmak için önce "inference" kapsamlı bir isimli token oluşturun (Ayarlar > Geliştirici > Control API). Anahtarsız ağ erişimi yok.',
   'gateway.invalid_origin': 'Geçersiz origin: yalnız http(s)://alan[:port] yazın (* ve localhost kabul edilmez).',
   'gateway.port_conflict': 'Gateway portu Control API portuyla aynı olamaz.',
   'gateway.not_owner': 'Veri dizinini başka bir Harness örneği yönetiyor; gateway yalnız sahip örnekte çalışır.',
@@ -127,7 +127,7 @@ const tr = {
   'gw.ep_direct_rows': 'Doğrudan Uç Nokta ({server})',
   'gw.ep_via': 'Gateway üzerinden',
   'gw.integrations_token_note':
-    'Gateway token istiyor: araç yapılandırmasındaki anahtar yerine "inference" kapsamlı bir isimli token yazın (Ayarlar > Geliştirici API).',
+    'Gateway token istiyor: araç yapılandırmasındaki anahtar yerine "inference" kapsamlı bir isimli token yazın (Ayarlar > Geliştirici > Control API).',
 
   // Model definition dialog
   'gw.def_section': 'Gateway',
@@ -145,7 +145,7 @@ const en: Record<keyof typeof tr, string> = {
   'gateway.invalid_port': 'Invalid port: enter a value between 1024 and 65535.',
   'gateway.network_not_allowed': 'The gateway would bind a network address but "Allow network access" is off.',
   'gateway.network_without_token':
-    'Create a named token with the "inference" scope first (Settings > Developer API) to open the gateway to the network. There is no keyless network access.',
+    'Create a named token with the "inference" scope first (Settings > Developer > Control API) to open the gateway to the network. There is no keyless network access.',
   'gateway.invalid_origin': 'Invalid origin: only http(s)://host[:port] (* and localhost are not accepted).',
   'gateway.port_conflict': 'The gateway port cannot be the Control API port.',
   'gateway.not_owner': 'Another Harness instance manages the data directory; the gateway only runs in the owner.',
@@ -261,7 +261,7 @@ const en: Record<keyof typeof tr, string> = {
   'gw.ep_direct_rows': 'Direct Endpoint ({server})',
   'gw.ep_via': 'Via gateway',
   'gw.integrations_token_note':
-    'The gateway requires a token: put a named token with the "inference" scope in place of the key in the tool’s config (Settings > Developer API).',
+    'The gateway requires a token: put a named token with the "inference" scope in place of the key in the tool’s config (Settings > Developer > Control API).',
 
   'gw.def_section': 'Gateway',
   'gw.def_ttl': 'Idle time (s)',

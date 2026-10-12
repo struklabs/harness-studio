@@ -2,7 +2,7 @@
 // server (`harness mcp` / the Control API's /mcp) in Claude Code, Codex, OpenCode and Cursor.
 const tr = {
   'hmcp.token_risk': 'Token aracın yapılandırma dosyasına düz metin olarak yazılır.',
-  'hmcp.token_hint': 'Ayarlar > Geliştirici API bölümünden gerekli izinlerle bir token oluşturun.',
+  'hmcp.token_hint': 'Ayarlar > Geliştirici > Control API bölümünden gerekli izinlerle bir token oluşturun.',
   'hmcp.title': "Harness MCP'yi Ekle",
   'hmcp.desc':
     'Kodlama ajanları Harness araçlarını kullansın: modelleri listeleme, yükleme/boşaltma, uç nokta alma, metrik, log ve benchmark.',
@@ -14,9 +14,9 @@ const tr = {
     'harness komut satırı aracı bulunamadı (uygulamayla birlikte gelir; geliştirme sürümünde: cargo build -p harness-cli). PATH üzerine koyabilir ya da yolunu buraya yazabilirsiniz.',
   'hmcp.models_write': 'İndirme ve model silmeye izin ver (models:write)',
   'hmcp.stdio_note':
-    'Araç, harness mcp komutunu kendisi başlatır. Araçlar Harness Studio (Geliştirici API açık) ya da harness serve üzerinden çalışır; yapılandırmaya sır yazılmaz.',
+    'Araç, harness mcp komutunu kendisi başlatır. Araçlar Harness Studio (Control API açık) ya da harness serve üzerinden çalışır; yapılandırmaya sır yazılmaz.',
   'hmcp.url_label': 'MCP adresi',
-  'hmcp.api_off': 'Kontrol API kapalı. Ayarlar > Geliştirici API bölümünden açın.',
+  'hmcp.api_off': 'Kontrol API kapalı. Ayarlar > Geliştirici > Control API bölümünden açın.',
   'hmcp.token_label': 'İsimli token',
   'hmcp.token_placeholder': 'hs_…',
   'hmcp.token_required': 'HTTP bağlantısı için isimli token gerekli.',
@@ -41,7 +41,7 @@ const tr = {
 
 const en: Record<keyof typeof tr, string> = {
   'hmcp.token_risk': 'The token is written to the tool’s configuration file in plain text.',
-  'hmcp.token_hint': 'Create a token with the required permissions in Settings > Developer API.',
+  'hmcp.token_hint': 'Create a token with the required permissions in Settings > Developer > Control API.',
   'hmcp.title': 'Add Harness MCP',
   'hmcp.desc':
     'Let coding agents use Harness tools: list models, load/unload, get endpoints, metrics, logs and benchmarks.',
@@ -53,9 +53,9 @@ const en: Record<keyof typeof tr, string> = {
     'The harness command-line tool was not found (it ships with the app; in a development build: cargo build -p harness-cli). Put it on PATH or enter its path here.',
   'hmcp.models_write': 'Allow downloads and model deletion (models:write)',
   'hmcp.stdio_note':
-    'The tool starts harness mcp itself. Tools work through Harness Studio (Developer API on) or harness serve; no secret is written to the config.',
+    'The tool starts harness mcp itself. Tools work through Harness Studio (Control API on) or harness serve; no secret is written to the config.',
   'hmcp.url_label': 'MCP URL',
-  'hmcp.api_off': 'The Control API is off. Turn it on in Settings > Developer API.',
+  'hmcp.api_off': 'The Control API is off. Turn it on in Settings > Developer > Control API.',
   'hmcp.token_label': 'Named token',
   'hmcp.token_placeholder': 'hs_…',
   'hmcp.token_required': 'An HTTP connection needs a named token.',

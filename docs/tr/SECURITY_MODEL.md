@@ -19,7 +19,7 @@ Bu belge Harness Studio'nun güvenlik modelini anlatır: hangi sırlar nerede tu
 
 ## Harness Control API
 
-Yerel yönetim API'si (`/api/harness/v1`, varsayılan `127.0.0.1:11500`) varsayılan olarak kapalıdır; Ayarlar > Geliştirici API'den açılır.
+Yerel yönetim API'si (`/api/harness/v1`, varsayılan `127.0.0.1:11500`) varsayılan olarak kapalıdır; Ayarlar > Geliştirici > Control API'den açılır.
 
 - **Token zorunlu:** `/health` dışındaki her istek `Authorization: Bearer <token>` ister. Token'sız veya geçersiz istek `401 api.unauthorized`, yetersiz kapsam `403 api.insufficient_scope` alır.
 - **Oturum token'ı:** her başlatmada yeniden üretilir (256 bit). `<veri dizini>/api-token` dosyasında durur; dosyayı yalnız mevcut kullanıcı okuyabilir (Windows'ta korumalı ACL, Unix'te 0600). API kapanınca dosya silinir.
@@ -112,7 +112,7 @@ Ajanların Harness'ı araç olarak kullandığı MCP sunucusu ([MCP.md](MCP.md))
 - **stdio (`harness mcp`):** yerel oturum token'ı tam yetkilidir, bu yüzden MCP katmanı onu `--scope` ile daraltır. Varsayılan `read,servers:write,tools`: ajan model yükleyip boşaltabilir ama indirme ve silme için `--scope read,servers:write,tools,models:write` gerekir. `tools` kapsamı tek başına bir şey açmaz: Harness'ın dosya/kabuk/ağ araçları MCP'ye yalnız kullanıcı Ayarlar > Araçlar > "MCP İstemcilerine Aç"ı açarsa sunulur (varsayılan kapalı) ve her çağrı kayıtlı izin politikasıyla karara bağlanır. MCP onay soramadığı için yalnız politikanın sormadan çalıştırdığı çağrılar çalışır; onay isteyenler "güvenilir yapın" diyen bir araç hatası döner, politika "kapalı" ise hiçbir araç sunulmaz. İstemci `approved` ya da çalışma klasörü gönderemez. Harness'ın tükettiği MCP sunucularının araçları yeniden sunulmaz. Çağrılar `tool_calls`'a `mcp:<istemci adı>` ile yazılır. `admin` açıkça verilmedikçe yoktur.
 - **Ağa açma yok:** hiçbir araç bağlanma adresini değiştirmez ya da "Yine de Aç" onayı vermez. Ağa bağlanan bir profil `start_server` ile de ağ kuralından geçer (`network.lan_without_key`).
 - **Sır yok:** `get_endpoint` ve diğer araçlar llama-server API anahtarını hiçbir zaman döndürmez (yalnız gerekip gerekmediği).
-- **"Harness MCP'yi Ekle":** yalnız `harness` kaydını ekler/kaldırır, öncesinde `<dosya>.harness-<tarih>.bak` yedeği alır, ayrıştırılamayan dosyaya dokunmaz. stdio kaydı sır içermez. HTTP kaydı isimli token'ı aracın dosyasına düz metin olarak yazar; arayüz bunu belirtir ve stdio'yu önerir. Yedekler (`<dosya>.harness-<tarih>.bak`, dosya başına son 5) bu token'ı da taşır; "Kaldır" sonrası Harness'ın yedeklerindeki `harness` girdisinde bulunan token'lar bütün yedeklerde `removed-by-harness` ile değiştirilir (dosyanın geri kalanına ve Harness'tan önceki halin yedeğine dokunulmaz). Token'ı tamamen geçersiz kılmak için Ayarlar > Geliştirici API'den iptal edin.
+- **"Harness MCP'yi Ekle":** yalnız `harness` kaydını ekler/kaldırır, öncesinde `<dosya>.harness-<tarih>.bak` yedeği alır, ayrıştırılamayan dosyaya dokunmaz. stdio kaydı sır içermez. HTTP kaydı isimli token'ı aracın dosyasına düz metin olarak yazar; arayüz bunu belirtir ve stdio'yu önerir. Yedekler (`<dosya>.harness-<tarih>.bak`, dosya başına son 5) bu token'ı da taşır; "Kaldır" sonrası Harness'ın yedeklerindeki `harness` girdisinde bulunan token'lar bütün yedeklerde `removed-by-harness` ile değiştirilir (dosyanın geri kalanına ve Harness'tan önceki halin yedeğine dokunulmaz). Token'ı tamamen geçersiz kılmak için Ayarlar > Geliştirici > Control API'den iptal edin.
 
 ## Entegrasyonlar ve `harness launch`
 
