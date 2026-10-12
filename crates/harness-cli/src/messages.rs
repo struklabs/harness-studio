@@ -181,7 +181,7 @@ pub fn base(code: &str) -> Option<&'static str> {
         "audio.ffmpeg_missing" => "This audio format needs ffmpeg and none was found",
         "audio.convert_failed" => "The audio file could not be converted",
         "audio.convert_timeout" => "Converting the audio timed out",
-        "runtime.not_runnable" => "llama-server could not be run",
+        "runtime.not_runnable" => "The engine binary could not be run",
         "runtime.changed" => "The runtime’s files changed since it was added; verify it in Settings > Runtime",
         "runtime.in_use" => "Runtime in use",
         "runtime.official_fixed" => "The official runtime can’t be removed",
