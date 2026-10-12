@@ -9,6 +9,9 @@ Release notes with system requirements and known limitations (English and Turkis
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Fixed
+- Turkish UI: the two "Görsel" entries in the Library list are now "Görsel Anlama" (vision) and "Görsel Üretimi" (image generation); the English Image entries read "Image Generation".
+- Dashboard: right after the first-run wizard it no longer shows "runtime info could not be read" although the runtime works; the runtime is probed again once the registry changes or the wizard finishes.
+- First-run wizard: "Add Command-Line Tool to PATH" is now off by default, sits under its own "Command Line" heading, and says what it changes.
 - Gateway: parallel requests to a one-slot server no longer fail now and then with `upstream_unreachable` (502). The gateway reused a connection that the model server closes after a streamed answer.
 - GGUF conversion: the size estimate reads the repository's `config.json`, so the token embedding is counted. Small models were shown about a quarter smaller than the converted file.
 - GGUF conversion: the size estimate counts the wider type `llama-quantize` uses for matrices a k-quant cannot hold (rows not a multiple of 256, common in small models). SmolLM2-135M Q4_K_M: 103.2 MB estimated, 105.5 MB converted.

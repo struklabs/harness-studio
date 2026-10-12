@@ -18,7 +18,7 @@ const tr = {
   'imp.select_none': 'Hiçbirini Seçme',
   'imp.select_all_aria': '{source} modellerinin tümünü seç',
   'imp.select_none_aria': '{source} modellerinin seçimini kaldır',
-  'imp.chip_vision': 'Görsel',
+  'imp.chip_vision': 'Görsel Anlama',
   'imp.chip_vision_title': 'Bu modelle birlikte bir görsel projektör (mmproj) bulundu',
   'imp.chip_imported': 'İçe aktarıldı',
   'imp.unknown_quant': 'bilinmiyor',

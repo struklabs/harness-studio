@@ -27,8 +27,8 @@
     try {
       const s = await invoke<CliStatus>('cli_status', { userPath: null });
       offer = Boolean(s.path) && !s.registered && s.source !== 'path';
-      // The Windows installer does not touch PATH, so on Windows this is on by default.
-      enabled = offer && s.mode === 'windows';
+      // Changing PATH (and, on macOS, the shell profile) is a system change: always opt-in.
+      enabled = false;
     } catch {
       offer = false;
       enabled = false;
@@ -37,6 +37,7 @@
 </script>
 
 {#if offer}
+  <h2 class="mb-2 text-sm font-semibold">{t('onboarding.wizard_cli_path_section')}</h2>
   <div class="overflow-hidden rounded-lg border border-border bg-card">
     <div class="flex items-center justify-between gap-6 px-4 py-3">
       <label for="wiz-cli-path" class="flex min-w-0 flex-col gap-0.5">

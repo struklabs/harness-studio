@@ -15,6 +15,7 @@
   import StepRuntime from './onboarding/StepRuntime.svelte';
   import StepPurpose from './onboarding/StepPurpose.svelte';
   import StepPrivacy from './onboarding/StepPrivacy.svelte';
+  import { runtimesStore } from '$lib/stores/runtimes.svelte';
   import CliPathOption from './onboarding/CliPathOption.svelte';
 
   interface Props {
@@ -95,6 +96,8 @@
           toast.error(t('onboarding.wizard_cli_path_failed', { error: String(e) }));
         }
       }
+      // The Dashboard behind the wizard may have probed before the runtime existed: re-read it.
+      await runtimesStore.load(true);
       onComplete(updated);
     } catch (e) {
       finishError = t('onboarding.wizard_finish_failed', { error: String(e) });
