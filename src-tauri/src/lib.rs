@@ -510,6 +510,7 @@ pub fn run() {
             download_image_companions,
             get_image_bundle_plan,
             sync_image_definitions,
+            ensure_library_definitions,
             save_generated_image,
             get_hf_avatars,
             download_hf_variant,

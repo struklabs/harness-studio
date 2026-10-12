@@ -102,7 +102,7 @@ The **Speech** tab covers both directions. Audio goes through the gateway; if it
 
 ### Speech to Text
 
-1. In **Model Hub**, search for `whisper` and download a Whisper ggml model. For Turkish or other languages, do not pick a model that only knows English (a `.en` model).
+1. In **Model Hub**, search for `whisper` and download a Whisper ggml model. A `ggml-*.bin` file that is already in one of your folders is listed in the **Model** list on its own. For Turkish or other languages, do not pick a model that only knows English (a `.en` model).
 2. Install the whisper.cpp engine: press the **Install whisper.cpp** button shown on the library card, in Model Hub, or in this tab's error message. You can also install it from the **Other Runtimes** list in **Settings > Runtime > Installed Runtime**. On macOS there is no ready-made whisper server package; you can add the folder of a `whisper-server` you built yourself.
 3. Open the **Playground > Speech** tab.
 4. Choose a **Model**. Add audio with **Choose File**, or start a microphone recording with **Record** and end it with **Stop**. The operating system may ask for microphone permission.
@@ -119,7 +119,7 @@ The **Text to Speech** section of the **Speech** tab turns text into audio. Pres
 
 ## Generate Images
 
-The **Image** tab generates pictures from diffusion models through stable-diffusion.cpp. Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it) and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
+The **Image** tab generates pictures from diffusion models through stable-diffusion.cpp. Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it), or use one that is already in your folders: it appears in the **Model** list on its own, and **Open in Playground** on its library card opens this tab with it selected. If the list stays empty although the file is there, some of its extra files are missing; the tab says so and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
 
 See also the [Tools reference](../../en/TOOLS.md) and the [Features reference](../../en/FEATURES.md).
 

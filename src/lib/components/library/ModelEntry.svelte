@@ -19,7 +19,8 @@
   import { app, DEFAULT_SERVER_ID } from '$lib/stores/app.svelte';
   import { domain, baseName, samePath } from '$lib/stores/domain.svelte';
   import { library } from '$lib/stores/library.svelte';
-  import { loadAndChat } from '$lib/stores/downloads.svelte';
+  import { loadAndChat, openInPlayground } from '$lib/stores/downloads.svelte';
+  import { playgroundTarget } from '$lib/libraryDefinitions';
   import { isChatLoadable, showUpdateBadge } from '$lib/downloadFollowUp';
   import UpdateBadge from '$lib/components/hub/UpdateBadge.svelte';
   import { Button, buttonVariants } from '$lib/components/ui/button';
@@ -45,6 +46,7 @@
     Wrench,
     LayoutDashboard,
     MessageSquare,
+    SquareArrowOutUpRight,
     ChevronRight,
   } from '@lucide/svelte';
   import { formatParams, relativeTime } from './filters';
@@ -297,6 +299,19 @@
     }
   }
 
+  let openingPlayground = $state(false);
+  /** The tab this file runs in (image, speech, embedding, rerank), or null for chat models and unfinished files. */
+  let playgroundTab = $derived(playgroundTarget(m));
+  async function openPlayground() {
+    openingPlayground = true;
+    try {
+      await openInPlayground(m);
+      onChanged();
+    } finally {
+      openingPlayground = false;
+    }
+  }
+
   function openInDashboard() {
     library.pendingSelectId = m.id;
     // The selected server is up: loading this model into its form would edit a running server.
@@ -527,6 +542,13 @@
         {#if startingChat}<LoaderCircle class="animate-spin" />{:else}<MessageSquare />{/if}{running.length > 0 ? t('hub.chat_now') : t('hub.load_and_chat')}
       </Button>
     </div>
+  {:else if playgroundTab}
+    <!-- Image, speech, voice, embedding and rerank files: open the Playground tab with the file selected (its definition is made when missing). -->
+    <div class="flex items-center gap-2 border-t border-border pt-2">
+      <Button size="xs" onclick={openPlayground} disabled={openingPlayground}>
+        {#if openingPlayground}<LoaderCircle class="animate-spin" />{:else}<SquareArrowOutUpRight />{/if}{t('lib.open_in_playground')}
+      </Button>
+    </div>
   {/if}
 
   <!-- Definitions (aliases) -->
@@ -542,7 +564,7 @@
             <Button variant="outline" size="xs" disabled><Play />{t('pgm.load')}</Button>
             <span class="text-xs text-muted-foreground">{m.kind === 'asr' ? t('lib.asr_load_note') : m.kind === 'image' ? t('lib.image_load_note') : t(STATE_LABEL[state])}</span>
           {/if}
-        {:else}
+        {:else if !playgroundTab}
           <Button size="xs" variant="outline" onclick={() => onNewDefinition(entry)} disabled={!m.is_ready}><Plus />{t('lib.new_definition')}</Button>
           {#if !m.is_ready}<p class="text-xs text-muted-foreground">{t('lib.incomplete_hint')}</p>{/if}
         {/if}

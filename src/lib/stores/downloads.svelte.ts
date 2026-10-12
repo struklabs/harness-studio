@@ -11,7 +11,12 @@ import { invoke } from '$lib/ipc';
 import { holdReleaseWhile } from '$lib/windowActivity';
 import { suggestAlias } from '$lib/components/library/filters';
 import { isImageDefinition } from '$lib/components/playground/image';
-import type { DownloadProgress, LoadTarget, LocalModel, ModelDefinition } from '$lib/types';
+import { filesNeedingDefinition, playgroundTarget } from '$lib/libraryDefinitions';
+import { imageSession } from '$lib/components/playground/image.svelte';
+import { speech } from '$lib/components/playground/speech.svelte';
+import { asr } from '$lib/components/playground/asr.svelte';
+import { tts } from '$lib/components/playground/tts.svelte';
+import type { DownloadProgress, LoadTarget, LocalModel, ModelDefinition, ModelKind } from '$lib/types';
 
 /**
  * App-wide download queue. It lives outside the Model Hub component so progress
@@ -278,5 +283,72 @@ async function attachProjectors(job: DownloadProgress, list: LocalModel[]) {
     await domain.refreshDefinitions();
   } catch (e) {
     console.warn('projector for downloaded model', e);
+  }
+}
+
+/** True while the default definitions of scanned library files are being made. */
+export const libraryDefinitions = $state({ busy: false });
+/** Library files already tried, by the library version: a file that cannot get one (missing companions) is not retried in a loop. */
+const attempted = new Map<string, number>();
+
+/**
+ * Makes the default definition of every ready library file of `kinds` that was found by a scan and
+ * has none (a Hub download makes its own when it finishes). The Playground pickers and the gateway
+ * list definitions, so without this a model already in a library folder would not show up.
+ */
+export async function ensureLibraryDefinitions(kinds: readonly ModelKind[]): Promise<void> {
+  const need = filesNeedingDefinition(library.models, domain.definitions, kinds).filter(
+    (f) => attempted.get(f.path) !== library.version,
+  );
+  if (need.length === 0) return;
+  for (const f of need) attempted.set(f.path, library.version);
+  libraryDefinitions.busy = true;
+  try {
+    await invoke<string[]>('ensure_library_definitions', { kinds: [...new Set(need.map((f) => f.kind))] });
+    await domain.refreshDefinitions();
+  } catch (e) {
+    console.warn('library definitions', e);
+  } finally {
+    libraryDefinitions.busy = false;
+  }
+}
+
+/**
+ * "Open in Playground": opens the tab that runs this library file with the file selected, making
+ * its default definition first when it has none. Speech recognition (ONNX) and voice models run
+ * per request and are picked by name.
+ */
+export async function openInPlayground(model: LocalModel): Promise<void> {
+  const target = playgroundTarget(model);
+  if (!target) return;
+  try {
+    let alias = '';
+    if (target.pick === 'definition') {
+      if (model.kind === 'image') {
+        await invoke<string[]>('ensure_library_definitions', { kinds: ['image'] });
+        await domain.refreshDefinitions();
+        const def = domain.definitions.find((d) => d.base.kind === 'local' && samePath(d.base.path, model.path));
+        if (!def) {
+          toast.error(t('lib.open_playground_incomplete'));
+          return;
+        }
+        alias = def.alias;
+      } else {
+        alias = await ensureDefinition(model);
+      }
+      if (model.kind === 'image') imageSession.model = alias;
+      else if (target.tab === 'transcription') speech.model = alias;
+      else app.requestedPlaygroundModel = alias;
+    } else if (target.speech === 'speak') {
+      await tts.load();
+      tts.model = (tts.models.find((x) => x.id === model.id) ?? tts.models.find((x) => x.name === model.name))?.name ?? model.name;
+      tts.voice = '';
+    } else {
+      await asr.load();
+      speech.model = (asr.models.find((x) => x.id === model.id) ?? asr.models.find((x) => x.name === model.name))?.name ?? model.name;
+    }
+    app.openPlaygroundTab(target.tab);
+  } catch (e) {
+    toast.error(t('lib.open_playground_failed', { error: localizeError(e) }));
   }
 }

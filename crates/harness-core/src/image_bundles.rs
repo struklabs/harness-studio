@@ -437,38 +437,7 @@ pub fn sync_library_definitions() -> Result<Vec<String>, String> {
 /// (companions present). Idempotent; returns the aliases it created. A model whose companions
 /// are still downloading is picked up by a later call.
 pub fn ensure_definitions(models: &[crate::models::LocalModel]) -> Result<Vec<String>, String> {
-    use crate::domain::store::Domain;
-    use crate::domain::{unique_alias, ModelDefinition, ModelKind, ModelRef};
-    let libraries = crate::config::AppSettings::load().all_models_dirs();
-    let domain = Domain::global();
-    let mut created = Vec::new();
-    for model in models
-        .iter()
-        .filter(|m| m.kind == ModelKind::Image && m.is_ready)
-    {
-        let defs = domain.definitions()?;
-        if defs.iter().any(|d| {
-            d.base
-                .local_path()
-                .is_some_and(|p| p == model.path.as_path())
-        }) {
-            continue;
-        }
-        let Some(load) = definition_load(&model.path, &libraries, true) else {
-            continue;
-        };
-        let alias = unique_alias(&model.name, defs.iter().map(|d| d.alias.as_str()));
-        let mut def = ModelDefinition::new(
-            alias,
-            ModelRef::Local {
-                path: model.path.clone(),
-            },
-        );
-        def.load = load;
-        let saved = domain.save_definition(def)?;
-        created.push(saved.alias);
-    }
-    Ok(created)
+    crate::library_definitions::ensure(models, &[crate::domain::ModelKind::Image])
 }
 
 #[cfg(test)]
