@@ -51,7 +51,7 @@ Model motoru, model dosyasını çalıştıran motordur. Sohbet llama.cpp kullan
 
 Önerilen hızlandırma donanımınıza bağlıdır: NVIDIA için CUDA, uygun AMD kartlar için ROCm/HIP veya Vulkan, Intel Arc için SYCL veya Vulkan, Apple Silicon için Metal. GPU yoksa CPU kullanılır. Bir ekran kartının algılanması, seçilen derlemenin onu kullanabileceğini garanti etmez. Kurulu derleme kartı göremezse Harness Studio her kartta çalışan bir derlemeye (örneğin Vulkan) geçer ve bunu **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında size bildirir.
 
-Diğer model türleri, ihtiyaç duyduğunuzda kurduğunuz isteğe bağlı motorları kullanır. Bunları **Model Hub** içinden (listenin üstünde ya da bir modelin ayrıntılarında bir **Kur** düğmesi görünür) veya **Ayarlar > Model Motoru > Registry** sayfasından (Gelişmiş bir sayfa) kurabilirsiniz:
+Diğer model türleri, ihtiyaç duyduğunuzda kurduğunuz isteğe bağlı motorları kullanır. Bunlar tek tıkla kurulur: Kütüphane kartlarında, Model Hub'da ve Playground hatalarında "Bu model için … motoru gerekli" notunun yanında bir **Kur** düğmesi görünür; tüm motorlar **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasındaki **Diğer Model Motorları** listesinde de vardır (iki arayüz düzeyinde de). Ek derlemeler **Ayarlar > Model Motoru > Registry** sayfasından (Gelişmiş bir sayfa) eklenebilir:
 
 | Yetenek | Motor |
 | --- | --- |

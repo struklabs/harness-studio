@@ -26,8 +26,7 @@
   import { formatName } from './inference';
   import { canConvert } from './convertible';
   import ConvertPanel from './ConvertPanel.svelte';
-  import { whisperRuntime } from './whisperRuntime.svelte';
-  import { sdcppRuntime } from './sdcppRuntime.svelte';
+  import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
   import { isWhisperVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from './recommend';
@@ -85,35 +84,23 @@
   let unsupportedFormat = $derived(repo?.compatibility.status === 'unsupported' ? repo.compatibility.format : null);
   /** A safetensors chat model: instead of the unsupported notice the drawer offers the conversion. */
   let convertible = $derived(canConvert(repo));
-  /** The repo needs the whisper.cpp runtime and it was not installed from this drawer yet. */
-  let whisperInstalledHere = $state(false);
-  let needsWhisper = $derived(
-    repo?.compatibility.status === 'needs_runtime' && repo.compatibility.runtime === 'whisper.cpp' && !whisperInstalledHere
+  /** The repo needs an engine family (whisper.cpp, stable-diffusion.cpp, sherpa-onnx…) that was not installed from this drawer yet. */
+  let installedHere = $state<string[]>([]);
+  let neededFamily = $derived(
+    repo?.compatibility.status === 'needs_runtime' && repo.compatibility.runtime !== 'mistral.rs' && !installedHere.includes(repo.compatibility.runtime)
+      ? repo.compatibility.runtime
+      : null
   );
-  async function installWhisper() {
-    if (await whisperRuntime.install()) {
-      whisperInstalledHere = true;
-      clearPageCache();
-    }
-  }
-
-  /** The repo is an image model and stable-diffusion.cpp was not installed from this drawer yet. */
-  let sdcppInstalledHere = $state(false);
-  let needsSdcpp = $derived(
-    repo?.compatibility.status === 'needs_runtime' && repo.compatibility.runtime === 'stable-diffusion.cpp' && !sdcppInstalledHere
-  );
-  async function installSdcpp() {
-    if (await sdcppRuntime.install()) {
-      sdcppInstalledHere = true;
-      clearPageCache();
-    }
+  function engineInstalled(family: string) {
+    installedHere = [...installedHere, family];
+    clearPageCache();
   }
 
   /** A safetensors chat model whose mistral.rs runtime is not registered (no managed install). */
   let needsMistralrs = $derived(repo?.compatibility.status === 'needs_runtime' && repo.compatibility.runtime === 'mistral.rs');
   function openRuntimeSettings() {
     onClose();
-    security.openSettings('runtime');
+    security.openSettings('runtime-registry');
   }
 
   /** An image repo: its files are checkpoints and companions, not GGUF quantizations. */
@@ -501,17 +488,6 @@
 
           {#if tab === 'files'}
             <div class="flex flex-col gap-3">
-              {#if needsWhisper}
-                <div class="flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info" role="status">
-                  <Info class="size-3.5 shrink-0" />
-                  <span class="min-w-0 flex-1">{t('hub.compat_needs_whisper_drawer')}</span>
-                  <Button variant="outline" size="xs" class="shrink-0" disabled={whisperRuntime.installing} onclick={installWhisper}>
-                    {#if whisperRuntime.installing}<LoaderCircle class="animate-spin" />{/if}
-                    {t(whisperRuntime.installing ? 'hub.compat_installing' : 'hub.compat_install')}
-                  </Button>
-                </div>
-              {/if}
-
               {#if needsMistralrs}
                 <div class="flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info" role="status">
                   <Info class="size-3.5 shrink-0" />
@@ -522,14 +498,11 @@
                 </div>
               {/if}
 
-              {#if needsSdcpp}
+              {#if neededFamily}
                 <div class="flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info" role="status">
                   <Info class="size-3.5 shrink-0" />
-                  <span class="min-w-0 flex-1">{t('hub.compat_needs_sd_drawer')}</span>
-                  <Button variant="outline" size="xs" class="shrink-0" disabled={sdcppRuntime.installing} onclick={installSdcpp}>
-                    {#if sdcppRuntime.installing}<LoaderCircle class="animate-spin" />{/if}
-                    {t(sdcppRuntime.installing ? 'hub.compat_installing' : 'hub.compat_install')}
-                  </Button>
+                  <span class="min-w-0 flex-1">{t('eng.drawer_note', { runtime: neededFamily })}</span>
+                  <EngineNeeded family={neededFamily} hint={false} onInstalled={() => engineInstalled(neededFamily)} />
                 </div>
               {/if}
               {#if isImageRepo && bundlePlan && bundlePlan.components.length > 0}

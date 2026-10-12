@@ -6,6 +6,8 @@
   import type { GatewayOverview } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
   import { Button } from '$lib/components/ui/button';
+  import EngineNeeded from '../common/EngineNeeded.svelte';
+  import { familyFromError } from '$lib/engines';
   import { Badge } from '$lib/components/ui/badge';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
@@ -21,6 +23,8 @@
   let text = $state('');
   let busy = $state(false);
   let error = $state('');
+  /** Engine family the failed run was missing; shown with its install button. */
+  let needFamily = $state<string | null>(null);
   let result = $state<{ url: string; info: SpeechResult } | null>(null);
   let controller: AbortController | null = null;
 
@@ -50,6 +54,7 @@
     controller = c;
     busy = true;
     error = '';
+    needFamily = null;
     try {
       const info = await fetchSpeech(
         app.inferenceUrl,
@@ -62,8 +67,8 @@
     } catch (e) {
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
-        const family = /runtime\.family_not_installed:\s*([\w.+-]+)/.exec(msg)?.[1];
-        error = family ? t('lib.runtime_needs_hint', { runtime: family }) : localizeError(e);
+        needFamily = familyFromError(msg);
+        error = needFamily ? '' : localizeError(e);
       }
     } finally {
       if (controller === c) {
@@ -219,7 +224,11 @@
     </div>
   </section>
 
-  {#if error}
+  {#if needFamily}
+    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
+      <EngineNeeded family={needFamily} onInstalled={() => (needFamily = null)} />
+    </div>
+  {:else if error}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
       {error}
     </div>

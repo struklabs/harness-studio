@@ -30,6 +30,12 @@ pub(crate) fn get_launch_at_login(app: tauri::AppHandle) -> bool {
 pub(crate) fn set_launch_at_login(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
     use tauri_plugin_autostart::ManagerExt;
     let autolaunch = app.autolaunch();
+    // The login entry names this executable; a translocated copy is gone after a restart.
+    if enabled {
+        if let Ok(exe) = std::env::current_exe() {
+            crate::integrations::cli_install::refuse_translocated(&exe)?;
+        }
+    }
     let result = if enabled {
         autolaunch.enable()
     } else {

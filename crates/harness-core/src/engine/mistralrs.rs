@@ -1,9 +1,9 @@
 //! mistral.rs as an [`Engine`]: Hugging Face safetensors checkpoints (LLMs and VLMs) served
-//! directly from their repo folder behind an OpenAI-compatible chat server.
+//! directly from their repo folder behind an OpenAI-compatible chat server (ROADMAP D6).
 //!
 //! There is no managed download: the official Windows release is CPU-only, so the user builds
 //! the CLI (`cargo build --release --features cuda -p mistralrs-cli`) and registers the folder
-//! that holds `mistralrs(.exe)` as a local runtime (Settings > Runtime, family
+//! that holds `mistralrs(.exe)` as a local runtime (Settings > Registry, family
 //! `mistral.rs`). A launch runs
 //!
 //! ```text

@@ -13,7 +13,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/struklabs/harness-studio/total?label=downloads)](https://github.com/struklabs/harness-studio/releases)
 [![Discussions](https://img.shields.io/github/discussions/struklabs/harness-studio?label=discussions)](https://github.com/struklabs/harness-studio/discussions)
-![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%2FmacOS%20coming%20soon-blue)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20coming%20soon-blue)
 [![Stars](https://img.shields.io/github/stars/struklabs/harness-studio?style=social)](https://github.com/struklabs/harness-studio/stargazers)
 
 [Download](https://github.com/struklabs/harness-studio/releases/latest) · [User guide](docs/guide/en/README.md) · [FAQ](#faq) · [Roadmap](docs/en/ROADMAP.md) · [Support the project](#how-you-can-support-the-project)
@@ -53,7 +53,7 @@ Harness Studio is a desktop app built with Tauri, Rust, and Svelte. It manages t
 
 ## Quick start in 3 steps
 
-1. **Download and install.** Get the Windows installer (`Harness Studio_..._x64-setup.exe`, about 21 MB) from the [Releases page](https://github.com/struklabs/harness-studio/releases/latest) and run it. The installer is **not code-signed yet**, so Windows SmartScreen may say "Windows protected your PC". Click **More info**, then **Run anyway**. The source code and the build workflow are open in this repository.
+1. **Download and install.** Get the installer for your system from the [Releases page](https://github.com/struklabs/harness-studio/releases/latest). **Windows:** run `Harness Studio_..._x64-setup.exe` (about 21 MB). The installer is **not code-signed yet**, so Windows SmartScreen may say "Windows protected your PC". Click **More info**, then **Run anyway**. **macOS:** open the DMG for your Mac (`Harness Studio_..._aarch64.dmg` for Apple Silicon, about 29 MB; `Harness Studio_..._x64.dmg` for Intel, about 32 MB) and drag **Harness Studio** to **Applications**. The app is signed with an Apple Developer ID and notarized by Apple, so it opens like any other downloaded app. The source code and the build workflow are open in this repository.
 2. **Follow the first-run wizard.** It looks at your hardware, asks where to keep models, installs the engine that runs them, and lets you choose your privacy settings. Pick the **Simple** interface level if you are new to this.
 3. **Pick a model and chat.** In **Model Hub**, choose a recommended model that fits your computer (the app shows a fit estimate) and press **Download**. Then open **Dashboard**, select the model, press **Start Server**, open **Playground**, and say hello.
 
@@ -61,15 +61,16 @@ Step by step, with every screen explained: [User guide](docs/guide/en/README.md)
 
 ## System requirements
 
-These are the requirements of **Harness Studio itself**, not of any model. Figures are measured on v0.1.0 for Windows.
+These are the requirements of **Harness Studio itself**, not of any model. Figures are measured on v0.1.0 on Windows and on macOS (Apple M1, 8 GB).
 
 | | |
 |---|---|
-| **Operating system** | Windows 10 or 11, 64-bit. Linux and macOS are *coming soon* (see [Roadmap](#roadmap)). |
-| **Installer size** | About 21 MB |
-| **Installed size** | About 65 MB. On top of that, the app downloads the model engines it needs on demand (a llama.cpp build is tens of MB; CUDA builds are larger). |
-| **Memory used by the app** | About 250-350 MB of RAM for the app itself (interface plus WebView2), before any model is loaded |
+| **Operating system** | Windows 10 or 11, 64-bit, or macOS 13.3 or later on Apple Silicon (with Metal acceleration) or Intel (CPU only). Linux is *coming soon* (see [Roadmap](#roadmap)). |
+| **Installer size** | About 21 MB on Windows; on macOS the DMG is about 29 MB (Apple Silicon) or 32 MB (Intel) |
+| **Installed size** | About 65 MB (about 64 MB on macOS). On top of that, the app downloads the model engines it needs on demand (a llama.cpp build is tens of MB; CUDA builds are larger). |
+| **Memory used by the app** | About 250-350 MB of RAM for the app itself (interface plus WebView2), before any model is loaded. On macOS about 250 MB (interface plus WebKit). |
 | **WebView2** | Preinstalled on Windows 11. On Windows 10 the installer sets it up automatically if it is missing (this needs an internet connection once). |
+| **macOS** | A disk image (DMG): open it and drag the app to Applications. The app is signed with a Developer ID and notarized by Apple; microphone and Terminal-control permissions carry over to updates. |
 | **Graphics card** | **Not required.** The CPU works. A GPU only makes models faster. |
 | **Disk for models** | Depends on the model: from about 100 MB for a tiny model to 10 GB or more for a large one. You choose the folder, including another drive. |
 | **Internet** | Needed to download the app, engines, and models. Not needed to chat once a model is on your disk. |
@@ -288,7 +289,7 @@ Use Windows **Apps > Installed apps**. Uninstalling does not delete your data. S
 <details>
 <summary><b>Does it run on Linux or macOS?</b></summary>
 
-Builds for both exist, but they are not yet verified on real machines, so they are marked **coming soon**. Verifying and publishing them is the top item on the [roadmap](#roadmap). You can build from source and try, but expect rough edges.
+macOS: yes. There is a DMG for Apple Silicon (with Metal acceleration) and one for Intel Macs (CPU only), for macOS 13.3 or later; see [Quick start](#quick-start-in-3-steps) for the first-open step. Linux builds exist, but they are not yet verified on real machines, so they are marked **coming soon**. Verifying and publishing them is on the [roadmap](#roadmap). You can build from source and try, but expect rough edges.
 </details>
 
 <details>
@@ -348,7 +349,7 @@ The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction
 - **Server mode:** manage Harness on your own server from a web interface, with passwords or tokens, domain and automatic SSL, a systemd service, and Docker images (CUDA, ROCm, Vulkan, CPU)
 - **Harness Link:** use models from another Harness instance in your library, Playground, and gateway
 - Linux packages (`.deb`, tar.gz) and macOS app, including an MLX engine for Apple Silicon
-- Code-signed Windows installer and notarized macOS app; automatic app updates
+- Code-signed Windows installer; automatic app updates
 - TypeScript and Python SDKs for the Control API; decision-model endpoints
 
 **Later:** a community registry of tools and MCP servers, a ComfyUI bridge, a tool router, and more creation pages.

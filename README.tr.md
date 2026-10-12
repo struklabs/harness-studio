@@ -13,7 +13,7 @@
 [![Lisans: MIT](https://img.shields.io/badge/lisans-MIT-green.svg)](LICENSE)
 [![İndirmeler](https://img.shields.io/github/downloads/struklabs/harness-studio/total?label=indirme)](https://github.com/struklabs/harness-studio/releases)
 [![Tartışmalar](https://img.shields.io/github/discussions/struklabs/harness-studio?label=tart%C4%B1%C5%9Fmalar)](https://github.com/struklabs/harness-studio/discussions)
-![Platformlar](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%2FmacOS%20yak%C4%B1nda-blue)
+![Platformlar](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20yak%C4%B1nda-blue)
 [![Yıldızlar](https://img.shields.io/github/stars/struklabs/harness-studio?style=social)](https://github.com/struklabs/harness-studio/stargazers)
 
 [İndir](https://github.com/struklabs/harness-studio/releases/latest) · [Kullanım kılavuzu](docs/guide/tr/README.md) · [SSS](#sık-sorulan-sorular) · [Yol haritası](docs/tr/ROADMAP.md) · [Projeye destek olun](#projeye-nasıl-destek-olabilirsiniz)
@@ -53,7 +53,7 @@ Harness Studio; Tauri, Rust ve Svelte ile yazılmış bir masaüstü uygulaması
 
 ## 3 adımda hızlı başlangıç
 
-1. **İndirin ve kurun.** [Sürümler sayfasından](https://github.com/struklabs/harness-studio/releases/latest) Windows kurulum dosyasını (`Harness Studio_..._x64-setup.exe`, yaklaşık 21 MB) indirip çalıştırın. Kurulum dosyası **henüz dijital olarak imzalı değildir**; bu yüzden Windows SmartScreen "Windows bilgisayarınızı korudu" diyebilir. **Ek bilgi**'ye, sonra **Yine de çalıştır**'a tıklayın. Kaynak kod ve derleme akışı bu depoda açıktır.
+1. **İndirin ve kurun.** [Sürümler sayfasından](https://github.com/struklabs/harness-studio/releases/latest) sisteminize uygun kurulum dosyasını indirin. **Windows:** `Harness Studio_..._x64-setup.exe` dosyasını (yaklaşık 21 MB) çalıştırın. Kurulum dosyası **henüz dijital olarak imzalı değildir**; bu yüzden Windows SmartScreen "Windows bilgisayarınızı korudu" diyebilir. **Ek bilgi**'ye, sonra **Yine de çalıştır**'a tıklayın. **macOS:** Mac'inize uygun DMG'yi (Apple Silicon için `Harness Studio_..._aarch64.dmg`, yaklaşık 29 MB; Intel için `Harness Studio_..._x64.dmg`, yaklaşık 32 MB) açın ve **Harness Studio**'yu **Uygulamalar** klasörüne sürükleyin. Uygulama Apple Developer ID ile imzalı ve Apple tarafından noter onaylıdır (notarized); indirilen her uygulama gibi açılır. Kaynak kod ve derleme akışı bu depoda açıktır.
 2. **İlk açılış sihirbazını izleyin.** Donanımınıza bakar, modellerin nerede saklanacağını sorar, modelleri çalıştıran motoru kurar ve gizlilik ayarlarını seçmenizi sağlar. Yeniyseniz **Basit** arayüz düzeyini seçin.
 3. **Model seçin ve sohbet edin.** **Model Hub**'da bilgisayarınıza uyan önerilen bir model seçin (uygulama uyum tahmini gösterir) ve **İndir**'e basın. Sonra **Dashboard**'u açın, modeli seçin, **Sunucuyu Başlat**'a basın, **Playground**'u açıp merhaba deyin.
 
@@ -61,15 +61,16 @@ Her ekranın anlatıldığı adım adım rehber: [Kullanım kılavuzu](docs/guid
 
 ## Sistem gereksinimleri
 
-Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değil. Değerler v0.1.0'ın Windows sürümünde ölçülmüştür.
+Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değil. Değerler v0.1.0'ın Windows ve macOS (Apple M1, 8 GB) sürümlerinde ölçülmüştür.
 
 | | |
 |---|---|
-| **İşletim sistemi** | 64 bit Windows 10 veya 11. Linux ve macOS *yakında* (bkz. [Yol haritası](#yol-haritası)). |
-| **Kurulum dosyası boyutu** | Yaklaşık 21 MB |
-| **Kurulu boyut** | Yaklaşık 65 MB. Bunun üstüne uygulama, gereken model motorlarını ihtiyaç olunca indirir (llama.cpp derlemesi onlarca MB; CUDA derlemeleri daha büyük). |
-| **Uygulamanın bellek kullanımı** | Hiçbir model yüklenmeden uygulamanın kendisi (arayüz ve WebView2) yaklaşık 250-350 MB RAM kullanır |
+| **İşletim sistemi** | 64 bit Windows 10 veya 11 ya da macOS 13.3 veya üstü: Apple Silicon (Metal hızlandırmalı) veya Intel (yalnızca CPU). Linux *yakında* (bkz. [Yol haritası](#yol-haritası)). |
+| **Kurulum dosyası boyutu** | Windows'ta yaklaşık 21 MB; macOS'ta DMG yaklaşık 29 MB (Apple Silicon) veya 32 MB (Intel) |
+| **Kurulu boyut** | Yaklaşık 65 MB (macOS'ta yaklaşık 64 MB). Bunun üstüne uygulama, gereken model motorlarını ihtiyaç olunca indirir (llama.cpp derlemesi onlarca MB; CUDA derlemeleri daha büyük). |
+| **Uygulamanın bellek kullanımı** | Hiçbir model yüklenmeden uygulamanın kendisi (arayüz ve WebView2) yaklaşık 250-350 MB RAM kullanır. macOS'ta yaklaşık 250 MB (arayüz ve WebKit). |
 | **WebView2** | Windows 11'de hazır gelir. Windows 10'da eksikse kurulum dosyası otomatik kurar (bunun için bir kez internet gerekir). |
+| **macOS** | Disk görüntüsü (DMG): açın ve uygulamayı Uygulamalar klasörüne sürükleyin. Uygulama Developer ID ile imzalı ve Apple tarafından noter onaylıdır; mikrofon ve Terminal'i denetleme izinleri güncellemelerde korunur. |
 | **Ekran kartı** | **Gerekmez.** İşlemci (CPU) de çalışır. GPU yalnızca modelleri hızlandırır. |
 | **Modeller için disk** | Modele göre değişir: küçük bir model için yaklaşık 100 MB, büyük biri için 10 GB ve üstü. Klasörü, başka bir sürücü dahil, siz seçersiniz. |
 | **İnternet** | Uygulamayı, motorları ve modelleri indirmek için gerekir. Model diskinizdeyse sohbet için gerekmez. |
@@ -288,7 +289,7 @@ Windows'ta **Uygulamalar > Yüklü uygulamalar**'ı kullanın. Kaldırmak verile
 <details>
 <summary><b>Linux veya macOS'ta çalışır mı?</b></summary>
 
-İkisi için de derlemeler var ama gerçek makinelerde henüz doğrulanmadı; bu yüzden **yakında** olarak işaretli. Bunları doğrulayıp yayımlamak [yol haritasının](#yol-haritası) en üst maddesidir. Kaynaktan derleyip deneyebilirsiniz; ama pürüzler bekleyin.
+macOS: evet. Apple Silicon (Metal hızlandırmalı) ve Intel Mac'ler (yalnızca CPU) için birer DMG var; macOS 13.3 veya üstü gerekir. İlk açılış adımı için bkz. [Hızlı başlangıç](#3-adımda-hızlı-başlangıç). Linux derlemeleri var ama gerçek makinelerde henüz doğrulanmadı; bu yüzden **yakında** olarak işaretli. Bunları doğrulayıp yayımlamak [yol haritasındadır](#yol-haritası). Kaynaktan derleyip deneyebilirsiniz; ama pürüzler bekleyin.
 </details>
 
 <details>
@@ -348,7 +349,7 @@ Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, y
 - **Sunucu kipi:** Harness'i kendi sunucunuzda web arayüzünden yönetin; parola ya da token oturumları, alan adı ve otomatik SSL, systemd servisi ve Docker imajları (CUDA, ROCm, Vulkan, CPU)
 - **Harness Link:** başka bir Harness örneğinin modellerini kütüphanenizde, Playground'da ve ağ geçidinde kullanın
 - Linux paketleri (`.deb`, tar.gz) ve macOS uygulaması, Apple Silicon için MLX motoru dahil
-- İmzalı Windows kurulum dosyası ve noter onaylı (notarized) macOS uygulaması; otomatik uygulama güncellemesi
+- İmzalı Windows kurulum dosyası; otomatik uygulama güncellemesi
 - Control API için TypeScript ve Python SDK'ları; karar modeli uç noktaları
 
 **Daha sonra:** araçlar ve MCP sunucuları için topluluk kayıt defteri, ComfyUI köprüsü, araç yönlendirici ve daha çok üretim sayfası.
