@@ -403,6 +403,26 @@ impl McpHub {
             })
     }
 
+    /// Drops the connection of a server that was found dead mid-call and starts it again.
+    async fn reconnect(
+        &self,
+        name: &str,
+        failed: &Arc<McpConnection>,
+    ) -> Result<Arc<McpConnection>, String> {
+        {
+            let _g = self.inner.sync_lock.lock().await;
+            // Another call may have replaced it already; keep that one.
+            let same = lock(&self.inner.slots)
+                .get(name)
+                .and_then(|s| s.conn.as_ref())
+                .is_some_and(|c| Arc::ptr_eq(c, failed));
+            if same {
+                self.remove_server(name);
+            }
+        }
+        self.connection(name).await
+    }
+
     /// Status of every configured server.
     pub fn status(&self) -> Vec<McpServerStatus> {
         let defs = self.defs().unwrap_or_default();
@@ -652,8 +672,22 @@ impl Tool for McpTool {
                     ToolError::failed(format!("MCP server \"{}\": {e}", self.server))
                 }
             })?;
-            conn.call_tool(&self.remote, args, ctx.timeout, &ctx.cancel)
+            match conn
+                .call_tool_once(&self.remote, args.clone(), ctx.timeout, &ctx.cancel)
                 .await
+            {
+                Err((_, true)) if !ctx.cancel.is_cancelled() => {
+                    // The connection died before any answer: drop it, start the server again
+                    // and try once more (nothing was answered, so nothing is repeated).
+                    let conn = hub.reconnect(&self.server, &conn).await.map_err(|e| {
+                        ToolError::failed(format!("MCP server \"{}\": {e}", self.server))
+                    })?;
+                    conn.call_tool(&self.remote, args, ctx.timeout, &ctx.cancel)
+                        .await
+                }
+                Ok(o) => Ok(o),
+                Err((e, _)) => Err(e),
+            }
         })
     }
 }
