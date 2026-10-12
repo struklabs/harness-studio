@@ -37,6 +37,11 @@ pub struct FullOffload {
     /// `Some(1)` when only one slot keeps the whole model on the GPU at this context; `None`
     /// leaves the automatic slot count alone.
     pub slots: Option<u32>,
+    /// The automatic KV cache types (K, V) this load is estimated with and the launch's
+    /// automatic policy picks ([`crate::kv_policy::choose`]): q8_0 / q8_0 when f16 at this
+    /// context breaks Apple unified memory's limits ([`unified_fits`]). `None`: not known.
+    pub cache_type_k: Option<&'static str>,
+    pub cache_type_v: Option<&'static str>,
     /// The whole model is on the GPU (a full offload) rather than the hybrid fallback at the
     /// floor context; only a full offload is admitted against [`crate::vram::full_offload_headroom`].
     #[serde(skip)]
@@ -127,6 +132,22 @@ pub fn unified_kv_cap(ram_bytes: u64) -> Option<u64> {
     (ram_bytes > 0 && ram_bytes <= UNIFIED_SMALL_RAM).then_some(ram_bytes / 8)
 }
 
+/// Whether the estimate `r` at context `ctx` keeps to the limits of Apple unified memory (not
+/// an iGPU on Windows / Linux, which keeps its own rule; `true` elsewhere): it leaves the OS its
+/// share ([`unified_os_reserve`]) and does not reserve a huge cache for a small model
+/// ([`unified_kv_cap`], the floor context exempt). The automatic cache choice
+/// ([`crate::kv_policy::choose`]) applies it too, so a rung that breaks it gives way to q8_0 /
+/// q8_0 at the same context before the rule steps the context down.
+pub fn unified_fits(r: &crate::vram::FitResult, ctx: u32) -> bool {
+    if !r.budget.unified || r.budget.shared_igpu {
+        return true;
+    }
+    let ram = r.budget.ram_bytes;
+    r.estimate.vram_bytes <= ram.saturating_sub(unified_os_reserve(ram))
+        && (ctx <= FULL_OFFLOAD_MIN_CONTEXT
+            || unified_kv_cap(ram).is_none_or(|cap| r.estimate.kv_bytes <= cap))
+}
+
 /// [`full_offload_context`] with the fit and the largest estimate (`need_limit`, see
 /// [`os_need_limit`]) given. A context whose full offload is estimated above `need_limit` is
 /// skipped, so the rule steps down (12k to 8k) instead of the admission cutting layers later.
@@ -153,17 +174,8 @@ pub fn full_offload_context_with(
         fit(&c)
     };
     let whole = |r: &crate::vram::FitResult, ctx: u32| {
-        // Apple unified memory (not an iGPU on Windows / Linux, which keeps its own rule):
-        // leave the OS its share and do not reserve a huge cache for a small model.
-        let unified = r.budget.unified && !r.budget.shared_igpu;
-        let unified_ok = !unified || {
-            let ram = r.budget.ram_bytes;
-            r.estimate.vram_bytes <= ram.saturating_sub(unified_os_reserve(ram))
-                && (ctx <= FULL_OFFLOAD_MIN_CONTEXT
-                    || unified_kv_cap(ram).is_none_or(|cap| r.estimate.kv_bytes <= cap))
-        };
         u64::from(r.recommended_gpu_layers) > r.estimate.total_layers
-            && unified_ok
+            && unified_fits(r, ctx)
             && need_limit.is_none_or(|limit| r.estimate.vram_bytes <= limit)
     };
     let mut contexts = vec![context];
@@ -183,24 +195,37 @@ pub fn full_offload_context_with(
         for &slots in slot_tries {
             let r = at(ctx, slots);
             if whole(&r, ctx) {
+                let (cache_type_k, cache_type_v) = cache_types(&r);
                 return Some(FullOffload {
                     context: ctx,
                     layers: r.recommended_gpu_layers,
                     // Only worth forcing when the automatic count did not fit.
                     slots,
+                    cache_type_k,
+                    cache_type_v,
                     whole: true,
                 });
             }
         }
     }
     let floor = FIT_MIN_CONTEXT.min(context);
-    let layers = at(floor, None).recommended_gpu_layers;
-    (layers > 0).then_some(FullOffload {
+    let r = at(floor, None);
+    let (cache_type_k, cache_type_v) = cache_types(&r);
+    (r.recommended_gpu_layers > 0).then_some(FullOffload {
         context: floor,
-        layers,
+        layers: r.recommended_gpu_layers,
         slots: None,
+        cache_type_k,
+        cache_type_v,
         whole: false,
     })
+}
+
+/// The automatic cache types of an estimate, `(None, None)` when it has no automatic choice.
+fn cache_types(r: &crate::vram::FitResult) -> (Option<&'static str>, Option<&'static str>) {
+    r.kv.as_ref()
+        .and_then(|kv| kv.level.types())
+        .map_or((None, None), |(k, v)| (Some(k), Some(v)))
 }
 
 /// Whether a start with the automatic context may take this rule: `-ngl` is the estimate's
@@ -908,6 +933,187 @@ mod tests {
         );
         // The same model on a 64 GB Mac keeps the full default context.
         assert_eq!(unified_load(64, None).context, 32_768);
+    }
+
+    /// The default load of Qwen3-4B-Instruct-2507 Q4_K_M (36 layers + output, 8 KV heads of
+    /// 128) on an Apple Silicon Mac of `ram_gib` (Metal working set 2/3 of RAM), with the
+    /// launch's `custom_args`. Also returns the fit of the chosen launch.
+    fn unified_4b_load(
+        ram_gib: u64,
+        custom_args: Option<&str>,
+    ) -> (FullOffload, crate::vram::FitResult) {
+        let (size, meta) = shape_of("Qwen3-4B-Instruct-2507-Q4_K_M.gguf");
+        let budget = crate::vram::MemoryBudget {
+            vram_bytes: crate::hardware::macos_gpu_budget(ram_gib << 30, None),
+            ram_bytes: ram_gib << 30,
+            unified: true,
+            shared_igpu: false,
+            igpu_offload_faster: None,
+            cuda: false,
+            rocm: false,
+        };
+        let fit = |c: &crate::process::LaunchConfig| {
+            let mut base = crate::vram::base_input_from_launch(c);
+            base.model_size_bytes = size;
+            crate::vram::fit_launch_with(
+                c,
+                &base,
+                Some(&meta),
+                &budget,
+                &[],
+                true,
+                crate::hardware::RecommendedBackend::Metal,
+            )
+        };
+        // `ProcessManager::start`: the context resolved to the chat default, then the rule.
+        let mut launch = crate::process::LaunchConfig {
+            context_size: crate::prepare::default_chat_context(meta.context_length),
+            gpu_layers: 999,
+            gpu_layers_auto: true,
+            custom_args: custom_args.map(String::from),
+            ..Default::default()
+        };
+        let requested = launch.context_size;
+        let f = apply_to_launch_with(&mut launch, requested, fit, None).unwrap();
+        (f, fit(&launch))
+    }
+
+    /// KV bytes per token of Qwen3-4B with f16: 36 layers x 8 KV heads x 128 x (K, V) x 2 bytes.
+    const QWEN3_4B_KV_F16_PER_TOKEN: u64 = 36 * 8 * 128 * 2 * 2;
+
+    #[test]
+    fn an_8gb_mac_takes_q8_0_at_the_same_context_before_stepping_down() {
+        // Live (MacBook Air M1 8 GB): f16 fit Metal's working set but not the 1 GiB cache cap at
+        // any step above the floor, so Qwen3-4B started at -c 8192 -np 1 with f16 KV (1.1 GiB
+        // of cache). q8_0 / q8_0 at a step keeps under the cap: a bigger context in less memory.
+        // 12k (918 MiB of q8_0 cache); 16k with q8_0 is 1224 MiB, still above the cap.
+        let (f, r) = unified_4b_load(8, None);
+        let cap = unified_kv_cap(8 << 30).unwrap();
+        assert!(f.whole, "{f:?}");
+        assert_eq!((f.context, f.layers, f.slots), (12_288, 37, None), "{f:?}");
+        assert!(
+            16_384 * QWEN3_4B_KV_F16_PER_TOKEN / 32 * 17 > cap,
+            "q8_0 at 16k"
+        );
+        assert_eq!(
+            (f.cache_type_k, f.cache_type_v),
+            (Some("q8_0"), Some("q8_0"))
+        );
+        // f16 at this context would break the cap; q8_0 does not.
+        assert!(
+            u64::from(f.context) * QWEN3_4B_KV_F16_PER_TOKEN > cap,
+            "{f:?}"
+        );
+        let kv = r.kv.as_ref().unwrap();
+        assert_eq!(
+            kv.level,
+            crate::kv_policy::KvLevel::Balanced,
+            "the launch's own choice"
+        );
+        assert!(
+            r.estimate.kv_bytes <= cap,
+            "{} > {cap}",
+            r.estimate.kv_bytes
+        );
+        assert!(
+            r.estimate.kv_bytes < 8192 * QWEN3_4B_KV_F16_PER_TOKEN,
+            "less than f16 at 8k"
+        );
+        assert!(unified_fits(&r, f.context));
+        // The launch's KV policy picks the same types and turns flash attention on.
+        let (_, meta) = shape_of("Qwen3-4B-Instruct-2507-Q4_K_M.gguf");
+        let mut launch = crate::process::LaunchConfig {
+            context_size: f.context,
+            gpu_layers: f.layers,
+            parallel_slots: f.slots,
+            ..Default::default()
+        };
+        let applied = crate::kv_policy::apply(&mut launch, Some(&meta), &r.budget, &[], true);
+        assert_eq!(launch.cache_type_k.as_deref(), Some("q8_0"));
+        assert_eq!(launch.cache_type_v.as_deref(), Some("q8_0"));
+        assert!(launch.flash_attn && applied.flash_attn_forced);
+    }
+
+    #[test]
+    fn without_flash_attention_an_8gb_mac_keeps_f16_and_steps_down() {
+        // A quantized V needs flash attention and q8_0 / f16 is slow on Metal: the context steps
+        // down to the floor, as before.
+        let (f, r) = unified_4b_load(8, Some("-fa off"));
+        assert_eq!(f.context, FULL_OFFLOAD_MIN_CONTEXT, "{f:?}");
+        assert_eq!((f.cache_type_k, f.cache_type_v), (Some("f16"), Some("f16")));
+        assert_eq!(r.kv.unwrap().level, crate::kv_policy::KvLevel::Full);
+    }
+
+    #[test]
+    fn f16_stays_where_it_fits_the_unified_limits() {
+        // A 64 GB Mac: no cap, the full default context with f16.
+        let (g, _) = unified_4b_load(64, None);
+        assert_eq!(g.context, 32_768, "{g:?}");
+        assert_eq!((g.cache_type_k, g.cache_type_v), (Some("f16"), Some("f16")));
+        // A 16 GB Mac (2 GiB cap): f16 at 24k (3.4 GiB) breaks it, q8_0 at 24k does not.
+        let (f, r16) = unified_4b_load(16, None);
+        assert_eq!(f.context, 24_576, "{f:?}");
+        assert_eq!(f.cache_type_k, Some("q8_0"), "{f:?}");
+        // The automatic cache at a context whose f16 cache fits: f16.
+        let (_, r8) = unified_4b_load(8, None);
+        let (size, meta) = shape_of("Qwen3-4B-Instruct-2507-Q4_K_M.gguf");
+        let auto_kv = |context_size: u32, budget: &crate::vram::MemoryBudget| {
+            let mut input = crate::vram::input_from_launch(&crate::process::LaunchConfig {
+                context_size,
+                gpu_layers: 999,
+                ..Default::default()
+            });
+            input.model_size_bytes = size;
+            assert!(input.kv_auto);
+            let r = crate::vram::fit_with(&input, Some(&meta), budget, &[]);
+            r.kv.unwrap().level
+        };
+        use crate::kv_policy::KvLevel;
+        // 16 GB at 12k: 1.7 GiB of f16, under the 2 GiB cap.
+        assert_eq!(auto_kv(12_288, &r16.budget), KvLevel::Full);
+        // 8 GB at 4k and at the 8k floor (exempt from the cap).
+        assert_eq!(auto_kv(4096, &r8.budget), KvLevel::Full);
+        assert_eq!(auto_kv(8192, &r8.budget), KvLevel::Full);
+        assert_eq!(auto_kv(12_288, &r8.budget), KvLevel::Balanced);
+    }
+
+    #[test]
+    fn a_discrete_card_keeps_its_cache_choice() {
+        // Same model on a 4 GB CUDA card: the unified limits do not apply; 12k with the q8_0
+        // the card's own memory needs, as before.
+        let (f, r) = default_load("Qwen3-4B-Instruct-2507-Q4_K_M.gguf", None, 4, true);
+        assert_eq!(f.context, 12_288, "{f:?}");
+        assert_eq!(
+            (f.cache_type_k, f.cache_type_v),
+            (Some("q8_0"), Some("q8_0"))
+        );
+        assert_eq!(r, 36, "layers");
+        // The unified limits hold only on Apple unified memory.
+        let mut fit = crate::vram::fit_with(
+            &crate::vram::FitInput::default(),
+            None,
+            &crate::vram::MemoryBudget {
+                vram_bytes: 4 << 30,
+                ram_bytes: 8 << 30,
+                unified: false,
+                shared_igpu: false,
+                igpu_offload_faster: None,
+                cuda: true,
+                rocm: false,
+            },
+            &[],
+        );
+        fit.estimate.kv_bytes = 4 << 30;
+        assert!(unified_fits(&fit, 32_768));
+        fit.budget.unified = true;
+        fit.budget.shared_igpu = true;
+        assert!(unified_fits(&fit, 32_768), "an iGPU keeps its own rule");
+        fit.budget.shared_igpu = false;
+        assert!(!unified_fits(&fit, 32_768));
+        // A 16 GB AMD card: 32k with f16.
+        let (g, _) = default_load("Qwen3-4B-Instruct-2507-Q4_K_M.gguf", None, 16, false);
+        assert_eq!(g.context, 32_768, "{g:?}");
+        assert_eq!(g.cache_type_k, Some("f16"));
     }
 
     #[test]

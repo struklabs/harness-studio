@@ -1519,8 +1519,12 @@ pub fn base_input_from_launch(config: &crate::process::LaunchConfig) -> FitInput
             Some(ParamValue::Int(n)) => u32::try_from(*n).ok(),
             _ => None,
         },
-        flash_attn: crate::kv_policy::custom_args_disable_flash_attn(config.custom_args.as_deref())
-            .then_some(false),
+        // As the launch decides (`kv_policy::apply`): the user's arguments turn flash attention
+        // off, or the runtime has no `--flash-attn` (known only once its help was parsed).
+        flash_attn: (crate::kv_policy::custom_args_disable_flash_attn(
+            config.custom_args.as_deref(),
+        ) || !runtime_has_flash_attn(config))
+        .then_some(false),
         ubatch: config.physical_batch,
         swa_full: flag("swa_full").unwrap_or(false),
         kv_offload: flag("kv_offload"),
@@ -1537,6 +1541,15 @@ pub fn base_input_from_launch(config: &crate::process::LaunchConfig) -> FitInput
                 ..Default::default()
             }),
     })
+}
+
+/// The launch's runtime has `--flash-attn`; `true` while its help is not known (as the launch
+/// assumes for a runtime it cannot ask).
+fn runtime_has_flash_attn(config: &crate::process::LaunchConfig) -> bool {
+    let caps = crate::capabilities::registry().cached(&config.binary_path);
+    caps.as_ref()
+        .filter(|c| c.help_parsed)
+        .is_none_or(|c| c.has_flag("--flash-attn"))
 }
 
 /// After a successful start: parses the load log, asks the OS for the process's GPU memory
