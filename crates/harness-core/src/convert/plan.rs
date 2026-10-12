@@ -265,6 +265,39 @@ fn embedding_parameters_of(info: &Value) -> u64 {
         .map_or(0, |(v, h)| v * h)
 }
 
+/// Adds the fields of the repo's `config.json` that the Hub record lacks to `info["config"]`.
+/// The record's `config` carries only `architectures`, `model_type` and the tokenizer config:
+/// without `vocab_size` / `hidden_size` the token embedding is not counted and a small model's
+/// quantized size comes out about a quarter too small. Fields the record has stay.
+pub fn merge_config(info: &mut Value, full: Value) {
+    let (Some(record), Value::Object(full)) = (info.as_object_mut(), full) else {
+        return;
+    };
+    let config = record
+        .entry("config")
+        .or_insert_with(|| Value::Object(Default::default()));
+    if let Some(config) = config.as_object_mut() {
+        for (key, value) in full {
+            config.entry(key).or_insert(value);
+        }
+    }
+}
+
+/// The repo's `config.json` at the record's revision, for [`merge_config`]. Best effort: any
+/// failure leaves the record as it is (the estimate then ignores the embedding).
+async fn fetch_config(repo_id: &str, info: &Value, token: Option<&str>) -> Option<Value> {
+    let revision = info.get("sha").and_then(Value::as_str).unwrap_or("main");
+    let url = format!("https://huggingface.co/{repo_id}/resolve/{revision}/config.json");
+    let res = DownloadManager::apply_hf_auth(client().ok()?.get(&url), &url, token)
+        .send()
+        .await
+        .ok()?;
+    if !res.status().is_success() {
+        return None;
+    }
+    res.json().await.ok()
+}
+
 fn architecture_of(info: &Value) -> Option<String> {
     info.get("config")
         .and_then(|c| c.get("architectures"))
@@ -440,7 +473,12 @@ pub async fn converter_architectures(tag: &str) -> Result<Architectures, String>
 /// estimated); the parameter exists so callers read like [`super::start`].
 pub async fn plan(repo_id: &str, _quant: Option<&str>) -> Result<ConvertPlan, String> {
     let token = crate::hf_auth::current_token().await;
-    let info = fetch_info(repo_id, token.as_deref()).await?;
+    let mut info = fetch_info(repo_id, token.as_deref()).await?;
+    if embedding_parameters_of(&info) == 0 {
+        if let Some(full) = fetch_config(repo_id, &info, token.as_deref()).await {
+            merge_config(&mut info, full);
+        }
+    }
     let tag = super::runtime_tag();
     let archs = match &tag {
         Some(tag) => converter_architectures(tag).await.ok(),
