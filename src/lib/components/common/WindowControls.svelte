@@ -3,8 +3,8 @@
   // macOS keeps its native traffic lights (tauri.macos.conf.json), so this renders nothing there.
   import { onMount } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import { t } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
+  import { t } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
 
   let maximized = $state(false);
 

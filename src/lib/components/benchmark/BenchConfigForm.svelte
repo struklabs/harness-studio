@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
-  import { formatBytes } from '$lib/format';
-  import { app } from '$lib/stores/app.svelte';
-  import type { LocalModel } from '$lib/types';
+  import { t } from '#lib/i18n.svelte.js';
+  import { formatBytes } from '#lib/format.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import type { LocalModel } from '#lib/types.js';
   import {
     CACHE_TYPES,
     gpuLayerSweep,
@@ -11,13 +11,13 @@
     testCount,
     type BenchmarkRequest,
     type FlashAttnMode,
-  } from '$lib/benchmark-types';
-  import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '$lib/components/ui/card';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
+  } from '#lib/benchmark-types.js';
+  import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '#lib/components/ui/card/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
   import { AlertTriangle, Play, Settings } from '@lucide/svelte';
-  import { cn } from '$lib/utils';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     models: LocalModel[];

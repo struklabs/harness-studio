@@ -1,17 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { Copy } from '@lucide/svelte';
   import { toast } from 'svelte-sonner';
-  import type { RequestDetail } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import * as Sheet from '$lib/components/ui/sheet';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import StatRow from '$lib/components/perf/StatRow.svelte';
+  import type { RequestDetail } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import * as Sheet from '#lib/components/ui/sheet/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import StatRow from '#lib/components/perf/StatRow.svelte';
   import { NA, PHASE_COLORS, fmtBytes, fmtDateTime, fmtInt, fmtMs, fmtRate, fmtTps } from './anFormat';
   import { alsoClient, categoryLabel, linkedRequest, toolDiagnosis } from './toolDiag';
-  import { findAgentModel, listAgentModels, TOOL_MIN_ROUNDS, type AgentModel } from '$lib/components/connections/agentModels';
+  import { findAgentModel, listAgentModels, TOOL_MIN_ROUNDS, type AgentModel } from '#lib/components/connections/agentModels.js';
 
   interface Props {
     inline?: boolean;

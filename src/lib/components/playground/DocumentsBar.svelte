@@ -3,14 +3,14 @@
   // Documents attached to the open conversation (local RAG): one chip per document with its
   // indexing state, a popover per document (use, cancel, retry, remove) and the search settings
   // (embedding model, reranker, excerpts per question).
-  import { errorText } from '$lib/errors';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
+  import { errorText } from '#lib/errors.js';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import RagSettings from './RagSettings.svelte';
-  import { t, locale, type TKey } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { formatBytes } from '$lib/format';
-  import * as Popover from '$lib/components/ui/popover';
-  import { Button, buttonVariants } from '$lib/components/ui/button';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { formatBytes } from '#lib/format.js';
+  import * as Popover from '#lib/components/ui/popover/index.js';
+  import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
   import { AlertCircle, FileCode, FileText, LoaderCircle, Settings2, Trash2, RotateCcw, Square, Plus } from '@lucide/svelte';
   import { isActive, resolveEmbedModel, type RagDocument, type RagMode, type RagModels } from './rag';
   import type { PgSettings } from './types';

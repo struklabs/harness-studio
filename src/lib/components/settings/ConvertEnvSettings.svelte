@@ -2,16 +2,16 @@
   // Settings > Runtime > GGUF Conversion Environment: the throwaway Python environment
   // (uv + Python + torch CPU + the converter's packages) Harness builds to convert safetensors
   // repos to GGUF. Built on the first conversion or here; deletable at any time.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onDestroy, onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
-  import type { ConvertEnvStatus } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { formatBytes } from '$lib/format';
-  import { localizeError } from '$lib/network';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Progress } from '$lib/components/ui/progress';
+  import type { ConvertEnvStatus } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { formatBytes } from '#lib/format.js';
+  import { localizeError } from '#lib/network.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
   import SettingGroup from './SettingGroup.svelte';
 
   const fmt = (b: number) => formatBytes(b, 1);

@@ -3,9 +3,9 @@
   // Nothing is changed here: the wizard applies the choice when it finishes. Hidden when there is
   // no CLI binary or it is already reachable from new terminals.
   import { onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
-  import { t } from '$lib/i18n.svelte';
-  import { Switch } from '$lib/components/ui/switch';
+  import { invoke } from '#lib/ipc.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
 
   interface CliStatus {
     path: string | null;

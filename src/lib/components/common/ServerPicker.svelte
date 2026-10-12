@@ -1,10 +1,10 @@
 <script lang="ts">
   import { ChevronsUpDown, Plus } from '@lucide/svelte';
-  import { app, DEFAULT_SERVER_ID } from '$lib/stores/app.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { buttonVariants } from '$lib/components/ui/button';
-  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+  import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { buttonVariants } from '#lib/components/ui/button/index.js';
+  import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
   import { savedPortText, statusKind, type StatusKind } from '../servers/utils';
 
   const dot: Record<StatusKind, string> = {

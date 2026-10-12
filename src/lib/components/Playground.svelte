@@ -2,26 +2,26 @@
   import { guardToolCalls } from './playground/toolLoopGuard';
   import AdvancedOnly from './common/AdvancedOnly.svelte';
   import { PLAYGROUND_MODES, playgroundModeFromUrl } from './playground/navigation';
-  import { isVisible } from '$lib/uiLevel';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { isVisible } from '#lib/uiLevel.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedPageNotice from './common/AdvancedPageNotice.svelte';
   import { onMount, tick, untrack } from 'svelte';
   import { selectChatModel } from './playground/modelSelection';
   import { estimatePromptBudget, hasContextPressure } from './playground/contextBudget';
   import { definitionsForMode, selectModeModel } from './playground/modelModes';
-  import { library } from '$lib/stores/library.svelte';
-  import { holdReleaseWhile } from '$lib/windowActivity';
-  import { invoke } from '$lib/ipc';
+  import { library } from '#lib/stores/library.svelte.js';
+  import { holdReleaseWhile } from '#lib/windowActivity.js';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
-  import { ACTION_TOAST_DURATION } from '$lib/toast';
-  import { presetName } from '$lib/components/presets/presetText';
-  import { t, locale } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { app } from '$lib/stores/app.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import * as Empty from '$lib/components/ui/empty';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import * as Dialog from '$lib/components/ui/dialog';
+  import { ACTION_TOAST_DURATION } from '#lib/toast.js';
+  import { presetName } from '#lib/components/presets/presetText.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Empty from '#lib/components/ui/empty/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
   import { requestErrorText } from './connections/net';
   import ChatMessage from './playground/ChatMessage.svelte';
   import ChatInput from './playground/ChatInput.svelte';
@@ -46,25 +46,25 @@
   import { salvageToolCalls, TextCallStreamBuffer } from './playground/textToolCalls';
   import { chatRequest } from './playground/chatRequest';
   import { parseChoiceLogprobs, rememberLogprobs, type TokenLogprob } from './playground/logprobs';
-  import { parseTextToolCalls } from '$lib/tools-client';
+  import { parseTextToolCalls } from '#lib/tools-client.js';
   import ConversationSidebar from './playground/ConversationSidebar.svelte';
   import ModelPicker from './playground/ModelPicker.svelte';
   import { gatewayModelStates, type GatewayModelEntry, type ModelLoadState } from './playground/gatewayModels';
   import EmbeddingPanel from './playground/EmbeddingPanel.svelte';
   import RerankPanel from './playground/RerankPanel.svelte';
-  import { ensureLibraryDefinitions } from '$lib/stores/downloads.svelte';
-  import { kindsForTab } from '$lib/libraryDefinitions';
+  import { ensureLibraryDefinitions } from '#lib/stores/downloads.svelte.js';
+  import { kindsForTab } from '#lib/libraryDefinitions.js';
   import TranscribePanel from './playground/TranscribePanel.svelte';
   import ImagePanel from './playground/ImagePanel.svelte';
   import { imageSession } from './playground/image.svelte';
   import TtsPanel from './playground/TtsPanel.svelte';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
-  import { domain } from '$lib/stores/domain.svelte';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
   import { DEFAULT_PRESET_ID, presetFromRequest } from './presets/request';
-  import type { InferencePreset, ServeMode, LibraryView } from '$lib/types';
+  import type { InferencePreset, ServeMode, LibraryView } from '#lib/types.js';
   import { Unplug, MessageSquare, Plus, SlidersHorizontal, PanelLeft, TriangleAlert, Columns2 } from '@lucide/svelte';
   import SplitView from './playground/SplitView.svelte';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
   import {
     SIDES,
     COMPARE_KEY,
@@ -92,10 +92,10 @@
     type SideState,
     type StreamResult,
   } from './playground/split';
-  import { formatBytes } from '$lib/format';
-  import { formatTokens, formatTokenNumber } from '$lib/utils/tokens';
+  import { formatBytes } from '#lib/format.js';
+  import { formatTokens, formatTokenNumber } from '#lib/utils/tokens.js';
   import { SseParser, type SseEvent } from './playground/sse';
-  import { describeError } from '$lib/gateway-busy-text';
+  import { describeError } from '#lib/gateway-busy-text.js';
   import {
     ApprovalBroker,
     buildApiMessages,
@@ -132,10 +132,10 @@
     type ConversationView,
   } from './playground/conversations';
   import { isTurnEnd as turnEndAt, regeneratePlan, turnRoot, variantNavOf, variantTarget } from './playground/branching';
-  import { ToolCallAccumulator } from '$lib/mcp-client';
-  import { coreToolAsServerTool, getMcpStatus, listCoreTools, type ToolLimits } from '$lib/tools-client';
-  import type { ServerTool } from '$lib/mcp-types';
-  import { panes } from '$lib/stores/panes.svelte';
+  import { ToolCallAccumulator } from '#lib/mcp-client.js';
+  import { coreToolAsServerTool, getMcpStatus, listCoreTools, type ToolLimits } from '#lib/tools-client.js';
+  import type { ServerTool } from '#lib/mcp-types.js';
+  import { panes } from '#lib/stores/panes.svelte.js';
   import ResizablePane from './common/ResizablePane.svelte';
   import DocumentsBar from './playground/DocumentsBar.svelte';
   import McpResourcesButton from './playground/McpResourcesButton.svelte';
@@ -162,7 +162,7 @@
     type RagPrepared,
     type RagProgress,
   } from './playground/rag';
-  import { BackendError, errorText, rawError } from '$lib/errors';
+  import { BackendError, errorText, rawError } from '#lib/errors.js';
   import { listen } from '@tauri-apps/api/event';
   import { getCurrentWebview } from '@tauri-apps/api/webview';
   import { FileUp } from '@lucide/svelte';

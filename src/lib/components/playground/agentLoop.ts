@@ -8,8 +8,8 @@ import { guardToolCalls } from './toolLoopGuard';
 // shows the approval prompt when the core says "ask". That includes the tools of MCP servers,
 // which Harness's own MCP client (core, T3) runs.
 
-import { parseToolArgs } from '$lib/mcp-client';
-import type { ServerTool } from '$lib/mcp-types';
+import { parseToolArgs } from '#lib/mcp-client.js';
+import type { ServerTool } from '#lib/mcp-types.js';
 import {
   cancelCoreTool,
   coreToolDecision,
@@ -17,7 +17,7 @@ import {
   newRunId,
   runCoreTool,
   type ToolLimits,
-} from '$lib/tools-client';
+} from '#lib/tools-client.js';
 import type { ChatMessage, PgSettings, PgToolCall, ResponseStats } from './types';
 import { activeCompaction, summaryBlock } from './compaction.svelte';
 import { repairSearchQuery } from './searchQueryRepair';

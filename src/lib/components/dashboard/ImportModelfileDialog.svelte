@@ -2,13 +2,13 @@
   // Import of an Ollama Modelfile: previews what was mapped (values, model file) and what could
   // not be carried over (warnings), lets the user pick a free alias, then saves the definition
   // and its preset through the same command as a `.harness.toml` import.
-  import { invoke } from '$lib/ipc';
-  import type { ModelfileImport, ModelDefinition } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
+  import { invoke } from '#lib/ipc.js';
+  import type { ModelfileImport, ModelDefinition } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
   import { CircleCheck, TriangleAlert } from '@lucide/svelte';
   import Field from './parts/Field.svelte';
 

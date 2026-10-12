@@ -1,15 +1,15 @@
 <script lang="ts">
   // The safetensors to GGUF conversions of the Model Hub, listed next to the download queue:
   // each one shows its stage (environment, download, convert, quantize, finalize) and progress.
-  import { formatBytes } from '$lib/format';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import type { ConvertJob } from '$lib/types';
-  import { converts, isConvertActive } from '$lib/stores/converts.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Progress } from '$lib/components/ui/progress';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { cn } from '$lib/utils';
+  import { formatBytes } from '#lib/format.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import type { ConvertJob } from '#lib/types.js';
+  import { converts, isConvertActive } from '#lib/stores/converts.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { cn } from '#lib/utils.js';
   import { CircleAlert, CircleCheck, X } from '@lucide/svelte';
 
   const uid = $props.id();

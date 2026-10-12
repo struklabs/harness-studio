@@ -1,7 +1,7 @@
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { invoke } from '$lib/ipc';
-import { isIpc } from '$lib/ipcUrl';
+import { invoke } from '#lib/ipc.js';
+import { isIpc } from '#lib/ipcUrl.js';
 
 /**
  * Whether the window can be seen. WebView2 keeps `document.hidden === false` while the window is

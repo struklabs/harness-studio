@@ -2,8 +2,8 @@
 // and the suggestion shown in the request inspector. The gateway stores a category (who is at
 // fault), a finding code and a JSON evidence object; the wording lives in the locale files
 // (`td.t_<code>` headline, `td.s_<code>` suggestion).
-import { t, type TKey } from '$lib/i18n.svelte';
-import type { RequestRow } from '$lib/types';
+import { t, type TKey } from '#lib/i18n.svelte.js';
+import type { RequestRow } from '#lib/types.js';
 
 export type ToolCategory = 'runtime' | 'context' | 'model' | 'client';
 

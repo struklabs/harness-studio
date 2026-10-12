@@ -1,22 +1,22 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import AdvancedOnly from '$lib/components/common/AdvancedOnly.svelte';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import type { Snippet } from 'svelte';
-  import type { HardwareFitResult, LocalModel, ModelDefinition } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
+  import type { HardwareFitResult, LocalModel, ModelDefinition } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
   import { RefreshCw, FolderOpen, Download, CircleHelp, MoreHorizontal, Plus, Copy, Pencil, Trash2, FileDown, FileUp } from '@lucide/svelte';
-  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import { buttonVariants } from '$lib/components/ui/button';
-  import { cn } from '$lib/utils';
-  import { Button } from '$lib/components/ui/button';
-  import { Switch } from '$lib/components/ui/switch';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import * as Empty from '$lib/components/ui/empty';
+  import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+  import { buttonVariants } from '#lib/components/ui/button/index.js';
+  import { cn } from '#lib/utils.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import * as Empty from '#lib/components/ui/empty/index.js';
   import SectionLabel from './parts/SectionLabel.svelte';
   import DefinitionPicker from './model/DefinitionPicker.svelte';
-  import type { DefinitionAction } from '$lib/stores/domain.svelte';
+  import type { DefinitionAction } from '#lib/stores/domain.svelte.js';
   import ModelDetails from './model/ModelDetails.svelte';
   import RouterInfo from './model/RouterInfo.svelte';
 

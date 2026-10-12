@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
-  import { t, locale, type TKey } from '$lib/i18n.svelte';
-  import type { HfModelSearchResult, ModelCapability } from '$lib/types';
-  import { cn } from '$lib/utils';
-  import { library } from '$lib/stores/library.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import type { HfModelSearchResult, ModelCapability } from '#lib/types.js';
+  import { cn } from '#lib/utils.js';
+  import { library } from '#lib/stores/library.svelte.js';
   import PublisherAvatar from './PublisherAvatar.svelte';
   import UpdateBadge from './UpdateBadge.svelte';
-  import { showUpdateBadge } from '$lib/downloadFollowUp';
+  import { showUpdateBadge } from '#lib/downloadFollowUp.js';
   import { taskInfo } from './tasks';
   import { formatName, notRunnableKey, taskSourceKey } from './inference';
   import { taskSupportStore } from './taskSupport.svelte';

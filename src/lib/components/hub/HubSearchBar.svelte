@@ -1,13 +1,13 @@
 <script lang="ts">
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import type { HfSortKey } from '$lib/types';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { cn } from '$lib/utils';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
+  import { t } from '#lib/i18n.svelte.js';
+  import type { HfSortKey } from '#lib/types.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { cn } from '#lib/utils.js';
   import { Search, SlidersHorizontal, LayoutGrid, List, Link, LoaderCircle } from '@lucide/svelte';
   import FilterSelect from './FilterSelect.svelte';
 

@@ -1,13 +1,13 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { Check, TriangleAlert, X } from '@lucide/svelte';
-  import type { AppSettings, SystemHardwareInfo } from '$lib/types';
-  import { dialog } from '$lib/actions/dialog';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Progress } from '$lib/components/ui/progress';
-  import { cn } from '$lib/utils';
+  import type { AppSettings, SystemHardwareInfo } from '#lib/types.js';
+  import { dialog } from '#lib/actions/dialog.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
+  import { cn } from '#lib/utils.js';
   import { toast } from 'svelte-sonner';
   import BrandLogo from './common/BrandLogo.svelte';
   import StepHardware from './onboarding/StepHardware.svelte';

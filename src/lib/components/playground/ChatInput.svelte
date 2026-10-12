@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Kbd } from '$lib/components/ui/kbd';
-  import * as InputGroup from '$lib/components/ui/input-group';
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Kbd } from '#lib/components/ui/kbd/index.js';
+  import * as InputGroup from '#lib/components/ui/input-group/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
   import { ArrowUp, Paperclip, Square, Globe, ImagePlus, X } from '@lucide/svelte';
   import type { PgImage } from './images';
   import DictationButton from './DictationButton.svelte';

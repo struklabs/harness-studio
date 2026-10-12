@@ -1,7 +1,7 @@
 <script lang="ts">
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
   import { Info } from '@lucide/svelte';
-  import { t } from '$lib/i18n.svelte';
+  import { t } from '#lib/i18n.svelte.js';
   let { text, label = '' }: { text: string; label?: string } = $props();
   const uid = $props.id();
 </script>

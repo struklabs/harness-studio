@@ -1,6 +1,6 @@
 // Data access for "Harness MCP'yi ekle". All backend calls of HarnessMcp.svelte live here.
-import { invoke } from '$lib/ipc';
-import type { ControlApiOverview } from '$lib/types';
+import { invoke } from '#lib/ipc.js';
+import type { ControlApiOverview } from '#lib/types.js';
 import type { FileChange } from './integrations';
 
 export interface McpTarget {

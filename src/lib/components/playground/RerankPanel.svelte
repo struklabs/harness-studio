@@ -1,12 +1,12 @@
 <script lang="ts">
   import HelpPopover from '../common/HelpPopover.svelte';
   import Field from '../dashboard/parts/Field.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
+  import { t } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
   import { ListOrdered, TriangleAlert } from '@lucide/svelte';
   import TextListInput from './TextListInput.svelte';
   import { InvalidResponseError, fetchRerank, type RerankResult } from './embed';

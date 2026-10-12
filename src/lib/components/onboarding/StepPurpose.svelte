@@ -1,23 +1,23 @@
 <script lang="ts">
   import { PURPOSE_TOOLS } from './purposeCapabilities';
-  import { getToolSettings, setToolSettings, type ToolSettings } from '$lib/tools-client';
+  import { getToolSettings, setToolSettings, type ToolSettings } from '#lib/tools-client.js';
   import { onMount, onDestroy } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { Check, Info, LoaderCircle, MessageSquare, Code, FileSearch, Mic, ShieldAlert, TriangleAlert } from '@lucide/svelte';
   import type { Component } from 'svelte';
-  import type { RuntimeDownloadProgress, RuntimeEntry, SystemHardwareInfo } from '$lib/types';
-  import { formatBytes } from '$lib/format';
-  import { localizeError } from '$lib/network';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { downloads } from '$lib/stores/downloads.svelte';
-  import { library, repoRelative } from '$lib/stores/library.svelte';
-  import { runtimesStore } from '$lib/stores/runtimes.svelte';
-  import { isPending } from '$lib/components/hub/downloadQueue.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import { Progress } from '$lib/components/ui/progress';
-  import { cn } from '$lib/utils';
+  import type { RuntimeDownloadProgress, RuntimeEntry, SystemHardwareInfo } from '#lib/types.js';
+  import { formatBytes } from '#lib/format.js';
+  import { localizeError } from '#lib/network.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { downloads } from '#lib/stores/downloads.svelte.js';
+  import { library, repoRelative } from '#lib/stores/library.svelte.js';
+  import { runtimesStore } from '#lib/stores/runtimes.svelte.js';
+  import { isPending } from '#lib/components/hub/downloadQueue.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
+  import { cn } from '#lib/utils.js';
   import { PURPOSES, suggestFor, suggestionSelected, type ModelSuggestion, type Purpose, type PurposeResult, type Suggestion } from './suggest';
   import { findMcpServers, importMcpServers, MCP_SOURCE_LABEL, type FoundMcpServer } from './suggestMcp';
 

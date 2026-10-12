@@ -1,4 +1,4 @@
-import { locale as appLocale } from '$lib/i18n.svelte';
+import { locale as appLocale } from '#lib/i18n.svelte.js';
 
 export function formatTokens(n: number | null | undefined, locale: string = appLocale()): string {
   if (n == null || !Number.isFinite(n) || n < 0) return '0';

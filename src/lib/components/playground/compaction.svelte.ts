@@ -2,7 +2,7 @@
 // the trigger rule and `invoke` wrappers. The summary request itself runs in Rust; the request
 // builder (`buildApiMessages`) applies the active marker the same way `request_messages` does.
 
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 import type { ConversationView } from './conversations';
 
 /** Auto-compaction and summary settings (global defaults, or a conversation's own). */

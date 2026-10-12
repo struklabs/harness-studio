@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
-  import { Input } from '$lib/components/ui/input';
-  import { Button } from '$lib/components/ui/button';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import type { LaunchParamsForm } from '../params';
   import Field from '../parts/Field.svelte';
   import AdvSection from './AdvSection.svelte';

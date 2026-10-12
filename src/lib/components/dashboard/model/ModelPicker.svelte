@@ -1,11 +1,11 @@
 <script lang="ts">
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
-  import type { LocalModel } from '$lib/types';
-  import { formatBytes } from '$lib/format';
-  import { t } from '$lib/i18n.svelte';
-  import { sourceLabel, type LocalModelExt } from '$lib/import-types';
-  import * as Select from '$lib/components/ui/select';
-  import { Badge } from '$lib/components/ui/badge';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
+  import type { LocalModel } from '#lib/types.js';
+  import { formatBytes } from '#lib/format.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { sourceLabel, type LocalModelExt } from '#lib/import-types.js';
+  import * as Select from '#lib/components/ui/select/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
 
   interface Props {
     models: LocalModel[];

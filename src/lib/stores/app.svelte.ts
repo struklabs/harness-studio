@@ -1,6 +1,6 @@
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 import { listen } from '@tauri-apps/api/event';
-import { onWindowActivity, windowActive } from '$lib/windowActivity';
+import { onWindowActivity, windowActive } from '#lib/windowActivity.js';
 import type {
   ActiveServerInfo,
   AppSettings,
@@ -12,9 +12,9 @@ import type {
   ServerSummary,
   SystemHardwareInfo,
   TelemetrySnapshot,
-} from '$lib/types';
-import { t } from '$lib/i18n.svelte';
-import { assignSlots } from '$lib/serverColor';
+} from '#lib/types.js';
+import { t } from '#lib/i18n.svelte.js';
+import { assignSlots } from '#lib/serverColor.js';
 
 export const DEFAULT_SERVER_ID = 'default';
 const SELECTED_SERVER_KEY = 'harness_selected_server';

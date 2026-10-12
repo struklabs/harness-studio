@@ -1,10 +1,10 @@
 <script lang="ts">
   // Plain-language note for an automatic conversation-memory (KV cache) downgrade
   // (`harness_core::kv_policy`); the technical flags are in the tooltip.
-  import type { KvChoice } from '$lib/types';
-  import { formatBytes } from '$lib/format';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import type { KvChoice } from '#lib/types.js';
+  import { formatBytes } from '#lib/format.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
   import AdvancedOnly from '../../common/AdvancedOnly.svelte';
   import { MemoryStick } from '@lucide/svelte';
 

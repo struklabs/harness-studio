@@ -1,18 +1,18 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import HelpPopover from '../common/HelpPopover.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { untrack } from 'svelte';
   import { ShieldAlert } from '@lucide/svelte';
-  import { Button } from '$lib/components/ui/button';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import * as Field from '$lib/components/ui/field';
-  import { Input } from '$lib/components/ui/input';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { MCP_NAME_RE, formatKeyValueLines, parseKeyValueLines } from '$lib/mcp-client';
-  import { MCP_TRANSPORTS, type McpServerDef, type McpTransport } from '$lib/mcp-types';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import * as Field from '#lib/components/ui/field/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { MCP_NAME_RE, formatKeyValueLines, parseKeyValueLines } from '#lib/mcp-client.js';
+  import { MCP_TRANSPORTS, type McpServerDef, type McpTransport } from '#lib/mcp-types.js';
   import NativeSelect from '../dashboard/parts/NativeSelect.svelte';
 
   // Rendered inside <Dialog.Content>; the parent owns the dialog's open state.

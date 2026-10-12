@@ -1,26 +1,26 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import { localizeError } from '$lib/network';
+  import { localizeError } from '#lib/network.js';
   import { untrack } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { toast } from 'svelte-sonner';
-  import { formatBytes } from '$lib/format';
-  import { defaultLoadFit, toHardwareFit } from '$lib/fit';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { downloads } from '$lib/stores/downloads.svelte';
-  import { library, normPath, repoRelative } from '$lib/stores/library.svelte';
-  import type { HardwareFitResult, HfAccess, HfModelSearchResult, HfModelVariant, ImageBundlePlan, LocalModel, ModelArtifactUpdate, SystemHardwareInfo } from '$lib/types';
-  import * as Sheet from '$lib/components/ui/sheet';
-  import * as Table from '$lib/components/ui/table';
-  import * as Tabs from '$lib/components/ui/tabs';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Skeleton } from '$lib/components/ui/skeleton';
-  import { cn } from '$lib/utils';
+  import { formatBytes } from '#lib/format.js';
+  import { defaultLoadFit, toHardwareFit } from '#lib/fit.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { downloads } from '#lib/stores/downloads.svelte.js';
+  import { library, normPath, repoRelative } from '#lib/stores/library.svelte.js';
+  import type { HardwareFitResult, HfAccess, HfModelSearchResult, HfModelVariant, ImageBundlePlan, LocalModel, ModelArtifactUpdate, SystemHardwareInfo } from '#lib/types.js';
+  import * as Sheet from '#lib/components/ui/sheet/index.js';
+  import * as Table from '#lib/components/ui/table/index.js';
+  import * as Tabs from '#lib/components/ui/tabs/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Skeleton } from '#lib/components/ui/skeleton/index.js';
+  import { cn } from '#lib/utils.js';
   import { isPending, progressPercent } from './downloadQueue.svelte';
   import { clearPageCache } from './hubData';
   import { formatName } from './inference';
@@ -30,7 +30,7 @@
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
   import { isWhisperVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from './recommend';
-  import { security } from '$lib/stores/security.svelte';
+  import { security } from '#lib/stores/security.svelte.js';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
 
   interface Props {

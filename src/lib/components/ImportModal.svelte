@@ -2,11 +2,11 @@
   import FieldHelp from './common/FieldHelp.svelte';
   import HelpPopover from './common/HelpPopover.svelte';
   import AdvancedOnly from './common/AdvancedOnly.svelte';
-  import { localizeError } from '$lib/network';
-  import { invoke } from '$lib/ipc';
+  import { localizeError } from '#lib/network.js';
+  import { invoke } from '#lib/ipc.js';
   import { onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
-  import type { AppSettings } from '$lib/types';
+  import type { AppSettings } from '#lib/types.js';
   import {
     sourceLabel,
     type ImportCandidate,
@@ -14,19 +14,19 @@
     type ImportResult,
     type ImportScan,
     type ImportSource,
-  } from '$lib/import-types';
-  import { formatBytes } from '$lib/format';
-  import { app } from '$lib/stores/app.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import * as Collapsible from '$lib/components/ui/collapsible';
-  import * as RadioGroup from '$lib/components/ui/radio-group';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import { Label } from '$lib/components/ui/label';
-  import { Skeleton } from '$lib/components/ui/skeleton';
-  import { cn } from '$lib/utils';
+  } from '#lib/import-types.js';
+  import { formatBytes } from '#lib/format.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+  import * as RadioGroup from '#lib/components/ui/radio-group/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
+  import { Skeleton } from '#lib/components/ui/skeleton/index.js';
+  import { cn } from '#lib/utils.js';
   import { Check, ChevronDown, CircleAlert, Eye, LoaderCircle, RefreshCw, X } from '@lucide/svelte';
 
   interface Props {

@@ -1,6 +1,6 @@
 // Playground documents (local RAG, harness_core::rag): types mirroring the Rust API, `invoke`
 // wrappers and small helpers (citations, page labels, applying the context to a request).
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 
 export type RagStatus = 'pending' | 'extracting' | 'embedding' | 'ready' | 'failed' | 'cancelled';
 export type RagMode = 'auto' | 'full' | 'retrieval';

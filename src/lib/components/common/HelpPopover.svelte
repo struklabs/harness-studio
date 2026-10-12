@@ -1,7 +1,7 @@
 <script lang="ts">
-  import * as Popover from '$lib/components/ui/popover';
+  import * as Popover from '#lib/components/ui/popover/index.js';
   import { CircleHelp } from '@lucide/svelte';
-  import { t } from '$lib/i18n.svelte';
+  import { t } from '#lib/i18n.svelte.js';
   let { text, label = '', href }: { text: string; label?: string; href?: string } = $props();
   const uid = $props.id();
 </script>

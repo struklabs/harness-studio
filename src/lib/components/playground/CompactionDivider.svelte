@@ -2,10 +2,10 @@
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   // A compaction marker in the chat: "N earlier messages were summarized", the summary on
   // demand, and undo / re-apply. The summarized messages stay above it (dimmed).
-  import { t, locale } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { Button } from '$lib/components/ui/button';
-  import * as Collapsible from '$lib/components/ui/collapsible';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
   import { ChevronDown, FoldVertical, Redo2, Undo2 } from '@lucide/svelte';
   import MessageContent from './MessageContent.svelte';
   import type { ChatMessage } from './types';

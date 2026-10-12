@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
-  import type { GatewayStatus } from '$lib/types';
-  import { cn } from '$lib/utils';
+  import { t } from '#lib/i18n.svelte.js';
+  import type { GatewayStatus } from '#lib/types.js';
+  import { cn } from '#lib/utils.js';
   import { checkEndpointDrift } from './integrations';
 
   // The gateway runs on another port than the configured one: who holds the port, and what

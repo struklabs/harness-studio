@@ -1,4 +1,4 @@
-import type { LocalModel, ModelDefinition, ServeMode } from '$lib/types';
+import type { LocalModel, ModelDefinition, ServeMode } from '#lib/types.js';
 import { chatModelsOnly } from '../../chatModels';
 
 export function definitionMode(def: ModelDefinition, files: LocalModel[] = []): ServeMode {

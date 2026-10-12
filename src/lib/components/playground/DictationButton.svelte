@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
   import { Mic, Square, LoaderCircle, X } from '@lucide/svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { app } from '$lib/stores/app.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import { runtimesStore } from '$lib/stores/runtimes.svelte';
-  import { security } from '$lib/stores/security.svelte';
-  import { holdReleaseWhile } from '$lib/windowActivity';
-  import { Button } from '$lib/components/ui/button';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import { runtimesStore } from '#lib/stores/runtimes.svelte.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { holdReleaseWhile } from '#lib/windowActivity.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import EngineNeeded from '../common/EngineNeeded.svelte';
-  import { familyFromError } from '$lib/engines';
+  import { familyFromError } from '#lib/engines.js';
   import { fetchTranscription } from './transcribe';
   import { RecordError } from './recorder';
   import { createRecordingSession, recordingClock, type RecordingState } from './recordingSession';

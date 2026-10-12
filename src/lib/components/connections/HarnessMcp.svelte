@@ -1,21 +1,21 @@
 <script lang="ts">
   import SettingRow from '../settings/SettingRow.svelte';
   import HelpPopover from '../common/HelpPopover.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // "Harness MCP'yi ekle": registers the Harness MCP server in Claude Code, Codex,
   // OpenCode and Cursor (preview → backup + write; removal restores the file as it was).
   import { onDestroy, onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
   import { ExternalLink, Plug, RefreshCw, TriangleAlert, Trash2 } from '@lucide/svelte';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Input } from '$lib/components/ui/input';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { cn } from '$lib/utils';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { cn } from '#lib/utils.js';
   import CopyButton from './CopyButton.svelte';
   import type { FileChange } from './integrations';
   import { diffStats, lineDiff } from './lineDiff';

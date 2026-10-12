@@ -4,15 +4,15 @@
 // own install commands. Keeps the installing state and progress per family, refreshes the
 // stores that show "needs an engine" hints afterwards, and never accepts unverified archives.
 import { toast } from 'svelte-sonner';
-import { invoke } from '$lib/ipc';
-import { t } from '$lib/i18n.svelte';
-import { localizeError } from '$lib/network';
-import { runtimeInstallErrorText } from '$lib/runtimeBackend';
-import { engineSpec, familyInstalled, progressPercent } from '$lib/engines';
-import { runtimesStore } from '$lib/stores/runtimes.svelte';
-import { library } from '$lib/stores/library.svelte';
-import { taskSupportStore } from '$lib/components/hub/taskSupport.svelte';
-import { clearPageCache } from '$lib/components/hub/hubData';
+import { invoke } from '#lib/ipc.js';
+import { t } from '#lib/i18n.svelte.js';
+import { localizeError } from '#lib/network.js';
+import { runtimeInstallErrorText } from '#lib/runtimeBackend.js';
+import { engineSpec, familyInstalled, progressPercent } from '#lib/engines.js';
+import { runtimesStore } from '#lib/stores/runtimes.svelte.js';
+import { library } from '#lib/stores/library.svelte.js';
+import { taskSupportStore } from '#lib/components/hub/taskSupport.svelte.js';
+import { clearPageCache } from '#lib/components/hub/hubData.js';
 import type {
   LemonadeStatus,
   OnnxRuntimeProgress,
@@ -20,7 +20,7 @@ import type {
   RuntimeDownloadProgress,
   RuntimeEntry,
   RuntimeReleasePick,
-} from '$lib/types';
+} from '#lib/types.js';
 
 /** Why a family could not be installed with one click. */
 export type EngineProblem = 'unverified' | 'manual' | 'failed';

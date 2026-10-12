@@ -21,9 +21,9 @@
 </script>
 
 <script lang="ts">
-	import { cn, type WithElementRef } from "$lib/utils.js";
+	import { cn, type WithElementRef } from "#lib/utils.js";
 	import type { HTMLAttributes } from "svelte/elements";
-	import { describeFields } from '$lib/components/common/fieldHelp';
+	import { describeFields } from '#lib/components/common/fieldHelp.js';
 
 	let {
 		ref = $bindable(null),

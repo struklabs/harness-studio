@@ -1,13 +1,13 @@
 <script lang="ts">
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Dashboard model selector: model definitions grouped under their GGUF file. A file without
   // any definition can still be picked (it launches with its file stem as model id).
-  import type { LocalModel, ModelDefinition, ModelKind } from '$lib/types';
-  import { formatBytes } from '$lib/format';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { definitionFile, samePath } from '$lib/stores/domain.svelte';
-  import * as Select from '$lib/components/ui/select';
-  import { Badge } from '$lib/components/ui/badge';
+  import type { LocalModel, ModelDefinition, ModelKind } from '#lib/types.js';
+  import { formatBytes } from '#lib/format.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { definitionFile, samePath } from '#lib/stores/domain.svelte.js';
+  import * as Select from '#lib/components/ui/select/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
 
   interface Props {
     models: LocalModel[];

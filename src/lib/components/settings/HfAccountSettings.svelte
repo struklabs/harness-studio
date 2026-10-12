@@ -1,18 +1,18 @@
 <script lang="ts">
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
-  import { BackendError } from '$lib/errors';
+  import { invoke } from '#lib/ipc.js';
+  import { BackendError } from '#lib/errors.js';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { toast } from 'svelte-sonner';
   import { ChevronRight, Eye, EyeOff, ExternalLink, KeyRound, LoaderCircle, LogIn, LogOut } from '@lucide/svelte';
-  import type { AppSettings, HfAuthStatus, HfUser } from '$lib/types';
-  import { t, locale } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Badge } from '$lib/components/ui/badge';
-  import PublisherAvatar from '$lib/components/hub/PublisherAvatar.svelte';
+  import type { AppSettings, HfAuthStatus, HfUser } from '#lib/types.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import PublisherAvatar from '#lib/components/hub/PublisherAvatar.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
 

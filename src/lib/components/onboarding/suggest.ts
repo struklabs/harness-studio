@@ -3,12 +3,12 @@
 // installed runtimes. The pick logic reuses the Hub's (`hub/recommend.ts`).
 import { findAgentModel, listAgentModels, type AgentModel } from '../connections/agentModels';
 import { codeToolEvidence, codeToolRank, type CodeToolEvidence } from './purposeCapabilities';
-import { invoke } from '$lib/ipc';
-import { errorCode, rawError } from '$lib/errors';
-import { defaultLoadFit } from '$lib/fit';
-import { formatBytes } from '$lib/format';
-import type { TKey } from '$lib/i18n.svelte';
-import type { FitCategory, HfModelSearchResult, HfModelVariant, HfSearchOptions, RuntimeReleasePick, RuntimeView, SystemHardwareInfo } from '$lib/types';
+import { invoke } from '#lib/ipc.js';
+import { errorCode, rawError } from '#lib/errors.js';
+import { defaultLoadFit } from '#lib/fit.js';
+import { formatBytes } from '#lib/format.js';
+import type { TKey } from '#lib/i18n.svelte.js';
+import type { FitCategory, HfModelSearchResult, HfModelVariant, HfSearchOptions, RuntimeReleasePick, RuntimeView, SystemHardwareInfo } from '#lib/types.js';
 import { fetchPage } from '../hub/hubData';
 import { quantBits, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from '../hub/recommend';
 

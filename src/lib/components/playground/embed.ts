@@ -1,6 +1,6 @@
 // Playground Embedding / Rerank tabs: request helpers for llama-server's /v1/embeddings and
 // /v1/rerank (real requests against the selected server; nothing is simulated).
-import { describeError } from '$lib/gateway-busy-text';
+import { describeError } from '#lib/gateway-busy-text.js';
 
 /** A 200 answer without usable vectors / scores (e.g. `null`s from a rerank server asked to embed). */
 export class InvalidResponseError extends Error {

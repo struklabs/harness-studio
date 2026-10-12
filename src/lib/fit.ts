@@ -1,9 +1,9 @@
 // Memory fit of a model on this machine. The estimate itself lives in Rust
 // (`harness_core::vram`: sliding-window KV, projector, cache types, corrected with measured
 // loads); this module batches requests into one IPC call and adds the UI labels.
-import { invoke } from '$lib/ipc';
-import { t, type TKey } from '$lib/i18n.svelte';
-import type { FitCategory, FitInput, FitResult, HardwareFitResult, LaunchConfig } from '$lib/types';
+import { invoke } from '#lib/ipc.js';
+import { t, type TKey } from '#lib/i18n.svelte.js';
+import type { FitCategory, FitInput, FitResult, HardwareFitResult, LaunchConfig } from '#lib/types.js';
 
 interface Pending {
   input: FitInput;

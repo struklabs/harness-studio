@@ -1,4 +1,4 @@
-import { t } from '$lib/i18n.svelte';
+import { t } from '#lib/i18n.svelte.js';
 
 export function getClientName(client: string | null | undefined): string {
   if (!client) return t('an.client_unknown');

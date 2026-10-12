@@ -1,8 +1,8 @@
 // Backend tokens of the managed llama.cpp build and the note the setup wizard leaves when it
 // installs a different build than the recommended one (so Settings can say why).
-import type { RecommendedBackend } from '$lib/types';
-import { errorCode, errorText, rawError } from '$lib/errors';
-import { t } from '$lib/i18n.svelte';
+import type { RecommendedBackend } from '#lib/types.js';
+import { errorCode, errorText, rawError } from '#lib/errors.js';
+import { t } from '#lib/i18n.svelte.js';
 
 export const BACKEND_TOKEN: Record<RecommendedBackend, string> = {
   Cuda12: 'cuda',

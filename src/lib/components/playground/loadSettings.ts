@@ -2,7 +2,7 @@
 // settings (context, GPU layers, KV cache type, flash attention, parallel slots) as a form,
 // and the one-time override layer it becomes (`load_definition` `overrides`, merged by the
 // backend over the definition: `domain::launch`). Pure functions; no Tauri or store access.
-import type { ParamValue, ParamValues } from '$lib/types';
+import type { ParamValue, ParamValues } from '#lib/types.js';
 
 export type UiLevel = 'simple' | 'advanced';
 /** `auto` = the launch decides (KV: f16, smaller types only when the context does not fit);

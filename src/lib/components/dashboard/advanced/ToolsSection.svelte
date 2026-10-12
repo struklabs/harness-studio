@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { app } from '$lib/stores/app.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import type { LaunchParamsForm } from '../params';
   import AdvSection from './AdvSection.svelte';
   import SwitchRow from './SwitchRow.svelte';
-  import { capsStore } from '$lib/stores/caps.svelte';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
 
   interface Props {
     params: LaunchParamsForm;

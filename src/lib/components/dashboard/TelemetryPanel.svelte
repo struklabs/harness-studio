@@ -1,9 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import type { ServerStatus, TelemetrySnapshot } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { telemetryFilter } from '$lib/stores/serverFilter.svelte';
+  import type { ServerStatus, TelemetrySnapshot } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { telemetryFilter } from '#lib/stores/serverFilter.svelte.js';
   import ServerOffState from '../common/ServerOffState.svelte';
   import ServerChips from '../common/ServerChips.svelte';
   import ServerTelemetryCard from './ServerTelemetryCard.svelte';

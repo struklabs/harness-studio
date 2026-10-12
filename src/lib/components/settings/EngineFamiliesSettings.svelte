@@ -3,13 +3,13 @@
   // llama.cpp (speech, images, voices, ONNX, Lemonade, mistral.rs), each with its install state
   // and a one-click install button. The same installer as the "needs an engine" hints.
   import { onMount } from 'svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { ENGINES } from '$lib/engines';
-  import { engineInstall } from '$lib/stores/engineInstall.svelte';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { security } from '$lib/stores/security.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
+  import { t } from '#lib/i18n.svelte.js';
+  import { ENGINES } from '#lib/engines.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
   import { LoaderCircle, Download } from '@lucide/svelte';
   import SettingGroup from './SettingGroup.svelte';
 

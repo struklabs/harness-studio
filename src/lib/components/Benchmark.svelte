@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from 'svelte';
-  import { library } from '$lib/stores/library.svelte';
-  import { invoke } from '$lib/ipc';
-  import { t, locale, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { errorCode } from '$lib/errors';
-  import type { LocalModel } from '$lib/types';
+  import { library } from '#lib/stores/library.svelte.js';
+  import { invoke } from '#lib/ipc.js';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { errorCode } from '#lib/errors.js';
+  import type { LocalModel } from '#lib/types.js';
   import {
     bestTs,
     type BenchmarkRequest,
@@ -13,20 +13,20 @@
     type BenchmarkStatus,
     type BenchPreflight,
     type RunStatus,
-  } from '$lib/benchmark-types';
+  } from '#lib/benchmark-types.js';
   import BenchConfigForm from './benchmark/BenchConfigForm.svelte';
   import BenchRunDetails from './benchmark/BenchRunDetails.svelte';
   import BenchResultsTable from './benchmark/BenchResultsTable.svelte';
   import BenchCompare from './benchmark/BenchCompare.svelte';
-  import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Progress } from '$lib/components/ui/progress';
-  import * as Dialog from '$lib/components/ui/dialog';
+  import { Card, CardHeader, CardTitle, CardContent } from '#lib/components/ui/card/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
   import { RefreshCw, Trash2, ChevronDown, ChevronUp } from '@lucide/svelte';
   import { toast } from 'svelte-sonner';
-  import { formatBytes } from '$lib/format';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
+  import { formatBytes } from '#lib/format.js';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
 
   interface Props {
     page?: string;

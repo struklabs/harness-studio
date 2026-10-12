@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { formatBytes } from '$lib/format';
+  import { formatBytes } from '#lib/format.js';
   import { onMount, untrack } from 'svelte';
-  import { invoke } from '$lib/ipc';
-  import type { TelemetrySnapshot, TelemetryHistoryPoint, PerfDetails, ServerStatus, AppSettings, AnalyticsSummary } from '$lib/types';
-  import { t, locale } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { otherRunningServers } from '$lib/runningServers';
-  import { windowActive, onWindowActive } from '$lib/windowActivity';
-  import { localizeError } from '$lib/network';
+  import { invoke } from '#lib/ipc.js';
+  import type { TelemetrySnapshot, TelemetryHistoryPoint, PerfDetails, ServerStatus, AppSettings, AnalyticsSummary } from '#lib/types.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { otherRunningServers } from '#lib/runningServers.js';
+  import { windowActive, onWindowActive } from '#lib/windowActivity.js';
+  import { localizeError } from '#lib/network.js';
   import { toast } from 'svelte-sonner';
   import FieldHelp from './common/FieldHelp.svelte';
   import Sparkline from './common/Sparkline.svelte';
@@ -18,9 +18,9 @@
   import SlotStrip from './perf/SlotStrip.svelte';
   import SectionLoading from './common/SectionLoading.svelte';
   import { NA } from './perf/perfFormat';
-  import * as Table from '$lib/components/ui/table';
-  import { getClientName } from '$lib/utils/clientName';
-  import { formatTokens } from '$lib/utils/tokens';
+  import * as Table from '#lib/components/ui/table/index.js';
+  import { getClientName } from '#lib/utils/clientName.js';
+  import { formatTokens } from '#lib/utils/tokens.js';
   import { RANGES, rangeStart, type Range, fmtInt, fmtRate } from './analytics/anFormat';
 
   interface Props {

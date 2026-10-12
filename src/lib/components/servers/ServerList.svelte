@@ -1,27 +1,27 @@
 <script lang="ts">
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // One list of servers: every saved server (profile) plus any instance that runs without being
   // saved (the default server, ad-hoc launches). Each row shows its run state and whether it is
   // saved, so "instance" vs "profile" never has to be explained.
-  import { invoke } from '$lib/ipc';
-  import type { LaunchConfig, ServerProfile, ServerSummary } from '$lib/types';
-  import { app, DEFAULT_SERVER_ID } from '$lib/stores/app.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { serverErrorText } from '$lib/failure';
+  import { invoke } from '#lib/ipc.js';
+  import type { LaunchConfig, ServerProfile, ServerSummary } from '#lib/types.js';
+  import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { serverErrorText } from '#lib/failure.js';
   import StatusBadge from './StatusBadge.svelte';
   import RouterModels from './RouterModels.svelte';
   import { fileName, isAutoPort, isLive, makeProfileId, statusError } from './utils';
   import { AlertCircle, Copy, LayoutDashboard, MessageSquare, MoreHorizontal, Pencil, Play, RotateCcw, Square, Trash2 } from '@lucide/svelte';
-  import * as Table from '$lib/components/ui/table';
-  import { Button, buttonVariants } from '$lib/components/ui/button';
-  import { Switch } from '$lib/components/ui/switch';
-  import { Input } from '$lib/components/ui/input';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import { Empty, EmptyTitle, EmptyDescription } from '$lib/components/ui/empty';
+  import * as Table from '#lib/components/ui/table/index.js';
+  import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+  import { Empty, EmptyTitle, EmptyDescription } from '#lib/components/ui/empty/index.js';
   import { toast } from 'svelte-sonner';
-  import { cn } from '$lib/utils';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     onOpenDashboard: (id: string) => void;

@@ -1,9 +1,9 @@
-import type { BindScope, ReleaseAsset, ReleaseAssetInfo } from '$lib/types';
-import { type TKey } from '$lib/i18n.svelte';
-import { errorText } from '$lib/errors';
+import type { BindScope, ReleaseAsset, ReleaseAssetInfo } from '#lib/types.js';
+import { type TKey } from '#lib/i18n.svelte.js';
+import { errorText } from '#lib/errors.js';
 
 /** Error keys shared with the CLI's English table (harness-cli `messages.rs` checks the texts match).
- * The GUI translates every backend key through `$lib/errors`, not only these. */
+ * The GUI translates every backend key through `#lib/errors.js`, not only these. */
 export const ERROR_KEYS = [
   'network.lan_without_key',
   'network.tools_without_key',
@@ -64,7 +64,7 @@ export const ERROR_KEYS = [
 export const LAN_WITHOUT_KEY = 'network.lan_without_key';
 export const INTEGRITY_UNVERIFIED = 'runtime.integrity_unverified';
 
-/** Localized text of a backend error (see `$lib/errors`). */
+/** Localized text of a backend error (see `#lib/errors.js`). */
 export function localizeError(e: unknown): string {
   return errorText(e);
 }

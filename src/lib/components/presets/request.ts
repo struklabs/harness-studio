@@ -2,7 +2,7 @@
 // Playground and the preset manager edit them, and their mapping to llama-server's
 // request body (mirrors `InferencePreset::request_params` in harness-core).
 
-import type { InferencePreset, ReasoningSettings, SamplingParams } from '$lib/types';
+import type { InferencePreset, ReasoningSettings, SamplingParams } from '#lib/types.js';
 
 export interface PresetRequest {
   sampling: SamplingParams;

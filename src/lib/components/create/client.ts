@@ -1,6 +1,6 @@
-import { invoke } from '$lib/ipc';
-import type { GenerateToolRequest, ToolDraft, CoreTool, GeneratorUsage, GeneratorAttempt, GeneratorEstimate } from '$lib/tools-client';
-import { t, type TKey } from '$lib/i18n.svelte';
+import { invoke } from '#lib/ipc.js';
+import type { GenerateToolRequest, ToolDraft, CoreTool, GeneratorUsage, GeneratorAttempt, GeneratorEstimate } from '#lib/tools-client.js';
+import { t, type TKey } from '#lib/i18n.svelte.js';
 export const categories = ['file', 'web', 'calculation', 'datetime', 'text', 'other'] as const;
 export type Category = typeof categories[number];
 export interface InventoryTool { name: string; description: string; category: Category; source: CoreTool['source']; server: string | null }

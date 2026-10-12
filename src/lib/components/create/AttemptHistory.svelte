@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { localizeError } from '$lib/network';
-  import { t, locale } from '$lib/i18n.svelte';
+  import { localizeError } from '#lib/network.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
   import { showRepetitionWarning } from './generatorProgress';
-  import type { GeneratorAttempt } from '$lib/tools-client';
+  import type { GeneratorAttempt } from '#lib/tools-client.js';
   let { history }: { history: GeneratorAttempt[] } = $props();
   const fmt = (n: number) => Math.round(n).toLocaleString(locale());
 </script>

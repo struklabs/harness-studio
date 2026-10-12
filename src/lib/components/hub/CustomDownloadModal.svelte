@@ -1,12 +1,12 @@
 <script lang="ts">
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { toast } from 'svelte-sonner';
-  import { t } from '$lib/i18n.svelte';
-  import { downloads } from '$lib/stores/downloads.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
+  import { t } from '#lib/i18n.svelte.js';
+  import { downloads } from '#lib/stores/downloads.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
   import { AlertCircle, LoaderCircle } from '@lucide/svelte';
 
   interface Props {

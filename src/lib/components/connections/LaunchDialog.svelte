@@ -1,23 +1,23 @@
 <script lang="ts">
-  import { Checkbox } from '$lib/components/ui/checkbox';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
   import { readHideExternalSkills, saveHideExternalSkills } from './launchPreferences';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // "Başlat": starts a coding agent in a new terminal with process-only Harness settings (the
   // GUI side of `harness launch`). Through the gateway the tool may pick any definition (loaded
   // on first request); without it, the running server's model is used.
-  import { invoke } from '$lib/ipc';
-  import { rawError } from '$lib/errors';
+  import { invoke } from '#lib/ipc.js';
+  import { rawError } from '#lib/errors.js';
   import { toast } from 'svelte-sonner';
   import { FolderOpen, MonitorUp, TriangleAlert, SlidersHorizontal } from '@lucide/svelte';
-  import { Button } from '$lib/components/ui/button';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { app } from '$lib/stores/app.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import type { ModelDefinition } from '$lib/types';
-  import { cn } from '$lib/utils';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import type { ModelDefinition } from '#lib/types.js';
+  import { cn } from '#lib/utils.js';
   import CopyButton from './CopyButton.svelte';
   import { launchCommand, launchTool, launchTools, opencodeDesktopApps, openOpencodeDesktop, type DesktopApp, type Integration, type LaunchToolId } from './integrations';
   import PrepareOptions from './PrepareOptions.svelte';

@@ -1,6 +1,6 @@
 // How far the installed runtime runs each Hugging Face task, from the backend
 // (`get_task_support`: the task baseline lowered by the runtime's capability registry).
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 import type { TaskSupport } from './tasks';
 
 /** `harness_core::hub_tasks::TaskSupport`. */

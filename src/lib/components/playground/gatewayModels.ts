@@ -1,6 +1,6 @@
 // Playground model list while the gateway runs: the managed endpoint's /v1/models lists every
 // model definition (alias as `id`) with the scheduler's state under `harness`.
-import { domain } from '$lib/stores/domain.svelte';
+import { domain } from '#lib/stores/domain.svelte.js';
 
 export type ModelLoadState = 'loaded' | 'loading' | 'unloaded';
 

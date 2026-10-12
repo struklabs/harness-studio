@@ -1,7 +1,7 @@
 <script lang="ts">
   // Answer text as token spans tinted by how unsure the model was (1 - probability); the
   // tooltip lists the chosen token and its most likely alternatives.
-  import { t, locale } from '$lib/i18n.svelte';
+  import { t, locale } from '#lib/i18n.svelte.js';
   import { formatProbability, uncertainty, type TokenLogprob } from './logprobs';
 
   interface Props {

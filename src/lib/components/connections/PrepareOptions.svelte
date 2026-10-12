@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { formatBytes } from '$lib/format';
+  import { t } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { formatBytes } from '#lib/format.js';
   import { kvText, type PreparePlan, type PrepareOption } from './agentTuning';
 
   interface Props {

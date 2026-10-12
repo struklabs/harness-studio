@@ -1,7 +1,7 @@
 // Playground conversations stored in state.db (see harness_core::state): types mirroring
 // the Rust API, thin `invoke` wrappers and mapping between stored and UI messages.
 
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 import { sanitizeSettings, sanitizeToolCalls, type ChatMessage, type PgSettings, normalizeStats } from './types';
 import { compareMetaOf } from './split';
 import { ragTurnOf } from './rag';

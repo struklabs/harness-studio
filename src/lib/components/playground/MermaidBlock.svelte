@@ -4,9 +4,9 @@
   // loaded lazily, see ./mermaid.ts). Re-rendered when the app theme changes.
   import { onDestroy } from 'svelte';
   import { toast } from 'svelte-sonner';
-  import { t } from '$lib/i18n.svelte';
-  import { onSchemeChange } from '$lib/theme';
-  import { Button } from '$lib/components/ui/button';
+  import { t } from '#lib/i18n.svelte.js';
+  import { onSchemeChange } from '#lib/theme.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import { Check, Code, Copy, Download, Workflow } from '@lucide/svelte';
   import { diagramBackground, renderMermaid } from './mermaid';
   import { svgToPng } from './diagramPng';

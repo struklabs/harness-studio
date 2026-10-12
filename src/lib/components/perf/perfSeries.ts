@@ -1,4 +1,4 @@
-import type { TelemetryHistoryPoint } from '$lib/types';
+import type { TelemetryHistoryPoint } from '#lib/types.js';
 
 /** Chart window: about five minutes at one sample per second. */
 export const WINDOW = 300;

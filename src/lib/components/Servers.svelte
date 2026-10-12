@@ -1,11 +1,11 @@
 <script lang="ts">
   import HelpPopover from './common/HelpPopover.svelte';
   import { onMount } from 'svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { t } from '$lib/i18n.svelte';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
   import SectionLoading from './common/SectionLoading.svelte';
   import ServerList from './servers/ServerList.svelte';
-  import { Button } from '$lib/components/ui/button';
+  import { Button } from '#lib/components/ui/button/index.js';
   import { Plus, RefreshCw } from '@lucide/svelte';
 
   interface Props {

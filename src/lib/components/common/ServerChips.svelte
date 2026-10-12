@@ -1,11 +1,11 @@
 <script lang="ts">
   // "All" plus one chip per server: which servers a panel shows. A chip carries the server's
   // colour (the same one its card, log tag and memory segments use).
-  import { app } from '$lib/stores/app.svelte';
-  import type { ServerFilter } from '$lib/stores/serverFilter.svelte';
-  import { slotColor, slotHatched } from '$lib/serverColor';
-  import { t } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
+  import { app } from '#lib/stores/app.svelte.js';
+  import type { ServerFilter } from '#lib/stores/serverFilter.svelte.js';
+  import { slotColor, slotHatched } from '#lib/serverColor.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     filter: ServerFilter;

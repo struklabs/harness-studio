@@ -3,20 +3,20 @@
   // the repo's own files and the converter's architecture list (nothing is downloaded yet); the
   // user picks the quantization and sees the sizes and the disk the run needs. The job then runs
   // in the conversion queue.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { untrack } from 'svelte';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { formatBytes } from '$lib/format';
-  import { localizeError } from '$lib/network';
-  import { converts, isConvertActive } from '$lib/stores/converts.svelte';
-  import type { ConvertPlan } from '$lib/types';
-  import { Button } from '$lib/components/ui/button';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import { Label } from '$lib/components/ui/label';
-  import * as RadioGroup from '$lib/components/ui/radio-group';
-  import { Skeleton } from '$lib/components/ui/skeleton';
-  import { cn } from '$lib/utils';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { formatBytes } from '#lib/format.js';
+  import { localizeError } from '#lib/network.js';
+  import { converts, isConvertActive } from '#lib/stores/converts.svelte.js';
+  import type { ConvertPlan } from '#lib/types.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
+  import * as RadioGroup from '#lib/components/ui/radio-group/index.js';
+  import { Skeleton } from '#lib/components/ui/skeleton/index.js';
+  import { cn } from '#lib/utils.js';
   import { AlertCircle, Ban, Info, LoaderCircle, RefreshCw, Repeat } from '@lucide/svelte';
 
   interface Props {

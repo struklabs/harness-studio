@@ -1,4 +1,4 @@
-import { t } from '$lib/i18n.svelte';
+import { t } from '#lib/i18n.svelte.js';
 
 /** Localized fetch failures; request URLs never show credentials, queries or fragments. */
 export function fetchErrorText(e: unknown, url: string): string {

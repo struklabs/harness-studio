@@ -3,7 +3,7 @@
 // it, the policy settings and the tool log. The rules (policy, working directory, limits, log)
 // live in the core; nothing is decided here.
 
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 import { Channel } from '@tauri-apps/api/core';
 import type { JsonSchema, ServerTool } from './mcp-types';
 import type { SearchProvider } from './types';

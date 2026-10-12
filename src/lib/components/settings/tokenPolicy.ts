@@ -1,7 +1,7 @@
 // Form model of a named token: scopes plus its gateway policy (allowed models, endpoints,
 // rate limits). Mirrors harness_core::token_policy; the core validates again.
-import type { ApiScope, ApiTokenInfo, GatewayEndpoint, RateLimits, TokenPolicy } from '$lib/types';
-import type { TKey } from '$lib/i18n.svelte';
+import type { ApiScope, ApiTokenInfo, GatewayEndpoint, RateLimits, TokenPolicy } from '#lib/types.js';
+import type { TKey } from '#lib/i18n.svelte.js';
 
 export const SCOPES: { id: ApiScope; label: TKey }[] = [
   { id: 'read', label: 'dev.scope_read' },

@@ -3,9 +3,9 @@
   import HelpPopover from '../../common/HelpPopover.svelte';
   import FieldHelp from '../../common/FieldHelp.svelte';
   import { describeFields } from '../../common/fieldHelp';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { Label } from '$lib/components/ui/label';
-  import { cn } from '$lib/utils';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { Label } from '#lib/components/ui/label/index.js';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     label: string;

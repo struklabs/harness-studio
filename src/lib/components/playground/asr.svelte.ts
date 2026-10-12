@@ -1,10 +1,10 @@
 // The sherpa-onnx speech recognition models for the Speech tab and the chat dictation: what is
 // installed, the recommended downloads and their progress.
 import { toast } from 'svelte-sonner';
-import { invoke } from '$lib/ipc';
-import { t } from '$lib/i18n.svelte';
-import { localizeError } from '$lib/network';
-import type { RuntimeDownloadProgress } from '$lib/types';
+import { invoke } from '#lib/ipc.js';
+import { t } from '#lib/i18n.svelte.js';
+import { localizeError } from '#lib/network.js';
+import type { RuntimeDownloadProgress } from '#lib/types.js';
 import { sherpaNames, type AsrModelInfo, type AsrOverview } from './asr';
 
 class AsrStore {

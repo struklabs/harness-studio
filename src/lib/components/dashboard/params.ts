@@ -1,4 +1,4 @@
-import type { AppSettings, LocalModel, ModelPreset, ParamValue, ParamValues } from '$lib/types';
+import type { AppSettings, LocalModel, ModelPreset, ParamValue, ParamValues } from '#lib/types.js';
 
 /** UI tri-state for `--context-shift` / `--no-context-shift` (null in the preset = 'default'). */
 export type ContextShiftMode = 'default' | 'enabled' | 'disabled';

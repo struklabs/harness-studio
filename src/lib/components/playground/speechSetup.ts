@@ -1,4 +1,4 @@
-import type { ModelDefinition, RuntimeView } from '$lib/types';
+import type { ModelDefinition, RuntimeView } from '#lib/types.js';
 import { SHERPA_FAMILY } from './asr';
 import { isSpeechDefinition } from './transcribe';
 

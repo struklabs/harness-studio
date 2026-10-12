@@ -1,4 +1,4 @@
-import type { HfModelSearchResult } from '$lib/types';
+import type { HfModelSearchResult } from '#lib/types.js';
 
 /** Hub tasks whose safetensors repos the GGUF converter can take (text and image chat models). */
 const CONVERTIBLE_TASKS = ['text-generation', 'image-text-to-text'];

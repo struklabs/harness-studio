@@ -1,5 +1,5 @@
 import { invoke as tauriInvoke, type InvokeArgs, type InvokeOptions } from '@tauri-apps/api/core';
-import { BackendError } from '$lib/errors';
+import { BackendError } from '#lib/errors.js';
 
 /**
  * Tauri's `invoke`, but a string rejection (a backend error key) becomes a `BackendError`

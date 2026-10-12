@@ -1,8 +1,8 @@
 // Shared types, defaults and persistence for the Playground view.
 
-import type { InferencePreset } from '$lib/types';
-import { invoke } from '$lib/ipc';
-import { getToolSettings } from '$lib/tools-client';
+import type { InferencePreset } from '#lib/types.js';
+import { invoke } from '#lib/ipc.js';
+import { getToolSettings } from '#lib/tools-client.js';
 import type { RagTurn } from './rag';
 import type { PgImage } from './images';
 import type { TokenLogprob } from './logprobs';

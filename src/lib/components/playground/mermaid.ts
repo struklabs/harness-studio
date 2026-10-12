@@ -3,7 +3,7 @@
 // lands in the initial bundle. Output is re-sanitized with DOMPurify (SVG profile only, no
 // foreignObject/HTML labels, no external references) before it reaches {@html}.
 import DOMPurify from 'dompurify';
-import { currentScheme } from '$lib/theme';
+import { currentScheme } from '#lib/theme.js';
 
 type MermaidApi = (typeof import('mermaid'))['default'];
 

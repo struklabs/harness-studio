@@ -2,23 +2,23 @@
   // Playground model picker: every model definition with its run state (downloaded / loading /
   // loaded & running / not downloaded). Load a definition on the selected server, a new server or
   // one of its profiles, unload it, or switch the conversation to a server that runs it.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
-  import type { DefinitionRunState, LoadTarget, ModelDefinition, ParamValues } from '$lib/types';
+  import type { DefinitionRunState, LoadTarget, ModelDefinition, ParamValues } from '#lib/types.js';
   import LoadSettings from './LoadSettings.svelte';
-  import { t, type TKey } from '$lib/i18n.svelte';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
   import { savedPortText } from '../servers/utils';
   import { definitionsForMode } from './modelModes';
-  import { library } from '$lib/stores/library.svelte';
-  import type { ServeMode } from '$lib/types';
-  import { cn } from '$lib/utils';
-  import { localizeError } from '$lib/network';
-  import { app, DEFAULT_SERVER_ID } from '$lib/stores/app.svelte';
-  import { domain, baseName, definitionFile } from '$lib/stores/domain.svelte';
-  import { unsavedLoad } from '$lib/stores/unsavedLoad.svelte';
-  import * as Popover from '$lib/components/ui/popover';
-  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import { Button, buttonVariants } from '$lib/components/ui/button';
+  import { library } from '#lib/stores/library.svelte.js';
+  import type { ServeMode } from '#lib/types.js';
+  import { cn } from '#lib/utils.js';
+  import { localizeError } from '#lib/network.js';
+  import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
+  import { domain, baseName, definitionFile } from '#lib/stores/domain.svelte.js';
+  import { unsavedLoad } from '#lib/stores/unsavedLoad.svelte.js';
+  import * as Popover from '#lib/components/ui/popover/index.js';
+  import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+  import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
   import { Boxes, ChevronDown, LoaderCircle, Play, Square, ArrowRightLeft, RefreshCw, SlidersHorizontal } from '@lucide/svelte';
 
   interface Props {

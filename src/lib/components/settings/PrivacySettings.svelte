@@ -1,13 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { ShieldCheck, Copy, Check } from '@lucide/svelte';
-  import type { DiagnosticPayload } from '$lib/types';
-  import { t, locale, type TKey } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
-  import * as Collapsible from '$lib/components/ui/collapsible';
+  import type { DiagnosticPayload } from '#lib/types.js';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
   import type { SettingsDraft, DraftKey } from './form.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';

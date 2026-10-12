@@ -1,5 +1,5 @@
-import { t } from '$lib/i18n.svelte';
-import type { InferencePreset } from '$lib/types';
+import { t } from '#lib/i18n.svelte.js';
+import type { InferencePreset } from '#lib/types.js';
 import { presetDescriptionWith, presetNameWith } from './names';
 
 /** Preset name in the current UI language (built-ins are translated by id). */

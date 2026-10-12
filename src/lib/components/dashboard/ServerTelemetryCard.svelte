@@ -1,11 +1,11 @@
 <script lang="ts">
   // Live numbers of one running server: speed, prompt speed, slots and KV cache, under a header
   // with its colour, name, model and port.
-  import type { ServerSummary, TelemetrySnapshot } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { cn } from '$lib/utils';
-  import { slotColor, slotHatched } from '$lib/serverColor';
+  import type { ServerSummary, TelemetrySnapshot } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { slotColor, slotHatched } from '#lib/serverColor.js';
   import Sparkline from '../common/Sparkline.svelte';
 
   interface Props {

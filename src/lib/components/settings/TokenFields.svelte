@@ -1,14 +1,14 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import HelpPopover from '../common/HelpPopover.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Scopes and gateway policy of a named token (create and edit share it). Edits `draft` in
   // place; the parent validates with `policyOf` / `selectedScopes` before saving.
-  import { t } from '$lib/i18n.svelte';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import { Input } from '$lib/components/ui/input';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import { cn } from '$lib/utils';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import { cn } from '#lib/utils.js';
   import {
     ENDPOINTS,
     SCOPES,

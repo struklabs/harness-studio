@@ -3,12 +3,12 @@
   // version, and an optional PATH entry (Windows: user PATH; macOS/Linux: ~/.local/bin symlink).
   // Nothing is changed until the button is clicked; "Kaldır" undoes it.
   import { onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { Copy } from '@lucide/svelte';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
 

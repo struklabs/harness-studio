@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ShieldCheck } from '@lucide/svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { Switch } from '$lib/components/ui/switch';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
 
   interface Props {
     crashReports: boolean;

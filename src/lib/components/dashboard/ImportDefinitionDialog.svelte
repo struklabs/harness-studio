@@ -1,13 +1,13 @@
 <script lang="ts">
   // Import of a `*.harness.toml`: shows what was found on this machine (model file, other
   // files, embedded preset), lets the user pick a free alias, then saves.
-  import { invoke } from '$lib/ipc';
-  import type { DefinitionImport, ModelDefinition } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
+  import { invoke } from '#lib/ipc.js';
+  import type { DefinitionImport, ModelDefinition } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
   import { CircleCheck, TriangleAlert } from '@lucide/svelte';
   import Field from './parts/Field.svelte';
 

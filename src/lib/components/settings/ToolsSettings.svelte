@@ -1,6 +1,6 @@
 <script lang="ts">
   let { page = 'tools-builtin' }: { page?: string } = $props();
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Settings > Tools: how much the user lets tools do without asking (policy), which tools they
   // trust, and the default working directory of file and shell tools. Saved at once through
   // `tools_set_settings` (the core's `settings.tools`); the Playground, the CLI and the Control
@@ -8,15 +8,15 @@
   import { onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
   import { FolderOpen, ShieldAlert, X } from '@lucide/svelte';
-  import { invoke } from '$lib/ipc';
-  import { recentFolders, sameFolder } from '$lib/workspace-folders';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { cn } from '$lib/utils';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Switch } from '$lib/components/ui/switch';
-  import * as RadioGroup from '$lib/components/ui/radio-group';
+  import { invoke } from '#lib/ipc.js';
+  import { recentFolders, sameFolder } from '#lib/workspace-folders.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { cn } from '#lib/utils.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import * as RadioGroup from '#lib/components/ui/radio-group/index.js';
   import {
     TOOL_POLICIES,
     listCoreTools,
@@ -29,12 +29,12 @@
     setWebSearchSettings,
     type SearchProvider,
     type WebSearchSettings,
-  } from '$lib/tools-client';
+  } from '#lib/tools-client.js';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
   import InstalledToolsSettings from './InstalledToolsSettings.svelte';
-  import { Input } from '$lib/components/ui/input';
-  import * as Select from '$lib/components/ui/select';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import * as Select from '#lib/components/ui/select/index.js';
 
   let cfg = $state<ToolSettings | null>(null);
   let tools = $state<CoreTool[]>([]);

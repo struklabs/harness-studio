@@ -1,10 +1,10 @@
 <script lang="ts">
   import { Cpu, MemoryStick, Zap } from '@lucide/svelte';
-  import type { SystemHardwareInfo } from '$lib/types';
-  import { formatBytes } from '$lib/format';
-  import { t } from '$lib/i18n.svelte';
-  import { Badge } from '$lib/components/ui/badge';
-  import { BACKEND_TOKEN, backendName } from '$lib/runtimeBackend';
+  import type { SystemHardwareInfo } from '#lib/types.js';
+  import { formatBytes } from '#lib/format.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { BACKEND_TOKEN, backendName } from '#lib/runtimeBackend.js';
 
   interface Props {
     hardware: SystemHardwareInfo | null;

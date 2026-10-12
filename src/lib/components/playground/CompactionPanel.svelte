@@ -1,15 +1,15 @@
 <script lang="ts">
   import Field from '../dashboard/parts/Field.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Session panel section: context compaction settings, either the global defaults or this
   // conversation's own (PgSettings.compaction).
-  import { t } from '$lib/i18n.svelte';
-  import { modelLabel } from '$lib/format';
-  import { Input } from '$lib/components/ui/input';
-  import { Switch } from '$lib/components/ui/switch';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import * as UiField from '$lib/components/ui/field';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
+  import { t } from '#lib/i18n.svelte.js';
+  import { modelLabel } from '#lib/format.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import * as UiField from '#lib/components/ui/field/index.js';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import InfoTip from '../common/InfoTip.svelte';
   import NativeSelect from '../dashboard/parts/NativeSelect.svelte';
   import {

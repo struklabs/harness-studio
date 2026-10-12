@@ -1,7 +1,7 @@
-import { invoke } from '$lib/ipc';
-import type { ReleaseAsset, ReleaseAssetInfo } from '$lib/types';
-import { INTEGRITY_UNVERIFIED, unverifiedAssets } from '$lib/network';
-import { rawError } from '$lib/errors';
+import { invoke } from '#lib/ipc.js';
+import type { ReleaseAsset, ReleaseAssetInfo } from '#lib/types.js';
+import { INTEGRITY_UNVERIFIED, unverifiedAssets } from '#lib/network.js';
+import { rawError } from '#lib/errors.js';
 import { app } from './app.svelte';
 
 /** A start the backend refused because a network bind has no API key (`network-exposure-blocked`). */

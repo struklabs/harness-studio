@@ -1,26 +1,26 @@
 <script lang="ts">
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { onDestroy } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { FolderOpen, Plus, Trash2, Star } from '@lucide/svelte';
-  import type { AppSettings, StorageDirInfo } from '$lib/types';
-  import { formatBytes } from '$lib/format';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Badge } from '$lib/components/ui/badge';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { cn } from '$lib/utils';
+  import type { AppSettings, StorageDirInfo } from '#lib/types.js';
+  import { formatBytes } from '#lib/format.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { cn } from '#lib/utils.js';
   import ImportModal from '../ImportModal.svelte';
   import HfAccountSettings from './HfAccountSettings.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
   import SwitchRow from './SwitchRow.svelte';
   import type { SettingsDraft } from './form.svelte';
-  import { pathExample } from '$lib/platform';
-  import { library } from '$lib/stores/library.svelte';
+  import { pathExample } from '#lib/platform.js';
+  import { library } from '#lib/stores/library.svelte.js';
 
   interface Props {
     page?: string;

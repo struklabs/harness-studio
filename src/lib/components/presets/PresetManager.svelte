@@ -3,18 +3,18 @@
   import HelpPopover from '../common/HelpPopover.svelte';
   // Inference preset manager: built-ins (read-only, "Copy" makes an editable copy) and the
   // user's presets (create, edit, rename, duplicate, delete, import/export JSON).
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
-  import type { InferencePreset } from '$lib/types';
-  import { presetName, presetDescription } from '$lib/components/presets/presetText';
-  import { t } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { domain } from '$lib/stores/domain.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import Field from '$lib/components/dashboard/parts/Field.svelte';
+  import type { InferencePreset } from '#lib/types.js';
+  import { presetName, presetDescription } from '#lib/components/presets/presetText.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import Field from '#lib/components/dashboard/parts/Field.svelte';
   import { Plus, Copy, Download, Upload, Trash2, Lock } from '@lucide/svelte';
   import RequestParamsEditor from './RequestParamsEditor.svelte';
   import { cleanRequest, requestOf, sameRequest, type PresetRequest } from './request';

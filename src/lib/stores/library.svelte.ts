@@ -1,6 +1,6 @@
-import { invoke } from '$lib/ipc';
-import type { LocalModel } from '$lib/types';
-import { app } from '$lib/stores/app.svelte';
+import { invoke } from '#lib/ipc.js';
+import type { LocalModel } from '#lib/types.js';
+import { app } from '#lib/stores/app.svelte.js';
 
 /** Path in a comparable form (forward slashes, lower case; Windows paths are case-insensitive). */
 export function normPath(p: string): string {

@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { GgufMetadata } from '$lib/types';
-  import { invoke } from '$lib/ipc';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { capsStore } from '$lib/stores/caps.svelte';
+  import type { GgufMetadata } from '#lib/types.js';
+  import { invoke } from '#lib/ipc.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
   import type { LaunchParamsForm } from './params';
   import { applyMetadataOverride, metadataOverrideApplied } from './metadataOverrides';
 

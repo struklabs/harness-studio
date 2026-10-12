@@ -1,12 +1,12 @@
 <script lang="ts">
   // One empty state for "the selected server is not running": replaces grids of 0.0 / – / "not
   // available" and empty chart axes with what is going on and what to do next.
-  import type { ServerStatus } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { serverErrorText } from '$lib/failure';
-  import { cn } from '$lib/utils';
-  import { Button } from '$lib/components/ui/button';
+  import type { ServerStatus } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { serverErrorText } from '#lib/failure.js';
+  import { cn } from '#lib/utils.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import { LoaderCircle, Play, PowerOff, TriangleAlert } from '@lucide/svelte';
 
   interface Props {

@@ -1,7 +1,7 @@
 // Display texts of inference presets. The built-ins keep stable English names and
 // descriptions in harness-core (CLI/API); the GUI shows them from locale keys by id.
 
-import type { InferencePreset } from '$lib/types';
+import type { InferencePreset } from '#lib/types.js';
 
 type Translate = (key: never) => string;
 type PresetLike = Pick<InferencePreset, 'id' | 'name' | 'builtin'> & { description?: string };

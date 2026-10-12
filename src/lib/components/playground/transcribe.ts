@@ -2,7 +2,7 @@ import { normalizeTranscriptionText } from './transcriptionText';
 // Playground Speech tab: request helper for the gateway's /v1/audio/transcriptions and
 // /v1/audio/translations (a real whisper-server behind it; nothing is simulated).
 import { describeErrorBody } from './sse';
-import type { ModelDefinition } from '$lib/types';
+import type { ModelDefinition } from '#lib/types.js';
 
 export type AudioTask = 'transcriptions' | 'translations';
 export type AudioFormat = 'json' | 'text' | 'srt' | 'vtt' | 'verbose_json';

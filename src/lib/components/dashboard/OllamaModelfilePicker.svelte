@@ -1,18 +1,18 @@
 <script lang="ts">
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // "Import from an installed Ollama model": lists the GGUF models in the Ollama models folder
   // (read-only, as `harness import modelfile --ollama <name>`) and previews `FROM <name>` with
   // the same dialog as a Modelfile import.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onMount } from 'svelte';
-  import type { ModelfileImport } from '$lib/types';
-  import { localizeError } from '$lib/network';
-  import { formatBytes } from '$lib/format';
-  import { t } from '$lib/i18n.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Skeleton } from '$lib/components/ui/skeleton';
+  import type { ModelfileImport } from '#lib/types.js';
+  import { localizeError } from '#lib/network.js';
+  import { formatBytes } from '#lib/format.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Skeleton } from '#lib/components/ui/skeleton/index.js';
   import { CircleAlert, Eye, LoaderCircle } from '@lucide/svelte';
 
   interface OllamaInstalledModel {
