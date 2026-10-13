@@ -27,11 +27,13 @@
     isImageDefinition,
     parseSize,
     pngSize,
+    MAX_START_IMAGE_BYTES,
     readStartImage,
     SIZE_PRESETS,
     START_IMAGE_TYPES,
     strengthOk,
   } from './image';
+  import type { ImageResult } from './image';
   import { addToGallery, imageSession as form, removeFromGallery, type GalleryItem } from './image.svelte';
 
   /** Image definitions: the gateway loads the diffusion model on the first request (JIT). */
@@ -65,8 +67,15 @@
     input.value = '';
     if (!file) return;
     const image = await readStartImage(file);
-    if (image) form.init = image;
-    else toast.error(t('img.init_bad_type'));
+    if (image === 'type') toast.error(t('img.init_bad_type'));
+    else if (image === 'size') toast.error(t('img.init_too_big', { mb: MAX_START_IMAGE_BYTES / 1024 / 1024 }));
+    else useAsStart(image);
+  }
+
+  /** A start image sets the canvas: an older size would silently win over it. */
+  function useAsStart(image: ImageResult) {
+    form.init = image;
+    form.size = '';
   }
 
   async function run() {
@@ -300,7 +309,7 @@
               <p class="font-num text-xs text-muted-foreground">{item.model} · {item.size}</p>
               <div class="flex items-center gap-1.5">
                 <Button variant="outline" size="sm" onclick={() => save(item)}><Save />{t('img.save')}</Button>
-                <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.init = item.image)} title={t('img.use_as_init_hint')}>
+                <Button variant="ghost" size="sm" disabled={busy} onclick={() => useAsStart(item.image)} title={t('img.use_as_init_hint')}>
                   <ImagePlus />{t('img.use_as_init')}
                 </Button>
                 <Button variant="ghost" size="icon-sm" onclick={() => removeFromGallery(item.id)} aria-label={t('img.remove')} title={t('img.remove')}>

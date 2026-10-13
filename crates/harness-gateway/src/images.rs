@@ -21,7 +21,8 @@
 //! images as base64 / `data:` URLs) is mapped the way sd-server's own edit route maps it: the
 //! first image is the init image (image-to-image, `strength` says how much of it changes), every
 //! image is also a reference image (what instruction-editing models such as FLUX.1 Kontext and
-//! Qwen-Image-Edit read), `mask` is a grayscale inpainting mask (white = repaint) and without
+//! Qwen-Image-Edit read), `mask` is OpenAI's (transparent = edit, turned into sd.cpp's white = repaint) or already a
+//! grayscale one, and without
 //! `size` the first image's size is the canvas.
 
 use std::time::{Duration, Instant};
@@ -268,28 +269,77 @@ pub fn image_size(b: &[u8]) -> Option<(u32, u32)> {
     None
 }
 
-/// An image field of an edit: base64 or a `data:` URL -> its bytes.
-fn image_bytes(value: &str, field: &str) -> Result<Vec<u8>, GatewayError> {
+/// Bytes of an image's start decoded to read its header (`image_size`); a JPEG's frame header
+/// comes after its EXIF block, which is at most 64 KB.
+const HEAD_BYTES: usize = 256 * 1024;
+
+/// An image field of an edit (base64 or a `data:` URL) as bare base64, made in place (the
+/// image is not copied), and the decoded start of the image. The rest is decoded by sd-server,
+/// which refuses a broken image.
+fn image_field(mut value: String, field: &str) -> Result<(String, Vec<u8>), GatewayError> {
     let err = || bad(format!("{field} must be a base64 image or a data: URL.")).param(field);
-    let data = match value.strip_prefix("data:") {
-        Some(rest) => rest.split_once(";base64,").ok_or_else(err)?.1,
-        None => value,
-    };
-    B64.decode(data.trim()).map_err(|_| err())
+    if value.starts_with("data:") {
+        let at = value.find(";base64,").ok_or_else(err)?;
+        value.replace_range(..at + ";base64,".len(), "");
+    }
+    if value.starts_with(char::is_whitespace) || value.ends_with(char::is_whitespace) {
+        value = value.trim().to_string();
+    }
+    // A whole number of base64 quads (3 bytes each), so the prefix decodes on its own.
+    let quads = (HEAD_BYTES / 3 * 4).min(value.len()) / 4 * 4;
+    let head = if quads == value.len() {
+        B64.decode(&value)
+    } else {
+        B64.decode(&value[..quads])
+    }
+    .map_err(|_| err())?;
+    if head.is_empty() {
+        return Err(err());
+    }
+    Ok((value, head))
+}
+
+/// OpenAI's mask marks the area to edit with transparent pixels, sd.cpp's with white ones. A
+/// PNG mask with transparent pixels becomes a grayscale PNG (transparent = white, opaque =
+/// black); any other mask (no alpha channel, fully opaque, not a PNG) is in sd.cpp's terms
+/// already and gives `None`.
+pub fn sd_mask(png: &[u8]) -> Option<Vec<u8>> {
+    if !png.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return None;
+    }
+    let img = image::load_from_memory_with_format(png, image::ImageFormat::Png).ok()?;
+    if !img.color().has_alpha() {
+        return None;
+    }
+    let la = img.to_luma_alpha8();
+    if la.pixels().all(|p| p[1] == u8::MAX) {
+        return None;
+    }
+    let gray = image::GrayImage::from_fn(la.width(), la.height(), |x, y| {
+        image::Luma([u8::MAX - la.get_pixel(x, y)[1]])
+    });
+    let mut out = std::io::Cursor::new(Vec::new());
+    gray.write_to(&mut out, image::ImageFormat::Png).ok()?;
+    Some(out.into_inner())
 }
 
 /// Validates an edit request (`plan`'s fields plus `image`, `mask` and `strength`) and maps
-/// it onto `img_gen` (see the module notes).
-pub fn plan_edit(request: &Value) -> Result<Plan, GatewayError> {
-    let mut p = plan(request)?;
+/// it onto `img_gen` (see the module notes). Takes the request to move its images into the
+/// job body instead of copying them.
+pub fn plan_edit(mut request: Value) -> Result<Plan, GatewayError> {
+    let mut p = plan(&request)?;
+    let strength = number(&request, "strength")?;
     let not_images =
         || bad("image must be an image (base64 or a data: URL) or a list of them.").param("image");
-    let images: Vec<&str> = match request.get("image") {
+    let images: Vec<String> = match request.get_mut("image").map(Value::take) {
         None | Some(Value::Null) => Vec::new(),
-        Some(Value::String(s)) => vec![s.as_str()],
+        Some(Value::String(s)) => vec![s],
         Some(Value::Array(a)) => a
-            .iter()
-            .map(|v| v.as_str().ok_or_else(not_images))
+            .into_iter()
+            .map(|v| match v {
+                Value::String(s) => Ok(s),
+                _ => Err(not_images()),
+            })
             .collect::<Result<_, _>>()?,
         Some(_) => return Err(not_images()),
     };
@@ -301,13 +351,40 @@ pub fn plan_edit(request: &Value) -> Result<Plan, GatewayError> {
     }
     let mut encoded = Vec::with_capacity(images.len());
     let mut first_size = None;
-    for (i, image) in images.iter().enumerate() {
-        let bytes = image_bytes(image, "image")?;
-        if i == 0 {
-            first_size = image_size(&bytes);
+    for (i, image) in images.into_iter().enumerate() {
+        let (b64, head) = image_field(image, "image")?;
+        let size = image_size(&head);
+        if let Some((w, h)) = size.filter(|(w, h)| w.max(h) > SIDE_RANGE.end()) {
+            return Err(bad(format!(
+                "Image {} is {w}x{h}; the largest side an edit takes is {} pixels. Make it smaller first.",
+                i + 1,
+                SIDE_RANGE.end()
+            ))
+            .param("image"));
         }
-        encoded.push(B64.encode(bytes));
+        if i == 0 {
+            first_size = size;
+        }
+        encoded.push(Value::String(b64));
     }
+    let mask = match request.get_mut("mask").map(Value::take) {
+        None | Some(Value::Null) => None,
+        Some(Value::String(m)) if m.trim().is_empty() => None,
+        Some(Value::String(m)) => {
+            let (b64, head) = image_field(m, "mask")?;
+            // A mask is converted only when it is a PNG: decode the whole of it.
+            let converted = if head.starts_with(b"\x89PNG") {
+                let bytes = B64.decode(&b64).map_err(|_| {
+                    bad("mask must be a base64 image or a data: URL.").param("mask")
+                })?;
+                sd_mask(&bytes).map(|png| B64.encode(png))
+            } else {
+                None
+            };
+            Some(converted.unwrap_or(b64))
+        }
+        Some(_) => return Err(bad("mask must be a string.").param("mask")),
+    };
     let obj = p.body.as_object_mut().expect("a JSON object");
     if !obj.contains_key("width") {
         // The first image's size, made a multiple of 8.
@@ -325,20 +402,19 @@ pub fn plan_edit(request: &Value) -> Result<Plan, GatewayError> {
         obj.insert("width".into(), json!(w));
         obj.insert("height".into(), json!(h));
     }
-    if let Some(strength) = number(request, "strength")? {
+    if let Some(strength) = strength {
         if !(0.0..=1.0).contains(&strength) {
             return Err(bad("strength must be between 0 and 1.").param("strength"));
         }
         obj.insert("strength".into(), json!(strength));
     }
-    if let Some(mask) = text(request, "mask")? {
-        obj.insert(
-            "mask_image".into(),
-            json!(B64.encode(image_bytes(mask, "mask")?)),
-        );
+    if let Some(mask) = mask {
+        obj.insert("mask_image".into(), Value::String(mask));
     }
-    obj.insert("init_image".into(), json!(encoded[0]));
-    obj.insert("ref_images".into(), json!(encoded));
+    // sd-server's own edit route does the same: the first image is the init image and every
+    // image a reference (one more copy of the first image in the body).
+    obj.insert("init_image".into(), encoded[0].clone());
+    obj.insert("ref_images".into(), Value::Array(encoded));
     Ok(p)
 }
 
@@ -346,7 +422,8 @@ pub fn plan_edit(request: &Value) -> Result<Plan, GatewayError> {
 const NUMBER_FIELDS: [&str; 6] = ["n", "steps", "cfg_scale", "guidance", "seed", "strength"];
 
 /// Reads OpenAI's multipart edit form (`image` / `image[]` files, `mask`, text fields) into
-/// the JSON shape `plan_edit` reads.
+/// the JSON shape `plan_edit` reads. A file part is encoded as base64; an `image` or `mask`
+/// sent as a text part is base64 (or a `data:` URL) already and stays as it is.
 async fn read_edit_form(mut mp: Multipart) -> Result<Value, GatewayError> {
     let mut out = serde_json::Map::new();
     let mut images = Vec::new();
@@ -357,14 +434,23 @@ async fn read_edit_form(mut mp: Multipart) -> Result<Value, GatewayError> {
         ))
     })? {
         let name = field.name().unwrap_or_default().to_string();
+        let is_file = field.file_name().is_some()
+            || field
+                .content_type()
+                .is_some_and(|ct| !ct.starts_with("text/"));
         let bytes = field
             .bytes()
             .await
             .map_err(|e| bad(format!("Field {name}: {}", e.body_text())))?;
+        let image = if is_file {
+            Value::String(B64.encode(&bytes))
+        } else {
+            Value::String(String::from_utf8_lossy(&bytes).trim().to_string())
+        };
         match name.as_str() {
-            "image" | "image[]" => images.push(json!(B64.encode(&bytes))),
+            "image" | "image[]" => images.push(image),
             "mask" => {
-                out.insert(name, json!(B64.encode(&bytes)));
+                out.insert(name, image);
             }
             _ => {
                 let text = String::from_utf8_lossy(&bytes).trim().to_string();
@@ -551,7 +637,7 @@ async fn run(
     guard.admitted(caller.admit(state)?);
     let plan = match kind {
         Kind::Generations => plan(&request)?,
-        Kind::Edits => plan_edit(&request)?,
+        Kind::Edits => plan_edit(request)?,
     };
 
     let scheduler = state.scheduler.clone();
@@ -893,7 +979,7 @@ mod tests {
     fn an_edit_sends_the_image_as_init_and_reference_at_its_own_size() {
         let a = B64.encode(png(641, 480));
         let b = format!("data:image/png;base64,{}", B64.encode(png(64, 64)));
-        let p = plan_edit(&json!({
+        let p = plan_edit(json!({
             "prompt": "make it night", "image": [a, b], "strength": 0.4,
             "mask": B64.encode(png(641, 480))
         }))
@@ -909,7 +995,7 @@ mod tests {
         assert_eq!(p.body["ref_images"], json!([a, B64.encode(png(64, 64))]));
         assert_eq!(p.body["mask_image"], json!(B64.encode(png(641, 480))));
         // `size` wins over the image's size; one image may be a bare string.
-        let p = plan_edit(&json!({"prompt": "x", "image": a, "size": "512x512"})).unwrap();
+        let p = plan_edit(json!({"prompt": "x", "image": a, "size": "512x512"})).unwrap();
         assert_eq!(p.body["width"], json!(512));
         assert_eq!(p.body["ref_images"], json!([a]));
         assert!(p.body.get("strength").is_none() && p.body.get("mask_image").is_none());
@@ -918,7 +1004,7 @@ mod tests {
     #[test]
     fn bad_edits_name_the_field() {
         let param = |v: Value| {
-            plan_edit(&v)
+            plan_edit(v)
                 .unwrap_err()
                 .param
                 .map(|p| p.to_string())
@@ -951,12 +1037,59 @@ mod tests {
         // An image whose size is unknown or too small needs `size`.
         let gif = B64.encode(b"GIF89a....");
         assert_eq!(param(json!({"prompt": "x", "image": gif})), "size");
-        assert!(plan_edit(&json!({"prompt": "x", "image": gif, "size": "256x256"})).is_ok());
+        assert!(plan_edit(json!({"prompt": "x", "image": gif, "size": "256x256"})).is_ok());
         assert_eq!(
             param(json!({"prompt": "x", "image": B64.encode(png(32, 32))})),
             "size"
         );
         assert_eq!(param(json!({"image": ok})), "prompt");
+    }
+
+    /// A real PNG of `w` x 1 pixels with these alpha values (grayscale + alpha).
+    fn alpha_png(alphas: &[u8]) -> Vec<u8> {
+        let img = image::GrayAlphaImage::from_fn(alphas.len() as u32, 1, |x, _| {
+            image::LumaA([0, alphas[x as usize]])
+        });
+        let mut out = std::io::Cursor::new(Vec::new());
+        img.write_to(&mut out, image::ImageFormat::Png).unwrap();
+        out.into_inner()
+    }
+
+    #[test]
+    fn an_openai_mask_is_turned_into_an_sd_cpp_mask() {
+        // Transparent (edit) -> white, opaque (keep) -> black.
+        let out = sd_mask(&alpha_png(&[0, 255, 128])).unwrap();
+        let gray = image::load_from_memory(&out).unwrap().to_luma8();
+        assert_eq!(gray.as_raw(), &vec![255, 0, 127]);
+        // Fully opaque, no alpha, or not a PNG: already white = edit, left alone.
+        assert_eq!(sd_mask(&alpha_png(&[255, 255])), None);
+        let rgb = image::RgbImage::from_pixel(2, 2, image::Rgb([255, 255, 255]));
+        let mut no_alpha = std::io::Cursor::new(Vec::new());
+        rgb.write_to(&mut no_alpha, image::ImageFormat::Png)
+            .unwrap();
+        assert_eq!(sd_mask(no_alpha.get_ref()), None);
+        assert_eq!(sd_mask(b"\xFF\xD8\xFF"), None);
+        // Through an edit: the converted mask is what sd-server gets.
+        let p = plan_edit(json!({"prompt": "x", "image": B64.encode(png(512, 512)),
+                                 "mask": B64.encode(alpha_png(&[0, 255]))}))
+        .unwrap();
+        let sent = B64.decode(p.body["mask_image"].as_str().unwrap()).unwrap();
+        let gray = image::load_from_memory(&sent).unwrap().to_luma8();
+        assert_eq!(gray.as_raw(), &vec![255, 0]);
+    }
+
+    #[test]
+    fn an_image_larger_than_the_largest_side_is_refused() {
+        let err = plan_edit(
+            json!({"prompt": "x", "image": B64.encode(png(6000, 4000)), "size": "512x512"}),
+        )
+        .unwrap_err();
+        assert_eq!(err.param.as_deref(), Some("image"));
+        assert!(err.message.contains("6000x4000"), "{}", err.message);
+        // A reference image counts too.
+        let refs = json!([B64.encode(png(512, 512)), B64.encode(png(512, 8192))]);
+        assert!(plan_edit(json!({"prompt": "x", "image": refs})).is_err());
+        assert!(plan_edit(json!({"prompt": "x", "image": B64.encode(png(4096, 3072))})).is_ok());
     }
 
     #[tokio::test]
@@ -981,6 +1114,9 @@ Content-Type: image/png"#,
             &png(64, 64),
         );
         part(r#"name="mask"; filename="m.png""#, &png(512, 384));
+        // An image sent as a text part is base64 already: not encoded twice.
+        let text_image = B64.encode(png(32, 32));
+        part(r#"name="image[]""#, text_image.as_bytes());
         part(r#"name="prompt""#, b"42");
         part(r#"name="n""#, b"2");
         part(r#"name="strength""#, b"0.3");
@@ -1003,9 +1139,13 @@ Content-Type: image/png"#,
         assert_eq!(v["model"], json!("sd-turbo"));
         assert_eq!(
             v["image"],
-            json!([B64.encode(png(512, 384)), B64.encode(png(64, 64))])
+            json!([
+                B64.encode(png(512, 384)),
+                B64.encode(png(64, 64)),
+                text_image
+            ])
         );
-        let p = plan_edit(&v).unwrap();
+        let p = plan_edit(v).unwrap();
         assert_eq!(
             (p.body["width"].clone(), p.body["height"].clone()),
             (json!(512), json!(384))

@@ -87,9 +87,13 @@ export function strengthOk(strength: string): boolean {
 /** Image types the start image may be (what sd-server decodes and the gateway sizes). */
 export const START_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
-/** A picked file as a start image: its base64 and format; null for another type. */
-export async function readStartImage(file: File): Promise<ImageResult | null> {
-  if (!START_IMAGE_TYPES.includes(file.type)) return null;
+/** Largest start image file (a larger one is a camera original; the gateway takes up to 4096 px a side). */
+export const MAX_START_IMAGE_BYTES = 20 * 1024 * 1024;
+
+/** A picked file as a start image: its base64 and format, or why it was refused. */
+export async function readStartImage(file: File): Promise<ImageResult | 'type' | 'size'> {
+  if (!START_IMAGE_TYPES.includes(file.type)) return 'type';
+  if (file.size > MAX_START_IMAGE_BYTES) return 'size';
   const bytes = new Uint8Array(await file.arrayBuffer());
   let binary = '';
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
