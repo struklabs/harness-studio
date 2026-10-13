@@ -629,7 +629,8 @@ const fn row_alt(
 const ASR_ALTS: &[(&str, Support)] = &[(WHISPER_FAMILY, Yes), (SHERPA_FAMILY, Yes)];
 /// Text-to-speech: Kokoro / Piper through sherpa-onnx.
 const TTS_ALTS: &[(&str, Support)] = &[(SHERPA_FAMILY, Yes)];
-/// Encoder task heads (classification, NER, fill-mask, extractive QA): harness-onnx on `/hf`.
+/// Encoder task heads (classification, NER, fill-mask, extractive QA) and vision heads
+/// (image classification, detection, segmentation, depth): harness-onnx on `/hf`.
 const ONNX_ALTS: &[(&str, Support)] = &[(ONNX_FAMILY, Yes)];
 /// Text-to-image and image-to-image (`/v1/images/edits`): stable-diffusion.cpp.
 const T2I_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes)];
@@ -676,10 +677,10 @@ const TABLE: &[Row] = &[
     row_alt("image-to-image", No, None, T2I_ALTS),
     row_alt("text-to-video", No, None, SD_PARTIAL_ALTS),
     row_alt("image-to-video", No, None, SD_PARTIAL_ALTS),
-    row("image-classification", No, None),
-    row("object-detection", No, None),
-    row("image-segmentation", No, None),
-    row("depth-estimation", No, None),
+    row_alt("image-classification", No, None, ONNX_ALTS),
+    row_alt("object-detection", No, None, ONNX_ALTS),
+    row_alt("image-segmentation", No, None, ONNX_ALTS),
+    row_alt("depth-estimation", No, None, ONNX_ALTS),
 ];
 
 /// One task's support on the installed runtime.

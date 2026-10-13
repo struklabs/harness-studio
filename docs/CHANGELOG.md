@@ -10,6 +10,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Added
 - ONNX task models without Python: text classification, zero-shot classification, named entity recognition, fill-mask, and question answering. They run through the gateway at `/v1/hf/{model}` in the Hugging Face Inference API format and in the new Playground **Tasks** tab (Advanced). The Model Hub marks these tasks as runnable with ONNX Runtime.
+- ONNX vision models: image classification, object detection, semantic segmentation, and depth estimation (ViT, DETR, SegFormer, Depth Anything and similar transformers.js exports). The Playground **Tasks** tab takes an image, draws the detected boxes, overlays the masks, and shows the depth map.
 
 ### Changed
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.

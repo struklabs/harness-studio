@@ -21,7 +21,7 @@ required-features = ["engine"]
 # The pure parts (model package layout, pooling, request/response shapes) are always built;
 # `engine` adds ONNX Runtime, the tokenizer and the HTTP server (the sidecar binary).
 default = ["engine"]
-engine = ["dep:half", "dep:ort", "dep:tokenizers", "dep:axum", "dep:tokio", "dep:tracing", "dep:libloading", "dep:minijinja", "dep:minijinja-contrib", "dep:futures-util", "dep:bytes"]
+engine = ["dep:half", "dep:ort", "dep:tokenizers", "dep:axum", "dep:tokio", "dep:tracing", "dep:libloading", "dep:minijinja", "dep:minijinja-contrib", "dep:futures-util", "dep:bytes", "dep:image"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -44,6 +44,8 @@ minijinja = { version = "3", features = ["json", "loop_controls", "preserve_orde
 minijinja-contrib = { version = "3", features = ["pycompat"], optional = true }
 futures-util = { version = "0.3", default-features = false, features = ["std"], optional = true }
 bytes = { version = "1", optional = true }
+# Vision models: decoding the request image, resizing, and the PNG masks and depth maps.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "bmp", "gif"], optional = true }
 
 [dev-dependencies]
 tempfile = "3"
