@@ -1078,6 +1078,26 @@ mod tests {
     }
 
     #[test]
+    fn a_user_context_above_the_unified_limits_is_shrunk_to_fit_not_reported_as_too_tight() {
+        // Live (MacBook Air M1 8 GB, v0.1.0): a saved Qwen3-4B definition at 16k showed "fits in
+        // memory" next to "this context does not fit even at the tightest setting". q8_0 at 16k
+        // breaks the 1 GiB cache cap but fits Metal's working set: the cache is shrunk to fit.
+        let (_, r8) = unified_4b_load(8, None);
+        let (size, meta) = shape_of("Qwen3-4B-Instruct-2507-Q4_K_M.gguf");
+        let mut input = crate::vram::input_from_launch(&crate::process::LaunchConfig {
+            context_size: 16_384,
+            gpu_layers: 999,
+            ..Default::default()
+        });
+        input.model_size_bytes = size;
+        let r = crate::vram::fit_with(&input, Some(&meta), &r8.budget, &[]);
+        let kv = r.kv.as_ref().unwrap();
+        assert!(!unified_fits(&r, 16_384), "above the unified limits");
+        assert_eq!(kv.level, crate::kv_policy::KvLevel::Balanced);
+        assert_eq!(kv.reason, crate::kv_policy::KvReason::ToFit, "{kv:?}");
+    }
+
+    #[test]
     fn a_discrete_card_keeps_its_cache_choice() {
         // Same model on a 4 GB CUDA card: the unified limits do not apply; 12k with the q8_0
         // the card's own memory needs, as before.
