@@ -185,7 +185,18 @@ pub async fn ensure_in(
     let mut cmd = uv.command();
     cmd.args(["pip", "install", "--no-config", "--python"])
         .arg(&python)
-        .args(["--require-hashes", "--no-deps", "-r"])
+        // Every file is pinned by hash, so taking a version from whichever index has it (the
+        // CPU PyTorch index next to PyPI) cannot swap in another file. Wheels only: a source
+        // distribution would run its build script here, outside the isolation, with network.
+        .args([
+            "--require-hashes",
+            "--no-deps",
+            "--only-binary",
+            ":all:",
+            "--index-strategy",
+            "unsafe-best-match",
+            "-r",
+        ])
         .arg(&lock_file);
     run_step(cmd, "packages", &KEYS, cancel, report).await?;
     // The wheels are installed; keeping uv's copy of them would double the size.
@@ -210,16 +221,24 @@ pub async fn ensure_in(
     )
 }
 
+/// Registers the install of `name`. A second install of the same env while one runs (or waits
+/// for the build lock) would take over its progress and cancel handle: it is refused.
+fn begin(name: &str) -> Result<Cancel, String> {
+    let mut cancels = CANCELS.lock().unwrap();
+    let cancels = cancels.get_or_insert_with(HashMap::new);
+    if cancels.contains_key(name) {
+        return Err(err("pyenv.env_busy").with("name", name).into());
+    }
+    let cancel = Cancel::default();
+    cancels.insert(name.to_string(), cancel.clone());
+    Ok(cancel)
+}
+
 /// Builds the env `name` with progress Settings can poll ([`status_all`]).
 pub async fn install(name: &str) -> Result<EnvStatus, String> {
     let spec =
         spec(name).ok_or_else(|| String::from(err("pyenv.unknown_env").with("name", name)))?;
-    let cancel = Cancel::default();
-    CANCELS
-        .lock()
-        .unwrap()
-        .get_or_insert_with(HashMap::new)
-        .insert(name.to_string(), cancel.clone());
+    let cancel = begin(name)?;
     set_progress(name, Some(EnvProgress::default()));
     let key = name.to_string();
     let report = Progress::new(move |p| set_progress(&key, Some(p.clone())));
@@ -245,7 +264,12 @@ pub fn cancel_install(name: &str) {
 
 /// Deletes the env `name` (refused while it is being built).
 pub fn remove_in(root: &Path, name: &str) -> Result<(), String> {
-    if progress(name).is_some() {
+    let installing = CANCELS
+        .lock()
+        .unwrap()
+        .as_ref()
+        .is_some_and(|m| m.contains_key(name));
+    if installing || progress(name).is_some() {
         return Err(err("pyenv.env_in_use").with("name", name).into());
     }
     remove_dir(&env_dir_in(root, name))
@@ -313,6 +337,19 @@ mod tests {
     #[test]
     fn unknown_envs_are_refused() {
         assert!(remove("no-such-env").is_err());
+    }
+
+    #[test]
+    fn a_second_install_of_the_same_env_is_refused_and_blocks_removal() {
+        let dir = tempfile::tempdir().unwrap();
+        begin("busy-env").unwrap();
+        assert!(begin("busy-env").err().unwrap().contains("pyenv.env_busy"));
+        assert!(begin("other-env").is_ok());
+        assert!(remove_in(dir.path(), "busy-env").is_err());
+        for name in ["busy-env", "other-env"] {
+            CANCELS.lock().unwrap().as_mut().unwrap().remove(name);
+        }
+        assert!(remove_in(dir.path(), "busy-env").is_ok());
     }
 
     /// Builds a real env (downloads uv, Python and one wheel): `cargo test -- --ignored`.

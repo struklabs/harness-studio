@@ -1,67 +1,139 @@
 //! Network isolation of Python processes.
 //!
 //! A Python engine loads third-party model code and packages, so its processes get no network
-//! where the OS allows it:
+//! interfaces where the OS allows it:
 //!
 //! * **Linux:** the process runs in a new user + network namespace (`unshare -rn`). Inside it
-//!   there is only a loopback interface that is down, so nothing can connect anywhere, not even
-//!   to other services on this machine. A server process therefore listens on a Unix socket
-//!   (a file, reachable across the namespace boundary) and Harness relays its TCP port to it
-//!   ([`relay`]). Kernels or distributions that forbid unprivileged user namespaces make
-//!   [`available`] false; the process then runs with [`super::python_env`] only.
+//!   the only interface is a loopback of its own that is down, so it cannot open TCP/UDP
+//!   connections to the internet, the LAN or services on this machine's loopback. **Unix
+//!   sockets are files, not network:** ones the user can reach (the D-Bus session bus,
+//!   `/run/docker.sock` for members of the docker group...) stay reachable. A server process
+//!   listens on a Unix socket in a private (0700) folder ([`socket_dir`]) and Harness relays
+//!   its TCP port to it ([`relay`]). Kernels or distributions that forbid unprivileged user
+//!   namespaces make [`status`] unavailable with the reason; an engine then refuses to start
+//!   unless isolation is not required ([`command`]).
 //! * **Windows / macOS:** no unprivileged equivalent; isolation is the environment
 //!   ([`super::python_env`]: offline Hugging Face Hub, no user site-packages) and the loopback
 //!   bind of the server.
 
-use std::path::Path;
+use crate::error_key::err;
+use serde::Serialize;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-/// Whether processes can be started without network here (probed once per run).
+/// Whether processes can be started without network interfaces here, and why not.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct IsolationStatus {
+    pub available: bool,
+    /// `unshare: ... Operation not permitted`, "not supported on this OS"...
+    pub reason: Option<String>,
+}
+
+/// Probed once per run.
+pub fn status() -> &'static IsolationStatus {
+    static PROBE: OnceLock<IsolationStatus> = OnceLock::new();
+    PROBE.get_or_init(probe)
+}
+
 pub fn available() -> bool {
-    static PROBE: OnceLock<bool> = OnceLock::new();
-    *PROBE.get_or_init(probe)
+    status().available
 }
 
 #[cfg(target_os = "linux")]
-fn probe() -> bool {
-    std::process::Command::new("unshare")
+fn probe() -> IsolationStatus {
+    match std::process::Command::new("unshare")
         .args(["--user", "--map-root-user", "--net", "--", "true"])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
-}
-
-#[cfg(not(target_os = "linux"))]
-fn probe() -> bool {
-    false
-}
-
-/// A command that runs `program` without network when [`available`], else `program` itself.
-/// The second value says which one it is.
-pub fn command(program: &Path) -> (tokio::process::Command, bool) {
-    if available() {
-        let mut cmd = tokio::process::Command::new("unshare");
-        cmd.args(["--user", "--map-root-user", "--net", "--"])
-            .arg(program);
-        (cmd, true)
-    } else {
-        (tokio::process::Command::new(program), false)
+        .stderr(std::process::Stdio::piped())
+        .output()
+    {
+        Ok(o) if o.status.success() => IsolationStatus {
+            available: true,
+            reason: None,
+        },
+        Ok(o) => IsolationStatus {
+            available: false,
+            reason: Some(
+                String::from_utf8_lossy(&o.stderr)
+                    .trim()
+                    .chars()
+                    .take(300)
+                    .collect::<String>(),
+            )
+            .filter(|r| !r.is_empty())
+            .or_else(|| Some(format!("unshare exited with {}", o.status))),
+        },
+        Err(e) => IsolationStatus {
+            available: false,
+            reason: Some(format!("unshare: {e}")),
+        },
     }
 }
 
-/// Relays `127.0.0.1:<port>` connections to the Unix socket a server process listens on inside
-/// its network namespace. Runs until the returned task is aborted (when the server stops).
+#[cfg(not(target_os = "linux"))]
+fn probe() -> IsolationStatus {
+    IsolationStatus {
+        available: false,
+        reason: Some(format!("not supported on {}", std::env::consts::OS)),
+    }
+}
+
+/// A command that runs `program` without network interfaces when that is [`available`]. When
+/// it is not: `program` itself, or with `required` the error `pyenv.isolation_unavailable`
+/// carrying the reason. The second value says whether the command is isolated.
+pub fn command(program: &Path, required: bool) -> Result<(tokio::process::Command, bool), String> {
+    let st = status();
+    if st.available {
+        let mut cmd = tokio::process::Command::new("unshare");
+        cmd.args(["--user", "--map-root-user", "--net", "--"])
+            .arg(program);
+        return Ok((cmd, true));
+    }
+    if required {
+        return Err(err("pyenv.isolation_unavailable")
+            .with("reason", st.reason.as_deref().unwrap_or(""))
+            .into());
+    }
+    Ok((tokio::process::Command::new(program), false))
+}
+
+/// A folder only this user can enter (0700), for the Unix socket of one server process: other
+/// local users cannot connect to the worker through it.
 #[cfg(unix)]
-pub fn relay(
-    listener: tokio::net::TcpListener,
-    socket: std::path::PathBuf,
-) -> tokio::task::JoinHandle<()> {
+pub fn socket_dir(parent: &Path, name: &str) -> Result<PathBuf, String> {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = parent.join(name);
+    super::create_dir(&dir)?;
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).map_err(|e| {
+        String::from(
+            err("fs.write_failed")
+                .with("path", dir.display())
+                .with("error", e),
+        )
+    })?;
+    Ok(dir)
+}
+
+/// Relays `127.0.0.1:<port>` connections to the Unix socket a server process listens on inside
+/// its namespace. Runs until the returned task is aborted (when the server stops).
+///
+/// The relay passes bytes through and does not authenticate: like every local engine port, the
+/// TCP side is reachable by any process of this machine. The worker behind it checks the
+/// per-run API key Harness gives it (as `llama-server --api-key` does), so only Harness and the
+/// gateway can use it.
+#[cfg(unix)]
+pub fn relay(listener: tokio::net::TcpListener, socket: PathBuf) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         loop {
-            let Ok((mut tcp, _)) = listener.accept().await else {
-                continue;
+            let mut tcp = match listener.accept().await {
+                Ok((tcp, _)) => tcp,
+                // Out of file descriptors and the like: wait instead of spinning.
+                Err(_) => {
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    continue;
+                }
             };
             let socket = socket.clone();
             tokio::spawn(async move {
@@ -88,7 +160,7 @@ mod tests {
         let port = host.local_addr().unwrap().port();
         // ...is out of reach from inside, where the only interface is a loopback of its own
         // (`/proc/net/dev` is per namespace; `/sys/class/net` shows the host's mount).
-        let (mut cmd, isolated) = command(Path::new("bash"));
+        let (mut cmd, isolated) = command(Path::new("bash"), true).unwrap();
         assert!(isolated);
         let script = format!(
             "tail -n +3 /proc/net/dev | cut -d: -f1 | tr -d ' '; \
@@ -99,6 +171,21 @@ mod tests {
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(lines, ["lo", "blocked"], "{text}");
         drop(host);
+    }
+
+    #[test]
+    fn socket_dir_is_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let d = socket_dir(dir.path(), "worker-1").unwrap();
+        let mode = std::fs::metadata(&d).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o700);
+    }
+
+    #[test]
+    fn status_explains_an_unavailable_probe() {
+        let st = status();
+        assert_eq!(st.available, st.reason.is_none(), "{st:?}");
     }
 
     #[tokio::test]

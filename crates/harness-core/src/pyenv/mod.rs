@@ -16,7 +16,8 @@
 //!
 //! Nothing here is on PATH, `pip` never runs outside these folders, every environment can be
 //! deleted from Settings, and the processes started from them get [`python_env`] (no user
-//! site-packages, offline Hugging Face Hub) and, on Linux, no network ([`isolation`]).
+//! site-packages, offline Hugging Face Hub) and, on Linux, no network interfaces
+//! ([`isolation`]; Unix sockets stay reachable).
 
 pub mod envs;
 pub mod isolation;
