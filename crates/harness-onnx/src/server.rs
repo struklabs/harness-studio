@@ -132,6 +132,59 @@ async fn embeddings(
     )))
 }
 
+/// `POST /hf`: the task heads in the Hugging Face Inference API shape ([`crate::hf_api`]).
+async fn hf(State(s): State<Arc<Shared>>, body: axum::body::Bytes) -> Result<Json<Value>, Failure> {
+    use crate::hf_api::{self, HfJob};
+    let engine = s.engine().ok_or_else(|| not_an_encoder(&s))?;
+    let request: Value = serde_json::from_slice(&body)
+        .map_err(|e| Failure(ApiError::invalid(format!("invalid request body: {}", e))))?;
+    let job = hf_api::parse(engine.package.task, &request).map_err(Failure)?;
+    let answer = blocking(move || {
+        Ok(match job {
+            HfJob::Classify {
+                texts,
+                pairs,
+                top_k,
+                single: _,
+            } => {
+                let (rows, _) = engine.classify(&texts, pairs.as_deref(), top_k)?;
+                hf_api::classify_response(&rows)
+            }
+            HfJob::ZeroShot {
+                text,
+                candidates,
+                template,
+                multi_label,
+            } => {
+                let (scores, _) = engine.zero_shot(&text, &candidates, &template, multi_label)?;
+                hf_api::zero_shot_response(&text, &scores)
+            }
+            HfJob::Tokens {
+                texts,
+                group,
+                single,
+            } => {
+                let (entities, _) = engine.token_classify(&texts, group)?;
+                hf_api::tokens_response(&entities, group, single)
+            }
+            HfJob::FillMask { text, top_k } => {
+                let (fills, _) = engine.fill_mask(&text, top_k)?;
+                hf_api::fill_mask_response(&fills)
+            }
+            HfJob::Answer {
+                question,
+                context,
+                top_k,
+            } => {
+                let (answers, _) = engine.answer(&question, &context, top_k)?;
+                hf_api::answer_response(&answers, top_k)
+            }
+        })
+    })
+    .await?;
+    Ok(Json(answer))
+}
+
 async fn rerank(
     State(s): State<Arc<Shared>>,
     body: axum::body::Bytes,
@@ -269,6 +322,7 @@ pub fn router(shared: Arc<Shared>) -> Router {
         .route("/v1/rerank", post(rerank))
         .route("/rerank", post(rerank))
         .route("/v1/reranking", post(rerank))
+        .route("/hf", post(hf))
         .route("/reranking", post(rerank))
         .layer(DefaultBodyLimit::max(64 << 20))
         .with_state(shared)

@@ -27,6 +27,7 @@
     asr: 'lib.kind_asr',
     image: 'lib.kind_image',
     tts: 'lib.kind_tts',
+    pipeline: 'lib.kind_pipeline',
     mmproj: 'def.kind_mmproj',
     adapter: 'def.kind_adapter',
     unknown: 'def.kind_unknown',

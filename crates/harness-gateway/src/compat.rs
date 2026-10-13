@@ -28,6 +28,8 @@ pub enum Api {
     Rerank,
     Messages,
     CountTokens,
+    /// Hugging Face pipeline tasks (`/v1/hf/{model}` on the gateway, `/hf` upstream).
+    Hf,
 }
 
 impl Api {
@@ -41,6 +43,15 @@ impl Api {
             Api::Rerank => "/v1/rerank",
             Api::Messages => "/v1/messages",
             Api::CountTokens => "/v1/messages/count_tokens",
+            Api::Hf => "/v1/hf",
+        }
+    }
+
+    /// Path on the model server (the gateway's own path except for [`Api::Hf`]).
+    pub fn upstream_path(self) -> &'static str {
+        match self {
+            Api::Hf => "/hf",
+            other => other.path(),
         }
     }
 

@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::capabilities::features::{CapabilityLevel, FeatureStatus};
 use crate::capabilities::RuntimeCapabilities;
-use crate::hub_compat::{SDCPP_FAMILY, SHERPA_FAMILY, WHISPER_FAMILY};
+use crate::hub_compat::{ONNX_FAMILY, SDCPP_FAMILY, SHERPA_FAMILY, WHISPER_FAMILY};
 
 /// Tasks [`infer_task`] can produce; the Hub adds untagged repos to a listing only for these.
 pub const INFERABLE: &[&str] = &[
@@ -629,6 +629,8 @@ const fn row_alt(
 const ASR_ALTS: &[(&str, Support)] = &[(WHISPER_FAMILY, Yes), (SHERPA_FAMILY, Yes)];
 /// Text-to-speech: Kokoro / Piper through sherpa-onnx.
 const TTS_ALTS: &[(&str, Support)] = &[(SHERPA_FAMILY, Yes)];
+/// Encoder task heads (classification, NER, fill-mask, extractive QA): harness-onnx on `/hf`.
+const ONNX_ALTS: &[(&str, Support)] = &[(ONNX_FAMILY, Yes)];
 /// Text-to-image and image-to-image (`/v1/images/edits`): stable-diffusion.cpp.
 const T2I_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes)];
 /// Video: stable-diffusion.cpp loads Wan, but Harness has no video endpoint yet.
@@ -653,11 +655,11 @@ const TABLE: &[Row] = &[
     row("text-ranking", Yes, Some("rerank")),
     row("translation", Partial, None),
     row("summarization", Partial, None),
-    row("question-answering", Partial, None),
-    row("text-classification", No, None),
-    row("token-classification", No, None),
-    row("zero-shot-classification", No, None),
-    row("fill-mask", No, None),
+    row_alt("question-answering", Partial, None, ONNX_ALTS),
+    row_alt("text-classification", No, None, ONNX_ALTS),
+    row_alt("token-classification", No, None, ONNX_ALTS),
+    row_alt("zero-shot-classification", No, None, ONNX_ALTS),
+    row_alt("fill-mask", No, None, ONNX_ALTS),
     row("table-question-answering", No, None),
     row_alt(
         "automatic-speech-recognition",
@@ -1230,9 +1232,14 @@ mod tests {
             support_of(&none, "text-to-speech").needs_runtime.as_deref(),
             Some(SHERPA_FAMILY)
         );
+        // Encoder pipelines point at ONNX Runtime.
+        assert_eq!(
+            support_of(&none, "fill-mask").needs_runtime.as_deref(),
+            Some(ONNX_FAMILY)
+        );
         // Tasks nobody serves have neither.
-        let fill = support_of(&none, "fill-mask");
-        assert!(fill.needs_runtime.is_none() && fill.runtime.is_none());
+        let table = support_of(&none, "table-question-answering");
+        assert!(table.needs_runtime.is_none() && table.runtime.is_none());
         // Llama rows are untouched.
         let tg = support_of(&none, "text-generation");
         assert_eq!(

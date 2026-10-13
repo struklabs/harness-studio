@@ -39,6 +39,7 @@ fn real_models() -> Vec<LocalModel> {
                 root_dir: "/lib".into(),
                 kind: crate::domain::detect_kind(Some(&meta)),
                 origin: ModelOrigin::Library,
+                task: None,
                 gguf: Some(meta),
                 source: None,
                 mmproj_path: None,

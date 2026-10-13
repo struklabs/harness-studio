@@ -8,7 +8,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import { selectChatModel } from './playground/modelSelection';
   import { estimatePromptBudget, hasContextPressure } from './playground/contextBudget';
-  import { definitionsForMode, selectModeModel } from './playground/modelModes';
+  import { definitionFile, definitionsForMode, selectModeModel } from './playground/modelModes';
   import { library } from '$lib/stores/library.svelte';
   import { holdReleaseWhile } from '$lib/windowActivity';
   import { invoke } from '$lib/ipc';
@@ -52,6 +52,7 @@
   import { gatewayModelStates, type GatewayModelEntry, type ModelLoadState } from './playground/gatewayModels';
   import EmbeddingPanel from './playground/EmbeddingPanel.svelte';
   import RerankPanel from './playground/RerankPanel.svelte';
+  import PipelinePanel from './playground/PipelinePanel.svelte';
   import { ensureLibraryDefinitions, loadAndChat } from '$lib/stores/downloads.svelte';
   import { isChatLoadable } from '$lib/downloadFollowUp';
   import { kindsForTab } from '$lib/libraryDefinitions';
@@ -240,7 +241,12 @@
 
   // ---- Tabs: chat, or the Embedding / Rerank test benches ----
   let pgTab = $state<ServeMode>('chat');
-  let modeModels = $state({ embedding: '', rerank: '', transcription: '', image: '' });
+  let modeModels = $state({ embedding: '', rerank: '', transcription: '', image: '', pipeline: '' });
+  /** Pipeline task ("fill-mask"...) of the Tasks tab's model, from its library file. */
+  let pipelineTask = $derived.by(() => {
+    const def = domain.definitions.find(d => d.alias === modeModels.pipeline);
+    return def ? definitionFile(def, library.models)?.task : undefined;
+  });
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
   let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (!app.gatewayRunning && serveMode === 'chat')));
   let pickerModel = $derived(pgTab === 'chat' ? settings.model : modeModels[pgTab]);
@@ -249,7 +255,7 @@
     untrack(() => void library.refresh());
   });
   $effect(() => {
-    for (const mode of ['embedding', 'rerank', 'transcription', 'image'] as const) {
+    for (const mode of ['embedding', 'rerank', 'transcription', 'image', 'pipeline'] as const) {
       const available = definitionsForMode(domain.definitions, mode, library.models).map(def => def.alias);
       modeModels[mode] = selectModeModel(modeModels[mode], available);
     }
@@ -269,7 +275,7 @@
     pgTab = tab;
     const alias = app.requestedPlaygroundModel;
     app.requestedPlaygroundModel = null;
-    if (alias && (tab === 'embedding' || tab === 'rerank')) modeModels[tab] = alias;
+    if (alias && (tab === 'embedding' || tab === 'rerank' || tab === 'pipeline')) modeModels[tab] = alias;
   });
   // Embedding / Rerank list definitions: library files found by a scan get their default one first.
   $effect(() => {
@@ -2727,7 +2733,7 @@
       {/if}
       <!-- Speech goes through the gateway (whisper-server JIT), not the selected llama-server:
            the Speech panel shows its own gateway notice instead. -->
-      {#if !canChat && pgTab !== 'transcription' && pgTab !== 'image'}
+      {#if !canChat && pgTab !== 'transcription' && pgTab !== 'image' && pgTab !== 'pipeline'}
         <div class="flex shrink-0 items-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2" role="status">
           <Unplug class="size-4 shrink-0 text-warning" aria-hidden="true" />
           <span class="min-w-0 flex-1 text-xs text-foreground">
@@ -2737,7 +2743,7 @@
         </div>
       {/if}
       <div class="min-h-0 flex-1 overflow-y-auto">
-        <AdvancedPageNotice level={pgTab === 'embedding' || pgTab === 'rerank' ? 'advanced' : undefined} />
+        <AdvancedPageNotice level={pgTab === 'embedding' || pgTab === 'rerank' || pgTab === 'pipeline' ? 'advanced' : undefined} />
         {#if pgTab === 'embedding'}
           <EmbeddingPanel model={modeModels.embedding} />
         {:else if pgTab === 'transcription'}
@@ -2746,6 +2752,8 @@
           <TtsPanel />
         {:else if pgTab === 'image'}
           <ImagePanel />
+        {:else if pgTab === 'pipeline'}
+          <PipelinePanel model={modeModels.pipeline} task={pipelineTask} />
         {:else}
           <RerankPanel model={modeModels.rerank} />
         {/if}
