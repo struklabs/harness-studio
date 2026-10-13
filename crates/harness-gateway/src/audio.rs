@@ -296,6 +296,29 @@ async fn run(
         ))
         .param("response_format"));
     }
+    // A speech recognition model of the Python engine answers OpenAI's request itself (after the
+    // audio is in a container it reads, below).
+    let python = crate::pyhf::task_of(&def);
+    if let Some(model_task) = &python {
+        if model_task != "automatic-speech-recognition" {
+            return Err(GatewayError::new(
+                400,
+                "model_not_speech",
+                format!(
+                    "`{}` is a Python engine model of {model_task}; {} needs a speech recognition model.",
+                    def.alias,
+                    task.path()
+                ),
+            )
+            .param("model"));
+        }
+        if !PYTHON_FORMATS.contains(&format) {
+            return Err(bad(format!(
+                "response_format `{format}` is not available for this model; use json or text."
+            ))
+            .param("response_format"));
+        }
+    }
     // A transcription model of the Lemonade engine: its own server takes the audio.
     let lemonade = harness_core::lemonade::model_of_def(&def.id).map(str::to_string);
     if let Some(model) = &lemonade {
@@ -318,7 +341,7 @@ async fn run(
             )
             .param("model"));
         }
-    } else if !is_speech_model(&def) {
+    } else if python.is_none() && !is_speech_model(&def) {
         return Err(GatewayError::new(
             400,
             "model_not_speech",
@@ -358,6 +381,20 @@ async fn run(
         )
         .param("file"));
     };
+
+    if python.is_some() {
+        return python_transcribe(
+            state,
+            task,
+            &def,
+            &form,
+            &filename,
+            &audio_bytes,
+            format,
+            guard,
+        )
+        .await;
+    }
 
     let lease = match scheduler.acquire_tokens(&def, None).await {
         Ok(lease) => lease,
@@ -485,6 +522,76 @@ async fn run(
     builder
         .body(axum::body::Body::from(out))
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
+}
+
+/// `response_format`s a Python engine model answers (its worker returns the text only).
+const PYTHON_FORMATS: [&str; 2] = ["json", "text"];
+
+/// A transcription (or a Whisper translation) on a Python engine model: the audio goes to the
+/// worker's `/v1/audio/transcriptions`; `text` is made from its JSON here.
+#[allow(clippy::too_many_arguments)]
+async fn python_transcribe(
+    state: &GwState,
+    task: Task,
+    def: &ModelDefinition,
+    form: &Form,
+    filename: &str,
+    audio: &[u8],
+    format: &str,
+    guard: &mut RecordGuard,
+) -> Result<Response, GatewayError> {
+    let mut fields: Vec<(&str, String)> = Vec::new();
+    if let Some(l) = form.language.clone() {
+        fields.push(("language", l));
+    }
+    if task == Task::Translate {
+        fields.push(("task", "translate".into()));
+    }
+    let (content_type, body) = multipart_body(filename, audio, &fields);
+    let answer = crate::pyhf::post(
+        state,
+        def,
+        guard,
+        "/v1/audio/transcriptions",
+        &content_type,
+        body,
+    )
+    .await?;
+    let text = serde_json::from_slice::<serde_json::Value>(&answer.body)
+        .ok()
+        .and_then(|v| {
+            v.get("text")
+                .and_then(|t| t.as_str())
+                .map(|t| t.trim().to_string())
+        })
+        .ok_or_else(|| {
+            GatewayError::new(
+                502,
+                "upstream_error",
+                "Python engine: the answer has no text.",
+            )
+        })?;
+    let (content_type, out) = if format == "text" {
+        (
+            "text/plain; charset=utf-8",
+            format!("{text}\n").into_bytes(),
+        )
+    } else {
+        (
+            "application/json",
+            serde_json::json!({ "text": text }).to_string().into_bytes(),
+        )
+    };
+    guard.finish(200, None);
+    crate::pyhf::lease_headers(
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, content_type),
+        def,
+        &answer.lease,
+    )
+    .body(axum::body::Body::from(out))
+    .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
 }
 
 /// OpenAI's shape of whisper-server's answer: no leading space in `text`, plain text with one
