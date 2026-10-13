@@ -70,3 +70,22 @@ export function recommendWhisperVariant(variants: HfModelVariant[], availableRam
   }
   return null;
 }
+
+/** An ONNX CTC speech package (wav2vec2, HuBERT, WavLM): a graph plus `preprocessor_config.json`. */
+export function isCtcVariant(v: HfModelVariant): boolean {
+  const files = v.shards.map((s) => s.filename.toLowerCase());
+  return files.some((f) => f.endsWith('.onnx')) && files.some((f) => f.endsWith('preprocessor_config.json'));
+}
+
+/**
+ * CTC speech models are small, and their INT8 exports lose words (and cannot run on DirectML):
+ * prefer the most precise file that fits in memory, FP32 first.
+ */
+export function recommendCtcVariant(variants: HfModelVariant[], availableRamBytes: number | null | undefined): HfModelVariant | null {
+  const fitting = variants.filter((v) => v.total_size_bytes > 0 && (!availableRamBytes || v.total_size_bytes * 2 <= availableRamBytes));
+  if (fitting.length === 0) return null;
+  return fitting.reduce((a, b) => {
+    const diff = quantBits(b.quantization) - quantBits(a.quantization);
+    return diff > 0 || (diff === 0 && b.total_size_bytes < a.total_size_bytes) ? b : a;
+  });
+}

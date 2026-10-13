@@ -1,5 +1,6 @@
 import { speechNeedsConversion } from '../src/lib/components/hub/convertible.ts';
 import { test } from 'node:test';
+import { isCtcVariant, recommendCtcVariant } from '../src/lib/components/hub/recommend.ts';
 import assert from 'node:assert/strict';
 import { isSpeechDefinition, isOnnxCtcDefinition, dictationFamily, dictationRequirement } from '../src/lib/components/playground/speechModels.ts';
 import { isSherpaAsrFile } from '../src/lib/components/playground/asr.ts';
@@ -47,4 +48,17 @@ test('source speech repos say conversion is needed; ONNX exports keep their runn
   assert.equal(speechNeedsConversion({ ...repo, format: 'pytorch' }), true);
   assert.equal(speechNeedsConversion({ ...repo, format: 'onnx', compatibility: { status: 'runnable', runtime: 'onnxruntime' } }), false);
   assert.equal(speechNeedsConversion({ ...repo, inferred_task: 'text-generation' }), false);
+});
+test('Hub recommends the most precise CTC export that fits, FP32 before INT8', () => {
+  const companions = [{ filename: 'config.json' }, { filename: 'preprocessor_config.json' }, { filename: 'vocab.json' }];
+  const variant = (name, quantization, size) => ({ name, quantization, total_size_bytes: size, shards: [{ filename: `onnx/${name}.onnx` }, ...companions] });
+  const fp32 = variant('model', 'FP32', 377e6);
+  const fp16 = variant('model_fp16', 'FP16', 190e6);
+  const int8 = variant('model_quantized', 'INT8', 95e6);
+  assert.equal(isCtcVariant(fp32), true);
+  assert.equal(isCtcVariant({ ...fp32, shards: [{ filename: 'onnx/model.onnx' }, { filename: 'tokenizer.json' }] }), false);
+  assert.equal(recommendCtcVariant([int8, fp16, fp32], 16e9)?.name, 'model');
+  assert.equal(recommendCtcVariant([int8, fp16, fp32], 500e6)?.name, 'model_fp16');
+  assert.equal(recommendCtcVariant([int8, fp32], null)?.name, 'model');
+  assert.equal(recommendCtcVariant([int8], 100e6), null);
 });
