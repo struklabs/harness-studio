@@ -45,8 +45,35 @@ pub const VENDOR_AMD: u32 = 0x1002;
 pub const VENDOR_INTEL: u32 = 0x8086;
 pub const VENDOR_APPLE: u32 = 0x106B;
 
+/// lspci names AMD's integrated GPUs after the APU's codename (`Renoir [Radeon RX Vega 6
+/// (Ryzen 4000/5000 Mobile Series)]`, `Rembrandt [Radeon 680M]`, `Phoenix1`); the bracketed
+/// marketing name may still say "Radeon RX".
+const AMD_APU_CODENAMES: &[&str] = &[
+    "raven",
+    "picasso",
+    "dali",
+    "pollock",
+    "renoir",
+    "lucienne",
+    "cezanne",
+    "barcelo",
+    "rembrandt",
+    "mendocino",
+    "van gogh",
+    "raphael",
+    "phoenix",
+    "hawk point",
+    "hawkpoint",
+    "granite ridge",
+    "strix",
+    "krackan",
+];
+
 pub fn is_discrete_gpu(name: &str, vram: Option<u64>) -> bool {
     let lower = name.to_lowercase();
+    if AMD_APU_CODENAMES.iter().any(|c| lower.starts_with(c)) || lower.contains("(ryzen ") {
+        return false;
+    }
     if lower.contains("basic display")
         || lower.contains("basic render")
         || lower.contains("intel(r) uhd")
@@ -1204,6 +1231,33 @@ mod tests {
         );
         assert_eq!(nvidia_driver_version("616.92"), None);
         assert_eq!(nvidia_driver_version("32.0.x.1692"), None);
+    }
+
+    #[test]
+    fn amd_apu_lspci_names_are_integrated() {
+        // `lspci -mm` device names of AMD APUs; Renoir's still says "Radeon RX".
+        let mib512 = Some(512 * 1024 * 1024);
+        for name in [
+            "Renoir [Radeon RX Vega 6 (Ryzen 4000/5000 Mobile Series)]",
+            "Cezanne [Radeon Vega Series / Radeon Vega Mobile Series]",
+            "Rembrandt [Radeon 680M]",
+            "Phoenix1",
+            "Strix [Radeon 880M / 890M]",
+            "Raven Ridge [Radeon Vega Series / Radeon Vega Mobile Series]",
+        ] {
+            assert!(!is_discrete_gpu(name, mib512), "{name}");
+        }
+        // Discrete cards keep their verdict.
+        assert!(is_discrete_gpu(
+            "Navi 23 [Radeon RX 6600/6600 XT/6600M]",
+            None
+        ));
+        assert!(is_discrete_gpu(
+            "Vega 10 XL/XT [Radeon RX Vega 56/64]",
+            None
+        ));
+        assert!(is_discrete_gpu("AMD Radeon RX 7900 XTX", Some(24 << 30)));
+        assert!(!is_discrete_gpu("AMD Radeon(TM) Graphics", mib512));
     }
 
     #[test]

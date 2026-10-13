@@ -372,8 +372,9 @@ pub struct FitResult {
     pub kv: Option<crate::kv_policy::KvChoice>,
 }
 
-/// Memory budget of this machine: dedicated VRAM of the primary GPU, or the GPU share of
-/// unified memory on Apple Silicon; 0 when the recommended backend is the CPU.
+/// Memory budget of this machine: dedicated VRAM of the primary GPU, the GPU share of unified
+/// memory on Apple Silicon, or shared RAM (plus any carve-out) for an integrated GPU; 0 when the
+/// recommended backend is the CPU.
 pub fn budget(hw: &SystemHardwareInfo) -> MemoryBudget {
     let ram_bytes = if hw.total_ram_bytes > 0 {
         hw.total_ram_bytes
@@ -404,9 +405,12 @@ pub fn budget(hw: &SystemHardwareInfo) -> MemoryBudget {
     }
     let primary = hw.gpus.first();
     let dedicated = primary.and_then(|g| g.vram_bytes).unwrap_or(0);
-    if dedicated == 0 && primary.is_some_and(|g| !g.is_discrete) {
+    // An integrated GPU's small "dedicated" memory is a BIOS carve-out (AMD APUs: 512 MiB-2 GiB);
+    // the weights live in shared system memory on top of it (amdgpu's GTT, Windows' shared GPU
+    // memory). A larger carve-out (Strix Halo set to 16+ GiB) is the GPU's own pool.
+    if dedicated < IGPU_CARVE_OUT_MAX && primary.is_some_and(|g| !g.is_discrete) {
         return MemoryBudget {
-            vram_bytes: igpu_shared_bytes(ram_bytes),
+            vram_bytes: dedicated + igpu_shared_bytes(ram_bytes),
             ram_bytes,
             unified: true,
             shared_igpu: true,
@@ -493,6 +497,9 @@ pub fn budget_for_model(hw: &SystemHardwareInfo, model_path: Option<&str>) -> Me
 pub fn igpu_shared_bytes(ram_bytes: u64) -> u64 {
     ram_bytes / 2
 }
+
+/// Below this, an integrated GPU's reported dedicated memory is a carve-out, not its budget.
+const IGPU_CARVE_OUT_MAX: u64 = 2 * GIB;
 
 /// Bytes per KV element of a llama.cpp cache type.
 pub fn kv_bytes_per_element(cache_type: Option<&str>) -> f64 {
