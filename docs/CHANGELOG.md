@@ -10,6 +10,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Added
 - Speech to text: NVIDIA Nemotron 3.5 ASR streaming (35 languages including Turkish, with punctuation) and Cohere Transcribe (14 languages) from the sherpa-onnx catalog. Streaming transducer folders are no longer skipped; they run with sherpa-onnx's online decoder.
+- Speech to text: speaker diarization for the sherpa-onnx models. `response_format=diarized_json` (or the `speakers` field) on `/v1/audio/transcriptions`, and `harness transcribe --diarize [--speakers N]`, say who spoke each segment (A, B...); SRT and VTT carry the speaker too. Two small models (35 MB) download on first use.
 
 ### Changed
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.

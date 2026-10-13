@@ -219,6 +219,16 @@ pub struct TranscribeRequest<'a> {
     pub vad: &'a Path,
     pub language: Option<&'a str>,
     pub threads: Option<u32>,
+    /// Also tell the speakers apart ([`super::diarize`]).
+    pub diarize: Option<Diarization<'a>>,
+}
+
+/// Speaker diarization of a run.
+#[derive(Debug, Clone)]
+pub struct Diarization<'a> {
+    pub models: &'a super::diarize::Models,
+    /// How many speakers there are, when the caller knows.
+    pub speakers: Option<u32>,
 }
 
 /// Starts `tool` with `args` in `cwd` and waits for it. A timeout drops the child, which kills
@@ -318,7 +328,7 @@ pub async fn transcribe(
             .into());
     }
     // The online decoder writes its result to stderr, as JSON with the token times.
-    let segments = if req.model.family.is_streaming() {
+    let mut segments = if req.model.family.is_streaming() {
         super::parse_online_json(&stderr, prepared.pad_secs, prepared.duration_secs)
     } else {
         parse_output(
@@ -327,6 +337,10 @@ pub async fn transcribe(
             prepared.duration_secs,
         )
     };
+    if let Some(d) = &req.diarize {
+        let turns = diarize_run(runtime_binary, d, &prepared, dir.path(), params.threads).await?;
+        super::diarize::label(&mut segments, &turns, prepared.pad_secs);
+    }
     Ok(Transcript::new(
         segments,
         prepared.duration_secs,
@@ -337,6 +351,43 @@ pub async fn transcribe(
         req.model.name.clone(),
         started.elapsed().as_millis() as u64,
     ))
+}
+
+/// Runs the diarization tool on the prepared (padded) audio, made 16 kHz for it.
+async fn diarize_run(
+    runtime_binary: &Path,
+    d: &Diarization<'_>,
+    prepared: &Prepared,
+    dir: &Path,
+    threads: u32,
+) -> Result<Vec<super::diarize::Turn>, String> {
+    let tool = super::diarize::tool_binary(runtime_binary)?;
+    let (rate, pcm) = pcm16_mono(&prepared.wav).ok_or_else(|| {
+        String::from(
+            err("stt.run_failed").with("detail", "speaker separation needs a 16-bit mono WAV"),
+        )
+    })?;
+    const INPUT: &str = "speakers.wav";
+    let wav = wav_of(super::diarize::RATE, &[&resample_16k(rate, pcm)]);
+    tokio::fs::write(dir.join(INPUT), wav).await.map_err(|e| {
+        String::from(
+            err("fs.write_failed")
+                .with("path", dir.join(INPUT).display())
+                .with("error", e),
+        )
+    })?;
+    let mut args = super::diarize::build_args(d.models, d.speakers, threads);
+    args.push(INPUT.to_string());
+    let out = run_tool(&tool, &args, dir, timeout_for(prepared.duration_secs)).await?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(err("stt.run_failed")
+            .with("detail", crate::tts::run::failure_detail(&stderr))
+            .into());
+    }
+    Ok(super::diarize::parse_turns(&String::from_utf8_lossy(
+        &out.stdout,
+    )))
 }
 
 #[cfg(test)]

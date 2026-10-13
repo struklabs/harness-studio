@@ -154,7 +154,7 @@ pub fn find(id: &str) -> Option<CatalogEntry> {
         .find(|e| e.id.eq_ignore_ascii_case(id))
 }
 
-fn downloader() -> &'static RuntimeManager {
+pub(crate) fn downloader() -> &'static RuntimeManager {
     static DOWNLOADS: OnceLock<RuntimeManager> = OnceLock::new();
     DOWNLOADS.get_or_init(RuntimeManager::default)
 }

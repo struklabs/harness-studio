@@ -432,10 +432,17 @@ pub struct TranscribeArgs {
     /// installed one).
     #[arg(long, short = 'm')]
     pub model: Option<String>,
-    /// Spoken language (SenseVoice takes zh, en, ja, ko, yue; the other models find it themselves).
+    /// Spoken language (SenseVoice takes zh, en, ja, ko, yue; Cohere Transcribe needs one of its 14;
+    /// the other models find it themselves).
     #[arg(long, short = 'l')]
     pub language: Option<String>,
-    /// text | json | verbose_json | srt | vtt.
+    /// Tell the speakers apart (each segment says who spoke: A, B...).
+    #[arg(long)]
+    pub diarize: bool,
+    /// How many speakers there are, when you know (implies --diarize).
+    #[arg(long)]
+    pub speakers: Option<u32>,
+    /// text | json | verbose_json | diarized_json | srt | vtt.
     #[arg(long, short = 'f', default_value = "text")]
     pub format: String,
     /// Output file (default: the text goes to stdout).
