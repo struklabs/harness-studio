@@ -55,6 +55,7 @@
   import { ensureLibraryDefinitions, loadAndChat } from '$lib/stores/downloads.svelte';
   import { isChatLoadable } from '$lib/downloadFollowUp';
   import { kindsForTab } from '$lib/libraryDefinitions';
+  import { loadAudio, AudioError, MAX_AUDIO_BYTES, MAX_AUDIO_PER_MESSAGE, type PgAudio } from './playground/audio';
   import TranscribePanel from './playground/TranscribePanel.svelte';
   import ImagePanel from './playground/ImagePanel.svelte';
   import { imageSession } from './playground/image.svelte';
@@ -196,6 +197,10 @@
   let input = $state('');
   /** Pictures attached to the message being written (sent with it, then cleared). */
   let pendingImages = $state<PgImage[]>([]);
+  let pendingAudio = $state<PgAudio[]>([]);
+  let libraryAudio = $state(false);
+  let audioAliases = $state<Record<string, boolean>>({});
+  let libraryVision = $state<boolean | null>(null);
   let streaming = $state(false);
   /** A saved chat is being opened (messages not read yet). */
   let openingConv = $state(false);
@@ -548,6 +553,7 @@
       applyView(view, true);
       input = '';
       pendingImages = [];
+      pendingAudio = [];
       scrollToBottom(true);
     } catch (e) {
       dbFail(e);
@@ -563,6 +569,7 @@
     messages = [];
     input = '';
     pendingImages = [];
+    pendingAudio = [];
     splitNotice = '';
     lastCompareJson = 'null';
     // A conversation's own compaction settings don't carry over to the next one.
@@ -981,16 +988,25 @@
     const path = toolGenModelPath;
     const definition = domain.definitions.find(d => d.alias.toLowerCase() === settings.model.toLowerCase());
     verifiedTools = null;
+    libraryAudio = false;
+    audioAliases = {};
+    libraryVision = null;
     if (!path && definition?.base.kind !== 'hf') return;
     let cancelled = false;
     void invoke<LibraryView>('list_library').then((view) => {
       if (cancelled) return;
       const normalize = (p: string) => p.replace(/\\/g, '/').toLowerCase();
       const ref = definition?.base;
-      verifiedTools = view.entries.find(e =>
+      const entry = view.entries.find(e =>
         (path && normalize(e.model.path) === normalize(path)) ||
         (ref?.kind === 'hf' && e.repo_id === ref.repo && normalize(e.model.path).endsWith(`/${normalize(ref.file)}`))
-      )?.caps.verified?.tools ?? null;
+      );
+      verifiedTools = entry?.caps.verified?.tools ?? null;
+      const projector = definition?.mmproj ? view.entries.find(e => normalize(e.model.path) === normalize(definition.mmproj!)) : undefined;
+      libraryAudio = !!(projector?.caps.audio_input ?? entry?.caps.audio_input);
+      libraryVision = projector?.caps.vision ?? entry?.caps.vision ?? null;
+      audioAliases = Object.fromEntries(domain.definitions.map(d => [d.alias.toLowerCase(), !!d.mmproj &&
+        !!view.entries.find(e => normalize(e.model.path) === normalize(d.mmproj!))?.caps.audio_input]));
     }).catch(() => {});
     return () => { cancelled = true; };
   });
@@ -1064,15 +1080,19 @@
   let propsCtx = $state<number | null>(null);
   /** `/props` `modalities.vision` of the selected server (null: not reported / not read yet). */
   let propsVision = $state<boolean | null>(null);
+  let propsAudio = $state<boolean | null>(null);
 
   $effect(() => {
     if (!app.isRunning) {
       propsCtx = null;
       propsVision = null;
+      propsAudio = null;
       return;
     }
     const url = app.hostUrl;
     void app.activeServer?.model_path; // refetch after a model change
+    propsVision = null;
+    propsAudio = null;
     const c = new AbortController();
     untrack(() => fetchContextSize(url, c));
     return () => c.abort();
@@ -1088,10 +1108,12 @@
       const n = data?.default_generation_settings?.n_ctx ?? data?.n_ctx;
       propsCtx = typeof n === 'number' && n > 0 ? n : null;
       propsVision = visionFromProps(data);
+      propsAudio = typeof data?.modalities?.audio === 'boolean' ? data.modalities.audio : null;
     } catch {
       if (!c.signal.aborted) {
         propsCtx = null;
         propsVision = null;
+        propsAudio = null;
       }
     } finally {
       clearTimeout(timer);
@@ -1201,7 +1223,10 @@
         dropActive = false;
         const { images, others } = splitImagePaths(p.paths);
         if (images.length) void addImagePaths(images);
-        if (others.length) void attachFiles(others);
+        const audio = others.filter(p => /\.(wav|mp3|flac)$/i.test(p));
+        if (audio.length && audioEnabled) void addAudioPaths(audio);
+        const docs = others.filter(p => !/\.(wav|mp3|flac)$/i.test(p));
+        if (docs.length) void attachFiles(docs);
       }
     });
     return () => {
@@ -1322,9 +1347,57 @@
     const own = app.isRunning && (!app.gatewayRunning || aliasOfServer(app.selectedServerId)?.toLowerCase() === model);
     if (own && propsVision !== null) return !propsVision;
     const def = domain.definitions.find((d) => d.alias.toLowerCase() === model);
+    if (libraryVision !== null) return !libraryVision;
     return def ? !def.mmproj && !own : false;
   });
   let imagesBlockedHint = $derived(t('pg.image_needs_vision'));
+  let audioEnabled = $derived.by(() => {
+    if (splitOn) return SIDES.every(side => {
+      const target = parseTarget(compare[side].target);
+      if (!target) return false;
+      if (target.kind === 'server' && target.serverId === app.selectedServerId && propsAudio !== null) return propsAudio;
+      const alias = target.kind === 'gateway' ? target.alias : aliasOfServer(target.serverId);
+      return !!alias && !!audioAliases[alias.toLowerCase()];
+    });
+    const own = app.isRunning && (!app.gatewayRunning || aliasOfServer(app.selectedServerId)?.toLowerCase() === settings.model.toLowerCase());
+    if (own && propsAudio !== null) return propsAudio;
+    const def = domain.definitions.find(d => d.alias.toLowerCase() === settings.model.toLowerCase());
+    return !!def?.mmproj && libraryAudio;
+  });
+  async function addAudioFiles(files: File[]) {
+    if (!audioEnabled) return;
+    const model = settings.model;
+    const version = workspaceVersion;
+    for (const file of files) {
+      try {
+        if (pendingAudio.length >= MAX_AUDIO_PER_MESSAGE) throw new AudioError('limit', file.name);
+        const clip = await loadAudio(file);
+        if (!audioEnabled || settings.model !== model || workspaceVersion !== version) return;
+        if (pendingAudio.length >= MAX_AUDIO_PER_MESSAGE) throw new AudioError('limit', file.name);
+        pendingAudio = [...pendingAudio, clip];
+      } catch (e) {
+        toast.error(e instanceof AudioError ? t(`pg.audio_err_${e.code}`, { name: e.file, mb: String(MAX_AUDIO_BYTES / 1024 / 1024), max: String(MAX_AUDIO_PER_MESSAGE) }) : errorText(e));
+      }
+    }
+  }
+  async function addAudioPaths(paths: string[]) {
+    if (!audioEnabled) return;
+    const model = settings.model;
+    const version = workspaceVersion;
+    const files: File[] = [];
+    for (const path of paths) {
+      try {
+        const data = await invoke<string>('read_audio_file', { path });
+        const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+        files.push(new File([bytes], path.split(/[/\\]/).pop() ?? path));
+      } catch (e) { toast.error(errorText(e)); }
+    }
+    if (audioEnabled && settings.model === model && workspaceVersion === version) await addAudioFiles(files);
+  }
+  async function pickAudio() {
+    const paths = await invoke<string[]>('pick_audio_files', { label: t('pg.audio_picker_filter') }).catch(() => []);
+    await addAudioPaths(paths);
+  }
 
   function imageErrorText(e: unknown): string {
     if (e instanceof ImageError) {
@@ -1431,25 +1504,28 @@
   async function send() {
     const text = input.trim();
     const images = $state.snapshot(pendingImages) as PgImage[];
-    if ((!text && !images.length) || streaming || compacting || !canChat || composerWaiting) return;
+    const audio = $state.snapshot(pendingAudio) as PgAudio[];
+    if (audio.length && !audioEnabled) { toast.error(t('pg.audio_needs_model')); return; }
+    if ((!text && !images.length && !audio.length) || streaming || compacting || !canChat || composerWaiting) return;
     if (images.length && imagesBlocked) {
       toast.error(imagesBlockedHint);
       return;
     }
-    const command = images.length ? null : parseCompactCommand(text);
+    const command = images.length || audio.length ? null : parseCompactCommand(text);
     if (command && !splitOn) {
       input = '';
       await runCompaction('manual', command.instruction);
       return;
     }
-    if (splitOn) return sendSplit(text, images);
+    if (splitOn) return sendSplit(text, images, audio);
     input = '';
     pendingImages = [];
+    pendingAudio = [];
     streaming = true; // blocks a second send while the conversation is being created
-    const convId = await ensureConversation(text || images[0].name);
+    const convId = await ensureConversation(text || images[0]?.name || audio[0]?.name || '');
     await maybeAutoCompact(convId, text);
     const parent = messages.at(-1);
-    messages.push({ id: newId(), role: 'user', content: text, ...(images.length ? { images } : {}), variantId: newId(), parentId: parent?.id ?? null });
+    messages.push({ id: newId(), role: 'user', content: text, ...(images.length ? { images } : {}), ...(audio.length ? { audio } : {}), variantId: newId(), parentId: parent?.id ?? null });
     saveMessage(messages[messages.length - 1], convId);
     await runAgent(convId);
   }
@@ -1630,7 +1706,7 @@
         return;
       }
     } else {
-      messages = [...messages.slice(0, index), { id: newId(), role: 'user', content, images: old.images, variantId: newId(), parentId: old.parentId ?? null }];
+      messages = [...messages.slice(0, index), { id: newId(), role: 'user', content, images: old.images, audio: old.audio, variantId: newId(), parentId: old.parentId ?? null }];
       if (convId) saveMessage(messages[messages.length - 1], convId);
     }
     stickToBottom = true;
@@ -1676,6 +1752,7 @@
     // Keep what the user had already typed; the rewound text goes first.
     input = before.trim() ? `${old.content}\n\n${before}` : old.content;
     // The pictures of the message go back into the composer with its text.
+    if (old.audio?.length) pendingAudio = [...old.audio, ...pendingAudio].slice(0, MAX_AUDIO_PER_MESSAGE);
     if (old.images?.length) pendingImages = [...old.images, ...pendingImages].slice(0, MAX_IMAGES_PER_MESSAGE);
     stickToBottom = true;
     tick().then(() => composer?.focus(true));
@@ -1894,7 +1971,7 @@
   }
 
   /** Sends one message to both sides (at once, or A then B when they cannot run together). */
-  async function sendSplit(text: string, images: PgImage[] = []) {
+  async function sendSplit(text: string, images: PgImage[] = [], audio: PgAudio[] = []) {
     streaming = true; // blocks a second send while the endpoints resolve
     const run = await prepareSplitRun();
     if (!run) {
@@ -1903,9 +1980,10 @@
     }
     input = '';
     pendingImages = [];
-    const convId = await ensureConversation(text || images[0]?.name || '');
+    pendingAudio = [];
+    const convId = await ensureConversation(text || images[0]?.name || audio[0]?.name || '');
     const parent = messages.at(-1);
-    messages.push({ id: newId(), role: 'user', content: text, ...(images.length ? { images } : {}), variantId: newId(), parentId: parent?.id ?? null });
+    messages.push({ id: newId(), role: 'user', content: text, ...(images.length ? { images } : {}), ...(audio.length ? { audio } : {}), variantId: newId(), parentId: parent?.id ?? null });
     const user = messages[messages.length - 1];
     // After a split turn the new message belongs to both sides.
     saveMessage(user, convId, !!parent && isSplit(parent));
@@ -2922,6 +3000,11 @@
           onSend={send}
           onStop={stop}
           onAttach={!persistEnabled ? undefined : () => attachFiles()}
+          audio={pendingAudio}
+          onAudioFile={audioEnabled ? (file) => void addAudioFiles([file]) : undefined}
+          onPickAudio={pickAudio}
+          onRemoveAudio={(i) => pendingAudio = pendingAudio.filter((_, j) => j !== i)}
+          audioContextKey={`${workspaceVersion}:${settings.model}:${audioEnabled}`}
           images={pendingImages}
           onImageFiles={addImageFiles}
           onPickImages={pickImages}

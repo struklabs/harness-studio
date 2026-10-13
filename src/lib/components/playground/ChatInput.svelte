@@ -5,8 +5,10 @@
   import { Kbd } from '$lib/components/ui/kbd';
   import * as InputGroup from '$lib/components/ui/input-group';
   import * as Tooltip from '$lib/components/ui/tooltip';
-  import { ArrowUp, Paperclip, Square, Globe, ImagePlus, X } from '@lucide/svelte';
+  import { ArrowUp, Paperclip, Square, Globe, ImagePlus, FileMusic, X } from '@lucide/svelte';
   import type { PgImage } from './images';
+  import { audioUrl, type PgAudio } from './audio';
+  import AudioRecordButton from './AudioRecordButton.svelte';
   import DictationButton from './DictationButton.svelte';
   import { appendTranscript } from './recordingSession';
   import type { Snippet } from 'svelte';
@@ -27,6 +29,11 @@
     onAttach?: () => void;
     /** Pictures waiting to be sent with the message. */
     images?: PgImage[];
+    audio?: PgAudio[];
+    onAudioFile?: (file: File) => void;
+    onPickAudio?: () => void;
+    onRemoveAudio?: (index: number) => void;
+    audioContextKey?: string;
     /** Picture files chosen with the button or pasted (the button is hidden when not given). */
     onImageFiles?: (files: File[]) => void;
     /** The loaded model cannot read pictures: the button is off and `imagesBlockedHint` says why. */
@@ -46,7 +53,7 @@
     contextKey: number;
   }
 
-  let { value = $bindable(), streaming, disabled, sendBlocked = false, awaitingApproval = false, onSend, onStop, onAttach, images = [], onImageFiles, imagesBlocked = false, imagesBlockedHint = '', onPickImages, onRemoveImage, status, actions, toolsEnabled, toolsBusy = false, toolsHint, onToggleTools, contextKey }: Props = $props();
+  let { value = $bindable(), streaming, disabled, sendBlocked = false, awaitingApproval = false, onSend, onStop, onAttach, images = [], audio = [], onAudioFile, onPickAudio, onRemoveAudio, audioContextKey = '', onImageFiles, imagesBlocked = false, imagesBlockedHint = '', onPickImages, onRemoveImage, status, actions, toolsEnabled, toolsBusy = false, toolsHint, onToggleTools, contextKey }: Props = $props();
 
   let el = $state<HTMLTextAreaElement | null>(null);
   const uid = $props.id();
@@ -78,7 +85,7 @@
     }
   }
 
-  let canSend = $derived(!disabled && !sendBlocked && !streaming && (value.trim().length > 0 || images.length > 0));
+  let canSend = $derived(!disabled && !sendBlocked && !streaming && (value.trim().length > 0 || images.length > 0 || audio.length > 0));
 
   let imageInput = $state<HTMLInputElement | null>(null);
 
@@ -120,6 +127,17 @@
             >
               <X class="size-3" />
             </button>
+          </span>
+        {/each}
+      </InputGroup.Addon>
+    {/if}
+    {#if audio.length}
+      <InputGroup.Addon align="block-start" class="flex-wrap gap-2">
+        {#each audio as clip, i (i)}
+          <span class="flex flex-wrap items-center gap-2 rounded-md border p-2">
+            <span class="text-xs">{clip.name}</span>
+            <audio controls preload="none" src={audioUrl(clip)} aria-label={clip.name}></audio>
+            <Button type="button" variant="ghost" size="icon-xs" aria-label={t('pg.audio_remove', { name: clip.name })} onclick={() => onRemoveAudio?.(i)}><X /></Button>
           </span>
         {/each}
       </InputGroup.Addon>
@@ -187,6 +205,10 @@
           </Tooltip.Trigger>
           <Tooltip.Content class="max-w-sm">{toolsHint}</Tooltip.Content>
         </Tooltip.Root>
+        {#if onAudioFile}
+          <Button type="button" variant="ghost" size="icon-xs" disabled={disabled || streaming} aria-label={t('pg.audio_attach')} title={t('pg.audio_attach')} onclick={onPickAudio}><FileMusic /></Button>
+          <AudioRecordButton contextKey={audioContextKey} blocked={disabled || streaming} onFile={onAudioFile} />
+        {/if}
         <DictationButton {contextKey} blocked={streaming} onText={(text) => {
           value = appendTranscript(value, text);
           focus(true);

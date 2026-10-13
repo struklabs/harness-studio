@@ -541,6 +541,10 @@ fn infer(
         let name = f.rsplit('/').next().unwrap_or(f).to_lowercase();
         name.contains("mmproj")
     });
+    if has_projector && token(&["ultravox", "voxtral", "omni", "audio", "asr"]) {
+        // Audio-family names plus an actual projector companion: conditional chat audio support.
+        return Some(("audio-text-to-text", TaskSource::Files));
+    }
     if has_projector {
         return Some(("image-text-to-text", TaskSource::Files));
     }
@@ -642,7 +646,7 @@ use Support::{No, Partial, Yes};
 /// `No` while none of them is installed.
 const TABLE: &[Row] = &[
     row("image-text-to-text", Yes, Some("vision")),
-    row("audio-text-to-text", Partial, Some("vision")),
+    row("audio-text-to-text", Partial, Some("audio_input")),
     row("visual-question-answering", Partial, Some("vision")),
     row("any-to-any", Partial, Some("vision")),
     row("document-question-answering", No, Some("vision")),
@@ -662,7 +666,7 @@ const TABLE: &[Row] = &[
     row_alt(
         "automatic-speech-recognition",
         Partial,
-        Some("vision"),
+        Some("audio_input"),
         ASR_ALTS,
     ),
     row_alt("text-to-speech", No, None, TTS_ALTS),
@@ -765,6 +769,24 @@ mod tests {
 
     fn tags(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn audio_mmproj_tasks_are_conditional_chat_support() {
+        let files = tags(&["Ultravox-Q8_0.gguf", "mmproj-Ultravox-F16.gguf"]);
+        assert_eq!(
+            infer_task("org/Ultravox-7B-GGUF", &[], &files),
+            Some("audio-text-to-text")
+        );
+        let caps = crate::capabilities::testdata::caps("b11236");
+        let features = feature_status(&caps, FeatureContext::default());
+        let list = task_support(Some(&caps), &features, &[]);
+        let row = support_of(&list, "audio-text-to-text");
+        assert_eq!(row.support, Partial);
+        assert_eq!(row.feature.as_deref(), Some("audio_input"));
+        assert_eq!(row.flag.as_deref(), Some("--mmproj"));
+        let asr = support_of(&list, "automatic-speech-recognition");
+        assert_eq!(asr.feature.as_deref(), Some("audio_input"));
     }
 
     #[test]

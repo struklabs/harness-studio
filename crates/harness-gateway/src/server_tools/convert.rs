@@ -124,21 +124,24 @@ fn image_url(p: &Value) -> Option<String> {
     }
 }
 
-/// Message content for the chat API: a string when it is all text, parts when it has images.
+/// Message content for the chat API: a string when it is all text, parts when it has images or audio.
 fn chat_content(content: &Value) -> Value {
     let Value::Array(parts) = content else {
         return json!(text_of_parts(content));
     };
-    let has_image = parts
-        .iter()
-        .any(|p| p.get("type").and_then(Value::as_str) == Some("input_image"));
-    if !has_image {
+    let has_media = parts.iter().any(|p| {
+        p.get("type")
+            .and_then(Value::as_str)
+            .is_some_and(|t| matches!(t, "input_image" | "input_audio"))
+    });
+    if !has_media {
         return json!(text_of_parts(content));
     }
     let out: Vec<Value> = parts
         .iter()
         .filter_map(
             |p| match p.get("type").and_then(Value::as_str).unwrap_or("text") {
+                "input_audio" => Some(p.clone()),
                 "input_image" => {
                     image_url(p).map(|u| json!({"type": "image_url", "image_url": {"url": u}}))
                 }
@@ -483,6 +486,23 @@ mod tests {
 
     fn doc(v: Value) -> Map<String, Value> {
         v.as_object().unwrap().clone()
+    }
+
+    #[test]
+    fn input_audio_parts_survive_conversion() {
+        let part = json!({"type":"input_audio", "input_audio":{"data":"Zm9v", "format":"wav"}});
+        let chat = job(
+            Api::Chat,
+            &doc(json!({"messages":[{"role":"user", "content":[part.clone()]}]})),
+        )
+        .unwrap();
+        assert_eq!(chat.messages[0]["content"][0], part);
+        let response = job(
+            Api::Responses,
+            &doc(json!({"input":[{"role":"user", "content":[part.clone()]}]})),
+        )
+        .unwrap();
+        assert_eq!(response.messages[0]["content"][0], part);
     }
 
     #[test]

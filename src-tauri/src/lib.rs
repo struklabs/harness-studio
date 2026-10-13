@@ -591,6 +591,8 @@ pub fn run() {
             rag_list_documents,
             rag_pick_files,
             pick_image_files,
+            pick_audio_files,
+            read_audio_file,
             read_image_file,
             rag_add_files,
             rag_reindex,

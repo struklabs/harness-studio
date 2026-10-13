@@ -45,7 +45,7 @@ export const TASKS: HubTask[] = [
   { id: 'zero-shot-classification', hf: 'Zero-Shot Classification', key: 'hub.task_zero_shot_classification', group: 'nlp' },
   { id: 'fill-mask', hf: 'Fill-Mask', key: 'hub.task_fill_mask', group: 'nlp' },
   { id: 'table-question-answering', hf: 'Table Question Answering', key: 'hub.task_table_question_answering', group: 'nlp' },
-  // Audio: speech input works only for models with an audio projector.
+  // Audio: chat audio needs a projector; transcription also uses whisper.cpp or sherpa-onnx.
   { id: 'automatic-speech-recognition', hf: 'Automatic Speech Recognition', key: 'hub.task_automatic_speech_recognition', group: 'audio' },
   { id: 'text-to-speech', hf: 'Text-to-Speech', key: 'hub.task_text_to_speech', group: 'audio' },
   { id: 'text-to-audio', hf: 'Text-to-Audio', key: 'hub.task_text_to_audio', group: 'audio' },
