@@ -1030,7 +1030,7 @@ impl RuntimeManager {
                 .into());
         }
 
-        let computed_digest = format!("{:x}", hasher.finalize());
+        let computed_digest = crate::hex::lower(&hasher.finalize());
         if let Some(expected_raw) = expected_digest {
             if let Some(expected_hex) = normalize_digest(expected_raw) {
                 if computed_digest != expected_hex {
@@ -2088,7 +2088,7 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let file_data = b"llama-runtime-test-payload-12345";
-        let expected_sha = format!("{:x}", Sha256::digest(file_data));
+        let expected_sha = crate::hex::lower(&Sha256::digest(file_data));
 
         tokio::spawn(async move {
             loop {

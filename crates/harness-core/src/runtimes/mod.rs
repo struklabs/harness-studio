@@ -244,7 +244,7 @@ pub(crate) fn sha256_file(path: &Path) -> Result<String, String> {
         }
         hasher.update(&buf[..n]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(crate::hex::lower(&hasher.finalize()))
 }
 
 /// SHA-256 of every code file of `dir` (sorted by name). Blocking.

@@ -157,7 +157,7 @@ pub fn requirements_digest(src: &Path) -> Result<String, String> {
         hasher.update(&bytes);
     }
     hasher.update(EXTRA_PACKAGES.join(",").as_bytes());
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(crate::hex::lower(&hasher.finalize()))
 }
 
 /// What Settings shows.
@@ -297,7 +297,7 @@ async fn download(
         on_bytes(got);
     }
     file.flush().await.map_err(write_err)?;
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(crate::hex::lower(&hasher.finalize()))
 }
 
 /// uv itself: downloaded once, checked against the pinned SHA-256.
