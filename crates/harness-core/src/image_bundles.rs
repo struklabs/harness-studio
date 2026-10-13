@@ -15,7 +15,8 @@
 //! The companions are the ones stable-diffusion.cpp's own docs name (docs/flux.md, docs/sd3.md),
 //! from repos that need no license click: `ffxvs/vae-flux` carries the FLUX autoencoder
 //! (`black-forest-labs/FLUX.1-*` answers 401 without a token), `comfyanonymous/flux_text_encoders`
-//! the FLUX text encoders, `Comfy-Org/stable-diffusion-3.5-fp8` the SD3.5 ones.
+//! the FLUX text encoders, `Comfy-Org/stable-diffusion-3.5-fp8` the SD3.5 ones; FLUX.2 klein takes
+//! the FLUX.2 autoencoder of `Comfy-Org/flux2-dev` and a Qwen3 GGUF as its `llm` (docs/flux2.md).
 
 use crate::params::{ParamValue, ParamValues};
 use regex::Regex;
@@ -77,6 +78,42 @@ const FLUX_T5: Component = Component {
     file: "t5xxl_fp8_e4m3fn.safetensors",
     size: 4_893_934_904,
 };
+const FLUX2_VAE: Component = Component {
+    role: "vae",
+    repo: "Comfy-Org/flux2-dev",
+    file: "split_files/vae/flux2-vae.safetensors",
+    size: 336_213_556,
+};
+const QWEN3_4B: Component = Component {
+    role: "llm",
+    repo: "unsloth/Qwen3-4B-GGUF",
+    file: "Qwen3-4B-Q4_K_M.gguf",
+    size: 2_497_281_312,
+};
+const QWEN3_8B: Component = Component {
+    role: "llm",
+    repo: "unsloth/Qwen3-8B-GGUF",
+    file: "Qwen3-8B-Q4_K_M.gguf",
+    size: 5_027_784_512,
+};
+/// FLUX.2 klein (distilled): 4 steps without CFG; text-to-image and instruction editing.
+const KLEIN_DEFAULTS: Defaults = Defaults {
+    width: 1024,
+    height: 1024,
+    steps: 4,
+    cfg_scale: 1.0,
+    sampling_method: Some("euler"),
+    guidance: None,
+};
+/// FLUX.2 klein base (undistilled): 20 steps at CFG 4.
+const KLEIN_BASE_DEFAULTS: Defaults = Defaults {
+    width: 1024,
+    height: 1024,
+    steps: 20,
+    cfg_scale: 4.0,
+    sampling_method: Some("euler"),
+    guidance: None,
+};
 const SD3_CLIP_G: Component = Component {
     role: "clip_g",
     repo: "Comfy-Org/stable-diffusion-3.5-fp8",
@@ -97,8 +134,36 @@ const SD3_T5: Component = Component {
 };
 
 /// The curated list. Order matters: the first pattern that matches wins (`sdxl-turbo` before
-/// `sdxl`, `sd-turbo` after both).
+/// `sdxl`, `sd-turbo` after both, a klein `base` before the distilled one).
 pub const BUNDLES: &[Bundle] = &[
+    Bundle {
+        id: "flux2-klein-base-4b",
+        label: "FLUX.2 klein base 4B",
+        file_pattern: r"flux[-_.]?2[-_.]?klein[-_.]?base[-_.]?4b",
+        components: &[FLUX2_VAE, QWEN3_4B],
+        defaults: KLEIN_BASE_DEFAULTS,
+    },
+    Bundle {
+        id: "flux2-klein-4b",
+        label: "FLUX.2 klein 4B",
+        file_pattern: r"flux[-_.]?2[-_.]?klein[-_.]?4b",
+        components: &[FLUX2_VAE, QWEN3_4B],
+        defaults: KLEIN_DEFAULTS,
+    },
+    Bundle {
+        id: "flux2-klein-base-9b",
+        label: "FLUX.2 klein base 9B",
+        file_pattern: r"flux[-_.]?2[-_.]?klein[-_.]?base[-_.]?9b",
+        components: &[FLUX2_VAE, QWEN3_8B],
+        defaults: KLEIN_BASE_DEFAULTS,
+    },
+    Bundle {
+        id: "flux2-klein-9b",
+        label: "FLUX.2 klein 9B",
+        file_pattern: r"flux[-_.]?2[-_.]?klein[-_.]?9b",
+        components: &[FLUX2_VAE, QWEN3_8B],
+        defaults: KLEIN_DEFAULTS,
+    },
     Bundle {
         id: "flux-schnell",
         label: "FLUX.1 schnell",
@@ -465,6 +530,23 @@ mod tests {
             id("stable-diffusion-v1-5-pruned-emaonly-Q8_0.gguf"),
             Some("sd15")
         );
+        // FLUX.2 klein: leejet's / unsloth's GGUFs and Black Forest Labs' safetensors.
+        assert_eq!(id("flux-2-klein-4b-Q4_0.gguf"), Some("flux2-klein-4b"));
+        assert_eq!(
+            id("unsloth/FLUX.2-klein-4B-GGUF/flux-2-klein-4b-Q4_K_M.gguf"),
+            Some("flux2-klein-4b")
+        );
+        assert_eq!(id("flux-2-klein-4b.safetensors"), Some("flux2-klein-4b"));
+        assert_eq!(
+            id("flux-2-klein-base-4b-Q8_0.gguf"),
+            Some("flux2-klein-base-4b")
+        );
+        assert_eq!(id("flux-2-klein-9b-Q4_0.gguf"), Some("flux2-klein-9b"));
+        assert_eq!(
+            id("flux-2-klein-base-9b.safetensors"),
+            Some("flux2-klein-base-9b")
+        );
+        assert_eq!(id("flux2-vae.safetensors"), None);
         // Not in the list; companions are never mistaken for models.
         assert_eq!(id("qwen_image-Q4_K_M.gguf"), None);
         assert_eq!(id("Qwen3-4B-Q4_K_M.gguf"), None);
