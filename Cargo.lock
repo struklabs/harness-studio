@@ -2228,6 +2228,7 @@ dependencies = [
  "harness-core",
  "http-body",
  "http-body-util",
+ "image",
  "opentelemetry-proto",
  "prost",
  "reqwest 0.12.28",

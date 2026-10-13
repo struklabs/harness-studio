@@ -604,7 +604,15 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
         )
         .route(
             "/v1/images/generations",
-            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| images::handle(s, h, b)),
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
+                images::handle(s, images::Kind::Generations, h, b)
+            }),
+        )
+        .route(
+            "/v1/images/edits",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
+                images::handle(s, images::Kind::Edits, h, b)
+            }),
         )
         .route("/v1/embeddings", inference!(Api::Embeddings))
         .route("/v1/rerank", inference!(Api::Rerank))

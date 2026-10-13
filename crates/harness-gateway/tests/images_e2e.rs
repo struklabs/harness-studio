@@ -144,6 +144,87 @@ async fn e2e_image_generation_jit_ttl() {
         std::fs::copy(&out, keep).unwrap();
     }
 
+    // Image-to-image: the fox as OpenAI's multipart edit form (the canvas is the image's size),
+    // then as JSON with a data: URL, a mask and another size.
+    let boundary = "harness-e2e";
+    let mut form = Vec::new();
+    for (head, data) in [
+        (
+            "name=\"image[]\"; filename=\"fox.png\"\r\nContent-Type: image/png",
+            png.as_slice(),
+        ),
+        ("name=\"model\"", b"gw-image".as_slice()),
+        (
+            "name=\"prompt\"",
+            b"a red fox at night, moonlight".as_slice(),
+        ),
+        ("name=\"strength\"", b"0.5".as_slice()),
+        ("name=\"seed\"", b"7".as_slice()),
+    ] {
+        form.extend(
+            format!("--{boundary}\r\nContent-Disposition: form-data; {head}\r\n\r\n").bytes(),
+        );
+        form.extend(data);
+        form.extend(b"\r\n");
+    }
+    form.extend(format!("--{boundary}--\r\n").bytes());
+    let t = Instant::now();
+    let r = http
+        .post(format!("{base}/v1/images/edits"))
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .body(form)
+        .send()
+        .await
+        .unwrap();
+    let st = r.status().as_u16();
+    let body = r.text().await.unwrap();
+    eprintln!("edit (multipart) {st} in {:?}", t.elapsed());
+    assert_eq!(st, 200, "{}", &body[..body.len().min(400)]);
+    let v: Value = serde_json::from_str(&body).unwrap();
+    let night = base64::engine::general_purpose::STANDARD
+        .decode(v["data"][0]["b64_json"].as_str().unwrap())
+        .unwrap();
+    assert_eq!(png_size(&night), (512, 512));
+    assert_ne!(night, png, "the edit changed the picture");
+    if let Ok(keep) = std::env::var("HS_SD_OUT") {
+        std::fs::write(format!("{keep}.edit.png"), &night).unwrap();
+    }
+    let data_url = format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(&png)
+    );
+    let t = Instant::now();
+    let r = http
+        .post(format!("{base}/v1/images/edits"))
+        .json(
+            &json!({"model": "gw-image", "prompt": "a red fox, oil painting", "image": data_url,
+                      "mask": data_url, "size": "256x256", "strength": 0.6, "steps": 2}),
+        )
+        .send()
+        .await
+        .unwrap();
+    let st = r.status().as_u16();
+    let body = r.text().await.unwrap();
+    eprintln!("edit (json, mask, 256x256) {st} in {:?}", t.elapsed());
+    assert_eq!(st, 200, "{}", &body[..body.len().min(400)]);
+    let v: Value = serde_json::from_str(&body).unwrap();
+    let small = base64::engine::general_purpose::STANDARD
+        .decode(v["data"][0]["b64_json"].as_str().unwrap())
+        .unwrap();
+    assert_eq!(png_size(&small), (256, 256));
+    // An edit without an image names the field.
+    let r = http
+        .post(format!("{base}/v1/images/edits"))
+        .json(&json!({"model": "gw-image", "prompt": "x"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status().as_u16(), 400);
+    assert!(r.text().await.unwrap().contains("image"));
+
     // Same seed, same picture; another size, n = 2 and a data URL.
     let r = http
         .post(format!("{base}/v1/images/generations"))

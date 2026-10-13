@@ -18,7 +18,7 @@
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
   import { holdReleaseWhile } from '$lib/windowActivity';
-  import { Compass, Image as ImageIcon, LoaderCircle, Power, Save, Square, Trash2, TriangleAlert } from '@lucide/svelte';
+  import { Compass, Image as ImageIcon, ImagePlus, LoaderCircle, Power, Save, Square, Trash2, TriangleAlert, X } from '@lucide/svelte';
   import {
     dataUrl,
     fetchImages,
@@ -27,8 +27,13 @@
     isImageDefinition,
     parseSize,
     pngSize,
+    MAX_START_IMAGE_BYTES,
+    readStartImage,
     SIZE_PRESETS,
+    START_IMAGE_TYPES,
+    strengthOk,
   } from './image';
+  import type { ImageResult } from './image';
   import { addToGallery, imageSession as form, removeFromGallery, type GalleryItem } from './image.svelte';
 
   /** Image definitions: the gateway loads the diffusion model on the first request (JIT). */
@@ -52,7 +57,26 @@
   });
 
   let sizeError = $derived(form.size.trim() !== '' && !parseSize(form.size));
-  let canRun = $derived(!busy && app.gatewayRunning && !!form.model && form.prompt.trim() !== '' && !sizeError);
+  let strengthError = $derived(!!form.init && !strengthOk(form.strength));
+  let canRun = $derived(!busy && app.gatewayRunning && !!form.model && form.prompt.trim() !== '' && !sizeError && !strengthError);
+  let fileInput = $state<HTMLInputElement | null>(null);
+
+  async function pickStartImage(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    const image = await readStartImage(file);
+    if (image === 'type') toast.error(t('img.init_bad_type'));
+    else if (image === 'size') toast.error(t('img.init_too_big', { mb: MAX_START_IMAGE_BYTES / 1024 / 1024 }));
+    else useAsStart(image);
+  }
+
+  /** A start image sets the canvas: an older size would silently win over it. */
+  function useAsStart(image: ImageResult) {
+    form.init = image;
+    form.size = '';
+  }
 
   async function run() {
     if (!canRun) return;
@@ -70,7 +94,7 @@
           image,
           prompt: form.prompt.trim(),
           model: form.model,
-          size: form.size.trim() || pngSize(image) || t('img.model_size'),
+          size: pngSize(image) || form.size.trim() || t('img.model_size'),
           ms,
         })),
       );
@@ -193,9 +217,27 @@
       <Label for="img-negative" class="text-sm font-semibold text-foreground">{t('img.negative_label')}</Label>
       <Input id="img-negative" bind:value={form.negative} placeholder={t('img.negative_placeholder')} disabled={busy} />
     </div>
+    <div class="flex flex-col gap-1.5">
+      <span class="text-sm font-semibold text-foreground">{t('img.init_label')}</span>
+      <input bind:this={fileInput} type="file" accept={START_IMAGE_TYPES.join(',')} class="hidden" onchange={pickStartImage} />
+      {#if form.init}
+        <div class="flex flex-wrap items-end gap-3">
+          <img src={dataUrl(form.init)} alt={t('img.init_label')} class="size-24 rounded-md border border-border bg-muted object-contain" />
+          <Field label={t('img.strength_label')} id="img-strength" note={strengthError ? t('img.strength_invalid') : t('img.strength_note')}>
+            <Input id="img-strength" bind:value={form.strength} inputmode="decimal" placeholder="0.75" disabled={busy} aria-invalid={strengthError} class="w-28" />
+          </Field>
+          <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.init = null)}><X />{t('img.init_remove')}</Button>
+        </div>
+      {:else}
+        <div class="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" disabled={busy} onclick={() => fileInput?.click()}><ImagePlus />{t('img.init_pick')}</Button>
+          <span class="text-xs text-muted-foreground">{t('img.init_note')}</span>
+        </div>
+      {/if}
+    </div>
     <div class="grid gap-3 sm:grid-cols-4">
       <Field label={t('img.size_label')} id="img-size" note={sizeError ? t('img.size_invalid') : t('img.size_note')}>
-        <Input id="img-size" bind:value={form.size} list="img-sizes" placeholder={t('img.model_size')} disabled={busy} aria-invalid={sizeError} />
+        <Input id="img-size" bind:value={form.size} list="img-sizes" placeholder={form.init ? t('img.init_size') : t('img.model_size')} disabled={busy} aria-invalid={sizeError} />
         <datalist id="img-sizes">
           {#each SIZE_PRESETS as s (s)}<option value={s}></option>{/each}
         </datalist>
@@ -267,6 +309,9 @@
               <p class="font-num text-xs text-muted-foreground">{item.model} · {item.size}</p>
               <div class="flex items-center gap-1.5">
                 <Button variant="outline" size="sm" onclick={() => save(item)}><Save />{t('img.save')}</Button>
+                <Button variant="ghost" size="sm" disabled={busy} onclick={() => useAsStart(item.image)} title={t('img.use_as_init_hint')}>
+                  <ImagePlus />{t('img.use_as_init')}
+                </Button>
                 <Button variant="ghost" size="icon-sm" onclick={() => removeFromGallery(item.id)} aria-label={t('img.remove')} title={t('img.remove')}>
                   <Trash2 />
                 </Button>
