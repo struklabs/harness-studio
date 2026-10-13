@@ -531,16 +531,19 @@ pub fn parse_output(stdout: &str, pad: f64, duration: f64) -> Vec<Segment> {
         .collect()
 }
 
-/// A pause between two tokens this long (seconds) starts a new segment.
+/// A pause between two words this long (seconds) starts a new segment.
 const SEGMENT_PAUSE: f64 = 1.0;
 /// After a sentence end, a pause this long starts a new segment.
-const SENTENCE_PAUSE: f64 = 0.3;
-/// How long the last token of a segment is taken to last (the decoder gives start times only).
+const SENTENCE_PAUSE: f64 = 0.5;
+/// How long the last word piece of a segment is taken to last (the decoder gives start times
+/// only).
 const TOKEN_SECS: f64 = 0.25;
 
 /// Segments from the online decoder's result: the JSON line (`tokens` and their `timestamps`) it
-/// writes to stderr. A segment ends at a pause, at a sentence end followed by a short pause, or
-/// when it reaches [`MAX_SEGMENT_SECS`]. Times are handled as in [`parse_output`].
+/// writes to stderr. Pauses are measured between word pieces (the decoder emits punctuation and
+/// spaces late, right before the next word): a segment ends at a pause of [`SEGMENT_PAUSE`], at a
+/// sentence end followed by [`SENTENCE_PAUSE`], or when it reaches [`MAX_SEGMENT_SECS`]. Times are
+/// handled as in [`parse_output`].
 pub fn parse_online_json(stderr: &str, pad: f64, duration: f64) -> Vec<Segment> {
     #[derive(Deserialize)]
     struct Online {
@@ -555,40 +558,46 @@ pub fn parse_online_json(stderr: &str, pad: f64, duration: f64) -> Vec<Segment> 
         return Vec::new();
     };
     let clamp = |t: f64| (t - pad).clamp(0.0, duration.max(0.0));
-    let tokens: Vec<(&str, f64)> = result
-        .tokens
-        .iter()
-        .map(String::as_str)
-        .zip(result.timestamps.iter().copied())
-        .collect();
     let mut out = Vec::new();
-    let mut first = 0;
-    for i in 0..tokens.len() {
-        let (tok, at) = tokens[i];
-        let next = tokens.get(i + 1).map(|t| t.1);
-        let gap = next.map_or(f64::INFINITY, |n| n - at);
-        let sentence_end = tok.trim_end().ends_with(['.', '?', '!', '。', '？', '！']);
-        let too_long = at - tokens[first].1 >= f64::from(MAX_SEGMENT_SECS);
-        if gap >= SEGMENT_PAUSE || (sentence_end && gap >= SENTENCE_PAUSE) || too_long {
-            let text = tokens[first..=i]
-                .iter()
-                .map(|t| t.0)
-                .collect::<String>()
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ");
-            if !text.is_empty() {
-                let start = clamp(tokens[first].1);
-                let end = clamp(next.map_or(at + TOKEN_SECS, |n| (at + TOKEN_SECS).min(n)));
-                out.push(Segment {
-                    start,
-                    end: end.max(start),
-                    text,
-                });
-            }
-            first = i + 1;
+    let mut text = String::new();
+    // Start time and last word-piece time of the open segment; a sentence end seen after it.
+    let mut first: Option<f64> = None;
+    let mut last = 0.0;
+    let mut sentence_end = false;
+    let mut close = |text: &mut String, first: Option<f64>, end: f64| {
+        let t = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        if let (Some(start), false) = (first, t.is_empty()) {
+            let (start, end) = (clamp(start), clamp(end));
+            out.push(Segment {
+                start,
+                end: end.max(start),
+                text: t,
+            });
         }
+        text.clear();
+    };
+    for (tok, at) in result.tokens.iter().zip(result.timestamps.iter().copied()) {
+        let word = tok.chars().any(char::is_alphanumeric);
+        if word {
+            if let Some(start) = first {
+                let gap = at - last;
+                if gap >= SEGMENT_PAUSE
+                    || (sentence_end && gap >= SENTENCE_PAUSE)
+                    || at - start >= f64::from(MAX_SEGMENT_SECS)
+                {
+                    close(&mut text, first, (last + TOKEN_SECS).min(at));
+                    first = None;
+                }
+            }
+            first.get_or_insert(at);
+            last = at;
+            sentence_end = false;
+        } else if tok.trim_end().ends_with(['.', '?', '!', '。', '？', '！']) {
+            sentence_end = true;
+        }
+        text.push_str(tok);
     }
+    close(&mut text, first, last + TOKEN_SECS);
     out
 }
 

@@ -498,15 +498,16 @@ fn the_online_decoder_result_is_cut_into_segments() {
     // What `sherpa-onnx` wrote for two voices with a pause between them (0.5 s of padding in
     // front), trimmed: tokens with their start times.
     let stderr = r#"Number of threads: 4
-{ "text": "Good morning.  How was it?  It was wonderful", "tokens": [" Good", " ", "mo", "r", "ni", "ng", ".", " ", " How", " was", " it", "?", " ", " ", "I", "t", " was", " ", "w", "ond", "er", "ful"], "timestamps": [0.64, 0.80, 0.80, 0.80, 0.96, 0.96, 1.20, 1.20, 1.36, 1.60, 1.76, 1.92, 3.40, 3.40, 3.60, 3.60, 3.84, 4.08, 4.08, 4.16, 4.24, 4.30], "segment": 0}
+{ "text": "Good morning.  How was it?  It was wonderful", "tokens": [" Good", " ", "mo", "r", "ni", "ng", ".", " ", " How", " was", " it", "?", " ", " ", "I", "t", " was", " ", "w", "ond", "er", "ful"], "timestamps": [0.64, 0.80, 0.80, 0.80, 0.96, 0.96, 1.20, 1.20, 1.36, 1.60, 1.76, 3.40, 3.40, 3.40, 3.60, 3.60, 3.84, 4.08, 4.08, 4.16, 4.24, 4.30], "segment": 0}
 "#;
     let segs = parse_online_json(stderr, 0.5, 10.0);
     let texts: Vec<&str> = segs.iter().map(|s| s.text.as_str()).collect();
-    // The sentence end with no pause stays in its segment; the pause after "it?" cuts.
+    // "morning." is followed by a short pause (0.4 s between the words): one segment. "it?" is
+    // emitted late, just before the next word, but the words around it are 1.84 s apart: cut.
     assert_eq!(texts, ["Good morning. How was it?", "It was wonderful"]);
     assert!((segs[0].start - 0.14).abs() < 1e-9);
-    assert!((segs[0].end - 1.67).abs() < 1e-9);
-    assert!((segs[1].start - 2.9).abs() < 1e-9);
+    assert!((segs[0].end - 1.51).abs() < 1e-9);
+    assert!((segs[1].start - 3.1).abs() < 1e-9);
     assert!((segs[1].end - 4.05).abs() < 1e-9);
     // No JSON: nothing.
     assert!(parse_online_json("Elapsed seconds: 1", 0.5, 10.0).is_empty());
