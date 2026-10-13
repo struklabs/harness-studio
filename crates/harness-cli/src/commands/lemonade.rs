@@ -51,12 +51,16 @@ async fn blocking<T: Send + 'static>(
 /// The state of the engine. A running instance (the window, `harness serve`) owns the `lemond`
 /// it started, so it is asked through its Control API; without one, this process looks locally.
 async fn status(g: &GlobalArgs, data_dir: &Path, out: &Out) -> CliResult<()> {
-    let from_instance = match existing_client(g, data_dir) {
-        Ok(Some(client)) => client
-            .get_as::<lemonade::LemonadeStatus>("/lemonade")
-            .await
-            .ok(),
-        _ => None,
+    // A remote instance (`--host`) is the one asked about: its errors are reported, never
+    // answered with this machine's state. A local instance whose API lacks the route (an older
+    // build) falls back to the local look.
+    let from_instance = match existing_client(g, data_dir)? {
+        Some(client) => match client.get_as::<lemonade::LemonadeStatus>("/lemonade").await {
+            Ok(s) => Some(s),
+            Err(e) if g.host.is_some() => return Err(e),
+            Err(_) => None,
+        },
+        None => None,
     };
     let s = match from_instance {
         Some(s) => s,
