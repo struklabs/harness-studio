@@ -637,8 +637,8 @@ const TTS_ALTS: &[(&str, Support)] = &[(SHERPA_FAMILY, Yes)];
 const ONNX_ALTS: &[(&str, Support)] = &[(ONNX_FAMILY, Yes)];
 /// Text-to-image and image-to-image (`/v1/images/edits`): stable-diffusion.cpp.
 const T2I_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes)];
-/// Video: stable-diffusion.cpp loads Wan, but Harness has no video endpoint yet.
-const SD_PARTIAL_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Partial)];
+/// Text / image to video: stable-diffusion.cpp's Wan through `/v1/videos`.
+const VIDEO_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes)];
 
 use Support::{No, Partial, Yes};
 
@@ -678,8 +678,8 @@ const TABLE: &[Row] = &[
     row("image-to-text", Partial, Some("vision")),
     row_alt("text-to-image", No, None, T2I_ALTS),
     row_alt("image-to-image", No, None, T2I_ALTS),
-    row_alt("text-to-video", No, None, SD_PARTIAL_ALTS),
-    row_alt("image-to-video", No, None, SD_PARTIAL_ALTS),
+    row_alt("text-to-video", No, None, VIDEO_ALTS),
+    row_alt("image-to-video", No, None, VIDEO_ALTS),
     row("image-classification", No, None),
     row("object-detection", No, None),
     row("image-segmentation", No, None),
@@ -1275,7 +1275,8 @@ mod tests {
         assert_eq!(t2i.runtime.as_deref(), Some(SDCPP_FAMILY));
         assert_eq!(t2i.needs_runtime, None);
         assert_eq!(support_of(&sd, "image-to-image").support, Yes);
-        assert_eq!(support_of(&sd, "text-to-video").support, Partial);
+        assert_eq!(support_of(&sd, "text-to-video").support, Yes);
+        assert_eq!(support_of(&sd, "image-to-video").support, Yes);
         // The other families stay missing.
         assert_eq!(support_of(&sd, "text-to-speech").support, No);
 
