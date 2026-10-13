@@ -18,8 +18,10 @@
 pub mod api;
 pub mod cli;
 pub mod genai_pkg;
+pub mod hf_api;
 pub mod package;
 pub mod pooling;
+pub mod tasks;
 
 #[cfg(feature = "engine")]
 pub mod chat;

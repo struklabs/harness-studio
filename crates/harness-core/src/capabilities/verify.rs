@@ -582,7 +582,7 @@ pub async fn probe_server(target: &ProbeTarget) -> ProbeReport {
 
     // Embedding / rerank servers: one real, tiny request for their own endpoint.
     let mode_check = match target.serve_mode {
-        ServeMode::Chat | ServeMode::Transcription | ServeMode::Image => None,
+        ServeMode::Chat | ServeMode::Transcription | ServeMode::Image | ServeMode::Pipeline => None,
         ServeMode::Embedding => Some((
             "embeddings_endpoint",
             client

@@ -53,10 +53,12 @@ pub enum GatewayEndpoint {
     Ollama,
     /// `GET /metrics` (Prometheus).
     Metrics,
+    /// `/v1/hf/{model}`: Hugging Face pipeline tasks (classification, NER, QA...).
+    Pipelines,
 }
 
 impl GatewayEndpoint {
-    pub const ALL: [GatewayEndpoint; 9] = [
+    pub const ALL: [GatewayEndpoint; 10] = [
         GatewayEndpoint::Chat,
         GatewayEndpoint::Embeddings,
         GatewayEndpoint::Rerank,
@@ -66,6 +68,7 @@ impl GatewayEndpoint {
         GatewayEndpoint::Messages,
         GatewayEndpoint::Ollama,
         GatewayEndpoint::Metrics,
+        GatewayEndpoint::Pipelines,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -79,6 +82,7 @@ impl GatewayEndpoint {
             GatewayEndpoint::Messages => "messages",
             GatewayEndpoint::Ollama => "ollama",
             GatewayEndpoint::Metrics => "metrics",
+            GatewayEndpoint::Pipelines => "pipelines",
         }
     }
 
@@ -104,6 +108,7 @@ impl GatewayEndpoint {
             "/metrics" => Self::Metrics,
             _ if p == "/v1/models" || p.starts_with("/v1/models/") => Self::Models,
             _ if p.starts_with("/api/") => Self::Ollama,
+            _ if p == "/v1/hf" || p.starts_with("/v1/hf/") => Self::Pipelines,
             _ => return None,
         })
     }
@@ -283,6 +288,10 @@ mod tests {
         assert_eq!(GatewayEndpoint::of_path("/v1/completions"), Some(Chat));
         assert_eq!(GatewayEndpoint::of_path("/v1/embeddings"), Some(Embeddings));
         assert_eq!(GatewayEndpoint::of_path("/v1/rerank"), Some(Rerank));
+        assert_eq!(
+            GatewayEndpoint::of_path("/v1/hf/ner-model"),
+            Some(Pipelines)
+        );
         assert_eq!(GatewayEndpoint::of_path("/v1/models"), Some(Models));
         assert_eq!(GatewayEndpoint::of_path("/v1/models/a/b"), Some(Models));
         assert_eq!(GatewayEndpoint::of_path("/v1/messages"), Some(Messages));

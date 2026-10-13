@@ -586,6 +586,7 @@ pub fn to_local_model(model: &TtsModel, root: &Path) -> crate::models::LocalMode
         mmproj_path: None,
         kind: crate::domain::ModelKind::Tts,
         origin: crate::domain::ModelOrigin::Library,
+        task: None,
     }
 }
 

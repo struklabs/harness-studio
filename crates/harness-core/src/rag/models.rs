@@ -71,6 +71,8 @@ fn onnx_model(def: &ModelDefinition, path: &std::path::Path) -> Option<Retrieval
     let role = match package.task {
         harness_onnx::package::Task::Embedding => RetrievalRole::Embedding,
         harness_onnx::package::Task::Rerank => RetrievalRole::Rerank,
+        // Classifiers, NER, fill-mask and QA heads do not retrieve.
+        _ => return None,
     };
     Some(RetrievalModel {
         definition_id: def.id.clone(),

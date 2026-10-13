@@ -471,7 +471,7 @@ async fn run(
     // Token-budget admission: the request waits until its estimated prompt + generation
     // fits the server's shared KV pool next to the requests that already run.
     let demand = match api {
-        Api::Embeddings | Api::Rerank | Api::CountTokens => None,
+        Api::Embeddings | Api::Rerank | Api::CountTokens | Api::Hf => None,
         _ => harness_core::gateway::admission::Demand::from_bytes(
             prepared.body.as_deref().unwrap_or(&body),
         ),
@@ -537,7 +537,7 @@ async fn run(
     );
     let mut req = state
         .http
-        .post(format!("{}{}", lease.upstream, api.path()))
+        .post(format!("{}{}", lease.upstream, api.upstream_path()))
         .header(header::CONTENT_TYPE, "application/json")
         .body(body);
     for name in ["accept", "anthropic-version", "anthropic-beta"] {
