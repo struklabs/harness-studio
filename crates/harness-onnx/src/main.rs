@@ -3,7 +3,7 @@
 //! ```text
 //! harness-onnx --model <path/to/model.onnx> [--host 127.0.0.1] [--port 8080]
 //!              [--alias NAME] [--ort-lib <onnxruntime.dll>] [--provider auto|cpu|directml|cuda]
-//!              [--threads N] [--task embedding|rerank] [--pooling mean|cls|max|last]
+//!              [--threads N] [--task embedding|rerank|asr_ctc] [--pooling mean|cls|max|last]
 //!              [--normalize on|off] [--max-length N] [--batch-size N]
 //!              [--genai-lib <onnxruntime-genai.dll>] [--ctx-size N]
 //! ```
@@ -231,6 +231,28 @@ fn main() {
                 }
                 return;
             }
+            // CTC speech first: its repo also has a preprocessor_config.json, like a vision model.
+            let is_ctc = load.task == Some(Task::AsrCtc)
+                || (load.task.is_none() && harness_onnx::asr_ctc::find_root(&load.model).is_some());
+            if is_ctc {
+                let result = engine::init_runtime(load.ort_lib.as_deref())
+                    .and_then(|()| harness_onnx::asr_ctc::load(&load));
+                match result {
+                    Ok(engine) => {
+                        println!(
+                            "harness-onnx: CTC model ready in {:.1} s on {}",
+                            started.elapsed().as_secs_f32(),
+                            engine.provider
+                        );
+                        loader.set_asr(engine);
+                    }
+                    Err(e) => {
+                        eprintln!("harness-onnx: error: {e}");
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
             if let Some(package) = harness_onnx::vision_pkg::VisionPackage::discover(&load.model) {
                 let result = engine::init_runtime(load.ort_lib.as_deref())
                     .and_then(|()| harness_onnx::vision_engine::load(&load, package));
@@ -330,5 +352,11 @@ mod tests {
         assert!(args(&["--model", "a.onnx", "--bogus"]).is_err());
         assert!(args(&["--model", "a.onnx", "--port", "x"]).is_err());
         assert!(args(&["--model", "a.onnx", "--provider", "tpu"]).is_err());
+    }
+
+    #[test]
+    fn parses_ctc_task() {
+        let launch = args(&["--model", "speech/onnx/model.onnx", "--task", "asr_ctc"]).unwrap();
+        assert_eq!(launch.load.task, Some(Task::AsrCtc));
     }
 }
