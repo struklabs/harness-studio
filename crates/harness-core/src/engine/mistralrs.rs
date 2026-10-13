@@ -117,9 +117,15 @@ fn is_generative_config(cfg: &serde_json::Value) -> bool {
         .is_some_and(|a| a.iter().filter_map(|v| v.as_str()).any(is_generative_arch))
 }
 
-/// Whether `path` is a folder mistral.rs runs: a transformers checkpoint (`config.json` of a
-/// text generator) with safetensors weights, not a component of a diffusers pipeline.
+/// Whether `path` is a folder mistral.rs runs: a transformers checkpoint (see
+/// [`is_checkpoint_dir`]) whose weights are not MLX's (the MLX engine runs those).
 pub fn is_model_dir(path: &Path) -> bool {
+    is_checkpoint_dir(path) && !super::mlx::is_mlx_checkpoint(path)
+}
+
+/// A transformers text-generator checkpoint (`config.json` of a text generator) with
+/// safetensors weights, not a component of a diffusers pipeline nor a Python-engine task model.
+pub(crate) fn is_checkpoint_dir(path: &Path) -> bool {
     if !path.is_dir() {
         return false;
     }
@@ -169,6 +175,14 @@ pub struct ModelDirInfo {
 /// [`ModelDirInfo`] of a folder that [`is_model_dir`] accepts; `None` otherwise.
 pub fn inspect(dir: &Path) -> Option<ModelDirInfo> {
     if !is_model_dir(dir) {
+        return None;
+    }
+    inspect_checkpoint(dir)
+}
+
+/// [`inspect`] of any text-generator checkpoint (an MLX folder too).
+pub(crate) fn inspect_checkpoint(dir: &Path) -> Option<ModelDirInfo> {
+    if !is_checkpoint_dir(dir) {
         return None;
     }
     let cfg = read_json(&dir.join("config.json"))?;

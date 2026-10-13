@@ -15,7 +15,7 @@ export interface EngineSpec {
   /** Managed Python environment of `pyenv` families. */
   env?: string;
   /** Locale key of the one-line description shown on the Installed Runtime page. */
-  descKey: 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf';
+  descKey: 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx';
 }
 
 export const ENGINES: readonly EngineSpec[] = [
@@ -26,6 +26,7 @@ export const ENGINES: readonly EngineSpec[] = [
   { family: 'lemonade', method: 'lemonade', descKey: 'eng.desc_lemonade' },
   { family: 'mistral.rs', method: 'manual', descKey: 'eng.desc_mistralrs' },
   { family: 'python-hf', method: 'pyenv', env: 'hf-cpu', descKey: 'eng.desc_pyhf' },
+  { family: 'mlx', method: 'pyenv', env: 'mlx', descKey: 'eng.desc_mlx' },
 ];
 
 /**
@@ -63,13 +64,15 @@ export function progressPercent(downloaded: number, total: number): number | nul
 }
 
 /**
- * Locale key and parameters of the "ONNX Runtime does not run here" line, from the OS and
- * architecture the backend reports: Intel Macs get their own wording, other platforms are named.
+ * Locale key and parameters of the "this engine does not run here" line, from the OS and
+ * architecture the backend reports: ONNX Runtime on an Intel Mac gets its own wording, other
+ * platforms are named; MLX on a Mac whose macOS is older than its wheels says so.
  */
-export function onnxUnsupportedText(p: { os: string; arch: string }): {
-  key: 'ort.unsupported_intel_mac' | 'ort.unsupported_platform';
+export function onnxUnsupportedText(p: { os: string; arch: string; runtime?: string }): {
+  key: 'ort.unsupported_intel_mac' | 'ort.unsupported_platform' | 'mlx.unsupported_macos';
   params: { platform: string };
 } {
+  if (p.runtime === 'mlx') return { key: 'mlx.unsupported_macos', params: { platform: `${p.os}/${p.arch}` } };
   const intelMac = p.os === 'macos' && p.arch === 'x86_64';
   return { key: intelMac ? 'ort.unsupported_intel_mac' : 'ort.unsupported_platform', params: { platform: `${p.os}/${p.arch}` } };
 }

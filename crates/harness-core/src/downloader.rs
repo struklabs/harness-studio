@@ -480,7 +480,9 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     } else {
         // A safetensors chat model runs on mistral.rs (when the user registered it).
         // A transformers task model (classifier, NER, ASR...) runs on the Python engine.
+        // An MLX chat model runs on the MLX engine (Apple Silicon).
         crate::hub_compat::mistralrs_compatibility(format, task, &sibling_files(item))
+            .or_else(|| crate::hub_compat::mlx_compatibility(format, task, &sibling_files(item)))
             .or_else(|| {
                 crate::hub_compat::python_hf_compatibility(
                     format,

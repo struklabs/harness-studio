@@ -37,6 +37,8 @@ pub struct EnvSpec {
     pub verify: &'static str,
     /// Rough size on disk (shown before it is built).
     pub estimated_size_bytes: u64,
+    /// Oldest macOS major version its wheels run on (`None`: any the app runs on).
+    pub min_macos: Option<u32>,
 }
 
 /// The CPU build of the `python-hf` engine: PyTorch (CPU wheels; plain PyPI wheels on macOS,
@@ -50,10 +52,58 @@ pub const HF_CPU: EnvSpec = EnvSpec {
     lock: include_str!("../../python/hf-cpu.lock"),
     verify: "import torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL",
     estimated_size_bytes: 1_300 * 1024 * 1024,
+    min_macos: None,
+};
+
+/// The `mlx` engine's environment: Apple's MLX and mlx-lm (its OpenAI-compatible server).
+/// Apple Silicon only, and macOS 14 or later (the oldest the MLX wheels are built for; the app
+/// itself runs on 13.3). `python/mlx.in` lists the requirement and how the lock is compiled.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub const MLX: EnvSpec = EnvSpec {
+    name: "mlx",
+    lock: include_str!("../../python/mlx.lock"),
+    verify: "import mlx.core, mlx_lm.server",
+    estimated_size_bytes: 350 * 1024 * 1024,
+    min_macos: Some(14),
 };
 
 /// The environments engines can ask for.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub const ENVS: &[EnvSpec] = &[HF_CPU, MLX];
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 pub const ENVS: &[EnvSpec] = &[HF_CPU];
+
+/// The major version of the running macOS (`None` elsewhere, or when it can't be read).
+pub fn macos_major() -> Option<u32> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    sysinfo::System::os_version()?
+        .split('.')
+        .next()?
+        .parse()
+        .ok()
+}
+
+/// Why this machine can't run the env's wheels (an error key), if it can't.
+pub fn platform_refusal(spec: &EnvSpec) -> Option<String> {
+    if UV.is_none() {
+        return Some(
+            err(KEYS.unsupported_platform)
+                .with("os", std::env::consts::OS)
+                .into(),
+        );
+    }
+    let need = spec.min_macos?;
+    let have = macos_major()?;
+    (have < need).then(|| {
+        err("pyenv.macos_too_old")
+            .with("name", spec.name)
+            .with("need", need)
+            .with("have", have)
+            .into()
+    })
+}
 
 pub fn spec(name: &str) -> Option<&'static EnvSpec> {
     ENVS.iter().find(|s| s.name == name)
@@ -99,8 +149,10 @@ pub fn lock_digest(spec: &EnvSpec) -> String {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct EnvStatus {
     pub name: String,
-    /// This platform can build it (uv has a build for it).
+    /// This platform can build it (uv has a build for it, the OS is new enough).
     pub supported: bool,
+    /// Why it can't (an error key with its values), when it can't.
+    pub refusal: Option<String>,
     /// A complete environment exists (it may be from an older lock).
     pub installed: bool,
     /// It matches this version's lock, so the engine can start at once.
@@ -122,9 +174,11 @@ pub fn status_in(root: &Path, spec: &EnvSpec) -> EnvStatus {
             .as_ref()
             .is_some_and(|m| m.lock_sha256 == lock_digest(spec) && m.uv_version == UV_VERSION);
     let dir = env_dir_in(root, spec.name);
+    let refusal = platform_refusal(spec);
     EnvStatus {
         name: spec.name.to_string(),
-        supported: UV.is_some(),
+        supported: refusal.is_none(),
+        refusal,
         installed,
         ready,
         manifest,
@@ -167,6 +221,9 @@ pub async fn ensure_in(
     cancel: &Cancel,
     report: &Progress,
 ) -> Result<(), String> {
+    if let Some(refusal) = platform_refusal(spec) {
+        return Err(refusal);
+    }
     let _one_at_a_time = BUILD_LOCK.lock().await;
     if status_in(root, spec).ready {
         return Ok(());
@@ -302,6 +359,7 @@ mod tests {
         lock: "six==1.17.0 \\\n    --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274\n",
         verify: "import six",
         estimated_size_bytes: 1,
+        min_macos: None,
     };
 
     #[test]
@@ -345,6 +403,44 @@ mod tests {
         };
         assert_eq!(lock_digest(&SPEC), lock_digest(&SPEC));
         assert_ne!(lock_digest(&SPEC), lock_digest(&other));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn mlx_lock_pins_every_wheel_for_macos_14() {
+        assert_eq!(spec("mlx").unwrap().name, "mlx");
+        assert_eq!(MLX.min_macos, Some(14));
+        let pinned: Vec<&str> = MLX
+            .lock
+            .lines()
+            .filter(|l| l.contains("==") && !l.trim_start().starts_with('#'))
+            .collect();
+        for line in &pinned {
+            assert!(line.trim_end().ends_with('\\'), "no hashes after {line}");
+        }
+        for pkg in ["mlx==", "mlx-lm==", "mlx-metal=="] {
+            assert!(pinned.iter().any(|l| l.starts_with(pkg)), "{pkg}");
+        }
+        // No PyTorch: the env is small.
+        assert!(!pinned.iter().any(|l| l.starts_with("torch==")));
+    }
+
+    #[test]
+    fn an_env_for_a_newer_macos_is_refused_with_its_versions() {
+        let newer = EnvSpec {
+            min_macos: Some(999),
+            ..SPEC
+        };
+        if cfg!(target_os = "macos") && UV.is_some() {
+            let e = platform_refusal(&newer).expect("refused");
+            assert!(e.contains("pyenv.macos_too_old"), "{e}");
+            assert!(e.contains("999"), "{e}");
+        }
+        assert!(platform_refusal(&EnvSpec {
+            min_macos: Some(1),
+            ..SPEC
+        })
+        .is_none_or(|e| e.contains("unsupported_platform")));
     }
 
     #[test]
