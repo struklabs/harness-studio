@@ -140,6 +140,7 @@ const tr = {
   'pyenv.env_busy': '{name} ortamı zaten kuruluyor.',
   'pyenv.env_in_use': '{name} ortamı şu an kuruluyor; bitince silebilirsiniz.',
   'pyenv.cancelled': 'Python ortamının kurulumu iptal edildi.',
+  'pyenv.socket_path_too_long': 'Python motorunun soket yolu çok uzun ({path}); Unix soketleri en çok 107 bayt kabul eder. XDG_RUNTIME_DIR ya da veri klasörü daha kısa bir yolda olmalı.',
   'pyenv.isolation_unavailable': 'Python motoru ağ yalıtımı olmadan başlatılmadı. Bu sistem ayrıcalıksız kullanıcı ad alanlarına izin vermiyor: {reason}',
 };
 
@@ -283,6 +284,7 @@ const en: Record<keyof typeof tr, string> = {
   'pyenv.env_busy': 'The {name} environment is already being built.',
   'pyenv.env_in_use': 'The {name} environment is being built; delete it when that is done.',
   'pyenv.cancelled': 'Building the Python environment was cancelled.',
+  'pyenv.socket_path_too_long': 'The Python engine’s socket path is too long ({path}); Unix sockets take at most 107 bytes. XDG_RUNTIME_DIR or the data folder needs a shorter path.',
   'pyenv.isolation_unavailable': 'The Python engine was not started without network isolation. This system does not allow unprivileged user namespaces: {reason}',
 };
 

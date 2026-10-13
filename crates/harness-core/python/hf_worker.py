@@ -3,8 +3,9 @@ pipeline (or a diffusers text-to-image pipeline) over HTTP.
 
 Started by Harness from its managed environment (`<data>/bin/pyenv/envs/hf-*`), one process per
 model, on a loopback port or a Unix socket (Linux runs it without network, see
-`pyenv::isolation`). The model is a local folder: nothing is downloaded, remote code is refused
-unless `--trust-remote-code` is passed.
+`pyenv::isolation`). The model is a local folder: nothing is downloaded and remote code is never
+run (`trust_remote_code` is always off; a folder that asks for custom code is refused before
+loading).
 
 Endpoints
   GET  /health                     {"status":"ok"} | 503 {"status":"loading"} | 500 {"status":"error"}
@@ -16,8 +17,8 @@ Endpoints
   POST /v1/audio/speech            text-to-speech / text-to-audio ({"input": ...} -> audio/wav)
   POST /v1/images/generations      text-to-image (diffusers; OpenAI shape, b64_json)
 
-Errors use the OpenAI shape {"error": {"message", "type", "code"}}. With HARNESS_WORKER_API_KEY in
-the environment every route but /health needs "Authorization: Bearer <key>".
+Errors use the OpenAI shape {"error": {"message", "type", "code"}}. Every route but /health needs
+"Authorization: Bearer <HARNESS_WORKER_API_KEY>"; the worker refuses to start without that key.
 """
 
 from __future__ import annotations
@@ -72,6 +73,54 @@ AUDIO_TASKS = {
 DIFFUSERS_TASKS = {"text-to-image"}
 TASKS = TEXT_TASKS | IMAGE_TASKS | AUDIO_TASKS | DIFFUSERS_TASKS
 
+# Largest request body (an image or a few minutes of audio fit easily).
+MAX_BODY_BYTES = 64 * 1024 * 1024
+
+# Upper bounds of the request parameters that decide how much work one request is: larger values
+# are refused, not clamped, so a client learns the limit.
+PARAM_LIMITS = {
+    "width": 2048,
+    "height": 2048,
+    "num_inference_steps": 100,
+    "num_images_per_prompt": 4,
+    "n": 4,
+    "max_new_tokens": 2048,
+    "max_length": 4096,
+    "num_beams": 8,
+    "top_k": 1000,
+    "max_answer_len": 512,
+    "max_seq_len": 4096,
+    "doc_stride": 4096,
+    "chunk_length_s": 60,
+}
+
+
+def check_params(params):
+    """The request parameters, with the ones that size the work checked against
+    `PARAM_LIMITS`; private names (`_...`) and nested objects other than lists are refused."""
+    if not isinstance(params, dict):
+        raise BadRequest('"parameters" must be an object')
+    out = {}
+    for k, v in params.items():
+        if not isinstance(k, str) or k.startswith("_"):
+            raise BadRequest(f"parameter {k!r} is not accepted")
+        if isinstance(v, dict) and k != "generate_kwargs":
+            raise BadRequest(f"parameter {k!r} must not be an object")
+        limit = PARAM_LIMITS.get(k)
+        if limit is not None and v is not None:
+            try:
+                n = float(v)
+            except (TypeError, ValueError):
+                raise BadRequest(f"parameter {k!r} must be a number")
+            if n < 0 or n > limit:
+                raise BadRequest(f"parameter {k!r} must be between 0 and {limit}")
+        out[k] = v
+    gen = out.get("generate_kwargs")
+    if isinstance(gen, dict):
+        out["generate_kwargs"] = check_params(gen)
+    return out
+
+
 # Tasks whose transformers pipeline name differs from the Hub tag.
 PIPELINE_NAME = {
     "sentence-similarity": "feature-extraction",
@@ -81,7 +130,8 @@ PIPELINE_NAME = {
 
 
 def parse_args(argv=None):
-    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    # No abbreviations: `--ud`, `--trust` and the like must not reach a real flag.
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0], allow_abbrev=False)
     p.add_argument("--model", required=True, help="local model folder")
     p.add_argument("--task", required=True, choices=sorted(TASKS))
     p.add_argument("--alias", default=None)
@@ -91,7 +141,6 @@ def parse_args(argv=None):
     p.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     p.add_argument("--dtype", default="auto", choices=["auto", "float32", "float16", "bfloat16"])
     p.add_argument("--threads", type=int, default=0)
-    p.add_argument("--trust-remote-code", action="store_true")
     args = p.parse_args(argv)
     if args.uds is None:
         if not ipaddress.ip_address(args.host).is_loopback:
@@ -148,7 +197,8 @@ class Model:
             if self.args.threads > 0:
                 torch.set_num_threads(self.args.threads)
             task, folder = self.args.task, self.args.model
-            trust = self.args.trust_remote_code
+            trust = False  # never: model code is not run
+            refuse_custom_code(folder)
             if task in DIFFUSERS_TASKS:
                 from diffusers import AutoPipelineForText2Image
 
@@ -157,7 +207,11 @@ class Model:
                     dtype = torch.float16 if self.device() == "cuda" else torch.float32
                 self.pipe = AutoPipelineForText2Image.from_pretrained(
                     # safetensors when the repo has them, else .bin through torch.load(weights_only=True)
-                    folder, torch_dtype=dtype, local_files_only=True, use_safetensors=None
+                    folder,
+                    torch_dtype=dtype,
+                    local_files_only=True,
+                    use_safetensors=None,
+                    trust_remote_code=False,
                 ).to(self.device())
             elif task == "text-ranking" or (
                 task in ("feature-extraction", "sentence-similarity")
@@ -195,6 +249,52 @@ class Model:
             self.state = "error"
             self.error = f"{type(e).__name__}: {e}"
             log(traceback.format_exc())
+
+
+class CustomCodeRefused(Exception):
+    pass
+
+
+# Libraries a diffusers `model_index.json` component may come from (anything else is a module of
+# the repo itself).
+INDEX_LIBRARIES = {"diffusers", "transformers", None}
+
+
+def refuse_custom_code(folder):
+    """Raises when the folder asks for code of its own: an `auto_map` in any config (the root,
+    a component's, the tokenizer's), a diffusers component from another library, or a
+    sentence-transformers module that is not one of the library's own."""
+
+    def read(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return None
+
+    configs = []
+    for root, dirs, files in os.walk(folder):
+        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        if os.path.relpath(root, folder).count(os.sep) > 1:
+            continue
+        for name in files:
+            if name.endswith(".json"):
+                configs.append(os.path.join(root, name))
+    for path in configs:
+        data = read(path)
+        if isinstance(data, dict) and "auto_map" in data:
+            raise CustomCodeRefused(f"{os.path.relpath(path, folder)} asks for remote code (auto_map)")
+    index = read(os.path.join(folder, "model_index.json"))
+    if isinstance(index, dict):
+        for name, value in index.items():
+            if isinstance(value, list) and value and value[0] not in INDEX_LIBRARIES:
+                raise CustomCodeRefused(f"model_index.json component {name} comes from {value[0]}")
+    modules = read(os.path.join(folder, "modules.json"))
+    if isinstance(modules, list):
+        for m in modules:
+            kind = m.get("type", "") if isinstance(m, dict) else ""
+            if not kind.startswith("sentence_transformers."):
+                raise CustomCodeRefused(f"modules.json asks for a custom module ({kind})")
 
 
 def log(msg):
@@ -413,7 +513,7 @@ class NativeRunner:
 def run_hf(model: Model, body: dict, raw: bytes | None):
     """POST /hf: the Hugging Face Inference API request and response shapes."""
     task = model.args.task
-    params = dict(body.get("parameters") or {})
+    params = check_params(body.get("parameters") or {})
     inputs = body.get("inputs") if raw is None else raw
     if inputs is None:
         raise BadRequest('"inputs" is required')
@@ -508,6 +608,9 @@ def text_to_image(model: Model, prompt, params):
     ):
         if params.get(src) is not None:
             kw[dst] = params[src]
+    for side in ("width", "height"):
+        if side in kw and int(kw[side]) % 8:
+            raise BadRequest(f"{side} must be a multiple of 8")
     if params.get("seed") is not None:
         kw["generator"] = torch.Generator(device="cpu").manual_seed(int(params["seed"]))
     return model.pipe(prompt=prompt, **kw).images
@@ -561,7 +664,8 @@ def build_app(model: Model):
             return JSONResponse({"status": "ok"})
         if model.state == "loading":
             return JSONResponse({"status": "loading"}, status_code=503)
-        return JSONResponse({"status": "error", "error": model.error}, status_code=500)
+        # The details (paths, the traceback) are in the server log, not on the wire.
+        return JSONResponse({"status": "error", "error": "the model failed to load"}, status_code=500)
 
     async def models(_):
         return JSONResponse({
@@ -695,8 +799,15 @@ def build_app(model: Model):
         params = {k: body.get(k) for k in ("negative_prompt", "num_inference_steps", "guidance_scale", "seed")}
         if isinstance(body.get("size"), str) and "x" in body["size"]:
             w, h = body["size"].lower().split("x", 1)
-            params["width"], params["height"] = int(w), int(h)
-        params["num_images_per_prompt"] = int(body.get("n") or 1)
+            try:
+                params["width"], params["height"] = int(w), int(h)
+            except ValueError:
+                return error(400, '"size" must be WIDTHxHEIGHT')
+        params["num_images_per_prompt"] = body.get("n") or 1
+        try:
+            params = check_params({k: v for k, v in params.items() if v is not None})
+        except BadRequest as e:
+            return error(400, str(e))
         r = await call(text_to_image, model, prompt, params)
         if isinstance(r, Response):
             return r
@@ -714,23 +825,46 @@ def build_app(model: Model):
         Route("/v1/images/generations", images, methods=["POST"]),
     ]
     app = Starlette(routes=routes)
-    key = os.environ.get("HARNESS_WORKER_API_KEY")
+    key = os.environ.get("HARNESS_WORKER_API_KEY", "")
     if not key:
-        return app
+        # Fail closed: without its key the worker would serve anyone on this machine.
+        raise SystemExit("HARNESS_WORKER_API_KEY is not set; refusing to start")
+    expected = f"Bearer {key}".encode()
 
     # Every route but /health needs the per-run key Harness passes in the environment (like
     # llama-server --api-key): the port is on loopback, but any local process could reach it.
+    # Bodies are capped too (an image or a few minutes of audio fit easily).
     import hmac
 
     async def guarded(scope, receive, send):
         if scope["type"] == "http" and scope["path"] != "/health":
-            auth = dict(scope.get("headers") or []).get(b"authorization", b"").decode()
-            if not hmac.compare_digest(auth, f"Bearer {key}"):
+            headers = dict(scope.get("headers") or [])
+            if not hmac.compare_digest(headers.get(b"authorization", b""), expected):
                 await JSONResponse(
                     {"error": {"message": "invalid API key", "type": "authentication_error", "code": "invalid_api_key"}},
                     status_code=401,
                 )(scope, receive, send)
                 return
+            try:
+                declared = int(headers.get(b"content-length", b"0") or 0)
+            except ValueError:
+                declared = 0
+            if declared > MAX_BODY_BYTES:
+                await error(413, f"the request body is larger than {MAX_BODY_BYTES} bytes")(scope, receive, send)
+                return
+            seen = 0
+
+            async def capped():
+                nonlocal seen
+                message = await receive()
+                if message["type"] == "http.request":
+                    seen += len(message.get("body", b""))
+                    if seen > MAX_BODY_BYTES:
+                        raise BadRequest(f"the request body is larger than {MAX_BODY_BYTES} bytes")
+                return message
+
+            await app(scope, capped, send)
+            return
         await app(scope, receive, send)
 
     return guarded

@@ -104,9 +104,11 @@ pub fn catalog() -> &'static ParamCatalog {
     })
 }
 
+/// A protected flag, or an abbreviation of one (`--trust`, `--ud`): the worker's parser takes
+/// no abbreviations, and this refuses them before it is asked.
 fn is_protected(arg: &str) -> bool {
     let flag = arg.split('=').next().unwrap_or(arg);
-    PROTECTED_FLAGS.contains(&flag)
+    flag.starts_with("--") && flag.len() > 2 && PROTECTED_FLAGS.iter().any(|p| p.starts_with(flag))
 }
 
 // ---- model folders -------------------------------------------------------------------------
@@ -280,6 +282,62 @@ fn archs(cfg: &serde_json::Value) -> Vec<&str> {
         .unwrap_or_default()
 }
 
+/// Libraries a diffusers `model_index.json` component may come from; anything else is a module
+/// of the repo itself.
+const INDEX_LIBRARIES: [&str; 2] = ["diffusers", "transformers"];
+
+/// Whether a folder asks for code of its own (the worker refuses it too): an `auto_map` in any
+/// JSON file at the top or one level down (the model's, a component's, the tokenizer's config),
+/// a diffusers component from another library, or a sentence-transformers module that is not
+/// one of the library's own.
+pub fn asks_for_code(dir: &Path) -> bool {
+    let json_files = |d: &Path| -> Vec<PathBuf> {
+        std::fs::read_dir(d)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == "json"))
+            .collect()
+    };
+    let mut files = json_files(dir);
+    for sub in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let p = sub.path();
+        if p.is_dir() && !sub.file_name().to_string_lossy().starts_with('.') {
+            files.extend(json_files(&p));
+        }
+    }
+    if files
+        .iter()
+        .filter_map(|f| read_json(f))
+        .any(|v| v.get("auto_map").is_some())
+    {
+        return true;
+    }
+    if let Some(index) = read_json(&dir.join("model_index.json")).and_then(|v| match v {
+        serde_json::Value::Object(m) => Some(m),
+        _ => None,
+    }) {
+        let foreign = index.values().any(|v| {
+            v.as_array()
+                .and_then(|a| a.first())
+                .is_some_and(|lib| lib.as_str().is_some_and(|l| !INDEX_LIBRARIES.contains(&l)))
+        });
+        if foreign {
+            return true;
+        }
+    }
+    read_json(&dir.join("modules.json"))
+        .and_then(|v| v.as_array().cloned())
+        .is_some_and(|modules| {
+            modules.iter().any(|m| {
+                !m.get("type")
+                    .and_then(|t| t.as_str())
+                    .is_some_and(|t| t.starts_with("sentence_transformers."))
+            })
+        })
+}
+
 /// The task the worker would run a folder with: `text-to-image` for a diffusers text-to-image
 /// pipeline, else the model card's `pipeline_tag` when the worker serves it, else a task from
 /// `config.json`. `None` for anything else: no weights, remote code (`auto_map`), a component
@@ -295,6 +353,9 @@ pub fn detect(dir: &Path) -> Option<String> {
         return None;
     }
     let index = dir.join("model_index.json");
+    if index.is_file() && asks_for_code(dir) {
+        return None;
+    }
     if index.is_file() {
         let class = read_json(&index)?
             .get("_class_name")
@@ -314,10 +375,10 @@ pub fn detect(dir: &Path) -> Option<String> {
             .any(|w| class.contains(w));
         return (text_to_image && !weight_files(dir).is_empty()).then(|| "text-to-image".into());
     }
-    let cfg = read_json(&dir.join("config.json"))?;
-    if cfg.get("auto_map").is_some() {
+    if asks_for_code(dir) {
         return None;
     }
+    let cfg = read_json(&dir.join("config.json"))?;
     if cfg.get("_diffusers_version").is_some() || weight_files(dir).is_empty() {
         return None;
     }
@@ -472,10 +533,13 @@ pub fn binary() -> Result<PathBuf, String> {
     Ok(crate::pyenv::envs::python_in(&root, ENV))
 }
 
-/// Environment variables of a worker run: [`crate::pyenv::python_env`] and the API key.
+/// Environment variables of a worker run: [`crate::pyenv::python_env`], the API key, and
+/// `torch.load` limited to tensors (`weights_only`) for every caller, so no pickle in a model
+/// folder runs code.
 pub fn worker_env(api_key: &str) -> Vec<(&'static str, std::ffi::OsString)> {
     let mut env = crate::pyenv::python_env(&crate::pyenv::envs::root());
     env.push((API_KEY_ENV, api_key.into()));
+    env.push(("TORCH_FORCE_WEIGHTS_ONLY_LOAD", "1".into()));
     env
 }
 
@@ -647,8 +711,18 @@ impl ServerEngine for PythonHfEngine {
                 })
                 .unwrap_or(0)
         };
-        // torch + transformers take ~600 MB before the first tensor.
-        let compute = (600u64 << 20) + model / 4;
+        // torch + transformers take ~600 MB before the first tensor. A diffusers pipeline on the
+        // CPU loads in float32 (a float16 checkpoint doubles) and its activations at 512² and
+        // up are another ~1.5 GB.
+        let diffusers = input
+            .model_path
+            .as_deref()
+            .is_some_and(|p| Path::new(p).join("model_index.json").is_file());
+        let compute = if diffusers {
+            (600u64 << 20) + model + (1536u64 << 20)
+        } else {
+            (600u64 << 20) + model / 4
+        };
         let total = model + compute;
         let estimate = MemoryEstimate {
             ram_bytes: total,
@@ -833,6 +907,34 @@ mod tests {
             ("model.safetensors", "x"),
         ]);
         assert_eq!(detect(remote.path()), None);
+        // Remote code anywhere: a tokenizer's auto_map, a custom sentence-transformers module, a
+        // diffusers component of the repo's own.
+        let tok = folder(&[
+            ("config.json", r#"{"architectures":["BertForMaskedLM"]}"#),
+            (
+                "tokenizer_config.json",
+                r#"{"auto_map":{"AutoTokenizer":["t.T",null]}}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(detect(tok.path()), None);
+        let st = folder(&[
+            ("config.json", r#"{"architectures":["BertModel"]}"#),
+            (
+                "modules.json",
+                r#"[{"idx":0,"path":"","type":"my_module.Custom"}]"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(detect(st.path()), None);
+        let sd = folder(&[
+            (
+                "model_index.json",
+                r#"{"_class_name":"StableDiffusionPipeline","unet":["my_unet","UNet"]}"#,
+            ),
+            ("unet/diffusion_pytorch_model.safetensors", "x"),
+        ]);
+        assert_eq!(detect(sd.path()), None);
         let empty = folder(&[("config.json", r#"{"architectures":["BertForMaskedLM"]}"#)]);
         assert_eq!(detect(empty.path()), None);
     }
@@ -915,5 +1017,21 @@ mod tests {
             ..config
         };
         assert!(build_args(&custom, Path::new("/w.py"), "fill-mask").is_err());
+        // Abbreviations of protected flags are refused as well.
+        for bad in ["--trust", "--trust-remote", "--ud=/tmp/x", "--mod", "--ta"] {
+            let c = LaunchConfig {
+                custom_args: Some(bad.into()),
+                ..custom.clone()
+            };
+            assert!(
+                build_args(&c, Path::new("/w.py"), "fill-mask").is_err(),
+                "{bad}"
+            );
+        }
+        let ok = LaunchConfig {
+            custom_args: Some("--device cpu --dtype float32".into()),
+            ..custom
+        };
+        assert!(build_args(&ok, Path::new("/w.py"), "fill-mask").is_ok());
     }
 }

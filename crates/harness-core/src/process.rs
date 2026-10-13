@@ -411,6 +411,18 @@ const PROTECTED_ENV_VARS: &[&str] = &[
     "LLAMA_ARG_AGENT",
 ];
 
+/// Proxy variables a Python worker never inherits (Python's HTTP clients read either case).
+const PROXY_ENV_VARS: [&str; 8] = [
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+    "no_proxy",
+];
+
 /// What the UI and telemetry need to talk to the running server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -1466,6 +1478,19 @@ impl ProcessManager {
         // to it.
         self.stop_relay();
         let isolated = is_worker && crate::pyenv::isolation::available() && engine.uses_socket();
+        // On Linux a worker that can run without network must: no isolation (unprivileged user
+        // namespaces turned off) is a refusal with the reason, not a silent fallback.
+        if cfg!(target_os = "linux") && is_worker && engine.uses_socket() && !isolated {
+            let reason = crate::pyenv::isolation::status()
+                .reason
+                .clone()
+                .unwrap_or_default();
+            return Err(self.set_error(
+                err("pyenv.isolation_unavailable")
+                    .with("reason", reason)
+                    .into(),
+            ));
+        }
         let mut cmd = if isolated {
             #[cfg(unix)]
             {
@@ -1482,6 +1507,10 @@ impl ProcessManager {
             Command::new(&config.binary_path)
         };
         if let Some(env) = worker_key.as_deref().and_then(|key| engine.worker_env(key)) {
+            // Models are local: no proxy is ever needed, and an inherited one is a way out.
+            for var in PROXY_ENV_VARS {
+                cmd.env_remove(var);
+            }
             self.push_log(format!(
                 "[Harness Studio] Python worker: {}",
                 if isolated {
@@ -1558,6 +1587,7 @@ impl ProcessManager {
         let mut child_group = match group.spawn() {
             Ok(c) => c,
             Err(e) => {
+                self.stop_relay();
                 self.record_failure(crate::failure::spawn_failure(&e));
                 return Err(self.set_error(
                     err("process.spawn_failed")
@@ -1653,8 +1683,17 @@ impl ProcessManager {
             .filter(|p| p.is_dir())
             .unwrap_or_else(crate::paths::config_dir)
             .join("harness-studio");
-        let dir = crate::pyenv::isolation::socket_dir(&parent, &format!("pyhf-{}", self.id))?;
+        // A short, stable folder name (server ids can be long): `sun_path` holds 107 bytes.
+        use sha2::Digest;
+        let digest = crate::hex::lower(&sha2::Sha256::digest(self.id.as_bytes()));
+        let dir = crate::pyenv::isolation::socket_dir(&parent, &format!("w-{}", &digest[..12]))?;
         let socket = dir.join("w.sock");
+        if socket.as_os_str().len() > 107 {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err(err("pyenv.socket_path_too_long")
+                .with("path", socket.display())
+                .into());
+        }
         let _ = std::fs::remove_file(&socket);
         let listener = tokio::net::TcpListener::bind((config.host.as_str(), config.port))
             .await
