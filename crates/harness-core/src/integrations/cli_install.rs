@@ -16,7 +16,8 @@
 //!
 //! macOS Gatekeeper may run a quarantined app from a random read-only copy
 //! (`.../AppTranslocation/<UUID>/d/Harness Studio.app`) that disappears when the app quits;
-//! [`refuse_translocated`] keeps such a path out of symlinks and config files.
+//! [`refuse_translocated`] keeps such a path out of symlinks and config files. A Linux AppImage
+//! runs from a per-launch FUSE mount the same way; [`refuse_transient`] covers both.
 //!
 //! The PATH string edits are pure functions ([`path_list_add`], [`path_list_remove`],
 //! [`profile_with_block`], [`profile_without_block`]) so they are unit-tested without touching
@@ -127,6 +128,27 @@ pub fn refuse_translocated(path: &Path) -> Result<(), String> {
         return Err(err("cli_install.translocated")
             .with("path", path.display())
             .into());
+    }
+    Ok(())
+}
+
+/// Linux: whether `path` lies inside the AppImage this process runs from. Its `$APPDIR` is a
+/// FUSE mount (`/tmp/.mount_HarnesXXXXXX`) with a new name on every launch, gone when the app
+/// quits, and the bundled CLI needs the AppImage's own libraries.
+pub fn is_appimage_mount(path: &Path) -> bool {
+    cfg!(target_os = "linux")
+        && std::env::var_os("APPIMAGE").is_some()
+        && std::env::var_os("APPDIR")
+            .filter(|d| !d.is_empty())
+            .is_some_and(|d| path.starts_with(d))
+}
+
+/// [`refuse_translocated`], plus `cli_install.appimage` for a path inside a running AppImage:
+/// a symlink or client config pointing there breaks as soon as the app quits.
+pub fn refuse_transient(path: &Path) -> Result<(), String> {
+    refuse_translocated(path)?;
+    if is_appimage_mount(path) {
+        return Err(err("cli_install.appimage").into());
     }
     Ok(())
 }
@@ -258,6 +280,8 @@ pub struct CliStatus {
     pub profile: Option<String>,
     /// macOS runs the app from a temporary copy; [`install`] refuses until it is moved.
     pub translocated: bool,
+    /// Linux: the CLI runs from inside an AppImage; [`install`] refuses (the .deb links it).
+    pub appimage: bool,
 }
 
 pub fn status(cli: Option<&CliLocation>) -> CliStatus {
@@ -270,6 +294,7 @@ pub fn status(cli: Option<&CliLocation>) -> CliStatus {
         target_dir_on_path: platform::dir_on_process_path(),
         profile: platform::profile().map(|p| p.to_string_lossy().into_owned()),
         translocated: cli.is_some_and(|c| refuse_translocated(&c.path).is_err()),
+        appimage: cli.is_some_and(|c| is_appimage_mount(&c.path)),
         target: cli
             .and_then(|c| platform::target(&c.path))
             .map(|t| t.to_string_lossy().into_owned()),
@@ -281,7 +306,7 @@ pub fn install(cli: &Path) -> Result<(), String> {
     if !cli.is_file() {
         return Err(err("fs.not_found").with("path", cli.display()).into());
     }
-    refuse_translocated(cli)?;
+    refuse_transient(cli)?;
     platform::install(cli)
 }
 
