@@ -3,7 +3,7 @@
 import type { LocalModel, ModelDefinition, ModelKind } from './types';
 
 /** Kinds that are served through a model definition but get none from "Load and Chat". */
-export const DEFINITION_KINDS: readonly ModelKind[] = ['image', 'asr', 'embedding', 'reranker'];
+export const DEFINITION_KINDS: readonly ModelKind[] = ['image', 'asr', 'embedding', 'reranker', 'pipeline'];
 
 const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 
@@ -41,12 +41,14 @@ export function kindsForTab(tab: string): ModelKind[] {
       return ['embedding'];
     case 'rerank':
       return ['reranker'];
+    case 'pipeline':
+      return ['pipeline'];
     default:
       return [];
   }
 }
 
-export type PlaygroundTab = 'embedding' | 'rerank' | 'transcription' | 'image';
+export type PlaygroundTab = 'embedding' | 'rerank' | 'transcription' | 'image' | 'pipeline';
 
 /**
  * The Playground tab a library file opens in, and whether it is picked by definition alias
@@ -70,6 +72,8 @@ export function playgroundTarget(
       return { tab: 'embedding', pick: 'definition' };
     case 'reranker':
       return { tab: 'rerank', pick: 'definition' };
+    case 'pipeline':
+      return { tab: 'pipeline', pick: 'definition' };
     default:
       return null;
   }

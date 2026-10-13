@@ -569,7 +569,7 @@ export type ApiScope =
   | 'admin';
 
 /** Gateway route groups a token can be limited to (harness_core::token_policy). */
-export type GatewayEndpoint = 'chat' | 'embeddings' | 'rerank' | 'audio' | 'images' | 'models' | 'messages' | 'ollama' | 'metrics';
+export type GatewayEndpoint = 'chat' | 'embeddings' | 'rerank' | 'audio' | 'images' | 'models' | 'messages' | 'ollama' | 'metrics' | 'pipelines';
 
 /** A token's rate limits (`null` = unlimited). */
 export interface RateLimits {
@@ -853,9 +853,21 @@ export interface LocalModel {
   kind?: ModelKind;
   /** In a library directory, or linked in place from Ollama / LM Studio. */
   origin?: 'library' | 'linked';
+  /** Hugging Face pipeline task of a `pipeline` model ("text-classification", "fill-mask", ...). */
+  task?: string;
 }
 
-export type ModelKind = 'llm' | 'embedding' | 'reranker' | 'asr' | 'tts' | 'image' | 'mmproj' | 'adapter' | 'unknown';
+export type ModelKind =
+  | 'llm'
+  | 'embedding'
+  | 'reranker'
+  | 'asr'
+  | 'tts'
+  | 'image'
+  | 'pipeline'
+  | 'mmproj'
+  | 'adapter'
+  | 'unknown';
 
 export interface GgufMetadata {
   /** Recommendations returned by get_model_metadata. */
@@ -1491,7 +1503,7 @@ export interface ActiveServerInfo {
 }
 
 /** Serving mode of a llama-server run; stored as the `serve_mode` launch setting (absent = automatic). */
-export type ServeMode = 'chat' | 'embedding' | 'rerank' | 'transcription' | 'image';
+export type ServeMode = 'chat' | 'embedding' | 'rerank' | 'transcription' | 'image' | 'pipeline';
 
 /** One llama-server instance managed by the backend ("default" always exists). */
 export interface ServerSummary {

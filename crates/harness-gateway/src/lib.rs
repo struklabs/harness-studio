@@ -22,6 +22,7 @@ pub mod audio;
 pub mod auth;
 pub mod compat;
 pub mod errors;
+pub mod hf;
 pub mod images;
 mod model_name;
 pub mod ollama;
@@ -616,6 +617,21 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
         )
         .route("/v1/embeddings", inference!(Api::Embeddings))
         .route("/v1/rerank", inference!(Api::Rerank))
+        .route("/v1/hf", inference!(Api::Hf))
+        .route(
+            "/v1/hf/{model}",
+            post(
+                |State(s): State<GwState>,
+                 h: HeaderMap,
+                 Path(model): Path<String>,
+                 Query(q): Query<std::collections::HashMap<String, String>>,
+                 b: Bytes| async move {
+                    let ct = h.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok());
+                    let body = hf::body(&model, ct, q.get("parameters").map(String::as_str), b);
+                    proxy::handle(s, Api::Hf, h, body).await
+                },
+            ),
+        )
         .route(
             "/v1/audio/transcriptions",
             post(

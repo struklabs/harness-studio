@@ -6,7 +6,7 @@
 //! name, no settings of its own, `auto_created` off like every definition saved by the app)
 //! for the kinds that are served through a definition and cannot get one from "Load and Chat":
 //! image models (with the companion files they were found with), whisper speech models,
-//! embedding models and rerankers. Chat models get theirs when they are loaded; Kokoro / Piper
+//! embedding models, rerankers and ONNX task models (`pipeline`). Chat models get theirs when they are loaded; Kokoro / Piper
 //! text-to-speech and sherpa-onnx recognition models run per request and need none.
 
 use std::path::PathBuf;
@@ -15,11 +15,12 @@ use crate::domain::store::Domain;
 use crate::domain::{unique_alias, LocalModel, ModelDefinition, ModelKind, ModelRef};
 
 /// The kinds that get a default definition.
-pub const KINDS: [ModelKind; 4] = [
+pub const KINDS: [ModelKind; 5] = [
     ModelKind::Image,
     ModelKind::Asr,
     ModelKind::Embedding,
     ModelKind::Reranker,
+    ModelKind::Pipeline,
 ];
 
 /// [`ensure_in`] for the app's own domain files and library folders.
@@ -100,6 +101,7 @@ mod tests {
             mmproj_path: None,
             kind,
             origin: Default::default(),
+            task: None,
         }
     }
 

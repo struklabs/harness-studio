@@ -1170,6 +1170,12 @@ impl ProcessManager {
                         Some(harness_onnx::package::Task::Rerank) => {
                             crate::serve_mode::ServeMode::Rerank
                         }
+                        Some(
+                            harness_onnx::package::Task::Classify
+                            | harness_onnx::package::Task::TokenClassify
+                            | harness_onnx::package::Task::FillMask
+                            | harness_onnx::package::Task::QuestionAnswering,
+                        ) => crate::serve_mode::ServeMode::Pipeline,
                         _ => crate::serve_mode::ServeMode::Embedding,
                     }
                 },

@@ -531,6 +531,7 @@ mod tests {
             mmproj_path: None,
             kind,
             origin: Default::default(),
+            task: None,
         }
     }
 

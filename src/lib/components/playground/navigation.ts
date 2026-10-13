@@ -1,4 +1,4 @@
-import { AudioLines, Binary, Image, ListOrdered, MessageSquare } from '@lucide/svelte';
+import { AudioLines, Binary, Image, ListOrdered, MessageSquare, Workflow } from '@lucide/svelte';
 import type { ServeMode } from '$lib/types';
 import type { SectionPage } from '../common/sections';
 
@@ -8,6 +8,7 @@ export const PLAYGROUND_MODES: (SectionPage & { id: ServeMode })[] = [
   { id: 'rerank', label: 'emb.tab_rerank', icon: ListOrdered, level: 'advanced' },
   { id: 'transcription', label: 'emb.tab_transcription', icon: AudioLines },
   { id: 'image', label: 'img.tab', icon: Image },
+  { id: 'pipeline', label: 'pl.tab', icon: Workflow, level: 'advanced' },
 ];
 
 export function playgroundModeFromUrl(href: string): ServeMode | undefined {
