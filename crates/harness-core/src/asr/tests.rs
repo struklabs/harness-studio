@@ -110,11 +110,11 @@ fn zipformer_is_a_plain_transducer_and_int8_wins() {
 #[test]
 fn what_the_offline_tool_cannot_run_is_not_detected() {
     let tmp = tempfile::tempdir().unwrap();
-    // Streaming models need the online tool.
+    // A streaming model that is not a transducer (CTC, Paraformer).
     let d = tmp
         .path()
-        .join("sherpa-onnx-streaming-zipformer-en-2023-06-26");
-    for f in ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"] {
+        .join("sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13");
+    for f in ["ctc-epoch-20-avg-1-chunk-16-left-128.onnx", "tokens.txt"] {
         touch(&d.join(f), b"x");
     }
     assert!(detect(&d).is_none());
@@ -425,4 +425,76 @@ fn cjk_segments_join_without_spaces() {
     assert_eq!(join_segments(&[seg("hello"), seg("世界")]), "hello 世界");
     assert_eq!(join_segments(&[seg("a"), seg("  "), seg("b")]), "a b");
     assert_eq!(join_segments(&[]), "");
+}
+
+#[test]
+fn streaming_transducers_and_cohere_transcribe_are_detected() {
+    let tmp = tempfile::tempdir().unwrap();
+    for name in [
+        "sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11",
+        "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+    ] {
+        let d = tmp.path().join(name);
+        for f in [
+            "encoder.int8.onnx",
+            "decoder.int8.onnx",
+            "joiner.int8.onnx",
+            "tokens.txt",
+        ] {
+            touch(&d.join(f), b"x");
+        }
+        let m = detect(&d).unwrap();
+        assert_eq!(m.family, AsrFamily::StreamingTransducer, "{name}");
+        assert!(m.family.is_streaming());
+        // The online tool takes no `--model-type` for these.
+        let args = build_args(&m, &params());
+        assert!(args.iter().any(|a| a.starts_with("--joiner=")));
+        assert!(!args.iter().any(|a| a.starts_with("--model-type")));
+    }
+    let d = tmp
+        .path()
+        .join("sherpa-onnx-cohere-transcribe-14-lang-int8-2026-04-01");
+    for f in [
+        "encoder.int8.onnx",
+        "encoder.int8.onnx.data",
+        "decoder.int8.onnx",
+        "tokens.txt",
+    ] {
+        touch(&d.join(f), b"x");
+    }
+    let m = detect(&d).unwrap();
+    assert_eq!(m.family, AsrFamily::CohereTranscribe);
+    assert!(!m.family.is_streaming());
+    let mut p = params();
+    p.language = Some("de-DE".into());
+    let args = build_args(&m, &p);
+    for want in [
+        "--cohere-transcribe-language=de",
+        "--cohere-transcribe-use-punct=true",
+    ] {
+        assert!(args.iter().any(|a| a == want), "{want}: {args:?}");
+    }
+    assert!(
+        args.iter()
+            .any(|a| a.starts_with("--cohere-transcribe-decoder=")
+                && a.ends_with("decoder.int8.onnx"))
+    );
+}
+
+#[test]
+fn cohere_takes_its_fourteen_languages_and_english_by_default() {
+    assert_eq!(cohere_language(None), Some("en"));
+    assert_eq!(cohere_language(Some("  ")), Some("en"));
+    assert_eq!(cohere_language(Some("ja-JP")), Some("ja"));
+    assert_eq!(cohere_language(Some("German")), Some("de"));
+    assert_eq!(cohere_language(Some("tr")), None);
+}
+
+#[test]
+fn the_online_tool_output_is_read_too() {
+    let stderr = "Started!\nvad segment(1:0.666-6.036) results: Bugün İstanbul da hava güneşli\nvad segment(2:7.000-8.500) results: \nnum threads: 4\n";
+    let segs = parse_output(stderr, 0.5, 10.0);
+    assert_eq!(segs.len(), 1);
+    assert!((segs[0].start - 0.166).abs() < 1e-9 && (segs[0].end - 5.536).abs() < 1e-9);
+    assert_eq!(segs[0].text, "Bugün İstanbul da hava güneşli");
 }

@@ -45,12 +45,17 @@ pub fn resolve_binary(runtime: Option<&str>) -> Result<PathBuf, String> {
     crate::tts::run::resolve_binary(runtime)
 }
 
-/// The VAD + offline ASR tool next to the runtime's own binary.
-pub fn tool_binary(runtime_binary: &Path) -> Result<PathBuf, String> {
-    let name = if cfg!(windows) {
-        "sherpa-onnx-vad-with-offline-asr.exe"
+/// The VAD + ASR tool next to the runtime's own binary: the online one for a streaming model.
+pub fn tool_binary(runtime_binary: &Path, family: super::AsrFamily) -> Result<PathBuf, String> {
+    let stem = if family.is_streaming() {
+        "sherpa-onnx-vad-with-online-asr"
     } else {
         "sherpa-onnx-vad-with-offline-asr"
+    };
+    let name = if cfg!(windows) {
+        format!("{stem}.exe")
+    } else {
+        stem.to_string()
     };
     let tool = runtime_binary.with_file_name(name);
     if tool.is_file() {
@@ -222,7 +227,15 @@ pub async fn transcribe(
     req: &TranscribeRequest<'_>,
     audio: Vec<u8>,
 ) -> Result<Transcript, String> {
-    let tool = tool_binary(runtime_binary)?;
+    let tool = tool_binary(runtime_binary, req.model.family)?;
+    if req.model.family == super::AsrFamily::CohereTranscribe
+        && super::cohere_language(req.language).is_none()
+    {
+        return Err(err("stt.language_unsupported")
+            .with("language", req.language.unwrap_or_default())
+            .with("languages", super::COHERE_LANGUAGES.join(", "))
+            .into());
+    }
     let prepared = prepare(audio).await?;
     let dir = tempfile::Builder::new()
         .prefix("harness-asr-")
@@ -270,8 +283,13 @@ pub async fn transcribe(
             .with("detail", crate::tts::run::failure_detail(&stderr))
             .into());
     }
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let segments = parse_output(&stdout, prepared.pad_secs, prepared.duration_secs);
+    // The online tool writes its results to stderr.
+    let text = if req.model.family.is_streaming() {
+        stderr
+    } else {
+        String::from_utf8_lossy(&out.stdout)
+    };
+    let segments = parse_output(&text, prepared.pad_secs, prepared.duration_secs);
     Ok(Transcript::new(
         segments,
         prepared.duration_secs,
@@ -366,7 +384,7 @@ mod tests {
             "sherpa-onnx-offline-tts"
         });
         std::fs::write(&runtime, b"x").unwrap();
-        let err = tool_binary(&runtime).unwrap_err();
+        let err = tool_binary(&runtime, crate::asr::AsrFamily::Transducer).unwrap_err();
         assert!(err.contains("stt.binary_not_found"), "{err}");
         let tool = dir.path().join(if cfg!(windows) {
             "sherpa-onnx-vad-with-offline-asr.exe"
@@ -374,6 +392,9 @@ mod tests {
             "sherpa-onnx-vad-with-offline-asr"
         });
         std::fs::write(&tool, b"x").unwrap();
-        assert_eq!(tool_binary(&runtime).unwrap(), tool);
+        assert_eq!(
+            tool_binary(&runtime, crate::asr::AsrFamily::Transducer).unwrap(),
+            tool
+        );
     }
 }

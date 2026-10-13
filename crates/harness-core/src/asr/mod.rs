@@ -1,7 +1,9 @@
 //! Speech recognition with sherpa-onnx: the ONNX models whisper.cpp cannot run
-//! (NVIDIA Parakeet / NeMo, SenseVoice, Paraformer, Zipformer, Omnilingual, Dolphin), run by the
-//! `sherpa-onnx-vad-with-offline-asr` tool of the sherpa-onnx runtime that already serves text
-//! to speech ([`crate::tts`], [`crate::engine::SHERPA_ONNX`]).
+//! (NVIDIA Parakeet / NeMo, SenseVoice, Paraformer, Zipformer, Omnilingual, Dolphin, Cohere
+//! Transcribe), run by the `sherpa-onnx-vad-with-offline-asr` tool of the sherpa-onnx runtime
+//! that already serves text to speech ([`crate::tts`], [`crate::engine::SHERPA_ONNX`]).
+//! Streaming transducers (NVIDIA Nemotron ASR streaming, streaming Zipformer) are run by the
+//! release's `sherpa-onnx-vad-with-online-asr` the same way: a whole file per run.
 //!
 //! * [`AsrModel`]: a model folder found under the model roots ([`scan`]); the library lists it as
 //!   [`crate::domain::ModelKind::Asr`] with the sherpa-onnx runtime (its file is `.onnx`, a
@@ -50,6 +52,12 @@ pub enum AsrFamily {
     Omnilingual,
     /// Dolphin (Eastern languages) CTC: one `model.onnx`.
     Dolphin,
+    /// A streaming transducer (NVIDIA Nemotron ASR streaming, streaming Zipformer): `encoder` +
+    /// `decoder` + `joiner`, read by the online tool.
+    StreamingTransducer,
+    /// Cohere Transcribe (14 languages, punctuation): `encoder` + `decoder`; it needs the
+    /// language named ([`cohere_language`]).
+    CohereTranscribe,
 }
 
 impl AsrFamily {
@@ -62,7 +70,14 @@ impl AsrFamily {
             Self::NemoCtc => "nemo_ctc",
             Self::Omnilingual => "omnilingual",
             Self::Dolphin => "dolphin",
+            Self::StreamingTransducer => "streaming_transducer",
+            Self::CohereTranscribe => "cohere_transcribe",
         }
+    }
+
+    /// Run by `sherpa-onnx-vad-with-online-asr` instead of the offline tool.
+    pub fn is_streaming(self) -> bool {
+        self == Self::StreamingTransducer
     }
 }
 
@@ -112,14 +127,17 @@ fn pick_onnx(files: &[PathBuf], prefix: &str) -> Option<PathBuf> {
 
 /// Whether `dir` is a speech-recognition model folder this build runs, and which: the files
 /// sherpa-onnx's published archives have (`tokens.txt` plus `encoder` / `decoder` / `joiner`, or
-/// one `model*.onnx` and a family name in the folder name). Streaming models, Whisper (whisper.cpp
-/// runs those), Canary, Moonshine and the text-to-speech folders are not recognised.
+/// one `model*.onnx` and a family name in the folder name). A transducer whose folder name says
+/// `streaming` is a streaming one; Cohere Transcribe is an `encoder` + `decoder` in a `cohere`
+/// folder. Other streaming models (CTC, Paraformer), Whisper (whisper.cpp runs those), Canary,
+/// Moonshine and the text-to-speech folders are not recognised.
 pub fn detect(dir: &Path) -> Option<AsrModel> {
     let name = file_name(dir);
     let lower = name.to_ascii_lowercase();
-    if lower.contains("streaming") || lower.contains("whisper") {
+    if lower.contains("whisper") {
         return None;
     }
+    let streaming = lower.contains("streaming");
     let files = files_of(dir);
     let tokens = files.iter().find(|p| file_name(p) == "tokens.txt")?.clone();
     let transducer = (
@@ -129,12 +147,18 @@ pub fn detect(dir: &Path) -> Option<AsrModel> {
     );
     let (family, model_file, decoder, joiner) = if let (Some(e), Some(d), Some(j)) = transducer {
         let nemo = lower.contains("nemo") || lower.contains("parakeet");
-        let family = if nemo {
+        let family = if streaming {
+            AsrFamily::StreamingTransducer
+        } else if nemo {
             AsrFamily::NemoTransducer
         } else {
             AsrFamily::Transducer
         };
         (family, e, Some(d), Some(j))
+    } else if streaming {
+        return None;
+    } else if let (true, (Some(e), Some(d), None)) = (lower.contains("cohere"), transducer) {
+        (AsrFamily::CohereTranscribe, e, Some(d), None)
     } else {
         let model = pick_onnx(&files, "model")?;
         let family = if lower.contains("sense-voice") || lower.contains("sensevoice") {
@@ -333,6 +357,42 @@ pub fn sense_voice_language(language: Option<&str>) -> &'static str {
     }
 }
 
+/// Cohere Transcribe's languages (it has no automatic detection).
+pub const COHERE_LANGUAGES: [&str; 14] = [
+    "en", "fr", "de", "it", "es", "pt", "el", "nl", "pl", "zh", "ja", "ko", "vi", "ar",
+];
+
+/// Cohere Transcribe's language for a request's `language` (`de`, `de-DE`, `German`): the
+/// two-letter code when it is one of [`COHERE_LANGUAGES`], `None` for another one. No language
+/// at all is English.
+pub fn cohere_language(language: Option<&str>) -> Option<&'static str> {
+    let Some(l) = language
+        .map(|l| l.trim().to_ascii_lowercase())
+        .filter(|l| !l.is_empty())
+    else {
+        return Some("en");
+    };
+    let code = l.split(['-', '_']).next().unwrap_or_default();
+    let code = match code {
+        "english" => "en",
+        "french" => "fr",
+        "german" => "de",
+        "italian" => "it",
+        "spanish" => "es",
+        "portuguese" => "pt",
+        "greek" => "el",
+        "dutch" => "nl",
+        "polish" => "pl",
+        "chinese" | "mandarin" => "zh",
+        "japanese" => "ja",
+        "korean" => "ko",
+        "vietnamese" => "vi",
+        "arabic" => "ar",
+        other => other,
+    };
+    COHERE_LANGUAGES.iter().find(|c| **c == code).copied()
+}
+
 fn path_arg(flag: &str, path: &Path) -> String {
     format!("{flag}={}", path.display())
 }
@@ -381,6 +441,28 @@ pub fn build_args(model: &AsrModel, params: &Params) -> Vec<String> {
         }
         AsrFamily::Omnilingual => args.push(path_arg("--omnilingual-asr-model", &model.model_file)),
         AsrFamily::Dolphin => args.push(path_arg("--dolphin-model", &model.model_file)),
+        AsrFamily::StreamingTransducer => {
+            // The online tool guesses the transducer type from the model's metadata.
+            args.push(path_arg("--encoder", &model.model_file));
+            if let Some(d) = &model.decoder {
+                args.push(path_arg("--decoder", d));
+            }
+            if let Some(j) = &model.joiner {
+                args.push(path_arg("--joiner", j));
+            }
+        }
+        AsrFamily::CohereTranscribe => {
+            args.push(path_arg("--cohere-transcribe-encoder", &model.model_file));
+            if let Some(d) = &model.decoder {
+                args.push(path_arg("--cohere-transcribe-decoder", d));
+            }
+            args.push(format!(
+                "--cohere-transcribe-language={}",
+                cohere_language(params.language.as_deref()).unwrap_or("en")
+            ));
+            args.push("--cohere-transcribe-use-punct=true".to_string());
+            args.push("--cohere-transcribe-use-itn=true".to_string());
+        }
     }
     args.push(format!("--num-threads={}", params.threads.max(1)));
     // The tool echoes its arguments (the model paths) to stderr by default.
@@ -412,13 +494,17 @@ pub struct Transcript {
     pub elapsed_ms: u64,
 }
 
-/// Parses the lines `start -- end: text` of the VAD tool's stdout. `pad` seconds of silence
+/// Parses the lines `start -- end: text` of the offline VAD tool's stdout and
+/// `vad segment(n:start-end) results: text` of the online one's stderr. `pad` seconds of silence
 /// were put in front of the audio ([`run::PAD_SECS`]): times are moved back by it and kept inside
 /// `0..=duration`. Segments without text are dropped.
 pub fn parse_output(stdout: &str, pad: f64, duration: f64) -> Vec<Segment> {
     static LINE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let re = LINE.get_or_init(|| {
-        regex::Regex::new(r"^\s*(\d+(?:\.\d+)?) -- (\d+(?:\.\d+)?):\s?(.*)$").expect("valid regex")
+        regex::Regex::new(
+            r"^\s*(?:vad segment\(\d+:)?(\d+(?:\.\d+)?)(?: -- |-)(\d+(?:\.\d+)?)(?::|\) results:)\s?(.*)$",
+        )
+        .expect("valid regex")
     });
     let clamp = |t: f64| (t - pad).clamp(0.0, duration.max(0.0));
     stdout
