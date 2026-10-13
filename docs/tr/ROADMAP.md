@@ -22,6 +22,7 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
 
 ## Sıradaki
 
+- **Python motorları (isteğe bağlı).** Motor başına yönetilen ve kaldırılabilir bir Python ortamı (uv, hash ile sabitlenmiş kilit dosyaları, sistem geneline hiçbir şey kurulmaz); böylece her Hugging Face görevi ve kütüphanesi çalışabilir: tüm transformers pipeline'ları ve diffusers yazıdan görsel için bir `python-hf` işçisi (GGUF ya da ONNX sürümü olmayan modellerde yedek), ardından gateway arkasında OpenAI uyumlu sunucular olarak vLLM ve SGLang. İşçiler yalnız loopback'te dinler, modelleri çevrimdışı ve varsayılan olarak `trust_remote_code` kapalı yükler; Linux'ta ağ arayüzü olmadan çalışır (`unshare -rn`; D-Bus gibi Unix soketleri erişilebilir kalır), Windows ve macOS'ta yalıtım ortam değişkenleriyle yapılır (çevrimdışı Hub, proxy yok).
 - **Sunucu kipi.** Harness'ı kendi (çoğunlukla ekransız Linux) sunucunuzda çalıştırıp her şeyi tarayıcıdan yönetmek:
   - `harness serve` ile sunulan, parola veya token oturumlu bir web arayüzü.
   - Sunucu Yönetimi alanı: alan adı ve HTTPS, erişim ve portlar, kullanıcılar ve tokenlar, servis durumu, güncellemeler, günlükler, yedekleme ve geri yükleme.
@@ -42,9 +43,9 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
 - Çok sayıda araç kuruluyken her istek için ilgili araçları seçen **araç yönlendirici** (embedding ve rerank altyapısıyla).
 - Görsel, kod ve yazı üretimi ile ses çalışma zamanları için **daha fazla Oluştur sayfası**.
 - Yerel modellerle çalışan **uygulama içi kodlama çalışma alanı**.
-- **Kararsız:** araştırma modelleri (3D, müzik) için bir PyTorch işçisi, OpenVINO ve MLC. Python alt süreçleri için ağ yalıtımı önce tasarlanır.
+- **Kararsız:** OpenVINO ve MLC.
 
 ## Planlanmıyor
 
 - Ollama kayıt defterinden çekme (`hf.co/...` başvuruları desteklenir).
-- Windows'ta çalışmayan ya da normal kullanım için çalışma zamanında Python gerektiren motorlar (vLLM, SGLang, text-embeddings-inference, faster-whisper).
+- Aynı modelleri yerel bir motor zaten çalıştırırken normal kullanım için Python gerektiren motorlar (text-embeddings-inference, faster-whisper). Python motorları isteğe bağlı eklenti olarak kalır, temel uygulama için hiçbir zaman gerekmez.
