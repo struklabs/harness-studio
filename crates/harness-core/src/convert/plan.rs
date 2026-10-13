@@ -83,6 +83,13 @@ pub struct ConvertPlan {
     pub runtime_tag: Option<String>,
     /// The architecture list of the converter was available (false: only the task was checked).
     pub architectures_checked: bool,
+    /// `quantization_config.quant_method` of a pre-quantized checkpoint (`awq`, `fp8`...).
+    #[serde(default)]
+    pub quant_method: Option<String>,
+    /// The model this one was made from (`base_model` of the card): for a checkpoint the
+    /// converter cannot read, a GGUF of the base model is the way to run it.
+    #[serde(default)]
+    pub base_model: Option<String>,
 }
 
 impl ConvertPlan {
@@ -374,6 +381,39 @@ fn architecture_of(info: &Value) -> Option<String> {
         .map(String::from)
 }
 
+/// `quantization_config.quant_method` of the config (also under `text_config`), lowercase.
+fn quant_method_of(info: &Value) -> Option<String> {
+    let config = info.get("config")?;
+    [Some(config), config.get("text_config")]
+        .into_iter()
+        .flatten()
+        .find_map(|c| c.get("quantization_config")?.get("quant_method")?.as_str())
+        .map(|m| m.trim().to_ascii_lowercase())
+        .filter(|m| !m.is_empty())
+}
+
+/// `base_model` of the card (a string or the first of a list), else a `base_model:...` tag.
+fn base_model_of(info: &Value) -> Option<String> {
+    let card = info.get("cardData").and_then(|c| c.get("base_model"));
+    let from_card = match card {
+        Some(Value::String(s)) => Some(s.clone()),
+        Some(Value::Array(a)) => a.first().and_then(Value::as_str).map(String::from),
+        _ => None,
+    };
+    from_card
+        .or_else(|| {
+            info.get("tags")?
+                .as_array()?
+                .iter()
+                .filter_map(Value::as_str)
+                .find_map(|t| {
+                    let rest = t.strip_prefix("base_model:")?;
+                    Some(rest.rsplit_once(':').map_or(rest, |(_, id)| id).to_string())
+                })
+        })
+        .filter(|b| b.contains('/'))
+}
+
 fn license_of(info: &Value) -> Option<String> {
     info.get("cardData")
         .and_then(|c| c.get("license"))
@@ -424,6 +464,8 @@ pub fn build_plan(
     let has_config = files.iter().any(|f| f.name == "config.json");
     let is_adapter = !has_config && files.iter().any(|f| f.name == "adapter_config.json");
 
+    let quant_method = quant_method_of(info);
+    let base_model = base_model_of(info);
     let mut vision = false;
     let reason: Option<String> = if is_adapter {
         Some(err("convert.adapter_only").with("repo", repo_id).into())
@@ -438,13 +480,18 @@ pub fn build_plan(
             (None, _) => Some(err("convert.no_architecture").with("repo", repo_id).into()),
             (Some(a), Some(list)) => {
                 vision = task.as_deref() == Some("image-text-to-text") && list.supports_vision(a);
-                (!list.supports_text(a)).then(|| {
-                    String::from(
+                if !list.supports_text(a) {
+                    Some(String::from(
                         err("convert.unsupported_architecture")
                             .with("architecture", a)
                             .with("repo", repo_id),
-                    )
-                })
+                    ))
+                } else {
+                    quant_method
+                        .as_deref()
+                        .filter(|m| !list.supports_quant(m))
+                        .map(|m| unsupported_quant(repo_id, m, base_model.as_deref()))
+                }
             }
             (Some(_), None) => None,
         }
@@ -488,6 +535,24 @@ pub fn build_plan(
         },
         runtime_tag,
         architectures_checked: archs.is_some(),
+        quant_method,
+        base_model,
+    }
+}
+
+/// The keyed refusal of a checkpoint quantized with a method the converter does not read; it
+/// names the base model when the card does.
+pub fn unsupported_quant(repo_id: &str, method: &str, base_model: Option<&str>) -> String {
+    match base_model {
+        Some(base) => err("convert.unsupported_quant_base")
+            .with("repo", repo_id)
+            .with("method", method)
+            .with("base", base)
+            .into(),
+        None => err("convert.unsupported_quant")
+            .with("repo", repo_id)
+            .with("method", method)
+            .into(),
     }
 }
 
@@ -551,10 +616,9 @@ pub async fn converter_architectures(tag: &str) -> Result<Architectures, String>
 pub async fn plan(repo_id: &str, _quant: Option<&str>) -> Result<ConvertPlan, String> {
     let token = crate::hf_auth::current_token().await;
     let mut info = fetch_info(repo_id, token.as_deref()).await?;
-    if embedding_parameters_of(&info) == 0 {
-        if let Some(full) = fetch_config(repo_id, &info, token.as_deref()).await {
-            merge_config(&mut info, full);
-        }
+    // The record's config has neither the embedding size nor `quantization_config`.
+    if let Some(full) = fetch_config(repo_id, &info, token.as_deref()).await {
+        merge_config(&mut info, full);
     }
     let tag = super::runtime_tag();
     let archs = match &tag {

@@ -2419,6 +2419,10 @@ export interface ConvertPlan {
   env_estimated_bytes: number;
   runtime_tag: string | null;
   architectures_checked: boolean;
+  /** `quantization_config.quant_method` of a pre-quantized checkpoint. */
+  quant_method?: string | null;
+  /** The model this one was made from (card `base_model`). */
+  base_model?: string | null;
 }
 
 export type ConvertStage = 'queued' | 'preparing' | 'downloading' | 'converting' | 'quantizing' | 'finalizing' | 'done';
