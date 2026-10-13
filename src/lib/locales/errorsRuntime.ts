@@ -132,6 +132,14 @@ const tr = {
   'update.install_failed': 'Güncelleme kurulamadı: {error}',
   'update.none_available': 'Yüklenecek güncelleme yok.',
   'update.not_configured': 'Güncelleme sunucusu yapılandırılmamış (tauri.conf.json > plugins.updater.endpoints).',
+  'pyenv.unsupported_platform': 'Bu platformda ({os}) Python motor ortamı kurulamaz.',
+  'pyenv.spawn_failed': 'Python ortamı kurulurken araç başlatılamadı ({step}): {error}',
+  'pyenv.env_failed': 'Python motor ortamı kurulamadı ({step}). Çıktının sonu: {log}',
+  'pyenv.unknown_env': 'Bilinmeyen Python ortamı: {name}',
+  'pyenv.env_busy': '{name} ortamı zaten kuruluyor.',
+  'pyenv.env_in_use': '{name} ortamı şu an kuruluyor; bitince silebilirsiniz.',
+  'pyenv.cancelled': 'Python ortamının kurulumu iptal edildi.',
+  'pyenv.isolation_unavailable': 'Python motoru ağ yalıtımı olmadan başlatılmadı. Bu sistem ayrıcalıksız kullanıcı ad alanlarına izin vermiyor: {reason}',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -266,6 +274,14 @@ const en: Record<keyof typeof tr, string> = {
   'update.install_failed': 'The update could not be installed: {error}',
   'update.none_available': 'There is no update to install.',
   'update.not_configured': 'The update server is not configured (tauri.conf.json > plugins.updater.endpoints).',
+  'pyenv.unsupported_platform': 'The Python engine environment can’t be built on this platform ({os}).',
+  'pyenv.spawn_failed': 'A tool could not be started while building the Python environment ({step}): {error}',
+  'pyenv.env_failed': 'The Python engine environment could not be built ({step}). End of the output: {log}',
+  'pyenv.unknown_env': 'Unknown Python environment: {name}',
+  'pyenv.env_busy': 'The {name} environment is already being built.',
+  'pyenv.env_in_use': 'The {name} environment is being built; delete it when that is done.',
+  'pyenv.cancelled': 'Building the Python environment was cancelled.',
+  'pyenv.isolation_unavailable': 'The Python engine was not started without network isolation. This system does not allow unprivileged user namespaces: {reason}',
 };
 
 export default { tr, en };
