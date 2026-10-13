@@ -16,7 +16,8 @@ Endpoints
   POST /v1/audio/speech            text-to-speech / text-to-audio ({"input": ...} -> audio/wav)
   POST /v1/images/generations      text-to-image (diffusers; OpenAI shape, b64_json)
 
-Errors use the OpenAI shape {"error": {"message", "type", "code"}}.
+Errors use the OpenAI shape {"error": {"message", "type", "code"}}. With HARNESS_WORKER_API_KEY in
+the environment every route but /health needs "Authorization: Bearer <key>".
 """
 
 from __future__ import annotations
@@ -696,7 +697,27 @@ def build_app(model: Model):
         Route("/v1/audio/speech", speech, methods=["POST"]),
         Route("/v1/images/generations", images, methods=["POST"]),
     ]
-    return Starlette(routes=routes)
+    app = Starlette(routes=routes)
+    key = os.environ.get("HARNESS_WORKER_API_KEY")
+    if not key:
+        return app
+
+    # Every route but /health needs the per-run key Harness passes in the environment (like
+    # llama-server --api-key): the port is on loopback, but any local process could reach it.
+    import hmac
+
+    async def guarded(scope, receive, send):
+        if scope["type"] == "http" and scope["path"] != "/health":
+            auth = dict(scope.get("headers") or []).get(b"authorization", b"").decode()
+            if not hmac.compare_digest(auth, f"Bearer {key}"):
+                await JSONResponse(
+                    {"error": {"message": "invalid API key", "type": "authentication_error", "code": "invalid_api_key"}},
+                    status_code=401,
+                )(scope, receive, send)
+                return
+        await app(scope, receive, send)
+
+    return guarded
 
 
 def main(argv=None):

@@ -39,8 +39,21 @@ pub struct EnvSpec {
     pub estimated_size_bytes: u64,
 }
 
-/// The environments engines can ask for. Empty until an engine ships one.
-pub const ENVS: &[EnvSpec] = &[];
+/// The CPU build of the `python-hf` engine: PyTorch (CPU wheels; plain PyPI wheels on macOS,
+/// which use Metal through MPS), transformers, diffusers, sentence-transformers, timm and the
+/// worker's HTTP server. `python/hf-cpu.in` lists the direct requirements; the lock is
+/// `uv pip compile --universal --python-version 3.12 --generate-hashes --emit-index-url
+/// --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+/// --index-strategy unsafe-best-match python/hf-cpu.in`.
+pub const HF_CPU: EnvSpec = EnvSpec {
+    name: "hf-cpu",
+    lock: include_str!("../../python/hf-cpu.lock"),
+    verify: "import torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL",
+    estimated_size_bytes: 1_300 * 1024 * 1024,
+};
+
+/// The environments engines can ask for.
+pub const ENVS: &[EnvSpec] = &[HF_CPU];
 
 pub fn spec(name: &str) -> Option<&'static EnvSpec> {
     ENVS.iter().find(|s| s.name == name)
@@ -337,6 +350,28 @@ mod tests {
     #[test]
     fn unknown_envs_are_refused() {
         assert!(remove("no-such-env").is_err());
+    }
+
+    #[test]
+    fn hf_cpu_lock_pins_every_wheel_and_a_safe_torch() {
+        assert_eq!(spec("hf-cpu").unwrap().name, "hf-cpu");
+        let lock = HF_CPU.lock;
+        // Every requirement line carries hashes (uv also refuses otherwise, but fail early).
+        for line in lock.lines().filter(|l| l.contains("==") && !l.trim_start().starts_with('#')) {
+            assert!(line.trim_end().ends_with('\\'), "no hashes after {line}");
+        }
+        // torch.load(weights_only=True) is safe from 2.6 on (CVE-2025-32434): .bin weights rely
+        // on it.
+        let torch = lock
+            .lines()
+            .find(|l| l.starts_with("torch=="))
+            .expect("torch is pinned");
+        let ver: Vec<u32> = torch["torch==".len()..]
+            .split(|c: char| !c.is_ascii_digit())
+            .take(2)
+            .map(|p| p.parse().unwrap())
+            .collect();
+        assert!(ver >= vec![2, 6], "{torch}");
     }
 
     #[test]
