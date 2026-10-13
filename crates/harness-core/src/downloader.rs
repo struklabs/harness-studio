@@ -3884,7 +3884,7 @@ mod tests {
         use tokio::io::AsyncReadExt;
 
         let bytes = b"GGUF gated model fixture";
-        let actual = format!("{:x}", Sha256::digest(bytes));
+        let actual = crate::hex::lower(&Sha256::digest(bytes));
         for (initial, refreshed, mismatch) in [
             ("*".repeat(64), "*".repeat(64), false),
             ("*".repeat(64), actual.clone(), false),

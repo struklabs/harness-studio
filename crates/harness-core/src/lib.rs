@@ -29,6 +29,7 @@ pub mod gateway;
 pub mod gguf;
 pub mod gpu;
 pub mod hardware;
+pub mod hex;
 pub mod hf_auth;
 pub mod hf_avatar;
 pub mod http_error;

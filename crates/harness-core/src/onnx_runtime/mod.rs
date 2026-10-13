@@ -561,7 +561,7 @@ fn client() -> Result<reqwest::Client, String> {
 }
 
 fn hex(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    crate::hex::lower(&Sha256::digest(bytes))
 }
 
 fn write_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -625,7 +625,7 @@ async fn download_whole(
         set_progress(|p| p.downloaded_bytes = got);
     }
     file.flush().await.ok();
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(crate::hex::lower(&hasher.finalize()))
 }
 
 /// Takes the wanted files out of a `.tgz`.
