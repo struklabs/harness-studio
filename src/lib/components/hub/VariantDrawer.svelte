@@ -568,7 +568,7 @@
               {:else if unsupportedFormat}
                 <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
                   <Ban class="mt-px size-3.5 shrink-0 text-warning" />
-                  <span class="min-w-0 flex-1">{t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
+                  <span class="min-w-0 flex-1">{unsupportedFormat === 'gguf' ? t('hub.compat_gguf_other_engine_drawer') : t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
                 </div>
               {:else if platformBlocked}
                 {@const msg = onnxUnsupportedText(platformBlocked)}
