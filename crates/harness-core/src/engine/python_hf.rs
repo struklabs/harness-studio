@@ -195,7 +195,11 @@ fn config_task(cfg: &serde_json::Value, dir: &Path) -> Option<&'static str> {
             return Some("automatic-speech-recognition");
         }
         "vits" | "musicgen" | "bark" => return Some("text-to-speech"),
-        "marian" => return Some("translation"),
+        "marian" | "m2m_100" | "fsmt" | "nllb-moe" => return Some("translation"),
+        // Encoder-decoders whose card says what they were tuned for (summarization...); the
+        // general prompt-in, text-out task otherwise.
+        "t5" | "mt5" | "umt5" | "longt5" | "bart" | "mbart" | "pegasus" | "pegasus_x" | "led"
+        | "bigbird_pegasus" | "prophetnet" => return Some("text2text-generation"),
         "clip" | "siglip" => return Some("zero-shot-image-classification"),
         "clap" => return Some("zero-shot-audio-classification"),
         "owlvit" | "owlv2" | "grounding-dino" => return Some("zero-shot-object-detection"),
@@ -758,6 +762,11 @@ mod tests {
             ("pytorch_model.bin", "x"),
         ]);
         assert_eq!(detect(summ.path()).as_deref(), Some("summarization"));
+        let t5 = folder(&[
+            ("config.json", r#"{"architectures":["T5ForConditionalGeneration"],"model_type":"t5"}"#),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(detect(t5.path()).as_deref(), Some("text2text-generation"));
         let asr = folder(&[
             (
                 "config.json",
