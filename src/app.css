@@ -747,11 +747,13 @@
 
 /* A toast with action buttons ("Load and Chat" / "Open in Dashboard"): the labels stay on one line
    and the buttons drop to their own row when the text leaves no room, instead of breaking
-   mid-label. */
+   mid-label. The content selector is one step more specific than svelte-sonner's own
+   `[data-sonner-toast][data-styled='true'] [data-content] { flex: 1 }`, which is loaded later and
+   otherwise squeezed the text to one word per line. */
 [data-sonner-toast]:has([data-button]) {
   flex-wrap: wrap;
 }
-[data-sonner-toast]:has([data-button]) [data-content] {
+[data-sonner-toast][data-styled='true']:has([data-button]) [data-content] {
   flex: 1 1 12rem;
 }
 [data-sonner-toast] [data-button] {
