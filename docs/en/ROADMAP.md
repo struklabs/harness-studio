@@ -4,6 +4,8 @@ This is the public roadmap of Harness Studio. It shows direction, not promises: 
 
 **Product goal.** A local AI control center that manages text, image, speech, embedding, reranking, and tool workloads in one place. llama.cpp is the default runtime; others are modules you install when you need them.
 
+**Coverage goal.** Every task and library in the Hugging Face model filter (multimodal, computer vision, NLP, audio, tabular, reinforcement learning, graph) runs in Harness: on native engines (llama.cpp, ONNX Runtime, stable-diffusion.cpp, whisper.cpp, sherpa-onnx, ggml audio engines) where they exist, and on optional, managed Python engines where they do not.
+
 **Principles.**
 - Do what LM Studio and Ollama do, without hiding llama.cpp's advanced controls.
 - Be better at observability and at agent use, with low resource use.
@@ -12,6 +14,11 @@ This is the public roadmap of Harness Studio. It shows direction, not promises: 
 
 ## Now
 
+- **Hugging Face task coverage.** Measured on the most downloaded models of each task (October 2026): text generation runs 295 of the top 300 and vision-language models 98%, but text-to-speech is at 29%, speech recognition 39%, image-to-image 45%, and audio-to-audio, speaker diarization, and NLP and computer-vision classification are not covered yet. Work in progress:
+  - Python-free pipelines on ONNX Runtime behind `/v1/hf/{model}` (Hugging Face Inference API format): text classification, zero-shot, token classification (NER), fill-mask, question answering; then image classification, object detection, segmentation, depth estimation, and audio classification.
+  - ggml audio engines (audio.cpp, transcribe.cpp, CrispASR) and llama.cpp audio input and output (LFM2-Audio, Qwen3-TTS).
+  - Image editing (`/v1/images/edits`, FLUX.2 klein), video generation (Wan), and more sherpa-onnx families, including speaker diarization.
+  - Model Hub compatibility marks that name the engine that runs a repository, and refuse formats nothing local can run (AWQ, FP8, NVFP4 checkpoints) before downloading.
 - **Platform verification.** 0.1.0 ships the Windows installer (NSIS), signed and notarized macOS DMGs, and a Linux `.deb` package as a preview (AppImage next, once it bundles the GStreamer media plugins). Verify Linux on more machines (AMD, NVIDIA, Intel) and distributions, then drop the preview label.
 - **First-run polish.** An end-to-end first-run flow (wizard, find a model, download, start, chat) on empty data folders on every platform.
 - **Benchmarks on more hardware.** Run the comparison suite (`bench/compare/`) on NVIDIA/CUDA and on Linux, and re-measure the other tools in the same session.
@@ -31,7 +38,7 @@ This is the public roadmap of Harness Studio. It shows direction, not promises: 
 - **Decision models.** `/v1/decisions` and `/v1/systemone` endpoints for yes/no, choice, and scoring questions with constrained output and probabilities.
 - **Control API SDKs.** TypeScript and Python clients generated from the OpenAPI schema.
 - **MLX engine** for Apple Silicon.
-- **Auto-update.** A signed update channel for the desktop app through GitHub Releases.
+- **Auto-update on every platform.** The signed in-app updater ships for Windows in 0.1.0 and for macOS from 0.1.1; Linux packages follow.
 - **Signed Windows installer.** A code-signed Windows installer (the macOS app is already signed and notarized).
 
 ## Later
