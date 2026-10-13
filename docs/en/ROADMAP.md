@@ -26,6 +26,7 @@ This is the public roadmap of Harness Studio. It shows direction, not promises: 
   - Automatic SSL from the interface (Let's Encrypt, with DNS and port checks).
   - A Linux server package (tar.gz, .deb) with a one-line installer and a systemd service.
   - Docker images for CUDA, ROCm, Vulkan, and CPU.
+- **Python engines (optional).** A managed, removable Python environment per engine (uv, hash-pinned locks, nothing system-wide), so every Hugging Face task and library can run: a `python-hf` worker for all transformers pipelines and diffusers text-to-image (a fallback where no GGUF or ONNX build exists), then vLLM and SGLang as OpenAI-compatible servers behind the gateway. Workers listen on loopback only, load models offline with `trust_remote_code` off by default, and on Linux run without network access (`unshare -rn`); on Windows and macOS isolation is environment-based (offline Hub, no proxy).
 - **Harness Link.** Add a remote Harness (address and token) and use its models in your library, Playground, and gateway.
 - **Decision models.** `/v1/decisions` and `/v1/systemone` endpoints for yes/no, choice, and scoring questions with constrained output and probabilities.
 - **Control API SDKs.** TypeScript and Python clients generated from the OpenAPI schema.
@@ -40,9 +41,9 @@ This is the public roadmap of Harness Studio. It shows direction, not promises: 
 - **Tool router** that selects relevant tools per request when many are installed (using the embedding and rerank stack).
 - **More Create pages** for image, code, and writing generation, and for audio runtimes.
 - **In-app coding workspace** powered by local models.
-- **Undecided:** a PyTorch worker for research models (3D, music), OpenVINO, and MLC. Network isolation for Python subprocesses would be designed first.
+- **Undecided:** OpenVINO and MLC.
 
 ## Not planned
 
 - Pulling from the Ollama registry (`hf.co/...` references are supported).
-- Engines that do not run on Windows or that need Python at runtime for normal use (vLLM, SGLang, text-embeddings-inference, faster-whisper).
+- Engines that need Python for normal use when a native engine covers the same models (text-embeddings-inference, faster-whisper). Python engines stay optional add-ons, never required for the core app.
