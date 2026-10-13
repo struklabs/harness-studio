@@ -363,6 +363,10 @@ pub fn choose(
         r
     };
     match last {
+        // Apple unified memory at a context the default-load limits do not allow (one the user
+        // set): the tightest rung still fits Metal's working set, so the load runs and the cache
+        // was shrunk to fit; "does not fit even at the tightest" would contradict the fit label.
+        Some((level, r)) if unified_rule && fits(&r) => pick(level, KvReason::ToFit, r),
         Some((level, r)) if fits(&without_kv) => pick(level, KvReason::Tightest, r),
         _ => pick(KvLevel::Full, KvReason::TooBig, full),
     }
