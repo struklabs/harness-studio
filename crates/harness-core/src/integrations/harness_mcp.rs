@@ -392,7 +392,7 @@ fn validate(t: &McpTransport) -> Result<(), String> {
             Err(err("harness_mcp.command_empty").into())
         }
         McpTransport::Stdio { command, .. } => {
-            super::cli_install::refuse_translocated(Path::new(command.trim()))
+            super::cli_install::refuse_transient(Path::new(command.trim()))
         }
         McpTransport::Http { url, .. }
             if !(url.starts_with("http://") || url.starts_with("https://")) =>

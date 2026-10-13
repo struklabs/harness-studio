@@ -21,6 +21,7 @@
     registered: boolean;
     target_dir_on_path: boolean;
     translocated: boolean;
+    appimage: boolean;
     profile: string | null;
   }
 
@@ -94,11 +95,11 @@
         <Badge variant="outline" class="text-success">{t('cli.on_path')}</Badge>
         <Button size="sm" variant="outline" disabled={busy} onclick={() => run('cli_path_uninstall')}>{t('cli.remove')}</Button>
       {:else}
-        <Button size="sm" disabled={busy || status.translocated} onclick={() => run('cli_path_install')}>{t('cli.add')}</Button>
+        <Button size="sm" disabled={busy || status.translocated || status.appimage} onclick={() => run('cli_path_install')}>{t('cli.add')}</Button>
       {/if}
     </SettingRow>
-    {#if status.translocated && !status.registered}
-      <p class="px-4 pb-3 text-xs text-muted-foreground">{t('cli_install.translocated')}</p>
+    {#if (status.translocated || status.appimage) && !status.registered}
+      <p class="px-4 pb-3 text-xs text-muted-foreground">{t(status.appimage ? 'cli_install.appimage' : 'cli_install.translocated')}</p>
     {/if}
     {#if status.registered && status.mode === 'windows'}
       <p class="px-4 pb-3 text-xs text-muted-foreground">{t('cli.reopen_terminal')}</p>
