@@ -41,6 +41,8 @@ pub fn ensure_in(
     for model in models
         .iter()
         .filter(|m| m.is_ready && KINDS.contains(&m.kind) && kinds.contains(&m.kind))
+        // sherpa-onnx recognition models are ASR too, but run per request without a definition.
+        .filter(|m| !(m.kind == ModelKind::Asr && crate::asr::is_sherpa_file(&m.path)))
     {
         let defs = domain.definitions()?;
         if defs
@@ -113,6 +115,12 @@ mod tests {
             file(lib.path(), "bge-reranker.gguf", ModelKind::Reranker, true),
             file(lib.path(), "chat.gguf", ModelKind::Llm, true),
             file(lib.path(), "half.bin", ModelKind::Asr, false),
+            file(
+                lib.path(),
+                "parakeet-encoder.int8.onnx",
+                ModelKind::Asr,
+                true,
+            ),
         ];
         let made = ensure_in(
             &domain,
