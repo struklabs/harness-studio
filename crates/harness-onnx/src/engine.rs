@@ -280,14 +280,14 @@ pub(crate) fn build_session(
     threads: Option<usize>,
 ) -> Result<(Session, &'static str), String> {
     // DirectML crashes the process (an access violation, not an error) on the integer
-    // convolutions of dynamically quantized vision exports (transformers.js `model_quantized`);
-    // such a graph runs on the CPU, or on CUDA when `auto` finds it.
+    // convolutions of dynamically quantized exports (transformers.js `model_quantized`: vision,
+    // CTC speech); such a graph runs on the CPU, or on CUDA when `auto` finds it.
     let skip_dml = matches!(choice, Provider::Auto | Provider::DirectMl)
         && cfg!(windows)
         && crate::package::graph_uses_op(model, "ConvInteger");
     if skip_dml && choice == Provider::DirectMl {
         eprintln!(
-            "harness-onnx: DirectML cannot run ConvInteger (an INT8 vision export), running on the CPU; the FP32 or FP16 file runs on the GPU"
+            "harness-onnx: DirectML cannot run ConvInteger (an INT8 export), running on the CPU; the FP32 or FP16 file runs on the GPU"
         );
     }
     let make = |choice: Provider| -> Result<(Session, &'static str), String> {
