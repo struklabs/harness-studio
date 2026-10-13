@@ -444,13 +444,29 @@ def run_hf(model: Model, body: dict, raw: bytes | None):
         if task in ("zero-shot-image-classification",):
             return jsonable(pipe(img, candidate_labels=params.pop("candidate_labels"), **params))
         out = pipe(img, **params)
+        # The shapes harness-onnx answers with too (one contract for both engines).
         if task == "depth-estimation":
-            return {"predicted_depth": jsonable(out["predicted_depth"]), "depth": png_b64(out["depth"])}
+            # `depth` is the pipeline's 8-bit image (value * 255 / max); min/max are the model's
+            # own units, so a client can map the gray levels back.
+            raw = out["predicted_depth"].squeeze()
+            return {
+                "depth": png_b64(out["depth"]),
+                "width": out["depth"].size[0],
+                "height": out["depth"].size[1],
+                "min": float(raw.min()),
+                "max": float(raw.max()),
+            }
         if task == "image-segmentation":
+            # Largest area first; semantic segmentation has no score (null).
+            def area(o):
+                return sum(1 for v in o["mask"].getdata() if v > 127)
+
             return [
-                {"label": o.get("label"), "score": jsonable(o.get("score")), "mask": png_b64(o["mask"])}
-                for o in out
+                {"score": jsonable(o.get("score")), "label": o.get("label"), "mask": png_b64(o["mask"])}
+                for o in sorted(out, key=area, reverse=True)
             ]
+        if task == "object-detection":
+            return jsonable(sorted(out, key=lambda o: -o["score"]))
         return jsonable(out)
     if task in ("automatic-speech-recognition", "audio-classification", "zero-shot-audio-classification"):
         audio = to_audio(inputs)
