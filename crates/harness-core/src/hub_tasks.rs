@@ -263,15 +263,23 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
         pipeline_tag = Some("text-to-image".to_string());
     }
     let not_runnable = not_runnable(id, &tags, &files, library.as_deref(), gguf.as_ref());
-    let found = match (&pipeline_tag, not_runnable) {
-        (None, None) => infer(id, &tags, &files, library.as_deref(), gguf.as_ref()),
-        // A diffusion header (`flux`, `sdxl`...) is "not a language model" for llama-server, but
-        // an untagged repo of one is still a text-to-image model for stable-diffusion.cpp.
-        (None, Some(NotRunnable::NotLanguageModel)) => {
-            infer(id, &tags, &files, library.as_deref(), gguf.as_ref())
-                .filter(|(t, _)| *t == "text-to-image")
+    let found = if pipeline_tag.is_none()
+        && item
+            .get("config")
+            .is_some_and(crate::hub_compat::is_ctc_config)
+    {
+        Some(("automatic-speech-recognition", TaskSource::Files))
+    } else {
+        match (&pipeline_tag, not_runnable) {
+            (None, None) => infer(id, &tags, &files, library.as_deref(), gguf.as_ref()),
+            // A diffusion header (`flux`, `sdxl`...) is "not a language model" for llama-server, but
+            // an untagged repo of one is still a text-to-image model for stable-diffusion.cpp.
+            (None, Some(NotRunnable::NotLanguageModel)) => {
+                infer(id, &tags, &files, library.as_deref(), gguf.as_ref())
+                    .filter(|(t, _)| *t == "text-to-image")
+            }
+            _ => None,
         }
-        _ => None,
     };
     let adapter = not_runnable == Some(NotRunnable::Adapter);
     RepoAnalysis {

@@ -286,6 +286,7 @@ const LISTING_FIELDS: &[&str] = &[
     "pipeline_tag",
     "library_name",
     "gguf",
+    "config",
 ];
 
 /// Query parameters of a `GET /api/models` listing. GGUF (`filter=gguf`) unless
@@ -456,13 +457,21 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     let tags = string_list(item.get("tags"));
     let mut analysis = crate::hub_tasks::analyze_repo(item);
     let image = image_route(item, &mut analysis);
+    let ctc = item
+        .get("config")
+        .is_some_and(crate::hub_compat::is_ctc_config);
     let task = analysis.pipeline_tag.as_deref().or(analysis.inferred_task);
-    let format = crate::hub_compat::detect_hub_format(
-        &tags,
-        item.get("library_name").and_then(|v| v.as_str()),
-        &sibling_files(item),
-        task,
-    );
+    let ctc_export = ctc && crate::hub_compat::has_ctc_files(&sibling_files(item));
+    let format = if ctc_export {
+        crate::hub_compat::ModelFormat::Onnx
+    } else {
+        crate::hub_compat::detect_hub_format(
+            &tags,
+            item.get("library_name").and_then(|v| v.as_str()),
+            &sibling_files(item),
+            task,
+        )
+    };
     let mut capabilities = crate::model_registry::hub_capabilities(task, format);
     let adapter = analysis.not_runnable == Some(crate::hub_tasks::NotRunnable::Adapter);
     // A diffusion LoRA adapter generates nothing on its own and no runtime loads it; an LLM
@@ -472,7 +481,9 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         capabilities.clear();
     }
     let genai = crate::hub_compat::is_genai_repo(&tags, &sibling_files(item));
-    let compatibility = if diffusion_adapter {
+    let compatibility = if ctc_export {
+        format.compatibility()
+    } else if diffusion_adapter {
         // sd.cpp LoRA usage is not wired in Harness.
         crate::hub_compat::Compatibility::Unsupported { format }
     } else if image {
@@ -1611,6 +1622,19 @@ impl DownloadManager {
         Ok(all)
     }
 
+    async fn repo_config(repo_id: &str, token: Option<&str>) -> Result<serde_json::Value, String> {
+        let url = Self::hf_file_url(repo_id, "resolve", "config.json")?.to_string();
+        let res = Self::apply_hf_auth(Self::client()?.get(&url), &url, token)
+            .send()
+            .await
+            .map_err(|e| crate::http_error::transport(&e, &url))?
+            .error_for_status()
+            .map_err(|e| crate::http_error::transport(&e, &url))?;
+        res.json()
+            .await
+            .map_err(|e| crate::http_error::transport(&e, &url))
+    }
+
     pub async fn get_model_variants(
         repo_id: &str,
         token: Option<&str>,
@@ -1631,6 +1655,12 @@ impl DownloadManager {
                     .is_some_and(is_model_file_name)
             });
         if !llama_or_whisper {
+            if crate::hub_compat::has_ctc_files(&paths) {
+                let config = Self::repo_config(repo_id, token).await?;
+                if crate::hub_compat::is_ctc_config(&config) {
+                    return onnx_variants(repo_id, &items);
+                }
+            }
             let genai = genai_variants(repo_id, &items)?;
             if !genai.is_empty() {
                 return Ok(genai);
@@ -3151,13 +3181,17 @@ fn is_model_file_name(path: &str) -> bool {
 /// Small files of an ONNX encoder repo that the engine reads next to the graph: the tokenizer
 /// and the Hugging Face / sentence-transformers configs (`1_Pooling/config.json`...). Weights
 /// of modules the engine cannot run (`2_Dense`) are not among them.
-const ONNX_COMPANIONS: [&str; 6] = [
+const ONNX_COMPANIONS: [&str; 10] = [
     "tokenizer.json",
     "config.json",
     "tokenizer_config.json",
     "sentence_bert_config.json",
     "modules.json",
     "config_sentence_transformers.json",
+    "vocab.json",
+    "preprocessor_config.json",
+    "special_tokens_map.json",
+    "added_tokens.json",
 ];
 
 fn is_onnx_repo_file(path: &str) -> bool {
@@ -3194,7 +3228,10 @@ fn encoder_onnx_variants(
     let generative = items
         .iter()
         .any(|i| i.get("path").and_then(|v| v.as_str()) == Some("generation_config.json"));
-    if generative {
+    let speech = items
+        .iter()
+        .any(|i| i.get("path").and_then(|v| v.as_str()) == Some("preprocessor_config.json"));
+    if generative || speech {
         return Ok(Vec::new());
     }
     onnx_variants(repo_id, items)
@@ -3227,7 +3264,9 @@ fn onnx_variants(
             Some(F { path, size, sha256 })
         })
         .collect();
-    if !files.iter().any(|f| f.path == "tokenizer.json") {
+    let ctc =
+        crate::hub_compat::has_ctc_files(&files.iter().map(|f| f.path.clone()).collect::<Vec<_>>());
+    if !ctc && !files.iter().any(|f| f.path == "tokenizer.json") {
         return Ok(Vec::new());
     }
     let shard = |f: &F, index: u32, total: u32| -> Result<HfShardInfo, String> {
@@ -3257,7 +3296,7 @@ fn onnx_variants(
     {
         let (dir, file) = graph.path.rsplit_once('/').unwrap_or(("", &graph.path));
         // Only the repo root and one level (`onnx/`): deeper folders are other pipelines.
-        if dir.contains('/') {
+        if dir.contains('/') || (ctc && dir != "onnx") {
             continue;
         }
         let stem = file.trim_end_matches(".onnx").trim_end_matches(".ONNX");
@@ -4022,8 +4061,8 @@ mod tests {
 
     #[test]
     fn test_hf_file_url_encodes_path_segments() {
-        let url =
-            DownloadManager::hf_file_url("owner/repo", "resolve", "alt dir/a #100%?.ğguf").unwrap();
+        let url = DownloadManager::hf_file_url("owner/repo", "resolve", "alt dir/a #100%?.ÄŸguf")
+            .unwrap();
         assert_eq!(
             url.as_str(),
             "https://huggingface.co/owner/repo/resolve/main/alt%20dir/a%20%23100%25%3F.%C4%9Fguf"
@@ -5833,6 +5872,78 @@ mod tests {
         );
         assert_eq!(m.kind, crate::domain::ModelKind::Asr);
         let _ = fs::remove_file(&target);
+    }
+
+    #[test]
+    fn ctc_hub_exports_are_downloadable_but_source_and_other_asr_are_not() {
+        let files = [
+            "onnx/model.onnx",
+            "onnx/model_int8.onnx",
+            "onnx/model_fp16.onnx",
+            "onnx/model_quantized.onnx",
+            "config.json",
+            "vocab.json",
+            "preprocessor_config.json",
+            "tokenizer_config.json",
+            "special_tokens_map.json",
+            "added_tokens.json",
+            "model.safetensors",
+        ];
+        let siblings: Vec<_> = files
+            .iter()
+            .map(|f| serde_json::json!({"rfilename":f}))
+            .collect();
+        let mut item = serde_json::json!({"id":"acme/speech", "config":{"architectures":["Wav2Vec2ForCTC"]}, "siblings":siblings});
+        let repo = parse_search_item(&item).unwrap();
+        assert_eq!(
+            repo.inferred_task.as_deref(),
+            Some("automatic-speech-recognition")
+        );
+        assert_eq!(repo.format, crate::hub_compat::ModelFormat::Onnx);
+        assert_eq!(
+            repo.compatibility,
+            crate::hub_compat::Compatibility::Runnable {
+                runtime: crate::engine::ONNX_FAMILY.into()
+            }
+        );
+        let tree: Vec<_> = files
+            .iter()
+            .map(|f| serde_json::json!({"path":f,"type":"file","size":10}))
+            .collect();
+        let variants = onnx_variants("acme/speech", &tree).unwrap();
+        assert_eq!(variants.len(), 4);
+        assert_eq!(variants[0].name, "model");
+        for variant in variants {
+            for f in &files[4..10] {
+                assert!(variant.shards.iter().any(|s| s.filename == *f));
+            }
+            assert!(!variant
+                .shards
+                .iter()
+                .any(|s| s.filename.ends_with("safetensors")));
+        }
+        assert!(encoder_onnx_variants("acme/speech", &tree)
+            .unwrap()
+            .is_empty());
+        item["siblings"] =
+            serde_json::json!([{"rfilename":"model.safetensors"},{"rfilename":"config.json"}]);
+        assert!(matches!(
+            parse_search_item(&item).unwrap().compatibility,
+            crate::hub_compat::Compatibility::Unsupported { .. }
+        ));
+        item["siblings"] =
+            serde_json::json!([{"rfilename":"onnx/model.onnx"},{"rfilename":"config.json"}]);
+        assert!(matches!(
+            parse_search_item(&item).unwrap().compatibility,
+            crate::hub_compat::Compatibility::Unsupported { .. }
+        ));
+        item["siblings"] = serde_json::to_value(siblings).unwrap();
+        item["config"]["architectures"] = serde_json::json!(["WhisperForConditionalGeneration"]);
+        item["pipeline_tag"] = serde_json::json!("automatic-speech-recognition");
+        assert!(matches!(
+            parse_search_item(&item).unwrap().compatibility,
+            crate::hub_compat::Compatibility::Unsupported { .. }
+        ));
     }
 
     #[test]

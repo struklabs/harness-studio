@@ -150,7 +150,7 @@ pub fn is_speech_model(def: &ModelDefinition) -> bool {
         ModelRef::Local { path } => path.clone(),
         ModelRef::Hf { file, .. } => std::path::PathBuf::from(file),
     };
-    ModelFormat::of(&path) == ModelFormat::GgmlBin
+    ModelFormat::of(&path) == ModelFormat::GgmlBin || harness_core::asr::is_onnx_ctc_file(&path)
 }
 
 /// Handles one transcription / translation request.
@@ -262,6 +262,15 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
+    let onnx_ctc = def
+        .base
+        .local_path()
+        .is_some_and(harness_core::asr::is_onnx_ctc_file);
+    if onnx_ctc && task == Task::Translate {
+        return Err(
+            bad("ONNX CTC models only transcribe; use /v1/audio/transcriptions.").param("model"),
+        );
+    }
     // A transcription model of the Lemonade engine: its own server takes the audio.
     let lemonade = harness_core::lemonade::model_of_def(&def.id).map(str::to_string);
     if let Some(model) = &lemonade {
@@ -299,7 +308,24 @@ async fn run(
 
     // whisper-server decodes WAV, MP3, FLAC and Ogg Vorbis; anything else goes through ffmpeg.
     let container = audio::sniff(&bytes);
-    let audio_bytes = if container.is_native() {
+    let audio_bytes = if onnx_ctc {
+        Bytes::from(
+            harness_core::asr::onnx::prepare_audio(bytes.to_vec())
+                .await
+                .map_err(|e| {
+                    GatewayError::new(
+                        if audio::ffmpeg_path().is_none() {
+                            415
+                        } else {
+                            400
+                        },
+                        "unsupported_audio_format",
+                        e,
+                    )
+                    .param("file")
+                })?,
+        )
+    } else if container.is_native() {
         bytes
     } else if audio::ffmpeg_path().is_some() {
         Bytes::from(audio::to_wav(bytes.to_vec()).await.map_err(|e| {
@@ -348,6 +374,8 @@ async fn run(
 
     let engine_name = if lemonade.is_some() {
         "Lemonade"
+    } else if onnx_ctc {
+        "ONNX CTC"
     } else {
         "whisper-server"
     };
@@ -371,12 +399,24 @@ async fn run(
     if let Some(model) = &lemonade {
         fields.push(("model", model.clone()));
     }
-    let (content_type, body) = multipart_body(&filename, &audio_bytes, &fields);
+    if onnx_ctc {
+        fields.retain(|(key, _)| *key == "response_format");
+    }
+    let filename = if container != Container::Wav && onnx_ctc {
+        "audio.wav"
+    } else {
+        &filename
+    };
+    let (content_type, body) = if onnx_ctc {
+        harness_core::asr::onnx::multipart(&audio_bytes, format)
+    } else {
+        multipart_body(filename, &audio_bytes, &fields)
+    };
     let timeout = match settings.request_timeout_secs {
         0 => None,
         n => Some(Duration::from_secs(u64::from(n))),
     };
-    let url = if lemonade.is_some() {
+    let url = if lemonade.is_some() || onnx_ctc {
         format!("{}/v1/audio/transcriptions", lease.upstream)
     } else {
         format!("{}/inference", lease.upstream)

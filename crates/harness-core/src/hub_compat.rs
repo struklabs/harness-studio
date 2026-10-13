@@ -221,6 +221,27 @@ pub fn is_genai_repo(tags: &[String], files: &[String]) -> bool {
         })
 }
 
+/// CTC evidence from config.json (not a repo-name guess).
+pub fn is_ctc_config(config: &serde_json::Value) -> bool {
+    config
+        .get("architectures")
+        .and_then(|v| v.as_array())
+        .is_some_and(|a| {
+            a.iter()
+                .any(|v| v.as_str().is_some_and(|s| s.ends_with("ForCTC")))
+        })
+}
+
+/// The files required by an exported HF CTC package.
+pub fn has_ctc_files(files: &[String]) -> bool {
+    ["config.json", "vocab.json", "preprocessor_config.json"]
+        .iter()
+        .all(|f| files.iter().any(|p| p == f))
+        && files
+            .iter()
+            .any(|f| f.starts_with("onnx/") && f.ends_with(".onnx") && !f[5..].contains('/'))
+}
+
 /// Whether `task` is one the ONNX family serves ([`ONNX_TASKS`]).
 pub fn is_onnx_task(task: Option<&str>) -> bool {
     task.is_some_and(|t| ONNX_TASKS.contains(&t))

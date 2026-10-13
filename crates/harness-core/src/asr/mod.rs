@@ -19,6 +19,7 @@
 //! one segment at a time.
 
 pub mod catalog;
+pub mod onnx;
 pub mod run;
 
 use std::path::{Path, PathBuf};
@@ -183,11 +184,16 @@ pub fn installed_models() -> Vec<AsrModel> {
     scan(&crate::config::AppSettings::load().all_models_dirs())
 }
 
-/// Whether a library file is one of these models (a `.onnx` file of kind
-/// [`crate::domain::ModelKind::Asr`]; whisper.cpp's models are ggml `.bin` files).
+/// HF CTC packages run on the resident ONNX engine.
+pub fn is_onnx_ctc_file(path: &Path) -> bool {
+    harness_onnx::package::library_task(path) == Some(harness_onnx::package::Task::AsrCtc)
+}
+
+/// A sherpa-onnx ASR graph, excluding HF CTC packages served by the ONNX engine.
 pub fn is_sherpa_file(path: &Path) -> bool {
     path.extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("onnx"))
+        && !is_onnx_ctc_file(path)
 }
 
 /// The library's view of a model folder.

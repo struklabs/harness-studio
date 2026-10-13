@@ -43,7 +43,7 @@ pub struct ModelCaps {
     pub audio: bool,
     pub embedding: bool,
     pub rerank: bool,
-    /// Speech recognition (a whisper.cpp ggml model).
+    /// Speech recognition (Whisper, sherpa-onnx or an ONNX CTC package).
     #[serde(default)]
     pub asr: bool,
     /// Image / video generation (a stable-diffusion.cpp model).

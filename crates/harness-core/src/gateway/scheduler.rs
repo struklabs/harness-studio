@@ -2832,6 +2832,9 @@ fn fit_to_memory(
 fn fit_levels(
     config: &crate::process::LaunchConfig,
 ) -> Option<&'static [crate::kv_policy::KvLevel]> {
+    if crate::engine::server_for(config).family() == crate::engine::ONNX_FAMILY {
+        return None;
+    }
     let meta = crate::models::cached_metadata(&config.model_path);
     let mut probe = config.clone();
     let mode = crate::serve_mode::prepare(&mut probe, meta.as_ref(), None).mode;
@@ -2990,6 +2993,15 @@ pub fn unix_now() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn onnx_servers_have_no_llama_kv_ladder() {
+        let config = crate::process::LaunchConfig {
+            model_path: "speech/onnx/model.onnx".into(),
+            ..Default::default()
+        };
+        assert!(super::fit_levels(&config).is_none());
+    }
+
     use super::*;
 
     /// A mistral.rs server has no `/props`: its slots and context come from the launch (no
