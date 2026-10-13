@@ -359,11 +359,13 @@ fn transcript() -> Transcript {
                 start: 0.05,
                 end: 2.5,
                 text: "Hello there.".into(),
+                speaker: None,
             },
             Segment {
                 start: 3725.0049,
                 end: 3727.5,
                 text: "Second line.".into(),
+                speaker: None,
             },
         ],
         3730.0,
@@ -416,6 +418,7 @@ fn cjk_segments_join_without_spaces() {
         start: 0.0,
         end: 1.0,
         text: t.into(),
+        speaker: None,
     };
     assert_eq!(join_segments(&[seg("你好，"), seg("世界")]), "你好，世界");
     assert_eq!(

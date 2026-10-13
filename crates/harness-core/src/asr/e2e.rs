@@ -102,6 +102,7 @@ async fn read(s: &Setup, m: &AsrModel, wav: Vec<u8>, language: Option<&str>) -> 
             vad: &vad,
             language,
             threads: None,
+            diarize: None,
         },
         wav,
     )
@@ -195,6 +196,7 @@ async fn real_speech_read_back() {
                 vad: &vad,
                 language: Some("tr"),
                 threads: None,
+                diarize: None,
             },
             english.clone(),
         )
@@ -256,4 +258,115 @@ async fn real_long_recording_is_segmented() {
     assert!(t.segments.windows(2).all(|w| w[0].end <= w[1].start + 0.01));
     let (hit, total) = word_hits(&ENGLISH.repeat(8), &t.text);
     assert!(hit * 10 >= total * 7, "{hit}/{total}");
+}
+
+/// Two voices (Kokoro's af_heart and am_michael) take turns; the transcript says who spoke each
+/// part, with the speaker count found by the clustering and with it given.
+#[tokio::test]
+#[ignore]
+async fn real_two_speakers_are_told_apart() {
+    let s = setup().await;
+    let first = voice(
+        &s,
+        "kokoro-int8-multi-lang-v1_0",
+        Some("af_heart"),
+        "Good morning. How was your trip to the mountains last week?",
+    )
+    .await;
+    let second = voice(
+        &s,
+        "kokoro-int8-multi-lang-v1_0",
+        Some("am_michael"),
+        "It was wonderful. We hiked every day and the weather was perfect.",
+    )
+    .await;
+    let third = voice(
+        &s,
+        "kokoro-int8-multi-lang-v1_0",
+        Some("af_heart"),
+        "That sounds lovely. I would like to go there next summer.",
+    )
+    .await;
+    let (rate, a) = run::pcm16_mono(&first).unwrap();
+    let (_, b) = run::pcm16_mono(&second).unwrap();
+    let (_, c) = run::pcm16_mono(&third).unwrap();
+    let pause = vec![0u8; rate as usize];
+    let mut pcm = Vec::new();
+    for part in [a, &pause, b, &pause, c] {
+        pcm.extend_from_slice(part);
+    }
+    let mut wav = Vec::new();
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36 + pcm.len() as u32).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16u32.to_le_bytes());
+    for v in [1u16, 1] {
+        wav.extend_from_slice(&v.to_le_bytes());
+    }
+    wav.extend_from_slice(&rate.to_le_bytes());
+    wav.extend_from_slice(&(rate * 2).to_le_bytes());
+    wav.extend_from_slice(&2u16.to_le_bytes());
+    wav.extend_from_slice(&16u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&(pcm.len() as u32).to_le_bytes());
+    wav.extend_from_slice(&pcm);
+
+    let pick = chosen().into_iter().next().unwrap();
+    let entry = catalog::catalog()
+        .into_iter()
+        .find(|e| e.id.contains(&pick))
+        .unwrap();
+    let m = asr_model(&s, &entry.id).await;
+    let vad = catalog::ensure_vad_in(&s.base.join("models/asr"))
+        .await
+        .unwrap();
+    let models = super::diarize::ensure_models_in(&s.base.join("models/asr"))
+        .await
+        .unwrap();
+    for speakers in [None, Some(2)] {
+        let t = run::transcribe(
+            &s.binary,
+            &TranscribeRequest {
+                model: &m,
+                vad: &vad,
+                language: Some("en"),
+                threads: None,
+                diarize: Some(run::Diarization {
+                    models: &models,
+                    speakers,
+                }),
+            },
+            wav.clone(),
+        )
+        .await
+        .unwrap_or_else(|e| panic!("{e}"));
+        let who: Vec<String> = t
+            .segments
+            .iter()
+            .map(|s| format!("{}: {}", s.speaker.clone().unwrap_or_default(), s.text))
+            .collect();
+        eprintln!(
+            "{} speakers={speakers:?} in {} ms:\n  {}",
+            m.name,
+            t.elapsed_ms,
+            who.join("\n  ")
+        );
+        let names: Vec<&str> = t
+            .segments
+            .iter()
+            .filter_map(|s| s.speaker.as_deref())
+            .collect();
+        assert_eq!(names.len(), t.segments.len(), "every segment has a speaker");
+        assert_eq!(names.first(), Some(&"A"));
+        assert!(names.contains(&"B"), "{who:?}");
+        assert!(!names.contains(&"C"), "{who:?}");
+        // The middle part is the other voice.
+        let wonderful = t
+            .segments
+            .iter()
+            .find(|s| s.text.to_lowercase().contains("wonderful"))
+            .unwrap();
+        assert_eq!(wonderful.speaker.as_deref(), Some("B"), "{who:?}");
+        assert!(t.to_vtt().contains("<v A>"));
+    }
 }

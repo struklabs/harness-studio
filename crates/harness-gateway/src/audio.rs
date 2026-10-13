@@ -61,10 +61,20 @@ struct Form {
     prompt: Option<String>,
     response_format: Option<String>,
     temperature: Option<String>,
+    /// Harness's extra: how many speakers there are (diarization; sherpa-onnx models).
+    speakers: Option<String>,
 }
 
 /// Response formats whisper-server can produce (`json`, `text`, `srt`, `vtt`, `verbose_json`).
-const FORMATS: [&str; 5] = ["json", "text", "srt", "vtt", "verbose_json"];
+/// `diarized_json` (who spoke each segment) is served by the sherpa-onnx models only.
+const FORMATS: [&str; 6] = [
+    "json",
+    "text",
+    "srt",
+    "vtt",
+    "verbose_json",
+    "diarized_json",
+];
 
 fn bad(message: impl Into<String>) -> GatewayError {
     GatewayError::new(400, "invalid_request", message)
@@ -90,7 +100,7 @@ async fn read_form(mut mp: Multipart) -> Result<Form, GatewayError> {
                 })?;
                 form.file = Some((filename, bytes));
             }
-            "model" | "language" | "prompt" | "response_format" | "temperature" => {
+            "model" | "language" | "prompt" | "response_format" | "temperature" | "speakers" => {
                 let text = field
                     .text()
                     .await
@@ -101,6 +111,7 @@ async fn read_form(mut mp: Multipart) -> Result<Form, GatewayError> {
                     "language" => &mut form.language,
                     "prompt" => &mut form.prompt,
                     "response_format" => &mut form.response_format,
+                    "speakers" => &mut form.speakers,
                     _ => &mut form.temperature,
                 };
                 if !text.is_empty() {
@@ -224,6 +235,21 @@ async fn run(
         ))
         .param("response_format"));
     }
+    let speakers = match form.speakers.as_deref() {
+        None => None,
+        Some(s) => Some(
+            s.parse::<u32>()
+                .ok()
+                .filter(|n| (1..=harness_core::asr::diarize::MAX_SPEAKERS).contains(n))
+                .ok_or_else(|| {
+                    bad(format!(
+                        "speakers must be a whole number from 1 to {}.",
+                        harness_core::asr::diarize::MAX_SPEAKERS
+                    ))
+                    .param("speakers")
+                })?,
+        ),
+    };
     if let Some(t) = form.temperature.as_deref() {
         if t.parse::<f64>().map_or(true, |t| !(0.0..=1.0).contains(&t)) {
             return Err(bad("temperature must be a number between 0 and 1.").param("temperature"));
@@ -246,6 +272,7 @@ async fn run(
                             audio: bytes,
                             language: form.language.clone(),
                             format,
+                            speakers,
                             caller: &caller,
                         },
                         guard,
@@ -262,6 +289,13 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
+    if format == "diarized_json" || speakers.is_some() {
+        return Err(bad(format!(
+            "`{}` cannot tell speakers apart; diarized_json and speakers work with the sherpa-onnx speech recognition models (Parakeet, Nemotron...).",
+            def.alias
+        ))
+        .param("response_format"));
+    }
     // A transcription model of the Lemonade engine: its own server takes the audio.
     let lemonade = harness_core::lemonade::model_of_def(&def.id).map(str::to_string);
     if let Some(model) = &lemonade {
