@@ -21,7 +21,7 @@
 pub mod arch;
 pub mod env;
 pub mod plan;
-pub mod proc;
+pub use crate::pyenv::proc;
 mod run;
 
 #[cfg(test)]
@@ -34,12 +34,12 @@ use crate::error_key::err;
 use crate::events::{self, CoreEvent};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 /// Internal sentinel: a cancelled job ends as `Cancelled`, never shown as an error.
-pub(crate) const CANCELLED: &str = "convert.cancelled";
+pub(crate) use crate::pyenv::CANCELLED;
 
 /// Quantization the dialog preselects.
 pub const DEFAULT_QUANT: &str = "Q4_K_M";
@@ -133,90 +133,15 @@ pub fn quantize_binary() -> Result<PathBuf, String> {
 
 // --- progress and cancellation handles -------------------------------------------------------
 
-/// A cancellation flag shared by a job and the processes it runs.
-#[derive(Clone, Default)]
-pub struct Cancel(Arc<AtomicBool>);
-
-impl Cancel {
-    pub fn is_set(&self) -> bool {
-        self.0.load(Ordering::SeqCst)
-    }
-    pub fn set(&self) {
-        self.0.store(true, Ordering::SeqCst);
-    }
-    pub(crate) fn flag(&self) -> Arc<AtomicBool> {
-        self.0.clone()
-    }
-}
-
-/// Progress of building the environment.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-pub struct EnvProgress {
-    /// `uv`, `source`, `python`, `packages`, `verify`.
-    pub step: String,
-    /// What is being fetched or the last line the tool printed.
-    pub detail: String,
-    pub downloaded_bytes: u64,
-    pub total_bytes: u64,
-}
-
-/// Where environment progress goes.
-#[derive(Clone)]
-pub struct Progress {
-    state: Arc<Mutex<EnvProgress>>,
-    sink: Arc<dyn Fn(&EnvProgress) + Send + Sync>,
-}
-
-impl Progress {
-    pub fn new(sink: impl Fn(&EnvProgress) + Send + Sync + 'static) -> Self {
-        Self {
-            state: Arc::default(),
-            sink: Arc::new(sink),
-        }
-    }
-
-    /// Progress that is also what [`env_progress`] reports (Settings polls it).
-    pub fn global() -> Self {
-        Self::new(|p| *ENV_PROGRESS.lock().unwrap() = Some(p.clone()))
-    }
-
-    fn emit(&self, f: impl FnOnce(&mut EnvProgress)) {
-        let snapshot = {
-            let mut s = self.state.lock().unwrap();
-            f(&mut s);
-            s.clone()
-        };
-        (self.sink)(&snapshot);
-    }
-
-    /// A new step starts.
-    pub fn set(&self, step: &str, detail: String, total: u64) {
-        self.emit(|s| {
-            *s = EnvProgress {
-                step: step.to_string(),
-                detail,
-                downloaded_bytes: 0,
-                total_bytes: total,
-            }
-        });
-    }
-
-    /// Bytes of the current download so far.
-    pub fn bytes(&self, n: u64) {
-        self.emit(|s| s.downloaded_bytes = n);
-    }
-
-    /// A line the tool of the current step printed.
-    pub fn detail(&self, step: &str, line: &str) {
-        self.emit(|s| {
-            s.step = step.to_string();
-            s.detail = line.chars().take(200).collect();
-        });
-    }
-}
+// Shared with every managed Python environment ([`crate::pyenv`]).
+pub use crate::pyenv::{Cancel, EnvProgress, Progress};
 
 static ENV_PROGRESS: Mutex<Option<EnvProgress>> = Mutex::new(None);
+
+/// Progress that is also what [`env_progress`] reports (Settings polls it).
+pub fn global_progress() -> Progress {
+    Progress::new(|p| *ENV_PROGRESS.lock().unwrap() = Some(p.clone()))
+}
 /// One environment build at a time (a conversion waits for the one Settings started).
 pub(crate) static ENV_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static ENV_CANCEL: Mutex<Option<Cancel>> = Mutex::new(None);
@@ -233,7 +158,7 @@ pub async fn install_env() -> Result<EnvStatus, String> {
     let cancel = Cancel::default();
     *ENV_CANCEL.lock().unwrap() = Some(cancel.clone());
     *ENV_PROGRESS.lock().unwrap() = Some(EnvProgress::default());
-    let result = env::ensure_in(&env::root(), &tag, &cancel, &Progress::global()).await;
+    let result = env::ensure_in(&env::root(), &tag, &cancel, &global_progress()).await;
     *ENV_PROGRESS.lock().unwrap() = None;
     *ENV_CANCEL.lock().unwrap() = None;
     match result {

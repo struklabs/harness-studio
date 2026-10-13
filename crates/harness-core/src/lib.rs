@@ -61,6 +61,7 @@ pub mod perf;
 pub mod ports;
 pub mod prepare;
 pub mod process;
+pub mod pyenv;
 pub mod rag;
 pub mod recovery;
 pub mod router;
