@@ -71,9 +71,11 @@ pub fn catalog() -> &'static ParamCatalog {
     })
 }
 
+/// A flag Harness owns, or an abbreviation of one (Python's argparse expands `--trust` to
+/// `--trust-remote-code`; the worker refuses those too).
 fn is_protected(arg: &str) -> bool {
     let flag = arg.split('=').next().unwrap_or(arg);
-    PROTECTED_FLAGS.contains(&flag)
+    flag.len() > 2 && flag.starts_with("--") && PROTECTED_FLAGS.iter().any(|p| p.starts_with(flag))
 }
 
 // ---- model folders -------------------------------------------------------------------------
@@ -527,9 +529,15 @@ mod tests {
         );
         for bad in [
             "--trust-remote-code",
+            "--trust",
+            "--trust-remote",
             "--host 0.0.0.0",
+            "--ho 0.0.0.0",
             "--adapter-path /x",
+            "--adapter /x",
             "--model=/etc",
+            "--mod /etc",
+            "--allowed *",
         ] {
             let mut c = config.clone();
             c.custom_args = Some(bad.into());
@@ -553,6 +561,52 @@ mod tests {
         assert!(e.contains("process.mlx_loopback_only"), "{e}");
     }
 
+    /// The worker's own argument filter, run with a system Python when there is one (it needs
+    /// neither MLX nor the environment): abbreviations of Harness's flags and repeats exit.
+    #[test]
+    fn the_worker_refuses_abbreviations_and_repeats() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("mlx_worker.py");
+        std::fs::write(&script, WORKER).unwrap();
+        let python = if cfg!(windows) { "python" } else { "python3" };
+        let check = |args: &[&str]| -> Option<(bool, String)> {
+            let code = format!(
+                "import sys; sys.path.insert(0, {:?}); import mlx_worker as w; print(w._split_args({:?}))",
+                dir.path().to_string_lossy(),
+                args
+            );
+            let out = std::process::Command::new(python)
+                .args(["-I", "-c", &code])
+                .env("HARNESS_WORKER_API_KEY", "k")
+                .output()
+                .ok()?;
+            let text = String::from_utf8_lossy(&out.stdout).to_string()
+                + &String::from_utf8_lossy(&out.stderr);
+            Some((out.status.success(), text))
+        };
+        let Some((ok, text)) = check(&["--model", "/m", "--port", "1", "--max-tokens", "9"]) else {
+            eprintln!("no {python}, skipping");
+            return;
+        };
+        assert!(ok, "{text}");
+        assert!(text.contains("'--host', '127.0.0.1'"), "{text}");
+        for bad in [
+            &["--trust"][..],
+            &["--trust-remote"],
+            &["--trust-remote-code"],
+            &["--ho", "0.0.0.0"],
+            &["--allowed-origins", "*"],
+            &["--adapter", "/x"],
+            &["--draft", "/x"],
+            &["--model", "/m", "--mod", "/etc"],
+            &["--model", "/m", "--model", "/etc"],
+            &["--port", "1", "--port=2"],
+        ] {
+            let (ok, text) = check(bad).unwrap();
+            assert!(!ok, "{bad:?} was accepted: {text}");
+        }
+    }
+
     #[test]
     fn the_worker_guards_what_harness_relies_on() {
         // The key comes from the environment and is compared in constant time; the bind,
@@ -560,8 +614,11 @@ mod tests {
         assert!(WORKER.contains("os.environ.pop(\"HARNESS_WORKER_API_KEY\""));
         assert!(WORKER.contains("hmac.compare_digest"));
         assert!(WORKER.contains("HOST = \"127.0.0.1\""));
-        assert!(WORKER.contains("--trust-remote-code is not allowed"));
+        assert!(WORKER.contains("\"--trust-remote-code\", \"--host\""));
         assert!(WORKER.contains("pinned_load"));
         assert!(WORKER.contains("HF_HUB_OFFLINE"));
+        assert!(WORKER.contains("HARNESS_WORKER_API_KEY is required"));
+        assert!(WORKER.contains("allow_abbrev"));
+        assert!(WORKER.contains("HTTPS_PROXY"));
     }
 }

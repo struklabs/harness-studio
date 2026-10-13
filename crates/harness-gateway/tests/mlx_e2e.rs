@@ -58,12 +58,13 @@ async fn an_mlx_model_chats_through_the_gateway() {
     settings.control_api.port = 19889;
     settings.save().unwrap();
 
-    // The engine is missing until its environment is built.
-    let missing = harness_core::engine::mlx::binary().unwrap_err();
-    assert!(
-        missing.contains("runtime.family_not_installed"),
-        "{missing}"
-    );
+    // The engine is missing until its environment is built (a kept root may have it already).
+    if let Err(missing) = harness_core::engine::mlx::binary() {
+        assert!(
+            missing.contains("runtime.family_not_installed"),
+            "{missing}"
+        );
+    }
     let t = Instant::now();
     let env = harness_core::pyenv::envs::install("mlx").await.unwrap();
     eprintln!(
