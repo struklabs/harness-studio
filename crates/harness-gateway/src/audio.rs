@@ -408,7 +408,7 @@ async fn run(
         &filename
     };
     let (content_type, body) = if onnx_ctc {
-        harness_core::asr::onnx::multipart(&audio_bytes, format)
+        harness_core::asr::onnx::multipart(&audio_bytes, format, &def.alias)
     } else {
         multipart_body(filename, &audio_bytes, &fields)
     };
