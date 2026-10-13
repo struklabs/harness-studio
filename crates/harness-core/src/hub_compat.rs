@@ -268,7 +268,27 @@ pub fn hub_compatibility(format: ModelFormat, task: Option<&str>) -> Compatibili
     if format == ModelFormat::Onnx && !is_onnx_task(task) {
         return Compatibility::Unsupported { format };
     }
+    if format == ModelFormat::Gguf && !is_llama_task(task) {
+        return Compatibility::Unsupported { format };
+    }
     format.compatibility()
+}
+
+/// Whether llama-server serves a GGUF repo of `task` in Harness: chat (with or without vision),
+/// embeddings and reranking, or an untagged repo (the file decides). GGUF is also the container
+/// of text-to-speech, speech-recognition and audio models for other engines (audio.cpp,
+/// transcribe.cpp, CrispASR...) that llama-server cannot load; image GGUFs take the
+/// stable-diffusion.cpp route before this.
+pub fn is_llama_task(task: Option<&str>) -> bool {
+    use crate::model_registry::Capability;
+    task.is_none_or(|t| {
+        crate::model_registry::task_capabilities(t).iter().any(|c| {
+            matches!(
+                c,
+                Capability::Chat | Capability::Embedding | Capability::Rerank
+            )
+        })
+    })
 }
 
 /// mistral.rs's verdict on a Hub repo: a safetensors chat model ([`MISTRALRS_TASKS`]) whose
@@ -310,6 +330,74 @@ mod tests {
             detect_format(&s(&["safetensors", "gguf"]), None, &[]),
             ModelFormat::Gguf
         );
+    }
+
+    /// GGUF repos of the Hub's most downloaded speech and audio models (2026-10-13), with their
+    /// `pipeline_tag`: containers for audio.cpp, transcribe.cpp, NeMo and other engines that
+    /// llama-server does not load. They were listed as runnable on llama.cpp.
+    const AUDIO_GGUF_REPOS: [(&str, &str); 19] = [
+        ("audio-cpp/audio.cpp-gguf", "text-to-speech"),
+        ("pnnbao-ump/VieNeu-TTS-v3-Turbo", "text-to-speech"),
+        ("ampixa/sanoTTS", "text-to-speech"),
+        ("Serveurperso/Qwen3-TTS-GGUF", "text-to-speech"),
+        ("drbaph/Higgs-Audio-v3-Studio", "text-to-speech"),
+        ("audio-cpp/AuK-Base-and-Flash-GGUF", "text-to-speech"),
+        ("pnnbao-ump/VieNeu-TTS-0.3B-q4-gguf", "text-to-speech"),
+        ("kenpath/svara-tts-v1", "text-to-speech"),
+        (
+            "handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf",
+            "automatic-speech-recognition",
+        ),
+        (
+            "handy-computer/parakeet-unified-en-0.6b-gguf",
+            "automatic-speech-recognition",
+        ),
+        (
+            "nvidia/nemotron-3.5-asr-streaming-0.6b",
+            "automatic-speech-recognition",
+        ),
+        (
+            "handy-computer/cohere-transcribe-03-2026-gguf",
+            "automatic-speech-recognition",
+        ),
+        ("audio-cpp/SAM-Audio-GGUF", "audio-to-audio"),
+        ("LiquidAI/LFM2.5-Audio-1.5B-JP-GGUF", "audio-to-audio"),
+        ("chenmozhijin/BSRoformer-GGUF", "audio-to-audio"),
+        ("cstr/qwen3-tts-tokenizer-12hz-GGUF", "audio-to-audio"),
+        ("audio-cpp/RE-USE-GGUF", "audio-to-audio"),
+        ("scragnog/Ace-Step-1.5-ScragVAE", "audio-to-audio"),
+        ("LocalAI-io/LocalVQE", "audio-to-audio"),
+    ];
+
+    #[test]
+    fn a_gguf_of_a_task_llama_server_does_not_serve_is_not_runnable() {
+        for (repo, task) in AUDIO_GGUF_REPOS {
+            assert_eq!(
+                hub_compatibility(ModelFormat::Gguf, Some(task)),
+                Compatibility::Unsupported {
+                    format: ModelFormat::Gguf
+                },
+                "{repo}"
+            );
+        }
+        // Chat, vision, embedding, reranking and untagged GGUF repos stay on llama.cpp.
+        for task in [
+            None,
+            Some("text-generation"),
+            Some("image-text-to-text"),
+            Some("feature-extraction"),
+            Some("sentence-similarity"),
+            Some("text-ranking"),
+            Some("audio-text-to-text"),
+        ] {
+            assert_eq!(
+                hub_compatibility(ModelFormat::Gguf, task),
+                Compatibility::Runnable {
+                    runtime: LLAMA_FAMILY.to_string()
+                },
+                "{task:?}"
+            );
+        }
     }
 
     #[test]
