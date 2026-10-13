@@ -9,8 +9,9 @@ name: Release
 # APPLE_* secrets below are set; without them they fall back to the ad-hoc signature
 # (`signingIdentity: "-"` in src-tauri/tauri.macos.conf.json) and Gatekeeper asks for
 # confirmation on the first open.
-# Linux builds are not published yet; add entries to the matrix below when they are verified
-# (the bundle targets are already configured in src-tauri/tauri.conf.json).
+# The `organize` job then renames the assets by operating system (Windows / macOS / Linux) and
+# writes the release body from .github/release-body.md. The Linux preview `.deb` is built on a
+# Linux machine and uploaded by hand as `Harness.Studio_<version>_Linux_x86_64.deb`.
 #
 # Repository secrets (Settings > Secrets and variables > Actions):
 #   TAURI_SIGNING_PRIVATE_KEY           contents of the updater signing key (`npm run tauri signer generate`)
@@ -138,7 +139,8 @@ jobs:
         with:
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: 'Harness Studio ${{ inputs.tag || github.ref_name }}'
-          releaseBody: 'Windows: download the installer (`*-setup.exe`) below. It is not code-signed yet: if SmartScreen warns you, choose "More info" and then "Run anyway". macOS 13.3 or later: download `*_aarch64.dmg` for Apple Silicon or `*_x64.dmg` for Intel, open it and drag Harness Studio to Applications. The app is signed with a Developer ID and notarized by Apple. Linux x86_64 (preview): the `.deb` package. See the changelog for what is new.'
+          # The release body is written by the `organize` job from .github/release-body.md.
+          releaseBody: ''
           releaseDraft: true
           prerelease: false
           uploadUpdaterJson: ${{ steps.secrets.outputs.has_updater_key == 'true' }}
@@ -172,3 +174,41 @@ jobs:
           asset="$RUNNER_TEMP/$(basename "$dmg" | tr ' ' '.')"
           cp "$dmg" "$asset"
           gh release upload "$TAG" "$asset" --clobber -R "$GITHUB_REPOSITORY"
+
+  # Asset names say which operating system they are for, so the download list reads by platform:
+  # Harness.Studio_<v>_Windows_x64-setup.exe, _macOS_Apple-Silicon.dmg, _macOS_Intel.dmg. Renaming
+  # keeps each asset's id, and latest.json points at asset ids, so the updater is unaffected.
+  organize:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          sparse-checkout: .github
+      - name: Rename assets by operating system and write the release body
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -1)
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" --paginate --jq '.[] | "\(.id) \(.name)"' |
+            while read -r id name; do
+              new=$(printf '%s' "$name" | sed -E \
+                -e 's/_x64-setup\.exe/_Windows_x64-setup.exe/' \
+                -e 's/_aarch64\.dmg$/_macOS_Apple-Silicon.dmg/' \
+                -e 's/_x64\.dmg$/_macOS_Intel.dmg/' \
+                -e 's/_aarch64\.app\.tar\.gz/_macOS_Apple-Silicon.app.tar.gz/' \
+                -e 's/_x64\.app\.tar\.gz/_macOS_Intel.app.tar.gz/')
+              if [ "$new" != "$name" ]; then
+                gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$id" -f name="$new" --jq '.name'
+              fi
+            done
+          base="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
+          sed -e "s|{VERSION}|$version|g" -e "s|{BASE}|$base|g" .github/release-body.md > "$RUNNER_TEMP/body.md"
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" -F body=@"$RUNNER_TEMP/body.md" --jq '.html_url'
