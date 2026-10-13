@@ -6,6 +6,7 @@ import { sanitizeSettings, sanitizeToolCalls, type ChatMessage, type PgSettings,
 import { compareMetaOf } from './split';
 import { ragTurnOf } from './rag';
 import { imagesOfMeta } from './images';
+import { audioOfMeta } from './audio';
 import { compactionOf } from './compaction.svelte';
 
 export type TitleSource = 'none' | 'fallback' | 'auto' | 'user';
@@ -315,6 +316,7 @@ export function fromPath(p: PathMessage): ChatMessage {
     parentId: p.parent_id,
     rag: ragTurnOf(v.meta),
     images: p.role === 'user' ? imagesOfMeta(v.meta) : undefined,
+    audio: p.role === 'user' ? audioOfMeta(v.meta) : undefined,
     priorRounds: roundsOf(v.meta, p.parent_id, v.created_at),
     variantIds: p.variant_ids,
     variantIndex: p.variant_index,
@@ -350,8 +352,8 @@ export function toVariantInput(m: ChatMessage, model?: string): VariantInput {
     tool_limit_reached: !!m.toolLimitReached,
     error: m.error ?? null,
     model_alias: model || null,
-    ...(m.contextSize || m.rag || m.priorRounds?.length || m.images?.length
-      ? { meta: { ...(m.contextSize ? { context_size: m.contextSize } : {}), ...(m.rag ? { rag: m.rag } : {}), ...(m.priorRounds?.length ? { rounds: m.priorRounds.map(roundInput) } : {}), ...(m.images?.length ? { images: m.images } : {}) } }
+    ...(m.contextSize || m.rag || m.priorRounds?.length || m.images?.length || m.audio?.length
+      ? { meta: { ...(m.contextSize ? { context_size: m.contextSize } : {}), ...(m.rag ? { rag: m.rag } : {}), ...(m.priorRounds?.length ? { rounds: m.priorRounds.map(roundInput) } : {}), ...(m.images?.length ? { images: m.images } : {}), ...(m.audio?.length ? { audio: m.audio } : {}) } }
       : {}),
   };
 }

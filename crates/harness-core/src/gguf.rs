@@ -381,6 +381,8 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
     let mut rope_type: Option<String> = None;
     let mut rope_factor: Option<f64> = None;
 
+    let mut audio_flag = None;
+    let mut audio_hint = false;
     for _ in 0..kv_count {
         let Ok(key) = read_string(&mut reader) else {
             kv_complete = false;
@@ -424,7 +426,18 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
                 meta.has_vision_encoder = read_uint(&mut reader, val_type)?.unwrap_or(0) != 0
             }
             "clip.has_audio_encoder" if val_type == GgufType::Bool => {
-                meta.has_audio_encoder = read_uint(&mut reader, val_type)?.unwrap_or(0) != 0
+                audio_flag = Some(read_uint(&mut reader, val_type)?.unwrap_or(0) != 0)
+            }
+            "clip.projector_type" if val_type == GgufType::String => {
+                let kind = read_string(&mut reader)?;
+                audio_hint |= matches!(
+                    kind.as_str(),
+                    "ultravox" | "voxtral" | "qwen2a" | "qwen25o" | "lfm2a" | "qwen3a" | "qwen3asr"
+                );
+            }
+            k if k.starts_with("clip.audio.") => {
+                audio_hint = true;
+                skip_value(&mut reader, val_type)?;
             }
             k if k.ends_with(".classifier.output_labels") => {
                 meta.has_classifier_labels = true;
@@ -588,6 +601,7 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
     let alignment = alignment.filter(|a| *a > 0).unwrap_or(32);
     meta.is_mmproj =
         general_type.as_deref() == Some("mmproj") || meta.architecture.as_deref() == Some("clip");
+    meta.has_audio_encoder = audio_flag.unwrap_or(audio_hint);
     meta.general_type = general_type;
     if has_tokenizer {
         meta.tokenizer = Some(tok);
@@ -1138,6 +1152,65 @@ mod tests {
         f.write_all(&vec![0; (data_start - pos + q2_span + 32) as usize])
             .unwrap();
         path
+    }
+
+    #[test]
+    fn audio_capability_metadata() {
+        for (key, value, expected) in [
+            ("clip.projector_type", "ultravox", true),
+            ("clip.projector_type", "voxtral", true),
+            ("clip.projector_type", "qwen2a", true),
+            ("clip.projector_type", "qwen25o", true),
+            ("clip.projector_type", "lfm2a", true),
+            ("clip.audio.projector_type", "qwen3a", true),
+            ("clip.audio.num_mel_bins", "", true),
+            ("clip.projector_type", "mlp", false),
+            ("clip.gen.audio.projector_type", "lfm2a", false),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("projector.gguf");
+            let mut f = File::create(&path).unwrap();
+            f.write_all(b"GGUF").unwrap();
+            f.write_all(&3u32.to_le_bytes()).unwrap();
+            f.write_all(&0u64.to_le_bytes()).unwrap();
+            f.write_all(&2u64.to_le_bytes()).unwrap();
+            write_kv_str(&mut f, "general.architecture", "clip");
+            if value.is_empty() {
+                write_kv_u32(&mut f, key, 80);
+            } else {
+                write_kv_str(&mut f, key, value);
+            }
+            drop(f);
+            let meta = read_gguf_metadata(&path).unwrap();
+            assert!(meta.is_mmproj);
+            assert_eq!(meta.has_audio_encoder, expected, "{key}: {value}");
+            assert!(!meta.has_vision_encoder);
+        }
+        // Explicit flags win over hints, irrespective of key order.
+        for flag in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("mixed.gguf");
+            let mut f = File::create(&path).unwrap();
+            f.write_all(b"GGUF").unwrap();
+            f.write_all(&3u32.to_le_bytes()).unwrap();
+            f.write_all(&0u64.to_le_bytes()).unwrap();
+            f.write_all(&4u64.to_le_bytes()).unwrap();
+            write_kv_str(&mut f, "general.architecture", "clip");
+            write_kv_str(&mut f, "clip.projector_type", "qwen25o");
+            for (key, v) in [
+                ("clip.has_audio_encoder", flag),
+                ("clip.has_vision_encoder", true),
+            ] {
+                f.write_all(&(key.len() as u64).to_le_bytes()).unwrap();
+                f.write_all(key.as_bytes()).unwrap();
+                f.write_all(&7u32.to_le_bytes()).unwrap();
+                f.write_all(&[u8::from(v)]).unwrap();
+            }
+            drop(f);
+            let meta = read_gguf_metadata(&path).unwrap();
+            assert_eq!(meta.has_audio_encoder, flag);
+            assert!(meta.has_vision_encoder);
+        }
     }
 
     #[test]

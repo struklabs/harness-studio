@@ -48,7 +48,7 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
 - **Araç ve MCP kayıt defteri.** Araçların ve MCP sunucularının topluluk dizini (`struklabs/harness-registry`): izinleri, yayıncıyı, kaynağı, sürümü ve SHA-256'yı içeren manifestler; CI doğrulaması; hash doğrulamasıyla sandbox'a kurulum; uygulamanın içinden yayımlama; doğrulanmış ve topluluk etiketleri.
 - Zaten çalıştırdığınız bir ComfyUI örneğine **ComfyUI köprüsü**.
 - Çok sayıda araç kuruluyken her istek için ilgili araçları seçen **araç yönlendirici** (embedding ve rerank altyapısıyla).
-- Görsel, kod ve yazı üretimi ile ses çalışma zamanları için **daha fazla Oluştur sayfası**.
+- Görsel, kod ve yazı üretimi ile ses model motorları için **daha fazla Oluştur sayfası**.
 - Yerel modellerle çalışan **uygulama içi kodlama çalışma alanı**.
 - **Kararsız:** OpenVINO ve MLC.
 

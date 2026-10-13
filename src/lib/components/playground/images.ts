@@ -1,5 +1,7 @@
 // Image attachments of a Playground message (vision models). Pure helpers first; the browser decoding at the end only runs from the UI.
 
+import { audioPart, type PgAudio } from './audio';
+
 /** An image attached to a user message. `data` is a `data:image/...;base64,...` URL. */
 export interface PgImage {
   name: string;
@@ -59,11 +61,12 @@ export function isImageDataUrl(v: unknown): v is string {
 }
 
 /** One OpenAI `content` part list for a user message: the text first, then each picture. */
-export function userContent(text: string, images?: PgImage[]): string | Record<string, unknown>[] {
-  if (!images?.length) return text;
+export function userContent(text: string, images?: PgImage[], audio?: PgAudio[]): string | Record<string, unknown>[] {
+  if (!images?.length && !audio?.length) return text;
   const parts: Record<string, unknown>[] = [];
   if (text) parts.push({ type: 'text', text });
-  for (const img of images) parts.push({ type: 'image_url', image_url: { url: img.data } });
+  for (const img of images ?? []) parts.push({ type: 'image_url', image_url: { url: img.data } });
+  for (const clip of audio ?? []) parts.push(audioPart(clip));
   return parts;
 }
 

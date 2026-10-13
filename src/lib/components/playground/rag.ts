@@ -147,7 +147,7 @@ export function applyRag(messages: Record<string, unknown>[], rag: RagPrepared |
         // A message with pictures keeps them; only its text is replaced.
         const parts = out[i].content;
         out[i].content = Array.isArray(parts)
-          ? [{ type: 'text', text: rag.user }, ...parts.filter((p) => (p as { type?: unknown })?.type === 'image_url')]
+          ? [{ type: 'text', text: rag.user }, ...parts.filter((p) => (p as { type?: unknown })?.type === 'image_url' || (p as { type?: unknown })?.type === 'input_audio')]
           : rag.user;
         break;
       }

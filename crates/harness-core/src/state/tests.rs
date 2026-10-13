@@ -1464,3 +1464,32 @@ fn edited_user_message_keeps_its_pictures() {
     let plain = db.edit_user_message(&u2.id, "sağ ol", None).unwrap();
     assert_eq!(plain.variant.meta, None);
 }
+
+#[test]
+fn edited_user_message_keeps_its_audio() {
+    let (_d, db) = open_temp();
+    let conv = new_conv(&db, "Audio");
+    let audio = serde_json::json!({ "name": "voice.wav", "format": "wav", "data": "UklGRg==" });
+    let user = db
+        .append_message(AppendMessage {
+            conversation_id: conv.id.clone(),
+            parent_id: None,
+            role: "user".into(),
+            variant: VariantInput {
+                content: "Listen".into(),
+                meta: Some(serde_json::json!({ "audio": [audio.clone()], "other": 1 })),
+                ..Default::default()
+            },
+            id: None,
+            variant_id: None,
+            any_parent_variant: false,
+        })
+        .unwrap();
+    let edited = db.edit_user_message(&user.id, "Transcribe", None).unwrap();
+    assert_eq!(
+        edited.variant.meta,
+        Some(serde_json::json!({ "audio": [audio] }))
+    );
+    let again = db.edit_user_message(&edited.id, "Translate", None).unwrap();
+    assert_eq!(again.variant.meta, edited.variant.meta);
+}
