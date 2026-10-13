@@ -8,6 +8,9 @@ Release notes with system requirements and known limitations (English and Turkis
 
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
+### Fixed
+- The toast after a finished download ("Load and Chat" / "Open in Dashboard") no longer squeezes its text to one word per line; the buttons move to their own row instead.
+
 ## [0.1.0] - 2026-10-12
 
 First public release. Windows installer (NSIS) and signed, notarized macOS DMGs (Apple Silicon and Intel) on GitHub Releases; Linux `.deb` and AppImage as a preview.
