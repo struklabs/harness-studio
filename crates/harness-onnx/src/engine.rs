@@ -101,9 +101,17 @@ struct OutputSpec {
     extra: Option<String>,
 }
 
+/// Context windows of one question-answering request, at most: a longer context is refused
+/// (each window is a graph run under the session lock).
+pub const MAX_QA_WINDOWS: usize = 32;
+
 pub struct Engine {
     session: Mutex<Session>,
     tokenizer: Tokenizer,
+    /// Question answering: the tokenizer without truncation; [`Engine::answer`] cuts the
+    /// context into overlapping windows (`doc_stride`) itself, the question whole in each,
+    /// like the transformers pipeline.
+    qa_tokenizer: Option<Tokenizer>,
     pub package: ModelPackage,
     inputs: Inputs,
     output: OutputSpec,
@@ -348,12 +356,22 @@ pub fn load(opts: &LoadOptions) -> Result<Engine, String> {
         }))
         .map_err(|e| format!("tokenizer truncation: {}", e))?;
 
+    let qa_tokenizer = if package.task == Task::QuestionAnswering {
+        let mut t = tokenizer.clone();
+        t.with_truncation(None)
+            .map_err(|e| format!("tokenizer truncation: {}", e))?;
+        Some(t)
+    } else {
+        None
+    };
+
     let (session, provider) = build_session(&package.onnx_path, opts.provider, opts.threads)?;
     let inputs = classify_inputs(&session)?;
     let output = pick_output(&session, package.task)?;
     let engine = Engine {
         session: Mutex::new(session),
         tokenizer,
+        qa_tokenizer,
         package,
         inputs,
         output,
@@ -432,27 +450,28 @@ fn to_f32(values: &[half::f16]) -> Vec<f32> {
 /// An output tensor: shape and f32 values.
 type RawOutput = (Vec<i64>, Vec<f32>);
 
+fn encoded_of(e: &tokenizers::Encoding) -> Encoded {
+    Encoded {
+        ids: e.get_ids().to_vec(),
+        type_ids: e.get_type_ids().to_vec(),
+        offsets: e.get_offsets().to_vec(),
+        special: e
+            .get_special_tokens_mask()
+            .iter()
+            .map(|&m| m != 0)
+            .collect(),
+        words: e.get_word_ids().to_vec(),
+        sequence: e.get_sequence_ids(),
+    }
+}
+
 impl Engine {
     fn encode(&self, inputs: Vec<EncodeInput<'_>>) -> Result<Vec<Encoded>, ApiError> {
         let encodings = self
             .tokenizer
             .encode_batch(inputs, true)
             .map_err(|e| ApiError::invalid(format!("tokenization failed: {}", e)))?;
-        Ok(encodings
-            .iter()
-            .map(|e| Encoded {
-                ids: e.get_ids().to_vec(),
-                type_ids: e.get_type_ids().to_vec(),
-                offsets: e.get_offsets().to_vec(),
-                special: e
-                    .get_special_tokens_mask()
-                    .iter()
-                    .map(|&m| m != 0)
-                    .collect(),
-                words: e.get_word_ids().to_vec(),
-                sequence: e.get_sequence_ids(),
-            })
-            .collect())
+        Ok(encodings.iter().map(encoded_of).collect())
     }
 
     /// The tokenizer's mask token (`[MASK]`, `<mask>`).
@@ -632,9 +651,14 @@ impl Engine {
         let encoded = self.encode(vec![EncodeInput::from(text)])?;
         let e = &encoded[0];
         let position = e.ids.iter().position(|&id| id == mask_id).ok_or_else(|| {
-            ApiError::invalid(format!(
-                "the input has no mask token: put {mask} where the word goes"
-            ))
+            ApiError::invalid(if text.contains(&mask) {
+                format!(
+                    "the input is longer than the model's {} tokens and was cut before {mask}: shorten the text before it",
+                    self.package.max_length
+                )
+            } else {
+                format!("the input has no mask token: put {mask} where the word goes")
+            })
         })?;
         let Raw::Tokens { data, dim, .. } = self.run(&[e])? else {
             return Err(ApiError::server(
@@ -658,6 +682,39 @@ impl Engine {
         Ok((fills, e.ids.len()))
     }
 
+    /// `question` with each window of `context`: windows as long as the model allows next to
+    /// the question and the special tokens, overlapping by the pipeline's `doc_stride` (128
+    /// tokens, less for a short room).
+    fn qa_windows(&self, question: &str, context: &str) -> Result<Vec<Encoded>, ApiError> {
+        let tokenizer = self.qa_tokenizer.as_ref().unwrap_or(&self.tokenizer);
+        let err = |e: tokenizers::Error| ApiError::invalid(format!("tokenization failed: {}", e));
+        let q = tokenizer.encode(question, false).map_err(err)?;
+        let mut c = tokenizer.encode(context, false).map_err(err)?;
+        let specials = tokenizer
+            .post_process(Default::default(), Some(Default::default()), true)
+            .map_err(err)?
+            .len();
+        let room = self.package.max_length.saturating_sub(q.len() + specials);
+        if room < 16 {
+            return Err(ApiError::invalid(format!(
+                "the question is too long: it leaves {} of the model's {} tokens for the context",
+                room, self.package.max_length
+            )));
+        }
+        let stride = 128.min(room / 2);
+        c.truncate(room, stride, TruncationDirection::Right);
+        let rest = c.take_overflowing();
+        std::iter::once(c)
+            .chain(rest)
+            .map(|chunk| {
+                tokenizer
+                    .post_process(q.clone(), Some(chunk), true)
+                    .map(|e| encoded_of(&e))
+                    .map_err(err)
+            })
+            .collect()
+    }
+
     /// The best `top_k` answers to `question` in `context` (an extractive QA head).
     pub fn answer(
         &self,
@@ -666,20 +723,49 @@ impl Engine {
         top_k: usize,
     ) -> Result<(Vec<Answer>, usize), ApiError> {
         self.require(Task::QuestionAnswering, "question-answering")?;
-        let encoded = self.encode(vec![EncodeInput::from((question, context))])?;
-        let e = &encoded[0];
-        let outputs = self.run_outputs(&[e])?;
-        let [start, end] = outputs.as_slice() else {
-            return Err(ApiError::server("the graph returned no start/end logits"));
-        };
-        let context_tokens: Vec<(usize, usize, usize)> = (0..e.ids.len())
-            .filter(|&t| e.sequence[t] == Some(1) && !e.special[t])
-            .map(|t| (t, e.offsets[t].0, e.offsets[t].1))
-            .collect();
-        Ok((
-            tasks::answer_spans(context, start, end, &context_tokens, 30, top_k),
-            e.ids.len(),
-        ))
+        let windows = self.qa_windows(question, context)?;
+        if windows.len() > MAX_QA_WINDOWS {
+            return Err(ApiError::invalid(format!(
+                "the context needs {} windows of {} tokens; at most {} per request",
+                windows.len(),
+                self.package.max_length,
+                MAX_QA_WINDOWS
+            )));
+        }
+        let mut answers: Vec<Answer> = Vec::new();
+        let mut tokens = 0;
+        for e in &windows {
+            tokens += e.ids.len();
+            let outputs = self.run_outputs(&[e])?;
+            let [start, end] = outputs.as_slice() else {
+                return Err(ApiError::server("the graph returned no start/end logits"));
+            };
+            let context_tokens: Vec<(usize, usize, usize)> = (0..e.ids.len())
+                .filter(|&t| e.sequence[t] == Some(1) && !e.special[t])
+                .map(|t| (t, e.offsets[t].0, e.offsets[t].1))
+                .collect();
+            // `[CLS]` (the first token when it is a special one) is the "no answer" choice.
+            let null = e.special.first().copied().unwrap_or(false).then_some(0);
+            answers.extend(tasks::answer_spans(
+                context,
+                start,
+                end,
+                &context_tokens,
+                null,
+                30,
+                top_k,
+            ));
+        }
+        // The best spans over all windows; a span found in two overlapping windows once.
+        answers.sort_by(|a, b| b.score.total_cmp(&a.score));
+        let mut out: Vec<Answer> = Vec::new();
+        for a in answers {
+            if !out.iter().any(|o| o.start == a.start && o.end == a.end) {
+                out.push(a);
+            }
+        }
+        out.truncate(top_k.max(1));
+        Ok((out, tokens))
     }
 
     /// The flat values of the spec's outputs (`name`, then `extra`) for `batch`.

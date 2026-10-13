@@ -316,8 +316,18 @@ pub fn labels_from_config(config: &Value) -> Vec<String> {
     pairs.into_iter().map(|(_, l)| l).collect()
 }
 
+/// Label names that say nothing (`LABEL_0`, `LABEL_1`, ...): what transformers writes when a
+/// head was trained without names.
+fn generic_labels(labels: &[String]) -> bool {
+    labels.iter().all(|l| {
+        l.strip_prefix("LABEL_")
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    })
+}
+
 /// The task a `config.json` implies, from the head in `architectures`. A sequence-classification
-/// head with one output is a cross-encoder (reranker); with more it is a classifier.
+/// head is a cross-encoder (reranker) with one output, or with two outputs whose labels have no
+/// names (some cross-encoders are trained as binary classifiers); otherwise a classifier.
 pub fn task_from_config(config: &Value) -> Task {
     let heads: Vec<&str> = config
         .get("architectures")
@@ -331,10 +341,11 @@ pub fn task_from_config(config: &Value) -> Task {
             .and_then(Value::as_u64)
             .map(|n| n as usize)
             .unwrap_or_else(|| labels_from_config(config).len());
-        if outputs > 1 {
-            Task::Classify
-        } else {
+        let labels = labels_from_config(config);
+        if outputs <= 1 || (outputs == 2 && generic_labels(&labels)) {
             Task::Rerank
+        } else {
+            Task::Classify
         }
     } else if has("ForTokenClassification") {
         Task::TokenClassify
@@ -794,5 +805,34 @@ mod tests {
             Some(Pooling::MeanSqrtLen)
         );
         assert_eq!(Task::parse("Reranker"), Some(Task::Rerank));
+    }
+
+    #[test]
+    fn sequence_heads_are_rerankers_unless_they_name_their_labels() {
+        let seq = |extra: Value| {
+            let mut c = json!({"architectures": ["BertForSequenceClassification"]});
+            c.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            task_from_config(&c)
+        };
+        // ms-marco cross-encoders: one output.
+        assert_eq!(seq(json!({"num_labels": 1})), Task::Rerank);
+        assert_eq!(seq(json!({"id2label": {"0": "LABEL_0"}})), Task::Rerank);
+        // A cross-encoder trained as a binary classifier: two unnamed outputs.
+        assert_eq!(
+            seq(json!({"id2label": {"0": "LABEL_0", "1": "LABEL_1"}})),
+            Task::Rerank
+        );
+        assert_eq!(seq(json!({"num_labels": 2})), Task::Rerank);
+        // Named labels, or more than two outputs: a classifier.
+        assert_eq!(
+            seq(json!({"id2label": {"0": "NEGATIVE", "1": "POSITIVE"}})),
+            Task::Classify
+        );
+        assert_eq!(
+            seq(json!({"id2label": {"0": "LABEL_0", "1": "LABEL_1", "2": "LABEL_2"}})),
+            Task::Classify
+        );
     }
 }

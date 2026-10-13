@@ -12,6 +12,10 @@ use serde_json::{json, Value};
 pub const DEFAULT_HYPOTHESIS: &str = "This example is {}.";
 /// Mask fills returned when the request does not say (the transformers default).
 pub const DEFAULT_FILLS: usize = 5;
+/// Texts in one request: each one is a graph run under the session lock.
+pub const MAX_TEXTS: usize = 256;
+/// Candidate labels of one zero-shot request (one NLI pair each).
+pub const MAX_CANDIDATES: usize = 64;
 
 /// What one request asks of the model.
 #[derive(Debug, Clone, PartialEq)]
@@ -50,17 +54,37 @@ fn invalid(msg: impl Into<String>) -> ApiError {
     ApiError::invalid(msg)
 }
 
+/// A text input; a file (a `data:` URL, what the gateway makes of an image or audio body) is
+/// refused rather than read as text.
+fn text(s: &str) -> Result<String, ApiError> {
+    if s.trim_start().starts_with("data:") && s.contains(";base64,") {
+        return Err(invalid(
+            "this model takes text, but the request sent a file (a data URL)",
+        ));
+    }
+    Ok(s.to_string())
+}
+
+/// A string field of `inputs`, as text.
+fn text_field(v: Option<&Value>, what: &str) -> Result<String, ApiError> {
+    text(
+        v.and_then(Value::as_str)
+            .ok_or_else(|| invalid(format!("{what} must be a string")))?,
+    )
+}
+
 /// `inputs` as texts: a string or an array of strings; `single` when it was one string.
 fn texts_of(inputs: &Value) -> Result<(Vec<String>, bool), ApiError> {
     match inputs {
-        Value::String(s) => Ok((vec![s.clone()], true)),
+        Value::String(s) => Ok((vec![text(s)?], true)),
+        Value::Array(a) if a.len() > MAX_TEXTS => Err(invalid(format!(
+            "inputs has {} texts; at most {} per request",
+            a.len(),
+            MAX_TEXTS
+        ))),
         Value::Array(a) if !a.is_empty() => a
             .iter()
-            .map(|v| {
-                v.as_str()
-                    .map(String::from)
-                    .ok_or_else(|| invalid("inputs must be a string or an array of strings"))
-            })
+            .map(|v| text_field(Some(v), "every input"))
             .collect::<Result<_, _>>()
             .map(|t| (t, false)),
         _ => Err(invalid(
@@ -97,6 +121,13 @@ fn candidates_of(v: &Value) -> Result<Vec<String>, ApiError> {
             "parameters.candidate_labels needs at least one label",
         ));
     }
+    if list.len() > MAX_CANDIDATES {
+        return Err(invalid(format!(
+            "parameters.candidate_labels has {} labels; at most {}",
+            list.len(),
+            MAX_CANDIDATES
+        )));
+    }
     Ok(list)
 }
 
@@ -109,12 +140,8 @@ pub fn parse(task: Task, body: &Value) -> Result<HfJob, ApiError> {
     match task {
         Task::Classify | Task::Rerank => {
             if let Some(c) = params.get("candidate_labels") {
-                let text = inputs
-                    .as_str()
-                    .ok_or_else(|| invalid("zero-shot inputs must be one string"))?
-                    .to_string();
                 return Ok(HfJob::ZeroShot {
-                    text,
+                    text: text_field(Some(inputs), "zero-shot inputs")?,
                     candidates: candidates_of(c)?,
                     template: params
                         .get("hypothesis_template")
@@ -130,14 +157,14 @@ pub fn parse(task: Task, body: &Value) -> Result<HfJob, ApiError> {
             let top_k = usize_param(&params, "top_k")?;
             // `{"text": ..., "text_pair": ...}`: one pair.
             if let Some(obj) = inputs.as_object() {
-                let text = obj
-                    .get("text")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| invalid("inputs.text must be a string"))?;
-                let pair = obj.get("text_pair").and_then(Value::as_str);
+                let first = text_field(obj.get("text"), "inputs.text")?;
+                let pair = match obj.get("text_pair") {
+                    None | Some(Value::Null) => None,
+                    p => Some(vec![text_field(p, "inputs.text_pair")?]),
+                };
                 return Ok(HfJob::Classify {
-                    texts: vec![text.to_string()],
-                    pairs: pair.map(|p| vec![p.to_string()]),
+                    texts: vec![first],
+                    pairs: pair,
                     top_k,
                     single: true,
                 });
@@ -172,20 +199,11 @@ pub fn parse(task: Task, body: &Value) -> Result<HfJob, ApiError> {
             })
         }
         Task::FillMask => Ok(HfJob::FillMask {
-            text: inputs
-                .as_str()
-                .ok_or_else(|| invalid("fill-mask inputs must be one string"))?
-                .to_string(),
+            text: text_field(Some(inputs), "fill-mask inputs")?,
             top_k: usize_param(&params, "top_k")?.unwrap_or(DEFAULT_FILLS),
         }),
         Task::QuestionAnswering => {
-            let field = |name: &str| {
-                inputs
-                    .get(name)
-                    .and_then(Value::as_str)
-                    .map(String::from)
-                    .ok_or_else(|| invalid(format!("inputs.{name} must be a string")))
-            };
+            let field = |name: &str| text_field(inputs.get(name), &format!("inputs.{name}"));
             Ok(HfJob::Answer {
                 question: field("question")?,
                 context: field("context")?,
@@ -232,11 +250,43 @@ pub fn entities(list: &[Entity], grouped: bool) -> Value {
     )
 }
 
-pub fn tokens_response(per_text: &[Vec<Entity>], grouped: bool, single: bool) -> Value {
+/// The character index of byte offset `byte` in `text`: the Inference API counts characters
+/// (Python string indices), the tokenizer counts bytes.
+pub fn char_index(text: &str, byte: usize) -> usize {
+    let mut b = byte.min(text.len());
+    while !text.is_char_boundary(b) {
+        b -= 1;
+    }
+    text[..b].chars().count()
+}
+
+/// `entities` with character offsets into `text`.
+fn in_chars(text: &str, list: &[Entity]) -> Vec<Entity> {
+    list.iter()
+        .map(|e| Entity {
+            start: char_index(text, e.start),
+            end: char_index(text, e.end),
+            ..e.clone()
+        })
+        .collect()
+}
+
+/// `token-classification`: entities of each text (`texts` in the same order), with character
+/// offsets.
+pub fn tokens_response(
+    per_text: &[Vec<Entity>],
+    texts: &[String],
+    grouped: bool,
+    single: bool,
+) -> Value {
+    let of = |i: usize| {
+        let list = per_text.get(i).map_or(&[][..], |v| v);
+        entities(&in_chars(texts.get(i).map_or("", |t| t), list), grouped)
+    };
     if single {
-        entities(per_text.first().map_or(&[][..], |v| v), grouped)
+        of(0)
     } else {
-        Value::Array(per_text.iter().map(|e| entities(e, grouped)).collect())
+        Value::Array((0..per_text.len()).map(of).collect())
     }
 }
 
@@ -251,10 +301,17 @@ pub fn fill_mask_response(fills: &[(String, u32, f32, String)]) -> Value {
     )
 }
 
-/// `question-answering`: one answer object, or a list when more than one was asked for.
-pub fn answer_response(answers: &[Answer], top_k: usize) -> Value {
-    let one =
-        |a: &Answer| json!({"answer": a.answer, "score": a.score, "start": a.start, "end": a.end});
+/// `question-answering`: one answer object, or a list when more than one was asked for;
+/// `start` and `end` are character offsets into `context`.
+pub fn answer_response(answers: &[Answer], context: &str, top_k: usize) -> Value {
+    let one = |a: &Answer| {
+        json!({
+            "answer": a.answer,
+            "score": a.score,
+            "start": char_index(context, a.start),
+            "end": char_index(context, a.end),
+        })
+    };
     if top_k <= 1 {
         answers
             .first()
@@ -394,12 +451,13 @@ mod tests {
             start: 0,
             end: 8,
         };
+        let texts = vec!["Wolfgang".to_string()];
         assert_eq!(
-            tokens_response(&[vec![e.clone()]], true, true)[0]["entity_group"],
+            tokens_response(&[vec![e.clone()]], &texts, true, true)[0]["entity_group"],
             "PER"
         );
         assert_eq!(
-            tokens_response(&[vec![e]], false, false)[0][0]["entity"],
+            tokens_response(&[vec![e]], &texts, false, false)[0][0]["entity"],
             "PER"
         );
         let a = Answer {
@@ -409,9 +467,58 @@ mod tests {
             end: 8,
         };
         assert_eq!(
-            answer_response(std::slice::from_ref(&a), 1)["answer"],
+            answer_response(std::slice::from_ref(&a), "In Paris.", 1)["answer"],
             "Paris"
         );
-        assert!(answer_response(&[a], 2).is_array());
+        assert!(answer_response(&[a], "In Paris.", 2).is_array());
+    }
+
+    #[test]
+    fn offsets_count_characters_not_bytes() {
+        // "Çağrı İstanbul'da": Ç, ğ, ı and İ take two bytes each.
+        let text = "Çağrı İstanbul'da";
+        let byte = text.find("İstanbul").unwrap();
+        assert_eq!(byte, 9);
+        assert_eq!(char_index(text, byte), 6);
+        let e = Entity {
+            entity: "LOC".into(),
+            score: 0.9,
+            word: "İstanbul".into(),
+            start: byte,
+            end: byte + "İstanbul".len(),
+        };
+        let r = tokens_response(&[vec![e]], &[text.to_string()], true, true);
+        assert_eq!(
+            (r[0]["start"].as_u64(), r[0]["end"].as_u64()),
+            (Some(6), Some(14))
+        );
+        let chars: Vec<char> = text.chars().collect();
+        assert_eq!(chars[6..14].iter().collect::<String>(), "İstanbul");
+        let a = Answer {
+            answer: "İstanbul".into(),
+            score: 0.9,
+            start: byte,
+            end: byte + "İstanbul".len(),
+        };
+        assert_eq!(answer_response(&[a], text, 1)["start"], 6);
+        // A byte inside a character counts up to that character.
+        assert_eq!(char_index("ğa", 1), 0);
+    }
+
+    #[test]
+    fn text_tasks_refuse_files_and_huge_requests() {
+        let file = json!({"inputs": "data:image/png;base64,AAAA"});
+        for task in [Task::Classify, Task::TokenClassify, Task::FillMask] {
+            assert_eq!(parse(task, &file).unwrap_err().status, 400);
+        }
+        let qa = json!({"inputs": {"question": "q", "context": "data:audio/wav;base64,AAAA"}});
+        assert!(parse(Task::QuestionAnswering, &qa).is_err());
+        // Text that only mentions a data URL is still text.
+        assert!(parse(Task::Classify, &json!({"inputs": "data: none"})).is_ok());
+        let many: Vec<String> = (0..=MAX_TEXTS).map(|i| i.to_string()).collect();
+        assert!(parse(Task::Classify, &json!({"inputs": many})).is_err());
+        let labels: Vec<String> = (0..=MAX_CANDIDATES).map(|i| format!("l{i}")).collect();
+        let zs = json!({"inputs": "x", "parameters": {"candidate_labels": labels}});
+        assert!(parse(Task::Classify, &zs).is_err());
     }
 }

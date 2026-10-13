@@ -165,7 +165,7 @@ async fn hf(State(s): State<Arc<Shared>>, body: axum::body::Bytes) -> Result<Jso
                 single,
             } => {
                 let (entities, _) = engine.token_classify(&texts, group)?;
-                hf_api::tokens_response(&entities, group, single)
+                hf_api::tokens_response(&entities, &texts, group, single)
             }
             HfJob::FillMask { text, top_k } => {
                 let (fills, _) = engine.fill_mask(&text, top_k)?;
@@ -177,7 +177,7 @@ async fn hf(State(s): State<Arc<Shared>>, body: axum::body::Bytes) -> Result<Jso
                 top_k,
             } => {
                 let (answers, _) = engine.answer(&question, &context, top_k)?;
-                hf_api::answer_response(&answers, top_k)
+                hf_api::answer_response(&answers, &context, top_k)
             }
         })
     })

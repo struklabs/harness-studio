@@ -627,8 +627,10 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
                  Query(q): Query<std::collections::HashMap<String, String>>,
                  b: Bytes| async move {
                     let ct = h.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok());
-                    let body = hf::body(&model, ct, q.get("parameters").map(String::as_str), b);
-                    proxy::handle(s, Api::Hf, h, body).await
+                    match hf::body(&model, ct, q.get("parameters").map(String::as_str), b) {
+                        Ok(body) => proxy::handle(s, Api::Hf, h, body).await,
+                        Err(e) => e.into_response(),
+                    }
                 },
             ),
         )

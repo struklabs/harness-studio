@@ -216,6 +216,20 @@ fn is_model_extension(path: &Path) -> bool {
     })
 }
 
+fn onnx_task_kind(task: harness_onnx::package::Task) -> crate::domain::ModelKind {
+    match task {
+        harness_onnx::package::Task::Embedding => crate::domain::ModelKind::Embedding,
+        harness_onnx::package::Task::Rerank => crate::domain::ModelKind::Reranker,
+        _ => crate::domain::ModelKind::Pipeline,
+    }
+}
+
+/// What an encoder `.onnx` file serves (embedding, reranking or a task pipeline), `None` for
+/// any other file.
+pub fn onnx_kind(path: &Path) -> Option<crate::domain::ModelKind> {
+    harness_onnx::package::library_task(path).map(onnx_task_kind)
+}
+
 /// The library entry of an `.onnx` file: an embedding or reranking model when the repo around
 /// it has a tokenizer (`harness_onnx::package`), `None` for any other ONNX graph.
 fn onnx_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
@@ -260,11 +274,7 @@ fn onnx_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
         gguf: None,
         source: None,
         mmproj_path: None,
-        kind: match package.task {
-            harness_onnx::package::Task::Embedding => crate::domain::ModelKind::Embedding,
-            harness_onnx::package::Task::Rerank => crate::domain::ModelKind::Reranker,
-            _ => crate::domain::ModelKind::Pipeline,
-        },
+        kind: onnx_task_kind(package.task),
         origin: crate::domain::ModelOrigin::Library,
         task: package.pipeline_task().map(String::from),
     })
