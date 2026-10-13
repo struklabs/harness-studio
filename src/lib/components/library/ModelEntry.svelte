@@ -71,8 +71,8 @@
 
   let { entry, entries, agentModels, definitions, layout, onEditDefinition, onNewDefinition, onMove, onDelete, onToggleFavorite, onChanged }: Props = $props();
 
-  /** Kinds the gateway loads on the first request (speech, image): no Load button, no llama-server settings. */
-  const GATEWAY_LOADED = ['asr', 'image'];
+  /** Kinds the gateway loads on the first request (speech, image, task pipelines): no Load button, no llama-server settings. */
+  const GATEWAY_LOADED = ['asr', 'image', 'pipeline'];
 
   const KIND: Record<ModelKind, TKey> = {
     llm: 'lib.kind_llm',
@@ -81,6 +81,7 @@
     asr: 'lib.kind_asr',
     image: 'lib.kind_image',
     tts: 'lib.kind_tts',
+    pipeline: 'lib.kind_pipeline',
     mmproj: 'lib.kind_mmproj',
     adapter: 'lib.kind_adapter',
     unknown: 'lib.kind_unknown',

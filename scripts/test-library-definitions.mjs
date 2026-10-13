@@ -33,6 +33,7 @@ test('tabs list their own kinds', () => {
   assert.deepEqual(kindsForTab('image'), ['image']);
   assert.deepEqual(kindsForTab('transcription'), ['asr']);
   assert.deepEqual(kindsForTab('rerank'), ['reranker']);
+  assert.deepEqual(kindsForTab('pipeline'), ['pipeline']);
   assert.deepEqual(kindsForTab('chat'), []);
 });
 

@@ -440,6 +440,7 @@ mod tests {
             mmproj_path: None,
             kind: Default::default(),
             origin: Default::default(),
+            task: None,
         };
 
         // 2. Migrate to dest_dir
@@ -501,6 +502,7 @@ mod tests {
             mmproj_path: None,
             kind: Default::default(),
             origin: Default::default(),
+            task: None,
         };
 
         // Collision: an existing file at the destination must not be overwritten.

@@ -377,6 +377,7 @@ pub fn to_local_model(dir: &Path, info: &ModelDirInfo, root: &Path) -> crate::mo
         mmproj_path: None,
         kind: crate::domain::ModelKind::Llm,
         origin: crate::domain::ModelOrigin::Library,
+        task: None,
     }
 }
 

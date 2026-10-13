@@ -45,6 +45,9 @@ pub enum ModelKind {
     Embedding,
     /// Reranker (`pooling_type` rank or a classification head).
     Reranker,
+    /// A Hugging Face `pipeline` task model served through `/v1/hf` (text classification,
+    /// NER, fill-mask, question answering...); the task is in [`crate::models::LocalModel::task`].
+    Pipeline,
     /// Speech recognition model: whisper.cpp's ggml `.bin` (not a GGUF; detected by the ggml magic).
     Asr,
     /// Image / video generation model run by stable-diffusion.cpp (a checkpoint or standalone
