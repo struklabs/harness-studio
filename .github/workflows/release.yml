@@ -114,7 +114,10 @@ jobs:
           S_APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           S_APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
-          if [ -z "$S_APPLE_CERTIFICATE" ] || [ -z "$S_APPLE_SIGNING_IDENTITY" ] || [ -z "$S_APPLE_API_KEY_P8" ]; then
+          # Every secret is needed: without the issuer or key id, notarization would run with empty
+          # credentials and fail instead of falling back to the ad-hoc build.
+          if [ -z "$S_APPLE_CERTIFICATE" ] || [ -z "$S_APPLE_SIGNING_IDENTITY" ] || [ -z "$S_APPLE_API_KEY_P8" ] \
+            || [ -z "$S_APPLE_API_ISSUER" ] || [ -z "$S_APPLE_API_KEY" ]; then
             echo "::notice::Apple secrets are not set: the DMG is ad-hoc signed and not notarized."
             exit 0
           fi
