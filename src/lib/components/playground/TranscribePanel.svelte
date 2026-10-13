@@ -353,6 +353,42 @@
     </div>
   </section>
 
+  {#if needFamily}
+    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
+      <EngineNeeded family={needFamily} onInstalled={() => (needFamily = null)} />
+    </div>
+  {:else if error}
+    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
+      {error}
+    </div>
+  {/if}
+
+  {#if result}
+    <section class="flex flex-col gap-3" aria-labelledby="asr-result">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 id="asr-result" class="text-sm font-semibold text-foreground">{t('asr.result_title')}</h3>
+        <AdvancedOnly><span class="font-num text-xs text-muted-foreground">{t('emb.stat_time', { value: Math.round(result.ms) })}</span></AdvancedOnly>
+        {#if result.language}<Badge variant="outline">{result.language.charAt(0).toUpperCase() + result.language.slice(1)}</Badge>{/if}
+        {#if result.duration !== null}<Badge variant="outline" class="font-num">{t('asr.stat_duration', { value: result.duration.toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}</Badge>{/if}
+        <Button variant="ghost" size="sm" onclick={copy}><Copy />{t('asr.copy')}</Button>
+        <Button variant="ghost" size="sm" onclick={() => result && app.addToChat(result.text.trim())} disabled={!result.text.trim()}>
+          <MessageSquarePlus />{t('asr.to_chat')}
+        </Button>
+      </div>
+      {#if result.segments?.length}
+        <div class="flex flex-col gap-2">
+          {#each result.segments as segment}
+            <div class="flex gap-3 text-sm">
+              <span class="font-num shrink-0 text-muted-foreground">{segment.start.toFixed(2)}–{segment.end.toFixed(2)}</span>
+              <span class="whitespace-pre-wrap">{segment.text}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      <pre class="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground [overflow-wrap:anywhere]">{result.text.trim()}</pre>
+    </section>
+  {/if}
+
   {#if asr.overview && asr.overview.catalog.length > 0}
     <section class="flex flex-col gap-2" aria-labelledby="sasr-catalog">
       <h4 id="sasr-catalog" class="text-sm font-semibold text-foreground">{t('sasr.catalog_title')}</h4>
@@ -393,42 +429,6 @@
           </li>
         {/each}
       </ul>
-    </section>
-  {/if}
-
-  {#if needFamily}
-    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
-      <EngineNeeded family={needFamily} onInstalled={() => (needFamily = null)} />
-    </div>
-  {:else if error}
-    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
-      {error}
-    </div>
-  {/if}
-
-  {#if result}
-    <section class="flex flex-col gap-3" aria-labelledby="asr-result">
-      <div class="flex flex-wrap items-center gap-2">
-        <h3 id="asr-result" class="text-sm font-semibold text-foreground">{t('asr.result_title')}</h3>
-        <AdvancedOnly><span class="font-num text-xs text-muted-foreground">{t('emb.stat_time', { value: Math.round(result.ms) })}</span></AdvancedOnly>
-        {#if result.language}<Badge variant="outline">{result.language.charAt(0).toUpperCase() + result.language.slice(1)}</Badge>{/if}
-        {#if result.duration !== null}<Badge variant="outline" class="font-num">{t('asr.stat_duration', { value: result.duration.toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}</Badge>{/if}
-        <Button variant="ghost" size="sm" onclick={copy}><Copy />{t('asr.copy')}</Button>
-        <Button variant="ghost" size="sm" onclick={() => result && app.addToChat(result.text.trim())} disabled={!result.text.trim()}>
-          <MessageSquarePlus />{t('asr.to_chat')}
-        </Button>
-      </div>
-      {#if result.segments?.length}
-        <div class="flex flex-col gap-2">
-          {#each result.segments as segment}
-            <div class="flex gap-3 text-sm">
-              <span class="font-num shrink-0 text-muted-foreground">{segment.start.toFixed(2)}–{segment.end.toFixed(2)}</span>
-              <span class="whitespace-pre-wrap">{segment.text}</span>
-            </div>
-          {/each}
-        </div>
-      {/if}
-      <pre class="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground [overflow-wrap:anywhere]">{result.text.trim()}</pre>
     </section>
   {/if}
 </div>

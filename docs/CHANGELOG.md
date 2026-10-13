@@ -10,11 +10,13 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Added
 - ONNX task models without Python: text classification, zero-shot classification, named entity recognition, fill-mask, and question answering. They run through the gateway at `/v1/hf/{model}` in the Hugging Face Inference API format and in the new Playground **Tasks** tab (Advanced). The Model Hub marks these tasks as runnable with ONNX Runtime.
+- Speech recognition with Hugging Face CTC models (wav2vec2, HuBERT, WavLM, Data2Vec Audio, UniSpeech) exported to ONNX, for example `Xenova/wav2vec2-base-960h`. Model Hub recognizes them and offers the FP32 and quantized exports. They run in the ONNX sidecar (DirectML, CUDA or CPU) behind the gateway's `/v1/audio/transcriptions`, in Playground > Speech, in chat dictation and in `harness transcribe`. Long recordings are split into 20-second pieces with overlap, and segment times break at words or pauses. Source-only speech repositories show "Needs Conversion".
 
 ### Changed
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed
+- Playground > Speech: the transcript now appears right under the Transcribe button instead of below the recommended model list.
 - The toast after a finished download ("Load and Chat" / "Open in Dashboard") no longer squeezes its text to one word per line; the buttons move to their own row instead.
 - GGUF conversion: a repository that is already quantized with a method the converter can't read (AWQ, bitsandbytes, ...) is refused in the plan, before anything is downloaded, and the message names the base model to use instead. It used to download the whole checkpoint and fail at the end. GPTQ, FP8, compressed-tensors, MXFP4 and NVFP4 (ModelOpt) checkpoints still convert.
 
