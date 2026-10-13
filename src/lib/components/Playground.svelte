@@ -42,11 +42,11 @@
   import InfoTip from './common/InfoTip.svelte';
   import SettingsPanel from './playground/SettingsPanel.svelte';
   import ToolGeneratorDialog from './playground/ToolGeneratorDialog.svelte';
-  import { withToolGuidance } from './playground/toolGuidance';
+  import { COMPACT_TOOLS_PARAMS, compactToolDefinitions, withToolGuidance } from './playground/toolGuidance';
   import { salvageToolCalls, TextCallStreamBuffer } from './playground/textToolCalls';
   import { chatRequest } from './playground/chatRequest';
   import { parseChoiceLogprobs, rememberLogprobs, type TokenLogprob } from './playground/logprobs';
-  import { parseTextToolCalls } from '$lib/tools-client';
+  import { modelParams, parseTextToolCalls } from '$lib/tools-client';
   import ConversationSidebar from './playground/ConversationSidebar.svelte';
   import ModelPicker from './playground/ModelPicker.svelte';
   import { gatewayModelStates, type GatewayModelEntry, type ModelLoadState } from './playground/gatewayModels';
@@ -959,6 +959,23 @@
       : null;
   });
 
+  /** Parameters of the chat model's GGUF; below `COMPACT_TOOLS_PARAMS` the tools are sent with short descriptions. */
+  let chatModelParams = $state<number | null>(null);
+  $effect(() => {
+    const path = toolGenModelPath;
+    chatModelParams = null;
+    if (!path) return;
+    let cancelled = false;
+    modelParams(path).then((n) => { if (!cancelled) chatModelParams = n ?? null; }).catch(() => {});
+    return () => { cancelled = true; };
+  });
+  let compactTools = $derived(chatModelParams !== null && chatModelParams < COMPACT_TOOLS_PARAMS);
+  /** The tool definitions the single view sends (short descriptions for a small model). */
+  function wireToolDefs() {
+    const defs = activeTools.map((tl) => $state.snapshot(tl.definition));
+    return compactTools ? compactToolDefinitions(defs) : defs;
+  }
+
   let verifiedTools = $state<boolean | null>(null);
   $effect(() => {
     const path = toolGenModelPath;
@@ -1108,7 +1125,7 @@
   let historyWithImages = $derived(buildApiMessages(messages, settings));
   let countHistory = $derived(withoutImages(historyWithImages));
   let imageEstimate = $derived((countImageParts(historyWithImages) + pendingImages.length) * IMAGE_TOKEN_ESTIMATE);
-  let countTools = $derived(activeTools.map(t => $state.snapshot(t.definition)));
+  let countTools = $derived(wireToolDefs());
   let ragEstimate = $derived.by(() => ragDocs.filter(doc => doc.status === 'ready').reduce((total, doc) =>
     total + (doc.mode === 'retrieval' ? Math.min(doc.tokens, settings.ragTopK * 512) : doc.tokens), 0));
   let promptBudget = $derived(estimatePromptBudget(withToolGuidance(countHistory, countTools), countTools, input));
@@ -2335,7 +2352,7 @@
     }
     scrollToBottom(true);
 
-    const toolDefs = activeTools.map((tl) => $state.snapshot(tl.definition));
+    const toolDefs = wireToolDefs();
     let sentTools = toolDefs.length > 0;
     // Wait for a complete candidate before rendering tool-call JSON as ordinary text.
     const contentBuffer = new TextCallStreamBuffer();
