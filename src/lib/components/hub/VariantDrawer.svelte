@@ -30,7 +30,7 @@
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
-  import { isWhisperVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from './recommend';
+  import { isCtcVariant, isWhisperVariant, recommendCtcVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from './recommend';
   import { security } from '$lib/stores/security.svelte';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
 
@@ -143,10 +143,14 @@
   /** Best-fitting variant for this machine (same estimate as the Fit column). */
   /** whisper.cpp ggml repo: fit is a memory check, not a GGUF VRAM estimate. */
   let isWhisperRepo = $derived(variants.length > 0 && variants.every(isWhisperVariant));
+  /** ONNX CTC speech repo: precision matters more than size (see `recommendCtcVariant`). */
+  let isCtcRepo = $derived(variants.length > 0 && variants.every(isCtcVariant));
   let recommended = $derived(
     isWhisperRepo
       ? recommendWhisperVariant(variants, hardware?.available_ram_bytes)
-      : recommendVariant(variants, new Map([...variantFits].map(([name, fit]) => [name, fit.category])))
+      : isCtcRepo
+        ? recommendCtcVariant(variants, hardware?.available_ram_bytes)
+        : recommendVariant(variants, new Map([...variantFits].map(([name, fit]) => [name, fit.category])))
   );
   $effect(() => {
     const id = repoId;
