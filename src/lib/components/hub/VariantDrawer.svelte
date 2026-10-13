@@ -9,6 +9,7 @@
   import { formatBytes } from '#lib/format.js';
   import { defaultLoadFit, toHardwareFit } from '#lib/fit.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { onnxUnsupportedText } from '#lib/engines.js';
   import { app } from '#lib/stores/app.svelte.js';
   import { downloads } from '#lib/stores/downloads.svelte.js';
   import { library, normPath, repoRelative } from '#lib/stores/library.svelte.js';
@@ -82,6 +83,8 @@
   let repoId = $derived(repo?.id ?? null);
 
   let unsupportedFormat = $derived(repo?.compatibility.status === 'unsupported' ? repo.compatibility.format : null);
+  /** Its runtime has no build for this OS / architecture (ONNX on an Intel Mac): no download either. */
+  let platformBlocked = $derived(repo?.compatibility.status === 'unsupported_platform' ? repo.compatibility : null);
   /** A safetensors chat model: instead of the unsupported notice the drawer offers the conversion. */
   let convertible = $derived(canConvert(repo));
   /** The repo needs an engine family (whisper.cpp, stable-diffusion.cpp, sherpa-onnx…) that was not installed from this drawer yet. */
@@ -217,8 +220,8 @@
     recheckedNoAccess = false;
     const token = ++variantsToken;
 
-    // No Harness runtime runs this format: there is nothing to list or download.
-    if (repo?.compatibility.status === 'unsupported') {
+    // No Harness runtime runs this format (here): there is nothing to list or download.
+    if (repo?.compatibility.status === 'unsupported' || repo?.compatibility.status === 'unsupported_platform') {
       variants = [];
       isLoadingVariants = false;
       return;
@@ -566,6 +569,12 @@
                 <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
                   <Ban class="mt-px size-3.5 shrink-0 text-warning" />
                   <span class="min-w-0 flex-1">{t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
+                </div>
+              {:else if platformBlocked}
+                {@const msg = onnxUnsupportedText(platformBlocked)}
+                <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
+                  <Ban class="mt-px size-3.5 shrink-0 text-warning" />
+                  <span class="min-w-0 flex-1">{t(msg.key, msg.params)}</span>
                 </div>
               {:else if isLoadingVariants && variants.length === 0}
                 <div class="flex flex-col gap-2" role="status" aria-label={t('hub.scanning_files')}>

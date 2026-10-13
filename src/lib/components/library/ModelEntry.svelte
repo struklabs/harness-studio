@@ -11,6 +11,7 @@
   import type { HardwareFitResult, LibraryEntry, LoadTarget, ModelCapability, ModelDefinition, ModelKind } from '#lib/types.js';
   import { presetName as presetDisplayName } from '#lib/components/presets/presetText.js';
   import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import { onnxUnsupportedText } from '#lib/engines.js';
   import { savedPortText } from '../servers/utils';
   import { cn } from '#lib/utils.js';
   import { formatBytes } from '#lib/format.js';
@@ -176,9 +177,15 @@
     const c = entry.record.compatibility;
     if (!c) return null;
     if (c.status === 'unsupported') return t('lib.runtime_none', { format: formatLabel });
+    if (c.status === 'unsupported_platform') return `${c.runtime} · ${t('ort.state_unsupported')}`;
     return c.status === 'needs_runtime' ? t('lib.runtime_needs', { runtime: c.runtime }) : c.runtime;
   });
   let needsRuntime = $derived(entry.record.compatibility?.status === 'needs_runtime' ? entry.record.compatibility.runtime : null);
+  /** The runtime has no build for this OS / architecture (ONNX on an Intel Mac): the file cannot be loaded here. */
+  let platformBlocked = $derived.by(() => {
+    const c = entry.record.compatibility;
+    return c?.status === 'unsupported_platform' ? onnxUnsupportedText(c) : null;
+  });
 
   /** Where the capability list comes from: a real run's `/props` or only the chat template text. */
   let capsSource = $derived.by(() => {
@@ -347,7 +354,7 @@
 
 {#snippet loadMenu(def: ModelDefinition)}
   <DropdownMenu.Root>
-    <DropdownMenu.Trigger class={cn(buttonVariants({ variant: 'outline', size: 'xs' }))} disabled={busy[def.id]}>
+    <DropdownMenu.Trigger class={cn(buttonVariants({ variant: 'outline', size: 'xs' }))} disabled={busy[def.id] || !!platformBlocked}>
       <Play />{t('pgm.load')}<ChevronDown class="opacity-60" />
     </DropdownMenu.Trigger>
     <DropdownMenu.Content align="end" class="w-64">
@@ -455,6 +462,8 @@
 
   {#if needsRuntime}
     <div class="text-xs text-warning" role="status"><EngineNeeded family={needsRuntime} /></div>
+  {:else if platformBlocked}
+    <p class="text-xs text-warning" role="status">{t(platformBlocked.key, platformBlocked.params)}</p>
   {/if}
 
   <!-- Parts of a split model -->
@@ -543,7 +552,7 @@
   <!-- Primary action: load the chat model and start talking to it. -->
   {#if isChatLoadable(m)}
     <div class="flex items-center gap-2 border-t border-border pt-2">
-      <Button size="xs" onclick={startChat} disabled={startingChat}>
+      <Button size="xs" onclick={startChat} disabled={startingChat || !!platformBlocked}>
         {#if startingChat}<LoaderCircle class="animate-spin" />{:else}<MessageSquare />{/if}{running.length > 0 ? t('hub.chat_now') : t('hub.load_and_chat')}
       </Button>
     </div>

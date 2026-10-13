@@ -13,7 +13,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Downloads](https://img.shields.io/github/downloads/struklabs/harness-studio/total?label=downloads)](https://github.com/struklabs/harness-studio/releases)
 [![Discussions](https://img.shields.io/github/discussions/struklabs/harness-studio?label=discussions)](https://github.com/struklabs/harness-studio/discussions)
-![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20coming%20soon-blue)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20preview-blue)
 [![Stars](https://img.shields.io/github/stars/struklabs/harness-studio?style=social)](https://github.com/struklabs/harness-studio/stargazers)
 
 [Download](https://github.com/struklabs/harness-studio/releases/latest) · [User guide](docs/guide/en/README.md) · [FAQ](#faq) · [Roadmap](docs/en/ROADMAP.md) · [Support the project](#how-you-can-support-the-project)
@@ -65,7 +65,7 @@ These are the requirements of **Harness Studio itself**, not of any model. Figur
 
 | | |
 |---|---|
-| **Operating system** | Windows 10 or 11, 64-bit, or macOS 13.3 or later on Apple Silicon (with Metal acceleration) or Intel (CPU only). Linux is *coming soon* (see [Roadmap](#roadmap)). |
+| **Operating system** | Windows 10 or 11, 64-bit, or macOS 13.3 or later on Apple Silicon (with Metal acceleration) or Intel (CPU only). Linux (x86_64, `.deb` and AppImage) is a *preview*: tested on one Ubuntu machine so far. |
 | **Installer size** | About 21 MB on Windows; on macOS the DMG is about 29 MB (Apple Silicon) or 32 MB (Intel) |
 | **Installed size** | About 65 MB (about 64 MB on macOS). On top of that, the app downloads the model engines it needs on demand (a llama.cpp build is tens of MB; CUDA builds are larger). |
 | **Memory used by the app** | About 250-350 MB of RAM for the app itself (interface plus WebView2), before any model is loaded. On macOS about 250 MB (interface plus WebKit). |
@@ -147,7 +147,7 @@ The others win some rows too: Ollama processed long prompts faster, and at 65k c
 | Feature | Harness Studio | LM Studio | Ollama | llama.cpp (`llama-server`) |
 |---|---|---|---|---|
 | Friendly desktop app | ✓ | ✓ | ✓ | ✗ (server with a basic web page) |
-| Windows / Linux / macOS | Windows now; others planned | ✓ | ✓ | ✓ |
+| Windows / Linux / macOS | Windows and macOS; Linux preview | ✓ | ✓ | ✓ |
 | Apple MLX engine | planned | ✓ | ✓ | ✗ |
 | Built-in request analytics (P50/P95, per client) | ✓ | ✗ | ✗ | ✗ |
 | Prometheus metrics and OpenTelemetry | ✓ | ✗ | ✗ | partial (metrics endpoint) |
@@ -289,7 +289,7 @@ Use Windows **Apps > Installed apps**. Uninstalling does not delete your data. S
 <details>
 <summary><b>Does it run on Linux or macOS?</b></summary>
 
-macOS: yes. There is a DMG for Apple Silicon (with Metal acceleration) and one for Intel Macs (CPU only), for macOS 13.3 or later; see [Quick start](#quick-start-in-3-steps) for the first-open step. Linux builds exist, but they are not yet verified on real machines, so they are marked **coming soon**. Verifying and publishing them is on the [roadmap](#roadmap). You can build from source and try, but expect rough edges.
+macOS: yes. There is a DMG for Apple Silicon (with Metal acceleration) and one for Intel Macs (CPU only), for macOS 13.3 or later; see [Quick start](#quick-start-in-3-steps) for the first-open step. Linux: a **preview** `.deb` and AppImage (x86_64) are on the Releases page. They have been tested on one Ubuntu machine so far, so expect rough edges and please report what you find. Wider Linux testing is on the [roadmap](#roadmap).
 </details>
 
 <details>
@@ -340,7 +340,7 @@ The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction
 - Speech, image generation, embeddings, and reranking engines
 
 **In progress**
-- Verifying the Linux and macOS builds on real hardware (AMD, NVIDIA, Intel, Apple Silicon)
+- Verifying the Linux builds on more hardware (AMD, NVIDIA, Intel) and distributions
 - First-run polish on every platform
 - Benchmarks on more hardware (NVIDIA/CUDA, Linux)
 - Accessibility checks for small windows and high interface scale
@@ -348,7 +348,7 @@ The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction
 **Planned next**
 - **Server mode:** manage Harness on your own server from a web interface, with passwords or tokens, domain and automatic SSL, a systemd service, and Docker images (CUDA, ROCm, Vulkan, CPU)
 - **Harness Link:** use models from another Harness instance in your library, Playground, and gateway
-- Linux packages (`.deb`, tar.gz) and macOS app, including an MLX engine for Apple Silicon
+- Signed Linux packages beyond the preview, and an MLX engine for Apple Silicon
 - Code-signed Windows installer; automatic app updates
 - TypeScript and Python SDKs for the Control API; decision-model endpoints
 

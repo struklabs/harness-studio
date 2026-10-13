@@ -1537,6 +1537,21 @@ pub(crate) fn flatten_to_binary_dir_for(staging: &Path, binary: &str) -> Result<
                 .map_err(|e| rename_failed(&entry.path(), &target, e))?;
         }
     }
+    // A `bin/` + `lib/` package (sherpa-onnx on macOS and Linux) finds its shared libraries
+    // through `@loader_path/../lib` / `$ORIGIN/../lib`, which no longer resolves once the
+    // binaries sit at the staging root; its other rpath, `@loader_path` / `$ORIGIN`, does.
+    if let Some(lib_dir) = bin_dir.parent().map(|p| p.join("lib")) {
+        if let Ok(libs) = fs::read_dir(&lib_dir) {
+            for entry in libs.flatten() {
+                let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(true);
+                let target = staging.join(entry.file_name());
+                if !is_dir && fs::symlink_metadata(&target).is_err() {
+                    fs::rename(entry.path(), &target)
+                        .map_err(|e| rename_failed(&entry.path(), &target, e))?;
+                }
+            }
+        }
+    }
     Ok(())
 }
 
@@ -1999,6 +2014,20 @@ mod tests {
         flatten_to_binary_dir(temp_dir.path()).unwrap();
         assert!(temp_dir.path().join(binary_name()).exists());
         assert!(temp_dir.path().join("libggml.so").exists());
+    }
+
+    #[test]
+    fn test_flatten_moves_sibling_lib_folder_next_to_the_binary() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let pkg = temp_dir.path().join("sherpa-onnx-v1.13.8-osx-arm64-shared");
+        fs::create_dir_all(pkg.join("bin")).unwrap();
+        fs::create_dir_all(pkg.join("lib").join("pkgconfig")).unwrap();
+        fs::write(pkg.join("bin").join("sherpa-onnx-offline-tts"), b"x").unwrap();
+        fs::write(pkg.join("lib").join("libonnxruntime.dylib"), b"x").unwrap();
+        flatten_to_binary_dir_for(temp_dir.path(), "sherpa-onnx-offline-tts").unwrap();
+        assert!(temp_dir.path().join("sherpa-onnx-offline-tts").exists());
+        assert!(temp_dir.path().join("libonnxruntime.dylib").exists());
+        assert!(!temp_dir.path().join("pkgconfig").exists());
     }
 
     #[tokio::test]

@@ -3,7 +3,7 @@ const tr = {
   "menus.adapter": "Adapter",
   "menus.draft": "Draft",
   "menus.speech": "Konuşma",
-  "menus.vision": "Görsel",
+  "menus.vision": "Görsel Anlama",
   "menus.chat": "Sohbet",
   "menus.developer": "Geliştirici",
   "menus.gateway": "Ağ Geçidi",

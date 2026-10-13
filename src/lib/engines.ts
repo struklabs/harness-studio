@@ -25,6 +25,11 @@ export const ENGINES: readonly EngineSpec[] = [
   { family: 'mistral.rs', method: 'manual', descKey: 'eng.desc_mistralrs' },
 ];
 
+/** Description key of a family on this host: Lemonade on a Mac has no Ryzen AI NPU. */
+export function engineDescKey(e: EngineSpec, mac: boolean): EngineSpec['descKey'] | 'eng.desc_lemonade_mac' {
+  return mac && e.family === 'lemonade' ? 'eng.desc_lemonade_mac' : e.descKey;
+}
+
 export function engineSpec(family: string | null | undefined): EngineSpec | undefined {
   return family ? ENGINES.find((e) => e.family === family) : undefined;
 }
@@ -43,4 +48,16 @@ export function familyInstalled(family: string, runtimes: readonly RuntimeView[]
 export function progressPercent(downloaded: number, total: number): number | null {
   if (!(total > 0)) return null;
   return Math.max(0, Math.min(100, Math.round((downloaded / total) * 100)));
+}
+
+/**
+ * Locale key and parameters of the "ONNX Runtime does not run here" line, from the OS and
+ * architecture the backend reports: Intel Macs get their own wording, other platforms are named.
+ */
+export function onnxUnsupportedText(p: { os: string; arch: string }): {
+  key: 'ort.unsupported_intel_mac' | 'ort.unsupported_platform';
+  params: { platform: string };
+} {
+  const intelMac = p.os === 'macos' && p.arch === 'x86_64';
+  return { key: intelMac ? 'ort.unsupported_intel_mac' : 'ort.unsupported_platform', params: { platform: `${p.os}/${p.arch}` } };
 }

@@ -16,6 +16,7 @@ import { clearPageCache } from '#lib/components/hub/hubData.js';
 import type {
   LemonadeStatus,
   OnnxRuntimeProgress,
+  OnnxRuntimeSupport,
   OnnxRuntimeVariant,
   RuntimeDownloadProgress,
   RuntimeEntry,
@@ -42,6 +43,8 @@ class EngineInstaller {
   version = $state(0);
   onnxAvailable = $state(false);
   onnxInstalled = $state(false);
+  /** Whether this OS / architecture has any ONNX Runtime build (none on Intel Macs). */
+  onnxSupport = $state<OnnxRuntimeSupport | null>(null);
   lemonadeInstalled = $state(false);
   lemonadeSupported = $state(false);
 
@@ -67,6 +70,9 @@ class EngineInstaller {
           this.onnxInstalled = v.some((x) => x.installed);
         })
         .catch(() => {}),
+      invoke<OnnxRuntimeSupport>('get_onnx_runtime_support')
+        .then((s) => (this.onnxSupport = s))
+        .catch(() => {}),
       invoke<LemonadeStatus>('get_lemonade_status')
         .then((s) => {
           this.lemonadeSupported = s.supported;
@@ -89,6 +95,12 @@ class EngineInstaller {
     if (spec?.method === 'onnx') return this.onnxAvailable;
     if (spec?.method === 'lemonade') return this.lemonadeSupported;
     return true;
+  }
+
+  /** The platform when the family has no build for it at all (ONNX Runtime on an Intel Mac), else null. */
+  unsupported(family: string): OnnxRuntimeSupport | null {
+    const s = this.onnxSupport;
+    return engineSpec(family)?.method === 'onnx' && s && !s.supported ? s : null;
   }
 
   /** Whether the family has a one-click installer. */

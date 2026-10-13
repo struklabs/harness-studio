@@ -78,8 +78,8 @@ const tr = {
 
   // ---- Playground: Image tab ----
   'emb.mode_image': 'Görsel üretimi',
-  'menus.image': 'Görsel',
-  'img.tab': 'Görsel',
+  'menus.image': 'Görsel Üretimi',
+  'img.tab': 'Görsel Üretimi',
   'img.title': 'Görsel Üretimi',
   'img.model_label': 'Model',
   'img.prompt_label': 'İstem',
@@ -89,6 +89,7 @@ const tr = {
   'img.size_label': 'Boyut',
   'img.size_note': 'Genişlik x yükseklik; 8\'in katı olmalı.',
   'img.size_invalid': 'Boyut 512x512 gibi olmalı: 64 ile 4096 arasında, 8\'in katı.',
+  'img.err_out_of_memory': 'Görsel bu boyutta ekran kartı belleğine sığmadı: yaklaşık {need} MB gerekiyor, {available} MB boş. Daha küçük bir boyut deneyin (SD 1.x ve SD-Turbo modelleri 512x512 için yapılmıştır).',
   'img.model_size': 'Modelin boyutu',
   'img.model_default': 'Modelin değeri',
   'img.steps_label': 'Adım',
@@ -229,8 +230,8 @@ const en: Record<keyof typeof tr, string> = {
 
   // ---- Playground: Image tab ----
   'emb.mode_image': 'Image generation',
-  'menus.image': 'Image',
-  'img.tab': 'Image',
+  'menus.image': 'Image Generation',
+  'img.tab': 'Image Generation',
   'img.title': 'Image Generation',
   'img.model_label': 'Model',
   'img.prompt_label': 'Prompt',
@@ -240,6 +241,7 @@ const en: Record<keyof typeof tr, string> = {
   'img.size_label': 'Size',
   'img.size_note': 'Width x height; a multiple of 8.',
   'img.size_invalid': 'The size must look like 512x512: from 64 to 4096, a multiple of 8.',
+  'img.err_out_of_memory': 'The image does not fit in GPU memory at this size: it needs about {need} MB and {available} MB is free. Try a smaller size (SD 1.x and SD-Turbo models are made for 512x512).',
   'img.model_size': 'The model\'s size',
   'img.model_default': 'The model\'s value',
   'img.steps_label': 'Steps',

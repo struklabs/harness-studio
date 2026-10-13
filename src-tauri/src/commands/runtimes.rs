@@ -101,6 +101,12 @@ pub(crate) async fn list_onnx_runtime() -> Result<Vec<crate::onnx_runtime::Varia
     blocking(crate::onnx_runtime::view).await
 }
 
+/// Whether this OS / architecture has any ONNX Runtime build (none on Intel Macs).
+#[tauri::command]
+pub(crate) fn get_onnx_runtime_support() -> crate::onnx_runtime::PlatformSupport {
+    crate::onnx_runtime::platform_support()
+}
+
 #[tauri::command]
 pub(crate) fn get_onnx_runtime_progress() -> Option<crate::onnx_runtime::InstallProgress> {
     crate::onnx_runtime::progress()

@@ -4,7 +4,8 @@
   // and a one-click install button. The same installer as the "needs an engine" hints.
   import { onMount } from 'svelte';
   import { t } from '#lib/i18n.svelte.js';
-  import { ENGINES } from '#lib/engines.js';
+  import { ENGINES, engineDescKey, onnxUnsupportedText } from '#lib/engines.js';
+  import { isMac } from '#lib/platform.js';
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { security } from '#lib/stores/security.svelte.js';
@@ -15,7 +16,8 @@
 
   onMount(() => void engineInstall.refresh());
 
-  let engines = $derived(ENGINES.filter((e) => engineInstall.offered(e.family)));
+  // ONNX Runtime stays listed where it has no build at all, so the page says why instead of hiding it.
+  let engines = $derived(ENGINES.filter((e) => engineInstall.offered(e.family) || engineInstall.unsupported(e.family)));
 </script>
 
 <SettingGroup title={t('eng.group_title')} hint={t('eng.group_desc')}>
@@ -23,19 +25,22 @@
     {#each engines as e (e.family)}
       {@const st = engineInstall.state(e.family)}
       {@const installed = engineInstall.installed(e.family)}
+      {@const unsupported = engineInstall.unsupported(e.family)}
       <div class="flex flex-col gap-1 px-4 py-3">
         <div class="flex min-w-0 items-center justify-between gap-3">
           <div class="flex min-w-0 flex-col gap-0.5">
             <span class="flex min-w-0 items-center gap-1.5 text-sm font-medium">
               <span class="truncate font-mono">{e.family}</span>
               <Badge variant={installed ? 'secondary' : 'outline'} class="text-xs">
-                {installed ? t('eng.state_installed') : t('eng.state_missing')}
+                {installed ? t('eng.state_installed') : unsupported ? t('ort.state_unsupported') : t('eng.state_missing')}
               </Badge>
             </span>
-            <span class="text-xs text-muted-foreground">{t(e.descKey)}</span>
+            <span class="text-xs text-muted-foreground">{t(engineDescKey(e, isMac))}</span>
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
-            {#if !installed && engineInstall.canInstall(e.family)}
+            {#if unsupported}
+              <!-- nothing to install: the line below says why -->
+            {:else if !installed && engineInstall.canInstall(e.family)}
               <Button size="sm" disabled={engineInstall.anyBusy} onclick={() => engineInstall.install(e.family)}>
                 {#if st.busy}<LoaderCircle class="animate-spin" />{:else}<Download />{/if}
                 {st.busy ? t(st.pct === null ? 'eng.installing' : 'eng.installing_pct', { runtime: e.family, pct: st.pct ?? 0 }) : t('eng.install', { runtime: e.family })}
@@ -45,7 +50,10 @@
             {/if}
           </div>
         </div>
-        {#if !installed && !engineInstall.canInstall(e.family)}
+        {#if unsupported}
+          {@const msg = onnxUnsupportedText(unsupported)}
+          <span class="text-xs text-warning" role="status">{t(msg.key, msg.params)}</span>
+        {:else if !installed && !engineInstall.canInstall(e.family)}
           <span class="text-xs text-muted-foreground">{t('eng.manual', { runtime: e.family })}</span>
         {/if}
         {#if st.problem === 'unverified'}

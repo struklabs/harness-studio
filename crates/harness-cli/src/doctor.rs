@@ -45,10 +45,22 @@ pub async fn status(g: &GlobalArgs, data_dir: &Path, out: &Out) -> CliResult<()>
             value["runtime"] = tokio::task::spawn_blocking(runtime_json)
                 .await
                 .unwrap_or(Value::Null);
+            value["onnx_runtime"] = json!(harness_core::onnx_runtime::platform_support());
         }
     }
     out.data(&value, || human_status(&value));
     Ok(())
+}
+
+/// `onnx:` line when this platform has no ONNX Runtime build (an older instance sends nothing).
+fn onnx_line(support: &Value) -> Option<String> {
+    (support["supported"] == false).then(|| {
+        format!(
+            "onnx:       not available on {}/{} (use the GGUF versions of embedding and rerank models)",
+            str_of(&support["os"]),
+            str_of(&support["arch"])
+        )
+    })
 }
 
 fn human_status(v: &Value) -> String {
@@ -137,6 +149,13 @@ fn human_status(v: &Value) -> String {
             source_note(rt)
         ));
     }
+    if let Some(line) = onnx_line(if api.is_object() {
+        &api["onnx_runtime"]
+    } else {
+        &v["onnx_runtime"]
+    }) {
+        lines.push(line);
+    }
     lines.join("\n")
 }
 
@@ -195,4 +214,23 @@ pub async fn doctor(data_dir: &Path, out: &Out) -> CliResult<()> {
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn onnx_line_only_when_the_platform_has_no_build() {
+        let none = json!({"supported": false, "os": "macos", "arch": "x86_64"});
+        assert!(onnx_line(&none)
+            .unwrap()
+            .contains("not available on macos/x86_64"));
+        assert_eq!(
+            onnx_line(&json!({"supported": true, "os": "macos", "arch": "aarch64"})),
+            None
+        );
+        // An instance from before the field: nothing to say.
+        assert_eq!(onnx_line(&Value::Null), None);
+    }
 }

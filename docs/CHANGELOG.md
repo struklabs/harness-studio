@@ -8,15 +8,9 @@ Release notes with system requirements and known limitations (English and Turkis
 
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
-### Fixed
-- Gateway: parallel requests to a one-slot server no longer fail now and then with `upstream_unreachable` (502). The gateway reused a connection that the model server closes after a streamed answer.
-- GGUF conversion: the size estimate reads the repository's `config.json`, so the token embedding is counted. Small models were shown about a quarter smaller than the converted file.
-- GGUF conversion: the size estimate counts the wider type `llama-quantize` uses for matrices a k-quant cannot hold (rows not a multiple of 256, common in small models). SmolLM2-135M Q4_K_M: 103.2 MB estimated, 105.5 MB converted.
-- Fixed: a tool call right after an MCP server crashed could fail instead of restarting the server; the call now reconnects and is retried once.
-
 ## [0.1.0] - 2026-10-12
 
-First public release. Windows installer (NSIS) on GitHub Releases; Linux and macOS builds are coming soon.
+First public release. Windows installer (NSIS) and signed, notarized macOS DMGs (Apple Silicon and Intel) on GitHub Releases; Linux `.deb` and AppImage as a preview.
 
 ### Model discovery and library
 - Model Hub: Hugging Face search with filters, model cards, quantization variants, and a "fits your hardware" indication.
@@ -74,9 +68,21 @@ First public release. Windows installer (NSIS) on GitHub Releases; Linux and mac
 - On macOS the menu bar follows the interface language (Turkish or English).
 - The Control API settings page no longer shows a stray help icon above the first setting.
 
+### First run and reliability
+- First-run wizard: the Chat purpose always finds a general instruction model that fits your hardware (for example Qwen3-4B-Instruct-2507 on a 4 GB card); coding, math, vision, embedding, and reasoning-distilled models are not offered for chat. "Add Command-Line Tool to PATH" is off by default.
+- After the wizard the app opens the Model Hub when you have no model yet, otherwise the Playground, which offers **Start {model}** when no server is running.
+- The Dashboard form shows what the automatic launch really uses (context, GPU layers, concurrent slots, KV cache types, flash attention), and `harness show` prints the same default load and memory estimate.
+- On Apple Silicon Macs with 8 to 16 GB, the automatic launch tries a q8_0 KV cache with flash attention before lowering the context (Qwen3-4B on an 8 GB Mac: 12k context instead of 8k, in less memory).
+- Image generation that does not fit in GPU memory says how much memory it needs and how much is free, instead of a bare HTTP 500.
+- A regenerated answer is always listed after the original, also when messages are written within the same millisecond.
+- Gateway: parallel requests to a one-slot server no longer fail now and then with `upstream_unreachable` (502).
+- A tool call right after an MCP server crashed reconnects and is retried once.
+- GGUF conversion size estimates count the token embedding and the wider fallback types `llama-quantize` uses (SmolLM2-135M Q4_K_M: 103.2 MB estimated, 105.5 MB converted).
+- macOS: the sherpa-onnx one-click install works (its shared libraries are installed next to the binaries); Lemonade is described with its Metal backend, as the Ryzen AI NPU is Windows and Linux only.
+
 ### Known limitations
 - The Windows installer is unsigned; SmartScreen may show a warning (**More info > Run anyway**).
-- Linux and macOS builds are not yet verified on real machines and are not offered as downloads.
+- The Linux packages are a preview, tested on one Ubuntu 24.04 machine so far.
 
 [Unreleased]: https://github.com/struklabs/harness-studio/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/struklabs/harness-studio/releases/tag/v0.1.0

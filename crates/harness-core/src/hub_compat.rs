@@ -66,6 +66,13 @@ pub enum Compatibility {
     Runnable { runtime: String },
     /// The family that runs it is not installed yet.
     NeedsRuntime { runtime: String },
+    /// The family that runs it has no build for this OS / architecture (ONNX Runtime on an
+    /// Intel Mac): nothing to install, the model cannot run here.
+    UnsupportedPlatform {
+        runtime: String,
+        os: String,
+        arch: String,
+    },
     /// No Harness runtime runs this format.
     Unsupported { format: ModelFormat },
 }
@@ -97,9 +104,28 @@ impl ModelFormat {
 
 /// Turns a runnable verdict into [`Compatibility::NeedsRuntime`] when its family is not among
 /// the `installed` runtime families. llama.cpp and the ONNX family are never reported missing:
-/// the official runtime is managed and fetched on first use.
+/// the official runtime is managed and fetched on first use. An ONNX verdict on a platform
+/// without any ONNX Runtime build becomes [`Compatibility::UnsupportedPlatform`].
 pub fn resolve_installed(compat: &mut Compatibility, installed: &[String]) {
+    resolve_installed_on(compat, installed, crate::onnx_runtime::supported());
+}
+
+/// [`resolve_installed`] with the platform fact given: `onnx_supported` is
+/// [`crate::onnx_runtime::supported`].
+pub fn resolve_installed_on(
+    compat: &mut Compatibility,
+    installed: &[String],
+    onnx_supported: bool,
+) {
     if let Compatibility::Runnable { runtime } = compat {
+        if runtime == ONNX_FAMILY && !onnx_supported {
+            *compat = Compatibility::UnsupportedPlatform {
+                runtime: std::mem::take(runtime),
+                os: std::env::consts::OS.to_string(),
+                arch: std::env::consts::ARCH.to_string(),
+            };
+            return;
+        }
         // The ONNX sidecar ships with the app and its ONNX Runtime library is fetched on first
         // use, like the official llama.cpp runtime.
         if runtime != LLAMA_FAMILY
@@ -361,6 +387,33 @@ mod tests {
                 format: ModelFormat::Safetensors
             }
         );
+    }
+
+    #[test]
+    fn onnx_without_a_platform_build_is_unsupported_here() {
+        let onnx = || hub_compatibility(ModelFormat::Onnx, Some("feature-extraction"));
+        let mut c = onnx();
+        resolve_installed_on(&mut c, &[], true);
+        assert_eq!(
+            c,
+            Compatibility::Runnable {
+                runtime: ONNX_FAMILY.into()
+            }
+        );
+        let mut c = onnx();
+        resolve_installed_on(&mut c, &[], false);
+        assert_eq!(
+            c,
+            Compatibility::UnsupportedPlatform {
+                runtime: ONNX_FAMILY.into(),
+                os: std::env::consts::OS.into(),
+                arch: std::env::consts::ARCH.into(),
+            }
+        );
+        // Other families do not depend on it.
+        let mut gguf = ModelFormat::Gguf.compatibility();
+        resolve_installed_on(&mut gguf, &[], false);
+        assert!(matches!(gguf, Compatibility::Runnable { .. }));
     }
 
     #[test]

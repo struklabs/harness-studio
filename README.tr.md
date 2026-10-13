@@ -13,7 +13,7 @@
 [![Lisans: MIT](https://img.shields.io/badge/lisans-MIT-green.svg)](LICENSE)
 [![İndirmeler](https://img.shields.io/github/downloads/struklabs/harness-studio/total?label=indirme)](https://github.com/struklabs/harness-studio/releases)
 [![Tartışmalar](https://img.shields.io/github/discussions/struklabs/harness-studio?label=tart%C4%B1%C5%9Fmalar)](https://github.com/struklabs/harness-studio/discussions)
-![Platformlar](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20yak%C4%B1nda-blue)
+![Platformlar](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%C3%B6nizleme-blue)
 [![Yıldızlar](https://img.shields.io/github/stars/struklabs/harness-studio?style=social)](https://github.com/struklabs/harness-studio/stargazers)
 
 [İndir](https://github.com/struklabs/harness-studio/releases/latest) · [Kullanım kılavuzu](docs/guide/tr/README.md) · [SSS](#sık-sorulan-sorular) · [Yol haritası](docs/tr/ROADMAP.md) · [Projeye destek olun](#projeye-nasıl-destek-olabilirsiniz)
@@ -65,7 +65,7 @@ Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değ
 
 | | |
 |---|---|
-| **İşletim sistemi** | 64 bit Windows 10 veya 11 ya da macOS 13.3 veya üstü: Apple Silicon (Metal hızlandırmalı) veya Intel (yalnızca CPU). Linux *yakında* (bkz. [Yol haritası](#yol-haritası)). |
+| **İşletim sistemi** | 64 bit Windows 10 veya 11 ya da macOS 13.3 veya üstü: Apple Silicon (Metal hızlandırmalı) veya Intel (yalnızca CPU). Linux (x86_64, `.deb` ve AppImage) *önizleme* aşamasında: şimdilik tek bir Ubuntu makinede test edildi. |
 | **Kurulum dosyası boyutu** | Windows'ta yaklaşık 21 MB; macOS'ta DMG yaklaşık 29 MB (Apple Silicon) veya 32 MB (Intel) |
 | **Kurulu boyut** | Yaklaşık 65 MB (macOS'ta yaklaşık 64 MB). Bunun üstüne uygulama, gereken model motorlarını ihtiyaç olunca indirir (llama.cpp derlemesi onlarca MB; CUDA derlemeleri daha büyük). |
 | **Uygulamanın bellek kullanımı** | Hiçbir model yüklenmeden uygulamanın kendisi (arayüz ve WebView2) yaklaşık 250-350 MB RAM kullanır. macOS'ta yaklaşık 250 MB (arayüz ve WebKit). |
@@ -147,7 +147,7 @@ Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işled
 | Özellik | Harness Studio | LM Studio | Ollama | llama.cpp (`llama-server`) |
 |---|---|---|---|---|
 | Kullanışlı masaüstü uygulaması | ✓ | ✓ | ✓ | ✗ (basit web sayfalı sunucu) |
-| Windows / Linux / macOS | Şimdi Windows; diğerleri planlı | ✓ | ✓ | ✓ |
+| Windows / Linux / macOS | Windows ve macOS; Linux önizleme | ✓ | ✓ | ✓ |
 | Apple MLX motoru | planlı | ✓ | ✓ | ✗ |
 | Yerleşik istek analitiği (P50/P95, istemci bazında) | ✓ | ✗ | ✗ | ✗ |
 | Prometheus metrikleri ve OpenTelemetry | ✓ | ✗ | ✗ | kısmi (metrik uç noktası) |
@@ -289,7 +289,7 @@ Windows'ta **Uygulamalar > Yüklü uygulamalar**'ı kullanın. Kaldırmak verile
 <details>
 <summary><b>Linux veya macOS'ta çalışır mı?</b></summary>
 
-macOS: evet. Apple Silicon (Metal hızlandırmalı) ve Intel Mac'ler (yalnızca CPU) için birer DMG var; macOS 13.3 veya üstü gerekir. İlk açılış adımı için bkz. [Hızlı başlangıç](#3-adımda-hızlı-başlangıç). Linux derlemeleri var ama gerçek makinelerde henüz doğrulanmadı; bu yüzden **yakında** olarak işaretli. Bunları doğrulayıp yayımlamak [yol haritasındadır](#yol-haritası). Kaynaktan derleyip deneyebilirsiniz; ama pürüzler bekleyin.
+macOS: evet. Apple Silicon (Metal hızlandırmalı) ve Intel Mac'ler (yalnızca CPU) için birer DMG var; macOS 13.3 veya üstü gerekir. İlk açılış adımı için bkz. [Hızlı başlangıç](#3-adımda-hızlı-başlangıç). Linux: Releases sayfasında **önizleme** olarak `.deb` ve AppImage (x86_64) var. Şimdilik tek bir Ubuntu makinede test edildi; pürüzler olabilir, bulduklarınızı lütfen bildirin. Linux'un daha geniş testi [yol haritasındadır](#yol-haritası).
 </details>
 
 <details>
@@ -340,7 +340,7 @@ Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, y
 - Konuşma, görsel üretimi, embedding ve rerank motorları
 
 **Üzerinde çalışılıyor**
-- Linux ve macOS derlemelerinin gerçek donanımda (AMD, NVIDIA, Intel, Apple Silicon) doğrulanması
+- Linux derlemelerinin daha çok donanımda (AMD, NVIDIA, Intel) ve dağıtımda doğrulanması
 - Her platformda ilk açılış deneyiminin cilalanması
 - Daha çok donanımda karşılaştırmalı testler (NVIDIA/CUDA, Linux)
 - Küçük pencere ve yüksek arayüz ölçeği için erişilebilirlik denetimleri
@@ -348,7 +348,7 @@ Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, y
 **Sıradaki planlar**
 - **Sunucu kipi:** Harness'i kendi sunucunuzda web arayüzünden yönetin; parola ya da token oturumları, alan adı ve otomatik SSL, systemd servisi ve Docker imajları (CUDA, ROCm, Vulkan, CPU)
 - **Harness Link:** başka bir Harness örneğinin modellerini kütüphanenizde, Playground'da ve ağ geçidinde kullanın
-- Linux paketleri (`.deb`, tar.gz) ve macOS uygulaması, Apple Silicon için MLX motoru dahil
+- Önizlemenin ötesinde imzalı Linux paketleri ve Apple Silicon için MLX motoru
 - İmzalı Windows kurulum dosyası; otomatik uygulama güncellemesi
 - Control API için TypeScript ve Python SDK'ları; karar modeli uç noktaları
 

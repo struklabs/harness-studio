@@ -4,9 +4,10 @@
   import { invoke } from '#lib/ipc.js';
   import { onDestroy, onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
-  import type { OnnxRuntimeProgress, OnnxRuntimeVariant } from '#lib/types.js';
+  import type { OnnxRuntimeProgress, OnnxRuntimeSupport, OnnxRuntimeVariant } from '#lib/types.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { formatBytes } from '#lib/format.js';
+  import { onnxUnsupportedText } from '#lib/engines.js';
   import { localizeError } from '#lib/network.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
@@ -17,6 +18,8 @@
   const fmt = (b: number) => formatBytes(b, 1);
 
   let variants = $state<OnnxRuntimeVariant[]>([]);
+  /** No build for this OS / architecture at all (Intel Mac): the card says so instead of offering installs. */
+  let unsupported = $state<OnnxRuntimeSupport | null>(null);
   let busy = $state<string | null>(null);
   let progress = $state<OnnxRuntimeProgress | null>(null);
   let verified = $state<Record<string, string[]>>({});
@@ -27,7 +30,12 @@
 
   async function load() {
     try {
-      variants = await invoke<OnnxRuntimeVariant[]>('list_onnx_runtime');
+      const [list, support] = await Promise.all([
+        invoke<OnnxRuntimeVariant[]>('list_onnx_runtime'),
+        invoke<OnnxRuntimeSupport>('get_onnx_runtime_support'),
+      ]);
+      variants = list;
+      unsupported = support.supported ? null : support;
     } catch (e) {
       toast.error(localizeError(e));
     }
@@ -83,7 +91,12 @@
   }
 </script>
 
-{#if variants.length > 0}
+{#if unsupported}
+  {@const msg = onnxUnsupportedText(unsupported)}
+  <SettingGroup title={t('ort.title')} hint={t('ort.hint')}>
+    <p class="px-4 py-3 text-sm text-warning" role="status">{t(msg.key, msg.params)}</p>
+  </SettingGroup>
+{:else if variants.length > 0}
   <SettingGroup title={t('ort.title')} hint={t('ort.hint')}>
     <div class="flex flex-col divide-y divide-border">
       {#each variants as v (v.variant)}

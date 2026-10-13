@@ -448,7 +448,7 @@ impl Tree {
     pub fn load(conn: &Connection, conversation_id: &str) -> StateResult<Tree> {
         let mut stmt = conn.prepare_cached(
             "SELECT id, parent_id, parent_variant_id, role, created_at, active_variant_id \
-             FROM messages WHERE conversation_id = ?1 ORDER BY created_at, id",
+             FROM messages WHERE conversation_id = ?1 ORDER BY created_at, rowid",
         )?;
         let order = stmt
             .query_map([conversation_id], |r| {
@@ -746,6 +746,18 @@ fn next_created_at(conn: &Connection, conversation_id: &str) -> StateResult<i64>
     let last: i64 = conn.query_row(
         "SELECT COALESCE(MAX(created_at), 0) FROM messages WHERE conversation_id = ?1",
         [conversation_id],
+        |r| r.get(0),
+    )?;
+    Ok(now_ms().max(last + 1))
+}
+
+/// Creation time for a new variant of `message_id`: later than every existing variant of it.
+/// The first variant takes the message's (possibly clock-ahead) timestamp, so the plain clock
+/// could sort a regenerated variant before it.
+fn next_variant_created_at(conn: &Connection, message_id: &str) -> StateResult<i64> {
+    let last: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(created_at), 0) FROM message_variants WHERE message_id = ?1",
+        [message_id],
         |r| r.get(0),
     )?;
     Ok(now_ms().max(last + 1))
@@ -1253,7 +1265,8 @@ impl StateDb {
         self.write(|tx| {
             let conv = message_conversation(tx, message_id)?;
             let vid = resolve_id(variant_id)?;
-            insert_variant(tx, &vid, message_id, input, now_ms())?;
+            let created_at = next_variant_created_at(tx, message_id)?;
+            insert_variant(tx, &vid, message_id, input, created_at)?;
             tx.execute(
                 "UPDATE messages SET active_variant_id = ?2 WHERE id = ?1",
                 params![message_id, vid],

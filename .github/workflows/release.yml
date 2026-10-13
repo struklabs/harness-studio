@@ -50,10 +50,10 @@ jobs:
             args: '--bundles nsis'
           - platform: macos-latest
             target: aarch64-apple-darwin
-            args: '--target aarch64-apple-darwin --bundles dmg'
+            args: '--target aarch64-apple-darwin --bundles app,dmg'
           - platform: macos-latest
             target: x86_64-apple-darwin
-            args: '--target x86_64-apple-darwin --bundles dmg'
+            args: '--target x86_64-apple-darwin --bundles app,dmg'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v7
@@ -133,7 +133,7 @@ jobs:
         with:
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: 'Harness Studio ${{ inputs.tag || github.ref_name }}'
-          releaseBody: 'Windows: download the installer (`*-setup.exe`) below. It is not code-signed yet: if SmartScreen warns you, choose "More info" and then "Run anyway". macOS 13.3 or later: download `*_aarch64.dmg` for Apple Silicon or `*_x64.dmg` for Intel, open it and drag Harness Studio to Applications. The app is signed with a Developer ID and notarized by Apple. See the changelog for what is new.'
+          releaseBody: 'Windows: download the installer (`*-setup.exe`) below. It is not code-signed yet: if SmartScreen warns you, choose "More info" and then "Run anyway". macOS 13.3 or later: download `*_aarch64.dmg` for Apple Silicon or `*_x64.dmg` for Intel, open it and drag Harness Studio to Applications. The app is signed with a Developer ID and notarized by Apple. Linux x86_64 (preview): the `.deb` or the AppImage. See the changelog for what is new.'
           releaseDraft: true
           prerelease: false
           uploadUpdaterJson: ${{ steps.secrets.outputs.has_updater_key == 'true' }}

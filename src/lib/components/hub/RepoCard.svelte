@@ -2,6 +2,7 @@
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import { onnxUnsupportedText } from '#lib/engines.js';
   import type { HfModelSearchResult, ModelCapability } from '#lib/types.js';
   import { cn } from '#lib/utils.js';
   import { library } from '#lib/stores/library.svelte.js';
@@ -64,7 +65,7 @@
   /** A safetensors chat model: not run as it is, but the drawer offers the GGUF conversion. */
   let convertible = $derived(canConvert(repo));
   /** No Harness runtime runs this format: the card is dimmed, the drawer has no download. */
-  let unsupported = $derived(compat.status === 'unsupported' && !convertible);
+  let unsupported = $derived((compat.status === 'unsupported' && !convertible) || compat.status === 'unsupported_platform');
 
   function compact(n: number): string {
     return new Intl.NumberFormat(locale(), { notation: 'compact', maximumFractionDigits: 1 }).format(n);
@@ -125,6 +126,11 @@
     {:else if compat.status === 'unsupported'}
       <span class="inline-flex items-center gap-1 text-warning">
         <Ban class="size-3" />{t('hub.compat_unsupported', { format: formatName(compat.format) })}
+      </span>
+    {:else if compat.status === 'unsupported_platform'}
+      {@const msg = onnxUnsupportedText(compat)}
+      <span class="inline-flex items-center gap-1 text-warning" title={t(msg.key, msg.params)}>
+        <Ban class="size-3" />{t('ort.compat_unsupported')}
       </span>
     {:else if compat.status === 'needs_runtime' && compat.runtime === 'mistral.rs'}
       <span class="inline-flex items-center gap-1 text-info" title={t('hub.compat_needs_mistralrs_title')}>

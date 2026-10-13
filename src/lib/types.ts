@@ -1026,6 +1026,8 @@ export type HfModelFormat = 'gguf' | 'whisper_ggml' | 'safetensors' | 'onnx' | '
 export type HfCompatibility =
   | { status: 'runnable'; runtime: string }
   | { status: 'needs_runtime'; runtime: string }
+  /** The family has no build for this OS / architecture (ONNX Runtime on an Intel Mac). */
+  | { status: 'unsupported_platform'; runtime: string; os: string; arch: string }
   | { status: 'unsupported'; format: HfModelFormat };
 
 export interface HfModelSearchResult {
@@ -2280,6 +2282,13 @@ export interface OnnxRuntimeVariant {
   download_bytes: number;
   default: boolean;
   installed: OnnxRuntimeInstalled | null;
+}
+
+/** `onnx_runtime::PlatformSupport`: whether this OS / architecture has any ONNX Runtime build. */
+export interface OnnxRuntimeSupport {
+  supported: boolean;
+  os: string;
+  arch: string;
 }
 
 export interface OnnxRuntimeProgress {

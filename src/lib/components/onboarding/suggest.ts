@@ -11,6 +11,7 @@ import type { TKey } from '#lib/i18n.svelte.js';
 import type { FitCategory, HfModelSearchResult, HfModelVariant, HfSearchOptions, RuntimeReleasePick, RuntimeView, SystemHardwareInfo } from '#lib/types.js';
 import { fetchPage } from '../hub/hubData';
 import { quantBits, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from '../hub/recommend';
+import { CHAT_FAMILY_QUERIES, isGeneralChatRepo, needsSmallModelWave, pickBest, pickChat, smallQueries } from './suggestPlan';
 
 export type Purpose = 'chat' | 'code' | 'rag' | 'asr';
 
@@ -84,8 +85,6 @@ const ROLES_OF: Record<Exclude<Purpose, 'asr'>, ListedRole[]> = {
   rag: ['embedding', 'reranker'],
 };
 
-const TIER_RANK: Record<FitCategory, number> = { full_gpu: 0, tight: 1, hybrid: 2, cpu_heavy: 3, oom_risk: 4 };
-
 /** Reason line of a fit result: what memory budget the file sits in. */
 function fitReason(category: FitCategory, budget: { vram_bytes: number; shared_igpu?: boolean; unified: boolean }): Reason {
   const mem = formatBytes(budget.vram_bytes, 0);
@@ -106,11 +105,15 @@ interface Candidate {
 }
 
 /** The recommended file of one repo with its fit, or null (gated, not runnable, nothing sized). */
-async function evaluate(repo: HfModelSearchResult, ctx: number): Promise<Candidate | null> {
-  if (repo.gated || repo.not_runnable) return null;
+async function evaluate(repo: HfModelSearchResult, ctx: number, role?: ListedRole): Promise<Candidate | null> {
+  // A repo whose runtime has no build here (ONNX on an Intel Mac) is never a first suggestion.
+  if (repo.gated || repo.not_runnable || repo.compatibility.status === 'unsupported_platform') return null;
   const variants = await invoke<HfModelVariant[]>('get_hf_model_variants', { repoId: repo.id });
   // Below 4 bits quality drops fast: a smaller model at Q4+ is the better first suggestion.
-  const sized = variants.filter((v) => v.total_size_bytes > 0 && quantBits(v.quantization) >= 4);
+  let sized = variants.filter((v) => v.total_size_bytes > 0 && quantBits(v.quantization) >= 4);
+  // A general chat model is downloaded as Q4_K_M when there is one: the usual size/quality point.
+  const q4 = sized.filter((v) => /^q4_k_m$/i.test(v.quantization));
+  if (role === 'chat' && q4.length > 0) sized = q4;
   // As a default load starts it, like the Hub's variant table.
   const results = await Promise.all(sized.map((v) => defaultLoadFit({ model_size_bytes: v.total_size_bytes, context_size: ctx, gpu_layers: 999 })));
   const fits = new Map<string, FitCategory>();
@@ -136,24 +139,34 @@ async function suggestModel(purpose: Purpose, role: ListedRole, ctx: number): Pr
     listRepos(role),
     role === 'code' ? listAgentModels() : Promise.resolve([] as AgentModel[]),
   ]);
-  const settled = await Promise.allSettled(repos.map((r) => evaluate(r, ctx)));
+  const settled = await Promise.allSettled(repos.map((r) => evaluate(r, ctx, role)));
   const found = settled.flatMap((s) => (s.status === 'fulfilled' && s.value ? [s.value] : []));
+  // The most downloaded repos are mostly big models: when none of them fits well here (a 4 GB
+  // card, little RAM), small models of the same publishers join the pool.
+  if (role === 'chat') {
+    // The known general families, searched by name: the downloads ranking alone is full of
+    // coder, math and vision repos.
+    const have = new Set(repos.map((r) => r.id));
+    const named = (await listFamilyRepos()).filter((r) => !have.has(r.id));
+    const more = await Promise.allSettled(named.map((r) => evaluate(r, ctx, role)));
+    for (const m of more) if (m.status === 'fulfilled' && m.value) found.push(m.value);
+  }
+  if (TRUSTED_ROLES.has(role) && needsSmallModelWave(found.map((c) => c.category))) {
+    const have = new Set(repos.map((r) => r.id));
+    const small = (await listSmallRepos(role as 'chat' | 'code')).filter((r) => !have.has(r.id));
+    const more = await Promise.allSettled(small.map((r) => evaluate(r, ctx, role)));
+    for (const s of more) if (s.status === 'fulfilled' && s.value) found.push(s.value);
+  }
   if (found.length === 0) {
     // Every lookup failed: a network problem, not "no suggestion".
     const failed = settled.find((s): s is PromiseRejectedResult => s.status === 'rejected');
     if (failed && settled.every((s) => s.status === 'rejected')) throw failed.reason;
     return null;
   }
-  // A full fit beats a tight one: the context and the desktop need VRAM too.
-  const tier = (c: Candidate) => TIER_RANK[c.category];
   const evidence = (c: Candidate) => codeToolEvidence(findAgentModel(agents, c.variant.shards[0]?.filename ?? c.variant.name));
-  const best = found.reduce((a, b) => {
-    if (role === 'code' && codeToolRank(evidence(a)) !== codeToolRank(evidence(b))) {
-      return codeToolRank(evidence(b)) < codeToolRank(evidence(a)) ? b : a;
-    }
-    if (tier(b) !== tier(a)) return tier(b) < tier(a) ? b : a;
-    return b.variant.total_size_bytes > a.variant.total_size_bytes ? b : a;
-  });
+  const sized = found.map((c) => ({ ...c, repoId: c.repo.id, sizeBytes: c.variant.total_size_bytes }));
+  const best = (role === 'chat' ? pickChat(sized) : pickBest(sized, role === 'code' ? (c) => codeToolRank(evidence(c)) : undefined)) as Candidate | null;
+  if (!best) return null;
   return {
     id: `${role}:${best.repo.id}:${best.variant.name}`,
     kind: 'model',
@@ -165,6 +178,31 @@ async function suggestModel(purpose: Purpose, role: ListedRole, ctx: number): Pr
     sizeBytes: best.variant.total_size_bytes,
     reason: best.reason,
   };
+}
+
+/** Repos of the well-known general chat families, by name, from the trusted publishers. */
+async function listFamilyRepos(): Promise<HfModelSearchResult[]> {
+  const authors = TRUSTED_AUTHORS.slice(0, 3);
+  const pages = await Promise.allSettled(
+    authors.flatMap((author) => CHAT_FAMILY_QUERIES.map((query) => fetchPage({ ...LISTINGS.chat, query, author, limit: 2 }))),
+  );
+  const seen = new Set<string>();
+  return pages
+    .flatMap((p) => (p.status === 'fulfilled' ? p.value.items : []))
+    .filter((r) => isGeneralChatRepo(r.id) && !SKIPPED_NAMES.test(r.id) && !seen.has(r.id) && !!seen.add(r.id));
+}
+
+/** Small models (1B to 4B) of the trusted publishers; a failed lookup just adds nothing. */
+async function listSmallRepos(role: 'chat' | 'code'): Promise<HfModelSearchResult[]> {
+  const pages = await Promise.allSettled(
+    TRUSTED_AUTHORS.flatMap((author) =>
+      smallQueries(role).map((query) => fetchPage({ ...LISTINGS[role], query, author, limit: 3 })),
+    ),
+  );
+  const seen = new Set<string>();
+  return pages
+    .flatMap((p) => (p.status === 'fulfilled' ? p.value.items : []))
+    .filter((r) => !SKIPPED_NAMES.test(r.id) && !seen.has(r.id) && !!seen.add(r.id));
 }
 
 /** The repos a role's suggestion is chosen from (trusted publishers for chat and code). */

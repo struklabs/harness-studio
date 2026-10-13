@@ -236,6 +236,25 @@ pub fn parse_job(v: &Value) -> Job {
     }
 }
 
+/// Device memory (MB) a failed job needed and had, from sd-server's log lines of that job:
+/// `model manager cannot make enough memory available on CUDA0: need 5788.60 MB device / ...,
+/// available 3267.70 MB device / ...`. sd-server itself only answers "generate_image returned
+/// no results" (measured: SD-Turbo at 1024x1024 on a 4 GB RTX 3050 Ti).
+pub fn memory_shortfall(lines: &[String]) -> Option<(u64, u64)> {
+    let mb_before = |s: &str, unit: &str| -> Option<u64> {
+        let end = s.find(unit)?;
+        let num = s[..end].trim_end().rsplit(' ').next()?;
+        num.parse::<f64>().ok().map(|v| v.round() as u64)
+    };
+    lines.iter().rev().find_map(|l| {
+        let rest = &l[l.find("cannot make enough memory available")?..];
+        let need = mb_before(&rest[rest.find("need ")?..], " MB device")?;
+        let avail_at = rest.find(", available ")?;
+        let available = mb_before(&rest[avail_at..], " MB device")?;
+        Some((need, available))
+    })
+}
+
 /// The OpenAI answer for the finished images.
 pub fn shape(images: &[String], format: &str, as_url: bool, created: u64) -> Value {
     let mime = if format == "jpeg" {
@@ -381,6 +400,9 @@ async fn run(
             GatewayError::new(502, "upstream_unreachable", format!("sd-server: {e}"))
         }
     };
+    // Where this job's log lines start: a failure is explained from those alone.
+    let manager = state.scheduler.registry().get(&lease.server_id);
+    let log_mark = manager.as_ref().map(|m| m.get_logs_since(u64::MAX).0);
     let started = state
         .http
         .post(format!("{}/sdcpp/v1/img_gen", lease.upstream))
@@ -458,11 +480,25 @@ async fn run(
             Job::Done(images) => break images,
             Job::Failed(message) => {
                 cancel.armed = false;
-                return Err(GatewayError::new(
-                    500,
-                    "generation_failed",
-                    format!("sd-server: {message}"),
-                ));
+                let lines = match (&manager, log_mark) {
+                    (Some(m), Some(mark)) => m.get_logs_since(mark).1,
+                    _ => Vec::new(),
+                };
+                return Err(match memory_shortfall(&lines) {
+                    Some((need, available)) => GatewayError::new(
+                        500,
+                        "image_out_of_memory",
+                        format!(
+                            "The image does not fit in GPU memory at this size: sd-server needs about {need} MB and {available} MB is free. Try a smaller size (SD 1.x and SD-Turbo models are made for 512x512)."
+                        ),
+                    )
+                    .details(json!({ "need_mb": need, "available_mb": available })),
+                    None => GatewayError::new(
+                        500,
+                        "generation_failed",
+                        format!("sd-server: {message}"),
+                    ),
+                });
             }
         }
     };
@@ -500,6 +536,18 @@ async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_job_that_ran_out_of_device_memory_says_how_much_it_needed() {
+        let lines = vec![
+            "[+9.1s] [stdout] [W] model manager memory on CUDA0: reported free 3267.70 MB / total 4095.50 MB --- model_manager.cpp:1753".to_string(),
+            "[+9.1s] [stdout] [W] model manager cannot make enough memory available on CUDA0: need 5788.60 MB device / 5276.60 MB budget, available 3267.70 MB device / 2783.70 MB budget --- model_manager.cpp:1962".to_string(),
+            "[+9.1s] [stdout] [E] sampling for image 1/1 failed after 0.03s --- image.cpp:907".to_string(),
+        ];
+        assert_eq!(memory_shortfall(&lines), Some((5789, 3268)));
+        assert_eq!(memory_shortfall(&lines[2..]), None);
+        assert_eq!(memory_shortfall(&[]), None);
+    }
 
     #[test]
     fn an_openai_request_maps_onto_the_native_job() {

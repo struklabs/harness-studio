@@ -22,6 +22,7 @@
   import {
     dataUrl,
     fetchImages,
+    ImageOutOfMemory,
     imageModel,
     isImageDefinition,
     parseSize,
@@ -74,7 +75,9 @@
         })),
       );
     } catch (e) {
-      if (!c.signal.aborted) {
+      if (!c.signal.aborted && e instanceof ImageOutOfMemory) {
+        error = t('img.err_out_of_memory', { need: e.needMb, available: e.availableMb });
+      } else if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
         // The gateway passes the load failure through as raw keys; say what is missing instead.
         needFamily = familyFromError(msg);
