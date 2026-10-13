@@ -186,6 +186,7 @@ enum Format {
     Text,
     Json,
     VerboseJson,
+    DiarizedJson,
     Srt,
     Vtt,
 }
@@ -195,12 +196,15 @@ fn parse_format(s: &str) -> CliResult<Format> {
         "text" | "txt" => Format::Text,
         "json" => Format::Json,
         "verbose_json" | "verbose-json" => Format::VerboseJson,
+        "diarized_json" | "diarized-json" => Format::DiarizedJson,
         "srt" => Format::Srt,
         "vtt" => Format::Vtt,
         _ => {
             return Err(CliError::usage(
                 "cli.invalid_value",
-                format!("Unknown format \"{s}\" (use text, json, verbose_json, srt, vtt)"),
+                format!(
+                "Unknown format \"{s}\" (use text, json, verbose_json, diarized_json, srt, vtt)"
+            ),
             ))
         }
     })
@@ -214,6 +218,10 @@ fn render(t: &Transcript, format: Format) -> String {
         Format::VerboseJson => format!(
             "{}\n",
             serde_json::to_string_pretty(&t.to_verbose_json("transcribe")).unwrap_or_default()
+        ),
+        Format::DiarizedJson => format!(
+            "{}\n",
+            serde_json::to_string_pretty(&t.to_diarized_json("transcribe")).unwrap_or_default()
         ),
         Format::Srt => t.to_srt(),
         Format::Vtt => t.to_vtt(),
@@ -241,6 +249,28 @@ pub async fn transcribe(args: &TranscribeArgs, out: &Out) -> CliResult<()> {
     let runtime = args.runtime.clone();
     let binary = blocking(move || run::resolve_binary(runtime.as_deref())).await?;
     let vad = catalog::ensure_vad().await.map_err(CliError::core)?;
+    if let Some(n) = args
+        .speakers
+        .filter(|n| !(1..=asr::diarize::MAX_SPEAKERS).contains(n))
+    {
+        return Err(CliError::usage(
+            "cli.invalid_value",
+            format!(
+                "--speakers {n} is not between 1 and {}",
+                asr::diarize::MAX_SPEAKERS
+            ),
+        ));
+    }
+    let diarize = args.diarize || args.speakers.is_some() || format == Format::DiarizedJson;
+    let speaker_models = if diarize {
+        Some(
+            asr::diarize::ensure_models()
+                .await
+                .map_err(CliError::core)?,
+        )
+    } else {
+        None
+    };
     out.info(format!("Transcribing with {} ...", model.name));
     let transcript = run::transcribe(
         &binary,
@@ -249,6 +279,10 @@ pub async fn transcribe(args: &TranscribeArgs, out: &Out) -> CliResult<()> {
             vad: &vad,
             language: args.language.as_deref(),
             threads: args.threads,
+            diarize: speaker_models.as_ref().map(|m| run::Diarization {
+                models: m,
+                speakers: args.speakers,
+            }),
         },
         audio,
     )
@@ -376,6 +410,7 @@ mod tests {
                 start: 0.0,
                 end: 1.5,
                 text: "Merhaba dünya.".into(),
+                speaker: None,
             }],
             2.0,
             None,

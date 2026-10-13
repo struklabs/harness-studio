@@ -139,6 +139,10 @@ pub fn shape(format: &str, transcript: &Transcript) -> (&'static str, Vec<u8>) {
             "application/json",
             serde_json::to_vec(&transcript.to_verbose_json("transcribe")).unwrap_or_default(),
         ),
+        "diarized_json" => (
+            "application/json",
+            serde_json::to_vec(&transcript.to_diarized_json("transcribe")).unwrap_or_default(),
+        ),
         _ => (
             "application/json",
             serde_json::to_vec(&transcript.to_json()).unwrap_or_default(),
@@ -154,6 +158,8 @@ pub struct Request<'a> {
     pub language: Option<String>,
     /// One of the `response_format` values the gateway accepts.
     pub format: &'a str,
+    /// How many speakers there are (implies diarization).
+    pub speakers: Option<u32>,
     pub caller: &'a Caller,
 }
 
@@ -178,6 +184,16 @@ pub async fn serve(req: Request<'_>, guard: &mut RecordGuard) -> Result<Response
         .map_err(join_failed)?
         .map_err(|e| map_error(&e))?;
     let vad = catalog::ensure_vad().await.map_err(|e| map_error(&e))?;
+    // Who spoke: asked for by the format or by naming the speaker count.
+    let speaker_models = if req.format == "diarized_json" || req.speakers.is_some() {
+        Some(
+            asr::diarize::ensure_models()
+                .await
+                .map_err(|e| map_error(&e))?,
+        )
+    } else {
+        None
+    };
     let transcript = run::transcribe(
         &binary,
         &run::TranscribeRequest {
@@ -185,6 +201,10 @@ pub async fn serve(req: Request<'_>, guard: &mut RecordGuard) -> Result<Response
             vad: &vad,
             language: req.language.as_deref(),
             threads: None,
+            diarize: speaker_models.as_ref().map(|m| run::Diarization {
+                models: m,
+                speakers: req.speakers,
+            }),
         },
         req.audio.to_vec(),
     )
@@ -219,11 +239,13 @@ mod tests {
                     start: 0.1,
                     end: 2.0,
                     text: "Merhaba dünya.".into(),
+                    speaker: None,
                 },
                 Segment {
                     start: 2.5,
                     end: 4.0,
                     text: "İkinci cümle.".into(),
+                    speaker: None,
                 },
             ],
             4.5,
@@ -261,6 +283,35 @@ mod tests {
         assert!(String::from_utf8(body)
             .unwrap()
             .starts_with("WEBVTT\n\n00:00:00.100"));
+    }
+
+    #[test]
+    fn a_diarized_transcript_says_who_spoke() {
+        let mut t = transcript();
+        t.segments[0].speaker = Some("A".into());
+        t.segments[1].speaker = Some("B".into());
+        let (ct, body) = shape("diarized_json", &t);
+        assert_eq!(ct, "application/json");
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["segments"][0]["type"], "transcript.text.segment");
+        assert_eq!(v["segments"][0]["id"], "seg_0");
+        assert_eq!(v["segments"][1]["speaker"], "B");
+        assert_eq!(v["duration"], 4.5);
+        let (_, body) = shape("verbose_json", &t);
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(v["segments"][0]["speaker"], "A");
+        let (_, body) = shape("srt", &t);
+        assert!(String::from_utf8(body)
+            .unwrap()
+            .contains("\nA: Merhaba dünya.\n"));
+        let (_, body) = shape("vtt", &t);
+        assert!(String::from_utf8(body)
+            .unwrap()
+            .contains("<v B>İkinci cümle."));
+        // Not diarized: no speaker key at all.
+        let (_, body) = shape("verbose_json", &transcript());
+        let v: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert!(v["segments"][0].get("speaker").is_none());
     }
 
     #[test]
