@@ -629,10 +629,9 @@ const fn row_alt(
 const ASR_ALTS: &[(&str, Support)] = &[(WHISPER_FAMILY, Yes), (SHERPA_FAMILY, Yes)];
 /// Text-to-speech: Kokoro / Piper through sherpa-onnx.
 const TTS_ALTS: &[(&str, Support)] = &[(SHERPA_FAMILY, Yes)];
-/// Text-to-image: stable-diffusion.cpp.
+/// Text-to-image and image-to-image (`/v1/images/edits`): stable-diffusion.cpp.
 const T2I_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes)];
-/// Image-to-image and video: stable-diffusion.cpp loads the model, but Harness only exposes the
-/// text-to-image endpoint (no init image) and Wan video is cataloged, not verified.
+/// Video: stable-diffusion.cpp loads Wan, but Harness has no video endpoint yet.
 const SD_PARTIAL_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Partial)];
 
 use Support::{No, Partial, Yes};
@@ -672,7 +671,7 @@ const TABLE: &[Row] = &[
     row("audio-classification", No, None),
     row("image-to-text", Partial, Some("vision")),
     row_alt("text-to-image", No, None, T2I_ALTS),
-    row_alt("image-to-image", No, None, SD_PARTIAL_ALTS),
+    row_alt("image-to-image", No, None, T2I_ALTS),
     row_alt("text-to-video", No, None, SD_PARTIAL_ALTS),
     row_alt("image-to-video", No, None, SD_PARTIAL_ALTS),
     row("image-classification", No, None),
@@ -1246,7 +1245,7 @@ mod tests {
         assert_eq!(t2i.support, Yes);
         assert_eq!(t2i.runtime.as_deref(), Some(SDCPP_FAMILY));
         assert_eq!(t2i.needs_runtime, None);
-        assert_eq!(support_of(&sd, "image-to-image").support, Partial);
+        assert_eq!(support_of(&sd, "image-to-image").support, Yes);
         assert_eq!(support_of(&sd, "text-to-video").support, Partial);
         // The other families stay missing.
         assert_eq!(support_of(&sd, "text-to-speech").support, No);
