@@ -23,6 +23,8 @@ export const imageSession = $state({
   cfgScale: '',
   seed: '',
   count: 1,
+  init: null as ImageResult | null,
+  strength: '',
   gallery: [] as GalleryItem[],
 });
 

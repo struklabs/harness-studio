@@ -202,7 +202,7 @@ According to the `--help` output of llama-server build 11236:
 | Management API (list, download, load, unload, server, metrics, log, benchmark) | ✅ (Control API, SSE events) | ✅ (REST v1) | ✅ | — |
 | OpenAPI schema | ✅ (`openapi.json`, utoipa) | ❌ | ✅ | — |
 | Decision models `/v1/systemone` (Ollama) / `/v1/decisions` (LM Studio, Jev-compatible) | ❌ | ✅ (0.4.26) | ✅ (0.35.0) | Yes/no probability, choice, score questions; planned (GBNF + logprobs); see the ROADMAP |
-| Image generation (`/v1/images/generations`) | ✅ (stable-diffusion.cpp `sd-server`; SD1.5/SDXL/SD-Turbo/SD3.5/FLUX packs; the Playground Image tab, `harness image`) | ? | ❌ (removed) | — |
+| Image generation (`/v1/images/generations`, image editing `/v1/images/edits`) | ✅ (stable-diffusion.cpp `sd-server`; SD1.5/SDXL/SD-Turbo/SD3.5/FLUX packs; the Playground Image tab, `harness image`) | ? | ❌ (removed) | — |
 | Stateful chat (`previous_response_id`) | ✅ (gateway: `store` on by default, `GET`/`DELETE /v1/responses/{id}`, `input_items`, `background: true` + `POST .../cancel`, chain compaction with `context_management`; token-owned in `state.db`, with retention time/count/size limits; can be turned off in Settings > Gateway) | ✅ | ❌ | Not on a direct llama-server port (llama.cpp is stateless) |
 
 ## 9. CLI, Headless, Agent Control Plane

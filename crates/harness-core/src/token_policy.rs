@@ -43,7 +43,7 @@ pub enum GatewayEndpoint {
     /// `/v1/audio/transcriptions`, `/v1/audio/translations` (speech to text) and
     /// `/v1/audio/speech` (text to speech).
     Audio,
-    /// `/v1/images/generations` (image generation).
+    /// `/v1/images/generations` and `/v1/images/edits` (image generation and editing).
     Images,
     /// `GET /v1/models`, `GET /v1/models/{model}`.
     Models,
@@ -99,7 +99,7 @@ impl GatewayEndpoint {
             "/v1/audio/transcriptions" | "/v1/audio/translations" | "/v1/audio/speech" => {
                 Self::Audio
             }
-            "/v1/images/generations" => Self::Images,
+            "/v1/images/generations" | "/v1/images/edits" => Self::Images,
             "/v1/messages" | "/v1/messages/count_tokens" => Self::Messages,
             "/metrics" => Self::Metrics,
             _ if p == "/v1/models" || p.starts_with("/v1/models/") => Self::Models,
