@@ -32,7 +32,7 @@
   import { asr } from './asr.svelte';
   import { tts } from './tts.svelte';
 
-  /** Speech definitions: the gateway loads the whisper model on the first request (JIT). */
+  /** Speech definitions: the gateway loads the selected model on the first request (JIT). */
   let models = $derived(
     domain.definitions.filter(isSpeechDefinition),
   );
@@ -189,7 +189,7 @@
 </script>
 
 <div class="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-4 py-6">
-  {#if isMac}
+  {#if isMac && !sherpaChosen && !ctcChosen}
     <!-- whisper.cpp ships no macOS server build: the Hub / gateway hints below only help once
          a self-built whisper-server is added as a local runtime. -->
     <div class="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-xs text-foreground" role="note">
@@ -236,7 +236,7 @@
         class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
       >
         {#if sherpaModels.length > 0}
-          <optgroup label={t('sasr.group_whisper')}>
+          <optgroup label={t('sasr.group_definitions')}>
             {#each models as d (d.id)}
               <option value={d.alias}>{d.alias}</option>
             {/each}
@@ -336,10 +336,12 @@
       </div>
       {/if}
     </div>
-    <div class="flex flex-col gap-1.5">
-      <Label for="asr-prompt" class="text-sm font-semibold text-foreground">{t('asr.prompt_label')}</Label>
-      <Input id="asr-prompt" bind:value={prompt} placeholder={t('asr.prompt_placeholder')} disabled={busy} />
-    </div>
+    {#if !ctcChosen}
+      <div class="flex flex-col gap-1.5">
+        <Label for="asr-prompt" class="text-sm font-semibold text-foreground">{t('asr.prompt_label')}</Label>
+        <Input id="asr-prompt" bind:value={prompt} placeholder={t('asr.prompt_placeholder')} disabled={busy} />
+      </div>
+    {/if}
     <div class="flex items-center gap-3">
       <Button size="sm" onclick={run} disabled={!canRun}>
         <AudioLines />

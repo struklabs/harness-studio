@@ -55,7 +55,7 @@ Diğer model türleri, ihtiyaç duyduğunuzda kurduğunuz isteğe bağlı motorl
 
 | Yetenek | Motor |
 | --- | --- |
-| Konuşmayı yazıya dökme | whisper.cpp (Whisper modelleri) ve sherpa-onnx (Parakeet, SenseVoice, Omnilingual) |
+| Konuşmayı yazıya dökme | whisper.cpp (Whisper modelleri), sherpa-onnx (Parakeet, SenseVoice, Omnilingual) ve ONNX Runtime (wav2vec2, HuBERT, WavLM CTC) |
 | Metni konuşmaya çevirme | sherpa-onnx (Kokoro ve Piper sesleri) |
 | Görsel üretimi | stable-diffusion.cpp |
 | ONNX gömme, yeniden sıralama ve sohbet | ONNX Runtime ve ONNX Runtime GenAI (birlikte gelen `harness-onnx` yardımcısı üzerinden) |

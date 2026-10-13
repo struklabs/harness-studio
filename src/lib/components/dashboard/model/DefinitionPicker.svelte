@@ -4,6 +4,7 @@
   // any definition can still be picked (it launches with its file stem as model id).
   import type { LocalModel, ModelDefinition, ModelKind } from '$lib/types';
   import { formatBytes } from '$lib/format';
+  import { speechKindKey } from '$lib/libraryDefinitions';
   import { t, type TKey } from '$lib/i18n.svelte';
   import { definitionFile, samePath } from '$lib/stores/domain.svelte';
   import * as Select from '$lib/components/ui/select';
@@ -60,7 +61,7 @@
     <Badge variant="outline" class="shrink-0 text-xs">{t('dash.ms_outside_scan')}</Badge>
   {/if}
   {#if m.kind && m.kind !== 'llm'}
-    <Badge variant="outline" class="shrink-0 text-xs">{t(KIND[m.kind])}</Badge>
+    <Badge variant="outline" class="shrink-0 text-xs">{t(m.kind === 'asr' ? speechKindKey(m) : KIND[m.kind])}</Badge>
   {/if}
 {/snippet}
 

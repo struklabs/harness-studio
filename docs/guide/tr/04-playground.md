@@ -113,6 +113,8 @@ Whisper'ın yanı sıra **Önerilen sherpa-onnx Tanıma Modelleri** bölümünde
 
 WAV, MP3, FLAC ve Ogg doğrudan okunur. M4A, WebM ve Opus gibi biçimler ffmpeg gerektirir. Mikrofon kaydı 16 kHz WAV üretir. Mikrofon izni reddedilmişse sistemin gizlilik ayarlarında Harness Studio'ya izin verin.
 
+Model Hub’dan veya kütüphane klasörlerinden eklenen ONNX CTC modelleri (wav2vec2, HuBERT, WavLM) de model listesinde görünür. Kütüphane kartındaki **Playground’da Aç** ile birini seçebilirsiniz. Yönetilen ONNX Runtime motorunu kullanır ve yalnızca yazıya çevirir: dil ve istem alanları gizlenir, çeviri kullanılamaz. Çıktıda zamanlı parçalar bulunmaz.
+
 ### Metinden Konuşmaya
 
 **Konuşma** sekmesindeki **Metinden Konuşmaya** bölümü metni sese çevirir. sherpa-onnx motorunu kurmak için **Motoru Kur**'a basın (yaklaşık 20 MB, doğrulanır), ardından **Önerilen Ses Modelleri** altından bir ses indirin: Kokoro (çok dilli) ve Türkçe için önerilen Piper sesleri. Bir **Model**, bir **Ses** ve bir **Hız** seçin, **Okunacak metin**'i yazın ve **Seslendir**'e basın. Ses uygulama içinde çalar ve indirilebilir. Bir ses modeli kurulduktan sonra, sohbet yanıtındaki **Sesli Oku** düğmesi yanıtı o sesle okur; ses modeli yoksa uygulama sizi bu bölüme yönlendirir.

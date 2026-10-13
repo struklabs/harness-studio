@@ -118,7 +118,7 @@ Everything below works locally. Details are in the [user guide](docs/guide/en/RE
 - **Full control of llama.cpp:** context, GPU layers, KV cache type, slots, sampling, and many more, plus a runtime registry with SHA-256-verified engines and per-server runtime choice. See the [CLI reference](docs/en/CLI.md).
 - **Observability:** benchmarks, request analytics (P50/P95 latency, tokens, errors, per client), tool-call diagnosis, searchable logs, Prometheus `/metrics`, and optional OpenTelemetry export.
 - **CLI, Control API, and headless mode:** the `harness` command, an authenticated Control API with an OpenAPI schema, and `harness serve` to run without a window. All of them share the same Rust code as the app.
-- **More engines:** whisper.cpp and sherpa-onnx (speech), stable-diffusion.cpp (images), ONNX Runtime (embeddings and reranking), and optional Lemonade and mistral.rs. Safetensors models can be converted to GGUF from the Hub.
+- **More engines:** whisper.cpp and sherpa-onnx (speech), stable-diffusion.cpp (images), ONNX Runtime (embeddings, reranking, and CTC speech recognition), and optional Lemonade and mistral.rs. Safetensors models can be converted to GGUF from the Hub.
 
 ## Why Harness Studio? How it compares
 
@@ -247,7 +247,7 @@ No. The CPU works, and a GPU only makes models faster. Small models run on modes
 <details>
 <summary><b>Which models can I run, and where do I get them?</b></summary>
 
-Mainly GGUF models for llama.cpp: chat, coding, vision, embedding, and reranking models. The **Model Hub** searches Hugging Face for you, shows size and hardware fit, and downloads with checksum verification. Speech (Whisper and sherpa-onnx), image generation (Stable Diffusion and FLUX packs), and ONNX models need their optional engines, which the app offers to install. Safetensors models can be converted to GGUF inside the app.
+Mainly GGUF models for llama.cpp: chat, coding, vision, embedding, and reranking models. The **Model Hub** searches Hugging Face for you, shows size and hardware fit, and downloads with checksum verification. Speech (Whisper, sherpa-onnx, and ONNX CTC), image generation (Stable Diffusion and FLUX packs), and ONNX models need their optional engines, which the app offers to install. Safetensors models can be converted to GGUF inside the app.
 </details>
 
 <details>

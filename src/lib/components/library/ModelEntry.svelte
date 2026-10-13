@@ -21,7 +21,7 @@
   import { domain, baseName, samePath } from '$lib/stores/domain.svelte';
   import { library } from '$lib/stores/library.svelte';
   import { loadAndChat, openInPlayground } from '$lib/stores/downloads.svelte';
-  import { playgroundTarget } from '$lib/libraryDefinitions';
+  import { playgroundTarget, speechKindKey } from '$lib/libraryDefinitions';
   import { isChatLoadable, showUpdateBadge } from '$lib/downloadFollowUp';
   import UpdateBadge from '$lib/components/hub/UpdateBadge.svelte';
   import { Button, buttonVariants } from '$lib/components/ui/button';
@@ -202,7 +202,7 @@
   /** "LLM · 8B · Q4_K_M · 4.9 GB": what tells two files apart, in reading order. */
   let summary = $derived(
     [
-      sherpaAsr ? t('sasr.kind') : t(KIND[m.kind ?? 'unknown']),
+      m.kind === 'asr' ? t(speechKindKey(m)) : t(KIND[m.kind ?? 'unknown']),
       entry.multimodal ? t('lib.kind_vlm') : null,
       uiLevel.advanced ? params : null,
       uiLevel.advanced && m.quantization && m.quantization !== 'Unknown' ? m.quantization : null,
