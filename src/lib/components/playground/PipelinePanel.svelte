@@ -6,6 +6,7 @@
   import { localizeError } from '$lib/network';
   import type { GatewayOverview } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
+  import { cn } from '$lib/utils';
   import { Button } from '$lib/components/ui/button';
   import { Badge } from '$lib/components/ui/badge';
   import { Checkbox } from '$lib/components/ui/checkbox';
@@ -99,7 +100,8 @@
     try {
       const { json, ms } = await runPipeline(app.inferenceUrl, model, body, app.inferenceHeaders(), c.signal);
       const res = parseResponse(task, json);
-      shownMasks = res.kind === 'masks' ? Object.fromEntries(res.items.slice(0, 3).map((m) => [m.label, true])) : {};
+      // Every label gets a value: binding a checkbox to `undefined` throws in Svelte 5.
+      shownMasks = res.kind === 'masks' ? Object.fromEntries(res.items.map((m, i) => [m.label, i < 3])) : {};
       result = { res, ms, text, image: shot };
     } catch (e) {
       if (!c.signal.aborted) {
@@ -302,7 +304,8 @@
                 style:width={`${((d.box.xmax - d.box.xmin) / natural.w) * 100}%`}
                 style:height={`${((d.box.ymax - d.box.ymin) / natural.h) * 100}%`}
               >
-                <span class="absolute -top-5 left-0 rounded-sm px-1 text-[10px] font-semibold text-white" style:background-color={MASK_COLORS[i % MASK_COLORS.length]}>{d.label} {d.score.toFixed(2)}</span>
+                <!-- A box at the top edge keeps its label inside, over the image. -->
+                <span class={cn('absolute left-0 rounded-sm', d.box.ymin < natural.h * 0.05 ? 'top-0' : '-top-5', 'px-1 text-[10px] font-semibold text-white')} style:background-color={MASK_COLORS[i % MASK_COLORS.length]}>{d.label} {d.score.toFixed(2)}</span>
               </div>
             {/each}
           {/if}
