@@ -65,7 +65,7 @@ Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değ
 
 | | |
 |---|---|
-| **İşletim sistemi** | 64 bit Windows 10 veya 11 ya da macOS 13.3 veya üstü: Apple Silicon (Metal hızlandırmalı) veya Intel (yalnızca CPU). Linux (x86_64, `.deb` ve AppImage) *önizleme* aşamasında: şimdilik tek bir Ubuntu makinede test edildi. |
+| **İşletim sistemi** | 64 bit Windows 10 veya 11 ya da macOS 13.3 veya üstü: Apple Silicon (Metal hızlandırmalı) veya Intel (yalnızca CPU). Linux (x86_64, `.deb`) *önizleme* aşamasında: şimdilik tek bir Ubuntu makinede test edildi. |
 | **Kurulum dosyası boyutu** | Windows'ta yaklaşık 21 MB; macOS'ta DMG yaklaşık 29 MB (Apple Silicon) veya 32 MB (Intel) |
 | **Kurulu boyut** | Yaklaşık 65 MB (macOS'ta yaklaşık 64 MB). Bunun üstüne uygulama, gereken model motorlarını ihtiyaç olunca indirir (llama.cpp derlemesi onlarca MB; CUDA derlemeleri daha büyük). |
 | **Uygulamanın bellek kullanımı** | Hiçbir model yüklenmeden uygulamanın kendisi (arayüz ve WebView2) yaklaşık 250-350 MB RAM kullanır. macOS'ta yaklaşık 250 MB (arayüz ve WebKit). |
@@ -289,7 +289,7 @@ Windows'ta **Uygulamalar > Yüklü uygulamalar**'ı kullanın. Kaldırmak verile
 <details>
 <summary><b>Linux veya macOS'ta çalışır mı?</b></summary>
 
-macOS: evet. Apple Silicon (Metal hızlandırmalı) ve Intel Mac'ler (yalnızca CPU) için birer DMG var; macOS 13.3 veya üstü gerekir. İlk açılış adımı için bkz. [Hızlı başlangıç](#3-adımda-hızlı-başlangıç). Linux: Releases sayfasında **önizleme** olarak `.deb` ve AppImage (x86_64) var. Şimdilik tek bir Ubuntu makinede test edildi; pürüzler olabilir, bulduklarınızı lütfen bildirin. Linux'un daha geniş testi [yol haritasındadır](#yol-haritası).
+macOS: evet. Apple Silicon (Metal hızlandırmalı) ve Intel Mac'ler (yalnızca CPU) için birer DMG var; macOS 13.3 veya üstü gerekir. İlk açılış adımı için bkz. [Hızlı başlangıç](#3-adımda-hızlı-başlangıç). Linux: Releases sayfasında **önizleme** olarak bir `.deb` paketi (x86_64) var; AppImage 0.1.1 ile gelecek. Şimdilik tek bir Ubuntu makinede test edildi; pürüzler olabilir, bulduklarınızı lütfen bildirin. Linux'un daha geniş testi [yol haritasındadır](#yol-haritası).
 </details>
 
 <details>

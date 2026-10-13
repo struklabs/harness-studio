@@ -65,7 +65,7 @@ These are the requirements of **Harness Studio itself**, not of any model. Figur
 
 | | |
 |---|---|
-| **Operating system** | Windows 10 or 11, 64-bit, or macOS 13.3 or later on Apple Silicon (with Metal acceleration) or Intel (CPU only). Linux (x86_64, `.deb` and AppImage) is a *preview*: tested on one Ubuntu machine so far. |
+| **Operating system** | Windows 10 or 11, 64-bit, or macOS 13.3 or later on Apple Silicon (with Metal acceleration) or Intel (CPU only). Linux (x86_64, `.deb`) is a *preview*: tested on one Ubuntu machine so far. |
 | **Installer size** | About 21 MB on Windows; on macOS the DMG is about 29 MB (Apple Silicon) or 32 MB (Intel) |
 | **Installed size** | About 65 MB (about 64 MB on macOS). On top of that, the app downloads the model engines it needs on demand (a llama.cpp build is tens of MB; CUDA builds are larger). |
 | **Memory used by the app** | About 250-350 MB of RAM for the app itself (interface plus WebView2), before any model is loaded. On macOS about 250 MB (interface plus WebKit). |
@@ -289,7 +289,7 @@ Use Windows **Apps > Installed apps**. Uninstalling does not delete your data. S
 <details>
 <summary><b>Does it run on Linux or macOS?</b></summary>
 
-macOS: yes. There is a DMG for Apple Silicon (with Metal acceleration) and one for Intel Macs (CPU only), for macOS 13.3 or later; see [Quick start](#quick-start-in-3-steps) for the first-open step. Linux: a **preview** `.deb` and AppImage (x86_64) are on the Releases page. They have been tested on one Ubuntu machine so far, so expect rough edges and please report what you find. Wider Linux testing is on the [roadmap](#roadmap).
+macOS: yes. There is a DMG for Apple Silicon (with Metal acceleration) and one for Intel Macs (CPU only), for macOS 13.3 or later; see [Quick start](#quick-start-in-3-steps) for the first-open step. Linux: a **preview** `.deb` package (x86_64) is on the Releases page; an AppImage follows in 0.1.1. It has been tested on one Ubuntu machine so far, so expect rough edges and please report what you find. Wider Linux testing is on the [roadmap](#roadmap).
 </details>
 
 <details>
