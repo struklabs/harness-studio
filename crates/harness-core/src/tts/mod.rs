@@ -308,6 +308,37 @@ struct PiperLanguage {
     code: Option<String>,
 }
 
+/// The part of an MMS training `config.json` read here.
+#[derive(Debug, Deserialize)]
+struct MmsConfig {
+    data: MmsData,
+}
+
+#[derive(Debug, Deserialize)]
+struct MmsData {
+    sampling_rate: u32,
+}
+
+/// MMS models speak at 16 kHz.
+const MMS_SAMPLE_RATE: u32 = 16_000;
+
+/// The language of an MMS folder (`vits-mms-deu`): MMS names languages with ISO 639-3 codes;
+/// the ones that have a two-letter code get it, like the other models' languages.
+fn mms_language(code: &str) -> String {
+    let two = match code {
+        "deu" => "de",
+        "eng" => "en",
+        "fra" => "fr",
+        "rus" => "ru",
+        "spa" => "es",
+        "tha" => "th",
+        "tur" => "tr",
+        "ukr" => "uk",
+        other => other,
+    };
+    two.to_string()
+}
+
 /// `tr_TR` / `en-US` / `tr` -> `(tr, TR)`.
 fn split_language(code: &str) -> (String, Option<String>) {
     let mut parts = code.split(['_', '-']);
@@ -388,7 +419,7 @@ pub(crate) fn quantization_of(file: &str) -> String {
 
 /// Whether `dir` is a text-to-speech model folder, and which: the files sherpa-onnx's
 /// published archives have (`tokens.txt` plus the model, and `voices.bin` for Kokoro or
-/// `espeak-ng-data` / `lexicon.txt` for VITS). Other sherpa-onnx families (Matcha, Kitten,
+/// `espeak-ng-data` / `lexicon.txt` for VITS, a `vits-mms-<language>` name for MMS). Other sherpa-onnx families (Matcha, Kitten,
 /// Pocket...) are not recognised.
 pub fn detect(dir: &Path) -> Option<TtsModel> {
     let name = file_name(dir);
@@ -491,7 +522,25 @@ pub fn detect(dir: &Path) -> Option<TtsModel> {
             voices,
         )
     } else {
-        return None;
+        let code = lower.strip_prefix("vits-mms-")?;
+        // MMS (facebook/mms-tts) as sherpa-onnx exports it: letters map straight to tokens, so
+        // there is no phoneme data; one speaker; the rate is in the training `config.json`.
+        let rate = std::fs::read_to_string(dir.join("config.json"))
+            .ok()
+            .and_then(|t| serde_json::from_str::<MmsConfig>(&t).ok())
+            .map_or(MMS_SAMPLE_RATE, |c| c.data.sampling_rate);
+        let lang = mms_language(code);
+        (
+            TtsFamily::Vits,
+            vec![lang.clone()],
+            Some(rate),
+            vec![Voice {
+                id: code.to_string(),
+                sid: 0,
+                language: lang,
+                gender: String::new(),
+            }],
+        )
     };
 
     Some(TtsModel {
