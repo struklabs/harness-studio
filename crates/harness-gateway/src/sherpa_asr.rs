@@ -90,6 +90,12 @@ pub fn map_error(e: &str) -> GatewayError {
                 "The sherpa-onnx runtime is not installed. Install it in the Playground (Speech tab) or with `harness runtime add --github k2-fsa/sherpa-onnx --family sherpa-onnx`.",
             )
         }
+        "stt.language_unsupported" => bad(format!(
+            "This model does not know the language `{}`; it knows: {}.",
+            text("language"),
+            text("languages")
+        ))
+        .param("language"),
         "stt.timeout" => GatewayError::new(
             504,
             "upstream_timeout",
@@ -290,6 +296,14 @@ mod tests {
         );
         assert_eq!((e.status, e.code.as_str()), (422, "invalid_audio"));
         assert!(e.message.contains("bad header"));
+        let e = map_error(
+            &error_key::err("stt.language_unsupported")
+                .with("language", "tr")
+                .with("languages", "en, de")
+                .to_string(),
+        );
+        assert_eq!((e.status, e.param.as_deref()), (400, Some("language")));
+        assert!(e.message.contains("`tr`") && e.message.contains("en, de"));
         assert_eq!(map_error("something else").status, 500);
     }
 }
