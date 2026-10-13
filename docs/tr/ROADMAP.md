@@ -14,7 +14,7 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
 
 ## Şimdi
 
-- **Platform doğrulaması.** 0.1.0 ile Windows kurulum paketi (NSIS), imzalı ve Apple onaylı (notarize) macOS DMG'leri ve önizleme olarak Linux `.deb` / AppImage paketleri gelir. Linux'u daha çok makinede (AMD, NVIDIA, Intel) ve dağıtımda doğrulayıp önizleme etiketini kaldırmak.
+- **Platform doğrulaması.** 0.1.0 ile Windows kurulum paketi (NSIS), imzalı ve Apple onaylı (notarize) macOS DMG'leri ve önizleme olarak bir Linux `.deb` paketi gelir (AppImage, GStreamer medya eklentilerini içerdiğinde). Linux'u daha çok makinede (AMD, NVIDIA, Intel) ve dağıtımda doğrulayıp önizleme etiketini kaldırmak.
 - **İlk çalıştırma cilası.** Her platformda boş veri klasörleriyle uçtan uca ilk çalıştırma akışı (sihirbaz, model bulma, indirme, başlatma, sohbet).
 - **Daha fazla donanımda ölçüm.** Karşılaştırma paketini (`bench/compare/`) NVIDIA/CUDA ve Linux üzerinde çalıştırmak, diğer araçları aynı oturumda yeniden ölçmek.
 - **Erişilebilirlik denetimleri.** Küçük pencereler, yüksek arayüz ölçeği ve Windows zorunlu renkler kipi.

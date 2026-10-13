@@ -13,7 +13,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ## [0.1.0] - 2026-10-12
 
-First public release. Windows installer (NSIS) and signed, notarized macOS DMGs (Apple Silicon and Intel) on GitHub Releases; Linux `.deb` and AppImage as a preview.
+First public release. Windows installer (NSIS) and signed, notarized macOS DMGs (Apple Silicon and Intel) on GitHub Releases; a Linux `.deb` package as a preview.
 
 ### Model discovery and library
 - Model Hub: Hugging Face search with filters, model cards, quantization variants, and a "fits your hardware" indication.
