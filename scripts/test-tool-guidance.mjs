@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { withToolGuidance } from '../src/lib/components/playground/toolGuidance.ts';
+import { compactToolDefinitions, firstSentence, withToolGuidance } from '../src/lib/components/playground/toolGuidance.ts';
 
 const search = [{ function: { name: 'web_search' } }, { function: { name: 'weather' } }];
 
@@ -48,4 +48,35 @@ test('does not request web_search when it was deselected', () => {
 test('does not request weather when it was deselected', () => {
   const result = withToolGuidance([], [{ function: { name: 'web_search' } }]);
   assert.doesNotMatch(result[0].content, /weather/);
+});
+
+test('first sentence keeps abbreviations and text without a full stop', () => {
+  assert.equal(firstSentence('Recursively search for files. Skips .gitignore entries.'), 'Recursively search for files.');
+  assert.equal(firstSentence('Glob pattern (e.g. "*.cpp"). Default: **'), 'Glob pattern (e.g. "*.cpp").');
+  assert.equal(firstSentence('Returns runtime info: the OS name/version'), 'Returns runtime info: the OS name/version');
+});
+
+test('compact tool definitions shorten descriptions only', () => {
+  const tool = {
+    type: 'function',
+    function: {
+      name: 'grep_search',
+      description: 'Search for a pattern in files under a path. Returns matching lines with file paths.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File or directory to search in' },
+          edits: { type: 'array', items: { type: 'object', properties: { old_text: { type: 'string', description: 'Exact text. Must be unique.' } } } },
+        },
+        required: ['path'],
+      },
+    },
+  };
+  const [c] = compactToolDefinitions([tool]);
+  assert.equal(c.function.name, 'grep_search');
+  assert.equal(c.function.description, 'Search for a pattern in files under a path.');
+  assert.deepEqual(c.function.parameters.required, ['path']);
+  assert.equal(c.function.parameters.properties.path.description, 'File or directory to search in');
+  assert.equal(c.function.parameters.properties.edits.items.properties.old_text.description, 'Exact text.');
+  assert.equal(tool.function.description.endsWith('file paths.'), true, 'input not mutated');
 });
