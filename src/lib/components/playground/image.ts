@@ -1,5 +1,5 @@
-// Playground Image tab: request helper for the gateway's /v1/images/generations (a real sd-server
-// behind it; nothing is simulated).
+// Playground Image tab: request helper for the gateway's /v1/images/generations and, with a start
+// image, /v1/images/edits (a real sd-server behind it; nothing is simulated).
 import { describeErrorBody } from './sse';
 import type { LocalModel, ModelDefinition } from '$lib/types';
 
@@ -18,6 +18,10 @@ export interface ImageParams {
   /** Empty or -1 = random. */
   seed: string;
   count: number;
+  /** Start image (image-to-image); null = text to image. */
+  init?: ImageResult | null;
+  /** How much of the start image changes, 0..1; empty = sd-server's default (0.75). */
+  strength?: string;
 }
 
 export interface ImageResult {
@@ -66,7 +70,30 @@ export function requestBody(model: string, p: ImageParams): Record<string, unkno
   if (p.cfgScale.trim() && Number.isFinite(cfg) && cfg >= 0) body.cfg_scale = cfg;
   const seed = Number(p.seed);
   if (p.seed.trim() && Number.isInteger(seed)) body.seed = seed;
+  if (p.init) {
+    body.image = dataUrl(p.init);
+    const strength = Number(p.strength ?? '');
+    if (p.strength?.trim() && strength >= 0 && strength <= 1) body.strength = strength;
+  }
   return body;
+}
+
+/** Whether a strength field is empty or a number from 0 to 1. */
+export function strengthOk(strength: string): boolean {
+  const v = Number(strength);
+  return strength.trim() === '' || (Number.isFinite(v) && v >= 0 && v <= 1);
+}
+
+/** Image types the start image may be (what sd-server decodes and the gateway sizes). */
+export const START_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+
+/** A picked file as a start image: its base64 and format; null for another type. */
+export async function readStartImage(file: File): Promise<ImageResult | null> {
+  if (!START_IMAGE_TYPES.includes(file.type)) return null;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return { data: btoa(binary), format: file.type.slice('image/'.length) };
 }
 
 /** The image did not fit in GPU memory at the requested size (gateway `image_out_of_memory`). */
@@ -94,7 +121,7 @@ export function outOfMemory(body: string): ImageOutOfMemory | null {
   }
 }
 
-/** POST {baseUrl}/images/generations. Throws the gateway's message on a failed request. */
+/** POST {baseUrl}/images/generations, or /images/edits with a start image. Throws the gateway's message on a failed request. */
 export async function fetchImages(
   baseUrl: string,
   model: string,
@@ -103,7 +130,7 @@ export async function fetchImages(
   signal?: AbortSignal,
 ): Promise<{ images: ImageResult[]; ms: number }> {
   const started = performance.now();
-  const res = await fetch(`${baseUrl}/images/generations`, {
+  const res = await fetch(`${baseUrl}/images/${params.init ? 'edits' : 'generations'}`, {
     method: 'POST',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify(requestBody(model, params)),

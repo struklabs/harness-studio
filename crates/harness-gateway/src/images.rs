@@ -1,5 +1,5 @@
-//! Image generation: `POST /v1/images/generations` (OpenAI's images API), served by
-//! `sd-server` of stable-diffusion.cpp.
+//! Image generation: `POST /v1/images/generations` and `POST /v1/images/edits` (OpenAI's
+//! images API), served by `sd-server` of stable-diffusion.cpp.
 //!
 //! The request names an image model (`model`, a definition whose file is a diffusion model);
 //! the scheduler loads it on demand and unloads it after its TTL like any other model and its
@@ -16,11 +16,20 @@
 //!
 //! A request without `size` leaves the size out, so the model definition's `width` / `height`
 //! (the size the model was made for) apply.
+//!
+//! An edit (`/v1/images/edits`, OpenAI's multipart form or the same fields as JSON with the
+//! images as base64 / `data:` URLs) is mapped the way sd-server's own edit route maps it: the
+//! first image is the init image (image-to-image, `strength` says how much of it changes), every
+//! image is also a reference image (what instruction-editing models such as FLUX.1 Kontext and
+//! Qwen-Image-Edit read), `mask` is a grayscale inpainting mask (white = repaint) and without
+//! `size` the first image's size is the canvas.
 
 use std::time::{Duration, Instant};
 
+use axum::extract::{FromRequest, Multipart};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
+use base64::Engine as _;
 use bytes::Bytes;
 use harness_core::domain::ModelDefinition;
 use harness_core::gateway::record::{ClientInfo, RequestRecord};
@@ -33,11 +42,33 @@ use crate::GwState;
 
 /// Most images one request may ask for (`n`).
 pub const MAX_IMAGES: u64 = 8;
+/// Most images one edit may send (OpenAI's limit).
+pub const MAX_EDIT_IMAGES: usize = 16;
 /// Smallest and largest side `size` may have.
 const SIDE_RANGE: std::ops::RangeInclusive<u32> = 64..=4096;
 
 fn bad(message: impl Into<String>) -> GatewayError {
     GatewayError::new(400, "invalid_request", message)
+}
+
+const B64: base64::engine::GeneralPurpose = base64::engine::general_purpose::STANDARD;
+
+/// Which images route a request came to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// `/v1/images/generations`: text to image.
+    Generations,
+    /// `/v1/images/edits`: image (and text) to image.
+    Edits,
+}
+
+impl Kind {
+    fn path(self) -> &'static str {
+        match self {
+            Kind::Generations => "/v1/images/generations",
+            Kind::Edits => "/v1/images/edits",
+        }
+    }
 }
 
 /// Whether a definition serves image generation (its file is a diffusion model).
@@ -195,6 +226,182 @@ pub fn plan(request: &Value) -> Result<Plan, GatewayError> {
     })
 }
 
+/// Width and height of a PNG, JPEG or WebP image, read from its header.
+pub fn image_size(b: &[u8]) -> Option<(u32, u32)> {
+    let be16 = |i: usize| Some(u32::from(u16::from_be_bytes([*b.get(i)?, *b.get(i + 1)?])));
+    let le16 = |i: usize| Some(u32::from(u16::from_le_bytes([*b.get(i)?, *b.get(i + 1)?])));
+    let le24 = |i: usize| Some(le16(i)? | u32::from(*b.get(i + 2)?) << 16);
+    let be32 = |i: usize| Some(u32::from_be_bytes(b.get(i..i + 4)?.try_into().ok()?));
+    if b.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Some((be32(16)?, be32(20)?));
+    }
+    if b.starts_with(&[0xFF, 0xD8]) {
+        // Walk the segments to the frame header (SOF0..SOF15 without DHT, JPG and DAC).
+        let mut i = 2;
+        while i + 9 < b.len() {
+            if b[i] != 0xFF {
+                return None;
+            }
+            let marker = b[i + 1];
+            if marker == 0xFF {
+                i += 1;
+                continue;
+            }
+            if (0xC0..=0xCF).contains(&marker) && ![0xC4, 0xC8, 0xCC].contains(&marker) {
+                return Some((be16(i + 7)?, be16(i + 5)?));
+            }
+            i += 2 + be16(i + 2)? as usize;
+        }
+        return None;
+    }
+    if b.get(0..4) == Some(b"RIFF") && b.get(8..12) == Some(b"WEBP") {
+        return match b.get(12..16)? {
+            b"VP8 " => Some((le16(26)? & 0x3FFF, le16(28)? & 0x3FFF)),
+            b"VP8L" => {
+                let bits = u32::from_le_bytes(b.get(21..25)?.try_into().ok()?);
+                Some(((bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1))
+            }
+            b"VP8X" => Some((le24(24)? + 1, le24(27)? + 1)),
+            _ => None,
+        };
+    }
+    None
+}
+
+/// An image field of an edit: base64 or a `data:` URL -> its bytes.
+fn image_bytes(value: &str, field: &str) -> Result<Vec<u8>, GatewayError> {
+    let err = || bad(format!("{field} must be a base64 image or a data: URL.")).param(field);
+    let data = match value.strip_prefix("data:") {
+        Some(rest) => rest.split_once(";base64,").ok_or_else(err)?.1,
+        None => value,
+    };
+    B64.decode(data.trim()).map_err(|_| err())
+}
+
+/// Validates an edit request (`plan`'s fields plus `image`, `mask` and `strength`) and maps
+/// it onto `img_gen` (see the module notes).
+pub fn plan_edit(request: &Value) -> Result<Plan, GatewayError> {
+    let mut p = plan(request)?;
+    let not_images =
+        || bad("image must be an image (base64 or a data: URL) or a list of them.").param("image");
+    let images: Vec<&str> = match request.get("image") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::String(s)) => vec![s.as_str()],
+        Some(Value::Array(a)) => a
+            .iter()
+            .map(|v| v.as_str().ok_or_else(not_images))
+            .collect::<Result<_, _>>()?,
+        Some(_) => return Err(not_images()),
+    };
+    if images.is_empty() {
+        return Err(bad("The `image` field (the picture to edit) is required.").param("image"));
+    }
+    if images.len() > MAX_EDIT_IMAGES {
+        return Err(bad(format!("An edit takes at most {MAX_EDIT_IMAGES} images.")).param("image"));
+    }
+    let mut encoded = Vec::with_capacity(images.len());
+    let mut first_size = None;
+    for (i, image) in images.iter().enumerate() {
+        let bytes = image_bytes(image, "image")?;
+        if i == 0 {
+            first_size = image_size(&bytes);
+        }
+        encoded.push(B64.encode(bytes));
+    }
+    let obj = p.body.as_object_mut().expect("a JSON object");
+    if !obj.contains_key("width") {
+        // The first image's size, made a multiple of 8.
+        let fits = first_size
+            .map(|(w, h)| (w - w % 8, h - h % 8))
+            .filter(|(w, h)| SIDE_RANGE.contains(w) && SIDE_RANGE.contains(h));
+        let (w, h) = fits.ok_or_else(|| {
+            bad(format!(
+                "The size of the image could not be used (a PNG, JPEG or WebP with sides between {} and {} pixels); set `size`, like 1024x1024.",
+                SIDE_RANGE.start(),
+                SIDE_RANGE.end()
+            ))
+            .param("size")
+        })?;
+        obj.insert("width".into(), json!(w));
+        obj.insert("height".into(), json!(h));
+    }
+    if let Some(strength) = number(request, "strength")? {
+        if !(0.0..=1.0).contains(&strength) {
+            return Err(bad("strength must be between 0 and 1.").param("strength"));
+        }
+        obj.insert("strength".into(), json!(strength));
+    }
+    if let Some(mask) = text(request, "mask")? {
+        obj.insert(
+            "mask_image".into(),
+            json!(B64.encode(image_bytes(mask, "mask")?)),
+        );
+    }
+    obj.insert("init_image".into(), json!(encoded[0]));
+    obj.insert("ref_images".into(), json!(encoded));
+    Ok(p)
+}
+
+/// Fields of an edit form that are numbers (a form sends everything as text).
+const NUMBER_FIELDS: [&str; 6] = ["n", "steps", "cfg_scale", "guidance", "seed", "strength"];
+
+/// Reads OpenAI's multipart edit form (`image` / `image[]` files, `mask`, text fields) into
+/// the JSON shape `plan_edit` reads.
+async fn read_edit_form(mut mp: Multipart) -> Result<Value, GatewayError> {
+    let mut out = serde_json::Map::new();
+    let mut images = Vec::new();
+    while let Some(field) = mp.next_field().await.map_err(|e| {
+        bad(format!(
+            "The multipart body could not be read: {}",
+            e.body_text()
+        ))
+    })? {
+        let name = field.name().unwrap_or_default().to_string();
+        let bytes = field
+            .bytes()
+            .await
+            .map_err(|e| bad(format!("Field {name}: {}", e.body_text())))?;
+        match name.as_str() {
+            "image" | "image[]" => images.push(json!(B64.encode(&bytes))),
+            "mask" => {
+                out.insert(name, json!(B64.encode(&bytes)));
+            }
+            _ => {
+                let text = String::from_utf8_lossy(&bytes).trim().to_string();
+                let value = match serde_json::from_str::<Value>(&text) {
+                    Ok(n @ Value::Number(_)) if NUMBER_FIELDS.contains(&name.as_str()) => n,
+                    _ => Value::String(text),
+                };
+                out.insert(name, value);
+            }
+        }
+    }
+    if !images.is_empty() {
+        out.insert("image".into(), Value::Array(images));
+    }
+    Ok(Value::Object(out))
+}
+
+/// The request body as JSON: an edit may come as a multipart form.
+async fn read_request(kind: Kind, headers: &HeaderMap, body: Bytes) -> Result<Value, GatewayError> {
+    let multipart = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ct| ct.starts_with("multipart/form-data"));
+    if kind == Kind::Edits && multipart {
+        let mut req = axum::http::Request::new(axum::body::Body::from(body));
+        if let Some(ct) = headers.get(header::CONTENT_TYPE) {
+            req.headers_mut().insert(header::CONTENT_TYPE, ct.clone());
+        }
+        let mp = Multipart::from_request(req, &())
+            .await
+            .map_err(|e| bad(format!("The multipart body could not be read: {e}")))?;
+        return read_edit_form(mp).await;
+    }
+    serde_json::from_slice(&body)
+        .map_err(|e| bad(format!("The request body is not valid JSON: {e}")))
+}
+
 /// The state of a polled job.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Job {
@@ -296,19 +503,19 @@ impl Drop for CancelOnDrop {
     }
 }
 
-/// Handles one image generation request.
-pub async fn handle(state: GwState, headers: HeaderMap, body: Bytes) -> Response {
+/// Handles one image generation or edit request.
+pub async fn handle(state: GwState, kind: Kind, headers: HeaderMap, body: Bytes) -> Response {
     let mut guard = RecordGuard::new(
         RequestRecord {
             id: request_id(),
             started_at_ms: unix_ms(),
-            endpoint: "/v1/images/generations".to_string(),
+            endpoint: kind.path().to_string(),
             ..Default::default()
         },
         trace_context(&headers),
     );
     let id = guard.get().id.clone();
-    let result = run(&state, &headers, body, &mut guard).await;
+    let result = run(&state, kind, &headers, body, &mut guard).await;
     let mut resp = match result {
         Ok(resp) => resp,
         Err(err) => {
@@ -327,6 +534,7 @@ pub async fn handle(state: GwState, headers: HeaderMap, body: Bytes) -> Response
 
 async fn run(
     state: &GwState,
+    kind: Kind,
     headers: &HeaderMap,
     body: Bytes,
     guard: &mut RecordGuard,
@@ -337,12 +545,14 @@ async fn run(
         header_str(headers, "x-harness-client"),
         caller.token_name.clone(),
     );
-    let request: Value = serde_json::from_slice(&body)
-        .map_err(|e| bad(format!("The request body is not valid JSON: {e}")))?;
+    let request = read_request(kind, headers, body).await?;
     let model = text(&request, "model")?.map(str::to_string);
     guard.get().model = model.clone();
     guard.admitted(caller.admit(state)?);
-    let plan = plan(&request)?;
+    let plan = match kind {
+        Kind::Generations => plan(&request)?,
+        Kind::Edits => plan_edit(&request)?,
+    };
 
     let scheduler = state.scheduler.clone();
     let settings = scheduler.settings();
@@ -361,8 +571,9 @@ async fn run(
             400,
             "model_not_image",
             format!(
-                "`{}` is not an image model (a diffusion model: safetensors, ckpt or a stable-diffusion.cpp GGUF); /v1/images/generations needs one.",
-                def.alias
+                "`{}` is not an image model (a diffusion model: safetensors, ckpt or a stable-diffusion.cpp GGUF); {} needs one.",
+                def.alias,
+                kind.path()
             ),
         )
         .param("model"));
@@ -637,6 +848,181 @@ mod tests {
         assert!(matches!(parse_job(&empty), Job::Failed(_)));
         let failed = json!({"status": "failed", "error": {"code": "generation_failed", "message": "out of memory"}});
         assert_eq!(parse_job(&failed), Job::Failed("out of memory".into()));
+    }
+
+    /// A PNG header of `w` x `h` (enough for `image_size`).
+    fn png(w: u32, h: u32) -> Vec<u8> {
+        let mut b = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR".to_vec();
+        b.extend(w.to_be_bytes());
+        b.extend(h.to_be_bytes());
+        b.extend([8, 6, 0, 0, 0]);
+        b
+    }
+
+    #[test]
+    fn image_sizes_come_from_the_header() {
+        assert_eq!(image_size(&png(640, 480)), Some((640, 480)));
+        // JPEG: an APP0 segment, then SOF0 (height before width).
+        let mut jpeg = vec![0xFF, 0xD8, 0xFF, 0xE0, 0, 4, 0, 0];
+        jpeg.extend([0xFF, 0xC0, 0, 11, 8, 0x01, 0xE0, 0x02, 0x80, 3, 0, 0, 0]);
+        assert_eq!(image_size(&jpeg), Some((640, 480)));
+        // WebP lossy, lossless and extended.
+        let webp = |chunk: &[u8], tail: &[u8]| {
+            let mut b = b"RIFF\0\0\0\0WEBP".to_vec();
+            b.extend(chunk);
+            b.extend(tail);
+            b
+        };
+        let mut vp8 = vec![0u8; 10];
+        vp8.extend(640u16.to_le_bytes());
+        vp8.extend(480u16.to_le_bytes());
+        assert_eq!(image_size(&webp(b"VP8 ", &vp8)), Some((640, 480)));
+        let bits: u32 = 639 | (479 << 14);
+        let mut vp8l = vec![0u8; 5];
+        vp8l.extend(bits.to_le_bytes());
+        assert_eq!(image_size(&webp(b"VP8L", &vp8l)), Some((640, 480)));
+        let mut vp8x = vec![0u8; 8];
+        vp8x.extend(&639u32.to_le_bytes()[..3]);
+        vp8x.extend(&479u32.to_le_bytes()[..3]);
+        assert_eq!(image_size(&webp(b"VP8X", &vp8x)), Some((640, 480)));
+        assert_eq!(image_size(b"GIF89a"), None);
+        assert_eq!(image_size(&[0xFF, 0xD8, 0x00]), None);
+    }
+
+    #[test]
+    fn an_edit_sends_the_image_as_init_and_reference_at_its_own_size() {
+        let a = B64.encode(png(641, 480));
+        let b = format!("data:image/png;base64,{}", B64.encode(png(64, 64)));
+        let p = plan_edit(&json!({
+            "prompt": "make it night", "image": [a, b], "strength": 0.4,
+            "mask": B64.encode(png(641, 480))
+        }))
+        .unwrap();
+        // 641 is not a multiple of 8: the canvas is 640 wide.
+        assert_eq!(
+            (p.body["width"].clone(), p.body["height"].clone()),
+            (json!(640), json!(480))
+        );
+        assert_eq!(p.body["strength"], json!(0.4));
+        assert_eq!(p.body["init_image"], json!(a));
+        // A data: URL goes on as plain base64.
+        assert_eq!(p.body["ref_images"], json!([a, B64.encode(png(64, 64))]));
+        assert_eq!(p.body["mask_image"], json!(B64.encode(png(641, 480))));
+        // `size` wins over the image's size; one image may be a bare string.
+        let p = plan_edit(&json!({"prompt": "x", "image": a, "size": "512x512"})).unwrap();
+        assert_eq!(p.body["width"], json!(512));
+        assert_eq!(p.body["ref_images"], json!([a]));
+        assert!(p.body.get("strength").is_none() && p.body.get("mask_image").is_none());
+    }
+
+    #[test]
+    fn bad_edits_name_the_field() {
+        let param = |v: Value| {
+            plan_edit(&v)
+                .unwrap_err()
+                .param
+                .map(|p| p.to_string())
+                .unwrap_or_default()
+        };
+        let ok = B64.encode(png(512, 512));
+        assert_eq!(param(json!({"prompt": "x"})), "image");
+        assert_eq!(param(json!({"prompt": "x", "image": []})), "image");
+        assert_eq!(param(json!({"prompt": "x", "image": 5})), "image");
+        assert_eq!(
+            param(json!({"prompt": "x", "image": "not base64!"})),
+            "image"
+        );
+        assert_eq!(
+            param(json!({"prompt": "x", "image": "data:image/png,abc"})),
+            "image"
+        );
+        assert_eq!(
+            param(json!({"prompt": "x", "image": vec![ok.clone(); 17]})),
+            "image"
+        );
+        assert_eq!(
+            param(json!({"prompt": "x", "image": ok, "strength": 1.5})),
+            "strength"
+        );
+        assert_eq!(
+            param(json!({"prompt": "x", "image": ok, "mask": "%%"})),
+            "mask"
+        );
+        // An image whose size is unknown or too small needs `size`.
+        let gif = B64.encode(b"GIF89a....");
+        assert_eq!(param(json!({"prompt": "x", "image": gif})), "size");
+        assert!(plan_edit(&json!({"prompt": "x", "image": gif, "size": "256x256"})).is_ok());
+        assert_eq!(
+            param(json!({"prompt": "x", "image": B64.encode(png(32, 32))})),
+            "size"
+        );
+        assert_eq!(param(json!({"image": ok})), "prompt");
+    }
+
+    #[tokio::test]
+    async fn an_openai_edit_form_is_read_into_the_json_fields() {
+        let boundary = "XyZ";
+        let mut body = Vec::new();
+        let mut part = |head: &str, data: &[u8]| {
+            body.extend(
+                format!("--{boundary}\r\nContent-Disposition: form-data; {head}\r\n\r\n").bytes(),
+            );
+            body.extend(data);
+            body.extend(b"\r\n");
+        };
+        part(
+            r#"name="image[]"; filename="a.png"
+Content-Type: image/png"#,
+            &png(512, 384),
+        );
+        part(
+            r#"name="image[]"; filename="b.png"
+Content-Type: image/png"#,
+            &png(64, 64),
+        );
+        part(r#"name="mask"; filename="m.png""#, &png(512, 384));
+        part(r#"name="prompt""#, b"42");
+        part(r#"name="n""#, b"2");
+        part(r#"name="strength""#, b"0.3");
+        part(r#"name="model""#, b"sd-turbo");
+        body.extend(format!("--{boundary}--\r\n").bytes());
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_str(&format!("multipart/form-data; boundary={boundary}")).unwrap(),
+        );
+        let v = read_request(Kind::Edits, &headers, Bytes::from(body))
+            .await
+            .unwrap();
+        // Numbers are numbers, the prompt stays text even when it looks like one.
+        assert_eq!(v["prompt"], json!("42"));
+        assert_eq!(
+            (v["n"].clone(), v["strength"].clone()),
+            (json!(2), json!(0.3))
+        );
+        assert_eq!(v["model"], json!("sd-turbo"));
+        assert_eq!(
+            v["image"],
+            json!([B64.encode(png(512, 384)), B64.encode(png(64, 64))])
+        );
+        let p = plan_edit(&v).unwrap();
+        assert_eq!(
+            (p.body["width"].clone(), p.body["height"].clone()),
+            (json!(512), json!(384))
+        );
+        assert_eq!(p.body["batch_count"], json!(2));
+        assert!(p.body.get("mask_image").is_some());
+        // JSON works on the edit route too.
+        let json_body = Bytes::from(json!({"prompt": "x"}).to_string());
+        assert!(
+            read_request(Kind::Edits, &HeaderMap::new(), json_body.clone())
+                .await
+                .is_ok()
+        );
+        // A generation is always JSON, whatever the header says.
+        assert!(read_request(Kind::Generations, &headers, json_body)
+            .await
+            .is_ok());
     }
 
     #[test]
