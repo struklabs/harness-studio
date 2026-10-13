@@ -1,5 +1,5 @@
 //! Harness ONNX engine: Hugging Face ONNX encoder models (sentence embedders and
-//! cross-encoder rerankers) behind an OpenAI-compatible HTTP API, without Python.
+//! cross-encoder rerankers) and CTC speech recognition behind an OpenAI-compatible HTTP API, without Python.
 //!
 //! * [`package`]: the repo layout on disk and what its sentence-transformers files say
 //!   (pooling, normalization, maximum length, embedder or reranker). Pure.
@@ -16,6 +16,8 @@
 //! dynamically from the managed runtime folder.
 
 pub mod api;
+/// CTC package discovery, audio preprocessing, decoding and speech inference.
+pub mod asr_ctc;
 pub mod cli;
 pub mod genai_pkg;
 pub mod hf_api;

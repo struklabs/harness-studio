@@ -220,18 +220,19 @@ fn onnx_task_kind(task: harness_onnx::package::Task) -> crate::domain::ModelKind
     match task {
         harness_onnx::package::Task::Embedding => crate::domain::ModelKind::Embedding,
         harness_onnx::package::Task::Rerank => crate::domain::ModelKind::Reranker,
+        harness_onnx::package::Task::AsrCtc => crate::domain::ModelKind::Asr,
         _ => crate::domain::ModelKind::Pipeline,
     }
 }
 
-/// What an encoder `.onnx` file serves (embedding, reranking or a task pipeline), `None` for
+/// What an encoder `.onnx` file serves (embedding, reranking, speech recognition or a task pipeline), `None` for
 /// any other file.
 pub fn onnx_kind(path: &Path) -> Option<crate::domain::ModelKind> {
     harness_onnx::package::library_task(path).map(onnx_task_kind)
 }
 
-/// The library entry of an `.onnx` file: an embedding or reranking model when the repo around
-/// it has a tokenizer (`harness_onnx::package`), `None` for any other ONNX graph.
+/// The library entry of an `.onnx` file: an embedding/reranking package with a
+/// tokenizer, or a CTC speech package with audio configs and a vocabulary.
 fn onnx_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
     if let Some(genai) = harness_onnx::genai_pkg::GenaiPackage::discover(path) {
         return genai_entry(path, &genai, root_dir);
@@ -263,7 +264,8 @@ fn onnx_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
         path: path.to_path_buf(),
         size_bytes: size,
         architecture: Some("onnx".to_string()),
-        context_length: Some(package.max_length as u64),
+        context_length: (package.task != harness_onnx::package::Task::AsrCtc)
+            .then_some(package.max_length as u64),
         quantization: harness_onnx::package::variant_quantization(&stem).to_string(),
         is_split: false,
         total_shards: None,

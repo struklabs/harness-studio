@@ -1160,13 +1160,21 @@ impl ProcessManager {
             crate::serve_mode::prepare(&mut launch, meta.as_ref(), runtime_for_params)
         } else if engine.family() == crate::engine::ONNX_FAMILY {
             // The sidecar reads its task from the repo files; the log and the UI show it.
-            let task = harness_onnx::package::library_task(&launch.model_path);
+            let task = match launch.params.get("task") {
+                Some(crate::params::ParamValue::Text(value)) => {
+                    harness_onnx::package::Task::parse(value)
+                }
+                _ => harness_onnx::package::library_task(&launch.model_path),
+            };
             crate::serve_mode::Prepared {
                 mode: if harness_onnx::genai_pkg::is_chat_model(&launch.model_path) {
                     // An onnxruntime-genai folder (genai_config.json) is a chat model.
                     crate::serve_mode::ServeMode::Chat
                 } else {
                     match task {
+                        Some(harness_onnx::package::Task::AsrCtc) => {
+                            crate::serve_mode::ServeMode::Transcription
+                        }
                         Some(harness_onnx::package::Task::Rerank) => {
                             crate::serve_mode::ServeMode::Rerank
                         }

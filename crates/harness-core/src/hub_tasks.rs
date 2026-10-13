@@ -625,8 +625,14 @@ const fn row_alt(
     }
 }
 
-/// Speech recognition: whisper.cpp (ggml) and sherpa-onnx (ONNX) models.
-const ASR_ALTS: &[(&str, Support)] = &[(WHISPER_FAMILY, Yes), (SHERPA_FAMILY, Yes)];
+/// Speech recognition: whisper.cpp, sherpa-onnx, and exported HF CTC packages.
+// The ONNX sidecar handles exported HF ForCTC packages only; other ASR graphs
+// (Whisper encoder/decoder, transducers) are not covered by this implementation.
+const ASR_ALTS: &[(&str, Support)] = &[
+    (WHISPER_FAMILY, Yes),
+    (SHERPA_FAMILY, Yes),
+    (crate::engine::ONNX_FAMILY, Partial),
+];
 /// Text-to-speech: Kokoro / Piper through sherpa-onnx.
 const TTS_ALTS: &[(&str, Support)] = &[(SHERPA_FAMILY, Yes)];
 /// Encoder task heads (classification, NER, fill-mask, extractive QA): harness-onnx on `/hf`.
@@ -1216,6 +1222,26 @@ mod tests {
 
     fn installed(list: &[&str]) -> Vec<String> {
         s(list)
+    }
+
+    #[test]
+    fn onnx_asr_is_only_partial_and_never_endpoint_verified() {
+        // A missing llama vision endpoint leaves the conservative CTC alternative.
+        let caps = crate::capabilities::testdata::caps("b11236");
+        let mut features = feature_status(&caps, FeatureContext::default());
+        if let Some(vision) = features.iter_mut().find(|f| f.id == "vision") {
+            vision.level = CapabilityLevel::Unsupported;
+            vision.available = Some(false);
+        }
+        let rows = task_support(
+            Some(&caps),
+            &features,
+            &installed(&[crate::engine::ONNX_FAMILY]),
+        );
+        let asr = support_of(&rows, "automatic-speech-recognition");
+        assert_eq!(asr.support, Partial);
+        assert_eq!(asr.runtime.as_deref(), Some(crate::engine::ONNX_FAMILY));
+        assert!(!asr.verified);
     }
 
     #[test]
