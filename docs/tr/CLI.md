@@ -140,7 +140,7 @@ echo "Read this aloud." | harness speak - -f mp3 -o out.mp3
 
 ### Konuşma tanıma (sherpa-onnx)
 
-Örnek gerekmez: komutlar bu süreçte çalışır ve kilit almaz. Metin `sherpa-onnx-vad-with-offline-asr` ile okunur (seslendirmedeki sherpa-onnx runtime'ı); modeller model dizinlerindeki klasörlerdir (NVIDIA Parakeet, SenseVoice, Omnilingual...) ve kütüphanede "Konuşma tanıma (sherpa-onnx)" olarak görünür. Whisper (ggml `.bin`) modelleri bu komutlarla değil gateway'den (`POST /v1/audio/transcriptions`) kullanılır; aynı uç nokta kurulu sherpa modellerini de adıyla çalıştırır.
+Örnek gerekmez: komutlar bu süreçte çalışır ve kilit almaz. Metin `sherpa-onnx-vad-with-offline-asr` ile okunur (seslendirmedeki sherpa-onnx runtime'ı); modeller model dizinlerindeki klasörlerdir (NVIDIA Parakeet, SenseVoice, Omnilingual...) ve kütüphanede "Konuşma tanıma (sherpa-onnx)" olarak görünür. Kütüphanedeki ONNX CTC modelleri (wav2vec2, HuBERT, WavLM) de `harness transcribe DOSYA -m MODEL` ile tanım kimliği/takma adı veya tam ONNX dosya yolu üzerinden seçilebilir. Yönetilen ONNX Runtime motoruyla çalışır, istem ve dil ipuçlarını yok sayar, zamanlı parçalar üretmez. Whisper (ggml `.bin`) modelleri bu komutlarla değil gateway'den (`POST /v1/audio/transcriptions`) kullanılır; aynı uç nokta kurulu sherpa modellerini de adıyla çalıştırır.
 
 | Komut | Ne yapar | `--json` |
 |---|---|---|

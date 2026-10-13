@@ -312,9 +312,9 @@ pub enum Command {
         #[command(subcommand)]
         command: TtsCommand,
     },
-    /// Transcribe an audio file with a local speech-recognition model (sherpa-onnx; needs no running instance).
+    /// Transcribe an audio file with a local speech-recognition model (sherpa-onnx or ONNX CTC; needs no running instance).
     #[command(
-        long_about = "Turns speech into text with a local ONNX model (NVIDIA Parakeet, SenseVoice, Omnilingual...) and the sherpa-onnx runtime, in this process (no server needs to be running). Long recordings are cut at pauses, so every segment has a time. The text goes to stdout (or -o FILE) as plain text, json, verbose_json (with the timed segments), srt or vtt. Install a model with `harness asr install <id>` and the runtime with `harness runtime add --github k2-fsa/sherpa-onnx --family sherpa-onnx`. Whisper models (ggml .bin) are served by the gateway, not by this command."
+        long_about = "Turns speech into text with a local ONNX model (NVIDIA Parakeet, SenseVoice, Omnilingual...) and the sherpa-onnx runtime, in this process (no server needs to be running). For sherpa-onnx models, long recordings are cut at pauses, so every segment has a time. ONNX CTC models from the library (wav2vec2, HuBERT, WavLM) are also accepted via -m MODEL and run with the managed ONNX Runtime engine. CTC models only transcribe, ignore prompts and language hints, and do not provide timed segments. The text goes to stdout (or -o FILE) as plain text, json, verbose_json (with the timed segments), srt or vtt. Install a model with `harness asr install <id>` and the runtime with `harness runtime add --github k2-fsa/sherpa-onnx --family sherpa-onnx`. Whisper models (ggml .bin) are served by the gateway, not by this command."
     )]
     Transcribe(TranscribeArgs),
     /// Speech-recognition models of sherpa-onnx: list the installed ones and the recommended downloads, install, remove.
@@ -428,8 +428,9 @@ pub enum ConvertEnvCommand {
 pub struct TranscribeArgs {
     /// The audio file (WAV; other formats need ffmpeg).
     pub file: PathBuf,
-    /// Model id or name of the installed ones, or a unique part of the name (default: the first
-    /// installed one).
+    /// Installed sherpa-onnx model id/name or unique name part, or an ONNX CTC library model
+    /// (wav2vec2, HuBERT, WavLM) by definition id/alias, library id/name or exact file path
+    /// (default: the first sherpa-onnx model, or the first library CTC model if none is installed).
     #[arg(long, short = 'm')]
     pub model: Option<String>,
     /// Spoken language (SenseVoice takes zh, en, ja, ko, yue; the other models find it themselves).

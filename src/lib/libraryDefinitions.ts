@@ -7,6 +7,14 @@ export const DEFINITION_KINDS: readonly ModelKind[] = ['image', 'asr', 'embeddin
 
 const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 
+/** Speech engine label from the library's detected format and architecture. */
+export function speechKindKey(file: Pick<LocalModel, 'kind' | 'path' | 'architecture'>): 'lib.kind_asr' | 'lib.kind_asr_ctc' | 'lib.kind_asr_whisper' | 'sasr.kind' {
+  if (file.kind !== 'asr') return 'lib.kind_asr';
+  if (isOnnxAsr(file)) return 'sasr.kind';
+  if (/\.onnx$/i.test(file.path) && file.architecture === 'onnx') return 'lib.kind_asr_ctc';
+  return /\.bin$/i.test(file.path) ? 'lib.kind_asr_whisper' : 'lib.kind_asr';
+}
+
 /** A sherpa-onnx recognition model (ONNX): run per request, no definition. whisper.cpp's are ggml `.bin`. */
 function isOnnxAsr(file: Pick<LocalModel, 'kind' | 'path' | 'architecture'>): boolean {
   return file.kind === 'asr' && file.architecture !== 'onnx' && /\.onnx$/i.test(file.path);

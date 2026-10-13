@@ -298,7 +298,7 @@ async fn run(
             400,
             "model_not_speech",
             format!(
-                "`{}` is not a speech recognition model (a whisper ggml .bin file); {} needs one.",
+                "`{}` is not a speech recognition model (Whisper ggml .bin or ONNX CTC); {} needs one.",
                 def.alias,
                 task.path()
             ),

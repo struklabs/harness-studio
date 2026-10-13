@@ -99,9 +99,9 @@ Sunucu başlatma hataları ayrıca sınıflandırılmış açıklama ve **Kurtar
 
 **Hangi modeli indirmeliyim?** Önce **Model Hub**'da **Donanım uyumu** sütunu **VRAM'e sığıyor** diyen bir dosya seçin. Emin değilseniz Q4_K_M kuantını ve küçük bir model (1B-8B parametre) ile başlayın; sonra büyütün.
 
-**Model indirdim, neden sohbet edemiyorum?** İndirilen dosya bir sunucuda yüklenmelidir. Dashboard'dan başlatın veya açık ağ geçidinde model tanımını seçin. Model embedding, reranker veya whisper türündeyse ilgili Playground sekmesini kullanın veya kütüphane kartındaki **Playground'da Aç**'a basın. Klasörlerinizde zaten bulunan dosyalar orada ek bir adım olmadan listelenir.
+**Model indirdim, neden sohbet edemiyorum?** İndirilen dosya bir sunucuda yüklenmelidir. Dashboard'dan başlatın veya açık ağ geçidinde model tanımını seçin. Model embedding, reranker veya konuşma tanıma türündeyse ilgili Playground sekmesini kullanın veya kütüphane kartındaki **Playground'da Aç**'a basın. Klasörlerinizde zaten bulunan dosyalar orada ek bir adım olmadan listelenir.
 
-**Model aramada görünmüyor; hesap gerekir mi?** Önce filtreleri sıfırlayın. Varsayılan Hub listesi GGUF depolarıyla sınırlıdır; bu yüzden GGUF dosyası olmayan resmi depolar (ör. `meta-llama/Llama-3.2-1B-Instruct`) görünmez, yalnız üçüncü kişilerin GGUF kopyaları listelenir. Konuşma için `whisper` arayın. Özel veya lisans onaylı depolarda hesap erişimi ayrıca gerekir.
+**Model aramada görünmüyor; hesap gerekir mi?** Önce filtreleri sıfırlayın. Varsayılan Hub listesi GGUF depolarıyla sınırlıdır; bu yüzden GGUF dosyası olmayan resmi depolar (ör. `meta-llama/Llama-3.2-1B-Instruct`) görünmez, yalnız üçüncü kişilerin GGUF kopyaları listelenir. Whisper ve ONNX CTC modellerini bulmak için **Konuşma tanıma (ASR)** görevini seçin. Özel veya lisans onaylı depolarda hesap erişimi ayrıca gerekir.
 
 **Token ekledim, neden gated model inmiyor?** Tokenın hesabı ilgili modelin lisansını kabul etmiş olmalıdır. Bazı model sahipleri erişimi elle onaylar. OAuth istemci kimliği, model erişim izni yerine geçmez.
 

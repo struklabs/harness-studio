@@ -3,9 +3,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isSpeechDefinition, isOnnxCtcDefinition, dictationFamily, dictationRequirement } from '../src/lib/components/playground/speechModels.ts';
 import { isSherpaAsrFile } from '../src/lib/components/playground/asr.ts';
-import { filesNeedingDefinition, playgroundTarget } from '../src/lib/libraryDefinitions.ts';
+import { filesNeedingDefinition, playgroundTarget, speechKindKey } from '../src/lib/libraryDefinitions.ts';
 
 const definition = (path, load = {}) => ({ base: { kind: 'local', path }, load });
+test('speech labels distinguish Hub CTC, Sherpa ONNX and Whisper files', () => {
+  const ctc = { kind: 'asr', path: 'Xenova/wav2vec2-base-960h/onnx/model.onnx', architecture: 'onnx' };
+  assert.equal(speechKindKey(ctc), 'lib.kind_asr_ctc');
+  assert.equal(speechKindKey({ ...ctc, architecture: 'nemo_ctc' }), 'sasr.kind');
+  assert.equal(speechKindKey({ ...ctc, path: 'ggml-base.bin', architecture: 'whisper' }), 'lib.kind_asr_whisper');
+  assert.equal(speechKindKey({ ...ctc, path: 'unknown.model' }), 'lib.kind_asr');
+});
 test('CTC definitions join Whisper speech choices, other ONNX tasks stay out', () => {
   const ctc = definition('speech/onnx/model.onnx', { task: 'asr_ctc' });
   assert.equal(isSpeechDefinition(ctc), true);
