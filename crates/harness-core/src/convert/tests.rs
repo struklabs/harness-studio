@@ -785,4 +785,78 @@ fn the_real_converter_registers_common_architectures() {
     assert!(a.text.len() > 100, "{}", a.text.len());
     assert!(!a.vision.is_empty());
     assert!(!a.supports_text("TotallyNewForCausalLM"));
+    eprintln!("quant methods: {:?}", a.quant_methods);
+    assert!(a.supports_quant("gptq") && a.supports_quant("fp8"));
+    assert!(!a.supports_quant("awq") && !a.supports_quant("bitsandbytes"));
+}
+
+/// The dequantizing branches of the converter (`ModelBase.dequant_model`, b11583).
+const SOURCE_QUANT: &str = r#"
+            quant_method = quant_config.get("quant_method")
+            if quant_method == "bitnet":
+                pass
+            elif quant_method == "fp8":
+                pass
+            elif quant_method == "gptq":
+                pass
+            elif quant_method == "compressed-tensors":
+                pass
+        self._is_mxfp4 = quant_method == "mxfp4"
+"#;
+
+#[test]
+fn the_converter_source_lists_the_quant_methods_it_dequantizes() {
+    let archs = scan(&[SOURCE_A, SOURCE_QUANT]);
+    for m in ["bitnet", "fp8", "gptq", "compressed-tensors", "mxfp4"] {
+        assert!(archs.supports_quant(m), "{m}");
+    }
+    assert!(archs.supports_quant("GPTQ"));
+    assert!(!archs.supports_quant("awq"));
+    assert!(!archs.supports_quant("bitsandbytes"));
+    // A converter source without any branch refuses nothing.
+    assert!(scan(&[SOURCE_A]).supports_quant("awq"));
+}
+
+#[test]
+fn a_checkpoint_quantized_with_an_unreadable_method_is_refused_before_download() {
+    let archs = scan(&[SOURCE_A, SOURCE_QUANT]);
+    let mut info = smol_info();
+    info["config"]["quantization_config"] = json!({"quant_method": "awq", "bits": 4});
+    info["cardData"]["base_model"] = json!(["HuggingFaceTB/SmolLM2-135M"]);
+    let plan = plan_for(&info, Some(&archs), u64::MAX);
+    assert!(!plan.convertible);
+    assert_eq!(plan.quant_method.as_deref(), Some("awq"));
+    assert_eq!(
+        plan.base_model.as_deref(),
+        Some("HuggingFaceTB/SmolLM2-135M")
+    );
+    let reason = plan.reason.clone().unwrap();
+    assert!(
+        reason.starts_with("convert.unsupported_quant_base"),
+        "{reason}"
+    );
+    assert!(reason.contains("awq") && reason.contains("HuggingFaceTB/SmolLM2-135M"));
+    assert_eq!(plan.check("Q4_K_M").unwrap_err(), reason);
+
+    // Without a card: the base model comes from the tags, else it is not named.
+    info["cardData"] = json!({"license": "apache-2.0"});
+    info["tags"] = json!(["base_model:quantized:HuggingFaceTB/SmolLM2-135M-Instruct"]);
+    let plan = plan_for(&info, Some(&archs), u64::MAX);
+    assert_eq!(
+        plan.base_model.as_deref(),
+        Some("HuggingFaceTB/SmolLM2-135M-Instruct")
+    );
+    info["tags"] = json!([]);
+    let reason = plan_for(&info, Some(&archs), u64::MAX).reason.unwrap();
+    assert!(
+        reason.starts_with("convert.unsupported_quant {"),
+        "{reason}"
+    );
+
+    // A method the converter dequantizes (also under text_config) stays convertible.
+    let mut fp8 = smol_info();
+    fp8["config"]["text_config"] = json!({"quantization_config": {"quant_method": "FP8"}});
+    let plan = plan_for(&fp8, Some(&archs), u64::MAX);
+    assert!(plan.convertible, "{:?}", plan.reason);
+    assert_eq!(plan.quant_method.as_deref(), Some("fp8"));
 }

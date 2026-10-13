@@ -5,7 +5,9 @@
 //! the pinned source answers "can this repo be converted?" before any Python runs, from the
 //! very script that would do the work. A class derived (directly or through other classes) from
 //! `MmprojModel` writes the vision projector (`--mmproj`); every other class writes the text
-//! model.
+//! model. The `quant_method`s of pre-quantized checkpoints it dequantizes are read the same way
+//! (`quant_method == "gptq"`...): a repo quantized with any other method (AWQ, bitsandbytes...)
+//! would download in full and then fail.
 
 use regex::Regex;
 use std::collections::{BTreeSet, HashMap};
@@ -17,6 +19,8 @@ pub struct Architectures {
     pub text: BTreeSet<String>,
     /// Names the `--mmproj` converter knows (vision encoders).
     pub vision: BTreeSet<String>,
+    /// `quantization_config.quant_method` values the converter dequantizes (`fp8`, `gptq`...).
+    pub quant_methods: BTreeSet<String>,
 }
 
 impl Architectures {
@@ -26,6 +30,12 @@ impl Architectures {
 
     pub fn supports_vision(&self, arch: &str) -> bool {
         self.vision.contains(arch)
+    }
+
+    /// Whether a checkpoint quantized with `method` converts. Unknown when the source names no
+    /// method at all (an older converter): then nothing is refused.
+    pub fn supports_quant(&self, method: &str) -> bool {
+        self.quant_methods.is_empty() || self.quant_methods.contains(&method.to_ascii_lowercase())
     }
 }
 
@@ -40,6 +50,7 @@ pub fn scan<S: AsRef<str>>(sources: &[S]) -> Architectures {
     let next_def = Regex::new(r"(?m)^(class|def)\s+(\w+)").expect("static regex");
     let class = Regex::new(r"(?m)^class\s+(\w+)\s*\(([^)]*)\)").expect("static regex");
     let name = Regex::new(r#""([^"]+)""#).expect("static regex");
+    let quant = Regex::new(r#"quant_method\s*==\s*["']([\w-]+)["']"#).expect("static regex");
 
     let mut bases: HashMap<String, Vec<String>> = HashMap::new();
     for src in sources {
@@ -67,6 +78,9 @@ pub fn scan<S: AsRef<str>>(sources: &[S]) -> Architectures {
     let mut found = Architectures::default();
     for src in sources {
         let src = src.as_ref();
+        for q in quant.captures_iter(src) {
+            found.quant_methods.insert(q[1].to_ascii_lowercase());
+        }
         for m in register.captures_iter(src) {
             let end = m.get(0).map_or(0, |g| g.end());
             // A function (a hparams loader, a helper) is not a model class.

@@ -162,6 +162,15 @@ async fn execute(id: u64, plan: &ConvertPlan, cancel: &Cancel) -> Result<Done, S
                 .into());
         }
     }
+    if let Some(method) = plan.quant_method.as_deref() {
+        if !archs.supports_quant(method) {
+            return Err(super::plan::unsupported_quant(
+                repo,
+                method,
+                plan.base_model.as_deref(),
+            ));
+        }
+    }
     let vision = plan.task.as_deref() == Some("image-text-to-text")
         && plan
             .architecture
