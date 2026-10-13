@@ -4120,8 +4120,8 @@ mod tests {
 
     #[test]
     fn test_hf_file_url_encodes_path_segments() {
-        let url = DownloadManager::hf_file_url("owner/repo", "resolve", "alt dir/a #100%?.ÄŸguf")
-            .unwrap();
+        let url =
+            DownloadManager::hf_file_url("owner/repo", "resolve", "alt dir/a #100%?.ğguf").unwrap();
         assert_eq!(
             url.as_str(),
             "https://huggingface.co/owner/repo/resolve/main/alt%20dir/a%20%23100%25%3F.%C4%9Fguf"
