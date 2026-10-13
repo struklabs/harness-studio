@@ -337,25 +337,35 @@ pub fn read_wav(bytes: &[u8]) -> Result<(Vec<f32>, u32), String> {
     if bytes.len() < 12 || &bytes[..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
         return Err(invalid());
     }
-    let declared = (u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize)
-        .checked_add(8)
-        .ok_or_else(invalid)?;
-    if declared > bytes.len() || declared < 12 {
+    // Pipe writers (including ffmpeg) cannot seek back to fill in chunk sizes.
+    let riff_size = u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize;
+    let declared = if riff_size == 0 {
+        bytes.len()
+    } else {
+        riff_size.saturating_add(8).min(bytes.len())
+    };
+    if declared < 12 {
         return Err(invalid());
     }
     let mut pos = 12;
     let (mut fmt, mut data) = (None, Vec::new());
     while pos + 8 <= declared {
         let size = u32::from_le_bytes(bytes[pos + 4..pos + 8].try_into().unwrap()) as usize;
-        let end = pos
-            .checked_add(8)
-            .and_then(|p| p.checked_add(size))
-            .filter(|&e| e <= declared)
-            .ok_or_else(invalid)?;
-        let chunk = &bytes[pos + 8..end];
+        let start = pos + 8;
+        let unknown_data_size =
+            &bytes[pos..pos + 4] == b"data" && (size == 0 || size > declared - start);
+        let end = if unknown_data_size {
+            declared
+        } else {
+            start
+                .checked_add(size)
+                .filter(|&e| e <= declared)
+                .ok_or_else(invalid)?
+        };
+        let chunk = &bytes[start..end];
         match &bytes[pos..pos + 4] {
             b"fmt " => fmt = Some(chunk),
-            b"data" => data.push(chunk),
+            b"data" => data.push((chunk, unknown_data_size)),
             _ => {}
         }
         pos = end + (size & 1);
@@ -388,8 +398,9 @@ pub fn read_wav(bytes: &[u8]) -> Result<(Vec<f32>, u32), String> {
         return Err(invalid());
     }
     let mut samples = Vec::new();
-    for data in data {
-        if data.len() % frame != 0 {
+    for (data, unknown_size) in data {
+        // chunks_exact clamps streaming data to complete interleaved frames.
+        if !unknown_size && data.len() % frame != 0 {
             return Err(invalid());
         }
         for row in data.chunks_exact(frame) {
@@ -666,13 +677,32 @@ mod tests {
         ] {
             let bytes = wav(kind, bits, 1, 16000, &raw);
             assert_eq!(read_wav(&bytes).unwrap().0, [-1.0, 0.5]);
-            assert!(read_wav(&bytes[..bytes.len() - 1]).is_err());
+            assert_eq!(read_wav(&bytes[..bytes.len() - 1]).unwrap().0, [-1.0]);
         }
         assert!(read_wav(&wav(3, 32, 1, 16000, &f32::NAN.to_le_bytes())).is_err());
         assert!(read_wav(&wav(1, 16, 0, 16000, &[0, 0])).is_err());
         assert!(read_wav(&wav(1, 16, 1, 0, &[0, 0])).is_err());
         assert!(read_wav(&wav(1, 16, 1, 16000, &[0])).is_err());
         assert!(read_wav(b"not wav").is_err());
+    }
+
+    #[test]
+    fn wav_pipe_lengths_use_remaining_whole_frames() {
+        for riff_size in [0, u32::MAX, 1024] {
+            for data_size in [0, u32::MAX, 1024] {
+                // Two stereo PCM16 frames followed by an incomplete frame.
+                let mut bytes = wav(1, 16, 2, 16000, &[0, 64, 0, 0, 0, 128, 0, 0, 42]);
+                bytes[4..8].copy_from_slice(&riff_size.to_le_bytes());
+                bytes[40..44].copy_from_slice(&data_size.to_le_bytes());
+                let (audio, rate) = read_wav(&bytes).unwrap();
+                assert_eq!(rate, 16000);
+                assert_eq!(audio, [0.25, -0.5]);
+            }
+        }
+        // Unknown lengths do not relax validation of format chunks.
+        let mut bytes = wav(1, 16, 1, 16000, &[0, 64]);
+        bytes[16..20].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert!(read_wav(&bytes).is_err());
     }
 
     #[test]

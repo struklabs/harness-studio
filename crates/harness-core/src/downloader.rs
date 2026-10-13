@@ -3311,7 +3311,7 @@ fn onnx_variants(
     {
         let (dir, file) = graph.path.rsplit_once('/').unwrap_or(("", &graph.path));
         // Only the repo root and one level (`onnx/`): deeper folders are other pipelines.
-        if dir.contains('/') || (ctc && dir != "onnx") {
+        if dir.contains('/') || (ctc && !dir.is_empty() && dir != "onnx") {
             continue;
         }
         let stem = file.trim_end_matches(".onnx").trim_end_matches(".ONNX");
@@ -6002,6 +6002,49 @@ mod tests {
         );
         assert_eq!(m.kind, crate::domain::ModelKind::Asr);
         let _ = fs::remove_file(&target);
+    }
+
+    #[test]
+    fn hub_onnx_ctc_root_graph_is_runnable_and_kept_with_companions() {
+        for graph in ["model.onnx", "onnx/model.onnx"] {
+            let external = format!("{graph}.data");
+            let files = [
+                graph,
+                &external,
+                "config.json",
+                "vocab.json",
+                "preprocessor_config.json",
+            ];
+            let siblings: Vec<_> = files
+                .iter()
+                .map(|f| serde_json::json!({"rfilename":f}))
+                .collect();
+            let mut item = serde_json::json!({"id":"acme/speech", "pipeline_tag":"automatic-speech-recognition", "config":{"architectures":["WavLMForCTC"]}, "siblings":siblings});
+            let repo = parse_search_item(&item).unwrap();
+            assert_eq!(repo.format, crate::hub_compat::ModelFormat::Onnx);
+            assert!(matches!(
+                repo.compatibility,
+                crate::hub_compat::Compatibility::Runnable { .. }
+            ));
+            let mut tree: Vec<_> = files
+                .iter()
+                .map(|f| serde_json::json!({"path":f,"type":"file","size":10}))
+                .collect();
+            tree.push(serde_json::json!({"path":"other/model.onnx"}));
+            tree.push(serde_json::json!({"path":"onnx/nested/model.onnx"}));
+            let variants = onnx_variants("acme/speech", &tree).unwrap();
+            assert_eq!(variants.len(), 1);
+            assert_eq!(variants[0].name, "model");
+            assert_eq!(variants[0].shards.len(), files.len());
+            for f in files {
+                assert!(variants[0].shards.iter().any(|s| s.filename == f));
+            }
+            item["config"]["architectures"] = serde_json::json!(["UnsupportedForCTC"]);
+            assert!(matches!(
+                parse_search_item(&item).unwrap().compatibility,
+                crate::hub_compat::Compatibility::Unsupported { .. }
+            ));
+        }
     }
 
     #[test]

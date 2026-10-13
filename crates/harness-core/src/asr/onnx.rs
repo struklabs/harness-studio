@@ -14,11 +14,11 @@ pub async fn prepare_audio(bytes: Vec<u8>) -> Result<Vec<u8>, String> {
 }
 
 /// OpenAI multipart request, shared by the gateway and the local CLI client.
-pub fn multipart(audio: &[u8], format: &str) -> (String, Vec<u8>) {
+pub fn multipart(audio: &[u8], format: &str, model: &str) -> (String, Vec<u8>) {
     let boundary = "harness-onnx-ctc-audio";
     let mut body = format!("--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"audio.wav\"\r\nContent-Type: audio/wav\r\n\r\n").into_bytes();
     body.extend_from_slice(audio);
-    body.extend_from_slice(format!("\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"response_format\"\r\n\r\n{format}\r\n--{boundary}--\r\n").as_bytes());
+    body.extend_from_slice(format!("\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"response_format\"\r\n\r\n{format}\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n{model}\r\n--{boundary}--\r\n").as_bytes());
     (format!("multipart/form-data; boundary={boundary}"), body)
 }
 
@@ -68,7 +68,7 @@ pub async fn transcribe(
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
         let active = pm.active_server().ok_or("ONNX CTC server stopped")?;
-        let (ct, body) = multipart(&audio, "verbose_json");
+        let (ct, body) = multipart(&audio, "verbose_json", id);
         let res = reqwest::Client::builder()
             .no_proxy()
             .build()
