@@ -52,6 +52,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    },
     "windows": {
       "nsis": {
         "installerHooks": "windows/hooks.nsh"
