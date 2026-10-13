@@ -420,6 +420,16 @@ fn parse_scaled_adapters(items: &[String]) -> Vec<AdapterRef> {
 /// Drops ids a typed definition field owns from `load` (moving them to the field when it is
 /// empty), so a hand-edited or API-saved definition has one place for each setting.
 pub fn normalize_definition(def: &mut ModelDefinition) {
+    if def
+        .base
+        .local_path()
+        .is_some_and(crate::asr::is_onnx_ctc_file)
+    {
+        def.load.insert(
+            "task".into(),
+            crate::params::ParamValue::Text("asr_ctc".into()),
+        );
+    }
     let owned: ParamValues = def
         .load
         .iter()

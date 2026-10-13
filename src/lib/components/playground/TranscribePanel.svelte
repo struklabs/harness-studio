@@ -23,7 +23,7 @@
   import { Progress } from '$lib/components/ui/progress';
   import { Download } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
-  import { fetchTranscription, isSpeechDefinition, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
+  import { fetchTranscription, isSpeechDefinition, isOnnxCtcDefinition, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
   import { MAX_RECORD_SECONDS, RecordError } from './recorder';
   import { createRecordingSession, recordingClock as clock } from './recordingSession';
   import { speech } from './speech.svelte';
@@ -39,6 +39,7 @@
   /** Installed sherpa-onnx recognition models (Parakeet, SenseVoice...): run per request, no definition. */
   let sherpaModels = $derived(asr.models);
   let sherpaChosen = $derived(isSherpaChoice(speech.model, domain.definitions, asr.names));
+  let ctcChosen = $derived(models.some(d => d.alias === speech.model && isOnnxCtcDefinition(d)));
   let noModel = $derived(models.length === 0 && sherpaModels.length === 0);
   let noModelNotice = $derived(noModel && !libraryDefinitions.busy);
   let installingRuntime = $derived(tts.installingRuntime);
@@ -50,7 +51,7 @@
   onMount(() => void asr.load());
   // sherpa-onnx models only transcribe; translation to English is a Whisper task.
   $effect(() => {
-    if (sherpaChosen) task = 'transcriptions';
+    if (sherpaChosen || ctcChosen) task = 'transcriptions';
   });
 
   async function installRuntime() {
@@ -95,7 +96,7 @@
     error = '';
     needFamily = null;
     try {
-      result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language, prompt, format }, app.inferenceHeaders(), c.signal);
+      result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language: ctcChosen ? '' : language, prompt: ctcChosen ? '' : prompt, format }, app.inferenceHeaders(), c.signal);
     } catch (e) {
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -314,11 +315,11 @@
     <div class="grid gap-3 sm:grid-cols-3">
       <div class="flex flex-col gap-1.5">
         <Label for="asr-task" class="text-sm font-semibold text-foreground">{t('asr.task_label')}</Label>
-        <select id="asr-task" bind:value={task} disabled={busy || sherpaChosen} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+        <select id="asr-task" bind:value={task} disabled={busy || sherpaChosen || ctcChosen} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
           <option value="transcriptions">{t('asr.task_transcribe')}</option>
           <option value="translations">{t('asr.task_translate')}</option>
         </select>
-        {#if sherpaChosen}<span class="text-xs text-muted-foreground">{t('sasr.only_transcribes')}</span>{/if}
+        {#if sherpaChosen || ctcChosen}<span class="text-xs text-muted-foreground">{t('sasr.only_transcribes')}</span>{/if}
       </div>
       <div class="flex flex-col gap-1.5">
         <Label for="asr-format" class="text-sm font-semibold text-foreground">{t('asr.format_label')}</Label>
@@ -328,10 +329,12 @@
           <option value="vtt">WebVTT</option>
         </select>
       </div>
+      {#if !ctcChosen}
       <div class="flex flex-col gap-1.5">
         <Label for="asr-lang" class="text-sm font-semibold text-foreground">{t('asr.language_label')}</Label>
         <Input id="asr-lang" bind:value={language} placeholder={t('asr.language_placeholder')} disabled={busy} />
       </div>
+      {/if}
     </div>
     <div class="flex flex-col gap-1.5">
       <Label for="asr-prompt" class="text-sm font-semibold text-foreground">{t('asr.prompt_label')}</Label>
@@ -413,6 +416,16 @@
           <MessageSquarePlus />{t('asr.to_chat')}
         </Button>
       </div>
+      {#if result.segments?.length}
+        <div class="flex flex-col gap-2">
+          {#each result.segments as segment}
+            <div class="flex gap-3 text-sm">
+              <span class="font-num shrink-0 text-muted-foreground">{segment.start.toFixed(2)}–{segment.end.toFixed(2)}</span>
+              <span class="whitespace-pre-wrap">{segment.text}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
       <pre class="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground [overflow-wrap:anywhere]">{result.text.trim()}</pre>
     </section>
   {/if}

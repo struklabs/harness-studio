@@ -154,7 +154,11 @@ pub fn local_format(model: &LocalModel) -> ModelFormat {
             crate::engine::ModelFormat::Ckpt => ModelFormat::Pytorch,
             _ => ModelFormat::Gguf,
         },
-        ModelKind::Asr if is_sherpa_asr(model) => ModelFormat::Onnx,
+        ModelKind::Asr
+            if crate::engine::ModelFormat::of(&model.path) == crate::engine::ModelFormat::Onnx =>
+        {
+            ModelFormat::Onnx
+        }
         ModelKind::Asr => ModelFormat::WhisperGgml,
         ModelKind::Tts => ModelFormat::Onnx,
         _ if crate::engine::ModelFormat::of(&model.path) == crate::engine::ModelFormat::Onnx => {

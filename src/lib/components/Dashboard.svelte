@@ -14,7 +14,7 @@
   import { localizeError } from '$lib/network';
   import CoachMarks from './CoachMarks.svelte';
   import ModelSelector from './dashboard/ModelSelector.svelte';
-  import { isSpeechDefinition } from './playground/transcribe';
+  import { isSpeechDefinition, isOnnxCtcDefinition } from './playground/transcribe';
   import LaunchParams from './dashboard/LaunchParams.svelte';
   import AdvancedParams from './dashboard/AdvancedParams.svelte';
   import MetadataFixNotice from './dashboard/MetadataFixNotice.svelte';
@@ -78,9 +78,8 @@
 
   let models = $state<LocalModel[]>([]);
   let selectedModelId = $state<string>('');
-  /** Models the Dashboard launches with llama-server (whisper files have their own servers). */
-  // whisper files run only as speech servers; adapters and projectors only beside a model.
-  let launchableModels = $derived(models.filter((m) => !['asr', 'tts', 'image', 'adapter', 'mmproj'].includes(m.kind ?? '')));
+  /** Resident model servers, including ONNX CTC; job engines and companion files stay out. */
+  let launchableModels = $derived(models.filter((m) => (m.kind === 'asr' && m.architecture === 'onnx') || !['asr', 'tts', 'image', 'adapter', 'mmproj'].includes(m.kind ?? '')));
   /** Single source of truth for every launch parameter (bound into LaunchParams/AdvancedParams). */
   let params = $state<LaunchParamsForm>(initialParams());
   let port = $state<number>(0);
@@ -1365,7 +1364,7 @@
         onOpenMigration={() => (showMigrationModal = true)}
         onOpenImport={() => (showImportModal = true)}
         onUnlink={unlinkModel}
-        definitions={domain.definitions.filter((d) => !isSpeechDefinition(d))}
+        definitions={domain.definitions.filter((d) => (!isSpeechDefinition(d) || isOnnxCtcDefinition(d)))}
         {selectedDefinitionId}
         onSelectDefinition={selectDefinition}
         {onDefinitionAction}
@@ -1382,6 +1381,7 @@
       {/if}
 
 </div>
+      {#if selectedModel?.kind !== 'asr'}
       <LaunchParams page={section.active} bind:params bind:port bind:portAuto {maxGpuLayers} {hardware} {portWarning} slotAdvice={routerMode ? null : (fitResult?.slots ?? null)} />
 
       <AdvancedParams page={section.active}
@@ -1394,6 +1394,7 @@
         serverId={app.selectedServerId}
         {onGoToConnections}
       />
+      {/if}
       </div>
     </div>
 
