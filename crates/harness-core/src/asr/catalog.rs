@@ -101,6 +101,32 @@ const ROWS: &[Row] = &[
         sha256: "951b32409aade32bd525310bb39e9666773ba3fc611a39e817f620936d76c631",
         recommended: true,
     },
+    Row {
+        id: "sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11",
+        title: "NVIDIA Nemotron 3.5 ASR streaming 0.6B (int8, 35 languages incl. Turkish)",
+        family: AsrFamily::StreamingTransducer,
+        languages: &[
+            "en", "es", "de", "fr", "it", "ar", "ja", "ko", "pt", "ru", "hi", "zh", "vi", "he",
+            "nl", "cs", "da", "pl", "no", "sv", "th", "tr", "bg", "el", "et", "fi", "hr", "hu",
+            "lt", "lv", "ro", "sk", "uk", "mt", "sl",
+        ],
+        size: 475_271_763,
+        license: "OpenMDW-1.1 (NVIDIA)",
+        sha256: "c6bf5e0df765f9d5b43bc9e0536d4b4b3e7d40bdf5ecf13e45f134c51c05ae3a",
+        recommended: false,
+    },
+    Row {
+        id: "sherpa-onnx-cohere-transcribe-14-lang-int8-2026-04-01",
+        title: "Cohere Transcribe (int8, 14 languages, punctuation; the language must be chosen)",
+        family: AsrFamily::CohereTranscribe,
+        languages: &[
+            "en", "fr", "de", "it", "es", "pt", "el", "nl", "pl", "zh", "ja", "ko", "vi", "ar",
+        ],
+        size: 1_699_791_751,
+        license: "Apache-2.0 (Cohere)",
+        sha256: "bd582588d50685a795dcd2807ab77e11361b8312d96c53884682def45ab4206d",
+        recommended: false,
+    },
 ];
 
 /// The models on offer.
@@ -274,11 +300,17 @@ mod tests {
             let root = dir.path().join(&e.id);
             std::fs::create_dir_all(&root).unwrap();
             std::fs::write(root.join("tokens.txt"), "<blk> 0\n").unwrap();
-            if e.family == AsrFamily::NemoTransducer || e.family == AsrFamily::Transducer {
-                for f in ["encoder", "decoder", "joiner"] {
-                    std::fs::write(root.join(format!("{f}.int8.onnx")), b"x").unwrap();
-                }
-            } else {
+            let parts: &[&str] = match e.family {
+                AsrFamily::NemoTransducer
+                | AsrFamily::Transducer
+                | AsrFamily::StreamingTransducer => &["encoder", "decoder", "joiner"],
+                AsrFamily::CohereTranscribe => &["encoder", "decoder"],
+                _ => &[],
+            };
+            for f in parts {
+                std::fs::write(root.join(format!("{f}.int8.onnx")), b"x").unwrap();
+            }
+            if parts.is_empty() {
                 std::fs::write(root.join("model.int8.onnx"), b"x").unwrap();
             }
             let m = super::super::detect(&root).unwrap_or_else(|| panic!("{}", e.id));
