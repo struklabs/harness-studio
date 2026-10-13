@@ -103,6 +103,7 @@ jobs:
       # macOS: Developer ID signing and notarization, only when all Apple secrets are defined.
       # Tauri imports the certificate into a temporary keychain and notarizes with the API key.
       - name: Apple signing secrets (only when defined)
+        id: apple
         if: runner.os == 'macOS'
         shell: bash
         env:
@@ -113,7 +114,10 @@ jobs:
           S_APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           S_APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
         run: |
-          if [ -z "$S_APPLE_CERTIFICATE" ] || [ -z "$S_APPLE_SIGNING_IDENTITY" ] || [ -z "$S_APPLE_API_KEY_P8" ]; then
+          # Every secret is needed: without the issuer or key id, notarization would run with empty
+          # credentials and fail instead of falling back to the ad-hoc build.
+          if [ -z "$S_APPLE_CERTIFICATE" ] || [ -z "$S_APPLE_SIGNING_IDENTITY" ] || [ -z "$S_APPLE_API_KEY_P8" ] \
+            || [ -z "$S_APPLE_API_ISSUER" ] || [ -z "$S_APPLE_API_KEY" ]; then
             echo "::notice::Apple secrets are not set: the DMG is ad-hoc signed and not notarized."
             exit 0
           fi
@@ -126,6 +130,7 @@ jobs:
             { echo "$name<<$d"; echo "${!value}"; echo "$d"; } >> "$GITHUB_ENV"
           done
           echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+          echo "notarize=true" >> "$GITHUB_OUTPUT"
 
       - uses: tauri-apps/tauri-action@v1
         env:
@@ -138,3 +143,32 @@ jobs:
           prerelease: false
           uploadUpdaterJson: ${{ steps.secrets.outputs.has_updater_key == 'true' }}
           args: ${{ steps.secrets.outputs.has_updater_key == 'true' && '--config src-tauri/tauri.release.conf.json ' || '' }}${{ matrix.args }}
+
+      # Tauri notarizes and staples the .app inside the DMG, not the DMG itself, so
+      # `spctl -t open` rejects the download as an "Unnotarized Developer ID" disk image. Notarize
+      # and staple the DMG too, then replace the asset tauri-action uploaded (same name: GitHub
+      # turns the space in "Harness Studio" into a dot).
+      - name: Notarize and staple the DMG
+        if: runner.os == 'macOS' && steps.apple.outputs.notarize == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dmgs=(target/"$TARGET"/release/bundle/dmg/*.dmg)
+          if [ ${#dmgs[@]} -ne 1 ]; then
+            echo "::error::expected one DMG for $TARGET, found ${#dmgs[@]}"
+            exit 1
+          fi
+          dmg="${dmgs[0]}"
+          xcrun notarytool submit "$dmg" --key "$APPLE_API_KEY_PATH" --key-id "$APPLE_API_KEY" \
+            --issuer "$APPLE_API_ISSUER" --wait --timeout 30m
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+          spctl -a -vv -t open --context context:primary-signature "$dmg"
+          asset="$RUNNER_TEMP/$(basename "$dmg" | tr ' ' '.')"
+          cp "$dmg" "$asset"
+          gh release upload "$TAG" "$asset" --clobber -R "$GITHUB_REPOSITORY"
