@@ -48,7 +48,7 @@ pub fn resolve_binary(runtime: Option<&str>) -> Result<PathBuf, String> {
 /// The VAD + ASR tool next to the runtime's own binary: the online one for a streaming model.
 pub fn tool_binary(runtime_binary: &Path, family: super::AsrFamily) -> Result<PathBuf, String> {
     let stem = if family.is_streaming() {
-        "sherpa-onnx-vad-with-online-asr"
+        "sherpa-onnx"
     } else {
         "sherpa-onnx-vad-with-offline-asr"
     };
@@ -97,6 +97,33 @@ pub fn pcm16_mono(wav: &[u8]) -> Option<(u32, &[u8])> {
         pos = body.saturating_add(size).saturating_add(size & 1);
     }
     None
+}
+
+/// 16-bit mono samples at `rate` as 16 kHz, the rate the online decoder and the speaker tools
+/// read (linear interpolation).
+pub fn resample_16k(rate: u32, pcm: &[u8]) -> Vec<u8> {
+    const RATE: u32 = 16_000;
+    let samples: Vec<i16> = pcm
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| i16::from_le_bytes(*c))
+        .collect();
+    if rate == RATE || samples.is_empty() || rate == 0 {
+        return pcm[..samples.len() * 2].to_vec();
+    }
+    let ratio = f64::from(rate) / f64::from(RATE);
+    let len = ((samples.len() as f64) / ratio).floor() as usize;
+    let mut out = Vec::with_capacity(len * 2);
+    for i in 0..len {
+        let pos = i as f64 * ratio;
+        let j = pos as usize;
+        let frac = pos - j as f64;
+        let a = f64::from(samples[j]);
+        let b = f64::from(*samples.get(j + 1).unwrap_or(&samples[j]));
+        out.extend_from_slice(&((a + (b - a) * frac).round() as i16).to_le_bytes());
+    }
+    out
 }
 
 /// A 16-bit mono WAV of `samples` at `rate`.
@@ -248,7 +275,14 @@ pub async fn transcribe(
             )
         })?;
     const INPUT: &str = "input.wav";
-    tokio::fs::write(dir.path().join(INPUT), &prepared.wav)
+    // The online decoder reads 16 kHz only (it does not resample).
+    let input = match pcm16_mono(&prepared.wav) {
+        Some((rate, pcm)) if req.model.family.is_streaming() && rate != 16_000 => {
+            wav_of(16_000, &[&resample_16k(rate, pcm)])
+        }
+        _ => prepared.wav.clone(),
+    };
+    tokio::fs::write(dir.path().join(INPUT), &input)
         .await
         .map_err(|e| {
             String::from(
@@ -283,13 +317,16 @@ pub async fn transcribe(
             .with("detail", crate::tts::run::failure_detail(&stderr))
             .into());
     }
-    // The online tool writes its results to stderr.
-    let text = if req.model.family.is_streaming() {
-        stderr
+    // The online decoder writes its result to stderr, as JSON with the token times.
+    let segments = if req.model.family.is_streaming() {
+        super::parse_online_json(&stderr, prepared.pad_secs, prepared.duration_secs)
     } else {
-        String::from_utf8_lossy(&out.stdout)
+        parse_output(
+            &String::from_utf8_lossy(&out.stdout),
+            prepared.pad_secs,
+            prepared.duration_secs,
+        )
     };
-    let segments = parse_output(&text, prepared.pad_secs, prepared.duration_secs);
     Ok(Transcript::new(
         segments,
         prepared.duration_secs,

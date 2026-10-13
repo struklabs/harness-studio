@@ -3,7 +3,9 @@
 //! Transcribe), run by the `sherpa-onnx-vad-with-offline-asr` tool of the sherpa-onnx runtime
 //! that already serves text to speech ([`crate::tts`], [`crate::engine::SHERPA_ONNX`]).
 //! Streaming transducers (NVIDIA Nemotron ASR streaming, streaming Zipformer) are run by the
-//! release's `sherpa-onnx-vad-with-online-asr` the same way: a whole file per run.
+//! release's online decoder `sherpa-onnx` on the whole file without the VAD (cut at pauses, a
+//! streaming model loses the first words of every piece), and the segments are made from its
+//! token times ([`parse_online_json`]).
 //!
 //! * [`AsrModel`]: a model folder found under the model roots ([`scan`]); the library lists it as
 //!   [`crate::domain::ModelKind::Asr`] with the sherpa-onnx runtime (its file is `.onnx`, a
@@ -75,7 +77,7 @@ impl AsrFamily {
         }
     }
 
-    /// Run by `sherpa-onnx-vad-with-online-asr` instead of the offline tool.
+    /// Run by the online decoder `sherpa-onnx` instead of the offline VAD tool.
     pub fn is_streaming(self) -> bool {
         self == Self::StreamingTransducer
     }
@@ -399,6 +401,23 @@ fn path_arg(flag: &str, path: &Path) -> String {
 
 /// The command line of one run, without the audio file (the last argument, see [`run`]).
 pub fn build_args(model: &AsrModel, params: &Params) -> Vec<String> {
+    if model.family.is_streaming() {
+        // The online decoder: the whole file, no VAD; one result at the end.
+        let mut args = vec![
+            path_arg("--tokens", &model.tokens),
+            path_arg("--encoder", &model.model_file),
+        ];
+        if let Some(d) = &model.decoder {
+            args.push(path_arg("--decoder", d));
+        }
+        if let Some(j) = &model.joiner {
+            args.push(path_arg("--joiner", j));
+        }
+        args.push("--enable-endpoint=false".to_string());
+        args.push(format!("--num-threads={}", params.threads.max(1)));
+        args.push("--print-args=false".to_string());
+        return args;
+    }
     let mut args = vec![
         path_arg("--silero-vad-model", &params.vad),
         format!("--silero-vad-max-speech-duration={MAX_SEGMENT_SECS}"),
@@ -441,16 +460,7 @@ pub fn build_args(model: &AsrModel, params: &Params) -> Vec<String> {
         }
         AsrFamily::Omnilingual => args.push(path_arg("--omnilingual-asr-model", &model.model_file)),
         AsrFamily::Dolphin => args.push(path_arg("--dolphin-model", &model.model_file)),
-        AsrFamily::StreamingTransducer => {
-            // The online tool guesses the transducer type from the model's metadata.
-            args.push(path_arg("--encoder", &model.model_file));
-            if let Some(d) = &model.decoder {
-                args.push(path_arg("--decoder", d));
-            }
-            if let Some(j) = &model.joiner {
-                args.push(path_arg("--joiner", j));
-            }
-        }
+        AsrFamily::StreamingTransducer => unreachable!("built above"),
         AsrFamily::CohereTranscribe => {
             args.push(path_arg("--cohere-transcribe-encoder", &model.model_file));
             if let Some(d) = &model.decoder {
@@ -494,17 +504,13 @@ pub struct Transcript {
     pub elapsed_ms: u64,
 }
 
-/// Parses the lines `start -- end: text` of the offline VAD tool's stdout and
-/// `vad segment(n:start-end) results: text` of the online one's stderr. `pad` seconds of silence
+/// Parses the lines `start -- end: text` of the VAD tool's stdout. `pad` seconds of silence
 /// were put in front of the audio ([`run::PAD_SECS`]): times are moved back by it and kept inside
 /// `0..=duration`. Segments without text are dropped.
 pub fn parse_output(stdout: &str, pad: f64, duration: f64) -> Vec<Segment> {
     static LINE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let re = LINE.get_or_init(|| {
-        regex::Regex::new(
-            r"^\s*(?:vad segment\(\d+:)?(\d+(?:\.\d+)?)(?: -- |-)(\d+(?:\.\d+)?)(?::|\) results:)\s?(.*)$",
-        )
-        .expect("valid regex")
+        regex::Regex::new(r"^\s*(\d+(?:\.\d+)?) -- (\d+(?:\.\d+)?):\s?(.*)$").expect("valid regex")
     });
     let clamp = |t: f64| (t - pad).clamp(0.0, duration.max(0.0));
     stdout
@@ -523,6 +529,67 @@ pub fn parse_output(stdout: &str, pad: f64, duration: f64) -> Vec<Segment> {
             })
         })
         .collect()
+}
+
+/// A pause between two tokens this long (seconds) starts a new segment.
+const SEGMENT_PAUSE: f64 = 1.0;
+/// After a sentence end, a pause this long starts a new segment.
+const SENTENCE_PAUSE: f64 = 0.3;
+/// How long the last token of a segment is taken to last (the decoder gives start times only).
+const TOKEN_SECS: f64 = 0.25;
+
+/// Segments from the online decoder's result: the JSON line (`tokens` and their `timestamps`) it
+/// writes to stderr. A segment ends at a pause, at a sentence end followed by a short pause, or
+/// when it reaches [`MAX_SEGMENT_SECS`]. Times are handled as in [`parse_output`].
+pub fn parse_online_json(stderr: &str, pad: f64, duration: f64) -> Vec<Segment> {
+    #[derive(Deserialize)]
+    struct Online {
+        tokens: Vec<String>,
+        timestamps: Vec<f64>,
+    }
+    let Some(result) = stderr
+        .lines()
+        .filter(|l| l.trim_start().starts_with('{'))
+        .find_map(|l| serde_json::from_str::<Online>(l.trim()).ok())
+    else {
+        return Vec::new();
+    };
+    let clamp = |t: f64| (t - pad).clamp(0.0, duration.max(0.0));
+    let tokens: Vec<(&str, f64)> = result
+        .tokens
+        .iter()
+        .map(String::as_str)
+        .zip(result.timestamps.iter().copied())
+        .collect();
+    let mut out = Vec::new();
+    let mut first = 0;
+    for i in 0..tokens.len() {
+        let (tok, at) = tokens[i];
+        let next = tokens.get(i + 1).map(|t| t.1);
+        let gap = next.map_or(f64::INFINITY, |n| n - at);
+        let sentence_end = tok.trim_end().ends_with(['.', '?', '!', '。', '？', '！']);
+        let too_long = at - tokens[first].1 >= f64::from(MAX_SEGMENT_SECS);
+        if gap >= SEGMENT_PAUSE || (sentence_end && gap >= SENTENCE_PAUSE) || too_long {
+            let text = tokens[first..=i]
+                .iter()
+                .map(|t| t.0)
+                .collect::<String>()
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ");
+            if !text.is_empty() {
+                let start = clamp(tokens[first].1);
+                let end = clamp(next.map_or(at + TOKEN_SECS, |n| (at + TOKEN_SECS).min(n)));
+                out.push(Segment {
+                    start,
+                    end: end.max(start),
+                    text,
+                });
+            }
+            first = i + 1;
+        }
+    }
+    out
 }
 
 fn is_cjk(c: char) -> bool {
