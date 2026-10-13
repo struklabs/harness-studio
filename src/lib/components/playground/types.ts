@@ -5,6 +5,7 @@ import { invoke } from '$lib/ipc';
 import { getToolSettings } from '$lib/tools-client';
 import type { RagTurn } from './rag';
 import type { PgImage } from './images';
+import type { PgAudio } from './audio';
 import type { TokenLogprob } from './logprobs';
 import { sanitizeCompaction, type CompactionMeta, type CompactionSettings } from './compaction.svelte';
 import { cleanRequest, DEFAULT_PRESET_ID, emptyRequest, requestBody, requestOf, sameRequest, type PresetRequest } from '../presets/request';
@@ -98,6 +99,7 @@ export interface ChatMessage {
   toolLimitReached?: boolean;
   /** Pictures sent with a user message (stored in the variant's `meta.images`). */
   images?: PgImage[];
+  audio?: PgAudio[];
   /** Transient; never persisted. */
   streaming?: boolean;
   /** Per-token probabilities of this answer (when requested); session memory only, see logprobs.ts. */

@@ -224,7 +224,10 @@ fn capabilities_and_projectors_on_real_headers() {
                 .clone(),
         },
     );
-    def.mmproj = Some("/x/mmproj.gguf".into());
+    let dir = tempfile::tempdir().unwrap();
+    let projector = dir.path().join("mmproj.gguf");
+    write_metadata_gguf(&projector, "general.architecture", "clip");
+    def.mmproj = Some(projector);
     let entries = build_entries(models, &[], &[def], &HashMap::new(), &[]);
     assert!(
         entries
@@ -1509,4 +1512,50 @@ fn registry_record_of_a_whisper_file_needs_its_runtime() {
             runtime: "whisper.cpp".into()
         })
     );
+}
+
+#[test]
+fn audio_mmproj_pairing_and_capability() {
+    let mut llm = real_models()
+        .into_iter()
+        .find(|m| m.kind == ModelKind::Llm)
+        .unwrap();
+    llm.name = "Ultravox-7B-Q8_0".into();
+    llm.path = PathBuf::from("/lib/org/ultravox/model/Ultravox-7B-Q8_0.gguf");
+    llm.id = "audio-model".into();
+    llm.quantization = "Q8_0".into();
+    llm.gguf.as_mut().unwrap().basename = Some("Ultravox-7B".into());
+    let mut proj = llm.clone();
+    proj.kind = ModelKind::Mmproj;
+    proj.id = "audio-f16".into();
+    proj.name = "mmproj-Ultravox-7B-F16".into();
+    proj.path = PathBuf::from("/lib/org/ultravox/mmproj-Ultravox-7B-F16.gguf");
+    proj.quantization = "F16".into();
+    proj.gguf.as_mut().unwrap().has_audio_encoder = true;
+    proj.gguf.as_mut().unwrap().has_vision_encoder = false;
+    let caps = caps_of(&proj, false, false);
+    assert!(caps.audio_input);
+    assert!(!caps.vision);
+    let mut q8 = proj.clone();
+    q8.id = "audio-q8".into();
+    q8.name = "mmproj-Ultravox-7B-Q8_0".into();
+    q8.path = PathBuf::from("/lib/org/ultravox/mmproj-Ultravox-7B-Q8_0.gguf");
+    q8.quantization = "Q8_0".into();
+    let models = vec![llm.clone(), proj.clone(), q8.clone()];
+    assert_eq!(suggest_projector(&llm.path, &models).unwrap().path, q8.path);
+    let entries = build_entries(models, &[], &[], &HashMap::new(), &[PathBuf::from("/lib")]);
+    let entry = entries.iter().find(|e| e.model.id == llm.id).unwrap();
+    assert!(entry.caps.audio_input && entry.multimodal);
+    assert!(!entry.caps.vision);
+    assert_eq!(entry.pairs.len(), 2);
+    // With no matching Q8 projector the F16 companion is preferred.
+    assert_eq!(
+        suggest_projector(&llm.path, &[llm.clone(), proj.clone()])
+            .unwrap()
+            .path,
+        proj.path
+    );
+    assert!(projector_matches(&llm, &proj, 2, &[PathBuf::from("/lib")]));
+    proj.path = PathBuf::from("/lib/other/ultravox/mmproj-Ultravox-7B-F16.gguf");
+    assert!(!projector_matches(&llm, &proj, 2, &[PathBuf::from("/lib")]));
 }

@@ -1384,8 +1384,8 @@ impl StateDb {
             if role != "user" {
                 return Err(StateError::invalid(err("conversations.only_user_editable")));
             }
-            // Pictures sent with the message stay with the edited text (meta `images`).
-            let images = tx
+            // Multimodal attachments stay with edited text; transient request metadata does not.
+            let attachments = tx
                 .query_row(
                     "SELECT v.meta_json FROM messages m JOIN message_variants v \
                      ON v.id = m.active_variant_id WHERE m.id = ?1",
@@ -1395,8 +1395,18 @@ impl StateDb {
                 .optional()?
                 .flatten()
                 .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-                .and_then(|m| m.get("images").cloned())
-                .filter(|i| i.as_array().is_some_and(|a| !a.is_empty()));
+                .and_then(|m| {
+                    let mut attachments = serde_json::Map::new();
+                    for key in ["images", "audio"] {
+                        if let Some(value) = m
+                            .get(key)
+                            .filter(|v| v.as_array().is_some_and(|a| !a.is_empty()))
+                        {
+                            attachments.insert(key.to_string(), value.clone());
+                        }
+                    }
+                    (!attachments.is_empty()).then_some(Value::Object(attachments))
+                });
             let id = resolve_id(new_message_id)?;
             let vid = new_id();
             let now = next_created_at(tx, &conv)?;
@@ -1411,7 +1421,7 @@ impl StateDb {
                 &id,
                 &VariantInput {
                     content: content.to_string(),
-                    meta: images.map(|i| serde_json::json!({ "images": i })),
+                    meta: attachments,
                     ..Default::default()
                 },
                 now,

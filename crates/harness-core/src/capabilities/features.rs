@@ -75,6 +75,8 @@ pub const REASON_KEYS: &[&str] = &[
     "model_no_template",
     "needs_mmproj",
     "model_vision",
+    "model_audio",
+    "model_no_audio",
     "model_no_vision",
     "model_embedding",
     "model_not_embedding",
@@ -465,6 +467,17 @@ pub fn feature_status(caps: &RuntimeCapabilities, ctx: FeatureContext<'_>) -> Ve
         _ => None,
     };
     out.push(e.model_dependent("vision", &["--mmproj", "-mm"], vision));
+    // Audio input shares the projector flag but has its own modality observation.
+    let audio = e
+        .observation()
+        .and_then(|o| o.modalities.get("audio").copied())
+        .map(|v| {
+            (
+                v,
+                Reason::new(if v { "model_audio" } else { "model_no_audio" }),
+            )
+        });
+    out.push(e.model_dependent("audio_input", &["--mmproj", "-mm"], audio));
 
     // Embedding / rerank follow the file kind (`domain::detect_kind`): bge-reranker-v2-m3 has
     // no `pooling_type` at all, only a classification head.

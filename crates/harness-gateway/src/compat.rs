@@ -605,6 +605,17 @@ mod tests {
     }
 
     #[test]
+    fn input_audio_passthrough() {
+        let part = json!({"type":"input_audio", "input_audio":{"data":"A".repeat(5 * 1024 * 1024), "format":"flac"}});
+        let body = json!({"model":"audio", "messages":[{"role":"user", "content":[{"type":"text", "text":"Listen"}, part]}],
+            "tools":[{"type":"function", "function":{"name":"lookup", "parameters":{"type":"object"}}}]});
+        let (out, _) = run(Api::Chat, body.clone(), &[]).unwrap();
+        assert_eq!(out["messages"], body["messages"]);
+        let bytes = serde_json::to_vec(&body).unwrap();
+        assert!(bytes.len() < crate::BODY_LIMIT);
+    }
+
+    #[test]
     fn namespace_is_flattened_and_mapped_back() {
         let (v, p) = run(Api::Responses, codex_request(), &[]).unwrap();
         let names: Vec<&str> = v["tools"]

@@ -279,12 +279,12 @@ export function buildApiMessages(messages: ChatMessage[], settings: PgSettings):
   if (system) out.push({ role: 'system', content: system });
   if (active?.pinnedIndex != null) {
     const pinned = messages[active.pinnedIndex];
-    out.push({ role: 'user', content: userContent(pinned.content, pinned.images) });
+    out.push({ role: 'user', content: userContent(pinned.content, pinned.images, pinned.audio) });
   }
   for (const m of active ? messages.slice(active.boundaryIndex + 1) : messages) {
     if (m.role === 'compaction') continue;
     if (m.role === 'user') {
-      out.push({ role: 'user', content: userContent(m.content, m.images) });
+      out.push({ role: 'user', content: userContent(m.content, m.images, m.audio) });
     } else {
       for (const r of m.priorRounds ?? []) pushRound(out, r);
       pushRound(out, m);
