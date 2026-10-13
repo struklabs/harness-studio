@@ -92,7 +92,7 @@ pub fn file_info(path: &Path) -> Option<Arc<FileInfo>> {
                     .as_nanos()
                     .to_le_bytes(),
             );
-            format!("{:x}", h.finalize())
+            harness_core::hex::lower(&h.finalize())
         });
     let info = Arc::new(FileInfo {
         meta,
