@@ -1,5 +1,12 @@
 // Playground view: in-app streaming chat against the running llama-server.
 const tr = {
+  'pg.audio_attach': 'Ses Ekle',
+  'pg.audio_record': 'Ses Kaydet',
+  'pg.audio_stop': 'Kaydı Durdur',
+  'pg.audio_cancel': 'Kaydı İptal Et',
+  'pg.audio_remove': '{name} sesini kaldır',
+  'pg.audio_picker_filter': 'Ses dosyaları',
+  'pg.audio_needs_model': 'Seçili model ses girişini desteklemiyor.',
   'pg.web_tools': 'Web ve Araçlar',
   'pg.web_tools_on': 'Açık',
   'pg.web_tools_off': 'Kapalı',
@@ -282,6 +289,14 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'pg.audio_attach': 'Attach Audio',
+  'pg.audio_record': 'Record Audio',
+  'pg.audio_stop': 'Stop Recording',
+  'pg.audio_cancel': 'Cancel Recording',
+  'pg.audio_remove': 'Remove audio {name}',
+  'pg.audio_picker_filter': 'Audio files',
+  'pg.audio_needs_model': 'The selected model does not support audio input.',
+
   'pg.web_tools': 'Web and Tools',
   'pg.web_tools_on': 'On',
   'pg.web_tools_off': 'Off',

@@ -135,6 +135,57 @@ pub(crate) async fn pick_image_files(app: tauri::AppHandle, label: String) -> Ve
     .unwrap_or_default()
 }
 
+/// Native chooser for multimodal audio input.
+#[tauri::command]
+pub(crate) async fn pick_audio_files(app: tauri::AppHandle, label: String) -> Vec<String> {
+    use tauri_plugin_dialog::DialogExt;
+    blocking(move || {
+        app.dialog()
+            .file()
+            .add_filter(label, &["wav", "mp3", "flac"])
+            .blocking_pick_files()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|p| p.into_path().ok())
+            .map(|p| p.to_string_lossy().to_string())
+            .collect()
+    })
+    .await
+    .unwrap_or_default()
+}
+
+#[tauri::command]
+pub(crate) async fn read_audio_file(path: String) -> Result<String, String> {
+    use base64::Engine;
+    use std::io::Read;
+    blocking(move || {
+        let p = PathBuf::from(path);
+        let ext = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if !["wav", "mp3", "flac"].contains(&ext.as_str()) {
+            return Err(harness_core::error_key::err("pg.audio_err_type")
+                .with("name", p.display())
+                .into());
+        }
+        let file = std::fs::File::open(&p).map_err(|e| e.to_string())?;
+        let mut bytes = Vec::new();
+        file.take(4 * 1024 * 1024 + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|e| e.to_string())?;
+        if bytes.len() > 4 * 1024 * 1024 {
+            return Err(harness_core::error_key::err("pg.audio_err_too_large")
+                .with("name", p.display())
+                .num("mb", 4)
+                .into());
+        }
+        Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+    })
+    .await?
+}
+
 /// A picture dropped on the Playground (the window hands over paths, not files): its bytes as
 /// base64, for the page to scale and send to a vision model. Only picture files, 25 MB at most.
 #[tauri::command]
@@ -226,7 +277,9 @@ pub(crate) async fn rag_reindex(
     let docs = {
         let db = db.clone();
         let conv = conversation_id.clone();
-        blocking(move || db.rag_documents(&conv)).await?.map_err(String::from)?
+        blocking(move || db.rag_documents(&conv))
+            .await?
+            .map_err(String::from)?
     };
     let mut started = Vec::new();
     for d in docs {

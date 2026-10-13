@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { audioUrl } from './audio';
   import { lengthStop } from './contextBudget';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { t, locale } from '$lib/i18n.svelte';
@@ -322,6 +323,12 @@
           {/each}
         </div>
       {/if}
+      {#each message.audio ?? [] as clip, i (i)}
+        <div class="mb-2 flex flex-wrap items-center gap-2 whitespace-normal">
+          <span class="text-sm">{clip.name}</span>
+          <audio controls preload="none" src={audioUrl(clip)} aria-label={clip.name}></audio>
+        </div>
+      {/each}
       {message.content}
     </div>
   {/if}

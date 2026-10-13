@@ -28,6 +28,9 @@ const tr = {
   'rag.notice_embed_failed': 'Soru vektöre çevrilemedi, anahtar kelime araması kullanıldı: {error}',
   'rag.notice_rerank_failed': 'Yeniden sıralama yapılamadı: {error}',
   'rag.notice_over_context': 'Tam metin olarak eklenen belgeler modelin bağlamının neredeyse tamamını kaplıyor; yanıt kesilebilir.',
+  'pg.audio_err_type': '{name}: WAV, MP3 veya FLAC dosyası seçin.',
+  'pg.audio_err_too_large': '{name}: ses dosyası en fazla {mb} MB olabilir.',
+  'pg.audio_err_limit': 'Bir mesaja en fazla {max} ses dosyası eklenebilir.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -58,6 +61,9 @@ const en: Record<keyof typeof tr, string> = {
   'rag.notice_embed_failed': 'Could not embed the question, keyword search was used: {error}',
   'rag.notice_rerank_failed': 'Reranking failed: {error}',
   'rag.notice_over_context': 'Documents added as full text fill almost all of the model’s context; the answer may be cut off.',
+  'pg.audio_err_type': '{name}: choose a WAV, MP3 or FLAC file.',
+  'pg.audio_err_too_large': '{name}: audio files can be at most {mb} MB.',
+  'pg.audio_err_limit': 'A message can include at most {max} audio files.',
 };
 
 export default { tr, en };

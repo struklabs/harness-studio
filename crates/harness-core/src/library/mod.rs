@@ -41,6 +41,9 @@ pub struct ModelCaps {
     pub vision: bool,
     /// Its projector has an audio encoder.
     pub audio: bool,
+    /// Audio content parts accepted by the model, independent of vision.
+    #[serde(default)]
+    pub audio_input: bool,
     pub embedding: bool,
     pub rerank: bool,
     /// Speech recognition (a whisper.cpp ggml model).
@@ -317,7 +320,7 @@ pub fn build_entries(
             .copied()
             .filter(|&j| models[j].path.parent() == m.path.parent())
             .collect();
-        for &j in &same_dir {
+        for &j in &projectors {
             if projector_matches(m, &models[j], same_dir.len(), roots) {
                 pairs[i].push(models[j].id.clone());
                 pairs[j].push(m.id.clone());
@@ -351,10 +354,18 @@ pub fn build_entries(
                     .iter()
                     .any(|p| projector_caps.get(p).is_some_and(f))
             };
+            let linked: Vec<_> = my_defs
+                .iter()
+                .filter_map(|d| d.mmproj.as_deref())
+                .chain(model.mmproj_path.as_deref())
+                .filter_map(|p| crate::gguf::read_gguf_metadata(p).ok())
+                .collect();
             let vision = paired(|c| c.0)
-                || my_defs.iter().any(|d| d.mmproj.is_some())
-                || model.mmproj_path.is_some();
-            let caps = caps_of(&model, vision, paired(|c| c.1));
+                || linked
+                    .iter()
+                    .any(|g| g.has_vision_encoder || !g.has_audio_encoder);
+            let audio = paired(|c| c.1) || linked.iter().any(|g| g.has_audio_encoder);
+            let caps = caps_of(&model, vision, audio);
             let multimodal = model.kind == ModelKind::Llm && (caps.vision || caps.audio);
 
             // Preset used: newest conversation with one of its aliases, unless a later start
@@ -426,6 +437,7 @@ fn caps_of(model: &LocalModel, vision: bool, audio: bool) -> ModelCaps {
         reasoning: chat && g.is_some_and(|g| g.template_supports_reasoning),
         vision: (llm && vision) || proj_vision,
         audio: (llm && audio) || proj_audio,
+        audio_input: (llm && audio) || proj_audio,
         embedding: model.kind == ModelKind::Embedding,
         rerank: model.kind == ModelKind::Reranker,
         asr: model.kind == ModelKind::Asr,
@@ -505,7 +517,10 @@ pub fn projector_matches(
     projectors_in_dir: usize,
     roots: &[PathBuf],
 ) -> bool {
-    if llm.path.parent() != proj.path.parent() {
+    let same_dir = llm.path.parent() == proj.path.parent();
+    let repo = ops::repo_of(llm, roots);
+    let same_repo = repo.is_some() && repo == ops::repo_of(proj, roots);
+    if !same_dir && !same_repo {
         return false;
     }
     let base = |m: &LocalModel| {
@@ -525,7 +540,7 @@ pub fn projector_matches(
     }
     let dir = llm.path.parent();
     let is_root = dir.is_some_and(|d| roots.iter().any(|r| norm(r) == norm(d)));
-    projectors_in_dir == 1 && !is_root
+    same_dir && projectors_in_dir == 1 && !is_root
 }
 
 /// The projector file proposed for a model in the launch form and the definition editor.
@@ -538,7 +553,7 @@ pub struct ProjectorSuggestion {
 /// The projector that belongs to the LLM at `model_path`: the same pairing the library uses
 /// ([`projector_matches`], projectors in the model's own folder). A model linked from Ollama /
 /// LM Studio brings its own (`mmproj_path`) and wins. Several fitting projectors (F16, BF16...):
-/// the F16 one, else the first by name. `None` for anything but an LLM, or without a match.
+/// the matching quantization, then F16 / Q8, else the first by name. `None` for anything but an LLM, or without a match.
 pub fn suggest_projector(model_path: &Path, models: &[LocalModel]) -> Option<ProjectorSuggestion> {
     let key = norm(model_path);
     let llm = models
@@ -557,18 +572,30 @@ pub fn suggest_projector(model_path: &Path, models: &[LocalModel]) -> Option<Pro
     } else {
         vec![PathBuf::from(&llm.root_dir)]
     };
-    let same_dir: Vec<&LocalModel> = models
+    let projectors: Vec<&LocalModel> = models
         .iter()
-        .filter(|m| m.kind == ModelKind::Mmproj && m.path.parent() == llm.path.parent())
+        .filter(|m| m.kind == ModelKind::Mmproj)
         .collect();
-    let mut fitting: Vec<&LocalModel> = same_dir
+    let mut fitting: Vec<&LocalModel> = projectors
         .iter()
         .copied()
-        .filter(|p| projector_matches(llm, p, same_dir.len(), &roots))
+        .filter(|p| {
+            projector_matches(
+                llm,
+                p,
+                projectors
+                    .iter()
+                    .filter(|p| p.path.parent() == llm.path.parent())
+                    .count(),
+                &roots,
+            )
+        })
         .collect();
     fitting.sort_by_key(|p| {
         (
+            p.quantization != llm.quantization,
             !p.name.to_lowercase().contains("f16") || p.name.to_lowercase().contains("bf16"),
+            !p.name.to_lowercase().contains("q8"),
             p.name.clone(),
         )
     });

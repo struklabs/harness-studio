@@ -2039,6 +2039,7 @@ export interface ModelCaps {
   reasoning: boolean;
   vision: boolean;
   audio: boolean;
+  audio_input: boolean;
   embedding: boolean;
   rerank: boolean;
   /** Speech recognition (whisper.cpp ggml). */
