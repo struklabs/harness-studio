@@ -1,0 +1,16 @@
+torch
+transformers
+diffusers
+sentence-transformers
+accelerate
+safetensors
+pillow
+soundfile
+numpy
+scipy
+sentencepiece
+protobuf
+timm
+starlette
+uvicorn
+python-multipart
