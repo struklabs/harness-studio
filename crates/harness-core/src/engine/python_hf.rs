@@ -613,6 +613,18 @@ impl ServerEngine for PythonHfEngine {
 
     /// The weights plus PyTorch's own share (the interpreter, the libraries and activations),
     /// all in RAM.
+    fn worker_env(&self, api_key: &str) -> Option<Vec<(&'static str, std::ffi::OsString)>> {
+        Some(worker_env(api_key))
+    }
+
+    fn uses_socket(&self) -> bool {
+        true
+    }
+
+    fn listen_on_socket(&self, args: &mut Vec<String>, socket: &Path) {
+        listen_on_socket(args, socket);
+    }
+
     fn estimate_memory(
         &self,
         input: &FitInput,

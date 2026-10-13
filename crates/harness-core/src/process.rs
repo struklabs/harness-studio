@@ -1405,10 +1405,10 @@ impl ProcessManager {
             }
             *self.launch_config.lock().unwrap() = Some(stored);
         }
-        // The Python worker always has a key (the user's, else one for this run): its port is a
+        // A Python worker always has a key (the user's, else one for this run): its port is a
         // relay any local process could reach.
-        let is_pyhf = engine.family() == crate::engine::PYTHON_HF;
-        let worker_key = if is_pyhf {
+        let is_worker = engine.worker_env("").is_some();
+        let worker_key = if is_worker {
             match config.api_key.clone().filter(|k| !k.is_empty()) {
                 Some(key) => Some(key),
                 None => Some(crate::network::generate_api_key().map_err(|e| self.set_error(e))?),
@@ -1465,12 +1465,12 @@ impl ProcessManager {
         // An isolated Python worker (no network) listens on a Unix socket; the port is relayed
         // to it.
         self.stop_relay();
-        let isolated = is_pyhf && crate::pyenv::isolation::available();
+        let isolated = is_worker && crate::pyenv::isolation::available() && engine.uses_socket();
         let mut cmd = if isolated {
             #[cfg(unix)]
             {
                 match self.start_relay(&config).await {
-                    Ok(socket) => crate::engine::python_hf::listen_on_socket(&mut args, &socket),
+                    Ok(socket) => engine.listen_on_socket(&mut args, &socket),
                     Err(e) => return Err(self.set_error(e)),
                 }
             }
@@ -1481,7 +1481,7 @@ impl ProcessManager {
         } else {
             Command::new(&config.binary_path)
         };
-        if is_pyhf {
+        if let Some(env) = worker_key.as_deref().and_then(|key| engine.worker_env(key)) {
             self.push_log(format!(
                 "[Harness Studio] Python worker: {}",
                 if isolated {
@@ -1490,9 +1490,7 @@ impl ProcessManager {
                     "not isolated"
                 }
             ));
-            for (var, value) in
-                crate::engine::python_hf::worker_env(worker_key.as_deref().unwrap_or_default())
-            {
+            for (var, value) in env {
                 cmd.env(var, value);
             }
         }

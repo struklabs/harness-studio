@@ -275,6 +275,21 @@ pub trait ServerEngine: Engine {
         budget: &MemoryBudget,
         measured: &[Measurement],
     ) -> FitResult;
+    /// A server that runs in a managed Python environment ([`crate::pyenv`]): Harness gives it
+    /// an API key for every run (the user's, else a fresh one) and these environment variables;
+    /// `None` for every other family.
+    fn worker_env(&self, _api_key: &str) -> Option<Vec<(&'static str, std::ffi::OsString)>> {
+        None
+    }
+    /// Whether the server can listen on a Unix socket ([`ServerEngine::listen_on_socket`]). A
+    /// worker that can is started without network when [`crate::pyenv::isolation`] is
+    /// available, and Harness relays its port to the socket; one that cannot runs on its
+    /// loopback port, guarded by its key only.
+    fn uses_socket(&self) -> bool {
+        false
+    }
+    /// Rewrites a launch's arguments to listen on the Unix socket `socket` instead of its port.
+    fn listen_on_socket(&self, _args: &mut Vec<String>, _socket: &Path) {}
 }
 
 /// An engine held by value in structs that derive `Default` (llama.cpp).
