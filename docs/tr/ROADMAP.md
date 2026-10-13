@@ -6,6 +6,8 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
 
 **Ürün hedefi.** Metin, görsel, konuşma, embedding, rerank ve araç iş yüklerini tek yerden yöneten yerel bir yapay zekâ kontrol merkezi. Varsayılan çalışma zamanı llama.cpp'dir; diğerleri ihtiyaç duyduğunuzda kurduğunuz modüllerdir.
 
+**Kapsam hedefi.** Hugging Face model filtresindeki her görev ve kütüphane (çok kipli, bilgisayarlı görü, NLP, ses, tablo, pekiştirmeli öğrenme, çizge) Harness'te çalışır: mümkün olan yerde yerel motorlarla (llama.cpp, ONNX Runtime, stable-diffusion.cpp, whisper.cpp, sherpa-onnx, ggml ses motorları), olmayan yerde isteğe bağlı, yönetilen Python motorlarıyla.
+
 **İlkeler.**
 - LM Studio ve Ollama'nın yaptığını, llama.cpp'nin gelişmiş denetimlerini gizlemeden yapmak.
 - Gözlemlenebilirlikte ve ajan kullanımında daha iyi olmak, düşük kaynak kullanmak.
@@ -14,6 +16,11 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
 
 ## Şimdi
 
+- **Hugging Face görev kapsamı.** Her görevin en çok indirilen modelleri üzerinde ölçüldü (Ekim 2026): metin üretiminde ilk 300 modelin 295'i, görsel-dil modellerinin %98'i çalışıyor; ama yazıdan sese %29, konuşma tanıma %39, görselden görsele %45'te; sesten sese, konuşmacı ayırma (diarization) ve NLP ile bilgisayarlı görü sınıflandırma görevleri henüz yok. Süren işler:
+  - ONNX Runtime üzerinde Python'suz pipeline'lar, `/v1/hf/{model}` arkasında (Hugging Face Inference API biçimi): metin sınıflandırma, sıfır-atış sınıflandırma, varlık tanıma (NER), maske doldurma, soru yanıtlama; ardından görsel sınıflandırma, nesne algılama, bölütleme, derinlik tahmini ve ses sınıflandırma.
+  - ggml ses motorları (audio.cpp, transcribe.cpp, CrispASR) ve llama.cpp ses girişi ve çıkışı (LFM2-Audio, Qwen3-TTS).
+  - Görsel düzenleme (`/v1/images/edits`, FLUX.2 klein), video üretimi (Wan; kısa bir klip dakikalar sürdüğü için OpenAI Videos biçiminde asenkron bir `/v1/videos` iş API'si olarak) ve konuşmacı ayırma dahil daha çok sherpa-onnx ailesi.
+  - Model Hub uyumluluk işaretleri bir depoyu hangi motorun çalıştırdığını söyler; yerelde hiçbir motorun çalıştıramadığı biçimleri (AWQ, FP8, NVFP4 checkpoint'leri) indirmeden önce reddeder.
 - **Platform doğrulaması.** 0.1.0 ile Windows kurulum paketi (NSIS), imzalı ve Apple onaylı (notarize) macOS DMG'leri ve önizleme olarak bir Linux `.deb` paketi gelir (AppImage, GStreamer medya eklentilerini içerdiğinde). Linux'u daha çok makinede (AMD, NVIDIA, Intel) ve dağıtımda doğrulayıp önizleme etiketini kaldırmak.
 - **İlk çalıştırma cilası.** Her platformda boş veri klasörleriyle uçtan uca ilk çalıştırma akışı (sihirbaz, model bulma, indirme, başlatma, sohbet).
 - **Daha fazla donanımda ölçüm.** Karşılaştırma paketini (`bench/compare/`) NVIDIA/CUDA ve Linux üzerinde çalıştırmak, diğer araçları aynı oturumda yeniden ölçmek.
@@ -33,7 +40,7 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
 - **Karar modelleri.** Evet/hayır, seçim ve puanlama soruları için kısıtlı çıktı ve olasılıklar veren `/v1/decisions` ve `/v1/systemone` uç noktaları.
 - **Control API SDK'ları.** OpenAPI şemasından üretilen TypeScript ve Python istemcileri.
 - Apple Silicon için **MLX motoru**.
-- **Otomatik güncelleme.** Masaüstü uygulaması için GitHub Releases üzerinden imzalı güncelleme kanalı.
+- **Her platformda otomatik güncelleme.** İmzalı uygulama içi güncelleyici 0.1.0'da Windows için, 0.1.1'den itibaren macOS için geliyor; Linux paketleri ardından.
 - **İmzalı Windows kurulum paketi.** Kod imzalı Windows kurulum paketi (macOS uygulaması zaten imzalı ve notarize edilmiş).
 
 ## Daha sonra
