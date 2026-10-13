@@ -6,10 +6,14 @@
 //!   per [`ModelPackage::pooling`] (unless the graph already outputs a sentence vector) and
 //!   normalizes.
 //! * [`Engine::rerank`] encodes `(query, document)` pairs and returns the classifier logit.
+//! * [`Engine::classify`], [`Engine::zero_shot`], [`Engine::token_classify`],
+//!   [`Engine::fill_mask`] and [`Engine::answer`] run the task heads (logits read by
+//!   [`crate::tasks`]).
 
 use crate::api::ApiError;
 use crate::package::{ModelPackage, Pooling, Task};
 use crate::pooling;
+use crate::tasks::{self, Answer, Entity, LabelScore, TokenInfo};
 use ort::ep::ExecutionProvider as _;
 use ort::session::Session;
 use ort::value::{Tensor, TensorElementType};
@@ -90,15 +94,24 @@ struct Inputs {
     position_ids: Option<(String, IdType)>,
 }
 
-/// Which output carries the result.
+/// Which output carries the result (`extra`: the second one of a QA head, `end_logits`).
 #[derive(Debug, Clone)]
 struct OutputSpec {
     name: String,
+    extra: Option<String>,
 }
+
+/// Context windows of one question-answering request, at most: a longer context is refused
+/// (each window is a graph run under the session lock).
+pub const MAX_QA_WINDOWS: usize = 32;
 
 pub struct Engine {
     session: Mutex<Session>,
     tokenizer: Tokenizer,
+    /// Question answering: the tokenizer without truncation; [`Engine::answer`] cuts the
+    /// context into overlapping windows (`doc_stride`) itself, the question whole in each,
+    /// like the transformers pipeline.
+    qa_tokenizer: Option<Tokenizer>,
     pub package: ModelPackage,
     inputs: Inputs,
     output: OutputSpec,
@@ -193,7 +206,22 @@ fn pick_output(session: &Session, task: Task) -> Result<OutputSpec, String> {
             "last_hidden_state",
             "token_embeddings",
         ],
-        Task::Rerank => &["logits", "scores", "score"],
+        Task::Rerank | Task::Classify | Task::TokenClassify | Task::FillMask => {
+            &["logits", "scores", "score"]
+        }
+        Task::QuestionAnswering => {
+            let has = |n: &str| names.contains(&n);
+            if !(has("start_logits") && has("end_logits")) {
+                return Err(format!(
+                    "a question-answering graph needs start_logits and end_logits outputs (has: {})",
+                    names.join(", ")
+                ));
+            }
+            return Ok(OutputSpec {
+                name: "start_logits".into(),
+                extra: Some("end_logits".into()),
+            });
+        }
     };
     let name = preference
         .iter()
@@ -202,6 +230,7 @@ fn pick_output(session: &Session, task: Task) -> Result<OutputSpec, String> {
         .unwrap_or(names[0]);
     Ok(OutputSpec {
         name: name.to_string(),
+        extra: None,
     })
 }
 
@@ -327,12 +356,22 @@ pub fn load(opts: &LoadOptions) -> Result<Engine, String> {
         }))
         .map_err(|e| format!("tokenizer truncation: {}", e))?;
 
+    let qa_tokenizer = if package.task == Task::QuestionAnswering {
+        let mut t = tokenizer.clone();
+        t.with_truncation(None)
+            .map_err(|e| format!("tokenizer truncation: {}", e))?;
+        Some(t)
+    } else {
+        None
+    };
+
     let (session, provider) = build_session(&package.onnx_path, opts.provider, opts.threads)?;
     let inputs = classify_inputs(&session)?;
     let output = pick_output(&session, package.task)?;
     let engine = Engine {
         session: Mutex::new(session),
         tokenizer,
+        qa_tokenizer,
         package,
         inputs,
         output,
@@ -353,6 +392,29 @@ pub fn load(opts: &LoadOptions) -> Result<Engine, String> {
                 .rerank("warm up", &["warm up".to_string()])
                 .map_err(|e| e.message)?;
         }
+        Task::Classify => {
+            engine
+                .classify(&["warm up".to_string()], None, Some(1))
+                .map_err(|e| e.message)?;
+        }
+        Task::TokenClassify => {
+            engine
+                .token_classify(&["warm up".to_string()], true)
+                .map_err(|e| e.message)?;
+        }
+        Task::FillMask => {
+            let mask = engine.mask_token().ok_or_else(|| {
+                format!("{} has no mask token in its tokenizer", engine.package.name)
+            })?;
+            engine
+                .fill_mask(&format!("warm {mask}"), 1)
+                .map_err(|e| e.message)?;
+        }
+        Task::QuestionAnswering => {
+            engine
+                .answer("what?", "warm up", 1)
+                .map_err(|e| e.message)?;
+        }
     }
     Ok(engine)
 }
@@ -361,6 +423,12 @@ pub fn load(opts: &LoadOptions) -> Result<Engine, String> {
 struct Encoded {
     ids: Vec<u32>,
     type_ids: Vec<u32>,
+    /// Byte offsets of each token in its own text (the first or the second of a pair).
+    offsets: Vec<(usize, usize)>,
+    special: Vec<bool>,
+    words: Vec<Option<u32>>,
+    /// Which text of a pair a token comes from (`None` for special tokens).
+    sequence: Vec<Option<usize>>,
 }
 
 /// Raw output of one graph run.
@@ -379,23 +447,361 @@ fn to_f32(values: &[half::f16]) -> Vec<f32> {
     values.iter().map(|v| v.to_f32()).collect()
 }
 
+/// An output tensor: shape and f32 values.
+type RawOutput = (Vec<i64>, Vec<f32>);
+
+fn encoded_of(e: &tokenizers::Encoding) -> Encoded {
+    Encoded {
+        ids: e.get_ids().to_vec(),
+        type_ids: e.get_type_ids().to_vec(),
+        offsets: e.get_offsets().to_vec(),
+        special: e
+            .get_special_tokens_mask()
+            .iter()
+            .map(|&m| m != 0)
+            .collect(),
+        words: e.get_word_ids().to_vec(),
+        sequence: e.get_sequence_ids(),
+    }
+}
+
 impl Engine {
     fn encode(&self, inputs: Vec<EncodeInput<'_>>) -> Result<Vec<Encoded>, ApiError> {
         let encodings = self
             .tokenizer
             .encode_batch(inputs, true)
             .map_err(|e| ApiError::invalid(format!("tokenization failed: {}", e)))?;
-        Ok(encodings
+        Ok(encodings.iter().map(encoded_of).collect())
+    }
+
+    /// The tokenizer's mask token (`[MASK]`, `<mask>`).
+    pub fn mask_token(&self) -> Option<String> {
+        ["[MASK]", "<mask>", "<MASK>"]
             .iter()
-            .map(|e| Encoded {
-                ids: e.get_ids().to_vec(),
-                type_ids: e.get_type_ids().to_vec(),
+            .find(|t| self.tokenizer.token_to_id(t).is_some())
+            .map(|t| t.to_string())
+    }
+
+    fn require(&self, task: Task, what: &str) -> Result<(), ApiError> {
+        if self.package.task == task {
+            Ok(())
+        } else {
+            Err(ApiError::unavailable(format!(
+                "this model is a {} model, not a {} model",
+                self.package.task.as_str(),
+                what
+            )))
+        }
+    }
+
+    /// Classifier logits of single texts or `(text, text_pair)` encodings, one row each.
+    fn class_rows(&self, inputs: Vec<EncodeInput<'_>>) -> Result<(Vec<Vec<f32>>, usize), ApiError> {
+        let encoded = self.encode(inputs)?;
+        let lengths: Vec<usize> = encoded.iter().map(|e| e.ids.len()).collect();
+        let tokens = lengths.iter().sum();
+        let mut rows = vec![Vec::new(); encoded.len()];
+        for group in self.plan(&lengths) {
+            let batch: Vec<&Encoded> = group.iter().map(|&i| &encoded[i]).collect();
+            match self.run(&batch)? {
+                Raw::Rows { data, dim } => {
+                    for (slot, row) in group.iter().zip(data.chunks(dim)) {
+                        rows[*slot] = row.to_vec();
+                    }
+                }
+                Raw::Tokens { .. } => {
+                    return Err(ApiError::server(
+                        "the graph outputs token vectors, not classifier logits",
+                    ))
+                }
+            }
+        }
+        Ok((rows, tokens))
+    }
+
+    /// Label scores of each text (with its pair text, for a pair classifier), best first.
+    pub fn classify(
+        &self,
+        texts: &[String],
+        pairs: Option<&[String]>,
+        top_k: Option<usize>,
+    ) -> Result<(Vec<Vec<LabelScore>>, usize), ApiError> {
+        if !matches!(self.package.task, Task::Classify | Task::Rerank) {
+            return Err(ApiError::unavailable(format!(
+                "this model is a {} model, not a text classifier",
+                self.package.task.as_str()
+            )));
+        }
+        let inputs = match pairs {
+            Some(p) => texts
+                .iter()
+                .zip(p)
+                .map(|(a, b)| EncodeInput::from((a.as_str(), b.as_str())))
+                .collect(),
+            None => texts
+                .iter()
+                .map(|t| EncodeInput::from(t.as_str()))
+                .collect(),
+        };
+        let (rows, tokens) = self.class_rows(inputs)?;
+        Ok((
+            rows.iter()
+                .map(|r| {
+                    tasks::classify_row(r, &self.package.labels, self.package.multi_label, top_k)
+                })
+                .collect(),
+            tokens,
+        ))
+    }
+
+    /// Zero-shot scores of `candidates` for `text` with an NLI head: each candidate fills
+    /// `template` (`{}` is the label) as the hypothesis.
+    pub fn zero_shot(
+        &self,
+        text: &str,
+        candidates: &[String],
+        template: &str,
+        multi_label: bool,
+    ) -> Result<(Vec<LabelScore>, usize), ApiError> {
+        self.require(Task::Classify, "zero-shot (NLI)")?;
+        let (entail, contra) = tasks::nli_indices(&self.package.labels).ok_or_else(|| {
+            ApiError::unavailable(
+                "this classifier has no entailment label: zero-shot classification needs an NLI model",
+            )
+        })?;
+        let hypotheses: Vec<String> = candidates
+            .iter()
+            .map(|c| {
+                if template.contains("{}") {
+                    template.replace("{}", c)
+                } else {
+                    format!("{template} {c}")
+                }
             })
+            .collect();
+        let inputs = hypotheses
+            .iter()
+            .map(|h| EncodeInput::from((text, h.as_str())))
+            .collect();
+        let (rows, tokens) = self.class_rows(inputs)?;
+        Ok((
+            tasks::zero_shot(&rows, candidates, entail, contra, multi_label),
+            tokens,
+        ))
+    }
+
+    /// Entities of each text (`group`: tokens merged into words and entities).
+    pub fn token_classify(
+        &self,
+        texts: &[String],
+        group: bool,
+    ) -> Result<(Vec<Vec<Entity>>, usize), ApiError> {
+        self.require(Task::TokenClassify, "token-classification")?;
+        let encoded = self.encode(
+            texts
+                .iter()
+                .map(|t| EncodeInput::from(t.as_str()))
+                .collect(),
+        )?;
+        let lengths: Vec<usize> = encoded.iter().map(|e| e.ids.len()).collect();
+        let tokens = lengths.iter().sum();
+        let mut out = vec![Vec::new(); texts.len()];
+        for indices in self.plan(&lengths) {
+            let batch: Vec<&Encoded> = indices.iter().map(|&i| &encoded[i]).collect();
+            let Raw::Tokens { data, seq, dim } = self.run(&batch)? else {
+                return Err(ApiError::server(
+                    "the graph does not output per-token logits",
+                ));
+            };
+            for (b, &slot) in indices.iter().enumerate() {
+                let e = &encoded[slot];
+                let info: Vec<TokenInfo> = (0..e.ids.len())
+                    .map(|t| TokenInfo {
+                        start: e.offsets[t].0,
+                        end: e.offsets[t].1,
+                        special: e.special[t],
+                        word: e.words[t],
+                    })
+                    .collect();
+                let rows = &data[b * seq * dim..(b + 1) * seq * dim];
+                out[slot] = tasks::token_entities(
+                    &texts[slot],
+                    rows,
+                    dim,
+                    &info,
+                    &self.package.labels,
+                    group,
+                );
+            }
+        }
+        Ok((out, tokens))
+    }
+
+    /// The `top_k` fills of the first mask token of `text`: token, id, score, filled text.
+    #[allow(clippy::type_complexity)]
+    pub fn fill_mask(
+        &self,
+        text: &str,
+        top_k: usize,
+    ) -> Result<(Vec<(String, u32, f32, String)>, usize), ApiError> {
+        self.require(Task::FillMask, "fill-mask")?;
+        let mask = self
+            .mask_token()
+            .ok_or_else(|| ApiError::server("the tokenizer has no mask token"))?;
+        let mask_id = self.tokenizer.token_to_id(&mask).unwrap_or(u32::MAX);
+        let encoded = self.encode(vec![EncodeInput::from(text)])?;
+        let e = &encoded[0];
+        let position = e.ids.iter().position(|&id| id == mask_id).ok_or_else(|| {
+            ApiError::invalid(if text.contains(&mask) {
+                format!(
+                    "the input is longer than the model's {} tokens and was cut before {mask}: shorten the text before it",
+                    self.package.max_length
+                )
+            } else {
+                format!("the input has no mask token: put {mask} where the word goes")
+            })
+        })?;
+        let Raw::Tokens { data, dim, .. } = self.run(&[e])? else {
+            return Err(ApiError::server(
+                "the graph does not output per-token logits",
+            ));
+        };
+        let row = &data[position * dim..(position + 1) * dim];
+        let fills = tasks::top_tokens(row, top_k)
+            .into_iter()
+            .map(|(id, score)| {
+                let token = self
+                    .tokenizer
+                    .decode(&[id], true)
+                    .unwrap_or_default()
+                    .trim()
+                    .to_string();
+                let sequence = text.replacen(&mask, &token, 1);
+                (token, id, score, sequence)
+            })
+            .collect();
+        Ok((fills, e.ids.len()))
+    }
+
+    /// `question` with each window of `context`: windows as long as the model allows next to
+    /// the question and the special tokens, overlapping by the pipeline's `doc_stride` (128
+    /// tokens, less for a short room).
+    fn qa_windows(&self, question: &str, context: &str) -> Result<Vec<Encoded>, ApiError> {
+        let tokenizer = self.qa_tokenizer.as_ref().unwrap_or(&self.tokenizer);
+        let err = |e: tokenizers::Error| ApiError::invalid(format!("tokenization failed: {}", e));
+        let q = tokenizer.encode(question, false).map_err(err)?;
+        let mut c = tokenizer.encode(context, false).map_err(err)?;
+        let specials = tokenizer
+            .post_process(Default::default(), Some(Default::default()), true)
+            .map_err(err)?
+            .len();
+        let room = self.package.max_length.saturating_sub(q.len() + specials);
+        if room < 16 {
+            return Err(ApiError::invalid(format!(
+                "the question is too long: it leaves {} of the model's {} tokens for the context",
+                room, self.package.max_length
+            )));
+        }
+        let stride = 128.min(room / 2);
+        c.truncate(room, stride, TruncationDirection::Right);
+        let rest = c.take_overflowing();
+        std::iter::once(c)
+            .chain(rest)
+            .map(|chunk| {
+                tokenizer
+                    .post_process(q.clone(), Some(chunk), true)
+                    .map(|e| encoded_of(&e))
+                    .map_err(err)
+            })
+            .collect()
+    }
+
+    /// The best `top_k` answers to `question` in `context` (an extractive QA head).
+    pub fn answer(
+        &self,
+        question: &str,
+        context: &str,
+        top_k: usize,
+    ) -> Result<(Vec<Answer>, usize), ApiError> {
+        self.require(Task::QuestionAnswering, "question-answering")?;
+        let windows = self.qa_windows(question, context)?;
+        if windows.len() > MAX_QA_WINDOWS {
+            return Err(ApiError::invalid(format!(
+                "the context needs {} windows of {} tokens; at most {} per request",
+                windows.len(),
+                self.package.max_length,
+                MAX_QA_WINDOWS
+            )));
+        }
+        let mut answers: Vec<Answer> = Vec::new();
+        let mut tokens = 0;
+        for e in &windows {
+            tokens += e.ids.len();
+            let outputs = self.run_outputs(&[e])?;
+            let [start, end] = outputs.as_slice() else {
+                return Err(ApiError::server("the graph returned no start/end logits"));
+            };
+            let context_tokens: Vec<(usize, usize, usize)> = (0..e.ids.len())
+                .filter(|&t| e.sequence[t] == Some(1) && !e.special[t])
+                .map(|t| (t, e.offsets[t].0, e.offsets[t].1))
+                .collect();
+            // `[CLS]` (the first token when it is a special one) is the "no answer" choice.
+            let null = e.special.first().copied().unwrap_or(false).then_some(0);
+            answers.extend(tasks::answer_spans(
+                context,
+                start,
+                end,
+                &context_tokens,
+                null,
+                30,
+                top_k,
+            ));
+        }
+        // The best spans over all windows; a span found in two overlapping windows once.
+        answers.sort_by(|a, b| b.score.total_cmp(&a.score));
+        let mut out: Vec<Answer> = Vec::new();
+        for a in answers {
+            if !out.iter().any(|o| o.start == a.start && o.end == a.end) {
+                out.push(a);
+            }
+        }
+        out.truncate(top_k.max(1));
+        Ok((out, tokens))
+    }
+
+    /// The flat values of the spec's outputs (`name`, then `extra`) for `batch`.
+    fn run_outputs(&self, batch: &[&Encoded]) -> Result<Vec<Vec<f32>>, ApiError> {
+        Ok(self
+            .run_raw(batch, true)?
+            .into_iter()
+            .map(|(_, d)| d)
             .collect())
     }
 
     /// Runs the graph on `batch` (right-padded to the longest). Returns the raw output.
     fn run(&self, batch: &[&Encoded]) -> Result<Raw, ApiError> {
+        let n = batch.len();
+        let (shape, data) = self.run_raw(batch, false)?.remove(0);
+        match shape.as_slice() {
+            [b, s, d] if *b as usize == n => Ok(Raw::Tokens {
+                data,
+                seq: *s as usize,
+                dim: *d as usize,
+            }),
+            [b, d] if *b as usize == n => Ok(Raw::Rows {
+                data,
+                dim: *d as usize,
+            }),
+            [b] if *b as usize == n => Ok(Raw::Rows { data, dim: 1 }),
+            other => Err(ApiError::server(format!(
+                "unexpected output shape {:?} for a batch of {}",
+                other, n
+            ))),
+        }
+    }
+
+    /// Feeds `batch` (right-padded to the longest) and reads the spec's output, and its
+    /// `extra` one when `all`, as shape and f32 values.
+    fn run_raw(&self, batch: &[&Encoded], all: bool) -> Result<Vec<RawOutput>, ApiError> {
         let n = batch.len();
         let seq = batch.iter().map(|e| e.ids.len()).max().unwrap_or(1).max(1);
         let shape = [n, seq];
@@ -444,36 +850,28 @@ impl Engine {
         let outputs = session
             .run(feeds)
             .map_err(|e| ApiError::server(format!("inference failed: {}", e)))?;
-        let value = outputs
-            .get(&self.output.name)
-            .ok_or_else(|| ApiError::server(format!("output {} missing", self.output.name)))?;
-        let err = |e: ort::Error| ApiError::server(format!("output: {}", e));
-        let (shape, data) = match value.dtype().tensor_type() {
-            Some(TensorElementType::Float16) => {
-                let (s, d) = value.try_extract_tensor::<half::f16>().map_err(err)?;
-                (s.to_vec(), to_f32(d))
-            }
-            _ => {
-                let (s, d) = value.try_extract_tensor::<f32>().map_err(err)?;
-                (s.to_vec(), d.to_vec())
-            }
-        };
-        match shape.as_slice() {
-            [b, s, d] if *b as usize == n => Ok(Raw::Tokens {
-                data,
-                seq: *s as usize,
-                dim: *d as usize,
-            }),
-            [b, d] if *b as usize == n => Ok(Raw::Rows {
-                data,
-                dim: *d as usize,
-            }),
-            [b] if *b as usize == n => Ok(Raw::Rows { data, dim: 1 }),
-            other => Err(ApiError::server(format!(
-                "unexpected output shape {:?} for a batch of {}",
-                other, n
-            ))),
+        let mut names = vec![self.output.name.clone()];
+        if all {
+            names.extend(self.output.extra.clone());
         }
+        let mut out = Vec::with_capacity(names.len());
+        for name in names {
+            let value = outputs
+                .get(&name)
+                .ok_or_else(|| ApiError::server(format!("output {} missing", name)))?;
+            let err = |e: ort::Error| ApiError::server(format!("output: {}", e));
+            out.push(match value.dtype().tensor_type() {
+                Some(TensorElementType::Float16) => {
+                    let (s, d) = value.try_extract_tensor::<half::f16>().map_err(err)?;
+                    (s.to_vec(), to_f32(d))
+                }
+                _ => {
+                    let (s, d) = value.try_extract_tensor::<f32>().map_err(err)?;
+                    (s.to_vec(), d.to_vec())
+                }
+            });
+        }
+        Ok(out)
     }
 
     /// Groups texts into graph runs: sorted by length (little padding), at most

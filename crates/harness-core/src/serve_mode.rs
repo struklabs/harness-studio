@@ -52,6 +52,9 @@ pub enum ServeMode {
     /// sd-server: image (and video) generation (`/sdcpp/v1/img_gen`; the gateway's
     /// `/v1/images/generations`).
     Image,
+    /// An encoder task head (classification, NER, fill-mask, QA) on harness-onnx or the
+    /// Python engine: Hugging Face Inference API requests on `/hf` (the gateway's `/v1/hf`).
+    Pipeline,
 }
 
 impl ServeMode {
@@ -62,6 +65,7 @@ impl ServeMode {
             "rerank" => Some(Self::Rerank),
             "transcription" => Some(Self::Transcription),
             "image" => Some(Self::Image),
+            "pipeline" => Some(Self::Pipeline),
             _ => None,
         }
     }
@@ -73,6 +77,7 @@ impl ServeMode {
             Self::Rerank => "rerank",
             Self::Transcription => "transcription",
             Self::Image => "image",
+            Self::Pipeline => "pipeline",
         }
     }
 
@@ -83,6 +88,7 @@ impl ServeMode {
             ModelKind::Reranker => Self::Rerank,
             ModelKind::Asr => Self::Transcription,
             ModelKind::Image => Self::Image,
+            ModelKind::Pipeline => Self::Pipeline,
             _ => Self::Chat,
         }
     }
@@ -139,6 +145,7 @@ impl Note {
                     ServeMode::Chat => "sohbet",
                     ServeMode::Transcription => "whisper-server",
                     ServeMode::Image => "sd-server",
+                    ServeMode::Pipeline => "harness-onnx /hf",
                 };
                 if *automatic {
                     format!("[Harness Studio] Model türüne göre sunucu modu: {} ({}). Sunucu modu ayarından değiştirilebilir.", mode.as_str(), flag)
@@ -153,6 +160,7 @@ impl Note {
                     ServeMode::Chat => "chat",
                     ServeMode::Transcription => "whisper-server",
                     ServeMode::Image => "sd-server",
+                    ServeMode::Pipeline => "harness-onnx /hf",
                 };
                 if *automatic {
                     format!("[Harness Studio] Server mode from the model kind: {} ({}). Change it with the Server mode setting.", mode.as_str(), flag)
@@ -217,7 +225,7 @@ pub fn prepare(
                     .insert("rerank".into(), ParamValue::Bool(true));
             }
             // whisper-server launches skip this function (`process::run_claimed`).
-            ServeMode::Transcription | ServeMode::Image => {}
+            ServeMode::Transcription | ServeMode::Image | ServeMode::Pipeline => {}
         }
         // Only worth a log line when it changes anything or the kind decided it.
         if mode != ServeMode::Chat || chosen.is_some() {

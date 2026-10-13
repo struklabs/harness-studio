@@ -123,6 +123,7 @@ const tr = {
   'dev.endpoint_messages': 'Anthropic Messages',
   'dev.endpoint_ollama': 'Ollama API',
   'dev.endpoint_metrics': 'Prometheus metrikleri',
+  'dev.endpoint_pipelines': 'Görev hatları (/v1/hf)',
   'dev.limits': 'Hız sınırları',
   'dev.limits_hint':
     'Sınır aşılınca istek 429 ve Retry-After ile reddedilir, Analitik\'te "rate_limited" olarak görünür. Token/dakika, istek bitince düşülür.',
@@ -317,6 +318,7 @@ const en: Record<keyof typeof tr, string> = {
   'dev.endpoint_messages': 'Anthropic Messages',
   'dev.endpoint_ollama': 'Ollama API',
   'dev.endpoint_metrics': 'Prometheus metrics',
+  'dev.endpoint_pipelines': 'Task pipelines (/v1/hf)',
   'dev.limits': 'Rate limits',
   'dev.limits_hint':
     'Over a limit a request gets 429 with Retry-After and shows as "rate_limited" in Analytics. Tokens per minute are charged when a request ends.',

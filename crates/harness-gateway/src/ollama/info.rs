@@ -77,7 +77,11 @@ pub fn file_info(path: &Path) -> Option<Arc<FileInfo>> {
         .sum::<u64>()
         .max(md.len());
     let meta = harness_core::gguf::read_gguf_metadata(path).ok();
-    let kind = detect_kind(meta.as_ref());
+    // ONNX encoders have no GGUF header: their repo says what they serve.
+    let kind = match meta.as_ref() {
+        Some(_) => detect_kind(meta.as_ref()),
+        None => harness_core::models::onnx_kind(path).unwrap_or(ModelKind::Unknown),
+    };
     let digest = harness_core::downloader::recorded_hashes()
         .get(&path.to_string_lossy().to_string())
         .cloned()
@@ -129,6 +133,8 @@ pub fn capabilities(def: &ModelDefinition, info: &FileInfo) -> Vec<&'static str>
         ModelKind::Embedding => vec!["embedding"],
         // Ollama has no reranker capability; `/v1/rerank` serves these.
         ModelKind::Reranker => Vec::new(),
+        // Task pipelines (`/v1/hf`) cannot chat.
+        ModelKind::Pipeline => Vec::new(),
         _ => {
             let mut caps = vec!["completion"];
             let m = info.meta.as_ref();
@@ -315,5 +321,25 @@ mod tests {
         assert_eq!(s.len(), 3);
         assert!(s[2].ends_with("Llama-70B-Q4_K_M-00003-of-00003.gguf"));
         assert_eq!(shards(Path::new("/m/a.gguf")).len(), 1);
+    }
+
+    #[test]
+    fn task_pipelines_and_rerankers_do_not_chat() {
+        let def = ModelDefinition::new(
+            "m",
+            harness_core::domain::ModelRef::Local {
+                path: "/m/model.onnx".into(),
+            },
+        );
+        for kind in [ModelKind::Pipeline, ModelKind::Reranker] {
+            let info = FileInfo {
+                meta: None,
+                kind,
+                size: 1,
+                modified: SystemTime::UNIX_EPOCH,
+                digest: String::new(),
+            };
+            assert!(capabilities(&def, &info).is_empty());
+        }
     }
 }

@@ -23,6 +23,7 @@
     rerank: 'emb.mode_rerank',
     transcription: 'emb.mode_transcription',
     image: 'emb.mode_image',
+    pipeline: 'emb.mode_pipeline',
   } as const;
 
   let kind = $derived(models.find((m) => m.id === selectedModelId)?.kind);

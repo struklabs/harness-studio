@@ -25,6 +25,7 @@ export const ENDPOINTS: { id: GatewayEndpoint; label: TKey }[] = [
   { id: 'messages', label: 'dev.endpoint_messages' },
   { id: 'ollama', label: 'dev.endpoint_ollama' },
   { id: 'metrics', label: 'dev.endpoint_metrics' },
+  { id: 'pipelines', label: 'dev.endpoint_pipelines' },
 ];
 
 export interface TokenDraft {

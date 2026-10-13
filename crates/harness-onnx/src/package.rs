@@ -34,6 +34,15 @@ pub enum Task {
     Embedding,
     /// (query, document) to a relevance logit (`/v1/rerank`): a cross-encoder.
     Rerank,
+    /// Text (or a text pair) to labels (`/v1/classify`); an NLI head (an `entailment` label)
+    /// also answers `/v1/zero-shot-classify`.
+    Classify,
+    /// Labels per token, grouped into entities (`/v1/token-classify`): NER, POS.
+    TokenClassify,
+    /// The most likely tokens for a mask (`/v1/fill-mask`).
+    FillMask,
+    /// An answer span of a context (`/v1/question-answering`): extractive QA.
+    QuestionAnswering,
 }
 
 impl Task {
@@ -41,13 +50,23 @@ impl Task {
         match self {
             Task::Embedding => "embedding",
             Task::Rerank => "rerank",
+            Task::Classify => "classify",
+            Task::TokenClassify => "token-classify",
+            Task::FillMask => "fill-mask",
+            Task::QuestionAnswering => "question-answering",
         }
     }
 
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_lowercase().as_str() {
             "embedding" | "embeddings" => Some(Task::Embedding),
-            "rerank" | "reranker" | "ranking" => Some(Task::Rerank),
+            "rerank" | "reranker" | "ranking" | "text-ranking" => Some(Task::Rerank),
+            "classify" | "classification" | "text-classification" | "zero-shot-classification" => {
+                Some(Task::Classify)
+            }
+            "token-classify" | "token-classification" | "ner" => Some(Task::TokenClassify),
+            "fill-mask" | "fill_mask" => Some(Task::FillMask),
+            "question-answering" | "qa" => Some(Task::QuestionAnswering),
             _ => None,
         }
     }
@@ -114,6 +133,11 @@ pub struct ModelPackage {
     pub max_length: usize,
     /// Embedding size from `1_Pooling/config.json`, when it names one.
     pub dimension: Option<usize>,
+    /// Label names of a classification head, by id (`id2label` of config.json).
+    pub labels: Vec<String>,
+    /// Labels are independent (`problem_type: multi_label_classification`): sigmoid, not
+    /// softmax.
+    pub multi_label: bool,
     /// Display name: the repo folder (`all-MiniLM-L6-v2`).
     pub name: String,
     /// sentence-transformers modules after pooling that this server cannot run (a `Dense`
@@ -121,6 +145,24 @@ pub struct ModelPackage {
     pub unsupported_modules: Vec<String>,
     /// How each decision above was reached, for the startup log.
     pub notes: Vec<String>,
+}
+
+impl ModelPackage {
+    /// The Hugging Face pipeline task this package serves through `/hf` (`None` for the
+    /// embedding and reranking models, which have their own endpoints). An NLI classifier is a
+    /// zero-shot classifier.
+    pub fn pipeline_task(&self) -> Option<&'static str> {
+        match self.task {
+            Task::Embedding | Task::Rerank => None,
+            Task::Classify if crate::tasks::nli_indices(&self.labels).is_some() => {
+                Some("zero-shot-classification")
+            }
+            Task::Classify => Some("text-classification"),
+            Task::TokenClassify => Some("token-classification"),
+            Task::FillMask => Some("fill-mask"),
+            Task::QuestionAnswering => Some("question-answering"),
+        }
+    }
 }
 
 /// Why a repo cannot be served.
@@ -261,18 +303,56 @@ pub fn parse_pooling_config(v: &Value) -> Option<PoolingConfig> {
     Some(PoolingConfig { mode, dimension })
 }
 
-/// The task a `config.json` implies: a sequence-classification head is a cross-encoder.
+/// Label names of `id2label`, ordered by id (empty when the config has none).
+pub fn labels_from_config(config: &Value) -> Vec<String> {
+    let Some(map) = config.get("id2label").and_then(Value::as_object) else {
+        return Vec::new();
+    };
+    let mut pairs: Vec<(usize, String)> = map
+        .iter()
+        .filter_map(|(k, v)| Some((k.parse().ok()?, v.as_str()?.to_string())))
+        .collect();
+    pairs.sort_by_key(|(i, _)| *i);
+    pairs.into_iter().map(|(_, l)| l).collect()
+}
+
+/// Label names that say nothing (`LABEL_0`, `LABEL_1`, ...): what transformers writes when a
+/// head was trained without names.
+fn generic_labels(labels: &[String]) -> bool {
+    labels.iter().all(|l| {
+        l.strip_prefix("LABEL_")
+            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    })
+}
+
+/// The task a `config.json` implies, from the head in `architectures`. A sequence-classification
+/// head is a cross-encoder (reranker) with one output, or with two outputs whose labels have no
+/// names (some cross-encoders are trained as binary classifiers); otherwise a classifier.
 pub fn task_from_config(config: &Value) -> Task {
-    let classifier = config
+    let heads: Vec<&str> = config
         .get("architectures")
         .and_then(Value::as_array)
-        .is_some_and(|a| {
-            a.iter()
-                .filter_map(Value::as_str)
-                .any(|n| n.ends_with("ForSequenceClassification"))
-        });
-    if classifier {
-        Task::Rerank
+        .map(|a| a.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    let has = |suffix: &str| heads.iter().any(|n| n.ends_with(suffix));
+    if has("ForSequenceClassification") {
+        let outputs = config
+            .get("num_labels")
+            .and_then(Value::as_u64)
+            .map(|n| n as usize)
+            .unwrap_or_else(|| labels_from_config(config).len());
+        let labels = labels_from_config(config);
+        if outputs <= 1 || (outputs == 2 && generic_labels(&labels)) {
+            Task::Rerank
+        } else {
+            Task::Classify
+        }
+    } else if has("ForTokenClassification") {
+        Task::TokenClassify
+    } else if has("ForQuestionAnswering") {
+        Task::QuestionAnswering
+    } else if has("ForMaskedLM") {
+        Task::FillMask
     } else {
         Task::Embedding
     }
@@ -438,6 +518,12 @@ impl ModelPackage {
             normalize,
             max_length,
             dimension: pooling_cfg.and_then(|p| p.dimension),
+            labels: config.as_ref().map(labels_from_config).unwrap_or_default(),
+            multi_label: config
+                .as_ref()
+                .and_then(|c| c.get("problem_type"))
+                .and_then(Value::as_str)
+                == Some("multi_label_classification"),
             name,
             unsupported_modules: unsupported,
             notes,
@@ -719,5 +805,34 @@ mod tests {
             Some(Pooling::MeanSqrtLen)
         );
         assert_eq!(Task::parse("Reranker"), Some(Task::Rerank));
+    }
+
+    #[test]
+    fn sequence_heads_are_rerankers_unless_they_name_their_labels() {
+        let seq = |extra: Value| {
+            let mut c = json!({"architectures": ["BertForSequenceClassification"]});
+            c.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            task_from_config(&c)
+        };
+        // ms-marco cross-encoders: one output.
+        assert_eq!(seq(json!({"num_labels": 1})), Task::Rerank);
+        assert_eq!(seq(json!({"id2label": {"0": "LABEL_0"}})), Task::Rerank);
+        // A cross-encoder trained as a binary classifier: two unnamed outputs.
+        assert_eq!(
+            seq(json!({"id2label": {"0": "LABEL_0", "1": "LABEL_1"}})),
+            Task::Rerank
+        );
+        assert_eq!(seq(json!({"num_labels": 2})), Task::Rerank);
+        // Named labels, or more than two outputs: a classifier.
+        assert_eq!(
+            seq(json!({"id2label": {"0": "NEGATIVE", "1": "POSITIVE"}})),
+            Task::Classify
+        );
+        assert_eq!(
+            seq(json!({"id2label": {"0": "LABEL_0", "1": "LABEL_1", "2": "LABEL_2"}})),
+            Task::Classify
+        );
     }
 }

@@ -179,6 +179,10 @@ pub struct LocalModel {
     /// Library directory or linked from another app.
     #[serde(default)]
     pub origin: crate::domain::ModelOrigin,
+    /// Hugging Face pipeline task of a [`crate::domain::ModelKind::Pipeline`] model
+    /// (`text-classification`, `token-classification`...).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub task: Option<String>,
 }
 
 /// Header parsing is cached by (path, size, mtime) so rescans are cheap.
@@ -210,6 +214,20 @@ fn is_model_extension(path: &Path) -> bool {
             .iter()
             .any(|x| e.eq_ignore_ascii_case(x))
     })
+}
+
+fn onnx_task_kind(task: harness_onnx::package::Task) -> crate::domain::ModelKind {
+    match task {
+        harness_onnx::package::Task::Embedding => crate::domain::ModelKind::Embedding,
+        harness_onnx::package::Task::Rerank => crate::domain::ModelKind::Reranker,
+        _ => crate::domain::ModelKind::Pipeline,
+    }
+}
+
+/// What an encoder `.onnx` file serves (embedding, reranking or a task pipeline), `None` for
+/// any other file.
+pub fn onnx_kind(path: &Path) -> Option<crate::domain::ModelKind> {
+    harness_onnx::package::library_task(path).map(onnx_task_kind)
 }
 
 /// The library entry of an `.onnx` file: an embedding or reranking model when the repo around
@@ -256,11 +274,9 @@ fn onnx_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
         gguf: None,
         source: None,
         mmproj_path: None,
-        kind: match package.task {
-            harness_onnx::package::Task::Embedding => crate::domain::ModelKind::Embedding,
-            harness_onnx::package::Task::Rerank => crate::domain::ModelKind::Reranker,
-        },
+        kind: onnx_task_kind(package.task),
         origin: crate::domain::ModelOrigin::Library,
+        task: package.pipeline_task().map(String::from),
     })
 }
 
@@ -298,6 +314,7 @@ fn genai_entry(
         mmproj_path: None,
         kind: crate::domain::ModelKind::Llm,
         origin: crate::domain::ModelOrigin::Library,
+        task: None,
     })
 }
 
@@ -413,6 +430,7 @@ impl ModelManager {
                     mmproj_path: e.mmproj_path.filter(|p| p.is_file()),
                     kind,
                     origin: crate::domain::ModelOrigin::Linked,
+                    task: None,
                     path: e.path,
                 }
             })
@@ -595,6 +613,7 @@ impl ModelManager {
                 root_dir: root_dir_str.clone(),
                 kind,
                 origin: crate::domain::ModelOrigin::Library,
+                task: None,
                 gguf: metadata,
                 source: None,
                 mmproj_path: None,
@@ -625,6 +644,7 @@ impl ModelManager {
                 root_dir: root_dir_str.clone(),
                 kind,
                 origin: crate::domain::ModelOrigin::Library,
+                task: None,
                 gguf: None,
                 source: None,
                 mmproj_path: None,
@@ -656,6 +676,7 @@ impl ModelManager {
                 root_dir: root_dir_str.clone(),
                 kind: crate::domain::ModelKind::Image,
                 origin: crate::domain::ModelOrigin::Library,
+                task: None,
                 gguf: None,
                 source: None,
                 mmproj_path: None,
@@ -714,6 +735,7 @@ impl ModelManager {
                 root_dir: root_dir_str.clone(),
                 kind: crate::domain::detect_kind(metadata.as_ref()),
                 origin: crate::domain::ModelOrigin::Library,
+                task: None,
                 gguf: metadata,
                 source: None,
                 mmproj_path: None,
