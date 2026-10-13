@@ -285,6 +285,8 @@ pub const IMAGE_ARCHS: &[&str] = &[
     "cosmos",
     "lumina2",
     "qwen_image",
+    "qwen_image21",
+    "krea2",
     "z_image",
     "chroma",
 ];
@@ -1247,7 +1249,16 @@ mod tests {
 
     #[test]
     fn image_architectures() {
-        for arch in ["flux", "sdxl", "sd3", "wan", "qwen_image", "z_image"] {
+        for arch in [
+            "flux",
+            "sdxl",
+            "sd3",
+            "wan",
+            "qwen_image",
+            "qwen_image21",
+            "krea2",
+            "z_image",
+        ] {
             assert!(is_image_arch(arch), "{arch}");
         }
         for arch in ["llama", "qwen3", "gemma3", "bert", "clip"] {
