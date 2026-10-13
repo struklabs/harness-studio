@@ -212,13 +212,24 @@ fn config_task(cfg: &serde_json::Value, dir: &Path) -> Option<&'static str> {
         return Some("sentence-similarity");
     }
     if has("ForSequenceClassification") {
-        // A one-label head scores (query, document) pairs: a cross-encoder.
-        let labels = cfg
+        let labels: Vec<String> = cfg
             .get("id2label")
             .and_then(|v| v.as_object())
-            .map_or(0, |m| m.len());
-        return Some(if labels == 1 {
+            .map(|m| {
+                m.values()
+                    .filter_map(|v| v.as_str())
+                    .map(str::to_ascii_lowercase)
+                    .collect()
+            })
+            .unwrap_or_default();
+        // A one-label head scores (query, document) pairs: a cross-encoder. An NLI head
+        // (entailment / contradiction) is what zero-shot classification runs on.
+        return Some(if labels.len() == 1 {
             "text-ranking"
+        } else if labels.iter().any(|l| l.starts_with("entail"))
+            && labels.iter().any(|l| l.starts_with("contradict"))
+        {
+            "zero-shot-classification"
         } else {
             "text-classification"
         });
@@ -743,6 +754,17 @@ mod tests {
             ("model.safetensors", "x"),
         ]);
         assert_eq!(detect(ranker.path()).as_deref(), Some("text-ranking"));
+        let nli = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["DistilBertForSequenceClassification"],"id2label":{"0":"ENTAILMENT","1":"NEUTRAL","2":"CONTRADICTION"}}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(
+            detect(nli.path()).as_deref(),
+            Some("zero-shot-classification")
+        );
         let st = folder(&[
             ("config.json", r#"{"architectures":["BertModel"]}"#),
             ("modules.json", "[]"),
@@ -763,7 +785,10 @@ mod tests {
         ]);
         assert_eq!(detect(summ.path()).as_deref(), Some("summarization"));
         let t5 = folder(&[
-            ("config.json", r#"{"architectures":["T5ForConditionalGeneration"],"model_type":"t5"}"#),
+            (
+                "config.json",
+                r#"{"architectures":["T5ForConditionalGeneration"],"model_type":"t5"}"#,
+            ),
             ("model.safetensors", "x"),
         ]);
         assert_eq!(detect(t5.path()).as_deref(), Some("text2text-generation"));

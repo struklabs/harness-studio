@@ -560,9 +560,13 @@ pub struct ProcessManager {
     /// Automatic-port runs restarted on another port after llama-server could not bind its
     /// port (another program took it between our check and its bind); reset by a user start.
     port_retries: Arc<std::sync::atomic::AtomicU32>,
-    /// The port-to-socket relay of an isolated Python worker run (aborted when it ends).
-    relay: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    /// The port-to-socket relay of an isolated Python worker run and its socket folder (the
+    /// task is aborted and the folder removed when the run ends).
+    relay: Arc<Mutex<Option<WorkerRelay>>>,
 }
+
+/// The relay task of an isolated Python worker and the folder of its Unix socket.
+type WorkerRelay = (tokio::task::JoinHandle<()>, PathBuf);
 
 /// Bind failures on an automatic port retried on the next free one before the start fails.
 pub const MAX_PORT_RETRIES: u32 = 3;
@@ -1634,10 +1638,11 @@ impl ProcessManager {
         Ok(())
     }
 
-    /// Aborts the relay of the last isolated Python worker run, if any.
+    /// Aborts the relay of the last isolated Python worker run, if any, and removes its socket.
     fn stop_relay(&self) {
-        if let Some(task) = self.relay.lock().unwrap().take() {
+        if let Some((task, dir)) = self.relay.lock().unwrap().take() {
             task.abort();
+            let _ = std::fs::remove_dir_all(dir);
         }
     }
 
@@ -1662,8 +1667,10 @@ impl ProcessManager {
                         .with("error", e),
                 )
             })?;
-        *self.relay.lock().unwrap() =
-            Some(crate::pyenv::isolation::relay(listener, socket.clone()));
+        *self.relay.lock().unwrap() = Some((
+            crate::pyenv::isolation::relay(listener, socket.clone()),
+            dir,
+        ));
         Ok(socket)
     }
 
