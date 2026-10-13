@@ -18,7 +18,9 @@
 
 use crate::error_key::err;
 use serde::Serialize;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(unix)]
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 /// Whether processes can be started without network interfaces here, and why not.
