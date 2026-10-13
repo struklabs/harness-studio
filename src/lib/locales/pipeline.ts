@@ -5,7 +5,7 @@ const tr = {
   'emb.mode_pipeline': 'Görev hattı',
   'pl.task': 'Görev',
   'pl.task_unknown': 'Bilinmeyen görev',
-  'pl.no_model': 'Bu sekme için bir görev modeli yok. Model Hub\'dan bir ONNX metin sınıflandırma, varlık tanıma, boşluk doldurma ya da soru cevaplama modeli indirin.',
+  'pl.no_model': 'Bu sekme için bir görev modeli yok. Model Hub\'dan bir ONNX metin sınıflandırma, varlık tanıma, soru cevaplama, görüntü sınıflandırma, nesne algılama, bölütleme ya da derinlik modeli indirin.',
   'pl.need_gateway': 'Görev modelleri gateway üzerinden ilk istekte yüklenir. Ayarlar > Gateway\'den gateway\'i başlatın.',
   'pl.text_label': 'Metin',
   'pl.text_placeholder': 'Sınıflandırılacak metni yazın',
@@ -32,6 +32,13 @@ const tr = {
   'pl.sample_mask': 'Paris, Fransa\'nın [MASK] şehridir.',
   'pl.sample_question': 'Wolfgang nerede yaşıyor?',
   'pl.sample_context': 'Adım Wolfgang ve Berlin\'de yaşıyorum. Mühendis olarak çalışıyorum.',
+  'pl.image_pick': 'Görsel Seç',
+  'pl.image_none': 'Görsel seçilmedi',
+  'pl.image_too_big': 'Görsel çok büyük; en çok {mb} MB olabilir.',
+  'pl.image_unreadable': 'Görsel okunamadı.',
+  'pl.no_objects': 'Eşiğin üstünde nesne bulunamadı.',
+  'pl.depth_alt': 'Derinlik haritası',
+  'pl.depth_hint': 'Açık tonlar yakını, koyu tonlar uzağı gösterir.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -39,7 +46,7 @@ const en: Record<keyof typeof tr, string> = {
   'emb.mode_pipeline': 'Task pipeline',
   'pl.task': 'Task',
   'pl.task_unknown': 'Unknown task',
-  'pl.no_model': 'There is no task model for this tab. Download an ONNX text classification, entity recognition, fill-mask, or question answering model from the Model Hub.',
+  'pl.no_model': 'There is no task model for this tab. Download an ONNX text classification, entity recognition, question answering, image classification, object detection, segmentation, or depth model from the Model Hub.',
   'pl.need_gateway': 'Task models load through the gateway on the first request. Start the gateway in Settings > Gateway.',
   'pl.text_label': 'Text',
   'pl.text_placeholder': 'Type the text to classify',
@@ -66,6 +73,13 @@ const en: Record<keyof typeof tr, string> = {
   'pl.sample_mask': 'Paris is the [MASK] of France.',
   'pl.sample_question': 'Where does Wolfgang live?',
   'pl.sample_context': 'My name is Wolfgang and I live in Berlin. I work as an engineer.',
+  'pl.image_pick': 'Choose Image',
+  'pl.image_none': 'No image chosen',
+  'pl.image_too_big': 'The image is too large; at most {mb} MB.',
+  'pl.image_unreadable': 'The image could not be read.',
+  'pl.no_objects': 'No objects above the threshold.',
+  'pl.depth_alt': 'Depth map',
+  'pl.depth_hint': 'Lighter shades are nearer, darker ones farther.',
 };
 
 export default { tr, en };

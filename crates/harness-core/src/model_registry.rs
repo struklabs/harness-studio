@@ -387,9 +387,9 @@ mod tests {
         let caps = hub_capabilities(Some("text-to-image"), ModelFormat::Diffusers);
         assert_eq!(caps, vec![Capability::ImageGeneration]);
         assert_eq!(ModelFormat::Diffusers.runtime(), None);
-        // An ONNX file is runnable only for the encoder tasks (hub_compat::hub_compatibility).
+        // An ONNX file is runnable only for the tasks the ONNX engine serves (SAM is not one).
         assert_eq!(
-            hub_compat::hub_compatibility(ModelFormat::Onnx, Some("image-classification")),
+            hub_compat::hub_compatibility(ModelFormat::Onnx, Some("mask-generation")),
             Compatibility::Unsupported {
                 format: ModelFormat::Onnx
             }

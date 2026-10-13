@@ -272,7 +272,7 @@ fn register_provider(
     "CPU"
 }
 
-fn build_session(
+pub(crate) fn build_session(
     model: &Path,
     choice: Provider,
     threads: Option<usize>,
