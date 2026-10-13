@@ -21,6 +21,7 @@ mod llama_bench;
 mod llama_cpp;
 pub mod mistralrs;
 mod onnx;
+pub mod python_hf;
 mod sd_cpp;
 mod sherpa_onnx;
 mod whisper_cpp;
@@ -57,6 +58,7 @@ pub(crate) use mistralrs::{
 pub use onnx::{
     provider_of as onnx_provider_of, vram_need as onnx_vram_need, OnnxEngine, ONNX_FAMILY,
 };
+pub use python_hf::{PythonHfEngine, PYTHON_HF};
 pub use sd_cpp::{
     component_files as sd_component_files, detect_main_role as sd_detect_main_role,
     footprint_bytes as sd_footprint_bytes, installed_build_has_gpu as sd_installed_build_has_gpu,
@@ -305,6 +307,7 @@ static SHERPA: SherpaOnnxEngine = SherpaOnnxEngine;
 static ONNX: OnnxEngine = OnnxEngine;
 static LEMONADE: LemonadeEngine = LemonadeEngine;
 static MISTRAL: MistralRsEngine = MistralRsEngine;
+static PYHF: PythonHfEngine = PythonHfEngine;
 static LLAMA_BENCH_ENGINE: LlamaBenchEngine = LlamaBenchEngine;
 
 /// The llama.cpp engine.
@@ -347,16 +350,21 @@ pub fn mistralrs() -> &'static dyn ServerEngine {
     &MISTRAL
 }
 
+/// The Python engine (`python-hf`: transformers, sentence-transformers, diffusers).
+pub fn python_hf() -> &'static dyn ServerEngine {
+    &PYHF
+}
+
 /// Every known family.
-pub fn engines() -> [&'static dyn Engine; 7] {
+pub fn engines() -> [&'static dyn Engine; 8] {
     [
-        &LLAMA, &WHISPER, &SDCPP, &SHERPA, &ONNX, &LEMONADE, &MISTRAL,
+        &LLAMA, &WHISPER, &SDCPP, &SHERPA, &ONNX, &LEMONADE, &MISTRAL, &PYHF,
     ]
 }
 
-/// Whether a model path is on disk: a model file, or a mistral.rs model folder.
+/// Whether a model path is on disk: a model file, or a mistral.rs or Python model folder.
 pub fn model_on_disk(path: &Path) -> bool {
-    path.is_file() || is_mistralrs_dir(path)
+    path.is_file() || is_mistralrs_dir(path) || python_hf::is_model_dir(path)
 }
 
 /// The engine of a family id; `None` for families this build does not know (a newer
@@ -377,6 +385,9 @@ pub fn server_for(config: &LaunchConfig) -> &'static dyn ServerEngine {
     if is_mistralrs_dir(&config.model_path) {
         return &MISTRAL;
     }
+    if python_hf::is_model_dir(&config.model_path) {
+        return &PYHF;
+    }
     match ModelFormat::of(&config.model_path) {
         ModelFormat::GgmlBin => &WHISPER,
         ModelFormat::Onnx => &ONNX,
@@ -393,7 +404,8 @@ pub fn is_llama_server(model_path: &Path, router_mode: bool) -> bool {
         || !(matches!(
             ModelFormat::of(model_path),
             ModelFormat::GgmlBin | ModelFormat::Onnx
-        ) || is_mistralrs_dir(model_path))
+        ) || is_mistralrs_dir(model_path)
+            || python_hf::is_model_dir(model_path))
 }
 
 /// Device memory a launch of a non-llama.cpp family takes (whisper.cpp, stable-diffusion.cpp,
@@ -403,6 +415,7 @@ pub fn non_llama_vram_need(config: &LaunchConfig) -> u64 {
         SD_CPP => sd_vram_need(config),
         ONNX_FAMILY => onnx_vram_need(config),
         MISTRALRS => mistralrs::vram_need(config),
+        PYTHON_HF => python_hf::vram_need(config),
         _ => whisper_vram_need(config),
     }
 }
@@ -421,6 +434,9 @@ pub fn serve_mode_of(family: &str) -> crate::serve_mode::ServeMode {
 pub fn server_for_model(path: &Path) -> Option<&'static dyn ServerEngine> {
     if is_mistralrs_dir(path) {
         return Some(&MISTRAL);
+    }
+    if python_hf::is_model_dir(path) {
+        return Some(&PYHF);
     }
     let format = ModelFormat::of(path);
     engines()

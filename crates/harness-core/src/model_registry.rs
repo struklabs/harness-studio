@@ -232,14 +232,19 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
     }
 }
 
-/// Families of the installed runtimes (`runtimes.json`).
+/// Families of the installed runtimes (`runtimes.json`), and the Python engine when its
+/// environment is ready.
 pub fn installed_families() -> Vec<String> {
-    crate::runtimes::RuntimeRegistry::global()
+    let mut families: Vec<String> = crate::runtimes::RuntimeRegistry::global()
         .entries()
         .unwrap_or_default()
         .into_iter()
         .map(|e| e.family)
-        .collect()
+        .collect();
+    if crate::engine::python_hf::binary().is_ok() {
+        families.push(crate::engine::PYTHON_HF.to_string());
+    }
+    families
 }
 
 fn is_whisper_file(path: &str) -> bool {

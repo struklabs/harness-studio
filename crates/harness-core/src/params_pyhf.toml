@@ -1,0 +1,37 @@
+# python-hf parameter catalog (the Python engine's worker, `python/hf_worker.py`): same shape as
+# params.toml; the flags are the worker's own (`hf_worker.py --help`). The typed LaunchConfig
+# field (`legacy_field`) is rendered by `PythonHfEngine::build_launch`; everything else goes
+# through `params::render_params`. Groups: performance (labels: src/lib/locales/pyhf.ts).
+
+schema_version = 1
+
+[[param]]
+id = "threads"
+flags = ["--threads"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "pyparam.threads"
+help_key = "pyparam.threads_help"
+legacy_field = "threads"
+min = 1
+
+[[param]]
+id = "device"
+flags = ["--device"]
+kind = "enum"
+values = ["auto", "cpu", "cuda", "mps"]
+group = "performance"
+level = "basic"
+label_key = "pyparam.device"
+help_key = "pyparam.device_help"
+
+[[param]]
+id = "dtype"
+flags = ["--dtype"]
+kind = "enum"
+values = ["auto", "float32", "float16", "bfloat16"]
+group = "performance"
+level = "advanced"
+label_key = "pyparam.dtype"
+help_key = "pyparam.dtype_help"

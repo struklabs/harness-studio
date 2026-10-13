@@ -23,6 +23,10 @@ const tr = {
   'eng.desc_lemonade': 'Ryzen AI NPU ve kendi llama.cpp arka uçlarıyla çalışan Lemonade sunucusu.',
   'eng.desc_lemonade_mac': 'Kendi llama.cpp (Metal) arka ucuyla çalışan Lemonade sunucusu. Ryzen AI NPU desteği yalnız Windows ve Linux’ta.',
   'eng.desc_mistralrs': 'Safetensors sohbet modelleri. Hazır indirme yok; kendi derlemenizi eklersiniz.',
+  'eng.desc_pyhf': 'Hugging Face görev modelleri (sınıflandırma, NER, soru-cevap, özetleme, çeviri, görüntü, konuşma, diffusers) için Python motoru. CPU sürümü, yaklaşık {size} iner; model ağ erişimi olmadan çalışır.',
+  'eng.cancel': 'Durdur',
+  'eng.remove': 'Kaldır ({size})',
+  'eng.removed': '{runtime} kaldırıldı.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -47,6 +51,10 @@ const en: Record<keyof typeof tr, string> = {
   'eng.desc_lemonade': 'The Lemonade server, with the Ryzen AI NPU and its own llama.cpp backends.',
   'eng.desc_lemonade_mac': 'The Lemonade server, with its own llama.cpp (Metal) backend. Ryzen AI NPU support is Windows and Linux only.',
   'eng.desc_mistralrs': 'Safetensors chat models. There is no ready download; you add your own build.',
+  'eng.desc_pyhf': 'Python runtime for Hugging Face task models (classification, NER, question answering, summarization, translation, vision, speech, diffusers). CPU build, about {size} to download; models run without network access.',
+  'eng.cancel': 'Stop',
+  'eng.remove': 'Remove ({size})',
+  'eng.removed': '{runtime} removed.',
 };
 
 export default { tr, en };

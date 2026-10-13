@@ -357,7 +357,10 @@ mod tests {
         assert_eq!(spec("hf-cpu").unwrap().name, "hf-cpu");
         let lock = HF_CPU.lock;
         // Every requirement line carries hashes (uv also refuses otherwise, but fail early).
-        for line in lock.lines().filter(|l| l.contains("==") && !l.trim_start().starts_with('#')) {
+        for line in lock
+            .lines()
+            .filter(|l| l.contains("==") && !l.trim_start().starts_with('#'))
+        {
             assert!(line.trim_end().ends_with('\\'), "no hashes after {line}");
         }
         // torch.load(weights_only=True) is safe from 2.6 on (CVE-2025-32434): .bin weights rely

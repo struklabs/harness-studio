@@ -504,6 +504,10 @@ impl ModelManager {
             models.extend(crate::engine::mistralrs_library_models(
                 std::slice::from_ref(dir),
             ));
+            // Task models (classifiers, embedders, ASR, diffusers...) run on the Python engine.
+            models.extend(crate::engine::python_hf::library_models(
+                std::slice::from_ref(dir),
+            ));
         }
         models.sort_by(|a, b| a.name.cmp(&b.name));
         models

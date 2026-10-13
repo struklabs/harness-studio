@@ -2468,6 +2468,19 @@ export interface ConvertEnvProgress {
   total_bytes: number;
 }
 
+/** A managed Python environment of an optional engine (`pyenv::envs::EnvStatus`). */
+export interface PythonEnvStatus {
+  name: string;
+  supported: boolean;
+  installed: boolean;
+  ready: boolean;
+  manifest: { uv_version: string; python: string; lock_sha256: string; installed_at: number } | null;
+  size_bytes: number;
+  dir: string;
+  estimated_size_bytes: number;
+  progress: ConvertEnvProgress | null;
+}
+
 export interface ConvertEnvStatus {
   supported: boolean;
   installed: boolean;
