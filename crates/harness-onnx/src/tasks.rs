@@ -272,13 +272,16 @@ pub struct Answer {
 /// The best answer spans of one (question, context) encoding: `start` / `end` logits per token,
 /// `context_tokens` the token indices that belong to the context (with their byte offsets).
 /// A span runs from a start token to an end token at or after it, at most `max_answer_tokens`
-/// long; its score is p(start) * p(end), softmax over the context tokens (like the
-/// transformers pipeline). Best first, `top_k` of them.
+/// long; its score is p(start) * p(end), softmax over the context tokens and the `null` token
+/// (`[CLS]`, "no answer here"), like the transformers pipeline: a window of a long context
+/// that does not hold the answer puts its weight on `[CLS]`, so its spans score low against
+/// the window that does. Best first, `top_k` of them.
 pub fn answer_spans(
     context: &str,
     start_logits: &[f32],
     end_logits: &[f32],
     context_tokens: &[(usize, usize, usize)],
+    null: Option<usize>,
     max_answer_tokens: usize,
     top_k: usize,
 ) -> Vec<Answer> {
@@ -286,11 +289,16 @@ pub fn answer_spans(
         return Vec::new();
     }
     let pick = |logits: &[f32]| -> Vec<f32> {
-        let row: Vec<f32> = context_tokens
+        let mut row: Vec<f32> = context_tokens
             .iter()
             .map(|(t, _, _)| logits.get(*t).copied().unwrap_or(f32::NEG_INFINITY))
             .collect();
-        softmax(&row)
+        if let Some(v) = null.and_then(|n| logits.get(n)) {
+            row.push(*v);
+        }
+        let mut p = softmax(&row);
+        p.truncate(context_tokens.len());
+        p
     };
     let ps = pick(start_logits);
     let pe = pick(end_logits);
@@ -423,10 +431,18 @@ mod tests {
         let mut end = vec![0.0; 7];
         start[4] = 6.0;
         end[4] = 6.0;
-        let a = answer_spans(ctx, &start, &end, &toks, 15, 2);
+        let a = answer_spans(ctx, &start, &end, &toks, None, 15, 2);
         assert_eq!(a[0].answer, "Paris");
         assert_eq!((a[0].start, a[0].end), (3, 8));
         assert_eq!(a.len(), 2);
         assert!(a[0].score > a[1].score);
+        // A window whose [CLS] (token 0) is sure there is no answer scores its spans low.
+        let mut cls = start.clone();
+        cls[0] = 12.0;
+        let mut cls_end = end.clone();
+        cls_end[0] = 12.0;
+        let low = answer_spans(ctx, &cls, &cls_end, &toks, Some(0), 15, 1);
+        assert_eq!(low[0].answer, "Paris");
+        assert!(low[0].score < 0.01 && a[0].score > 0.9);
     }
 }
