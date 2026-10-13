@@ -24,7 +24,7 @@ Harness Studio is a control center for finding, running, and connecting local AI
 | --- | --- |
 | Windows 10/11 x64 | Vulkan on AMD GPUs; ROCm/HIP on compatible hardware with the required HIP libraries. CUDA on NVIDIA GPUs. CPU use without a GPU. NSIS installer (GitHub Releases). |
 | macOS 13.3 or later | Apple Silicon (Metal) and Intel Macs. Signed and notarized DMG (GitHub Releases): `aarch64` for Apple Silicon, `x64` for Intel. ONNX Runtime models are not available on Intel Macs. |
-| Linux x86_64 (preview) | `.deb` and AppImage on GitHub Releases. Vulkan on AMD and Intel GPUs, CPU without a GPU. Tested on one Ubuntu 24.04 machine so far; please report problems. |
+| Linux x86_64 (preview) | `.deb` package on GitHub Releases (an AppImage follows in 0.1.1). Vulkan on AMD and Intel GPUs, CPU without a GPU. Tested on one Ubuntu 24.04 machine so far; please report problems. |
 
 GPU acceleration depends on hardware, drivers, and the selected model runner. Choose a model that fits available RAM/GPU memory and allow enough disk space for model files.
 
