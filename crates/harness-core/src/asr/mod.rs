@@ -23,6 +23,7 @@
 //! one segment at a time.
 
 pub mod catalog;
+pub mod diarize;
 pub mod run;
 
 use std::path::{Path, PathBuf};
@@ -487,6 +488,9 @@ pub struct Segment {
     pub start: f64,
     pub end: f64,
     pub text: String,
+    /// Who said it (`A`, `B`...), when the transcript was diarized ([`diarize::label`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<String>,
 }
 
 /// The text of a transcription.
@@ -526,6 +530,7 @@ pub fn parse_output(stdout: &str, pad: f64, duration: f64) -> Vec<Segment> {
                 start,
                 end: end.max(start),
                 text,
+                speaker: None,
             })
         })
         .collect()
@@ -572,6 +577,7 @@ pub fn parse_online_json(stderr: &str, pad: f64, duration: f64) -> Vec<Segment> 
                 start,
                 end: end.max(start),
                 text: t,
+                speaker: None,
             });
         }
         text.clear();
@@ -654,33 +660,58 @@ impl Transcript {
         }
     }
 
-    /// SubRip subtitles, one cue per segment.
+    /// SubRip subtitles, one cue per segment (`A: text` when diarized).
     pub fn to_srt(&self) -> String {
         let mut out = String::new();
         for (i, s) in self.segments.iter().enumerate() {
+            let text = match &s.speaker {
+                Some(sp) => format!("{sp}: {}", s.text),
+                None => s.text.clone(),
+            };
             out.push_str(&format!(
                 "{}\n{} --> {}\n{}\n\n",
                 i + 1,
                 format_time(s.start, ','),
                 format_time(s.end, ','),
-                s.text
+                text
             ));
         }
         out
     }
 
-    /// WebVTT subtitles, one cue per segment.
+    /// WebVTT subtitles, one cue per segment (a `<v A>` voice span when diarized).
     pub fn to_vtt(&self) -> String {
         let mut out = String::from("WEBVTT\n\n");
         for s in &self.segments {
+            let text = match &s.speaker {
+                Some(sp) => format!("<v {sp}>{}", s.text),
+                None => s.text.clone(),
+            };
             out.push_str(&format!(
                 "{} --> {}\n{}\n\n",
                 format_time(s.start, '.'),
                 format_time(s.end, '.'),
-                s.text
+                text
             ));
         }
         out
+    }
+
+    /// OpenAI's `diarized_json`: the text, `duration` and segments with their `speaker`.
+    pub fn to_diarized_json(&self, task: &str) -> serde_json::Value {
+        serde_json::json!({
+            "task": task,
+            "duration": (self.duration_secs * 1000.0).round() / 1000.0,
+            "text": self.text,
+            "segments": self.segments.iter().enumerate().map(|(i, s)| serde_json::json!({
+                "type": "transcript.text.segment",
+                "id": format!("seg_{i}"),
+                "start": (s.start * 1000.0).round() / 1000.0,
+                "end": (s.end * 1000.0).round() / 1000.0,
+                "text": s.text,
+                "speaker": s.speaker,
+            })).collect::<Vec<_>>(),
+        })
     }
 
     /// OpenAI's `json`.
@@ -701,6 +732,17 @@ impl Transcript {
                 "text": s.text,
             })).collect::<Vec<_>>(),
         });
+        // Diarized: each segment says who spoke.
+        for (seg, s) in v["segments"]
+            .as_array_mut()
+            .into_iter()
+            .flatten()
+            .zip(&self.segments)
+        {
+            if let Some(sp) = &s.speaker {
+                seg["speaker"] = serde_json::Value::String(sp.clone());
+            }
+        }
         if let Some(l) = &self.language {
             v["language"] = serde_json::Value::String(l.clone());
         }
