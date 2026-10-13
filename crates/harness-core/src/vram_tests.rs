@@ -637,12 +637,17 @@ fn integrated_gpu_budget_is_shared_ram_and_weights_stay_on_the_cpu() {
     );
     hw.gpus[0].name = "Intel(R) HD Graphics 6000 (BDW GT3)".into();
     assert_eq!(budget(&hw).igpu_offload_faster, Some(false));
-    // A discrete card, or an integrated one that reports its own memory, is unchanged.
+    // A discrete card, or an integrated one with a large pool of its own, is unchanged.
     hw.gpus = vec![gpu(true, Some(8 * GIB))];
     assert!(!budget(&hw).shared_igpu);
-    hw.gpus = vec![gpu(false, Some(GIB))];
-    assert_eq!(budget(&hw).vram_bytes, GIB);
+    hw.gpus = vec![gpu(false, Some(16 * GIB))];
+    assert_eq!(budget(&hw).vram_bytes, 16 * GIB);
     assert!(!budget(&hw).shared_igpu);
+    // An APU's small BIOS carve-out (Renoir: 512 MiB) adds to the shared half of RAM.
+    hw.gpus = vec![gpu(false, Some(GIB / 2))];
+    let b = budget(&hw);
+    assert!(b.shared_igpu && b.unified);
+    assert_eq!(b.vram_bytes, GIB / 2 + 2 * GIB);
 
     let shared = MemoryBudget {
         vram_bytes: 2 * GIB,
