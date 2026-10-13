@@ -8,8 +8,8 @@
 //! ```
 //!
 //! `HS_ASR_E2E_DIR=<folder>` keeps the downloads between runs (default: a temporary folder).
-//! `HS_ASR_E2E_MODELS=parakeet,sense-voice,omnilingual` picks the models (default: the
-//! smallest, Omnilingual).
+//! `HS_ASR_E2E_MODELS=parakeet,sense-voice,omnilingual,nemotron,cohere` picks the models
+//! (default: the smallest, Omnilingual).
 
 use std::path::PathBuf;
 
@@ -124,6 +124,8 @@ fn word_hits(expected: &str, got: &str) -> (usize, usize) {
 
 const ENGLISH: &str = "The quick brown fox jumps over the lazy dog. Speech recognition runs locally on this computer. Harness Studio can transcribe long recordings without sending anything to the cloud.";
 const TURKISH: &str = "Merhaba, bu bir deneme konuşmasıdır. Yapay zekâ ile ses tanıma artık tamamen bilgisayarınızda çalışıyor.";
+const NEMOTRON: &str = "sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11";
+const COHERE: &str = "sherpa-onnx-cohere-transcribe-14-lang-int8-2026-04-01";
 const OMNILINGUAL: &str = "sherpa-onnx-omnilingual-asr-1600-languages-300M-ctc-v2-int8-2026-02-05";
 
 fn chosen() -> Vec<String> {
@@ -167,6 +169,39 @@ async fn real_speech_read_back() {
     }
     assert!(ran > 0);
 
+    if chosen().iter().any(|p| p == "nemotron") {
+        // The streaming model through the online tool, in Turkish.
+        let nemotron = asr_model(&s, NEMOTRON).await;
+        assert_eq!(nemotron.family, AsrFamily::StreamingTransducer);
+        let turkish = voice(&s, "vits-piper-tr_TR-fettah-medium-int8", None, TURKISH).await;
+        let t = read(&s, &nemotron, turkish, Some("tr")).await;
+        let (hit, total) = word_hits(TURKISH, &t.text);
+        eprintln!(
+            "nemotron tr: {hit}/{total} words in {} ms: {}",
+            t.elapsed_ms, t.text
+        );
+        assert!(hit * 10 >= total * 6, "{hit}/{total}: {}", t.text);
+    }
+    if chosen().iter().any(|p| p == "cohere") {
+        // A language Cohere Transcribe does not know is refused before the run.
+        let cohere = asr_model(&s, COHERE).await;
+        let vad = catalog::ensure_vad_in(&s.base.join("models/asr"))
+            .await
+            .unwrap();
+        let refused = run::transcribe(
+            &s.binary,
+            &TranscribeRequest {
+                model: &cohere,
+                vad: &vad,
+                language: Some("tr"),
+                threads: None,
+            },
+            english.clone(),
+        )
+        .await
+        .unwrap_err();
+        assert!(refused.contains("stt.language_unsupported"), "{refused}");
+    }
     if chosen().iter().any(|p| p == "omnilingual") {
         let omni = asr_model(&s, OMNILINGUAL).await;
         assert_eq!(omni.family, AsrFamily::Omnilingual);

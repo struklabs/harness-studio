@@ -110,11 +110,11 @@ fn zipformer_is_a_plain_transducer_and_int8_wins() {
 #[test]
 fn what_the_offline_tool_cannot_run_is_not_detected() {
     let tmp = tempfile::tempdir().unwrap();
-    // Streaming models need the online tool.
+    // A streaming model that is not a transducer (CTC, Paraformer).
     let d = tmp
         .path()
-        .join("sherpa-onnx-streaming-zipformer-en-2023-06-26");
-    for f in ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"] {
+        .join("sherpa-onnx-streaming-zipformer-ctc-multi-zh-hans-2023-12-13");
+    for f in ["ctc-epoch-20-avg-1-chunk-16-left-128.onnx", "tokens.txt"] {
         touch(&d.join(f), b"x");
     }
     assert!(detect(&d).is_none());
@@ -425,4 +425,90 @@ fn cjk_segments_join_without_spaces() {
     assert_eq!(join_segments(&[seg("hello"), seg("世界")]), "hello 世界");
     assert_eq!(join_segments(&[seg("a"), seg("  "), seg("b")]), "a b");
     assert_eq!(join_segments(&[]), "");
+}
+
+#[test]
+fn streaming_transducers_and_cohere_transcribe_are_detected() {
+    let tmp = tempfile::tempdir().unwrap();
+    for name in [
+        "sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11",
+        "sherpa-onnx-streaming-zipformer-en-2023-06-26",
+    ] {
+        let d = tmp.path().join(name);
+        for f in [
+            "encoder.int8.onnx",
+            "decoder.int8.onnx",
+            "joiner.int8.onnx",
+            "tokens.txt",
+        ] {
+            touch(&d.join(f), b"x");
+        }
+        let m = detect(&d).unwrap();
+        assert_eq!(m.family, AsrFamily::StreamingTransducer, "{name}");
+        assert!(m.family.is_streaming());
+        // The online decoder: no VAD, no `--model-type`, one result for the whole file.
+        let args = build_args(&m, &params());
+        assert!(args.iter().any(|a| a.starts_with("--joiner=")));
+        assert!(args.contains(&"--enable-endpoint=false".to_string()));
+        assert!(!args
+            .iter()
+            .any(|a| a.starts_with("--model-type") || a.contains("vad")));
+    }
+    let d = tmp
+        .path()
+        .join("sherpa-onnx-cohere-transcribe-14-lang-int8-2026-04-01");
+    for f in [
+        "encoder.int8.onnx",
+        "encoder.int8.onnx.data",
+        "decoder.int8.onnx",
+        "tokens.txt",
+    ] {
+        touch(&d.join(f), b"x");
+    }
+    let m = detect(&d).unwrap();
+    assert_eq!(m.family, AsrFamily::CohereTranscribe);
+    assert!(!m.family.is_streaming());
+    let mut p = params();
+    p.language = Some("de-DE".into());
+    let args = build_args(&m, &p);
+    for want in [
+        "--cohere-transcribe-language=de",
+        "--cohere-transcribe-use-punct=true",
+    ] {
+        assert!(args.iter().any(|a| a == want), "{want}: {args:?}");
+    }
+    assert!(
+        args.iter()
+            .any(|a| a.starts_with("--cohere-transcribe-decoder=")
+                && a.ends_with("decoder.int8.onnx"))
+    );
+}
+
+#[test]
+fn cohere_takes_its_fourteen_languages_and_english_by_default() {
+    assert_eq!(cohere_language(None), Some("en"));
+    assert_eq!(cohere_language(Some("  ")), Some("en"));
+    assert_eq!(cohere_language(Some("ja-JP")), Some("ja"));
+    assert_eq!(cohere_language(Some("German")), Some("de"));
+    assert_eq!(cohere_language(Some("tr")), None);
+}
+
+#[test]
+fn the_online_decoder_result_is_cut_into_segments() {
+    // What `sherpa-onnx` wrote for two voices with a pause between them (0.5 s of padding in
+    // front), trimmed: tokens with their start times.
+    let stderr = r#"Number of threads: 4
+{ "text": "Good morning.  How was it?  It was wonderful", "tokens": [" Good", " ", "mo", "r", "ni", "ng", ".", " ", " How", " was", " it", "?", " ", " ", "I", "t", " was", " ", "w", "ond", "er", "ful"], "timestamps": [0.64, 0.80, 0.80, 0.80, 0.96, 0.96, 1.20, 1.20, 1.36, 1.60, 1.76, 3.40, 3.40, 3.40, 3.60, 3.60, 3.84, 4.08, 4.08, 4.16, 4.24, 4.30], "segment": 0}
+"#;
+    let segs = parse_online_json(stderr, 0.5, 10.0);
+    let texts: Vec<&str> = segs.iter().map(|s| s.text.as_str()).collect();
+    // "morning." is followed by a short pause (0.4 s between the words): one segment. "it?" is
+    // emitted late, just before the next word, but the words around it are 1.84 s apart: cut.
+    assert_eq!(texts, ["Good morning. How was it?", "It was wonderful"]);
+    assert!((segs[0].start - 0.14).abs() < 1e-9);
+    assert!((segs[0].end - 1.51).abs() < 1e-9);
+    assert!((segs[1].start - 3.1).abs() < 1e-9);
+    assert!((segs[1].end - 4.05).abs() < 1e-9);
+    // No JSON: nothing.
+    assert!(parse_online_json("Elapsed seconds: 1", 0.5, 10.0).is_empty());
 }
