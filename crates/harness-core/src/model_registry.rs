@@ -523,7 +523,9 @@ mod tests {
                 "{name}"
             );
             // Deleting it removes the whole folder, only inside the library.
-            assert!(crate::engine::mlx::delete_model_dir(&path, &[path.clone()]).is_err());
+            assert!(
+                crate::engine::mlx::delete_model_dir(&path, std::slice::from_ref(&path)).is_err()
+            );
             crate::engine::mlx::delete_model_dir(&path, &[dir.path().to_path_buf()]).unwrap();
             assert!(!path.exists(), "{name}");
         }
