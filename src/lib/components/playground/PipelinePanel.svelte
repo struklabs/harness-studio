@@ -113,7 +113,7 @@
     lastTask = next;
     result = null;
     error = '';
-    form.labels = next === 'zero-shot-image-classification' ? t('pl.sample_image_labels') : t('pl.sample_labels');
+    form.labels = next === 'zero-shot-image-classification' || next === 'zero-shot-object-detection' ? t('pl.sample_image_labels') : t('pl.sample_labels');
     form.text =
       next === 'zero-shot-classification' ? t('pl.sample_zero_shot')
       : next === 'token-classification' ? t('pl.sample_ner')
@@ -226,7 +226,7 @@
       {#if image}
         <img src={image} alt={imageName} class="max-h-48 w-fit rounded-md border border-border object-contain" />
       {/if}
-      {#if task === 'zero-shot-image-classification'}
+      {#if task === 'zero-shot-image-classification' || task === 'zero-shot-object-detection'}
         <Field label={t('pl.labels_label')} id="pl-image-labels" hint={t('pl.image_labels_hint')}>
           <Input id="pl-image-labels" bind:value={form.labels} disabled={busy} onkeydown={(e) => e.key === 'Enter' && run()} />
         </Field>

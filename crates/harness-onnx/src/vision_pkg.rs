@@ -28,6 +28,9 @@ pub enum VisionTask {
     /// A dual encoder (`CLIPModel`, `SiglipModel`) exported as one graph: the image scored
     /// against labels the request names.
     ZeroShot,
+    /// An open-vocabulary detector (`OwlViTForObjectDetection`, `Owlv2ForObjectDetection`):
+    /// boxes for the labels the request names.
+    ZeroShotDetect,
     /// A bare image backbone (`ViTModel`, `Dinov2Model`, `ConvNextModel`...): its hidden
     /// states (or pooled output) as the image's features.
     Features,
@@ -72,6 +75,7 @@ impl VisionTask {
             VisionTask::Segment => "image-segmentation",
             VisionTask::Depth => "depth-estimation",
             VisionTask::ZeroShot => "zero-shot-image-classification",
+            VisionTask::ZeroShotDetect => "zero-shot-object-detection",
             VisionTask::Features => "image-feature-extraction",
             VisionTask::Caption => "image-to-text",
         }
@@ -128,6 +132,9 @@ pub struct Preprocess {
     pub normalize: bool,
     /// The graph takes BGR (some ports of Caffe-era models).
     pub bgr: bool,
+    /// Pad the image to a square (bottom and right, grey) before the resize, as OWLv2 does;
+    /// boxes are then relative to the padded square.
+    pub pad_square: bool,
 }
 
 /// The text side of a zero-shot image model: its tokenizer and how labels are encoded.
@@ -191,6 +198,12 @@ pub fn task_from_config(config: &Value) -> Option<VisionTask> {
         .map(|a| a.iter().filter_map(Value::as_str).collect())
         .unwrap_or_default();
     let has = |suffix: &str| heads.iter().any(|n| n.ends_with(suffix));
+    if heads
+        .iter()
+        .any(|n| matches!(*n, "OwlViTForObjectDetection" | "Owlv2ForObjectDetection"))
+    {
+        return Some(VisionTask::ZeroShotDetect);
+    }
     if has("ForImageClassification") || has("ForImageClassificationWithTeacher") {
         Some(VisionTask::Classify)
     } else if has("ForObjectDetection") {
@@ -305,6 +318,10 @@ pub fn parse_preprocess(v: &Value) -> Preprocess {
         std: triple(v.get("image_std"), [0.5; 3]),
         normalize: flag("do_normalize", true),
         bgr: flag("do_flip_channel_order", false),
+        pad_square: flag("do_pad", false)
+            && v.get("image_processor_type")
+                .and_then(Value::as_str)
+                .is_some_and(|t| t.starts_with("Owlv2")),
     }
 }
 
@@ -329,7 +346,7 @@ impl VisionPackage {
         } else {
             None
         };
-        let text = if task == VisionTask::ZeroShot {
+        let text = if matches!(task, VisionTask::ZeroShot | VisionTask::ZeroShotDetect) {
             // transformers.js also ships the two towers alone (`text_model`, `vision_model`);
             // only the joint graph scores an image against labels.
             let stem = onnx_path
@@ -412,12 +429,21 @@ fn text_side(root: &Path, config: &Value) -> Option<TextSide> {
     if !tokenizer_path.is_file() {
         return None;
     }
-    let siglip = config.get("model_type").and_then(Value::as_str) == Some("siglip");
+    let model_type = config.get("model_type").and_then(Value::as_str);
+    let siglip = model_type == Some("siglip");
+    // OWL-ViT queries are padded to 16 tokens and scored one by one.
+    let owl = matches!(model_type, Some("owlvit" | "owlv2"));
     let max_length = config
         .pointer("/text_config/max_position_embeddings")
         .and_then(Value::as_u64)
         .map(|n| n as usize)
-        .unwrap_or(if siglip { 64 } else { 77 });
+        .unwrap_or(if siglip {
+            64
+        } else if owl {
+            16
+        } else {
+            77
+        });
     // `pad_token` is a string or an AddedToken object.
     let pad_token = read_json(&root.join("tokenizer_config.json"))
         .and_then(|t| t.get("pad_token").cloned())
@@ -429,9 +455,9 @@ fn text_side(root: &Path, config: &Value) -> Option<TextSide> {
     Some(TextSide {
         tokenizer_path,
         max_length,
-        pad_to_max: siglip,
+        pad_to_max: siglip || owl,
         canonicalize: siglip,
-        sigmoid: siglip,
+        sigmoid: siglip || owl,
         pad_token,
     })
 }
@@ -453,6 +479,15 @@ mod tests {
 
     #[test]
     fn heads_map_to_tasks() {
+        // Open-vocabulary detectors are not the closed-set detection head.
+        assert_eq!(
+            task_from_config(&json!({"architectures": ["Owlv2ForObjectDetection"]})),
+            Some(VisionTask::ZeroShotDetect)
+        );
+        assert_eq!(
+            task_from_config(&json!({"architectures": ["OwlViTForObjectDetection"]})),
+            Some(VisionTask::ZeroShotDetect)
+        );
         let t = |a: &str| task_from_config(&json!({"architectures": [a]}));
         assert_eq!(t("ViTForImageClassification"), Some(VisionTask::Classify));
         assert_eq!(
@@ -484,6 +519,16 @@ mod tests {
 
     #[test]
     fn processors_of_common_models() {
+        // OWLv2 pads to a square; DETR's do_pad (batch padding) is no square padding.
+        let owlv2 = parse_preprocess(&json!({
+            "do_pad": true, "image_processor_type": "Owlv2ImageProcessor",
+            "size": {"height": 960, "width": 960}
+        }));
+        assert!(owlv2.pad_square);
+        let detr = parse_preprocess(
+            &json!({"do_pad": true, "image_processor_type": "DetrImageProcessor"}),
+        );
+        assert!(!detr.pad_square);
         // google/vit-base-patch16-224
         let vit = parse_preprocess(&json!({
             "do_normalize": true, "do_resize": true, "image_mean": [0.5, 0.5, 0.5],

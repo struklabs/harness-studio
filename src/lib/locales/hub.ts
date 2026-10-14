@@ -284,6 +284,7 @@ const tr = {
   'hub.task_depth_estimation': 'Derinlik tahmini',
   'hub.task_zero_shot_image_classification': 'Sıfır örnekli görüntü sınıflandırma',
   'hub.task_image_feature_extraction': 'Görüntü öznitelik çıkarma',
+  'hub.task_zero_shot_object_detection': 'Sıfır örnekli nesne algılama',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -571,6 +572,7 @@ const en: Record<keyof typeof tr, string> = {
   'hub.task_depth_estimation': 'Depth Estimation',
   'hub.task_zero_shot_image_classification': 'Zero-Shot Image Classification',
   'hub.task_image_feature_extraction': 'Image Feature Extraction',
+  'hub.task_zero_shot_object_detection': 'Zero-Shot Object Detection',
 };
 
 export default { tr, en };
