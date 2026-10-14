@@ -59,6 +59,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed
+- Model Hub: each card's help button (?) sits inside the card's top-right corner instead of beside it, so the grid columns stay aligned.
 - Dashboard and the Playground load settings showed llama.cpp settings (`-c`, `-ngl`, KV cache, flash attention) for models other engines run, and the ONNX accelerator could not be chosen anywhere. The form now follows the model's engine: ONNX, whisper.cpp, sd.cpp, python-hf, MLX and the other engines show their own settings from their catalogs (ONNX: Accelerator auto/cpu/directml/cuda, batch size, pooling...), the engine field names the engine that runs the model, and the llama.cpp web UI button is hidden for them.
 - Python engine (G8 scan on CUDA):
   - **Speech recognition:** audio at another rate than the model's (a 44.1 kHz WAV for wav2vec2 / Whisper) failed with "torchaudio is required to resample". The worker now resamples it with SciPy, which is in the locks.

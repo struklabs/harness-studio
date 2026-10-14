@@ -2,7 +2,7 @@
   import { app } from '#lib/stores/app.svelte.js';
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
-  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
+  import HelpPopover from '#lib/components/common/HelpPopover.svelte';
   import { t, locale, type TKey } from '#lib/i18n.svelte.js';
   import { onnxUnsupportedText } from '#lib/engines.js';
   import type { HfModelSearchResult, ModelCapability } from '#lib/types.js';
@@ -93,10 +93,13 @@
   }
 </script>
 
-<FieldHelp text={t('help.repo_select')}><button
+<!-- The help icon sits inside the card's top-right corner, over the card button (a button cannot nest
+     inside another), instead of beside the card where it broke the grid's alignment. -->
+<div class="relative h-full min-w-0">
+<button
   type="button"
   class={cn(
-    'group flex w-full min-w-0 flex-col gap-2 rounded-lg border bg-card p-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+    'group flex h-full w-full min-w-0 flex-col gap-2 rounded-lg border bg-card p-3 pr-10 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
     selected ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-foreground/25 hover:bg-muted/40',
     layout === 'list' && 'sm:flex-row sm:items-center sm:gap-4',
     unsupported && 'opacity-60'
@@ -251,4 +254,6 @@
       {/if}
     </div>
   {/if}
-</button></FieldHelp>
+</button>
+<span class="absolute right-1.5 top-1.5"><HelpPopover text={t('help.repo_select')} label={name} /></span>
+</div>
