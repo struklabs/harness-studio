@@ -1,6 +1,8 @@
 // Backend error keys (harness_core::error_key) of runtime installs, server processes, parameters, benchmarks and the gateway.
 // Texts are single quoted literals (the CLI compiles the English half in); {name} = parameter.
 const tr = {
+  'gateway.gpu_memory_full': 'GPU belleği dolu. Belleği boşaltmak için çalışan sunucuları durdurup yeniden deneyin.',
+  'gateway.gpu_memory_blocked': 'GPU belleği dolu. Belleği boşaltmak için çalışan sunucuları ({servers}) durdurup yeniden deneyin.',
   'audio_cpp.loopback_only': 'audio.cpp yalnızca 127.0.0.1 adresinde çalışabilir.',
   'audio_cpp.model_unsupported': 'Bu dosya bir audio.cpp GGUF modeli değil.',
   'audio_cpp.family_unsupported': 'audio.cpp {family} ailesi henüz desteklenmiyor.',
@@ -159,6 +161,8 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'gateway.gpu_memory_full': 'GPU memory is full. Stop running servers to free memory, then try again.',
+  'gateway.gpu_memory_blocked': 'GPU memory is full. Stop running servers ({servers}) to free memory, then try again.',
   'audio_cpp.loopback_only': 'audio.cpp can only run on 127.0.0.1.',
   'audio_cpp.model_unsupported': 'This file is not an audio.cpp GGUF model.',
   'audio_cpp.family_unsupported': 'audio.cpp family {family} is not supported yet.',

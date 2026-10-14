@@ -403,10 +403,9 @@
         </Empty.Root>
       {:else}
         {#each neededFamilies as family (family)}
-          <div class="mb-2 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-1.5 text-xs text-info" role="status">
-            <Info class="size-3.5 shrink-0" />
-            <span class="min-w-0 flex-1">{t('eng.list_banner', { runtime: family })}</span>
-            <EngineNeeded {family} hint={false} onInstalled={enginesInstalled} />
+          <div class="mb-2 flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-1.5 text-xs text-info" role="status">
+            <Info class="mt-1 size-3.5 shrink-0" />
+            <EngineNeeded {family} hintText={t('eng.list_banner', { runtime: family })} class="flex-1" onInstalled={enginesInstalled} />
           </div>
         {/each}
         <div

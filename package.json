@@ -14,7 +14,7 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri",
     "test:rust": "cargo test --workspace",
-    "test:text-tool-calls": "node --test scripts/test-text-tool-calls.mjs scripts/test-tool-guidance.mjs scripts/test-onboarding-suggest.mjs scripts/test-pipeline.mjs scripts/test-prompt-warm.mjs scripts/test-image-models.mjs scripts/test-library-regressions.mjs",
+    "test:text-tool-calls": "node --test scripts/test-text-tool-calls.mjs scripts/test-tool-guidance.mjs scripts/test-onboarding-suggest.mjs scripts/test-pipeline.mjs scripts/test-prompt-warm.mjs scripts/test-image-models.mjs scripts/test-library-regressions.mjs scripts/test-hub-regressions.mjs",
     "lint:rust": "cargo clippy --workspace -- -D warnings"
   },
   "license": "MIT",
