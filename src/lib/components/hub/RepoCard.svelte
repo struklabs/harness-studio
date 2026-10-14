@@ -77,6 +77,9 @@
       ? null
       : (taskSupportStore.info(task?.id)?.needs_runtime ?? null)
   );
+  /** Runtimes that run a repo of a task whose usual family is another one (CrispASR GGUFs, MLX
+   *  speech): their verdict stands and the task's "needs whisper.cpp" hint does not apply. */
+  const OWN_RUNTIMES = ['crispasr', 'mlx', 'mlx-vlm', 'mlx-audio'];
   let compat = $derived(repo.compatibility);
   /** A safetensors chat model: not run as it is, but the drawer offers the GGUF conversion. */
   let convertible = $derived(canConvert(repo));
@@ -188,7 +191,7 @@
     {/if}
     {#if unsupported}
       <!-- the format reason above covers the task verdict -->
-    {:else if taskNeeds && compat.status !== 'needs_runtime' && !((compat.status === 'runnable') && compat.runtime === 'crispasr')}
+    {:else if taskNeeds && compat.status !== 'needs_runtime' && !((compat.status === 'runnable') && OWN_RUNTIMES.includes(compat.runtime))}
       <span class="inline-flex items-center gap-1 text-info" title={t('lib.runtime_needs_hint', { runtime: taskNeeds })}>
         <Info class="size-3" />{t('lib.runtime_needs', { runtime: taskNeeds })}
       </span>
