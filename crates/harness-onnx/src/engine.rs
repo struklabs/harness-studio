@@ -105,8 +105,11 @@ struct OutputSpec {
 /// (each window is a graph run under the session lock).
 pub const MAX_QA_WINDOWS: usize = 32;
 
+/// All graph runs take this lock, including DirectML sessions.
+pub(crate) type SessionLock = Mutex<Session>;
+
 pub struct Engine {
-    session: Mutex<Session>,
+    session: SessionLock,
     tokenizer: Tokenizer,
     /// Question answering: the tokenizer without truncation; [`Engine::answer`] cuts the
     /// context into overlapping windows (`doc_stride`) itself, the question whole in each,
@@ -222,6 +225,7 @@ fn pick_output(session: &Session, task: Task) -> Result<OutputSpec, String> {
                 extra: Some("end_logits".into()),
             });
         }
+        Task::AsrCtc => return Err("CTC models use asr_ctc::load".into()),
     };
     let name = preference
         .iter()
@@ -327,7 +331,13 @@ pub(crate) fn build_session(
 /// Loads the model: package files, tokenizer, ONNX session. Runs one warm-up inference so a
 /// graph that loads but cannot run fails here, not on the first request.
 pub fn load(opts: &LoadOptions) -> Result<Engine, String> {
+    if opts.task == Some(Task::AsrCtc) {
+        return Err("CTC models use asr_ctc::load".into());
+    }
     let mut package = ModelPackage::discover(&opts.model).map_err(|e| e.to_string())?;
+    if package.task == Task::AsrCtc {
+        return Err("CTC models use asr_ctc::load".into());
+    }
     if let Some(t) = opts.task {
         package.task = t;
     }
@@ -395,6 +405,7 @@ pub fn load(opts: &LoadOptions) -> Result<Engine, String> {
     };
     // Warm-up: also settles the output kind (vector or per-token) before the first request.
     match engine.package.task {
+        Task::AsrCtc => return Err("CTC models use asr_ctc::load".into()),
         Task::Embedding => {
             engine
                 .embed(&["warm up".to_string()], None)

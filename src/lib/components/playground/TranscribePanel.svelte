@@ -23,7 +23,7 @@
   import { Progress } from '$lib/components/ui/progress';
   import { Download } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
-  import { fetchTranscription, isSpeechDefinition, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
+  import { fetchTranscription, isSpeechDefinition, isOnnxCtcDefinition, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
   import { MAX_RECORD_SECONDS, RecordError } from './recorder';
   import { createRecordingSession, recordingClock as clock } from './recordingSession';
   import { speech } from './speech.svelte';
@@ -32,13 +32,14 @@
   import { asr } from './asr.svelte';
   import { tts } from './tts.svelte';
 
-  /** Speech definitions: the gateway loads the whisper model on the first request (JIT). */
+  /** Speech definitions: the gateway loads the selected model on the first request (JIT). */
   let models = $derived(
     domain.definitions.filter(isSpeechDefinition),
   );
   /** Installed sherpa-onnx recognition models (Parakeet, SenseVoice...): run per request, no definition. */
   let sherpaModels = $derived(asr.models);
   let sherpaChosen = $derived(isSherpaChoice(speech.model, domain.definitions, asr.names));
+  let ctcChosen = $derived(models.some(d => d.alias === speech.model && isOnnxCtcDefinition(d)));
   let noModel = $derived(models.length === 0 && sherpaModels.length === 0);
   let noModelNotice = $derived(noModel && !libraryDefinitions.busy);
   let installingRuntime = $derived(tts.installingRuntime);
@@ -50,7 +51,7 @@
   onMount(() => void asr.load());
   // sherpa-onnx models only transcribe; translation to English is a Whisper task.
   $effect(() => {
-    if (sherpaChosen) task = 'transcriptions';
+    if (sherpaChosen || ctcChosen) task = 'transcriptions';
   });
 
   async function installRuntime() {
@@ -95,7 +96,7 @@
     error = '';
     needFamily = null;
     try {
-      result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language, prompt, format }, app.inferenceHeaders(), c.signal);
+      result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language: ctcChosen ? '' : language, prompt: ctcChosen ? '' : prompt, format }, app.inferenceHeaders(), c.signal);
     } catch (e) {
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -188,7 +189,7 @@
 </script>
 
 <div class="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-4 py-6">
-  {#if isMac}
+  {#if isMac && !sherpaChosen && !ctcChosen}
     <!-- whisper.cpp ships no macOS server build: the Hub / gateway hints below only help once
          a self-built whisper-server is added as a local runtime. -->
     <div class="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-xs text-foreground" role="note">
@@ -235,7 +236,7 @@
         class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
       >
         {#if sherpaModels.length > 0}
-          <optgroup label={t('sasr.group_whisper')}>
+          <optgroup label={t('sasr.group_definitions')}>
             {#each models as d (d.id)}
               <option value={d.alias}>{d.alias}</option>
             {/each}
@@ -314,11 +315,11 @@
     <div class="grid gap-3 sm:grid-cols-3">
       <div class="flex flex-col gap-1.5">
         <Label for="asr-task" class="text-sm font-semibold text-foreground">{t('asr.task_label')}</Label>
-        <select id="asr-task" bind:value={task} disabled={busy || sherpaChosen} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+        <select id="asr-task" bind:value={task} disabled={busy || sherpaChosen || ctcChosen} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
           <option value="transcriptions">{t('asr.task_transcribe')}</option>
           <option value="translations">{t('asr.task_translate')}</option>
         </select>
-        {#if sherpaChosen}<span class="text-xs text-muted-foreground">{t('sasr.only_transcribes')}</span>{/if}
+        {#if sherpaChosen || ctcChosen}<span class="text-xs text-muted-foreground">{t('sasr.only_transcribes')}</span>{/if}
       </div>
       <div class="flex flex-col gap-1.5">
         <Label for="asr-format" class="text-sm font-semibold text-foreground">{t('asr.format_label')}</Label>
@@ -328,15 +329,19 @@
           <option value="vtt">WebVTT</option>
         </select>
       </div>
+      {#if !ctcChosen}
       <div class="flex flex-col gap-1.5">
         <Label for="asr-lang" class="text-sm font-semibold text-foreground">{t('asr.language_label')}</Label>
         <Input id="asr-lang" bind:value={language} placeholder={t('asr.language_placeholder')} disabled={busy} />
       </div>
+      {/if}
     </div>
-    <div class="flex flex-col gap-1.5">
-      <Label for="asr-prompt" class="text-sm font-semibold text-foreground">{t('asr.prompt_label')}</Label>
-      <Input id="asr-prompt" bind:value={prompt} placeholder={t('asr.prompt_placeholder')} disabled={busy} />
-    </div>
+    {#if !ctcChosen}
+      <div class="flex flex-col gap-1.5">
+        <Label for="asr-prompt" class="text-sm font-semibold text-foreground">{t('asr.prompt_label')}</Label>
+        <Input id="asr-prompt" bind:value={prompt} placeholder={t('asr.prompt_placeholder')} disabled={busy} />
+      </div>
+    {/if}
     <div class="flex items-center gap-3">
       <Button size="sm" onclick={run} disabled={!canRun}>
         <AudioLines />
@@ -347,6 +352,42 @@
       {/if}
     </div>
   </section>
+
+  {#if needFamily}
+    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
+      <EngineNeeded family={needFamily} onInstalled={() => (needFamily = null)} />
+    </div>
+  {:else if error}
+    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
+      {error}
+    </div>
+  {/if}
+
+  {#if result}
+    <section class="flex flex-col gap-3" aria-labelledby="asr-result">
+      <div class="flex flex-wrap items-center gap-2">
+        <h3 id="asr-result" class="text-sm font-semibold text-foreground">{t('asr.result_title')}</h3>
+        <AdvancedOnly><span class="font-num text-xs text-muted-foreground">{t('emb.stat_time', { value: Math.round(result.ms) })}</span></AdvancedOnly>
+        {#if result.language}<Badge variant="outline">{result.language.charAt(0).toUpperCase() + result.language.slice(1)}</Badge>{/if}
+        {#if result.duration !== null}<Badge variant="outline" class="font-num">{t('asr.stat_duration', { value: result.duration.toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}</Badge>{/if}
+        <Button variant="ghost" size="sm" onclick={copy}><Copy />{t('asr.copy')}</Button>
+        <Button variant="ghost" size="sm" onclick={() => result && app.addToChat(result.text.trim())} disabled={!result.text.trim()}>
+          <MessageSquarePlus />{t('asr.to_chat')}
+        </Button>
+      </div>
+      {#if result.segments?.length}
+        <div class="flex flex-col gap-2">
+          {#each result.segments as segment}
+            <div class="flex gap-3 text-sm">
+              <span class="font-num shrink-0 text-muted-foreground">{segment.start.toFixed(2)}–{segment.end.toFixed(2)}</span>
+              <span class="whitespace-pre-wrap">{segment.text}</span>
+            </div>
+          {/each}
+        </div>
+      {/if}
+      <pre class="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground [overflow-wrap:anywhere]">{result.text.trim()}</pre>
+    </section>
+  {/if}
 
   {#if asr.overview && asr.overview.catalog.length > 0}
     <section class="flex flex-col gap-2" aria-labelledby="sasr-catalog">
@@ -388,32 +429,6 @@
           </li>
         {/each}
       </ul>
-    </section>
-  {/if}
-
-  {#if needFamily}
-    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
-      <EngineNeeded family={needFamily} onInstalled={() => (needFamily = null)} />
-    </div>
-  {:else if error}
-    <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
-      {error}
-    </div>
-  {/if}
-
-  {#if result}
-    <section class="flex flex-col gap-3" aria-labelledby="asr-result">
-      <div class="flex flex-wrap items-center gap-2">
-        <h3 id="asr-result" class="text-sm font-semibold text-foreground">{t('asr.result_title')}</h3>
-        <AdvancedOnly><span class="font-num text-xs text-muted-foreground">{t('emb.stat_time', { value: Math.round(result.ms) })}</span></AdvancedOnly>
-        {#if result.language}<Badge variant="outline">{result.language.charAt(0).toUpperCase() + result.language.slice(1)}</Badge>{/if}
-        {#if result.duration !== null}<Badge variant="outline" class="font-num">{t('asr.stat_duration', { value: result.duration.toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}</Badge>{/if}
-        <Button variant="ghost" size="sm" onclick={copy}><Copy />{t('asr.copy')}</Button>
-        <Button variant="ghost" size="sm" onclick={() => result && app.addToChat(result.text.trim())} disabled={!result.text.trim()}>
-          <MessageSquarePlus />{t('asr.to_chat')}
-        </Button>
-      </div>
-      <pre class="whitespace-pre-wrap rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground [overflow-wrap:anywhere]">{result.text.trim()}</pre>
     </section>
   {/if}
 </div>

@@ -6,14 +6,14 @@
 
 /// `harness-onnx --help`.
 pub const HELP: &str = "\
-harness-onnx: serves a Hugging Face ONNX model over HTTP: an encoder (embeddings, reranking) or an onnxruntime-genai chat model
+harness-onnx: serves a Hugging Face ONNX model over HTTP: an encoder (embeddings, reranking), CTC speech recognizer or an onnxruntime-genai chat model
 
 usage: harness-onnx --model <model.onnx> [options]
 
 options:
   -h,  --help                         [default] show this help and exit
        --version                      [default] print the version and exit
-  -m,  --model PATH                   [required] ONNX model file; tokenizer.json and the sentence-transformers files are read from its repo folder (a folder with genai_config.json is a chat model)
+  -m,  --model PATH                   [required] ONNX model file; tokenizer.json and sentence-transformers files, or CTC audio configs and vocab.json, are read from its repo folder (a folder with genai_config.json is a chat model)
        --host HOST                    [127.0.0.1] address to listen on
        --port N                       [8080] port to listen on
   -a,  --alias NAME                   [file name] model name for /v1/models and the responses
@@ -22,13 +22,13 @@ options:
        --ctx-size N                   [4096] chat models: tokens of context (prompt plus answer), at most the model's own
        --provider NAME                [auto] execution provider: auto, cpu, directml or cuda (chat models: auto follows genai_config.json)
        --threads N                    [auto] CPU threads
-       --task NAME                    [auto] embedding or rerank (default: read from the repo files)
+       --task NAME                    [auto] embedding, rerank or asr_ctc (default: read from the repo files)
        --pooling NAME                 [auto] mean, cls, max or last (default: 1_Pooling/config.json)
        --normalize on|off             [auto] L2-normalize the embeddings (default: a Normalize module in modules.json)
        --max-length N                 [auto] maximum tokens per text (default: sentence_bert_config.json, tokenizer_config.json, config.json)
        --batch-size N                 [16] texts per model run
 
-endpoints: GET /health, GET /v1/models, POST /v1/embeddings, POST /v1/rerank, POST /v1/chat/completions (chat models)
+endpoints: GET /health, GET /v1/models, POST /v1/embeddings, POST /v1/rerank, POST /v1/chat/completions (chat models), POST /v1/audio/transcriptions (CTC models)
 ";
 
 /// `harness-onnx --version`.

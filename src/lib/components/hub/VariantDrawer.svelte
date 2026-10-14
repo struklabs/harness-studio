@@ -25,12 +25,12 @@
   import { isPending, progressPercent } from './downloadQueue.svelte';
   import { clearPageCache } from './hubData';
   import { formatName } from './inference';
-  import { canConvert } from './convertible';
+  import { canConvert, speechNeedsConversion } from './convertible';
   import ConvertPanel from './ConvertPanel.svelte';
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
-  import { isWhisperVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from './recommend';
+  import { isCtcVariant, isWhisperVariant, recommendCtcVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from './recommend';
   import { security } from '$lib/stores/security.svelte';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
 
@@ -143,10 +143,14 @@
   /** Best-fitting variant for this machine (same estimate as the Fit column). */
   /** whisper.cpp ggml repo: fit is a memory check, not a GGUF VRAM estimate. */
   let isWhisperRepo = $derived(variants.length > 0 && variants.every(isWhisperVariant));
+  /** ONNX CTC speech repo: precision matters more than size (see `recommendCtcVariant`). */
+  let isCtcRepo = $derived(variants.length > 0 && variants.every(isCtcVariant));
   let recommended = $derived(
     isWhisperRepo
       ? recommendWhisperVariant(variants, hardware?.available_ram_bytes)
-      : recommendVariant(variants, new Map([...variantFits].map(([name, fit]) => [name, fit.category])))
+      : isCtcRepo
+        ? recommendCtcVariant(variants, hardware?.available_ram_bytes)
+        : recommendVariant(variants, new Map([...variantFits].map(([name, fit]) => [name, fit.category])))
   );
   $effect(() => {
     const id = repoId;
@@ -568,7 +572,7 @@
               {:else if unsupportedFormat}
                 <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
                   <Ban class="mt-px size-3.5 shrink-0 text-warning" />
-                  <span class="min-w-0 flex-1">{unsupportedFormat === 'gguf' ? t('hub.compat_gguf_other_engine_drawer') : t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
+                  <span class="min-w-0 flex-1">{speechNeedsConversion(repo) ? t('hub.asr_needs_conversion_drawer') : unsupportedFormat === 'gguf' ? t('hub.compat_gguf_other_engine_drawer') : t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
                 </div>
               {:else if platformBlocked}
                 {@const msg = onnxUnsupportedText(platformBlocked)}

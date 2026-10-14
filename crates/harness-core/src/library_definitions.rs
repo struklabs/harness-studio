@@ -46,13 +46,29 @@ pub fn ensure_in(
         .filter(|m| !(m.kind == ModelKind::Asr && crate::asr::is_sherpa_file(&m.path)))
     {
         let defs = domain.definitions()?;
-        if defs
+        if let Some(mut def) = defs
             .iter()
-            .any(|d| d.base.local_path() == Some(model.path.as_path()))
+            .find(|d| d.base.local_path() == Some(model.path.as_path()))
+            .cloned()
         {
+            if crate::asr::is_onnx_ctc_file(&model.path)
+                && def.load.get("task") != Some(&crate::params::ParamValue::Text("asr_ctc".into()))
+            {
+                def.load.insert(
+                    "task".into(),
+                    crate::params::ParamValue::Text("asr_ctc".into()),
+                );
+                domain.save_definition(def)?;
+            }
             continue;
         }
-        let load = if model.kind == ModelKind::Image {
+        let load = if crate::asr::is_onnx_ctc_file(&model.path) {
+            [(
+                "task".into(),
+                crate::params::ParamValue::Text("asr_ctc".into()),
+            )]
+            .into()
+        } else if model.kind == ModelKind::Image {
             let Some(load) = crate::image_bundles::definition_load(&model.path, libraries, true)
             else {
                 continue;
@@ -144,6 +160,49 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn ctc_gets_an_onnx_definition_and_speech_capability() {
+        let cfg = tempfile::tempdir().unwrap();
+        let lib = tempfile::tempdir().unwrap();
+        std::fs::create_dir(lib.path().join("onnx")).unwrap();
+        std::fs::write(
+            lib.path().join("config.json"),
+            r#"{"architectures":["Wav2Vec2ForCTC"],"vocab_size":3,"pad_token_id":0}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            lib.path().join("preprocessor_config.json"),
+            r#"{"sampling_rate":16000,"feature_size":1}"#,
+        )
+        .unwrap();
+        std::fs::write(lib.path().join("vocab.json"), r#"{"<pad>":0,"a":1,"|":2}"#).unwrap();
+        let model = file(lib.path(), "onnx/model.onnx", ModelKind::Asr, true);
+        assert!(crate::asr::is_onnx_ctc_file(&model.path));
+        assert!(!crate::asr::is_sherpa_file(&model.path));
+        let domain = Domain::at(cfg.path());
+        ensure_in(
+            &domain,
+            &[],
+            std::slice::from_ref(&model),
+            &[ModelKind::Asr],
+        )
+        .unwrap();
+        let mut def = domain.definitions().unwrap().remove(0);
+        def.load.clear();
+        let def = domain.save_definition(def).unwrap();
+        assert_eq!(
+            def.load["task"],
+            crate::params::ParamValue::Text("asr_ctc".into())
+        );
+        let caps = crate::library::ModelCaps {
+            asr: true,
+            ..Default::default()
+        };
+        let record = crate::model_registry::local_record(&model, &caps);
+        assert_eq!(record.runtime.as_deref(), Some(crate::engine::ONNX_FAMILY));
+        assert_eq!(record.format, crate::hub_compat::ModelFormat::Onnx);
     }
 
     #[test]

@@ -118,7 +118,7 @@ Aşağıdakilerin hepsi yerel çalışır. Ayrıntılar [kullanım kılavuzunda]
 - **llama.cpp üzerinde tam denetim:** bağlam, GPU katmanları, KV önbellek türü, slot sayısı, örnekleme ve daha fazlası; ayrıca SHA-256 doğrulamalı motorlardan oluşan bir çalışma zamanı kaydı ve sunucu başına motor seçimi. [CLI başvurusuna](docs/tr/CLI.md) bakın.
 - **Gözlemlenebilirlik:** karşılaştırmalı testler (benchmark), istek analitiği (P50/P95 gecikme, token, hata, istemci bazında), araç çağrısı teşhisi, aranabilir günlükler, Prometheus `/metrics` ve isteğe bağlı OpenTelemetry dışa aktarımı.
 - **CLI, Control API ve başsız kip:** `harness` komutu, OpenAPI şemalı yetkilendirmeli Control API ve pencere olmadan çalıştıran `harness serve`. Hepsi uygulamayla aynı Rust kodunu kullanır.
-- **Daha fazla motor:** whisper.cpp ve sherpa-onnx (konuşma), stable-diffusion.cpp (görsel), ONNX Runtime (embedding ve rerank), isteğe bağlı Lemonade ve mistral.rs. Safetensors modelleri Hub'dan GGUF'a dönüştürülebilir.
+- **Daha fazla motor:** whisper.cpp ve sherpa-onnx (konuşma), stable-diffusion.cpp (görsel), ONNX Runtime (embedding, rerank ve CTC konuşma tanıma), isteğe bağlı Lemonade ve mistral.rs. Safetensors modelleri Hub'dan GGUF'a dönüştürülebilir.
 
 ## Neden Harness Studio? Rakiplerle karşılaştırma
 
@@ -247,7 +247,7 @@ Hayır. İşlemci de çalışır; GPU yalnızca modelleri hızlandırır. Küç�
 <details>
 <summary><b>Hangi modelleri çalıştırabilirim, nereden bulurum?</b></summary>
 
-Esas olarak llama.cpp için GGUF modeller: sohbet, kodlama, görsel (vision), embedding ve rerank modelleri. **Model Hub** sizin için Hugging Face'te arar, boyutu ve donanım uyumunu gösterir, sağlama toplamı doğrulayarak indirir. Konuşma (Whisper ve sherpa-onnx), görsel üretimi (Stable Diffusion ve FLUX paketleri) ve ONNX modelleri, uygulamanın kurmayı önerdiği isteğe bağlı motorları gerektirir. Safetensors modelleri uygulama içinde GGUF'a dönüştürülebilir.
+Esas olarak llama.cpp için GGUF modeller: sohbet, kodlama, görsel (vision), embedding ve rerank modelleri. **Model Hub** sizin için Hugging Face'te arar, boyutu ve donanım uyumunu gösterir, sağlama toplamı doğrulayarak indirir. Konuşma (Whisper, sherpa-onnx ve ONNX CTC), görsel üretimi (Stable Diffusion ve FLUX paketleri) ve ONNX modelleri, uygulamanın kurmayı önerdiği isteğe bağlı motorları gerektirir. Safetensors modelleri uygulama içinde GGUF'a dönüştürülebilir.
 </details>
 
 <details>

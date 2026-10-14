@@ -140,7 +140,7 @@ echo "Read this aloud." | harness speak - -f mp3 -o out.mp3
 
 ### Speech recognition (sherpa-onnx)
 
-No instance needed: the commands run inside this process and take no lock. Text is read with `sherpa-onnx-vad-with-offline-asr` (the same sherpa-onnx runtime as text to speech); models are folders in the model directories (NVIDIA Parakeet, SenseVoice, Omnilingual...) and appear in the library as "Speech recognition (sherpa-onnx)". Whisper (ggml `.bin`) models are not used with these commands but through the gateway (`POST /v1/audio/transcriptions`); the same endpoint also runs installed sherpa models by name.
+No instance needed: the commands run inside this process and take no lock. Text is read with `sherpa-onnx-vad-with-offline-asr` (the same sherpa-onnx runtime as text to speech); models are folders in the model directories (NVIDIA Parakeet, SenseVoice, Omnilingual...) and appear in the library as "Speech recognition (sherpa-onnx)". ONNX CTC library models (wav2vec2, HuBERT, WavLM) are also accepted by `harness transcribe FILE -m MODEL`, using a definition id/alias or exact ONNX file path. They run with the managed ONNX Runtime engine, ignore prompts and language hints, and provide no timed segments. Whisper (ggml `.bin`) models are not used with these commands but through the gateway (`POST /v1/audio/transcriptions`); the same endpoint also runs installed sherpa models by name.
 
 | Command | What it does | `--json` |
 |---|---|---|

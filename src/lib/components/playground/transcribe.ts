@@ -2,7 +2,6 @@ import { normalizeTranscriptionText } from './transcriptionText';
 // Playground Speech tab: request helper for the gateway's /v1/audio/transcriptions and
 // /v1/audio/translations (a real whisper-server behind it; nothing is simulated).
 import { describeErrorBody } from './sse';
-import type { ModelDefinition } from '$lib/types';
 
 export type AudioTask = 'transcriptions' | 'translations';
 export type AudioFormat = 'json' | 'text' | 'srt' | 'vtt' | 'verbose_json';
@@ -15,17 +14,10 @@ export interface TranscribeResult {
   language: string | null;
   duration: number | null;
   ms: number;
+  segments?: { start: number; end: number; text: string }[];
 }
 
-/** Models a speech request can name: definitions whose file is a whisper ggml `.bin`. */
-export function isSpeechFile(name: string): boolean {
-  return name.toLowerCase().endsWith('.bin');
-}
-
-/** A whisper definition: served by whisper-server, never by llama-server (chat, embedding, Dashboard). */
-export function isSpeechDefinition(d: ModelDefinition): boolean {
-  return isSpeechFile(d.base.kind === 'local' ? d.base.path : d.base.file);
-}
+export { isSpeechFile, isSpeechDefinition, isOnnxCtcDefinition } from './speechModels';
 
 /** whisper starts every segment line with a space; plain text drops it. */
 export function tidySegments(text: string): string {
@@ -57,12 +49,14 @@ export async function fetchTranscription(
     return { text: body, format: opts.format, language: null, duration: null, ms };
   }
   if (opts.format === 'text') return { text: tidySegments(body), format: opts.format, language: null, duration: null, ms };
-  const json = JSON.parse(body) as { text?: unknown; language?: unknown; duration?: unknown };
+  const json = JSON.parse(body) as { text?: unknown; language?: unknown; duration?: unknown; segments?: unknown };
   return {
     text: typeof json.text === 'string' ? tidySegments(json.text) : '',
     format: opts.format,
     language: typeof json.language === 'string' ? json.language : null,
     duration: typeof json.duration === 'number' ? json.duration : null,
     ms,
+    segments: Array.isArray(json.segments) ? json.segments.filter((s): s is { start: number; end: number; text: string } =>
+      s && typeof s.start === 'number' && typeof s.end === 'number' && typeof s.text === 'string') : [],
   };
 }

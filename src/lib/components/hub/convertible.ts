@@ -21,3 +21,12 @@ export function canConvert(
   const task = repo.pipeline_tag ?? repo.inferred_task ?? null;
   return task !== null && CONVERTIBLE_TASKS.includes(task);
 }
+
+/** Source speech checkpoints need a supported exported package before Harness can serve them. */
+export function speechNeedsConversion(
+  repo: Pick<HfModelSearchResult, 'compatibility' | 'pipeline_tag' | 'inferred_task' | 'format'> | null | undefined,
+): boolean {
+  return !!repo && repo.compatibility.status === 'unsupported'
+    && (repo.pipeline_tag ?? repo.inferred_task) === 'automatic-speech-recognition'
+    && ['safetensors', 'pytorch'].includes(repo.format);
+}

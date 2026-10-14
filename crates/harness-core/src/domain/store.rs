@@ -435,7 +435,19 @@ impl Domain {
 
     pub fn definitions(&self) -> Result<Vec<ModelDefinition>, String> {
         let _g = domain_lock();
-        Ok(self.state()?.defs.definitions)
+        let mut definitions = self.state()?.defs.definitions;
+        // Older definitions also carry the task in the UI before their next save.
+        for def in &mut definitions {
+            if def
+                .base
+                .local_path()
+                .is_some_and(crate::asr::is_onnx_ctc_file)
+            {
+                def.load
+                    .insert("task".into(), ParamValue::Text("asr_ctc".into()));
+            }
+        }
+        Ok(definitions)
     }
 
     pub fn definitions_file(&self) -> Result<DefinitionsFile, String> {

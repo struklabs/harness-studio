@@ -9,7 +9,7 @@
     <string>tr</string>
   </array>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Harness Studio records from the microphone only when you press Record in Playground &gt; Speech, to transcribe it with your local Whisper model.</string>
+  <string>Harness Studio records from the microphone only when you press Record in Playground &gt; Speech, to transcribe it with your local speech recognition model.</string>
   <key>NSAppleEventsUsageDescription</key>
   <string>Harness Studio asks Terminal (or iTerm) to open a window only when you press Start for a coding agent in Connections.</string>
 </dict>

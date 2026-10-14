@@ -226,6 +226,22 @@ pub fn is_genai_repo(tags: &[String], files: &[String]) -> bool {
         })
 }
 
+/// CTC evidence from config.json (not a repo-name guess).
+pub fn is_ctc_config(config: &serde_json::Value) -> bool {
+    harness_onnx::asr_ctc::is_ctc_config(config)
+}
+
+/// The files required by an exported HF CTC package.
+pub fn has_ctc_files(files: &[String]) -> bool {
+    ["config.json", "vocab.json", "preprocessor_config.json"]
+        .iter()
+        .all(|f| files.iter().any(|p| p == f))
+        && files.iter().any(|f| {
+            let graph = f.strip_prefix("onnx/").unwrap_or(f);
+            graph.ends_with(".onnx") && !graph.contains(['/', '\\'])
+        })
+}
+
 /// Whether `task` is one the ONNX family serves ([`ONNX_TASKS`]).
 pub fn is_onnx_task(task: Option<&str>) -> bool {
     task.is_some_and(|t| ONNX_TASKS.contains(&t))
@@ -531,6 +547,65 @@ mod tests {
                 runtime: PYTHON_HF_FAMILY.into()
             }
         );
+    }
+
+    #[test]
+    fn hub_ctc_config_uses_sidecar_architectures() {
+        for architecture in [
+            "Wav2Vec2ForCTC",
+            "HubertForCTC",
+            "WavLMForCTC",
+            "Data2VecAudioForCTC",
+            "Wav2Vec2ConformerForCTC",
+            "UniSpeechForCTC",
+            "UniSpeechSatForCTC",
+            "SEWForCTC",
+        ] {
+            assert!(is_ctc_config(
+                &serde_json::json!({"architectures": [architecture]})
+            ));
+        }
+        for architecture in [
+            "UnsupportedForCTC",
+            "Wav2Vec2Model",
+            "WhisperForConditionalGeneration",
+        ] {
+            assert!(!is_ctc_config(
+                &serde_json::json!({"architectures": [architecture]})
+            ));
+        }
+        assert!(!is_ctc_config(
+            &serde_json::json!({"architectures": [null, 42]})
+        ));
+    }
+
+    #[test]
+    fn hub_ctc_files_accept_root_or_onnx_graphs_only() {
+        for graph in ["model.onnx", "model_int8.onnx", "onnx/model.onnx"] {
+            assert!(has_ctc_files(&s(&[
+                "config.json",
+                "vocab.json",
+                "preprocessor_config.json",
+                graph
+            ])));
+        }
+        for graph in [
+            "nested/model.onnx",
+            "onnx/nested/model.onnx",
+            "model.safetensors",
+        ] {
+            assert!(!has_ctc_files(&s(&[
+                "config.json",
+                "vocab.json",
+                "preprocessor_config.json",
+                graph
+            ])));
+        }
+        assert!(!has_ctc_files(&s(&[
+            "config.json",
+            "preprocessor_config.json",
+            "model.onnx"
+        ])));
     }
 
     #[test]
