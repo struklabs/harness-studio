@@ -113,6 +113,11 @@ impl RecordGuard {
         }
         r.total_ms = started.elapsed().as_millis() as u64;
         if let Some(mut r) = self.record.take() {
+            // A Playground warm-up (`is_warmup`) is not a user request: no log line,
+            // analytics row, trace or event.
+            if r.warmup {
+                return;
+            }
             if let Some(t) = self.tool.take() {
                 t.finalize(&mut r, CallIndex::global());
             }
@@ -1134,17 +1139,19 @@ mod tests {
     }
 
     #[test]
-    fn a_warmup_record_is_not_published() {
+    fn a_finished_warmup_leaves_no_record() {
         let mut rx = harness_core::events::subscribe();
-        let mut r = harness_core::gateway::record::RequestRecord {
-            id: "warm".into(),
-            warmup: true,
-            ..Default::default()
-        };
-        r.clone().publish();
-        r.warmup = false;
-        r.id = "real".into();
-        r.publish();
+        for (id, warmup) in [("warm", true), ("real", false)] {
+            let mut guard = RecordGuard::new(
+                RequestRecord {
+                    id: id.into(),
+                    warmup,
+                    ..Default::default()
+                },
+                None,
+            );
+            guard.finish(200, None);
+        }
         let mut ids = Vec::new();
         while let Ok(e) = rx.try_recv() {
             if let harness_core::events::CoreEvent::GatewayRequest { record } = e {
