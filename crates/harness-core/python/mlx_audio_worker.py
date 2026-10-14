@@ -26,7 +26,8 @@ names. This worker serves only what Harness needs, itself:
   the text (see `frame_budget`; sampling can miss the end token and keep talking), and it stops
   after --max-seconds of wall-clock time. Audio made by then is answered with
   "x-harness-truncated: time"; nothing made by then is a 504. A transcription takes a body of
-  at most MAX_AUDIO_BODY bytes and audio of at most --max-audio-seconds, and stops with a 504
+  at most MAX_AUDIO_BODY bytes and audio of at most --max-audio-seconds (checked against the
+  container's header, and decoding stops at the limit whatever it says), and stops with a 504
   after --max-seconds (checked between decoded windows / chunks).
 """
 
@@ -191,6 +192,69 @@ def transcription_request(content_type, raw):
     return audio, language, task
 
 
+# Samples decoded per step of a capped decode.
+DECODE_FRAMES = 16384
+
+
+def audio_format(audio):
+    """The container of uploaded audio by its first bytes: wav, flac, vorbis (Ogg) or mp3; None
+    for anything else (the gateway converts other formats to WAV before they get here)."""
+    head = bytes(audio[:12])
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return "wav"
+    if head[:4] == b"fLaC":
+        return "flac"
+    if head[:4] == b"OggS":
+        return "vorbis"
+    if head[:3] == b"ID3" or (len(head) > 1 and head[0] == 0xFF and head[1] & 0xE0 == 0xE0):
+        return "mp3"
+    return None
+
+
+def decode_capped(audio, max_seconds, miniaudio, resample):
+    """16 kHz mono float32 samples of uploaded audio, never more than `max_seconds` of them: a
+    length the container declares over the limit is refused before decoding, and decoding (mono,
+    at the file's own rate) stops one step past the limit whatever the header says, so a small
+    compressed file of hours of silence never fills memory. `resample(samples, from, to)`."""
+    import numpy as np
+
+    kind = audio_format(audio)
+    if kind is None:
+        raise Refused("the audio must be WAV, FLAC, MP3 or Ogg Vorbis")
+    too_long = Refused("the audio is longer than %d seconds" % max_seconds)
+    try:
+        info = getattr(miniaudio, kind + "_get_info")(audio)
+    except Exception:
+        raise Refused("the audio could not be decoded")
+    rate = int(getattr(info, "sample_rate", 0) or 0)
+    if rate <= 0:
+        raise Refused("the audio could not be decoded")
+    if (getattr(info, "num_frames", 0) or 0) > max_seconds * rate:
+        raise too_long
+    limit = int(max_seconds * rate)
+    parts, total = [], 0
+    stream = miniaudio.stream_memory(audio, miniaudio.SampleFormat.FLOAT32, 1, rate,
+                                     DECODE_FRAMES)
+    try:
+        for chunk in stream:
+            total += len(chunk)
+            if total > limit:
+                raise too_long
+            parts.append(np.asarray(chunk, dtype=np.float32))
+    except Refused:
+        raise
+    except Exception:
+        raise Refused("the audio could not be decoded")
+    finally:
+        close = getattr(stream, "close", None)
+        if close:
+            close()
+    samples = np.concatenate(parts) if parts else np.zeros(0, dtype=np.float32)
+    if rate != SAMPLE_RATE and len(samples):
+        samples = np.asarray(resample(samples, rate, SAMPLE_RATE), dtype=np.float32)
+    return samples
+
+
 def make_transcribe(model, max_seconds, max_audio_seconds, clock=time.monotonic):
     """`transcribe(samples, language, task)` -> text, for 16 kHz mono `samples`. Audio longer
     than `max_audio_seconds` is refused; a run is stopped with TooSlow after `max_seconds`:
@@ -246,18 +310,17 @@ OVERRUN_SECONDS = 1.0
 
 def heard_text(result, seconds):
     """The text of a recognition result. Whisper can keep decoding into the silence that pads its
-    30 s window and make up segments there: ones that start or end past the end of the audio,
-    end before they start or have no score (a NaN log probability) are dropped. Segments are
-    kept as they come when any has no start time."""
+    30 s window and make up segments there: ones that start or end past the end of the audio, or
+    end before they start, are dropped (their scores do not tell them apart: mlx-audio's
+    log probabilities can be NaN for real speech too). Segments are kept as they come when any
+    has no start time."""
     segments = getattr(result, "segments", None) or []
     timed = lambda s: isinstance(s, dict) and isinstance(s.get("text"), str) \
         and all(isinstance(s.get(k), (int, float)) for k in ("start", "end"))
     if segments and all(timed(s) for s in segments):
         def heard(s):
-            score = s.get("avg_logprob", 0.0)
             return s["start"] < seconds - TAIL_SECONDS \
-                and s["start"] <= s["end"] <= seconds + OVERRUN_SECONDS \
-                and not (isinstance(score, float) and math.isnan(score))
+                and s["start"] <= s["end"] <= seconds + OVERRUN_SECONDS
         return "".join(s["text"] for s in segments if heard(s)).strip()
     text = getattr(result, "text", None)
     if not isinstance(text, str):
@@ -496,6 +559,8 @@ def transcription_app_for(transcribe, decode, alias):
     def run(audio, language, task):
         try:
             samples = decode(audio)
+        except Refused:
+            raise
         except Exception:
             raise Refused("the audio could not be decoded")
         with one_at_a_time:
@@ -565,16 +630,15 @@ def main(argv=None):
         cls.from_pretrained = no_remote_code
 
     if args.task == "transcription":
+        import miniaudio
         import mlx.core as mx
-        from mlx_audio.audio_io import read as read_audio
         from mlx_audio.stt.utils import load_model as load_stt
+        from mlx_audio.stt.utils import resample_audio
 
         model = load_stt(model_dir, **stt_options(model_dir))
 
         def decode(audio):
-            samples, _ = read_audio(io.BytesIO(audio), dtype="float32", sample_rate=SAMPLE_RATE,
-                                    nchannels=1)
-            return mx.array(np.asarray(samples, dtype=np.float32).reshape(-1))
+            return mx.array(decode_capped(audio, args.max_audio_seconds, miniaudio, resample_audio))
 
         transcribe = make_transcribe(model, args.max_seconds, args.max_audio_seconds)
         app = transcription_app_for(transcribe, decode, args.alias)

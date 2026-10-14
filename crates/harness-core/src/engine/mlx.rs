@@ -2066,7 +2066,9 @@ print("parakeet calls", parakeet.calls)
 seg = lambda start, text, end=None, score=-0.2: dict(start=start, end=start + 1 if end is None else end, text=text, avg_logprob=score)
 heard = types.SimpleNamespace(text=" Hello there. pop pop", segments=[
     seg(0.0, " Hello"), seg(1.2, " there."), seg(2.95, " pop"), seg(4.0, " pop"),
-    seg(2.0, " K", end=1.0), seg(2.1, " N", score=float("nan")), seg(2.5, " My?", end=9.0)])
+    seg(2.0, " K", end=1.0), seg(2.5, " My?", end=9.0)])
+nan = types.SimpleNamespace(segments=[seg(0.0, " Real", score=float("nan")), seg(1.0, " speech.", score=float("nan"))])
+print("nan scores", repr(w.heard_text(nan, 3.0)))
 print("tail", repr(w.heard_text(heard, 3.0)))
 print("no starts", repr(w.heard_text(types.SimpleNamespace(text=" as is ", segments=[dict(text="x")]), 3.0)))
 print("no segments", repr(w.heard_text(types.SimpleNamespace(text=" p "), 3.0)))
@@ -2102,8 +2104,99 @@ print("parakeet options", w.stt_options({:?}))
             "parakeet calls [{'chunk_duration': None}, {'chunk_duration': 120.0}]",
             "parakeet options {'model_type': 'parakeet'}",
             "tail 'Hello there.'",
+            "nan scores 'Real speech.'",
             "no starts 'as is'",
             "no segments 'p'",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+    }
+
+    /// Uploaded audio is never decoded past the length limit: a container header declaring more
+    /// is refused before decoding, a header that says less (or nothing) is caught while
+    /// streaming, one step past the limit; only WAV, FLAC, MP3 and Ogg Vorbis are taken, and
+    /// other rates are resampled to 16 kHz.
+    #[test]
+    fn the_audio_worker_caps_decoding() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let script = format!(
+            r#"
+import sys, types; sys.path.insert(0, {:?})
+# Stand-ins for numpy (lists) and miniaudio (a header and a stream of chunks).
+np = types.ModuleType("numpy")
+np.float32 = "f"
+np.asarray = lambda x, dtype=None: list(x)
+np.concatenate = lambda parts: [v for p in parts for v in p]
+np.zeros = lambda n, dtype=None: [0.0] * n
+sys.modules["numpy"] = np
+import mlx_audio_worker as w
+w.DECODE_FRAMES = 1000
+class Mini:
+    SampleFormat = types.SimpleNamespace(FLOAT32="f32")
+    def __init__(self, rate, declared, actual):
+        self.rate, self.declared, self.actual, self.read, self.closed = rate, declared, actual, 0, False
+    def info(self, data):
+        return types.SimpleNamespace(sample_rate=self.rate, nchannels=2, num_frames=self.declared)
+    wav_get_info = flac_get_info = mp3_get_info = vorbis_get_info = info
+    def stream_memory(self, data, fmt, nchannels, rate, frames):
+        assert (fmt, nchannels, rate, frames) == ("f32", 1, self.rate, 1000), (fmt, nchannels, rate, frames)
+        def gen():
+            try:
+                while self.read < self.actual:
+                    n = min(frames, self.actual - self.read)
+                    self.read += n
+                    yield [0.0] * n
+            finally:
+                self.closed = True
+        return gen()
+resampled = []
+def resample(samples, src, dst):
+    resampled.append((len(samples), src, dst))
+    return samples[: len(samples) * dst // src]
+FLAC = b"fLaC" + b"\0" * 20
+def run(name, data, mini, limit=10):
+    try:
+        out = w.decode_capped(data, limit, mini, resample)
+        print(name, "ok", len(out), "read", mini.read, "closed", mini.closed)
+    except w.Refused as e:
+        print(name, "refused", e, "read", mini.read, "closed", mini.closed)
+# 30 minutes declared: refused before any decoding.
+run("declared", FLAC, Mini(16000, 30 * 60 * 16000, 30 * 60 * 16000))
+# The header says 1 s (or nothing) but the stream goes on: stopped one step past 10 s.
+run("lying", FLAC, Mini(16000, 16000, 30 * 60 * 16000))
+run("unknown length", FLAC, Mini(16000, 0, 30 * 60 * 16000))
+run("fits", b"RIFF\0\0\0\0WAVEfmt ", Mini(16000, 5 * 16000, 5 * 16000))
+run("44.1k", b"ID3\3\0\0", Mini(44100, 0, 2 * 44100))
+run("ogg", b"OggS\0\2" + b"\0" * 8, Mini(16000, 0, 100))
+run("opus-like junk", b"\x1a\x45\xdf\xa3webm", Mini(16000, 0, 100))
+run("text", b"hello world!", Mini(16000, 0, 100))
+print("resampled", resampled)
+"#,
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "declared refused the audio is longer than 10 seconds read 0 closed False",
+            "lying refused the audio is longer than 10 seconds read 161000 closed True",
+            "unknown length refused the audio is longer than 10 seconds read 161000 closed True",
+            "fits ok 80000 read 80000 closed True",
+            "44.1k ok 32000 read 88200 closed True",
+            "ogg ok 100",
+            "opus-like junk refused the audio must be WAV, FLAC, MP3 or Ogg Vorbis read 0",
+            "text refused the audio must be WAV, FLAC, MP3 or Ogg Vorbis read 0",
+            "resampled [(88200, 44100, 16000)]",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }

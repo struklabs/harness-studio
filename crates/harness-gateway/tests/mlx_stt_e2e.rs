@@ -207,6 +207,40 @@ async fn an_mlx_recognition_model_transcribes_through_the_gateway() {
     eprintln!("text answer in {:?}: {plain:?}", t.elapsed());
     assert!(plain.to_lowercase().contains("lazy dog") && plain.ends_with('\n'));
 
+    // FLAC at 22.05 kHz: decoded and resampled to 16 kHz by the worker.
+    let wav22 = dir.join("speech22.wav");
+    let flac22 = dir.join("speech22.flac");
+    let said = std::process::Command::new("say")
+        .args(["-v", "Samantha", "-o"])
+        .arg(&wav22)
+        .args(["--data-format=LEI16@22050", SENTENCE])
+        .status()
+        .unwrap();
+    assert!(said.success());
+    let encoded = std::process::Command::new("afconvert")
+        .args(["-f", "flac", "-d", "flac"])
+        .arg(&wav22)
+        .arg(&flac22)
+        .status()
+        .unwrap();
+    assert!(encoded.success());
+    let res = post(
+        format!("{base}/v1/audio/transcriptions"),
+        form(
+            &std::fs::read(&flac22).unwrap(),
+            &[("model", "mlx-stt-e2e"), ("response_format", "text")],
+        ),
+    )
+    .await
+    .unwrap();
+    assert_eq!(res.status(), 200);
+    let flac_text = res.text().await.unwrap();
+    eprintln!("22.05 kHz FLAC: {flac_text:?}");
+    assert!(
+        flac_text.to_lowercase().contains("local models"),
+        "{flac_text}"
+    );
+
     // Subtitles are whisper.cpp's; this worker answers text only.
     let res = send("/v1/audio/transcriptions", &[("response_format", "srt")])
         .await
@@ -237,6 +271,57 @@ async fn an_mlx_recognition_model_transcribes_through_the_gateway() {
     assert!(code.is_client_error(), "{code}");
     let res = send("/v1/audio/transcriptions", &[]).await.unwrap();
     assert_eq!(res.status(), 200);
+
+    // 30 minutes of silence in a small FLAC (well under the body cap): refused by its length
+    // before it is decoded into memory (16 kHz float32 would be about 115 MB, the default
+    // limit is 1800 s).
+    let silent_wav = dir.join("silence.wav");
+    let silent_flac = dir.join("silence.flac");
+    let frames: u32 = 31 * 60 * 16_000;
+    let mut wav_bytes = Vec::with_capacity(44 + frames as usize * 2);
+    wav_bytes.extend_from_slice(b"RIFF");
+    wav_bytes.extend_from_slice(&(36 + frames * 2).to_le_bytes());
+    wav_bytes.extend_from_slice(b"WAVEfmt ");
+    wav_bytes.extend_from_slice(&16u32.to_le_bytes());
+    wav_bytes.extend_from_slice(&1u16.to_le_bytes());
+    wav_bytes.extend_from_slice(&1u16.to_le_bytes());
+    wav_bytes.extend_from_slice(&16_000u32.to_le_bytes());
+    wav_bytes.extend_from_slice(&32_000u32.to_le_bytes());
+    wav_bytes.extend_from_slice(&2u16.to_le_bytes());
+    wav_bytes.extend_from_slice(&16u16.to_le_bytes());
+    wav_bytes.extend_from_slice(b"data");
+    wav_bytes.extend_from_slice(&(frames * 2).to_le_bytes());
+    wav_bytes.resize(44 + frames as usize * 2, 0);
+    std::fs::write(&silent_wav, &wav_bytes).unwrap();
+    let encoded = std::process::Command::new("afconvert")
+        .args(["-f", "flac", "-d", "flac"])
+        .arg(&silent_wav)
+        .arg(&silent_flac)
+        .status()
+        .unwrap();
+    assert!(encoded.success());
+    let flac = std::fs::read(&silent_flac).unwrap();
+    assert!(
+        flac.starts_with(b"fLaC") && flac.len() < 25 << 20,
+        "{}",
+        flac.len()
+    );
+    let t = Instant::now();
+    let res = post(
+        format!("{base}/v1/audio/transcriptions"),
+        form(&flac, &[("model", "mlx-stt-e2e")]),
+    )
+    .await
+    .unwrap();
+    let code = res.status();
+    let body = res.text().await.unwrap();
+    eprintln!(
+        "31 min of silence ({} KB FLAC): {code} {body} in {:?}",
+        flac.len() / 1024,
+        t.elapsed()
+    );
+    assert_eq!(code, 400, "{body}");
+    assert!(body.contains("longer than 1800 seconds"), "{body}");
 
     // The worker's own port refuses a request without its key, and a page of another origin.
     let worker = registry
