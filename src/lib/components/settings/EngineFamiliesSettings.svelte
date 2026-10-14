@@ -93,6 +93,10 @@
               </Button>
               <span class="flex items-center gap-1 text-xs text-muted-foreground"><LoaderCircle class="size-3.5 animate-spin" />{t(st.pct === null ? 'eng.installing' : 'eng.installing_pct', { runtime: engineLabel(e.family), pct: st.pct ?? 0 })}</span>
             {:else if e.method === 'pyenv' && engineInstall.pyEnv(e.family)?.installed}
+              {@const gpu = engineInstall.pyGpuUpgrade(e.family)}
+              {#if gpu}
+                <Button size="sm" disabled={engineInstall.anyBusy} onclick={() => engineInstall.install(e.family, gpu.name)} title={t('eng.pyhf_cuda_upgrade_title')}><Download />{t('eng.pyhf_cuda_upgrade', { size: formatBytes(gpu.estimated_size_bytes, 1) })}</Button>
+              {/if}
               {#if !installed}
                 <Button size="sm" disabled={engineInstall.anyBusy} onclick={() => engineInstall.install(e.family)}><Download />{t('eng.install', { runtime: engineLabel(e.family) })}</Button>
               {/if}

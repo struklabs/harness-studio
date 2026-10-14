@@ -112,6 +112,18 @@ class EngineInstaller {
     );
   }
 
+  /**
+   * The GPU build a `pyenv` family can move to (`hf-cuda` on an NVIDIA machine whose engine
+   * runs on `hf-cpu`), else undefined.
+   */
+  pyGpuUpgrade(family: string): PythonEnvStatus | undefined {
+    const current = this.pyEnv(family);
+    if (!current || current.gpu_build_of || !current.installed) return undefined;
+    return Object.values(this.pyEnvs).find(
+      (e) => e.gpu_build_of === current.name && e.preferred && e.supported && !e.ready,
+    );
+  }
+
   /** Why this machine can't have a `pyenv` family's environment (an error to localize), else null. */
   pyRefusal(family: string): string | null {
     return this.pyEnv(family)?.refusal ?? null;
@@ -151,7 +163,7 @@ class EngineInstaller {
   }
 
   /** Resolves true once the family is installed. Failures are reported as a toast and in `state(family)`. */
-  async install(family: string): Promise<boolean> {
+  async install(family: string, env?: string): Promise<boolean> {
     const spec = engineSpec(family);
     if (this.anyBusy) return false;
     if (!spec || spec.method === 'manual') {
@@ -166,7 +178,7 @@ class EngineInstaller {
       } else if (spec.method === 'onnx') {
         await this.installOnnx();
       } else if (spec.method === 'pyenv') {
-        await this.installPyEnv(family, this.pyEnv(family)?.name ?? spec.env ?? '');
+        await this.installPyEnv(family, env ?? this.pyEnv(family)?.name ?? spec.env ?? '');
       } else {
         await this.installLemonade();
       }
@@ -256,7 +268,8 @@ class EngineInstaller {
 
   /** Stops a Python environment build (the partial files are removed). */
   async cancel(family: string): Promise<void> {
-    const env = this.pyEnv(family)?.name;
+    // The build running now (a GPU build can be on its way while the CPU one serves).
+    const env = Object.values(this.pyEnvs).find((e) => e.progress)?.name ?? this.pyEnv(family)?.name;
     if (env) await invoke('cancel_python_env_install', { name: env }).catch(() => {});
   }
 
