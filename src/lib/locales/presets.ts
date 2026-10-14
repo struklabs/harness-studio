@@ -58,6 +58,7 @@ const tr = {
   'def.adapter_add': 'Adaptör Ekle',
   'def.kwargs': 'Şablon argümanları (JSON)',
   'def.kwargs_object': 'Şablon argümanları bir JSON nesnesi olmalı.',
+  'def.engine_fixed_hint': 'Bu model {engine} ile çalışır; motor model klasöründen seçilir, llama-server ayarları burada yok.',
   'def.saved': '"{alias}" kaydedildi.',
   'def.alias_changed':
     'Sunulan model adı "{old}" → "{alias}" oldu. Eski adı kullanan istemci yapılandırmalarını Bağlantılar’dan yeniden uygulayın.',
@@ -364,6 +365,7 @@ const en: Record<keyof typeof tr, string> = {
   'def.adapter_add': 'Add Adapter',
   'def.kwargs': 'Template arguments (JSON)',
   'def.kwargs_object': 'Template arguments must be a JSON object.',
+  'def.engine_fixed_hint': 'This model runs on {engine}; the engine follows the model folder, so llama-server settings do not apply.',
   'def.saved': '"{alias}" saved.',
   'def.alias_changed':
     'The served model id changed from "{old}" to "{alias}". Re-apply client configs that use the old id from Connections.',

@@ -318,8 +318,8 @@ export async function ensureLibraryDefinitions(kinds: readonly ModelKind[]): Pro
  * its default definition first when it has none. Speech recognition (ONNX) and voice models run
  * per request and are picked by name.
  */
-export async function openInPlayground(model: LocalModel): Promise<void> {
-  const target = playgroundTarget(model);
+export async function openInPlayground(model: LocalModel, runtime?: string | null): Promise<void> {
+  const target = playgroundTarget(model, runtime);
   if (!target) return;
   try {
     let alias = '';

@@ -400,6 +400,7 @@ pub fn run() {
             get_runtime_users,
             remove_runtime,
             get_model_runtime_advice,
+            get_model_engine,
             start_server,
             stop_server,
             get_recovery_plan,

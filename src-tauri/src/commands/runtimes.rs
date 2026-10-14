@@ -94,6 +94,17 @@ pub(crate) async fn get_model_runtime_advice(
     .await?
 }
 
+/// The engine family that runs a model file or folder (`llama.cpp`, `mlx`, `mlx-vlm`,
+/// `mlx-audio`, ...); `None` when no engine does. The definition dialog shows only the
+/// settings of that engine.
+#[tauri::command]
+pub(crate) async fn get_model_engine(model_path: String) -> Result<Option<String>, String> {
+    blocking(move || {
+        harness_core::engine::server_for_model(Path::new(&model_path)).map(|e| e.family().to_string())
+    })
+    .await
+}
+
 // Managed ONNX Runtime (the library `harness-onnx` loads): Settings > Runtime card.
 
 #[tauri::command]

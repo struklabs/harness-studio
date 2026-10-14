@@ -8,7 +8,7 @@ import { app } from '#lib/stores/app.svelte.js';
 import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
 import { familyFromError } from '#lib/engines.js';
 import type { RuntimeDownloadProgress } from '#lib/types.js';
-import { fetchSpeech, pickTtsModel, pickTtsVoice, type TtsModelInfo, type TtsOverview } from './tts';
+import { allTtsModels, fetchSpeech, pickTtsModel, pickTtsVoice, type TtsModelInfo, type TtsOverview } from './tts';
 import { chunkSpeechText, plainSpeechText } from './ttsText';
 
 const FAMILY = 'sherpa-onnx';
@@ -25,7 +25,7 @@ class TtsStore {
     return engineInstall.busy(FAMILY);
   }
 
-  models = $derived<TtsModelInfo[]>(this.overview?.models ?? []);
+  models = $derived<TtsModelInfo[]>(allTtsModels(this.overview));
 
   async load() {
     try {

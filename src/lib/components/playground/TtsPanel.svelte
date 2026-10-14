@@ -16,7 +16,7 @@
   import { formatBytes } from '#lib/format.js';
   import { Download, LoaderCircle, Power, Square, Volume2, TriangleAlert } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
-  import { fetchSpeech, pickTtsModel, pickTtsVoice, voicesOf, type SpeechResult } from './tts';
+  import { fetchSpeech, isSherpaTts, pickTtsModel, pickTtsVoice, voicesOf, type SpeechResult } from './tts';
   import { readAloud, tts } from './tts.svelte';
   import { MAX_SPEECH_CHARS } from './ttsText';
 
@@ -40,7 +40,8 @@
   });
 
   let voices = $derived(voicesOf(tts.models, tts.model));
-  let runtimeMissing = $derived(!!tts.overview && !tts.overview.runtime_installed);
+  // An mlx-audio model needs no sherpa-onnx runtime.
+  let runtimeMissing = $derived(!!tts.overview && !tts.overview.runtime_installed && isSherpaTts(tts.models, tts.model));
   let canRun = $derived(!busy && app.gatewayRunning && !runtimeMissing && tts.models.length > 0 && text.trim().length > 0);
   let progressPct = $derived(
     tts.modelProgress && tts.modelProgress.total_bytes > 0 ? (tts.modelProgress.downloaded_bytes / tts.modelProgress.total_bytes) * 100 : 0,

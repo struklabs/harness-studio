@@ -202,7 +202,7 @@
   /** "LLM · 8B · Q4_K_M · 4.9 GB": what tells two files apart, in reading order. */
   let summary = $derived(
     [
-      m.kind === 'asr' ? t(speechKindKey(m)) : t(KIND[m.kind ?? 'unknown']),
+      m.kind === 'asr' ? t(speechKindKey(m)) : entry.record.runtime === 'mlx-audio' ? t('lib.kind_tts_mlx') : t(KIND[m.kind ?? 'unknown']),
       entry.multimodal ? t('lib.kind_vlm') : null,
       uiLevel.advanced ? params : null,
       uiLevel.advanced && m.quantization && m.quantization !== 'Unknown' ? m.quantization : null,
@@ -301,6 +301,9 @@
     }
   }
 
+  /** An MLX chat or vision folder: loaded like a GGUF chat model (its engine follows the folder). */
+  let mlxChat = $derived(m.is_ready && m.kind === 'llm' && (entry.record.runtime === 'mlx' || entry.record.runtime === 'mlx-vlm'));
+
   let startingChat = $state(false);
   async function startChat() {
     startingChat = true;
@@ -314,11 +317,11 @@
 
   let openingPlayground = $state(false);
   /** The tab this file runs in (image, speech, embedding, rerank), or null for chat models and unfinished files. */
-  let playgroundTab = $derived(playgroundTarget(m));
+  let playgroundTab = $derived(playgroundTarget(m, entry.record.runtime));
   async function openPlayground() {
     openingPlayground = true;
     try {
-      await openInPlayground(m);
+      await openInPlayground(m, entry.record.runtime);
       onChanged();
     } finally {
       openingPlayground = false;
@@ -551,7 +554,7 @@
   </AdvancedOnly>
 
   <!-- Primary action: load the chat model and start talking to it. -->
-  {#if isChatLoadable(m)}
+  {#if isChatLoadable(m) || mlxChat}
     <div class="flex items-center gap-2 border-t border-border pt-2">
       <Button size="xs" onclick={startChat} disabled={startingChat || !!platformBlocked}>
         {#if startingChat}<LoaderCircle class="animate-spin" />{:else}<MessageSquare />{/if}{running.length > 0 ? t('hub.chat_now') : t('hub.load_and_chat')}
