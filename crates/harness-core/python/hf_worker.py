@@ -767,9 +767,13 @@ def build_app(model: Model):
         if f is None:
             return error(400, 'multipart field "file" is required')
         data = await f.read()
-        params = {}
+        gen = {}
         if form.get("language"):
-            params["generate_kwargs"] = {"language": form.get("language")}
+            gen["language"] = form.get("language")
+        if form.get("task") == "translate":
+            # Whisper translates to English; other models have no such task (a 400 then).
+            gen["task"] = "translate"
+        params = {"generate_kwargs": gen} if gen else {}
         r = await call(lambda: model.pipe(to_audio(data), **params))
         if isinstance(r, Response):
             return r

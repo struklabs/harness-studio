@@ -27,6 +27,7 @@ pub mod images;
 mod model_name;
 pub mod ollama;
 pub mod proxy;
+pub mod pyhf;
 pub mod responses;
 mod server_tools;
 pub mod sherpa_asr;
