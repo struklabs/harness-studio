@@ -106,6 +106,20 @@ pub fn catalog() -> &'static ParamCatalog {
 
 /// A protected flag, or an abbreviation of one (`--trust`, `--ud`): the worker's parser takes
 /// no abbreviations, and this refuses them before it is asked.
+/// The worker's flags as capabilities, from the catalog (its flags are the worker's own; there is
+/// no binary to probe): without them every catalog setting would be skipped as unknown.
+fn documented_caps() -> &'static RuntimeCapabilities {
+    static CAPS: OnceLock<RuntimeCapabilities> = OnceLock::new();
+    CAPS.get_or_init(|| {
+        let help: String = catalog()
+            .params
+            .iter()
+            .map(|p| format!("{} N    {}\n", p.flags.join(", "), p.id))
+            .collect();
+        RuntimeCapabilities::from_outputs(Default::default(), "", &help, "")
+    })
+}
+
 fn is_protected(arg: &str) -> bool {
     let flag = arg.split('=').next().unwrap_or(arg);
     flag.starts_with("--") && flag.len() > 2 && PROTECTED_FLAGS.iter().any(|p| p.starts_with(flag))
@@ -777,7 +791,8 @@ fn build_args(config: &LaunchConfig, script: &Path, task: &str) -> Result<BuildO
         host: config.host.clone(),
         ..Default::default()
     };
-    let rendered = crate::params::render_params(catalog(), None, &config.params, &ctx)?;
+    let rendered =
+        crate::params::render_params(catalog(), Some(documented_caps()), &config.params, &ctx)?;
     args.extend(rendered.args);
     if let Some(custom) = config
         .custom_args
@@ -967,6 +982,43 @@ mod tests {
             ("unet/diffusion_pytorch_model.safetensors", "x"),
         ]);
         assert_eq!(detect(inpaint.path()), None);
+    }
+
+    #[test]
+    fn catalog_settings_reach_the_worker() {
+        let dir = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["BertForTokenClassification"]}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        let mut config = LaunchConfig {
+            model_path: dir.path().to_path_buf(),
+            host: "127.0.0.1".into(),
+            port: 8123,
+            ..Default::default()
+        };
+        config.params.insert(
+            "device".into(),
+            crate::params::ParamValue::Text("cpu".into()),
+        );
+        config.params.insert(
+            "dtype".into(),
+            crate::params::ParamValue::Text("float32".into()),
+        );
+        let out = build_args(&config, Path::new("/w.py"), "token-classification").unwrap();
+        assert!(out.skipped.is_empty(), "{:?}", out.skipped);
+        assert!(
+            out.args.windows(2).any(|w| w == ["--device", "cpu"]),
+            "{:?}",
+            out.args
+        );
+        assert!(
+            out.args.windows(2).any(|w| w == ["--dtype", "float32"]),
+            "{:?}",
+            out.args
+        );
     }
 
     #[test]
