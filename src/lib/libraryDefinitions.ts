@@ -87,7 +87,8 @@ export function playgroundTarget(
     case 'reranker':
       return { tab: 'rerank', pick: 'definition' };
     case 'pipeline':
-      return { tab: 'pipeline', pick: 'definition' };
+      // A diffusers text-to-image folder (Python engine) draws: the Image tab lists it.
+      return { tab: file.task === 'text-to-image' ? 'image' : 'pipeline', pick: 'definition' };
     default:
       return null;
   }

@@ -209,7 +209,9 @@
         ? t(speechKindKey(m))
         : entry.record.runtime === 'mlx-audio'
           ? t(m.task === 'automatic-speech-recognition' ? 'lib.kind_asr_mlx' : 'lib.kind_tts_mlx')
-          : t(KIND[m.kind ?? 'unknown']),
+          : m.kind === 'pipeline' && !/\.onnx$/i.test(m.path)
+            ? t(m.task === 'text-to-image' ? 'lib.kind_image_python' : 'lib.kind_pipeline_python')
+            : t(KIND[m.kind ?? 'unknown']),
       entry.multimodal ? t('lib.kind_vlm') : null,
       uiLevel.advanced ? params : null,
       uiLevel.advanced && m.quantization && m.quantization !== 'Unknown' ? m.quantization : null,

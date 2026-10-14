@@ -39,6 +39,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Fixed
 - Speech to text with whisper.cpp: `verbose_json` answers (the Playground Speech tab uses them) no longer pay for an extra language detection pass that whisper-server runs only to report the language probability, which OpenAI's format does not have. On a CPU build this took a third of the request time (an 11 s clip: 54 s, now 36 s).
+- Library: a diffusers text-to-image folder (Python engine) opens in the Playground Image tab, not in Tasks with no model, and is labeled "Image generation (Python, diffusers)". Other Python-engine task models are labeled "Task model (Python)" instead of ONNX.
 - MLX model folders are listed in the library with format MLX and their MLX engine, not as GGUF for llama.cpp. Deleting one removes the whole folder. MLX speech models (whisper, Qwen3-TTS, Kokoro conversions) are no longer taken for chat models.
 - Playground > Speech: the transcript now appears right under the Transcribe button instead of below the recommended model list.
 - Python engine: the model's settings (device, number type, threads from the catalog) now reach the worker; they were left out of its command line as "runtime unknown".
