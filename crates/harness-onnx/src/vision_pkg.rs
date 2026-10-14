@@ -24,6 +24,9 @@ pub enum VisionTask {
     Segment,
     /// `*ForDepthEstimation` (DPT, Depth Anything, GLPN, ZoeDepth): a depth map.
     Depth,
+    /// A dual encoder (`CLIPModel`, `SiglipModel`) exported as one graph: the image scored
+    /// against labels the request names.
+    ZeroShot,
 }
 
 impl VisionTask {
@@ -34,6 +37,7 @@ impl VisionTask {
             VisionTask::Detect => "object-detection",
             VisionTask::Segment => "image-segmentation",
             VisionTask::Depth => "depth-estimation",
+            VisionTask::ZeroShot => "zero-shot-image-classification",
         }
     }
 }
@@ -90,6 +94,24 @@ pub struct Preprocess {
     pub bgr: bool,
 }
 
+/// The text side of a zero-shot image model: its tokenizer and how labels are encoded.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextSide {
+    pub tokenizer_path: PathBuf,
+    /// Longest label in tokens (`text_config.max_position_embeddings`; 77 for CLIP).
+    pub max_length: usize,
+    /// Pad every label to `max_length` (SigLIP was trained that way; CLIP pads to the longest).
+    pub pad_to_max: bool,
+    /// Lower-case the label sentences and drop their punctuation before tokenizing, as
+    /// transformers' `SiglipTokenizer` does (its `tokenizer.json` does not).
+    pub canonicalize: bool,
+    /// Each label is scored on its own (SigLIP's sigmoid loss); CLIP's scores are a softmax
+    /// across the labels.
+    pub sigmoid: bool,
+    /// The `pad_token` of `tokenizer_config.json`.
+    pub pad_token: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct VisionPackage {
     pub onnx_path: PathBuf,
@@ -99,6 +121,8 @@ pub struct VisionPackage {
     /// Labels are independent (`problem_type: multi_label_classification`): sigmoid.
     pub multi_label: bool,
     pub preprocess: Preprocess,
+    /// The tokenizer of a zero-shot model (`None` for the other tasks).
+    pub text: Option<TextSide>,
     /// Display name: the repo folder.
     pub name: String,
     pub notes: Vec<String>,
@@ -134,6 +158,11 @@ pub fn task_from_config(config: &Value) -> Option<VisionTask> {
         Some(VisionTask::Segment)
     } else if has("ForDepthEstimation") {
         Some(VisionTask::Depth)
+    } else if heads
+        .iter()
+        .any(|n| matches!(*n, "CLIPModel" | "SiglipModel"))
+    {
+        Some(VisionTask::ZeroShot)
     } else {
         None
     }
@@ -244,6 +273,20 @@ impl VisionPackage {
         let task = task_from_config(&config)?;
         let processor = read_json(&root.join("preprocessor_config.json"))?;
         let preprocess = parse_preprocess(&processor);
+        let text = if task == VisionTask::ZeroShot {
+            // transformers.js also ships the two towers alone (`text_model`, `vision_model`);
+            // only the joint graph scores an image against labels.
+            let stem = onnx_path
+                .file_stem()?
+                .to_string_lossy()
+                .to_ascii_lowercase();
+            if stem.starts_with("text_model") || stem.starts_with("vision_model") {
+                return None;
+            }
+            Some(text_side(&root, &config)?)
+        } else {
+            None
+        };
         let mut notes = vec![format!(
             "task {} (config.json architectures)",
             task.pipeline_task()
@@ -270,10 +313,41 @@ impl VisionPackage {
             multi_label: config.get("problem_type").and_then(Value::as_str)
                 == Some("multi_label_classification"),
             preprocess,
+            text,
             name,
             notes,
         })
     }
+}
+
+/// The tokenizer side of a zero-shot model; `None` without a `tokenizer.json`.
+fn text_side(root: &Path, config: &Value) -> Option<TextSide> {
+    let tokenizer_path = root.join("tokenizer.json");
+    if !tokenizer_path.is_file() {
+        return None;
+    }
+    let siglip = config.get("model_type").and_then(Value::as_str) == Some("siglip");
+    let max_length = config
+        .pointer("/text_config/max_position_embeddings")
+        .and_then(Value::as_u64)
+        .map(|n| n as usize)
+        .unwrap_or(if siglip { 64 } else { 77 });
+    // `pad_token` is a string or an AddedToken object.
+    let pad_token = read_json(&root.join("tokenizer_config.json"))
+        .and_then(|t| t.get("pad_token").cloned())
+        .and_then(|p| match p {
+            Value::String(s) => Some(s),
+            Value::Object(o) => o.get("content").and_then(Value::as_str).map(str::to_string),
+            _ => None,
+        });
+    Some(TextSide {
+        tokenizer_path,
+        max_length,
+        pad_to_max: siglip,
+        canonicalize: siglip,
+        sigmoid: siglip,
+        pad_token,
+    })
 }
 
 /// The pipeline task of a model file for the library: a text task of an encoder package or a
@@ -308,6 +382,9 @@ mod tests {
             t("DepthAnythingForDepthEstimation"),
             Some(VisionTask::Depth)
         );
+        assert_eq!(t("CLIPModel"), Some(VisionTask::ZeroShot));
+        assert_eq!(t("SiglipModel"), Some(VisionTask::ZeroShot));
+        assert_eq!(t("CLIPVisionModelWithProjection"), None);
         assert_eq!(t("WhisperForConditionalGeneration"), None);
         assert_eq!(task_from_config(&json!({})), None);
     }
@@ -394,6 +471,59 @@ mod tests {
         assert_eq!(pipeline_task_of(&model), Some("image-classification"));
         // Without a processor config it is not a vision package.
         fs::remove_file(repo.join("preprocessor_config.json")).unwrap();
+        assert!(VisionPackage::discover(&model).is_none());
+    }
+
+    #[test]
+    fn discovers_a_clip_repo_by_its_joint_graph() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("Xenova").join("clip-vit-base-patch32");
+        fs::create_dir_all(repo.join("onnx")).unwrap();
+        fs::write(
+            repo.join("config.json"),
+            json!({"architectures": ["CLIPModel"], "model_type": "clip",
+                   "text_config": {"max_position_embeddings": 77}})
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            repo.join("preprocessor_config.json"),
+            json!({"size": {"shortest_edge": 224}, "do_center_crop": true,
+                   "crop_size": {"height": 224, "width": 224}, "resample": 3})
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            repo.join("tokenizer_config.json"),
+            json!({"pad_token": "<|endoftext|>"}).to_string(),
+        )
+        .unwrap();
+        fs::write(repo.join("tokenizer.json"), "{}").unwrap();
+        let model = repo.join("onnx").join("model_quantized.onnx");
+        fs::write(&model, b"onnx").unwrap();
+        let p = VisionPackage::discover(&model).unwrap();
+        assert_eq!(p.task, VisionTask::ZeroShot);
+        assert_eq!(
+            p.text,
+            Some(TextSide {
+                tokenizer_path: repo.join("tokenizer.json"),
+                max_length: 77,
+                pad_to_max: false,
+                canonicalize: false,
+                sigmoid: false,
+                pad_token: Some("<|endoftext|>".into()),
+            })
+        );
+        assert_eq!(
+            pipeline_task_of(&model),
+            Some("zero-shot-image-classification")
+        );
+        // One tower alone cannot score an image against labels.
+        let tower = repo.join("onnx").join("vision_model_quantized.onnx");
+        fs::write(&tower, b"onnx").unwrap();
+        assert!(VisionPackage::discover(&tower).is_none());
+        // Nor can the joint graph without its tokenizer.
+        fs::remove_file(repo.join("tokenizer.json")).unwrap();
         assert!(VisionPackage::discover(&model).is_none());
     }
 }
