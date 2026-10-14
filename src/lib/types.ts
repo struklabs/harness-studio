@@ -1073,6 +1073,8 @@ export interface HfModelSearchResult {
   quants?: string[];
   /** Repo creation time (ISO 8601). */
   created_at?: string | null;
+  /** A Python-engine diffusers pipeline whose download holds PyTorch `.bin` weights (loaded as weights only). */
+  pickle_weights?: boolean;
 }
 
 export type HfSortKey = 'downloads' | 'likes' | 'trendingScore' | 'lastModified' | 'createdAt';

@@ -151,6 +151,15 @@
       <span class="inline-flex items-center gap-1 text-info" title={t(k.needsTitle)}>
         <Info class="size-3" />{t(k.needs)}
       </span>
+    {:else if compat.status === 'runnable' && compat.runtime === 'python-hf'}
+      {@const diffusers = repo.format === 'diffusers'}
+      <span class="inline-flex items-center gap-1 text-success" title={t(diffusers ? 'hub.compat_pyhf_diffusers_title' : 'hub.compat_pyhf_title')}>
+        <CircleCheck class="size-3" />{t(diffusers ? 'hub.compat_pyhf_diffusers' : 'hub.compat_pyhf')}
+      </span>
+    {:else if compat.status === 'needs_runtime' && compat.runtime === 'python-hf'}
+      <span class="inline-flex items-center gap-1 text-info" title={t('hub.compat_needs_pyhf_title')}>
+        <Info class="size-3" />{t('hub.compat_needs_pyhf')}
+      </span>
     {:else if compat.status === 'needs_runtime' && compat.runtime === 'mistral.rs'}
       <span class="inline-flex items-center gap-1 text-info" title={t('hub.compat_needs_mistralrs_title')}>
         <Info class="size-3" />{t('hub.compat_needs_mistralrs')}
@@ -161,6 +170,11 @@
       {@const sd = compat.runtime === 'stable-diffusion.cpp'}
       <span class="inline-flex items-center gap-1 text-info" title={t(sd ? 'hub.compat_needs_sd_title' : 'hub.compat_needs_whisper_title')}>
         <Info class="size-3" />{t(sd ? 'hub.compat_needs_sd' : 'hub.compat_needs_whisper')}
+      </span>
+    {/if}
+    {#if repo.pickle_weights}
+      <span class="inline-flex items-center gap-1 text-muted-foreground" title={t('hub.pickle_weights_title')}>
+        <Info class="size-3" />{t('hub.pickle_weights')}
       </span>
     {/if}
     {#if unsupported}

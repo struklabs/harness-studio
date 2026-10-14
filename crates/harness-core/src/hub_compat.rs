@@ -478,8 +478,9 @@ pub const PYTHON_HF_FAMILY: &str = crate::engine::PYTHON_HF;
 
 /// The Python engine's verdict on a Hub repo: a transformers or sentence-transformers repo of a
 /// task the worker serves ([`crate::engine::python_hf::TASKS`]), with safetensors or PyTorch
-/// weights and a `config.json` at the root (a listing without file names is taken by its tags).
-/// Remote code is never run, so a `custom_code` repo is not one; a text-to-image repo stays with
+/// weights and a `config.json` at the root (a listing without file names is taken by its tags),
+/// or a diffusers text-to-image pipeline ([`diffusers_pipeline`]). Remote code is never run, so
+/// a `custom_code` repo is not one; a text-to-image repo with a single-file checkpoint stays with
 /// stable-diffusion.cpp. `None` for every other repo. Whether the engine is installed is settled
 /// later ([`resolve_installed`]).
 pub fn python_hf_compatibility(
@@ -489,6 +490,11 @@ pub fn python_hf_compatibility(
     tags: &[String],
     files: &[String],
 ) -> Option<Compatibility> {
+    if format == ModelFormat::Diffusers {
+        return diffusers_pipeline(library, task, tags, files).then(|| Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.to_string(),
+        });
+    }
     if !matches!(format, ModelFormat::Safetensors | ModelFormat::Pytorch) {
         return None;
     }
@@ -516,12 +522,122 @@ pub fn python_hf_compatibility(
     })
 }
 
+/// Whether a diffusers pipeline's download would hold PyTorch `.bin` weights: a component
+/// folder with a `.bin` and no safetensors (`segmind/tiny-sd`).
+pub fn diffusers_pickle_weights(files: &[String]) -> bool {
+    let mut bin = std::collections::BTreeSet::new();
+    let mut safe = std::collections::BTreeSet::new();
+    for f in files {
+        let f = f.replace('\\', "/").to_ascii_lowercase();
+        let Some((dir, name)) = f.split_once('/') else {
+            continue;
+        };
+        if name.contains('/') {
+            continue;
+        }
+        if name.ends_with(".safetensors") {
+            safe.insert(dir.to_string());
+        } else if name.ends_with(".bin") && !name.contains(".index") {
+            bin.insert(dir.to_string());
+        }
+    }
+    bin.difference(&safe).next().is_some()
+}
+
+/// A diffusers text-to-image pipeline the Python engine loads from its folders: `model_index.json`
+/// at the root and component weights (safetensors or PyTorch `.bin`) one folder down, no
+/// remote code. A listing without file names is taken by its library and tags.
+fn diffusers_pipeline(
+    library: Option<&str>,
+    task: Option<&str>,
+    tags: &[String],
+    files: &[String],
+) -> bool {
+    if task != Some("text-to-image")
+        || !matches!(
+            library.map(str::to_ascii_lowercase).as_deref(),
+            None | Some("diffusers")
+        )
+        || tags.iter().any(|t| t.eq_ignore_ascii_case("custom_code"))
+    {
+        return false;
+    }
+    if files.is_empty() {
+        return true;
+    }
+    let component_weights = files.iter().any(|f| {
+        let f = f.replace('\\', "/").to_ascii_lowercase();
+        f.split('/').count() == 2 && (f.ends_with(".safetensors") || f.ends_with(".bin"))
+    });
+    files.iter().any(|f| f == "model_index.json") && component_weights
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn s(items: &[&str]) -> Vec<String> {
         items.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn python_hf_takes_diffusers_text_to_image_pipelines() {
+        let runnable = Some(Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.into(),
+        });
+        let tiny = s(&[
+            "model_index.json",
+            "unet/config.json",
+            "unet/diffusion_pytorch_model.bin",
+            "vae/diffusion_pytorch_model.safetensors",
+        ]);
+        let verdict = |library, task, tags: &[&str], files: &[String]| {
+            python_hf_compatibility(ModelFormat::Diffusers, library, task, &s(tags), files)
+        };
+        assert_eq!(
+            verdict(Some("diffusers"), Some("text-to-image"), &[], &tiny),
+            runnable
+        );
+        // tiny-sd's unet has only a .bin; a component with safetensors next to its .bin does not count.
+        assert!(diffusers_pickle_weights(&tiny));
+        assert!(!diffusers_pickle_weights(&s(&[
+            "model_index.json",
+            "unet/diffusion_pytorch_model.bin",
+            "unet/diffusion_pytorch_model.safetensors",
+            "unet/diffusion_pytorch_model.bin.index.json",
+        ])));
+        // A listing without file names is taken by its library and task.
+        assert_eq!(
+            verdict(Some("diffusers"), Some("text-to-image"), &[], &[]),
+            runnable
+        );
+        // Other tasks, remote code, no weights in component folders, no model_index.json.
+        assert_eq!(
+            verdict(Some("diffusers"), Some("image-to-image"), &[], &tiny),
+            None
+        );
+        assert_eq!(
+            verdict(
+                Some("diffusers"),
+                Some("text-to-image"),
+                &["custom_code"],
+                &tiny
+            ),
+            None
+        );
+        assert_eq!(
+            verdict(
+                Some("diffusers"),
+                Some("text-to-image"),
+                &[],
+                &s(&["model_index.json", "v1-5-pruned.safetensors"])
+            ),
+            None
+        );
+        assert_eq!(
+            verdict(Some("diffusers"), Some("text-to-image"), &[], &tiny[1..]),
+            None
+        );
     }
 
     #[test]

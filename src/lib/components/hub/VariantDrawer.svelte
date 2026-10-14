@@ -106,8 +106,14 @@
     security.openSettings('runtime-registry');
   }
 
-  /** An image repo: its files are checkpoints and companions, not GGUF quantizations. */
-  let isImageRepo = $derived(!!repo?.capabilities?.includes('image_generation'));
+  /**
+   * An image repo of stable-diffusion.cpp: its files are checkpoints and companions, not GGUF
+   * quantizations. A diffusers pipeline (Python engine) is one download of its folders instead.
+   */
+  let isImageRepo = $derived(
+    !!repo?.capabilities?.includes('image_generation') &&
+      !(repo.format === 'diffusers' && 'runtime' in repo.compatibility && repo.compatibility.runtime === 'python-hf')
+  );
   /** What the first main model file of an image repo needs besides itself (the curated bundle). */
   let bundlePlan = $state<ImageBundlePlan | null>(null);
   let bundleToken = 0;

@@ -1,5 +1,5 @@
-// The Python engine (python-hf): parameter catalog labels (params_pyhf.toml). Its error keys
-// are in errorsRuntime.ts.
+// The Python engine (python-hf): parameter catalog labels (params_pyhf.toml) and Hub chips.
+// Its error keys are in errorsRuntime.ts.
 const tr = {
   'pyparam.threads': 'İş parçacığı',
   'pyparam.threads_help': 'PyTorch’un kullanacağı CPU iş parçacığı sayısı (boş = otomatik).',
@@ -11,6 +11,14 @@ const tr = {
   'pyparam.max_megapixels_help': 'Görsel üretiminde bir isteğin en çok kaç megapiksel isteyebileceği (genişlik × yükseklik × görsel sayısı). Daha büyük istekler reddedilir; bellek taşmasını önler. Boş = CPU’da 1, GPU’da 4.',
   'pyparam.low_memory': 'Az bellek',
   'pyparam.low_memory_help': 'Görsel üretiminde dikkati dilimler hâlinde, VAE’yi parça parça çalıştırır: tepe bellek düşer, süre biraz uzar. auto = CPU’da ve Apple GPU’sunda açık.',
+  'hub.compat_pyhf_diffusers': 'Python, diffusers',
+  'hub.compat_pyhf_diffusers_title': 'Bu diffusers görsel üretim modeli Python motoruyla çalışır (metinden görsel, başlangıç görseli ve maske ile düzenleme). Depoyu açınca indirilecek tek ağırlık takımı ve boyutu görünür.',
+  'hub.compat_pyhf': 'Python ile çalışır',
+  'hub.compat_pyhf_title': 'Bu model Python motoruyla (python-hf) çalışır.',
+  'hub.compat_needs_pyhf': 'Gerekli: Python motoru',
+  'hub.pickle_weights': 'PyTorch .bin (yalnız ağırlık olarak yüklenir)',
+  'hub.pickle_weights_title': 'Bu deponun bazı bileşenlerinde safetensors yok, PyTorch .bin (pickle) var. Python motoru bunları torch.load(weights_only=True) ile yükler: yalnız tensörler okunur, dosyadaki kod çalışmaz; böyle bir dosya reddedilir.',
+  'hub.compat_needs_pyhf_title': 'Bu model Python motoruyla (python-hf) çalışır; motor henüz kurulu değil. Depoyu açıp kurabilirsiniz (yaklaşık 1,3 GB).',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -24,6 +32,14 @@ const en: Record<keyof typeof tr, string> = {
   'pyparam.max_megapixels_help': 'Image generation: the most megapixels one request may ask for (width × height × images). Larger requests are refused, so memory does not run out. Empty = 1 on the CPU, 4 on a GPU.',
   'pyparam.low_memory': 'Low memory',
   'pyparam.low_memory_help': 'Image generation: attention runs in slices and the VAE a part at a time, for a lower memory peak and slightly longer runs. auto = on for the CPU and Apple’s GPU.',
+  'hub.compat_pyhf_diffusers': 'Python, diffusers',
+  'hub.compat_pyhf_diffusers_title': 'This diffusers image generation model runs on the Python engine (text to image, and editing with a start image and a mask). Open the repository to see the one set of weights that downloads and its size.',
+  'hub.compat_pyhf': 'Runs with Python',
+  'hub.compat_pyhf_title': 'This model runs on the Python engine (python-hf).',
+  'hub.compat_needs_pyhf': 'Required: Python engine',
+  'hub.pickle_weights': 'PyTorch .bin (loaded as weights only)',
+  'hub.pickle_weights_title': 'Some components of this repository have PyTorch .bin (pickle) weights instead of safetensors. The Python engine loads them with torch.load(weights_only=True): only tensors are read, code in the file never runs, and such a file is refused.',
+  'hub.compat_needs_pyhf_title': 'This model runs on the Python engine (python-hf), which isn’t installed yet. Open the repository to install it (about 1.3 GB).',
 };
 
 export default { tr, en };
