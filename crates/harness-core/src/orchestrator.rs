@@ -120,6 +120,8 @@ pub async fn launch(
         crate::engine::python_hf::binary()?
     } else if engine.family() == crate::engine::MLX {
         crate::engine::mlx::binary()?
+    } else if engine.family() == crate::engine::MLX_VLM {
+        crate::engine::mlx::vlm_binary()?
     } else {
         crate::runtimes::resolve_family_binary_in(&reg, engine.family(), config.runtime.as_deref())?
     };

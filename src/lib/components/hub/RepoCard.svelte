@@ -132,13 +132,15 @@
       <span class="inline-flex items-center gap-1 text-warning" title={t(msg.key, msg.params)}>
         <Ban class="size-3" />{t('ort.compat_unsupported')}
       </span>
-    {:else if compat.status === 'runnable' && compat.runtime === 'mlx'}
-      <span class="inline-flex items-center gap-1 text-success" title={t('hub.compat_mlx_title')}>
-        <CircleCheck class="size-3" />{t('hub.compat_mlx')}
+    {:else if compat.status === 'runnable' && (compat.runtime === 'mlx' || compat.runtime === 'mlx-vlm')}
+      {@const vlm = compat.runtime === 'mlx-vlm'}
+      <span class="inline-flex items-center gap-1 text-success" title={t(vlm ? 'hub.compat_mlx_vlm_title' : 'hub.compat_mlx_title')}>
+        <CircleCheck class="size-3" />{t(vlm ? 'hub.compat_mlx_vlm' : 'hub.compat_mlx')}
       </span>
-    {:else if compat.status === 'needs_runtime' && compat.runtime === 'mlx'}
-      <span class="inline-flex items-center gap-1 text-info" title={t('hub.compat_needs_mlx_title')}>
-        <Info class="size-3" />{t('hub.compat_needs_mlx')}
+    {:else if compat.status === 'needs_runtime' && (compat.runtime === 'mlx' || compat.runtime === 'mlx-vlm')}
+      {@const vlm = compat.runtime === 'mlx-vlm'}
+      <span class="inline-flex items-center gap-1 text-info" title={t(vlm ? 'hub.compat_needs_mlx_vlm_title' : 'hub.compat_needs_mlx_title')}>
+        <Info class="size-3" />{t(vlm ? 'hub.compat_needs_mlx_vlm' : 'hub.compat_needs_mlx')}
       </span>
     {:else if compat.status === 'needs_runtime' && compat.runtime === 'mistral.rs'}
       <span class="inline-flex items-center gap-1 text-info" title={t('hub.compat_needs_mistralrs_title')}>

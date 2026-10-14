@@ -251,6 +251,9 @@ pub fn installed_families() -> Vec<String> {
     if crate::engine::mlx::binary().is_ok() {
         families.push(crate::engine::MLX.to_string());
     }
+    if crate::engine::mlx::vlm_binary().is_ok() {
+        families.push(crate::engine::MLX_VLM.to_string());
+    }
     families
 }
 
