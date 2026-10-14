@@ -554,6 +554,13 @@ async fn run(
         fields.push(("model", def.alias.clone()));
         fields.extend(form.timestamps.iter().map(|(k, v)| (k.as_str(), v.clone())));
     }
+    // whisper-server's verbose_json adds the detected language's probability, which costs one
+    // more encoder pass (a whole transcription's worth of time on a CPU build). OpenAI's
+    // verbose_json has no such field and `language` stays in the answer, so skip it. Only
+    // whisper.cpp takes the field (CrispASR refuses unknown ones).
+    if !crisp && lemonade.is_none() && !onnx_ctc && format == "verbose_json" {
+        fields.push(("no_language_probabilities", "true".into()));
+    }
     if onnx_ctc {
         fields.retain(|(key, _)| *key == "response_format");
     }
