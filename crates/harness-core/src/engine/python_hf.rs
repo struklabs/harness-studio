@@ -1,6 +1,6 @@
 //! The Python engine (`python-hf`) as an [`Engine`]: a Hugging Face model folder served by
 //! `python/hf_worker.py` (transformers pipelines, sentence-transformers, diffusers) from the
-//! managed `hf-cpu` environment ([`crate::pyenv::envs::HF_CPU`]).
+//! managed `hf-cuda` environment where it is installed, else `hf-cpu` ([`env`]).
 //!
 //! A launch runs
 //!
@@ -37,8 +37,19 @@ use crate::vram::{
 /// Family id of the Python engine.
 pub const PYTHON_HF: &str = "python-hf";
 
-/// The managed environment the worker runs in.
-pub const ENV: &str = crate::pyenv::envs::HF_CPU.name;
+/// The managed environment the worker runs in: the CUDA build when it is ready for this
+/// version, else the CPU build (the worker picks `cuda` itself when torch has it).
+pub fn env() -> &'static crate::pyenv::envs::EnvSpec {
+    let root = crate::pyenv::envs::root();
+    env_in(&root)
+}
+
+fn env_in(root: &Path) -> &'static crate::pyenv::envs::EnvSpec {
+    use crate::pyenv::envs::{status_in, ENVS, HF_CPU};
+    ENVS.iter()
+        .find(|s| s.gpu_build_of == Some(HF_CPU.name) && status_in(root, s).ready)
+        .unwrap_or(&HF_CPU)
+}
 
 /// The worker script, written next to the environment ([`worker_script`]).
 const WORKER: &str = include_str!("../../python/hf_worker.py");
@@ -537,7 +548,7 @@ pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {
 /// The worker script of this version, written next to the environment (rewritten when it
 /// differs, so an app update brings its worker along).
 pub fn worker_script() -> Result<PathBuf, String> {
-    let dir = crate::pyenv::envs::env_dir_in(&crate::pyenv::envs::root(), ENV);
+    let dir = crate::pyenv::envs::env_dir_in(&crate::pyenv::envs::root(), env().name);
     let path = dir.join("hf_worker.py");
     if std::fs::read_to_string(&path).ok().as_deref() == Some(WORKER) {
         return Ok(path);
@@ -558,7 +569,8 @@ pub fn worker_script() -> Result<PathBuf, String> {
 /// else `runtime.family_not_installed: python-hf` (the UI offers the install).
 pub fn binary() -> Result<PathBuf, String> {
     let root = crate::pyenv::envs::root();
-    let status = crate::pyenv::envs::status_in(&root, &crate::pyenv::envs::HF_CPU);
+    let spec = env_in(&root);
+    let status = crate::pyenv::envs::status_in(&root, spec);
     if !status.ready {
         return Err(format!(
             "{}: {}",
@@ -566,7 +578,7 @@ pub fn binary() -> Result<PathBuf, String> {
             PYTHON_HF
         ));
     }
-    Ok(crate::pyenv::envs::python_in(&root, ENV))
+    Ok(crate::pyenv::envs::python_in(&root, spec.name))
 }
 
 /// Environment variables of a worker run: [`crate::pyenv::python_env`], the API key, and
@@ -836,6 +848,24 @@ fn build_args(config: &LaunchConfig, script: &Path, task: &str) -> Result<BuildO
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_worker_runs_in_the_ready_cuda_build_else_the_cpu_one() {
+        use crate::pyenv::envs::HF_CPU;
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            env_in(dir.path()).name,
+            HF_CPU.name,
+            "nothing installed: the CPU build is asked for"
+        );
+        #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
+        {
+            crate::pyenv::envs::tests::fake_ready(dir.path(), &HF_CPU);
+            assert_eq!(env_in(dir.path()).name, HF_CPU.name);
+            crate::pyenv::envs::tests::fake_ready(dir.path(), &crate::pyenv::envs::HF_CUDA);
+            assert_eq!(env_in(dir.path()).name, "hf-cuda");
+        }
+    }
 
     fn folder(files: &[(&str, &str)]) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();

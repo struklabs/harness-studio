@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { ENGINES, engineSpec, familyFromError, familyInstalled, progressPercent } = await import('../src/lib/engines.ts');
+const { ENGINES, engineDescKey, engineSpec, familyFromError, familyInstalled, progressPercent } = await import('../src/lib/engines.ts');
 
 test('every github family has an official repository', () => {
   for (const e of ENGINES.filter((x) => x.method === 'github')) assert.match(e.repo ?? '', /^[\w.-]+\/[\w.-]+$/, e.family);
@@ -36,4 +36,12 @@ test('progress percent', () => {
   assert.equal(progressPercent(5, 0), null);
   assert.equal(progressPercent(50, 200), 25);
   assert.equal(progressPercent(300, 200), 100);
+});
+
+test("the Python engine describes its CUDA build", () => {
+  const py = engineSpec("python-hf");
+  assert.equal(engineDescKey(py, false, true, "hf-cpu"), "eng.desc_pyhf");
+  assert.equal(engineDescKey(py, false, false, "hf-cpu"), "eng.desc_pyhf_other");
+  assert.equal(engineDescKey(py, false, true, "hf-cuda"), "eng.desc_pyhf_cuda");
+  assert.equal(engineDescKey(py, false, false, "hf-cuda"), "eng.desc_pyhf_cuda_other");
 });

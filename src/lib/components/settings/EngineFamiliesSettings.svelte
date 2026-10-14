@@ -82,7 +82,7 @@
                 {installed ? t('eng.state_installed') : unsupported || refusal ? t('ort.state_unsupported') : t('eng.state_missing')}
               </Badge>
             </span>
-            <span class="text-xs text-muted-foreground">{t(engineDescKey(e, isMac, isLinux), { size: formatBytes(engineInstall.pyEnv(e.family)?.estimated_size_bytes ?? 0, 1) })}</span>
+            <span class="text-xs text-muted-foreground">{t(engineDescKey(e, isMac, isLinux, engineInstall.pyEnv(e.family)?.name), { size: formatBytes(engineInstall.pyEnv(e.family)?.estimated_size_bytes ?? 0, 1) })}</span>
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
             {#if unsupported || refusal}

@@ -98,7 +98,18 @@ class EngineInstaller {
   /** The managed Python environment of a `pyenv` family. */
   pyEnv(family: string): PythonEnvStatus | undefined {
     const env = engineSpec(family)?.env;
-    return env ? this.pyEnvs[env] : undefined;
+    if (!env) return undefined;
+    // A GPU build of the env (`hf-cuda` of `hf-cpu`): the ready one serves (GPU first), else
+    // the installed one, else the one this machine should install.
+    const pair = [...Object.values(this.pyEnvs).filter((e) => e.gpu_build_of === env), this.pyEnvs[env]].filter(
+      (e): e is PythonEnvStatus => !!e,
+    );
+    return (
+      pair.find((e) => e.ready) ??
+      pair.find((e) => e.installed) ??
+      pair.find((e) => e.preferred && e.supported) ??
+      this.pyEnvs[env]
+    );
   }
 
   /** Why this machine can't have a `pyenv` family's environment (an error to localize), else null. */
@@ -155,7 +166,7 @@ class EngineInstaller {
       } else if (spec.method === 'onnx') {
         await this.installOnnx();
       } else if (spec.method === 'pyenv') {
-        await this.installPyEnv(family, spec.env ?? '');
+        await this.installPyEnv(family, this.pyEnv(family)?.name ?? spec.env ?? '');
       } else {
         await this.installLemonade();
       }
@@ -245,13 +256,13 @@ class EngineInstaller {
 
   /** Stops a Python environment build (the partial files are removed). */
   async cancel(family: string): Promise<void> {
-    const env = engineSpec(family)?.env;
+    const env = this.pyEnv(family)?.name;
     if (env) await invoke('cancel_python_env_install', { name: env }).catch(() => {});
   }
 
   /** Deletes the Python environment of a `pyenv` family. */
   async remove(family: string): Promise<void> {
-    const env = engineSpec(family)?.env;
+    const env = this.pyEnv(family)?.name;
     if (!env) return;
     try {
       await invoke('remove_python_env', { name: env });

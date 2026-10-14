@@ -2493,6 +2493,10 @@ export interface PythonEnvStatus {
   dir: string;
   estimated_size_bytes: number;
   progress: ConvertEnvProgress | null;
+  /** The CPU env this is a GPU build of (`hf-cuda` of `hf-cpu`). */
+  gpu_build_of?: string | null;
+  /** The one of a CPU / GPU pair to install on this machine. */
+  preferred?: boolean;
 }
 
 export interface ConvertEnvStatus {
