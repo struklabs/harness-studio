@@ -6095,9 +6095,8 @@ mod tests {
                 .iter()
                 .any(|s| s.filename.ends_with("safetensors")));
         }
-        assert!(encoder_onnx_variants("acme/speech", &tree)
-            .unwrap()
-            .is_empty());
+        // The CTC config is checked before the encoder/vision path, which now also takes
+        // `preprocessor_config.json` repos (vision models).
         item["siblings"] =
             serde_json::json!([{"rfilename":"model.safetensors"},{"rfilename":"config.json"}]);
         assert!(matches!(
