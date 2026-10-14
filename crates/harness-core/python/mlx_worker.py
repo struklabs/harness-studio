@@ -16,7 +16,9 @@ What it adds to `mlx_lm.server`:
   path, and /v1/models lists that one model (mlx-lm would scan the Hugging Face cache).
 * Remote code is never trusted (--trust-remote-code is refused) and Hugging Face Hub access is
   off (HF_HUB_OFFLINE=1, set by Harness too).
-* No cross-origin browser access (the gateway is the way in).
+* Browsers: only the origins in HARNESS_WORKER_ORIGINS (the Harness window and the user's CORS
+  origins) get CORS headers; their preflight is answered here (it carries no key). A request
+  with any other Origin is refused (403) before anything else, so no web page can drive it.
 """
 
 import hmac
@@ -32,6 +34,7 @@ for _var in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_prox
     os.environ.pop(_var, None)
 
 KEY = os.environ.pop("HARNESS_WORKER_API_KEY", None) or None
+ORIGINS = frozenset(o for o in os.environ.pop("HARNESS_WORKER_ORIGINS", "").split(",") if o)
 HOST = "127.0.0.1"
 
 # Flags Harness owns: never accepted from the command line, nor any abbreviation of them
@@ -92,28 +95,52 @@ def main(argv=None):
             auth = self.headers.get("Authorization", "")
             return hmac.compare_digest(auth.encode(), f"Bearer {KEY}".encode())
 
-        def _refuse(self):
-            body = json.dumps(
-                {
-                    "error": {
-                        "message": "Missing or invalid API key.",
-                        "type": "authentication_error",
-                        "code": "invalid_api_key",
-                    }
-                }
-            ).encode()
-            self.send_response(401)
+        def _foreign(self):
+            origin = self.headers.get("Origin")
+            return origin is not None and origin not in ORIGINS
+
+        def _set_cors_headers(self):
+            # mlx_lm's own sends "*" headers; only an allowed origin gets any.
+            origin = self.headers.get("Origin")
+            if origin in ORIGINS:
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Vary", "Origin")
+
+        def _refuse(self, status=401, message="Missing or invalid API key.",
+                    kind="authentication_error", code="invalid_api_key"):
+            body = json.dumps({"error": {"message": message, "type": kind, "code": code}}).encode()
+            self.send_response(status)
             self.send_header("Content-type", "application/json")
             self.send_header("Content-Length", str(len(body)))
+            if status != 403:
+                self._set_cors_headers()
             self.end_headers()
             self.wfile.write(body)
 
+        def _forbid(self):
+            return self._refuse(403, "Origin not allowed.", "permission_error", "origin_not_allowed")
+
+        def do_OPTIONS(self):
+            if self.headers.get("Origin") not in ORIGINS:
+                return self._forbid()
+            self.send_response(204)
+            self._set_cors_headers()
+            self.send_header("Access-Control-Allow-Methods", "GET, POST")
+            self.send_header("Access-Control-Allow-Headers", "authorization, content-type")
+            self.send_header("Access-Control-Max-Age", "600")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
         def do_POST(self):
+            if self._foreign():
+                return self._forbid()
             if not self._authorized():
                 return self._refuse()
             return super().do_POST()
 
         def do_GET(self):
+            if self._foreign():
+                return self._forbid()
             if self.path != "/health" and not self._authorized():
                 return self._refuse()
             return super().do_GET()

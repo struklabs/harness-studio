@@ -697,7 +697,7 @@ fn build_args(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     fn folder(files: &[(&str, &str)]) -> tempfile::TempDir {
@@ -964,7 +964,7 @@ mod tests {
     /// The system's Python 3 (`python3`, or `python` on Windows), `None` when there is none. On
     /// Windows without Python, `python` is the Store's stand-in: it runs and fails ("Python
     /// bulunamadı"), so the version it prints decides, not whether it starts.
-    fn system_python() -> Option<&'static str> {
+    pub(crate) fn system_python() -> Option<&'static str> {
         static FOUND: std::sync::OnceLock<Option<&'static str>> = std::sync::OnceLock::new();
         *FOUND.get_or_init(|| {
             let python = if cfg!(windows) { "python" } else { "python3" };
@@ -1342,6 +1342,203 @@ asyncio.run(main())
             "spoken [('hello', 'ryan', 1.5, None), ('hello', None, 1.0, None)]",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+    }
+
+    /// Python that calls an ASGI worker `app` as a browser would (`report(name, app, method,
+    /// path)` prints one line per case: status, Access-Control-Allow-Origin, -Allow-Headers).
+    /// The workers run with `HARNESS_WORKER_ORIGINS=tauri://localhost` and key `k`.
+    pub(crate) const CORS_DRIVER: &str = r#"
+import asyncio
+async def _call(app, method, path, origin=None, key=True):
+    body = b'{"messages": [{"role": "user", "content": "hi"}]}'
+    sent, queue = [], [{"type": "http.request", "body": body, "more_body": False}]
+    async def receive():
+        return queue.pop(0) if queue else {"type": "http.disconnect"}
+    async def send(m):
+        sent.append(m)
+    headers = [(b"authorization", b"Bearer k")] if key else []
+    if origin:
+        headers.append((b"origin", origin.encode()))
+    await app({"type": "http", "method": method, "path": path, "headers": headers}, receive, send)
+    h = dict(sent[0].get("headers") or [])
+    return (sent[0]["status"], h.get(b"access-control-allow-origin", b"-").decode(),
+            h.get(b"access-control-allow-headers", b"-").decode())
+def report(name, app, method, path):
+    T, E = "tauri://localhost", "https://evil.example"
+    for label, args in [("preflight", ("OPTIONS", T, False)), ("preflight foreign", ("OPTIONS", E, False)),
+                        ("foreign", (method, E)), ("foreign nokey", (method, E, False)),
+                        ("allowed nokey", (method, T, False)), ("allowed", (method, T)),
+                        ("plain", (method, None))]:
+        print(name, label, asyncio.run(_call(app, args[0], path, *args[1:])))
+"#;
+
+    /// What [`CORS_DRIVER`] prints for a worker that answers `path` with 200 (`plain` is the
+    /// header a request without Origin gets: the inner app's own, unchanged).
+    pub(crate) fn cors_expected(name: &str, plain: &str) -> Vec<String> {
+        [
+            "preflight (204, 'tauri://localhost', 'authorization, content-type')",
+            "preflight foreign (403, '-', '-')",
+            "foreign (403, '-', '-')",
+            "foreign nokey (403, '-', '-')",
+            "allowed nokey (401, 'tauri://localhost', '-')",
+            "allowed (200, 'tauri://localhost', '-')",
+        ]
+        .iter()
+        .map(|l| format!("{name} {l}"))
+        .chain([format!("{name} plain (200, '{plain}', '-')")])
+        .collect()
+    }
+
+    /// Browsers: the vision and speech workers answer the Harness window's preflight (no key
+    /// needed), refuse every other Origin with 403 before the key, keep the key for real
+    /// requests, and replace the inner app's own CORS headers.
+    #[test]
+    fn the_vision_and_audio_workers_answer_only_harness_origins() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_vlm_worker.py"), VLM_WORKER).unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let script = format!(
+            r#"
+import os, sys; sys.path.insert(0, {:?})
+env = dict(os.environ)
+import mlx_vlm_worker as v
+os.environ.update(env)  # each worker takes its key and origins out of the environment
+import mlx_audio_worker as a
+{CORS_DRIVER}
+async def inner(scope, receive, send):
+    await send({{"type": "http.response.start", "status": 200,
+                "headers": [(b"access-control-allow-origin", b"*")]}})
+    await send({{"type": "http.response.body", "body": b"inner"}})
+report("vlm", v.cors(v.guard(inner, "alias")), "POST", "/v1/chat/completions")
+report("audio", a.cors(a.app_for(lambda *x: b"RIFF", "tts", [], 50)), "GET", "/v1/models")
+"#,
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .env("HARNESS_WORKER_ORIGINS", "tauri://localhost")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in cors_expected("vlm", "*")
+            .into_iter()
+            .chain(cors_expected("audio", "-"))
+        {
+            assert!(text.contains(&line), "{line} missing:\n{text}");
+        }
+    }
+
+    /// The text worker (mlx-lm's http.server handler, here over a stand-in mlx_lm) follows the
+    /// same browser rules over real HTTP.
+    #[test]
+    fn the_text_worker_answers_only_harness_origins() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_worker.py"), WORKER).unwrap();
+        let stub = dir.path().join("mlx_lm");
+        std::fs::create_dir_all(&stub).unwrap();
+        std::fs::write(stub.join("__init__.py"), "").unwrap();
+        // Just enough of mlx_lm.server for the worker: its handler answers 200 with "*" CORS
+        // headers (as mlx-lm does), and the server is handed to the test instead of run.
+        std::fs::write(
+            stub.join("server.py"),
+            r#"
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import types
+HANDLER = []
+class APIHandler(BaseHTTPRequestHandler):
+    created = 0
+    def _set_cors_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+    def _set_completion_headers(self, status_code=200):
+        self.send_response(status_code)
+        self.send_header("Content-type", "application/json")
+        self._set_cors_headers()
+    def _ok(self):
+        self._set_completion_headers(200)
+        self.send_header("Content-Length", "2")
+        self.end_headers()
+        self.wfile.write(b"ok")
+    def do_GET(self):
+        self._ok()
+    def do_POST(self):
+        self._ok()
+class ModelProvider:
+    def __init__(self, cli_args):
+        self.cli_args = cli_args
+    def load(self, *a):
+        pass
+class LRUPromptCache:
+    def __init__(self, size):
+        pass
+class ResponseGenerator:
+    def __init__(self, *a):
+        pass
+mx = types.SimpleNamespace(distributed=types.SimpleNamespace(
+    init=lambda: types.SimpleNamespace(rank=lambda: 0)))
+def _run_http_server(host, port, generator, server_class, handler):
+    HANDLER.append(handler)
+def main():
+    run(None, 0, ModelProvider(types.SimpleNamespace(prompt_cache_size=1)))
+"#,
+        )
+        .unwrap();
+        let script = format!(
+            r#"
+import sys, threading, http.client; sys.path.insert(0, {:?})
+import mlx_worker as w
+from mlx_lm import server
+w.main(["--model", "m", "--port", "0"])
+httpd = server.ThreadingHTTPServer(("127.0.0.1", 0), server.HANDLER[0])
+threading.Thread(target=httpd.serve_forever, daemon=True).start()
+def call(method, path, origin=None, key=True):
+    c = http.client.HTTPConnection("127.0.0.1", httpd.server_port)
+    h = {{"Authorization": "Bearer k"}} if key else {{}}
+    if origin:
+        h["Origin"] = origin
+    c.request(method, path, body=b"{{}}" if method == "POST" else None, headers=h)
+    r = c.getresponse()
+    r.read()
+    return (r.status, r.getheader("Access-Control-Allow-Origin", "-"),
+            r.getheader("Access-Control-Allow-Headers", "-"))
+T, E = "tauri://localhost", "https://evil.example"
+for label, args in [("preflight", ("OPTIONS", T, False)), ("preflight foreign", ("OPTIONS", E, False)),
+                    ("foreign", ("POST", E)), ("foreign nokey", ("POST", E, False)),
+                    ("allowed nokey", ("POST", T, False)), ("allowed", ("POST", T)),
+                    ("plain", ("POST", None))]:
+    print("text", label, call(args[0], "/v1/chat/completions", *args[1:]))
+print("text health foreign", call("GET", "/health", E, False))
+"#,
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .env(
+                "HARNESS_WORKER_ORIGINS",
+                "tauri://localhost,http://a.example",
+            )
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in cors_expected("text", "-")
+            .into_iter()
+            .chain(["text health foreign (403, '-', '-')".to_string()])
+        {
+            assert!(text.contains(&line), "{line} missing:\n{text}");
         }
     }
 

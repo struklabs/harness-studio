@@ -46,6 +46,10 @@ const WORKER: &str = include_str!("../../python/hf_worker.py");
 /// Environment variable the worker reads its API key from.
 pub const API_KEY_ENV: &str = "HARNESS_WORKER_API_KEY";
 
+/// Environment variable with the browser origins a worker answers (comma-joined, see
+/// [`crate::network::worker_origins`]); a request from any other `Origin` is refused.
+pub const ORIGINS_ENV: &str = "HARNESS_WORKER_ORIGINS";
+
 /// Flags a custom argument line may never set (Harness owns the model, task, bind and code
 /// policy).
 const PROTECTED_FLAGS: &[&str] = &[
@@ -1085,5 +1089,59 @@ mod tests {
             ..custom
         };
         assert!(build_args(&ok, Path::new("/w.py"), "fill-mask").is_ok());
+    }
+
+    /// Browsers: the worker answers the Harness window's preflight (no key needed), refuses
+    /// every other Origin with 403 before the key, and keeps the key for real requests. Run
+    /// over a stand-in Starlette (the checks are the worker's own ASGI code).
+    #[test]
+    fn the_worker_answers_only_harness_origins() {
+        use crate::engine::mlx::tests::{cors_expected, system_python, CORS_DRIVER};
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("hf_worker.py"), WORKER).unwrap();
+        let stub = dir.path().join("starlette");
+        std::fs::create_dir_all(&stub).unwrap();
+        for (name, body) in [
+            ("__init__.py", ""),
+            (
+                "applications.py",
+                "class Starlette:\n    def __init__(self, routes):\n        pass\n    async def __call__(self, scope, receive, send):\n        await send({'type': 'http.response.start', 'status': 200, 'headers': []})\n        await send({'type': 'http.response.body', 'body': b'ok'})\n",
+            ),
+            (
+                "concurrency.py",
+                "async def run_in_threadpool(f, *a, **k):\n    return f(*a, **k)\n",
+            ),
+            ("requests.py", "class Request:\n    pass\n"),
+            (
+                "responses.py",
+                "import json\nclass Response:\n    def __init__(self, content=b'', status_code=200, **_):\n        self.body, self.status_code = content, status_code\n    async def __call__(self, scope, receive, send):\n        await send({'type': 'http.response.start', 'status': self.status_code, 'headers': []})\n        await send({'type': 'http.response.body', 'body': self.body})\nclass JSONResponse(Response):\n    def __init__(self, content, status_code=200, **_):\n        super().__init__(json.dumps(content).encode(), status_code)\n",
+            ),
+            (
+                "routing.py",
+                "class Route:\n    def __init__(self, *a, **k):\n        pass\n",
+            ),
+        ] {
+            std::fs::write(stub.join(name), body).unwrap();
+        }
+        let script = format!(
+            "import sys, types; sys.path.insert(0, {:?})\nimport hf_worker as w\n{CORS_DRIVER}\nreport('hf', w.build_app(types.SimpleNamespace(state='ready', error=None)), 'GET', '/v1/models')\n",
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .env("HARNESS_WORKER_ORIGINS", "tauri://localhost")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in cors_expected("hf", "-") {
+            assert!(text.contains(&line), "{line} missing:\n{text}");
+        }
     }
 }

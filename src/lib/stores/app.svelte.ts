@@ -372,7 +372,7 @@ class AppState {
   /** Fetches the selected server's key when the server (re)starts or its selection changes. */
   private async syncApiKey() {
     const active = this.activeServer;
-    if (!active || !active.api_key_set) {
+    if (!active || !(active.api_key_required ?? active.api_key_set)) {
       this.apiKeySig = '';
       this.apiKey = null;
       return;

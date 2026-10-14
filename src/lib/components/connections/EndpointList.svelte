@@ -51,7 +51,7 @@
     app.activeServer?.bind_host ?? (app.selectedProfile?.config.host || app.settings?.server.host || '127.0.0.1'),
   );
   let scope = $derived(bindScope(bindHost));
-  let keySet = $derived(app.activeServer ? app.activeServer.api_key_set : !!app.selectedProfile?.config.api_key_ref);
+  let keySet = $derived(app.activeServer ? (app.activeServer.api_key_required ?? app.activeServer.api_key_set) : !!app.selectedProfile?.config.api_key_ref);
   let exposedWithoutKey = $derived(scope === 'lan' && !keySet && !!app.activeServer);
 
   let lanAddresses = $state<LanAddress[]>([]);
@@ -219,7 +219,7 @@
 
     <p class="text-xs text-muted-foreground">
       {#if app.apiKey}
-        {t('conn.ep_auth_key')}
+        {t('conn.ep_auth_key')}{#if !app.apiKeySet}{' '}{t('conn.key_run_note')}{/if}
       {:else}
         {t('conn.ep_auth_none')}
       {/if}

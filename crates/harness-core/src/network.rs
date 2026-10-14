@@ -37,6 +37,13 @@ pub const LAN_BIND_HOST: &str = "0.0.0.0";
 /// browser `Origin` (those always carry a scheme), so no web page gets CORS access: builds that
 /// match origins find no match, builds that echo the value send an origin no browser accepts.
 pub const CORS_DENY_ALL: &str = "none";
+/// Origins of the Harness window (Tauri on Windows / macOS / Linux, and the dev server).
+pub const APP_ORIGINS: [&str; 4] = [
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+    "http://localhost:1420",
+];
 
 /// `settings.json` → `network`.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -207,6 +214,21 @@ pub fn cors_arg(origins: &[String], scope: BindScope) -> Option<String> {
         BindScope::Loopback => None,
         BindScope::Lan => Some(CORS_DENY_ALL.to_string()),
     }
+}
+
+/// Browser origins a Python worker answers (comma-joined, for its environment): the Harness
+/// window and the exact origins of `cors` (a launch's resolved `--cors-origins` value). `*`,
+/// `localhost` and [`CORS_DENY_ALL`] are llama-server values that no browser `Origin` equals,
+/// so they add nothing: a worker never opens to every page.
+pub fn worker_origins(cors: Option<&str>) -> String {
+    let mut out: Vec<&str> = APP_ORIGINS.to_vec();
+    for origin in cors.unwrap_or("").split(',').map(str::trim) {
+        let scheme = origin.starts_with("http://") || origin.starts_with("https://");
+        if scheme && !out.contains(&origin) {
+            out.push(origin);
+        }
+    }
+    out.join(",")
 }
 
 /// Fills in the network part of a launch and applies the exposure rule. Called by

@@ -363,6 +363,22 @@ fn origin_validation() {
 }
 
 #[test]
+fn worker_origins_are_the_window_and_exact_user_origins() {
+    let app = APP_ORIGINS.join(",");
+    assert_eq!(worker_origins(None), app);
+    // llama-server values never open a worker to every page.
+    assert_eq!(worker_origins(Some("*")), app);
+    assert_eq!(worker_origins(Some(CORS_DENY_ALL)), app);
+    assert_eq!(worker_origins(Some("localhost")), app);
+    assert_eq!(
+        worker_origins(Some(
+            "http://a.example, https://b.example:8443,tauri://localhost"
+        )),
+        format!("{app},http://a.example,https://b.example:8443")
+    );
+}
+
+#[test]
 fn sanitize_keeps_stored_acks() {
     let mut stored = AppSettings::default();
     stored

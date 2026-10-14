@@ -3046,6 +3046,7 @@ mod tests {
             port: 11460,
             api_key: None,
             api_key_set: false,
+            api_key_required: false,
             model_path: dir.clone(),
             router_mode: false,
             exposure_acknowledged: false,

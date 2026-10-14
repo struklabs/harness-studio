@@ -63,12 +63,7 @@ use compat::Api;
 pub const BODY_LIMIT: usize = 64 * 1024 * 1024;
 
 /// Origins of the Harness window (Tauri on Windows / macOS / Linux, and the dev server).
-pub const APP_ORIGINS: [&str; 4] = [
-    "tauri://localhost",
-    "http://tauri.localhost",
-    "https://tauri.localhost",
-    "http://localhost:1420",
-];
+pub use harness_core::network::APP_ORIGINS;
 
 /// The core services the gateway works on (same instances as the GUI's / `harness serve`).
 #[derive(Clone)]

@@ -1492,6 +1492,8 @@ export interface ActiveServerInfo {
   port: number;
   /** Whether the server was started with an API key (fetch it on demand with `get_server_api_key`). */
   api_key_set: boolean;
+  /** Requests need a key: the user's or one made for this run (Python workers always have one). */
+  api_key_required?: boolean;
   model_path: string;
   router_mode: boolean;
   /** Bound to the network without an API key after the user's "open anyway". */

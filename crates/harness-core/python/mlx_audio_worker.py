@@ -13,6 +13,9 @@ names. This worker serves only what Harness needs, itself:
 * GET /health ({"status": "ok"}), GET /v1/models (the alias and the model's voices) and
   POST /v1/audio/speech ({"input", "voice", "speed", "language"} in, 16-bit WAV out); every
   other route is 404.
+* Browsers: only the origins in HARNESS_WORKER_ORIGINS (the Harness window and the user's CORS
+  origins) get CORS headers; their preflight is answered here (it carries no key). A request
+  with any other Origin is refused (403) before anything else, so no web page can drive it.
 * The model is the folder given here, loaded at start. Voice cloning (a reference audio) is not
   offered, so a request never names a file.
 * It listens on 127.0.0.1 only; remote code is never trusted; Hugging Face Hub access is off;
@@ -36,6 +39,7 @@ for _var in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_prox
     os.environ.pop(_var, None)
 
 KEY = os.environ.pop("HARNESS_WORKER_API_KEY", None) or None
+ORIGINS = frozenset(o for o in os.environ.pop("HARNESS_WORKER_ORIGINS", "").split(",") if o)
 HOST = "127.0.0.1"
 ROUTES = {("GET", "/health"), ("GET", "/v1/models"), ("POST", "/v1/audio/speech")}
 FIELDS = {"model", "input", "voice", "speed", "language", "response_format"}
@@ -125,6 +129,43 @@ async def respond(send, status, payload, content_type=b"application/json"):
 
 def error(message, kind, code):
     return {"error": {"message": message, "type": kind, "code": code}}
+
+
+PREFLIGHT = [(b"access-control-allow-methods", b"GET, POST"),
+             (b"access-control-allow-headers", b"authorization, content-type"),
+             (b"access-control-max-age", b"600")]
+
+
+def cors(inner):
+    """Browser access for ORIGINS only: their preflight is answered here, their responses get
+    CORS headers (any the inner app sets are dropped), any other Origin is refused with 403. A
+    request without Origin (not a browser) passes unchanged."""
+
+    async def app(scope, receive, send):
+        if scope["type"] != "http":
+            return await inner(scope, receive, send)
+        origin = dict(scope.get("headers") or []).get(b"origin")
+        if origin is None:
+            return await inner(scope, receive, send)
+        if origin.decode("latin-1") not in ORIGINS:
+            return await respond(send, 403, error(
+                "Origin not allowed.", "permission_error", "origin_not_allowed"))
+        allow = [(b"access-control-allow-origin", origin), (b"vary", b"Origin")]
+        if scope["method"] == "OPTIONS":
+            await send({"type": "http.response.start", "status": 204,
+                        "headers": allow + PREFLIGHT})
+            return await send({"type": "http.response.body", "body": b""})
+
+        async def with_cors(message):
+            if message["type"] == "http.response.start":
+                kept = [(k, v) for k, v in message.get("headers") or []
+                        if not k.lower().startswith(b"access-control-") and k.lower() != b"vary"]
+                message = dict(message, headers=kept + allow)
+            await send(message)
+
+        await inner(scope, receive, with_cors)
+
+    return app
 
 
 def app_for(speak, alias, voices, max_chars):
@@ -235,7 +276,7 @@ def main(argv=None):
             raise RuntimeError("no audio")
         return wav_bytes(np.concatenate(parts), rate)
 
-    uvicorn.run(app_for(speak, args.alias, voices, args.max_chars), host=HOST, port=args.port,
+    uvicorn.run(cors(app_for(speak, args.alias, voices, args.max_chars)), host=HOST, port=args.port,
                 log_level="info", access_log=True)
 
 
