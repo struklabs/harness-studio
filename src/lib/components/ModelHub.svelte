@@ -67,7 +67,7 @@
   let smartSearchNotice = $state<string | null>(null);
   /** Query + filters the shown list was fetched with (for "load more"). */
   let listOptions: HfSearchOptions | null = null;
-  /** Search text the shown cards were fetched with: the heading names it, not the half-typed field. */
+  /** Active search text: the heading follows the request, not the half-typed field. */
   let shownQuery = $state(prefs.query);
   let searchToken = 0;
 
@@ -148,6 +148,7 @@
   /** Fetch the first page of the list for the current query + filters + sort. */
   async function runList() {
     const my = ++searchToken;
+    shownQuery = searchQuery.trim();
     isSearching = true;
     searchError = null;
     moreError = null;
@@ -171,13 +172,11 @@
       const page = await fetchPage(options);
       if (my !== searchToken) return;
       results = page.items;
-      shownQuery = searchQuery;
       nextCursor = page.next_cursor;
       scroller?.scrollTo({ top: 0 });
     } catch (e) {
       if (my === searchToken) {
         results = [];
-        shownQuery = searchQuery;
         nextCursor = null;
         searchError = String(e);
       }

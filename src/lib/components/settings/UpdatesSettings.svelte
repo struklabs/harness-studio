@@ -6,7 +6,7 @@
   import { Check, TriangleAlert } from '@lucide/svelte';
   import type { AppUpdateInfo, AppUpdateProgress } from '#lib/types.js';
   import { formatBytes } from '#lib/format.js';
-  import { t } from '#lib/i18n.svelte.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Progress } from '#lib/components/ui/progress/index.js';
   import * as Collapsible from '#lib/components/ui/collapsible/index.js';
@@ -14,6 +14,15 @@
   import SettingRow from './SettingRow.svelte';
 
   const fmt = (b: number) => formatBytes(b, 1);
+
+  function updateDate(value: string): string {
+    const normalized = value.replace(
+      /^(\d{4}-\d{2}-\d{2}) (\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)? ([+-]\d{2}:\d{2}):\d{2}$/,
+      (_, date, hour, minute, second, offset) => `${date}T${hour.padStart(2, '0')}:${minute}:${second}${offset}`,
+    );
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(locale());
+  }
 
   let appVersion = $state<string | null>(null);
   let checking = $state(false);
@@ -113,7 +122,7 @@
               <div class="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
                 <strong class="text-sm">{t('settings.app_update_available', { version: appUpdate.version })}</strong>
                 {#if appUpdate.date}
-                  <span class="text-xs text-muted-foreground">{t('settings.app_update_date', { date: appUpdate.date })}</span>
+                  <span class="text-xs text-muted-foreground">{t('settings.app_update_date', { date: updateDate(appUpdate.date) })}</span>
                 {/if}
               </div>
               {#if appUpdate.notes}
