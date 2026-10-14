@@ -94,7 +94,7 @@ You do not have to work this out yourself. The Model Hub and the Dashboard show 
 
 ## Features
 
-- **Native text-to-speech with audio.cpp:** run PocketTTS and other audio.cpp TTS GGUF families through the Playground and `/v1/audio/speech`. Install, update, and remove the engine in Settings > Runtime; Vulkan, CUDA, Metal, and CPU release builds are selected for the platform. Voice embeddings are listed in the speech picker, and models stay resident under the gateway scheduler.
+- **Experimental text-to-speech with audio.cpp:** PocketTTS and other audio.cpp TTS GGUF families run in Playground and `/v1/audio/speech`. The engine is off by default; enable it under **Settings > Runtime > Installed Runtime > Other Runtimes** after confirming the risk notice. Platform builds use Vulkan, CUDA, Metal, or CPU. Voice embeddings appear in the speech picker; workers stop after five idle minutes.
 
 Everything below works locally. Details are in the [user guide](docs/guide/en/README.md) and [FEATURES.md](docs/en/FEATURES.md).
 
@@ -120,7 +120,7 @@ Everything below works locally. Details are in the [user guide](docs/guide/en/RE
 - **Full control of llama.cpp:** context, GPU layers, KV cache type, slots, sampling, and many more, plus a runtime registry with SHA-256-verified engines and per-server runtime choice. See the [CLI reference](docs/en/CLI.md).
 - **Observability:** benchmarks, request analytics (P50/P95 latency, tokens, errors, per client), tool-call diagnosis, searchable logs, Prometheus `/metrics`, and optional OpenTelemetry export.
 - **CLI, Control API, and headless mode:** the `harness` command, an authenticated Control API with an OpenAPI schema, and `harness serve` to run without a window. All of them share the same Rust code as the app.
-- **More engines:** whisper.cpp and sherpa-onnx (speech), stable-diffusion.cpp (images), ONNX Runtime (embeddings, reranking, and CTC speech recognition), and optional Lemonade and mistral.rs. Safetensors models can be converted to GGUF from the Hub.
+- **More engines:** whisper.cpp, sherpa-onnx, ONNX Runtime, CrispASR, experimental audio.cpp (off by default), stable-diffusion.cpp, Python (`python-hf`, CPU/CUDA; transformers and diffusers), MLX (chat, vision, audio; Apple Silicon, macOS 14+), Lemonade, and mistral.rs. Safetensors models can be converted to GGUF from the Hub.
 
 ## Why Harness Studio? How it compares
 
@@ -150,7 +150,7 @@ The others win some rows too: Ollama processed long prompts faster, and at 65k c
 |---|---|---|---|---|
 | Friendly desktop app | ✓ | ✓ | ✓ | ✗ (server with a basic web page) |
 | Windows / Linux / macOS | Windows and macOS; Linux preview | ✓ | ✓ | ✓ |
-| Apple MLX engine | planned | ✓ | ✓ | ✗ |
+| Apple MLX engine | ✓ (optional, Apple Silicon, macOS 14+) | ✓ | ✓ | ✗ |
 | Built-in request analytics (P50/P95, per client) | ✓ | ✗ | ✗ | ✗ |
 | Prometheus metrics and OpenTelemetry | ✓ | ✗ | ✗ | partial (metrics endpoint) |
 | Works as an MCP server for other tools | ✓ | ✗ | ✗ | ✗ |
@@ -350,7 +350,7 @@ The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction
 **Planned next**
 - **Server mode:** manage Harness on your own server from a web interface, with passwords or tokens, domain and automatic SSL, a systemd service, and Docker images (CUDA, ROCm, Vulkan, CPU)
 - **Harness Link:** use models from another Harness instance in your library, Playground, and gateway
-- Signed Linux packages beyond the preview, and an MLX engine for Apple Silicon
+- Signed Linux packages beyond the preview
 - Code-signed Windows installer; automatic app updates
 - TypeScript and Python SDKs for the Control API; decision-model endpoints
 

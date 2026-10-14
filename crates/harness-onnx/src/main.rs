@@ -142,7 +142,7 @@ fn load_chat(
         .unwrap_or_else(|| dir.join(genai_name));
     if !genai_lib.is_file() {
         return Err(format!(
-            "{} is missing: install the ONNX Runtime GenAI library with the Install button in Settings > Installed Runtime",
+            "{} is missing: install the ONNX Runtime GenAI library with the Install button in Settings > Runtime > Registry",
             genai_lib.display()
         ));
     }

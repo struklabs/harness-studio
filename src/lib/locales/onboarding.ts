@@ -5,7 +5,7 @@ const tr = {
   'onboarding.wizard_fallback_unavailable': 'Önerilen {recommended} build’i {version} sürümünde yok; {installed} kuruldu.',
   'onboarding.wizard_fallback_downloading_no_device': '{recommended} build’i bu kartı görmedi; {installed} indiriliyor.',
   'onboarding.wizard_fallback_downloading_unavailable': 'Önerilen {recommended} build’i bu sürümde yok; {installed} indiriliyor.',
-  'onboarding.wizard_fallback_settings': 'Ayarlar > Kurulu Model Motoru bölümünden build’i değiştirebilirsiniz.',
+  'onboarding.wizard_fallback_settings': 'Ayarlar > Model Motoru > Kurulu Model Motoru bölümünden build’i değiştirebilirsiniz.',
   'onboarding.sg_tools_title': 'Bu Amaç İçin Yerleşik Araçlar',
   'onboarding.sg_tools_chat': 'Güncel bilgi ve kaynak bulmak için web araması.',
   'onboarding.sg_tools_code': 'Çalışma klasöründeki kodu bulma, okuma, düzenleme ve komut çalıştırma.',
@@ -27,7 +27,7 @@ const tr = {
   'onboarding.coach_step2_title': '2. Adım: Çalıştırma Parametreleri',
   'onboarding.coach_step2_desc':
     'Modelin donanımınızda nasıl çalışacağını belirleyin. GPU Katmanları (-ngl) ekran kartınızın gücünü kullanır; Bağlam Penceresi (-c) ise modelin tek seferde hafızasında tutabileceği konuşma uzunluğudur.',
-  'onboarding.coach_step2_hint': 'İpucu: Çoğu model ve günlük kullanım için 4096 veya 8192 bağlam boyutu ve Otomatik iş parçacığı önerilir.',
+  'onboarding.coach_step2_hint': 'İpucu: Otomatik bağlam GGUF eğitim bağlamını en fazla 32.768 token olarak kullanır (bilinmiyorsa 32.768); belleğe sığdırma bunu azaltabilir. Otomatik iş parçacığını kullanın.',
   'onboarding.coach_step3_title': '3. Adım: Sunucuyu Başlat',
   'onboarding.coach_step3_desc':
     'Modeli ve parametreleri seçtikten sonra büyük "Sunucuyu Başlat" butonuna tıklayarak yerel llama.cpp motorunu çalıştırın. Sunucu açıldığında Cursor, Continue veya Web Arayüzü ile hemen sohbet edebilirsiniz.',
@@ -170,7 +170,7 @@ const tr = {
   'onboarding.sg_reason_runtime': 'Ses yazıya çevirme için gerekli (GitHub sürümü, sağlama doğrulanır)',
   'onboarding.sg_reason_mlx_engine': 'Apple Silicon’da ses yazıya çevirmeyi MLX ile çalıştırır (mlx-audio, kendi Python ortamı)',
   'onboarding.sg_reason_mlx_whisper': 'Apple Silicon için MLX biçimli Whisper; yazıya döker ve İngilizceye çevirir',
-  'onboarding.sg_engine_failed': 'Motor kurulamadı; Ayarlar > Kurulu Model Motoru > Diğer Model Motorları bölümünden yeniden deneyin.',
+  'onboarding.sg_engine_failed': 'Motor kurulamadı; Ayarlar > Model Motoru > Kurulu Model Motoru > Diğer Model Motorları bölümünden yeniden deneyin.',
   'onboarding.sg_loading': 'Donanımınıza uygun öneriler aranıyor…',
   'onboarding.sg_none': 'Bu amaç için donanımınıza uygun bir öneri bulunamadı.',
   'onboarding.sg_failed': 'Öneriler alınamadı: {error}',
@@ -214,7 +214,7 @@ const en: Record<keyof typeof tr, string> = {
   'onboarding.coach_step2_title': 'Step 2: Launch Parameters',
   'onboarding.coach_step2_desc':
     'Decide how the model runs on your hardware. GPU Layers (-ngl) uses your graphics card\'s power; Context Window (-c) is how much conversation the model can hold in memory at once.',
-  'onboarding.coach_step2_hint': 'Tip: For most models and everyday use, a context size of 4096 or 8192 with Automatic threads is recommended.',
+  'onboarding.coach_step2_hint': 'Tip: Auto context uses the GGUF training context, capped at 32,768 tokens (32,768 if unknown); memory fitting may reduce it. Use Automatic threads.',
   'onboarding.coach_step3_title': 'Step 3: Start the Server',
   'onboarding.coach_step3_desc':
     'Once you\'ve picked a model and parameters, click the big "Start Server" button to run the local llama.cpp engine. When the server is up, you can chat right away with Cursor, Continue, or the Web UI.',
@@ -357,7 +357,7 @@ const en: Record<keyof typeof tr, string> = {
   'onboarding.sg_reason_runtime': 'Needed for speech to text (GitHub release, checksum verified)',
   'onboarding.sg_reason_mlx_engine': 'Runs speech to text with MLX on Apple Silicon (mlx-audio, in its own Python environment)',
   'onboarding.sg_reason_mlx_whisper': 'Whisper in MLX format for Apple Silicon; transcribes and translates to English',
-  'onboarding.sg_engine_failed': 'The engine could not be installed; try again from Settings > Installed Runtime > Other Runtimes.',
+  'onboarding.sg_engine_failed': 'The engine could not be installed; try again from Settings > Runtime > Installed Runtime > Other Runtimes.',
   'onboarding.sg_loading': 'Looking for suggestions that fit your hardware…',
   'onboarding.sg_none': 'No suggestion fits your hardware for this purpose.',
   'onboarding.sg_failed': 'Could not get suggestions: {error}',
