@@ -38,6 +38,11 @@ import threading
 import time
 import traceback
 
+# torch.load's weights_only protection is not up to the environment: Harness spawns the worker
+# without these, and a worker started some other way drops them before torch is imported.
+for _var in ("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "TORCH_FORCE_WEIGHTS_ONLY_LOAD"):
+    os.environ.pop(_var, None)
+
 # --- arguments -------------------------------------------------------------------------------
 
 TEXT_TASKS = {
