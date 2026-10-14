@@ -101,6 +101,28 @@ pub fn command(program: &Path, required: bool) -> Result<(tokio::process::Comman
     Ok((tokio::process::Command::new(program), false))
 }
 
+/// A command for a local tool that needs no network (sherpa-onnx): without network interfaces
+/// when that is [`available`], else as before, said once on stderr.
+pub fn offline_command(program: &Path) -> tokio::process::Command {
+    let st = status();
+    if st.available && cfg!(target_os = "linux") {
+        let mut cmd = tokio::process::Command::new("unshare");
+        cmd.args(["--user", "--map-root-user", "--net", "--"])
+            .arg(program);
+        return cmd;
+    }
+    if cfg!(target_os = "linux") {
+        static LOGGED: std::sync::Once = std::sync::Once::new();
+        LOGGED.call_once(|| {
+            eprintln!(
+                "[Harness Studio] Network isolation unavailable, local tools keep network access: {}",
+                st.reason.as_deref().unwrap_or("")
+            )
+        });
+    }
+    tokio::process::Command::new(program)
+}
+
 /// A folder only this user can enter (0700), for the Unix socket of one server process: other
 /// local users cannot connect to the worker through it.
 #[cfg(unix)]
@@ -172,6 +194,23 @@ mod tests {
         let text = String::from_utf8_lossy(&out.stdout);
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(lines, ["lo", "blocked"], "{text}");
+        drop(host);
+    }
+
+    #[tokio::test]
+    async fn offline_tools_cannot_reach_this_machine() {
+        let host = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = host.local_addr().unwrap().port();
+        let script = format!(
+            "(exec 3<>/dev/tcp/127.0.0.1/{port}) 2>/dev/null && echo reached || echo blocked"
+        );
+        let out = offline_command(Path::new("bash"))
+            .args(["-c", &script])
+            .output()
+            .await
+            .unwrap();
+        let want = if available() { "blocked" } else { "reached" };
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), want);
         drop(host);
     }
 

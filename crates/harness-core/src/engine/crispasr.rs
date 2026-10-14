@@ -251,6 +251,10 @@ impl Engine for CrispAsrEngine {
 }
 
 impl ServerEngine for CrispAsrEngine {
+    /// CrispASR reads local models and helper files only: no network on Linux.
+    fn netns_bridge(&self) -> bool {
+        true
+    }
     fn build_launch(
         &self,
         config: &LaunchConfig,

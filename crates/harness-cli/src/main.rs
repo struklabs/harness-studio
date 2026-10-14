@@ -26,6 +26,10 @@ use crate::error::{CliError, Exit};
 use crate::output::Out;
 
 fn main() {
+    // Network bridge of a native server started without network (harness_core::netns_bridge).
+    if let Some(code) = harness_core::netns_bridge::child_main() {
+        std::process::exit(code);
+    }
     let json_requested = std::env::args().any(|a| a == "--json");
     let cli = match cli::Cli::try_parse() {
         Ok(cli) => cli,

@@ -211,7 +211,8 @@ pub(crate) async fn run_tool(
     args: &[String],
     text: &std::ffi::OsStr,
 ) -> Result<std::process::Output, String> {
-    let mut command = tokio::process::Command::new(binary);
+    // sherpa-onnx reads local files only: no network where the OS allows it.
+    let mut command = crate::pyenv::isolation::offline_command(binary);
     command
         .args(args)
         .stdin(Stdio::null())

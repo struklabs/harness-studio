@@ -502,6 +502,22 @@ pub fn health_ready(status: u16, body: &str) -> bool {
 }
 
 /// Maps wildcard bind addresses to a connectable loopback address.
+/// The executable that runs [`crate::netns_bridge`] for a server bound to `host`, or why
+/// that server cannot be isolated here.
+fn bridge_plan(host: &str) -> Result<PathBuf, String> {
+    let st = crate::pyenv::isolation::status();
+    if !st.available {
+        return Err(st.reason.clone().unwrap_or_default());
+    }
+    // Inside the namespace only the loopback exists: a server bound to a LAN address could not
+    // listen there.
+    let inside = connect_host(host);
+    if !matches!(inside.as_str(), "127.0.0.1" | "localhost" | "[::1]" | "::1") {
+        return Err(format!("bound to {host}, not loopback"));
+    }
+    std::env::current_exe().map_err(|e| format!("current executable: {e}"))
+}
+
 pub fn connect_host(bind: &str) -> String {
     match bind {
         "0.0.0.0" | "" => "127.0.0.1".to_string(),
@@ -1602,6 +1618,21 @@ impl ProcessManager {
                     .into(),
             ));
         }
+        // A native server that needs no network but only listens on TCP runs behind the
+        // namespace bridge (crate::netns_bridge); without isolation it runs as before.
+        let bridge = if cfg!(target_os = "linux") && engine.netns_bridge() && !isolated {
+            match bridge_plan(&config.host) {
+                Ok(exe) => Some(exe),
+                Err(reason) => {
+                    self.push_log(format!(
+                        "[Harness Studio] Network isolation unavailable, the server keeps network access: {reason}"
+                    ));
+                    None
+                }
+            }
+        } else {
+            None
+        };
         let mut cmd = if isolated {
             #[cfg(unix)]
             {
@@ -1612,6 +1643,25 @@ impl ProcessManager {
             }
             let mut cmd = Command::new("unshare");
             cmd.args(["--user", "--map-root-user", "--net", "--"])
+                .arg(&config.binary_path);
+            cmd
+        } else if let Some(exe) = bridge {
+            #[cfg(unix)]
+            let socket = match self.start_relay(&config).await {
+                Ok(socket) => socket,
+                Err(e) => return Err(self.set_error(e)),
+            };
+            #[cfg(not(unix))]
+            let socket = PathBuf::new();
+            self.push_log("[Harness Studio] Server: isolated (no network)".to_string());
+            let mut cmd = Command::new("unshare");
+            cmd.args(["--user", "--map-root-user", "--net", "--"])
+                .arg(exe)
+                .args(crate::netns_bridge::bridge_args(
+                    &socket,
+                    &connect_host(&config.host),
+                    config.port,
+                ))
                 .arg(&config.binary_path);
             cmd
         } else {
@@ -2777,6 +2827,34 @@ fn apply_metadata_fixes(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_loopback_servers_are_bridged() {
+        let available = crate::pyenv::isolation::available();
+        for host in ["127.0.0.1", "0.0.0.0", "localhost", "::1"] {
+            assert_eq!(bridge_plan(host).is_ok(), available, "{host}");
+        }
+        // Inside the namespace a LAN address does not exist: such a server keeps its network.
+        let lan = bridge_plan("192.168.1.20");
+        assert!(lan.is_err());
+        if available {
+            assert!(lan.unwrap_err().contains("not loopback"));
+        }
+    }
+
+    #[test]
+    fn audio_and_onnx_servers_are_bridged() {
+        use crate::engine::{CrispAsrEngine, ServerEngine};
+        for engine in [
+            &CrispAsrEngine as &dyn ServerEngine,
+            crate::engine::audio_cpp(),
+            crate::engine::onnx(),
+        ] {
+            assert!(engine.netns_bridge(), "{}", engine.family());
+        }
+        assert!(!crate::engine::llama_cpp().netns_bridge());
+        assert!(!crate::engine::python_hf().netns_bridge());
+    }
 
     fn gemma3_config(embedding: u32, window: u32) -> (tempfile::TempDir, LaunchConfig) {
         let dir = tempfile::tempdir().unwrap();

@@ -48,6 +48,7 @@ pub mod mcp;
 pub mod model_registry;
 pub mod modelfile;
 pub mod models;
+pub mod netns_bridge;
 pub mod network;
 #[cfg(any(windows, target_os = "linux"))]
 pub mod nvml;
