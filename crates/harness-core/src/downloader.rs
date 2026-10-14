@@ -3320,6 +3320,16 @@ fn onnx_variants(
         } else {
             format!("{}/", dir)
         };
+        // A dual encoder (CLIP, SigLIP) ships its two towers beside the joint graph; a tower
+        // alone cannot score an image against labels.
+        let tower = stem.starts_with("text_model") || stem.starts_with("vision_model");
+        if tower
+            && files
+                .iter()
+                .any(|f| f.path.starts_with(&format!("{prefix}model")) && f.path.ends_with(".onnx"))
+        {
+            continue;
+        }
         let external: Vec<&F> = files
             .iter()
             .filter(|f| {
@@ -5826,6 +5836,23 @@ mod tests {
         assert_eq!(v.len(), 1);
         let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
         assert!(names.contains(&"preprocessor_config.json"));
+        // CLIP: the joint graphs are variants, the towers beside them are not.
+        let v = onnx_variants(
+            "Xenova/clip-vit-base-patch32",
+            &[
+                file("config.json"),
+                file("preprocessor_config.json"),
+                file("tokenizer.json"),
+                file("onnx/model.onnx"),
+                file("onnx/model_quantized.onnx"),
+                file("onnx/text_model.onnx"),
+                file("onnx/vision_model_quantized.onnx"),
+            ],
+        )
+        .unwrap();
+        let mut names: Vec<&str> = v.iter().map(|v| v.name.as_str()).collect();
+        names.sort();
+        assert_eq!(names, vec!["model", "model_quantized"]);
         // Big models keep weights in a sibling file; it travels with the graph.
         let v = onnx_variants(
             "acme/big-embedder",

@@ -105,7 +105,7 @@ fn usize_param(p: &Value, name: &str) -> Result<Option<usize>, ApiError> {
 }
 
 /// The candidate labels of a zero-shot request: an array, or one comma-separated string.
-fn candidates_of(v: &Value) -> Result<Vec<String>, ApiError> {
+pub(crate) fn candidates_of(v: &Value) -> Result<Vec<String>, ApiError> {
     let list: Vec<String> = match v {
         Value::String(s) => s.split(',').map(|x| x.trim().to_string()).collect(),
         Value::Array(a) => a
