@@ -30,7 +30,7 @@
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
-  import { isCtcVariant, isWhisperVariant, recommendCtcVariant, recommendCrispasrVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from './recommend';
+  import { isCtcVariant, isWhisperVariant, recommendCtcVariant, recommendCrispasrVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
   import { security } from '#lib/stores/security.svelte.js';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
 
@@ -155,7 +155,7 @@
     repo?.compatibility && 'runtime' in repo.compatibility && repo.compatibility.runtime === 'crispasr'
       ? recommendCrispasrVariant(variants, hardware?.available_ram_bytes, hardware?.gpus.reduce((sum, gpu) => sum + (gpu.vram_bytes ?? 0), 0))
       : isWhisperRepo
-      ? recommendWhisperVariant(variants, hardware?.available_ram_bytes)
+      ? recommendWhisperVariant(variants, hardware?.available_ram_bytes, whisperOnCpu(hardware?.os))
       : isCtcRepo
         ? recommendCtcVariant(variants, hardware?.available_ram_bytes)
         : recommendVariant(variants.filter(v => !v.not_runnable), new Map([...variantFits].map(([name, fit]) => [name, fit.category])))

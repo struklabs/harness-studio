@@ -10,7 +10,7 @@ import { formatBytes } from '#lib/format.js';
 import type { TKey } from '#lib/i18n.svelte.js';
 import type { FitCategory, HfModelSearchResult, HfModelVariant, HfSearchOptions, RuntimeReleasePick, RuntimeView, SystemHardwareInfo } from '#lib/types.js';
 import { fetchPage } from '../hub/hubData';
-import { quantBits, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from '../hub/recommend';
+import { quantBits, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from '../hub/recommend';
 import { asrEngine, CHAT_FAMILY_QUERIES, isGeneralChatRepo, mlxWhisperRepo, needsSmallModelWave, pickBest, pickChat, smallQueries } from './suggestPlan';
 import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
 
@@ -232,7 +232,7 @@ async function listRepos(role: ListedRole): Promise<HfModelSearchResult[]> {
 async function suggestWhisperModel(hardware: SystemHardwareInfo | null): Promise<ModelSuggestion | null> {
   const variants = await invoke<HfModelVariant[]>('get_hf_model_variants', { repoId: WHISPER_REPO });
   const ram = hardware?.available_ram_bytes;
-  const variant = recommendWhisperVariant(variants, ram);
+  const variant = recommendWhisperVariant(variants, ram, whisperOnCpu(hardware?.os));
   if (!variant || whisperFitsMemory(variant.total_size_bytes, ram) !== true) return null;
   return {
     id: `asr:${WHISPER_REPO}:${variant.name}`,

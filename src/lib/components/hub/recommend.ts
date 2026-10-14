@@ -59,12 +59,28 @@ const WHISPER_PREFERENCE = [
   'ggml-base-q5_1',
 ];
 
+/** On a CPU the encoder dominates: large-v3-turbo's takes about four times small's, so small first. */
+const WHISPER_CPU_PREFERENCE = [
+  'ggml-small-q8_0',
+  'ggml-small-q5_1',
+  'ggml-large-v3-turbo-q8_0',
+  'ggml-large-v3-turbo-q5_0',
+  'ggml-base-q8_0',
+  'ggml-base-q5_1',
+];
+
+/** Whether whisper.cpp runs on the CPU here: upstream publishes no GPU build for Linux. */
+export function whisperOnCpu(os: string | null | undefined): boolean {
+  return os === 'linux';
+}
+
 /**
  * Default whisper model: the first of a fixed preference list (turbo large, then small, then
- * base class) that fits in memory. VRAM fit and GGUF quant ranking mean nothing here.
+ * base class; small first when whisper.cpp runs on the CPU) that fits in memory. VRAM fit and
+ * GGUF quant ranking mean nothing here.
  */
-export function recommendWhisperVariant(variants: HfModelVariant[], availableRamBytes: number | null | undefined): HfModelVariant | null {
-  for (const name of WHISPER_PREFERENCE) {
+export function recommendWhisperVariant(variants: HfModelVariant[], availableRamBytes: number | null | undefined, cpu = false): HfModelVariant | null {
+  for (const name of cpu ? WHISPER_CPU_PREFERENCE : WHISPER_PREFERENCE) {
     const v = variants.find((x) => x.name.toLowerCase() === name);
     if (v && whisperFitsMemory(v.total_size_bytes, availableRamBytes) === true) return v;
   }
