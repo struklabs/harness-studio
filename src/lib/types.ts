@@ -569,7 +569,7 @@ export type ApiScope =
   | 'admin';
 
 /** Gateway route groups a token can be limited to (harness_core::token_policy). */
-export type GatewayEndpoint = 'chat' | 'embeddings' | 'rerank' | 'audio' | 'images' | 'models' | 'messages' | 'ollama' | 'metrics' | 'pipelines';
+export type GatewayEndpoint = 'chat' | 'embeddings' | 'rerank' | 'audio' | 'images' | 'videos' | 'models' | 'messages' | 'ollama' | 'metrics' | 'pipelines';
 
 /** A token's rate limits (`null` = unlimited). */
 export interface RateLimits {

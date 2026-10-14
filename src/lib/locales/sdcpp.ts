@@ -157,6 +157,7 @@ const tr = {
   'rt.sdcpp_desc': 'sd-server, difüzyon modellerinden görsel üretir (SD1.x, SDXL, SD3.5, FLUX, Qwen-Image; OpenAI uyumlu /v1/images/generations). Resmi sürümde Vulkan, CUDA, ROCm ve CPU yapıları vardır; kurulumda makinenize uygun olan seçilir.',
   'rt.sdcpp_fill': 'stable-diffusion.cpp Deposunu Doldur',
   'dev.endpoint_images': 'Görsel (görsel üretimi)',
+  'dev.endpoint_videos': 'Video (video üretim işleri)',
 
   // ---- Backend error keys ----
   'process.sdcpp_loopback_only': 'sd-server kendi kimlik doğrulaması olmadığı için yalnızca 127.0.0.1 / localhost\'ta dinler ({host}). Dışarıya gateway üzerinden açın.',
@@ -321,6 +322,7 @@ const en: Record<keyof typeof tr, string> = {
   'rt.sdcpp_desc': 'sd-server makes pictures from diffusion models (SD1.x, SDXL, SD3.5, FLUX, Qwen-Image; OpenAI-compatible /v1/images/generations). The official release has Vulkan, CUDA, ROCm and CPU builds; the one that suits this machine is chosen when installing.',
   'rt.sdcpp_fill': 'Fill in the stable-diffusion.cpp Repository',
   'dev.endpoint_images': 'Images (image generation)',
+  'dev.endpoint_videos': 'Videos (video generation jobs)',
 
   // ---- Backend error keys ----
   'process.sdcpp_loopback_only': 'sd-server has no authentication of its own, so it only listens on 127.0.0.1 / localhost ({host}). Expose it through the gateway.',
