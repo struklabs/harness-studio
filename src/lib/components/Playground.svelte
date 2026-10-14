@@ -55,7 +55,7 @@
   import PipelinePanel from './playground/PipelinePanel.svelte';
   import { ensureLibraryDefinitions, loadAndChat } from '$lib/stores/downloads.svelte';
   import { isChatLoadable } from '$lib/downloadFollowUp';
-  import { kindsForTab } from '$lib/libraryDefinitions';
+  import { kindsForTab, servedModelName } from '$lib/libraryDefinitions';
   import { loadAudio, AudioError, MAX_AUDIO_BYTES, MAX_AUDIO_PER_MESSAGE, type PgAudio } from './playground/audio';
   import TranscribePanel from './playground/TranscribePanel.svelte';
   import ImagePanel from './playground/ImagePanel.svelte';
@@ -789,7 +789,7 @@
   // model of `settings` is not what the Embedding / Rerank tabs talk to).
   let pickerLabel = $derived(
     app.activeServer?.serve_mode && app.activeServer.serve_mode !== 'chat' && app.activeServer.model_path
-      ? extractModelName(app.activeServer.model_path)
+      ? servedModelName(app.activeServer.model_path, domain.definitions)
       : undefined
   );
 

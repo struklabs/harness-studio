@@ -26,6 +26,7 @@
   import { isVisible, tabLevel } from '$lib/uiLevel';
   import UiLevelToggle from './common/UiLevelToggle.svelte';
   import { cn } from '$lib/utils';
+  import { servedModelName } from '$lib/libraryDefinitions';
   import { panes } from '$lib/stores/panes.svelte';
   import ResizablePane from './common/ResizablePane.svelte';
 
@@ -90,10 +91,9 @@
     go('dashboard');
   }
 
+  /** A GGUF by its file name, an ONNX export (`onnx/model_quantized.onnx`) by its repo folder. */
   function modelName(path: string | undefined): string {
-    if (!path) return '';
-    const file = path.split(/[\\/]/).pop() ?? path;
-    return file.replace(/\.gguf$/i, '');
+    return path ? servedModelName(path, []) : '';
   }
 
   const itemBase =

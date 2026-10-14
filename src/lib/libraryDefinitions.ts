@@ -78,3 +78,20 @@ export function playgroundTarget(
       return null;
   }
 }
+
+/**
+ * Name of the model a server runs, for the Playground's picker: the alias of the definition
+ * that points at `path`, else the file name. An ONNX export's file is named after its precision
+ * (`onnx/model_quantized.onnx`), so its repo folder names it instead.
+ */
+export function servedModelName(path: string, definitions: readonly ModelDefinition[]): string {
+  const want = norm(path);
+  const def = definitions.find((d) => d.base.kind === 'local' && norm(d.base.path) === want);
+  if (def) return def.alias;
+  const parts = path.split(/[/\\]/).filter(Boolean);
+  const file = parts[parts.length - 1] ?? path;
+  if (!/\.onnx$/i.test(file)) return file.replace(/\.gguf$/i, '');
+  const dirs = parts.slice(0, -1);
+  if (dirs.length > 0 && dirs[dirs.length - 1].toLowerCase() === 'onnx') dirs.pop();
+  return dirs[dirs.length - 1] ?? file;
+}
