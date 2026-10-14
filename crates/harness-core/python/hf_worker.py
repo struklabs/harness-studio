@@ -74,7 +74,8 @@ AUDIO_TASKS = {
     "text-to-speech",
     "text-to-audio",
 }
-DIFFUSERS_TASKS = {"text-to-image"}
+# image-to-image: a pipeline that starts from an image (InstructPix2Pix, an Img2Img or Edit class).
+DIFFUSERS_TASKS = {"text-to-image", "image-to-image"}
 TASKS = TEXT_TASKS | IMAGE_TASKS | AUDIO_TASKS | DIFFUSERS_TASKS
 
 # Largest request body (an image or a few minutes of audio fit easily).
@@ -191,7 +192,11 @@ class Model:
         return int(mp * 1_000_000)
 
     def variant(self, kind):
-        """The image-to-image (`img2img`) or inpainting (`inpaint`) pipeline of the loaded model."""
+        """The image-to-image (`img2img`) or inpainting (`inpaint`) pipeline of the loaded model. A
+        pipeline that takes a start image itself (InstructPix2Pix, Qwen-Image-Edit, FLUX.2 klein,
+        FLUX.1 Kontext...) is its own image-to-image pipeline."""
+        if kind == "img2img" and takes(self.pipe, "image"):
+            return self.pipe
         if kind not in self.variants:
             import diffusers
 
@@ -241,7 +246,7 @@ class Model:
                 dtype = self.dtype()
                 if dtype == "auto":
                     dtype = torch.float16 if self.device() == "cuda" else torch.float32
-                self.pipe = load_text_to_image(folder, dtype).to(self.device())
+                self.pipe = load_text_to_image(folder, dtype, task).to(self.device())
                 self.default_scheduler = self.pipe.scheduler
                 low = self.args.low_memory
                 if low == "on" or (low == "auto" and self.device() in ("cpu", "mps")):
@@ -317,17 +322,26 @@ def torch_loads_weights_only(version):
     return (major, minor) >= (2, 6)
 
 
-def load_text_to_image(folder, dtype):
-    """A diffusers text-to-image pipeline from its folder: safetensors only when no component has
-    a `.bin`; `.bin` weights only through `torch.load(weights_only=True)` (diffusers and
-    transformers pass it, and torch >= 2.6 defaults to it), never with an older torch."""
+def load_text_to_image(folder, dtype, task="text-to-image"):
+    """A diffusers pipeline from its folder: safetensors only when no component has a `.bin`;
+    `.bin` weights only through `torch.load(weights_only=True)` (diffusers and transformers pass
+    it, and torch >= 2.6 defaults to it), never with an older torch. An `image-to-image` folder is
+    loaded as the class `model_index.json` names, which must be one of diffusers' own."""
+    import diffusers
     import torch
-    from diffusers import AutoPipelineForText2Image
 
     pickles = pickle_weights(folder)
     if pickles and not torch_loads_weights_only(torch.__version__):
         raise UnsafeWeights(f"PyTorch .bin weights need torch 2.6 or later (found {torch.__version__})")
-    return AutoPipelineForText2Image.from_pretrained(
+    if task == "image-to-image":
+        with open(os.path.join(folder, "model_index.json"), encoding="utf-8") as f:
+            name = json.load(f).get("_class_name")
+        cls = getattr(diffusers, name, None) if isinstance(name, str) else None
+        if not (isinstance(cls, type) and issubclass(cls, diffusers.DiffusionPipeline)):
+            raise CustomCodeRefused(f"model_index.json names {name!r}, not a diffusers pipeline")
+    else:
+        cls = diffusers.AutoPipelineForText2Image
+    return cls.from_pretrained(
         folder,
         torch_dtype=dtype,
         local_files_only=True,
@@ -623,6 +637,8 @@ def run_hf(model: Model, body: dict, raw: bytes | None):
         if params.get("image") is not None:  # image-to-image / inpainting
             image, mask = params.pop("image"), params.pop("mask_image", None)
             img = edit_image(model, inputs, image, mask, params)[0]
+        elif task == "image-to-image":
+            raise BadRequest('this model starts from an image: "image" is required')
         else:
             img = text_to_image(model, inputs, params)[0]
         return {"image": png_b64(img)}
@@ -829,12 +845,26 @@ def edit_image(model: Model, prompt, image, mask, params):
     if params.get("strength") is not None:
         kw["strength"] = float(params["strength"])
     if mask is not None:
+        if model.args.task == "image-to-image":
+            raise BadRequest("this model edits a whole image: it takes no mask")
         pipe = model.variant("inpaint")
         kw.update(mask_image=to_mask(mask).resize((w, h)), width=w, height=h)
     else:
         pipe = model.variant("img2img")
+        # The output size of a pipeline that takes it (FLUX.2 klein, Qwen-Image-Edit); others
+        # follow the start image.
+        kw.update(width=w, height=h)
     use_sampler(model, pipe, params.get("sampler"), params.get("scheduler"))
+    # Only what this pipeline takes: InstructPix2Pix and the Edit pipelines have no `strength`.
+    kw = {k: v for k, v in kw.items() if takes(pipe, k)}
     return pipe(prompt=prompt, image=init, **kw).images
+
+
+def takes(pipe, name):
+    """Whether the pipeline's `__call__` has the argument `name`."""
+    import inspect
+
+    return name in inspect.signature(type(pipe).__call__).parameters
 
 
 # --- HTTP --------------------------------------------------------------------------------------
@@ -1048,7 +1078,7 @@ def build_app(model: Model):
         return JSONResponse({"created": int(time.time()), "data": [{"b64_json": png_b64(i)} for i in r]})
 
     async def edits(request: Request):
-        wrong = requires("text-to-image")
+        wrong = requires("text-to-image", "image-to-image")
         if wrong:
             return wrong
         body = await request.json()

@@ -30,14 +30,28 @@ export interface ImageResult {
   format: string;
 }
 
+/** Diffusers tasks of the Python engine that make pictures (image-to-image: InstructPix2Pix,
+ * Qwen-Image-Edit... start from an image). */
+export const DIFFUSERS_IMAGE_TASKS = ['text-to-image', 'image-to-image'];
+
+const norm = (v: string) => v.replace(/\\/g, '/').toLowerCase();
+const definitionPath = (d: ModelDefinition) => (d.base.kind === 'local' ? d.base.path : d.base.file);
+
 /** A definition that draws: stable-diffusion.cpp's (the file is a checkpoint, or the library says
- * image) or a diffusers text-to-image folder of the Python engine. */
+ * image) or a diffusers text-to-image / image-to-image folder of the Python engine. */
 export function isImageDefinition(d: ModelDefinition, files: LocalModel[] = []): boolean {
-  const path = d.base.kind === 'local' ? d.base.path : d.base.file;
+  const path = definitionPath(d);
   if (/\.(safetensors|ckpt)$/i.test(path)) return true;
-  const norm = (v: string) => v.replace(/\\/g, '/').toLowerCase();
-  const draws = (f: LocalModel) => f.kind === 'image' || (f.kind === 'pipeline' && f.task === 'text-to-image');
+  const draws = (f: LocalModel) => f.kind === 'image' || (f.kind === 'pipeline' && DIFFUSERS_IMAGE_TASKS.includes(f.task ?? ''));
   return files.some((f) => draws(f) && norm(f.path) === norm(path));
+}
+
+/** Whether the model `alias` only edits: a Python engine image-to-image pipeline needs a start image. */
+export function needsStartImage(alias: string, definitions: ModelDefinition[], files: LocalModel[] = []): boolean {
+  const d = definitions.find((x) => x.alias === alias);
+  if (!d) return false;
+  const path = norm(definitionPath(d));
+  return files.some((f) => f.kind === 'pipeline' && f.task === 'image-to-image' && norm(f.path) === path);
 }
 
 /** Keep the user's selection while it is still available. */

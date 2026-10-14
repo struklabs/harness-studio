@@ -25,6 +25,7 @@
     ImageOutOfMemory,
     imageModel,
     isImageDefinition,
+    needsStartImage,
     parseSize,
     pngSize,
     MAX_START_IMAGE_BYTES,
@@ -58,7 +59,11 @@
 
   let sizeError = $derived(form.size.trim() !== '' && !parseSize(form.size));
   let strengthError = $derived(!!form.init && !strengthOk(form.strength));
-  let canRun = $derived(!busy && app.gatewayRunning && !!form.model && form.prompt.trim() !== '' && !sizeError && !strengthError);
+  /** InstructPix2Pix, Qwen-Image-Edit...: they edit a start image and draw nothing from text alone. */
+  let editsOnly = $derived(needsStartImage(form.model, domain.definitions, library.models));
+  let canRun = $derived(
+    !busy && app.gatewayRunning && !!form.model && form.prompt.trim() !== '' && !sizeError && !strengthError && (!editsOnly || !!form.init),
+  );
   let fileInput = $state<HTMLInputElement | null>(null);
 
   async function pickStartImage(e: Event) {
@@ -231,7 +236,7 @@
       {:else}
         <div class="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" disabled={busy} onclick={() => fileInput?.click()}><ImagePlus />{t('img.init_pick')}</Button>
-          <span class="text-xs text-muted-foreground">{t('img.init_note')}</span>
+          <span class="text-xs text-muted-foreground">{t(editsOnly ? 'img.init_required' : 'img.init_note')}</span>
         </div>
       {/if}
     </div>
