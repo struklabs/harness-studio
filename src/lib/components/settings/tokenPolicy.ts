@@ -21,6 +21,7 @@ export const ENDPOINTS: { id: GatewayEndpoint; label: TKey }[] = [
   { id: 'rerank', label: 'dev.endpoint_rerank' },
   { id: 'audio', label: 'dev.endpoint_audio' },
   { id: 'images', label: 'dev.endpoint_images' },
+  { id: 'videos', label: 'dev.endpoint_videos' },
   { id: 'models', label: 'dev.endpoint_models' },
   { id: 'messages', label: 'dev.endpoint_messages' },
   { id: 'ollama', label: 'dev.endpoint_ollama' },

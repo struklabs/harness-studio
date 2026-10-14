@@ -118,7 +118,7 @@ pub fn parse_size(size: &str) -> Result<(u32, u32), GatewayError> {
     Ok((w, h))
 }
 
-fn number(v: &Value, key: &str) -> Result<Option<f64>, GatewayError> {
+pub(crate) fn number(v: &Value, key: &str) -> Result<Option<f64>, GatewayError> {
     match v.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(x) => x
@@ -128,7 +128,7 @@ fn number(v: &Value, key: &str) -> Result<Option<f64>, GatewayError> {
     }
 }
 
-fn text<'a>(v: &'a Value, key: &str) -> Result<Option<&'a str>, GatewayError> {
+pub(crate) fn text<'a>(v: &'a Value, key: &str) -> Result<Option<&'a str>, GatewayError> {
     match v.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(s)) => Ok(Some(s.trim()).filter(|s| !s.is_empty())),
