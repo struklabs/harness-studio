@@ -74,6 +74,30 @@ const STT_TYPES: &[&str] = &["whisper", "parakeet", "parakeet_tdt"];
 /// What the name of a Hub repo of a [`TTS_TYPES`] model contains (the listing has no config).
 const TTS_REPO_NAMES: &[&str] = &["qwen3-tts"];
 
+/// What the name of a Hub repo of a [`STT_TYPES`] model contains (a NeMo Parakeet repo has no
+/// `model_type` for its tags to list).
+const STT_REPO_NAMES: &[&str] = &["whisper", "parakeet"];
+
+/// Whether a Hub repo is a speech recognizer of a tested architecture: a [`STT_TYPES`] tag (the
+/// Hub lists the config's `model_type` among a repo's tags) or its name ([`STT_REPO_NAMES`]).
+/// The folder check after the download is [`is_stt_dir`].
+pub fn is_stt_repo(id: &str, tags: &[String]) -> bool {
+    let name = id.rsplit('/').next().unwrap_or(id).to_ascii_lowercase();
+    tags.iter()
+        .any(|t| STT_TYPES.contains(&t.to_ascii_lowercase().as_str()))
+        || STT_REPO_NAMES.iter().any(|n| name.contains(n))
+}
+
+/// Whether a Hub repo is one of mlx-audio's speech models by its tags (an [`AUDIO_TYPES`]
+/// `model_type`, or the `mlx-audio` library tag): never a chat model, whatever task it lacks
+/// (`mlx-community/Qwen3-ASR-0.6B-4bit` has none). The folder check is [`is_model_dir`]'s.
+pub fn is_audio_repo(tags: &[String]) -> bool {
+    tags.iter().any(|t| {
+        let t = t.to_ascii_lowercase();
+        t == "mlx-audio" || AUDIO_TYPES.contains(&t.as_str())
+    })
+}
+
 /// Whether a Hub repo id names a text-to-speech model of a tested architecture.
 pub fn is_tts_repo(id: &str) -> bool {
     let id = id.to_ascii_lowercase();
@@ -353,10 +377,34 @@ fn is_parakeet_config(cfg: &serde_json::Value) -> bool {
             .is_some_and(|t| t.starts_with("nemo.collections.asr.models.") && t.contains("EncDec"))
 }
 
+/// Files mlx-audio's Whisper needs next to its weights: the Hugging Face processor (feature
+/// extractor, and the tokenizer as `tokenizer.json` or `vocab.json`). mlx-examples' older
+/// conversions (`mlx-community/whisper-large-v3-turbo`: `weights.safetensors` and a short
+/// config) have none: they load, then fail at the first transcription ("Processor not found").
+pub fn has_whisper_processor(has: impl Fn(&str) -> bool) -> bool {
+    has("preprocessor_config.json") && (has("tokenizer.json") || has("vocab.json"))
+}
+
+/// Whether a Hub repo's root files are enough for mlx-audio: a Whisper repo
+/// ([`is_stt_repo`] by a `whisper` tag or name) needs [`has_whisper_processor`]. A listing
+/// without file names is taken as it is.
+pub fn stt_repo_files_ok(id: &str, tags: &[String], files: &[String]) -> bool {
+    let whisper = id
+        .rsplit('/')
+        .next()
+        .unwrap_or(id)
+        .to_ascii_lowercase()
+        .contains("whisper")
+        || tags.iter().any(|t| t.eq_ignore_ascii_case("whisper"));
+    let root = |name: &str| files.iter().any(|f| f == name);
+    files.is_empty() || !whisper || has_whisper_processor(root)
+}
+
 /// Whether `path` is a speech recognition folder the `mlx-audio` engine runs: a Whisper or
 /// Parakeet model in MLX's format (its card says `library_name: mlx` / `mlx-audio`, or its
-/// config has MLX's quantization), with `config.json` and safetensors weights. A transformers
-/// Whisper checkpoint (no MLX card) stays the Python engine's.
+/// config has MLX's quantization), with `config.json` and safetensors weights, and for Whisper
+/// its processor ([`has_whisper_processor`]). A transformers Whisper checkpoint (no MLX card)
+/// stays the Python engine's.
 pub fn is_stt_dir(path: &Path) -> bool {
     if !path.is_dir() || super::mistralrs::weight_files(path).is_empty() {
         return false;
@@ -364,10 +412,18 @@ pub fn is_stt_dir(path: &Path) -> bool {
     let Some(cfg) = read_json(&path.join("config.json")) else {
         return false;
     };
-    let arch = cfg
+    let model_type = cfg
         .get("model_type")
         .and_then(|t| t.as_str())
-        .is_some_and(|t| STT_TYPES.contains(&t.to_ascii_lowercase().as_str()))
+        .map(str::to_ascii_lowercase);
+    if model_type.as_deref() == Some("whisper")
+        && !has_whisper_processor(|name| path.join(name).is_file())
+    {
+        return false;
+    }
+    let arch = model_type
+        .as_deref()
+        .is_some_and(|t| STT_TYPES.contains(&t))
         || is_parakeet_config(&cfg);
     // mlx-audio's own conversions (whisper-large-v3-turbo-asr-fp16) have no `library_name`,
     // only the `mlx` tag.
@@ -1357,20 +1413,10 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             ("config.json", hf_whisper),
             ("model.safetensors", "x"),
             ("preprocessor_config.json", "{}"),
+            ("tokenizer.json", "{}"),
             (
                 "README.md",
                 "---\npipeline_tag: automatic-speech-recognition\nlibrary_name: mlx-audio\n---\n",
-            ),
-        ]);
-        let turbo = folder(&[
-            (
-                "config.json",
-                r#"{"n_mels":128,"n_audio_ctx":1500,"n_text_layer":4,"model_type":"whisper"}"#,
-            ),
-            ("weights.safetensors", "x"),
-            (
-                "README.md",
-                "---\nlibrary_name: mlx\npipeline_tag: automatic-speech-recognition\n---\n",
             ),
         ]);
         let parakeet = folder(&[
@@ -1386,12 +1432,21 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         let tagged = folder(&[
             ("config.json", hf_whisper),
             ("model.safetensors", "x"),
+            ("preprocessor_config.json", "{}"),
+            ("vocab.json", "{}"),
             (
                 "README.md",
-                "---\ntags:\n- mlx\n- speech-to-text\n- stt\n---\n# x\n",
+                "---
+tags:
+- mlx
+- speech-to-text
+- stt
+---
+# x
+",
             ),
         ]);
-        for dir in [&ported, &turbo, &parakeet, &tagged] {
+        for dir in [&ported, &parakeet, &tagged] {
             let path = dir.path();
             assert!(is_stt_dir(path), "{}", path.display());
             assert!(!is_tts_dir(path));
@@ -1411,12 +1466,31 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             );
         }
         assert_eq!(
-            to_local_model(turbo.path(), turbo.path())
+            to_local_model(ported.path(), ported.path())
                 .unwrap()
                 .architecture
                 .as_deref(),
             Some("whisper")
         );
+        // mlx-examples' older layout (`weights.safetensors`, a short config, no processor):
+        // mlx-audio loads it and fails at the first transcription, so it is not offered.
+        let turbo = folder(&[
+            (
+                "config.json",
+                r#"{"n_mels":128,"n_audio_ctx":1500,"n_text_layer":4,"model_type":"whisper"}"#,
+            ),
+            ("weights.safetensors", "x"),
+            (
+                "README.md",
+                "---\nlibrary_name: mlx\npipeline_tag: automatic-speech-recognition\n---\n",
+            ),
+        ]);
+        assert!(!is_stt_dir(turbo.path()));
+        assert!(!is_audio_dir(turbo.path()));
+        assert!(has_whisper_processor(
+            |n| n == "preprocessor_config.json" || n == "vocab.json"
+        ));
+        assert!(!has_whisper_processor(|n| n == "tokenizer.json"));
         assert_eq!(
             to_local_model(parakeet.path(), parakeet.path())
                 .unwrap()
@@ -1458,7 +1532,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
 
         // Launched for transcription; a custom line cannot change the task.
         let mut config = LaunchConfig {
-            model_path: turbo.path().to_path_buf(),
+            model_path: ported.path().to_path_buf(),
             host: "127.0.0.1".into(),
             port: 11453,
             ..Default::default()

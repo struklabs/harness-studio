@@ -12,7 +12,7 @@
   import { onnxUnsupportedText } from '#lib/engines.js';
   import { app } from '#lib/stores/app.svelte.js';
   import { downloads } from '#lib/stores/downloads.svelte.js';
-  import { library, normPath, repoRelative } from '#lib/stores/library.svelte.js';
+  import { isRepoFolder, library, normPath, repoRelative } from '#lib/stores/library.svelte.js';
   import type { HardwareFitResult, HfAccess, HfModelSearchResult, HfModelVariant, ImageBundlePlan, LocalModel, ModelArtifactUpdate, SystemHardwareInfo } from '#lib/types.js';
   import * as Sheet from '#lib/components/ui/sheet/index.js';
   import * as Table from '#lib/components/ui/table/index.js';
@@ -179,9 +179,11 @@
     }
     return map;
   });
+  /** The repo downloaded as a whole folder (MLX, Python engine): its one variant is that folder. */
+  let localFolder = $derived(repoId ? library.forRepo(repoId).find((m) => isRepoFolder(m, repoId)) : undefined);
   function localFor(v: HfModelVariant): LocalModel | undefined {
     const file = v.shards[0]?.filename;
-    return file ? localByFile.get(normPath(file).toLowerCase()) : undefined;
+    return (file ? localByFile.get(normPath(file).toLowerCase()) : undefined) ?? (variants.length === 1 ? localFolder : undefined);
   }
   /** Downloaded variants with a newer upstream version (checked lazily, once per opened repo). */
   let updateFlags = $state<Record<string, boolean>>({});

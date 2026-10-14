@@ -15,6 +15,12 @@ export function repoRelative(m: LocalModel, repoId: string): string | null {
   return i < 0 ? null : p.slice(i + marker.length);
 }
 
+/** Whether the model is a whole repo folder (`<library>/<owner>/<repo>`: an MLX or Python
+ *  model), which `repoRelative` does not see: there is no file path inside the repo. */
+export function isRepoFolder(m: LocalModel, repoId: string): boolean {
+  return normPath(m.path).replace(/\/+$/, '').endsWith(`/${repoId.toLowerCase()}`);
+}
+
 /**
  * Local model library as the Hub sees it, plus small cross-view signals:
  * `version` bumps when the library changed on disk (a download finished) so views that show
@@ -60,7 +66,7 @@ class LibraryState {
 
   /** Local models that were downloaded from `repoId` (they live in `<library>/<repoId>/`). */
   forRepo(repoId: string): LocalModel[] {
-    return this.models.filter((m) => repoRelative(m, repoId) !== null);
+    return this.models.filter((m) => repoRelative(m, repoId) !== null || isRepoFolder(m, repoId));
   }
 
   /** True when a starting/running server (not router mode) uses one of the model's files. */

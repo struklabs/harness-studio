@@ -476,6 +476,13 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
             task,
         )
     };
+    // An MLX speech recognition repo without a task (the card shows what was inferred).
+    let mlx_stt = crate::hub_compat::mlx_stt_task(&id, format, task, &tags);
+    if mlx_stt.is_some() {
+        analysis.inferred_task = mlx_stt;
+        analysis.source = Some(crate::hub_tasks::TaskSource::Tags);
+    }
+    let task = task.or(mlx_stt);
     let mut capabilities = crate::model_registry::hub_capabilities(task, format);
     let adapter = analysis.not_runnable == Some(crate::hub_tasks::NotRunnable::Adapter);
     // A diffusion LoRA adapter generates nothing on its own and no runtime loads it; an LLM
@@ -506,7 +513,7 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         // An MLX chat model runs on the MLX engine (Apple Silicon).
         crate::hub_compat::mistralrs_compatibility(format, task, &sibling_files(item))
             .or_else(|| {
-                crate::hub_compat::mlx_compatibility(&id, format, task, &sibling_files(item))
+                crate::hub_compat::mlx_compatibility(&id, format, task, &sibling_files(item), &tags)
             })
             .or_else(|| {
                 crate::hub_compat::python_hf_compatibility(
