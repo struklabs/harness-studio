@@ -231,6 +231,28 @@ fn main() {
                 }
                 return;
             }
+            if let Some(package) = harness_onnx::vision_pkg::VisionPackage::discover(&load.model) {
+                let result = engine::init_runtime(load.ort_lib.as_deref())
+                    .and_then(|()| harness_onnx::vision_engine::load(&load, package));
+                match result {
+                    Ok(engine) => {
+                        println!(
+                            "harness-onnx: vision model ready in {:.1} s: {}",
+                            started.elapsed().as_secs_f32(),
+                            engine.describe()
+                        );
+                        for note in &engine.package.notes {
+                            println!("harness-onnx:   {}", note);
+                        }
+                        loader.set_vision(engine);
+                    }
+                    Err(e) => {
+                        eprintln!("harness-onnx: error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
             let result =
                 engine::init_runtime(load.ort_lib.as_deref()).and_then(|()| engine::load(&load));
             match result {

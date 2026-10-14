@@ -8,6 +8,7 @@ use crate::api::{self, ApiError, EmbeddingsRequest, RerankRequest};
 use crate::chat::{self, ChatJob, ChatRequest};
 use crate::chat_engine::ChatEngine;
 use crate::engine::Engine;
+use crate::vision_engine::VisionEngine;
 use axum::extract::{DefaultBodyLimit, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
@@ -22,6 +23,7 @@ pub struct Shared {
     pub alias: String,
     engine: RwLock<Option<Arc<Engine>>>,
     chat: RwLock<Option<Arc<ChatEngine>>>,
+    vision: RwLock<Option<Arc<VisionEngine>>>,
     requests: AtomicU64,
 }
 
@@ -31,6 +33,7 @@ impl Shared {
             alias,
             engine: RwLock::new(None),
             chat: RwLock::new(None),
+            vision: RwLock::new(None),
             requests: AtomicU64::new(0),
         })
     }
@@ -43,6 +46,14 @@ impl Shared {
         *self.chat.write().unwrap() = Some(Arc::new(engine));
     }
 
+    pub fn set_vision(&self, engine: VisionEngine) {
+        *self.vision.write().unwrap() = Some(Arc::new(engine));
+    }
+
+    fn vision(&self) -> Option<Arc<VisionEngine>> {
+        self.vision.read().unwrap().clone()
+    }
+
     fn engine(&self) -> Option<Arc<Engine>> {
         self.engine.read().unwrap().clone()
     }
@@ -52,7 +63,7 @@ impl Shared {
     }
 
     fn ready(&self) -> bool {
-        self.engine().is_some() || self.chat().is_some()
+        self.engine().is_some() || self.chat().is_some() || self.vision().is_some()
     }
 }
 
@@ -135,9 +146,14 @@ async fn embeddings(
 /// `POST /hf`: the task heads in the Hugging Face Inference API shape ([`crate::hf_api`]).
 async fn hf(State(s): State<Arc<Shared>>, body: axum::body::Bytes) -> Result<Json<Value>, Failure> {
     use crate::hf_api::{self, HfJob};
-    let engine = s.engine().ok_or_else(|| not_an_encoder(&s))?;
     let request: Value = serde_json::from_slice(&body)
         .map_err(|e| Failure(ApiError::invalid(format!("invalid request body: {}", e))))?;
+    if let Some(vision) = s.vision() {
+        let job = crate::vision::parse(&request).map_err(Failure)?;
+        let answer = blocking(move || vision.handle(&job)).await?;
+        return Ok(Json(answer));
+    }
+    let engine = s.engine().ok_or_else(|| not_an_encoder(&s))?;
     let job = hf_api::parse(engine.package.task, &request).map_err(Failure)?;
     let answer = blocking(move || {
         Ok(match job {

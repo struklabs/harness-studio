@@ -1,0 +1,399 @@
+//! The repo of a Hugging Face ONNX vision model (transformers.js / Optimum exports):
+//!
+//! ```text
+//! <repo>/config.json               architectures, id2label
+//! <repo>/preprocessor_config.json  resize, crop, rescale, normalize
+//! <repo>/onnx/model.onnx           (or model_quantized.onnx, model_fp16.onnx...)
+//! ```
+//!
+//! What the image processor does before the graph and which head the graph has are read here;
+//! decoding and resizing the image happen in `vision` (feature `engine`). Pure.
+
+use crate::package::labels_from_config;
+use serde_json::Value;
+use std::path::{Path, PathBuf};
+
+/// The task of a vision head.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VisionTask {
+    /// `*ForImageClassification`: labels with scores.
+    Classify,
+    /// `*ForObjectDetection` (DETR, YOLOS, Conditional / Deformable DETR): boxes with labels.
+    Detect,
+    /// `*ForSemanticSegmentation` (SegFormer, BEiT, MobileViT, DPT...): a mask per label.
+    Segment,
+    /// `*ForDepthEstimation` (DPT, Depth Anything, GLPN, ZoeDepth): a depth map.
+    Depth,
+}
+
+impl VisionTask {
+    /// The Hugging Face pipeline task.
+    pub fn pipeline_task(self) -> &'static str {
+        match self {
+            VisionTask::Classify => "image-classification",
+            VisionTask::Detect => "object-detection",
+            VisionTask::Segment => "image-segmentation",
+            VisionTask::Depth => "depth-estimation",
+        }
+    }
+}
+
+/// Pixel filter of a resize (`resample` of the processor: PIL's numbering).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Resample {
+    Nearest,
+    Bilinear,
+    Bicubic,
+}
+
+impl Resample {
+    fn from_pil(n: Option<u64>) -> Self {
+        match n {
+            Some(0) => Resample::Nearest,
+            Some(3) | Some(1) => Resample::Bicubic,
+            _ => Resample::Bilinear,
+        }
+    }
+}
+
+/// The target size of the resize step.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Size {
+    /// An exact size.
+    Exact { width: u32, height: u32 },
+    /// The short edge becomes `short`, the long edge at most `long` (aspect kept).
+    ShortestEdge { short: u32, long: Option<u32> },
+    /// DPT / Depth Anything: scaled so that both edges are at least the target, keeping the
+    /// aspect ratio, then rounded to a multiple of `multiple`.
+    KeepAspect {
+        width: u32,
+        height: u32,
+        multiple: u32,
+    },
+    /// GLPN: both edges rounded down to a multiple of `divisor`.
+    Divisor(u32),
+}
+
+/// What the image processor does, in order: resize, center crop, rescale, normalize.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Preprocess {
+    pub resize: Option<Size>,
+    pub resample: Resample,
+    /// Center crop to this size after the resize.
+    pub crop: Option<(u32, u32)>,
+    /// Multiply 0..255 values by this (1/255 by default).
+    pub rescale: Option<f32>,
+    pub mean: [f32; 3],
+    pub std: [f32; 3],
+    pub normalize: bool,
+    /// The graph takes BGR (some ports of Caffe-era models).
+    pub bgr: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct VisionPackage {
+    pub onnx_path: PathBuf,
+    pub root: PathBuf,
+    pub task: VisionTask,
+    pub labels: Vec<String>,
+    /// Labels are independent (`problem_type: multi_label_classification`): sigmoid.
+    pub multi_label: bool,
+    pub preprocess: Preprocess,
+    /// Display name: the repo folder.
+    pub name: String,
+    pub notes: Vec<String>,
+}
+
+fn read_json(path: &Path) -> Option<Value> {
+    serde_json::from_slice(&std::fs::read(path).ok()?).ok()
+}
+
+/// The folder that holds `preprocessor_config.json` for a model file (the file's folder or
+/// its parent, as in `onnx/model.onnx`).
+pub fn find_root(onnx: &Path) -> Option<PathBuf> {
+    onnx.ancestors()
+        .skip(1)
+        .take(2)
+        .find(|d| d.join("preprocessor_config.json").is_file())
+        .map(Path::to_path_buf)
+}
+
+/// The vision head of a `config.json`, `None` for any other model.
+pub fn task_from_config(config: &Value) -> Option<VisionTask> {
+    let heads: Vec<&str> = config
+        .get("architectures")
+        .and_then(Value::as_array)
+        .map(|a| a.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    let has = |suffix: &str| heads.iter().any(|n| n.ends_with(suffix));
+    if has("ForImageClassification") || has("ForImageClassificationWithTeacher") {
+        Some(VisionTask::Classify)
+    } else if has("ForObjectDetection") {
+        Some(VisionTask::Detect)
+    } else if has("ForSemanticSegmentation") {
+        Some(VisionTask::Segment)
+    } else if has("ForDepthEstimation") {
+        Some(VisionTask::Depth)
+    } else {
+        None
+    }
+}
+
+fn u32_of(v: Option<&Value>) -> Option<u32> {
+    v.and_then(Value::as_u64)
+        .and_then(|n| u32::try_from(n).ok())
+        .filter(|n| *n > 0)
+}
+
+/// `size` / `crop_size`: a number, `{height, width}`, `{shortest_edge[, longest_edge]}`.
+fn size_of(v: Option<&Value>) -> Option<Size> {
+    let v = v?;
+    if let Some(n) = u32_of(Some(v)) {
+        return Some(Size::Exact {
+            width: n,
+            height: n,
+        });
+    }
+    if let (Some(h), Some(w)) = (u32_of(v.get("height")), u32_of(v.get("width"))) {
+        return Some(Size::Exact {
+            width: w,
+            height: h,
+        });
+    }
+    u32_of(v.get("shortest_edge")).map(|short| Size::ShortestEdge {
+        short,
+        long: u32_of(v.get("longest_edge")),
+    })
+}
+
+fn triple(v: Option<&Value>, default: [f32; 3]) -> [f32; 3] {
+    match v {
+        Some(Value::Array(a)) if a.len() == 3 => {
+            let mut out = default;
+            for (o, x) in out.iter_mut().zip(a) {
+                if let Some(f) = x.as_f64() {
+                    *o = f as f32;
+                }
+            }
+            out
+        }
+        Some(x) => x.as_f64().map(|f| [f as f32; 3]).unwrap_or(default),
+        None => default,
+    }
+}
+
+/// The preprocessing of a `preprocessor_config.json` (defaults of transformers' image
+/// processors where a field is missing).
+pub fn parse_preprocess(v: &Value) -> Preprocess {
+    let flag = |k: &str, default: bool| v.get(k).and_then(Value::as_bool).unwrap_or(default);
+    let resize = if !flag("do_resize", true) {
+        None
+    } else if flag("keep_aspect_ratio", false) {
+        match size_of(v.get("size")) {
+            Some(Size::Exact { width, height }) => Some(Size::KeepAspect {
+                width,
+                height,
+                multiple: u32_of(v.get("ensure_multiple_of")).unwrap_or(1),
+            }),
+            other => other,
+        }
+    } else if let Some(d) = u32_of(v.get("size_divisor")).filter(|_| v.get("size").is_none()) {
+        Some(Size::Divisor(d))
+    } else {
+        size_of(v.get("size"))
+    };
+    let crop = if flag("do_center_crop", false) {
+        match size_of(v.get("crop_size")) {
+            Some(Size::Exact { width, height }) => Some((width, height)),
+            Some(Size::ShortestEdge { short, .. }) => Some((short, short)),
+            _ => None,
+        }
+    } else {
+        None
+    };
+    let rescale = flag("do_rescale", true).then(|| {
+        v.get("rescale_factor")
+            .and_then(Value::as_f64)
+            .map(|f| f as f32)
+            .unwrap_or(1.0 / 255.0)
+    });
+    Preprocess {
+        resize,
+        resample: Resample::from_pil(v.get("resample").and_then(Value::as_u64)),
+        crop,
+        rescale,
+        mean: triple(v.get("image_mean"), [0.5; 3]),
+        std: triple(v.get("image_std"), [0.5; 3]),
+        normalize: flag("do_normalize", true),
+        bgr: flag("do_flip_channel_order", false),
+    }
+}
+
+impl VisionPackage {
+    /// Reads the repo around `onnx_path`; `None` when it is not a vision model this engine
+    /// serves.
+    pub fn discover(onnx_path: &Path) -> Option<Self> {
+        if !onnx_path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("onnx"))
+        {
+            return None;
+        }
+        let root = find_root(onnx_path)?;
+        let config = read_json(&root.join("config.json"))?;
+        let task = task_from_config(&config)?;
+        let processor = read_json(&root.join("preprocessor_config.json"))?;
+        let preprocess = parse_preprocess(&processor);
+        let mut notes = vec![format!(
+            "task {} (config.json architectures)",
+            task.pipeline_task()
+        )];
+        notes.push(format!(
+            "resize {:?} ({:?}), crop {:?}, rescale {:?}, normalize {} mean {:?} std {:?}",
+            preprocess.resize,
+            preprocess.resample,
+            preprocess.crop,
+            preprocess.rescale,
+            preprocess.normalize,
+            preprocess.mean,
+            preprocess.std
+        ));
+        let name = root
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "onnx-model".to_string());
+        Some(VisionPackage {
+            onnx_path: onnx_path.to_path_buf(),
+            root,
+            task,
+            labels: labels_from_config(&config),
+            multi_label: config.get("problem_type").and_then(Value::as_str)
+                == Some("multi_label_classification"),
+            preprocess,
+            name,
+            notes,
+        })
+    }
+}
+
+/// The pipeline task of a model file for the library: a text task of an encoder package or a
+/// vision task, `None` for embedders, rerankers and any other graph.
+pub fn pipeline_task_of(onnx_path: &Path) -> Option<&'static str> {
+    if let Ok(p) = crate::package::ModelPackage::discover(onnx_path) {
+        return p.pipeline_task();
+    }
+    VisionPackage::discover(onnx_path).map(|p| p.task.pipeline_task())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::fs;
+
+    #[test]
+    fn heads_map_to_tasks() {
+        let t = |a: &str| task_from_config(&json!({"architectures": [a]}));
+        assert_eq!(t("ViTForImageClassification"), Some(VisionTask::Classify));
+        assert_eq!(
+            t("DeiTForImageClassificationWithTeacher"),
+            Some(VisionTask::Classify)
+        );
+        assert_eq!(t("DetrForObjectDetection"), Some(VisionTask::Detect));
+        assert_eq!(
+            t("SegformerForSemanticSegmentation"),
+            Some(VisionTask::Segment)
+        );
+        assert_eq!(
+            t("DepthAnythingForDepthEstimation"),
+            Some(VisionTask::Depth)
+        );
+        assert_eq!(t("WhisperForConditionalGeneration"), None);
+        assert_eq!(task_from_config(&json!({})), None);
+    }
+
+    #[test]
+    fn processors_of_common_models() {
+        // google/vit-base-patch16-224
+        let vit = parse_preprocess(&json!({
+            "do_normalize": true, "do_resize": true, "image_mean": [0.5, 0.5, 0.5],
+            "image_std": [0.5, 0.5, 0.5], "resample": 2, "size": 224
+        }));
+        assert_eq!(
+            vit.resize,
+            Some(Size::Exact {
+                width: 224,
+                height: 224
+            })
+        );
+        assert_eq!(vit.resample, Resample::Bilinear);
+        assert_eq!(vit.rescale, Some(1.0 / 255.0));
+        // facebook/detr-resnet-50
+        let detr = parse_preprocess(&json!({
+            "do_normalize": true, "do_resize": true, "image_mean": [0.485, 0.456, 0.406],
+            "image_std": [0.229, 0.224, 0.225], "size": {"shortest_edge": 800, "longest_edge": 1333}
+        }));
+        assert_eq!(
+            detr.resize,
+            Some(Size::ShortestEdge {
+                short: 800,
+                long: Some(1333)
+            })
+        );
+        assert_eq!(detr.mean, [0.485, 0.456, 0.406]);
+        // LiheYoung/depth-anything-small-hf
+        let da = parse_preprocess(&json!({
+            "do_resize": true, "keep_aspect_ratio": true, "ensure_multiple_of": 14,
+            "resample": 3, "size": {"height": 518, "width": 518}, "do_rescale": true,
+            "rescale_factor": 0.00392156862745098, "image_mean": [0.485, 0.456, 0.406],
+            "image_std": [0.229, 0.224, 0.225]
+        }));
+        assert_eq!(
+            da.resize,
+            Some(Size::KeepAspect {
+                width: 518,
+                height: 518,
+                multiple: 14
+            })
+        );
+        assert_eq!(da.resample, Resample::Bicubic);
+        // ConvNeXt-style crop
+        let crop = parse_preprocess(&json!({
+            "size": {"shortest_edge": 256}, "do_center_crop": true, "crop_size": {"height": 224, "width": 224},
+            "do_rescale": false
+        }));
+        assert_eq!(crop.crop, Some((224, 224)));
+        assert_eq!(crop.rescale, None);
+        // GLPN
+        let glpn = parse_preprocess(&json!({"do_resize": true, "size_divisor": 32}));
+        assert_eq!(glpn.resize, Some(Size::Divisor(32)));
+    }
+
+    #[test]
+    fn discovers_a_transformers_js_repo() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("Xenova").join("vit-base-patch16-224");
+        fs::create_dir_all(repo.join("onnx")).unwrap();
+        fs::write(
+            repo.join("config.json"),
+            json!({"architectures": ["ViTForImageClassification"], "id2label": {"0": "tench", "1": "goldfish"}})
+                .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            repo.join("preprocessor_config.json"),
+            json!({"size": 224}).to_string(),
+        )
+        .unwrap();
+        let model = repo.join("onnx").join("model_quantized.onnx");
+        fs::write(&model, b"onnx").unwrap();
+        let p = VisionPackage::discover(&model).unwrap();
+        assert_eq!(p.task, VisionTask::Classify);
+        assert_eq!(p.labels, vec!["tench", "goldfish"]);
+        assert_eq!(p.name, "vit-base-patch16-224");
+        assert_eq!(pipeline_task_of(&model), Some("image-classification"));
+        // Without a processor config it is not a vision package.
+        fs::remove_file(repo.join("preprocessor_config.json")).unwrap();
+        assert!(VisionPackage::discover(&model).is_none());
+    }
+}

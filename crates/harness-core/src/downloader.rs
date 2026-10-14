@@ -3151,9 +3151,11 @@ fn is_model_file_name(path: &str) -> bool {
 /// Small files of an ONNX encoder repo that the engine reads next to the graph: the tokenizer
 /// and the Hugging Face / sentence-transformers configs (`1_Pooling/config.json`...). Weights
 /// of modules the engine cannot run (`2_Dense`) are not among them.
-const ONNX_COMPANIONS: [&str; 6] = [
+const ONNX_COMPANIONS: [&str; 7] = [
     "tokenizer.json",
     "config.json",
+    // Vision models: resize, crop and normalization of the image processor.
+    "preprocessor_config.json",
     "tokenizer_config.json",
     "sentence_bert_config.json",
     "modules.json",
@@ -3227,7 +3229,12 @@ fn onnx_variants(
             Some(F { path, size, sha256 })
         })
         .collect();
-    if !files.iter().any(|f| f.path == "tokenizer.json") {
+    // An encoder reads its tokenizer, a vision model its image processor; a bare graph
+    // (or one for another runtime) has neither.
+    if !files
+        .iter()
+        .any(|f| f.path == "tokenizer.json" || f.path == "preprocessor_config.json")
+    {
         return Ok(Vec::new());
     }
     let shard = |f: &F, index: u32, total: u32| -> Result<HfShardInfo, String> {
@@ -5653,10 +5660,23 @@ mod tests {
     #[test]
     fn onnx_repo_without_tokenizer_or_with_external_weights() {
         let file = |path: &str| serde_json::json!({"type": "file", "path": path, "size": 10});
-        // A vision graph: no tokenizer, no variants.
+        // A bare graph: no tokenizer and no image processor, no variants.
         assert!(onnx_variants("acme/resnet", &[file("model.onnx")])
             .unwrap()
             .is_empty());
+        // A transformers.js vision repo: the graph with its configs.
+        let v = onnx_variants(
+            "Xenova/vit-base-patch16-224",
+            &[
+                file("config.json"),
+                file("preprocessor_config.json"),
+                file("onnx/model_quantized.onnx"),
+            ],
+        )
+        .unwrap();
+        assert_eq!(v.len(), 1);
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert!(names.contains(&"preprocessor_config.json"));
         // Big models keep weights in a sibling file; it travels with the graph.
         let v = onnx_variants(
             "acme/big-embedder",

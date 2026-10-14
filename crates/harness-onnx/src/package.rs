@@ -556,11 +556,52 @@ pub fn library_task(onnx_path: &Path) -> Option<Task> {
     ModelPackage::discover(onnx_path).ok().map(|p| p.task)
 }
 
+/// Whether the graph uses the `op` operator. Operator types are plain strings in the protobuf,
+/// so the file is scanned for the name in chunks (no ONNX parser, no full read into memory).
+pub fn graph_uses_op(onnx_path: &Path, op: &str) -> bool {
+    use std::io::Read;
+    let needle = op.as_bytes();
+    let Ok(mut file) = std::fs::File::open(onnx_path) else {
+        return false;
+    };
+    let mut buf = vec![0u8; (1 << 20) + needle.len()];
+    // Bytes carried over from the previous chunk, so a name split across two reads is found.
+    let mut kept = 0;
+    loop {
+        let n = match file.read(&mut buf[kept..]) {
+            Ok(0) | Err(_) => return false,
+            Ok(n) => n,
+        };
+        let filled = kept + n;
+        if buf[..filled].windows(needle.len()).any(|w| w == needle) {
+            return true;
+        }
+        kept = (needle.len() - 1).min(filled);
+        buf.copy_within(filled - kept..filled, 0);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
     use std::fs;
+
+    #[test]
+    fn finds_an_operator_name_split_across_reads() {
+        let dir = std::env::temp_dir().join(format!("hs-onnx-op-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("model.onnx");
+        // The name straddles the 1 MiB read boundary.
+        let mut bytes = vec![0u8; (1 << 20) - 4];
+        bytes.extend_from_slice(b"ConvInteger");
+        bytes.extend_from_slice(&[0u8; 64]);
+        fs::write(&path, &bytes).unwrap();
+        assert!(graph_uses_op(&path, "ConvInteger"));
+        assert!(!graph_uses_op(&path, "MatMulInteger"));
+        assert!(!graph_uses_op(&dir.join("missing.onnx"), "ConvInteger"));
+        fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn alias_comes_from_the_repo_folder() {
