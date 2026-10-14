@@ -91,6 +91,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - ONNX engine on NVIDIA (Windows): when the CUDA provider cannot be created or the model cannot be loaded on it (a missing or broken cuDNN, an unsupported GPU), the server no longer falls back to the CPU silently. harness-onnx exits with code 86 and Harness restarts the model once on DirectML, saying so in the server log.
 - Header: at a 1280 px wide window the generation speed badge (t/s) was drawn under the Stop button. The hardware label now gives way first.
 - Başlık: 1280 px genişliğindeki pencerede üretim hızı rozeti (t/s) Durdur düğmesinin altına çiziliyordu. Artık önce donanım etiketi daralıyor.
+- Linux: drop-down lists were drawn as GTK's light grey buttons, ignoring the theme. They now take the theme's background and border with a matching arrow.
+- Linux: açılır listeler temayı yok sayıp GTK'nin açık gri düğmesiyle çiziliyordu. Artık temanın arka planını ve kenarlığını, uyumlu bir okla kullanıyor.
 - Model Hub: each card's help button (?) sits inside the card's top-right corner instead of beside it, so the grid columns stay aligned.
 - Python engine: a model that fails to load stops its worker at once with the reason, instead of waiting for the 300 s load timeout. SpeechT5 and FastSpeech2 are no longer offered for text-to-speech (their pipeline downloads a vocoder at load, which the offline worker cannot), and root SentencePiece files such as `spm_char.model` are downloaded.
 - Library: CrispASR and audio.cpp speech models show their real engine; audio.cpp processing models show their audio task.
