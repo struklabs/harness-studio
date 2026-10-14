@@ -357,7 +357,9 @@ pub fn variant_quant(file: &str) -> String {
         || ["ae.", "vae", "clip_", "t5xxl", "umt5", "text_encoder"]
             .iter()
             .any(|w| name.starts_with(w))
-        || name.contains("lora")
+        || name
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .any(|token| token == "lora")
     {
         return "component".to_string();
     }
@@ -714,6 +716,11 @@ mod tests {
             variant_quant("sd_xl_offset_example-lora_1.0.safetensors"),
             "component"
         );
+        assert_eq!(
+            variant_quant("pytorch_lora_weights.safetensors"),
+            "component"
+        );
+        assert_eq!(variant_quant("flora-xl-fp16.safetensors"), "FP16");
         assert_eq!(variant_quant("t5xxl_fp8_e4m3fn.safetensors"), "component");
         assert_eq!(
             variant_quant("text_encoders/clip_g.safetensors"),
