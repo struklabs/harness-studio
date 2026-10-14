@@ -13,7 +13,8 @@ export function definitionMode(def: ModelDefinition, files: LocalModel[] = []): 
   const path = def.base.kind === 'local' ? def.base.path : def.base.file;
   const file = definitionFile(def, files);
   if (def.load?.task === 'asr_ctc' || file?.kind === 'asr' || /\.bin$/i.test(path)) return 'transcription';
-  if (file?.kind === 'pipeline') return 'pipeline';
+  // A diffusers folder of the Python engine draws through the Image tab like sd.cpp's files.
+  if (file?.kind === 'pipeline') return file.task === 'text-to-image' ? 'image' : 'pipeline';
   if (file?.kind === 'image' || /\.(safetensors|ckpt)$/i.test(path)) return 'image';
   const mode = def.load?.serve_mode;
   if (file?.kind === 'reranker' || mode === 'rerank' || def.load?.rerank === true) return 'rerank';

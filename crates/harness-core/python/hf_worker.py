@@ -16,6 +16,7 @@ Endpoints
   POST /v1/audio/transcriptions    automatic-speech-recognition (multipart "file", OpenAI shape)
   POST /v1/audio/speech            text-to-speech / text-to-audio ({"input": ...} -> audio/wav)
   POST /v1/images/generations      text-to-image (diffusers; OpenAI shape, b64_json)
+  POST /v1/images/edits            image-to-image, or inpainting with a mask, on the same pipeline
 
 Errors use the OpenAI shape {"error": {"message", "type", "code"}}. Every route but /health needs
 "Authorization: Bearer <HARNESS_WORKER_API_KEY>"; the worker refuses to start without that key.
@@ -84,6 +85,10 @@ PARAM_LIMITS = {
     "width": 2048,
     "height": 2048,
     "num_inference_steps": 100,
+    "steps": 100,
+    "guidance_scale": 100,
+    "cfg_scale": 100,
+    "strength": 1,
     "num_images_per_prompt": 4,
     "n": 4,
     "max_new_tokens": 2048,
@@ -143,6 +148,11 @@ def parse_args(argv=None):
     p.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     p.add_argument("--dtype", default="auto", choices=["auto", "float32", "float16", "bfloat16"])
     p.add_argument("--threads", type=int, default=0)
+    # Diffusers: the most output pixels one request may ask for (width x height x images, in
+    # megapixels; 0 = 1 on the CPU, 4 on a GPU) and memory-saving attention / VAE (auto = on the
+    # CPU and Apple's GPU).
+    p.add_argument("--max-megapixels", type=float, default=0)
+    p.add_argument("--low-memory", default="auto", choices=["auto", "on", "off"])
     args = p.parse_args(argv)
     if args.uds is None:
         if not ipaddress.ip_address(args.host).is_loopback:
@@ -169,6 +179,31 @@ class Model:
         self.st = None  # sentence-transformers model (embeddings / rerank), when the folder is one
         self.lock = threading.Lock()  # pipelines are not thread-safe: one request at a time
         self.loaded_at = None
+        # Diffusers: the folder's own scheduler, the samplers built from it and the image-to-image
+        # / inpainting pipelines made from the loaded one (same components, no extra memory).
+        self.default_scheduler = None
+        self.schedulers = {}
+        self.variants = {}
+
+    def max_pixels(self):
+        mp = self.args.max_megapixels or (1.0 if self.device() == "cpu" else 4.0)
+        return int(mp * 1_000_000)
+
+    def variant(self, kind):
+        """The image-to-image (`img2img`) or inpainting (`inpaint`) pipeline of the loaded model."""
+        if kind not in self.variants:
+            import diffusers
+
+            cls = {
+                "img2img": diffusers.AutoPipelineForImage2Image,
+                "inpaint": diffusers.AutoPipelineForInpainting,
+            }[kind]
+            try:
+                self.variants[kind] = cls.from_pipe(self.pipe)
+            except Exception as e:
+                what = "image-to-image" if kind == "img2img" else "inpainting"
+                raise BadRequest(f"this model has no {what} pipeline ({type(self.pipe).__name__}): {e}")
+        return self.variants[kind]
 
     def device(self):
         import torch
@@ -215,6 +250,17 @@ class Model:
                     use_safetensors=None,
                     trust_remote_code=False,
                 ).to(self.device())
+                self.default_scheduler = self.pipe.scheduler
+                low = self.args.low_memory
+                if low == "on" or (low == "auto" and self.device() in ("cpu", "mps")):
+                    # Attention in slices and the VAE a tile / an image at a time: a lower peak
+                    # for a little time (the outputs stay the same up to the VAE's tile size).
+                    self.pipe.enable_attention_slicing()
+                    vae = getattr(self.pipe, "vae", None)
+                    if vae is not None and hasattr(vae, "enable_slicing"):
+                        vae.enable_slicing()
+                    if vae is not None and hasattr(vae, "enable_tiling"):
+                        vae.enable_tiling()
             elif task == "text-ranking" or (
                 task in ("feature-extraction", "sentence-similarity")
                 and (
@@ -521,7 +567,11 @@ def run_hf(model: Model, body: dict, raw: bytes | None):
         raise BadRequest('"inputs" is required')
 
     if task in DIFFUSERS_TASKS:
-        img = text_to_image(model, inputs, params)[0]
+        if params.get("image") is not None:  # image-to-image / inpainting
+            image, mask = params.pop("image"), params.pop("mask_image", None)
+            img = edit_image(model, inputs, image, mask, params)[0]
+        else:
+            img = text_to_image(model, inputs, params)[0]
         return {"image": png_b64(img)}
     if task in ("feature-extraction", "sentence-similarity") and model.st is not None:
         if task == "sentence-similarity":
@@ -596,26 +646,142 @@ def run_hf(model: Model, body: dict, raw: bytes | None):
     return jsonable(pipe(inputs, **params))
 
 
-def text_to_image(model: Model, prompt, params):
+# Samplers a diffusers request may pick (`sampler`), named like stable-diffusion.cpp's where they
+# match: the diffusers scheduler class and its settings. `scheduler: karras` uses Karras sigmas
+# with the samplers that have them; without `sampler` the folder's own scheduler runs.
+SAMPLERS = {
+    "euler": ("EulerDiscreteScheduler", {}),
+    "euler_a": ("EulerAncestralDiscreteScheduler", {}),
+    "heun": ("HeunDiscreteScheduler", {}),
+    "dpm2": ("KDPM2DiscreteScheduler", {}),
+    "dpm++2m": ("DPMSolverMultistepScheduler", {"algorithm_type": "dpmsolver++"}),
+    "ddim": ("DDIMScheduler", {}),
+    "pndm": ("PNDMScheduler", {}),
+    "lms": ("LMSDiscreteScheduler", {}),
+    "unipc": ("UniPCMultistepScheduler", {}),
+    "lcm": ("LCMScheduler", {}),
+}
+SCHEDULES = ("default", "discrete", "karras")
+
+
+def use_sampler(model: Model, pipe, sampler, schedule):
+    """Puts the requested sampler (or the folder's own scheduler) on `pipe`."""
+    base = model.default_scheduler
+    if schedule not in (None, *SCHEDULES):
+        raise BadRequest(f"scheduler {schedule!r} is not one of {', '.join(SCHEDULES)}")
+    if sampler is None and schedule in (None, "default", "discrete"):
+        pipe.scheduler = base
+        return
+    if sampler is not None and sampler not in SAMPLERS:
+        raise BadRequest(f"sampler {sampler!r} is not one of {', '.join(SAMPLERS)}")
+    import inspect
+
+    import diffusers
+
+    name, extra = SAMPLERS[sampler] if sampler else (type(base).__name__, {})
+    cls = getattr(diffusers, name)
+    extra = dict(extra)
+    if schedule == "karras":
+        if "use_karras_sigmas" not in inspect.signature(cls.__init__).parameters:
+            raise BadRequest(f"the {sampler or name} sampler has no karras schedule")
+        extra["use_karras_sigmas"] = True
+    key = (name, tuple(sorted(extra.items())))
+    if key not in model.schedulers:
+        model.schedulers[key] = cls.from_config(base.config, **extra)
+    pipe.scheduler = model.schedulers[key]
+
+
+def diffusion_kwargs(model: Model, params, width=None, height=None):
+    """The pipeline arguments of a request (OpenAI-route names and diffusers' own), with the size
+    checked against the model's pixel limit."""
     import torch
 
+    def pick(*names):
+        for n in names:
+            if params.get(n) is not None:
+                return params[n]
+        return None
+
     kw = {}
-    for src, dst in (
-        ("negative_prompt", "negative_prompt"),
-        ("num_inference_steps", "num_inference_steps"),
-        ("guidance_scale", "guidance_scale"),
-        ("width", "width"),
-        ("height", "height"),
-        ("num_images_per_prompt", "num_images_per_prompt"),
+    for dst, names in (
+        ("negative_prompt", ("negative_prompt",)),
+        ("num_inference_steps", ("num_inference_steps", "steps")),
+        ("guidance_scale", ("guidance_scale", "cfg_scale")),
+        ("num_images_per_prompt", ("num_images_per_prompt", "n")),
     ):
-        if params.get(src) is not None:
-            kw[dst] = params[src]
-    for side in ("width", "height"):
-        if side in kw and int(kw[side]) % 8:
-            raise BadRequest(f"{side} must be a multiple of 8")
-    if params.get("seed") is not None:
+        v = pick(*names)
+        if v is not None:
+            kw[dst] = v
+    if "num_inference_steps" in kw:
+        kw["num_inference_steps"] = int(kw["num_inference_steps"])
+        if kw["num_inference_steps"] < 1:
+            raise BadRequest("steps must be at least 1")
+    width = pick("width") or width
+    height = pick("height") or height
+    for side, v in (("width", width), ("height", height)):
+        if v is not None:
+            if int(v) % 8 or int(v) < 64:
+                raise BadRequest(f"{side} must be a multiple of 8, at least 64")
+            kw[side] = int(v)
+    if params.get("seed") is not None and int(params["seed"]) >= 0:
         kw["generator"] = torch.Generator(device="cpu").manual_seed(int(params["seed"]))
+    # Without a size the pipeline uses the model's own (its sample size x the VAE's scale).
+    unet = getattr(model.pipe, "unet", None) or getattr(model.pipe, "transformer", None)
+    native = int(getattr(getattr(unet, "config", None), "sample_size", 64) or 64) * int(
+        getattr(model.pipe, "vae_scale_factor", 8) or 8
+    )
+    pixels = kw.get("width", native) * kw.get("height", native) * int(kw.get("num_images_per_prompt", 1))
+    if pixels > model.max_pixels():
+        raise BadRequest(
+            f"the request asks for {pixels / 1e6:.2f} megapixels (width x height x images); this "
+            f"model allows {model.max_pixels() / 1e6:g} (the Largest image setting)"
+        )
+    return kw
+
+
+def text_to_image(model: Model, prompt, params):
+    kw = diffusion_kwargs(model, params)
+    use_sampler(model, model.pipe, params.get("sampler"), params.get("scheduler"))
     return model.pipe(prompt=prompt, **kw).images
+
+
+def to_mask(value):
+    """An inpainting mask, white = repaint. OpenAI's masks (transparent = edit) are turned around;
+    an opaque mask is read as grayscale."""
+    from PIL import Image
+
+    data = value if isinstance(value, (bytes, bytearray)) else decode_bytes(value)
+    try:
+        img = Image.open(io.BytesIO(data))
+        img.load()
+    except Exception as e:
+        raise BadRequest(f"mask is not an image: {e}")
+    if "A" in img.getbands():
+        alpha = img.getchannel("A")
+        if alpha.getextrema()[0] < 255:
+            return alpha.point(lambda a: 255 if a < 128 else 0)
+    return img.convert("L")
+
+
+def edit_image(model: Model, prompt, image, mask, params):
+    """Image-to-image (no mask) or inpainting (white = repaint) from `image`; without a size the
+    image's own (rounded down to a multiple of 8) is used."""
+    init = to_image(image[0] if isinstance(image, list) and image else image)
+    w = int(params.get("width") or init.width - init.width % 8)
+    h = int(params.get("height") or init.height - init.height % 8)
+    kw = diffusion_kwargs(model, params, w, h)
+    w, h = kw.pop("width"), kw.pop("height")
+    if init.size != (w, h):
+        init = init.resize((w, h))
+    if params.get("strength") is not None:
+        kw["strength"] = float(params["strength"])
+    if mask is not None:
+        pipe = model.variant("inpaint")
+        kw.update(mask_image=to_mask(mask).resize((w, h)), width=w, height=h)
+    else:
+        pipe = model.variant("img2img")
+    use_sampler(model, pipe, params.get("sampler"), params.get("scheduler"))
+    return pipe(prompt=prompt, image=init, **kw).images
 
 
 # --- HTTP --------------------------------------------------------------------------------------
@@ -794,6 +960,23 @@ def build_app(model: Model):
             return r
         return Response(wav_bytes(r["audio"], r["sampling_rate"]), media_type="audio/wav")
 
+    # The fields both image routes read (OpenAI's plus Harness's extras, as the gateway sends them).
+    IMAGE_FIELDS = (
+        "negative_prompt", "num_inference_steps", "steps", "guidance_scale", "cfg_scale", "seed",
+        "sampler", "scheduler",
+    )
+
+    def image_params(body):
+        params = {k: body.get(k) for k in IMAGE_FIELDS}
+        if isinstance(body.get("size"), str) and "x" in body["size"].lower():
+            w, h = body["size"].lower().split("x", 1)
+            try:
+                params["width"], params["height"] = int(w), int(h)
+            except ValueError:
+                raise BadRequest('"size" must be WIDTHxHEIGHT')
+        params["num_images_per_prompt"] = body.get("n") or 1
+        return check_params({k: v for k, v in params.items() if v is not None})
+
     async def images(request: Request):
         wrong = requires("text-to-image")
         if wrong:
@@ -802,19 +985,32 @@ def build_app(model: Model):
         prompt = body.get("prompt")
         if not prompt:
             return error(400, '"prompt" is required')
-        params = {k: body.get(k) for k in ("negative_prompt", "num_inference_steps", "guidance_scale", "seed")}
-        if isinstance(body.get("size"), str) and "x" in body["size"]:
-            w, h = body["size"].lower().split("x", 1)
-            try:
-                params["width"], params["height"] = int(w), int(h)
-            except ValueError:
-                return error(400, '"size" must be WIDTHxHEIGHT')
-        params["num_images_per_prompt"] = body.get("n") or 1
         try:
-            params = check_params({k: v for k, v in params.items() if v is not None})
+            params = image_params(body)
         except BadRequest as e:
             return error(400, str(e))
         r = await call(text_to_image, model, prompt, params)
+        if isinstance(r, Response):
+            return r
+        return JSONResponse({"created": int(time.time()), "data": [{"b64_json": png_b64(i)} for i in r]})
+
+    async def edits(request: Request):
+        wrong = requires("text-to-image")
+        if wrong:
+            return wrong
+        body = await request.json()
+        prompt, image = body.get("prompt"), body.get("image")
+        if not prompt:
+            return error(400, '"prompt" is required')
+        if not image:
+            return error(400, '"image" is required')
+        try:
+            params = image_params(body)
+            if body.get("strength") is not None:
+                params.update(check_params({"strength": body["strength"]}))
+        except BadRequest as e:
+            return error(400, str(e))
+        r = await call(edit_image, model, prompt, image, body.get("mask") or None, params)
         if isinstance(r, Response):
             return r
         return JSONResponse({"created": int(time.time()), "data": [{"b64_json": png_b64(i)} for i in r]})
@@ -829,6 +1025,7 @@ def build_app(model: Model):
         Route("/v1/audio/transcriptions", transcriptions, methods=["POST"]),
         Route("/v1/audio/speech", speech, methods=["POST"]),
         Route("/v1/images/generations", images, methods=["POST"]),
+        Route("/v1/images/edits", edits, methods=["POST"]),
     ]
     app = Starlette(routes=routes)
     key = os.environ.get("HARNESS_WORKER_API_KEY", "")

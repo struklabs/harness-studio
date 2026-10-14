@@ -35,3 +35,24 @@ group = "performance"
 level = "advanced"
 label_key = "pyparam.dtype"
 help_key = "pyparam.dtype_help"
+
+# Image generation (diffusers) only; other tasks ignore them.
+[[param]]
+id = "max_megapixels"
+flags = ["--max-megapixels"]
+kind = "float"
+min = 0
+group = "performance"
+level = "advanced"
+label_key = "pyparam.max_megapixels"
+help_key = "pyparam.max_megapixels_help"
+
+[[param]]
+id = "low_memory"
+flags = ["--low-memory"]
+kind = "enum"
+values = ["auto", "on", "off"]
+group = "performance"
+level = "advanced"
+label_key = "pyparam.low_memory"
+help_key = "pyparam.low_memory_help"

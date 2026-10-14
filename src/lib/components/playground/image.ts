@@ -1,5 +1,5 @@
 // Playground Image tab: request helper for the gateway's /v1/images/generations and, with a start
-// image, /v1/images/edits (a real sd-server behind it; nothing is simulated).
+// image, /v1/images/edits (sd-server or a Python engine diffusers worker behind it; nothing is simulated).
 import { describeErrorBody } from './sse';
 import type { LocalModel, ModelDefinition } from '#lib/types.js';
 
@@ -20,7 +20,7 @@ export interface ImageParams {
   count: number;
   /** Start image (image-to-image); null = text to image. */
   init?: ImageResult | null;
-  /** How much of the start image changes, 0..1; empty = sd-server's default (0.75). */
+  /** How much of the start image changes, 0..1; empty = the engine's default (sd-server 0.75, diffusers 0.8). */
   strength?: string;
 }
 
@@ -30,12 +30,14 @@ export interface ImageResult {
   format: string;
 }
 
-/** A definition served by stable-diffusion.cpp: the file is a checkpoint, or the library says image. */
+/** A definition that draws: stable-diffusion.cpp's (the file is a checkpoint, or the library says
+ * image) or a diffusers text-to-image folder of the Python engine. */
 export function isImageDefinition(d: ModelDefinition, files: LocalModel[] = []): boolean {
   const path = d.base.kind === 'local' ? d.base.path : d.base.file;
   if (/\.(safetensors|ckpt)$/i.test(path)) return true;
   const norm = (v: string) => v.replace(/\\/g, '/').toLowerCase();
-  return files.some((f) => f.kind === 'image' && norm(f.path) === norm(path));
+  const draws = (f: LocalModel) => f.kind === 'image' || (f.kind === 'pipeline' && f.task === 'text-to-image');
+  return files.some((f) => draws(f) && norm(f.path) === norm(path));
 }
 
 /** Keep the user's selection while it is still available. */
