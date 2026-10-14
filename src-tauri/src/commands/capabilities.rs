@@ -17,13 +17,21 @@ pub(crate) async fn get_runtime_capabilities(
     blocking(move || engine.detect_capabilities(&binary)).await
 }
 
-/// Parameter catalog of a server's runtime family; without a server or runtime, llama.cpp's.
+/// Parameter catalog of the engine that runs `model_path` (ONNX, whisper.cpp, sd.cpp, ...), else
+/// of a server's runtime family; without any of them, llama.cpp's.
 #[tauri::command]
 pub(crate) fn get_param_catalog(
     registry: State<'_, Arc<ServerRegistry>>,
     server_id: Option<String>,
     runtime_id: Option<String>,
+    model_path: Option<String>,
 ) -> Result<ParamCatalog, String> {
+    if let Some(engine) = model_path
+        .filter(|p| !p.trim().is_empty())
+        .and_then(|p| harness_core::engine::server_for_model(Path::new(&p)))
+    {
+        return Ok(engine.param_catalog().clone());
+    }
     if server_id.is_none() && runtime_id.is_none() {
         return Ok(params::catalog().clone());
     }

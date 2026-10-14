@@ -1,19 +1,21 @@
 <script lang="ts">
   // "Load Settings" of the Playground model picker: edit the context, GPU layers, KV cache
   // type, flash attention and parallel slots of one definition for this load (or save them to
-  // the definition), with the memory estimate of the launch the load would start.
+  // the definition), with the memory estimate of the launch the load would start. A model
+  // another engine runs (ONNX, whisper.cpp, sd.cpp, python-hf...) shows that engine's settings.
   import { invoke } from '#lib/ipc.js';
-  import { t } from '#lib/i18n.svelte.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
   import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
   import { capsStore } from '#lib/stores/caps.svelte.js';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
-  import type { HardwareFitResult, LaunchConfig, LoadTarget, ModelDefinition, FitResult, ParamValues } from '#lib/types.js';
+  import type { HardwareFitResult, LaunchConfig, LoadTarget, ModelDefinition, FitResult, ParamCatalog, ParamSpec, ParamValue, ParamValues } from '#lib/types.js';
   import { toHardwareFit } from '#lib/fit.js';
   import { Input } from '#lib/components/ui/input/index.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import Field from '../dashboard/parts/Field.svelte';
   import NativeSelect from '../dashboard/parts/NativeSelect.svelte';
   import SwitchRow from '../dashboard/advanced/SwitchRow.svelte';
+  import { Switch } from '#lib/components/ui/switch/index.js';
   import FitIndicator from '../dashboard/model/FitIndicator.svelte';
   import {
     differsFromRunning, formFromDefinition, formValid, kvOptions, overridesFromForm, parseCount, sameForm, visibleFields,
@@ -36,14 +38,68 @@
   const uid = $props.id();
   const KV_LABEL = { f16: 'dash.adv_cache_f16', q8_0: 'dash.adv_cache_q8', q4_0: 'dash.adv_cache_q4' } as const;
 
+  // The engine that runs the definition's model and its catalog (llama.cpp: the fields below).
+  let engine = $state('llama.cpp');
+  let engineCatalog = $state<ParamCatalog | null>(null);
+  $effect(() => {
+    const id = def.id;
+    let live = true;
+    engine = 'llama.cpp';
+    engineCatalog = null;
+    (async () => {
+      const config = await invoke<LaunchConfig>('get_definition_form', { definitionId: id });
+      const modelPath = config?.model_path;
+      if (!modelPath) return;
+      const family = (await invoke<string | null>('get_model_engine', { modelPath })) ?? 'llama.cpp';
+      const catalog = family === 'llama.cpp' ? null : await invoke<ParamCatalog>('get_param_catalog', { modelPath });
+      if (!live) return;
+      engine = family;
+      engineCatalog = catalog;
+    })().catch(() => {});
+    return () => {
+      live = false;
+    };
+  });
+  let otherEngine = $derived(engine !== 'llama.cpp');
+  /** The engine's parameters this level shows (typed launch fields are not catalog values). */
+  let engineSpecs = $derived(
+    (engineCatalog?.param ?? []).filter((p) => !p.legacy_field && (uiLevel.level === 'advanced' || p.level === 'basic')),
+  );
+  /** Edited engine values ('' = back to automatic). */
+  let engineEdits = $state<ParamValues>({});
+  $effect(() => {
+    void def.id;
+    engineEdits = {};
+  });
+  function engineValue(id: string): ParamValue | undefined {
+    return id in engineEdits ? engineEdits[id] : def.load[id];
+  }
+  let engineOverrides = $derived.by(() => {
+    const out: ParamValues = {};
+    for (const spec of engineSpecs) {
+      if (!(spec.id in engineEdits)) continue;
+      const next = engineEdits[spec.id];
+      const was = def.load[spec.id];
+      if (JSON.stringify(next ?? '') !== JSON.stringify(was ?? '')) out[spec.id] = next ?? '';
+    }
+    return out;
+  });
+  function setEngine(spec: ParamSpec, raw: ParamValue | undefined) {
+    engineEdits = { ...engineEdits, [spec.id]: raw === undefined ? '' : raw };
+  }
+  function setEngineNumber(spec: ParamSpec, raw: string) {
+    const n = Number(raw);
+    setEngine(spec, raw.trim() === '' ? '' : Number.isFinite(n) ? n : raw);
+  }
+
   let base = $derived(formFromDefinition(def.load));
   // svelte-ignore state_referenced_locally
   let form = $state<LoadForm>(formFromDefinition(def.load));
   let level = $derived(uiLevel.level);
   let shown = $derived(visibleFields(level));
-  let overrides = $derived(overridesFromForm(form, base, level));
-  let valid = $derived(formValid(form, level));
-  let unchanged = $derived(sameForm(form, base) || Object.keys(overrides).length === 0);
+  let overrides = $derived(otherEngine ? engineOverrides : overridesFromForm(form, base, level));
+  let valid = $derived(otherEngine || formValid(form, level));
+  let unchanged = $derived(Object.keys(overrides).length === 0 || (!otherEngine && sameForm(form, base)));
 
   // The definition changed under us (saved from here or elsewhere): start from it again.
   let baseKey = $derived(JSON.stringify(def.load));
@@ -100,7 +156,7 @@
       ? runningServerId
       : null
   );
-  let differs = $derived(differsFromRunning(form, running, level));
+  let differs = $derived(otherEngine ? !!running && !unchanged : differsFromRunning(form, running, level));
 
   // Live memory estimate of the launch these settings would start (debounced).
   let fit = $state<HardwareFitResult | null>(null);
@@ -135,6 +191,35 @@
 </script>
 
 <div class="flex flex-col gap-3 border-t border-border/60 bg-muted/30 px-3 py-3" role="group" aria-label={t('pgm.settings_for', { alias: def.alias })}>
+  {#if otherEngine}
+    <div class="flex flex-col gap-3">
+      {#each engineSpecs as spec (spec.id)}
+        {@const v = engineValue(spec.id)}
+        {#if spec.kind === 'bool'}
+          <Field label={t(spec.label_key as TKey)} id="{uid}-e-{spec.id}" help={t(spec.help_key as TKey)} flag={spec.flags[0]}>
+            <Switch id="{uid}-e-{spec.id}" size="sm" checked={v === true} onCheckedChange={(c) => setEngine(spec, c ? true : '')} />
+          </Field>
+        {:else if spec.kind === 'enum'}
+          <Field label={t(spec.label_key as TKey)} id="{uid}-e-{spec.id}" help={t(spec.help_key as TKey)} flag={spec.flags[0]}>
+            <NativeSelect id="{uid}-e-{spec.id}" value={typeof v === 'string' ? v : ''} onchange={(e) => setEngine(spec, e.currentTarget.value)}>
+              <option value="">{t('caps.option_default')}</option>
+              {#each spec.values as opt (opt)}<option value={opt}>{opt}</option>{/each}
+            </NativeSelect>
+          </Field>
+        {:else if spec.kind === 'int' || spec.kind === 'float'}
+          <Field label={t(spec.label_key as TKey)} id="{uid}-e-{spec.id}" help={t(spec.help_key as TKey)} flag={spec.flags[0]}>
+            <Input id="{uid}-e-{spec.id}" type="number" step={spec.kind === 'float' ? 'any' : '1'} min={spec.min ?? undefined} max={spec.max ?? undefined} placeholder={t('pgm.set_auto')} value={typeof v === 'number' || typeof v === 'string' ? v : ''} oninput={(e) => setEngineNumber(spec, e.currentTarget.value)} class="font-num" />
+          </Field>
+        {:else if spec.kind === 'string' || spec.kind === 'path'}
+          <Field label={t(spec.label_key as TKey)} id="{uid}-e-{spec.id}" help={t(spec.help_key as TKey)} flag={spec.flags[0]}>
+            <Input id="{uid}-e-{spec.id}" type="text" placeholder={spec.placeholder ?? ''} value={typeof v === 'string' ? v : ''} oninput={(e) => setEngine(spec, e.currentTarget.value)} class="font-mono" />
+          </Field>
+        {/if}
+      {:else}
+        <p class="text-xs text-muted-foreground">{t('dash.engine_none', { engine })}</p>
+      {/each}
+    </div>
+  {:else}
   <div class="grid grid-cols-2 gap-3">
     {#if shown.includes('context')}
       <Field label={t('dash.lp_ctx_label_short')} id="{uid}-ctx" hint={t('pgm.set_context_hint')} flag="-c">
@@ -164,6 +249,7 @@
   {#if shown.includes('flashAttn') && flashSupported}
     <SwitchRow id="{uid}-fa" label={t('pgm.set_flash')} flag="-fa" bind:checked={form.flashAttn} />
   {/if}
+  {/if}
 
   {#if !valid}
     <p class="text-xs text-destructive" role="alert">{t('pgm.set_invalid')}</p>
@@ -185,7 +271,7 @@
     {/if}
     <span class="ml-auto flex flex-wrap items-center gap-2">
       {#if !unchanged}
-        <Button variant="ghost" size="xs" onclick={() => (form = { ...base })}>{t('pgm.set_reset')}</Button>
+        <Button variant="ghost" size="xs" onclick={() => { form = { ...base }; engineEdits = {}; }}>{t('pgm.set_reset')}</Button>
       {/if}
       {#if reloadId && differs}
         <Button size="xs" variant="outline" disabled={busy || !valid} onclick={() => onLoad({ kind: 'server', server_id: reloadId }, overrides)} title={t('pgm.set_loaded_differs')}>

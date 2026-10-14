@@ -24,9 +24,17 @@
     /** Compact variant for the definition dialog (no advice banner). */
     compact?: boolean;
     hint?: string;
+    /**
+     * Engine family that runs the model (`llama.cpp` by default). Another engine picks its own
+     * build, so the llama-server builds are not offered for it.
+     */
+    engine?: string;
   }
 
-  let { runtime = $bindable(), modelPath, compact = false, hint }: Props = $props();
+  let { runtime = $bindable(), modelPath, compact = false, hint, engine = 'llama.cpp' }: Props = $props();
+  let otherEngine = $derived(engine !== 'llama.cpp');
+  /** The registered build of that engine, when it has one (whisper.cpp, sd.cpp, sherpa-onnx...). */
+  let engineBuild = $derived(runtimesStore.list.find((r) => r.entry?.family === engine));
   const uid = $props.id();
 
   onMount(() => {
@@ -42,7 +50,7 @@
   $effect(() => {
     const path = modelPath;
     const current = runtime || null;
-    if (compact || !path) {
+    if (compact || !path || otherEngine) {
       advice = null;
       return;
     }
@@ -76,7 +84,13 @@
   }
 </script>
 
-{#if visible || compact}
+{#if otherEngine}
+  <Field label={t('rt.label')} id="{uid}-runtime" help={t('dash.engine_runtime_note')}>
+    <p id="{uid}-runtime" class="rounded-md border border-border bg-muted/40 px-2.5 py-1.5 text-sm">
+      {engineLabel(engine)}{engineBuild && runtimeBuildLabel(engineBuild) ? ` · ${runtimeBuildLabel(engineBuild)}` : ''}
+    </p>
+  </Field>
+{:else if visible || compact}
   <div class="flex flex-col gap-2">
     <Field advanced label={t('rt.label')} id="{uid}-runtime" help={t('rt.help')} hint={hint}>
       <NativeSelect id="{uid}-runtime" bind:value={runtime}>
