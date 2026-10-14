@@ -132,6 +132,17 @@ pub fn relaunch_appimage_after_exit() {
     }
 }
 
+/// Linux AppImage: AppRun points `PYTHONHOME`, `PYTHONPATH`, `PERLLIB` and `QT_PLUGIN_PATH` into
+/// its mount for interpreters this app does not embed, and every child inherits them: the Python
+/// engine's uv and workers (or any Python, Perl or Qt program Harness starts) would read the
+/// AppImage's missing standard library and fail. They are cleaned (the mount's entries removed,
+/// the user's own kept) before anything else runs; the GTK / GStreamer / library paths the app
+/// itself needs stay.
+pub fn scrub_appimage_env() {
+    #[cfg(target_os = "linux")]
+    appimage::scrub_foreign_env();
+}
+
 /// Linux AppImage relaunch. Tauri's `restart` starts the new AppImage with this process's
 /// environment and working directory, both set up by the old AppRun: `PATH`, `LD_LIBRARY_PATH`,
 /// `XDG_DATA_DIRS`, `GST_PLUGIN_SYSTEM_PATH`... point into the old version's mount and the working
@@ -151,6 +162,28 @@ mod appimage {
 
     /// Set by the AppImage runtime for the process it starts; they are set again on the relaunch.
     const RUNTIME_VARS: [&str; 4] = ["APPDIR", "APPIMAGE", "ARGV0", "OWD"];
+
+    /// Interpreter variables AppRun sets that the app itself does not use (see
+    /// [`super::scrub_appimage_env`]).
+    const FOREIGN_VARS: [&str; 4] = ["PYTHONHOME", "PYTHONPATH", "PERLLIB", "QT_PLUGIN_PATH"];
+
+    pub fn scrub_foreign_env() {
+        let Some(appdir) = std::env::var_os("APPDIR").filter(|_| running_from_appimage()) else {
+            return;
+        };
+        let appdir = PathBuf::from(appdir);
+        for name in FOREIGN_VARS {
+            let Some(value) = std::env::var_os(name) else {
+                continue;
+            };
+            let kept = clean_env(std::iter::once((OsString::from(name), value)), &appdir);
+            // Edition 2021: set_var / remove_var are safe; main calls this before any thread.
+            match kept.into_iter().next() {
+                Some((_, v)) => std::env::set_var(name, v),
+                None => std::env::remove_var(name),
+            }
+        }
+    }
 
     pub fn running_from_appimage() -> bool {
         std::env::var_os("APPIMAGE").is_some() && std::env::var_os("APPDIR").is_some()
