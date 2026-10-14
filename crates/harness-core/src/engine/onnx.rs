@@ -12,7 +12,7 @@
 //! The server has no authentication (loopback only, like whisper-server): the gateway is the
 //! front door and forwards `/v1/embeddings` and `/v1/rerank` to it unchanged.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 use super::{Engine, MetricsSource, ModelFormat, ReleaseSource, RuntimeKind, ServerEngine};
@@ -180,7 +180,7 @@ impl ServerEngine for OnnxEngine {
                 .with("host", &config.host)
                 .into());
         }
-        let provider = provider_of(config);
+        let mut provider = provider_of(config);
         // An onnxruntime-genai chat model needs the GenAI library next to the ONNX Runtime
         // (Windows builds carry it).
         if harness_onnx::genai_pkg::GenaiPackage::discover(&config.model_path).is_some()
@@ -188,8 +188,18 @@ impl ServerEngine for OnnxEngine {
         {
             return Err(err("onnx.genai_unsupported_platform").into());
         }
-        let lib = crate::onnx_runtime::lib_for_provider(&provider)?;
-        build_args(config, &lib, runtime)
+        let (lib, fallback) = lib_with_fallback(&provider)?;
+        if let Some(to) = fallback {
+            provider = to.to_string();
+        }
+        let mut out = build_args(config, &lib, runtime, &provider)?;
+        if let Some(to) = fallback {
+            out.skipped.push(crate::params::SkippedParam {
+                id: PROVIDER_PARAM.into(),
+                reason: format!("cuda_runtime_missing:{to}"),
+            });
+        }
+        Ok(out)
     }
 
     fn health_path(&self) -> &'static str {
@@ -281,10 +291,26 @@ impl ServerEngine for OnnxEngine {
 }
 
 /// The command line of a launch with the ONNX Runtime library at `lib`.
+/// The ONNX Runtime library for `provider`. A CUDA launch whose CUDA build is not installed
+/// (never installed, or a download that failed) runs on DirectML when that build is there, and
+/// says so (the second value); otherwise the error asks for the install.
+fn lib_with_fallback(provider: &str) -> Result<(PathBuf, Option<&'static str>), String> {
+    match crate::onnx_runtime::lib_for_provider(provider) {
+        Ok(lib) => Ok((lib, None)),
+        Err(e) if provider == "cuda" && cfg!(windows) => {
+            crate::onnx_runtime::lib_for_provider("directml")
+                .map(|lib| (lib, Some("directml")))
+                .map_err(|_| e)
+        }
+        Err(e) => Err(e),
+    }
+}
+
 fn build_args(
     config: &LaunchConfig,
     lib: &Path,
     runtime: Option<&RuntimeCapabilities>,
+    provider: &str,
 ) -> Result<BuildOutput, String> {
     let mut args: Vec<String> = vec![
         "--model".into(),
@@ -296,7 +322,7 @@ fn build_args(
         "--ort-lib".into(),
         lib.to_string_lossy().to_string(),
         "--provider".into(),
-        provider_of(config),
+        provider.to_string(),
     ];
     if let Some(alias) = crate::process::served_alias(config) {
         args.push("--alias".into());
@@ -420,12 +446,24 @@ mod tests {
             crate::capabilities::BinaryKey::default(),
             harness_onnx::cli::HELP,
         );
-        let launch = build_args(&c, Path::new("C:/rt/onnxruntime.dll"), Some(&caps)).unwrap();
+        let launch = build_args(
+            &c,
+            Path::new("C:/rt/onnxruntime.dll"),
+            Some(&caps),
+            &provider_of(&c),
+        )
+        .unwrap();
         assert!(launch.args.join(" ").contains("--task asr_ctc"));
         assert_eq!(launch.args.iter().filter(|a| *a == "--task").count(), 1);
         c.params
             .insert("task".into(), ParamValue::Text("asr_ctc".into()));
-        let launch = build_args(&c, Path::new("C:/rt/onnxruntime.dll"), Some(&caps)).unwrap();
+        let launch = build_args(
+            &c,
+            Path::new("C:/rt/onnxruntime.dll"),
+            Some(&caps),
+            &provider_of(&c),
+        )
+        .unwrap();
         assert!(launch.args.join(" ").contains("--task asr_ctc"));
         assert_eq!(launch.args.iter().filter(|a| *a == "--task").count(), 1);
     }
@@ -477,7 +515,7 @@ mod tests {
             .insert("pooling".into(), ParamValue::Text("cls".into()));
         c.params.insert("batch_size".into(), ParamValue::Int(8));
         let lib = Path::new("C:/rt/onnxruntime.dll");
-        let out = build_args(&c, lib, Some(&caps)).unwrap();
+        let out = build_args(&c, lib, Some(&caps), &provider_of(&c)).unwrap();
         let line = out.args.join(" ");
         assert!(
             line.starts_with("--model C:/m/onnx/model.onnx --host 127.0.0.1 --port 11450"),
@@ -501,11 +539,11 @@ mod tests {
 
         // A flag Harness owns cannot be smuggled in through the custom arguments.
         c.custom_args = Some("--ort-lib /tmp/evil.dll".into());
-        assert!(build_args(&c, lib, Some(&caps))
+        assert!(build_args(&c, lib, Some(&caps), &provider_of(&c))
             .unwrap_err()
             .starts_with("params.protected_flag"));
         c.custom_args = Some("--max-length 128".into());
-        let ok = build_args(&c, lib, Some(&caps)).unwrap();
+        let ok = build_args(&c, lib, Some(&caps), &provider_of(&c)).unwrap();
         assert!(ok.args.join(" ").ends_with("--max-length 128"));
     }
 
@@ -589,7 +627,12 @@ mod tests {
         let mut c = config();
         c.model_path = genai_model(d.path(), "directml", "directml-int4", "dml");
         let lib = Path::new("C:/rt/onnxruntime.dll");
-        let line = |c: &LaunchConfig| build_args(c, lib, None).unwrap().args.join(" ");
+        let line = |c: &LaunchConfig| {
+            build_args(c, lib, None, &provider_of(c))
+                .unwrap()
+                .args
+                .join(" ")
+        };
         assert!(!line(&c).contains("--ctx-size"));
         c.context_size = 8192;
         assert!(line(&c).contains("--ctx-size 8192"), "{}", line(&c));
