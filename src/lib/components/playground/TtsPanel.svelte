@@ -15,7 +15,8 @@
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { formatBytes } from '#lib/format.js';
   import { Download, LoaderCircle, Power, Square, Volume2, TriangleAlert } from '@lucide/svelte';
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
+  import { library } from '#lib/stores/library.svelte.js';
   import { fetchSpeech, pickTtsModel, pickTtsVoice, voicesOf, ttsRequirement, ttsSupportsSpeed, type SpeechResult } from './tts';
   import { readAloud, tts } from './tts.svelte';
   import { MAX_SPEECH_CHARS } from './ttsText';
@@ -28,7 +29,10 @@
   let result = $state<{ url: string; info: SpeechResult } | null>(null);
   let controller: AbortController | null = null;
 
-  onMount(() => void tts.load());
+  $effect(() => {
+    void library.version;
+    untrack(() => void tts.load());
+  });
   onDestroy(() => {
     controller?.abort();
     if (result) URL.revokeObjectURL(result.url);

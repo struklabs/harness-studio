@@ -29,7 +29,7 @@ export function inTab(e: LibraryEntry, tab: LibraryTab): boolean {
     case 'asr':
       return kind === 'asr' || mlxSpeech(e) === 'asr';
     case 'image':
-      return kind === 'image';
+      return kind === 'image' || (kind === 'pipeline' && ['text-to-image', 'image-to-image'].includes(e.model.task ?? ''));
     case 'tts':
       return kind === 'tts' || mlxSpeech(e) === 'tts';
     case 'draft':

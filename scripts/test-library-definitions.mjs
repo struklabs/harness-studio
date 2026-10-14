@@ -30,7 +30,7 @@ test('incomplete files, sherpa-onnx recognition and text-to-speech need no defin
 });
 
 test('tabs list their own kinds', () => {
-  assert.deepEqual(kindsForTab('image'), ['image']);
+  assert.deepEqual(kindsForTab('image'), ['image', 'pipeline']);
   assert.deepEqual(kindsForTab('transcription'), ['asr']);
   assert.deepEqual(kindsForTab('rerank'), ['reranker']);
   assert.deepEqual(kindsForTab('pipeline'), ['pipeline']);

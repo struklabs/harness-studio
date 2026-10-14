@@ -123,7 +123,9 @@
     untrack(() => void domain.refreshStates());
   });
 
+  let refreshToken = 0;
   async function refresh() {
+    const token = ++refreshToken;
     loading = true;
     try {
       const [v, dirs, agents] = await Promise.all([
@@ -131,15 +133,16 @@
         invoke<StorageDirInfo[]>('get_storage_directories').catch(() => storageDirs),
         listAgentModels().catch(() => []),
       ]);
+      if (token !== refreshToken) return;
       view = v;
       agentModels = agents;
       storageDirs = dirs;
       loadError = null;
       void library.refresh();
     } catch (e) {
-      loadError = String(e);
+      if (token === refreshToken) loadError = String(e);
     } finally {
-      loading = false;
+      if (token === refreshToken) loading = false;
     }
   }
 
@@ -347,4 +350,3 @@
 {#if showDupes}
   <DuplicatesDialog version={dupesVersion} onDelete={(id) => (deleteId = id)} onClose={() => (showDupes = false)} />
 {/if}
-

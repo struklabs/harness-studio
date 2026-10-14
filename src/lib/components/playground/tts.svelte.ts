@@ -26,11 +26,16 @@ class TtsStore {
   }
 
   models = $derived<TtsModelInfo[]>(allTtsModels(this.overview));
+  private loadToken = 0;
 
   async load() {
+    const token = ++this.loadToken;
     try {
-      this.overview = await invoke<TtsOverview>('get_tts_overview');
+      const overview = await invoke<TtsOverview>('get_tts_overview');
+      if (token !== this.loadToken) return;
+      this.overview = overview;
     } catch {
+      if (token !== this.loadToken) return;
       this.overview = this.overview ?? { models: [], catalog: [], runtime_installed: false };
     }
     this.model = pickTtsModel(this.model, this.models);

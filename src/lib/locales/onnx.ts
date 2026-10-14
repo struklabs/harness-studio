@@ -46,6 +46,7 @@ const tr = {
   'process.onnx_loopback_only': 'harness-onnx kendi kimlik doğrulaması olmadığı için yalnızca 127.0.0.1 / localhost\'ta dinler ({host}). Dışarıya gateway üzerinden açın.',
   'downloads.not_a_model_file': 'İndirilen dosya bir model dosyası değil (bir web sayfası olabilir).',
   'lib.kind_pipeline': 'Görev modeli (ONNX)',
+  'lib.kind_audio_process': 'Ses işleme (audio.cpp)',
   'lib.kind_pipeline_python': 'Görev modeli (Python)',
   'lib.kind_image_python': 'Görsel üretimi (Python, diffusers)',
 };
@@ -96,6 +97,7 @@ const en: Record<keyof typeof tr, string> = {
   'process.onnx_loopback_only': 'harness-onnx has no authentication of its own, so it only listens on 127.0.0.1 / localhost ({host}). Expose it through the gateway.',
   'downloads.not_a_model_file': 'The downloaded file is not a model file (it may be a web page).',
   'lib.kind_pipeline': 'Task model (ONNX)',
+  'lib.kind_audio_process': 'Audio processing (audio.cpp)',
   'lib.kind_pipeline_python': 'Task model (Python)',
   'lib.kind_image_python': 'Image generation (Python, diffusers)',
 };
