@@ -357,6 +357,8 @@ pub fn run() {
             install_runtime_github,
             get_runtime_install_progress,
             get_tts_overview,
+            get_audio_process_overview,
+            save_processed_audio,
             install_tts_model,
             get_tts_install_progress,
             get_asr_overview,

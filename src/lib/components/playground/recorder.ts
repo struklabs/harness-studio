@@ -35,7 +35,7 @@ function mapError(e: unknown): RecordError {
  * Starts recording. `onLevel` gets the peak (0..1) of each audio block; `onLimit` runs once when
  * the length limit is reached (the caller then calls `stop()` for the file).
  */
-export async function startRecording(onLevel: (peak: number) => void, onLimit: () => void): Promise<Recording> {
+export async function startRecording(onLevel: (peak: number) => void, onLimit: () => void, outputRate = WAV_RATE): Promise<Recording> {
   if (!window.isSecureContext) throw new RecordError('insecure');
   if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined' || !('audioWorklet' in AudioContext.prototype)) {
     throw new RecordError('unsupported');
@@ -60,7 +60,7 @@ export async function startRecording(onLevel: (peak: number) => void, onLimit: (
   try {
     // Ask for 16 kHz; a context that cannot (older engines) runs at its own rate and is resampled.
     try {
-      ctx = new AudioContext({ sampleRate: WAV_RATE });
+      ctx = new AudioContext({ sampleRate: outputRate });
     } catch {
       ctx = new AudioContext();
     }
@@ -92,7 +92,7 @@ export async function startRecording(onLevel: (peak: number) => void, onLimit: (
     return {
       stop() {
         halt();
-        const wav = encodeWav(resample(concatChunks(chunks), rate, WAV_RATE), WAV_RATE);
+        const wav = encodeWav(resample(concatChunks(chunks), rate, outputRate), outputRate);
         return new File([wav], recordingName(), { type: 'audio/wav' });
       },
       cancel: halt,

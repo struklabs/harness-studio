@@ -276,7 +276,7 @@ zaman damgalı 5 kuşak yedek, dosya elle değiştiyse hash uyarısı. Başvuru:
 
 ## 13. Donanım, backend ve motorlar
 
-- **audio.cpp TTS:** Windows, Linux ve macOS için GitHub sürümlerinden yönetilen motor kurulumu; AMD/Intel için Vulkan, Windows NVIDIA için ek çalışma kitaplıklarıyla CUDA, macOS için Metal ve CPU seçeneği. PocketTTS ve diğer audio.cpp TTS GGUF aileleri bellekte tutulan sunucu, gateway `/v1/audio/speech` ve Playground üzerinden konuşur. Ses seçicisi `embeddings/*.safetensors` dosyalarını okur; arka uç, aygıt, iş parçacığı ve boşta bırakma süresi katalogdan ayarlanır. Hub paket varyantları seçili model klasörünü ve yardımcı dosyalarını korur. Diğer audio.cpp görevleri algılanır ancak henüz desteklenmez.
+- **audio.cpp konuşma ve ses işleme:** Windows, Linux ve macOS için GitHub sürümlerinden yönetilen motor kurulumu; AMD/Intel için Vulkan, Windows NVIDIA için ek çalışma kitaplıklarıyla CUDA, macOS için Metal ve CPU seçeneği. TTS aileleri `/v1/audio/speech`, denetlenmiş yedi ayrıştırma/iyileştirme GGUF ailesi `/v1/audio/process` kullanır. Playground kayıt, dinleme ve WAV kaydetme sunar. Ses seçicisi `embeddings/*.safetensors` dosyalarını okur; arka uç, aygıt, iş parçacığı ve boşta bırakma süresi katalogdan ayarlanır. Hub paket varyantları seçili model klasörünü ve yardımcı dosyalarını korur. Diğer audio.cpp görevleri kapsam dışıdır.
 
 | Özellik | Harness | LM Studio | Ollama | Yol / not |
 |---|---|---|---|---|
@@ -353,13 +353,31 @@ Araçlarım yerleşik, kurulu/üretilmiş ve sunucu bazında MCP araçlarını i
 3. `?` işaretli hücreler (ör. Ollama arayüz dilleri, LM Studio web araması/bulutu, MTP, görsel üretimi, `count_tokens`) resmi belgelerde doğrulanamadığı için tahmin edilmedi.
 
 
-### Deneysel audio.cpp TTS
+### Deneysel audio.cpp Konuşma ve Ses İşleme
 
 audio.cpp **deneyseldir ve varsayılan olarak kapalıdır**. Risk bildirimini onayladıktan sonra Ayarlar > Kurulu Model Motoru > Diğer Model Motorları bölümünden etkinleştirin. Yerel sunucusunda kimlik doğrulama veya Host/Origin denetimi yoktur; sunucu dosya yollarını kabul eder (`voice_ref`, JSON `audio` ve `/v1/tasks/*`). Açıkken bu bilgisayarda çalışan bir web sayfası sunucuya doğrudan istek gönderebilir ve dosya yolu verebilir. Yalnızca yerel adrese bağlanmak bu riski ortadan kaldırmaz.
 
 Motor kapalıyken ağ geçidi, Yükle ve CLI başlatmayı reddeder. Modeller Hub ve kütüphanede deneysel motor gereksinimiyle görünmeye devam eder. İşçiler istek üzerine başlar, yalnızca `127.0.0.1` üzerinde rastgele boş bir porta bağlanır (11435, 11440 ve 11500 hariç); `--no-ui` kullanılır, `--ui-management` kullanılmaz. Beş dakika istek gelmezse Harness işlemi durdurur; `--idle-unload-ms 300000` model belleğini de boşaltır. Sabitlenmiş modeller bu süreyi aşamaz ve ağ geçidi açılışında başlatılmaz.
 
-Ağ geçidi yalnızca `POST /v1/audio/speech` isteğini iletir; model, input, keşfedilmiş voice, speed, response_format ve isteğe bağlı satır içi `voice_ref` (`type: base64`, çözülmüş boyut en fazla 5 MiB) alanlarını yeniden oluşturur. Metin/dosya yolu referansları ve keşfedilmemiş sesler 400 döndürür. Diğer alanlar atılır; transkripsiyon, hizalama, görevler, model yönetimi ve diğer işçi uç noktaları iletilmez. Bu ağ geçidi kısıtlamaları işçi portuna doğrudan erişimi güvenli hale getirmez.
+Ağ geçidi `POST /v1/audio/speech` isteğinde model, input, keşfedilmiş voice, speed, response_format ve isteğe bağlı satır içi `voice_ref` (`type: base64`, çözülmüş boyut en fazla 5 MiB) alanlarını yeniden oluşturur. Metin/dosya yolu referansları ve keşfedilmemiş sesler 400 döndürür. Aşağıdaki ses işleme yolu da desteklenir. İstemciler transkripsiyon, hizalama, görev ve model yönetimi gibi diğer audio.cpp işçi uç noktalarına erişemez. Bu kısıtlamalar işçi portuna doğrudan erişimi güvenli hale getirmez.
+
+`POST /v1/audio/process`, multipart `model` + `file` veya JSON `model` + `audio_base64` kabul eder; WAV veri URI’si kullanılabilir. Seçenekler düz skaler alanlardır. Girdi eksiksiz PCM/float WAV, bir veya iki kanal, en fazla 32 MiB ve 600 saniye olmalıdır; SAM Audio sınırı 400 saniyedir. Var olan dönüştürücü ASR için 16 kHz mono ürettiğinden müziğin kalitesini sessizce düşürmek yerine diğer biçimler reddedilir. Bilinmeyen seçenekler reddedilir; `audio`, `voice_ref`, `output*`, yol/dizin ve artifact alanları atılır. İşçinin özel `/v1/tasks/run` isteği `{model: çözümlenenTakmaAd, request: {audio_base64, options}}` biçiminde yeniden kurulur. SAM’in sınırlı `prompt` alanı `request.text` olur.
+
+| Aile | Güvenli HF paketi | Görev | Girdi / çıktı | İstek seçenekleri |
+|---|---|---|---|---|
+| `bs_roformer` | `audio-cpp/audio.cpp-gguf`: `BS-RoFormer-ep368-GGUF/bs-roformer-ep368-q8_0.gguf` | `sep` | 44,1 kHz mono/stereo → aynı hız/kanalda `vocals`, `instrumental` | Yok; örtüşme oturum ayarıdır |
+| `mel_band_roformer` | Aynı depo: `Mel-Band-RoFormer-GGUF/mel-band-roformer-{q8_0,f16}.gguf` | `sep` | 44,1 kHz mono/stereo → `vocals`, `instrumental` | Yok |
+| `sam_audio` | `audio-cpp/SAM-Audio-GGUF`: `sam-audio-{small,base,large}-{f32,bf16,q8_0}.gguf`; T5/tokenizer/yapılandırma gömülü | `s2s` | WAV içeride dönüştürülür → 48 kHz mono `target`, `residual` | Zorunlu `prompt` (1–1024 karakter), `seed`, `num_inference_steps`; görsel/video yolları ve anchors yok |
+| `sidon` | `audio-cpp/audio.cpp-gguf`: `Sidon-GGUF/sidon-v0.1-f32.gguf` | `s2s` | WAV içeride 16 kHz monoya çevrilir → 48 kHz mono `enhanced` | Yok |
+| `apollo` | Aynı depo: `Apollo-GGUF/apollo-orig.gguf` | `s2s` | 44,1 kHz mono/stereo → aynı hız/kanalda `enhanced` | `audio_chunk_duration_sec`, `audio_chunk_overlap_sec`, `edge_pad_duration_sec` |
+| `audiosr` | Aynı depo: `AudioSR-GGUF/audiosr-basic-f32.gguf` | `s2s` | WAV içeride hazırlanır → 48 kHz `enhanced` | Adım, yönlendirme, `ddim_eta`, parça süresi/örtüşme, tohum; yalnız GPU arka ucu: audio.cpp v0.9.1 CPU arka ucunda çöktüğü için Harness onu orada başlatmaz. |
+| `universr` | Aynı depo: `UniverSR-GGUF/universr-{audio,speech}-orig.gguf` | `s2s` | WAV → 48 kHz mono `enhanced` | `input_sample_rate` (kaynağın etkin bant genişliği: 8000/12000/16000/24000), `sampler_mode` (euler/midpoint/rk4), adım, yönlendirme, tohum, parça süresi |
+
+v0.9.1 sunucusu base64 WAV’ı `audio` alanında veya `{id,audio,...}` biçimindeki `named_audio_outputs` listesinde döndürür; artifact biçimi `{id,kind,payload,meta}` olur. Harness yalnızca `{model,outputs:[{name,audio_base64,mime:"audio/wav"}]}` döndürür. Dosya çıktıları yalnızca işçinin sahip olduğu çıktı dizininde, gerçek yol/symlink/üst dizin denetiminden sonra okunur ve silinir. Diğer metadata ve yollar dışarı çıkmaz; güvensiz veya bozuk yanıt 502 olur.
+
+Playground > Konuşma içindeki **Sesi İşle** paneli model seçme, WAV yükleme veya kayıt, aile seçenekleri, çalıştırma, her çıktıyı dinleme ve yerel WAV kaydetme iletişim kutusunu sunar. RoFormer/Apollo kayıtları 44,1 kHz alınır. Motor kapalıysa mevcut ayara götüren **Motoru Etkinleştir** düğmesi görünür. Hub diğer motorların ses depolarını sahiplenmeden deneysel gereksinimi gösterir.
+
+Dışarıda kalanlar: sağlanan v0.9.1 ağacında `mossformer2` ve `tf_gridnet` model tanımı/uygulaması yoktur. `builtin_audio_utils` RNNoise (`rnnoise10Gb_15.safetensors`) ve DeepFilterNet2 (`deepfilternet2.safetensors`; 48 kHz girdi/çıktı) depo varlığı olarak bulunur ancak model tanımları tek bir HF paketi belirtmez; güvenli Hub kurulum/kimlik yolu eklenmemiştir. SpeechBrain pickle `.ckpt`, özel kod isteyen depolar, bağımsız vocoder modelleri ve diğer yerleşik araçlar kapsam dışıdır.
 
 ## Deneysel CrispASR ile Konuşma Tanıma
 

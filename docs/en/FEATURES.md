@@ -273,7 +273,7 @@ For every persistent integration: a preview (a colored diff), "Test Connection" 
 
 ## 13. Hardware, Backends, and Engines
 
-- **audio.cpp TTS:** managed GitHub-release builds for Windows, Linux, and macOS; Vulkan for AMD/Intel, CUDA with companion runtime libraries for Windows NVIDIA, Metal on macOS, and CPU fallback. PocketTTS and other audio.cpp TTS GGUF families speak through the resident server, gateway `/v1/audio/speech`, and Playground. The voice picker reads `embeddings/*.safetensors`; backend, device, threads, and idle unload are catalog settings. Hub package variants preserve the selected model folder and its companions. Other audio.cpp tasks are detected but not supported yet.
+- **audio.cpp speech and processing:** managed GitHub-release builds for Windows, Linux, and macOS; Vulkan for AMD/Intel, CUDA with companion runtime libraries for Windows NVIDIA, Metal on macOS, and CPU fallback. TTS families speak through `/v1/audio/speech`; seven audited separation/enhancement GGUF families use `/v1/audio/process`. Playground supports recording, playback, and WAV export. The voice picker reads `embeddings/*.safetensors`; backend, device, threads, and idle unload are catalog settings. Hub package variants preserve the selected model folder and its companions. Other audio.cpp tasks remain unsupported.
 
 | Feature | Harness | LM Studio | Ollama | Path / note |
 |---|---|---|---|---|
@@ -350,13 +350,31 @@ My Tools lists built-in, installed/generated, and per-server MCP tools in functi
 3. Cells marked `?` (for example Ollama interface languages, LM Studio web search/cloud, MTP, image generation, `count_tokens`) were not guessed because they could not be verified in the official documentation.
 
 
-### Experimental audio.cpp TTS
+### Experimental audio.cpp Speech and Processing
 
 audio.cpp is **experimental and off by default**. Enable it in Settings > Installed Runtime > Other Runtimes after confirming the risk notice. Its local server has no authentication or Host/Origin checks and accepts server-side file paths (`voice_ref`, JSON `audio`, and `/v1/tasks/*`). While running, a web page on this computer can send requests and pass file paths directly to that server. Loopback binding does not remove this risk.
 
 Disabled engines refuse gateway, Load, and CLI launches. Models remain visible in the Hub and library with an experimental engine requirement. Workers start on demand, bind only to `127.0.0.1` on a random free port (excluding 11435, 11440, and 11500), and use `--no-ui` without `--ui-management`. Harness stops the process after five minutes without requests; `--idle-unload-ms 300000` also releases model memory. Pinned models do not bypass this timeout or start at gateway startup.
 
-The gateway forwards only `POST /v1/audio/speech`, rebuilding model, input, discovered voice, speed, response format, and optional inline `voice_ref` (`type: base64`, decoded size at most 5 MiB). String/path references and undiscovered voices return 400. Other fields are dropped; transcriptions, alignments, tasks, models management, and all other worker routes are never forwarded. These gateway restrictions do not secure direct access to the worker port.
+The gateway supports `POST /v1/audio/speech`, rebuilding model, input, discovered voice, speed, response format, and optional inline `voice_ref` (`type: base64`, decoded size at most 5 MiB). String/path references and undiscovered voices return 400. It also supports the processing route below. Client access to transcriptions, alignments, tasks, model management, and all other audio.cpp worker routes is blocked. These gateway restrictions do not secure direct access to the worker port.
+
+`POST /v1/audio/process` accepts multipart `model` + `file` or JSON `model` + `audio_base64` (including WAV data URIs). Options are flat scalar fields. Input must be complete PCM/float WAV, mono/stereo, at most 32 MiB and 600 seconds; SAM Audio is limited to 400 seconds. The existing converter targets 16 kHz mono for ASR, so processing rejects other containers instead of silently reducing music quality. Unknown options are rejected; `audio`, `voice_ref`, `output*`, path/directory fields and artifacts are dropped. The gateway rebuilds `{model: resolvedAlias, request: {audio_base64, options}}` for the private `/v1/tasks/run`; SAM's bounded `prompt` becomes `request.text`.
+
+| Family | Safe package (Hugging Face) | Task | Input / output | Request options |
+|---|---|---|---|---|
+| `bs_roformer` | `audio-cpp/audio.cpp-gguf`: `BS-RoFormer-ep368-GGUF/bs-roformer-ep368-q8_0.gguf` | `sep` | 44.1 kHz, mono/stereo → `vocals`, `instrumental`, same rate/channels | None (overlap is a session setting) |
+| `mel_band_roformer` | Same repo: `Mel-Band-RoFormer-GGUF/mel-band-roformer-{q8_0,f16}.gguf` | `sep` | 44.1 kHz, mono/stereo → `vocals`, `instrumental` | None |
+| `sam_audio` | `audio-cpp/SAM-Audio-GGUF`: `sam-audio-{small,base,large}-{f32,bf16,q8_0}.gguf` (embedded tokenizer/T5/config) | `s2s` | WAV resampled internally → `target`, `residual`, 48 kHz mono | Required `prompt` (1–1024 characters); `seed`, `num_inference_steps`. No image/video paths or anchors |
+| `sidon` | `audio-cpp/audio.cpp-gguf`: `Sidon-GGUF/sidon-v0.1-f32.gguf` | `s2s` | WAV internally downmixed/resampled to 16 kHz → `enhanced`, 48 kHz mono | None |
+| `apollo` | Same repo: `Apollo-GGUF/apollo-orig.gguf` | `s2s` | 44.1 kHz, mono/stereo → `enhanced`, same channels/rate | `audio_chunk_duration_sec`, `audio_chunk_overlap_sec`, `edge_pad_duration_sec` |
+| `audiosr` | Same repo: `AudioSR-GGUF/audiosr-basic-f32.gguf` | `s2s` | WAV internally prepared → `enhanced`, 48 kHz | `num_inference_steps`, `guidance_scale`, `ddim_eta`, chunk duration/overlap, `seed`; GPU backend only: audio.cpp v0.9.1 aborts on the CPU backend, so Harness refuses to start it there. |
+| `universr` | Same repo: `UniverSR-GGUF/universr-{audio,speech}-orig.gguf` | `s2s` | WAV → `enhanced`, 48 kHz mono | `input_sample_rate` (8000/12000/16000/24000 effective source bandwidth), `sampler_mode` (euler/midpoint/rk4), steps, guidance, seed, chunk duration |
+
+The audited v0.9.1 server returns a base64 WAV in `audio`, or `{id,audio,...}` entries in `named_audio_outputs`; artifacts use `{id,kind,payload,meta}`. Harness returns only `{model,outputs:[{name,audio_base64,mime:"audio/wav"}]}` with bounded outputs. File artifacts are read only inside the worker's owned output directory after canonicalization and symlink/traversal checks, then removed. All other metadata and paths stay private; unsafe or malformed results return 502.
+
+Playground > Speech includes **Process Audio**: choose a model, upload WAV or record, adjust family options, run, play each output, and save through the native WAV dialog. Recordings use 44.1 kHz for RoFormer/Apollo. The disabled panel links to the existing engine setting. Hub shows the experimental requirement without claiming other engines' audio repos.
+
+Not included: `mossformer2` and `tf_gridnet` have no model specs/implementation in the supplied v0.9.1 tree. `builtin_audio_utils` RNNoise (`rnnoise10Gb_15.safetensors`) and DeepFilterNet2 (`deepfilternet2.safetensors`, 48 kHz input/output) have repository asset weights but no single HF package in their model spec; a safe Hub install/identity path is not implemented. SpeechBrain pickle `.ckpt`, custom-code repositories, standalone vocoders and other built-in utilities remain excluded.
 
 ## Experimental CrispASR Speech Recognition
 

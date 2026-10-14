@@ -19,6 +19,7 @@
 //! Auth: [`auth`]. Tool compatibility (Codex/Responses): [`compat`]. Errors: [`errors`].
 
 pub mod audio;
+pub mod audio_process;
 pub mod auth;
 pub mod compat;
 pub mod crispasr_tts;
@@ -733,6 +734,14 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
         .route(
             "/v1/audio/speech",
             post(|State(s): State<GwState>, h: HeaderMap, body: Bytes| speech::handle(s, h, body)),
+        )
+        .route(
+            "/v1/audio/process",
+            post(
+                |State(s): State<GwState>, request: axum::extract::Request| {
+                    audio_process::handle(s, request)
+                },
+            ),
         )
         .route("/v1/messages", inference!(Api::Messages))
         .route("/v1/messages/count_tokens", inference!(Api::CountTokens))

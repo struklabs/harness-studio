@@ -11,6 +11,7 @@
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { onnxUnsupportedText } from '#lib/engines.js';
   import { app } from '#lib/stores/app.svelte.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { downloads } from '#lib/stores/downloads.svelte.js';
   import { isRepoFolder, library, normPath, repoRelative } from '#lib/stores/library.svelte.js';
   import type { HardwareFitResult, HfAccess, HfModelSearchResult, HfModelVariant, ImageBundlePlan, LocalModel, ModelArtifactUpdate, SystemHardwareInfo } from '#lib/types.js';
@@ -184,6 +185,13 @@
   function localFor(v: HfModelVariant): LocalModel | undefined {
     const file = v.shards[0]?.filename;
     return (file ? localByFile.get(normPath(file).toLowerCase()) : undefined) ?? (variants.length === 1 ? localFolder : undefined);
+  }
+  function quantLabel(v: HfModelVariant): string {
+    const local = localFor(v);
+    for (const q of [local?.gguf?.quantization, local?.quantization, v.quantization]) {
+      if (q && q.toLowerCase() !== 'unknown') return q;
+    }
+    return '–';
   }
   /** Downloaded variants with a newer upstream version (checked lazily, once per opened repo). */
   let updateFlags = $state<Record<string, boolean>>({});
@@ -637,7 +645,7 @@
                           <Table.Cell class="max-w-[220px]">
                             <div class="flex min-w-0 flex-col">
                               <span class="flex items-center gap-1.5">
-                                {#if uiLevel.advanced || showAllFiles}<span class="font-mono text-sm font-medium" title={t('hub.quant_badge_title')}>{variant.quantization}</span>{:else}<span class="text-sm font-medium">{t('hub.download_option')}</span>{/if}
+                                {#if uiLevel.advanced || showAllFiles}<span class="font-mono text-sm font-medium" title={t('hub.quant_badge_title')}>{quantLabel(variant)}</span>{:else}<span class="text-sm font-medium">{t('hub.download_option')}</span>{/if}
                                 {#if variant.is_split && (uiLevel.advanced || showAllFiles)}
                                   <Badge variant="outline" class="text-xs" title={t('hub.split_desc', { count: variant.shards.length })}>
                                     {t('hub.split_set', { count: variant.shards.length })}
@@ -668,6 +676,8 @@
                           <Table.Cell>
                             {#if variant.not_runnable === 'audio_cpp_unsupported'}
                               <span class="text-xs text-warning">{t('hub.not_runnable_audio_cpp')}</span>
+                            {:else if 'runtime' in repo.compatibility && repo.compatibility.runtime === 'audio.cpp'}
+                              <span class="text-xs text-warning">{!app.settings?.audio_cpp_enabled ? t('audio_cpp.needs_engine') : engineInstall.installed('audio.cpp') ? t('process.experimental') : t('speak.engine_missing', { family: 'audio.cpp' })}</span>
                             {:else if isWhisperRepo}
                               {@const wfit = whisperFitsMemory(variant.total_size_bytes, hardware?.available_ram_bytes)}
                               {#if wfit === null}

@@ -12,8 +12,10 @@ use serde::{Deserialize, Serialize};
 /// Repo metadata can identify audio.cpp before any GGUF extension fallback.
 pub fn is_audio_cpp_repo(item: &serde_json::Value) -> bool {
     let marker = |s: &str| matches!(s.to_ascii_lowercase().as_str(), "audio.cpp" | "audiocpp");
-    item["id"] == "audio-cpp/audio.cpp-gguf"
-        || item["library_name"].as_str().is_some_and(marker)
+    matches!(
+        item["id"].as_str(),
+        Some("audio-cpp/audio.cpp-gguf" | "audio-cpp/SAM-Audio-GGUF")
+    ) || item["library_name"].as_str().is_some_and(marker)
         || item["cardData"]["library_name"]
             .as_str()
             .is_some_and(marker)
@@ -25,11 +27,14 @@ pub fn is_audio_cpp_repo(item: &serde_json::Value) -> bool {
 }
 
 pub fn audio_cpp_repo_tts(item: &serde_json::Value) -> bool {
+    if audio_cpp_custom_code(item) {
+        return false;
+    }
     if let Some(family) = item["gguf"]["audiocpp.model_spec.family"]
         .as_str()
         .or_else(|| item["gguf"]["family"].as_str())
     {
-        return crate::engine::audio_cpp::task(family).is_some();
+        return crate::engine::audio_cpp::task(family) == Some("tts");
     }
     item["id"] == "audio-cpp/audio.cpp-gguf"
         || item["pipeline_tag"] == "text-to-speech"
@@ -39,8 +44,31 @@ pub fn audio_cpp_repo_tts(item: &serde_json::Value) -> bool {
             .is_some_and(|tags| tags.iter().any(|v| v == "text-to-speech"))
 }
 
+/// Requires audio.cpp provenance; a generic audio-to-audio tag never captures other engines.
+pub fn audio_cpp_repo_processing(item: &serde_json::Value) -> bool {
+    if !is_audio_cpp_repo(item) || audio_cpp_custom_code(item) {
+        return false;
+    }
+    if item["id"] == "audio-cpp/SAM-Audio-GGUF" {
+        return true;
+    }
+    item["gguf"]["audiocpp.model_spec.family"]
+        .as_str()
+        .or_else(|| item["gguf"]["family"].as_str())
+        .is_some_and(|f| crate::engine::audio_cpp::processing_task(f).is_some())
+}
+
+fn audio_cpp_custom_code(item: &serde_json::Value) -> bool {
+    [&item["tags"], &item["cardData"]["tags"]]
+        .into_iter()
+        .any(|tags| {
+            tags.as_array()
+                .is_some_and(|t| t.iter().any(|v| v == "custom_code"))
+        })
+}
+
 pub fn audio_cpp_compatibility(item: &serde_json::Value) -> Compatibility {
-    if audio_cpp_repo_tts(item) {
+    if audio_cpp_repo_tts(item) || audio_cpp_repo_processing(item) {
         Compatibility::Runnable {
             runtime: crate::engine::AUDIO_CPP.into(),
         }
@@ -1546,6 +1574,45 @@ mod tests {
 mod audio_cpp_tests {
     use super::*;
     use serde_json::json;
+    #[test]
+    fn processing_requires_provenance_and_never_captures_other_audio_engines() {
+        for family in crate::engine::audio_cpp::PROCESS_FAMILIES {
+            let item = json!({"id":"audited/model", "gguf":{"architecture":"audiocpp", "audiocpp.model_spec.family":family}});
+            assert!(is_audio_cpp_repo(&item));
+            assert!(audio_cpp_repo_processing(&item));
+            assert!(!audio_cpp_repo_tts(&item));
+            assert!(matches!(
+                audio_cpp_compatibility(&item),
+                Compatibility::Runnable { .. }
+            ));
+            assert_eq!(
+                crate::hub_tasks::analyze_repo(&item)
+                    .pipeline_tag
+                    .as_deref(),
+                Some("audio-to-audio")
+            );
+            let mut custom = item;
+            custom["tags"] = json!(["custom_code"]);
+            assert!(!audio_cpp_repo_processing(&custom));
+            assert!(matches!(
+                audio_cpp_compatibility(&custom),
+                Compatibility::Unsupported { .. }
+            ));
+        }
+        assert!(audio_cpp_repo_processing(
+            &json!({"id":"audio-cpp/SAM-Audio-GGUF"})
+        ));
+        for repo in [
+            "mlx-community/mel-roformer-mlx",
+            "speechbrain/sepformer",
+            "other/audiosr",
+            "other/vocoder",
+        ] {
+            let item = json!({"id":repo,"pipeline_tag":"audio-to-audio","tags":["gguf"]});
+            assert!(!is_audio_cpp_repo(&item));
+            assert!(!audio_cpp_repo_processing(&item));
+        }
+    }
     #[test]
     fn audio_cpp_metadata_wins_over_the_gguf_extension_and_non_tts_is_unsupported() {
         for marker in [

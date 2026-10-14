@@ -394,7 +394,7 @@ pub(crate) fn audio_cpp_body(
 ) -> Result<serde_json::Value, GatewayError> {
     if method != "POST" || path != "/v1/audio/speech" {
         return Err(bad(
-            "audio.cpp only accepts POST /v1/audio/speech through the gateway.",
+            "audio.cpp only accepts POST /v1/audio/speech or POST /v1/audio/process through the gateway.",
         ));
     }
     let req: SpeechRequest = serde_json::from_slice(body)

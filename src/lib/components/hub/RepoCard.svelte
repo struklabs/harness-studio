@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { app } from '#lib/stores/app.svelte.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { t, locale, type TKey } from '#lib/i18n.svelte.js';
@@ -79,7 +81,7 @@
   );
   /** Runtimes that run a repo of a task whose usual family is another one (CrispASR GGUFs, MLX
    *  speech): their verdict stands and the task's "needs whisper.cpp" hint does not apply. */
-  const OWN_RUNTIMES = ['crispasr', 'mlx', 'mlx-vlm', 'mlx-audio'];
+  const OWN_RUNTIMES = ['audio.cpp', 'crispasr', 'mlx', 'mlx-vlm', 'mlx-audio'];
   let compat = $derived(repo.compatibility);
   /** A safetensors chat model: not run as it is, but the drawer offers the GGUF conversion. */
   let convertible = $derived(canConvert(repo));
@@ -177,7 +179,7 @@
         <Info class="size-3" />{t('hub.compat_needs_mistralrs')}
       </span>
     {:else if (compat.status === 'needs_runtime' || compat.status === 'runnable') && compat.runtime === 'audio.cpp'}
-      <span class="inline-flex items-center gap-1 text-warning" title={t('audio_cpp.needs_engine')}><Info class="size-3" />{t('audio_cpp.experimental')}</span>
+      <span class="inline-flex items-center gap-1 text-warning" title={t('audio_cpp.needs_engine')}><Info class="size-3" />{!app.settings?.audio_cpp_enabled ? t('audio_cpp.needs_engine') : engineInstall.installed('audio.cpp') ? t('process.experimental') : t('speak.engine_missing', { family: 'audio.cpp' })}</span>
     {:else if compat.status === 'needs_runtime'}
       {@const sd = compat.runtime === 'stable-diffusion.cpp'}
       <span class="inline-flex items-center gap-1 text-info" title={t(sd ? 'hub.compat_needs_sd_title' : 'hub.compat_needs_whisper_title')}>

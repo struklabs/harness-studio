@@ -119,6 +119,18 @@ ONNX CTC models (wav2vec2, HuBERT, WavLM) from Model Hub or library folders also
 
 The **Text to Speech** section of the **Speech** tab turns text into audio. Press **Install Engine** to install the sherpa-onnx engine (about 20 MB, verified), then download a voice under **Recommended Voice Models**: Kokoro (multilingual) and Piper voices, which are recommended for Turkish. Choose a **Model**, a **Voice**, and a **Speed**, type the **Text to read**, and press **Speak**. The audio plays in the app and can be downloaded. Once a voice model is installed, the **Read Aloud** button on a chat answer reads it with that voice; without a voice model the app points you to this section.
 
+### Process Audio (Experimental)
+
+The **Process Audio** section separates the sounds in a recording or improves its quality. It runs on the experimental audio.cpp engine, which is off by default.
+
+1. Press **Enable Engine**. In **Settings > Runtime > Installed Runtime**, install the engine with **Install audio.cpp**, turn on **Experimental audio.cpp Engine**, and confirm the warning.
+2. In **Model Hub**, open the `audio-cpp/audio.cpp-gguf` repository and download a model marked **Experimental**. For example, choose BS-RoFormer to separate vocals or Apollo to improve a recording.
+3. Choose a **Model**. Add a WAV file with **Choose File**, or record from the microphone with **Record**.
+4. Fill in any extra settings the model asks for. SAM Audio, for example, asks you to describe the sound to isolate in a sentence. Then press **Process Audio**.
+5. Listen to each output channel in the app (for example **Vocals** and **Instrumental**) and save it to your computer with **Save**.
+
+Only WAV is accepted: up to 32 MiB, 10 minutes, and two channels. Some models need 44.1 kHz; the panel says so and records the microphone at that rate. AudioSR runs only on a GPU backend.
+
 ## Generate Images
 
 The **Image Generation** tab generates pictures from diffusion models through stable-diffusion.cpp. Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it), or use one that is already in your folders: it appears in the **Model** list on its own, and **Open in Playground** on its library card opens this tab with it selected. If the list stays empty although the file is there, some of its extra files are missing; the tab says so and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.

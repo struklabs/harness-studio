@@ -92,7 +92,36 @@ pub const TTS_FAMILIES: &[&str] = &[
 ];
 
 pub fn task(family: &str) -> Option<&'static str> {
-    TTS_FAMILIES.contains(&family).then_some("tts")
+    if TTS_FAMILIES.contains(&family) {
+        Some("tts")
+    } else {
+        processing_task(family)
+    }
+}
+
+/// Only self-contained GGUF packages audited against v0.9.1 model specs.
+pub const PROCESS_FAMILIES: &[&str] = &[
+    "bs_roformer",
+    "mel_band_roformer",
+    "sam_audio",
+    "sidon",
+    "apollo",
+    "audiosr",
+    "universr",
+];
+
+pub fn processing_task(family: &str) -> Option<&'static str> {
+    match family {
+        "bs_roformer" | "mel_band_roformer" => Some("sep"),
+        "sam_audio" | "sidon" | "apollo" | "audiosr" | "universr" => Some("s2s"),
+        _ => None,
+    }
+}
+
+pub fn is_processing(path: &Path) -> bool {
+    metadata(path)
+        .and_then(|m| m.audiocpp_family)
+        .is_some_and(|f| processing_task(&f).is_some())
 }
 
 /// v0.9.1 model specs have no runtime-style capability field. PocketTTS's
@@ -107,6 +136,13 @@ pub fn family_from_package_path(path: &str) -> Option<&'static str> {
     // Display-name/version aliases in audio-cpp/audio.cpp-gguf. A boundary
     // avoids matching similarly named ASR or codec packages as TTS models.
     const PACKAGES: &[(&str, &str)] = &[
+        ("bs-roformer", "bs_roformer"),
+        ("mel-band-roformer", "mel_band_roformer"),
+        ("sam-audio", "sam_audio"),
+        ("sidon", "sidon"),
+        ("apollo", "apollo"),
+        ("audiosr", "audiosr"),
+        ("universr", "universr"),
         ("breeze-tts", "breeze_tts"),
         ("dottts", "dots_tts"),
         ("fireredtts3", "fireredtts3"),
@@ -193,7 +229,7 @@ pub fn is_model(path: &Path) -> bool {
 pub fn is_tts(path: &Path) -> bool {
     metadata(path)
         .and_then(|m| m.audiocpp_family)
-        .is_some_and(|f| task(&f).is_some())
+        .is_some_and(|f| task(&f) == Some("tts"))
 }
 
 pub fn model_dir(path: &Path) -> &Path {
@@ -321,6 +357,10 @@ pub fn server_config(config: &LaunchConfig) -> Result<serde_json::Value, String>
             .with("family", family)
             .into());
     }
+    // v0.9.1's CPU backend aborts on AudioSR (ggml-cpu GGML_ASSERT nb10); Vulkan works.
+    if family == "audiosr" && backend(config) == "cpu" {
+        return Err(crate::error_key::err("audio_cpp.audiosr_needs_gpu").into());
+    }
     let dir = model_dir(&config.model_path);
     let path = if has_companions(dir) {
         dir
@@ -330,7 +370,7 @@ pub fn server_config(config: &LaunchConfig) -> Result<serde_json::Value, String>
     let voice = voices(path).into_iter().next();
     let mut model = serde_json::json!({
         "id": crate::process::served_alias(config).unwrap_or_else(|| "audio-cpp".into()),
-        "family": family, "path": path, "task": "tts", "mode": "offline"
+        "family": family, "path": path, "task": task(&family), "mode": "offline"
     });
     if family == "pocket_tts" {
         if let Some(language) = language(path) {
@@ -750,6 +790,51 @@ mod tests {
             f.write_all(&8u32.to_le_bytes()).unwrap();
             f.write_all(&(value.len() as u64).to_le_bytes()).unwrap();
             f.write_all(value.as_bytes()).unwrap();
+        }
+    }
+
+    #[test]
+    fn processing_models_use_pipeline_kind_and_their_own_server_task() {
+        let dir = tempfile::tempdir().unwrap();
+        for family in PROCESS_FAMILIES {
+            let path = dir.path().join(format!("{family}.gguf"));
+            gguf(&path, family);
+            assert!(is_model(&path));
+            assert!(is_processing(&path));
+            assert!(!is_tts(&path));
+            assert_eq!(
+                crate::domain::detect_kind(metadata(&path).as_ref()),
+                crate::domain::ModelKind::Pipeline
+            );
+            let mut c = LaunchConfig {
+                model_path: path,
+                host: "127.0.0.1".into(),
+                ..Default::default()
+            };
+            c.params
+                .insert("backend".into(), ParamValue::Text("vulkan".into()));
+            assert_eq!(
+                server_config(&c).unwrap()["models"][0]["task"],
+                processing_task(family).unwrap()
+            );
+            assert_eq!(super::super::server_for(&c).family(), AUDIO_CPP);
+            c.params
+                .insert("backend".into(), ParamValue::Text("cpu".into()));
+            assert_eq!(
+                server_config(&c)
+                    .err()
+                    .is_some_and(|e| e.contains("audio_cpp.audiosr_needs_gpu")),
+                *family == "audiosr"
+            );
+        }
+        for family in [
+            "builtin_audio_utils",
+            "mossformer2",
+            "tf_gridnet",
+            "speechbrain",
+            "vocoder",
+        ] {
+            assert!(processing_task(family).is_none());
         }
     }
 

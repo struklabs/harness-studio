@@ -757,6 +757,15 @@ impl Default for ProcessManager {
 }
 
 impl ProcessManager {
+    /// Owned per-worker artifact directory, kept alive until the worker stops.
+    pub fn audio_output_dir(&self) -> Option<PathBuf> {
+        self.audio_run
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|d| d.path().join("outputs"))
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -1496,7 +1505,12 @@ impl ProcessManager {
                 .prefix("harness-audio-")
                 .tempdir()
                 .map_err(|e| self.set_error(e.to_string()))?;
-            crate::engine::audio_cpp::write_config(&launch, dir.path())
+            // Configure the worker's cwd/request base inside its owned output
+            // directory. v0.9.1 returns inline audio; any file artifact is only
+            // readable by the gateway inside this directory.
+            let outputs = dir.path().join("outputs");
+            std::fs::create_dir_all(&outputs).map_err(|e| self.set_error(e.to_string()))?;
+            crate::engine::audio_cpp::write_config(&launch, &outputs)
                 .map_err(|e| self.set_error(e))?;
             *self.audio_run.lock().unwrap() = Some(dir);
         }
@@ -1710,7 +1724,7 @@ impl ProcessManager {
             .lock()
             .unwrap()
             .as_ref()
-            .map(|d| d.path().to_path_buf());
+            .map(|d| d.path().join("outputs"));
         let cwd = if engine.family() == crate::engine::AUDIO_CPP {
             audio_cwd.as_deref().unwrap_or(cwd)
         } else {
