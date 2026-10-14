@@ -55,10 +55,12 @@ pub enum GatewayEndpoint {
     Metrics,
     /// `/v1/hf/{model}`: Hugging Face pipeline tasks (classification, NER, QA...).
     Pipelines,
+    /// `/v1/videos` and `/v1/videos/{id}[/content]` (video generation jobs).
+    Videos,
 }
 
 impl GatewayEndpoint {
-    pub const ALL: [GatewayEndpoint; 10] = [
+    pub const ALL: [GatewayEndpoint; 11] = [
         GatewayEndpoint::Chat,
         GatewayEndpoint::Embeddings,
         GatewayEndpoint::Rerank,
@@ -69,6 +71,7 @@ impl GatewayEndpoint {
         GatewayEndpoint::Ollama,
         GatewayEndpoint::Metrics,
         GatewayEndpoint::Pipelines,
+        GatewayEndpoint::Videos,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -78,6 +81,7 @@ impl GatewayEndpoint {
             GatewayEndpoint::Rerank => "rerank",
             GatewayEndpoint::Audio => "audio",
             GatewayEndpoint::Images => "images",
+            GatewayEndpoint::Videos => "videos",
             GatewayEndpoint::Models => "models",
             GatewayEndpoint::Messages => "messages",
             GatewayEndpoint::Ollama => "ollama",
@@ -107,6 +111,7 @@ impl GatewayEndpoint {
             "/v1/messages" | "/v1/messages/count_tokens" => Self::Messages,
             "/metrics" => Self::Metrics,
             _ if p == "/v1/models" || p.starts_with("/v1/models/") => Self::Models,
+            _ if p == "/v1/videos" || p.starts_with("/v1/videos/") => Self::Videos,
             _ if p.starts_with("/api/") => Self::Ollama,
             _ if p == "/v1/hf" || p.starts_with("/v1/hf/") => Self::Pipelines,
             _ => return None,

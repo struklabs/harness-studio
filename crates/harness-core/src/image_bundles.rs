@@ -114,6 +114,19 @@ const KLEIN_BASE_DEFAULTS: Defaults = Defaults {
     sampling_method: Some("euler"),
     guidance: None,
 };
+const WAN21_VAE: Component = Component {
+    role: "vae",
+    repo: "Comfy-Org/Wan_2.1_ComfyUI_repackaged",
+    file: "split_files/vae/wan_2.1_vae.safetensors",
+    size: 253_815_318,
+};
+/// umt5-xxl at Q3_K_S: with Wan2.1 1.3B it fits an 8 GB Apple M1 (5.4 GB of Metal memory).
+const UMT5_XXL: Component = Component {
+    role: "t5xxl",
+    repo: "city96/umt5-xxl-encoder-gguf",
+    file: "umt5-xxl-encoder-Q3_K_S.gguf",
+    size: 2_858_489_696,
+};
 const SD3_CLIP_G: Component = Component {
     role: "clip_g",
     repo: "Comfy-Org/stable-diffusion-3.5-fp8",
@@ -163,6 +176,21 @@ pub const BUNDLES: &[Bundle] = &[
         file_pattern: r"flux[-_.]?2[-_.]?klein[-_.]?9b",
         components: &[FLUX2_VAE, QWEN3_8B],
         defaults: KLEIN_DEFAULTS,
+    },
+    Bundle {
+        id: "wan21-t2v-1.3b",
+        label: "Wan2.1 T2V 1.3B",
+        file_pattern: r"wan2[._]?1[-_.]t2v[-_.]1[._]3b",
+        components: &[WAN21_VAE, UMT5_XXL],
+        // Wan's own size and settings (stable-diffusion.cpp docs/wan.md).
+        defaults: Defaults {
+            width: 832,
+            height: 480,
+            steps: 20,
+            cfg_scale: 6.0,
+            sampling_method: Some("euler"),
+            guidance: None,
+        },
     },
     Bundle {
         id: "flux-schnell",
@@ -547,6 +575,13 @@ mod tests {
             Some("flux2-klein-base-9b")
         );
         assert_eq!(id("flux2-vae.safetensors"), None);
+        assert_eq!(
+            id("wan2.1_t2v_1.3B_fp16.safetensors"),
+            Some("wan21-t2v-1.3b")
+        );
+        assert_eq!(id("wan2.1-t2v-1.3b-Q8_0.gguf"), Some("wan21-t2v-1.3b"));
+        assert_eq!(id("wan_2.1_vae.safetensors"), None);
+        assert_eq!(id("umt5-xxl-encoder-Q3_K_S.gguf"), None);
         // Not in the list; companions are never mistaken for models.
         assert_eq!(id("qwen_image-Q4_K_M.gguf"), None);
         assert_eq!(id("Qwen3-4B-Q4_K_M.gguf"), None);

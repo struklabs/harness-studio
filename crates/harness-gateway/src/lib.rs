@@ -33,6 +33,7 @@ pub mod sherpa_asr;
 pub mod speech;
 mod text_tool_calls;
 mod tool_loop_guard;
+pub mod videos;
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -94,6 +95,8 @@ pub struct GwState {
     pub downloads: Option<Arc<harness_core::downloader::DownloadManager>>,
     /// Per-token rate-limit counters (shared by the gateway and the Ollama port listener).
     pub limiter: RateLimiter,
+    /// Video jobs (`/v1/videos`).
+    pub videos: Arc<videos::VideoStore>,
 }
 
 struct Running {
@@ -307,6 +310,7 @@ impl GatewayServer {
             loopback: harness_core::network::is_loopback_host(&settings.host),
             http: upstream_client(),
             downloads: ctx.downloads.clone(),
+            videos: Arc::new(videos::VideoStore::open(ctx.data_dir.join("videos"))),
             // Budgets survive a restart (and are shared with other Harness processes on this
             // data directory); without a readable analytics.db they are kept in memory.
             limiter: match harness_core::analytics::shared() {
@@ -614,6 +618,32 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
             post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
                 images::handle(s, images::Kind::Edits, h, b)
             }),
+        )
+        .route(
+            "/v1/videos",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| videos::create(s, h, b))
+                .get(|State(s): State<GwState>, h: HeaderMap| videos::list(s, h)),
+        )
+        .route(
+            "/v1/videos/{id}",
+            get(
+                |State(s): State<GwState>, h: HeaderMap, Path(id): Path<String>| {
+                    videos::retrieve(s, h, id)
+                },
+            )
+            .delete(
+                |State(s): State<GwState>, h: HeaderMap, Path(id): Path<String>| {
+                    videos::delete(s, h, id)
+                },
+            ),
+        )
+        .route(
+            "/v1/videos/{id}/content",
+            get(
+                |State(s): State<GwState>, h: HeaderMap, Path(id): Path<String>| {
+                    videos::content(s, h, id)
+                },
+            ),
         )
         .route("/v1/embeddings", inference!(Api::Embeddings))
         .route("/v1/rerank", inference!(Api::Rerank))
