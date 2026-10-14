@@ -1,6 +1,6 @@
 //! Models of the Python engine (`python-hf`) behind the OpenAI-shaped audio and image routes.
 //!
-//! `/v1/audio/transcriptions`, `/v1/audio/speech` and `/v1/images/generations` are served by
+//! `/v1/audio/transcriptions`, `/v1/audio/speech` and `/v1/images/generations` / `edits` are served by
 //! the native engines first (whisper.cpp, sherpa-onnx, stable-diffusion.cpp): a request reaches
 //! a Python worker only when the definition it names is a Python engine model of the right task
 //! (or, for speech, when no sherpa-onnx voice has that name). The worker answers these routes in

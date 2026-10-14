@@ -548,11 +548,47 @@ pub fn memory_shortfall(lines: &[String]) -> Option<(u64, u64)> {
     })
 }
 
-/// A text-to-image request on a Python engine model: the OpenAI body goes to the worker as it
-/// is; its PNGs come back as `b64_json` or `data:` URLs like sd-server's.
+/// The worker body of an edit on a Python engine model, from the checked `img_gen` body
+/// `plan_edit` made: the first image, the mask already turned into white = repaint, the canvas
+/// size and the sampler settings under the OpenAI route's names.
+fn python_edit_body(img_gen: &Value) -> Value {
+    let mut out = serde_json::Map::new();
+    let mut copy = |to: &str, v: Option<&Value>| {
+        if let Some(v) = v.filter(|v| !v.is_null()) {
+            out.insert(to.into(), v.clone());
+        }
+    };
+    copy("prompt", img_gen.get("prompt"));
+    copy("n", img_gen.get("batch_count"));
+    copy("negative_prompt", img_gen.get("negative_prompt"));
+    copy("seed", img_gen.get("seed"));
+    copy("strength", img_gen.get("strength"));
+    copy("image", img_gen.get("init_image"));
+    copy("mask", img_gen.get("mask_image"));
+    let sample = img_gen.get("sample_params");
+    copy("steps", sample.and_then(|s| s.get("sample_steps")));
+    copy(
+        "cfg_scale",
+        sample.and_then(|s| s.pointer("/guidance/txt_cfg")),
+    );
+    copy("sampler", sample.and_then(|s| s.get("sample_method")));
+    copy("scheduler", sample.and_then(|s| s.get("scheduler")));
+    if let (Some(w), Some(h)) = (
+        img_gen.get("width").and_then(Value::as_u64),
+        img_gen.get("height").and_then(Value::as_u64),
+    ) {
+        out.insert("size".into(), json!(format!("{w}x{h}")));
+    }
+    Value::Object(out)
+}
+
+/// An images request on a Python engine model (a diffusers pipeline): a generation's OpenAI body
+/// goes to the worker as it is, an edit as `python_edit_body`; its PNGs come back as `b64_json`
+/// or `data:` URLs like sd-server's.
 async fn python_generate(
     state: &GwState,
     def: &ModelDefinition,
+    kind: Kind,
     request: Value,
     plan: &Plan,
     guard: &mut RecordGuard,
@@ -566,15 +602,8 @@ async fn python_generate(
     }
     let body = serde_json::to_vec(&request)
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?;
-    let answer = crate::pyhf::post(
-        state,
-        def,
-        guard,
-        "/v1/images/generations",
-        "application/json",
-        body,
-    )
-    .await?;
+    let answer =
+        crate::pyhf::post(state, def, guard, kind.path(), "application/json", body).await?;
     let v: Value = serde_json::from_slice(&answer.body)
         .map_err(|e| GatewayError::new(502, "upstream_error", format!("Python engine: {e}")))?;
     let images: Vec<String> = v
@@ -716,7 +745,7 @@ async fn run(
     caller.check_model(&def.alias)?;
     // A diffusers pipeline of the Python engine answers OpenAI's request itself.
     if let Some(task) = crate::pyhf::task_of(&def) {
-        if task != "text-to-image" || kind != Kind::Generations {
+        if task != "text-to-image" {
             return Err(GatewayError::new(
                 400,
                 "model_not_image",
@@ -728,7 +757,11 @@ async fn run(
             )
             .param("model"));
         }
-        return python_generate(state, &def, raw_request.unwrap_or_default(), &plan, guard).await;
+        let request = match kind {
+            Kind::Generations => raw_request.unwrap_or_default(),
+            Kind::Edits => python_edit_body(&plan.body),
+        };
+        return python_generate(state, &def, kind, request, &plan, guard).await;
     }
     if !is_image_model(&def) {
         return Err(GatewayError::new(
@@ -1077,6 +1110,33 @@ mod tests {
         assert_eq!(p.body["width"], json!(512));
         assert_eq!(p.body["ref_images"], json!([a]));
         assert!(p.body.get("strength").is_none() && p.body.get("mask_image").is_none());
+    }
+
+    #[test]
+    fn a_python_edit_gets_the_first_image_mask_size_and_sampler() {
+        let a = B64.encode(png(641, 480));
+        let b = B64.encode(png(64, 64));
+        let p = plan_edit(json!({
+            "prompt": "make it night", "image": [a, b], "strength": 0.4, "n": 2,
+            "mask": B64.encode(png(641, 480)), "steps": 12, "cfg_scale": 6.5, "seed": 9,
+            "sampler": "euler_a", "scheduler": "karras", "negative_prompt": "blur"
+        }))
+        .unwrap();
+        let body = python_edit_body(&p.body);
+        assert_eq!(
+            body,
+            json!({
+                "prompt": "make it night", "n": 2, "negative_prompt": "blur", "seed": 9,
+                "strength": 0.4, "image": a, "mask": B64.encode(png(641, 480)), "steps": 12,
+                "cfg_scale": 6.5, "sampler": "euler_a", "scheduler": "karras", "size": "640x480"
+            })
+        );
+        // Only what was asked for goes on.
+        let p = plan_edit(json!({"prompt": "x", "image": b})).unwrap();
+        assert_eq!(
+            python_edit_body(&p.body),
+            json!({"prompt": "x", "n": 1, "image": b, "size": "64x64"})
+        );
     }
 
     #[test]
