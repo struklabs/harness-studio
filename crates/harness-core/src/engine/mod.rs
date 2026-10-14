@@ -56,7 +56,7 @@ pub use mistralrs::{
 pub(crate) use mistralrs::{
     delete_model_dir as mistralrs_delete_model_dir, library_models as mistralrs_library_models,
 };
-pub use mlx::{MlxEngine, MLX, MLX_VLM};
+pub use mlx::{MlxEngine, MLX, MLX_AUDIO, MLX_VLM};
 pub use onnx::{
     provider_of as onnx_provider_of, vram_need as onnx_vram_need, OnnxEngine, ONNX_FAMILY,
 };
@@ -327,6 +327,7 @@ static MISTRAL: MistralRsEngine = MistralRsEngine;
 static PYHF: PythonHfEngine = PythonHfEngine;
 static MLX_ENGINE: MlxEngine = MlxEngine::TEXT;
 static MLX_VLM_ENGINE: MlxEngine = MlxEngine::VISION;
+static MLX_AUDIO_ENGINE: MlxEngine = MlxEngine::AUDIO;
 static LLAMA_BENCH_ENGINE: LlamaBenchEngine = LlamaBenchEngine;
 
 /// The llama.cpp engine.
@@ -375,7 +376,7 @@ pub fn python_hf() -> &'static dyn ServerEngine {
 }
 
 /// Every known family.
-pub fn engines() -> [&'static dyn Engine; 10] {
+pub fn engines() -> [&'static dyn Engine; 11] {
     [
         &LLAMA,
         &WHISPER,
@@ -387,6 +388,7 @@ pub fn engines() -> [&'static dyn Engine; 10] {
         &PYHF,
         &MLX_ENGINE,
         &MLX_VLM_ENGINE,
+        &MLX_AUDIO_ENGINE,
     ]
 }
 
@@ -451,7 +453,7 @@ pub fn non_llama_vram_need(config: &LaunchConfig) -> u64 {
         ONNX_FAMILY => onnx_vram_need(config),
         MISTRALRS => mistralrs::vram_need(config),
         PYTHON_HF => python_hf::vram_need(config),
-        MLX | MLX_VLM => mlx::vram_need(config),
+        MLX | MLX_VLM | MLX_AUDIO => mlx::vram_need(config),
         _ => whisper_vram_need(config),
     }
 }
@@ -462,19 +464,20 @@ pub fn serve_mode_of(family: &str) -> crate::serve_mode::ServeMode {
     match family {
         SD_CPP => crate::serve_mode::ServeMode::Image,
         MISTRALRS | MLX | MLX_VLM => crate::serve_mode::ServeMode::Chat,
+        // Text to speech: the gateway's /v1/audio/speech posts to the worker.
+        MLX_AUDIO => crate::serve_mode::ServeMode::Pipeline,
         _ => crate::serve_mode::ServeMode::Transcription,
     }
 }
 
-/// The MLX engine of an MLX model folder: mlx-vlm for a vision model, mlx otherwise.
+/// The MLX engine of an MLX model folder: mlx-vlm for a vision model, mlx-audio for a
+/// text-to-speech one, mlx otherwise.
 fn mlx_engine_for(path: &Path) -> Option<&'static MlxEngine> {
-    if mlx::is_vlm_dir(path) {
-        Some(&MLX_VLM_ENGINE)
-    } else if mlx::is_model_dir(path) {
-        Some(&MLX_ENGINE)
-    } else {
-        None
-    }
+    Some(match mlx::flavour_of(path)? {
+        mlx::Flavour::Text => &MLX_ENGINE,
+        mlx::Flavour::Vision => &MLX_VLM_ENGINE,
+        mlx::Flavour::Audio => &MLX_AUDIO_ENGINE,
+    })
 }
 
 /// The server engine that runs a model file (or a mistral.rs model folder), by its format.
@@ -626,6 +629,20 @@ mod tests {
             assert!(!is_llama_server(dir, false));
         }
         assert_eq!(serve_mode_of(MLX_VLM), crate::serve_mode::ServeMode::Chat);
+        let tts = folder(
+            "Qwen3-TTS-0.6B-8bit",
+            &format!(
+                r#"{{"architectures":["Qwen3TTSForConditionalGeneration"],"model_type":"qwen3_tts",{q}}}"#
+            ),
+            Some("---\nlibrary_name: mlx-audio\n---\n"),
+        );
+        assert_eq!(launch(&tts), MLX_AUDIO);
+        assert_eq!(model(&tts), Some(MLX_AUDIO));
+        assert!(model_on_disk(&tts) && !is_llama_server(&tts, false));
+        assert_eq!(
+            serve_mode_of(MLX_AUDIO),
+            crate::serve_mode::ServeMode::Pipeline
+        );
         assert_eq!(engine(MLX_VLM).unwrap().family(), MLX_VLM);
         assert_eq!(engine(MLX).unwrap().family(), MLX);
     }

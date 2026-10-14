@@ -122,6 +122,8 @@ pub async fn launch(
         crate::engine::mlx::binary()?
     } else if engine.family() == crate::engine::MLX_VLM {
         crate::engine::mlx::vlm_binary()?
+    } else if engine.family() == crate::engine::MLX_AUDIO {
+        crate::engine::mlx::audio_binary()?
     } else {
         crate::runtimes::resolve_family_binary_in(&reg, engine.family(), config.runtime.as_deref())?
     };

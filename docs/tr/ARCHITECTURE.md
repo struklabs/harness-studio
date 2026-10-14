@@ -1085,3 +1085,53 @@ MLX biçimli görüntü-dil modelleriyle (`mlx-community/Qwen3-VL-...`, Gemma 3,
   - Ağ geçidinden kırmızı bir resim gönderir; yanıt "red" olur.
   - Metin akışını dener.
   - http adresi, dosya yolu ve `file://` resmin reddedildiğini (400) doğrular.
+
+### 14.11. MLX ses motoru (mlx-audio metinden konuşma, Apple Silicon)
+
+mlx-community'deki mlx-audio modelleriyle metinden konuşma sağlar (şimdilik hazır sesleriyle Qwen3-TTS); ağ geçidinin `/v1/audio/speech` uç noktası arkasında çalışır. Aile `mlx-audio`'dur; `MlxEngine`'in ses türüdür (`MlxEngine::AUDIO`, `mlx::Flavour::Audio`). Yalnız Apple Silicon'da, macOS 14 veya üstünde çalışır.
+
+- **Çalışma ortamı:** kendine ait bir ortamı yoktur. `mlx-vlm` ortamı (§14.10) mlx-audio 0.5.9'u ve metinden konuşma modellerinin ihtiyacı olan her şeyi zaten içerir; iki motordan biri kurulunca ikisi de hazır olur. Ayarlar > Motorlar ikisini aynı ortamla listeler.
+- **İşçi:** `python/mlx_audio_worker.py`, mlx-audio'nun model yükleyicisinin etrafında Harness'in kendi küçük ASGI sunucusudur. mlx-audio'nun sunucusu kullanılmaz, çünkü:
+  - gerçek zamanlı websocket'ler ve konuşma tanıma içerir;
+  - ses listelerini Hub'dan indirir;
+  - başvuru sesini istekte adı geçen yoldan okur;
+  - tekeri olmayan bir paketi içe aktarır.
+
+  İşçinin açtığı yollar:
+  - `GET /health`: `{"status":"ok"}` döner.
+  - `GET /v1/models`: takma adı ve modelin seslerini döner.
+  - `POST /v1/audio/speech`: `input`, `voice`, `speed` (0,25–4) ve `language` alır; 16 bit mono WAV döner.
+
+  Geri kalan her yol ve websocket 404 döner. İstek kuralları:
+  - Gövde en çok 1 MB, metin en çok `--max-chars` (varsayılan 4096) olabilir.
+  - Bilinmeyen alanlar reddedilir; `ref_audio` da bunlara dahildir, yani ses kopyalama yoktur ve istek dosya yolu veremez.
+  - Ses, modelin konuşmacılarından biri olmalıdır. OpenAI ses adları (`alloy`, …) varsayılan sesi alır, böylece OpenAI istemcileri de çalışır.
+  - İstekler sırayla seslendirilir.
+
+  Anahtar, 127.0.0.1, `HF_HUB_OFFLINE=1` ve temizlenen vekiller öteki MLX işçilerindeki gibidir; transformers yükleyicilerinde `trust_remote_code=False` zorlanır.
+- **Model:** `mlx::is_tts_dir` şu koşulları arar:
+  - `config.json`'daki `model_type` denenmiş bir mimari olmalıdır (`TTS_TYPES`: `qwen3_tts`).
+  - Klasörde `.safetensors` ağırlıkları bulunmalıdır.
+  - Kart MLX'i göstermeli (`library_name: mlx-audio` / `mlx`) ya da klasörde MLX nicemlemesi olmalıdır.
+
+  Kokoro dışarıda bırakılır: mlx-audio'nun Kokoro'su çalışırken misaki ve spaCy verisi indirmek ister; Kokoro'yu zaten sherpa-onnx çalıştırır. Kütüphane bu klasörü, Python motorunun konuşma modellerindeki gibi pipeline modeli olarak listeler (`ModelKind::Pipeline`, nicemleme `8bit`).
+- **Konuşma klasörleri hiçbir zaman sohbet modeli değildir:** `mlx::is_audio_folder` şunlardan birini görünce klasörü konuşma modeli sayar:
+  - kartta `library_name: mlx-audio`;
+  - bir konuşma `pipeline_tag`'i;
+  - mlx-audio'nun konuşma modellerinden birinin `model_type`'ı (whisper, parakeet, kokoro, qwen3_tts, …).
+
+  Bu klasörlerin config'leri `WhisperForConditionalGeneration` ve `Qwen3TTSForConditionalGeneration` gibi görünse de `mlx` motoru da mistral.rs de onları almaz. MLX'te konuşma tanıma sunulmaz: denememizde mlx-audio'nun whisper'ı konuşmanın sonuna uydurma metin ekledi; konuşma tanımayı zaten whisper.cpp ve sherpa-onnx sunuyor.
+- **Ağ geçidi:** `/v1/audio/speech` önce sherpa-onnx seslerine bakar. Uymazsa ve tanım bir Python motoru ya da mlx-audio konuşma modeliyse sunucu kiralanır, isteğe gönderilir (`speech.rs`, `pyhf::post`) ve gelen WAV istenen biçime çevrilir. mlx-audio'ya `voice` ve `speed` de iletilir. Sunum kipi `Pipeline`'dır.
+- **Hub:** adı denenmiş bir mimariyi gösteren (`mlx::is_tts_repo`: `qwen3-tts`) MLX `text-to-speech` deposu `Runnable{mlx-audio}` olarak işaretlenir. Kartta "MLX ile konuşur" yazar; motor kurulana dek "Gerekli: MLX ses motoru" görünür.
+- **Kütüphane (tüm MLX motorları):** MLX klasörleri GGUF / llama.cpp olarak değil, `mlx` biçimiyle ve kendi motorlarının ailesiyle kaydedilir. Silmek klasörün tamamını kaldırır (`mlx::delete_model_dir`, yalnız kütüphanenin içindeyse).
+- **Ölçüm:** M1 8 GB'de Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit ile:
+  - Ağ geçidinden ilk yanıt, yükleme dahil 27 sn sürdü.
+  - Sonraki kısa bir cümle 3,7 sn'de geldi.
+  - 4 sn'lik konuşma yaklaşık 3,3 sn'de üretildi.
+- **Testler:**
+  - Konuşma klasörü tanıma: Qwen3-TTS mlx-audio'ya gider; whisper, Kokoro ve konuşma etiketli klasörler hiçbir motorun sohbet modeli olmaz.
+  - Ses argüman satırı.
+  - Bir yer tutucu seslendiriciyle işçinin denetimleri ve yolları (sistem Python'u).
+  - MLX kütüphane kayıtları ve klasör silme.
+  - Yönlendirme ve Hub kararları.
+  - `harness-gateway/tests/mlx_audio_e2e.rs` (`#[ignore]`, `HS_MLX_TTS_MODEL`) sırayla kütüphaneyi, adı verilmiş bir sesle ağ geçidinden WAV'ı, bir OpenAI ses adını ve bilinmeyen bir sesi dener; sonuncusu modelin seslerini listeleyen bir 400 döner.

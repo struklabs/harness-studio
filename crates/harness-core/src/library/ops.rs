@@ -223,6 +223,11 @@ pub fn delete_files(model: &LocalModel, roots: &[PathBuf]) -> Result<Vec<PathBuf
         crate::asr::delete_model_dir(&model.path, roots)?;
         return Ok(model.shard_paths.clone());
     }
+    // And an MLX folder.
+    if model.gguf.is_none() && crate::engine::mlx::is_any_model_dir(&model.path) {
+        crate::engine::mlx::delete_model_dir(&model.path, roots)?;
+        return Ok(vec![model.path.clone()]);
+    }
     // And a safetensors checkpoint (config, tokenizer and weights of one repo).
     if crate::engine::is_mistralrs_library_model(model) {
         crate::engine::mistralrs_delete_model_dir(&model.path, roots)?;
