@@ -593,18 +593,30 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| SchedError::Internal(e.to_string()))
 }
 
+/// Longest alias part of a gateway server id.
+const SERVER_ID_LEN: usize = 48;
+
+/// `gw-<alias>` in lower case with every other character as `-`. An alias longer than
+/// [`SERVER_ID_LEN`] is cut and ends with 8 hex digits of its SHA-256, so two aliases that only
+/// differ after the cut get two servers; shorter aliases keep the id they always had.
 fn gw_server_id(alias: &str) -> String {
     let base: String = alias
         .to_lowercase()
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
-    let base: String = base.trim_matches('-').chars().take(48).collect();
-    format!(
-        "{}{}",
-        SERVER_PREFIX,
-        if base.is_empty() { "model" } else { &base }
-    )
+    let base = base.trim_matches('-');
+    if base.is_empty() {
+        return format!("{SERVER_PREFIX}model");
+    }
+    if base.chars().count() <= SERVER_ID_LEN {
+        return format!("{SERVER_PREFIX}{base}");
+    }
+    use sha2::Digest;
+    let digest = sha2::Sha256::digest(alias.as_bytes());
+    let tag: String = digest[..4].iter().map(|b| format!("{b:02x}")).collect();
+    let head: String = base.chars().take(SERVER_ID_LEN - tag.len() - 1).collect();
+    format!("{SERVER_PREFIX}{}-{tag}", head.trim_end_matches('-'))
 }
 
 impl Scheduler {
@@ -3520,6 +3532,19 @@ mod tests {
     fn server_ids_and_errors() {
         assert_eq!(gw_server_id("Qwen3-4B:Q4_K_M"), "gw-qwen3-4b-q4-k-m");
         assert_eq!(gw_server_id("..."), "gw-model");
+        // Long aliases that share the first 48 characters get different ids of the same length.
+        let plain = "distilbert-base-uncased-finetuned-sst-2-english-v1";
+        let quant = "distilbert-base-uncased-finetuned-sst-2-english-v1-quantized";
+        let (a, b) = (gw_server_id(plain), gw_server_id(quant));
+        assert_ne!(a, b);
+        assert!(a.len() <= SERVER_PREFIX.len() + SERVER_ID_LEN, "{a}");
+        assert!(
+            a.starts_with("gw-distilbert-base-uncased-finetuned-sst-2-"),
+            "{a}"
+        );
+        assert_eq!(gw_server_id(plain), a);
+        let exact = "a".repeat(SERVER_ID_LEN);
+        assert_eq!(gw_server_id(&exact), format!("gw-{exact}"));
         let e = SchedError::QueueFull {
             alias: "a".into(),
             retry_after: 3,

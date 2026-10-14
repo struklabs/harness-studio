@@ -2458,7 +2458,17 @@ impl ProcessManager {
         // Invalidate the supervisor before killing so it doesn't report a "crash".
         self.generation
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        self.push_log("[Harness Studio] Stopping llama-server process...".to_string());
+        let family = self
+            .active
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|a| a.engine_family.clone())
+            .filter(|f| !f.is_empty());
+        self.push_log(match family {
+            Some(f) => format!("[Harness Studio] Stopping the {f} server process..."),
+            None => "[Harness Studio] Stopping the server process...".to_string(),
+        });
 
         if let Err(error) = self.terminate_child_until(deadline).await {
             self.set_status(ServerStatus::Error(error.clone()));
