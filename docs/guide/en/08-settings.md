@@ -127,7 +127,7 @@ On **Diagnostics > Health**, **Run Checks** checks your setup, runtime compatibi
 
 ## Leaving the Window Open in the Tray
 
-If **When closing the window** is set to **Minimize to Tray**, closing the window does not close the app: it keeps running in the system tray (the menu bar on macOS), and servers and downloads continue. Reopen the window from the tray icon; to quit completely, use **Quit** in the icon's menu. If **Quit** is selected, running servers are stopped. If your desktop has no tray or menu bar icon, closing the window quits the app.
+If **When closing the window** is set to **Minimize to Tray**, closing the window does not close the app: it keeps running in the system tray (the menu bar on macOS), and servers and downloads continue. Reopen the window from the tray icon; to quit completely, use **Quit** in the icon's menu. If **Quit** is selected, running servers are stopped. If your desktop has no tray or menu bar icon, closing the window quits the app. On Linux this includes stock GNOME, which shows tray icons only with the AppIndicator extension.
 
 To save memory while in the tray, the window's web page can be closed:
 

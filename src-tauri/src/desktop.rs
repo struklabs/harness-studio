@@ -167,7 +167,38 @@ pub fn launched_minimized() -> bool {
 static TRAY_READY: AtomicBool = AtomicBool::new(false);
 
 pub fn tray_available() -> bool {
-    TRAY_READY.load(Ordering::Relaxed)
+    TRAY_READY.load(Ordering::Relaxed) && tray_host_present()
+}
+
+/// Linux: something shows AppIndicator icons, i.e. a StatusNotifierWatcher is on the session
+/// bus (KDE, Cinnamon, XFCE, or GNOME with the AppIndicator extension). Stock GNOME has none:
+/// the icon is created but never shown, so the window must not hide into it. Asked each time,
+/// since the extension can be turned on while the app runs.
+#[cfg(target_os = "linux")]
+fn tray_host_present() -> bool {
+    use gio::prelude::*;
+    let Ok(bus) = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE) else {
+        return false;
+    };
+    bus.call_sync(
+        Some("org.freedesktop.DBus"),
+        "/org/freedesktop/DBus",
+        "org.freedesktop.DBus",
+        "NameHasOwner",
+        Some(&("org.kde.StatusNotifierWatcher",).to_variant()),
+        gio::glib::VariantTy::new("(b)").ok(),
+        gio::DBusCallFlags::NONE,
+        1000,
+        gio::Cancellable::NONE,
+    )
+    .ok()
+    .and_then(|v| v.get::<(bool,)>())
+    .is_some_and(|(owned,)| owned)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn tray_host_present() -> bool {
+    true
 }
 
 /// A close question is on screen. A second close while it is open quits (and a frontend that
