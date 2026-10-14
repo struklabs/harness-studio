@@ -46,6 +46,8 @@ pub struct VisionEngine {
     outputs: Vec<String>,
     /// The tokenizer and text inputs of a zero-shot model.
     text: Option<TextInputs>,
+    /// The text decoder of a captioner.
+    decoder: Option<crate::decoder::Decoder>,
     /// `DirectML`, `CUDA` or `CPU`.
     pub provider: String,
 }
@@ -74,6 +76,7 @@ fn pick_outputs(names: &[&str], task: VisionTask) -> Result<Vec<String>, String>
                 ))
             };
         }
+        VisionTask::Caption => &["last_hidden_state"],
     };
     if want.iter().all(|w| names.contains(w)) {
         return Ok(want.iter().map(|s| s.to_string()).collect());
@@ -171,6 +174,15 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
         }
         None => None,
     };
+    let decoder = match &package.caption {
+        Some(side) => Some(crate::decoder::load(
+            opts,
+            &side.decoder_path,
+            &side.tokenizer_path,
+            side.gen.clone(),
+        )?),
+        None => None,
+    };
     let engine = VisionEngine {
         session: Mutex::new(session),
         package,
@@ -179,11 +191,13 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
         mask_input,
         outputs,
         text,
+        decoder,
         provider: provider.to_string(),
     };
     let warm = image::RgbImage::from_pixel(64, 48, image::Rgb([128, 128, 128]));
     let job = VisionJob {
         candidate_labels: vec!["a cat".into(), "a dog".into()],
+        max_new_tokens: Some(2),
         ..VisionJob::default()
     };
     engine.infer(&warm, &job).map_err(|e| e.message)?;
@@ -358,6 +372,16 @@ impl VisionEngine {
                 let dims: Vec<usize> = shape.iter().map(|d| *d as usize).collect();
                 Ok(vision::nested(&dims, data))
             }
+            VisionTask::Caption => {
+                let (shape, data) = &outputs[0];
+                let decoder = self
+                    .decoder
+                    .as_ref()
+                    .ok_or_else(|| ApiError::server("the captioner has no decoder"))?;
+                let ids = decoder.generate(data, shape, job.max_new_tokens)?;
+                let text = decoder.decode(&ids)?;
+                Ok(serde_json::json!([{ "generated_text": text }]))
+            }
         }
     }
 
@@ -401,11 +425,15 @@ impl VisionEngine {
 
     pub fn describe(&self) -> String {
         format!(
-            "{} ({}), {}, outputs {}",
+            "{} ({}), {}, outputs {}{}",
             self.package.name,
             self.package.task.pipeline_task(),
             self.provider,
-            self.outputs.join(", ")
+            self.outputs.join(", "),
+            self.decoder
+                .as_ref()
+                .map(|d| format!(", {}", d.describe()))
+                .unwrap_or_default()
         )
     }
 }

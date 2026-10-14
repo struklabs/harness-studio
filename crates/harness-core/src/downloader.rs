@@ -3306,6 +3306,18 @@ fn onnx_variants(
                 && !lower.ends_with(".onnx.data")
         })
         .collect();
+    // An encoder-decoder (an image captioner) is one model in two graphs: every encoder
+    // variant brings its decoder, and the decoder graphs are no variants of their own.
+    let graph_named = |prefix: &str| {
+        files.iter().any(|f| {
+            f.path.to_lowercase().ends_with(".onnx")
+                && f.path
+                    .rsplit('/')
+                    .next()
+                    .is_some_and(|n| n.starts_with(prefix))
+        })
+    };
+    let encoder_decoder = graph_named("encoder_model") && graph_named("decoder_model");
     let mut variants = Vec::new();
     for graph in files
         .iter()
@@ -3332,15 +3344,46 @@ fn onnx_variants(
         {
             continue;
         }
-        let external: Vec<&F> = files
-            .iter()
-            .filter(|f| {
-                f.path == format!("{prefix}{stem}.onnx_data")
-                    || f.path == format!("{prefix}{stem}.onnx.data")
-            })
-            .collect();
+        if encoder_decoder && stem.starts_with("decoder_") {
+            continue;
+        }
+        let external = |stem: &str| -> Vec<&F> {
+            files
+                .iter()
+                .filter(|f| {
+                    f.path == format!("{prefix}{stem}.onnx_data")
+                        || f.path == format!("{prefix}{stem}.onnx.data")
+                })
+                .collect()
+        };
         let mut parts: Vec<&F> = vec![graph];
-        parts.extend(external);
+        parts.extend(external(stem));
+        if let Some(suffix) = stem
+            .strip_prefix("encoder_model")
+            .filter(|_| encoder_decoder)
+        {
+            // The same precision's merged decoder first (as the sidecar picks it).
+            let decoder = [
+                format!("decoder_model_merged{suffix}"),
+                format!("decoder_model{suffix}"),
+                "decoder_model_merged".to_string(),
+                "decoder_model".to_string(),
+            ]
+            .into_iter()
+            .find_map(|d| {
+                files
+                    .iter()
+                    .find(|f| f.path == format!("{prefix}{d}.onnx"))
+                    .map(|f| (f, d))
+            });
+            match decoder {
+                Some((f, d)) => {
+                    parts.push(f);
+                    parts.extend(external(&d));
+                }
+                None => continue,
+            }
+        }
         parts.extend(companions.iter().copied());
         let total = parts.len() as u32;
         let shards = parts
@@ -5855,6 +5898,37 @@ mod tests {
         let mut names: Vec<&str> = v.iter().map(|v| v.name.as_str()).collect();
         names.sort();
         assert_eq!(names, vec!["model", "model_quantized"]);
+        // An image captioner: each encoder brings the decoder of its precision.
+        let v = onnx_variants(
+            "Xenova/vit-gpt2-image-captioning",
+            &[
+                file("config.json"),
+                file("preprocessor_config.json"),
+                file("tokenizer.json"),
+                file("onnx/encoder_model.onnx"),
+                file("onnx/encoder_model_quantized.onnx"),
+                file("onnx/decoder_model.onnx"),
+                file("onnx/decoder_model_merged.onnx"),
+                file("onnx/decoder_model_merged_quantized.onnx"),
+                file("onnx/decoder_with_past_model.onnx"),
+            ],
+        )
+        .unwrap();
+        let mut names: Vec<&str> = v.iter().map(|v| v.name.as_str()).collect();
+        names.sort();
+        assert_eq!(names, vec!["encoder_model", "encoder_model_quantized"]);
+        let q = v
+            .iter()
+            .find(|v| v.name == "encoder_model_quantized")
+            .unwrap();
+        let files: Vec<&str> = q.shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            files[..2],
+            [
+                "onnx/encoder_model_quantized.onnx",
+                "onnx/decoder_model_merged_quantized.onnx"
+            ]
+        );
         // Big models keep weights in a sibling file; it travels with the graph.
         let v = onnx_variants(
             "acme/big-embedder",
@@ -5869,6 +5943,33 @@ mod tests {
         assert_eq!(v.len(), 1, "deeper folders are other pipelines");
         let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
         assert_eq!(names[..2], ["onnx/model.onnx", "onnx/model.onnx_data"]);
+        // An unmerged export: the plain decoder travels with every encoder.
+        let other = onnx_variants(
+            "acme/captioner",
+            &[
+                file("config.json"),
+                file("tokenizer.json"),
+                file("onnx/encoder_model.onnx"),
+                file("onnx/encoder_model_fp16.onnx"),
+                file("onnx/decoder_model.onnx"),
+            ],
+        )
+        .unwrap();
+        assert_eq!(other.len(), 2);
+        for variant in &other {
+            assert!(variant
+                .shards
+                .iter()
+                .any(|s| s.filename == "onnx/decoder_model.onnx"));
+        }
+        // An encoder with no decoder at all is a plain encoder (a T5 encoder for embeddings).
+        let other = onnx_variants(
+            "acme/t5-encoder",
+            &[file("tokenizer.json"), file("onnx/encoder_model.onnx")],
+        )
+        .unwrap();
+        assert_eq!(other.len(), 1);
+        assert_eq!(other[0].shards[0].filename, "onnx/encoder_model.onnx");
     }
 
     #[test]
