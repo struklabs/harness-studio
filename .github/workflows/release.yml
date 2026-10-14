@@ -1,17 +1,19 @@
 name: Release
 
 # Push a tag like `v0.2.0` (matching the version in tauri.conf.json / Cargo.toml / package.json).
-# Builds the Windows NSIS installer and the macOS DMGs (Apple Silicon and Intel) and creates a
-# DRAFT GitHub release with the installers, the updater signatures and `latest.json`. Review the
-# draft and publish it to roll it out. To rebuild an existing tag, run the workflow by hand with
+# Builds the Windows NSIS installer, the macOS DMGs (Apple Silicon and Intel) and the Linux AppImage
+# and .deb, and creates a DRAFT GitHub release with the installers, the updater signatures and
+# `latest.json`. Review the draft and publish it to roll it out. To rebuild an existing tag, run the workflow by hand with
 # the `tag` input: it checks out that tag and uploads to its release.
 # The macOS DMGs are signed with the Developer ID certificate and notarized by Apple when the
 # APPLE_* secrets below are set; without them they fall back to the ad-hoc signature
 # (`signingIdentity: "-"` in src-tauri/tauri.macos.conf.json) and Gatekeeper asks for
 # confirmation on the first open.
 # The `organize` job then renames the assets by operating system (Windows / macOS / Linux) and
-# writes the release body from .github/release-body.md. The Linux preview `.deb` is built on a
-# Linux machine and uploaded by hand as `Harness.Studio_<version>_Linux_x86_64.deb`.
+# writes the release body from .github/release-body.md.
+# Linux is built on ubuntu-22.04 so the AppImage (which bundles WebKitGTK and GStreamer from the
+# build machine) also runs on older distributions. The updater's `linux-x86_64` entry in
+# latest.json points at the AppImage; the .deb is updated by the system's package manager.
 #
 # Repository secrets (Settings > Secrets and variables > Actions):
 #   TAURI_SIGNING_PRIVATE_KEY           contents of the updater signing key (`npm run tauri signer generate`)
@@ -55,12 +57,27 @@ jobs:
           - platform: macos-latest
             target: x86_64-apple-darwin
             args: '--target x86_64-apple-darwin --bundles app,dmg'
+          - platform: ubuntu-22.04
+            args: '--bundles appimage,deb'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
+
+      - name: Free disk space (Linux)
+        if: runner.os == 'Linux'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      # The GStreamer plugins are copied into the AppImage (`bundleMediaFramework`), so WebKit can
+      # play audio and video without the host's GStreamer.
+      - name: Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libdbus-1-dev pkg-config \
+            xdg-utils gstreamer1.0-plugins-base gstreamer1.0-plugins-good
 
       - uses: actions/setup-node@v7
         with:
@@ -176,7 +193,8 @@ jobs:
           gh release upload "$TAG" "$asset" --clobber -R "$GITHUB_REPOSITORY"
 
   # Asset names say which operating system they are for, so the download list reads by platform:
-  # Harness.Studio_<v>_Windows_x64-setup.exe, _macOS_Apple-Silicon.dmg, _macOS_Intel.dmg. Renaming
+  # Harness.Studio_<v>_Windows_x64-setup.exe, _macOS_Apple-Silicon.dmg, _macOS_Intel.dmg,
+  # _Linux_x86_64.AppImage, _Linux_x86_64.deb. Renaming
   # keeps each asset's id, and latest.json points at asset ids, so the updater is unaffected.
   organize:
     needs: build
@@ -204,7 +222,9 @@ jobs:
                 -e 's/_aarch64\.dmg$/_macOS_Apple-Silicon.dmg/' \
                 -e 's/_x64\.dmg$/_macOS_Intel.dmg/' \
                 -e 's/_aarch64\.app\.tar\.gz/_macOS_Apple-Silicon.app.tar.gz/' \
-                -e 's/_x64\.app\.tar\.gz/_macOS_Intel.app.tar.gz/')
+                -e 's/_x64\.app\.tar\.gz/_macOS_Intel.app.tar.gz/' \
+                -e 's/_amd64\.AppImage/_Linux_x86_64.AppImage/' \
+                -e 's/_amd64\.deb/_Linux_x86_64.deb/')
               if [ "$new" != "$name" ]; then
                 gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/assets/$id" -f name="$new" --jq '.name'
               fi
