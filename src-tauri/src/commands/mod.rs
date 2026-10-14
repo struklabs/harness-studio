@@ -88,4 +88,5 @@ include!("tts.rs");
 include!("asr.rs");
 include!("lemonade.rs");
 include!("convert.rs");
+include!("pyenv.rs");
 include!("otel.rs");

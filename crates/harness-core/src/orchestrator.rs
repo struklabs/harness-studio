@@ -115,6 +115,9 @@ pub async fn launch(
             crate::onnx_runtime::install(variant).await?;
         }
         crate::onnx_runtime::sidecar_binary()?
+    } else if engine.family() == crate::engine::PYTHON_HF {
+        // The interpreter of the managed environment (Settings > Engines installs it).
+        crate::engine::python_hf::binary()?
     } else {
         crate::runtimes::resolve_family_binary_in(&reg, engine.family(), config.runtime.as_deref())?
     };

@@ -4,6 +4,7 @@ const ua = typeof navigator !== 'undefined' ? `${navigator.userAgent} ${navigato
 
 export const isWindows = /Win/i.test(ua);
 export const isMac = /Mac/i.test(ua);
+export const isLinux = !isWindows && !isMac && /Linux/i.test(ua);
 
 /** An example path for the current OS: `win` on Windows, `unix` (Linux and macOS) elsewhere. */
 export const pathExample = (win: string, unix: string): string => (isWindows ? win : unix);
