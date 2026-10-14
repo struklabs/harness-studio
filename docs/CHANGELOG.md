@@ -92,6 +92,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Model Hub: mistral.rs'in desteklemediği mimarideki (GPT-2, GPT-NeoX, taslak modeller) safetensors depoları artık mistral.rs üzerinde çalışır olarak gösterilmez.
 - Model Hub: downloading a main variant of a vision repo now also queues its best matching projector (mmproj: F16, then BF16, F32, any) into the same folder, so the model can see images after a clean download.
 - Model Hub: görsel (vision) bir deponun ana varyantını indirmek artık en uygun projektörünü (mmproj: F16, sonra BF16, F32, herhangi biri) de aynı klasöre indirmeye ekler; temiz bir indirmeden sonra model görselleri görebilir.
+- Model Hub: Qwen-Image (2.1, 2.1 Turbo, 2512, Edit 2509/2511), Z-Image, FLUX.2 dev and FLUX.1 Kontext downloads now bring the VAE and text encoder stable-diffusion.cpp needs (image bundles), instead of the diffusion model alone.
+- Model Hub: Qwen-Image (2.1, 2.1 Turbo, 2512, Edit 2509/2511), Z-Image, FLUX.2 dev ve FLUX.1 Kontext indirmeleri artık yalnız difüzyon modelini değil, stable-diffusion.cpp'nin ihtiyaç duyduğu VAE ve metin kodlayıcısını da getirir (görsel paketleri).
 - Downloader: GGUF magic is checked only for `.gguf` files; companion files download with consistent file counters and byte progress.
 - İndirici: GGUF sihirli baytları yalnız `.gguf` dosyalarında denetlenir; yardımcı dosyalar tutarlı dosya sayacı ve bayt ilerlemesiyle indirilir.
 - Model Hub: the results heading follows the active search while its listing loads.
