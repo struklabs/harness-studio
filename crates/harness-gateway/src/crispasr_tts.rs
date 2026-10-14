@@ -24,18 +24,28 @@ pub fn body(
     if harness_core::engine::crispasr_tts::backend(model).is_none() {
         return Err(bad("This CrispASR TTS backend is not supported yet"));
     }
+    let backend = harness_core::engine::crispasr_tts::backend(model).unwrap();
+    use harness_core::engine::crispasr_helpers::{CMUDICT, KOKORO_VOICE, MISAKI, POCKET_VOICE};
+    let helpers = if backend == "kokoro" {
+        vec![KOKORO_VOICE, MISAKI, CMUDICT]
+    } else {
+        vec![POCKET_VOICE]
+    };
+    for helper in helpers {
+        if helper.verified().is_none() {
+            return Err(bad(&harness_core::error_key::err(
+                "tts.crispasr_helper_missing",
+            )
+            .with("helper", helper.id)
+            .to_string()));
+        }
+    }
     let mut out = rebuild(
         &def.alias,
         &voices,
         harness_core::engine::crispasr_tts::backend(model) == Some("kokoro"),
         bytes,
     )?;
-    if harness_core::engine::crispasr_tts::backend(model) == Some("kokoro") {
-        use harness_core::engine::crispasr_helpers::{CMUDICT, MISAKI};
-        if MISAKI.verified().is_none() || CMUDICT.verified().is_none() {
-            return Err(bad("Download the pronunciation dictionaries in Settings > CrispASR Helper Models first"));
-        }
-    }
     // v0.8.43 advertises the loaded model path as its model id. This path comes solely
     // from the saved definition, never from the request; only this final object is sent.
     out["model"] = json!(model.to_string_lossy());
@@ -83,7 +93,7 @@ pub fn rebuild(
         None => voices
             .first()
             .map(String::as_str)
-            .ok_or_else(|| bad("Download this model's voice first (Settings > Installed Runtime > Other Runtimes > CrispASR Helper Models). / Önce bu modelin sesini indirin (Ayarlar > Kurulu Model Motoru > Diğer Model Motorları > CrispASR Yardımcı Modelleri)."))?,
+            .ok_or_else(|| bad("tts.crispasr_helper_missing"))?,
         Some(v) => v
             .as_str()
             .ok_or_else(|| bad("voice must be a preset name; inline audio is not supported"))?,

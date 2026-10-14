@@ -25,7 +25,7 @@
   import { cn } from '#lib/utils.js';
   import { isPending, progressPercent } from './downloadQueue.svelte';
   import { clearPageCache } from './hubData';
-  import { formatName } from './inference';
+  import { formatName, notRunnableKey } from './inference';
   import { canConvert, speechNeedsConversion } from './convertible';
   import ConvertPanel from './ConvertPanel.svelte';
   import EngineNeeded from '../common/EngineNeeded.svelte';
@@ -152,8 +152,9 @@
   let isWhisperRepo = $derived(variants.length > 0 && variants.every(isWhisperVariant));
   /** ONNX CTC speech repo: precision matters more than size (see `recommendCtcVariant`). */
   let isCtcRepo = $derived(variants.length > 0 && variants.every(isCtcVariant));
+  let mixedAudioFamilies = $derived(repo?.compatibility && 'runtime' in repo.compatibility && repo.compatibility.runtime === 'audio.cpp' && new Set(variants.filter(v => v.name.includes('/')).map(v => v.name.split('/')[0])).size > 1);
   let recommended = $derived(
-    repo?.compatibility && 'runtime' in repo.compatibility && repo.compatibility.runtime === 'crispasr'
+    mixedAudioFamilies ? null : repo?.compatibility && 'runtime' in repo.compatibility && repo.compatibility.runtime === 'crispasr'
       ? recommendCrispasrVariant(variants, hardware?.available_ram_bytes, hardware?.gpus.reduce((sum, gpu) => sum + (gpu.vram_bytes ?? 0), 0))
       : isWhisperRepo
       ? recommendWhisperVariant(variants, hardware?.available_ram_bytes, whisperOnCpu(hardware?.os))
@@ -164,7 +165,16 @@
   $effect(() => {
     const id = repoId;
     const q = recommended?.quantization;
-    if (!id || !q) return;
+    if (!id) return;
+    if (!q) {
+      untrack(() => {
+        if (id in library.recommended) {
+          const { [id]: _previous, ...rest } = library.recommended;
+          library.recommended = rest;
+        }
+      });
+      return;
+    }
     untrack(() => {
       if (library.recommended[id] !== q) library.recommended = { ...library.recommended, [id]: q };
     });
@@ -674,8 +684,8 @@
                             {variant.total_size_bytes > 0 ? formatBytes(variant.total_size_bytes) : '–'}
                           </Table.Cell>
                           <Table.Cell>
-                            {#if variant.not_runnable === 'audio_cpp_unsupported'}
-                              <span class="text-xs text-warning">{t('hub.not_runnable_audio_cpp')}</span>
+                            {#if variant.not_runnable}
+                              <span class="text-xs text-warning">{t(notRunnableKey(variant.not_runnable))}</span>
                             {:else if 'runtime' in repo.compatibility && repo.compatibility.runtime === 'audio.cpp'}
                               <span class="text-xs text-warning">{!app.settings?.audio_cpp_enabled ? t('audio_cpp.needs_engine') : engineInstall.installed('audio.cpp') ? t('process.experimental') : t('speak.engine_missing', { family: 'audio.cpp' })}</span>
                             {:else if isWhisperRepo}

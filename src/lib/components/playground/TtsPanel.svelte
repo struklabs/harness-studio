@@ -2,6 +2,7 @@
   import { t, locale } from '#lib/i18n.svelte.js';
   import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
+  import { parseError, rawError } from '#lib/errors.js';
   import { localizeError } from '#lib/network.js';
   import type { GatewayOverview } from '#lib/types.js';
   import { app } from '#lib/stores/app.svelte.js';
@@ -23,6 +24,8 @@
   let text = $state('');
   let busy = $state(false);
   let error = $state('');
+  let missingHelper = $state<string | null>(null);
+  let helperBusy = $state(false);
   /** Engine family the failed run was missing; shown with its install button. */
   let needFamily = $state<string | null>(null);
   let result = $state<{ url: string; info: SpeechResult } | null>(null);
@@ -56,6 +59,7 @@
     controller = c;
     busy = true;
     error = '';
+    missingHelper = null;
     needFamily = null;
     try {
       const info = await fetchSpeech(
@@ -70,6 +74,8 @@
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
         needFamily = familyFromError(msg);
+        const parsed = parseError(rawError(e));
+        missingHelper = parsed?.key === 'tts.crispasr_helper_missing' ? String(parsed.params.helper ?? '') : null;
         error = needFamily ? '' : localizeError(e);
       }
     } finally {
@@ -77,6 +83,20 @@
         controller = null;
         busy = false;
       }
+    }
+  }
+
+  async function downloadHelper() {
+    if (!missingHelper) return;
+    helperBusy = true;
+    try {
+      await invoke('download_crispasr_helper', { id: missingHelper });
+      toast.success(t('crisp.helper_queued'));
+      missingHelper = null;
+    } catch (e) {
+      toast.error(localizeError(e));
+    } finally {
+      helperBusy = false;
     }
   }
 
@@ -235,6 +255,11 @@
   {:else if error}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
       {error}
+      {#if missingHelper}
+        <Button variant="outline" size="sm" disabled={helperBusy} onclick={downloadHelper}>
+          <Download />{t('speak.download_helper')}
+        </Button>
+      {/if}
     </div>
   {/if}
 
