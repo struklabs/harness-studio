@@ -1,0 +1,35 @@
+# mlx parameter catalog (the MLX engine's worker, `python/mlx_worker.py`, which hands these to
+# `mlx_lm.server`): same shape as params.toml; the flags are mlx_lm.server's own. Everything goes
+# through `params::render_params`. Groups: performance (labels: src/lib/locales/mlx.ts).
+
+schema_version = 1
+
+[[param]]
+id = "max_tokens"
+flags = ["--max-tokens"]
+kind = "int"
+group = "performance"
+level = "basic"
+label_key = "mlxparam.max_tokens"
+help_key = "mlxparam.max_tokens_help"
+min = 1
+
+[[param]]
+id = "kv_bits"
+flags = ["--kv-bits"]
+kind = "enum"
+values = ["4", "8"]
+group = "performance"
+level = "advanced"
+label_key = "mlxparam.kv_bits"
+help_key = "mlxparam.kv_bits_help"
+
+[[param]]
+id = "prompt_cache_size"
+flags = ["--prompt-cache-size"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "mlxparam.prompt_cache_size"
+help_key = "mlxparam.prompt_cache_size_help"
+min = 1

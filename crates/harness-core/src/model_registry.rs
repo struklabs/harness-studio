@@ -244,6 +244,9 @@ pub fn installed_families() -> Vec<String> {
     if crate::engine::python_hf::binary().is_ok() {
         families.push(crate::engine::PYTHON_HF.to_string());
     }
+    if crate::engine::mlx::binary().is_ok() {
+        families.push(crate::engine::MLX.to_string());
+    }
     families
 }
 

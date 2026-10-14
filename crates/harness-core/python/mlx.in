@@ -1,0 +1,4 @@
+# MLX engine (Apple Silicon, macOS 14+): mlx-lm and its OpenAI-compatible server.
+# Lock: MACOSX_DEPLOYMENT_TARGET=14.0 uv pip compile --python-platform aarch64-apple-darwin \
+#   --python-version 3.12 --generate-hashes python/mlx.in -o python/mlx.lock
+mlx-lm==0.32.0
