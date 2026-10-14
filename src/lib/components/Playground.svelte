@@ -1020,7 +1020,8 @@
       if (messages.length > 0) warmedKey = '';
       return;
     }
-    if (key === warmedKey || composerWaiting) return;
+    // `streaming` covers a send creating the conversation (its id changes before the turn exists).
+    if (key === warmedKey || composerWaiting || streaming) return;
     if (key !== warmFailedKey) warmFailures = 0;
     warmedKey = key;
     untrack(() => {
