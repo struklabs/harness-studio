@@ -102,6 +102,12 @@ pub fn detect_kind(meta: Option<&GgufMetadata>) -> ModelKind {
             ModelKind::Unknown
         };
     }
+    if m.architecture
+        .as_deref()
+        .is_some_and(crate::engine::crispasr_tts::is_tts_arch)
+    {
+        return ModelKind::Tts;
+    }
     let general_type = m.general_type.as_deref();
     if m.architecture
         .as_deref()

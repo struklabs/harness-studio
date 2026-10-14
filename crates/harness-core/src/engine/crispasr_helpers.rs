@@ -42,11 +42,54 @@ pub const PUNC: Helper = Helper {
     sha256: "faf4a43e3135bc307a66194685af00f756e6f4c28c7d9e2dd8f3517cddca5c45",
 };
 
-pub const HELPERS: [Helper; 2] = [LID, PUNC];
+pub const KOKORO_VOICE: Helper = Helper {
+    id: "kokoro_voice",
+    title: "Kokoro Voice",
+    repo: "cstr/kokoro-voices-GGUF",
+    rev: "1c98db113c69e3feef9644cf0aaec5c0bea02a8e",
+    file: "kokoro-voice-af_heart.gguf",
+    size: 522_784,
+    sha256: "14463a5a5204a16a382b2da87b4b0206fcda225b44b7c4627999eb527f49c018",
+};
+pub const POCKET_VOICE: Helper = Helper {
+    id: "pocket_voice",
+    title: "Pocket TTS Voice",
+    // Public prepared voice state (the original kyutai/pocket-tts repo is gated).
+    repo: "audio-cpp/audio.cpp-gguf",
+    rev: "f861648c0c1f4da9f18e9a0ce5e217b0679bb2f5",
+    file: "PocketTTS-GGUF/english/embeddings/alba.safetensors",
+    size: 6_194_424,
+    sha256: "69c32db63ca56843d994f81f343f62e0bf2d73f7e4c9bc73e44bb1110b1d8845",
+};
+pub const MISAKI: Helper = Helper {
+    id: "misaki",
+    title: "Pronunciation Dictionary",
+    repo: "hexgrad/misaki",
+    rev: "fba1236595f2d2bf21d414ba6e57d25256afada3",
+    file: "misaki/data/us_gold.json",
+    size: 3_000_469,
+    sha256: "dc414872a49a28ae6c141463d502fd945f3b2fde040484fdc47d00cc4612686f",
+};
+pub const CMUDICT: Helper = Helper {
+    id: "cmudict",
+    title: "English Fallback Dictionary",
+    repo: "cmusphinx/cmudict",
+    rev: "74790861f652b15e4ac49015a90074ad62a27690",
+    file: "cmudict.dict",
+    size: 3_618_488,
+    sha256: "81917843c7f44ce2b094ac63873c2c7a4cf802040792c455ba3ca406891c3d22",
+};
+pub const HELPERS: [Helper; 6] = [LID, PUNC, KOKORO_VOICE, POCKET_VOICE, MISAKI, CMUDICT];
 
 impl Helper {
     /// The pinned download address (a revision, never `main`).
     pub fn url(&self) -> String {
+        if matches!(self.id, "misaki" | "cmudict") {
+            return format!(
+                "https://raw.githubusercontent.com/{}/{}/{}",
+                self.repo, self.rev, self.file
+            );
+        }
         format!(
             "https://huggingface.co/{}/resolve/{}/{}",
             self.repo, self.rev, self.file
@@ -66,6 +109,20 @@ impl Helper {
     }
     pub fn installed(&self) -> Option<PathBuf> {
         self.installed_in(&crate::paths::data_root())
+    }
+    /// Recheck preset/dictionary bytes before they can become a filesystem allowlist.
+    pub fn verified(&self) -> Option<PathBuf> {
+        use sha2::{Digest, Sha256};
+        let path = self.installed()?;
+        if std::fs::symlink_metadata(&path)
+            .ok()?
+            .file_type()
+            .is_symlink()
+        {
+            return None;
+        }
+        let hash = Sha256::digest(std::fs::read(&path).ok()?);
+        (hash.iter().map(|b| format!("{b:02x}")).collect::<String>() == self.sha256).then_some(path)
     }
 }
 
@@ -115,7 +172,11 @@ pub fn status() -> Vec<HelperStatus> {
             title: h.title,
             file: h.file,
             size_bytes: h.size,
-            installed: h.installed().is_some(),
+            installed: if matches!(h.id, "lid" | "punc") {
+                h.installed().is_some()
+            } else {
+                h.verified().is_some()
+            },
         })
         .collect()
 }
@@ -126,14 +187,22 @@ pub fn start_download(
     id: &str,
 ) -> Result<u64, String> {
     let helper = find(id).ok_or_else(|| format!("Unknown CrispASR helper model: {id}"))?;
+    let file = crate::downloader::PinnedFile {
+        repo: helper.repo,
+        rev: helper.rev,
+        filename: helper.file,
+        size: helper.size,
+        sha256: helper.sha256,
+    };
+    if matches!(helper.id, "misaki" | "cmudict") {
+        return manager.start_pinned_github_download(
+            &file,
+            format!("{} (CrispASR helper)", helper.file),
+            helpers_dir(),
+        );
+    }
     manager.start_pinned_download(
-        &crate::downloader::PinnedFile {
-            repo: helper.repo,
-            rev: helper.rev,
-            filename: helper.file,
-            size: helper.size,
-            sha256: helper.sha256,
-        },
+        &file,
         format!("{} (CrispASR helper)", helper.file),
         helpers_dir(),
     )
@@ -238,7 +307,7 @@ mod tests {
         for h in HELPERS {
             assert_eq!(h.rev.len(), 40, "{}", h.id);
             assert_eq!(h.sha256.len(), 64);
-            assert!(h.url().contains(&format!("/resolve/{}/", h.rev)));
+            assert!(h.url().contains(h.rev));
             assert!(!h.url().contains("/main/"));
         }
         assert_eq!(LID.size, 77_691_713);

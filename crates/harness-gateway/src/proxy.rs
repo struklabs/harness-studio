@@ -401,7 +401,7 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
-    if crate::speech::is_audio_cpp_model(&def) {
+    if crate::speech::is_audio_cpp_model(&def) || crate::speech::is_crispasr_tts(&def) {
         return Err(GatewayError::new(
             400,
             "invalid_request",

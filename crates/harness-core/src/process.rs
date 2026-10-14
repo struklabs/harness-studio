@@ -1341,7 +1341,11 @@ impl ProcessManager {
             }
         } else {
             crate::serve_mode::Prepared {
-                mode: crate::engine::serve_mode_of(engine.family()),
+                mode: if crate::engine::crispasr_tts::is_model(&launch.model_path) {
+                    crate::serve_mode::ServeMode::Pipeline
+                } else {
+                    crate::engine::serve_mode_of(engine.family())
+                },
                 notes: Vec::new(),
             }
         };

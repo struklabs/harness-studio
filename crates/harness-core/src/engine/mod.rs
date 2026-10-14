@@ -19,6 +19,7 @@ pub mod audio_cpp;
 pub use audio_cpp::{AudioCppEngine, AUDIO_CPP};
 pub mod crispasr;
 pub mod crispasr_helpers;
+pub mod crispasr_tts;
 pub use crispasr::{CrispAsrEngine, CRISPASR};
 pub mod job;
 mod lemonade;
@@ -448,7 +449,7 @@ pub fn server_for(config: &LaunchConfig) -> &'static dyn ServerEngine {
     if let Some(engine) = mlx_engine_for(&config.model_path) {
         return engine;
     }
-    if crispasr::is_asr_gguf(&config.model_path) {
+    if crispasr::is_asr_gguf(&config.model_path) || crispasr_tts::is_tts_gguf(&config.model_path) {
         return &CRISP;
     }
     match ModelFormat::of(&config.model_path) {
@@ -471,7 +472,8 @@ pub fn is_llama_server(model_path: &Path, router_mode: bool) -> bool {
             ) || is_mistralrs_dir(model_path)
                 || python_hf::is_model_dir(model_path)
                 || mlx::is_any_model_dir(model_path)
-                || crispasr::is_asr_gguf(model_path)))
+                || crispasr::is_asr_gguf(model_path)
+                || crispasr_tts::is_tts_gguf(model_path)))
 }
 
 /// Device memory a launch of a non-llama.cpp family takes (whisper.cpp, stable-diffusion.cpp,
@@ -524,10 +526,10 @@ pub fn server_for_model(path: &Path) -> Option<&'static dyn ServerEngine> {
     if let Some(engine) = mlx_engine_for(path) {
         return Some(engine);
     }
-    if crispasr::is_model(path) {
+    if crispasr::is_model(path) || crispasr_tts::is_model(path) {
         return Some(&CRISP);
     }
-    if crispasr::is_asr_gguf(path) {
+    if crispasr::is_asr_gguf(path) || crispasr_tts::is_tts_gguf(path) {
         return None;
     }
     let format = ModelFormat::of(path);

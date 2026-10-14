@@ -191,6 +191,43 @@ async fn serve(
         serde_json::from_slice(&body).map_err(|e| bad(format!("The body must be JSON ({e}).")))?;
     guard.get().model = req.model.clone();
     if let Ok(def) = state.scheduler.resolve(req.model.as_deref()).await {
+        if is_crispasr_tts(&def) {
+            caller.check_model(&def.alias)?;
+            crate::crispasr_tts::body(&def, "POST", "/v1/audio/speech", &body)?;
+            let format = req
+                .response_format
+                .as_deref()
+                .and_then(AudioFormat::parse)
+                .unwrap_or(AudioFormat::Wav);
+            if !run::format_available(format) {
+                return Err(bad("This output format requires ffmpeg; use wav or pcm"));
+            }
+            guard.admitted(caller.admit(state)?);
+            guard.get().alias = Some(def.alias.clone());
+            guard.get().definition_id = Some(def.id.clone());
+            let answer = crate::pyhf::post(
+                state,
+                &def,
+                guard,
+                "/v1/audio/speech",
+                "application/json",
+                body.to_vec(),
+            )
+            .await?;
+            let audio = run::encode(answer.body.to_vec(), format)
+                .await
+                .map_err(|e| GatewayError::new(500, "encode_failed", e))?;
+            guard.finish(200, None);
+            return crate::pyhf::lease_headers(
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header(header::CONTENT_TYPE, format.content_type()),
+                &def,
+                &answer.lease,
+            )
+            .body(axum::body::Body::from(audio))
+            .map_err(|e| bad(e.to_string()));
+        }
         if crate::audio::is_crispasr_model(&def) {
             return Err(
                 bad("CrispASR only accepts audio transcription and translation requests")
@@ -328,6 +365,12 @@ fn is_audio_cpp_speech(def: &harness_core::domain::ModelDefinition) -> bool {
     def.base
         .local_path()
         .is_some_and(harness_core::engine::audio_cpp::is_tts)
+}
+
+pub(crate) fn is_crispasr_tts(def: &harness_core::domain::ModelDefinition) -> bool {
+    def.base
+        .local_path()
+        .is_some_and(harness_core::engine::crispasr_tts::is_tts_gguf)
 }
 
 pub(crate) fn is_audio_cpp_model(def: &harness_core::domain::ModelDefinition) -> bool {
