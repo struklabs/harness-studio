@@ -237,8 +237,10 @@ fn pick_output(session: &Session, task: Task) -> Result<OutputSpec, String> {
 fn register_provider(
     builder: &mut ort::session::builder::SessionBuilder,
     choice: Provider,
+    skip_dml: bool,
 ) -> &'static str {
-    let wants_dml = matches!(choice, Provider::Auto | Provider::DirectMl) && cfg!(windows);
+    let wants_dml =
+        matches!(choice, Provider::Auto | Provider::DirectMl) && cfg!(windows) && !skip_dml;
     let wants_cuda = matches!(choice, Provider::Auto | Provider::Cuda);
     // A provider that was asked for by name and does not load says why (missing CUDA / cuDNN
     // libraries, a runtime build without it); `auto` falls through quietly.
@@ -272,18 +274,29 @@ fn register_provider(
     "CPU"
 }
 
-fn build_session(
+pub(crate) fn build_session(
     model: &Path,
     choice: Provider,
     threads: Option<usize>,
 ) -> Result<(Session, &'static str), String> {
+    // DirectML crashes the process (an access violation, not an error) on the integer
+    // convolutions of dynamically quantized exports (transformers.js `model_quantized`: vision,
+    // CTC speech); such a graph runs on the CPU, or on CUDA when `auto` finds it.
+    let skip_dml = matches!(choice, Provider::Auto | Provider::DirectMl)
+        && cfg!(windows)
+        && crate::package::graph_uses_op(model, "ConvInteger");
+    if skip_dml && choice == Provider::DirectMl {
+        eprintln!(
+            "harness-onnx: DirectML cannot run ConvInteger (an INT8 export), running on the CPU; the FP32 or FP16 file runs on the GPU"
+        );
+    }
     let make = |choice: Provider| -> Result<(Session, &'static str), String> {
         let mut builder = Session::builder().map_err(|e| e.to_string())?;
         if let Some(n) = threads {
             builder = builder.with_intra_threads(n).map_err(|e| e.to_string())?;
         }
         // DirectML needs sequential execution and no memory pattern (ORT's own requirement).
-        let name = register_provider(&mut builder, choice);
+        let name = register_provider(&mut builder, choice, skip_dml);
         if name == "DirectML" {
             builder = builder
                 .with_memory_pattern(false)

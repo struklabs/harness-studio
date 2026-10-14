@@ -28,7 +28,7 @@ pub const MISTRALRS_FAMILY: &str = crate::engine::MISTRALRS;
 pub const MISTRALRS_TASKS: [&str; 2] = ["text-generation", "image-text-to-text"];
 /// Hub tasks (`pipeline_tag`) whose ONNX repos the ONNX family runs: an ONNX file of any other
 /// task (vision, speech, generation, classification) is a graph Harness has no server for.
-pub const ONNX_TASKS: [&str; 8] = [
+pub const ONNX_TASKS: [&str; 12] = [
     "feature-extraction",
     "sentence-similarity",
     "text-ranking",
@@ -38,6 +38,11 @@ pub const ONNX_TASKS: [&str; 8] = [
     "token-classification",
     "fill-mask",
     "question-answering",
+    // Vision heads (harness-onnx `vision_pkg`): `pixel_values` in, the pipeline's JSON out.
+    "image-classification",
+    "object-detection",
+    "image-segmentation",
+    "depth-estimation",
 ];
 
 /// Hub tasks of the onnxruntime-genai chat models the ONNX family runs (a repo with
@@ -596,25 +601,22 @@ mod tests {
     #[test]
     fn onnx_of_other_tasks_is_not_runnable() {
         let tags = s(&["onnx", "safetensors"]);
-        // An image model with an ONNX export: not an encoder task, format unchanged.
+        // SAM with an ONNX export: not a task the ONNX engine serves, format unchanged.
         assert_eq!(
-            detect_hub_format(&tags, None, &[], Some("image-classification")),
+            detect_hub_format(&tags, None, &[], Some("mask-generation")),
             ModelFormat::Safetensors
         );
-        // A repo that is ONNX only (transformers.js) for a vision task is Onnx but unsupported.
-        let f = detect_hub_format(
-            &tags,
-            Some("transformers.js"),
-            &[],
-            Some("image-classification"),
-        );
+        // A repo that is ONNX only (transformers.js) for such a task is Onnx but unsupported.
+        let f = detect_hub_format(&tags, Some("transformers.js"), &[], Some("mask-generation"));
         assert_eq!(f, ModelFormat::Onnx);
         let unsupported = Compatibility::Unsupported {
             format: ModelFormat::Onnx,
         };
+        assert_eq!(hub_compatibility(f, Some("mask-generation")), unsupported);
+        // A vision head with an ONNX export runs.
         assert_eq!(
-            hub_compatibility(f, Some("image-classification")),
-            unsupported
+            detect_hub_format(&tags, None, &[], Some("image-classification")),
+            ModelFormat::Onnx
         );
         assert_eq!(hub_compatibility(f, None), unsupported);
         // GGUF always wins.

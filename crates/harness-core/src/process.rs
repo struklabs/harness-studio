@@ -1176,6 +1176,14 @@ impl ProcessManager {
                             | harness_onnx::package::Task::FillMask
                             | harness_onnx::package::Task::QuestionAnswering,
                         ) => crate::serve_mode::ServeMode::Pipeline,
+                        // A vision model (no tokenizer, an image processor).
+                        None if harness_onnx::vision_pkg::VisionPackage::discover(
+                            &launch.model_path,
+                        )
+                        .is_some() =>
+                        {
+                            crate::serve_mode::ServeMode::Pipeline
+                        }
                         _ => crate::serve_mode::ServeMode::Embedding,
                     }
                 },
