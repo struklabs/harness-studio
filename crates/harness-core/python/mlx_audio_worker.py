@@ -1,7 +1,7 @@
 """Harness MLX audio worker: text to speech with one local mlx-audio model folder.
 
     <env python> mlx_audio_worker.py --model <dir> --port <port> [--alias <name>]
-        [--max-chars N]
+        [--max-chars N] [--max-seconds N]
 
 mlx-audio's own server is large (realtime websockets, transcription, voice lists fetched from
 the Hub, reference audio read from a path the request names) and loads whatever a request
@@ -20,17 +20,24 @@ names. This worker serves only what Harness needs, itself:
   offered, so a request never names a file.
 * It listens on 127.0.0.1 only; remote code is never trusted; Hugging Face Hub access is off;
   proxy variables are cleared.
+* A request cannot run away: generation is capped at a number of codec frames that grows with
+  the text (see `frame_budget`; sampling can miss the end token and keep talking), and it stops
+  after --max-seconds of wall-clock time. Audio made by then is answered with
+  "x-harness-truncated: time"; nothing made by then is a 504.
 """
 
 import argparse
 import asyncio
 import hmac
+import inspect
 import io
 import json
+import math
 import os
 import re
 import sys
 import threading
+import time
 import wave
 
 os.environ["HF_HUB_OFFLINE"] = "1"
@@ -48,6 +55,18 @@ MAX_BODY = 1024 * 1024
 # OpenAI's voice names: a client written for OpenAI sends one; the model's default voice speaks.
 OPENAI_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage",
                  "shimmer", "verse"}
+# Codec frames per second of Qwen3-TTS (its "12Hz" tokenizer runs at 12.5 frames a second).
+FRAME_RATE = 12.5
+# Frames allowed per text token: speech takes about 6 (mlx-audio's own batch cap), so 8 leaves
+# room for slow voices; never fewer than MIN_FRAMES (6 s), never more than MAX_AUDIO_SECONDS.
+FRAMES_PER_TOKEN = 8
+MIN_FRAMES = 75
+MAX_AUDIO_SECONDS = 120
+DEFAULT_MAX_SECONDS = 120
+
+
+class TooSlow(Exception):
+    """No audio was made within the request's time limit."""
 
 
 def parser():
@@ -56,6 +75,7 @@ def parser():
     p.add_argument("--port", type=int, required=True)
     p.add_argument("--alias", default=None)
     p.add_argument("--max-chars", type=int, default=4096)
+    p.add_argument("--max-seconds", type=float, default=DEFAULT_MAX_SECONDS)
     return p
 
 
@@ -108,6 +128,63 @@ def wav_bytes(samples, rate):
     return out.getvalue()
 
 
+def frame_budget(text_tokens, speed):
+    """Codec frames one request may generate: grows with the text (and with slower speech),
+    with a floor for very short inputs and a hard ceiling."""
+    want = math.ceil(max(1, text_tokens) * FRAMES_PER_TOKEN / max(speed, 0.25))
+    return min(max(MIN_FRAMES, want), int(MAX_AUDIO_SECONDS * FRAME_RATE))
+
+
+def count_tokens(model, text):
+    """Text tokens of `text` by the model's tokenizer; about one per two characters without one."""
+    tokenizer = getattr(model, "tokenizer", None)
+    try:
+        return len(tokenizer.encode(text))
+    except Exception:
+        return len(text) // 2 + 1
+
+
+def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic):
+    """`speak(text, voice, speed, language)` -> (WAV bytes, truncated). Generation is capped at
+    `frame_budget` frames and stopped after `max_seconds` (between streamed chunks when the model
+    can stream); `encode(chunks, rate)` makes the WAV of the audio chunks."""
+    params = inspect.signature(model.generate).parameters
+    takes = lambda name: name in params or any(
+        p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+    can_stream = "stream" in params
+
+    def speak(text, voice, speed, language):
+        kwargs = {"speed": speed}
+        if voice is not None or voices:
+            kwargs["voice"] = voice or voices[0]
+        if language is not None:
+            kwargs["lang_code"] = language
+        if takes("max_tokens"):
+            kwargs["max_tokens"] = frame_budget(count_tokens(model, text), speed)
+        if can_stream:
+            kwargs["stream"] = True
+        deadline = clock() + max_seconds
+        parts, truncated = [], False
+        results = model.generate(text, **kwargs)
+        try:
+            for result in results:
+                parts.append(result.audio)
+                if clock() > deadline:
+                    truncated = True
+                    break
+        finally:
+            close = getattr(results, "close", None)
+            if close:
+                close()
+        if not parts:
+            if truncated or clock() > deadline:
+                raise TooSlow()
+            raise RuntimeError("no audio")
+        return encode(parts, rate), truncated
+
+    return speak
+
+
 def voices_of(model):
     get = getattr(model, "get_supported_speakers", None)
     try:
@@ -116,13 +193,13 @@ def voices_of(model):
         return []
 
 
-async def respond(send, status, payload, content_type=b"application/json"):
+async def respond(send, status, payload, content_type=b"application/json", extra=()):
     body = payload if isinstance(payload, bytes) else json.dumps(payload).encode()
     await send({
         "type": "http.response.start",
         "status": status,
         "headers": [(b"content-type", content_type),
-                    (b"content-length", str(len(body)).encode())],
+                    (b"content-length", str(len(body)).encode())] + list(extra),
     })
     await send({"type": "http.response.body", "body": body})
 
@@ -173,7 +250,8 @@ def cors(inner):
 
 
 def app_for(speak, alias, voices, max_chars):
-    """The ASGI app; `speak(text, voice, speed, language)` returns WAV bytes (blocking)."""
+    """The ASGI app; `speak(text, voice, speed, language)` returns (WAV bytes, truncated)
+    (blocking)."""
     expected = f"Bearer {KEY}".encode()
     one_at_a_time = threading.Lock()
 
@@ -229,11 +307,15 @@ def app_for(speak, alias, voices, max_chars):
             return await respond(send, 400, error(
                 str(e) + ".", "invalid_request_error", "invalid_request"))
         try:
-            audio = await asyncio.to_thread(run, text, voice, speed, language)
+            audio, truncated = await asyncio.to_thread(run, text, voice, speed, language)
+        except TooSlow:
+            return await respond(send, 504, error(
+                "Speech took longer than the worker's time limit.", "server_error", "speech_timeout"))
         except Exception as e:  # the model's own failure, without the folder's path
             return await respond(send, 500, error(
                 "Speech failed: %s" % type(e).__name__, "server_error", "speech_failed"))
-        await respond(send, 200, audio, b"audio/wav")
+        await respond(send, 200, audio, b"audio/wav",
+                      [(b"x-harness-truncated", b"time")] if truncated else [])
 
     return app
 
@@ -269,17 +351,10 @@ def main(argv=None):
     voices = voices_of(model)
     rate = getattr(model, "sample_rate", 24000)
 
-    def speak(text, voice, speed, language):
-        kwargs = {"speed": speed}
-        if voice is not None or voices:
-            kwargs["voice"] = voice or voices[0]
-        if language is not None:
-            kwargs["lang_code"] = language
-        parts = [np.asarray(r.audio) for r in model.generate(text, **kwargs)]
-        if not parts:
-            raise RuntimeError("no audio")
-        return wav_bytes(np.concatenate(parts), rate)
+    def encode(parts, rate):
+        return wav_bytes(np.concatenate([np.asarray(p) for p in parts]), rate)
 
+    speak = make_speak(model, voices, rate, args.max_seconds, encode)
     uvicorn.run(cors(app_for(speak, args.alias, voices, args.max_chars)), host=HOST, port=args.port,
                 log_level="info", access_log=True)
 

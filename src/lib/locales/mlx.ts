@@ -22,6 +22,8 @@ const tr = {
   'hub.compat_needs_mlx_audio_title': 'Bu model MLX ses motoruyla (mlx-audio) çalışır; motor henüz kurulu değil. MLX görüntü motoruyla aynı ortamı kullanır (macOS 14+, yaklaşık 800 MB).',
   'mlxparam.max_chars': 'En uzun metin',
   'mlxparam.max_chars_help': 'Bir istekte seslendirilecek en çok karakter sayısı (boş = 4096).',
+  'mlxparam.max_seconds': 'En uzun üretim süresi (sn)',
+  'mlxparam.max_seconds_help': 'Bir isteğin seslendirmesi en çok bu kadar sürer; süre dolunca o ana kadar üretilen ses döner (boş = 120).',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -46,6 +48,8 @@ const en: Record<keyof typeof tr, string> = {
   'hub.compat_needs_mlx_audio_title': 'This model runs on the MLX audio runtime (mlx-audio), which isn’t installed yet. It shares the MLX vision runtime’s environment (macOS 14+, about 800 MB).',
   'mlxparam.max_chars': 'Longest text',
   'mlxparam.max_chars_help': 'How many characters one request may have spoken (empty = 4096).',
+  'mlxparam.max_seconds': 'Longest generation (s)',
+  'mlxparam.max_seconds_help': 'One request is spoken for at most this long; when the time is up, the audio made so far is returned (empty = 120).',
 };
 
 export default { tr, en };

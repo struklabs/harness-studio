@@ -351,15 +351,15 @@ async fn python_speak(
         .await
         .map_err(|e| GatewayError::new(500, "encode_failed", e))?;
     guard.finish(200, None);
-    crate::pyhf::lease_headers(
-        Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, format.content_type()),
-        def,
-        &answer.lease,
-    )
-    .body(axum::body::Body::from(audio))
-    .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
+    let mut builder = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, format.content_type());
+    if answer.truncated {
+        builder = builder.header("x-harness-truncated", "time");
+    }
+    crate::pyhf::lease_headers(builder, def, &answer.lease)
+        .body(axum::body::Body::from(audio))
+        .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
 }
 
 #[cfg(test)]
