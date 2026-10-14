@@ -478,6 +478,26 @@ mod tests {
     use std::fs;
 
     #[test]
+    fn owl_queries_pad_to_16_and_score_with_a_sigmoid() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("tokenizer.json"), "{}").unwrap();
+        for model_type in ["owlvit", "owlv2"] {
+            let t = text_side(dir.path(), &json!({"model_type": model_type})).unwrap();
+            assert_eq!(
+                (t.max_length, t.pad_to_max, t.sigmoid, t.canonicalize),
+                (16, true, true, false)
+            );
+        }
+        // The text config's own length wins.
+        let t = text_side(
+            dir.path(),
+            &json!({"model_type": "owlv2", "text_config": {"max_position_embeddings": 32}}),
+        )
+        .unwrap();
+        assert_eq!(t.max_length, 32);
+    }
+
+    #[test]
     fn heads_map_to_tasks() {
         // Open-vocabulary detectors are not the closed-set detection head.
         assert_eq!(
