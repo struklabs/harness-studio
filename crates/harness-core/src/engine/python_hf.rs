@@ -104,8 +104,6 @@ pub fn catalog() -> &'static ParamCatalog {
     })
 }
 
-/// A protected flag, or an abbreviation of one (`--trust`, `--ud`): the worker's parser takes
-/// no abbreviations, and this refuses them before it is asked.
 /// The worker's flags as capabilities, from the catalog (its flags are the worker's own; there is
 /// no binary to probe): without them every catalog setting would be skipped as unknown.
 fn documented_caps() -> &'static RuntimeCapabilities {
@@ -120,6 +118,8 @@ fn documented_caps() -> &'static RuntimeCapabilities {
     })
 }
 
+/// A protected flag, or an abbreviation of one (`--trust`, `--ud`): the worker's parser takes
+/// no abbreviations, and this refuses them before it is asked.
 fn is_protected(arg: &str) -> bool {
     let flag = arg.split('=').next().unwrap_or(arg);
     flag.starts_with("--") && flag.len() > 2 && PROTECTED_FLAGS.iter().any(|p| p.starts_with(flag))
