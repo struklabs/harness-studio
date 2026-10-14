@@ -654,11 +654,16 @@ mod tests {
             "prompt_cache_size".into(),
             crate::params::ParamValue::Int(4),
         );
+        set.params.insert(
+            "kv_bits".into(),
+            crate::params::ParamValue::Text("8".into()),
+        );
         let out = build_args(&set, Path::new("w.py"), false).unwrap();
         assert!(out.skipped.is_empty(), "{:?}", out.skipped);
         let args = out.args.join(" ");
         assert!(args.contains("--max-tokens 512"), "{args}");
         assert!(args.contains("--prompt-cache-size 4"), "{args}");
+        assert!(args.contains("--kv-bits 8"), "{args}");
         assert_eq!(args.matches("--max-tokens").count(), 1, "{args}");
 
         let mut custom = config.clone();
