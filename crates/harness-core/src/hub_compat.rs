@@ -240,7 +240,7 @@ pub fn detect_format(tags: &[String], library: Option<&str>, files: &[String]) -
     {
         return ModelFormat::Diffusers;
     }
-    if library == Some("mlx") || tag("mlx") {
+    if matches!(library, Some("mlx") | Some("mlx-audio")) || tag("mlx") || tag("mlx-audio") {
         return ModelFormat::Mlx;
     }
     if library == Some("ctranslate2") || tag("ctranslate2") {
@@ -405,13 +405,16 @@ pub const MLX_FAMILY: &str = crate::engine::MLX;
 /// Runtime family of the MLX vision engine (mlx-vlm, Apple Silicon).
 pub const MLX_VLM_FAMILY: &str = crate::engine::MLX_VLM;
 
-/// Runtime family of the MLX audio engine (mlx-audio text to speech, Apple Silicon).
+/// Runtime family of the MLX audio engine (mlx-audio speech synthesis and recognition, Apple
+/// Silicon).
 pub const MLX_AUDIO_FAMILY: &str = crate::engine::MLX_AUDIO;
 
 /// The MLX engines' verdict on a Hub repo: an MLX repo (`library_name: mlx` or the `mlx` tag)
 /// with a `config.json` and safetensors at the root (a listing without file names is taken by
 /// its tags), `text-generation` or untagged for `mlx`, `image-text-to-text` for `mlx-vlm`,
-/// `text-to-speech` of a tested architecture (by the repo name: Qwen3-TTS) for `mlx-audio`.
+/// `text-to-speech` of a tested architecture (by the repo name: Qwen3-TTS) and
+/// `automatic-speech-recognition` of one (Whisper, Parakeet: [`crate::engine::mlx::is_stt_repo`])
+/// for `mlx-audio`.
 /// Runnable where MLX runs (Apple Silicon; installed or not is settled later by
 /// [`resolve_installed`]); on a Mac whose macOS is too old for the MLX wheels,
 /// [`Compatibility::UnsupportedPlatform`]; `None` elsewhere and for every other repo.
@@ -420,17 +423,53 @@ pub fn mlx_compatibility(
     format: ModelFormat,
     task: Option<&str>,
     files: &[String],
+    tags: &[String],
 ) -> Option<Compatibility> {
     mlx_compatibility_on(
         repo,
         format,
         task,
         files,
+        tags,
         cfg!(all(target_os = "macos", target_arch = "aarch64")),
         crate::pyenv::envs::spec(crate::engine::mlx::ENV)
             .and_then(crate::pyenv::envs::platform_refusal)
             .is_some(),
     )
+}
+
+/// The task of an MLX speech recognition repo that names none: mlx-audio's own conversions
+/// (`whisper-large-v3-turbo-asr-fp16`) have no `pipeline_tag`, and an untagged MLX repo would
+/// otherwise be taken for a chat model. Apple Silicon only, where mlx-audio runs; elsewhere the
+/// repo keeps its (missing) task.
+pub fn mlx_stt_task(
+    repo: &str,
+    format: ModelFormat,
+    task: Option<&str>,
+    tags: &[String],
+) -> Option<&'static str> {
+    mlx_stt_task_on(
+        repo,
+        format,
+        task,
+        tags,
+        cfg!(all(target_os = "macos", target_arch = "aarch64")),
+    )
+}
+
+/// [`mlx_stt_task`] with the platform given.
+pub fn mlx_stt_task_on(
+    repo: &str,
+    format: ModelFormat,
+    task: Option<&str>,
+    tags: &[String],
+    apple_silicon: bool,
+) -> Option<&'static str> {
+    (apple_silicon
+        && task.is_none()
+        && format == ModelFormat::Mlx
+        && crate::engine::mlx::is_stt_repo(repo, tags))
+    .then_some("automatic-speech-recognition")
 }
 
 /// [`mlx_compatibility`] with the platform facts given.
@@ -439,6 +478,7 @@ pub fn mlx_compatibility_on(
     format: ModelFormat,
     task: Option<&str>,
     files: &[String],
+    tags: &[String],
     apple_silicon: bool,
     os_too_old: bool,
 ) -> Option<Compatibility> {
@@ -446,6 +486,12 @@ pub fn mlx_compatibility_on(
         None | Some("text-generation") => MLX_FAMILY,
         Some("image-text-to-text") => MLX_VLM_FAMILY,
         Some("text-to-speech") if crate::engine::mlx::is_tts_repo(repo) => MLX_AUDIO_FAMILY,
+        Some("automatic-speech-recognition")
+            if crate::engine::mlx::is_stt_repo(repo, tags)
+                && crate::engine::mlx::stt_repo_files_ok(repo, tags, files) =>
+        {
+            MLX_AUDIO_FAMILY
+        }
         Some(_) => return None,
     };
     if !apple_silicon || format != ModelFormat::Mlx {
@@ -1130,6 +1176,141 @@ mod tests {
     }
 
     #[test]
+    fn mlx_speech_recognition_repos_are_mlx_audio_on_apple_silicon() {
+        let files = s(&[
+            "config.json",
+            "model.safetensors",
+            "preprocessor_config.json",
+            "tokenizer.json",
+        ]);
+        let audio = Some(Compatibility::Runnable {
+            runtime: MLX_AUDIO_FAMILY.into(),
+        });
+        let asr = Some("automatic-speech-recognition");
+        // mlx-audio's conversions: library_name mlx-audio, or only the mlx tag.
+        let small = s(&["mlx-audio", "safetensors", "whisper", "mlx"]);
+        assert_eq!(
+            detect_format(&s(&["mlx-audio"]), None, &[]),
+            ModelFormat::Mlx
+        );
+        assert_eq!(detect_format(&[], Some("mlx-audio"), &[]), ModelFormat::Mlx);
+        for (repo, tags) in [
+            ("mlx-community/whisper-small-asr-fp16", &small),
+            (
+                "mlx-community/parakeet-tdt-0.6b-v3",
+                &s(&["mlx", "safetensors"]),
+            ),
+            // A tag names the architecture when the name does not.
+            ("someone/large-v3-turbo-mlx", &s(&["mlx", "whisper"])),
+        ] {
+            let format = detect_format(tags, None, &files);
+            assert_eq!(
+                mlx_compatibility_on(repo, format, asr, &files, tags, true, false),
+                audio,
+                "{repo}"
+            );
+            // Elsewhere: no MLX verdict, as before.
+            assert_eq!(
+                mlx_compatibility_on(repo, format, asr, &files, tags, false, false),
+                None
+            );
+        }
+        // An untested recognizer, or a repo of npz weights, is not offered.
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/moonshine-tiny",
+                ModelFormat::Mlx,
+                asr,
+                &files,
+                &s(&["mlx", "moonshine"]),
+                true,
+                false
+            ),
+            None
+        );
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/whisper-tiny-mlx",
+                ModelFormat::Mlx,
+                asr,
+                &s(&["config.json", "weights.npz"]),
+                &s(&["mlx"]),
+                true,
+                false
+            ),
+            None
+        );
+
+        // mlx-examples' older layout has no processor: mlx-audio cannot transcribe with it.
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/whisper-large-v3-turbo",
+                ModelFormat::Mlx,
+                asr,
+                &s(&["README.md", "config.json", "weights.safetensors"]),
+                &s(&["mlx", "whisper"]),
+                true,
+                false
+            ),
+            None
+        );
+        // Parakeet has its own tokenizer (no Whisper processor).
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/parakeet-tdt-0.6b-v3",
+                ModelFormat::Mlx,
+                asr,
+                &s(&["config.json", "model.safetensors", "tokenizer.model"]),
+                &s(&["mlx"]),
+                true,
+                false
+            ),
+            audio
+        );
+
+        // whisper-large-v3-turbo-asr-fp16 names no task: it is a recognizer, not a chat model.
+        let turbo = "mlx-community/whisper-large-v3-turbo-asr-fp16";
+        let tags = s(&["mlx", "safetensors", "whisper", "speech-to-text", "stt"]);
+        assert_eq!(
+            mlx_stt_task_on(turbo, ModelFormat::Mlx, None, &tags, true),
+            asr
+        );
+        assert_eq!(
+            mlx_compatibility_on(turbo, ModelFormat::Mlx, asr, &files, &tags, true, false),
+            audio
+        );
+        // A tagged task stays; other platforms and other formats keep no task.
+        assert_eq!(
+            mlx_stt_task_on(
+                turbo,
+                ModelFormat::Mlx,
+                Some("text-generation"),
+                &tags,
+                true
+            ),
+            None
+        );
+        assert_eq!(
+            mlx_stt_task_on(turbo, ModelFormat::Mlx, None, &tags, false),
+            None
+        );
+        assert_eq!(
+            mlx_stt_task_on(turbo, ModelFormat::Safetensors, None, &tags, true),
+            None
+        );
+        assert_eq!(
+            mlx_stt_task_on(
+                "mlx-community/Qwen3-0.6B-4bit",
+                ModelFormat::Mlx,
+                None,
+                &s(&["mlx"]),
+                true
+            ),
+            None
+        );
+    }
+
+    #[test]
     fn mlx_chat_repos_run_on_apple_silicon_only() {
         let files = s(&[
             "config.json",
@@ -1148,6 +1329,7 @@ mod tests {
                 format,
                 Some("text-generation"),
                 &files,
+                &[],
                 true,
                 false
             ),
@@ -1155,7 +1337,7 @@ mod tests {
         );
         // Untagged, or a listing without file names.
         assert_eq!(
-            mlx_compatibility_on("mlx-community/x", format, None, &[], true, false),
+            mlx_compatibility_on("mlx-community/x", format, None, &[], &[], true, false),
             runnable
         );
         // A vision repo is mlx-vlm's.
@@ -1165,6 +1347,7 @@ mod tests {
                 format,
                 Some("image-text-to-text"),
                 &files,
+                &[],
                 true,
                 false
             ),
@@ -1179,6 +1362,7 @@ mod tests {
                 format,
                 Some("text-to-speech"),
                 &files,
+                &[],
                 true,
                 false
             ),
@@ -1192,6 +1376,7 @@ mod tests {
                 format,
                 Some("text-to-speech"),
                 &files,
+                &[],
                 true,
                 false
             ),
@@ -1204,6 +1389,7 @@ mod tests {
                 format,
                 Some("text-generation"),
                 &files,
+                &[],
                 false,
                 false
             ),
@@ -1215,6 +1401,7 @@ mod tests {
                 format,
                 Some("image-text-to-text"),
                 &files,
+                &[],
                 false,
                 false
             ),
@@ -1226,6 +1413,7 @@ mod tests {
                 format,
                 Some("text-to-speech"),
                 &files,
+                &[],
                 true,
                 false
             ),
@@ -1237,6 +1425,7 @@ mod tests {
                 format,
                 None,
                 &s(&["config.json", "README.md"]),
+                &[],
                 true,
                 false
             ),
@@ -1248,6 +1437,7 @@ mod tests {
                 ModelFormat::Safetensors,
                 None,
                 &files,
+                &[],
                 true,
                 false
             ),
@@ -1255,7 +1445,7 @@ mod tests {
         );
         // macOS 13: says so instead of offering an engine that can't install.
         assert!(matches!(
-            mlx_compatibility_on("mlx-community/x", format, None, &files, true, true),
+            mlx_compatibility_on("mlx-community/x", format, None, &files, &[], true, true),
             Some(Compatibility::UnsupportedPlatform { runtime, .. }) if runtime == MLX_FAMILY
         ));
         // Installed or not.
