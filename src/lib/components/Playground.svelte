@@ -998,7 +998,12 @@
    *  the request in flight, which the first turn waits for. */
   let warmedKey = '';
   let warming: Promise<void> | null = null;
+  /** Bumped to try again after a failed warm-up (a server still loading its model refuses it). */
+  let warmRetry = $state(0);
+  let warmFailures = 0;
+  let warmFailedKey = '';
   $effect(() => {
+    void warmRetry;
     const key = warmKey({
       conversation: conv?.id ?? null,
       model: settings.model,
@@ -1006,7 +1011,9 @@
       tools: activeTools.length,
       documents: ragDocs.length,
       localModel: toolGenModelPath !== null,
-      loaded: domain.states.some((s) => s.alias.toLowerCase() === settings.model.toLowerCase() && s.servers.length > 0),
+      loaded: domain.states.some(
+        (s) => s.alias.toLowerCase() === settings.model.toLowerCase() && s.servers.some((v) => v.status === 'Running'),
+      ),
       endpoint: app.inferenceUrl,
     });
     if (!key) {
@@ -1014,29 +1021,44 @@
       return;
     }
     if (key === warmedKey || composerWaiting) return;
+    if (key !== warmFailedKey) warmFailures = 0;
     warmedKey = key;
     untrack(() => {
-      const run = warmPrompt(settings.model).finally(() => { if (warming === run) warming = null; });
+      const run = warmPrompt(settings.model)
+        .then((ok) => {
+          // Up to three tries, a few seconds apart; the effect drops the retry once a turn exists.
+          if (ok || warmedKey !== key) return;
+          warmFailedKey = key;
+          if (++warmFailures >= 3) return;
+          setTimeout(() => {
+            if (warmedKey !== key) return;
+            warmedKey = '';
+            warmRetry++;
+          }, 3000);
+        })
+        .finally(() => { if (warming === run) warming = null; });
       warming = run;
     });
   });
-  async function warmPrompt(model: string): Promise<void> {
+  /** Whether the server took the warm-up (a failure only means the first turn processes the prefix). */
+  async function warmPrompt(model: string): Promise<boolean> {
     await chatParamsPending;
     const toolDefs = wireToolDefs();
-    if (!toolDefs.length) return;
+    if (!toolDefs.length) return true;
     const extra = samplingParams($state.snapshot(settings) as PgSettings, { tools: true });
     const body = warmBody(withToolGuidance(applyRag(buildApiMessages([], settings), null), toolDefs), toolDefs, model, extra);
     const c = new AbortController();
     const timer = setTimeout(() => c.abort(), 120_000);
     try {
-      await fetch(`${app.inferenceUrl}/chat/completions`, {
+      const res = await fetch(`${app.inferenceUrl}/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...app.inferenceHeaders() },
         body: JSON.stringify(body),
         signal: c.signal,
       });
+      return res.ok;
     } catch {
-      // A failed warm-up only means the first turn processes the prefix itself.
+      return false;
     } finally {
       clearTimeout(timer);
     }
