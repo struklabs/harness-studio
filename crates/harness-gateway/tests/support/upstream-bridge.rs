@@ -53,7 +53,13 @@ fn main() -> std::io::Result<()> {
     };
     let target = get("--bridge-target").expect("--bridge-target required");
     let port = get("--port").expect("--port required");
-    let listener = TcpListener::bind(("127.0.0.1", port))?;
+    let listener = TcpListener::bind(("127.0.0.1", port)).map_err(|e| {
+        // ProcessManager classifies this diagnostic on every platform.
+        if e.kind() == std::io::ErrorKind::AddrInUse {
+            eprintln!("could not bind test bridge, port: {port}: {e}");
+        }
+        e
+    })?;
     for client in listener.incoming() {
         let client = client?;
         std::thread::spawn(move || {

@@ -786,6 +786,7 @@ fn e2e_mcp_get_endpoint_managed_via_gateway() {
         free_port(19240),
         &["--gateway", "--gateway-port", &gw_port.to_string()],
     );
+    let gw_port = serve.gateway_port();
     // A definition for the model (the dry run creates it; nothing is loaded).
     let r = common::run(
         dir.path(),
@@ -931,6 +932,7 @@ fn e2e_conversations_compaction_cli_and_mcp() {
         free_port(19020),
         &["--gateway", "--gateway-port", &gw_port.to_string()],
     );
+
     // A request through the gateway loads the model (its definition's alias) at 4096 context.
     let r = common::run(
         dir.path(),

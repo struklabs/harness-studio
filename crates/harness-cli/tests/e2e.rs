@@ -488,6 +488,7 @@ fn e2e_serve_gateway_run_uses_managed_endpoint() {
         api_port,
         &["--gateway", "--gateway-port", &gw_port.to_string()],
     );
+    let gw_port = serve.gateway_port();
     eprintln!("ready: {}", serve.ready);
     assert_eq!(serve.ready["gateway"]["running"], true, "{}", serve.ready);
     assert_eq!(
@@ -568,6 +569,7 @@ fn e2e_serve_gateway_request_log_and_analytics() {
         api_port,
         &["--gateway", "--gateway-port", &gw_port.to_string()],
     );
+    let gw_port = serve.gateway_port();
     assert_eq!(serve.ready["gateway"]["running"], true, "{}", serve.ready);
 
     let r = run(

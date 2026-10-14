@@ -1,5 +1,7 @@
 //! Real gateway and scheduler against a fake resident audio.cpp HTTP server.
 //! Only the byte transport is a managed test child; no model runtime is installed.
+mod common;
+
 use axum::{
     http::StatusCode,
     response::IntoResponse,
@@ -14,14 +16,6 @@ use harness_core::{
 use harness_gateway::{GatewayContext, GatewayServer};
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
-
-fn port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
 
 fn gguf(path: &std::path::Path, family: &str) {
     use std::io::Write;
@@ -179,30 +173,35 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
     std::fs::write(&transport, b"GGUF").unwrap();
     let registry = Arc::new(ServerRegistry::default());
     let pm = registry.get_or_create("audio-transport");
-    pm.start(LaunchConfig {
-        binary_path: bridge.clone(),
-        model_path: transport.clone(),
-        definition_id: Some(def.id),
-        host: "127.0.0.1".into(),
-        port: port(),
-        custom_args: Some(format!("--bridge-target {target}")),
-        ..Default::default()
-    })
+    common::start_process(
+        &pm,
+        LaunchConfig {
+            binary_path: bridge.clone(),
+            model_path: transport.clone(),
+            definition_id: Some(def.id),
+            host: "127.0.0.1".into(),
+            port: 0,
+            custom_args: Some(format!("--bridge-target {target}")),
+            ..Default::default()
+        },
+    )
     .await
     .unwrap();
     let mlx_pm = registry.get_or_create("mlx-transport");
-    mlx_pm
-        .start(LaunchConfig {
+    common::start_process(
+        &mlx_pm,
+        LaunchConfig {
             binary_path: bridge,
             model_path: transport,
             definition_id: Some(mlx_def.id),
             host: "127.0.0.1".into(),
-            port: port(),
+            port: 0,
             custom_args: Some(format!("--bridge-target {target}")),
             ..Default::default()
-        })
-        .await
-        .unwrap();
+        },
+    )
+    .await
+    .unwrap();
     let gateway = GatewayServer::new();
     use futures_util::FutureExt;
     let result = std::panic::AssertUnwindSafe(async {
@@ -219,7 +218,7 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
             pm.get_logs(Some(20))
         );
         let status = gateway
-            .start(
+            .start_ephemeral(
                 GatewayContext {
                     registry: registry.clone(),
                     runtime: Arc::default(),
@@ -229,7 +228,7 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
                 },
                 &harness_core::gateway::GatewaySettings {
                     enabled: true,
-                    port: port(),
+                    port: 0,
                     request_timeout_secs: 1,
                     ..Default::default()
                 },

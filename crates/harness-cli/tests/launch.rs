@@ -51,6 +51,7 @@ fn e2e_launch_dry_run_and_real_agents() {
         api_port,
         &["--gateway", "--gateway-port", &gw_port.to_string()],
     );
+    let gw_port = serve.gateway_port();
     assert_eq!(serve.ready["gateway"]["running"], true, "{}", serve.ready);
     let model = model.to_str().unwrap();
     let gw_host = format!("http://127.0.0.1:{gw_port}");

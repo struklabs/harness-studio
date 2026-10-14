@@ -17,6 +17,7 @@
 //! its Berlin example.
 
 use serde_json::{json, Value};
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -35,18 +36,32 @@ struct Server {
 }
 
 impl Server {
-    fn start(model: &Path, lib: &Path, provider: &str, port: u16) -> Server {
-        let child = Command::new(env!("CARGO_BIN_EXE_harness-onnx"))
+    fn start(model: &Path, lib: &Path, provider: &str) -> Server {
+        let mut child = Command::new(env!("CARGO_BIN_EXE_harness-onnx"))
             .args(["--model"])
             .arg(model)
             .args(["--ort-lib"])
             .arg(lib)
-            .args(["--provider", provider, "--port", &port.to_string()])
-            .stdout(Stdio::null())
+            .args(["--provider", provider, "--port", "0"])
+            .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
             .spawn()
             .expect("start harness-onnx");
-        let base = format!("http://127.0.0.1:{port}");
+        let stdout = BufReader::new(child.stdout.take().unwrap());
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            for line in stdout.lines().map_while(Result::ok) {
+                if let Some(base) = line.strip_prefix("harness-onnx: listening on ") {
+                    let _ = tx.send(base.to_owned());
+                }
+            }
+        });
+        let mut server = Server {
+            child,
+            base: String::new(),
+        };
+        server.base = rx.recv_timeout(Duration::from_secs(30)).unwrap();
+        let base = &server.base;
         let started = Instant::now();
         loop {
             if let Ok(r) = reqwest::blocking::get(format!("{base}/health")) {
@@ -55,12 +70,16 @@ impl Server {
                 }
             }
             assert!(
+                server.child.try_wait().unwrap().is_none(),
+                "server exited before ready"
+            );
+            assert!(
                 started.elapsed() < Duration::from_secs(120),
                 "the server did not become healthy"
             );
             std::thread::sleep(Duration::from_millis(200));
         }
-        Server { child, base }
+        server
     }
 
     fn post(&self, path: &str, body: Value) -> (u16, Value) {
@@ -96,14 +115,6 @@ impl Drop for Server {
         let _ = self.child.kill();
         let _ = self.child.wait();
     }
-}
-
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
 }
 
 /// First ten values of the model card's `encode("This is an example sentence")`.
@@ -174,7 +185,7 @@ fn minilm_matches_sentence_transformers_on_the_cpu() {
     let (Some(lib), Some(models)) = (env_path("HS_ORT_LIB"), env_path("HS_ONNX_MODELS")) else {
         return;
     };
-    let s = Server::start(&minilm(&models), &lib, "cpu", free_port());
+    let s = Server::start(&minilm(&models), &lib, "cpu");
     check_embeddings(&s, "cpu", 2e-5);
 
     // OpenAI shapes: base64, dimensions, usage, errors.
@@ -217,7 +228,7 @@ fn cross_encoder_ranks_the_berlin_example() {
     let (Some(lib), Some(models)) = (env_path("HS_ORT_LIB"), env_path("HS_ONNX_MODELS")) else {
         return;
     };
-    let s = Server::start(&cross_encoder(&models), &lib, "cpu", free_port());
+    let s = Server::start(&cross_encoder(&models), &lib, "cpu");
     let docs = [
         "Berlin had a population of 3,520,031 registered inhabitants in an area of 891.82 square kilometers.",
         "Berlin is well known for its museums.",
@@ -260,13 +271,13 @@ fn directml_agrees_with_the_cpu() {
     let (Some(lib), Some(models)) = (env_path("HS_ORT_LIB_DML"), env_path("HS_ONNX_MODELS")) else {
         return;
     };
-    let dml = Server::start(&minilm(&models), &lib, "directml", free_port());
+    let dml = Server::start(&minilm(&models), &lib, "directml");
     let on_gpu = check_embeddings(&dml, "directml", 1e-3);
-    let cpu = Server::start(&minilm(&models), &lib, "cpu", free_port());
+    let cpu = Server::start(&minilm(&models), &lib, "cpu");
     let on_cpu = check_embeddings(&cpu, "cpu", 1e-3);
     assert!(cosine(&on_gpu, &on_cpu) > 0.999);
 
-    let ce = Server::start(&cross_encoder(&models), &lib, "directml", free_port());
+    let ce = Server::start(&cross_encoder(&models), &lib, "directml");
     let (status, v) = ce.post(
         "/v1/rerank",
         json!({"query": "How many people live in Berlin?",

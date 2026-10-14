@@ -1,5 +1,7 @@
 //! Real gateway + scheduler + managed loopback bridge + fake HTTP upstream.
 //! Isolated data and memory secrets; no installed settings or GPU processes are touched.
+mod common;
+
 use axum::{
     body::Body,
     http::header,
@@ -18,13 +20,6 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 
 const CALL: &str = r#"<tools>{"name":"read","arguments":{"path":"README.md"}}</tools>"#;
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
 
 static RUNAWAY_DROPPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 struct DropNotice;
@@ -149,16 +144,19 @@ async fn recovery_is_opt_in_observable_and_preserves_non_calls() {
     let id = def.id.clone();
     let registry = Arc::new(ServerRegistry::default());
     let pm = registry.get_or_create("bridge");
-    pm.start(LaunchConfig {
-        binary_path: bridge,
-        model_path: model,
-        definition_id: Some(id.clone()),
-        port: free_port(),
-        host: "127.0.0.1".into(),
-        context_size: 8192,
-        custom_args: Some(format!("--bridge-target {upstream_port}")),
-        ..Default::default()
-    })
+    common::start_process(
+        &pm,
+        LaunchConfig {
+            binary_path: bridge,
+            model_path: model,
+            definition_id: Some(id.clone()),
+            port: 0,
+            host: "127.0.0.1".into(),
+            context_size: 8192,
+            custom_args: Some(format!("--bridge-target {upstream_port}")),
+            ..Default::default()
+        },
+    )
     .await
     .unwrap();
     for _ in 0..200 {
@@ -180,7 +178,7 @@ async fn recovery_is_opt_in_observable_and_preserves_non_calls() {
         downloads: None,
     };
     let server = GatewayServer::new();
-    let port = free_port();
+    let port = 0;
     let mut settings = GatewaySettings {
         enabled: true,
         port,
@@ -190,7 +188,10 @@ async fn recovery_is_opt_in_observable_and_preserves_non_calls() {
     let checks = std::panic::AssertUnwindSafe(async {
     // Recovery is on by default: the "off" half of the test opts out explicitly.
     settings.text_tool_calls.insert(id.clone(), false);
-    server.start(ctx.clone(), &settings).await.unwrap();
+    let status = server.start_ephemeral(ctx.clone(), &settings).await.unwrap();
+    let port = status.port.unwrap();
+    let base = status.endpoint.unwrap().host_url;
+    settings.port = port;
     let http = reqwest::Client::new();
     let mut rx = harness_core::events::subscribe();
     for enabled in [false, true] {
@@ -214,7 +215,7 @@ async fn recovery_is_opt_in_observable_and_preserves_non_calls() {
                     body.as_object_mut().unwrap().remove("tools");
                 }
                 let r = http
-                    .post(format!("http://127.0.0.1:{port}/v1/chat/completions"))
+                    .post(format!("{base}/v1/chat/completions"))
                     .json(&body)
                     .send()
                     .await
@@ -301,7 +302,7 @@ async fn recovery_is_opt_in_observable_and_preserves_non_calls() {
     }
     // The recorded runaway closes without waiting for the fake model; the upstream
     // body is dropped too (the managed bridge sees the disconnect on its heartbeat).
-    let r = http.post(format!("http://127.0.0.1:{port}/v1/chat/completions"))
+    let r = http.post(format!("{base}/v1/chat/completions"))
         .json(&json!({"model":"recovery-test","stream":true,"messages":[{"role":"user","content":"runaway"}],
             "tools":(0..16).map(|i|json!({"type":"function","function":{"name":format!("tool{i}"),"parameters":{"type":"object"}}})).collect::<Vec<_>>() }))
         .send().await.unwrap();

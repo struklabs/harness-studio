@@ -81,19 +81,28 @@ pub fn context(dir: &Path) -> ApiContext {
 /// `ApiServer::start_on`: a port only looked up and bound later (`free_port`) can be taken by
 /// a parallel test in between.
 pub async fn listener() -> (tokio::net::TcpListener, u16) {
-    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = l.local_addr().unwrap().port();
-    (l, port)
+    loop {
+        let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = l.local_addr().unwrap().port();
+        if port >= 1024 && ![11435, 11440, 11500].contains(&port) {
+            return (l, port);
+        }
+    }
 }
 
 /// A free loopback port (≥ 1024; ephemeral ports always are) for settings that are never
 /// bound (refused starts, server profiles that do not start).
 pub fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
+    loop {
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        if port >= 1024 && ![11435, 11440, 11500].contains(&port) {
+            return port;
+        }
+    }
 }
 
 pub fn settings(port: u16) -> ControlApiSettings {

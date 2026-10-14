@@ -24,7 +24,7 @@ fn data_root() -> &'static Path {
             .keep();
         harness_core::paths::init(dir.clone());
         let mut s = harness_core::config::AppSettings::load();
-        s.control_api.port = free_port();
+        s.control_api.port = 18080;
         s.save().unwrap();
         let file = dir.join("models").join("resp-model.gguf");
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
@@ -39,14 +39,6 @@ fn data_root() -> &'static Path {
     })
 }
 
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
-
 async fn start() -> (GatewayServer, String) {
     let ctx = GatewayContext {
         registry: Arc::new(ServerRegistry::default()),
@@ -56,19 +48,34 @@ async fn start() -> (GatewayServer, String) {
         downloads: None,
     };
     let server = GatewayServer::new();
+    let ephemeral = GatewaySettings {
+        port: 0,
+        ..Default::default()
+    };
+    assert_eq!(
+        server.start(ctx.clone(), &ephemeral).await.unwrap_err(),
+        harness_core::gateway::ERR_INVALID_PORT
+    );
+    assert_eq!(
+        harness_core::gateway::validate_settings(&ephemeral, 0, None).unwrap_err(),
+        harness_core::gateway::ERR_INVALID_PORT
+    );
     let status = server
-        .start(
+        .start_ephemeral(
             ctx,
             &GatewaySettings {
                 enabled: true,
-                port: free_port(),
+                port: 0,
                 require_token: true,
                 ..Default::default()
             },
         )
         .await
         .unwrap();
-    (server, status.endpoint.unwrap().host_url)
+    assert!(status.port.unwrap() >= 1024);
+    let base = status.endpoint.unwrap().host_url;
+    assert_eq!(reqwest::Url::parse(&base).unwrap().port(), status.port);
+    (server, base)
 }
 
 async fn call(req: reqwest::RequestBuilder) -> (u16, Value) {

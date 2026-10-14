@@ -202,7 +202,11 @@ fn main() {
         };
         println!(
             "harness-onnx: listening on http://{}:{}",
-            args.host, args.port
+            args.host,
+            listener
+                .local_addr()
+                .expect("bound listener address")
+                .port()
         );
 
         // Loading blocks (disk, graph optimization): off the async threads.

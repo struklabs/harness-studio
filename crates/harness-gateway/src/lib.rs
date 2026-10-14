@@ -208,6 +208,48 @@ impl GatewayServer {
         ctx: GatewayContext,
         settings: &GatewaySettings,
     ) -> Result<GatewayStatus, String> {
+        self.start_bound(ctx, settings, None).await
+    }
+
+    /// Starts on an OS-assigned loopback port, retaining the listener through startup.
+    /// This explicit entry point requires `port: 0`; user settings validation and
+    /// [`Self::start`] continue to reject port 0.
+    pub async fn start_ephemeral(
+        &self,
+        ctx: GatewayContext,
+        settings: &GatewaySettings,
+    ) -> Result<GatewayStatus, String> {
+        if settings.port != 0 || !settings.is_loopback() {
+            return Err(gateway::ERR_INVALID_PORT.to_string());
+        }
+        let host = harness_core::network::normalize_bind_host(&settings.host)?;
+        let control_port = harness_core::config::AppSettings::load().control_api.port;
+        // The unbound control/Ollama settings may happen to name an ephemeral port.
+        for _ in 0..5 {
+            let listener = tokio::net::TcpListener::bind((host.as_str(), 0))
+                .await
+                .map_err(|e| format!("gateway.bind_failed: {e}"))?;
+            let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+            if port < 1024
+                || [11435, 11440, 11500].contains(&port)
+                || port == control_port
+                || (settings.ollama_port_enabled && port == settings.ollama_port)
+            {
+                continue;
+            }
+            let mut settings = settings.clone();
+            settings.port = port;
+            return self.start_bound(ctx, &settings, Some(listener)).await;
+        }
+        Err(gateway::ERR_PORT_CONFLICT.to_string())
+    }
+
+    async fn start_bound(
+        &self,
+        ctx: GatewayContext,
+        settings: &GatewaySettings,
+        bound: Option<tokio::net::TcpListener>,
+    ) -> Result<GatewayStatus, String> {
         let tokens = TokenStore::at(&ctx.data_dir.join("config"));
         let control_port = Some(harness_core::config::AppSettings::load().control_api.port);
         let settings = gateway::validate_settings(
@@ -223,7 +265,7 @@ impl GatewayServer {
                     && r.settings.cors_origins == settings.cors_origins
                     && r.settings.ollama_port_enabled == settings.ollama_port_enabled
                     && r.settings.ollama_port == settings.ollama_port;
-                if same_listener {
+                if same_listener && bound.is_none() {
                     r.scheduler.set_settings(settings.clone());
                     drop(running);
                     self.update_running_settings(&settings).await;
@@ -232,7 +274,7 @@ impl GatewayServer {
             }
         }
         self.stop().await;
-        let result = self.start_inner(ctx, settings, tokens).await;
+        let result = self.start_inner(ctx, settings, tokens, bound).await;
         if let Err(e) = &result {
             gateway::set_stopped(Some(e.clone()));
         }
@@ -253,6 +295,7 @@ impl GatewayServer {
         ctx: GatewayContext,
         settings: GatewaySettings,
         tokens: TokenStore,
+        bound: Option<tokio::net::TcpListener>,
     ) -> Result<GatewayStatus, String> {
         // Another program on the configured port: a fallback port (the last one first), never
         // the Control API's or the Ollama port.
@@ -263,14 +306,17 @@ impl GatewayServer {
         avoid.extend(harness_core::ports::live_api_port());
         let avoid = (!self.strict_port.load(std::sync::atomic::Ordering::SeqCst)).then_some(avoid);
         let remembered = PortState::load(&ctx.data_dir).gateway;
-        let (listener, fallback) = harness_core::ports::bind_with_fallback(
-            &settings.host,
-            settings.port,
-            remembered,
-            avoid,
-        )
-        .await
-        .map_err(|e| format!("gateway.bind_failed: {}", e))?;
+        let (listener, fallback) = match bound {
+            Some(listener) => (listener, None),
+            None => harness_core::ports::bind_with_fallback(
+                &settings.host,
+                settings.port,
+                remembered,
+                avoid,
+            )
+            .await
+            .map_err(|e| format!("gateway.bind_failed: {}", e))?,
+        };
         let addr = listener.local_addr().map_err(|e| e.to_string())?;
         let ports = PortState::update(&ctx.data_dir, |s| {
             // On the configured port again: the next start does not look for another one.

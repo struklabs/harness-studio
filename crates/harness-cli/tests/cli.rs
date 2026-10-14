@@ -428,10 +428,31 @@ fn profile_import_export_roundtrip() {
 }
 
 #[test]
+fn serve_retries_gateway_port_conflicts() {
+    let dir = data_dir(None, 18500);
+    let taken = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let requested = taken.local_addr().unwrap().port();
+    let mut serve = Serve::start_with(
+        dir.path(),
+        free_port(18500),
+        &["--gateway", "--gateway-port", &requested.to_string()],
+    );
+    assert_eq!(serve.ready["gateway"]["running"], true);
+    assert_ne!(serve.gateway_port(), requested);
+    assert_eq!(run(dir.path(), &["shutdown", "--json"]).code, 0);
+    assert_eq!(serve.wait_exit(Duration::from_secs(10)).0, 0);
+}
+
+#[test]
 fn serve_owns_the_directory_and_commands_use_its_api() {
     let dir = data_dir(None, 18500);
-    let port = free_port(18600);
-    let mut serve = Serve::start(dir.path(), port);
+    // Force the check-to-bind race: the requested port remains occupied through startup.
+    let taken = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let requested = taken.local_addr().unwrap().port();
+    let mut serve = Serve::start(dir.path(), requested);
+    let port = serve.port;
+    assert_ne!(port, requested);
+    drop(taken);
     assert_eq!(serve.ready["event"], "ready");
     assert_eq!(serve.ready["kind"], "headless");
     let base = serve.ready["base_url"].as_str().unwrap().to_string();

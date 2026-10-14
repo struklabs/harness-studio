@@ -80,11 +80,19 @@ pub fn run(data_dir: &Path, args: &[&str]) -> Run {
     cmd(data_dir).args(args).output().unwrap().into()
 }
 
-/// A free loopback port at or above `from` (tests keep to 18500+).
+/// An OS-assigned loopback port at or above `from` (tests keep to 18500+).
+/// Callers starting a process must retry bind conflicts, as `Serve` does.
 pub fn free_port(from: u16) -> u16 {
-    (from..from + 400)
-        .find(|p| std::net::TcpListener::bind(("127.0.0.1", *p)).is_ok())
-        .expect("free port")
+    loop {
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        if port >= from && ![11435, 11440, 11500].contains(&port) {
+            return port;
+        }
+    }
 }
 
 /// A temp data dir; `llama` = configure the real llama-server with default server port `port`.
@@ -124,39 +132,73 @@ impl Serve {
     }
 
     /// `start` with extra `serve` arguments.
-    pub fn start_with(data_dir: &Path, port: u16, extra: &[&str]) -> Serve {
-        let mut child = cmd(data_dir)
-            .args(["serve", "--json", "--port", &port.to_string()])
-            .args(extra)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let mut out = BufReader::new(child.stdout.take().unwrap());
-        let mut line = String::new();
-        let deadline = Instant::now() + Duration::from_secs(30);
-        loop {
-            line.clear();
-            assert!(out.read_line(&mut line).unwrap() > 0, "serve exited early");
-            if line.contains("\"ready\"") {
-                break;
+    pub fn start_with(data_dir: &Path, mut port: u16, extra: &[&str]) -> Serve {
+        let mut extra: Vec<String> = extra.iter().map(|s| (*s).to_owned()).collect();
+        for attempt in 0..5 {
+            let mut child = cmd(data_dir)
+                .args(["serve", "--json", "--port", &port.to_string()])
+                .args(&extra)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap();
+            let stderr = child.stderr.take().unwrap();
+            let errors = std::thread::spawn(move || std::io::read_to_string(stderr).unwrap());
+            let out = BufReader::new(child.stdout.take().unwrap());
+            let (tx, rx) = std::sync::mpsc::channel::<String>();
+            std::thread::spawn(move || {
+                for line in out.lines().map_while(Result::ok) {
+                    let _ = tx.send(line);
+                }
+            });
+            let deadline = Instant::now() + Duration::from_secs(30);
+            let ready = loop {
+                match rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+                    Ok(line) if line.contains("\"ready\"") => {
+                        break Some(serde_json::from_str::<Value>(&line).unwrap());
+                    }
+                    Ok(_) => {}
+                    Err(_) => break None,
+                }
+            };
+            let gateway_error = ready
+                .as_ref()
+                .and_then(|r| r["gateway"]["error"].as_str())
+                .unwrap_or_default()
+                .to_owned();
+            if let Some(ready) = ready.filter(|_| gateway_error.is_empty()) {
+                let port = reqwest::Url::parse(ready["base_url"].as_str().unwrap())
+                    .unwrap()
+                    .port()
+                    .unwrap();
+                return Serve {
+                    child,
+                    ready,
+                    port,
+                    lines: rx,
+                };
             }
-            assert!(Instant::now() < deadline, "serve not ready");
-        }
-        let ready: Value = serde_json::from_str(line.trim()).unwrap();
-        // Keep reading stdout (the `stopped` line) on a thread.
-        let (tx, rx) = std::sync::mpsc::channel::<String>();
-        std::thread::spawn(move || {
-            for l in out.lines().map_while(Result::ok) {
-                let _ = tx.send(l);
+            let _ = child.kill();
+            let _ = child.wait();
+            let stderr = errors.join().unwrap();
+            let error = format!("{gateway_error}\n{stderr}");
+            let conflict = error.contains("gateway.port_conflict")
+                || ((error.contains("api.bind_failed") || error.contains("gateway.bind_failed"))
+                    && error.contains("is in use"));
+            assert!(conflict && attempt < 4, "serve failed: {error}");
+            port = free_port(18500);
+            if let Some(i) = extra.iter().position(|s| s == "--gateway-port") {
+                extra[i + 1] = free_port(19000).to_string();
             }
-        });
-        Serve {
-            child,
-            ready,
-            port,
-            lines: rx,
         }
+        unreachable!()
+    }
+
+    pub fn gateway_port(&self) -> u16 {
+        reqwest::Url::parse(self.ready["gateway"]["base_url"].as_str().unwrap())
+            .unwrap()
+            .port()
+            .unwrap()
     }
 
     /// Waits for the process to exit after a shutdown request; returns its exit code and the
@@ -190,4 +232,42 @@ pub fn port_open(port: u16) -> bool {
         Duration::from_millis(300),
     )
     .is_ok()
+}
+
+/// Starts an external HTTP fixture on a port it must know before spawning.
+pub fn start_http_process(mut command: impl FnMut(u16) -> Command) -> (Child, u16) {
+    for attempt in 0..5 {
+        let port = free_port(18500);
+        let mut child = command(port)
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stderr = child.stderr.take().unwrap();
+        let errors = std::thread::spawn(move || std::io::read_to_string(stderr).unwrap());
+        let deadline = Instant::now() + Duration::from_secs(120);
+        loop {
+            if child.try_wait().unwrap().is_some() {
+                let logs = errors.join().unwrap();
+                let conflict = logs.contains("EADDRINUSE")
+                    || logs.contains("AddrInUse")
+                    || logs.to_lowercase().contains("address already in use");
+                assert!(conflict && attempt < 4, "HTTP fixture exited: {logs}");
+                break;
+            }
+            if port_open(port) {
+                return (child, port);
+            }
+            if Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                panic!(
+                    "HTTP fixture did not become ready: {}",
+                    errors.join().unwrap()
+                );
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+    }
+    unreachable!()
 }

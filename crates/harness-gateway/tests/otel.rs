@@ -59,7 +59,7 @@ fn data_root() -> &'static Path {
             .keep();
         harness_core::paths::init(dir.clone());
         let mut s = harness_core::config::AppSettings::load();
-        s.control_api.port = free_port();
+        s.control_api.port = 18080;
         s.save().unwrap();
         dir
     })
@@ -322,12 +322,12 @@ async fn gateway() -> (GatewayServer, String) {
     };
     let s = GatewaySettings {
         enabled: true,
-        port: free_port(),
+        port: 0,
         require_token: true,
         ..Default::default()
     };
     let server = GatewayServer::new();
-    let status = server.start(ctx, &s).await.unwrap();
+    let status = server.start_ephemeral(ctx, &s).await.unwrap();
     (server, status.endpoint.unwrap().host_url)
 }
 
