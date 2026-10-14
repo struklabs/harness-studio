@@ -180,6 +180,8 @@ pub enum PackageError {
     /// An image and text model (a CLIP / SigLIP dual encoder, an image captioner): a vision
     /// package serves it.
     DualEncoder(PathBuf),
+    /// A text encoder-decoder (T5, BART, Marian): a seq2seq package serves it.
+    TextGenerator(PathBuf),
 }
 
 impl std::fmt::Display for PackageError {
@@ -190,6 +192,11 @@ impl std::fmt::Display for PackageError {
             PackageError::MissingTokenizer(p) => write!(
                 f,
                 "no tokenizer.json next to {} (or in its parent folder): download the repo's tokenizer files too",
+                p.display()
+            ),
+            PackageError::TextGenerator(p) => write!(
+                f,
+                "{} is part of an encoder-decoder text generator (summarization, translation), not a text encoder",
                 p.display()
             ),
             PackageError::DualEncoder(p) => write!(
@@ -481,6 +488,13 @@ impl ModelPackage {
         ) {
             return Err(PackageError::DualEncoder(onnx_path.to_path_buf()));
         }
+        // Every graph of a T5 / BART / Marian repo (encoder, decoders) belongs to the generator.
+        if config
+            .as_ref()
+            .is_some_and(crate::seq2seq_pkg::is_seq2seq_config)
+        {
+            return Err(PackageError::TextGenerator(onnx_path.to_path_buf()));
+        }
         let tokenizer_config = read_json(&root.join("tokenizer_config.json"));
         let sbert = read_json(&root.join("sentence_bert_config.json"));
         let modules: Option<Vec<ModuleEntry>> =
@@ -641,6 +655,26 @@ pub fn graph_uses_op(onnx_path: &Path, op: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn owl_detectors_are_not_text_encoders() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        std::fs::create_dir_all(repo.join("onnx")).unwrap();
+        std::fs::write(
+            repo.join("config.json"),
+            serde_json::json!({"model_type": "owlv2", "architectures": ["Owlv2ForObjectDetection"]})
+                .to_string(),
+        )
+        .unwrap();
+        std::fs::write(repo.join("tokenizer.json"), "{}").unwrap();
+        let model = repo.join("onnx").join("model_quantized.onnx");
+        std::fs::write(&model, b"onnx").unwrap();
+        assert!(matches!(
+            ModelPackage::discover(&model),
+            Err(PackageError::DualEncoder(_))
+        ));
+    }
     use serde_json::json;
     use std::fs;
 

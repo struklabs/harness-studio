@@ -239,7 +239,8 @@ async fn run_tool(
     cwd: &Path,
     timeout: Duration,
 ) -> Result<std::process::Output, String> {
-    let mut command = tokio::process::Command::new(tool);
+    // sherpa-onnx reads local files only: no network where the OS allows it.
+    let mut command = crate::pyenv::isolation::offline_command(tool);
     command
         .args(args)
         .current_dir(cwd)

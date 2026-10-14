@@ -165,6 +165,10 @@ impl Engine for OnnxEngine {
 }
 
 impl ServerEngine for OnnxEngine {
+    /// The ONNX sidecar reads local models only: no network on Linux.
+    fn netns_bridge(&self) -> bool {
+        true
+    }
     fn build_launch(
         &self,
         config: &LaunchConfig,

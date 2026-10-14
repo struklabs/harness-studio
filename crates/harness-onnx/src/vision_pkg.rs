@@ -478,6 +478,26 @@ mod tests {
     use std::fs;
 
     #[test]
+    fn owl_queries_pad_to_16_and_score_with_a_sigmoid() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("tokenizer.json"), "{}").unwrap();
+        for model_type in ["owlvit", "owlv2"] {
+            let t = text_side(dir.path(), &json!({"model_type": model_type})).unwrap();
+            assert_eq!(
+                (t.max_length, t.pad_to_max, t.sigmoid, t.canonicalize),
+                (16, true, true, false)
+            );
+        }
+        // The text config's own length wins.
+        let t = text_side(
+            dir.path(),
+            &json!({"model_type": "owlv2", "text_config": {"max_position_embeddings": 32}}),
+        )
+        .unwrap();
+        assert_eq!(t.max_length, 32);
+    }
+
+    #[test]
     fn heads_map_to_tasks() {
         // Open-vocabulary detectors are not the closed-set detection head.
         assert_eq!(
@@ -651,7 +671,7 @@ mod tests {
             (side.gen.start_id, side.gen.eos_ids.clone()),
             (50256, vec![50256])
         );
-        assert_eq!(side.gen.length_of(None), 20);
+        assert_eq!(side.gen.length_of(None, 1), 20);
         assert_eq!(pipeline_task_of(&encoder), Some("image-to-text"));
         // The decoder graphs belong to the encoder; they are no models of their own.
         assert!(VisionPackage::discover(&onnx.join("decoder_model_merged.onnx")).is_none());

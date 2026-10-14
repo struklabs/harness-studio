@@ -30,6 +30,8 @@ pub mod generation;
 pub mod hf_api;
 pub mod package;
 pub mod pooling;
+/// Text encoder-decoders (T5, BART, Marian): package discovery and requests.
+pub mod seq2seq_pkg;
 pub mod tasks;
 pub mod vision_pkg;
 
@@ -45,6 +47,8 @@ pub mod decoder;
 pub mod engine;
 #[cfg(feature = "engine")]
 pub mod genai;
+#[cfg(feature = "engine")]
+pub mod seq2seq_engine;
 #[cfg(feature = "engine")]
 pub mod server;
 #[cfg(feature = "engine")]

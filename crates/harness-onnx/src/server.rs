@@ -10,6 +10,7 @@ use crate::audio_engine::AudioEngine;
 use crate::chat::{self, ChatJob, ChatRequest};
 use crate::chat_engine::ChatEngine;
 use crate::engine::Engine;
+use crate::seq2seq_engine::Seq2SeqEngine;
 use crate::vision_engine::VisionEngine;
 use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::http::StatusCode;
@@ -28,6 +29,7 @@ pub struct Shared {
     vision: RwLock<Option<Arc<VisionEngine>>>,
     asr: RwLock<Option<Arc<CtcEngine>>>,
     audio: RwLock<Option<Arc<AudioEngine>>>,
+    seq2seq: RwLock<Option<Arc<Seq2SeqEngine>>>,
     requests: AtomicU64,
 }
 
@@ -40,6 +42,7 @@ impl Shared {
             vision: RwLock::new(None),
             asr: RwLock::new(None),
             audio: RwLock::new(None),
+            seq2seq: RwLock::new(None),
             requests: AtomicU64::new(0),
         })
     }
@@ -58,6 +61,14 @@ impl Shared {
 
     fn vision(&self) -> Option<Arc<VisionEngine>> {
         self.vision.read().unwrap().clone()
+    }
+
+    pub fn set_seq2seq(&self, engine: Seq2SeqEngine) {
+        *self.seq2seq.write().unwrap() = Some(Arc::new(engine));
+    }
+
+    fn seq2seq(&self) -> Option<Arc<Seq2SeqEngine>> {
+        self.seq2seq.read().unwrap().clone()
     }
 
     pub fn set_audio(&self, engine: AudioEngine) {
@@ -90,6 +101,7 @@ impl Shared {
             || self.vision().is_some()
             || self.asr().is_some()
             || self.audio().is_some()
+            || self.seq2seq().is_some()
     }
 }
 
@@ -181,6 +193,11 @@ async fn hf(State(s): State<Arc<Shared>>, body: axum::body::Bytes) -> Result<Jso
     if let Some(vision) = s.vision() {
         let job = crate::vision::parse(&request).map_err(Failure)?;
         let answer = blocking(move || vision.handle(&job)).await?;
+        return Ok(Json(answer));
+    }
+    if let Some(seq2seq) = s.seq2seq() {
+        let job = crate::seq2seq_pkg::parse(&request).map_err(Failure)?;
+        let answer = blocking(move || seq2seq.handle(&job)).await?;
         return Ok(Json(answer));
     }
     if let Some(audio) = s.audio() {

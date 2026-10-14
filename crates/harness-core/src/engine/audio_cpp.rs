@@ -510,6 +510,10 @@ impl Engine for AudioCppEngine {
 }
 
 impl ServerEngine for AudioCppEngine {
+    /// audio.cpp reads local models and voices only: no network on Linux.
+    fn netns_bridge(&self) -> bool {
+        true
+    }
     fn build_launch(
         &self,
         config: &LaunchConfig,
