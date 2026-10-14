@@ -101,6 +101,11 @@ class EngineInstaller {
     return env ? this.pyEnvs[env] : undefined;
   }
 
+  /** Why this machine can't have a `pyenv` family's environment (an error to localize), else null. */
+  pyRefusal(family: string): string | null {
+    return this.pyEnv(family)?.refusal ?? null;
+  }
+
   installed(family: string): boolean {
     const spec = engineSpec(family);
     if (spec?.method === 'onnx') return this.onnxInstalled;

@@ -2472,6 +2472,8 @@ export interface ConvertEnvProgress {
 export interface PythonEnvStatus {
   name: string;
   supported: boolean;
+  /** Why this machine can't build it (a backend error key with values), when it can't. */
+  refusal?: string | null;
   installed: boolean;
   ready: boolean;
   manifest: { uv_version: string; python: string; lock_sha256: string; installed_at: number } | null;
