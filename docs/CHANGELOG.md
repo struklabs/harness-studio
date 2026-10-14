@@ -80,6 +80,14 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed
+- Downloader: GGUF magic is checked only for `.gguf` files; companion files download with consistent file counters and byte progress.
+- İndirici: GGUF sihirli baytları yalnız `.gguf` dosyalarında denetlenir; yardımcı dosyalar tutarlı dosya sayacı ve bayt ilerlemesiyle indirilir.
+- Model Hub: the results heading follows the active search while its listing loads.
+- Model Hub: sonuç başlığı, liste yüklenirken etkin aramayı izler.
+- Settings > Updates: release dates use the interface language's date format.
+- Ayarlar > Güncellemeler: sürüm tarihleri arayüz dilinin tarih biçiminde gösterilir.
+- Library: the delete dialog can stop all servers using a file before enabling deletion.
+- Kütüphane: silme iletişim kutusu, silmeyi etkinleştirmeden önce dosyayı kullanan tüm sunucuları durdurabilir.
 - Model Hub: each card's help button (?) sits inside the card's top-right corner instead of beside it, so the grid columns stay aligned.
 - Python engine: a model that fails to load stops its worker at once with the reason, instead of waiting for the 300 s load timeout. SpeechT5 and FastSpeech2 are no longer offered for text-to-speech (their pipeline downloads a vocoder at load, which the offline worker cannot), and root SentencePiece files such as `spm_char.model` are downloaded.
 - Library: CrispASR and audio.cpp speech models show their real engine; audio.cpp processing models show their audio task.

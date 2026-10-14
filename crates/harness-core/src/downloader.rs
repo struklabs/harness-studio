@@ -2568,7 +2568,7 @@ impl DownloadManager {
         };
         let mut done_before = 0u64;
 
-        for item in items {
+        for (index, item) in items.iter().enumerate() {
             if job.cancelled() {
                 return Err(CANCELLED.to_string());
             }
@@ -2585,6 +2585,11 @@ impl DownloadManager {
                     .into());
             }
             let part_path = cache.join(part_name(&item.url, &item.filename));
+
+            self.update(job.id, |p| {
+                p.current_shard_name = item.filename.clone();
+                p.current_shard_index = index as u32 + 1;
+            });
 
             // Already present and complete?
             if let Some(existing_size) = existing_target_is_complete(&target_path, item).await? {
@@ -2605,11 +2610,6 @@ impl DownloadManager {
                     corrupt_path.display()
                 );
             }
-
-            self.update(job.id, |p| {
-                p.current_shard_name = item.filename.clone();
-                p.current_shard_index = item.shard_index;
-            });
 
             let written = self
                 .fetch_to_part(job, &client, item, &part_path, done_before, token)
@@ -2679,7 +2679,8 @@ impl DownloadManager {
                 }
             }
 
-            done_before += if item.size > 0 { item.size } else { written };
+            done_before += written;
+            self.update(job.id, |p| p.downloaded_bytes = done_before);
         }
         Ok(())
     }
@@ -4234,8 +4235,11 @@ fn verify_model_magic(path: &Path, filename: &str) -> Result<(), String> {
     {
         return verify_not_a_web_page(path);
     }
-    if !is_ggml_bin_name(filename) {
+    if lower.ends_with(".gguf") {
         return verify_gguf_magic(path);
+    }
+    if !is_ggml_bin_name(filename) {
+        return verify_not_a_web_page(path);
     }
     let read_failed = |e: std::io::Error| {
         String::from(
@@ -7042,6 +7046,83 @@ mod tests {
 #[cfg(test)]
 mod audio_cpp_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn cached_piper_package_progress_counts_companions() {
+        let dir = tempfile::tempdir().unwrap();
+        let items: Vec<_> = [
+            ("piper-en-us-lessac-medium-orig.gguf", "GGUF model"),
+            ("LICENSE", "MIT License"),
+            ("README.md", "# Piper TTS"),
+        ]
+        .into_iter()
+        .map(|(name, contents)| {
+            let filename = format!("Piper-TTS-GGUF/{name}");
+            let path = dir.path().join(&filename);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, contents).unwrap();
+            DownloadItem {
+                url: format!(
+                    "https://huggingface.co/audio-cpp/audio.cpp-gguf/resolve/main/{filename}"
+                ),
+                filename,
+                size: contents.len() as u64,
+                shard_index: 1,
+                sha256: name
+                    .ends_with(".gguf")
+                    .then(|| crate::hex::lower(&Sha256::digest(contents))),
+                custom_url: false,
+            }
+        })
+        .collect();
+        let total: u64 = items.iter().map(|item| item.size).sum();
+        let manager = DownloadManager::default();
+        let job: Job = serde_json::from_value(serde_json::json!({
+            "progress": {
+                "id": 1, "repo_id": "audio-cpp/audio.cpp-gguf", "variant_name": "piper",
+                "total_bytes": total, "downloaded_bytes": 0, "current_shard_name": "",
+                "current_shard_index": 0, "total_shards": 3, "speed_bytes_per_sec": 0,
+                "status": "Downloading"
+            },
+            "items": items, "target_dir": dir.path()
+        }))
+        .unwrap();
+        manager.jobs.lock().unwrap().push(job);
+        let context = JobCtx {
+            id: 1,
+            cancel: Arc::new(AtomicBool::new(false)),
+        };
+        manager
+            .run_job(&context, &items, dir.path(), None)
+            .await
+            .unwrap();
+        let progress = manager.get(1).unwrap();
+        assert_eq!(progress.current_shard_index, progress.total_shards);
+        assert_eq!(progress.current_shard_name, "Piper-TTS-GGUF/README.md");
+        assert_eq!(progress.downloaded_bytes, total);
+    }
+
+    #[test]
+    fn piper_companions_do_not_require_gguf_magic() {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, contents) in [
+            ("piper-en-us-lessac-medium-orig.gguf", "GGUF model"),
+            ("LICENSE", "MIT License"),
+            ("README.md", "# Piper TTS"),
+            ("voices.bin", "voice data"),
+        ] {
+            let path = dir.path().join(name);
+            fs::write(&path, contents).unwrap();
+            verify_model_magic(&path, &format!("Piper-TTS-GGUF/{name}")).unwrap();
+            assert!(path.exists());
+        }
+        for name in ["invalid.gguf", "invalid.GGUF", "README.md"] {
+            let path = dir.path().join(name);
+            fs::write(&path, "<html>Sign in</html>").unwrap();
+            assert!(verify_model_magic(&path, name).is_err());
+            assert!(!path.exists());
+        }
+    }
 
     #[test]
     fn mixed_audio_packages_mark_only_tts_variants_runnable() {
