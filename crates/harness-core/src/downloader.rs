@@ -455,6 +455,13 @@ fn merge_runnable_extras(
     }
 }
 
+fn prioritize_exact_repo(items: &mut [HfModelSearchResult], query: &str) {
+    let query = query.trim();
+    if query.split('/').count() == 2 {
+        items.sort_by_key(|item| !item.id.eq_ignore_ascii_case(query));
+    }
+}
+
 fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     let str_field = |k: &str| item.get(k).and_then(|v| v.as_str()).map(String::from);
     let id = str_field("id")?;
@@ -1289,6 +1296,7 @@ impl DownloadManager {
                 }
             }
         }
+        prioritize_exact_repo(&mut page.items, &options.query);
         Ok(page)
     }
 
@@ -6967,6 +6975,28 @@ mod tests {
         assert_eq!(
             clean_hf_search_query("deepseek-r1-14b [Q5_K_M]"),
             "deepseek-r1-14b"
+        );
+    }
+
+    #[test]
+    fn exact_repo_precedes_popular_matches_without_reordering_them() {
+        let mut items: Vec<_> = [
+            "other/Qwen3-4B-GGUF",
+            "unsloth/Qwen3-4B-GGUF-extra",
+            "unsloth/Qwen3-4B-GGUF",
+        ]
+        .into_iter()
+        .map(|id| parse_search_item(&serde_json::json!({"id": id})).unwrap())
+        .collect();
+        prioritize_exact_repo(&mut items, " UNSLOTH/Qwen3-4B-GGUF ");
+        let ids: Vec<_> = items.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "unsloth/Qwen3-4B-GGUF",
+                "other/Qwen3-4B-GGUF",
+                "unsloth/Qwen3-4B-GGUF-extra"
+            ]
         );
     }
 

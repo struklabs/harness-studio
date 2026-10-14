@@ -7,6 +7,7 @@ const QUANT_REGEX = /\b(Q[0-9]_[A-Za-z0-9_]+|IQ[0-9]_[A-Za-z0-9_]+|TQ[0-9]_[0-9]
 
 export function parseSearchQuery(raw: string): ParsedSearchQuery {
   let text = raw.trim();
+  if (/^[\w.-]+\/[\w.-]+$/.test(text)) return { cleanedQuery: text, detectedQuant: null };
   let detectedQuant: string | null = null;
 
   // 1. Check inside parentheses: e.g. (Q4_K_M) or [Q4_K_M]

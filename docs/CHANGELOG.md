@@ -6,6 +6,17 @@ Release notes with system requirements and known limitations (English and Turkis
 
 ## [Unreleased]
 
+- Image generation: GPU memory failures show localized guidance, blocking server names when available, and a Manage Servers action.
+- Görsel üretimi: GPU belleği hataları yerelleştirilmiş yönlendirme, varsa belleği tutan sunucu adları ve Sunucuları Yönet eylemi gösterir.
+- Playground: the Image tab header model chip follows the image model selection.
+- Oyun Alanı: Görsel sekmesinin başlığındaki model etiketi seçili görsel modelini izler.
+- Model Hub: engine installation failures appear below the banner with expandable, scrollable output.
+- Model Hub: motor kurulumu hataları banner altında genişletilebilir ve kaydırılabilir çıktıyla gösterilir.
+- Model Hub: exact repository IDs are preserved in search and ranked first regardless of letter case.
+- Model Hub: tam depo kimlikleri aramada korunur ve büyük/küçük harften bağımsız olarak ilk sıraya alınır.
+- Model Hub: variant recommendations prefer current files over old, legacy and deprecated folders.
+- Model Hub: varyant önerileri old, legacy ve deprecated klasörleri yerine güncel dosyaları tercih eder.
+
 - Playground: per-chat Thinking levels and optional request budgets, model-aware OpenAI/Ollama translation, and copyable reasoning with saved duration and inline `<think>` handling. Presets remain independent; split view keeps each side's preset.
 - Oyun Alanı: sohbete özel Düşünme düzeyleri ve isteğe bağlı istek bütçesi, modele göre OpenAI/Ollama çevirisi, kayıtlı süre ve satır içi `<think>` desteğiyle kopyalanabilir düşünme metni. Ön ayarlar bağımsızdır; bölünmüş görünüm her tarafın ön ayarını kullanır.
 

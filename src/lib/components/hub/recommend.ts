@@ -11,6 +11,12 @@ export function quantBits(q: string): number {
 
 const TIERS = ['full_gpu', 'tight', 'hybrid', 'cpu_heavy'] as const;
 
+function currentVariants(variants: HfModelVariant[]): HfModelVariant[] {
+  const current = variants.filter((v) => ![v.name, ...v.shards.map((s) => s.filename)].some((path) =>
+    /(?:^|[/\\])(?:old|legacy|deprecated)[/\\]/i.test(path)));
+  return current.length ? current : variants;
+}
+
 /**
  * The variant that suits this machine best, from the same fit estimate as the variant table
  * (`fits`: variant name -> category of the Rust estimate). Prefers the largest (best quality)
@@ -18,7 +24,7 @@ const TIERS = ['full_gpu', 'tight', 'hybrid', 'cpu_heavy'] as const;
  * 4-bit-or-better file of the best tier still possible. Null when sizes or fits are unknown.
  */
 export function recommendVariant(variants: HfModelVariant[], fits: Map<string, FitCategory>): HfModelVariant | null {
-  const sized = variants.filter((v) => v.total_size_bytes > 0 && quantBits(v.quantization) <= 8 && fits.has(v.name));
+  const sized = currentVariants(variants.filter((v) => v.total_size_bytes > 0 && quantBits(v.quantization) <= 8 && fits.has(v.name)));
   if (sized.length === 0) return null;
   for (const tier of TIERS) {
     const group = sized.filter((v) => fits.get(v.name) === tier);

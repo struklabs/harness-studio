@@ -257,7 +257,7 @@
   });
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
   let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (!app.gatewayRunning && serveMode === 'chat')));
-  let pickerModel = $derived(pgTab === 'chat' ? settings.model : modeModels[pgTab]);
+  let pickerModel = $derived(pgTab === 'chat' ? settings.model : pgTab === 'image' ? imageSession.model : modeModels[pgTab]);
   $effect(() => {
     void library.version;
     untrack(() => void library.refresh());
@@ -2806,7 +2806,7 @@
         <ModelPicker
           currentModel={pickerModel}
           mode={pgTab}
-          label={pgTab === serveMode && pgTab !== 'chat' ? pickerLabel : undefined}
+          label={pgTab === serveMode && pgTab !== 'chat' && pgTab !== 'image' ? pickerLabel : undefined}
           onUse={useModel}
           onPicked={() => tick().then(() => composer?.focus(true))}
         />

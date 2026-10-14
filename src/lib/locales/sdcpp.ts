@@ -2,6 +2,7 @@
 // Image tab of the Playground, the image model kind, the Hub's model bundle notes and the backend
 // error keys.
 const tr = {
+  'img.manage_servers': 'Sunucuları Yönet',
   // ---- Parameter catalog groups and entries (`caps.group.<group>` is the shared group key) ----
   'caps.group.components': 'Model Dosyaları',
   'caps.group.generation': 'Üretim Varsayılanları',
@@ -168,6 +169,7 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'img.manage_servers': 'Manage Servers',
   // ---- Parameter catalog groups and entries (`caps.group.<group>` is the shared group key) ----
   'caps.group.components': 'Model Files',
   'caps.group.generation': 'Generation Defaults',

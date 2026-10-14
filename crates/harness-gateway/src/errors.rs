@@ -64,7 +64,7 @@ impl GatewayError {
 
     pub fn from_sched(e: &harness_core::gateway::scheduler::SchedError) -> Self {
         use harness_core::gateway::scheduler::SchedError;
-        let details = match e {
+        let mut details = match e {
             SchedError::ModelNotFound { available, .. }
             | SchedError::ModelRequired { available } => json!({"available_models": available}),
             SchedError::InsufficientMemory {
@@ -92,6 +92,23 @@ impl GatewayError {
             SchedError::LoadFailed { code, .. } => json!({"failure": code}),
             _ => Value::Null,
         };
+        let blockers = match e {
+            SchedError::InsufficientMemory { blocking, .. } => Some(blocking.as_slice()),
+            SchedError::LoadFailed { .. } if e.is_oom() => Some([].as_slice()),
+            SchedError::ModelBusy { busy, reason, .. } if reason == "insufficient_memory" => {
+                Some(busy.as_slice())
+            }
+            _ => None,
+        };
+        if let Some(blockers) = blockers {
+            use harness_core::error_key::err;
+            let key = if blockers.is_empty() {
+                err("gateway.gpu_memory_full")
+            } else {
+                err("gateway.gpu_memory_blocked").with("servers", blockers.join(", "))
+            };
+            details["error_key"] = json!(key.to_string());
+        }
         let mut err =
             Self::new(e.http_status(), e.code(), e.message()).retry_after(e.retry_after());
         if matches!(
@@ -180,6 +197,51 @@ impl IntoResponse for GatewayError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn memory_failures_carry_localizable_keys_and_blockers() {
+        use harness_core::gateway::scheduler::SchedError;
+        for error in [
+            SchedError::InsufficientMemory {
+                alias: "image".into(),
+                need_bytes: Some(4_000_000_000),
+                available_bytes: Some(1_000_000_000),
+                blocking: vec!["chat".into()],
+                after_full_eviction: false,
+                options: vec![],
+                tried: Box::default(),
+            },
+            SchedError::ModelBusy {
+                alias: "image".into(),
+                busy: vec!["chat".into()],
+                reason: "insufficient_memory".into(),
+                retry_after: 5,
+            },
+        ] {
+            let body = GatewayError::from_sched(&error).body();
+            let key = body["error"]["harness"]["error_key"].as_str().unwrap();
+            let (key, params) = harness_core::error_key::parse(key).unwrap();
+            assert_eq!(key, "gateway.gpu_memory_blocked");
+            assert_eq!(params["servers"], "chat");
+        }
+        let error = SchedError::LoadFailed {
+            alias: "image".into(),
+            code: "servers.out_of_memory".into(),
+            message: "allocation failed".into(),
+        };
+        let body = GatewayError::from_sched(&error).body();
+        assert_eq!(
+            body["error"]["harness"]["error_key"],
+            "gateway.gpu_memory_full"
+        );
+        let error = SchedError::ModelBusy {
+            alias: "image".into(),
+            busy: vec!["chat".into()],
+            reason: "max_loaded_models".into(),
+            retry_after: 5,
+        };
+        assert!(GatewayError::from_sched(&error).body()["error"]["harness"]["error_key"].is_null());
+    }
 
     #[test]
     fn busy_models_have_retry_header_and_details_in_both_protocols() {
