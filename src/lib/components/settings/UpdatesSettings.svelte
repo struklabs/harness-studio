@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { invoke } from '#lib/ipc.js';
+  import { errorCode, errorText } from '#lib/errors.js';
   import { getVersion } from '@tauri-apps/api/app';
   import { Check, TriangleAlert } from '@lucide/svelte';
   import type { AppUpdateInfo, AppUpdateProgress } from '#lib/types.js';
@@ -46,9 +47,11 @@
     try {
       appUpdate = await invoke<AppUpdateInfo | null>('check_app_update');
     } catch (e) {
-      const msg = String(e);
-      if (msg.includes('yapılandırılmamış')) infoMsg = msg;
-      else error = t('settings.app_update_failed', { error: msg });
+      // Not configured, or no package for this system in the release: a note, not a failure.
+      // The backend's text already says what failed.
+      const code = errorCode(e);
+      if (code === 'update.not_configured' || code === 'update.no_platform') infoMsg = errorText(e);
+      else error = errorText(e);
     } finally {
       checking = false;
     }
@@ -73,7 +76,7 @@
       // On success the backend restarts the app, so this normally never resolves.
       await invoke('install_app_update');
     } catch (e) {
-      error = t('settings.app_update_failed', { error: String(e) });
+      error = errorText(e);
       stopPolling();
       progress = null;
       installing = false;

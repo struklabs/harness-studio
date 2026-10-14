@@ -229,7 +229,6 @@ const tr = {
   'settings.app_installing': 'Güncelleme indiriliyor…',
   'settings.app_install_finished': 'Kuruldu, uygulama yeniden başlıyor…',
   'settings.app_install_progress_label': 'Güncelleme indirme ilerlemesi',
-  'settings.app_update_failed': 'Güncelleme başarısız: {error}',
 
   // Privacy and diagnostics
   'settings.privacy_title': 'Rapor İçeriği',
@@ -525,7 +524,6 @@ const en: Record<keyof typeof tr, string> = {
   'settings.app_installing': 'Downloading update…',
   'settings.app_install_finished': 'Installed, restarting the app…',
   'settings.app_install_progress_label': 'Update download progress',
-  'settings.app_update_failed': 'Update failed: {error}',
 
   // Privacy and diagnostics
   'settings.privacy_title': 'Report Contents',
