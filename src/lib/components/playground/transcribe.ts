@@ -24,20 +24,23 @@ export function tidySegments(text: string): string {
   return normalizeTranscriptionText(text.replace(/^[ \t]+/gm, ''));
 }
 
-/** POST {baseUrl}/audio/{task} as multipart form data. */
+/** POST {baseUrl}/audio/{task} as multipart form data. `json` asks for verbose_json (language and
+ *  duration) unless `textOnly`: a model whose worker answers the text only (mlx-audio) takes
+ *  plain json. */
 export async function fetchTranscription(
   baseUrl: string,
   task: AudioTask,
   file: File,
   model: string,
-  opts: { language: string; prompt: string; format: AudioFormat },
+  opts: { language: string; prompt: string; format: AudioFormat; textOnly?: boolean },
   headers: Record<string, string>,
   signal?: AbortSignal,
 ): Promise<TranscribeResult> {
   const form = new FormData();
   form.append('file', file, file.name);
   form.append('model', model);
-  form.append('response_format', opts.format === 'text' || opts.format === 'srt' || opts.format === 'vtt' ? opts.format : 'verbose_json');
+  const asked = opts.format === 'json' && !opts.textOnly ? 'verbose_json' : opts.format;
+  form.append('response_format', asked);
   if (opts.language.trim()) form.append('language', opts.language.trim());
   if (opts.prompt.trim()) form.append('prompt', opts.prompt.trim());
   const started = performance.now();

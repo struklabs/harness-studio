@@ -111,7 +111,7 @@
     error = '';
     needFamily = null;
     try {
-      result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language: ctcChosen ? '' : language, prompt: ctcChosen || engineChosen ? '' : prompt, format }, app.inferenceHeaders(), c.signal);
+      result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language: ctcChosen ? '' : language, prompt: ctcChosen || engineChosen ? '' : prompt, format, textOnly: !!engineChosen }, app.inferenceHeaders(), c.signal);
     } catch (e) {
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);

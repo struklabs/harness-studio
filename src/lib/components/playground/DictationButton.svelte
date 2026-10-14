@@ -86,7 +86,7 @@
     busy = true;
     try {
       const result = await fetchTranscription(request.url, 'transcriptions', file, request.model,
-        { language: '', prompt: '', format: 'json' }, request.headers, c.signal);
+        { language: '', prompt: '', format: 'json', textOnly: asr.engineNames.includes(request.model) }, request.headers, c.signal);
       if (!c.signal.aborted) {
         if (result.text.trim()) onText(result.text);
         else error = t('pg.dictation_empty');
