@@ -1,8 +1,0 @@
-{
- "error": "load_failed",
- "detail": "{\"env\": {\"OLLAMA_FLASH_ATTENTION\": \"1\", \"OLLAMA_KV_CACHE_TYPE\": \"f16\", \"OLLAMA_NUM_PARALLEL\": \"4\"}, \"server_env_stripped\": [\"OLLAMA_FLASH_ATTENTION\", \"OLLAMA_KV_CACHE_TYPE\", \"OLLAMA_NUM_PARALLEL\", \"OLLAMA_MAX_LOADED_MODELS\", \"OLLAMA_CONTEXT_LENGTH\", \"OLLAMA_NUM_CTX\", \"OLLAMA_GPU_OVERHEAD\"], \"load_s\": 8.27, \"load_error\": \"HTTP 500: {\\\"error\\\":{\\\"message\\\":\\\"llama-server process has terminated: exit status 1: cudaMalloc failed: out of memory\\\\nggml_backend_buft_alloc_buffer_n_default: failed to allocate CUDA0 buffer of size 19327352832\\\\nllama_init_from_model: failed to initialize the context: failed to allocate buffer for kv cache\\\",\\\"type\\\":\\\"api_error\\\",\\\"param\\\":null,\\\"code\\\":null}}\\n\"}",
- "gpu_before": {
-  "dedicated_mib": 0,
-  "shared_mib": 654
- }
-}

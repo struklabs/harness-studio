@@ -226,7 +226,7 @@ Pass = structured `tool_calls` present when expected, correct name, arguments va
 ## Observations (factual, from the tables above)
 
 - **History (read first).** The first run of the day used the previous build (before the fixes); its Harness rows are kept in the
-  "previous build" rows and in `raw/pre-fix/`. Those rows exposed three product defaults (AMD/Windows driver reserve made the
+  "previous build" rows. Those rows exposed three product defaults (AMD/Windows driver reserve made the
   automatic layer count too conservative: 4B 29/37 layers, 14B 33/49; gateway loads used 1 slot; shared pools without
   `--cache-ram 0`; text tool-call recovery was opt-in). They were fixed in the release build and the Harness rows were re-measured in
   a later session against a freshly built and installed release build (managed runtime b11556). The competitors' rows were not re-run, except one

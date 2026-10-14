@@ -1,8 +1,0 @@
-{
- "error": "load_failed",
- "detail": "{\"alias\": \"bench-14b-equal\", \"load_s\": 0.41, \"log_lines\": [], \"load_error\": \"HTTP 503: {\\\"error\\\":{\\\"message\\\":\\\"Not enough GPU memory to load \\\\\\\"bench-14b-equal\\\\\\\" (needs about 14589 MiB, 12141 MiB free); it does not fit even with the idle models unloaded; tried to fit it: cache types KV f16; context 32768 down to 16384.\\\",\\\"type\\\":\\\"server_overloaded\\\",\\\"code\\\":\\\"insufficient_memory\\\",\\\"param\\\":null,\\\"harness\\\":{\\\"need_bytes\\\":15298191360,\\\"available_bytes\\\":12731555840,\\\"blocking_models\\\":[],\\\"suggestions\\\"\"}",
- "gpu_before": {
-  "dedicated_mib": 4242,
-  "shared_mib": 100
- }
-}

@@ -2,8 +2,8 @@
 
 [English](../en/COMPARISON.md)
 
-2026-10-11'de tek bir Windows makinesinde, her araç için aynı GGUF dosyalarıyla ölçüldü. Tam tablolar, ham JSON ve ölçüm betiği
-[benchmarks/2026-10-11/summary.md](../benchmarks/2026-10-11/summary.md), [benchmarks/2026-10-11/raw/](../benchmarks/2026-10-11/raw/) ve
+2026-10-11'de tek bir Windows makinesinde, her araç için aynı GGUF dosyalarıyla ölçüldü. Tam tablolar ve ölçüm betiği
+[benchmarks/2026-10-11/summary.md](../benchmarks/2026-10-11/summary.md) ve
 [`bench/compare/`](../../bench/compare/) içindedir. Betik her sayıyı başka bir makinede yeniden üretir. Özellik özellik matris (hangi araçta ne var)
 [FEATURES.md](FEATURES.md) içindedir; bu ölçümler oradaki §0'da da yer alır.
 
@@ -94,7 +94,6 @@ satırları yeniden çalıştırılmadı.
 | 4 eşzamanlı, 4 slot (tok/sn) | 170 | 399 |
 | Model geçişi TTFT (sn) | 9,1 | 6,5 |
 
-Önceki derlemenin ham dosyaları [raw/pre-fix/](../benchmarks/2026-10-11/raw/pre-fix/) içindedir.
 </details>
 
 ## Sayılar ne anlama geliyor
