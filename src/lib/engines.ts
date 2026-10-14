@@ -12,7 +12,7 @@ export interface EngineSpec {
   method: EngineMethod;
   /** Official GitHub repository for `github` families. */
   repo?: string;
-  /** Managed Python environment of `pyenv` families. */
+  /** Managed Python environment of `pyenv` families (its CPU build when it has a GPU one). */
   env?: string;
   /** Locale key of the one-line description shown on the Installed Runtime page. */
   descKey: 'eng.desc_audio_cpp' | 'eng.desc_crispasr' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio';
@@ -42,8 +42,11 @@ export function engineDescKey(
   e: EngineSpec,
   mac: boolean,
   linux = false,
-): EngineSpec['descKey'] | 'eng.desc_lemonade_mac' | 'eng.desc_pyhf_other' {
+  /** The env the family uses or would install (`hf-cuda` for the Python engine's CUDA build). */
+  env?: string,
+): EngineSpec['descKey'] | 'eng.desc_lemonade_mac' | 'eng.desc_pyhf_other' | 'eng.desc_pyhf_cuda' | 'eng.desc_pyhf_cuda_other' {
   if (mac && e.family === 'lemonade') return 'eng.desc_lemonade_mac';
+  if (e.family === 'python-hf' && env === 'hf-cuda') return linux ? 'eng.desc_pyhf_cuda' : 'eng.desc_pyhf_cuda_other';
   if (!linux && e.family === 'python-hf') return 'eng.desc_pyhf_other';
   return e.descKey;
 }

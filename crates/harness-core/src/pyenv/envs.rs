@@ -39,6 +39,9 @@ pub struct EnvSpec {
     pub estimated_size_bytes: u64,
     /// Oldest macOS major version its wheels run on (`None`: any the app runs on).
     pub min_macos: Option<u32>,
+    /// The env this one is a GPU build of (`hf-cuda` of `hf-cpu`): one of the two serves the
+    /// engine, the GPU build where there is an NVIDIA GPU ([`EnvStatus::preferred`]).
+    pub gpu_build_of: Option<&'static str>,
 }
 
 /// The CPU build of the `python-hf` engine: PyTorch (CPU wheels; plain PyPI wheels on macOS,
@@ -53,6 +56,30 @@ pub const HF_CPU: EnvSpec = EnvSpec {
     verify: "import torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL",
     estimated_size_bytes: 1_300 * 1024 * 1024,
     min_macos: None,
+    gpu_build_of: None,
+};
+
+/// The NVIDIA CUDA build of the `python-hf` engine (Windows and Linux on x86-64): the same
+/// packages as [`HF_CPU`] with PyTorch built for CUDA 12.6 (drivers from 560 on; on Linux the
+/// CUDA libraries come as `nvidia-*` wheels, on Windows inside the torch wheel). The locks are
+/// `uv pip compile --python-platform <x86_64-pc-windows-msvc | x86_64-unknown-linux-gnu>
+/// --python-version 3.12 --generate-hashes --emit-index-url --index-url
+/// https://download.pytorch.org/whl/cu126 --extra-index-url https://pypi.org/simple
+/// --index-strategy unsafe-best-match python/hf-cuda.in`.
+#[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
+pub const HF_CUDA: EnvSpec = EnvSpec {
+    name: "hf-cuda",
+    #[cfg(windows)]
+    lock: include_str!("../../python/hf-cuda-windows.lock"),
+    #[cfg(target_os = "linux")]
+    lock: include_str!("../../python/hf-cuda-linux.lock"),
+    verify: "import torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL; assert torch.version.cuda, 'not a CUDA build of torch'",
+    #[cfg(windows)]
+    estimated_size_bytes: 2_900 * 1024 * 1024,
+    #[cfg(target_os = "linux")]
+    estimated_size_bytes: 4_600 * 1024 * 1024,
+    min_macos: None,
+    gpu_build_of: Some("hf-cpu"),
 };
 
 /// The `mlx` engine's environment: Apple's MLX and mlx-lm (its OpenAI-compatible server).
@@ -65,6 +92,7 @@ pub const MLX: EnvSpec = EnvSpec {
     verify: "import mlx.core, mlx_lm.server",
     estimated_size_bytes: 350 * 1024 * 1024,
     min_macos: Some(14),
+    gpu_build_of: None,
 };
 
 /// The `mlx-vlm` engine's environment: mlx-vlm (vision-language models on MLX) and its
@@ -77,13 +105,36 @@ pub const MLX_VLM: EnvSpec = EnvSpec {
     verify: "import mlx.core, mlx_vlm.server.app, uvicorn",
     estimated_size_bytes: 780 * 1024 * 1024,
     min_macos: Some(14),
+    gpu_build_of: None,
 };
 
 /// The environments engines can ask for.
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 pub const ENVS: &[EnvSpec] = &[HF_CPU, MLX, MLX_VLM];
-#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+#[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
+pub const ENVS: &[EnvSpec] = &[HF_CPU, HF_CUDA];
+#[cfg(not(any(
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(any(windows, target_os = "linux"), target_arch = "x86_64")
+)))]
 pub const ENVS: &[EnvSpec] = &[HF_CPU];
+
+/// Whether a CUDA build can run here: an NVIDIA GPU with a CUDA driver.
+pub fn cuda_present() -> bool {
+    crate::hardware::detect_hardware()
+        .driver_info
+        .cuda_supported
+}
+
+/// Whether `spec` is the one to install of its CPU / GPU pair on this machine: the GPU build
+/// with CUDA, the CPU build without; an env with no pair always.
+pub fn preferred(spec: &EnvSpec, cuda: bool) -> bool {
+    if spec.gpu_build_of.is_some() {
+        return cuda;
+    }
+    let has_gpu_build = ENVS.iter().any(|s| s.gpu_build_of == Some(spec.name));
+    !(has_gpu_build && cuda)
+}
 
 /// The major version of the running macOS (`None` elsewhere, or when it can't be read).
 pub fn macos_major() -> Option<u32> {
@@ -176,6 +227,10 @@ pub struct EnvStatus {
     pub estimated_size_bytes: u64,
     /// Progress of the build running now.
     pub progress: Option<EnvProgress>,
+    /// The CPU env this is a GPU build of ([`EnvSpec::gpu_build_of`]).
+    pub gpu_build_of: Option<String>,
+    /// The one of a CPU / GPU pair to install on this machine ([`preferred`]).
+    pub preferred: bool,
 }
 
 pub fn status_in(root: &Path, spec: &EnvSpec) -> EnvStatus {
@@ -198,13 +253,21 @@ pub fn status_in(root: &Path, spec: &EnvSpec) -> EnvStatus {
         dir,
         estimated_size_bytes: spec.estimated_size_bytes,
         progress: progress(spec.name),
+        gpu_build_of: spec.gpu_build_of.map(str::to_string),
+        preferred: spec.gpu_build_of.is_none(),
     }
 }
 
 /// Every env this version knows.
 pub fn status_all() -> Vec<EnvStatus> {
     let root = root();
-    ENVS.iter().map(|s| status_in(&root, s)).collect()
+    let cuda = cuda_present();
+    ENVS.iter()
+        .map(|s| EnvStatus {
+            preferred: preferred(s, cuda),
+            ..status_in(&root, s)
+        })
+        .collect()
 }
 
 // --- builds -------------------------------------------------------------------------------------
@@ -363,7 +426,7 @@ pub fn remove(name: &str) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     const SPEC: EnvSpec = EnvSpec {
@@ -372,7 +435,56 @@ mod tests {
         verify: "import six",
         estimated_size_bytes: 1,
         min_macos: None,
+        gpu_build_of: None,
     };
+
+    /// Writes a ready env of `spec` under `root` (the interpreter and a manifest of its lock).
+    #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
+    pub(crate) fn fake_ready(root: &Path, spec: &EnvSpec) {
+        let python = python_in(root, spec.name);
+        std::fs::create_dir_all(python.parent().unwrap()).unwrap();
+        std::fs::write(&python, "").unwrap();
+        let m = Manifest {
+            name: spec.name.into(),
+            uv_version: UV_VERSION.into(),
+            python: "Python 3.12.13".into(),
+            lock_sha256: lock_digest(spec),
+            installed_at: 1,
+        };
+        write_json(&env_dir_in(root, spec.name).join("manifest.json"), &m).unwrap();
+    }
+
+    #[test]
+    fn the_gpu_build_is_preferred_only_with_cuda() {
+        assert!(preferred(&HF_CPU, false));
+        assert!(
+            preferred(&SPEC, true),
+            "an env without a pair is always the one"
+        );
+        #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
+        {
+            assert!(!preferred(&HF_CPU, true));
+            assert!(preferred(&HF_CUDA, true));
+            assert!(!preferred(&HF_CUDA, false));
+        }
+    }
+
+    #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
+    #[test]
+    fn the_cuda_lock_pins_a_cuda_torch_with_hashes() {
+        let lock = HF_CUDA.lock;
+        assert!(lock.contains("--index-url https://download.pytorch.org/whl/cu126"));
+        assert!(lock.contains("torch==2.14.1+cu126"));
+        assert!(!lock.contains("+cpu"));
+        // Every requirement line carries a hash (uv installs with --require-hashes).
+        let pins = lock
+            .lines()
+            .filter(|l| l.contains("==") && !l.trim_start().starts_with('#'))
+            .count();
+        assert!(pins > 50 && lock.matches("--hash=sha256:").count() >= pins);
+        assert_eq!(HF_CUDA.gpu_build_of, Some(HF_CPU.name));
+        assert!(spec("hf-cuda").is_some());
+    }
 
     #[test]
     fn status_follows_the_manifest_and_the_lock() {
