@@ -271,6 +271,10 @@ fn responses(doc: &Map<String, Value>) -> Result<Converted, String> {
             "seed",
             "parallel_tool_calls",
             "top_k",
+            "chat_template_kwargs",
+            "thinking_budget_tokens",
+            "reasoning_budget_tokens",
+            "reasoning_effort",
         ],
         &mut params,
     );

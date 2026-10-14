@@ -533,6 +533,14 @@ async fn run(
             }
         }
     }
+    if matches!(api, Api::Chat | Api::Responses) {
+        if let Some(mapped) = crate::reasoning::translate(
+            prepared.body.as_deref().unwrap_or(&body),
+            lease.reasoning_control,
+        ) {
+            prepared.body = Some(mapped);
+        }
+    }
     // Tool-call diagnosis: the round is read from the request that goes upstream (after the
     // compat changes, so the names match what the model answers with).
     if matches!(api, Api::Chat | Api::Messages | Api::Responses) {

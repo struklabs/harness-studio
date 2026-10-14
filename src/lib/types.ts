@@ -905,6 +905,7 @@ export interface GgufMetadata {
   /** Exact parameter count of this file's tensors (split models: this part only). */
   param_count?: number | null;
   template_supports_reasoning?: boolean;
+  reasoning_control?: { effort: boolean; toggle: boolean; budget: boolean };
   tokenizer?: TokenizerInfo | null;
 }
 
@@ -2058,6 +2059,7 @@ export interface ModelCaps {
   chat: boolean;
   tools: boolean;
   reasoning: boolean;
+  reasoning_control?: { effort: boolean; toggle: boolean; budget: boolean };
   vision: boolean;
   audio: boolean;
   audio_input: boolean;
@@ -2078,6 +2080,7 @@ export interface VerifiedCaps {
   tools: boolean;
   /** The template takes a reasoning level or keeps earlier reasoning; `false` is not conclusive. */
   reasoning: boolean;
+  reasoning_control?: { effort: boolean; toggle: boolean; budget: boolean };
   /** The template the server really used has the reasoning switches (fallback when `reasoning` is false). */
   template_reasoning?: boolean | null;
   /** Unix seconds of that run. */

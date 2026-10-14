@@ -368,7 +368,7 @@ impl RespWire {
             "input_tokens": fin.input(),
             "input_tokens_details": {"cached_tokens": fin.usage.cached_tokens.unwrap_or(0)},
             "output_tokens": fin.output(),
-            "output_tokens_details": {"reasoning_tokens": 0},
+            "output_tokens_details": {"reasoning_tokens": fin.usage.reasoning_tokens.unwrap_or(0)},
             "total_tokens": fin.input() + fin.output(),
         })
     }

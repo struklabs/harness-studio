@@ -1,3 +1,4 @@
+import { observeThinking, resetThinking } from './thinking';
 import { guardToolCalls } from './toolLoopGuard';
 // Playground split view (P2): the same prompt against two models or two presets side by side.
 // Pure helpers (no Svelte runes): pane settings, per-side history, one streaming request,
@@ -212,6 +213,7 @@ export function beginRound(msg: ChatMessage) {
     role: 'assistant',
     content: msg.content,
     reasoning: msg.reasoning,
+    reasoningMs: msg.reasoningMs,
     stats: msg.stats ? { ...msg.stats } : undefined,
     error: msg.error,
     stopped: msg.stopped,
@@ -220,6 +222,7 @@ export function beginRound(msg: ChatMessage) {
     parentId: msg.parentId,
   };
   msg.priorRounds = [...(msg.priorRounds ?? []), round];
+  resetThinking(msg);
   msg.content = '';
   msg.reasoning = undefined;
   msg.stats = undefined;
@@ -305,6 +308,7 @@ export async function streamInto(
           if (names.length) msg.content += contentBuffer.push(content);
           else msg.content += content;
         }
+        observeThinking(msg, performance.now());
         if (hasCalls) {
           acc.push(delta.tool_calls);
           const checked = guardToolCalls(acc.result().map((tc) => ({

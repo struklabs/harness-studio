@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { NO_REASONING, observeThinking, type ReasoningControl } from './playground/thinking';
   import { guardToolCalls } from './playground/toolLoopGuard';
   import AdvancedOnly from './common/AdvancedOnly.svelte';
   import { PLAYGROUND_MODES, playgroundModeFromUrl } from './playground/navigation';
@@ -1070,11 +1071,15 @@
     }
   }
 
+  let reasoningControl = $state<ReasoningControl>(NO_REASONING);
   let verifiedTools = $state<boolean | null>(null);
   $effect(() => {
+    void serversSig;
+    void library.version;
     const path = toolGenModelPath;
     const definition = domain.definitions.find(d => d.alias.toLowerCase() === settings.model.toLowerCase());
     verifiedTools = null;
+    reasoningControl = NO_REASONING;
     libraryAudio = false;
     audioAliases = {};
     libraryVision = null;
@@ -1089,6 +1094,7 @@
         (ref?.kind === 'hf' && e.repo_id === ref.repo && normalize(e.model.path).endsWith(`/${normalize(ref.file)}`))
       );
       verifiedTools = entry?.caps.verified?.tools ?? null;
+      reasoningControl = entry?.caps.reasoning_control ?? NO_REASONING;
       const projector = definition?.mmproj ? view.entries.find(e => normalize(e.model.path) === normalize(definition.mmproj!)) : undefined;
       libraryAudio = !!(projector?.caps.audio_input ?? entry?.caps.audio_input);
       libraryVision = projector?.caps.vision ?? entry?.caps.vision ?? null;
@@ -1245,7 +1251,7 @@
     const history = countHistory;
     const tools = countTools;
     const model = settings.model;
-    const sampling = samplingParams($state.snapshot(settings) as PgSettings, { tools: tools.length > 0 });
+    const sampling = samplingParams($state.snapshot(settings) as PgSettings, { tools: tools.length > 0, reasoningControl });
     const ownServer = app.isRunning && (!app.gatewayRunning || aliasOfServer(app.selectedServerId)?.toLowerCase() === model.toLowerCase());
     const tokenize = ownServer ? { host_url: app.hostUrl, headers: app.authHeaders() } : null;
     draftTokensExact = false;
@@ -2529,7 +2535,7 @@
       messages: withToolGuidance(apiMessages, toolDefs),
       stream: true,
       stream_options: { include_usage: true },
-      ...samplingParams($state.snapshot(settings) as PgSettings, { tools: sentTools }),
+      ...samplingParams($state.snapshot(settings) as PgSettings, { tools: sentTools, reasoningControl }),
     };
     if (model) body.model = model;
     if (sentTools) body.tools = toolDefs;
@@ -2577,6 +2583,7 @@
             if (sentTools) msg.content += contentBuffer.push(content);
             else msg.content += content;
           }
+          observeThinking(msg, performance.now());
           if (hasCalls) {
             acc.push(delta.tool_calls);
             const checked = guardToolCalls(acc.result().map((tc) => ({
@@ -3087,6 +3094,10 @@
           toolsEnabled={settings.toolsEnabled}
           toolsBusy={!settingsLoaded || toolsState === 'loading'}
           toolsHint={composerToolsHint}
+          {reasoningControl}
+          bind:thinking={settings.thinking}
+          bind:thinkingBudget={settings.thinkingBudget}
+          presetThinking={settings.request.reasoning.enabled}
           onToggleTools={() => { settings.toolsEnabled = !settings.toolsEnabled; settings.toolsExplicit = true; }}
           contextKey={workspaceVersion}
           {awaitingApproval}

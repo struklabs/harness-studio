@@ -1054,6 +1054,7 @@ fn props_observation_verifies_tools_and_raises_reasoning() {
             tools: true,
             reasoning: false,
             template_reasoning: None,
+            reasoning_control: Default::default(),
             observed_at: 1_790_852_515
         })
     );
@@ -1136,6 +1137,16 @@ fn props_template_inspection_raises_reasoning_unverified() {
     assert!(caps.reasoning, "the served template can think");
     let v = caps.verified.unwrap();
     assert!(!v.reasoning && v.template_reasoning == Some(true));
+    // Persisted observations from before detailed controls must not erase a fresh GGUF scan.
+    for entry in &mut entries {
+        entry.caps.reasoning_control =
+            crate::reasoning::ReasoningControl::from_template("enable_thinking");
+    }
+    apply_observations(&mut entries, &observe(Some(true)));
+    assert!(find(&entries).reasoning_control.toggle);
+    // An actually served non-reasoning template still takes precedence over the GGUF.
+    apply_observations(&mut entries, &observe(Some(false)));
+    assert!(!find(&entries).reasoning_control.supported());
 }
 
 /// Real llama-server on the real gpt-oss-20b (CPU only, so it does not fight the dev app for

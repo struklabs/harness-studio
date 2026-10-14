@@ -280,6 +280,7 @@ pub fn parse_props(props: &Value) -> (PropsSummary, Option<String>, ModelObserva
         chat_template_caps: bool_map(props.get("chat_template_caps")),
         template_reasoning: str_at(props, "/chat_template")
             .map(|t| crate::gguf::template_supports_reasoning(&t)),
+        reasoning_control: crate::reasoning::ReasoningControl::from_props(props),
         n_ctx_train: None,
         with_mmproj: false,
         observed_at: now_secs(),

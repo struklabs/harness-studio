@@ -542,6 +542,7 @@ async fn forward(
         harness_core::gateway::admission::Demand::from_bytes(&body)
     };
     let lease = acquire(state, def, demand.as_ref(), keep_alive, guard).await?;
+    body = crate::reasoning::translate(&body, lease.reasoning_control).unwrap_or(body);
     let timeout = match settings.request_timeout_secs {
         0 => None,
         n => Some(Duration::from_secs(u64::from(n))),
