@@ -445,6 +445,7 @@ const MISTRALRS_ARCHITECTURES: &[&str] = &[
     "Phi3ForCausalLM",
     "Qwen2ForCausalLM",
     "Gemma2ForCausalLM",
+    "Gemma3ForCausalLM",
     "Starcoder2ForCausalLM",
     "PhiMoEForCausalLM",
     "DeepseekV2ForCausalLM",
