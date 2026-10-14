@@ -521,6 +521,22 @@ fn variant_for_provider_in(root: &Path, choice: &str) -> OrtVariant {
     }
 }
 
+/// The build a launch with `--provider <choice>` fetches when it is missing. The Windows CUDA
+/// build (about 2.1 GB with its CUDA and cuDNN libraries) is installed only from Settings, so
+/// a CUDA launch without it takes the DirectML build instead (the engine says so in the log).
+pub fn launch_variant(choice: &str) -> OrtVariant {
+    launch_variant_in(&root(), choice)
+}
+
+fn launch_variant_in(root: &Path, choice: &str) -> OrtVariant {
+    match variant_for_provider_in(root, choice) {
+        OrtVariant::Cuda if cfg!(windows) && installed_in(root, OrtVariant::Cuda).is_none() => {
+            default_variant()
+        }
+        v => v,
+    }
+}
+
 /// `<data>/bin/onnxruntime`.
 pub fn root() -> PathBuf {
     paths::bin_dir().join("onnxruntime")

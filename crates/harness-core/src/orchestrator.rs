@@ -132,9 +132,10 @@ pub async fn launch(
         crate::runtimes::resolve_binary_in(&reg, runtime_mgr, &settings, config.runtime.as_deref())?
     } else if engine.family() == crate::engine::ONNX_FAMILY {
         // The sidecar ships with the app; the ONNX Runtime library it loads is a managed
-        // download, fetched on the first launch that needs it.
+        // download, fetched on the first launch that needs it (the 2 GB CUDA build only from
+        // Settings: a CUDA launch without it runs on DirectML).
         let variant =
-            crate::onnx_runtime::variant_for_provider(&crate::engine::onnx_provider_of(&config));
+            crate::onnx_runtime::launch_variant(&crate::engine::onnx_provider_of(&config));
         if crate::onnx_runtime::installed(variant).is_none() {
             crate::onnx_runtime::install(variant).await?;
         }

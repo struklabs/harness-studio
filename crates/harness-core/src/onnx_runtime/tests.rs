@@ -139,6 +139,21 @@ fn auto_takes_the_installed_cuda_build() {
     );
 }
 
+/// A CUDA launch never starts the CUDA download on Windows: without the build it fetches (and
+/// runs on) DirectML.
+#[test]
+fn a_cuda_launch_without_the_build_takes_the_default_on_windows() {
+    let tmp = tempfile::tempdir().unwrap();
+    #[cfg(windows)]
+    assert_eq!(launch_variant_in(tmp.path(), "cuda"), OrtVariant::Directml);
+    #[cfg(not(windows))]
+    assert_eq!(launch_variant_in(tmp.path(), "cuda"), OrtVariant::Cuda);
+    if spec_for(OrtVariant::Cuda).is_some() {
+        fake_install(tmp.path(), OrtVariant::Cuda);
+        assert_eq!(launch_variant_in(tmp.path(), "cuda"), OrtVariant::Cuda);
+    }
+}
+
 #[test]
 fn installed_needs_a_manifest_and_all_files() {
     let tmp = tempfile::tempdir().unwrap();
