@@ -26,6 +26,7 @@
     imageModel,
     isImageDefinition,
     needsStartImage,
+    takesStrength,
     parseSize,
     pngSize,
     MAX_START_IMAGE_BYTES,
@@ -58,7 +59,8 @@
   });
 
   let sizeError = $derived(form.size.trim() !== '' && !parseSize(form.size));
-  let strengthError = $derived(!!form.init && !strengthOk(form.strength));
+  let strengthShown = $derived(takesStrength(form.model, domain.definitions, library.models));
+  let strengthError = $derived(!!form.init && strengthShown && !strengthOk(form.strength));
   /** InstructPix2Pix, Qwen-Image-Edit...: they edit a start image and draw nothing from text alone. */
   let editsOnly = $derived(needsStartImage(form.model, domain.definitions, library.models));
   let canRun = $derived(
@@ -228,9 +230,11 @@
       {#if form.init}
         <div class="flex flex-wrap items-end gap-3">
           <img src={dataUrl(form.init)} alt={t('img.init_label')} class="size-24 rounded-md border border-border bg-muted object-contain" />
-          <Field label={t('img.strength_label')} id="img-strength" note={strengthError ? t('img.strength_invalid') : t('img.strength_note')}>
-            <Input id="img-strength" bind:value={form.strength} inputmode="decimal" placeholder="0.75" disabled={busy} aria-invalid={strengthError} class="w-28" />
-          </Field>
+          {#if strengthShown}
+            <Field label={t('img.strength_label')} id="img-strength" note={strengthError ? t('img.strength_invalid') : t('img.strength_note')}>
+              <Input id="img-strength" bind:value={form.strength} inputmode="decimal" placeholder="0.75" disabled={busy} aria-invalid={strengthError} class="w-28" />
+            </Field>
+          {/if}
           <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.init = null)}><X />{t('img.init_remove')}</Button>
         </div>
       {:else}

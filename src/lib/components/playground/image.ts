@@ -1,7 +1,6 @@
 // Playground Image tab: request helper for the gateway's /v1/images/generations and, with a start
 // image, /v1/images/edits (sd-server or a Python engine diffusers worker behind it; nothing is simulated).
 import { describeErrorBody } from './sse';
-import type { LocalModel, ModelDefinition } from '#lib/types.js';
 
 /** Largest side the gateway accepts (`images::SIDE_RANGE`). */
 export const MAX_SIDE = 4096;
@@ -30,35 +29,7 @@ export interface ImageResult {
   format: string;
 }
 
-/** Diffusers tasks of the Python engine that make pictures (image-to-image: InstructPix2Pix,
- * Qwen-Image-Edit... start from an image). */
-export const DIFFUSERS_IMAGE_TASKS = ['text-to-image', 'image-to-image'];
-
-const norm = (v: string) => v.replace(/\\/g, '/').toLowerCase();
-const definitionPath = (d: ModelDefinition) => (d.base.kind === 'local' ? d.base.path : d.base.file);
-
-/** A definition that draws: stable-diffusion.cpp's (the file is a checkpoint, or the library says
- * image) or a diffusers text-to-image / image-to-image folder of the Python engine. */
-export function isImageDefinition(d: ModelDefinition, files: LocalModel[] = []): boolean {
-  const path = definitionPath(d);
-  if (/\.(safetensors|ckpt)$/i.test(path)) return true;
-  const draws = (f: LocalModel) => f.kind === 'image' || (f.kind === 'pipeline' && DIFFUSERS_IMAGE_TASKS.includes(f.task ?? ''));
-  return files.some((f) => draws(f) && norm(f.path) === norm(path));
-}
-
-/** Whether the model `alias` only edits: a Python engine image-to-image pipeline needs a start image. */
-export function needsStartImage(alias: string, definitions: ModelDefinition[], files: LocalModel[] = []): boolean {
-  const d = definitions.find((x) => x.alias === alias);
-  if (!d) return false;
-  const path = norm(definitionPath(d));
-  return files.some((f) => f.kind === 'pipeline' && f.task === 'image-to-image' && norm(f.path) === path);
-}
-
-/** Keep the user's selection while it is still available. */
-export function imageModel(current: string, definitions: ModelDefinition[], files: LocalModel[] = []): string {
-  const models = definitions.filter((d) => isImageDefinition(d, files));
-  return models.some((d) => d.alias === current) ? current : models[0]?.alias ?? '';
-}
+export { DIFFUSERS_IMAGE_TASKS, imageModel, isImageDefinition, needsStartImage, takesStrength } from './imageModels';
 
 /** `512x768` -> [512, 768]; null when it is not a size the gateway takes (multiple of 8, 64..4096). */
 export function parseSize(size: string): [number, number] | null {
