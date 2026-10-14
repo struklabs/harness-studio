@@ -56,7 +56,7 @@ pub use mistralrs::{
 pub(crate) use mistralrs::{
     delete_model_dir as mistralrs_delete_model_dir, library_models as mistralrs_library_models,
 };
-pub use mlx::{MlxEngine, MLX};
+pub use mlx::{MlxEngine, MLX, MLX_VLM};
 pub use onnx::{
     provider_of as onnx_provider_of, vram_need as onnx_vram_need, OnnxEngine, ONNX_FAMILY,
 };
@@ -325,7 +325,8 @@ static ONNX: OnnxEngine = OnnxEngine;
 static LEMONADE: LemonadeEngine = LemonadeEngine;
 static MISTRAL: MistralRsEngine = MistralRsEngine;
 static PYHF: PythonHfEngine = PythonHfEngine;
-static MLX_ENGINE: MlxEngine = MlxEngine;
+static MLX_ENGINE: MlxEngine = MlxEngine::TEXT;
+static MLX_VLM_ENGINE: MlxEngine = MlxEngine::VISION;
 static LLAMA_BENCH_ENGINE: LlamaBenchEngine = LlamaBenchEngine;
 
 /// The llama.cpp engine.
@@ -374,7 +375,7 @@ pub fn python_hf() -> &'static dyn ServerEngine {
 }
 
 /// Every known family.
-pub fn engines() -> [&'static dyn Engine; 9] {
+pub fn engines() -> [&'static dyn Engine; 10] {
     [
         &LLAMA,
         &WHISPER,
@@ -385,6 +386,7 @@ pub fn engines() -> [&'static dyn Engine; 9] {
         &MISTRAL,
         &PYHF,
         &MLX_ENGINE,
+        &MLX_VLM_ENGINE,
     ]
 }
 
@@ -393,7 +395,7 @@ pub fn model_on_disk(path: &Path) -> bool {
     path.is_file()
         || is_mistralrs_dir(path)
         || python_hf::is_model_dir(path)
-        || mlx::is_model_dir(path)
+        || mlx::is_any_model_dir(path)
 }
 
 /// The engine of a family id; `None` for families this build does not know (a newer
@@ -417,8 +419,8 @@ pub fn server_for(config: &LaunchConfig) -> &'static dyn ServerEngine {
     if python_hf::is_model_dir(&config.model_path) {
         return &PYHF;
     }
-    if mlx::is_model_dir(&config.model_path) {
-        return &MLX_ENGINE;
+    if let Some(engine) = mlx_engine_for(&config.model_path) {
+        return engine;
     }
     match ModelFormat::of(&config.model_path) {
         ModelFormat::GgmlBin => &WHISPER,
@@ -438,7 +440,7 @@ pub fn is_llama_server(model_path: &Path, router_mode: bool) -> bool {
             ModelFormat::GgmlBin | ModelFormat::Onnx
         ) || is_mistralrs_dir(model_path)
             || python_hf::is_model_dir(model_path)
-            || mlx::is_model_dir(model_path))
+            || mlx::is_any_model_dir(model_path))
 }
 
 /// Device memory a launch of a non-llama.cpp family takes (whisper.cpp, stable-diffusion.cpp,
@@ -449,7 +451,7 @@ pub fn non_llama_vram_need(config: &LaunchConfig) -> u64 {
         ONNX_FAMILY => onnx_vram_need(config),
         MISTRALRS => mistralrs::vram_need(config),
         PYTHON_HF => python_hf::vram_need(config),
-        MLX => mlx::vram_need(config),
+        MLX | MLX_VLM => mlx::vram_need(config),
         _ => whisper_vram_need(config),
     }
 }
@@ -459,8 +461,19 @@ pub fn non_llama_vram_need(config: &LaunchConfig) -> u64 {
 pub fn serve_mode_of(family: &str) -> crate::serve_mode::ServeMode {
     match family {
         SD_CPP => crate::serve_mode::ServeMode::Image,
-        MISTRALRS | MLX => crate::serve_mode::ServeMode::Chat,
+        MISTRALRS | MLX | MLX_VLM => crate::serve_mode::ServeMode::Chat,
         _ => crate::serve_mode::ServeMode::Transcription,
+    }
+}
+
+/// The MLX engine of an MLX model folder: mlx-vlm for a vision model, mlx otherwise.
+fn mlx_engine_for(path: &Path) -> Option<&'static MlxEngine> {
+    if mlx::is_vlm_dir(path) {
+        Some(&MLX_VLM_ENGINE)
+    } else if mlx::is_model_dir(path) {
+        Some(&MLX_ENGINE)
+    } else {
+        None
     }
 }
 
@@ -472,8 +485,8 @@ pub fn server_for_model(path: &Path) -> Option<&'static dyn ServerEngine> {
     if python_hf::is_model_dir(path) {
         return Some(&PYHF);
     }
-    if mlx::is_model_dir(path) {
-        return Some(&MLX_ENGINE);
+    if let Some(engine) = mlx_engine_for(path) {
+        return Some(engine);
     }
     let format = ModelFormat::of(path);
     engines()
@@ -544,6 +557,77 @@ mod tests {
         assert!(llama.supports(ModelFormat::Gguf));
         assert!(!llama.supports(ModelFormat::GgmlBin));
         assert!(!llama.supports(ModelFormat::Safetensors));
+    }
+
+    #[test]
+    fn mlx_folders_route_by_their_vision_tower() {
+        let root = tempfile::Builder::new()
+            .prefix(&crate::paths::test_dir_prefix("mlx-route"))
+            .tempdir()
+            .unwrap();
+        let folder = |name: &str, config: &str, readme: Option<&str>| {
+            let dir = root.path().join(name);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("config.json"), config).unwrap();
+            std::fs::write(dir.join("model.safetensors"), [0u8; 16]).unwrap();
+            if let Some(r) = readme {
+                std::fs::write(dir.join("README.md"), r).unwrap();
+            }
+            dir
+        };
+        let q = r#""quantization":{"group_size":64,"bits":4}"#;
+        let text = folder(
+            "Qwen3-4B-4bit",
+            &format!(r#"{{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3",{q}}}"#),
+            None,
+        );
+        let vision = folder(
+            "Qwen3-VL-2B-4bit",
+            &format!(
+                r#"{{"architectures":["Qwen3VLForConditionalGeneration"],"model_type":"qwen3_vl","vision_config":{{}},{q}}}"#
+            ),
+            None,
+        );
+        let plain = folder(
+            "Qwen2.5-0.5B",
+            r#"{"architectures":["Qwen2ForCausalLM"],"model_type":"qwen2"}"#,
+            None,
+        );
+        let plain_vlm = folder(
+            "Qwen2.5-VL-3B",
+            r#"{"architectures":["Qwen2_5_VLForConditionalGeneration"],"model_type":"qwen2_5_vl","vision_config":{}}"#,
+            None,
+        );
+        let blip = folder(
+            "blip-captioning",
+            r#"{"architectures":["BlipForConditionalGeneration"],"model_type":"blip"}"#,
+            Some("---\npipeline_tag: image-to-text\nlibrary_name: transformers\n---\n"),
+        );
+        let launch = |dir: &Path| {
+            server_for(&LaunchConfig {
+                model_path: dir.to_path_buf(),
+                ..Default::default()
+            })
+            .family()
+        };
+        let model = |dir: &Path| server_for_model(dir).map(|e| e.family());
+        assert_eq!(launch(&text), MLX);
+        assert_eq!(model(&text), Some(MLX));
+        assert_eq!(launch(&vision), MLX_VLM);
+        assert_eq!(model(&vision), Some(MLX_VLM));
+        // Not MLX's: mistral.rs and the Python engine keep theirs.
+        assert_eq!(launch(&plain), MISTRALRS);
+        assert_eq!(model(&plain), Some(MISTRALRS));
+        assert_eq!(launch(&plain_vlm), MISTRALRS);
+        assert_eq!(launch(&blip), PYTHON_HF);
+        assert_eq!(model(&blip), Some(PYTHON_HF));
+        for dir in [&text, &vision] {
+            assert!(model_on_disk(dir));
+            assert!(!is_llama_server(dir, false));
+        }
+        assert_eq!(serve_mode_of(MLX_VLM), crate::serve_mode::ServeMode::Chat);
+        assert_eq!(engine(MLX_VLM).unwrap().family(), MLX_VLM);
+        assert_eq!(engine(MLX).unwrap().family(), MLX);
     }
 
     #[test]
