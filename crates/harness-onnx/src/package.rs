@@ -194,7 +194,7 @@ impl std::fmt::Display for PackageError {
             ),
             PackageError::DualEncoder(p) => write!(
                 f,
-                "{} is an image and text model (zero-shot image classification or captioning), not a text encoder",
+                "{} is an image and text model (zero-shot image classification or detection, captioning), not a text encoder",
                 p.display()
             ),
         }
@@ -473,7 +473,11 @@ impl ModelPackage {
             config
                 .as_ref()
                 .and_then(crate::vision_pkg::task_from_config),
-            Some(crate::vision_pkg::VisionTask::ZeroShot | crate::vision_pkg::VisionTask::Caption)
+            Some(
+                crate::vision_pkg::VisionTask::ZeroShot
+                    | crate::vision_pkg::VisionTask::ZeroShotDetect
+                    | crate::vision_pkg::VisionTask::Caption
+            )
         ) {
             return Err(PackageError::DualEncoder(onnx_path.to_path_buf()));
         }

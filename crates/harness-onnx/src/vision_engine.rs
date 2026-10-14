@@ -59,6 +59,7 @@ fn pick_outputs(names: &[&str], task: VisionTask) -> Result<Vec<String>, String>
         VisionTask::Detect => &["logits", "pred_boxes"],
         VisionTask::Depth => &["predicted_depth"],
         VisionTask::ZeroShot => &["logits_per_image"],
+        VisionTask::ZeroShotDetect => &["logits", "pred_boxes"],
         // `pooler_output` joins when the graph has it (for `pool: true`).
         VisionTask::Features => {
             return if names.contains(&"last_hidden_state") {
@@ -86,6 +87,10 @@ fn pick_outputs(names: &[&str], task: VisionTask) -> Result<Vec<String>, String>
     match (task, names) {
         (VisionTask::ZeroShot, _) => Err(format!(
             "a zero-shot image graph needs a logits_per_image output (has: {})",
+            names.join(", ")
+        )),
+        (VisionTask::ZeroShotDetect, _) => Err(format!(
+            "an open-vocabulary detection graph needs logits and pred_boxes outputs (has: {})",
             names.join(", ")
         )),
         (VisionTask::Detect, _) => Err(format!(
@@ -372,6 +377,29 @@ impl VisionEngine {
                 let dims: Vec<usize> = shape.iter().map(|d| *d as usize).collect();
                 Ok(vision::nested(&dims, data))
             }
+            VisionTask::ZeroShotDetect => {
+                let (_, logits) = &outputs[0];
+                let (_, boxes) = &outputs[1];
+                // OWLv2 boxes are relative to the padded square.
+                let (fw, fh) = if self.package.preprocess.pad_square {
+                    let side = width.max(height);
+                    (side, side)
+                } else {
+                    (width, height)
+                };
+                let mut found = vision::detect_open(
+                    logits,
+                    boxes,
+                    &job.candidate_labels,
+                    job.threshold,
+                    fw,
+                    fh,
+                );
+                if let Some(k) = job.top_k {
+                    found.truncate(k);
+                }
+                Ok(vision::detections_response(&found))
+            }
             VisionTask::Caption => {
                 let (shape, data) = &outputs[0];
                 let decoder = self
@@ -392,10 +420,14 @@ impl VisionEngine {
                 "parameters.candidate_labels needs at least one label",
             ));
         }
-        let template = job
-            .hypothesis_template
-            .as_deref()
-            .unwrap_or(DEFAULT_TEMPLATE);
+        // A detector's queries are the labels themselves (the pipeline puts no sentence around).
+        let template = match self.package.task {
+            VisionTask::ZeroShotDetect => "{}",
+            _ => job
+                .hypothesis_template
+                .as_deref()
+                .unwrap_or(DEFAULT_TEMPLATE),
+        };
         let sentences: Vec<String> = job
             .candidate_labels
             .iter()

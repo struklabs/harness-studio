@@ -109,6 +109,15 @@ test('image features: the shape and a preview of the first row', () => {
   assert.deepEqual(parseResponse('image-feature-extraction', [[0.5, 0.25]]).value, { shape: [1, 2], preview: [0.5, 0.25] });
 });
 
+test('zero-shot detection: labels and a low threshold', async () => {
+  const { buildImageRequest } = await import('../src/lib/components/playground/pipeline.ts');
+  assert.equal(buildImageRequest('zero-shot-object-detection', 'data:image/png;base64,AA', ' '), null);
+  assert.deepEqual(buildImageRequest('zero-shot-object-detection', 'data:image/png;base64,AA', 'cat, remote'), {
+    inputs: 'data:image/png;base64,AA',
+    parameters: { candidate_labels: ['cat', 'remote'], threshold: 0.1 },
+  });
+});
+
 test('image to text: the generated caption', () => {
   assert.deepEqual(parseResponse('image-to-text', [{ generated_text: 'two cats laying on a bed ' }]), { kind: 'text', value: 'two cats laying on a bed' });
 });
