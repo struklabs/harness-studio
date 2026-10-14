@@ -11,6 +11,7 @@
 //! 0, but a model is a model: the assertions are about what the *engine* saw and did (which
 //! tool ran, which error code came back, what was sent to the model), not about wording.
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -39,38 +40,67 @@ impl Drop for LlamaServer {
     }
 }
 
-fn free_port(from: u16) -> u16 {
-    (from..from + 50)
-        .find(|p| std::net::TcpListener::bind(("127.0.0.1", *p)).is_ok())
-        .expect("a free port")
+fn free_port() -> u16 {
+    loop {
+        let port = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        if port >= 1024 && ![11435, 11440, 11500].contains(&port) {
+            return port;
+        }
+    }
 }
 
 async fn start_server(bin: &Path, model: &Path) -> LlamaServer {
-    let port = free_port(18950);
-    let child = Command::new(bin)
-        .args(["-m"])
-        .arg(model)
-        .args(["--host", "127.0.0.1", "--port", &port.to_string()])
-        .args(["--jinja", "-c", "8192", "-ngl", "99", "-np", "1"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("start llama-server");
-    let server = LlamaServer {
-        child,
-        base: format!("http://127.0.0.1:{port}"),
-    };
-    let http = reqwest::Client::new();
-    let deadline = Instant::now() + Duration::from_secs(240);
-    loop {
-        if let Ok(r) = http.get(format!("{}/health", server.base)).send().await {
-            if r.status().is_success() {
-                return server;
+    for attempt in 0..5 {
+        let port = free_port();
+        let child = Command::new(bin)
+            .args(["-m"])
+            .arg(model)
+            .args(["--host", "127.0.0.1", "--port", &port.to_string()])
+            .args(["--jinja", "-c", "8192", "-ngl", "99", "-np", "1"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("start llama-server");
+        let mut server = LlamaServer {
+            child,
+            base: format!("http://127.0.0.1:{port}"),
+        };
+        let mut stderr = server.child.stderr.take().unwrap();
+        let errors = std::thread::spawn(move || {
+            let mut logs = String::new();
+            stderr.read_to_string(&mut logs).unwrap();
+            logs
+        });
+        let http = reqwest::Client::new();
+        let deadline = Instant::now() + Duration::from_secs(240);
+        loop {
+            if let Some(status) = server.child.try_wait().unwrap() {
+                let logs = errors.join().unwrap();
+                let failure = harness_core::failure::classify(
+                    &logs.lines().map(str::to_owned).collect::<Vec<_>>(),
+                    status.code(),
+                    harness_core::failure::FailurePhase::Loading,
+                );
+                assert!(
+                    attempt < 4 && failure.kind == harness_core::failure::FailureKind::PortInUse,
+                    "llama-server exited before ready: {logs}"
+                );
+                break;
             }
+            if let Ok(r) = http.get(format!("{}/health", server.base)).send().await {
+                if r.status().is_success() {
+                    return server;
+                }
+            }
+            assert!(Instant::now() < deadline, "llama-server did not get ready");
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
-        assert!(Instant::now() < deadline, "llama-server did not get ready");
-        tokio::time::sleep(Duration::from_millis(500)).await;
     }
+    unreachable!()
 }
 
 struct Counting(AtomicUsize, bool);

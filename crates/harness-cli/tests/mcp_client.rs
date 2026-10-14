@@ -634,26 +634,17 @@ async fn e2e_everything_stdio() {
 #[tokio::test]
 #[ignore = "needs Node and the network (npx)"]
 async fn e2e_everything_streamable_http() {
-    let port = free_port(18780);
-    let mut server = std::process::Command::new(if cfg!(windows) { "npx.cmd" } else { "npx" })
-        .args([
-            "-y",
-            "@modelcontextprotocol/server-everything",
-            "streamableHttp",
-        ])
-        .env("PORT", port.to_string())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .unwrap();
-    let t = Instant::now();
-    while !common::port_open(port) {
-        assert!(
-            t.elapsed() < Duration::from_secs(120),
-            "server did not start"
-        );
-        tokio::time::sleep(Duration::from_millis(300)).await;
-    }
+    let (mut server, port) = common::start_http_process(|port| {
+        let mut command = std::process::Command::new(if cfg!(windows) { "npx.cmd" } else { "npx" });
+        command
+            .args([
+                "-y",
+                "@modelcontextprotocol/server-everything",
+                "streamableHttp",
+            ])
+            .env("PORT", port.to_string());
+        command
+    });
     let def = McpServerDef {
         url: Some(format!("http://127.0.0.1:{port}/mcp")),
         ..Default::default()

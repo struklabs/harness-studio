@@ -43,14 +43,6 @@ fn env_path(name: &str) -> Option<PathBuf> {
     p
 }
 
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
-
 fn data_root(bin: &Path) -> PathBuf {
     harness_core::secrets::use_memory_store();
     let dir = tempfile::Builder::new()
@@ -64,7 +56,7 @@ fn data_root(bin: &Path) -> PathBuf {
     s.custom_binary.binary_path = Some(bin.to_path_buf());
     s.custom_binary.is_valid = true;
     s.server.port = 19140;
-    s.control_api.port = free_port();
+    s.control_api.port = 18080;
     s.save().unwrap();
     dir
 }
@@ -187,7 +179,7 @@ async fn e2e_limits_policy_and_otel_span_timing() {
     let registry = Arc::new(ServerRegistry::default());
     let server = GatewayServer::new();
     let status = server
-        .start(
+        .start_ephemeral(
             GatewayContext {
                 registry: registry.clone(),
                 runtime: Arc::new(harness_core::runtime::RuntimeManager::default()),
@@ -197,7 +189,7 @@ async fn e2e_limits_policy_and_otel_span_timing() {
             },
             &GatewaySettings {
                 enabled: true,
-                port: free_port(),
+                port: 0,
                 require_token: true,
                 ..Default::default()
             },

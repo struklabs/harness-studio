@@ -29,7 +29,7 @@ fn data_root() -> &'static Path {
             .keep();
         harness_core::paths::init(dir.clone());
         let mut s = harness_core::config::AppSettings::load();
-        s.control_api.port = free_port();
+        s.control_api.port = 18080;
         s.save().unwrap();
         // Two real definitions on (small) files on disk: resolvable, never loaded here.
         let models = dir.join("models");
@@ -43,14 +43,6 @@ fn data_root() -> &'static Path {
         }
         dir
     })
-}
-
-fn free_port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
 }
 
 /// One gateway at a time (the gateway status is process-wide).
@@ -81,12 +73,12 @@ impl Gw {
         };
         let s = GatewaySettings {
             enabled: true,
-            port: free_port(),
+            port: 0,
             require_token,
             ..Default::default()
         };
         let server = GatewayServer::new();
-        let status = server.start(ctx, &s).await.unwrap();
+        let status = server.start_ephemeral(ctx, &s).await.unwrap();
         Gw {
             base: status.endpoint.unwrap().host_url,
             server,

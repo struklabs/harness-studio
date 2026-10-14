@@ -1,4 +1,6 @@
 //! CrispASR route/field allowlist against a private fake worker.
+mod common;
+
 use axum::{
     extract::Multipart,
     response::IntoResponse,
@@ -13,14 +15,6 @@ use harness_core::{
 use harness_gateway::{GatewayContext, GatewayServer};
 use serde_json::{json, Value};
 use std::sync::Arc;
-
-fn port() -> u16 {
-    std::net::TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port()
-}
 
 fn write_gguf(path: &std::path::Path, arch: &str) {
     let mut gguf = b"GGUF".to_vec();
@@ -117,31 +111,37 @@ async fn crispasr_allowlist_and_authenticated_multipart() {
     std::fs::write(&transport, b"GGUF").unwrap();
     let registry = Arc::new(ServerRegistry::default());
     let pm = registry.get_or_create("ctc-transport");
-    pm.start(LaunchConfig {
-        binary_path: bridge,
-        model_path: transport,
-        definition_id: Some(def.id),
-        api_key: Some("private-worker-key".into()),
-        host: "127.0.0.1".into(),
-        port: port(),
-        custom_args: Some(format!("--bridge-target {target}")),
-        ..Default::default()
-    })
+    common::start_process(
+        &pm,
+        LaunchConfig {
+            binary_path: bridge,
+            model_path: transport,
+            definition_id: Some(def.id),
+            api_key: Some("private-worker-key".into()),
+            host: "127.0.0.1".into(),
+            port: 0,
+            custom_args: Some(format!("--bridge-target {target}")),
+            ..Default::default()
+        },
+    )
     .await
     .unwrap();
     let pm2 = registry.get_or_create("canary-transport");
-    pm2.start(LaunchConfig {
-        binary_path: dir
-            .path()
-            .join(format!("bridge{}", std::env::consts::EXE_SUFFIX)),
-        model_path: dir.path().join("transport.gguf"),
-        definition_id: Some(canary_def.id),
-        api_key: Some("private-worker-key".into()),
-        host: "127.0.0.1".into(),
-        port: port(),
-        custom_args: Some(format!("--bridge-target {target}")),
-        ..Default::default()
-    })
+    common::start_process(
+        &pm2,
+        LaunchConfig {
+            binary_path: dir
+                .path()
+                .join(format!("bridge{}", std::env::consts::EXE_SUFFIX)),
+            model_path: dir.path().join("transport.gguf"),
+            definition_id: Some(canary_def.id),
+            api_key: Some("private-worker-key".into()),
+            host: "127.0.0.1".into(),
+            port: 0,
+            custom_args: Some(format!("--bridge-target {target}")),
+            ..Default::default()
+        },
+    )
     .await
     .unwrap();
     let gateway = GatewayServer::new();
@@ -149,8 +149,8 @@ async fn crispasr_allowlist_and_authenticated_multipart() {
     let result = std::panic::AssertUnwindSafe(async {
         for _ in 0..200 { if pm.get_status() == ServerStatus::Running { break; } tokio::time::sleep(std::time::Duration::from_millis(50)).await; }
         assert_eq!(pm.get_status(), ServerStatus::Running, "{:?}", pm.get_logs(Some(20)));
-        let status = gateway.start(GatewayContext { registry:registry.clone(), runtime:Arc::default(), gate:Arc::default(), data_dir:dir.path().into(), downloads:None },
-            &harness_core::gateway::GatewaySettings { enabled:true, port:port(), ..Default::default() }).await.unwrap();
+        let status = gateway.start_ephemeral(GatewayContext { registry:registry.clone(), runtime:Arc::default(), gate:Arc::default(), data_dir:dir.path().into(), downloads:None },
+            &harness_core::gateway::GatewaySettings { enabled:true, port:0, ..Default::default() }).await.unwrap();
         let base = status.endpoint.unwrap().host_url;
         let http = reqwest::Client::new();
         let (ct, mut body) = harness_core::asr::onnx::multipart(b"RIFF0000WAVEdata", "verbose_json", "crisp");
