@@ -411,8 +411,23 @@ impl AppSettings {
         settings
     }
 
-    /// Persists the settings. The token is never part of this call: it is only changed by
-    /// `set_hf_token` / `clear_hf_token`, so a payload without it can't wipe the stored one.
+    /// The dedicated experimental-engine command must carry explicit risk consent.
+    pub fn set_audio_cpp_enabled(
+        &mut self,
+        enabled: bool,
+        acknowledged: bool,
+    ) -> Result<(), String> {
+        if enabled && !acknowledged {
+            return Err(
+                "Enabling audio.cpp requires acknowledgement of the experimental engine risks."
+                    .into(),
+            );
+        }
+        self.audio_cpp_enabled = enabled;
+        Ok(())
+    }
+
+    /// Persists settings; the token changes only through its dedicated commands.
     pub fn save(&self) -> Result<(), String> {
         self.write_file()?;
         let mut cached = self.clone();
@@ -488,6 +503,19 @@ mod tests {
         assert!(!s.close_to_tray);
         let json = serde_json::to_value(&s).unwrap();
         assert_eq!(json["close_action"], "quit");
+    }
+
+    #[test]
+    fn audio_cpp_enable_requires_explicit_acknowledgement() {
+        let mut settings = AppSettings::default();
+        assert!(settings.set_audio_cpp_enabled(true, false).is_err());
+        assert!(!settings.audio_cpp_enabled);
+        settings.set_audio_cpp_enabled(true, true).unwrap();
+        assert!(settings.audio_cpp_enabled);
+        assert!(settings.set_audio_cpp_enabled(true, false).is_err());
+        assert!(settings.audio_cpp_enabled);
+        settings.set_audio_cpp_enabled(false, false).unwrap();
+        assert!(!settings.audio_cpp_enabled);
     }
 
     #[test]

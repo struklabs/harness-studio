@@ -403,6 +403,9 @@ async fn run(
     guard.get().model = Some(name.clone());
     guard.admitted(caller.admit(state)?);
     let def = resolve(state, &name).await?;
+    if crate::speech::is_audio_cpp_model(&def) {
+        return Err(bad_request("audio.cpp only accepts POST /v1/audio/speech"));
+    }
     {
         let r = guard.get();
         r.alias = Some(def.alias.clone());

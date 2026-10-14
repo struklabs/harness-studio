@@ -461,6 +461,8 @@ async fn python_speak(
         if req.speed.unwrap_or(1.0) != 1.0 {
             request["speed"] = serde_json::json!(req.speed);
         }
+        // These are untrusted fields. pyhf::post validates the speech-only route and
+        // rebuilds the audio.cpp body (including voice/voice_ref) before acquiring a worker.
         request["voice"] = req.voice.clone().unwrap_or(serde_json::Value::Null);
         if let Some(reference) = &req.voice_ref {
             request["voice_ref"] = reference.clone();

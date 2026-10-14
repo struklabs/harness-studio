@@ -104,6 +104,7 @@ pub enum SchedError {
         alias: String,
         retry_after: u64,
     },
+    AudioCppSpeechOnly,
     Internal(String),
 }
 
@@ -120,13 +121,14 @@ impl SchedError {
             SchedError::InsufficientMemory { .. } => "insufficient_memory",
             SchedError::LoadFailed { .. } => "model_load_failed",
             SchedError::QueueTimeout { .. } => "queue_timeout",
+            SchedError::AudioCppSpeechOnly => "unsupported_route",
             SchedError::Internal(_) => "gateway_error",
         }
     }
 
     pub fn http_status(&self) -> u16 {
         match self {
-            SchedError::ModelRequired { .. } => 400,
+            SchedError::ModelRequired { .. } | SchedError::AudioCppSpeechOnly => 400,
             SchedError::ModelNotFound { .. } | SchedError::ModelNotDownloaded { .. } => 404,
             SchedError::QueueFull { .. }
             | SchedError::MaxLoaded { .. }
@@ -166,6 +168,7 @@ impl SchedError {
                 .unwrap_or_else(|| "unknown".into())
         }
         match self {
+            SchedError::AudioCppSpeechOnly => "audio.cpp only accepts POST /v1/audio/speech".into(),
             SchedError::ModelRequired { available } => format!(
                 "The request has no \"model\". Available models: {}.",
                 list(available)
@@ -500,6 +503,7 @@ pub struct Lease {
     pub waited: Option<&'static str>,
     /// Tokens held in the unified KV pool (estimate; 0 = no budget applies).
     pub reserved_tokens: u64,
+    _activity: Option<crate::process::RequestActivity>,
     _permit: OwnedSemaphorePermit,
     _tokens: Option<OwnedSemaphorePermit>,
 }
@@ -866,7 +870,28 @@ impl Scheduler {
         demand: Option<&Demand>,
         keep_alive: Option<KeepAlive>,
     ) -> Result<Lease, SchedError> {
+        self.acquire_for(def, demand, keep_alive, false).await
+    }
+
+    /// Only the speech handler may opt in, after validating and rebuilding its body.
+    pub async fn acquire_speech(
+        self: &Arc<Self>,
+        def: &ModelDefinition,
+    ) -> Result<Lease, SchedError> {
+        self.acquire_for(def, None, None, true).await
+    }
+
+    async fn acquire_for(
+        self: &Arc<Self>,
+        def: &ModelDefinition,
+        demand: Option<&Demand>,
+        keep_alive: Option<KeepAlive>,
+        speech: bool,
+    ) -> Result<Lease, SchedError> {
         if is_audio_cpp(def) {
+            if !speech {
+                return Err(SchedError::AudioCppSpeechOnly);
+            }
             crate::engine::audio_cpp::require_enabled().map_err(|message| {
                 SchedError::LoadFailed {
                     alias: def.alias.clone(),
@@ -948,8 +973,19 @@ impl Scheduler {
             None => {
                 drop(budget);
                 drop(permit);
-                return Box::pin(self.acquire_keep_alive(def, demand, keep_alive)).await;
+                return Box::pin(self.acquire_for(def, demand, keep_alive, speech)).await;
             }
+        };
+        let activity = match self.ctx.registry.get(&server_id) {
+            Some(pm) => match pm.request_activity() {
+                Some(activity) => Some(activity),
+                None => {
+                    drop(budget);
+                    drop(permit);
+                    return Box::pin(self.acquire_for(def, demand, keep_alive, speech)).await;
+                }
+            },
+            None => None,
         };
         let (ctx_size, template_tools, backend, slots) = {
             let mut s = entry.state();
@@ -962,6 +998,7 @@ impl Scheduler {
             )
         };
         Ok(Lease {
+            _activity: activity,
             definition_id: def.id.clone(),
             alias: def.alias.clone(),
             server_id,
@@ -1056,6 +1093,7 @@ impl Scheduler {
         Ok(Lease {
             definition_id: def.id.clone(),
             alias: def.alias.clone(),
+            _activity: None,
             server_id: crate::lemonade::RUNTIME_ID.to_string(),
             upstream: ep.base,
             api_key: Some(ep.key),

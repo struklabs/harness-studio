@@ -386,6 +386,22 @@ fn worker_origins_are_the_window_and_exact_user_origins() {
 }
 
 #[test]
+fn sanitize_preserves_audio_cpp_consent_in_both_directions() {
+    for enabled in [false, true] {
+        let stored = AppSettings {
+            audio_cpp_enabled: enabled,
+            ..Default::default()
+        };
+        let mut incoming = AppSettings {
+            audio_cpp_enabled: !enabled,
+            ..Default::default()
+        };
+        sanitize_settings(&mut incoming, &stored).unwrap();
+        assert_eq!(incoming.audio_cpp_enabled, enabled);
+    }
+}
+
+#[test]
 fn sanitize_keeps_stored_acks() {
     let mut stored = AppSettings::default();
     stored

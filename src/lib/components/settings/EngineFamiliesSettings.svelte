@@ -17,7 +17,6 @@
   import SettingGroup from './SettingGroup.svelte';
   import SwitchRow from './SwitchRow.svelte';
   import { invoke } from '#lib/ipc.js';
-  import { app } from '#lib/stores/app.svelte.js';
   import type { AppSettings } from '#lib/types.js';
 
   let { settings, onSettingsUpdated }: {
@@ -32,9 +31,7 @@
     saving = true;
     saveError = null;
     try {
-      const next = structuredClone($state.snapshot(app.settings ?? settings));
-      next.audio_cpp_enabled = enabled;
-      await invoke('save_app_settings', { settings: next });
+      const next = await invoke<AppSettings>('set_audio_cpp_enabled', { enabled, acknowledged: enabled && confirmAudio });
       onSettingsUpdated(next);
       confirmAudio = false;
       await engineInstall.refreshAvailability();

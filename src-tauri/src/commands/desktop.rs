@@ -57,8 +57,17 @@ pub(crate) fn save_app_settings(app: tauri::AppHandle, mut settings: AppSettings
     // The tool policy changes only through its own paths (`tools::save_settings`): a settings
     // object from an older frontend that does not know the block must not reset it.
     settings.tools = AppSettings::load().tools;
+    settings.audio_cpp_enabled = AppSettings::load().audio_cpp_enabled;
     desktop::update_tray_language(&app, &settings.language);
     settings.save()
+}
+
+#[tauri::command]
+pub(crate) fn set_audio_cpp_enabled(enabled: bool, acknowledged: bool) -> Result<AppSettings, String> {
+    let mut settings = AppSettings::load();
+    settings.set_audio_cpp_enabled(enabled, acknowledged)?;
+    settings.save()?;
+    Ok(settings)
 }
 
 /// `backend` optionally overrides the detected backend ("cuda", "vulkan", "cpu", "rocm", ...).

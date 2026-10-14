@@ -65,6 +65,7 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
     let dir = tempfile::tempdir().unwrap();
     harness_core::paths::init(dir.path().into());
     harness_core::config::AppSettings {
+        models_dir: dir.path().to_string_lossy().into_owned(),
         audio_cpp_enabled: true,
         ..Default::default()
     }
@@ -97,6 +98,26 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
         .save_definition(ModelDefinition::new("asr", ModelRef::Local { path: other }))
         .unwrap();
 
+    let mlx = dir.path().join("mlx-voice");
+    std::fs::create_dir_all(&mlx).unwrap();
+    std::fs::write(
+        mlx.join("config.json"),
+        r#"{"model_type":"qwen3_tts","quantization":{"bits":8,"group_size":64}}"#,
+    )
+    .unwrap();
+    std::fs::write(mlx.join("model.safetensors"), b"weights").unwrap();
+    assert!(harness_core::engine::mlx::is_tts_dir(&mlx));
+    let mlx_def = domain
+        .save_definition(ModelDefinition::new(
+            "mlx-voice",
+            ModelRef::Local { path: mlx },
+        ))
+        .unwrap();
+    let sherpa = dir.path().join("vits-mms-eng");
+    std::fs::create_dir_all(&sherpa).unwrap();
+    std::fs::write(sherpa.join("model.onnx"), b"onnx").unwrap();
+    std::fs::write(sherpa.join("tokens.txt"), b"a 0").unwrap();
+
     let calls = Arc::new(Mutex::new(Vec::<Value>::new()));
     let seen = calls.clone();
     let audio = wav();
@@ -113,6 +134,13 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
                 let seen = seen.clone();
                 let audio = audio.clone();
                 async move {
+                    if v["input"] == "MLX" {
+                        assert_eq!(v["speed"], 1.25);
+                        assert_eq!(v["voice"], "ryan");
+                        assert!(v.get("voice_ref").is_none());
+                        seen.lock().unwrap().push(v);
+                        return ([("content-type", "audio/wav")], audio).into_response();
+                    }
                     if v.get("speed").is_some() {
                         return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":{"message":"PocketTTS framework session does not support runtime style controls"}}))).into_response();
                     }
@@ -152,8 +180,8 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
     let registry = Arc::new(ServerRegistry::default());
     let pm = registry.get_or_create("audio-transport");
     pm.start(LaunchConfig {
-        binary_path: bridge,
-        model_path: transport,
+        binary_path: bridge.clone(),
+        model_path: transport.clone(),
         definition_id: Some(def.id),
         host: "127.0.0.1".into(),
         port: port(),
@@ -162,6 +190,19 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
     })
     .await
     .unwrap();
+    let mlx_pm = registry.get_or_create("mlx-transport");
+    mlx_pm
+        .start(LaunchConfig {
+            binary_path: bridge,
+            model_path: transport,
+            definition_id: Some(mlx_def.id),
+            host: "127.0.0.1".into(),
+            port: port(),
+            custom_args: Some(format!("--bridge-target {target}")),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     let gateway = GatewayServer::new();
     use futures_util::FutureExt;
     let result = std::panic::AssertUnwindSafe(async {
@@ -197,6 +238,51 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
             .unwrap();
         let url = format!("{}/v1/audio/speech", status.endpoint.unwrap().host_url);
         let http = reqwest::Client::new();
+        let base = url.strip_suffix("/v1/audio/speech").unwrap();
+        let servers_before = registry.all().len();
+        for model in ["pocket", "asr"] {
+            for path in ["/api/chat", "/api/generate", "/api/embed", "/api/embeddings"] {
+                for keep_alive in [json!(null), json!(0)] {
+                    let response = http.post(format!("{base}{path}"))
+                        .json(&json!({"model":model,"messages":[],"prompt":"Hi","input":"Hi","keep_alive":keep_alive}))
+                        .send().await.unwrap();
+                    assert_eq!(response.status(), 400, "{path}: {model}");
+                    assert!(response.text().await.unwrap().contains("audio.cpp only accepts POST /v1/audio/speech"));
+                }
+            }
+        }
+        assert_eq!(registry.all().len(), servers_before);
+        assert!(calls.lock().unwrap().is_empty());
+        // All default scheduler entry points reject audio.cpp before starting a worker.
+        let scheduler = harness_core::gateway::scheduler::Scheduler::new(
+            harness_core::gateway::scheduler::SchedulerContext {
+                registry: registry.clone(), runtime: Arc::default(), gate: Arc::default(),
+            }, Default::default(),
+        );
+        let definition = domain.definitions().unwrap().into_iter().find(|d| d.alias == "asr").unwrap();
+        for error in [scheduler.acquire(&definition).await.unwrap_err(),
+            scheduler.acquire_tokens(&definition, None).await.unwrap_err(),
+            scheduler.acquire_keep_alive(&definition, None, None).await.unwrap_err()] {
+            assert_eq!(error.http_status(), 400);
+        }
+        assert_eq!(registry.all().len(), servers_before);
+        // With audio.cpp enabled, named MLX speech keeps its voice/speed forwarding.
+        let response = http.post(&url).json(&json!({
+            "model":"mlx-voice", "input":"MLX", "voice":"ryan", "speed":1.25,
+            "voice_ref":{"type":"path","path":"ignored-by-mlx.wav"}, "response_format":"wav"
+        })).send().await.unwrap();
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.headers()["x-harness-model"], "mlx-voice");
+        assert_eq!(response.bytes().await.unwrap().as_ref(), expected);
+        assert_eq!(calls.lock().unwrap().pop().unwrap()["input"], "MLX");
+        // A sherpa voice still selects the native runtime, before the audio.cpp fallback.
+        let response = http.post(&url).json(&json!({
+            "model":"vits-mms-eng", "input":"Sherpa", "response_format":"wav"
+        })).send().await.unwrap();
+        assert_eq!(response.status(), 503);
+        let error: Value = response.json().await.unwrap();
+        assert_eq!(error["error"]["code"], "tts_runtime_missing");
+        assert!(calls.lock().unwrap().is_empty());
         // Two calls lease the same resident server. The second omits voice and uses alba.
         for voice in [Some("alba"), None] {
             let mut request = json!({"model":"pocket","input":"Merhaba","response_format":"wav"});
@@ -210,6 +296,21 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
             assert_eq!(response.headers()["x-harness-model"], "pocket");
             assert_eq!(response.bytes().await.unwrap().as_ref(), expected);
         }
+        use base64::Engine;
+        let reference = format!("data:audio/wav;base64,{}", base64::engine::general_purpose::STANDARD.encode(wav()));
+        let response = http.post(&url).json(&json!({
+            "model":"pocket", "input":"reference", "response_format":"wav",
+            "voice_ref":{"type":"base64","data":reference}
+        })).send().await.unwrap();
+        assert_eq!(response.status(), 200);
+        // This path goes through python_speak -> pyhf::post: paths cannot reach the worker.
+        let count = calls.lock().unwrap().len();
+        let response = http.post(&url).json(&json!({
+            "model":"pocket", "input":"path", "response_format":"wav",
+            "voice_ref":{"type":"path","path":"secret.wav"}
+        })).send().await.unwrap();
+        assert_eq!(response.status(), 400);
+        assert_eq!(calls.lock().unwrap().len(), count);
         let response = http
             .post(&url)
             .json(&json!({"model":"pocket","input":"Hi","speed":1.25,"response_format":"wav"}))
@@ -324,8 +425,10 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
         .unwrap_err()
         .contains("Settings"));
         let calls = calls.lock().unwrap();
-        assert_eq!(calls.len(), 2);
-        for call in calls.iter() {
+        assert_eq!(calls.len(), 3);
+        assert_eq!(calls[2]["input"], "reference");
+        assert_eq!(calls[2]["voice_ref"]["type"], "base64");
+        for call in calls.iter().take(2) {
             assert_eq!(call["input"], "Merhaba");
             assert_eq!(call["voice"], "alba");
         }

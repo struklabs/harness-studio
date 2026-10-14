@@ -67,7 +67,12 @@ pub async fn post(
     };
     let scheduler = state.scheduler.clone();
     let settings = scheduler.settings();
-    let lease = match scheduler.acquire_tokens(def, None).await {
+    let acquired = if audio_cpp {
+        scheduler.acquire_speech(def).await
+    } else {
+        scheduler.acquire_tokens(def, None).await
+    };
+    let lease = match acquired {
         Ok(lease) => lease,
         Err(e) => {
             guard.get().oom = e.is_oom();
