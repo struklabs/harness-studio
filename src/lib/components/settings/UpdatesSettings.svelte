@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { invoke } from '#lib/ipc.js';
+  import { BackendError } from '#lib/errors.js';
   import { getVersion } from '@tauri-apps/api/app';
   import { Check, TriangleAlert } from '@lucide/svelte';
   import type { AppUpdateInfo, AppUpdateProgress } from '#lib/types.js';
@@ -36,6 +37,8 @@
     progressTimer = null;
   }
 
+  const INFO_CODES = ['update.not_configured', 'update.no_platform_package'];
+
   async function checkUpdate() {
     if (checking) return;
     checking = true;
@@ -47,7 +50,8 @@
       appUpdate = await invoke<AppUpdateInfo | null>('check_app_update');
     } catch (e) {
       const msg = String(e);
-      if (msg.includes('yapılandırılmamış')) infoMsg = msg;
+      // Not failures of the check: no update server, or no package for this platform.
+      if (e instanceof BackendError && INFO_CODES.includes(e.code ?? '')) infoMsg = msg;
       else error = t('settings.app_update_failed', { error: msg });
     } finally {
       checking = false;

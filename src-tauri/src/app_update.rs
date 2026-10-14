@@ -49,6 +49,18 @@ fn check_failed(e: impl std::fmt::Display) -> String {
     err("update.check_failed").with("error", e).into()
 }
 
+/// A failed check: the published release having no package for this platform (its `latest.json`
+/// lists none) is said as such, not as the updater's raw error.
+fn check_error(e: tauri_plugin_updater::Error) -> String {
+    match e {
+        tauri_plugin_updater::Error::TargetNotFound(_)
+        | tauri_plugin_updater::Error::TargetsNotFound(_) => {
+            err("update.no_platform_package").into()
+        }
+        e => check_failed(e),
+    }
+}
+
 impl AppUpdateState {
     pub fn progress(&self) -> Option<AppUpdateProgress> {
         self.progress.lock().unwrap().clone()
@@ -63,7 +75,7 @@ impl AppUpdateState {
             .map_err(check_failed)?
             .check()
             .await
-            .map_err(check_failed)?;
+            .map_err(check_error)?;
         Ok(update.map(|u| AppUpdateInfo {
             current_version: u.current_version.clone(),
             version: u.version.clone(),
@@ -87,7 +99,7 @@ impl AppUpdateState {
             .map_err(check_failed)?
             .check()
             .await
-            .map_err(check_failed)?
+            .map_err(check_error)?
             .ok_or_else(|| String::from(err("update.none_available")))?;
 
         *self.progress.lock().unwrap() = Some(AppUpdateProgress::default());
@@ -295,5 +307,27 @@ mod tests {
         // A path that only shares the prefix is not inside the mount.
         assert_eq!(get("OTHER"), Some("/tmp/.mount_hsAbcd/kept"));
         assert_eq!(get("GST_REGISTRY_REUSE_PLUGIN_SCANNER"), Some("no"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_release_without_this_platform_is_said_as_such() {
+        let missing = check_error(tauri_plugin_updater::Error::TargetsNotFound(vec![
+            "darwin-aarch64".into(),
+        ]));
+        assert!(
+            missing.starts_with("update.no_platform_package"),
+            "{missing}"
+        );
+        let one = check_error(tauri_plugin_updater::Error::TargetNotFound(
+            "linux-x86_64".into(),
+        ));
+        assert!(one.starts_with("update.no_platform_package"), "{one}");
+        let other = check_error(tauri_plugin_updater::Error::ReleaseNotFound);
+        assert!(other.starts_with("update.check_failed"), "{other}");
     }
 }
