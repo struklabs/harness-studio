@@ -104,6 +104,9 @@ export const FORM_TASKS = [
   'token-classification',
   'fill-mask',
   'question-answering',
+  'summarization',
+  'translation',
+  'text2text-generation',
 ] as const;
 
 export type FormTask = (typeof FORM_TASKS)[number];
@@ -210,8 +213,10 @@ export function parseResponse(task: string | undefined, json: unknown): Pipeline
       }),
     };
   }
-  if (rows.every((r) => isStr(r.generated_text))) {
-    return { kind: 'text', value: rows.map((r) => (r.generated_text as string).trim()).join('\n') };
+  // Captions, summaries, translations: one text per row.
+  const textOf = (r: Record<string, unknown>) => [r.generated_text, r.summary_text, r.translation_text].find(isStr);
+  if (rows.every((r) => textOf(r) !== undefined)) {
+    return { kind: 'text', value: rows.map((r) => (textOf(r) as string).trim()).join('\n') };
   }
   if (rows.every((r) => isStr(r.answer) && isNum(r.score))) {
     return { kind: 'answers', items: rows.map(answerOf) };

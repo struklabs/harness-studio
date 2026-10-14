@@ -9,6 +9,7 @@ Release notes with system requirements and known limitations (English and Turkis
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Added
+- Summarization, translation and text2text generation on the ONNX engine: T5, BART, Marian, Pegasus and Blenderbot exports answer `/v1/hf/{model}` with greedy decoding through the shared decoder. The Playground Tasks tab takes a text, and the Hub marks the tasks as runnable.
 - Image captioning on the ONNX engine: ViT + GPT-2 style encoder-decoder exports answer `image-to-text` on `/v1/hf/{model}`. Greedy decoding uses the KV cache, and `max_new_tokens` is capped at 256. The downloader keeps each encoder with its decoder, and the Playground Tasks tab shows the caption.
 - Image feature extraction on the ONNX engine: bare image backbones (DINOv2, ViT, ConvNeXt, Swin and others) answer `image-feature-extraction` on `/v1/hf/{model}` with their hidden states, or with the pooled vector when `pool` is set. The Playground Tasks tab shows the result, and the Hub marks the task as runnable.
 - Audio classification on the ONNX engine: AST (AudioSet) and wav2vec2 / HuBERT / WavLM classifier exports answer `audio-classification` on `/v1/hf/{model}` with ranked labels, with no Python. The AST filter banks are computed in Rust. The Playground Tasks tab takes an audio file (WAV, MP3, FLAC, OGG), and the Hub marks the task as runnable.

@@ -254,6 +254,29 @@ fn main() {
                 }
                 return;
             }
+            if let Some(package) = harness_onnx::seq2seq_pkg::Seq2SeqPackage::discover(&load.model)
+            {
+                let result = engine::init_runtime(load.ort_lib.as_deref())
+                    .and_then(|()| harness_onnx::seq2seq_engine::load(&load, package));
+                match result {
+                    Ok(engine) => {
+                        println!(
+                            "harness-onnx: text generator ready in {:.1} s: {}",
+                            started.elapsed().as_secs_f32(),
+                            engine.describe()
+                        );
+                        for note in &engine.package.notes {
+                            println!("harness-onnx:   {}", note);
+                        }
+                        loader.set_seq2seq(engine);
+                    }
+                    Err(e) => {
+                        eprintln!("harness-onnx: error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
             if let Some(package) = harness_onnx::audio_pkg::AudioPackage::discover(&load.model) {
                 let result = engine::init_runtime(load.ort_lib.as_deref())
                     .and_then(|()| harness_onnx::audio_engine::load(&load, package));

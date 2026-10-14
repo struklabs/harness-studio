@@ -112,3 +112,10 @@ test('image features: the shape and a preview of the first row', () => {
 test('image to text: the generated caption', () => {
   assert.deepEqual(parseResponse('image-to-text', [{ generated_text: 'two cats laying on a bed ' }]), { kind: 'text', value: 'two cats laying on a bed' });
 });
+
+test('text generators: summaries, translations and text2text answers', () => {
+  assert.ok(isFormTask('summarization') && isFormTask('translation') && isFormTask('text2text-generation'));
+  assert.deepEqual(buildRequest('translation', { text: ' Hello ', labels: '', multiLabel: false, question: '', context: '' }), { inputs: 'Hello' });
+  assert.deepEqual(parseResponse('summarization', [{ summary_text: ' The tower is tall . ' }]), { kind: 'text', value: 'The tower is tall .' });
+  assert.deepEqual(parseResponse('translation', [{ translation_text: 'Das Haus ist wunderbar.' }]), { kind: 'text', value: 'Das Haus ist wunderbar.' });
+});

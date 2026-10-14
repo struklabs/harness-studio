@@ -67,6 +67,41 @@ impl Stored {
     }
 }
 
+/// Reads a `tokenizer.json`, mending what the tokenizers crate cannot read: transformers.js
+/// Marian exports carry a `Precompiled` normalizer without its charsmap (`null`). The charsmap
+/// is SentencePiece's `nmt_nfkc` table, so NFKC stands in for it (the same text for anything
+/// NFKC leaves alone; full-width forms and ligatures fold as SentencePiece folds them).
+pub fn load_tokenizer(path: &Path) -> Result<Tokenizer, String> {
+    let bytes =
+        std::fs::read(path).map_err(|e| format!("cannot read {}: {}", path.display(), e))?;
+    let mut json: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("cannot read {}: {}", path.display(), e))?;
+    if let Some(normalizer) = json.get_mut("normalizer") {
+        mend_empty_precompiled(normalizer);
+    }
+    let bytes = serde_json::to_vec(&json).map_err(|e| e.to_string())?;
+    Tokenizer::from_bytes(bytes).map_err(|e| format!("cannot read {}: {}", path.display(), e))
+}
+
+/// A `Precompiled` normalizer with a `null` charsmap becomes NFKC (inside a `Sequence` too).
+fn mend_empty_precompiled(normalizer: &mut serde_json::Value) {
+    let empty = |n: &serde_json::Value| {
+        n.get("type").and_then(|t| t.as_str()) == Some("Precompiled")
+            && n.get("precompiled_charsmap").is_none_or(|c| c.is_null())
+    };
+    let nfkc = || serde_json::json!({"type": "NFKC"});
+    if empty(normalizer) {
+        *normalizer = nfkc();
+    } else if let Some(list) = normalizer
+        .get_mut("normalizers")
+        .and_then(|l| l.as_array_mut())
+    {
+        for n in list.iter_mut().filter(|n| empty(n)) {
+            *n = nfkc();
+        }
+    }
+}
+
 /// Loads a decoder graph and its tokenizer.
 pub fn load(
     opts: &LoadOptions,
@@ -75,8 +110,7 @@ pub fn load(
     gen: GenConfig,
 ) -> Result<Decoder, String> {
     let (session, _) = build_session(decoder_path, opts.provider, opts.threads)?;
-    let tokenizer = Tokenizer::from_file(tokenizer_path)
-        .map_err(|e| format!("cannot read {}: {}", tokenizer_path.display(), e))?;
+    let tokenizer = load_tokenizer(tokenizer_path)?;
     let mut ids = None;
     let mut encoder_states = None;
     let mut states_f16 = false;
@@ -344,4 +378,27 @@ fn last_row<'a, T>(shape: &[i64], data: &'a [T]) -> Result<&'a [T], ApiError> {
         )));
     }
     Ok(&data[data.len() - vocab..])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn an_empty_precompiled_normalizer_becomes_nfkc() {
+        let mut n = json!({"type": "Precompiled", "precompiled_charsmap": null});
+        mend_empty_precompiled(&mut n);
+        assert_eq!(n, json!({"type": "NFKC"}));
+        let mut n = json!({"type": "Sequence", "normalizers": [
+            {"type": "Precompiled", "precompiled_charsmap": null}, {"type": "Lowercase"}]});
+        mend_empty_precompiled(&mut n);
+        assert_eq!(
+            n,
+            json!({"type": "Sequence", "normalizers": [{"type": "NFKC"}, {"type": "Lowercase"}]})
+        );
+        let mut n = json!({"type": "Precompiled", "precompiled_charsmap": "AAAA"});
+        mend_empty_precompiled(&mut n);
+        assert_eq!(n["type"], "Precompiled");
+    }
 }

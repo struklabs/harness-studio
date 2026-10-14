@@ -118,6 +118,9 @@
       next === 'zero-shot-classification' ? t('pl.sample_zero_shot')
       : next === 'token-classification' ? t('pl.sample_ner')
       : next === 'fill-mask' ? t('pl.sample_mask')
+      : next === 'summarization' ? t('pl.sample_summary')
+      : next === 'translation' ? t('pl.sample_translation')
+      : next === 'text2text-generation' ? t('pl.sample_t2t')
       : t('pl.sample_text');
   });
 
@@ -402,9 +405,9 @@
         <p class="text-xs text-muted-foreground">{t('pl.features_shape', { shape: res.value.shape.join(' × ') })}</p>
         <pre class="overflow-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs text-foreground">[{res.value.preview.map((v) => v.toFixed(4)).join(', ')}, …]</pre>
       {:else if res.kind === 'text'}
-        <div class="grid gap-3 sm:grid-cols-[minmax(0,12rem)_1fr] sm:items-start">
+        <div class={cn('grid gap-3', result.image && 'sm:grid-cols-[minmax(0,12rem)_1fr] sm:items-start')}>
           {#if result.image}<img src={result.image} alt={imageName} class="w-full rounded-md border border-border" />{/if}
-          <p class="rounded-md border border-border px-3 py-2 text-sm text-foreground [overflow-wrap:anywhere]">{res.value}</p>
+          <p class="whitespace-pre-wrap rounded-md border border-border px-3 py-2 text-sm text-foreground [overflow-wrap:anywhere]">{res.value}</p>
         </div>
       {:else if res.kind === 'depth'}
         <div class="grid gap-3 sm:grid-cols-2">
