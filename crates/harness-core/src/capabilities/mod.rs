@@ -118,6 +118,8 @@ pub struct ModelObservation {
     /// (`gguf::template_supports_reasoning`). `None`: the server sent no template.
     #[serde(default)]
     pub template_reasoning: Option<bool>,
+    #[serde(default)]
+    pub reasoning_control: crate::reasoning::ReasoningControl,
     pub n_ctx_train: Option<u64>,
     /// Whether an mmproj was loaded in the observed run (vision depends on it).
     #[serde(default)]

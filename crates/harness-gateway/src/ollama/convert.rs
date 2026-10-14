@@ -299,37 +299,23 @@ fn apply_format(format: Option<&Value>, out: &mut Map<String, Value>) -> Result<
     }
 }
 
-/// `think`: `true`/`false` switch the template's thinking (`enable_thinking`); a level
-/// (`"low"`, `"medium"`, `"high"`, `"max"`) also sets `reasoning_effort` (gpt-oss).
+/// Validate `think` here; apply the shared model-aware table after the scheduler lease.
 fn apply_think(think: Option<&Value>, out: &mut Map<String, Value>) -> Result<(), ReqError> {
-    let enable = match think {
+    match think {
         None | Some(Value::Null) => return Ok(()),
-        Some(Value::Bool(b)) => *b,
-        Some(Value::String(level)) => {
-            let effort = match level.to_ascii_lowercase().as_str() {
-                "low" => "low",
-                "medium" => "medium",
-                "high" | "max" => "high",
-                "true" => "",
-                "false" => {
-                    out.insert(
-                        "chat_template_kwargs".into(),
-                        json!({"enable_thinking": false}),
-                    );
-                    return Ok(());
-                }
-                _ => return Err(format!("invalid think value: {:?}", level)),
-            };
-            if !effort.is_empty() {
-                out.insert("reasoning_effort".into(), json!(effort));
-            }
-            true
-        }
+        Some(Value::Bool(_)) => {}
+        Some(Value::String(level))
+            if harness_core::reasoning::ThinkingLevel::from_effort(&level.to_ascii_lowercase())
+                .is_some() => {}
         Some(other) => return Err(format!("invalid think value: {}", other)),
-    };
+    }
+    let value = think.expect("validated think");
     out.insert(
-        "chat_template_kwargs".into(),
-        json!({"enable_thinking": enable}),
+        "think".into(),
+        match value {
+            Value::String(s) => json!(s.to_ascii_lowercase()),
+            v => v.clone(),
+        },
     );
     Ok(())
 }
@@ -1276,8 +1262,7 @@ mod tests {
         assert_eq!(b["temperature"], 0.2);
         assert_eq!(b["max_tokens"], 64);
         assert_eq!(b["top_k"], 20);
-        assert_eq!(b["reasoning_effort"], "high");
-        assert_eq!(b["chat_template_kwargs"]["enable_thinking"], true);
+        assert_eq!(b["think"], "high"); // translated once the served model is known
         assert!(b.get("num_ctx").is_none());
         assert_eq!(up.notes, ["ignored_options=num_ctx,num_gpu"]);
     }

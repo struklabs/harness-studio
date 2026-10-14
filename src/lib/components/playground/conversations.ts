@@ -223,6 +223,7 @@ function roundOf(raw: unknown, index: number, parentId: string | null, createdAt
     content: typeof r.content === 'string' ? r.content : '',
     reasoning: typeof r.reasoning === 'string' && r.reasoning ? r.reasoning : undefined,
     stats: normalizeStats(r.stats, createdAt),
+    reasoningMs: reasoningMsOf(r),
     error: typeof r.error === 'string' ? r.error : undefined,
     stopped: r.stopped === true || undefined,
     finishReason: typeof r.finish_reason === 'string' ? r.finish_reason : undefined,
@@ -250,6 +251,7 @@ export function roundInput(m: ChatMessage): Record<string, unknown> {
     stats: m.stats ?? null,
     finish_reason: m.finishReason ?? null,
     context_size: m.contextSize ?? null,
+    reasoning_ms: m.reasoningMs ?? null,
     stopped: !!m.stopped,
     tool_limit_reached: !!m.toolLimitReached,
     error: m.error ?? null,
@@ -265,6 +267,7 @@ function fromSide(p: PathMessage, v: Variant): ChatMessage | null {
     role: 'assistant',
     content: v.content,
     reasoning: v.reasoning ?? undefined,
+    reasoningMs: reasoningMsOf(v.meta),
     stats: normalizeStats(v.stats, v.created_at),
     error: v.error ?? undefined,
     stopped: v.stopped || undefined,
@@ -305,6 +308,7 @@ export function fromPath(p: PathMessage): ChatMessage {
     role: p.role === 'user' ? 'user' : 'assistant',
     content: v.content,
     reasoning: v.reasoning ?? undefined,
+    reasoningMs: reasoningMsOf(v.meta),
     stats: normalizeStats(v.stats, v.created_at),
     error: v.error ?? undefined,
     stopped: v.stopped || undefined,
@@ -352,8 +356,8 @@ export function toVariantInput(m: ChatMessage, model?: string): VariantInput {
     tool_limit_reached: !!m.toolLimitReached,
     error: m.error ?? null,
     model_alias: model || null,
-    ...(m.contextSize || m.rag || m.priorRounds?.length || m.images?.length || m.audio?.length
-      ? { meta: { ...(m.contextSize ? { context_size: m.contextSize } : {}), ...(m.rag ? { rag: m.rag } : {}), ...(m.priorRounds?.length ? { rounds: m.priorRounds.map(roundInput) } : {}), ...(m.images?.length ? { images: m.images } : {}), ...(m.audio?.length ? { audio: m.audio } : {}) } }
+    ...(m.reasoningMs !== undefined || m.contextSize || m.rag || m.priorRounds?.length || m.images?.length || m.audio?.length
+      ? { meta: { ...(m.reasoningMs !== undefined ? { reasoning_ms: m.reasoningMs } : {}), ...(m.contextSize ? { context_size: m.contextSize } : {}), ...(m.rag ? { rag: m.rag } : {}), ...(m.priorRounds?.length ? { rounds: m.priorRounds.map(roundInput) } : {}), ...(m.images?.length ? { images: m.images } : {}), ...(m.audio?.length ? { audio: m.audio } : {}) } }
       : {}),
   };
 }
@@ -394,3 +398,8 @@ export function fallbackTitle(text: string): string {
 export { cleanGeneratedTitle } from './titles';
 
 export { turnRoot } from './branching';
+
+function reasoningMsOf(meta: unknown): number | undefined {
+  const n = (meta as { reasoning_ms?: unknown } | null)?.reasoning_ms;
+  return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? n : undefined;
+}

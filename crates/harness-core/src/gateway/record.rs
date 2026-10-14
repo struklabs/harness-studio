@@ -59,6 +59,8 @@ pub fn product_of_agent(agent: &str) -> String {
 pub struct Usage {
     pub prompt_tokens: Option<u64>,
     pub completion_tokens: Option<u64>,
+    #[serde(default)]
+    pub reasoning_tokens: Option<u64>,
     /// Prompt tokens served from the KV cache (`timings.cache_n`, `cached_tokens`).
     pub cached_tokens: Option<u64>,
     pub prompt_ms: Option<f64>,
@@ -192,6 +194,13 @@ impl Usage {
             }
             if let Some(n) = u64_at(u, "completion_tokens").or_else(|| u64_at(u, "output_tokens")) {
                 self.completion_tokens = Some(n);
+            }
+            if let Some(n) = u
+                .get("completion_tokens_details")
+                .or_else(|| u.get("output_tokens_details"))
+                .and_then(|d| u64_at(d, "reasoning_tokens"))
+            {
+                self.reasoning_tokens = Some(n);
             }
             let cached = u
                 .get("prompt_tokens_details")
@@ -365,6 +374,13 @@ mod tests {
         assert_eq!(u.cached_tokens, Some(0));
         assert_eq!(u.finish_reason.as_deref(), Some("stop"));
         assert_eq!(u.predicted_per_second, Some(112.2));
+
+        u.absorb(
+            &serde_json::json!({"usage":{"completion_tokens_details":{"reasoning_tokens":5}}}),
+        );
+        assert_eq!(u.reasoning_tokens, Some(5));
+        u.absorb(&serde_json::json!({"usage":{"output_tokens_details":{"reasoning_tokens":8}}}));
+        assert_eq!(u.reasoning_tokens, Some(8));
 
         // Anthropic stream: message_start (input), message_delta (output + stop_reason).
         let mut o = UsageObserver::new(true);

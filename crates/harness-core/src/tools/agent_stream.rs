@@ -409,6 +409,7 @@ fn add_usage(total: &mut Usage, round: &Usage) {
     };
     total.prompt_tokens = sum(total.prompt_tokens, round.prompt_tokens);
     total.completion_tokens = sum(total.completion_tokens, round.completion_tokens);
+    total.reasoning_tokens = sum(total.reasoning_tokens, round.reasoning_tokens);
     total.cached_tokens = sum(total.cached_tokens, round.cached_tokens);
     total.prompt_ms = sum_f(total.prompt_ms, round.prompt_ms);
     total.predicted_ms = sum_f(total.predicted_ms, round.predicted_ms);

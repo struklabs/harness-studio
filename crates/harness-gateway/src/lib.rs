@@ -28,6 +28,7 @@ mod model_name;
 pub mod ollama;
 pub mod proxy;
 pub mod pyhf;
+mod reasoning;
 pub mod responses;
 mod server_tools;
 pub mod sherpa_asr;

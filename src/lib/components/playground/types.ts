@@ -1,4 +1,5 @@
 // Shared types, defaults and persistence for the Playground view.
+import { thinkingBody, NO_REASONING, type ReasoningControl, type ThinkingLevel } from './thinking';
 
 import type { InferencePreset } from '#lib/types.js';
 import { invoke } from '#lib/ipc.js';
@@ -87,6 +88,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'compaction';
   content: string;
   reasoning?: string;
+  /** First reasoning token to first answer token; omitted for old/unfinished replies. */
+  reasoningMs?: number;
   stats?: ResponseStats;
   error?: string;
   stopped?: boolean;
@@ -153,6 +156,8 @@ export interface PgSettings {
   presetId: string;
   /** Request-side settings (sampling, reasoning, output format); blank = not sent. */
   request: PresetRequest;
+  thinking: ThinkingLevel;
+  thinkingBudget: number | null;
   /** Offer tools to the model (Harness's own and its MCP servers' tools) and run the tool loop. */
   toolsEnabled: boolean;
   /** The user switched tools on/off themselves; otherwise the default (on unless the tool policy is off) applies.
@@ -180,6 +185,8 @@ export const DEFAULT_SETTINGS: PgSettings = {
   systemPrompt: '',
   presetId: DEFAULT_PRESET_ID,
   request: emptyRequest(),
+  thinking: 'auto',
+  thinkingBudget: null,
   toolsEnabled: true,
   toolsExplicit: false,
   workdir: '',
@@ -201,8 +208,8 @@ function isNum(v: unknown): v is number {
 }
 
 /** Request body fields of the settings (llama-server names; blank values are omitted). */
-export function samplingParams(s: PgSettings, opts: { tools: boolean } = { tools: false }): Record<string, unknown> {
-  return requestBody(s.request, opts);
+export function samplingParams(s: PgSettings, opts: { tools: boolean; reasoningControl?: ReasoningControl } = { tools: false }): Record<string, unknown> {
+  return thinkingBody(requestBody(s.request, opts), s.thinking, opts.reasoningControl ?? NO_REASONING, s.thinkingBudget);
 }
 
 /** Applies a preset: its request settings, and its system prompt when it has one. */
@@ -250,6 +257,8 @@ export function sanitizeSettings(raw: unknown): PgSettings {
   if (!raw || typeof raw !== 'object') return s;
   const r = raw as Record<string, unknown>;
   if (typeof r.model === 'string') s.model = r.model;
+  if (typeof r.thinking === 'string' && ['auto', 'off', 'light', 'normal', 'deep'].includes(r.thinking)) s.thinking = r.thinking as ThinkingLevel;
+  if (isNum(r.thinkingBudget) && r.thinkingBudget >= -1) s.thinkingBudget = Math.trunc(r.thinkingBudget);
   if (typeof r.systemPrompt === 'string') s.systemPrompt = r.systemPrompt;
   if (typeof r.presetId === 'string') s.presetId = r.presetId;
   if (isObject(r.request)) {

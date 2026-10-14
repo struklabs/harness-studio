@@ -6,6 +6,9 @@ Release notes with system requirements and known limitations (English and Turkis
 
 ## [Unreleased]
 
+- Playground: per-chat Thinking levels and optional request budgets, model-aware OpenAI/Ollama translation, and copyable reasoning with saved duration and inline `<think>` handling. Presets remain independent; split view keeps each side's preset.
+- Oyun Alanı: sohbete özel Düşünme düzeyleri ve isteğe bağlı istek bütçesi, modele göre OpenAI/Ollama çevirisi, kayıtlı süre ve satır içi `<think>` desteğiyle kopyalanabilir düşünme metni. Ön ayarlar bağımsızdır; bölünmüş görünüm her tarafın ön ayarını kullanır.
+
 - audio.cpp TTS is experimental and off by default. Settings > Installed Runtime > Other Runtimes requires risk confirmation: its local server has no authentication or Host/Origin checks and accepts server-side file paths. The gateway forwards only validated speech requests with discovered voices and inline base64 references up to 5 MiB. Workers stop after five idle minutes.
 
 Planned work is tracked in the [roadmap](en/ROADMAP.md).

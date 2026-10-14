@@ -1,0 +1,6 @@
+{
+  "off": { "effort": "low", "enabled": false, "budget": 0 },
+  "light": { "effort": "low", "enabled": true, "budget": 1024 },
+  "normal": { "effort": "medium", "enabled": true, "budget": 4096 },
+  "deep": { "effort": "high", "enabled": true, "budget": -1 }
+}

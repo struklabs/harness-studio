@@ -37,6 +37,8 @@ pub struct ModelCaps {
     pub tools: bool,
     /// The chat template can reason (see `gguf::template_supports_reasoning`).
     pub reasoning: bool,
+    #[serde(default)]
+    pub reasoning_control: crate::reasoning::ReasoningControl,
     /// A vision projector belongs to it (matched file, linked projector or a definition).
     pub vision: bool,
     /// Its projector has an audio encoder.
@@ -73,6 +75,8 @@ pub struct VerifiedCaps {
     /// conclusive (templates that think but drop it from history report it too), so a
     /// template-detected reasoning ability is not taken back.
     pub reasoning: bool,
+    #[serde(default)]
+    pub reasoning_control: crate::reasoning::ReasoningControl,
     /// The chat template the server really used (`/props.chat_template`) lets the model
     /// reason: the fallback when the flags above stay `false` (hybrid Qwen3 reports neither,
     /// yet its template switches thinking with `enable_thinking`). `None`: no template sent.
@@ -91,6 +95,7 @@ impl VerifiedCaps {
         if get("supports_tools").is_none()
             && get("supports_reasoning_effort").is_none()
             && get("supports_preserve_reasoning").is_none()
+            && obs.template_reasoning.is_none()
         {
             return None;
         }
@@ -99,6 +104,7 @@ impl VerifiedCaps {
             reasoning: get("supports_reasoning_effort").unwrap_or(false)
                 || get("supports_preserve_reasoning").unwrap_or(false),
             template_reasoning: obs.template_reasoning,
+            reasoning_control: obs.reasoning_control,
             observed_at: obs.observed_at,
         })
     }
@@ -124,6 +130,9 @@ pub fn apply_observations(
         };
         e.caps.tools = v.tools;
         e.caps.reasoning |= v.reasoning || v.template_reasoning == Some(true);
+        if v.template_reasoning == Some(false) || v.reasoning_control.supported() {
+            e.caps.reasoning_control = v.reasoning_control;
+        }
         e.caps.verified = Some(v);
     }
 }
@@ -438,6 +447,11 @@ fn caps_of(model: &LocalModel, vision: bool, audio: bool) -> ModelCaps {
         chat,
         tools: chat && g.is_some_and(|g| g.template_supports_tools),
         reasoning: chat && g.is_some_and(|g| g.template_supports_reasoning),
+        reasoning_control: if chat {
+            g.map(|g| g.reasoning_control).unwrap_or_default()
+        } else {
+            Default::default()
+        },
         vision: (llm && vision) || proj_vision,
         audio: (llm && audio) || proj_audio,
         audio_input: (llm && audio) || proj_audio,

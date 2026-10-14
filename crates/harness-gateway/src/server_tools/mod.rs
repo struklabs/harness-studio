@@ -342,6 +342,7 @@ impl GatewayEndpoint {
                 s.oom |= load.recovered;
             }
         }
+        let bytes = crate::reasoning::translate(&bytes, lease.reasoning_control).unwrap_or(bytes);
         let mut req = self
             .state
             .http

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { splitThinking } from './thinking';
   import { audioUrl } from './audio';
   import { lengthStop } from './contextBudget';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
@@ -100,6 +101,10 @@
   let copyTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => () => clearTimeout(copyTimer));
 
+  async function copyReasoning(text: string) {
+    try { await navigator.clipboard.writeText(text); } catch { /* clipboard unavailable */ }
+  }
+
   async function copyMessage() {
     try {
       await navigator.clipboard.writeText(message.content);
@@ -128,10 +133,18 @@
   let readLabel = $derived(reading ? t('speak.stop_reading') : t('speak.read_aloud'));
   let stats = $derived(message.stats);
   let lengthStatus = $derived(lengthStop(message.finishReason, stats, message.contextSize ?? contextSize, message.reasoning, message.content));
-  let thinkingLive = $derived(!!message.streaming && !message.content);
+  // Only an assistant reply carries protocol <think> markup; a user's text stays as typed.
+  let thinkingParts = $derived(isAssistant ? splitThinking(message.content, message.reasoning) : { content: message.content, reasoning: '', live: false });
+  let thinkingLive = $derived(!!message.streaming && !thinkingParts.content);
+  function durationLabel(ms: number | undefined) {
+    if (ms === undefined) return t('pg.thinking');
+    return ms < 1000 ? t('pg.thinking_brief') : t('pg.thinking_duration', { seconds: Math.round(ms / 1000) });
+  }
+  let thinkingLabel = $derived(durationLabel(message.reasoningMs));
   let hasToolCalls = $derived(!!message.toolCalls?.length);
   let reasoningOpen = $state(false);
   let showReasoning = $derived(thinkingLive || reasoningOpen);
+  $effect(() => { if (!thinkingLive) reasoningOpen = false; });
   let showFooter = $derived(
     isAssistant && !message.streaming && !!(stats || message.stopped || message.finishReason === 'length')
   );
@@ -194,25 +207,30 @@
     <div class="flex min-w-0 flex-col gap-3">
       <!-- Earlier rounds of this answer (a split-view side's tool loop): thinking, text, tool calls. -->
       {#each message.priorRounds ?? [] as round, i (i)}
-        {#if round.reasoning}
+        {@const roundParts = splitThinking(round.content, round.reasoning)}
+        {#if roundParts.reasoning}
           <Collapsible.Root>
-            <Collapsible.Trigger
-              class="group flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-            >
-              <ChevronRight class="size-3.5 transition-transform group-data-[state=open]:rotate-90" aria-hidden="true" />
-              {t('pg.thinking')}
-            </Collapsible.Trigger>
+            <div class="flex items-center gap-1">
+              <Collapsible.Trigger
+                class="group flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                <ChevronRight class="size-3.5 transition-transform group-data-[state=open]:rotate-90" aria-hidden="true" />
+                {durationLabel(round.reasoningMs)}
+              </Collapsible.Trigger>
+              <Button variant="ghost" size="icon-xs" class="text-muted-foreground" aria-label={t('pg.copy_thinking')} title={t('pg.copy_thinking')}
+                onclick={() => copyReasoning(roundParts.reasoning)}><Copy class="size-3" /></Button>
+            </div>
             <Collapsible.Content>
               <p
                 class="mt-1.5 max-h-72 overflow-y-auto border-l-2 border-border pl-3 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]"
               >
-                {round.reasoning}
+                {roundParts.reasoning}
               </p>
             </Collapsible.Content>
           </Collapsible.Root>
         {/if}
         {#if round.content}
-          <MessageContent text={round.content} />
+          <MessageContent text={roundParts.content} />
         {/if}
         {#if round.toolCalls?.length}
           <div class="flex flex-col gap-2">
@@ -229,31 +247,35 @@
         {/if}
       {/each}
 
-      {#if message.reasoning}
+      {#if thinkingParts.reasoning}
         <Collapsible.Root open={showReasoning} onOpenChange={(v) => (reasoningOpen = v)}>
-          <Collapsible.Trigger
-            class="group flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
-          >
-            <ChevronRight class="size-3.5 transition-transform group-data-[state=open]:rotate-90" aria-hidden="true" />
-            <span class={cn(thinkingLive && 'animate-pulse')}>
-              {thinkingLive ? t('pg.thinking_live') : t('pg.thinking')}
-            </span>
-          </Collapsible.Trigger>
+          <div class="flex items-center gap-1">
+            <Collapsible.Trigger
+              class="group flex items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+            >
+              <ChevronRight class="size-3.5 transition-transform group-data-[state=open]:rotate-90" aria-hidden="true" />
+              <span class={cn(thinkingLive && 'animate-pulse')}>
+                {thinkingLive ? t('pg.thinking_live') : thinkingLabel}
+              </span>
+            </Collapsible.Trigger>
+            <Button variant="ghost" size="icon-xs" class="text-muted-foreground" aria-label={t('pg.copy_thinking')} title={t('pg.copy_thinking')}
+              onclick={() => copyReasoning(thinkingParts.reasoning)}><Copy class="size-3" /></Button>
+          </div>
           <Collapsible.Content>
             <p
               class="mt-1.5 max-h-72 overflow-y-auto border-l-2 border-border pl-3 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]"
             >
-              {message.reasoning}
+              {thinkingParts.reasoning}
             </p>
           </Collapsible.Content>
         </Collapsible.Root>
       {/if}
 
-      {#if message.content && showProbs && tokenLogprobs?.length && !message.streaming}
+      {#if thinkingParts.content === message.content && message.content && showProbs && tokenLogprobs?.length && !message.streaming}
         <LogprobView tokens={tokenLogprobs} />
-      {:else if message.content}
-        <MessageContent text={message.content} />
-      {:else if message.streaming && !message.reasoning && !hasToolCalls}
+      {:else if thinkingParts.content}
+        <MessageContent text={isAssistant ? thinkingParts.content : message.content} />
+      {:else if message.streaming && !thinkingParts.reasoning && !hasToolCalls}
         <SectionLoading shape="inline" label={t('pg.waiting')} phases={[t('pg.waiting'), t('sl.reply_2')]} />
       {/if}
 
@@ -314,7 +336,7 @@
     </div>
   {:else}
     <div
-      class="w-full min-w-0 rounded-md bg-muted/60 px-3 py-2 text-base leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]"
+      class="w-full min-w-0 rounded-md bg-muted/60 px-3 py-2 text-base leading-relaxed text-foreground [overflow-wrap:anywhere]"
     >
       {#if message.images?.length}
         <div class="mb-2 flex flex-wrap gap-2 whitespace-normal" data-message-images>
@@ -329,7 +351,8 @@
           <audio controls preload="none" src={audioUrl(clip)} aria-label={clip.name}></audio>
         </div>
       {/each}
-      {message.content}
+      <!-- Only the typed text keeps its line breaks; template whitespace around it must not show. -->
+      <span class="whitespace-pre-wrap">{message.content}</span>
     </div>
   {/if}
 

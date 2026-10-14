@@ -448,6 +448,7 @@ struct EntryState {
     ctx_size: Option<u64>,
     /// `/props` `chat_template_caps.supports_tools` of the adopted server (tool-call diagnosis).
     template_tools: Option<bool>,
+    reasoning_control: crate::reasoning::ReasoningControl,
     /// ggml backend of the adopted server's build (`vulkan`, `cuda`...; analytics).
     backend: Option<String>,
     /// Ollama `keep_alive` override of the idle TTL (cleared when the model unloads).
@@ -460,6 +461,7 @@ struct Props {
     slots: Option<u32>,
     ctx_size: Option<u64>,
     template_tools: Option<bool>,
+    reasoning_control: crate::reasoning::ReasoningControl,
 }
 
 struct Entry {
@@ -500,6 +502,7 @@ pub struct Lease {
     /// Whether the server's chat template handles tools (`/props` `chat_template_caps`), when
     /// known; `Some(false)`: tools sent to this model never reach it.
     pub template_tools: Option<bool>,
+    pub reasoning_control: crate::reasoning::ReasoningControl,
     /// ggml backend of the server's llama.cpp build, when known.
     pub backend: Option<String>,
     entry: Arc<Entry>,
@@ -1041,12 +1044,13 @@ impl Scheduler {
             },
             None => None,
         };
-        let (ctx_size, template_tools, backend, slots) = {
+        let (ctx_size, template_tools, reasoning_control, backend, slots) = {
             let mut s = entry.state();
             s.in_flight += 1;
             (
                 s.ctx_size,
                 s.template_tools,
+                s.reasoning_control,
                 s.backend.clone(),
                 s.concurrency,
             )
@@ -1062,6 +1066,7 @@ impl Scheduler {
             load,
             ctx_size,
             template_tools,
+            reasoning_control,
             backend,
             entry,
             started: Instant::now(),
@@ -1155,6 +1160,7 @@ impl Scheduler {
             load,
             ctx_size: None,
             template_tools: None,
+            reasoning_control: Default::default(),
             backend: None,
             entry,
             started: Instant::now(),
@@ -1319,6 +1325,7 @@ impl Scheduler {
             let mut s = entry.state();
             s.ctx_size = ctx_size;
             s.template_tools = props.template_tools;
+            s.reasoning_control = props.reasoning_control;
             s.backend = backend;
             if !known {
                 s.managed = managed;
@@ -1427,6 +1434,7 @@ impl Scheduler {
             slots,
             ctx_size: ctx,
             template_tools,
+            reasoning_control: crate::reasoning::ReasoningControl::from_props(&v),
         })
     }
 
@@ -3008,6 +3016,7 @@ fn non_llama_props(config: Option<&crate::process::LaunchConfig>) -> Props {
             slots: Some(crate::engine::mistralrs_concurrency(c)),
             ctx_size: (c.context_size > 0).then_some(u64::from(c.context_size)),
             template_tools: None,
+            reasoning_control: Default::default(),
         },
         _ => Props::default(),
     }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { thinkingDefaultBudget, thinkingOptions, type ThinkingLevel, type ReasoningControl, NO_REASONING } from './thinking';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { t } from '#lib/i18n.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -46,6 +47,10 @@
     status?: string;
     /** More composer actions, after the attach button (e.g. compaction). */
     actions?: Snippet;
+    reasoningControl?: ReasoningControl;
+    thinking?: ThinkingLevel;
+    thinkingBudget?: number | null;
+    presetThinking?: boolean | null;
     toolsEnabled: boolean;
     toolsBusy?: boolean;
     toolsHint: string;
@@ -53,7 +58,16 @@
     contextKey: number;
   }
 
-  let { value = $bindable(), streaming, disabled, sendBlocked = false, awaitingApproval = false, onSend, onStop, onAttach, images = [], audio = [], onAudioFile, onPickAudio, onRemoveAudio, audioContextKey = '', onImageFiles, imagesBlocked = false, imagesBlockedHint = '', onPickImages, onRemoveImage, status, actions, toolsEnabled, toolsBusy = false, toolsHint, onToggleTools, contextKey }: Props = $props();
+  let { value = $bindable(), streaming, disabled, sendBlocked = false, awaitingApproval = false, onSend, onStop, onAttach, images = [], audio = [], onAudioFile, onPickAudio, onRemoveAudio, audioContextKey = '', onImageFiles, imagesBlocked = false, imagesBlockedHint = '', onPickImages, onRemoveImage, status, actions, reasoningControl = NO_REASONING, thinking = $bindable('auto'), thinkingBudget = $bindable(null), presetThinking, toolsEnabled, toolsBusy = false, toolsHint, onToggleTools, contextKey }: Props = $props();
+
+  let shownThinking = $derived(reasoningControl.effort && thinking === 'off' ? 'light' : thinking);
+  let thinkingOn = $derived(reasoningControl.effort ? shownThinking !== 'light' : thinking === 'auto' ? presetThinking !== false : thinking !== 'off');
+  let levelOptions = $derived(thinkingOptions(reasoningControl));
+  function levelLabel(level: ThinkingLevel) {
+    if (level === 'auto') return t('pg.thinking_auto');
+    if (level === 'normal' && !reasoningControl.effort && !reasoningControl.budget) return t('pg.thinking_on');
+    return t(`pg.thinking_${level}`);
+  }
 
   let el = $state<HTMLTextAreaElement | null>(null);
   const uid = $props.id();
@@ -205,6 +219,30 @@
           </Tooltip.Trigger>
           <Tooltip.Content class="max-w-sm">{toolsHint}</Tooltip.Content>
         </Tooltip.Root>
+        {#if reasoningControl.effort || reasoningControl.toggle}
+          {#if uiLevel.advanced}
+            <label class="flex items-center gap-1 text-xs">
+              <span>{t('pg.thinking_control')}</span>
+              <select class="h-8 rounded-md border border-input bg-background px-2 text-xs" aria-label={t('pg.thinking_control')}
+                disabled={streaming} value={levelOptions.includes(shownThinking) ? shownThinking : 'normal'}
+                onchange={(event) => { thinking = event.currentTarget.value as ThinkingLevel; thinkingBudget = null; }}>
+                {#each levelOptions as level}<option value={level}>{levelLabel(level)}</option>{/each}
+              </select>
+            </label>
+            {#if reasoningControl.budget && thinking !== 'off'}
+              <input type="number" min="-1" step="1" class="h-8 w-20 rounded-md border border-input bg-background px-2 text-xs"
+                aria-label={t('pg.thinking_budget')} title={t('pg.thinking_budget')} placeholder={thinkingDefaultBudget(thinking) === -1 ? t('pg.thinking_unlimited') : String(thinkingDefaultBudget(thinking) ?? t('pg.thinking_auto'))}
+                disabled={streaming} value={thinkingBudget ?? ''}
+                oninput={(event) => { const value = event.currentTarget.value; thinkingBudget = value === '' ? null : Math.max(-1, Math.trunc(Number(value))); }} />
+            {/if}
+          {:else}
+            <Button type="button" size="sm" variant={thinkingOn ? 'secondary' : 'ghost'} aria-label={t('pg.think')}
+              aria-pressed={thinkingOn} disabled={streaming}
+              onclick={() => { thinking = reasoningControl.effort ? (shownThinking === 'light' ? 'normal' : 'light') : (thinkingOn ? 'off' : 'normal'); thinkingBudget = null; }}>
+              {t('pg.think')}{#if reasoningControl.effort} · {levelLabel(shownThinking === 'auto' ? 'normal' : shownThinking)}{/if}
+            </Button>
+          {/if}
+        {/if}
         {#if onAudioFile}
           <Button type="button" variant="ghost" size="icon-xs" disabled={disabled || streaming} aria-label={t('pg.audio_attach')} title={t('pg.audio_attach')} onclick={onPickAudio}><FileMusic /></Button>
           <AudioRecordButton contextKey={audioContextKey} blocked={disabled || streaming} onFile={onAudioFile} />

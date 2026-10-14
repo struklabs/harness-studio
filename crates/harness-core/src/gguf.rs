@@ -159,6 +159,8 @@ pub struct GgufMetadata {
     /// `reasoning_effort`, gpt-oss channels, or an unconditional `<think>` opener).
     #[serde(default)]
     pub template_supports_reasoning: bool,
+    #[serde(default)]
+    pub reasoning_control: crate::reasoning::ReasoningControl,
     /// Tokenizer facts used to match draft models with their target.
     #[serde(default)]
     pub tokenizer: Option<TokenizerInfo>,
@@ -458,6 +460,8 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
                     meta.template_supports_tools =
                         template.contains("tools") || template.contains("tool_call");
                     meta.template_supports_reasoning = template_supports_reasoning(&template);
+                    meta.reasoning_control =
+                        crate::reasoning::ReasoningControl::from_template(&template);
                 }
             }
             "general.size_label" if val_type == GgufType::String => {
@@ -686,11 +690,7 @@ pub fn read_gguf_tensor_names(path: &Path, limit: usize) -> Result<Vec<String>, 
 /// (`reasoning_effort`, `<|channel|>`) -> yes; Qwen3-4B-Instruct-2507 (strips
 /// `reasoning_content` from history, never opens `<think>`) and Qwen2.5-Coder -> no.
 pub fn template_supports_reasoning(template: &str) -> bool {
-    template.contains("enable_thinking")
-        || template.contains("reasoning_effort")
-        || template.contains("thinking_budget")
-        || template.contains("<|channel|>")
-        || (template.contains("<think>") && !template.contains("reasoning_content"))
+    crate::reasoning::ReasoningControl::from_template(template).supported()
 }
 
 /// Reads the `tokenizer.ggml.tokens` array (value type already consumed): returns the token
