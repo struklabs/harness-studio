@@ -7,6 +7,10 @@ fn main() {
     harness_studio_lib::app_update::scrub_appimage_env();
     // PDF text extraction child (harness_core::rag::extract): release builds abort on panic,
     // so malformed PDFs are parsed in a separate process that exits here.
+    // Network bridge of a native server started without network (harness_core::netns_bridge).
+    if let Some(code) = harness_core::netns_bridge::child_main() {
+        std::process::exit(code);
+    }
     if let Some(code) = harness_core::rag::extract::child_main() {
         std::process::exit(code);
     }

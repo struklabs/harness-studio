@@ -297,6 +297,12 @@ pub trait ServerEngine: Engine {
     }
     /// Rewrites a launch's arguments to listen on the Unix socket `socket` instead of its port.
     fn listen_on_socket(&self, _args: &mut Vec<String>, _socket: &Path) {}
+    /// A local server that needs no network but only listens on TCP: on Linux it runs without
+    /// network behind [`crate::netns_bridge`] when [`crate::pyenv::isolation`] is available,
+    /// and as before (with a log line saying so) when it is not.
+    fn netns_bridge(&self) -> bool {
+        false
+    }
 }
 
 /// An engine held by value in structs that derive `Default` (llama.cpp).
