@@ -26,6 +26,8 @@ pub struct VisionJob {
     pub candidate_labels: Vec<String>,
     /// Zero-shot: the sentence each label is put in (`{}` marks the label).
     pub hypothesis_template: Option<String>,
+    /// Feature extraction: the pooled output instead of every hidden state.
+    pub pool: bool,
 }
 
 /// The bytes of an image given as a data URL or as plain base64.
@@ -103,13 +105,36 @@ pub fn parse(body: &Value) -> Result<VisionJob, ApiError> {
             ))
         }
     };
+    let pool = match params.get("pool") {
+        None | Some(Value::Null) => false,
+        Some(Value::Bool(b)) => *b,
+        Some(_) => return Err(ApiError::invalid("pool must be true or false")),
+    };
     Ok(VisionJob {
         image: image_bytes(image)?,
         top_k,
         threshold,
         candidate_labels,
         hypothesis_template,
+        pool,
     })
+}
+
+/// A tensor as nested JSON arrays following its shape (`[1, 257, 384]` gives `[[[...]]]`), as
+/// the pipeline's `tolist()` does.
+pub fn nested(shape: &[usize], data: &[f32]) -> Value {
+    match shape {
+        [] => data.first().map_or(Value::Null, |v| json!(v)),
+        [_] => Value::Array(data.iter().map(|v| json!(v)).collect()),
+        [n, rest @ ..] => {
+            let step: usize = rest.iter().product();
+            Value::Array(
+                (0..*n)
+                    .map(|i| nested(rest, data.get(i * step..(i + 1) * step).unwrap_or(&[])))
+                    .collect(),
+            )
+        }
+    }
 }
 
 /// Decodes an image (any orientation tag is ignored, as PIL does by default).
@@ -471,6 +496,22 @@ pub fn task_name(t: VisionTask) -> &'static str {
 mod tests {
     use super::*;
     use crate::vision_pkg::parse_preprocess;
+
+    #[test]
+    fn tensors_nest_by_their_shape() {
+        let data = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0];
+        assert_eq!(
+            nested(&[1, 2, 3], &data),
+            json!([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]])
+        );
+        assert_eq!(
+            nested(&[1, 6], &data),
+            json!([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]])
+        );
+        let job = parse(&json!({"inputs": "UklGRg==", "parameters": {"pool": true}})).unwrap();
+        assert!(job.pool);
+        assert!(parse(&json!({"inputs": "UklGRg==", "parameters": {"pool": 1}})).is_err());
+    }
 
     fn png(w: u32, h: u32) -> Vec<u8> {
         let img = RgbImage::from_fn(w, h, |x, _| {

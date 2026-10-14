@@ -45,7 +45,14 @@ export interface DepthResult {
   height: number;
 }
 
+/** Feature tensor: its shape and the first values of its first row (the whole tensor is large). */
+export interface FeatureResult {
+  shape: number[];
+  preview: number[];
+}
+
 export type PipelineResult =
+  | { kind: 'features'; value: FeatureResult }
   | { kind: 'labels'; items: LabelScore[] }
   | { kind: 'entities'; items: EntitySpan[] }
   | { kind: 'fills'; items: FillResult[] }
@@ -56,7 +63,7 @@ export type PipelineResult =
   | { kind: 'raw'; value: unknown };
 
 /** Tasks that take one image (harness-onnx vision heads, the Python worker's image tasks). */
-export const IMAGE_TASKS = ['image-classification', 'object-detection', 'image-segmentation', 'depth-estimation', 'zero-shot-image-classification'] as const;
+export const IMAGE_TASKS = ['image-classification', 'object-detection', 'image-segmentation', 'depth-estimation', 'zero-shot-image-classification', 'image-feature-extraction'] as const;
 
 export function isImageTask(task: string | undefined): boolean {
   return (IMAGE_TASKS as readonly string[]).includes(task ?? '');
@@ -152,6 +159,16 @@ const flat = (v: unknown): unknown[] => (Array.isArray(v) ? (v.length === 1 && A
 
 /** Reads a response into the result view of `task`; anything unexpected is shown raw. */
 export function parseResponse(task: string | undefined, json: unknown): PipelineResult {
+  if (task === 'image-feature-extraction' && Array.isArray(json)) {
+    const shape: number[] = [];
+    let row: unknown = json;
+    while (Array.isArray(row)) {
+      shape.push(row.length);
+      if (row.length === 0 || !Array.isArray(row[0])) break;
+      row = row[0];
+    }
+    if (Array.isArray(row) && row.every(isNum)) return { kind: 'features', value: { shape, preview: (row as number[]).slice(0, 8) } };
+  }
   const depth = obj(json);
   if (depth && isStr(depth.depth)) {
     return {

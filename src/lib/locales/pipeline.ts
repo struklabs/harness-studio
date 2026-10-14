@@ -45,6 +45,7 @@ const tr = {
   'pl.no_objects': 'Eşiğin üstünde nesne bulunamadı.',
   'pl.depth_alt': 'Derinlik haritası',
   'pl.depth_hint': 'Açık tonlar yakını, koyu tonlar uzağı gösterir.',
+  'pl.features_shape': 'Öznitelik tensörü: {shape}. İlk satırın ilk değerleri:',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -92,6 +93,7 @@ const en: Record<keyof typeof tr, string> = {
   'pl.no_objects': 'No objects above the threshold.',
   'pl.depth_alt': 'Depth map',
   'pl.depth_hint': 'Lighter shades are nearer, darker ones farther.',
+  'pl.features_shape': 'Feature tensor: {shape}. First values of the first row:',
 };
 
 export default { tr, en };
