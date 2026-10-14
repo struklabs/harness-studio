@@ -508,6 +508,10 @@ impl ModelManager {
             models.extend(crate::engine::python_hf::library_models(
                 std::slice::from_ref(dir),
             ));
+            // MLX checkpoints (mlx-community...) run on the MLX engine, on Apple Silicon.
+            models.extend(crate::engine::mlx::library_models(std::slice::from_ref(
+                dir,
+            )));
         }
         models.sort_by(|a, b| a.name.cmp(&b.name));
         models

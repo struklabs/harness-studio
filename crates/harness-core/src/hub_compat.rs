@@ -329,6 +329,65 @@ pub fn mistralrs_compatibility(
     })
 }
 
+/// Runtime family of the MLX engine (mlx-lm, Apple Silicon).
+pub const MLX_FAMILY: &str = crate::engine::MLX;
+
+/// The MLX engine's verdict on a Hub repo: an MLX text generator (`library_name: mlx` or the
+/// `mlx` tag; `text-generation`, or untagged) with a `config.json` and safetensors at the root
+/// (a listing without file names is taken by its tags). Runnable where MLX runs (Apple Silicon;
+/// installed or not is settled later by [`resolve_installed`]); on a Mac whose macOS is too old
+/// for the MLX wheels, [`Compatibility::UnsupportedPlatform`]; `None` elsewhere and for every
+/// other repo. Vision repos (`image-text-to-text`) need mlx-vlm, not supported yet.
+pub fn mlx_compatibility(
+    format: ModelFormat,
+    task: Option<&str>,
+    files: &[String],
+) -> Option<Compatibility> {
+    mlx_compatibility_on(
+        format,
+        task,
+        files,
+        cfg!(all(target_os = "macos", target_arch = "aarch64")),
+        crate::pyenv::envs::spec(crate::engine::mlx::ENV)
+            .and_then(crate::pyenv::envs::platform_refusal)
+            .is_some(),
+    )
+}
+
+/// [`mlx_compatibility`] with the platform facts given.
+pub fn mlx_compatibility_on(
+    format: ModelFormat,
+    task: Option<&str>,
+    files: &[String],
+    apple_silicon: bool,
+    os_too_old: bool,
+) -> Option<Compatibility> {
+    if !apple_silicon || format != ModelFormat::Mlx || !task.is_none_or(|t| t == "text-generation")
+    {
+        return None;
+    }
+    let root = |f: &&String| !f.contains('/') && !f.contains('\\');
+    let has_config = files.iter().filter(root).any(|f| f == "config.json");
+    let has_weights = files
+        .iter()
+        .filter(root)
+        .any(|f| f.to_ascii_lowercase().ends_with(".safetensors"));
+    if !files.is_empty() && !(has_config && has_weights) {
+        return None;
+    }
+    Some(if os_too_old {
+        Compatibility::UnsupportedPlatform {
+            runtime: MLX_FAMILY.to_string(),
+            os: std::env::consts::OS.to_string(),
+            arch: std::env::consts::ARCH.to_string(),
+        }
+    } else {
+        Compatibility::Runnable {
+            runtime: MLX_FAMILY.to_string(),
+        }
+    })
+}
+
 /// Runtime family of the Python engine (transformers / sentence-transformers task models).
 pub const PYTHON_HF_FAMILY: &str = crate::engine::PYTHON_HF;
 
@@ -806,6 +865,61 @@ mod tests {
             c,
             Compatibility::NeedsRuntime {
                 runtime: "mistral.rs".into()
+            }
+        );
+    }
+
+    #[test]
+    fn mlx_chat_repos_run_on_apple_silicon_only() {
+        let files = s(&[
+            "config.json",
+            "model.safetensors",
+            "tokenizer.json",
+            "README.md",
+        ]);
+        let format = detect_format(&s(&["mlx", "safetensors"]), Some("mlx"), &files);
+        assert_eq!(format, ModelFormat::Mlx);
+        let runnable = Some(Compatibility::Runnable {
+            runtime: MLX_FAMILY.into(),
+        });
+        assert_eq!(
+            mlx_compatibility_on(format, Some("text-generation"), &files, true, false),
+            runnable
+        );
+        // Untagged, or a listing without file names.
+        assert_eq!(
+            mlx_compatibility_on(format, None, &[], true, false),
+            runnable
+        );
+        // Not on an Intel Mac / Windows / Linux; vision needs mlx-vlm; no weights at the root.
+        assert_eq!(
+            mlx_compatibility_on(format, Some("text-generation"), &files, false, false),
+            None
+        );
+        assert_eq!(
+            mlx_compatibility_on(format, Some("image-text-to-text"), &files, true, false),
+            None
+        );
+        assert_eq!(
+            mlx_compatibility_on(format, None, &s(&["config.json", "README.md"]), true, false),
+            None
+        );
+        assert_eq!(
+            mlx_compatibility_on(ModelFormat::Safetensors, None, &files, true, false),
+            None
+        );
+        // macOS 13: says so instead of offering an engine that can't install.
+        assert!(matches!(
+            mlx_compatibility_on(format, None, &files, true, true),
+            Some(Compatibility::UnsupportedPlatform { runtime, .. }) if runtime == MLX_FAMILY
+        ));
+        // Installed or not.
+        let mut c = runnable.clone().unwrap();
+        resolve_installed_on(&mut c, &[], true);
+        assert_eq!(
+            c,
+            Compatibility::NeedsRuntime {
+                runtime: MLX_FAMILY.into()
             }
         );
     }
