@@ -51,3 +51,7 @@ __pycache__/
 # Screenshots written by the UI test scripts
 /docs/screenshots/menus-*.png
 /docs/screenshots/ui-open/
+
+# Benchmark runner output (only summary.md is kept)
+/docs/benchmarks/*/raw/
+/docs/benchmarks/*/summary.json

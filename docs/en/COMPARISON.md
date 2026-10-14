@@ -1,7 +1,7 @@
 # Harness Studio vs LM Studio, Ollama and llama.cpp
 
-Measured on 2026-10-11 on one Windows machine, with the same GGUF files for every tool. The full tables, raw JSON, and runner live in
-[benchmarks/2026-10-11/summary.md](../benchmarks/2026-10-11/summary.md), [benchmarks/2026-10-11/raw/](../benchmarks/2026-10-11/raw/), and
+Measured on 2026-10-11 on one Windows machine, with the same GGUF files for every tool. The full tables and the runner live in
+[benchmarks/2026-10-11/summary.md](../benchmarks/2026-10-11/summary.md) and
 [`bench/compare/`](../../bench/compare/). The runner re-creates every number on another machine. The feature-by-feature matrix (what exists in which tool) is in
 [FEATURES.md](FEATURES.md), which also carries these measurements in its §0.
 
@@ -92,7 +92,6 @@ apart from an LM Studio control run.
 | 4 concurrent, 4 slots (tok/s) | 170 | 399 |
 | Model switch TTFT (s) | 9.1 | 6.5 |
 
-Raw files for the earlier build are in [raw/pre-fix/](../benchmarks/2026-10-11/raw/pre-fix/).
 </details>
 
 ## What the numbers mean

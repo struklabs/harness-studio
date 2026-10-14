@@ -1065,7 +1065,6 @@ Qwen3.5-2B Q4_K_M, Otomatik ayarlar (uygulamadan "Sunucuyu Başlat"):
 | 262144, KV Tam (f16) | "Bellek Yetmeyebilir: tahmini 5,08 GB, ayrılmış VRAM 3,87 GB", önerilen -ngl 16 | tampon toplamı ~5,0 GB; nvidia-smi 3899 MiB'ta takılı (spill) |
 
 - Önerilen `-np`/`-ngl`/KV ölçümle tutarlı. Kalan not: bağlam 262144'te Etkin değerlerde "Belleğe sığmadı" etiketi çıkıyor (llama-server `failed to fit params to free device memory` satırı: kendi 1 GiB payı yüzünden); yapılandırma gerçekte çalışıyor (2989 MiB). Etiket llama-server'ın görüşünü aktarıyor, Harness tahminiyle çelişmiyor.
-- Ekran görüntüleri: [262144 + Otomatik KV](../screenshots/hibrit-262k-kv-auto-tr.png), [16k np 4](../screenshots/hibrit-2b-16k-np4-tr.png), [Bellek yetmeyebilir](../screenshots/hibrit-spill-262k-f16-tr.png).
 
 ### Sınırlar
 

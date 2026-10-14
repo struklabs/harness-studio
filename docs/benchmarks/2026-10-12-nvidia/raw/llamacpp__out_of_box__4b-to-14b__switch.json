@@ -1,5 +1,0 @@
-{
- "manual_restart_ready_s": 9.46,
- "outcome": "not_supported_on_demand",
- "reason": "llama-server serves exactly one model per process; switching needs a kill and restart"
-}
