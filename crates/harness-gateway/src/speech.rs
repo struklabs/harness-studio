@@ -229,7 +229,18 @@ async fn serve(
     let models = tokio::task::spawn_blocking(tts::installed_models)
         .await
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?;
-    let model = tts::find_model(&models, wanted.as_deref()).map_err(|e| map_error(&e))?;
+    let model = match tts::find_model(&models, wanted.as_deref()) {
+        Ok(model) => model,
+        Err(e) => {
+            // No sherpa-onnx voice by that name: a text-to-speech model of the Python engine may
+            // have it (sherpa-onnx comes first, the Python engine is the fallback).
+            if let Some(def) = python_speech_model(state, wanted.as_deref()).await {
+                caller.check_model(&def.alias)?;
+                return python_speak(state, &def, &text, format, guard).await;
+            }
+            return Err(map_error(&e));
+        }
+    };
     {
         let r = guard.get();
         r.alias = Some(model.name.clone());
@@ -275,6 +286,57 @@ async fn serve(
         .header("x-harness-synthesis-ms", speech.elapsed_ms.to_string())
         .body(axum::body::Body::from(audio))
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
+}
+
+/// The definition `model` names when it is a text-to-speech model of the Python engine.
+async fn python_speech_model(
+    state: &GwState,
+    model: Option<&str>,
+) -> Option<harness_core::domain::ModelDefinition> {
+    let def = state.scheduler.resolve(Some(model?)).await.ok()?;
+    crate::pyhf::task_of(&def)
+        .filter(|t| crate::pyhf::is_speech_task(t))
+        .map(|_| def)
+}
+
+/// Speech from a Python engine model: the worker's WAV, encoded to the asked format like
+/// sherpa-onnx's. `voice` and `speed` do not apply (the model has one voice).
+async fn python_speak(
+    state: &GwState,
+    def: &harness_core::domain::ModelDefinition,
+    text: &str,
+    format: AudioFormat,
+    guard: &mut RecordGuard,
+) -> Result<Response, GatewayError> {
+    {
+        let r = guard.get();
+        r.alias = Some(def.alias.clone());
+        r.definition_id = Some(def.id.clone());
+    }
+    let body = serde_json::to_vec(&serde_json::json!({ "input": text }))
+        .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?;
+    let answer = crate::pyhf::post(
+        state,
+        def,
+        guard,
+        "/v1/audio/speech",
+        "application/json",
+        body,
+    )
+    .await?;
+    let audio = run::encode(answer.body.to_vec(), format)
+        .await
+        .map_err(|e| GatewayError::new(500, "encode_failed", e))?;
+    guard.finish(200, None);
+    crate::pyhf::lease_headers(
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, format.content_type()),
+        def,
+        &answer.lease,
+    )
+    .body(axum::body::Body::from(audio))
+    .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
 }
 
 #[cfg(test)]

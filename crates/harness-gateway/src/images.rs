@@ -548,6 +548,66 @@ pub fn memory_shortfall(lines: &[String]) -> Option<(u64, u64)> {
     })
 }
 
+/// A text-to-image request on a Python engine model: the OpenAI body goes to the worker as it
+/// is; its PNGs come back as `b64_json` or `data:` URLs like sd-server's.
+async fn python_generate(
+    state: &GwState,
+    def: &ModelDefinition,
+    request: Value,
+    plan: &Plan,
+    guard: &mut RecordGuard,
+) -> Result<Response, GatewayError> {
+    if plan.format != "png" {
+        return Err(bad(format!(
+            "output_format `{}` is not available for this model; it makes PNG images.",
+            plan.format
+        ))
+        .param("output_format"));
+    }
+    let body = serde_json::to_vec(&request)
+        .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?;
+    let answer = crate::pyhf::post(
+        state,
+        def,
+        guard,
+        "/v1/images/generations",
+        "application/json",
+        body,
+    )
+    .await?;
+    let v: Value = serde_json::from_slice(&answer.body)
+        .map_err(|e| GatewayError::new(502, "upstream_error", format!("Python engine: {e}")))?;
+    let images: Vec<String> = v
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|d| {
+            d.iter()
+                .filter_map(|i| i.get("b64_json").and_then(Value::as_str).map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+    if images.is_empty() {
+        return Err(GatewayError::new(
+            502,
+            "upstream_error",
+            "Python engine: the answer has no image.",
+        ));
+    }
+    let created = v.get("created").and_then(Value::as_u64).unwrap_or(0);
+    let out = shape(&images, "png", plan.as_url, created);
+    guard.finish(200, None);
+    let builder = crate::pyhf::lease_headers(
+        Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/json"),
+        def,
+        &answer.lease,
+    );
+    builder
+        .body(axum::body::Body::from(out.to_string()))
+        .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
+}
+
 /// The OpenAI answer for the finished images.
 pub fn shape(images: &[String], format: &str, as_url: bool, created: u64) -> Value {
     let mime = if format == "jpeg" {
@@ -632,6 +692,8 @@ async fn run(
         caller.token_name.clone(),
     );
     let request = read_request(kind, headers, body).await?;
+    // The OpenAI body a Python engine model gets as it is (generations only).
+    let raw_request = (kind == Kind::Generations).then(|| request.clone());
     let model = text(&request, "model")?.map(str::to_string);
     guard.get().model = model.clone();
     guard.admitted(caller.admit(state)?);
@@ -652,6 +714,22 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
+    // A diffusers pipeline of the Python engine answers OpenAI's request itself.
+    if let Some(task) = crate::pyhf::task_of(&def) {
+        if task != "text-to-image" || kind != Kind::Generations {
+            return Err(GatewayError::new(
+                400,
+                "model_not_image",
+                format!(
+                    "`{}` is a Python engine model of {task}; {} needs a text-to-image model.",
+                    def.alias,
+                    kind.path()
+                ),
+            )
+            .param("model"));
+        }
+        return python_generate(state, &def, raw_request.unwrap_or_default(), &plan, guard).await;
+    }
     if !is_image_model(&def) {
         return Err(GatewayError::new(
             400,
