@@ -1,4 +1,4 @@
-// The MLX engine (mlx): parameter catalog labels (params_mlx.toml) and the backend error keys of
+// The MLX engines (mlx, mlx-vlm): parameter catalog labels (params_mlx.toml) and the backend error keys of
 // its launches.
 const tr = {
   'mlxparam.max_tokens': 'En çok yanıt uzunluğu',
@@ -12,6 +12,10 @@ const tr = {
   'hub.compat_mlx_title': 'Bu MLX biçimli model Apple Silicon’da MLX motoruyla çalışır.',
   'hub.compat_needs_mlx': 'Gerekli: MLX motoru',
   'hub.compat_needs_mlx_title': 'Bu model MLX motoruyla çalışır; motor henüz kurulu değil. Depoyu açıp kurabilirsiniz (macOS 14+, yaklaşık 350 MB).',
+  'hub.compat_mlx_vlm': 'MLX ile çalışır (görüntülü)',
+  'hub.compat_mlx_vlm_title': 'Bu MLX biçimli görüntü-dil modeli Apple Silicon’da MLX görüntü motoruyla (mlx-vlm) çalışır: sohbete resim eklenebilir.',
+  'hub.compat_needs_mlx_vlm': 'Gerekli: MLX görüntü motoru',
+  'hub.compat_needs_mlx_vlm_title': 'Bu model MLX görüntü motoruyla (mlx-vlm) çalışır; motor henüz kurulu değil. Depoyu açıp kurabilirsiniz (macOS 14+, yaklaşık 800 MB).',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -26,6 +30,10 @@ const en: Record<keyof typeof tr, string> = {
   'hub.compat_mlx_title': 'This MLX-format model runs on the MLX runtime on Apple Silicon.',
   'hub.compat_needs_mlx': 'Required: MLX runtime',
   'hub.compat_needs_mlx_title': 'This model runs on the MLX runtime, which isn’t installed yet. Open the repository to install it (macOS 14+, about 350 MB).',
+  'hub.compat_mlx_vlm': 'Runs with MLX (vision)',
+  'hub.compat_mlx_vlm_title': 'This MLX-format vision-language model runs on the MLX vision runtime (mlx-vlm) on Apple Silicon: chats can include images.',
+  'hub.compat_needs_mlx_vlm': 'Required: MLX vision runtime',
+  'hub.compat_needs_mlx_vlm_title': 'This model runs on the MLX vision runtime (mlx-vlm), which isn’t installed yet. Open the repository to install it (macOS 14+, about 800 MB).',
 };
 
 export default { tr, en };

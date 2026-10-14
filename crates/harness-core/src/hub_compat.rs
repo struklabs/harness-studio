@@ -348,12 +348,15 @@ pub fn mistralrs_compatibility(
 /// Runtime family of the MLX engine (mlx-lm, Apple Silicon).
 pub const MLX_FAMILY: &str = crate::engine::MLX;
 
-/// The MLX engine's verdict on a Hub repo: an MLX text generator (`library_name: mlx` or the
-/// `mlx` tag; `text-generation`, or untagged) with a `config.json` and safetensors at the root
-/// (a listing without file names is taken by its tags). Runnable where MLX runs (Apple Silicon;
-/// installed or not is settled later by [`resolve_installed`]); on a Mac whose macOS is too old
-/// for the MLX wheels, [`Compatibility::UnsupportedPlatform`]; `None` elsewhere and for every
-/// other repo. Vision repos (`image-text-to-text`) need mlx-vlm, not supported yet.
+/// Runtime family of the MLX vision engine (mlx-vlm, Apple Silicon).
+pub const MLX_VLM_FAMILY: &str = crate::engine::MLX_VLM;
+
+/// The MLX engines' verdict on a Hub repo: an MLX repo (`library_name: mlx` or the `mlx` tag)
+/// with a `config.json` and safetensors at the root (a listing without file names is taken by
+/// its tags), `text-generation` or untagged for `mlx`, `image-text-to-text` for `mlx-vlm`.
+/// Runnable where MLX runs (Apple Silicon; installed or not is settled later by
+/// [`resolve_installed`]); on a Mac whose macOS is too old for the MLX wheels,
+/// [`Compatibility::UnsupportedPlatform`]; `None` elsewhere and for every other repo.
 pub fn mlx_compatibility(
     format: ModelFormat,
     task: Option<&str>,
@@ -378,8 +381,12 @@ pub fn mlx_compatibility_on(
     apple_silicon: bool,
     os_too_old: bool,
 ) -> Option<Compatibility> {
-    if !apple_silicon || format != ModelFormat::Mlx || !task.is_none_or(|t| t == "text-generation")
-    {
+    let family = match task {
+        None | Some("text-generation") => MLX_FAMILY,
+        Some("image-text-to-text") => MLX_VLM_FAMILY,
+        Some(_) => return None,
+    };
+    if !apple_silicon || format != ModelFormat::Mlx {
         return None;
     }
     let root = |f: &&String| !f.contains('/') && !f.contains('\\');
@@ -393,13 +400,13 @@ pub fn mlx_compatibility_on(
     }
     Some(if os_too_old {
         Compatibility::UnsupportedPlatform {
-            runtime: MLX_FAMILY.to_string(),
+            runtime: family.to_string(),
             os: std::env::consts::OS.to_string(),
             arch: std::env::consts::ARCH.to_string(),
         }
     } else {
         Compatibility::Runnable {
-            runtime: MLX_FAMILY.to_string(),
+            runtime: family.to_string(),
         }
     })
 }
@@ -966,13 +973,24 @@ mod tests {
             mlx_compatibility_on(format, None, &[], true, false),
             runnable
         );
-        // Not on an Intel Mac / Windows / Linux; vision needs mlx-vlm; no weights at the root.
+        // A vision repo is mlx-vlm's.
+        assert_eq!(
+            mlx_compatibility_on(format, Some("image-text-to-text"), &files, true, false),
+            Some(Compatibility::Runnable {
+                runtime: MLX_VLM_FAMILY.into()
+            })
+        );
+        // Not on an Intel Mac / Windows / Linux; other tasks; no weights at the root.
         assert_eq!(
             mlx_compatibility_on(format, Some("text-generation"), &files, false, false),
             None
         );
         assert_eq!(
-            mlx_compatibility_on(format, Some("image-text-to-text"), &files, true, false),
+            mlx_compatibility_on(format, Some("image-text-to-text"), &files, false, false),
+            None
+        );
+        assert_eq!(
+            mlx_compatibility_on(format, Some("text-to-speech"), &files, true, false),
             None
         );
         assert_eq!(

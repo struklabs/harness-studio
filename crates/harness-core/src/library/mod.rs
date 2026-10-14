@@ -414,9 +414,12 @@ pub fn build_entries(
 fn caps_of(model: &LocalModel, vision: bool, audio: bool) -> ModelCaps {
     let g = model.gguf.as_ref();
     let llm = model.kind == ModelKind::Llm;
-    // A safetensors checkpoint (mistral.rs): its folder tells the template and the vision tower.
+    // A safetensors checkpoint (mistral.rs, MLX): its folder tells the template and the vision
+    // tower.
     if llm && g.is_none() {
-        if let Some(info) = crate::engine::mistralrs_inspect(&model.path) {
+        if let Some(info) = crate::engine::mistralrs_inspect(&model.path)
+            .or_else(|| crate::engine::mlx::inspect(&model.path))
+        {
             return ModelCaps {
                 chat: info.chat_template,
                 vision: info.vision,
