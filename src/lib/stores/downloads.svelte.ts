@@ -5,7 +5,7 @@ import { t } from '#lib/i18n.svelte.js';
 import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
 import { localizeError } from '#lib/network.js';
 import { defaultLoadTarget, isChatLoadable, shouldAutoLoad } from '#lib/downloadFollowUp.js';
-import { library, repoRelative } from '#lib/stores/library.svelte.js';
+import { library, repoRelative, isRepoFolder } from '#lib/stores/library.svelte.js';
 import { domain, samePath } from '#lib/stores/domain.svelte.js';
 import { invoke } from '#lib/ipc.js';
 import { holdReleaseWhile } from '#lib/windowActivity.js';
@@ -36,6 +36,8 @@ downloads.onCompleted = async (job) => {
   const message = t('hub.announce_completed', { name: job.variant_name });
   library.markChanged();
   const list = await library.refresh();
+  await ensureLibraryDefinitions(['image', 'asr', 'embedding', 'reranker', 'pipeline']);
+  await Promise.all([domain.refreshDefinitions(), tts.load(), asr.load()]);
   const model = modelOfJob(job, list);
   // A vision projector that arrived after its model: the model's definition gets it now, else
   // the gateway serves the model without image input.
@@ -124,6 +126,7 @@ export function modelOfJob(job: DownloadProgress, list: LocalModel[]): LocalMode
   return list.find((m) => {
     // A custom-URL job is named after its file and lands in the library root.
     if (job.repo_id === 'custom_url') return m.filename.toLowerCase() === wanted;
+    if (isRepoFolder(m, job.repo_id)) return true;
     const rel = repoRelative(m, job.repo_id);
     return rel !== null && stemOf(rel).toLowerCase() === wanted && !m.gguf?.is_mmproj;
   });
@@ -339,7 +342,7 @@ export async function openInPlayground(model: LocalModel, runtime?: string | nul
       } else {
         alias = await ensureDefinition(model);
       }
-      if (model.kind === 'image') imageSession.model = alias;
+      if (target.tab === 'image') imageSession.model = alias;
       else if (target.tab === 'transcription') speech.model = alias;
       else app.requestedPlaygroundModel = alias;
     } else if (target.speech === 'speak') {

@@ -8,7 +8,7 @@
   import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { ACTION_TOAST_DURATION } from '#lib/toast.js';
-  import type { HardwareFitResult, LibraryEntry, LoadTarget, ModelCapability, ModelDefinition, ModelKind } from '#lib/types.js';
+  import type { HardwareFitResult, LibraryEntry, LoadTarget, ModelCapability, ModelDefinition } from '#lib/types.js';
   import { presetName as presetDisplayName } from '#lib/components/presets/presetText.js';
   import { t, locale, type TKey } from '#lib/i18n.svelte.js';
   import { onnxUnsupportedText } from '#lib/engines.js';
@@ -21,7 +21,7 @@
   import { domain, baseName, samePath } from '#lib/stores/domain.svelte.js';
   import { library } from '#lib/stores/library.svelte.js';
   import { loadAndChat, openInPlayground } from '#lib/stores/downloads.svelte.js';
-  import { playgroundTarget, speechKindKey } from '#lib/libraryDefinitions.js';
+  import { playgroundTarget, libraryKindKey } from '#lib/libraryDefinitions.js';
   import { isChatLoadable, showUpdateBadge } from '#lib/downloadFollowUp.js';
   import UpdateBadge from '#lib/components/hub/UpdateBadge.svelte';
   import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
@@ -73,19 +73,6 @@
 
   /** Kinds the gateway loads on the first request (speech, image, task pipelines): no Load button, no llama-server settings. */
   const GATEWAY_LOADED = ['asr', 'image', 'pipeline'];
-
-  const KIND: Record<ModelKind, TKey> = {
-    llm: 'lib.kind_llm',
-    embedding: 'lib.kind_embedding',
-    reranker: 'lib.kind_reranker',
-    asr: 'lib.kind_asr',
-    image: 'lib.kind_image',
-    tts: 'lib.kind_tts',
-    pipeline: 'lib.kind_pipeline',
-    mmproj: 'lib.kind_mmproj',
-    adapter: 'lib.kind_adapter',
-    unknown: 'lib.kind_unknown',
-  };
 
   let busy = $state<Record<string, boolean>>({});
   let m = $derived(entry.model);
@@ -205,13 +192,7 @@
   /** "LLM · 8B · Q4_K_M · 4.9 GB": what tells two files apart, in reading order. */
   let summary = $derived(
     [
-      m.kind === 'asr'
-        ? t(speechKindKey(m))
-        : entry.record.runtime === 'mlx-audio'
-          ? t(m.task === 'automatic-speech-recognition' ? 'lib.kind_asr_mlx' : 'lib.kind_tts_mlx')
-          : entry.record.runtime === 'python-hf' && m.kind === 'pipeline'
-            ? t(m.task === 'text-to-image' || m.task === 'image-to-image' ? 'lib.kind_image_python' : 'lib.kind_pipeline_python')
-            : t(KIND[m.kind ?? 'unknown']),
+      t(libraryKindKey(m, entry.record.runtime)),
       entry.multimodal ? t('lib.kind_vlm') : null,
       uiLevel.advanced ? params : null,
       uiLevel.advanced && m.quantization && m.quantization !== 'Unknown' ? m.quantization : null,

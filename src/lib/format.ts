@@ -5,7 +5,8 @@ export function formatBytes(bytes: number | null | undefined, decimals = 2): str
   if (!bytes || bytes <= 0 || !Number.isFinite(bytes)) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+  let i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+  if (i < sizes.length - 1 && bytes / Math.pow(k, i) >= 1000) i++;
   return `${(bytes / Math.pow(k, i)).toLocaleString(locale(), { maximumFractionDigits: decimals })} ${sizes[i]}`;
 }
 

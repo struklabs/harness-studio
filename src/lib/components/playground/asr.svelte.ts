@@ -18,11 +18,16 @@ class AsrStore {
   /** The library's mlx-audio recognition models (by definition alias). */
   engineModels = $derived<EngineAsrModel[]>(this.overview?.engine_models ?? []);
   engineNames = $derived(this.engineModels.map((m) => m.name));
+  private loadToken = 0;
 
   async load() {
+    const token = ++this.loadToken;
     try {
-      this.overview = await invoke<AsrOverview>('get_asr_overview');
+      const overview = await invoke<AsrOverview>('get_asr_overview');
+      if (token !== this.loadToken) return;
+      this.overview = overview;
     } catch {
+      if (token !== this.loadToken) return;
       this.overview = this.overview ?? { models: [], catalog: [], runtime_installed: false };
     }
   }

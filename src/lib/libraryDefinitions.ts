@@ -1,6 +1,32 @@
 // Which library files the Playground and the gateway cannot reach yet, and where a library file
 // is opened in the Playground. Pure helpers (no stores, no IPC) so they can be unit-tested.
 import type { LocalModel, ModelDefinition, ModelKind } from './types';
+import type { TKey } from './i18n.svelte';
+
+/** Library subtitle from the detected runtime, with file-kind fallbacks for older records. */
+export function libraryKindKey(file: Pick<LocalModel, 'kind' | 'path' | 'architecture' | 'task'>, runtime?: string | null): TKey {
+  if (runtime === 'audio.cpp' || file.architecture === 'audiocpp')
+    return file.kind === 'tts' ? 'lib.kind_tts_audiocpp' : 'lib.kind_audio_process';
+  if (file.kind === 'tts' && (runtime === 'crispasr' || /\.gguf$/i.test(file.path))) return 'lib.kind_tts_crispasr';
+  if (runtime === 'mlx-audio')
+    return file.task === 'automatic-speech-recognition' ? 'lib.kind_asr_mlx' : 'lib.kind_tts_mlx';
+  if (file.kind === 'asr') return speechKindKey(file);
+  if (runtime === 'python-hf' && file.kind === 'pipeline')
+    return file.task === 'text-to-image' || file.task === 'image-to-image' ? 'lib.kind_image_python' : 'lib.kind_pipeline_python';
+  const keys: Record<ModelKind, TKey> = {
+    llm: 'lib.kind_llm',
+    embedding: 'lib.kind_embedding',
+    reranker: 'lib.kind_reranker',
+    asr: 'lib.kind_asr',
+    image: 'lib.kind_image',
+    tts: 'lib.kind_tts',
+    pipeline: 'lib.kind_pipeline',
+    mmproj: 'lib.kind_mmproj',
+    adapter: 'lib.kind_adapter',
+    unknown: 'lib.kind_unknown',
+  };
+  return keys[file.kind ?? 'unknown'];
+}
 
 /** Kinds that are served through a model definition but get none from "Load and Chat". */
 export const DEFINITION_KINDS: readonly ModelKind[] = ['image', 'asr', 'embedding', 'reranker', 'pipeline'];
@@ -43,7 +69,7 @@ export function filesNeedingDefinition(
 export function kindsForTab(tab: string): ModelKind[] {
   switch (tab) {
     case 'image':
-      return ['image'];
+      return ['image', 'pipeline'];
     case 'transcription':
       return ['asr'];
     case 'embedding':

@@ -61,6 +61,16 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 ### Fixed
 - Model Hub: each card's help button (?) sits inside the card's top-right corner instead of beside it, so the grid columns stay aligned.
 - Python engine: a model that fails to load stops its worker at once with the reason, instead of waiting for the 300 s load timeout. SpeechT5 and FastSpeech2 are no longer offered for text-to-speech (their pipeline downloads a vocoder at load, which the offline worker cannot), and root SentencePiece files such as `spm_char.model` are downloaded.
+- Library: CrispASR and audio.cpp speech models show their real engine; audio.cpp processing models show their audio task.
+- Kütüphane: CrispASR ve audio.cpp seslendirme modelleri gerçek motorunu, audio.cpp işleme modelleri ses görevini gösterir.
+- Library: Image Generation includes Python diffusers text-to-image and image-to-image folders.
+- Kütüphane: Görsel Üretimi, Python diffusers metinden görsele ve görselden görsele klasörlerini içerir.
+- Hub: completed downloads of every model kind refresh the Library and Playground model lists, including speech models.
+- Hub: her model türünün tamamlanan indirmesi, ses modelleri dahil Kütüphane ve Oyun Alanı model listelerini yeniler.
+- Library: opening a diffusers image model in Playground selects that model.
+- Kütüphane: diffusers görsel modeli Oyun Alanı’nda açıldığında o model seçilir.
+- Model sizes switch to GB at 1000 MB in the Hub and Library, keeping locale decimal separators.
+- Hub ve Kütüphane’de model boyutları 1000 MB’den itibaren GB olarak, dilin ondalık ayracı korunarak gösterilir.
 - Dashboard and the Playground load settings showed llama.cpp settings (`-c`, `-ngl`, KV cache, flash attention) for models other engines run, and the ONNX accelerator could not be chosen anywhere. The form now follows the model's engine: ONNX, whisper.cpp, sd.cpp, python-hf, MLX and the other engines show their own settings from their catalogs (ONNX: Accelerator auto/cpu/directml/cuda, batch size, pooling...), the engine field names the engine that runs the model, and the llama.cpp web UI button is hidden for them.
 - Python engine (G8 scan on CUDA):
   - **Speech recognition:** audio at another rate than the model's (a 44.1 kHz WAV for wav2vec2 / Whisper) failed with "torchaudio is required to resample". The worker now resamples it with SciPy, which is in the locks.

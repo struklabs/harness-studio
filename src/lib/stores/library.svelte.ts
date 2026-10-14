@@ -46,17 +46,24 @@ class LibraryState {
   /** Rescans the library (concurrent calls share one scan). */
   refresh(): Promise<LocalModel[]> {
     if (this.inflight) return this.inflight;
-    this.inflight = invoke<LocalModel[]>('scan_local_models')
-      .then((list) => {
-        this.models = list;
-        this.loaded = true;
-        return list;
-      })
+    this.inflight = this.scanCurrent()
       .catch(() => this.models)
       .finally(() => {
         this.inflight = null;
       });
     return this.inflight;
+  }
+
+  private async scanCurrent(): Promise<LocalModel[]> {
+    for (;;) {
+      const version = this.version;
+      const list = await invoke<LocalModel[]>('scan_local_models');
+      // A download may finish while a scan is reading the old directory contents.
+      if (version !== this.version) continue;
+      this.models = list;
+      this.loaded = true;
+      return list;
+    }
   }
 
   /** Signals that files were added/removed; views showing local models rescan. */
