@@ -238,6 +238,9 @@ fn pick_output(session: &Session, task: Task) -> Result<OutputSpec, String> {
     })
 }
 
+/// Operators of dynamically quantized graphs that crash DirectML.
+const DML_UNSAFE_OPS: [&str; 2] = ["ConvInteger", "MatMulInteger"];
+
 fn register_provider(
     builder: &mut ort::session::builder::SessionBuilder,
     choice: Provider,
@@ -284,14 +287,19 @@ pub(crate) fn build_session(
     threads: Option<usize>,
 ) -> Result<(Session, &'static str), String> {
     // DirectML crashes the process (an access violation, not an error) on the integer
-    // convolutions of dynamically quantized exports (transformers.js `model_quantized`: vision,
-    // CTC speech); such a graph runs on the CPU, or on CUDA when `auto` finds it.
-    let skip_dml = matches!(choice, Provider::Auto | Provider::DirectMl)
-        && cfg!(windows)
-        && crate::package::graph_uses_op(model, "ConvInteger");
-    if skip_dml && choice == Provider::DirectMl {
+    // operators of dynamically quantized exports (transformers.js `model_quantized`): the
+    // convolutions of vision and CTC speech models, the matrix products of text encoders (BERT,
+    // DistilBERT: seen on an NVIDIA GPU). Such a graph runs on the CPU, or on CUDA when `auto`
+    // finds it.
+    let integer_op = if matches!(choice, Provider::Auto | Provider::DirectMl) && cfg!(windows) {
+        crate::package::graph_uses_any_op(model, &DML_UNSAFE_OPS)
+    } else {
+        None
+    };
+    let skip_dml = integer_op.is_some();
+    if let (Some(op), Provider::DirectMl) = (integer_op, choice) {
         eprintln!(
-            "harness-onnx: DirectML cannot run ConvInteger (an INT8 export), running on the CPU; the FP32 or FP16 file runs on the GPU"
+            "harness-onnx: DirectML cannot run {op} (an INT8 export), running on the CPU; the FP32 or FP16 file runs on the GPU"
         );
     }
     let make = |choice: Provider| -> Result<(Session, &'static str), String> {
