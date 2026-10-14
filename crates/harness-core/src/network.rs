@@ -195,6 +195,80 @@ pub fn normalize_origins(list: &[String]) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+/// Why [`check_browser_origin`] refused a request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OriginDenied {
+    /// `Origin: null` (sandboxed frame, `file:`, redirects): never allowed.
+    Null,
+    /// A cross-site browser request without an `Origin` header (e.g. a no-cors GET).
+    CrossSite,
+    /// An origin that is neither Harness's own window nor on the user's CORS list.
+    NotAllowed,
+}
+
+/// The browser gate of the local servers: a page on any website can make the browser send
+/// requests to `127.0.0.1`, and a "simple" cross-site POST (multipart, urlencoded, text/plain)
+/// needs no preflight, so the CORS headers alone do not stop its side effects.
+///
+/// * `Origin` absent and `Sec-Fetch-Site` not `cross-site`: not a browser page (curl, SDKs,
+///   CLI, Ollama / OpenAI clients) or a same-origin / typed-in request: allowed, as before.
+/// * `Origin` absent but `Sec-Fetch-Site: cross-site`: a browser sent it for another site
+///   without CORS (no-cors GET, form navigation): refused.
+/// * `Origin` present: allowed only when it is one of [`APP_ORIGINS`] or on `allowed` (the
+///   user's CORS list), compared case-insensitively without a trailing slash. `null` and
+///   everything else is refused. A cross-site fetch from an allowed origin (Open WebUI on
+///   another port or host) therefore still works: the allow list decides, `Sec-Fetch-Site`
+///   only matters when there is no allowed origin to vouch for the request.
+pub fn check_browser_origin(
+    origin: Option<&str>,
+    sec_fetch_site: Option<&str>,
+    allowed: &[String],
+) -> Result<(), OriginDenied> {
+    let Some(origin) = origin else {
+        return match sec_fetch_site {
+            Some(s) if s.trim().eq_ignore_ascii_case("cross-site") => Err(OriginDenied::CrossSite),
+            _ => Ok(()),
+        };
+    };
+    let origin = origin.trim().trim_end_matches('/');
+    if origin.eq_ignore_ascii_case("null") {
+        return Err(OriginDenied::Null);
+    }
+    let same = |o: &str| o.trim().trim_end_matches('/').eq_ignore_ascii_case(origin);
+    if APP_ORIGINS.iter().any(|o| same(o)) || allowed.iter().any(|o| same(o)) {
+        Ok(())
+    } else {
+        Err(OriginDenied::NotAllowed)
+    }
+}
+
+/// [`check_browser_origin`] on raw header values (`HeaderValue::as_bytes`); an `Origin` that is
+/// not valid text counts as a foreign origin. The error carries the origin as sent, for the
+/// message.
+pub fn check_browser_headers(
+    origin: Option<&[u8]>,
+    sec_fetch_site: Option<&[u8]>,
+    allowed: &[String],
+) -> Result<(), (OriginDenied, String)> {
+    fn text(v: Option<&[u8]>) -> Option<Result<&str, std::str::Utf8Error>> {
+        v.map(std::str::from_utf8)
+    }
+    let origin = text(origin);
+    let shown = match &origin {
+        Some(Ok(o)) => (*o).to_string(),
+        _ => "?".to_string(),
+    };
+    let verdict = match origin {
+        Some(Err(_)) => Err(OriginDenied::NotAllowed),
+        other => check_browser_origin(
+            other.and_then(Result::ok),
+            text(sec_fetch_site).and_then(Result::ok),
+            allowed,
+        ),
+    };
+    verdict.map_err(|why| (why, shown))
+}
+
 /// `--cors-origins` value for a launch (`None` = don't pass the flag).
 ///
 /// * user origins set: exactly those;

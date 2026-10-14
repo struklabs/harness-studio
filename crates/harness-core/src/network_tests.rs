@@ -708,3 +708,55 @@ async fn e2e_cors_allowed_origin() {
     assert!(!active.exposure_acknowledged);
     stop(&pm, port).await;
 }
+
+#[test]
+fn browser_origin_gate() {
+    let list = vec!["http://localhost:3000".to_string()];
+    // No Origin: curl, SDKs, CLI.
+    assert_eq!(check_browser_origin(None, None, &list), Ok(()));
+    assert_eq!(check_browser_origin(None, Some("none"), &list), Ok(()));
+    assert_eq!(
+        check_browser_origin(None, Some("same-origin"), &list),
+        Ok(())
+    );
+    assert_eq!(
+        check_browser_origin(None, Some("cross-site"), &list),
+        Err(OriginDenied::CrossSite)
+    );
+    // Harness's own window and the user's list (case and trailing slash do not matter).
+    for o in [
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "http://localhost:1420",
+    ] {
+        assert_eq!(
+            check_browser_origin(Some(o), Some("cross-site"), &[]),
+            Ok(()),
+            "{o}"
+        );
+    }
+    for o in ["http://localhost:3000", "HTTP://LocalHost:3000/"] {
+        assert_eq!(
+            check_browser_origin(Some(o), Some("cross-site"), &list),
+            Ok(()),
+            "{o}"
+        );
+    }
+    // Everything else.
+    assert_eq!(
+        check_browser_origin(Some("null"), None, &list),
+        Err(OriginDenied::Null)
+    );
+    for o in [
+        "https://evil.example",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "",
+    ] {
+        assert_eq!(
+            check_browser_origin(Some(o), None, &list),
+            Err(OriginDenied::NotAllowed),
+            "{o}"
+        );
+    }
+}
