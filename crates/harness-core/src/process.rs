@@ -2353,7 +2353,17 @@ impl ProcessManager {
         }
         self.generation
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        self.push_log("[Harness Studio] Hatalı llama-server süreci sonlandırılıyor...".to_string());
+        let family = self
+            .active
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|a| a.engine_family.clone())
+            .filter(|f| !f.is_empty());
+        self.push_log(match family {
+            Some(f) => format!("[Harness Studio] Stopping the failed {f} server process..."),
+            None => "[Harness Studio] Stopping the failed server process...".to_string(),
+        });
         let cleanup = self
             .terminate_child_until(Instant::now() + Duration::from_secs(7))
             .await;
