@@ -2298,6 +2298,7 @@ dependencies = [
  "harness-api",
  "harness-core",
  "harness-gateway",
+ "libc",
  "serde",
  "serde_json",
  "tauri",

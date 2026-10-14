@@ -48,3 +48,5 @@ windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Thre
 # Microphone for the Speech tab: WebKitGTK ships with media streams off (same version wry uses).
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk = "=2.0.2"
+# AppImage relaunch after an update: no descriptor is inherited by the new version (fcntl).
+libc = "0.2"
