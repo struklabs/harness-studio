@@ -706,6 +706,7 @@ mod tests {
         );
         let out = build_args(&config, Path::new("/env/mlx_vlm_worker.py"), true).unwrap();
         assert_eq!(out.args[0], "/env/mlx_vlm_worker.py");
+        assert!(out.skipped.is_empty(), "{:?}", out.skipped);
         let at = |flag: &str| {
             out.args
                 .iter()
@@ -786,62 +787,190 @@ mod tests {
         }
     }
 
-    /// The vision worker's request check, run with a system Python when there is one (it needs
-    /// neither MLX nor the environment): only inline media, no adapters or other models.
-    #[test]
-    fn the_vision_worker_takes_only_inline_media() {
+    /// Runs `code` with a system Python (`None` when there is none) next to the vision worker
+    /// (it needs neither MLX nor the environment for its checks): `w` is the worker module.
+    fn vision_worker_py(code: &str) -> Option<(bool, String)> {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("mlx_vlm_worker.py"), VLM_WORKER).unwrap();
         let python = if cfg!(windows) { "python" } else { "python3" };
-        let check = |body: serde_json::Value| -> Option<String> {
-            let code = format!(
-                "import sys; sys.path.insert(0, {:?}); import mlx_vlm_worker as w; print(w.check_body(sys.stdin.buffer.read()))",
-                dir.path().to_string_lossy()
-            );
-            let mut child = std::process::Command::new(python)
-                .args(["-I", "-c", &code])
-                .env("HARNESS_WORKER_API_KEY", "k")
-                .stdin(std::process::Stdio::piped())
-                .stdout(std::process::Stdio::piped())
-                .spawn()
-                .ok()?;
-            use std::io::Write;
-            child
-                .stdin
-                .take()
-                .unwrap()
-                .write_all(body.to_string().as_bytes())
-                .unwrap();
-            let out = child.wait_with_output().unwrap();
-            assert!(out.status.success());
-            Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
-        };
+        let code = format!(
+            "import sys, json, asyncio; sys.path.insert(0, {:?}); import mlx_vlm_worker as w\n{code}",
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &code])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .ok()?;
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        Some((out.status.success(), text))
+    }
+
+    /// The vision worker's request check: only inline media of the right kind; input_audio is
+    /// rewritten into a data: URL; no adapters or other models.
+    #[test]
+    fn the_vision_worker_takes_only_inline_media() {
         let image = |url: &str| {
             serde_json::json!({"messages": [{"role": "user", "content": [
                 {"type": "text", "text": "hi"},
                 {"type": "image_url", "image_url": {"url": url, "detail": "auto"}}
             ]}]})
         };
-        let Some(ok) = check(image("data:image/png;base64,AAAA")) else {
-            eprintln!("no {python}, skipping");
+        let audio = |data: &str| {
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "input_audio", "input_audio": {"data": data, "format": "wav"}}
+            ]}]})
+        };
+        let check = |body: &serde_json::Value| {
+            vision_worker_py(&format!(
+                "e, out = w.check_body({:?}.encode())\nprint(json.dumps([e, out and json.loads(out)]))",
+                body.to_string()
+            ))
+            .map(|(ok, text)| {
+                assert!(ok, "{text}");
+                serde_json::from_str::<serde_json::Value>(text.trim()).unwrap()
+            })
+        };
+        let Some(ok) = check(&image("data:image/png;base64,iVBORw0K")) else {
+            eprintln!("no system python, skipping");
             return;
         };
-        assert_eq!(ok, "None");
-        let audio = serde_json::json!({"messages": [{"role": "user", "content": [
-            {"type": "input_audio", "input_audio": {"data": "AAAA", "format": "wav"}}
-        ]}]});
-        assert_eq!(check(audio).unwrap(), "None");
+        assert!(ok[0].is_null(), "{ok}");
+        // Base64 audio becomes a data: URL, so mlx-vlm never takes it for a path ("/9j..." is
+        // valid base64).
+        let out = check(&audio("/9j/AAAA")).unwrap();
+        assert!(out[0].is_null(), "{out}");
+        assert_eq!(
+            out[1]["messages"][0]["content"][0]["input_audio"]["data"],
+            "data:audio/wav;base64,/9j/AAAA"
+        );
+        let out = check(&audio("data:audio/wav;base64,AAAA")).unwrap();
+        assert!(out[0].is_null(), "{out}");
         for bad in [
             image("http://example.com/x.png"),
             image("/etc/hosts"),
             image("file:///etc/hosts"),
+            image("data:text/plain;base64,AAAA"),
+            image("data:image/png,notbase64"),
+            image("data:image/png;base64,***"),
+            audio("/etc/hosts"),
+            audio("http://x"),
+            audio("file:///etc/hosts"),
+            audio("./a.wav"),
+            audio("data:image/png;base64,AAAA"),
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA", "detail": "../x"}}]}]}),
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "image_url", "image_url": "png"}]}]}),
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "video_url", "video_url": "/v.mp4"}]}]}),
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "video_url", "video_url": {"url": "data:image/png;base64,AAAA"}}]}]}),
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "file", "file": {"file_id": "x"}}]}]}),
             serde_json::json!({"messages": [], "adapter_path": "/x"}),
             serde_json::json!({"messages": [], "model_path": "/x"}),
-            serde_json::json!({"messages": [{"role": "user", "content": [{"type": "video_url", "video_url": "/v.mp4"}]}]}),
         ] {
-            let out = check(bad.clone()).unwrap();
-            assert_ne!(out, "None", "{bad} was accepted");
+            let out = check(&bad).unwrap();
+            assert!(out[0].is_string(), "{bad} was accepted: {out}");
         }
+    }
+
+    /// The vision worker's ASGI guard around a stand-in app: only its three routes, the key,
+    /// the body limit, and the (checked) body replayed to the app.
+    #[test]
+    fn the_vision_worker_guard_lets_through_only_what_it_checked() {
+        let script = r#"
+seen = []
+async def inner(scope, receive, send):
+    body = b""
+    while True:
+        m = await receive()
+        body += m.get("body", b"")
+        if not m.get("more_body"):
+            break
+    seen.append((scope["path"], body, dict(scope["headers"]).get(b"content-length")))
+    await send({"type": "http.response.start", "status": 200, "headers": []})
+    await send({"type": "http.response.body", "body": b"inner"})
+
+app = w.guard(inner, "alias")
+
+async def call(method, path, headers=(), chunks=(b"",), kind="http"):
+    sent = []
+    queue = [{"type": "http.request", "body": c, "more_body": i < len(chunks) - 1}
+             for i, c in enumerate(chunks)]
+    async def receive():
+        return queue.pop(0) if queue else {"type": "http.disconnect"}
+    async def send(m):
+        sent.append(m)
+    scope = {"type": kind, "method": method, "path": path,
+             "headers": [(k.lower().encode(), v.encode()) for k, v in headers]}
+    await app(scope, receive, send)
+    if kind == "websocket":
+        return sent[0]["type"], sent[0].get("code")
+    return sent[0]["status"], b"".join(m.get("body", b"") for m in sent[1:])
+
+KEY = [("Authorization", "Bearer k")]
+async def main():
+    r = {}
+    for m, p in [("HEAD", "/v1/models"), ("OPTIONS", "/v1/chat/completions"),
+                 ("GET", "/v1/models/"), ("GET", "//v1/models"), ("POST", "/unload"),
+                 ("GET", "/v1/chat/completions"), ("POST", "/v1/chat/completions/")]:
+        r[m + " " + p] = (await call(m, p, KEY))[0]
+    r["ws"] = await call("GET", "/v1/chat/completions", KEY, kind="websocket")
+    r["health"] = await call("GET", "/health")
+    r["no key"] = (await call("GET", "/v1/models"))[0]
+    r["wrong key"] = (await call("GET", "/v1/models", [("Authorization", "Bearer x")]))[0]
+    r["models"] = await call("GET", "/v1/models", KEY)
+    big = b"x" * (1024 * 1024)
+    r["big"] = (await call("POST", "/v1/chat/completions", KEY, [big] * 65))[0]
+    r["bad"] = (await call("POST", "/v1/chat/completions", KEY,
+                           [b'{"messages":[{"role":"user","content":[{"type":"input_audio",',
+                            b'"input_audio":{"data":"/etc/hosts","format":"wav"}}]}]}']))[0]
+    good = b'{"messages":[{"role":"user","content":"hi"}]}'
+    r["good"] = await call("POST", "/v1/chat/completions", KEY, [good[:10], good[10:]])
+    audio = b'{"messages":[{"role":"user","content":[{"type":"input_audio","input_audio":{"data":"AAAA"}}]}]}'
+    r["audio"] = (await call("POST", "/v1/chat/completions", KEY + [("Content-Length", str(len(audio)))], [audio]))[0]
+    return r
+
+r = asyncio.run(main())
+for k, v in r.items():
+    print(k, "=", v)
+print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
+"#;
+        let Some((ok, text)) = vision_worker_py(script) else {
+            eprintln!("no system python, skipping");
+            return;
+        };
+        assert!(ok, "{text}");
+        for line in [
+            "HEAD /v1/models = 404",
+            "OPTIONS /v1/chat/completions = 404",
+            "GET /v1/models/ = 404",
+            "GET //v1/models = 404",
+            "POST /unload = 404",
+            "GET /v1/chat/completions = 404",
+            "POST /v1/chat/completions/ = 404",
+            "ws = ('websocket.close', 1008)",
+            "health = (200, b'{\"status\": \"ok\"}')",
+            "no key = 401",
+            "wrong key = 401",
+            "big = 413",
+            "bad = 400",
+            "good = (200, b'inner')",
+            "audio = 200",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+        assert!(text.contains("\"id\": \"alias\""), "{text}");
+        // The app saw the body whole, and the rewritten one with its new length.
+        assert!(
+            text.contains("('/v1/chat/completions', '{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}', b'45')"),
+            "{text}"
+        );
+        assert!(text.contains("data:audio/wav;base64,AAAA"), "{text}");
+        assert_eq!(text.matches("('/v1/chat/completions'").count(), 2, "{text}");
     }
 
     #[test]
@@ -857,5 +986,8 @@ mod tests {
         assert!(WORKER.contains("HARNESS_WORKER_API_KEY is required"));
         assert!(WORKER.contains("allow_abbrev"));
         assert!(WORKER.contains("HTTPS_PROXY"));
+        assert!(VLM_WORKER.contains("kw[\"trust_remote_code\"] = False"));
+        assert!(VLM_WORKER.contains("MLX_TRUST_REMOTE_CODE\"] = \"false\""));
+        assert!(VLM_WORKER.contains("allow_abbrev=False"));
     }
 }

@@ -560,6 +560,77 @@ mod tests {
     }
 
     #[test]
+    fn mlx_folders_route_by_their_vision_tower() {
+        let root = tempfile::Builder::new()
+            .prefix(&crate::paths::test_dir_prefix("mlx-route"))
+            .tempdir()
+            .unwrap();
+        let folder = |name: &str, config: &str, readme: Option<&str>| {
+            let dir = root.path().join(name);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("config.json"), config).unwrap();
+            std::fs::write(dir.join("model.safetensors"), [0u8; 16]).unwrap();
+            if let Some(r) = readme {
+                std::fs::write(dir.join("README.md"), r).unwrap();
+            }
+            dir
+        };
+        let q = r#""quantization":{"group_size":64,"bits":4}"#;
+        let text = folder(
+            "Qwen3-4B-4bit",
+            &format!(r#"{{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3",{q}}}"#),
+            None,
+        );
+        let vision = folder(
+            "Qwen3-VL-2B-4bit",
+            &format!(
+                r#"{{"architectures":["Qwen3VLForConditionalGeneration"],"model_type":"qwen3_vl","vision_config":{{}},{q}}}"#
+            ),
+            None,
+        );
+        let plain = folder(
+            "Qwen2.5-0.5B",
+            r#"{"architectures":["Qwen2ForCausalLM"],"model_type":"qwen2"}"#,
+            None,
+        );
+        let plain_vlm = folder(
+            "Qwen2.5-VL-3B",
+            r#"{"architectures":["Qwen2_5_VLForConditionalGeneration"],"model_type":"qwen2_5_vl","vision_config":{}}"#,
+            None,
+        );
+        let blip = folder(
+            "blip-captioning",
+            r#"{"architectures":["BlipForConditionalGeneration"],"model_type":"blip"}"#,
+            Some("---\npipeline_tag: image-to-text\nlibrary_name: transformers\n---\n"),
+        );
+        let launch = |dir: &Path| {
+            server_for(&LaunchConfig {
+                model_path: dir.to_path_buf(),
+                ..Default::default()
+            })
+            .family()
+        };
+        let model = |dir: &Path| server_for_model(dir).map(|e| e.family());
+        assert_eq!(launch(&text), MLX);
+        assert_eq!(model(&text), Some(MLX));
+        assert_eq!(launch(&vision), MLX_VLM);
+        assert_eq!(model(&vision), Some(MLX_VLM));
+        // Not MLX's: mistral.rs and the Python engine keep theirs.
+        assert_eq!(launch(&plain), MISTRALRS);
+        assert_eq!(model(&plain), Some(MISTRALRS));
+        assert_eq!(launch(&plain_vlm), MISTRALRS);
+        assert_eq!(launch(&blip), PYTHON_HF);
+        assert_eq!(model(&blip), Some(PYTHON_HF));
+        for dir in [&text, &vision] {
+            assert!(model_on_disk(dir));
+            assert!(!is_llama_server(dir, false));
+        }
+        assert_eq!(serve_mode_of(MLX_VLM), crate::serve_mode::ServeMode::Chat);
+        assert_eq!(engine(MLX_VLM).unwrap().family(), MLX_VLM);
+        assert_eq!(engine(MLX).unwrap().family(), MLX);
+    }
+
+    #[test]
     fn safetensors_model_folders_route_to_mistralrs() {
         let root = tempfile::Builder::new()
             .prefix(&crate::paths::test_dir_prefix("mrs-route"))

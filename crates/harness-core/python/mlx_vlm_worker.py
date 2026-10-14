@@ -14,15 +14,20 @@ routes) and loads whatever a request names. This worker puts a narrow door in fr
   /health says only {"status": "ok"} (mlx-vlm's own lists the model path).
 * The model is the folder given here, loaded at start: a request's "model" or adapter never
   loads another one.
-* Images, audio and video must be inline (data: URLs): mlx-vlm would otherwise fetch an http
-  URL or read a local file path a request names.
+* Images, audio and video must be inline: a base64 data: URL of their own kind
+  (data:image/...;base64,), or base64 for input_audio, which is rewritten into a data: URL
+  before mlx-vlm sees it. mlx-vlm would otherwise fetch an http URL or read a local file path a
+  request names (and takes base64 that starts with "/" for a path).
 * It listens on 127.0.0.1 only; remote code is never trusted; Hugging Face Hub access is off;
   proxy variables are cleared.
 """
 
 import argparse
+import base64
+import binascii
 import hmac
 import json
+import re
 import os
 import sys
 
@@ -41,9 +46,16 @@ HOST = "127.0.0.1"
 ROUTES = {("GET", "/health"), ("GET", "/v1/models"), ("POST", "/v1/chat/completions")}
 # Request fields that would load something other than the served folder.
 REFUSED_FIELDS = ("adapter_path", "adapters", "draft_model", "model_path")
-# Content parts whose source must be inline.
-MEDIA_KEYS = ("image_url", "input_image", "image", "images", "video_url", "video", "videos",
-              "input_audio", "audio", "audios", "file_id")
+# Content parts whose source must be inline, by the data: URL kind each must carry.
+MEDIA_KINDS = {
+    "image_url": "image", "input_image": "image", "image": "image", "images": "image",
+    "video_url": "video", "video": "video", "videos": "video",
+    "audio": "audio", "audios": "audio",
+}
+# Keys under a media part that are labels, not sources.
+LABEL_KEYS = ("detail", "format")
+LABEL = re.compile(r"^[A-Za-z0-9_-]{1,16}$")
+AUDIO_FORMATS = ("wav", "mp3", "flac", "ogg", "m4a", "aac", "webm", "opus", "pcm16")
 MAX_BODY = 64 * 1024 * 1024
 
 
@@ -57,43 +69,107 @@ def parser():
     return p
 
 
-def media_problem(value, inside_media=False):
-    """The first media source in a request body that is not an inline data: URL, if any."""
+class Refused(Exception):
+    pass
+
+
+def inline(source, kind):
+    """`source` if it is a base64 data: URL of `kind` (image, audio, video)."""
+    if not isinstance(source, str):
+        raise Refused("a %s source must be a data: URL" % kind)
+    head, comma, payload = source.strip().partition(",")
+    if not (comma and head.startswith("data:%s/" % kind) and head.endswith(";base64")):
+        raise Refused("%s sources must be inline data:%s/...;base64, URLs (got %r)"
+                      % (kind.capitalize(), kind, source[:60]))
+    try:
+        base64.b64decode(payload, validate=True)
+    except (binascii.Error, ValueError):
+        raise Refused("the %s data: URL is not valid base64" % kind)
+    return source
+
+
+def media(value, kind):
+    """A media part's value with every source checked (a URL string, a list of them or an
+    object whose `url` is one; `detail` / `format` are labels)."""
+    if isinstance(value, list):
+        return [media(v, kind) for v in value]
     if isinstance(value, dict):
+        out = {}
         for k, v in value.items():
-            if inside_media and k == "data":
-                continue  # input_audio's raw base64: inline
-            found = media_problem(v, inside_media or k in MEDIA_KEYS)
-            if found:
-                return found
-    elif isinstance(value, list):
-        for v in value:
-            found = media_problem(v, inside_media)
-            if found:
-                return found
-    elif inside_media and isinstance(value, str) and not value.startswith("data:"):
-        # Formats and detail levels are not sources.
-        if value in ("auto", "low", "high", "wav", "mp3", "flac", "ogg", "png", "jpeg"):
-            return None
-        return value[:60]
-    return None
+            if k in LABEL_KEYS:
+                if not (isinstance(v, str) and LABEL.match(v)):
+                    raise Refused("bad %r" % k)
+                out[k] = v
+            else:
+                out[k] = media(v, kind)
+        return out
+    return inline(value, kind)
+
+
+def input_audio(value):
+    """OpenAI's {"data": <base64>, "format": "wav"}, rewritten as {"data": "data:audio/wav;
+    base64,..."} (mlx-vlm decodes that itself, and never takes it for a path or a URL)."""
+    if not isinstance(value, dict):
+        raise Refused("input_audio must be an object")
+    fmt = value.get("format", "wav")
+    if fmt not in AUDIO_FORMATS:
+        raise Refused("unsupported input_audio format %r" % str(fmt)[:16])
+    data = value.get("data")
+    if isinstance(data, str) and data.strip().startswith("data:"):
+        data = inline(data, "audio")
+    else:
+        if not isinstance(data, str):
+            raise Refused("input_audio data must be base64")
+        try:
+            base64.b64decode(data.strip(), validate=True)
+        except (binascii.Error, ValueError):
+            raise Refused("input_audio data must be base64 (not a path or a URL)")
+        data = "data:audio/%s;base64,%s" % (fmt, data.strip())
+    out = dict(value)
+    out["data"] = data
+    out["format"] = fmt
+    return out
+
+
+def clean(value):
+    """The messages with every media source checked (and input_audio rewritten)."""
+    if isinstance(value, list):
+        return [clean(v) for v in value]
+    if not isinstance(value, dict):
+        return value
+    out = {}
+    for k, v in value.items():
+        if k == "file_id" or k == "file":
+            raise Refused("files are not accepted; send media inline")
+        if k == "input_audio":
+            out[k] = input_audio(v)
+        elif k in MEDIA_KINDS:
+            out[k] = media(v, MEDIA_KINDS[k])
+        else:
+            out[k] = clean(v)
+    return out
 
 
 def check_body(raw):
-    """An error message for a chat body Harness won't pass on, or None."""
+    """(error message, None) for a chat body Harness won't pass on, else (None, the body to
+    send on: the same bytes, or re-encoded when input_audio was rewritten)."""
     try:
         body = json.loads(raw or b"{}")
     except ValueError:
-        return None  # mlx-vlm answers malformed JSON itself
+        return None, raw  # mlx-vlm answers malformed JSON itself
     if not isinstance(body, dict):
-        return None
+        return None, raw
     for field in REFUSED_FIELDS:
         if field in body:
-            return f"'{field}' is not accepted: the served model is fixed."
-    bad = media_problem(body.get("messages"))
-    if bad:
-        return "Images, audio and video must be inline data: URLs (got %r)." % bad
-    return None
+            return f"'{field}' is not accepted: the served model is fixed.", None
+    try:
+        messages = clean(body.get("messages"))
+    except Refused as e:
+        return str(e)[:200] + ".", None
+    if messages == body.get("messages"):
+        return None, raw
+    body["messages"] = messages
+    return None, json.dumps(body).encode()
 
 
 async def respond(send, status, payload):
@@ -146,10 +222,12 @@ def guard(inner, alias):
                     "Request body too large.", "invalid_request_error", "body_too_large"))
             chunks.append(chunk)
             more = message.get("more_body", False)
-        raw = b"".join(chunks)
-        problem = check_body(raw)
+        problem, raw = check_body(b"".join(chunks))
         if problem:
             return await respond(send, 400, error(problem, "invalid_request_error", "invalid_request"))
+        headers = [(k, v) for k, v in scope.get("headers") or [] if k != b"content-length"]
+        headers.append((b"content-length", str(len(raw)).encode()))
+        scope = dict(scope, headers=headers)
         sent = False
 
         async def replay():
@@ -196,6 +274,16 @@ def main(argv=None):
     # Routes look it up on the package at call time; the start-up preload uses the module's.
     package.get_cached_model = pinned
     app_module.get_cached_model = pinned
+
+    # Remote code is off whatever the environment says.
+    generation = importlib.import_module("mlx_vlm.server.generation")
+    load_weights = generation.load
+
+    def load_no_remote_code(*a, **kw):
+        kw["trust_remote_code"] = False
+        return load_weights(*a, **kw)
+
+    generation.load = load_no_remote_code
 
     uvicorn.run(guard(app_module.app, args.alias), host=HOST, port=args.port,
                 log_level="info", access_log=True)

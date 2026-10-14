@@ -1061,11 +1061,11 @@ MLX biçimli görüntü-dil modelleriyle (`mlx-community/Qwen3-VL-...`, Gemma 3,
 
   Sohbet gövdesi mlx-vlm'ye ulaşmadan denetlenir:
   - `adapter_path`, `adapters`, `draft_model` ve `model_path` reddedilir.
-  - Her resim, ses ya da video kaynağı satır içi bir `data:` URL'si olmalıdır; aksi halde mlx-vlm bir http adresini indirir ya da istekte adı geçen herhangi bir yerel dosyayı okur.
+  - Her resim, ses ya da video kaynağı kendi türünde base64 bir `data:` URL'si olmalıdır (`data:image/…;base64,`, `data:audio/…`, `data:video/…`). OpenAI `input_audio` base64'ü denetlenir ve `data:audio/<biçim>;base64,` URL'sine çevrilir. Aksi halde mlx-vlm bir http adresini indirir ya da istekte adı geçen herhangi bir yerel dosyayı okur; `/` ile başlayan base64'ü de yol sanar. `detail` / `format` kısa etiket olmalıdır; dosyalar (`file_id`) reddedilir.
   - Gövde en çok 64 MB olabilir.
 
   mlx-vlm'nin model yükleyicisi başlangıçta verilen klasöre sabitlenir; isteğin `model` alanı başka bir şey yükleyemez. İşçi şu ortam ayarlarıyla çalışır:
-  - `MLX_TRUST_REMOTE_CODE=false` ve `HF_HUB_OFFLINE=1`.
+  - `MLX_TRUST_REMOTE_CODE=false` (mlx-vlm'nin yükleyicisine ayrıca `trust_remote_code=False` zorlanır) ve `HF_HUB_OFFLINE=1`.
   - Vekil değişkenleri ile mlx-vlm'nin kendi anahtar ve model klasörü değişkenleri temizlenir.
   - Yalnız 127.0.0.1'e bağlanır.
 
