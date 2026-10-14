@@ -246,6 +246,28 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             }),
         };
     }
+    if crate::engine::python_hf::is_model_dir(Path::new(&model.path)) {
+        // A Hugging Face task or diffusers folder: the Python engine runs it (the format alone
+        // would say GGUF, so llama.cpp).
+        let dir = Path::new(&model.path);
+        let format = if dir.join("model_index.json").is_file() {
+            ModelFormat::Diffusers
+        } else if crate::engine::python_hf::weight_files(dir)
+            .iter()
+            .any(|w| w.extension().is_some_and(|e| e == "safetensors"))
+        {
+            ModelFormat::Safetensors
+        } else {
+            ModelFormat::Pytorch
+        };
+        let runtime = crate::engine::PYTHON_HF.to_string();
+        return ModelRecord {
+            capabilities: local_capabilities(caps),
+            format,
+            runtime: Some(runtime.clone()),
+            compatibility: Some(Compatibility::Runnable { runtime }),
+        };
+    }
     if format == ModelFormat::Safetensors && model.kind == ModelKind::Llm {
         // A transformers checkpoint folder: mistral.rs runs it as it is.
         return ModelRecord {
@@ -497,6 +519,56 @@ mod tests {
         let rec = local_record(&model, &caps);
         assert_eq!(rec.format, ModelFormat::WhisperGgml);
         assert_eq!(rec.runtime.as_deref(), Some("whisper.cpp"));
+    }
+
+    /// Folders of the Python engine (a diffusers pipeline, a transformers task model) name it,
+    /// not the llama.cpp that the GGUF fallback format would.
+    #[test]
+    fn python_engine_folders_are_recorded_with_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let write = |rel: &str, body: &str| {
+            let p = dir.path().join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, body).unwrap();
+        };
+        write(
+            "tiny-sd/model_index.json",
+            r#"{"_class_name":"StableDiffusionPipeline"}"#,
+        );
+        write("tiny-sd/unet/diffusion_pytorch_model.safetensors", "x");
+        write(
+            "ner/config.json",
+            r#"{"architectures":["BertForTokenClassification"],"id2label":{"0":"O"}}"#,
+        );
+        write("ner/model.safetensors", "x");
+        let models = crate::engine::python_hf::library_models(&[dir.path().to_path_buf()]);
+        let record = |name: &str| {
+            let m = models.iter().find(|m| m.name.contains(name)).unwrap();
+            local_record(m, &ModelCaps::default())
+        };
+        let runnable = Some(Compatibility::Runnable {
+            runtime: "python-hf".into(),
+        });
+        let sd = record("tiny-sd");
+        assert_eq!(sd.format, ModelFormat::Diffusers);
+        assert_eq!(sd.runtime.as_deref(), Some("python-hf"));
+        assert_eq!(sd.compatibility, runnable);
+        let ner = record("ner");
+        assert_eq!(ner.format, ModelFormat::Safetensors);
+        assert_eq!(ner.runtime.as_deref(), Some("python-hf"));
+        assert_eq!(ner.compatibility, runnable);
+        // `list_library` settles the install: without the Python engine the folder needs it.
+        let mut missing = record("tiny-sd");
+        missing.resolve_installed(&["llama.cpp".to_string()]);
+        assert_eq!(
+            missing.compatibility,
+            Some(Compatibility::NeedsRuntime {
+                runtime: "python-hf".into()
+            })
+        );
+        let mut installed = record("tiny-sd");
+        installed.resolve_installed(&["python-hf".to_string()]);
+        assert_eq!(installed.compatibility, runnable);
     }
 
     #[test]
