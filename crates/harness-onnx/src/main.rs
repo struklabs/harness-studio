@@ -231,9 +231,10 @@ fn main() {
                 }
                 return;
             }
-            // CTC speech first: its repo also has a preprocessor_config.json, like a vision model.
+            // CTC speech first; a vision model or an audio classifier also has a
+            // preprocessor_config.json, so the head in config.json decides.
             let is_ctc = load.task == Some(Task::AsrCtc)
-                || (load.task.is_none() && harness_onnx::asr_ctc::find_root(&load.model).is_some());
+                || (load.task.is_none() && harness_onnx::asr_ctc::is_ctc_model(&load.model));
             if is_ctc {
                 let result = engine::init_runtime(load.ort_lib.as_deref())
                     .and_then(|()| harness_onnx::asr_ctc::load(&load));
