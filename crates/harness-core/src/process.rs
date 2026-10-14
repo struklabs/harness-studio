@@ -1296,6 +1296,10 @@ impl ProcessManager {
                             || harness_onnx::audio_pkg::AudioPackage::discover(
                                 &launch.model_path,
                             )
+                            .is_some()
+                            || harness_onnx::seq2seq_pkg::Seq2SeqPackage::discover(
+                                &launch.model_path,
+                            )
                             .is_some() =>
                         {
                             crate::serve_mode::ServeMode::Pipeline
