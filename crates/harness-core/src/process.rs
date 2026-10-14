@@ -2360,9 +2360,16 @@ impl ProcessManager {
             .as_ref()
             .map(|a| a.engine_family.clone())
             .filter(|f| !f.is_empty());
-        self.push_log(match family {
-            Some(f) => format!("[Harness Studio] Stopping the failed {f} server process..."),
-            None => "[Harness Studio] Stopping the failed server process...".to_string(),
+        let tr = crate::config::AppSettings::load().language != "en";
+        self.push_log(match (family, tr) {
+            (Some(f), true) => {
+                format!("[Harness Studio] Hatalı {f} sunucu süreci sonlandırılıyor...")
+            }
+            (Some(f), false) => {
+                format!("[Harness Studio] Stopping the failed {f} server process...")
+            }
+            (None, true) => "[Harness Studio] Hatalı sunucu süreci sonlandırılıyor...".to_string(),
+            (None, false) => "[Harness Studio] Stopping the failed server process...".to_string(),
         });
         let cleanup = self
             .terminate_child_until(Instant::now() + Duration::from_secs(7))
