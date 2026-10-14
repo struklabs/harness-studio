@@ -9,9 +9,28 @@ use ort::session::Session;
 use ort::value::{Tensor, TensorElementType};
 use serde_json::Value;
 use std::sync::Mutex;
+use tokenizers::{Tokenizer, TruncationDirection, TruncationParams, TruncationStrategy};
 
 /// An output tensor: shape and f32 values.
 type Output = (Vec<i64>, Vec<f32>);
+
+/// Default sentence of a zero-shot label (the transformers pipeline's).
+const DEFAULT_TEMPLATE: &str = "This is a photo of {}.";
+
+/// The text inputs of a zero-shot graph.
+struct TextInputs {
+    tokenizer: Tokenizer,
+    ids: String,
+    mask: Option<String>,
+    pad_id: i64,
+    max_length: usize,
+    pad_to_max: bool,
+    canonicalize: bool,
+}
+
+/// Token ids and attention mask of a batch of labels, padded to one length: `(ids, mask, rows,
+/// length)`.
+type TextBatch = (Vec<i64>, Vec<i64>, usize, usize);
 
 pub struct VisionEngine {
     session: Mutex<Session>,
@@ -24,6 +43,8 @@ pub struct VisionEngine {
     mask_input: Option<(String, Option<(usize, usize)>)>,
     /// Outputs read, in the order the task needs them.
     outputs: Vec<String>,
+    /// The tokenizer and text inputs of a zero-shot model.
+    text: Option<TextInputs>,
     /// `DirectML`, `CUDA` or `CPU`.
     pub provider: String,
 }
@@ -34,6 +55,7 @@ fn pick_outputs(names: &[&str], task: VisionTask) -> Result<Vec<String>, String>
         VisionTask::Classify | VisionTask::Segment => &["logits"],
         VisionTask::Detect => &["logits", "pred_boxes"],
         VisionTask::Depth => &["predicted_depth"],
+        VisionTask::ZeroShot => &["logits_per_image"],
     };
     if want.iter().all(|w| names.contains(w)) {
         return Ok(want.iter().map(|s| s.to_string()).collect());
@@ -41,6 +63,10 @@ fn pick_outputs(names: &[&str], task: VisionTask) -> Result<Vec<String>, String>
     // A single-output graph with another name (`output`, `depth`...) still works for the
     // one-output heads.
     match (task, names) {
+        (VisionTask::ZeroShot, _) => Err(format!(
+            "a zero-shot image graph needs a logits_per_image output (has: {})",
+            names.join(", ")
+        )),
         (VisionTask::Detect, _) => Err(format!(
             "an object-detection graph needs logits and pred_boxes outputs (has: {})",
             names.join(", ")
@@ -59,7 +85,10 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
     let (session, provider) = build_session(&package.onnx_path, opts.provider, opts.threads)?;
     let mut pixel = None;
     let mut mask_input = None;
+    let mut ids_input = None;
+    let mut attention_input = None;
     let mut unknown = Vec::new();
+    let zero_shot = package.text.is_some();
     for input in session.inputs() {
         let name = input.name().to_string();
         match name.as_str() {
@@ -76,6 +105,8 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
                 };
                 mask_input = Some((name, fixed))
             }
+            "input_ids" if zero_shot => ids_input = Some(name),
+            "attention_mask" if zero_shot => attention_input = Some(name),
             _ => unknown.push(name),
         }
     }
@@ -89,6 +120,38 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
         pixel.ok_or("the graph has no pixel_values input (not an image model)")?;
     let names: Vec<&str> = session.outputs().iter().map(|o| o.name()).collect();
     let outputs = pick_outputs(&names, package.task)?;
+    let text = match &package.text {
+        Some(side) => {
+            let ids = ids_input.ok_or("a zero-shot image graph needs an input_ids input")?;
+            let mut tokenizer = Tokenizer::from_file(&side.tokenizer_path)
+                .map_err(|e| format!("cannot read {}: {}", side.tokenizer_path.display(), e))?;
+            let pad_id = side
+                .pad_token
+                .as_deref()
+                .and_then(|t| tokenizer.token_to_id(t))
+                .or_else(|| tokenizer.get_padding().map(|p| p.pad_id))
+                .unwrap_or(0);
+            tokenizer.with_padding(None);
+            tokenizer
+                .with_truncation(Some(TruncationParams {
+                    direction: TruncationDirection::Right,
+                    max_length: side.max_length,
+                    strategy: TruncationStrategy::LongestFirst,
+                    stride: 0,
+                }))
+                .map_err(|e| format!("tokenizer truncation: {}", e))?;
+            Some(TextInputs {
+                tokenizer,
+                ids,
+                mask: attention_input,
+                pad_id: i64::from(pad_id),
+                max_length: side.max_length,
+                pad_to_max: side.pad_to_max,
+                canonicalize: side.canonicalize,
+            })
+        }
+        None => None,
+    };
     let engine = VisionEngine {
         session: Mutex::new(session),
         package,
@@ -96,18 +159,27 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
         pixel_f16,
         mask_input,
         outputs,
+        text,
         provider: provider.to_string(),
     };
     let warm = image::RgbImage::from_pixel(64, 48, image::Rgb([128, 128, 128]));
-    engine
-        .infer(&warm, &VisionJob::default())
-        .map_err(|e| e.message)?;
+    let job = VisionJob {
+        candidate_labels: vec!["a cat".into(), "a dog".into()],
+        ..VisionJob::default()
+    };
+    engine.infer(&warm, &job).map_err(|e| e.message)?;
     Ok(engine)
 }
 
 impl VisionEngine {
     /// Runs the graph on processed pixels; returns each output as shape and f32 values.
-    fn run(&self, pixels: Vec<f32>, w: u32, h: u32) -> Result<Vec<Output>, ApiError> {
+    fn run(
+        &self,
+        pixels: Vec<f32>,
+        w: u32,
+        h: u32,
+        text: Option<TextBatch>,
+    ) -> Result<Vec<Output>, ApiError> {
         let err = |e: ort::Error| ApiError::server(format!("tensor: {}", e));
         let shape = [1usize, 3, h as usize, w as usize];
         let input: ort::value::DynTensor = if self.pixel_f16 {
@@ -127,6 +199,22 @@ impl VisionEngine {
                     .map_err(err)?
                     .upcast(),
             ));
+        }
+        if let (Some(inputs), Some((ids, mask, rows, len))) = (&self.text, text) {
+            feeds.push((
+                inputs.ids.clone(),
+                Tensor::from_array(([rows, len], ids))
+                    .map_err(err)?
+                    .upcast(),
+            ));
+            if let Some(name) = &inputs.mask {
+                feeds.push((
+                    name.clone(),
+                    Tensor::from_array(([rows, len], mask))
+                        .map_err(err)?
+                        .upcast(),
+                ));
+            }
         }
         let mut session = self
             .session
@@ -164,7 +252,11 @@ impl VisionEngine {
     fn infer(&self, img: &image::RgbImage, job: &VisionJob) -> Result<Value, ApiError> {
         let (width, height) = img.dimensions();
         let (pixels, w, h) = vision::preprocess(img, &self.package.preprocess);
-        let outputs = self.run(pixels, w, h)?;
+        let batch = match &self.text {
+            Some(inputs) => Some(self.encode_labels(inputs, job)?),
+            None => None,
+        };
+        let outputs = self.run(pixels, w, h, batch)?;
         let labels = &self.package.labels;
         let bad = |what: &str, shape: &[i64]| {
             ApiError::server(format!("unexpected {} shape {:?}", what, shape))
@@ -211,7 +303,60 @@ impl VisionEngine {
                 };
                 vision::depth_response(data, hh, ww, width, height)
             }
+            VisionTask::ZeroShot => {
+                let (shape, data) = &outputs[0];
+                let n = job.candidate_labels.len();
+                let row = data
+                    .get(..n)
+                    .ok_or_else(|| bad("logits_per_image", shape))?;
+                // SigLIP scores each label on its own (sigmoid), CLIP across labels (softmax).
+                let multi = self.text.as_ref().is_some_and(|t| t.pad_to_max);
+                Ok(vision::labels_response(&vision::classify(
+                    row,
+                    &job.candidate_labels,
+                    multi,
+                    Some(job.top_k.unwrap_or(n)),
+                )))
+            }
         }
+    }
+
+    /// The labels of a zero-shot request in their sentences, tokenized and padded.
+    fn encode_labels(&self, inputs: &TextInputs, job: &VisionJob) -> Result<TextBatch, ApiError> {
+        if job.candidate_labels.is_empty() {
+            return Err(ApiError::invalid(
+                "parameters.candidate_labels needs at least one label",
+            ));
+        }
+        let template = job
+            .hypothesis_template
+            .as_deref()
+            .unwrap_or(DEFAULT_TEMPLATE);
+        let sentences: Vec<String> = job
+            .candidate_labels
+            .iter()
+            .map(|l| {
+                let s = template.replace("{}", l);
+                if inputs.canonicalize {
+                    canonical(&s)
+                } else {
+                    s
+                }
+            })
+            .collect();
+        let encoded = inputs
+            .tokenizer
+            .encode_batch(sentences, true)
+            .map_err(|e| ApiError::server(format!("tokenizer: {}", e)))?;
+        let rows: Vec<Vec<i64>> = encoded
+            .iter()
+            .map(|e| e.get_ids().iter().map(|&i| i64::from(i)).collect())
+            .collect();
+        Ok(pad_batch(
+            &rows,
+            inputs.pad_id,
+            inputs.pad_to_max.then_some(inputs.max_length),
+        ))
     }
 
     pub fn describe(&self) -> String {
@@ -225,9 +370,57 @@ impl VisionEngine {
     }
 }
 
+/// SigLIP's text canonicalization: lower case, no ASCII punctuation, single spaces.
+fn canonical(text: &str) -> String {
+    let kept: String = text
+        .to_lowercase()
+        .chars()
+        .filter(|c| !c.is_ascii_punctuation())
+        .collect();
+    kept.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Pads token rows to the longest (or to `fixed`) with `pad`; the mask marks real tokens.
+fn pad_batch(rows: &[Vec<i64>], pad: i64, fixed: Option<usize>) -> TextBatch {
+    let len = fixed
+        .unwrap_or_else(|| rows.iter().map(Vec::len).max().unwrap_or(0))
+        .max(1);
+    let mut ids = Vec::with_capacity(rows.len() * len);
+    let mut mask = Vec::with_capacity(rows.len() * len);
+    for row in rows {
+        let real = row.len().min(len);
+        ids.extend_from_slice(&row[..real]);
+        ids.extend(std::iter::repeat_n(pad, len - real));
+        mask.extend(std::iter::repeat_n(1, real));
+        mask.extend(std::iter::repeat_n(0, len - real));
+    }
+    (ids, mask, rows.len(), len)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn siglip_sentences_are_canonical() {
+        assert_eq!(
+            canonical("This is a photo of  a T-shirt."),
+            "this is a photo of a tshirt"
+        );
+    }
+
+    #[test]
+    fn labels_pad_to_the_longest_or_a_fixed_length() {
+        let rows = vec![vec![1, 5, 2], vec![1, 7, 8, 9, 2]];
+        let (ids, mask, n, len) = pad_batch(&rows, 0, None);
+        assert_eq!((n, len), (2, 5));
+        assert_eq!(ids, vec![1, 5, 2, 0, 0, 1, 7, 8, 9, 2]);
+        assert_eq!(mask, vec![1, 1, 1, 0, 0, 1, 1, 1, 1, 1]);
+        let (ids, mask, _, len) = pad_batch(&rows, 9, Some(4));
+        assert_eq!(len, 4);
+        assert_eq!(ids, vec![1, 5, 2, 9, 1, 7, 8, 9]);
+        assert_eq!(mask, vec![1, 1, 1, 0, 1, 1, 1, 1]);
+    }
 
     #[test]
     fn outputs_by_head() {
@@ -245,5 +438,18 @@ mod tests {
             vec!["output"]
         );
         assert!(pick_outputs(&["a", "b"], VisionTask::Segment).is_err());
+        assert_eq!(
+            pick_outputs(
+                &[
+                    "logits_per_image",
+                    "logits_per_text",
+                    "text_embeds",
+                    "image_embeds"
+                ],
+                VisionTask::ZeroShot
+            )
+            .unwrap(),
+            vec!["logits_per_image"]
+        );
     }
 }

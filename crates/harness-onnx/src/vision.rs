@@ -22,6 +22,10 @@ pub struct VisionJob {
     pub image: Vec<u8>,
     pub top_k: Option<usize>,
     pub threshold: Option<f32>,
+    /// Zero-shot: the labels to score the image against (empty for the other tasks).
+    pub candidate_labels: Vec<String>,
+    /// Zero-shot: the sentence each label is put in (`{}` marks the label).
+    pub hypothesis_template: Option<String>,
 }
 
 /// The bytes of an image given as a data URL or as plain base64.
@@ -86,10 +90,25 @@ pub fn parse(body: &Value) -> Result<VisionJob, ApiError> {
                 as f32,
         ),
     };
+    let candidate_labels = match params.get("candidate_labels") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(v) => crate::hf_api::candidates_of(v)?,
+    };
+    let hypothesis_template = match params.get("hypothesis_template") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(t)) if t.contains("{}") => Some(t.clone()),
+        Some(_) => {
+            return Err(ApiError::invalid(
+                "hypothesis_template must be a string with {} where the label goes",
+            ))
+        }
+    };
     Ok(VisionJob {
         image: image_bytes(image)?,
         top_k,
         threshold,
+        candidate_labels,
+        hypothesis_template,
     })
 }
 

@@ -69,6 +69,12 @@ test('image tasks: requests and the results of each head', async () => {
   assert.ok(isImageTask('object-detection'));
   assert.ok(!isImageTask('fill-mask'));
   assert.equal(buildImageRequest('image-classification', ''), null);
+  assert.ok(isImageTask('zero-shot-image-classification'));
+  assert.equal(buildImageRequest('zero-shot-image-classification', 'data:image/png;base64,AA', 'cat'), null);
+  assert.deepEqual(buildImageRequest('zero-shot-image-classification', 'data:image/png;base64,AA', 'cat, , dog'), {
+    inputs: 'data:image/png;base64,AA',
+    parameters: { candidate_labels: ['cat', 'dog'] },
+  });
   assert.deepEqual(buildImageRequest('object-detection', 'data:image/png;base64,AA'), {
     inputs: 'data:image/png;base64,AA',
     parameters: { threshold: 0.5 },
