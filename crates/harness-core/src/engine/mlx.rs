@@ -750,10 +750,13 @@ mod tests {
     /// neither MLX nor the environment): abbreviations of Harness's flags and repeats exit.
     #[test]
     fn the_worker_refuses_abbreviations_and_repeats() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
         let dir = tempfile::tempdir().unwrap();
         let script = dir.path().join("mlx_worker.py");
         std::fs::write(&script, WORKER).unwrap();
-        let python = if cfg!(windows) { "python" } else { "python3" };
         let check = |args: &[&str]| -> Option<(bool, String)> {
             let code = format!(
                 "import sys; sys.path.insert(0, {:?}); import mlx_worker as w; print(w._split_args({:?}))",
@@ -769,10 +772,7 @@ mod tests {
                 + &String::from_utf8_lossy(&out.stderr);
             Some((out.status.success(), text))
         };
-        let Some((ok, text)) = check(&["--model", "/m", "--port", "1", "--max-tokens", "9"]) else {
-            eprintln!("no {python}, skipping");
-            return;
-        };
+        let (ok, text) = check(&["--model", "/m", "--port", "1", "--max-tokens", "9"]).unwrap();
         assert!(ok, "{text}");
         assert!(text.contains("'--host', '127.0.0.1'"), "{text}");
         for bad in [
@@ -792,12 +792,28 @@ mod tests {
         }
     }
 
+    /// The system's Python 3 (`python3`, or `python` on Windows), `None` when there is none. On
+    /// Windows without Python, `python` is the Store's stand-in: it runs and fails ("Python
+    /// bulunamadı"), so the version it prints decides, not whether it starts.
+    fn system_python() -> Option<&'static str> {
+        static FOUND: std::sync::OnceLock<Option<&'static str>> = std::sync::OnceLock::new();
+        *FOUND.get_or_init(|| {
+            let python = if cfg!(windows) { "python" } else { "python3" };
+            let out = std::process::Command::new(python)
+                .args(["-I", "-c", "import sys; print(sys.version_info[0])"])
+                .output()
+                .ok()?;
+            (out.status.success() && String::from_utf8_lossy(&out.stdout).trim() == "3")
+                .then_some(python)
+        })
+    }
+
     /// Runs `code` with a system Python (`None` when there is none) next to the vision worker
     /// (it needs neither MLX nor the environment for its checks): `w` is the worker module.
     fn vision_worker_py(code: &str) -> Option<(bool, String)> {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("mlx_vlm_worker.py"), VLM_WORKER).unwrap();
-        let python = if cfg!(windows) { "python" } else { "python3" };
+        let python = system_python()?;
         let code = format!(
             "import sys, json, asyncio; sys.path.insert(0, {:?}); import mlx_vlm_worker as w\n{code}",
             dir.path().to_string_lossy()
