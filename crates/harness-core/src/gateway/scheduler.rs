@@ -176,7 +176,7 @@ impl SchedError {
         }
         match self {
             SchedError::CrispAsrSpeechOnly => "CrispASR TTS only accepts POST /v1/audio/speech".into(),
-            SchedError::AudioCppSpeechOnly => "audio.cpp only accepts POST /v1/audio/speech".into(),
+            SchedError::AudioCppSpeechOnly => "audio.cpp only accepts POST /v1/audio/speech or POST /v1/audio/process".into(),
             SchedError::CrispAsrTranscriptionOnly => {
                 "CrispASR only accepts /v1/audio/transcriptions and /v1/audio/translations".into()
             }
@@ -896,6 +896,14 @@ impl Scheduler {
         self.acquire_for(def, None, None, Route::Speech).await
     }
 
+    /// Only the audio processing handler may opt in after rebuilding the request.
+    pub async fn acquire_audio_process(
+        self: &Arc<Self>,
+        def: &ModelDefinition,
+    ) -> Result<Lease, SchedError> {
+        self.acquire_for(def, None, None, Route::AudioProcess).await
+    }
+
     /// Only the transcription handler may opt in, after validating and rebuilding its form.
     pub async fn acquire_asr(self: &Arc<Self>, def: &ModelDefinition) -> Result<Lease, SchedError> {
         if is_crispasr(def) {
@@ -957,7 +965,7 @@ impl Scheduler {
             return Err(SchedError::CrispAsrTranscriptionOnly);
         }
         if is_audio_cpp(def) {
-            if route != Route::Speech {
+            if !matches!(route, Route::Speech | Route::AudioProcess) {
                 return Err(SchedError::AudioCppSpeechOnly);
             }
             crate::engine::audio_cpp::require_enabled().map_err(|message| {
@@ -2649,6 +2657,7 @@ impl Scheduler {
 enum Route {
     General,
     Speech,
+    AudioProcess,
     Asr,
 }
 

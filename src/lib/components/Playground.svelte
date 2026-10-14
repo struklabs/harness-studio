@@ -63,6 +63,7 @@
   import ImagePanel from './playground/ImagePanel.svelte';
   import { imageSession } from './playground/image.svelte';
   import TtsPanel from './playground/TtsPanel.svelte';
+  import AudioProcessPanel from '#lib/components/playground/AudioProcessPanel.svelte';
   import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import { domain, samePath } from '#lib/stores/domain.svelte.js';
   import { DEFAULT_PRESET_ID, presetFromRequest } from './presets/request';
@@ -2920,6 +2921,8 @@
           <TranscribePanel />
           <hr class="mx-auto w-full max-w-[860px] border-border" />
           <TtsPanel />
+          <hr class="mx-auto w-full max-w-[860px] border-border" />
+          <AudioProcessPanel />
         {:else if pgTab === 'image'}
           <ImagePanel />
         {:else if pgTab === 'pipeline'}

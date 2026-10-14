@@ -94,7 +94,7 @@ const tr = {
   'asr.file_change': 'Dosyayı Değiştir',
   'asr.file_clear': 'Dosyayı Kaldır',
   'asr.file_drop': 'Bir ses dosyası seçin, buraya sürükleyin ya da kaydedin',
-  'asr.rec_start': 'Kaydet',
+  'asr.rec_start': 'Ses Kaydet',
   'asr.rec_stop': 'Durdur',
   'asr.rec_elapsed': 'Kayıt süresi',
   'asr.rec_level': 'Ses seviyesi',

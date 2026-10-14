@@ -91,15 +91,14 @@ pub fn detect_kind(meta: Option<&GgufMetadata>) -> ModelKind {
         return ModelKind::Unknown;
     };
     if m.architecture.as_deref() == Some("audiocpp") {
-        return if m
+        return match m
             .audiocpp_family
             .as_deref()
             .and_then(crate::engine::audio_cpp::task)
-            .is_some()
         {
-            ModelKind::Tts
-        } else {
-            ModelKind::Unknown
+            Some("tts") => ModelKind::Tts,
+            Some("sep" | "s2s") => ModelKind::Pipeline,
+            _ => ModelKind::Unknown,
         };
     }
     if m.architecture

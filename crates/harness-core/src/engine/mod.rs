@@ -16,6 +16,7 @@
 //! before the refactor.
 
 pub mod audio_cpp;
+pub mod audio_process;
 pub use audio_cpp::{AudioCppEngine, AUDIO_CPP};
 pub mod crispasr;
 pub mod crispasr_helpers;

@@ -751,9 +751,9 @@ fn audio_cpp_variants(
                 .then_with(|| a.filename.cmp(&b.filename))
         });
         variants.push(HfModelVariant {
-            not_runnable: crate::engine::audio_cpp::family_from_package_path(model)
-                .is_none()
-                .then_some(crate::hub_tasks::NotRunnable::AudioCppUnsupported),
+            not_runnable: (crate::engine::audio_cpp::family_from_package_path(model).is_none()
+                && !(repo == "audio-cpp/SAM-Audio-GGUF" && model.starts_with("sam-audio-")))
+            .then_some(crate::hub_tasks::NotRunnable::AudioCppUnsupported),
             name: model.trim_end_matches(".gguf").into(),
             quantization: crate::gguf::extract_quant_from_filename(model),
             total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
@@ -6927,12 +6927,17 @@ mod audio_cpp_tests {
             "Qwen3-TTS-12Hz-1.7B-Base-GGUF",
             "Chatterbox-Turbo-GGUF",
             "VibeVoice-1.5B-GGUF",
+            "AudioSR-GGUF",
+            "BS-RoFormer-ep368-GGUF",
+            "Mel-Band-RoFormer-GGUF",
+            "SAM-Audio-GGUF",
+            "Sidon-GGUF",
+            "Apollo-GGUF",
+            "UniverSR-GGUF",
         ];
         let unsupported = [
             "ACE-Step1.5-GGUF",
             "AST-AudioSet-GGUF",
-            "AudioSR-GGUF",
-            "BS-RoFormer-ep368-GGUF",
             "PersonaPlex-GGUF",
             "Phonon-2-GGUF",
             "VibeVoice-ASR-GGUF",

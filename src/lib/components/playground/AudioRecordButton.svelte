@@ -4,10 +4,10 @@
   import { Button } from '#lib/components/ui/button/index.js';
   import { t } from '#lib/i18n.svelte.js';
   import { localizeError } from '#lib/network.js';
-  import { RecordError } from './recorder';
+  import { RecordError, startRecording } from '#lib/components/playground/recorder.js';
   import { holdReleaseWhile } from '#lib/windowActivity.js';
   import { createRecordingSession, recordingClock, type RecordingState } from './recordingSession';
-  let { onFile, contextKey, blocked = false }: { onFile: (file: File) => void; contextKey: string; blocked?: boolean } = $props();
+  let { onFile, contextKey, blocked = false, sampleRate = 16000 }: { onFile: (file: File) => void; contextKey: string; blocked?: boolean; sampleRate?: number } = $props();
   let recState = $state<RecordingState>('idle');
   let seconds = $state(0);
   let error = $state('');
@@ -17,7 +17,7 @@
     level: () => {},
     file: file => onFile(file),
     error: e => error = e instanceof RecordError && e.code !== 'failed' ? t(`asr.rec_${e.code}`) : t('asr.rec_failed', { error: localizeError(e) }),
-  });
+  }, (level, limit) => startRecording(level, limit, sampleRate));
   $effect(() => { void contextKey; untrack(() => { mic.cancel(); error = ''; }); });
   $effect(() => { if (blocked) untrack(mic.cancel); });
   $effect(() => holdReleaseWhile('chat-audio', () => recState !== 'idle'));

@@ -142,7 +142,7 @@ pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
                 continue;
             }
             let Some(meta) = audio_cpp::metadata(path) else { continue };
-            let Some(family) = meta.audiocpp_family.filter(|f| audio_cpp::task(f).is_some()) else { continue };
+            let Some(family) = meta.audiocpp_family.filter(|f| audio_cpp::task(f) == Some("tts")) else { continue };
             let voices = audio_cpp::voices(path).into_iter().enumerate().map(|(sid, id)| harness_core::tts::Voice {
                 id, sid: sid as u32, language: String::new(), gender: String::new(),
             }).collect();
@@ -187,4 +187,47 @@ pub(crate) async fn install_tts_model(id: String) -> Result<harness_core::tts::T
 #[tauri::command]
 pub(crate) fn get_tts_install_progress() -> Option<RuntimeDownloadProgress> {
     harness_core::tts::catalog::install_progress()
+}
+
+#[derive(serde::Serialize)]
+pub(crate) struct AudioProcessModel {
+    name: String,
+    family: String,
+    options: Vec<harness_core::engine::audio_process::OptionSpec>,
+}
+
+#[derive(serde::Serialize)]
+pub(crate) struct AudioProcessOverview {
+    models: Vec<AudioProcessModel>,
+    runtime_installed: bool,
+}
+
+#[tauri::command]
+pub(crate) async fn get_audio_process_overview() -> Result<AudioProcessOverview, String> {
+    blocking(|| -> Result<AudioProcessOverview, String> {
+        use harness_core::engine::{audio_cpp, audio_process, AUDIO_CPP};
+        let library = harness_core::models::ModelManager.scan_models();
+        harness_core::library_definitions::ensure(&library, &[harness_core::domain::ModelKind::Pipeline])?;
+        let models = harness_core::domain::store::Domain::global().definitions()?.into_iter().filter_map(|def| {
+            let family = audio_cpp::metadata(def.base.local_path()?)?.audiocpp_family?;
+            audio_cpp::processing_task(&family)?;
+            Some(AudioProcessModel { name: def.alias, options: audio_process::options(&family), family })
+        }).collect();
+        Ok(AudioProcessOverview { models, runtime_installed: harness_core::runtimes::resolve_family_binary_in(&harness_core::runtimes::RuntimeRegistry::global(), AUDIO_CPP, None).is_ok() })
+    }).await?
+}
+
+/// Uses the same native save dialog and filename sanitation as generated images.
+#[tauri::command]
+pub(crate) async fn save_processed_audio(app: tauri::AppHandle, data: String, file_name: Option<String>) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let bytes = harness_core::engine::audio_process::decode_output(&data)
+        .map_err(|_| String::from(harness_core::error_key::err("audio_process.invalid_audio")))?;
+    let base = file_name.as_deref().and_then(paths::sanitize_file_name).unwrap_or_else(|| "audio".into());
+    let default_name = format!("{}.wav", base.trim_end_matches(".wav"));
+    let picked = blocking(move || app.dialog().file().set_file_name(&default_name).add_filter("WAV", &["wav"]).blocking_save_file()).await?;
+    let Some(path) = picked.and_then(|p| p.into_path().ok()) else { return Ok(None); };
+    let out = path.clone();
+    blocking(move || std::fs::write(&out, bytes)).await?.map_err(|e| String::from(harness_core::error_key::err("fs.write_failed").with("path", path.display()).with("error", e)))?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }

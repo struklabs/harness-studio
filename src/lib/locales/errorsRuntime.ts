@@ -3,7 +3,8 @@
 const tr = {
   'audio_cpp.loopback_only': 'audio.cpp yalnızca 127.0.0.1 adresinde çalışabilir.',
   'audio_cpp.model_unsupported': 'Bu dosya bir audio.cpp GGUF modeli değil.',
-  'audio_cpp.family_unsupported': 'audio.cpp {family} ailesi henüz desteklenmiyor. Yalnızca metinden konuşma modelleri çalıştırılabilir.',
+  'audio_cpp.family_unsupported': 'audio.cpp {family} ailesi henüz desteklenmiyor.',
+  'audio_cpp.audiosr_needs_gpu': 'AudioSR, audio.cpp’nin CPU arka ucunda çalışmıyor. audio.cpp ayarlarında Vulkan, CUDA veya Metal arka ucunu seçin.',
   'audio_cpp.llama_rejected': 'audio.cpp GGUF modelleri llama.cpp ile çalıştırılamaz. audio.cpp motorunu kullanın.',
   'stt.archive_not_a_model': 'İndirilen paket ({id}) bir ses tanıma modeli içermiyor.',
   'stt.binary_not_found': 'sherpa-onnx-vad-with-offline-asr bulunamadı: {path}. Model Motorları bölümünden sherpa-onnx motorunu kurun.',
@@ -158,7 +159,8 @@ const tr = {
 const en: Record<keyof typeof tr, string> = {
   'audio_cpp.loopback_only': 'audio.cpp can only run on 127.0.0.1.',
   'audio_cpp.model_unsupported': 'This file is not an audio.cpp GGUF model.',
-  'audio_cpp.family_unsupported': 'audio.cpp family {family} is not supported yet. Only text-to-speech models can run.',
+  'audio_cpp.family_unsupported': 'audio.cpp family {family} is not supported yet.',
+  'audio_cpp.audiosr_needs_gpu': 'AudioSR does not run on the audio.cpp CPU backend. Choose the Vulkan, CUDA, or Metal backend in the audio.cpp settings.',
   'audio_cpp.llama_rejected': 'audio.cpp GGUF models cannot run on llama.cpp. Use the audio.cpp engine.',
   'stt.archive_not_a_model': 'The downloaded package ({id}) holds no speech recognition model.',
   'stt.binary_not_found': 'sherpa-onnx-vad-with-offline-asr was not found: {path}. Install the sherpa-onnx engine under Settings > Runtime.',

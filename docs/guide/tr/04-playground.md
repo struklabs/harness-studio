@@ -105,7 +105,7 @@ Belgenin yanındaki **Kullanım** seçimi belgenin nasıl kullanılacağını be
 1. **Model Hub**'da `whisper` aratın ve bir Whisper ggml modeli indirin. Klasörlerinizde zaten bulunan bir `ggml-*.bin` dosyası **Model** listesinde kendiliğinden görünür. Türkçe veya başka diller için yalnızca İngilizce bilen bir model (`.en` modeli) seçmeyin.
 2. whisper.cpp motorunu kurun: Kütüphane kartında, Model Hub'da ya da bu sekmedeki hata mesajında görünen **whisper.cpp Kur** düğmesine basın; **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasındaki **Diğer Model Motorları** listesinden de kurabilirsiniz. macOS'ta hazır bir whisper sunucu paketi yoktur; kendi derlediğiniz bir `whisper-server`'ın klasörünü ekleyebilirsiniz.
 3. **Playground > Konuşma** sekmesini açın.
-4. Bir **Model** seçin. **Dosya Seç** ile ses ekleyin ya da **Kaydet** ile mikrofon kaydını başlatıp **Durdur** ile bitirin. İşletim sistemi mikrofon izni isteyebilir.
+4. Bir **Model** seçin. **Dosya Seç** ile ses ekleyin ya da **Ses Kaydet** ile mikrofon kaydını başlatıp **Durdur** ile bitirin. İşletim sistemi mikrofon izni isteyebilir.
 5. **Dil** alanına `tr` gibi bir dil kodu yazabilir veya otomatik bırakabilirsiniz. **İş** için **Yazıya dök** ya da **İngilizceye çevir** seçin, sonra **Yazıya Dök**'e basın.
 6. Sonuca bakın. **Sohbete Ekle** metni sohbet taslağına koyar; göndermek için yine **Gönder**'e basmanız gerekir.
 
@@ -118,6 +118,18 @@ Model Hub’dan veya kütüphane klasörlerinden eklenen ONNX CTC modelleri (wav
 ### Metinden Konuşmaya
 
 **Konuşma** sekmesindeki **Metinden Konuşmaya** bölümü metni sese çevirir. sherpa-onnx motorunu kurmak için **Motoru Kur**'a basın (yaklaşık 20 MB, doğrulanır), ardından **Önerilen Ses Modelleri** altından bir ses indirin: Kokoro (çok dilli) ve Türkçe için önerilen Piper sesleri. Bir **Model**, bir **Ses** ve bir **Hız** seçin, **Okunacak metin**'i yazın ve **Seslendir**'e basın. Ses uygulama içinde çalar ve indirilebilir. Bir ses modeli kurulduktan sonra, sohbet yanıtındaki **Sesli Oku** düğmesi yanıtı o sesle okur; ses modeli yoksa uygulama sizi bu bölüme yönlendirir.
+
+### Sesi İşle (Deneysel)
+
+**Sesi İşle** bölümü bir kayıttaki sesleri ayırır ya da kaydın kalitesini iyileştirir. Deneysel audio.cpp motoruyla çalışır ve varsayılan olarak kapalıdır.
+
+1. **Motoru Etkinleştir**'e basın. **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında **audio.cpp Kur** ile motoru kurun, **Deneysel audio.cpp Model Motoru** anahtarını açın ve uyarıyı onaylayın.
+2. **Model Hub**'da `audio-cpp/audio.cpp-gguf` deposunu açın ve **Deneysel** etiketli bir model indirin. Örneğin vokali ayırmak için BS-RoFormer, kaydı iyileştirmek için Apollo seçebilirsiniz.
+3. Bir **Model** seçin. **Dosya Seç** ile bir WAV dosyası ekleyin ya da **Ses Kaydet** ile mikrofondan kaydedin.
+4. Model ek ayar istiyorsa doldurun. Örneğin SAM Audio, ayırmak istediğiniz sesi bir cümleyle tarif etmenizi ister. Ardından **Sesi İşle**'ye basın.
+5. Her çıktı kanalını (örneğin **Vokal** ve **Enstrümantal**) uygulama içinde dinleyin ve **Kaydet** ile bilgisayarınıza kaydedin.
+
+Yalnızca WAV kabul edilir: en fazla 32 MiB, 10 dakika ve iki kanal. Bazı modeller 44,1 kHz ister; panel bunu belirtir ve mikrofon kaydını o hızda alır. AudioSR yalnızca GPU arka ucunda çalışır.
 
 ## Görsel Üretme
 

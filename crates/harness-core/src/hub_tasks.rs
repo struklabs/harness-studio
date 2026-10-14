@@ -232,11 +232,16 @@ fn gguf_file_names(files: &[String]) -> Vec<String> {
 pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
     if crate::hub_compat::is_audio_cpp_repo(item) {
         let tts = crate::hub_compat::audio_cpp_repo_tts(item);
+        let process = crate::hub_compat::audio_cpp_repo_processing(item);
         return RepoAnalysis {
-            pipeline_tag: tts.then(|| "text-to-speech".into()),
+            pipeline_tag: if tts {
+                Some("text-to-speech".into())
+            } else {
+                process.then(|| "audio-to-audio".into())
+            },
             inferred_task: None,
             source: None,
-            not_runnable: (!tts).then_some(NotRunnable::AudioCppUnsupported),
+            not_runnable: (!tts && !process).then_some(NotRunnable::AudioCppUnsupported),
             diffusion_adapter: false,
             adapter_base: None,
         };
