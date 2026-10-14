@@ -18,9 +18,11 @@ Open the DMG and drag Harness Studio to Applications. The app is signed with a D
 ### Linux (preview)
 | Package | For |
 | --- | --- |
+| [Harness.Studio_{VERSION}_Linux_x86_64.AppImage]({BASE}/Harness.Studio_{VERSION}_Linux_x86_64.AppImage) | Most distributions, x86_64; updates itself |
 | [Harness.Studio_{VERSION}_Linux_x86_64.deb]({BASE}/Harness.Studio_{VERSION}_Linux_x86_64.deb) | Ubuntu / Debian, x86_64 |
 
-Install with `sudo apt install ./Harness.Studio_{VERSION}_Linux_x86_64.deb`.
+AppImage: make it executable (`chmod +x Harness.Studio_{VERSION}_Linux_x86_64.AppImage`) and run it. It does not need `libfuse2`; where FUSE is not available (some containers), run it with `--appimage-extract-and-run`.
+.deb: install with `sudo apt install ./Harness.Studio_{VERSION}_Linux_x86_64.deb`.
 
 ---
 
