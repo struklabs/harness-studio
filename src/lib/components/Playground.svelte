@@ -1899,7 +1899,7 @@
     const s = app.servers.find((x) => x.id === tg.serverId);
     if (!s?.active || s.status !== 'Running') return null;
     let headers: Record<string, string> = {};
-    if (s.active.api_key_set) {
+    if (s.active.api_key_required ?? s.active.api_key_set) {
       try {
         const key = await invoke<string | null>('get_server_api_key', { serverId: s.id });
         if (key) headers = { Authorization: `Bearer ${key}` };

@@ -372,7 +372,7 @@ class AppState {
   /** Fetches the selected server's key when the server (re)starts or its selection changes. */
   private async syncApiKey() {
     const active = this.activeServer;
-    if (!active || !active.api_key_set) {
+    if (!active || !(active.api_key_required ?? active.api_key_set)) {
       this.apiKeySig = '';
       this.apiKey = null;
       return;
@@ -380,11 +380,14 @@ class AppState {
     const sig = `${this.selectedServerId}|${active.port}|${active.model_path}|${JSON.stringify(this.serverStatus)}`;
     if (sig === this.apiKeySig && this.apiKey) return;
     this.apiKeySig = sig;
+    let key: string | null = null;
     try {
-      this.apiKey = (await invoke<string | null>('get_server_api_key', this.serverArgs())) ?? null;
+      key = (await invoke<string | null>('get_server_api_key', this.serverArgs())) ?? null;
     } catch {
-      this.apiKey = null;
+      key = null;
     }
+    // Only the newest fetch lands (the selection may have changed meanwhile).
+    if (this.apiKeySig === sig) this.apiKey = key;
   }
 
   /**
@@ -435,6 +438,8 @@ class AppState {
     this.selectedServerId = id;
     this.apiKey = null;
     this.apiKeySig = '';
+    // The new server's key now, not at the next server-list push.
+    void this.syncApiKey();
     this.syncTelemetryWatch();
     try {
       localStorage.setItem(SELECTED_SERVER_KEY, id);

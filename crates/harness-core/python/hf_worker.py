@@ -19,6 +19,8 @@ Endpoints
 
 Errors use the OpenAI shape {"error": {"message", "type", "code"}}. Every route but /health needs
 "Authorization: Bearer <HARNESS_WORKER_API_KEY>"; the worker refuses to start without that key.
+Browsers: only the origins in HARNESS_WORKER_ORIGINS (the Harness window and the user's CORS
+origins) get CORS headers and a preflight answer; any other Origin is refused with 403.
 """
 
 from __future__ import annotations
@@ -871,7 +873,47 @@ def build_app(model: Model):
             return
         await app(scope, receive, send)
 
-    return guarded
+    # Browsers: the preflight of an allowed origin is answered here (it carries no key), its
+    # responses get CORS headers, and any other Origin is refused before the key is checked.
+    origins = frozenset(o for o in os.environ.get("HARNESS_WORKER_ORIGINS", "").split(",") if o)
+    preflight = [
+        (b"access-control-allow-methods", b"GET, POST"),
+        (b"access-control-allow-headers", b"authorization, content-type"),
+        (b"access-control-max-age", b"600"),
+    ]
+
+    async def cors(scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            await guarded(scope, receive, send)
+            return
+        origin = dict(scope.get("headers") or []).get(b"origin")
+        if origin is None:
+            await guarded(scope, receive, send)
+            return
+        if origin.decode("latin-1") not in origins:
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
+            else:
+                await error(403, "Origin not allowed.", "permission_error", "origin_not_allowed")(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            await guarded(scope, receive, send)
+            return
+        allow = [(b"access-control-allow-origin", origin), (b"vary", b"Origin")]
+        if scope["method"] == "OPTIONS":
+            await send({"type": "http.response.start", "status": 204, "headers": allow + preflight})
+            await send({"type": "http.response.body", "body": b""})
+            return
+
+        async def with_cors(message):
+            if message["type"] == "http.response.start":
+                kept = [(k, v) for k, v in message.get("headers") or [] if not k.lower().startswith(b"access-control-") and k.lower() != b"vary"]
+                message = dict(message, headers=kept + allow)
+            await send(message)
+
+        await guarded(scope, receive, with_cors)
+
+    return cors
 
 
 def main(argv=None):

@@ -10,7 +10,10 @@ routes) and loads whatever a request names. This worker puts a narrow door in fr
   /health needs "Authorization: Bearer <key>" (constant-time comparison of bytes). The key is
   removed from the environment once read and never logged.
 * Only GET /health, GET /v1/models and POST /v1/chat/completions are served; everything else
-  (management, unload, image generation, audio, embeddings, websockets, CORS preflight) is 404.
+  (management, unload, image generation, audio, embeddings, websockets) is 404.
+* Browsers: only the origins in HARNESS_WORKER_ORIGINS (the Harness window and the user's CORS
+  origins) get CORS headers; their preflight is answered here (it carries no key). A request
+  with any other Origin is refused (403) before anything else, so no web page can drive it.
   /health says only {"status": "ok"} (mlx-vlm's own lists the model path).
 * The model is the folder given here, loaded at start: a request's "model" or adapter never
   loads another one.
@@ -42,6 +45,7 @@ for _var in (
     os.environ.pop(_var, None)
 
 KEY = os.environ.pop("HARNESS_WORKER_API_KEY", None) or None
+ORIGINS = frozenset(o for o in os.environ.pop("HARNESS_WORKER_ORIGINS", "").split(",") if o)
 HOST = "127.0.0.1"
 ROUTES = {("GET", "/health"), ("GET", "/v1/models"), ("POST", "/v1/chat/completions")}
 # Request fields that would load something other than the served folder.
@@ -187,6 +191,47 @@ def error(message, kind, code):
     return {"error": {"message": message, "type": kind, "code": code}}
 
 
+PREFLIGHT = [(b"access-control-allow-methods", b"GET, POST"),
+             (b"access-control-allow-headers", b"authorization, content-type"),
+             (b"access-control-max-age", b"600")]
+
+
+def cors(inner):
+    """Browser access for ORIGINS only: their preflight is answered here, their responses get
+    CORS headers (any the inner app sets are dropped), any other Origin is refused with 403. A
+    request without Origin (not a browser) passes unchanged."""
+
+    async def app(scope, receive, send):
+        if scope["type"] not in ("http", "websocket"):
+            return await inner(scope, receive, send)
+        origin = dict(scope.get("headers") or []).get(b"origin")
+        if origin is None:
+            return await inner(scope, receive, send)
+        if origin.decode("latin-1") not in ORIGINS:
+            if scope["type"] == "websocket":
+                return await send({"type": "websocket.close", "code": 1008})
+            return await respond(send, 403, error(
+                "Origin not allowed.", "permission_error", "origin_not_allowed"))
+        if scope["type"] == "websocket":
+            return await inner(scope, receive, send)
+        allow = [(b"access-control-allow-origin", origin), (b"vary", b"Origin")]
+        if scope["method"] == "OPTIONS":
+            await send({"type": "http.response.start", "status": 204,
+                        "headers": allow + PREFLIGHT})
+            return await send({"type": "http.response.body", "body": b""})
+
+        async def with_cors(message):
+            if message["type"] == "http.response.start":
+                kept = [(k, v) for k, v in message.get("headers") or []
+                        if not k.lower().startswith(b"access-control-") and k.lower() != b"vary"]
+                message = dict(message, headers=kept + allow)
+            await send(message)
+
+        await inner(scope, receive, with_cors)
+
+    return app
+
+
 def guard(inner, alias):
     expected = f"Bearer {KEY}".encode()
 
@@ -285,7 +330,7 @@ def main(argv=None):
 
     generation.load = load_no_remote_code
 
-    uvicorn.run(guard(app_module.app, args.alias), host=HOST, port=args.port,
+    uvicorn.run(cors(guard(app_module.app, args.alias)), host=HOST, port=args.port,
                 log_level="info", access_log=True)
 
 

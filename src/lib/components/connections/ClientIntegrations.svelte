@@ -525,7 +525,7 @@ ${t('agent.applied_models', {
     <KeyRound class={cn('mt-0.5 size-3.5 shrink-0', app.apiKey ? 'text-warning' : 'text-muted-foreground')} />
     <p class="min-w-0">
       {#if app.apiKey}
-        {t('conn.key_set_note')}
+        {t('conn.key_set_note')}{#if !app.apiKeySet}{' '}{t('conn.key_run_note')}{/if}
       {:else}
         {t('conn.key_none_note', { placeholder: PLACEHOLDER_KEY })}
       {/if}

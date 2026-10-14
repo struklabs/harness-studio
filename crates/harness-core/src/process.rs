@@ -436,6 +436,10 @@ pub struct ActiveServerInfo {
     #[cfg_attr(feature = "openapi", schema(ignore))]
     pub api_key: Option<String>,
     pub api_key_set: bool,
+    /// Requests need a key: the user's (`api_key_set`) or one made for this run (a Python
+    /// worker always has one). The frontend fetches it with `get_server_api_key`.
+    #[serde(default)]
+    pub api_key_required: bool,
     #[cfg_attr(feature = "openapi", schema(value_type = String))]
     pub model_path: PathBuf,
     pub router_mode: bool,
@@ -1448,6 +1452,8 @@ impl ProcessManager {
                 .clone()
                 .or_else(|| config.api_key.clone().filter(|k| !k.is_empty())),
             api_key_set: config.api_key.as_deref().is_some_and(|k| !k.is_empty()),
+            api_key_required: worker_key.is_some()
+                || config.api_key.as_deref().is_some_and(|k| !k.is_empty()),
             model_path: model_target.clone(),
             router_mode: config.router_mode,
             exposure_acknowledged: crate::network::check_launch(&config)
@@ -1534,6 +1540,11 @@ impl ProcessManager {
             for (var, value) in env {
                 cmd.env(var, value);
             }
+            // The Harness window (and the user's CORS origins) may call it from the browser.
+            cmd.env(
+                crate::engine::python_hf::ORIGINS_ENV,
+                crate::network::worker_origins(config.cors_origins.as_deref()),
+            );
         }
         cmd.args(&args)
             .current_dir(cwd)
@@ -3027,6 +3038,7 @@ mod tests {
             port: 8080,
             api_key: Some("secret123".to_string()),
             api_key_set: true,
+            api_key_required: true,
             model_path: PathBuf::from("m.gguf"),
             router_mode: false,
             exposure_acknowledged: false,
@@ -3349,6 +3361,7 @@ mod tests {
             port: 1,
             api_key: None,
             api_key_set: false,
+            api_key_required: false,
             model_path: PathBuf::from("model.gguf"),
             router_mode: false,
             exposure_acknowledged: false,
