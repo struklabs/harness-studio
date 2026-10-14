@@ -67,6 +67,53 @@ impl Stored {
     }
 }
 
+/// Reads a `tokenizer.json`, mending what the tokenizers crate cannot read: transformers.js
+/// Marian exports carry a `Precompiled` normalizer without its charsmap (`null`). The charsmap
+/// is SentencePiece's `nmt_nfkc` table, rebuilt here from its rules: NFKC, the whitespace
+/// controls (tab, line feed, carriage return, vertical tab, form feed) as spaces, the other C0
+/// controls, DEL and the zero-width characters removed.
+pub fn load_tokenizer(path: &Path) -> Result<Tokenizer, String> {
+    let bytes =
+        std::fs::read(path).map_err(|e| format!("cannot read {}: {}", path.display(), e))?;
+    let mut json: serde_json::Value = serde_json::from_slice(&bytes)
+        .map_err(|e| format!("cannot read {}: {}", path.display(), e))?;
+    if let Some(normalizer) = json.get_mut("normalizer") {
+        mend_empty_precompiled(normalizer);
+    }
+    let bytes = serde_json::to_vec(&json).map_err(|e| e.to_string())?;
+    Tokenizer::from_bytes(bytes).map_err(|e| format!("cannot read {}: {}", path.display(), e))
+}
+
+/// SentencePiece's `nmt_nfkc` as tokenizers normalizers.
+fn nmt_nfkc() -> serde_json::Value {
+    serde_json::json!({"type": "Sequence", "normalizers": [
+        {"type": "NFKC"},
+        {"type": "Replace", "pattern": {"Regex": "[\\t\\n\\r\\x{0B}\\x{0C}]"}, "content": " "},
+        {"type": "Replace",
+         "pattern": {"Regex": "[\\x{00}-\\x{08}\\x{0E}-\\x{1F}\\x{7F}\\x{200B}-\\x{200D}\\x{FEFF}]"},
+         "content": ""}
+    ]})
+}
+
+/// A `Precompiled` normalizer with a `null` charsmap becomes [`nmt_nfkc`], at any depth of
+/// `Sequence`s.
+fn mend_empty_precompiled(normalizer: &mut serde_json::Value) {
+    let empty = normalizer.get("type").and_then(|t| t.as_str()) == Some("Precompiled")
+        && normalizer
+            .get("precompiled_charsmap")
+            .is_none_or(|c| c.is_null());
+    if empty {
+        *normalizer = nmt_nfkc();
+    } else if let Some(list) = normalizer
+        .get_mut("normalizers")
+        .and_then(|l| l.as_array_mut())
+    {
+        for n in list.iter_mut() {
+            mend_empty_precompiled(n);
+        }
+    }
+}
+
 /// Loads a decoder graph and its tokenizer.
 pub fn load(
     opts: &LoadOptions,
@@ -75,8 +122,7 @@ pub fn load(
     gen: GenConfig,
 ) -> Result<Decoder, String> {
     let (session, _) = build_session(decoder_path, opts.provider, opts.threads)?;
-    let tokenizer = Tokenizer::from_file(tokenizer_path)
-        .map_err(|e| format!("cannot read {}: {}", tokenizer_path.display(), e))?;
+    let tokenizer = load_tokenizer(tokenizer_path)?;
     let mut ids = None;
     let mut encoder_states = None;
     let mut states_f16 = false;
@@ -344,4 +390,48 @@ fn last_row<'a, T>(shape: &[i64], data: &'a [T]) -> Result<&'a [T], ApiError> {
         )));
     }
     Ok(&data[data.len() - vocab..])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn an_empty_precompiled_normalizer_becomes_nmt_nfkc() {
+        let mut n = json!({"type": "Precompiled", "precompiled_charsmap": null});
+        mend_empty_precompiled(&mut n);
+        assert_eq!(n, nmt_nfkc());
+        // Nested sequences are mended too; a real charsmap stays.
+        let mut n = json!({"type": "Sequence", "normalizers": [
+            {"type": "Sequence", "normalizers": [{"type": "Precompiled", "precompiled_charsmap": null}]},
+            {"type": "Precompiled", "precompiled_charsmap": "AAAA"}]});
+        mend_empty_precompiled(&mut n);
+        assert_eq!(n["normalizers"][0]["normalizers"][0], nmt_nfkc());
+        assert_eq!(n["normalizers"][1]["type"], "Precompiled");
+    }
+
+    #[test]
+    fn a_marian_style_tokenizer_loads_and_folds_like_sentencepiece() {
+        // Metaspace splits on spaces only: a line feed left in place would glue "a" and "b".
+        let json = json!({
+            "version": "1.0", "truncation": null, "padding": null, "added_tokens": [],
+            "normalizer": {"type": "Precompiled", "precompiled_charsmap": null},
+            "pre_tokenizer": {"type": "Metaspace", "replacement": "\u{2581}", "prepend_scheme": "always", "split": true},
+            "post_processor": null, "decoder": null,
+            "model": {"type": "WordLevel", "vocab": {"\u{2581}a": 0, "\u{2581}b": 1, "\u{2581}fi": 2, "<unk>": 3},
+                      "unk_token": "<unk>"}
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("tokenizer.json");
+        std::fs::write(&path, json.to_string()).unwrap();
+        let t = load_tokenizer(&path).unwrap();
+        let ids = |s: &str| t.encode(s, false).unwrap().get_ids().to_vec();
+        assert_eq!(ids("a b"), vec![0, 1]);
+        assert_eq!(ids("a\nb"), vec![0, 1]);
+        assert_eq!(ids("a\tb"), vec![0, 1]);
+        assert_eq!(ids("a\rb"), vec![0, 1]);
+        assert_eq!(ids("a\u{200B}"), vec![0]);
+        assert_eq!(ids("\u{FB01}"), vec![2], "the fi ligature folds to fi");
+    }
 }
