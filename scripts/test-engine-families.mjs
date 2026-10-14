@@ -10,7 +10,7 @@ test('every github family has an official repository', () => {
 });
 
 test('families a model can need are all known', () => {
-  for (const f of ['whisper.cpp', 'stable-diffusion.cpp', 'sherpa-onnx', 'onnxruntime', 'lemonade', 'mistral.rs']) {
+  for (const f of ['audio.cpp', 'whisper.cpp', 'stable-diffusion.cpp', 'sherpa-onnx', 'onnxruntime', 'lemonade', 'mistral.rs']) {
     assert.ok(engineSpec(f), f);
   }
   assert.equal(engineSpec('mistral.rs').method, 'manual');

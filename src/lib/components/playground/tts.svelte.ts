@@ -8,7 +8,7 @@ import { app } from '#lib/stores/app.svelte.js';
 import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
 import { familyFromError } from '#lib/engines.js';
 import type { RuntimeDownloadProgress } from '#lib/types.js';
-import { allTtsModels, fetchSpeech, pickTtsModel, pickTtsVoice, type TtsModelInfo, type TtsOverview } from './tts';
+import { allTtsModels, fetchSpeech, pickTtsModel, pickTtsVoice, ttsRequirement, ttsSupportsSpeed, type TtsModelInfo, type TtsOverview } from './tts';
 import { chunkSpeechText, plainSpeechText } from './ttsText';
 
 const FAMILY = 'sherpa-onnx';
@@ -22,7 +22,7 @@ class TtsStore {
   installingModel = $state<string | null>(null);
   modelProgress = $state<RuntimeDownloadProgress | null>(null);
   get installingRuntime(): boolean {
-    return engineInstall.busy(FAMILY);
+    return engineInstall.busy(this.models.find(m => m.name === this.model)?.engine ?? FAMILY);
   }
 
   models = $derived<TtsModelInfo[]>(allTtsModels(this.overview));
@@ -64,8 +64,8 @@ class TtsStore {
   }
 
   /** Installs the sherpa-onnx runtime (the shared one-click engine installer). */
-  async installRuntime(): Promise<boolean> {
-    if (!(await engineInstall.install(FAMILY))) return false;
+  async installRuntime(family = FAMILY): Promise<boolean> {
+    if (!(await engineInstall.install(family))) return false;
     await this.load();
     return true;
   }
@@ -119,8 +119,9 @@ class ReadAloud {
       toast.error(t('speak.no_model_chat'));
       return;
     }
-    if (tts.overview && !tts.overview.runtime_installed) {
-      toast.error(t('speak.no_runtime'));
+    const missing = tts.overview ? ttsRequirement(tts.models, tts.model, tts.overview.runtime_installed) : null;
+    if (missing) {
+      toast.error(t('speak.engine_missing', { family: missing }));
       return;
     }
     const c = new AbortController();
@@ -128,7 +129,7 @@ class ReadAloud {
     this.activeId = id;
     this.preparing = true;
     const make = (input: string) =>
-      fetchSpeech(app.inferenceUrl, { model: tts.model, input, voice: tts.voice, speed: tts.speed }, app.inferenceHeaders(), c.signal);
+      fetchSpeech(app.inferenceUrl, { model: tts.model, input, voice: tts.voice, speed: ttsSupportsSpeed(tts.models, tts.model) ? tts.speed : 1 }, app.inferenceHeaders(), c.signal);
     try {
       let next = make(pieces[0]);
       for (let i = 0; i < pieces.length; i++) {

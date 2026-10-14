@@ -536,6 +536,7 @@ fn library_listing_joins_state_and_marks_missing_parts() {
     };
     let variants = vec![
         crate::downloader::HfModelVariant {
+            not_runnable: None,
             name: "Big-Q8_0".into(),
             quantization: "Q8_0".into(),
             total_size_bytes: 0,
@@ -546,6 +547,7 @@ fn library_listing_joins_state_and_marks_missing_parts() {
             }],
         },
         crate::downloader::HfModelVariant {
+            not_runnable: None,
             name: "Q4_K_M/Big-Q4_K_M".into(),
             quantization: "Q4_K_M".into(),
             total_size_bytes: 60,

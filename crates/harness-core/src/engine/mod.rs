@@ -15,6 +15,8 @@
 //! golden tests (`engine_golden_tests.rs`) pin its output to what those modules produced
 //! before the refactor.
 
+pub mod audio_cpp;
+pub use audio_cpp::{AudioCppEngine, AUDIO_CPP};
 pub mod job;
 mod lemonade;
 mod llama_bench;
@@ -318,6 +320,7 @@ impl std::fmt::Debug for EngineRef {
 }
 
 static LLAMA: LlamaCppEngine = LlamaCppEngine;
+static AUDIO: AudioCppEngine = AudioCppEngine;
 static WHISPER: WhisperCppEngine = WhisperCppEngine;
 static SDCPP: SdCppEngine = SdCppEngine;
 static SHERPA: SherpaOnnxEngine = SherpaOnnxEngine;
@@ -375,11 +378,17 @@ pub fn python_hf() -> &'static dyn ServerEngine {
     &PYHF
 }
 
+/// The audio.cpp resident text-to-speech engine.
+pub fn audio_cpp() -> &'static dyn ServerEngine {
+    &AUDIO
+}
+
 /// Every known family.
-pub fn engines() -> [&'static dyn Engine; 11] {
+pub fn engines() -> [&'static dyn Engine; 12] {
     [
         &LLAMA,
         &WHISPER,
+        &AUDIO,
         &SDCPP,
         &SHERPA,
         &ONNX,
@@ -395,6 +404,7 @@ pub fn engines() -> [&'static dyn Engine; 11] {
 /// Whether a model path is on disk: a model file, or a mistral.rs or Python model folder.
 pub fn model_on_disk(path: &Path) -> bool {
     path.is_file()
+        || audio_cpp::is_model(path)
         || is_mistralrs_dir(path)
         || python_hf::is_model_dir(path)
         || mlx::is_any_model_dir(path)
@@ -412,6 +422,9 @@ pub fn engine(family: &str) -> Option<&'static dyn Engine> {
 /// folder (`config.json` + weights, see [`is_mistralrs_dir`]) on mistral.rs, everything else
 /// (router directories included) on llama-server.
 pub fn server_for(config: &LaunchConfig) -> &'static dyn ServerEngine {
+    if audio_cpp::is_model(&config.model_path) {
+        return &AUDIO;
+    }
     if config.router_mode {
         return &LLAMA;
     }
@@ -436,19 +449,21 @@ pub fn server_for(config: &LaunchConfig) -> &'static dyn ServerEngine {
 /// `/slots` and `/metrics`); a whisper, ONNX or mistral.rs server only has `/health`. An image
 /// model (sd-server) is told apart by its serve mode, see `ActiveServerInfo::is_llama`.
 pub fn is_llama_server(model_path: &Path, router_mode: bool) -> bool {
-    router_mode
-        || !(matches!(
-            ModelFormat::of(model_path),
-            ModelFormat::GgmlBin | ModelFormat::Onnx
-        ) || is_mistralrs_dir(model_path)
-            || python_hf::is_model_dir(model_path)
-            || mlx::is_any_model_dir(model_path))
+    !audio_cpp::is_model(model_path)
+        && (router_mode
+            || !(matches!(
+                ModelFormat::of(model_path),
+                ModelFormat::GgmlBin | ModelFormat::Onnx
+            ) || is_mistralrs_dir(model_path)
+                || python_hf::is_model_dir(model_path)
+                || mlx::is_any_model_dir(model_path)))
 }
 
 /// Device memory a launch of a non-llama.cpp family takes (whisper.cpp, stable-diffusion.cpp,
 /// ONNX Runtime or mistral.rs); zero when it stays on the CPU.
 pub fn non_llama_vram_need(config: &LaunchConfig) -> u64 {
     match server_for(config).family() {
+        AUDIO_CPP => audio_cpp::vram_need(config),
         SD_CPP => sd_vram_need(config),
         ONNX_FAMILY => onnx_vram_need(config),
         MISTRALRS => mistralrs::vram_need(config),
@@ -465,7 +480,7 @@ pub fn serve_mode_of(family: &str) -> crate::serve_mode::ServeMode {
         SD_CPP => crate::serve_mode::ServeMode::Image,
         MISTRALRS | MLX | MLX_VLM => crate::serve_mode::ServeMode::Chat,
         // Text to speech: the gateway's /v1/audio/speech posts to the worker.
-        MLX_AUDIO => crate::serve_mode::ServeMode::Pipeline,
+        MLX_AUDIO | AUDIO_CPP => crate::serve_mode::ServeMode::Pipeline,
         _ => crate::serve_mode::ServeMode::Transcription,
     }
 }
@@ -482,6 +497,9 @@ fn mlx_engine_for(path: &Path) -> Option<&'static MlxEngine> {
 
 /// The server engine that runs a model file (or a mistral.rs model folder), by its format.
 pub fn server_for_model(path: &Path) -> Option<&'static dyn ServerEngine> {
+    if audio_cpp::is_model(path) {
+        return Some(&AUDIO);
+    }
     if is_mistralrs_dir(path) {
         return Some(&MISTRAL);
     }

@@ -664,7 +664,7 @@
     </SettingGroup>
   {/if}
 
-  <EngineFamiliesSettings />
+  <EngineFamiliesSettings {settings} {onSettingsUpdated} />
 </div>
 <div hidden={page !== 'runtime-registry'} class="flex flex-col gap-3">
   <RuntimeRegistrySettings />

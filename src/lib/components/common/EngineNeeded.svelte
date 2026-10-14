@@ -8,6 +8,7 @@
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { security } from '#lib/stores/security.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
+  import { app } from '#lib/stores/app.svelte.js';
   import { cn } from '#lib/utils.js';
 
   interface Props {
@@ -35,6 +36,10 @@
 
 {#if !done}
   <span class={cn('inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1', className)}>
+    {#if family === 'audio.cpp' && !app.settings?.audio_cpp_enabled}
+      <span>{t('audio_cpp.needs_engine')}</span>
+      <Button type="button" variant="outline" {size} onclick={() => security.openSettings('runtime-installed')}>{t('audio_cpp.experimental')}</Button>
+    {:else}
     {#if hint}<span>{t('lib.runtime_needs_hint', { runtime: family })}</span>{/if}
     {#if manual}
       <span class="text-muted-foreground">{t('eng.manual', { runtime: family })}</span>
@@ -53,6 +58,7 @@
       <Button type="button" variant="link" {size} class="h-auto p-0" onclick={() => security.openSettings('runtime-registry')}>
         {t('eng.open_registry')}
       </Button>
+    {/if}
     {/if}
   </span>
 {/if}

@@ -80,6 +80,9 @@ impl ServerEngine for LlamaCppEngine {
         caps: &ServerCaps,
         runtime: Option<&RuntimeCapabilities>,
     ) -> Result<BuildOutput, String> {
+        if super::audio_cpp::is_model(&config.model_path) {
+            return Err(crate::error_key::err("audio_cpp.llama_rejected").into());
+        }
         ProcessManager::build_args_with(config, caps, runtime)
     }
 

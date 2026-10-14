@@ -866,6 +866,15 @@ impl Scheduler {
         demand: Option<&Demand>,
         keep_alive: Option<KeepAlive>,
     ) -> Result<Lease, SchedError> {
+        if is_audio_cpp(def) {
+            crate::engine::audio_cpp::require_enabled().map_err(|message| {
+                SchedError::LoadFailed {
+                    alias: def.alias.clone(),
+                    code: "engine_disabled".into(),
+                    message,
+                }
+            })?;
+        }
         if crate::lemonade::model_of_def(&def.id).is_some() {
             return self.acquire_lemonade(def).await;
         }
@@ -1200,7 +1209,15 @@ impl Scheduler {
             let s = entry.state();
             (s.server_id.as_deref() == Some(server_id), s.concurrency)
         };
-        let managed = server_id.starts_with(SERVER_PREFIX);
+        let managed = server_id.starts_with(SERVER_PREFIX)
+            || self
+                .ctx
+                .registry
+                .get(server_id)
+                .and_then(|pm| pm.launch_config())
+                .is_some_and(|c| {
+                    crate::engine::server_for(&c).family() == crate::engine::AUDIO_CPP
+                });
         if !known || current == 0 || fresh {
             let props = self.props_of(server_id).await.unwrap_or_default();
             let (slots, ctx_size) = (props.slots, props.ctx_size);
@@ -1275,6 +1292,9 @@ impl Scheduler {
     /// ggml backend of a server's build (from the libraries next to its binary).
     fn backend_of(&self, server_id: &str) -> Option<String> {
         let config = self.ctx.registry.get(server_id)?.launch_config()?;
+        if crate::engine::audio_cpp::is_model(&config.model_path) {
+            return Some(crate::engine::audio_cpp::backend(&config));
+        }
         crate::runtime::detect_backend_in_dir(config.binary_path.parent()?)
     }
 
@@ -2306,6 +2326,23 @@ impl Scheduler {
     /// One TTL pass (see [`Self::maintenance_loop`]).
     pub async fn expire_idle(&self) {
         self.expire_lemonade().await;
+        let audio_running = self
+            .ctx
+            .registry
+            .active_servers()
+            .iter()
+            .any(|(_, a)| crate::engine::audio_cpp::is_model(&a.model_path));
+        if audio_running {
+            if let Ok(defs) = self.definitions().await {
+                for def in defs.iter().filter(|d| is_audio_cpp(d)) {
+                    if let Some((id, ServerStatus::Running)) = self.serving_server(def) {
+                        let entry = self.entry(def);
+                        self.adopt(&entry, &id, false).await;
+                        entry.state().last_used.get_or_insert_with(Instant::now);
+                    }
+                }
+            }
+        }
         // Nothing the gateway loaded is running: skip the definitions read (a state.db query
         // every second on an idle `harness serve` / GUI otherwise).
         let entries: Vec<Arc<Entry>> = self
@@ -2330,7 +2367,7 @@ impl Scheduler {
             let Some(def) = defs.iter().find(|d| d.id == entry.def_id) else {
                 continue;
             };
-            if def.pinned {
+            if def.pinned && !is_audio_cpp(def) {
                 continue;
             }
             let keep_alive = entry.state().keep_alive;
@@ -2370,7 +2407,7 @@ impl Scheduler {
         let Ok(defs) = self.servable().await else {
             return;
         };
-        for def in defs.into_iter().filter(|d| d.pinned) {
+        for def in defs.into_iter().filter(|d| d.pinned && !is_audio_cpp(d)) {
             let entry = self.entry(&def);
             {
                 entry.state().waiting += 1;
@@ -2483,14 +2520,21 @@ impl Scheduler {
     }
 }
 
-/// Idle TTL in seconds of a definition (`None` = never unloaded for idleness): none for a
-/// pinned definition, else the Ollama `keep_alive` override, else the definition's
-/// `ttl_seconds`, else the gateway default.
+fn is_audio_cpp(def: &ModelDefinition) -> bool {
+    def.base
+        .local_path()
+        .is_some_and(crate::engine::audio_cpp::is_model)
+}
+
+/// audio.cpp always expires after five idle minutes; other engines honor pinning and TTL overrides.
 fn effective_ttl(
     def: &ModelDefinition,
     keep_alive: Option<KeepAlive>,
     default_ttl: Option<u64>,
 ) -> Option<u64> {
+    if is_audio_cpp(def) {
+        return Some(crate::engine::audio_cpp::IDLE_SECONDS);
+    }
     if def.pinned {
         return None;
     }
@@ -3383,6 +3427,34 @@ mod tests {
         sched.entry(&def).state().keep_alive = Some(KeepAlive::Secs(5));
         sched.clear_keep_alive(&def.id);
         assert_eq!(ka(&sched), None);
+    }
+
+    #[test]
+    fn audio_cpp_idle_expiry_cannot_be_disabled_by_pinning_or_overrides() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("audio.gguf");
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(b"GGUF").unwrap();
+        file.write_all(&3u32.to_le_bytes()).unwrap();
+        file.write_all(&0u64.to_le_bytes()).unwrap();
+        file.write_all(&1u64.to_le_bytes()).unwrap();
+        for value in ["general.architecture", "audiocpp"] {
+            file.write_all(&(value.len() as u64).to_le_bytes()).unwrap();
+            file.write_all(value.as_bytes()).unwrap();
+            if value == "general.architecture" {
+                file.write_all(&8u32.to_le_bytes()).unwrap();
+            }
+        }
+        drop(file);
+        let mut def = ModelDefinition::new("audio", crate::domain::ModelRef::Local { path });
+        for pinned in [false, true] {
+            def.pinned = pinned;
+            def.ttl_seconds = Some(86400);
+            for keep_alive in [None, Some(KeepAlive::Forever), Some(KeepAlive::Secs(86400))] {
+                assert_eq!(effective_ttl(&def, keep_alive, None), Some(300));
+            }
+        }
     }
 
     #[test]

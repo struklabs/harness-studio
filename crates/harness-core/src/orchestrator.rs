@@ -51,6 +51,13 @@ async fn settle_port(
     id: &str,
     config: &mut LaunchConfig,
 ) -> Result<(), String> {
+    if crate::engine::server_for(config).family() == crate::engine::AUDIO_CPP {
+        crate::engine::audio_cpp::require_enabled()?;
+        config.host = "127.0.0.1".into();
+        config.port = crate::engine::audio_cpp::random_port()?;
+        config.port_auto = false;
+        return Ok(());
+    }
     if config.wants_auto_port() {
         config.port_auto = true;
         let preferred = (config.port != 0).then_some(config.port);
@@ -91,6 +98,9 @@ pub async fn launch(
     let reg = crate::runtimes::RuntimeRegistry::global();
     // The engine follows the model file (a whisper ggml file runs on a whisper.cpp runtime).
     let engine = crate::engine::server_for(&config);
+    if engine.family() == crate::engine::AUDIO_CPP {
+        crate::engine::audio_cpp::require_enabled()?;
+    }
     let llama = engine.family() == crate::engine::LLAMA_CPP;
     let binary = if llama {
         // A whisper runtime chosen for a GGUF model is a mismatch, not a launch failure.
@@ -116,7 +126,7 @@ pub async fn launch(
         }
         crate::onnx_runtime::sidecar_binary()?
     } else if engine.family() == crate::engine::PYTHON_HF {
-        // The interpreter of the managed environment (Settings > Engines installs it).
+        // The interpreter of the managed environment (Settings > Installed Runtime > Other Runtimes installs it).
         crate::engine::python_hf::binary()?
     } else if engine.family() == crate::engine::MLX {
         crate::engine::mlx::binary()?
@@ -210,6 +220,11 @@ pub async fn launch_with_binary(
     let used = config.clone();
     let this_start = pm.start_count() + 1;
     pm.start(config).await?;
+    let used = if crate::engine::server_for(&used).family() == crate::engine::AUDIO_CPP {
+        pm.launch_config().unwrap_or(used)
+    } else {
+        used
+    };
     // The Dashboard server's saved launch (what every view shows as "Saved · :port") is
     // written only once this launch really runs: a refused start (already running, runtime
     // or model missing, spawn failure) left the old process — and its old port — in place,

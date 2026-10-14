@@ -132,10 +132,15 @@ fn query_string(pairs: &[(&str, &Option<String>)]) -> String {
 pub fn family_of(explicit: &Option<String>, repo: Option<&str>) -> Option<String> {
     explicit.clone().or_else(|| {
         let repo = repo?.to_ascii_lowercase();
-        ["stable-diffusion.cpp", "whisper.cpp", "sherpa-onnx"]
-            .into_iter()
-            .find(|f| repo.ends_with(f))
-            .map(String::from)
+        [
+            "stable-diffusion.cpp",
+            "whisper.cpp",
+            "sherpa-onnx",
+            "audio.cpp",
+        ]
+        .into_iter()
+        .find(|f| repo.ends_with(f))
+        .map(String::from)
     })
 }
 
@@ -445,6 +450,10 @@ mod family_tests {
         assert_eq!(
             family_of(&none, Some("ggml-org/whisper.cpp")).as_deref(),
             Some("whisper.cpp")
+        );
+        assert_eq!(
+            family_of(&none, Some("0xShug0/audio.cpp")).as_deref(),
+            Some("audio.cpp")
         );
         assert_eq!(family_of(&none, Some("PrismML-Eng/llama.cpp")), None);
         assert_eq!(family_of(&none, None), None);

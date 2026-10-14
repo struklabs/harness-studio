@@ -235,7 +235,9 @@ pub fn delete_files(model: &LocalModel, roots: &[PathBuf]) -> Result<Vec<PathBuf
         }
     }
     // A text-to-speech model is a folder (its phoneme data included): the folder goes.
-    if model.kind == crate::domain::ModelKind::Tts {
+    if model.kind == crate::domain::ModelKind::Tts
+        && model.architecture.as_deref() != Some("audiocpp")
+    {
         crate::tts::delete_model_dir(&model.path, roots)?;
         return Ok(model.shard_paths.clone());
     }

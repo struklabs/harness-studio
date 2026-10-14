@@ -449,6 +449,9 @@ pub fn preset_for_definition(
 
 /// Whether llama-server can load the file: a GGUF that is not an image generator's.
 fn runs_on_llama(path: &Path) -> bool {
+    if crate::engine::audio_cpp::is_model(path) {
+        return false;
+    }
     crate::engine::ModelFormat::of(path) == crate::engine::ModelFormat::Gguf
         && !crate::engine::is_image_gguf(path, crate::models::cached_metadata(path).as_ref())
 }

@@ -94,6 +94,8 @@ Bunu kendiniz hesaplamak zorunda değilsiniz. Model Hub ve Dashboard her modelin
 
 ## Özellikler
 
+- **audio.cpp ile yerel metinden konuşma:** PocketTTS ve diğer audio.cpp TTS GGUF ailelerini Playground ve `/v1/audio/speech` üzerinden çalıştırın. Motoru Ayarlar > Model Motoru bölümünden kurun, güncelleyin ve kaldırın; platforma göre Vulkan, CUDA, Metal veya CPU derlemesi seçilir. Ses gömmeleri konuşma seçicisinde listelenir ve modeller gateway zamanlayıcısıyla bellekte tutulur.
+
 Aşağıdakilerin hepsi yerel çalışır. Ayrıntılar [kullanım kılavuzunda](docs/guide/tr/README.md) ve [FEATURES.md](docs/tr/FEATURES.md) içindedir.
 
 ### Günlük kullanıcılar için
@@ -400,6 +402,8 @@ Lütfen [Davranış Kuralları](CODE_OF_CONDUCT.md)'nı okuyun. Sorular: [Discus
 Harness Studio [MIT Lisansı](LICENSE) ile yayımlanır. Telif hakkı (c) 2026 struklabs ve Harness Studio katkıda bulunanları.
 
 ### Teşekkürler
+
+- [audio.cpp](https://github.com/0xShug0/audio.cpp) — yerel ses çıkarım motoru, [Apache-2.0](https://github.com/0xShug0/audio.cpp/blob/main/LICENSE). Model lisansları motor lisansından ayrıdır.
 
 Harness Studio harika açık kaynak projelerin omuzlarında durur:
 

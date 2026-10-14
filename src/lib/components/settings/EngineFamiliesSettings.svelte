@@ -15,6 +15,35 @@
   import { formatBytes } from '#lib/format.js';
   import { LoaderCircle, Download, Square, Trash2 } from '@lucide/svelte';
   import SettingGroup from './SettingGroup.svelte';
+  import SwitchRow from './SwitchRow.svelte';
+  import { invoke } from '#lib/ipc.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import type { AppSettings } from '#lib/types.js';
+
+  let { settings, onSettingsUpdated }: {
+    settings: AppSettings;
+    onSettingsUpdated: (updated: AppSettings) => void;
+  } = $props();
+  let confirmAudio = $state(false);
+  let saving = $state(false);
+  let saveError = $state<string | null>(null);
+
+  async function saveAudio(enabled: boolean) {
+    saving = true;
+    saveError = null;
+    try {
+      const next = structuredClone($state.snapshot(app.settings ?? settings));
+      next.audio_cpp_enabled = enabled;
+      await invoke('save_app_settings', { settings: next });
+      onSettingsUpdated(next);
+      confirmAudio = false;
+      await engineInstall.refreshAvailability();
+    } catch (e) {
+      saveError = errorText(e);
+    } finally {
+      saving = false;
+    }
+  }
 
   onMount(() => void engineInstall.refresh());
 
@@ -26,6 +55,20 @@
 </script>
 
 <SettingGroup title={t('eng.group_title')} hint={t('eng.group_desc')}>
+  <SwitchRow id="audio-cpp-enabled" label={t('audio_cpp.experimental')}
+    note={t('audio_cpp.switch_hint')} checked={settings.audio_cpp_enabled ?? false}
+    disabled={saving} onchange={(on) => { if (on) confirmAudio = true; else void saveAudio(false); }} />
+  {#if confirmAudio}
+    <div class="flex flex-col gap-2 px-4 py-3" role="alert">
+      <h3 class="text-sm font-medium">{t('audio_cpp.confirm')}</h3>
+      <p class="text-xs text-warning">{t('audio_cpp.risk')}</p>
+      <div class="flex gap-2">
+        <Button size="sm" disabled={saving} onclick={() => saveAudio(true)}>{t('audio_cpp.enable')}</Button>
+        <Button size="sm" variant="outline" disabled={saving} onclick={() => (confirmAudio = false)}>{t('settings.cancel')}</Button>
+      </div>
+    </div>
+  {/if}
+  {#if saveError}<p class="px-4 text-xs text-destructive" role="alert">{saveError}</p>{/if}
   <div class="flex flex-col divide-y divide-border">
     {#each engines as e (e.family)}
       {@const st = engineInstall.state(e.family)}

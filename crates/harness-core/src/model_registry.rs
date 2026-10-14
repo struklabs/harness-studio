@@ -148,6 +148,9 @@ pub fn local_capabilities(caps: &ModelCaps) -> Vec<Capability> {
 /// (ONNX, [`ModelKind::Tts`]), speech-recognition folders of sherpa-onnx (ONNX,
 /// [`ModelKind::Asr`] with a `.onnx` file, see [`is_sherpa_asr`]) and ONNX encoders.
 pub fn local_format(model: &LocalModel) -> ModelFormat {
+    if model.architecture.as_deref() == Some("audiocpp") {
+        return ModelFormat::Gguf;
+    }
     match model.kind {
         ModelKind::Image => match crate::engine::ModelFormat::of(&model.path) {
             crate::engine::ModelFormat::Safetensors => ModelFormat::Safetensors,
@@ -193,6 +196,19 @@ fn standalone(kind: ModelKind) -> bool {
 /// [`ModelRecord::resolve_installed`] (a local fact, not part of the scan).
 pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
     let format = local_format(model);
+    if model.architecture.as_deref() == Some("audiocpp") {
+        let runtime = crate::engine::AUDIO_CPP.to_string();
+        return ModelRecord {
+            capabilities: local_capabilities(caps),
+            format,
+            runtime: Some(runtime.clone()),
+            compatibility: Some(if model.kind == ModelKind::Tts {
+                Compatibility::Runnable { runtime }
+            } else {
+                Compatibility::Unsupported { format }
+            }),
+        };
+    }
     if model.kind == ModelKind::Image {
         // The format alone says llama.cpp (a GGUF) or nothing (safetensors): an image model is
         // stable-diffusion.cpp's whatever its container.
@@ -307,7 +323,9 @@ pub fn fit_for(input: FitInput, hw: &SystemHardwareInfo, gpu_build: Option<bool>
         let budget = crate::vram::budget_for_model(hw, input.model_path.as_deref());
         return crate::engine::onnx().estimate_memory(&input, None, &budget, &[]);
     }
-    let engine = if is_whisper_file(&path) {
+    let engine = if crate::engine::audio_cpp::is_model(Path::new(&path)) {
+        crate::engine::audio_cpp()
+    } else if is_whisper_file(&path) {
         crate::engine::whisper_cpp()
     } else if is_image_file(&path) {
         crate::engine::sd_cpp()

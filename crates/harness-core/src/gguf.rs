@@ -14,6 +14,9 @@ pub struct GgufMetadata {
     pub tensor_count: u64,
     pub kv_count: u64,
     pub architecture: Option<String>,
+    /// audio.cpp model family; only meaningful for architecture = audiocpp.
+    #[serde(default)]
+    pub audiocpp_family: Option<String>,
     pub model_name: Option<String>,
     /// Provenance URLs that may identify a Hugging Face repository when a split file was
     /// copied into the library by hand.
@@ -400,6 +403,9 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
         match key.as_str() {
             "general.architecture" if val_type == GgufType::String => {
                 meta.architecture = read_string(&mut reader).ok()
+            }
+            "audiocpp.model_spec.family" if val_type == GgufType::String => {
+                meta.audiocpp_family = read_string(&mut reader).ok()
             }
             "general.name" if val_type == GgufType::String => {
                 meta.model_name = read_string(&mut reader).ok()

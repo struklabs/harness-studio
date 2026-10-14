@@ -15,12 +15,13 @@ use crate::domain::store::Domain;
 use crate::domain::{unique_alias, LocalModel, ModelDefinition, ModelKind, ModelRef};
 
 /// The kinds that get a default definition.
-pub const KINDS: [ModelKind; 5] = [
+pub const KINDS: [ModelKind; 6] = [
     ModelKind::Image,
     ModelKind::Asr,
     ModelKind::Embedding,
     ModelKind::Reranker,
     ModelKind::Pipeline,
+    ModelKind::Tts,
 ];
 
 /// [`ensure_in`] for the app's own domain files and library folders.
@@ -43,6 +44,7 @@ pub fn ensure_in(
         .iter()
         .filter(|m| m.is_ready && KINDS.contains(&m.kind) && kinds.contains(&m.kind))
         // sherpa-onnx recognition models are ASR too, but run per request without a definition.
+        .filter(|m| m.kind != ModelKind::Tts || crate::engine::audio_cpp::is_tts(&m.path))
         .filter(|m| !(m.kind == ModelKind::Asr && crate::asr::is_sherpa_file(&m.path)))
     {
         let defs = domain.definitions()?;

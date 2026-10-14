@@ -8,6 +8,7 @@
 //! "The flag is in `--help`" only means a setting can be shown; see [`features`] for the
 //! separate capability levels.
 
+pub mod audio_cpp;
 pub mod features;
 pub mod lemonade;
 pub mod mistralrs;

@@ -129,10 +129,12 @@ pub fn pick_assets(
         .filter_map(asset_of)
         .collect();
     if let Some(name) = asset {
-        return assets
-            .iter()
-            .find(|a| a.name == name)
-            .map(|a| (vec![a.clone()], None));
+        return assets.iter().find(|a| a.name == name).map(|a| {
+            let backend = (engine.family() == crate::engine::AUDIO_CPP)
+                .then(|| crate::engine::audio_cpp::backend_from_archive(&a.name))
+                .flatten();
+            (vec![a.clone()], backend)
+        });
     }
     engine.pick_release_assets(&assets, backends)
 }
@@ -444,7 +446,7 @@ pub async fn install(reg: &RuntimeRegistry, req: &GithubInstall) -> Result<Runti
                 version,
                 build,
                 commit: probe.commit,
-                backend: probe.backend,
+                backend: pick.backend.or(probe.backend),
                 trust,
                 files: super::hash_manifest(&dest)?,
                 quant_types: probe.quant_types,

@@ -9,6 +9,48 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Repo metadata can identify audio.cpp before any GGUF extension fallback.
+pub fn is_audio_cpp_repo(item: &serde_json::Value) -> bool {
+    let marker = |s: &str| matches!(s.to_ascii_lowercase().as_str(), "audio.cpp" | "audiocpp");
+    item["id"] == "audio-cpp/audio.cpp-gguf"
+        || item["library_name"].as_str().is_some_and(marker)
+        || item["cardData"]["library_name"]
+            .as_str()
+            .is_some_and(marker)
+        || item["gguf"]["architecture"] == "audiocpp"
+        || item["gguf"]["general.architecture"] == "audiocpp"
+        || item["tags"]
+            .as_array()
+            .is_some_and(|tags| tags.iter().any(|v| v.as_str().is_some_and(marker)))
+}
+
+pub fn audio_cpp_repo_tts(item: &serde_json::Value) -> bool {
+    if let Some(family) = item["gguf"]["audiocpp.model_spec.family"]
+        .as_str()
+        .or_else(|| item["gguf"]["family"].as_str())
+    {
+        return crate::engine::audio_cpp::task(family).is_some();
+    }
+    item["id"] == "audio-cpp/audio.cpp-gguf"
+        || item["pipeline_tag"] == "text-to-speech"
+        || item["cardData"]["pipeline_tag"] == "text-to-speech"
+        || item["tags"]
+            .as_array()
+            .is_some_and(|tags| tags.iter().any(|v| v == "text-to-speech"))
+}
+
+pub fn audio_cpp_compatibility(item: &serde_json::Value) -> Compatibility {
+    if audio_cpp_repo_tts(item) {
+        Compatibility::Runnable {
+            runtime: crate::engine::AUDIO_CPP.into(),
+        }
+    } else {
+        Compatibility::Unsupported {
+            format: ModelFormat::Gguf,
+        }
+    }
+}
+
 /// Runtime family that runs GGUF models.
 pub const LLAMA_FAMILY: &str = "llama.cpp";
 /// Runtime family that runs whisper ggml models.
@@ -155,7 +197,9 @@ pub fn resolve_installed_on(
         // use, like the official llama.cpp runtime.
         if runtime != LLAMA_FAMILY
             && runtime != ONNX_FAMILY
-            && !installed.iter().any(|f| f == runtime)
+            && (!installed.iter().any(|f| f == runtime)
+                || (runtime == crate::engine::AUDIO_CPP
+                    && !crate::config::AppSettings::load().audio_cpp_enabled))
         {
             *compat = Compatibility::NeedsRuntime {
                 runtime: std::mem::take(runtime),
@@ -1114,5 +1158,48 @@ mod tests {
         let mut c = hub_compatibility(ModelFormat::Onnx, Some("text-ranking"));
         resolve_installed(&mut c, &[]);
         assert!(matches!(c, Compatibility::Runnable { .. }));
+    }
+}
+
+#[cfg(test)]
+mod audio_cpp_tests {
+    use super::*;
+    use serde_json::json;
+    #[test]
+    fn audio_cpp_metadata_wins_over_the_gguf_extension_and_non_tts_is_unsupported() {
+        for marker in [
+            json!({"library_name":"audio.cpp"}),
+            json!({"library_name":"audiocpp"}),
+            json!({"gguf":{"architecture":"audiocpp","audiocpp.model_spec.family":"pocket_tts"}}),
+        ] {
+            let mut item = marker;
+            item["id"] = json!("audio/example");
+            item["pipeline_tag"] = json!("text-to-speech");
+            assert!(is_audio_cpp_repo(&item));
+            let mut compatibility = audio_cpp_compatibility(&item);
+            assert_eq!(
+                compatibility,
+                Compatibility::Runnable {
+                    runtime: crate::engine::AUDIO_CPP.into()
+                }
+            );
+            resolve_installed(&mut compatibility, &[]);
+            assert_eq!(
+                compatibility,
+                Compatibility::NeedsRuntime {
+                    runtime: crate::engine::AUDIO_CPP.into()
+                }
+            );
+            item["gguf"] =
+                json!({"architecture":"audiocpp", "audiocpp.model_spec.family":"sensevoice"});
+            assert!(matches!(
+                audio_cpp_compatibility(&item),
+                Compatibility::Unsupported { .. }
+            ));
+            assert_eq!(
+                crate::hub_tasks::analyze_repo(&item).not_runnable,
+                Some(crate::hub_tasks::NotRunnable::AudioCppUnsupported)
+            );
+        }
     }
 }

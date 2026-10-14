@@ -177,7 +177,10 @@
   let runtimeText = $derived.by(() => {
     const c = entry.record.compatibility;
     if (!c) return null;
-    if (c.status === 'unsupported') return t('lib.runtime_none', { format: formatLabel });
+    if (entry.record.runtime === 'audio.cpp') return t('audio_cpp.experimental');
+    if (c.status === 'unsupported') return entry.record.runtime === 'audio.cpp'
+      ? t('audio_cpp.family_unsupported', { family: m.gguf?.audiocpp_family ?? 'audio.cpp' })
+      : t('lib.runtime_none', { format: formatLabel });
     if (c.status === 'unsupported_platform') return `${c.runtime} · ${t('ort.state_unsupported')}`;
     return c.status === 'needs_runtime' ? t('lib.runtime_needs', { runtime: c.runtime }) : c.runtime;
   });

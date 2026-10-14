@@ -122,6 +122,8 @@ fn default_language() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppSettings {
+    /// Experimental unauthenticated local TTS server. Explicit opt-in in Settings > Installed Runtime > Other Runtimes.
+    pub audio_cpp_enabled: bool,
     /// None preserves the full interface for existing installations.
     #[serde(default)]
     pub ui_level: Option<UiLevel>,
@@ -242,6 +244,7 @@ impl StartupSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            audio_cpp_enabled: false,
             runtime_mode: RuntimeMode::Managed,
             managed_runtime: ManagedRuntimeConfig::default(),
             custom_binary: CustomBinaryConfig::default(),
@@ -490,6 +493,17 @@ mod tests {
     #[test]
     fn test_default_settings() {
         let settings = AppSettings::default();
+        assert!(!settings.audio_cpp_enabled);
+        assert!(
+            !serde_json::from_str::<AppSettings>("{}")
+                .unwrap()
+                .audio_cpp_enabled
+        );
+        assert!(
+            serde_json::from_str::<AppSettings>(r#"{"audio_cpp_enabled":true}"#)
+                .unwrap()
+                .audio_cpp_enabled
+        );
         assert_eq!(settings.runtime_mode, RuntimeMode::Managed);
         assert_eq!(settings.server.port, 0);
         assert!(!settings.privacy.onboarding_completed);

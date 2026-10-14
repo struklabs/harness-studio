@@ -14,6 +14,7 @@ async fn real_hf_download_events_complete_and_cancel() {
     paths::init(data.path().to_path_buf());
     let filename = "tinyllamas/stories15M-q4_0.gguf";
     let variant = HfModelVariant {
+        not_runnable: None,
         name: "stories15M-q4_0".into(),
         quantization: "Q4_0".into(),
         total_size_bytes: 19_077_344,

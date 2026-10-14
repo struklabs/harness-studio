@@ -52,6 +52,19 @@ pub async fn post(
     content_type: &str,
     body: Vec<u8>,
 ) -> Result<Answer, GatewayError> {
+    let audio_cpp = crate::speech::is_audio_cpp_model(def);
+    let engine_name = if audio_cpp {
+        "audio.cpp"
+    } else {
+        "Python engine"
+    };
+    let body = if audio_cpp {
+        crate::speech::check_audio_cpp_enabled()?;
+        serde_json::to_vec(&crate::speech::audio_cpp_body(def, "POST", path, &body)?)
+            .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?
+    } else {
+        body
+    };
     let scheduler = state.scheduler.clone();
     let settings = scheduler.settings();
     let lease = match scheduler.acquire_tokens(def, None).await {
@@ -87,17 +100,10 @@ pub async fn post(
             settings.request_timeout_secs,
         )));
     }
-    let upstream = req.send().await.map_err(|e| {
-        if e.is_timeout() {
-            GatewayError::new(
-                504,
-                "upstream_timeout",
-                "The Python engine did not answer in time.",
-            )
-        } else {
-            GatewayError::new(502, "upstream_unreachable", format!("Python engine: {e}"))
-        }
-    })?;
+    let upstream = req
+        .send()
+        .await
+        .map_err(|e| transport_error(engine_name, &e, "upstream_unreachable"))?;
     let status = upstream.status().as_u16();
     let content_type = upstream
         .headers()
@@ -109,11 +115,15 @@ pub async fn post(
     let body = upstream
         .bytes()
         .await
-        .map_err(|e| GatewayError::new(502, "upstream_error", e.to_string()))?;
+        .map_err(|e| transport_error(engine_name, &e, "upstream_error"))?;
     guard.get().status = status;
     guard.get().ttft_ms = Some(guard.started.elapsed().as_millis() as u64);
     if !(200..300).contains(&status) {
-        return Err(upstream_error(status, &body));
+        return Err(if audio_cpp {
+            upstream_error_for(engine_name, status, &body)
+        } else {
+            upstream_error(status, &body)
+        });
     }
     Ok(Answer {
         status,
@@ -124,9 +134,26 @@ pub async fn post(
     })
 }
 
+fn transport_error(engine_name: &str, error: &reqwest::Error, code: &str) -> GatewayError {
+    if error.is_timeout() {
+        let message = if engine_name == "audio.cpp" {
+            "The audio.cpp server did not answer in time."
+        } else {
+            "The Python engine did not answer in time."
+        };
+        GatewayError::new(504, "upstream_timeout", message)
+    } else {
+        GatewayError::new(502, code, format!("{engine_name}: {error}"))
+    }
+}
+
 /// The gateway's error for a failed worker answer: the worker's own OpenAI error message, a 400
 /// kept as a 400 (the request was wrong), anything else a 502.
 pub fn upstream_error(status: u16, body: &[u8]) -> GatewayError {
+    upstream_error_for("Python engine", status, body)
+}
+
+fn upstream_error_for(engine_name: &str, status: u16, body: &[u8]) -> GatewayError {
     let detail = serde_json::from_slice::<serde_json::Value>(body)
         .ok()
         .and_then(|v| {
@@ -149,7 +176,7 @@ pub fn upstream_error(status: u16, body: &[u8]) -> GatewayError {
         504 => (504, "upstream_timeout"),
         _ => (502, "upstream_error"),
     };
-    GatewayError::new(status, code, format!("Python engine: {detail}"))
+    GatewayError::new(status, code, format!("{engine_name}: {detail}"))
 }
 
 /// The `x-harness-*` headers every answer of a leased model carries.

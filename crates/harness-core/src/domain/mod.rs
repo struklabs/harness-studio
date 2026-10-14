@@ -90,6 +90,18 @@ pub fn detect_kind(meta: Option<&GgufMetadata>) -> ModelKind {
     let Some(m) = meta else {
         return ModelKind::Unknown;
     };
+    if m.architecture.as_deref() == Some("audiocpp") {
+        return if m
+            .audiocpp_family
+            .as_deref()
+            .and_then(crate::engine::audio_cpp::task)
+            .is_some()
+        {
+            ModelKind::Tts
+        } else {
+            ModelKind::Unknown
+        };
+    }
     let general_type = m.general_type.as_deref();
     if m.architecture
         .as_deref()

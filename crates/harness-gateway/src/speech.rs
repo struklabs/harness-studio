@@ -40,6 +40,8 @@ pub struct SpeechRequest {
     pub response_format: Option<String>,
     #[serde(default)]
     pub speed: Option<f64>,
+    #[serde(default)]
+    pub voice_ref: Option<serde_json::Value>,
 }
 
 impl SpeechRequest {
@@ -236,9 +238,7 @@ async fn serve(
             // of mlx-audio may have it (sherpa-onnx comes first, the workers are the fallback).
             if let Some(def) = python_speech_model(state, wanted.as_deref()).await {
                 caller.check_model(&def.alias)?;
-                let voice = req.voice_name();
-                return python_speak(state, &def, &text, voice.as_deref(), speed, format, guard)
-                    .await;
+                return python_speak(state, &def, &text, &req, speed, format, guard).await;
             }
             return Err(map_error(&e));
         }
@@ -296,13 +296,136 @@ async fn python_speech_model(
     state: &GwState,
     model: Option<&str>,
 ) -> Option<harness_core::domain::ModelDefinition> {
-    let def = state.scheduler.resolve(Some(model?)).await.ok()?;
-    if is_mlx_speech(&def) {
+    let def = match model.filter(|m| !m.is_empty() && !matches!(*m, "tts-1" | "tts-1-hd")) {
+        Some(model) => state.scheduler.resolve(Some(model)).await.ok()?,
+        None => tokio::task::spawn_blocking(|| {
+            harness_core::domain::store::Domain::global()
+                .definitions()
+                .ok()?
+                .into_iter()
+                .find(is_audio_cpp_speech)
+        })
+        .await
+        .ok()??,
+    };
+    if is_mlx_speech(&def) || is_audio_cpp_speech(&def) {
         return Some(def);
     }
     crate::pyhf::task_of(&def)
         .filter(|t| crate::pyhf::is_speech_task(t))
         .map(|_| def)
+}
+
+fn is_audio_cpp_speech(def: &harness_core::domain::ModelDefinition) -> bool {
+    def.base
+        .local_path()
+        .is_some_and(harness_core::engine::audio_cpp::is_tts)
+}
+
+pub(crate) fn is_audio_cpp_model(def: &harness_core::domain::ModelDefinition) -> bool {
+    def.base
+        .local_path()
+        .is_some_and(harness_core::engine::audio_cpp::is_model)
+}
+
+pub(crate) fn check_audio_cpp_enabled() -> Result<(), GatewayError> {
+    harness_core::engine::audio_cpp::require_enabled()
+        .map_err(|e| GatewayError::new(403, "engine_disabled", e))
+}
+
+/// The entire audio.cpp HTTP surface exposed by Harness. Never pass a caller's object
+/// through: even nested reference fields are rebuilt, since the worker accepts local paths.
+pub(crate) fn audio_cpp_body(
+    def: &harness_core::domain::ModelDefinition,
+    method: &str,
+    path: &str,
+    body: &[u8],
+) -> Result<serde_json::Value, GatewayError> {
+    if method != "POST" || path != "/v1/audio/speech" {
+        return Err(bad(
+            "audio.cpp only accepts POST /v1/audio/speech through the gateway.",
+        ));
+    }
+    let req: SpeechRequest = serde_json::from_slice(body)
+        .map_err(|e| bad(format!("The body must be speech JSON ({e}).")))?;
+    let voices = def
+        .base
+        .local_path()
+        .map(harness_core::engine::audio_cpp::voices)
+        .unwrap_or_default();
+    let supports_speed = def
+        .base
+        .local_path()
+        .and_then(harness_core::engine::audio_cpp::metadata)
+        .and_then(|m| m.audiocpp_family)
+        .is_some_and(|f| harness_core::engine::audio_cpp::supports_speed(&f));
+    rebuild_audio_cpp_body(&def.alias, &voices, &req, supports_speed)
+}
+
+fn rebuild_audio_cpp_body(
+    model: &str,
+    voices: &[String],
+    req: &SpeechRequest,
+    supports_speed: bool,
+) -> Result<serde_json::Value, GatewayError> {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    let input = req
+        .input
+        .as_deref()
+        .ok_or_else(|| bad("`input` is required."))?;
+    let (input, speed) =
+        tts::check_request(input, req.speed.map(|s| s as f32)).map_err(|e| map_error(&e))?;
+    let mut out = serde_json::json!({"model": model, "input": input,
+        "response_format": "wav"});
+    if req.speed.unwrap_or(1.0) != 1.0 {
+        if !supports_speed {
+            return Err(bad(
+                "This audio.cpp model does not support runtime speed controls; use speed 1.0.",
+            )
+            .param("speed"));
+        }
+        out["speed"] = serde_json::json!(speed);
+    }
+    let voice = match &req.voice {
+        None | Some(serde_json::Value::Null) => voices.first().cloned(),
+        Some(_) => Some(
+            req.voice_name()
+                .ok_or_else(|| bad("Invalid `voice`.").param("voice"))?,
+        ),
+    };
+    if let Some(voice) = voice {
+        if !voices.contains(&voice) {
+            return Err(
+                bad("`voice` must be one of this model's discovered voices.").param("voice"),
+            );
+        }
+        out["voice"] = serde_json::json!(voice);
+    }
+    if let Some(reference) = &req.voice_ref {
+        if reference.get("type").and_then(|v| v.as_str()) != Some("base64") {
+            return Err(bad(
+                "`voice_ref` only accepts a base64 object; server file paths are forbidden.",
+            )
+            .param("voice_ref"));
+        }
+        let data = reference
+            .get("data")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| bad("`voice_ref.data` must be base64."))?;
+        let data = data.strip_prefix("data:audio/wav;base64,").unwrap_or(data);
+        const LIMIT: usize = 5 * 1024 * 1024;
+        if data.len() > LIMIT.div_ceil(3) * 4 {
+            return Err(bad("`voice_ref` decoded size must not exceed 5 MiB."));
+        }
+        let decoded = STANDARD
+            .decode(data)
+            .map_err(|_| bad("Invalid `voice_ref` base64."))?;
+        if decoded.len() > LIMIT {
+            return Err(bad("`voice_ref` decoded size must not exceed 5 MiB."));
+        }
+        out["voice_ref"] = serde_json::json!({"type":"base64", "data":STANDARD.encode(decoded)});
+    }
+    Ok(out)
 }
 
 /// Whether a definition is an mlx-audio text-to-speech folder.
@@ -319,7 +442,7 @@ async fn python_speak(
     state: &GwState,
     def: &harness_core::domain::ModelDefinition,
     text: &str,
-    voice: Option<&str>,
+    req: &SpeechRequest,
     speed: f32,
     format: AudioFormat,
     guard: &mut RecordGuard,
@@ -329,7 +452,20 @@ async fn python_speak(
         r.alias = Some(def.alias.clone());
         r.definition_id = Some(def.id.clone());
     }
+    let voice_name = req.voice_name();
+    let voice = voice_name.as_deref();
     let mut request = serde_json::json!({ "input": text });
+    if is_audio_cpp_speech(def) {
+        request["model"] = serde_json::json!(def.alias);
+        request["response_format"] = serde_json::json!("wav");
+        if req.speed.unwrap_or(1.0) != 1.0 {
+            request["speed"] = serde_json::json!(req.speed);
+        }
+        request["voice"] = req.voice.clone().unwrap_or(serde_json::Value::Null);
+        if let Some(reference) = &req.voice_ref {
+            request["voice_ref"] = reference.clone();
+        }
+    }
     if is_mlx_speech(def) {
         request["speed"] = serde_json::json!(speed);
         if let Some(voice) = voice {
@@ -365,6 +501,126 @@ async fn python_speak(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn audio_cpp_omits_default_speed_and_rejects_unsupported_speed() {
+        for speed in [None, Some(1.0)] {
+            let req = serde_json::from_value(serde_json::json!({"input":"Hello", "speed":speed}))
+                .unwrap();
+            for supported in [false, true] {
+                assert!(rebuild_audio_cpp_body("voice", &[], &req, supported)
+                    .unwrap()
+                    .get("speed")
+                    .is_none());
+            }
+        }
+        let req =
+            serde_json::from_value(serde_json::json!({"input":"Hello", "speed":1.25})).unwrap();
+        let err = rebuild_audio_cpp_body("voice", &[], &req, false).unwrap_err();
+        assert_eq!(err.status, 400);
+        assert_eq!(err.param.as_deref(), Some("speed"));
+        assert!(err.message.contains("does not support"));
+        assert_eq!(
+            rebuild_audio_cpp_body("voice", &[], &req, true).unwrap()["speed"],
+            1.25
+        );
+    }
+
+    #[test]
+    fn audio_cpp_rejects_every_other_method_and_path() {
+        use harness_core::domain::{ModelDefinition, ModelRef};
+        let def = ModelDefinition::new(
+            "voice",
+            ModelRef::Local {
+                path: "unused.gguf".into(),
+            },
+        );
+        for path in [
+            "/v1/audio/transcriptions",
+            "/v1/audio/translations",
+            "/v1/audio/alignments",
+            "/v1/tasks/run",
+            "/v1/tasks/batch",
+            "/v1/tasks/unload_all_models",
+            "/v1/models/load",
+            "/v1/models",
+            "/v1/chat/completions",
+            "/health",
+            "/v1/audio/speech/live",
+            "/v1/audio/speech?path=file",
+            "/v1/audio/speech/",
+        ] {
+            assert_eq!(
+                audio_cpp_body(&def, "POST", path, b"{}")
+                    .unwrap_err()
+                    .status,
+                400,
+                "{path}"
+            );
+        }
+        for method in ["GET", "PUT", "DELETE", "PATCH", "OPTIONS"] {
+            assert_eq!(
+                audio_cpp_body(&def, method, "/v1/audio/speech", b"{}")
+                    .unwrap_err()
+                    .status,
+                400
+            );
+        }
+    }
+
+    #[test]
+    fn audio_cpp_rebuilds_only_allowed_fields_and_discovered_voices() {
+        use serde_json::json;
+        let req = serde_json::from_value(json!({"model":"untrusted", "input":"Hello", "voice":"alba",
+            "speed":1.5, "response_format":"wav", "voice_ref":{"type":"base64","data":"YQ==", "path":"secret"},
+            "audio":"secret", "options":{"audio":"secret"}, "reference_text":"ignored"})).unwrap();
+        let out = rebuild_audio_cpp_body("pocket", &["alba".into()], &req, true).unwrap();
+        assert_eq!(
+            out,
+            json!({"model":"pocket","input":"Hello","voice":"alba","speed":1.5,
+            "response_format":"wav","voice_ref":{"type":"base64","data":"YQ=="}})
+        );
+        for voice in [
+            json!("../secret"),
+            json!("unknown"),
+            json!({"path":"secret"}),
+            json!([]),
+        ] {
+            let req = serde_json::from_value(json!({"input":"Hi","voice":voice})).unwrap();
+            assert_eq!(
+                rebuild_audio_cpp_body("pocket", &["alba".into()], &req, true)
+                    .unwrap_err()
+                    .status,
+                400
+            );
+        }
+    }
+
+    #[test]
+    fn audio_cpp_rejects_path_invalid_and_oversized_references() {
+        use base64::{engine::general_purpose::STANDARD, Engine};
+        use serde_json::json;
+        for reference in [
+            json!("secret.wav"),
+            json!({"type":"path","path":"secret.wav"}),
+            json!({"type":"base64","data":"!"}),
+            json!({"type":"base64"}),
+            json!(false),
+            json!({"type":"base64","data":STANDARD.encode(vec![0; 5 * 1024 * 1024 + 1])}),
+        ] {
+            let req = serde_json::from_value(json!({"input":"Hi","voice_ref":reference})).unwrap();
+            assert_eq!(
+                rebuild_audio_cpp_body("pocket", &[], &req, true)
+                    .unwrap_err()
+                    .status,
+                400
+            );
+        }
+        let req = serde_json::from_value(json!({"input":"Hi","voice_ref":{
+            "type":"base64","data":STANDARD.encode(vec![0; 5 * 1024 * 1024])}}))
+        .unwrap();
+        assert!(rebuild_audio_cpp_body("pocket", &[], &req, true).is_ok());
+    }
 
     #[test]
     fn the_voice_may_be_a_name_a_number_or_an_object() {

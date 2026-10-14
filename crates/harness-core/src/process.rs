@@ -583,6 +583,8 @@ pub struct ProcessManager {
     /// The port-to-socket relay of an isolated Python worker run and its socket folder (the
     /// task is aborted and the folder removed when the run ends).
     relay: Arc<Mutex<Option<WorkerRelay>>>,
+    /// Temporary configuration folder of the resident audio.cpp server.
+    audio_run: Arc<Mutex<Option<tempfile::TempDir>>>,
 }
 
 /// The relay task of an isolated Python worker and the folder of its Unix socket.
@@ -688,6 +690,7 @@ impl Default for ProcessManager {
             readers: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             port_retries: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             relay: Arc::new(Mutex::new(None)),
+            audio_run: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -1086,7 +1089,13 @@ impl ProcessManager {
         self.start_run(config).await
     }
 
-    async fn start_run(&self, config: LaunchConfig) -> Result<(), String> {
+    async fn start_run(&self, mut config: LaunchConfig) -> Result<(), String> {
+        if crate::engine::server_for(&config).family() == crate::engine::AUDIO_CPP {
+            crate::engine::audio_cpp::require_enabled()?;
+            config.host = "127.0.0.1".into();
+            config.port = crate::engine::audio_cpp::random_port()?;
+            config.port_auto = false;
+        }
         let _lifecycle = self.lifecycle.lock().await;
         // 1. Atomically claim the "Starting" state so two concurrent starts can't both proceed.
         {
@@ -1382,6 +1391,15 @@ impl ProcessManager {
             parallel_slots: slot_plan.as_ref().map(|p| p.advice.slots),
             applied: kv_applied.clone().unwrap_or_default(),
         });
+        if engine.family() == crate::engine::AUDIO_CPP {
+            let dir = tempfile::Builder::new()
+                .prefix("harness-audio-")
+                .tempdir()
+                .map_err(|e| self.set_error(e.to_string()))?;
+            crate::engine::audio_cpp::write_config(&launch, dir.path())
+                .map_err(|e| self.set_error(e))?;
+            *self.audio_run.lock().unwrap() = Some(dir);
+        }
         let mut args = match engine.build_launch(&launch, &caps, runtime_for_params) {
             Ok(out) => {
                 for s in &out.skipped {
@@ -1551,6 +1569,17 @@ impl ProcessManager {
                 crate::network::worker_origins(config.cors_origins.as_deref()),
             );
         }
+        let audio_cwd = self
+            .audio_run
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|d| d.path().to_path_buf());
+        let cwd = if engine.family() == crate::engine::AUDIO_CPP {
+            audio_cwd.as_deref().unwrap_or(cwd)
+        } else {
+            cwd
+        };
         cmd.args(&args)
             .current_dir(cwd)
             .stdin(Stdio::null())
@@ -1763,6 +1792,13 @@ impl ProcessManager {
                 return; // stopped or restarted
             }
 
+            if engine.family() == crate::engine::AUDIO_CPP
+                && crate::engine::audio_cpp::require_enabled().is_err()
+            {
+                let _ = self.stop().await;
+                return;
+            }
+
             // Did the process exit?
             let exit = {
                 let mut lock = self.child.lock().unwrap();
@@ -1779,6 +1815,7 @@ impl ProcessManager {
                     }
                     self.child.lock().unwrap().take();
                     self.active.lock().unwrap().take();
+                    self.audio_run.lock().unwrap().take();
                     self.stop_relay();
                     crate::mcp::remove_runtime_config(&self.id);
                     let was_running = self.get_status() == ServerStatus::Running;
@@ -2257,6 +2294,7 @@ impl ProcessManager {
         }
 
         self.active.lock().unwrap().take();
+        self.audio_run.lock().unwrap().take();
         self.stop_relay();
         crate::mcp::remove_runtime_config(&self.id);
         self.set_status(ServerStatus::Stopped);
@@ -2281,6 +2319,9 @@ impl ProcessManager {
         caps: &ServerCaps,
         runtime: Option<&crate::capabilities::RuntimeCapabilities>,
     ) -> Result<BuildOutput, String> {
+        if crate::engine::audio_cpp::is_model(&config.model_path) {
+            return Err(err("audio_cpp.llama_rejected").into());
+        }
         let mut args: Vec<String> = Vec::new();
 
         if config.router_mode {

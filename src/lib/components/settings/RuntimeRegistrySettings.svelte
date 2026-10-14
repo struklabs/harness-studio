@@ -462,6 +462,7 @@
         <FieldHelp text={t('help.runtime_family')}><select id="{uid}-lfamily" bind:value={localFamily} class="h-8 rounded-md border border-input bg-background px-2 text-xs">
           <option value="llama.cpp">llama.cpp</option>
           <option value="whisper.cpp">whisper.cpp</option>
+          <option value="audio.cpp">audio.cpp</option>
           <option value="stable-diffusion.cpp">stable-diffusion.cpp</option>
           <option value="mistral.rs">mistral.rs</option>
         </select></FieldHelp>

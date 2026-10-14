@@ -161,7 +161,7 @@ class EngineInstaller {
       }
       this.states[family] = IDLE;
       toast.success(t('eng.installed_ok', { runtime: family }));
-      await this.afterInstall();
+      await this.refreshAvailability();
       return true;
     } catch (e) {
       const error = spec.method === 'github' ? runtimeInstallErrorText(e) : localizeError(e);
@@ -259,7 +259,7 @@ class EngineInstaller {
     } catch (e) {
       toast.error(localizeError(e));
     }
-    await this.afterInstall();
+    await this.refreshAvailability();
   }
 
   private async installLemonade(): Promise<void> {
@@ -280,7 +280,7 @@ class EngineInstaller {
   }
 
   /** The hints that said "needs an engine" re-read their data, so they disappear at once. */
-  private async afterInstall() {
+  async refreshAvailability() {
     this.version++;
     clearPageCache();
     await this.refresh();
