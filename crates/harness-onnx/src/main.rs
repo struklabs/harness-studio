@@ -254,6 +254,28 @@ fn main() {
                 }
                 return;
             }
+            if let Some(package) = harness_onnx::audio_pkg::AudioPackage::discover(&load.model) {
+                let result = engine::init_runtime(load.ort_lib.as_deref())
+                    .and_then(|()| harness_onnx::audio_engine::load(&load, package));
+                match result {
+                    Ok(engine) => {
+                        println!(
+                            "harness-onnx: audio model ready in {:.1} s: {}",
+                            started.elapsed().as_secs_f32(),
+                            engine.describe()
+                        );
+                        for note in &engine.package.notes {
+                            println!("harness-onnx:   {}", note);
+                        }
+                        loader.set_audio(engine);
+                    }
+                    Err(e) => {
+                        eprintln!("harness-onnx: error: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+                return;
+            }
             if let Some(package) = harness_onnx::vision_pkg::VisionPackage::discover(&load.model) {
                 let result = engine::init_runtime(load.ort_lib.as_deref())
                     .and_then(|()| harness_onnx::vision_engine::load(&load, package));
