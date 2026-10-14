@@ -265,6 +265,35 @@ fn card_field(dir: &Path, key: &str) -> Option<String> {
     None
 }
 
+/// The `tags:` list of the model card's front matter (`- mlx` lines), lower case.
+fn card_tags(dir: &Path) -> Vec<String> {
+    let Ok(text) = std::fs::read_to_string(dir.join("README.md")) else {
+        return Vec::new();
+    };
+    let mut lines = text.lines();
+    if lines.next().map(str::trim) != Some("---") {
+        return Vec::new();
+    }
+    let mut tags = Vec::new();
+    let mut in_tags = false;
+    for line in lines {
+        let line = line.trim_end();
+        if line.trim() == "---" {
+            break;
+        }
+        if let Some(item) = line.trim_start().strip_prefix("- ").filter(|_| in_tags) {
+            tags.push(
+                item.trim()
+                    .trim_matches(|c| c == '"' || c == '\'')
+                    .to_ascii_lowercase(),
+            );
+        } else {
+            in_tags = line == "tags:";
+        }
+    }
+    tags
+}
+
 /// Bits per weight of MLX's quantization (`"quantization": {"group_size": 64, "bits": 4}`).
 pub fn quant_bits(cfg: &serde_json::Value) -> Option<u64> {
     let q = cfg.get("quantization")?;
@@ -340,9 +369,14 @@ pub fn is_stt_dir(path: &Path) -> bool {
         .and_then(|t| t.as_str())
         .is_some_and(|t| STT_TYPES.contains(&t.to_ascii_lowercase().as_str()))
         || is_parakeet_config(&cfg);
+    // mlx-audio's own conversions (whisper-large-v3-turbo-asr-fp16) have no `library_name`,
+    // only the `mlx` tag.
     arch && (card_field(path, "library_name")
         .is_some_and(|l| l.eq_ignore_ascii_case("mlx-audio") || l.eq_ignore_ascii_case("mlx"))
-        || quant_bits(&cfg).is_some())
+        || quant_bits(&cfg).is_some()
+        || card_tags(path)
+            .iter()
+            .any(|t| t == "mlx" || t == "mlx-audio"))
 }
 
 /// Whether `path` is a folder of the `mlx-audio` engine (text to speech or recognition).
@@ -1348,7 +1382,16 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             ("tokenizer.model", "x"),
             ("README.md", "---\nlibrary_name: mlx\n---\n"),
         ]);
-        for dir in [&ported, &turbo, &parakeet] {
+        // mlx-audio's own conversion of large-v3-turbo: no library_name, only the mlx tag.
+        let tagged = folder(&[
+            ("config.json", hf_whisper),
+            ("model.safetensors", "x"),
+            (
+                "README.md",
+                "---\ntags:\n- mlx\n- speech-to-text\n- stt\n---\n# x\n",
+            ),
+        ]);
+        for dir in [&ported, &turbo, &parakeet, &tagged] {
             let path = dir.path();
             assert!(is_stt_dir(path), "{}", path.display());
             assert!(!is_tts_dir(path));
@@ -1382,13 +1425,14 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             Some("parakeet")
         );
 
-        // A transformers Whisper checkpoint (no MLX card) is the Python engine's.
+        // A transformers Whisper checkpoint (no MLX card) is the Python engine's, whatever its
+        // other tags; a tag outside the front matter does not count.
         let hf = folder(&[
             ("config.json", hf_whisper),
             ("model.safetensors", "x"),
             (
                 "README.md",
-                "---\npipeline_tag: automatic-speech-recognition\n---\n",
+                "---\npipeline_tag: automatic-speech-recognition\ntags:\n- audio\n---\ntags:\n- mlx\n",
             ),
         ]);
         assert!(!is_stt_dir(hf.path()));
