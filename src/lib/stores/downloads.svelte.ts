@@ -60,6 +60,9 @@ downloads.onCompleted = async (job) => {
       console.warn('definition for downloaded model', e);
     }
   }
+  // A Python engine task model (speech, classifier, captioner...) is served by its definition
+  // too: without one, `/v1/audio/speech` or `/v1/hf` answered 404 until the Tasks tab was opened.
+  if (model.is_ready && model.kind === 'pipeline') await ensureLibraryDefinitions(['pipeline']);
   const openInDashboard = {
     label: t('hub.open_in_dashboard'),
     onClick: () => {
