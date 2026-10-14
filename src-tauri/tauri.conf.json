@@ -55,6 +55,9 @@
     "linux": {
       "appimage": {
         "bundleMediaFramework": true
+      },
+      "deb": {
+        "depends": ["libgomp1", "libvulkan1"]
       }
     },
     "windows": {

@@ -1083,6 +1083,13 @@ impl RuntimeManager {
             }
             Ok(out) => {
                 let _ = fs::remove_dir_all(&staging);
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                if let Some(library) = missing_shared_library(&stderr) {
+                    return Err(err("runtime.verify_missing_library")
+                        .with("packages", library_packages(&library))
+                        .with("library", library)
+                        .into());
+                }
                 Err(err("runtime.verify_exit").with("status", out.status).into())
             }
             Err(e) => {
@@ -1701,6 +1708,33 @@ fn is_build_tag(tag: &str) -> bool {
         .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
 }
 
+/// The shared library the dynamic loader could not find (`error while loading shared libraries:
+/// libgomp.so.1: cannot open shared object file`): the managed builds link the system's OpenMP
+/// and Vulkan loader, which minimal Linux installs may lack.
+fn missing_shared_library(stderr: &str) -> Option<String> {
+    let rest = stderr
+        .split("error while loading shared libraries: ")
+        .nth(1)?;
+    let name = rest.split(':').next()?.trim();
+    (!name.is_empty() && name.len() <= 128).then(|| name.to_string())
+}
+
+/// Package names that provide `library` on the common distributions, for the error's hint.
+fn library_packages(library: &str) -> String {
+    let base = library.split(".so").next().unwrap_or(library);
+    match base {
+        "libgomp" => "Debian/Ubuntu: libgomp1, Fedora: libgomp, Arch: gcc-libs".into(),
+        "libvulkan" => {
+            "Debian/Ubuntu: libvulkan1, Fedora: vulkan-loader, Arch: vulkan-icd-loader".into()
+        }
+        "libcurl" => "Debian/Ubuntu: libcurl4, Fedora: libcurl, Arch: curl".into(),
+        "libssl" | "libcrypto" => {
+            "Debian/Ubuntu: libssl3, Fedora: openssl-libs, Arch: openssl".into()
+        }
+        _ => library.into(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1718,6 +1752,17 @@ mod tests {
         assert!(pe_imports(b"not a pe").is_empty());
     }
     use super::*;
+
+    #[test]
+    fn a_missing_shared_library_is_named_with_its_packages() {
+        let stderr = "./llama-server: error while loading shared libraries: libgomp.so.1: cannot open shared object file: No such file or directory";
+        let lib = missing_shared_library(stderr).unwrap();
+        assert_eq!(lib, "libgomp.so.1");
+        assert!(library_packages(&lib).contains("libgomp1"));
+        assert!(library_packages("libvulkan.so.1").contains("vulkan-loader"));
+        assert_eq!(library_packages("libfoo.so.2"), "libfoo.so.2");
+        assert_eq!(missing_shared_library("Segmentation fault"), None);
+    }
 
     #[test]
     fn build_tags_only() {
