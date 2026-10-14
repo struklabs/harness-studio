@@ -60,10 +60,11 @@ export type PipelineResult =
   | { kind: 'detections'; items: Detection[] }
   | { kind: 'masks'; items: MaskResult[] }
   | { kind: 'depth'; value: DepthResult }
+  | { kind: 'text'; value: string }
   | { kind: 'raw'; value: unknown };
 
 /** Tasks that take one image (harness-onnx vision heads, the Python worker's image tasks). */
-export const IMAGE_TASKS = ['image-classification', 'object-detection', 'image-segmentation', 'depth-estimation', 'zero-shot-image-classification', 'image-feature-extraction'] as const;
+export const IMAGE_TASKS = ['image-classification', 'object-detection', 'image-segmentation', 'depth-estimation', 'zero-shot-image-classification', 'image-feature-extraction', 'image-to-text'] as const;
 
 export function isImageTask(task: string | undefined): boolean {
   return (IMAGE_TASKS as readonly string[]).includes(task ?? '');
@@ -208,6 +209,9 @@ export function parseResponse(task: string | undefined, json: unknown): Pipeline
         return { label: r.label as string, score: r.score as number, box: { xmin: n('xmin'), ymin: n('ymin'), xmax: n('xmax'), ymax: n('ymax') } };
       }),
     };
+  }
+  if (rows.every((r) => isStr(r.generated_text))) {
+    return { kind: 'text', value: rows.map((r) => (r.generated_text as string).trim()).join('\n') };
   }
   if (rows.every((r) => isStr(r.answer) && isNum(r.score))) {
     return { kind: 'answers', items: rows.map(answerOf) };

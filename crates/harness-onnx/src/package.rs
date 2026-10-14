@@ -177,7 +177,8 @@ pub enum PackageError {
     NotOnnx(PathBuf),
     MissingTokenizer(PathBuf),
     InvalidCtc(String),
-    /// An image and text dual encoder (CLIP, SigLIP): a vision package scores it.
+    /// An image and text model (a CLIP / SigLIP dual encoder, an image captioner): a vision
+    /// package serves it.
     DualEncoder(PathBuf),
 }
 
@@ -193,7 +194,7 @@ impl std::fmt::Display for PackageError {
             ),
             PackageError::DualEncoder(p) => write!(
                 f,
-                "{} is an image and text model (zero-shot image classification), not a text encoder",
+                "{} is an image and text model (zero-shot image classification or captioning), not a text encoder",
                 p.display()
             ),
         }
@@ -468,11 +469,12 @@ impl ModelPackage {
         let mut notes = Vec::new();
 
         let config = read_json(&root.join("config.json"));
-        if config
-            .as_ref()
-            .and_then(crate::vision_pkg::task_from_config)
-            == Some(crate::vision_pkg::VisionTask::ZeroShot)
-        {
+        if matches!(
+            config
+                .as_ref()
+                .and_then(crate::vision_pkg::task_from_config),
+            Some(crate::vision_pkg::VisionTask::ZeroShot | crate::vision_pkg::VisionTask::Caption)
+        ) {
             return Err(PackageError::DualEncoder(onnx_path.to_path_buf()));
         }
         let tokenizer_config = read_json(&root.join("tokenizer_config.json"));

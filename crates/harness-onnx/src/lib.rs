@@ -25,6 +25,8 @@ pub mod asr_ctc;
 pub mod audio_pkg;
 pub mod cli;
 pub mod genai_pkg;
+/// Generation settings and logits rules of encoder-decoder models.
+pub mod generation;
 pub mod hf_api;
 pub mod package;
 pub mod pooling;
@@ -37,6 +39,8 @@ pub mod audio_engine;
 pub mod chat;
 #[cfg(feature = "engine")]
 pub mod chat_engine;
+#[cfg(feature = "engine")]
+pub mod decoder;
 #[cfg(feature = "engine")]
 pub mod engine;
 #[cfg(feature = "engine")]
