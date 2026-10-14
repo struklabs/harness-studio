@@ -439,6 +439,7 @@ pub(crate) mod tests {
     };
 
     /// Writes a ready env of `spec` under `root` (the interpreter and a manifest of its lock).
+    #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
     pub(crate) fn fake_ready(root: &Path, spec: &EnvSpec) {
         let python = python_in(root, spec.name);
         std::fs::create_dir_all(python.parent().unwrap()).unwrap();
