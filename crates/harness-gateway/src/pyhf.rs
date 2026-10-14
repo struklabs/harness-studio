@@ -38,6 +38,9 @@ pub struct Answer {
     pub content_type: String,
     pub body: Bytes,
     pub lease: Lease,
+    /// The worker stopped at its time limit and answered the audio made by then
+    /// (`x-harness-truncated`).
+    pub truncated: bool,
 }
 
 /// Leases the definition's server (loading it when needed) and posts `body` to `path` on it.
@@ -102,6 +105,7 @@ pub async fn post(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("application/octet-stream")
         .to_string();
+    let truncated = upstream.headers().contains_key("x-harness-truncated");
     let body = upstream
         .bytes()
         .await
@@ -116,6 +120,7 @@ pub async fn post(
         content_type,
         body,
         lease,
+        truncated,
     })
 }
 
@@ -140,6 +145,8 @@ pub fn upstream_error(status: u16, body: &[u8]) -> GatewayError {
         400 | 413 => (status, "invalid_request"),
         404 => (400, "wrong_task"),
         503 => (503, "model_loading"),
+        // The worker's own time limit (mlx-audio).
+        504 => (504, "upstream_timeout"),
         _ => (502, "upstream_error"),
     };
     GatewayError::new(status, code, format!("Python engine: {detail}"))
@@ -190,6 +197,7 @@ mod tests {
         assert_eq!((e.status, e.code.as_str()), (400, "wrong_task"));
         assert_eq!(upstream_error(500, b"boom").status, 502);
         assert_eq!(upstream_error(503, b"{}").status, 503);
+        assert_eq!(upstream_error(504, b"{}").status, 504);
     }
 
     #[test]

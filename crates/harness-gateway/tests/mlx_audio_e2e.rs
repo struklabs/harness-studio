@@ -102,13 +102,25 @@ async fn an_mlx_audio_model_speaks_through_the_gateway() {
             path: model.clone(),
         },
     );
+    // The same folder with a 5 s time limit (`--max-seconds`).
+    let mut limited = ModelDefinition::new(
+        "mlx-tts-e2e-limited",
+        ModelRef::Local {
+            path: model.clone(),
+        },
+    );
+    limited.load.insert(
+        "max_seconds".into(),
+        harness_core::params::ParamValue::Int(5),
+    );
     let store = harness_core::domain::store::Domain::global();
     for old in store.definitions().unwrap() {
-        if old.alias == "mlx-tts-e2e" {
+        if old.alias.starts_with("mlx-tts-e2e") {
             store.delete_definition(&old.id).unwrap();
         }
     }
     store.save_definition(def).unwrap();
+    store.save_definition(limited).unwrap();
 
     let registry = Arc::new(ServerRegistry::default());
     let server = GatewayServer::new();
@@ -170,6 +182,45 @@ async fn an_mlx_audio_model_speaks_through_the_gateway() {
     eprintln!("unknown voice: {code} {text}");
     assert_eq!(code, 400, "{text}");
     assert!(text.contains("serena"), "{text}");
+
+    // A short text never runs away: sampling can miss the end token, the frame cap (here the
+    // 75-frame floor, 6 s) stops it. 16-bit mono at 24 kHz: 48 000 bytes a second.
+    for round in 0..5 {
+        let res = http
+            .post(format!("{base}/v1/audio/speech"))
+            .json(&json!({ "model": "mlx-tts-e2e", "input": "Hello from Harness Studio on a Mac.", "voice": "ryan", "response_format": "wav" }))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(res.status(), 200);
+        let seconds = (res.bytes().await.unwrap().len() - 44) as f64 / 48_000.0;
+        eprintln!("short text, round {round}: {seconds:.2} s of audio");
+        assert!(
+            seconds <= 6.5,
+            "{seconds} s of audio for a 35-character text"
+        );
+    }
+
+    // A long text under a 5 s time limit: the audio made by then, marked as cut.
+    let long = "Harness Studio runs local models on this computer. ".repeat(12);
+    let t = Instant::now();
+    let res = http
+        .post(format!("{base}/v1/audio/speech"))
+        .json(&json!({ "model": "mlx-tts-e2e-limited", "input": long, "voice": "ryan", "response_format": "wav" }))
+        .send()
+        .await
+        .unwrap();
+    let code = res.status();
+    let cut = res.headers().get("x-harness-truncated").cloned();
+    let audio = res.bytes().await.unwrap();
+    eprintln!(
+        "long text with a 5 s limit: {code} {cut:?} {} bytes in {:?} (load included)",
+        audio.len(),
+        t.elapsed()
+    );
+    assert_eq!(code, 200, "{}", String::from_utf8_lossy(&audio));
+    assert_eq!(cut.as_ref().map(|v| v.to_str().unwrap()), Some("time"));
+    assert!(audio.starts_with(b"RIFF") && audio.len() > 48_000);
 
     // The worker's own port refuses a request without its key.
     let worker = registry

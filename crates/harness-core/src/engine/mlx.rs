@@ -1237,6 +1237,9 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         config
             .params
             .insert("max_chars".into(), crate::params::ParamValue::Int(900));
+        config
+            .params
+            .insert("max_seconds".into(), crate::params::ParamValue::Int(45));
         let out = build_args(
             &config,
             Path::new("/env/mlx_audio_worker.py"),
@@ -1250,6 +1253,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             "{args}"
         );
         assert!(args.contains("--max-chars 900"), "{args}");
+        assert!(args.contains("--max-seconds 45"), "{args}");
         assert!(!args.contains("--max-tokens"), "{args}");
         assert_eq!(MlxEngine::AUDIO.family(), MLX_AUDIO);
         assert_eq!(MlxEngine::AUDIO.env(), VLM_ENV);
@@ -1274,7 +1278,9 @@ import sys, asyncio; sys.path.insert(0, {:?}); import mlx_audio_worker as w
 spoken = []
 def speak(text, voice, speed, language):
     spoken.append((text, voice, speed, language))
-    return b"RIFFfake"
+    if text == "slow":
+        raise w.TooSlow()
+    return b"RIFFfake", text == "long run"
 app = w.app_for(speak, "tts", ["serena", "ryan"], 50)
 async def call(method, path, body=b"", key=True, kind="http"):
     sent, queue = [], [{{"type": "http.request", "body": body, "more_body": False}}]
@@ -1286,7 +1292,10 @@ async def call(method, path, body=b"", key=True, kind="http"):
     await app({{"type": kind, "method": method, "path": path, "headers": headers}}, receive, send)
     if kind == "websocket":
         return sent[0].get("code")
-    return sent[0]["status"], b"".join(m.get("body", b"") for m in sent[1:]).decode(errors="replace")
+    status = sent[0]["status"]
+    if dict(sent[0]["headers"]).get(b"x-harness-truncated"):
+        status = (status, "truncated")
+    return status, b"".join(m.get("body", b"") for m in sent[1:]).decode(errors="replace")
 async def main():
     S = "/v1/audio/speech"
     for name, args in [
@@ -1305,6 +1314,8 @@ async def main():
         ("speed", ("POST", S, b'{{"input":"x","speed":9}}')),
         ("mp3", ("POST", S, b'{{"input":"x","response_format":"mp3"}}')),
         ("empty", ("POST", S, b'{{"input":"  "}}')),
+        ("slow", ("POST", S, b'{{"input":"slow"}}')),
+        ("cut", ("POST", S, b'{{"input":"long run"}}')),
     ]:
         print(name, await call(*args))
     print("ws", await call("GET", S, kind="websocket"))
@@ -1338,8 +1349,10 @@ asyncio.run(main())
             "speed (400,",
             "mp3 (400,",
             "empty (400,",
+            "slow (504,",
+            "cut ((200, 'truncated'), 'RIFFfake')",
             "ws 1008",
-            "spoken [('hello', 'ryan', 1.5, None), ('hello', None, 1.0, None)]",
+            "spoken [('hello', 'ryan', 1.5, None), ('hello', None, 1.0, None), ('slow', None, 1.0, None), ('long run', None, 1.0, None)]",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }
@@ -1567,6 +1580,84 @@ print("text health foreign", call("GET", "/health", E, False))
             ])
         {
             assert!(text.contains(&line), "{line} missing:\n{text}");
+        }
+    }
+
+    /// A speech request cannot run away: `max_tokens` grows with the text within a floor and a
+    /// ceiling, generation streams and stops at the time limit with the audio made so far, and
+    /// nothing made by then is `TooSlow` (504). A model without `stream` / `max_tokens` is called
+    /// without them.
+    #[test]
+    fn the_audio_worker_caps_frames_and_time() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let script = format!(
+            r#"
+import sys, types; sys.path.insert(0, {:?}); import mlx_audio_worker as w
+print("budget short", w.frame_budget(8, 1.0))
+print("budget long", w.frame_budget(100, 1.0))
+print("budget slow", w.frame_budget(80, 0.5))
+print("budget cap", w.frame_budget(100000, 1.0))
+now = [0.0]
+clock = lambda: now[0]
+class Talker:
+    # Talks forever: one chunk per call, 4 s of (fake) clock each, until closed.
+    tokenizer = types.SimpleNamespace(encode=lambda t: t.split())
+    def __init__(self):
+        self.calls, self.closed = [], False
+    def generate(self, text, voice=None, speed=1.0, lang_code="auto", max_tokens=4096, stream=False):
+        self.calls.append(dict(voice=voice, max_tokens=max_tokens, stream=stream))
+        try:
+            while True:
+                now[0] += 4.0
+                yield types.SimpleNamespace(audio=[0.0] * 10)
+        finally:
+            self.closed = True
+encode = lambda parts, rate: "wav of %d chunks" % len(parts)
+t = Talker()
+speak = w.make_speak(t, ["ryan"], 24000, 10, encode, clock)
+print("runaway", speak("one two three", None, 1.0, None), t.calls, "closed", t.closed)
+class Silent:
+    # Spends the whole time limit and makes nothing.
+    def generate(self, text, max_tokens=4096, stream=False, **kw):
+        now[0] += 30
+        return iter(())
+speak = w.make_speak(Silent(), [], 24000, 10, encode, clock)
+try:
+    speak("one", None, 1.0, None)
+except w.TooSlow:
+    print("too slow")
+class Plain:
+    def generate(self, text, voice=None, speed=1.0):
+        yield types.SimpleNamespace(audio=[0.0])
+speak = w.make_speak(Plain(), [], 24000, 10, encode, clock)
+print("plain", speak("hi", None, 1.0, None))
+"#,
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "budget short 75",
+            "budget long 800",
+            "budget slow 1280",
+            "budget cap 1500",
+            // 3 tokens -> the floor; stops after the chunk that passed 10 s (4 + 4 + 4).
+            "runaway ('wav of 3 chunks', True) [{'voice': 'ryan', 'max_tokens': 75, 'stream': True}] closed True",
+            "too slow",
+            "plain ('wav of 1 chunks', False)",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
         }
     }
 

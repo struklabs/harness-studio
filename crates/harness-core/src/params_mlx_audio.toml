@@ -13,3 +13,14 @@ level = "advanced"
 label_key = "mlxparam.max_chars"
 help_key = "mlxparam.max_chars_help"
 min = 1
+
+[[param]]
+id = "max_seconds"
+flags = ["--max-seconds"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "mlxparam.max_seconds"
+help_key = "mlxparam.max_seconds_help"
+min = 5
+max = 600
