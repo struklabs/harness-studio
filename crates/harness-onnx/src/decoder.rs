@@ -65,6 +65,30 @@ impl Stored {
             Stored::F16(s, d) => Tensor::from_array((s.clone(), d.clone()))?.into_dyn(),
         })
     }
+
+    /// The batch rows `rows` of the tensor, in that order (a beam's cache follows its beam).
+    fn gather(&self, rows: &[usize]) -> Stored {
+        fn pick<T: Copy>(shape: &[usize], data: &[T], rows: &[usize]) -> (Vec<usize>, Vec<T>) {
+            let size: usize = shape.iter().skip(1).product();
+            let mut out = Vec::with_capacity(size * rows.len());
+            for &r in rows {
+                out.extend_from_slice(&data[r * size..(r + 1) * size]);
+            }
+            let mut shape = shape.to_vec();
+            shape[0] = rows.len();
+            (shape, out)
+        }
+        match self {
+            Stored::F32(s, d) => {
+                let (s, d) = pick(s, d, rows);
+                Stored::F32(s, d)
+            }
+            Stored::F16(s, d) => {
+                let (s, d) = pick(s, d, rows);
+                Stored::F16(s, d)
+            }
+        }
+    }
 }
 
 /// Reads a `tokenizer.json`, mending what the tokenizers crate cannot read: transformers.js
@@ -214,8 +238,15 @@ impl Decoder {
         states: &[f32],
         state_shape: &[i64],
         max_new_tokens: Option<usize>,
+        num_beams: Option<usize>,
     ) -> Result<Vec<u32>, ApiError> {
-        let max_length = self.gen.length_of(max_new_tokens);
+        let width = num_beams
+            .unwrap_or(self.gen.num_beams)
+            .clamp(1, generation::MAX_BEAMS);
+        if width > 1 {
+            return self.beam_search(states, state_shape, max_new_tokens, width);
+        }
+        let max_length = self.gen.length_of(max_new_tokens, 1);
         let err = |e: ort::Error| ApiError::server(format!("decoder: {}", e));
         let shape: Vec<usize> = state_shape.iter().map(|d| *d as usize).collect();
         let enc_len = *shape
@@ -353,6 +384,172 @@ impl Decoder {
             tokens.push(i64::from(next));
         }
         Ok(tokens.iter().skip(1).map(|t| *t as u32).collect())
+    }
+
+    /// Beam search with `width` beams as one batch: every row gets the encoder states, the
+    /// self-attention cache follows its beam from step to step, the cross-attention cache of
+    /// the first step stays (its rows are the same for every beam).
+    fn beam_search(
+        &self,
+        states: &[f32],
+        state_shape: &[i64],
+        max_new_tokens: Option<usize>,
+        width: usize,
+    ) -> Result<Vec<u32>, ApiError> {
+        let max_length = self.gen.length_of(max_new_tokens, width);
+        let err = |e: ort::Error| ApiError::server(format!("decoder: {}", e));
+        let mut shape: Vec<usize> = state_shape.iter().map(|d| *d as usize).collect();
+        let enc_len = *shape
+            .get(1)
+            .ok_or_else(|| ApiError::server("unexpected encoder output shape"))?;
+        shape[0] = width;
+        let mut repeated = Vec::with_capacity(states.len() * width);
+        for _ in 0..width {
+            repeated.extend_from_slice(states);
+        }
+        let half: Vec<half::f16> = if self.states_f16 {
+            repeated.iter().map(|v| half::f16::from_f32(*v)).collect()
+        } else {
+            Vec::new()
+        };
+        let states_value = || -> Result<DynValue, ApiError> {
+            Ok(if self.states_f16 {
+                Tensor::from_array((shape.clone(), half.clone()))
+                    .map_err(err)?
+                    .into_dyn()
+            } else {
+                Tensor::from_array((shape.clone(), repeated.clone()))
+                    .map_err(err)?
+                    .into_dyn()
+            })
+        };
+        let mut beams = generation::Beams::new(&self.gen, width);
+        // Cache by `cache` index: self-attention of the last step, cross-attention of the first.
+        let mut past: Vec<Option<Stored>> = Vec::new();
+        let mut session = self
+            .session
+            .lock()
+            .map_err(|_| ApiError::server("the decoder session is poisoned"))?;
+        while beams.seqs[0].len() < max_length && !beams.is_done() {
+            let cur = beams.seqs[0].len();
+            let cached = !self.cache.is_empty() && !past.is_empty();
+            let step_len = if cached { 1 } else { cur };
+            let step: Vec<i64> = beams
+                .seqs
+                .iter()
+                .flat_map(|s| s[s.len() - step_len..].iter().copied())
+                .collect();
+            let mut feeds: Vec<(String, DynValue)> = vec![
+                (
+                    self.ids.clone(),
+                    Tensor::from_array(([width, step_len], step))
+                        .map_err(err)?
+                        .into_dyn(),
+                ),
+                (self.encoder_states.clone(), states_value()?),
+            ];
+            if let Some(name) = &self.mask {
+                feeds.push((
+                    name.clone(),
+                    Tensor::from_array(([width, cur], vec![1i64; width * cur]))
+                        .map_err(err)?
+                        .into_dyn(),
+                ));
+            }
+            if let Some(name) = &self.encoder_mask {
+                feeds.push((
+                    name.clone(),
+                    Tensor::from_array(([width, enc_len], vec![1i64; width * enc_len]))
+                        .map_err(err)?
+                        .into_dyn(),
+                ));
+            }
+            if let Some(name) = &self.cache_branch {
+                feeds.push((
+                    name.clone(),
+                    Tensor::from_array(([1usize], vec![cached]))
+                        .map_err(err)?
+                        .into_dyn(),
+                ));
+            }
+            if cached {
+                for ((name, _), stored) in self.cache.iter().zip(&past) {
+                    let stored = stored
+                        .as_ref()
+                        .ok_or_else(|| ApiError::server("decoder cache lost"))?;
+                    feeds.push((name.clone(), stored.value().map_err(err)?));
+                }
+            } else if !self.cache.is_empty() {
+                let (heads, dim, f16) = self.cache_shape;
+                for (name, _) in &self.cache {
+                    let empty: DynValue = if f16 {
+                        Tensor::from_array(([width, heads, 0, dim], Vec::<half::f16>::new()))
+                            .map_err(err)?
+                            .into_dyn()
+                    } else {
+                        Tensor::from_array(([width, heads, 0, dim], Vec::<f32>::new()))
+                            .map_err(err)?
+                            .into_dyn()
+                    };
+                    feeds.push((name.clone(), empty));
+                }
+            }
+            let outputs = session
+                .run(feeds)
+                .map_err(|e| ApiError::server(format!("decoder failed: {}", e)))?;
+            let rows: Vec<Vec<f32>> = {
+                let value = outputs
+                    .get(&self.logits)
+                    .ok_or_else(|| ApiError::server("decoder logits missing"))?;
+                let (s, data): (Vec<i64>, Vec<f32>) = match value.dtype().tensor_type() {
+                    Some(TensorElementType::Float16) => {
+                        let (s, d) = value.try_extract_tensor::<half::f16>().map_err(err)?;
+                        (s.to_vec(), d.iter().map(|v| v.to_f32()).collect())
+                    }
+                    _ => {
+                        let (s, d) = value.try_extract_tensor::<f32>().map_err(err)?;
+                        (s.to_vec(), d.to_vec())
+                    }
+                };
+                let vocab = *s.last().unwrap_or(&0) as usize;
+                if vocab == 0 || data.len() != width * step_len * vocab {
+                    return Err(ApiError::server(format!(
+                        "unexpected decoder logits shape {:?}",
+                        s
+                    )));
+                }
+                (0..width)
+                    .map(|b| {
+                        let at = (b * step_len + step_len - 1) * vocab;
+                        let mut row = data[at..at + vocab].to_vec();
+                        generation::log_softmax(&mut row);
+                        generation::process(&self.gen, &beams.seqs[b], &mut row, max_length);
+                        row
+                    })
+                    .collect()
+            };
+            let sources = beams.step(&rows, &self.gen.eos_ids);
+            let first = past.is_empty();
+            let mut next = Vec::with_capacity(self.cache.len());
+            for (i, (name, present)) in self.cache.iter().enumerate() {
+                if name.contains(".encoder.") && !first {
+                    next.push(past[i].take());
+                    continue;
+                }
+                let value = outputs
+                    .get(present.as_str())
+                    .ok_or_else(|| ApiError::server(format!("{} missing", present)))?;
+                let stored = Stored::of(value).map_err(err)?;
+                next.push(Some(if name.contains(".encoder.") {
+                    stored
+                } else {
+                    stored.gather(&sources)
+                }));
+            }
+            past = next;
+        }
+        drop(session);
+        Ok(beams.best().into_iter().map(|t| t as u32).collect())
     }
 
     /// The text of generated tokens, special tokens left out.

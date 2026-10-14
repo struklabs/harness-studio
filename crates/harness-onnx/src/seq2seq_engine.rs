@@ -71,6 +71,7 @@ pub fn load(opts: &LoadOptions, package: Seq2SeqPackage) -> Result<Seq2SeqEngine
         .handle(&Seq2SeqJob {
             text: "Hello.".into(),
             max_new_tokens: Some(2),
+            num_beams: Some(1),
         })
         .map_err(|e| e.message)?;
     Ok(engine)
@@ -129,7 +130,9 @@ impl Seq2SeqEngine {
                 }
             }
         };
-        let tokens = self.decoder.generate(&states, &shape, job.max_new_tokens)?;
+        let tokens = self
+            .decoder
+            .generate(&states, &shape, job.max_new_tokens, job.num_beams)?;
         let text = self.decoder.decode(&tokens)?;
         Ok(json!([{ self.package.output_key(): text }]))
     }
