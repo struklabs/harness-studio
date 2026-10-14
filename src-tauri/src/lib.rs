@@ -724,6 +724,8 @@ pub fn run() {
                         lock.release();
                     }
                 }
+                #[cfg(target_os = "linux")]
+                app_update::relaunch_appimage_after_exit();
             }
         });
 }
