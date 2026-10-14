@@ -126,3 +126,19 @@ export function pickChat<T extends ChatCandidate>(found: T[]): T | null {
     return b.sizeBytes < a.sizeBytes ? b : a;
   });
 }
+
+/** MLX Whisper repos in mlx-audio's layout: large-v3-turbo, and small for little free memory. */
+export const MLX_WHISPER_REPOS = ['mlx-community/whisper-large-v3-turbo-asr-fp16', 'mlx-community/whisper-small-asr-fp16'];
+/** Free memory below which the small model is suggested (turbo's weights are 1.6 GB). */
+export const MLX_TURBO_FREE_BYTES = 3 * 1024 ** 3;
+
+/** Speech to text on Apple Silicon runs on MLX when its engine can be installed there (macOS
+ *  new enough); elsewhere, and as the fallback, on whisper.cpp. */
+export function asrEngine(hardware: { os?: string; arch?: string } | null, mlxOffered: boolean): 'mlx' | 'whisper.cpp' {
+  return hardware?.os === 'macos' && hardware.arch === 'aarch64' && mlxOffered ? 'mlx' : 'whisper.cpp';
+}
+
+/** The MLX Whisper repo for this much free memory (unknown: the turbo model). */
+export function mlxWhisperRepo(freeRam: number | null | undefined): string {
+  return freeRam != null && freeRam < MLX_TURBO_FREE_BYTES ? MLX_WHISPER_REPOS[1] : MLX_WHISPER_REPOS[0];
+}

@@ -122,3 +122,17 @@ test('chat picks the non-thinking Qwen3 Instruct-2507, then Gemma, before hybrid
   ];
   assert.equal(pickChat(cpu).repoId, 'unsloth/Qwen3-4B-Instruct-2507-GGUF');
 });
+
+test('speech to text runs on MLX on Apple Silicon when its engine can be installed', async () => {
+  const { asrEngine, mlxWhisperRepo, MLX_WHISPER_REPOS } = await import('../src/lib/components/onboarding/suggestPlan.ts');
+  const mac = { os: 'macos', arch: 'aarch64' };
+  assert.equal(asrEngine(mac, true), 'mlx');
+  // macOS too old for the MLX wheels, an Intel Mac, Windows: whisper.cpp.
+  assert.equal(asrEngine(mac, false), 'whisper.cpp');
+  assert.equal(asrEngine({ os: 'macos', arch: 'x86_64' }, true), 'whisper.cpp');
+  assert.equal(asrEngine({ os: 'windows', arch: 'x86_64' }, true), 'whisper.cpp');
+  assert.equal(asrEngine(null, true), 'whisper.cpp');
+  assert.equal(mlxWhisperRepo(16 * 1024 ** 3), MLX_WHISPER_REPOS[0]);
+  assert.equal(mlxWhisperRepo(null), MLX_WHISPER_REPOS[0]);
+  assert.equal(mlxWhisperRepo(2 * 1024 ** 3), MLX_WHISPER_REPOS[1]);
+});
