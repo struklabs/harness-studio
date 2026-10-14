@@ -1,5 +1,6 @@
 import type { LocalModel, ModelDefinition, ServeMode } from '#lib/types.js';
 import { chatModelsOnly } from '../../chatModels';
+import { DIFFUSERS_IMAGE_TASKS } from './image';
 
 /** The library file a definition points at, when it is in `files`. */
 export function definitionFile(def: ModelDefinition, files: LocalModel[] = []): LocalModel | undefined {
@@ -14,7 +15,7 @@ export function definitionMode(def: ModelDefinition, files: LocalModel[] = []): 
   const file = definitionFile(def, files);
   if (def.load?.task === 'asr_ctc' || file?.kind === 'asr' || /\.bin$/i.test(path)) return 'transcription';
   // A diffusers folder of the Python engine draws through the Image tab like sd.cpp's files.
-  if (file?.kind === 'pipeline') return file.task === 'text-to-image' ? 'image' : 'pipeline';
+  if (file?.kind === 'pipeline') return DIFFUSERS_IMAGE_TASKS.includes(file.task ?? '') ? 'image' : 'pipeline';
   if (file?.kind === 'image' || /\.(safetensors|ckpt)$/i.test(path)) return 'image';
   const mode = def.load?.serve_mode;
   if (file?.kind === 'reranker' || mode === 'rerank' || def.load?.rerank === true) return 'rerank';

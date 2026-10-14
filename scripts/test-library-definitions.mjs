@@ -46,6 +46,7 @@ test('Open in Playground picks the tab and how the model is chosen', () => {
   assert.equal(playgroundTarget(file('r.gguf', 'reranker')).tab, 'rerank');
   assert.equal(playgroundTarget(file('ner', 'pipeline', { task: 'token-classification' })).tab, 'pipeline');
   assert.deepEqual(playgroundTarget(file('tiny-sd', 'pipeline', { task: 'text-to-image' })), { tab: 'image', pick: 'definition' });
+  assert.deepEqual(playgroundTarget(file('pix2pix', 'pipeline', { task: 'image-to-image' })), { tab: 'image', pick: 'definition' });
   assert.equal(playgroundTarget(file('chat.gguf', 'llm')), null);
   assert.equal(playgroundTarget(file('a.gguf', 'image', { is_ready: false })), null);
 });

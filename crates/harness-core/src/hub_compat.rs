@@ -555,7 +555,7 @@ pub const PYTHON_HF_FAMILY: &str = crate::engine::PYTHON_HF;
 /// The Python engine's verdict on a Hub repo: a transformers or sentence-transformers repo of a
 /// task the worker serves ([`crate::engine::python_hf::TASKS`]), with safetensors or PyTorch
 /// weights and a `config.json` at the root (a listing without file names is taken by its tags),
-/// or a diffusers text-to-image pipeline ([`diffusers_pipeline`]). Remote code is never run, so
+/// or a diffusers text-to-image or image-to-image pipeline ([`diffusers_pipeline`]). Remote code is never run, so
 /// a `custom_code` repo is not one; a text-to-image repo with a single-file checkpoint stays with
 /// stable-diffusion.cpp. `None` for every other repo. Whether the engine is installed is settled
 /// later ([`resolve_installed`]).
@@ -620,7 +620,8 @@ pub fn diffusers_pickle_weights(files: &[String]) -> bool {
     bin.difference(&safe).next().is_some()
 }
 
-/// A diffusers text-to-image pipeline the Python engine loads from its folders: `model_index.json`
+/// A diffusers text-to-image or image-to-image pipeline (InstructPix2Pix, the SDXL refiner,
+/// Qwen-Image-Edit) the Python engine loads from its folders: `model_index.json`
 /// at the root and component weights (safetensors or PyTorch `.bin`) one folder down, no
 /// remote code. A listing without file names is taken by its library and tags.
 fn diffusers_pipeline(
@@ -629,7 +630,7 @@ fn diffusers_pipeline(
     tags: &[String],
     files: &[String],
 ) -> bool {
-    if task != Some("text-to-image")
+    if !matches!(task, Some("text-to-image" | "image-to-image"))
         || !matches!(
             library.map(str::to_ascii_lowercase).as_deref(),
             None | Some("diffusers")
@@ -712,9 +713,14 @@ mod tests {
             verdict(Some("diffusers"), Some("text-to-image"), &[], &[]),
             runnable
         );
-        // Other tasks, remote code, no weights in component folders, no model_index.json.
+        // Image-to-image pipelines too (the worker edits with them).
         assert_eq!(
             verdict(Some("diffusers"), Some("image-to-image"), &[], &tiny),
+            runnable
+        );
+        // Other tasks, remote code, no weights in component folders, no model_index.json.
+        assert_eq!(
+            verdict(Some("diffusers"), Some("text-to-video"), &[], &tiny),
             None
         );
         assert_eq!(

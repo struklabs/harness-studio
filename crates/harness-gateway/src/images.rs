@@ -745,17 +745,8 @@ async fn run(
     caller.check_model(&def.alias)?;
     // A diffusers pipeline of the Python engine answers OpenAI's request itself.
     if let Some(task) = crate::pyhf::task_of(&def) {
-        if task != "text-to-image" {
-            return Err(GatewayError::new(
-                400,
-                "model_not_image",
-                format!(
-                    "`{}` is a Python engine model of {task}; {} needs a text-to-image model.",
-                    def.alias,
-                    kind.path()
-                ),
-            )
-            .param("model"));
+        if let Some(e) = python_task_error(&def.alias, &task, kind) {
+            return Err(e);
         }
         let request = match kind {
             Kind::Generations => raw_request.unwrap_or_default(),
@@ -941,9 +932,43 @@ async fn run(
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
 }
 
+/// Why a Python engine model of `task` cannot serve `kind`: only diffusers pipelines draw, and
+/// an image-to-image one (InstructPix2Pix, Qwen-Image-Edit) needs a start image.
+fn python_task_error(alias: &str, task: &str, kind: Kind) -> Option<GatewayError> {
+    let e = match task {
+        "text-to-image" => return None,
+        "image-to-image" if kind == Kind::Edits => return None,
+        "image-to-image" => GatewayError::new(
+            400,
+            "image_required",
+            format!("`{alias}` edits images: send it to /v1/images/edits with an image."),
+        ),
+        _ => GatewayError::new(
+            400,
+            "model_not_image",
+            format!(
+                "`{alias}` is a Python engine model of {task}; {} needs a text-to-image model.",
+                kind.path()
+            ),
+        ),
+    };
+    Some(e.param("model"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn image_to_image_python_models_only_edit() {
+        assert!(python_task_error("m", "text-to-image", Kind::Generations).is_none());
+        assert!(python_task_error("m", "text-to-image", Kind::Edits).is_none());
+        assert!(python_task_error("m", "image-to-image", Kind::Edits).is_none());
+        let e = python_task_error("m", "image-to-image", Kind::Generations).unwrap();
+        assert_eq!((e.status, e.code.as_str()), (400, "image_required"));
+        let e = python_task_error("m", "text-classification", Kind::Edits).unwrap();
+        assert_eq!(e.code, "model_not_image");
+    }
 
     #[test]
     fn a_job_that_ran_out_of_device_memory_says_how_much_it_needed() {

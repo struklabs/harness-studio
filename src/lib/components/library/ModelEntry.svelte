@@ -210,7 +210,7 @@
         : entry.record.runtime === 'mlx-audio'
           ? t(m.task === 'automatic-speech-recognition' ? 'lib.kind_asr_mlx' : 'lib.kind_tts_mlx')
           : entry.record.runtime === 'python-hf' && m.kind === 'pipeline'
-            ? t(m.task === 'text-to-image' ? 'lib.kind_image_python' : 'lib.kind_pipeline_python')
+            ? t(m.task === 'text-to-image' || m.task === 'image-to-image' ? 'lib.kind_image_python' : 'lib.kind_pipeline_python')
             : t(KIND[m.kind ?? 'unknown']),
       entry.multimodal ? t('lib.kind_vlm') : null,
       uiLevel.advanced ? params : null,

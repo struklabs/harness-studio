@@ -1,7 +1,6 @@
 // Playground Image tab: request helper for the gateway's /v1/images/generations and, with a start
 // image, /v1/images/edits (sd-server or a Python engine diffusers worker behind it; nothing is simulated).
 import { describeErrorBody } from './sse';
-import type { LocalModel, ModelDefinition } from '#lib/types.js';
 
 /** Largest side the gateway accepts (`images::SIDE_RANGE`). */
 export const MAX_SIDE = 4096;
@@ -30,21 +29,7 @@ export interface ImageResult {
   format: string;
 }
 
-/** A definition that draws: stable-diffusion.cpp's (the file is a checkpoint, or the library says
- * image) or a diffusers text-to-image folder of the Python engine. */
-export function isImageDefinition(d: ModelDefinition, files: LocalModel[] = []): boolean {
-  const path = d.base.kind === 'local' ? d.base.path : d.base.file;
-  if (/\.(safetensors|ckpt)$/i.test(path)) return true;
-  const norm = (v: string) => v.replace(/\\/g, '/').toLowerCase();
-  const draws = (f: LocalModel) => f.kind === 'image' || (f.kind === 'pipeline' && f.task === 'text-to-image');
-  return files.some((f) => draws(f) && norm(f.path) === norm(path));
-}
-
-/** Keep the user's selection while it is still available. */
-export function imageModel(current: string, definitions: ModelDefinition[], files: LocalModel[] = []): string {
-  const models = definitions.filter((d) => isImageDefinition(d, files));
-  return models.some((d) => d.alias === current) ? current : models[0]?.alias ?? '';
-}
+export { DIFFUSERS_IMAGE_TASKS, imageModel, isImageDefinition, needsStartImage, takesStrength } from './imageModels';
 
 /** `512x768` -> [512, 768]; null when it is not a size the gateway takes (multiple of 8, 64..4096). */
 export function parseSize(size: string): [number, number] | null {

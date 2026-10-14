@@ -93,6 +93,7 @@ pub const TASKS: &[&str] = &[
     "text-to-speech",
     "text-to-audio",
     "text-to-image",
+    "image-to-image",
 ];
 
 /// The Python engine.
@@ -380,9 +381,8 @@ pub fn detect(dir: &Path) -> Option<String> {
             .get("_class_name")
             .and_then(|v| v.as_str())
             .map(str::to_string)?;
-        let text_to_image = class.ends_with("Pipeline")
-            && ![
-                "Img2Img",
+        if !class.ends_with("Pipeline")
+            || [
                 "Inpaint",
                 "Video",
                 "Audio",
@@ -391,8 +391,25 @@ pub fn detect(dir: &Path) -> Option<String> {
                 "ControlNet",
             ]
             .iter()
+            .any(|w| class.contains(w))
+            || weight_files(dir).is_empty()
+        {
+            return None;
+        }
+        // A pipeline that needs a start image (InstructPix2Pix, Qwen-Image-Edit, SDXL refiner).
+        // FLUX.2 klein and FLUX.1 Kontext also draw from text alone: text-to-image, and the
+        // worker edits with the same pipeline.
+        let edits = ["Img2Img", "InstructPix2Pix", "Edit"]
+            .iter()
             .any(|w| class.contains(w));
-        return (text_to_image && !weight_files(dir).is_empty()).then(|| "text-to-image".into());
+        return Some(
+            if edits {
+                "image-to-image"
+            } else {
+                "text-to-image"
+            }
+            .into(),
+        );
     }
     if asks_for_code(dir) {
         return None;
@@ -987,6 +1004,22 @@ mod tests {
             ("unet/diffusion_pytorch_model.safetensors", "x"),
         ]);
         assert_eq!(detect(inpaint.path()), None);
+        for (class, task) in [
+            ("StableDiffusionInstructPix2PixPipeline", "image-to-image"),
+            ("StableDiffusionXLImg2ImgPipeline", "image-to-image"),
+            ("QwenImageEditPlusPipeline", "image-to-image"),
+            ("Flux2KleinPipeline", "text-to-image"),
+            ("FluxKontextPipeline", "text-to-image"),
+        ] {
+            let dir = folder(&[
+                (
+                    "model_index.json",
+                    &format!(r#"{{"_class_name":"{class}"}}"#),
+                ),
+                ("transformer/diffusion_pytorch_model.safetensors", "x"),
+            ]);
+            assert_eq!(detect(dir.path()).as_deref(), Some(task), "{class}");
+        }
     }
 
     #[test]
@@ -1101,6 +1134,26 @@ mod tests {
     /// without it.
     #[test]
     fn pickle_weights_do_not_run_code() {
+        run_worker_script(
+            "test_hf_worker_pickle.py",
+            include_str!("../../python/test_hf_worker_pickle.py"),
+        );
+    }
+
+    /// An image-to-image pipeline (InstructPix2Pix, tiny and random) loads as its own class and
+    /// edits through itself; a `_class_name` that is not a diffusers pipeline does not load:
+    /// `python/test_hf_worker_img2img.py`, with `HS_PYHF_PYTHON` as above.
+    #[test]
+    fn image_to_image_pipelines_edit() {
+        run_worker_script(
+            "test_hf_worker_img2img.py",
+            include_str!("../../python/test_hf_worker_img2img.py"),
+        );
+    }
+
+    /// Runs a worker test script with the hf-cpu environment's Python (`HS_PYHF_PYTHON`, else
+    /// skipped): `<script> <hf_worker.py> <empty dir>`, which prints PASS.
+    fn run_worker_script(name: &str, body: &str) {
         let Some(python) = std::env::var_os("HS_PYHF_PYTHON") else {
             eprintln!("HS_PYHF_PYTHON not set, skipping");
             return;
@@ -1108,12 +1161,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let worker = dir.path().join("hf_worker.py");
         std::fs::write(&worker, WORKER).unwrap();
-        let script = dir.path().join("test_hf_worker_pickle.py");
-        std::fs::write(
-            &script,
-            include_str!("../../python/test_hf_worker_pickle.py"),
-        )
-        .unwrap();
+        let script = dir.path().join(name);
+        std::fs::write(&script, body).unwrap();
         let work = dir.path().join("work");
         std::fs::create_dir_all(&work).unwrap();
         // The worker drops torch's escape hatch from its environment.
