@@ -28,7 +28,7 @@ pub const MISTRALRS_FAMILY: &str = crate::engine::MISTRALRS;
 pub const MISTRALRS_TASKS: [&str; 2] = ["text-generation", "image-text-to-text"];
 /// Hub tasks (`pipeline_tag`) whose ONNX repos the ONNX family runs: an ONNX file of any other
 /// task (vision, speech, generation, classification) is a graph Harness has no server for.
-pub const ONNX_TASKS: [&str; 13] = [
+pub const ONNX_TASKS: [&str; 14] = [
     "feature-extraction",
     "sentence-similarity",
     "text-ranking",
@@ -45,6 +45,8 @@ pub const ONNX_TASKS: [&str; 13] = [
     "depth-estimation",
     // Dual encoders (CLIP, SigLIP): the image scored against the labels of the request.
     "zero-shot-image-classification",
+    // Audio heads (harness-onnx `audio_pkg`): a WAV in, ranked labels out.
+    "audio-classification",
 ];
 
 /// Hub tasks of the onnxruntime-genai chat models the ONNX family runs (a repo with

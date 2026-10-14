@@ -13,11 +13,14 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
-  import { ImageUp, LoaderCircle, Play, Power, TriangleAlert, Workflow } from '@lucide/svelte';
-  import { buildImageRequest, buildRequest, highlight, isFormTask, isImageTask, parseResponse, runPipeline, type PipelineForm, type PipelineResult } from './pipeline';
+  import { FileAudio, ImageUp, LoaderCircle, Play, Power, TriangleAlert, Workflow } from '@lucide/svelte';
+  import { encodeWav, resample, WAV_RATE } from './wav';
+  import { buildAudioRequest, buildImageRequest, buildRequest, highlight, isAudioTask, isFormTask, isImageTask, parseResponse, runPipeline, type PipelineForm, type PipelineResult } from './pipeline';
 
   /** Largest image read into the request (the gateway takes 47 MiB; a photo is far smaller). */
   const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+  /** Longest clip sent (the sidecar's limit); a 16 kHz 16-bit WAV of it is ~19 MB. */
+  const MAX_AUDIO_SECONDS = 600;
   /** Mask overlay colours, one per label in order. */
   const MASK_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#06b6d4', '#f97316', '#ec4899'];
 
@@ -59,6 +62,47 @@
     reader.onerror = () => (error = t('pl.image_unreadable'));
     reader.readAsDataURL(file);
   }
+
+  /** The clip of an audio task, as a 16 kHz mono WAV data URL. */
+  let audio = $state('');
+  let audioName = $state('');
+  let decoding = $state(false);
+
+  /** Any format the webview decodes (WAV, MP3, FLAC, OGG...) becomes a 16 kHz mono WAV. */
+  async function pickAudio(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    decoding = true;
+    error = '';
+    const ctx = new AudioContext();
+    try {
+      const decoded = await ctx.decodeAudioData(await file.arrayBuffer());
+      if (decoded.duration > MAX_AUDIO_SECONDS) {
+        error = t('pl.audio_too_long', { min: MAX_AUDIO_SECONDS / 60 });
+        return;
+      }
+      const mono = new Float32Array(decoded.length);
+      for (let c = 0; c < decoded.numberOfChannels; c++) {
+        const data = decoded.getChannelData(c);
+        for (let i = 0; i < data.length; i++) mono[i] += data[i] / decoded.numberOfChannels;
+      }
+      const wav = encodeWav(resample(mono, decoded.sampleRate, WAV_RATE), WAV_RATE);
+      audio = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(new Blob([wav], { type: 'audio/wav' }));
+      });
+      audioName = file.name;
+    } catch {
+      error = t('pl.audio_unreadable');
+    } finally {
+      void ctx.close();
+      decoding = false;
+    }
+  }
   let controller: AbortController | null = null;
 
   // A sample that fits the task whenever the task changes (and the text is still a sample or empty).
@@ -79,6 +123,7 @@
 
   let body = $derived.by<Record<string, unknown> | null>(() => {
     if (task && isImageTask(task)) return buildImageRequest(task, image, form.labels);
+    if (isAudioTask(task)) return buildAudioRequest(audio);
     if (isFormTask(task)) return buildRequest(task, form);
     try {
       const v = JSON.parse(raw) as unknown;
@@ -87,7 +132,7 @@
       return null;
     }
   });
-  let canRun = $derived(!busy && app.gatewayRunning && !!model && body !== null);
+  let canRun = $derived(!busy && !decoding && app.gatewayRunning && !!model && body !== null);
 
   async function run() {
     if (!canRun || !body) return;
@@ -185,6 +230,18 @@
         <Field label={t('pl.labels_label')} id="pl-image-labels" hint={t('pl.image_labels_hint')}>
           <Input id="pl-image-labels" bind:value={form.labels} disabled={busy} onkeydown={(e) => e.key === 'Enter' && run()} />
         </Field>
+      {/if}
+    {:else if isAudioTask(task)}
+      <div class="flex flex-wrap items-center gap-3">
+        <Button variant="outline" size="sm" onclick={() => document.getElementById('pl-audio')?.click()} disabled={busy || decoding}>
+          {#if decoding}<LoaderCircle class="animate-spin" />{:else}<FileAudio />{/if}
+          {t('pl.audio_pick')}
+        </Button>
+        <input id="pl-audio" type="file" accept="audio/*,.wav,.mp3,.flac,.ogg,.m4a" class="sr-only" onchange={pickAudio} />
+        <span class="min-w-0 truncate text-xs text-muted-foreground">{audioName || t('pl.audio_none')}</span>
+      </div>
+      {#if audio}
+        <audio src={audio} controls class="w-full max-w-md"></audio>
       {/if}
     {:else if task === 'question-answering'}
       <div class="flex flex-col gap-1.5">
