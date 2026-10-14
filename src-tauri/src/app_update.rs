@@ -45,8 +45,13 @@ fn not_configured() -> String {
     err("update.not_configured").into()
 }
 
-fn check_failed(e: impl std::fmt::Display) -> String {
-    err("update.check_failed").with("error", e).into()
+fn check_failed(e: tauri_plugin_updater::Error) -> String {
+    use tauri_plugin_updater::Error;
+    match e {
+        // The release has no package for this system (yet): not a failed check.
+        Error::TargetNotFound(_) | Error::TargetsNotFound(_) => err("update.no_platform").into(),
+        e => err("update.check_failed").with("error", e).into(),
+    }
 }
 
 impl AppUpdateState {
