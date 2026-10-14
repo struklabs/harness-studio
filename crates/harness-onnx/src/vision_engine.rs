@@ -57,6 +57,23 @@ fn pick_outputs(names: &[&str], task: VisionTask) -> Result<Vec<String>, String>
         VisionTask::Detect => &["logits", "pred_boxes"],
         VisionTask::Depth => &["predicted_depth"],
         VisionTask::ZeroShot => &["logits_per_image"],
+        // `pooler_output` joins when the graph has it (for `pool: true`).
+        VisionTask::Features => {
+            return if names.contains(&"last_hidden_state") {
+                let mut out = vec!["last_hidden_state".to_string()];
+                if names.contains(&"pooler_output") {
+                    out.push("pooler_output".to_string());
+                }
+                Ok(out)
+            } else if let [only] = names {
+                Ok(vec![only.to_string()])
+            } else {
+                Err(format!(
+                    "an image feature graph needs a last_hidden_state output (has: {})",
+                    names.join(", ")
+                ))
+            };
+        }
     };
     if want.iter().all(|w| names.contains(w)) {
         return Ok(want.iter().map(|s| s.to_string()).collect());
@@ -319,6 +336,28 @@ impl VisionEngine {
                     Some(job.top_k.unwrap_or(n)),
                 )))
             }
+            VisionTask::Features => {
+                let (shape, data) = match (job.pool, outputs.get(1)) {
+                    (true, Some(pooled)) => pooled,
+                    (true, None) if self.package.cls_pool => {
+                        // [1, tokens, dim]: the first token of the one image.
+                        let (shape, data) = &outputs[0];
+                        let dim = *shape
+                            .last()
+                            .ok_or_else(|| bad("last_hidden_state", shape))?;
+                        let cls = data
+                            .get(..dim as usize)
+                            .ok_or_else(|| bad("last_hidden_state", shape))?;
+                        return Ok(vision::nested(&[1, dim as usize], cls));
+                    }
+                    (true, None) => return Err(ApiError::invalid(
+                        "this model has no pooler_output; ask without pool for its hidden states",
+                    )),
+                    (false, _) => &outputs[0],
+                };
+                let dims: Vec<usize> = shape.iter().map(|d| *d as usize).collect();
+                Ok(vision::nested(&dims, data))
+            }
         }
     }
 
@@ -425,6 +464,19 @@ mod tests {
 
     #[test]
     fn outputs_by_head() {
+        assert_eq!(
+            pick_outputs(
+                &["last_hidden_state", "pooler_output"],
+                VisionTask::Features
+            )
+            .unwrap(),
+            vec!["last_hidden_state", "pooler_output"]
+        );
+        assert_eq!(
+            pick_outputs(&["last_hidden_state"], VisionTask::Features).unwrap(),
+            vec!["last_hidden_state"]
+        );
+        assert!(pick_outputs(&["a", "b"], VisionTask::Features).is_err());
         assert_eq!(
             pick_outputs(&["logits", "pred_boxes"], VisionTask::Detect).unwrap(),
             vec!["logits", "pred_boxes"]

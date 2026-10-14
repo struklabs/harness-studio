@@ -398,6 +398,9 @@
             </label>
           {/each}
         </div>
+      {:else if res.kind === 'features'}
+        <p class="text-xs text-muted-foreground">{t('pl.features_shape', { shape: res.value.shape.join(' × ') })}</p>
+        <pre class="overflow-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs text-foreground">[{res.value.preview.map((v) => v.toFixed(4)).join(', ')}, …]</pre>
       {:else if res.kind === 'depth'}
         <div class="grid gap-3 sm:grid-cols-2">
           <img src={result.image} alt={imageName} class="w-full rounded-md border border-border" />
