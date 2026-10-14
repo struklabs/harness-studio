@@ -105,6 +105,9 @@ pub struct TextSide {
     /// Lower-case the label sentences and drop their punctuation before tokenizing, as
     /// transformers' `SiglipTokenizer` does (its `tokenizer.json` does not).
     pub canonicalize: bool,
+    /// Each label is scored on its own (SigLIP's sigmoid loss); CLIP's scores are a softmax
+    /// across the labels.
+    pub sigmoid: bool,
     /// The `pad_token` of `tokenizer_config.json`.
     pub pad_token: Option<String>,
 }
@@ -342,6 +345,7 @@ fn text_side(root: &Path, config: &Value) -> Option<TextSide> {
         max_length,
         pad_to_max: siglip,
         canonicalize: siglip,
+        sigmoid: siglip,
         pad_token,
     })
 }
@@ -506,6 +510,7 @@ mod tests {
                 max_length: 77,
                 pad_to_max: false,
                 canonicalize: false,
+                sigmoid: false,
                 pad_token: Some("<|endoftext|>".into()),
             })
         );

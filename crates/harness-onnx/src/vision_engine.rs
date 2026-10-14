@@ -26,6 +26,7 @@ struct TextInputs {
     max_length: usize,
     pad_to_max: bool,
     canonicalize: bool,
+    sigmoid: bool,
 }
 
 /// Token ids and attention mask of a batch of labels, padded to one length: `(ids, mask, rows,
@@ -148,6 +149,7 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
                 max_length: side.max_length,
                 pad_to_max: side.pad_to_max,
                 canonicalize: side.canonicalize,
+                sigmoid: side.sigmoid,
             })
         }
         None => None,
@@ -309,8 +311,7 @@ impl VisionEngine {
                 let row = data
                     .get(..n)
                     .ok_or_else(|| bad("logits_per_image", shape))?;
-                // SigLIP scores each label on its own (sigmoid), CLIP across labels (softmax).
-                let multi = self.text.as_ref().is_some_and(|t| t.pad_to_max);
+                let multi = self.text.as_ref().is_some_and(|t| t.sigmoid);
                 Ok(vision::labels_response(&vision::classify(
                     row,
                     &job.candidate_labels,
