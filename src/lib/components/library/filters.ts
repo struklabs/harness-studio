@@ -6,6 +6,13 @@ export type LibrarySort = 'name' | 'size' | 'last_used' | 'added';
 
 export const TABS: LibraryTab[] = ['all', 'llm', 'embedding', 'vlm', 'reranker', 'asr', 'tts', 'image', 'draft', 'adapter', 'mmproj'];
 
+/** What an mlx-audio folder does, by the task the backend read from it (not its file kind):
+ *  speech recognition or text to speech; null for other files. */
+function mlxSpeech(e: LibraryEntry): 'asr' | 'tts' | null {
+  if (e.record?.runtime !== 'mlx-audio') return null;
+  return e.model.task === 'automatic-speech-recognition' ? 'asr' : 'tts';
+}
+
 export function inTab(e: LibraryEntry, tab: LibraryTab): boolean {
   const kind = e.model.kind ?? 'unknown';
   switch (tab) {
@@ -20,11 +27,11 @@ export function inTab(e: LibraryEntry, tab: LibraryTab): boolean {
     case 'reranker':
       return kind === 'reranker';
     case 'asr':
-      return kind === 'asr';
+      return kind === 'asr' || mlxSpeech(e) === 'asr';
     case 'image':
       return kind === 'image';
     case 'tts':
-      return kind === 'tts';
+      return kind === 'tts' || mlxSpeech(e) === 'tts';
     case 'draft':
       return e.draft_for.length > 0;
     case 'adapter':
