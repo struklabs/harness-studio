@@ -6,6 +6,9 @@
 //! * [`pooling`]: pooling, normalization and score maths. Pure.
 //! * [`api`]: request and response shapes of `/v1/embeddings` and `/v1/rerank`. Pure.
 //! * [`genai_pkg`]: the folder of an onnxruntime-genai chat model (`genai_config.json`). Pure.
+//! * [`vision_pkg`]: the repo of a vision model (`preprocessor_config.json`, the head). Pure.
+//! * `vision`, `vision_engine` (feature `engine`): images in and out of a vision graph
+//!   (classification, detection, segmentation, depth) and its ONNX Runtime session.
 //! * `chat`, `genai`, `chat_engine` (feature `engine`): chat models on onnxruntime-genai: the
 //!   OpenAI chat request and chat templates, the C API binding, the generation loop.
 //! * `engine` (feature `engine`): ONNX Runtime session, tokenizer, batching.
@@ -22,6 +25,7 @@ pub mod hf_api;
 pub mod package;
 pub mod pooling;
 pub mod tasks;
+pub mod vision_pkg;
 
 #[cfg(feature = "engine")]
 pub mod chat;
@@ -33,3 +37,7 @@ pub mod engine;
 pub mod genai;
 #[cfg(feature = "engine")]
 pub mod server;
+#[cfg(feature = "engine")]
+pub mod vision;
+#[cfg(feature = "engine")]
+pub mod vision_engine;

@@ -63,3 +63,24 @@ test('entity highlighting skips overlaps and out-of-range spans', () => {
     { text: '.' },
   ]);
 });
+
+test('image tasks: requests and the results of each head', async () => {
+  const { buildImageRequest, isImageTask } = await import('../src/lib/components/playground/pipeline.ts');
+  assert.ok(isImageTask('object-detection'));
+  assert.ok(!isImageTask('fill-mask'));
+  assert.equal(buildImageRequest('image-classification', ''), null);
+  assert.deepEqual(buildImageRequest('object-detection', 'data:image/png;base64,AA'), {
+    inputs: 'data:image/png;base64,AA',
+    parameters: { threshold: 0.5 },
+  });
+  const det = parseResponse('object-detection', [{ score: 0.99, label: 'cat', box: { xmin: 1, ymin: 2, xmax: 30, ymax: 40 } }]);
+  assert.equal(det.kind, 'detections');
+  assert.deepEqual(det.items[0].box, { xmin: 1, ymin: 2, xmax: 30, ymax: 40 });
+  assert.deepEqual(parseResponse('object-detection', []), { kind: 'detections', items: [] });
+  const seg = parseResponse('image-segmentation', [{ score: null, label: 'wall ', mask: 'iVBOR' }]);
+  assert.deepEqual(seg, { kind: 'masks', items: [{ label: 'wall', mask: 'data:image/png;base64,iVBOR' }] });
+  const depth = parseResponse('depth-estimation', { depth: 'iVBOR', width: 640, height: 480, min: 1, max: 9 });
+  assert.deepEqual(depth, { kind: 'depth', value: { image: 'data:image/png;base64,iVBOR', width: 640, height: 480 } });
+  // Image classification answers like text classification.
+  assert.equal(parseResponse('image-classification', [{ label: 'Egyptian cat', score: 0.94 }]).kind, 'labels');
+});

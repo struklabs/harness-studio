@@ -6,14 +6,20 @@
   import { localizeError } from '$lib/network';
   import type { GatewayOverview } from '$lib/types';
   import { app } from '$lib/stores/app.svelte';
+  import { cn } from '$lib/utils';
   import { Button } from '$lib/components/ui/button';
   import { Badge } from '$lib/components/ui/badge';
   import { Checkbox } from '$lib/components/ui/checkbox';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
   import { Textarea } from '$lib/components/ui/textarea';
-  import { LoaderCircle, Play, Power, TriangleAlert, Workflow } from '@lucide/svelte';
-  import { buildRequest, highlight, isFormTask, parseResponse, runPipeline, type PipelineForm, type PipelineResult } from './pipeline';
+  import { ImageUp, LoaderCircle, Play, Power, TriangleAlert, Workflow } from '@lucide/svelte';
+  import { buildImageRequest, buildRequest, highlight, isFormTask, isImageTask, parseResponse, runPipeline, type PipelineForm, type PipelineResult } from './pipeline';
+
+  /** Largest image read into the request (the gateway takes 47 MiB; a photo is far smaller). */
+  const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+  /** Mask overlay colours, one per label in order. */
+  const MASK_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#06b6d4', '#f97316', '#ec4899'];
 
   interface Props {
     /** Definition alias sent to `/v1/hf/{model}`. */
@@ -28,7 +34,31 @@
   let raw = $state('{\n  "inputs": ""\n}');
   let busy = $state(false);
   let error = $state('');
-  let result = $state<{ res: PipelineResult; ms: number; text: string } | null>(null);
+  let result = $state<{ res: PipelineResult; ms: number; text: string; image: string } | null>(null);
+  /** The image of an image task, as a data URL. */
+  let image = $state('');
+  let imageName = $state('');
+  /** Natural size of the result image (detection boxes are in its pixels). */
+  let natural = $state({ w: 0, h: 0 });
+  /** Masks shown over the image, by label. */
+  let shownMasks = $state<Record<string, boolean>>({});
+
+  function pickImage(e: Event) {
+    const file = (e.currentTarget as HTMLInputElement).files?.[0];
+    if (!file) return;
+    if (file.size > MAX_IMAGE_BYTES) {
+      error = t('pl.image_too_big', { mb: Math.round(MAX_IMAGE_BYTES / 1048576) });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      image = typeof reader.result === 'string' ? reader.result : '';
+      imageName = file.name;
+      error = '';
+    };
+    reader.onerror = () => (error = t('pl.image_unreadable'));
+    reader.readAsDataURL(file);
+  }
   let controller: AbortController | null = null;
 
   // A sample that fits the task whenever the task changes (and the text is still a sample or empty).
@@ -47,6 +77,7 @@
   });
 
   let body = $derived.by<Record<string, unknown> | null>(() => {
+    if (task && isImageTask(task)) return buildImageRequest(task, image);
     if (isFormTask(task)) return buildRequest(task, form);
     try {
       const v = JSON.parse(raw) as unknown;
@@ -65,9 +96,13 @@
     busy = true;
     error = '';
     const text = form.text;
+    const shot = image;
     try {
       const { json, ms } = await runPipeline(app.inferenceUrl, model, body, app.inferenceHeaders(), c.signal);
-      result = { res: parseResponse(task, json), ms, text };
+      const res = parseResponse(task, json);
+      // Every label gets a value: binding a checkbox to `undefined` throws in Svelte 5.
+      shownMasks = res.kind === 'masks' ? Object.fromEntries(res.items.map((m, i) => [m.label, i < 3])) : {};
+      result = { res, ms, text, image: shot };
     } catch (e) {
       if (!c.signal.aborted) {
         error = e instanceof Error ? e.message : String(e);
@@ -133,7 +168,19 @@
       <Badge variant="outline" class="font-mono">{task ?? t('pl.task_unknown')}</Badge>
     </div>
 
-    {#if task === 'question-answering'}
+    {#if task && isImageTask(task)}
+      <div class="flex flex-wrap items-center gap-3">
+        <Button variant="outline" size="sm" onclick={() => document.getElementById('pl-image')?.click()} disabled={busy}>
+          <ImageUp />
+          {t('pl.image_pick')}
+        </Button>
+        <input id="pl-image" type="file" accept="image/png,image/jpeg,image/webp,image/bmp,image/gif" class="sr-only" onchange={pickImage} />
+        <span class="min-w-0 truncate text-xs text-muted-foreground">{imageName || t('pl.image_none')}</span>
+      </div>
+      {#if image}
+        <img src={image} alt={imageName} class="max-h-48 w-fit rounded-md border border-border object-contain" />
+      {/if}
+    {:else if task === 'question-answering'}
       <div class="flex flex-col gap-1.5">
         <Label for="pl-question" class="text-sm font-medium text-foreground">{t('pl.question_label')}</Label>
         <Input id="pl-question" bind:value={form.question} disabled={busy} onkeydown={(e) => e.key === 'Enter' && run()} />
@@ -244,6 +291,56 @@
             </li>
           {/each}
         </ul>
+      {:else if res.kind === 'detections'}
+        <div class="relative w-fit max-w-full">
+          <img src={result.image} alt={imageName} class="block max-h-[480px] max-w-full rounded-md" onload={(e) => { const img = e.currentTarget as HTMLImageElement; natural = { w: img.naturalWidth, h: img.naturalHeight }; }} />
+          {#if natural.w > 0}
+            {#each res.items as d, i (i)}
+              <div
+                class="pointer-events-none absolute rounded-sm border-2"
+                style:border-color={MASK_COLORS[i % MASK_COLORS.length]}
+                style:left={`${(d.box.xmin / natural.w) * 100}%`}
+                style:top={`${(d.box.ymin / natural.h) * 100}%`}
+                style:width={`${((d.box.xmax - d.box.xmin) / natural.w) * 100}%`}
+                style:height={`${((d.box.ymax - d.box.ymin) / natural.h) * 100}%`}
+              >
+                <!-- A box at the top edge keeps its label inside, over the image. -->
+                <span class={cn('absolute left-0 rounded-sm', d.box.ymin < natural.h * 0.05 ? 'top-0' : '-top-5', 'px-1 text-[10px] font-semibold text-white')} style:background-color={MASK_COLORS[i % MASK_COLORS.length]}>{d.label} {d.score.toFixed(2)}</span>
+              </div>
+            {/each}
+          {/if}
+        </div>
+        {#if res.items.length === 0}<p class="text-xs text-muted-foreground">{t('pl.no_objects')}</p>{/if}
+      {:else if res.kind === 'masks'}
+        <div class="relative w-fit max-w-full">
+          <img src={result.image} alt={imageName} class="block max-h-[480px] max-w-full rounded-md" />
+          {#each res.items as m, i (m.label)}
+            {#if shownMasks[m.label]}
+              <div
+                class="pointer-events-none absolute inset-0 rounded-md opacity-50"
+                style:background-color={MASK_COLORS[i % MASK_COLORS.length]}
+                style:mask-image={`url(${m.mask})`}
+                style:mask-size="100% 100%"
+                style:mask-mode="luminance"
+              ></div>
+            {/if}
+          {/each}
+        </div>
+        <div class="flex flex-wrap gap-2">
+          {#each res.items as m, i (m.label)}
+            <label class="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs">
+              <Checkbox bind:checked={shownMasks[m.label]} />
+              <span class="size-2.5 rounded-sm" style:background-color={MASK_COLORS[i % MASK_COLORS.length]}></span>
+              {m.label}
+            </label>
+          {/each}
+        </div>
+      {:else if res.kind === 'depth'}
+        <div class="grid gap-3 sm:grid-cols-2">
+          <img src={result.image} alt={imageName} class="w-full rounded-md border border-border" />
+          <img src={res.value.image} alt={t('pl.depth_alt')} class="w-full rounded-md border border-border" />
+        </div>
+        <p class="text-xs text-muted-foreground">{t('pl.depth_hint')}</p>
       {:else}
         <pre class="max-h-96 overflow-auto rounded-md border border-border bg-muted/30 p-3 font-mono text-xs text-foreground">{JSON.stringify(res.value, null, 2)}</pre>
       {/if}

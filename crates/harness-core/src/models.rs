@@ -224,10 +224,50 @@ fn onnx_task_kind(task: harness_onnx::package::Task) -> crate::domain::ModelKind
     }
 }
 
-/// What an encoder `.onnx` file serves (embedding, reranking or a task pipeline), `None` for
-/// any other file.
+/// What an encoder or vision `.onnx` file serves (embedding, reranking or a task pipeline),
+/// `None` for any other file.
 pub fn onnx_kind(path: &Path) -> Option<crate::domain::ModelKind> {
-    harness_onnx::package::library_task(path).map(onnx_task_kind)
+    harness_onnx::package::library_task(path)
+        .map(onnx_task_kind)
+        .or_else(|| {
+            harness_onnx::vision_pkg::VisionPackage::discover(path)
+                .map(|_| crate::domain::ModelKind::Pipeline)
+        })
+}
+
+/// The library entry of a vision model (`preprocessor_config.json` and a vision head in
+/// `config.json`): a task pipeline.
+fn vision_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
+    let package = harness_onnx::vision_pkg::VisionPackage::discover(path)?;
+    let stem = path.file_stem()?.to_string_lossy().to_string();
+    let mut size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    for ext in ["onnx_data", "onnx.data"] {
+        size += fs::metadata(path.with_file_name(format!("{stem}.{ext}")))
+            .map(|m| m.len())
+            .unwrap_or(0);
+    }
+    Some(LocalModel {
+        id: path.to_string_lossy().to_string(),
+        name: harness_onnx::package::alias_of(path).unwrap_or_else(|| package.name.clone()),
+        filename: path.file_name()?.to_string_lossy().to_string(),
+        path: path.to_path_buf(),
+        size_bytes: size,
+        architecture: Some("onnx".to_string()),
+        context_length: None,
+        quantization: harness_onnx::package::variant_quantization(&stem).to_string(),
+        is_split: false,
+        total_shards: None,
+        present_shards: None,
+        is_ready: true,
+        shard_paths: vec![path.to_path_buf()],
+        root_dir: root_dir.to_string(),
+        gguf: None,
+        source: None,
+        mmproj_path: None,
+        kind: crate::domain::ModelKind::Pipeline,
+        origin: crate::domain::ModelOrigin::Library,
+        task: Some(package.task.pipeline_task().to_string()),
+    })
 }
 
 /// The library entry of an `.onnx` file: an embedding or reranking model when the repo around
@@ -244,7 +284,10 @@ fn onnx_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
     {
         return None;
     }
-    let package = harness_onnx::package::ModelPackage::discover(path).ok()?;
+    let package = match harness_onnx::package::ModelPackage::discover(path) {
+        Ok(p) => p,
+        Err(_) => return vision_entry(path, root_dir),
+    };
     let stem = path.file_stem()?.to_string_lossy().to_string();
     let filename = path.file_name()?.to_string_lossy().to_string();
     // `model.onnx` is the repo's own model; other files are named after their variant (the same
@@ -1267,5 +1310,32 @@ mod tests {
             crate::model_registry::local_format(rerank),
             crate::hub_compat::ModelFormat::Onnx
         );
+    }
+
+    #[test]
+    fn scans_onnx_vision_models() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("Xenova").join("detr-resnet-50");
+        fs::create_dir_all(repo.join("onnx")).unwrap();
+        fs::write(
+            repo.join("config.json"),
+            r#"{"architectures":["DetrForObjectDetection"],"id2label":{"0":"N/A","1":"person"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            repo.join("preprocessor_config.json"),
+            r#"{"size":{"shortest_edge":800,"longest_edge":1333}}"#,
+        )
+        .unwrap();
+        let graph = repo.join("onnx").join("model_quantized.onnx");
+        fs::write(&graph, vec![0u8; 400]).unwrap();
+        let models = ModelManager.scan_directories(&[tmp.path().to_path_buf()]);
+        assert_eq!(models.len(), 1);
+        let m = &models[0];
+        assert_eq!(m.kind, crate::domain::ModelKind::Pipeline);
+        assert_eq!(m.task.as_deref(), Some("object-detection"));
+        assert_eq!(m.name, "detr-resnet-50-quantized");
+        assert_eq!(m.quantization, "INT8");
+        assert_eq!(onnx_kind(&graph), Some(crate::domain::ModelKind::Pipeline));
     }
 }

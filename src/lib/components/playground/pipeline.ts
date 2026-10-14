@@ -26,12 +26,51 @@ export interface AnswerResult {
   end: number;
 }
 
+export interface Detection {
+  label: string;
+  score: number;
+  box: { xmin: number; ymin: number; xmax: number; ymax: number };
+}
+
+export interface MaskResult {
+  label: string;
+  /** `data:image/png;base64,...` of the 8-bit mask (255 = this label). */
+  mask: string;
+}
+
+export interface DepthResult {
+  /** `data:image/png;base64,...` of the depth map (brighter = nearer). */
+  image: string;
+  width: number;
+  height: number;
+}
+
 export type PipelineResult =
   | { kind: 'labels'; items: LabelScore[] }
   | { kind: 'entities'; items: EntitySpan[] }
   | { kind: 'fills'; items: FillResult[] }
   | { kind: 'answers'; items: AnswerResult[] }
+  | { kind: 'detections'; items: Detection[] }
+  | { kind: 'masks'; items: MaskResult[] }
+  | { kind: 'depth'; value: DepthResult }
   | { kind: 'raw'; value: unknown };
+
+/** Tasks that take one image (harness-onnx vision heads, the Python worker's image tasks). */
+export const IMAGE_TASKS = ['image-classification', 'object-detection', 'image-segmentation', 'depth-estimation'] as const;
+
+export function isImageTask(task: string | undefined): boolean {
+  return (IMAGE_TASKS as readonly string[]).includes(task ?? '');
+}
+
+/** The request of an image task: the image as a data URL. */
+export function buildImageRequest(task: string, image: string): Record<string, unknown> | null {
+  if (!image.startsWith('data:')) return null;
+  if (task === 'image-classification') return { inputs: image, parameters: { top_k: 5 } };
+  if (task === 'object-detection') return { inputs: image, parameters: { threshold: 0.5 } };
+  return { inputs: image };
+}
+
+const png = (b64: string) => (b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`);
 
 /** Tasks with their own form; any other task gets a JSON body editor. */
 export const FORM_TASKS = [
@@ -96,6 +135,13 @@ const flat = (v: unknown): unknown[] => (Array.isArray(v) ? (v.length === 1 && A
 
 /** Reads a response into the result view of `task`; anything unexpected is shown raw. */
 export function parseResponse(task: string | undefined, json: unknown): PipelineResult {
+  const depth = obj(json);
+  if (depth && isStr(depth.depth)) {
+    return {
+      kind: 'depth',
+      value: { image: png(depth.depth), width: isNum(depth.width) ? depth.width : 0, height: isNum(depth.height) ? depth.height : 0 },
+    };
+  }
   const zeroShot = obj(json);
   if (zeroShot && Array.isArray(zeroShot.labels) && Array.isArray(zeroShot.scores)) {
     const scores = zeroShot.scores;
@@ -108,11 +154,27 @@ export function parseResponse(task: string | undefined, json: unknown): Pipeline
   }
   const list = flat(json).map(obj);
   if (list.length === 0 || list.some((r) => r === null)) {
-    return task === 'token-classification' && Array.isArray(json) && json.length === 0
-      ? { kind: 'entities', items: [] }
-      : { kind: 'raw', value: json };
+    if (Array.isArray(json) && json.length === 0) {
+      if (task === 'token-classification') return { kind: 'entities', items: [] };
+      if (task === 'object-detection') return { kind: 'detections', items: [] };
+      if (task === 'image-segmentation') return { kind: 'masks', items: [] };
+    }
+    return { kind: 'raw', value: json };
   }
   const rows = list as Record<string, unknown>[];
+  if (rows.every((r) => isStr(r.mask) && isStr(r.label))) {
+    return { kind: 'masks', items: rows.map((r) => ({ label: (r.label as string).trim(), mask: png(r.mask as string) })) };
+  }
+  if (rows.every((r) => obj(r.box) && isStr(r.label) && isNum(r.score))) {
+    return {
+      kind: 'detections',
+      items: rows.map((r) => {
+        const b = obj(r.box) as Record<string, unknown>;
+        const n = (k: string) => (isNum(b[k]) ? (b[k] as number) : 0);
+        return { label: r.label as string, score: r.score as number, box: { xmin: n('xmin'), ymin: n('ymin'), xmax: n('xmax'), ymax: n('ymax') } };
+      }),
+    };
+  }
   if (rows.every((r) => isStr(r.answer) && isNum(r.score))) {
     return { kind: 'answers', items: rows.map(answerOf) };
   }
