@@ -406,7 +406,7 @@ impl VisionEngine {
                     .decoder
                     .as_ref()
                     .ok_or_else(|| ApiError::server("the captioner has no decoder"))?;
-                let ids = decoder.generate(data, shape, job.max_new_tokens)?;
+                let ids = decoder.generate(data, shape, job.max_new_tokens, None)?;
                 let text = decoder.decode(&ids)?;
                 Ok(serde_json::json!([{ "generated_text": text }]))
             }

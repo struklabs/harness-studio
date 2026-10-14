@@ -137,8 +137,8 @@ impl Seq2SeqPackage {
                     .unwrap_or_default()
             ),
             format!(
-                "greedy decoding, max_length {}, min_length {}, no_repeat_ngram {}, input up to {} tokens",
-                gen.max_length, gen.min_length, gen.no_repeat_ngram, max_input
+                "num_beams {}, max_length {}, min_length {}, no_repeat_ngram {}, input up to {} tokens",
+                gen.num_beams, gen.max_length, gen.min_length, gen.no_repeat_ngram, max_input
             ),
         ];
         Some(Seq2SeqPackage {
@@ -170,9 +170,11 @@ impl Seq2SeqPackage {
 pub struct Seq2SeqJob {
     pub text: String,
     pub max_new_tokens: Option<usize>,
+    /// Beams (the model's `num_beams` when absent; capped by the decoder).
+    pub num_beams: Option<usize>,
 }
 
-/// `{"inputs": "<text>", "parameters": {"max_new_tokens"}}`.
+/// `{"inputs": "<text>", "parameters": {"max_new_tokens", "num_beams"}}`.
 pub fn parse(body: &Value) -> Result<Seq2SeqJob, ApiError> {
     let text = match body.get("inputs") {
         Some(Value::String(s)) if !s.trim().is_empty() => s.clone(),
@@ -189,9 +191,19 @@ pub fn parse(body: &Value) -> Result<Seq2SeqJob, ApiError> {
                 as usize,
         ),
     };
+    let num_beams = match body.pointer("/parameters/num_beams") {
+        None | Some(Value::Null) => None,
+        Some(v) => Some(
+            v.as_u64()
+                .filter(|n| *n > 0)
+                .ok_or_else(|| ApiError::invalid("num_beams must be a positive integer"))?
+                as usize,
+        ),
+    };
     Ok(Seq2SeqJob {
         text,
         max_new_tokens,
+        num_beams,
     })
 }
 
@@ -311,9 +323,13 @@ mod tests {
             job,
             Seq2SeqJob {
                 text: "Hello".into(),
-                max_new_tokens: Some(8)
+                max_new_tokens: Some(8),
+                num_beams: None,
             }
         );
+        let beams = |v: Value| parse(&json!({"inputs": "a", "parameters": {"num_beams": v}}));
+        assert_eq!(beams(json!(4)).unwrap().num_beams, Some(4));
+        assert!(beams(json!(0)).is_err());
         assert!(parse(&json!({"inputs": "  "})).is_err());
         assert!(parse(&json!({"inputs": ["a", "b"]})).is_err());
         let tokens = |v: Value| parse(&json!({"inputs": "a", "parameters": {"max_new_tokens": v}}));

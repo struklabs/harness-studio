@@ -651,7 +651,7 @@ mod tests {
             (side.gen.start_id, side.gen.eos_ids.clone()),
             (50256, vec![50256])
         );
-        assert_eq!(side.gen.length_of(None), 20);
+        assert_eq!(side.gen.length_of(None, 1), 20);
         assert_eq!(pipeline_task_of(&encoder), Some("image-to-text"));
         // The decoder graphs belong to the encoder; they are no models of their own.
         assert!(VisionPackage::discover(&onnx.join("decoder_model_merged.onnx")).is_none());
