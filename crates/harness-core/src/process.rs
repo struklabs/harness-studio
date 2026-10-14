@@ -604,6 +604,9 @@ pub struct ProcessManager {
     /// Automatic-port runs restarted on another port after llama-server could not bind its
     /// port (another program took it between our check and its bind); reset by a user start.
     port_retries: Arc<std::sync::atomic::AtomicU32>,
+    /// An ONNX run started again on DirectML after its CUDA provider could not be used (once
+    /// per user start).
+    dml_retried: Arc<std::sync::atomic::AtomicBool>,
     /// The port-to-socket relay of an isolated Python worker run and its socket folder (the
     /// task is aborted and the folder removed when the run ends).
     relay: Arc<Mutex<Option<WorkerRelay>>>,
@@ -749,6 +752,7 @@ impl Default for ProcessManager {
             restart: Arc::new(Mutex::new(RestartTrack::default())),
             readers: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             port_retries: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            dml_retried: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             relay: Arc::new(Mutex::new(None)),
             audio_run: Arc::new(Mutex::new(None)),
             activity: Arc::new(Mutex::new(ProcessActivity::default())),
@@ -1187,6 +1191,8 @@ impl ProcessManager {
         }
         self.port_retries
             .store(0, std::sync::atomic::Ordering::SeqCst);
+        self.dml_retried
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         self.start_run(config).await
     }
 
@@ -1997,6 +2003,13 @@ impl ProcessManager {
                     let mut failure =
                         crate::failure::classify(&self.run_lines(), status.code(), phase);
                     crate::failure::note_signal(&mut failure, &status);
+                    // The ONNX sidecar could not use CUDA (`--cuda-fallback-exit`): DirectML.
+                    if !was_running
+                        && status.code() == Some(harness_onnx::cli::EXIT_CUDA_UNUSABLE)
+                        && self.retry_on_directml(generation)
+                    {
+                        return;
+                    }
                     if failure.kind == FailureKind::PortInUse && !was_running {
                         // An automatic port taken between our check and llama-server's bind:
                         // start again on the next free one (bounded), still "Starting".
@@ -2274,6 +2287,41 @@ impl ProcessManager {
     /// After a bind failure on an automatic port: picks the next free automatic port and
     /// starts the same launch there (at most [`MAX_PORT_RETRIES`] times per user start).
     /// False when the port was chosen by the user or the retries are used up.
+    /// An ONNX run whose CUDA provider could not be used: the same launch with the provider set to
+    /// DirectML, once per user start (the launch config the user saved keeps CUDA).
+    fn retry_on_directml(&self, generation: u64) -> bool {
+        use std::sync::atomic::Ordering::SeqCst;
+        let Some(mut config) = self.launch_config() else {
+            return false;
+        };
+        if crate::engine::server_for(&config).family() != crate::engine::ONNX_FAMILY
+            || self.dml_retried.swap(true, SeqCst)
+        {
+            return false;
+        }
+        config.params.insert(
+            crate::engine::ONNX_PROVIDER_PARAM.to_string(),
+            crate::params::ParamValue::Text("directml".into()),
+        );
+        let this = self.clone();
+        tokio::spawn(async move {
+            let _lifecycle = this.lifecycle.lock().await;
+            if !this.is_current(generation) || this.get_status() != ServerStatus::Starting {
+                return;
+            }
+            let tr = crate::config::AppSettings::load().language == "tr";
+            this.push_log(if tr {
+                "[Harness Studio] CUDA kullanılamadı; model DirectML ile yeniden başlatılıyor."
+                    .to_string()
+            } else {
+                "[Harness Studio] CUDA could not be used; starting the model again on DirectML."
+                    .to_string()
+            });
+            let _ = this.run_claimed(config).await;
+        });
+        true
+    }
+
     fn retry_on_new_port(&self, generation: u64) -> bool {
         use std::sync::atomic::Ordering::SeqCst;
         let Some(config) = self.launch_config().filter(|c| c.port_auto) else {

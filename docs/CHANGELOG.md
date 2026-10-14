@@ -88,6 +88,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Ayarlar > Güncellemeler: sürüm tarihleri arayüz dilinin tarih biçiminde gösterilir.
 - Library: the delete dialog can stop all servers using a file before enabling deletion.
 - Kütüphane: silme iletişim kutusu, silmeyi etkinleştirmeden önce dosyayı kullanan tüm sunucuları durdurabilir.
+- ONNX engine on NVIDIA (Windows): when the CUDA provider cannot be created or the model cannot be loaded on it (a missing or broken cuDNN, an unsupported GPU), the server no longer falls back to the CPU silently. harness-onnx exits with code 86 and Harness restarts the model once on DirectML, saying so in the server log.
 - Model Hub: each card's help button (?) sits inside the card's top-right corner instead of beside it, so the grid columns stay aligned.
 - Python engine: a model that fails to load stops its worker at once with the reason, instead of waiting for the 300 s load timeout. SpeechT5 and FastSpeech2 are no longer offered for text-to-speech (their pipeline downloads a vocoder at load, which the offline worker cannot), and root SentencePiece files such as `spm_char.model` are downloaded.
 - Library: CrispASR and audio.cpp speech models show their real engine; audio.cpp processing models show their audio task.
