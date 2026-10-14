@@ -803,6 +803,17 @@ pub struct DownloadProgress {
     pub created_at: u64,
 }
 
+/// One file of a Hugging Face repository at a pinned revision (see
+/// [`DownloadManager::start_pinned_download`]).
+#[derive(Debug, Clone, Copy)]
+pub struct PinnedFile<'a> {
+    pub repo: &'a str,
+    pub rev: &'a str,
+    pub filename: &'a str,
+    pub size: u64,
+    pub sha256: &'a str,
+}
+
 /// A single file to fetch as part of a download job.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct DownloadItem {
@@ -2075,6 +2086,45 @@ impl DownloadManager {
             items,
             target_dir,
         )
+    }
+
+    /// Queues one file of a Hugging Face repository at a pinned revision, checked against the
+    /// SHA-256 and size given here (CrispASR's helper models). The file goes to `target_dir`,
+    /// which the caller chose (not a library folder); it shows in the queue like any download.
+    pub fn start_pinned_download(
+        &self,
+        file: &PinnedFile<'_>,
+        variant_name: String,
+        target_dir: PathBuf,
+    ) -> Result<u64, String> {
+        let PinnedFile {
+            repo: repo_id,
+            rev,
+            filename,
+            size,
+            sha256,
+        } = *file;
+        Self::validate_repo_id(repo_id)?;
+        let valid_rev = rev.len() == 40 && rev.chars().all(|c| c.is_ascii_hexdigit());
+        let valid_name =
+            !filename.is_empty() && !filename.contains(['/', '\\']) && filename != "..";
+        let sha256 = valid_sha256(sha256);
+        if !valid_rev || !valid_name || sha256.is_none() {
+            return Err(err("downloads.invalid_file_name")
+                .with("name", filename)
+                .into());
+        }
+        let mut url = Self::hf_file_url(repo_id, "resolve", filename)?;
+        url.set_path(&format!("{repo_id}/resolve/{rev}/{filename}"));
+        let items = vec![DownloadItem {
+            url: url.to_string(),
+            filename: filename.to_string(),
+            size,
+            shard_index: 1,
+            sha256,
+            custom_url: false,
+        }];
+        self.enqueue(repo_id.to_string(), variant_name, size, items, target_dir)
     }
 
     /// Queues a GGUF download from an arbitrary HTTP(S) URL.

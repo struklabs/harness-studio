@@ -892,7 +892,44 @@ impl Scheduler {
 
     /// Only the transcription handler may opt in, after validating and rebuilding its form.
     pub async fn acquire_asr(self: &Arc<Self>, def: &ModelDefinition) -> Result<Lease, SchedError> {
+        if is_crispasr(def) {
+            self.restart_outdated_crispasr(def).await;
+        }
         self.acquire_for(def, None, None, Route::Asr).await
+    }
+
+    /// A CrispASR worker reads its helper models (language identification, punctuation) only at
+    /// start. When the user downloaded or removed one since, an idle gateway-loaded worker is
+    /// stopped so this request starts it again with the current files. A busy worker or one
+    /// the user started keeps running; the request then works with what it has.
+    async fn restart_outdated_crispasr(&self, def: &ModelDefinition) {
+        let Some((id, ServerStatus::Running)) = self.serving_server(def) else {
+            return;
+        };
+        if !id.starts_with(SERVER_PREFIX) {
+            return;
+        }
+        let Some(port) = self
+            .ctx
+            .registry
+            .get(&id)
+            .and_then(|pm| pm.launch_config())
+            .map(|c| c.port)
+        else {
+            return;
+        };
+        if !crate::engine::crispasr_helpers::worker_outdated(port) {
+            return;
+        }
+        let entry = self.entries.lock().unwrap().get(&def.id).cloned();
+        let idle = entry.is_none_or(|e| {
+            let free = e.permits.available_permits() as u32;
+            let s = e.state();
+            s.waiting == 0 && free >= s.concurrency
+        });
+        if idle {
+            let _ = self.unload(&def.id).await;
+        }
     }
 
     async fn acquire_for(

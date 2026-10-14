@@ -15,6 +15,7 @@
   import { formatBytes } from '#lib/format.js';
   import { LoaderCircle, Download, Square, Trash2 } from '@lucide/svelte';
   import SettingGroup from './SettingGroup.svelte';
+  import CrispasrHelpers from './CrispasrHelpers.svelte';
   import SwitchRow from './SwitchRow.svelte';
   import { invoke } from '#lib/ipc.js';
   import type { AppSettings } from '#lib/types.js';
@@ -124,6 +125,9 @@
           <span class="text-xs text-destructive [overflow-wrap:anywhere]" role="alert">{t('eng.failed', { runtime: engineLabel(e.family), error: st.error })}</span>
         {/if}
       </div>
+      {#if e.family === 'crispasr' && installed}
+        <CrispasrHelpers />
+      {/if}
     {/each}
   </div>
 </SettingGroup>
