@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseSearchQuery } from '../src/lib/components/hub/searchParser.ts';
-import { isCompanionVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
+import { isCompanionVariant, pickProjectorVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
 
 test('exact repository IDs retain GGUF and quantization names', () => {
   for (const repo of ['unsloth/Qwen3-4B-GGUF', 'owner/model-Q4_K_M', 'OWNER/Model.gguf']) {
@@ -54,4 +54,22 @@ test('projectors, drafts, and image components are never the recommended main mo
   }
   assert.equal(isCompanionVariant(main), false);
   assert.equal(isCompanionVariant(gguf('Model-Q4_K_M', 'Q4_K_M', 1)), false);
+});
+
+test('a main GGUF variant brings the best matching projector', () => {
+  const v = (file, quantization, size = 1) => ({ name: file.replace('.gguf', ''), quantization, total_size_bytes: size, shards: [{ filename: file }] });
+  const main = v('m-Q4_K_M.gguf', 'Q4_K_M', 100);
+  const f16 = v('mmproj-m-F16.gguf', 'mmproj', 900);
+  const bf16 = v('mmproj-m-BF16.gguf', 'mmproj', 900);
+  const f32 = v('mmproj-m-F32.gguf', 'mmproj', 1800);
+  assert.equal(pickProjectorVariant([main, f32, bf16, f16], main), f16);
+  assert.equal(pickProjectorVariant([main, f32, bf16], main), bf16);
+  assert.equal(pickProjectorVariant([main, f32], main), f32);
+  const odd = v('mmproj-m-Q8_0.gguf', 'mmproj', 500);
+  assert.equal(pickProjectorVariant([main, odd], main), odd);
+  assert.equal(pickProjectorVariant([main], main), null);
+  assert.equal(pickProjectorVariant([f16, main], f16), null);
+  const sub = v('sub/m-Q4_K_M.gguf', 'Q4_K_M');
+  const subProj = v('sub/mmproj-F32.gguf', 'mmproj');
+  assert.equal(pickProjectorVariant([sub, f16, subProj], sub), subProj);
 });
