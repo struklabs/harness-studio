@@ -452,6 +452,10 @@ pub struct ActiveServerInfo {
     /// What this run serves: chat, embeddings (`--embeddings`) or reranking (`--rerank`).
     #[serde(default)]
     pub serve_mode: crate::serve_mode::ServeMode,
+    /// Runtime family serving this run (`llama.cpp`, `mlx`, `mlx-vlm`, `mlx-audio`, ...): the
+    /// routes a client can call depend on it. Empty for runs recorded before it existed.
+    #[serde(default)]
+    pub engine_family: String,
 }
 
 impl ActiveServerInfo {
@@ -1460,6 +1464,7 @@ impl ProcessManager {
                 == Ok(crate::network::Exposure::LanAcknowledged),
             cors_origins: config.cors_origins.clone(),
             serve_mode: prepared.mode,
+            engine_family: engine.family().to_string(),
         });
         self.push_log(format!(
             "[Harness Studio] Starting {}: {:?}",
@@ -3044,6 +3049,7 @@ mod tests {
             exposure_acknowledged: false,
             cors_origins: None,
             serve_mode: Default::default(),
+            engine_family: String::new(),
         };
         let json = serde_json::to_string(&info).unwrap();
         assert!(!json.contains("secret123"));
@@ -3367,6 +3373,7 @@ mod tests {
             exposure_acknowledged: false,
             cors_origins: None,
             serve_mode: Default::default(),
+            engine_family: String::new(),
         });
         mgr.generation.store(1, std::sync::atomic::Ordering::SeqCst);
 

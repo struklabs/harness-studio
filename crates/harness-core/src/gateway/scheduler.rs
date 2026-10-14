@@ -3052,6 +3052,7 @@ mod tests {
             exposure_acknowledged: false,
             cors_origins: None,
             serve_mode: crate::serve_mode::ServeMode::Chat,
+            engine_family: String::new(),
         };
         assert!(!active.is_llama());
         // Its memory comes from the mistral.rs estimate, not a GGUF header.

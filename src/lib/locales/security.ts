@@ -93,6 +93,9 @@ const tr = {
 
   // Endpoints (Connections)
   'sec.ep_direct_title': 'Doğrudan llama-server Uç Noktası',
+  'sec.ep_direct_title_engine': 'Doğrudan Sunucu Uç Noktası ({engine})',
+  'sec.ep_direct_desc_engine':
+    'İstemciler {engine} sunucusuna doğrudan bağlanır. Bu yolda istek analitiği, istemci bilgisi, kuyruk ve modelin istek gelince yüklenmesi (JIT) yoktur; yalnız aşağıdaki yollar sunulur.',
   'sec.ep_direct_desc':
     "İstemciler llama-server'a doğrudan bağlanır. Bu yolda istek analitiği, istemci bilgisi, kuyruk ve modelin istek gelince yüklenmesi (JIT) yoktur; yalnızca /metrics toplamları görülür.",
   'sec.ep_managed_title': 'Yönetilen uç nokta (Gateway)',
@@ -209,6 +212,9 @@ const en: Record<keyof typeof tr, string> = {
     '{servers}: exposed to the network without an API key. Anyone on the network can use it.',
 
   'sec.ep_direct_title': 'Direct llama-server Endpoint',
+  'sec.ep_direct_title_engine': 'Direct Server Endpoint ({engine})',
+  'sec.ep_direct_desc_engine':
+    'Clients talk to the {engine} server directly. This path has no request analytics, client attribution, queueing or load-on-request (JIT); only the routes below are served.',
   'sec.ep_direct_desc':
     'Clients talk to llama-server directly. This path has no request analytics, client attribution, queueing or load-on-request (JIT); only /metrics totals are visible.',
   'sec.ep_managed_title': 'Managed endpoint (Gateway)',

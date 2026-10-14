@@ -1502,6 +1502,8 @@ export interface ActiveServerInfo {
   cors_origins?: string | null;
   /** What this run serves (`serve_mode::ServeMode`): chat, `--embeddings` or `--rerank`. */
   serve_mode?: ServeMode;
+  /** Runtime family serving this run (`llama.cpp`, `mlx`, `mlx-vlm`, `mlx-audio`, ...); empty for older records. */
+  engine_family?: string;
 }
 
 /** Serving mode of a llama-server run; stored as the `serve_mode` launch setting (absent = automatic). */

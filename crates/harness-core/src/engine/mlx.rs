@@ -308,6 +308,24 @@ pub fn is_tts_dir(path: &Path) -> bool {
             || read_json(&path.join("config.json")).is_some_and(|c| quant_bits(&c).is_some()))
 }
 
+/// The named voices of an mlx-audio text-to-speech folder (Qwen3-TTS: the keys of
+/// `talker_config.spk_id`), sorted; empty when it has none (one default voice).
+pub fn tts_voices(path: &Path) -> Vec<String> {
+    let Some(config) = read_json(&path.join("config.json")) else {
+        return Vec::new();
+    };
+    let ids = config
+        .get("talker_config")
+        .and_then(|t| t.get("spk_id"))
+        .or_else(|| config.get("spk_id"))
+        .and_then(|v| v.as_object());
+    let mut voices: Vec<String> = ids
+        .map(|m| m.keys().filter(|k| !k.is_empty()).cloned().collect())
+        .unwrap_or_default();
+    voices.sort();
+    voices
+}
+
 /// Whether `path` is a folder the `mlx` engine runs: an MLX text generator (not a vision model).
 pub fn is_model_dir(path: &Path) -> bool {
     mlx_vision(path) == Some(false)
@@ -1164,7 +1182,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
     }
 
     /// `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit` (config trimmed) and its card.
-    const TTS_CONFIG: &str = r#"{"architectures":["Qwen3TTSForConditionalGeneration"],"model_type":"qwen3_tts","quantization":{"group_size":64,"bits":8,"mode":"affine"},"talker_config":{}}"#;
+    const TTS_CONFIG: &str = r#"{"architectures":["Qwen3TTSForConditionalGeneration"],"model_type":"qwen3_tts","quantization":{"group_size":64,"bits":8,"mode":"affine"},"talker_config":{"spk_id":{"serena":3066,"ryan":3061}}}"#;
     const TTS_CARD: &str =
         "---\nlicense: apache-2.0\nlibrary_name: mlx-audio\ntags:\n- mlx\n- text-to-speech\n---\n";
 
@@ -1177,6 +1195,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             ("speech_tokenizer/model.safetensors", "x"),
         ]);
         assert!(is_tts_dir(tts.path()));
+        assert_eq!(tts_voices(tts.path()), ["ryan", "serena"]);
         assert!(!is_model_dir(tts.path()) && !is_vlm_dir(tts.path()));
         assert!(!super::super::mistralrs::is_model_dir(tts.path()));
         assert_eq!(flavour_of(tts.path()), Some(Flavour::Audio));

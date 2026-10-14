@@ -9,11 +9,11 @@ export interface TtsVoice {
   gender: string;
 }
 
-/** An installed voice model (`harness_core::tts::TtsModel`). */
+/** An installed voice model (`harness_core::tts::TtsModel`, or an engine's model mapped to it). */
 export interface TtsModelInfo {
   id: string;
   name: string;
-  family: 'kokoro' | 'vits';
+  family: 'kokoro' | 'vits' | 'mlx-audio';
   languages: string[];
   quantization: string;
   sample_rate: number | null;
@@ -36,10 +36,46 @@ export interface TtsCatalogRow {
   installed: boolean;
 }
 
+/** A text-to-speech model of an engine (mlx-audio), served by the gateway under its definition alias. */
+export interface EngineTtsModel {
+  id: string;
+  /** Definition alias: what a request's `model` names. */
+  name: string;
+  family: 'mlx-audio';
+  size_bytes: number;
+  voices: string[];
+}
+
 export interface TtsOverview {
   models: TtsModelInfo[];
   catalog: TtsCatalogRow[];
+  /** A sherpa-onnx runtime is registered (the engine models do not need it). */
   runtime_installed: boolean;
+  engine_models?: EngineTtsModel[];
+}
+
+/** Every model the Speech tab offers: sherpa-onnx voices first, then the engines' models. */
+export function allTtsModels(o: TtsOverview | null): TtsModelInfo[] {
+  if (!o) return [];
+  const engine = (o.engine_models ?? []).map(
+    (m): TtsModelInfo => ({
+      id: m.id,
+      name: m.name,
+      family: m.family,
+      languages: [],
+      quantization: '',
+      sample_rate: null,
+      size_bytes: m.size_bytes,
+      voices: m.voices.map((v, i) => ({ id: v, sid: i, language: '', gender: '' })),
+    }),
+  );
+  return [...o.models, ...engine];
+}
+
+/** Whether a model runs on sherpa-onnx (an engine's model brings its own runtime). */
+export function isSherpaTts(models: readonly TtsModelInfo[], name: string): boolean {
+  const m = models.find((x) => x.name === name);
+  return !m || m.family !== 'mlx-audio';
 }
 
 export interface SpeechResult {

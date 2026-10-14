@@ -67,7 +67,10 @@
 
   const isNew = !d0.id;
   const baseFile = d0.base.kind === 'local' ? d0.base.path : `hf:${d0.base.repo}:${d0.base.file}`;
-  let chatFields = $derived(definitionMode(d0, models) === 'chat');
+  /** Engine family of the base file; an MLX engine has none of llama-server's settings. */
+  let engine = $state<string | null>(null);
+  let mlx = $derived(!!engine && engine.startsWith('mlx'));
+  let chatFields = $derived(definitionMode(d0, models) === 'chat' && !mlx);
 
   const ALIAS_RE = /^[A-Za-z0-9._:-]{1,128}$/;
   let aliasError = $derived.by(() => {
@@ -100,6 +103,9 @@
   let showProjectorSuggestion = $derived(!!suggestedProjector && !mmproj.trim());
   onMount(() => {
     if (d0.base.kind !== 'local') return;
+    invoke<string | null>('get_model_engine', { modelPath: d0.base.path })
+      .then((family) => (engine = family))
+      .catch(() => {});
     invoke<DraftSuggestion[]>('suggest_draft_models', { modelPath: d0.base.path })
       .then((list) => (suggestedDrafts = list))
       .catch(() => {});
@@ -206,7 +212,13 @@
         </div>
       {/if}
       <AdvancedOnly>
-        <RuntimePicker bind:runtime modelPath={d0.base.kind === 'local' ? d0.base.path : null} compact hint={t('rt.def_hint')} />
+        {#if mlx}
+          <Field label={t('rt.label')} id="{uid}-engine" hint={t('def.engine_fixed_hint', { engine: engine ?? '' })}>
+            <Input id="{uid}-engine" value={engine ?? ''} readonly class="font-mono text-xs" />
+          </Field>
+        {:else}
+          <RuntimePicker bind:runtime modelPath={d0.base.kind === 'local' ? d0.base.path : null} compact hint={t('rt.def_hint')} />
+        {/if}
 
         {#if chatFields}
         <div class="flex flex-col gap-2 rounded-md border border-border p-3">

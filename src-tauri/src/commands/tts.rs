@@ -11,6 +11,58 @@ pub(crate) struct TtsOverview {
     catalog: Vec<TtsCatalogRow>,
     /// A sherpa-onnx runtime is registered.
     runtime_installed: bool,
+    /// Text-to-speech models of an engine (mlx-audio) in the library: the gateway serves them
+    /// by their definition's alias, which is made here when missing.
+    engine_models: Vec<EngineTtsModel>,
+}
+
+#[derive(serde::Serialize)]
+pub(crate) struct EngineTtsModel {
+    /// The folder's path (the library id).
+    id: String,
+    /// Alias of its definition: what a request's `model` names.
+    name: String,
+    family: &'static str,
+    size_bytes: u64,
+    /// Named voices (empty: the model's one default voice).
+    voices: Vec<String>,
+}
+
+/// The library's mlx-audio folders, each with a definition (made once, like the library's
+/// default definitions).
+fn engine_tts_models() -> Vec<EngineTtsModel> {
+    use harness_core::domain::ModelKind;
+    let folders: Vec<_> = harness_core::models::ModelManager
+        .scan_models()
+        .into_iter()
+        .filter(|m| m.is_ready && harness_core::engine::mlx::is_tts_dir(&m.path))
+        .map(|mut m| {
+            m.kind = ModelKind::Pipeline;
+            m
+        })
+        .collect();
+    if folders.is_empty() {
+        return Vec::new();
+    }
+    let _ = harness_core::library_definitions::ensure(&folders, &[ModelKind::Pipeline]);
+    let defs = harness_core::domain::store::Domain::global()
+        .definitions()
+        .unwrap_or_default();
+    folders
+        .into_iter()
+        .filter_map(|m| {
+            let def = defs
+                .iter()
+                .find(|d| d.base.local_path() == Some(m.path.as_path()))?;
+            Some(EngineTtsModel {
+                id: m.id.clone(),
+                name: def.alias.clone(),
+                family: harness_core::engine::MLX_AUDIO,
+                size_bytes: m.size_bytes,
+                voices: harness_core::engine::mlx::tts_voices(&m.path),
+            })
+        })
+        .collect()
 }
 
 #[derive(serde::Serialize)]
@@ -35,6 +87,7 @@ pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
             models,
             catalog,
             runtime_installed: harness_core::tts::run::resolve_binary(None).is_ok(),
+            engine_models: engine_tts_models(),
         }
     })
     .await

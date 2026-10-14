@@ -79,3 +79,31 @@ export function onnxUnsupportedText(p: { os: string; arch: string; runtime?: str
   const intelMac = p.os === 'macos' && p.arch === 'x86_64';
   return { key: intelMac ? 'ort.unsupported_intel_mac' : 'ort.unsupported_platform', params: { platform: `${p.os}/${p.arch}` } };
 }
+
+/** One route a server serves directly (`path` under `/v1`, or under the host when `root`). */
+export interface DirectRoute {
+  method: 'GET' | 'POST' | 'GET · POST';
+  labelKey: 'conn.ep_base_url_label' | 'conn.ep_models_label' | 'conn.ep_chat_label' | 'conn.ep_completions_label' | 'conn.ep_speech_label';
+  path: string;
+}
+
+/**
+ * Routes of the MLX workers, which serve only these (anything else is 404). `null` for the
+ * other families: they keep the llama-server list.
+ */
+export function workerRoutes(family: string | null | undefined): DirectRoute[] | null {
+  const base: DirectRoute[] = [
+    { method: 'GET · POST', labelKey: 'conn.ep_base_url_label', path: '' },
+    { method: 'GET', labelKey: 'conn.ep_models_label', path: '/models' },
+  ];
+  switch (family) {
+    case 'mlx':
+      return [...base, { method: 'POST', labelKey: 'conn.ep_chat_label', path: '/chat/completions' }, { method: 'POST', labelKey: 'conn.ep_completions_label', path: '/completions' }];
+    case 'mlx-vlm':
+      return [...base, { method: 'POST', labelKey: 'conn.ep_chat_label', path: '/chat/completions' }];
+    case 'mlx-audio':
+      return [...base, { method: 'POST', labelKey: 'conn.ep_speech_label', path: '/audio/speech' }];
+    default:
+      return null;
+  }
+}

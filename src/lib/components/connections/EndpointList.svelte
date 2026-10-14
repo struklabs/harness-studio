@@ -14,18 +14,26 @@
   import { security } from '#lib/stores/security.svelte.js';
   import type { LanAddress, NetworkOverview } from '#lib/types.js';
   import { cn } from '#lib/utils.js';
+  import { workerRoutes } from '#lib/engines.js';
   import CopyButton from './CopyButton.svelte';
 
   let baseUrl = $derived(app.baseUrl);
   let hostUrl = $derived(app.hostUrl);
 
-  let rows = $derived([
-    { method: 'GET · POST', label: t('conn.ep_base_url_label'), url: baseUrl },
-    { method: 'POST', label: t('conn.ep_chat_label'), url: `${baseUrl}/chat/completions` },
-    { method: 'POST', label: t('conn.ep_anthropic_label'), url: `${baseUrl}/messages` },
-    { method: 'POST', label: t('conn.ep_embeddings_label'), url: `${baseUrl}/embeddings` },
-    { method: 'GET', label: t('conn.ep_metrics_label'), url: `${hostUrl}/metrics` },
-  ]);
+  // A worker (MLX) serves only its own routes; everything else is a llama-server.
+  let family = $derived(app.activeServer?.engine_family ?? '');
+  let routes = $derived(workerRoutes(family));
+  let rows = $derived(
+    routes
+      ? routes.map((r) => ({ method: r.method, label: t(r.labelKey), url: `${baseUrl}${r.path}` }))
+      : [
+          { method: 'GET · POST', label: t('conn.ep_base_url_label'), url: baseUrl },
+          { method: 'POST', label: t('conn.ep_chat_label'), url: `${baseUrl}/chat/completions` },
+          { method: 'POST', label: t('conn.ep_anthropic_label'), url: `${baseUrl}/messages` },
+          { method: 'POST', label: t('conn.ep_embeddings_label'), url: `${baseUrl}/embeddings` },
+          { method: 'GET', label: t('conn.ep_metrics_label'), url: `${hostUrl}/metrics` },
+        ],
+  );
 
   // Managed endpoint (gateway): one address for every model definition; the default for
   // Harness's own clients while it runs.
@@ -163,11 +171,13 @@
         <div class="flex items-center justify-between gap-2">
           <span class="flex items-center gap-1.5 text-sm font-medium">
             <Network class="size-3.5" />
-            {t('sec.ep_direct_title')}
+            {routes ? t('sec.ep_direct_title_engine', { engine: family }) : t('sec.ep_direct_title')}
           </span>
           {#if !managedOn}<Badge variant="outline" class="text-success">{t('sec.ep_active')}</Badge>{/if}
         </div>
-        <p class="text-xs text-muted-foreground">{managedOn ? t('gw.ep_direct_note') : t('sec.ep_direct_desc')}</p>
+        <p class="text-xs text-muted-foreground">
+          {routes ? t('sec.ep_direct_desc_engine', { engine: family }) : managedOn ? t('gw.ep_direct_note') : t('sec.ep_direct_desc')}
+        </p>
         <div class="flex flex-wrap items-center gap-1.5">
           <Badge variant="outline" class={cn(scope === 'lan' && 'text-warning')} title={bindHost}>
             {scope === 'lan' ? t('sec.scope_lan') : t('sec.scope_loopback')} · <span class="font-num">{bindHost}</span>
