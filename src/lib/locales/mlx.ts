@@ -1,4 +1,4 @@
-// The MLX engines (mlx, mlx-vlm): parameter catalog labels (params_mlx.toml) and the backend error keys of
+// The MLX engines (mlx, mlx-vlm, mlx-audio): parameter catalog labels (params_mlx.toml) and the backend error keys of
 // its launches.
 const tr = {
   'mlxparam.max_tokens': 'En çok yanıt uzunluğu',
@@ -16,6 +16,12 @@ const tr = {
   'hub.compat_mlx_vlm_title': 'Bu MLX biçimli görüntü-dil modeli Apple Silicon’da MLX görüntü motoruyla (mlx-vlm) çalışır: sohbete resim eklenebilir.',
   'hub.compat_needs_mlx_vlm': 'Gerekli: MLX görüntü motoru',
   'hub.compat_needs_mlx_vlm_title': 'Bu model MLX görüntü motoruyla (mlx-vlm) çalışır; motor henüz kurulu değil. Depoyu açıp kurabilirsiniz (macOS 14+, yaklaşık 800 MB).',
+  'hub.compat_mlx_audio': 'MLX ile konuşur',
+  'hub.compat_mlx_audio_title': 'Bu MLX biçimli metinden konuşma modeli Apple Silicon’da MLX ses motoruyla (mlx-audio) çalışır: ağ geçidinin /v1/audio/speech uç noktası onunla konuşur.',
+  'hub.compat_needs_mlx_audio': 'Gerekli: MLX ses motoru',
+  'hub.compat_needs_mlx_audio_title': 'Bu model MLX ses motoruyla (mlx-audio) çalışır; motor henüz kurulu değil. MLX görüntü motoruyla aynı ortamı kullanır (macOS 14+, yaklaşık 800 MB).',
+  'mlxparam.max_chars': 'En uzun metin',
+  'mlxparam.max_chars_help': 'Bir istekte seslendirilecek en çok karakter sayısı (boş = 4096).',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -34,6 +40,12 @@ const en: Record<keyof typeof tr, string> = {
   'hub.compat_mlx_vlm_title': 'This MLX-format vision-language model runs on the MLX vision runtime (mlx-vlm) on Apple Silicon: chats can include images.',
   'hub.compat_needs_mlx_vlm': 'Required: MLX vision runtime',
   'hub.compat_needs_mlx_vlm_title': 'This model runs on the MLX vision runtime (mlx-vlm), which isn’t installed yet. Open the repository to install it (macOS 14+, about 800 MB).',
+  'hub.compat_mlx_audio': 'Speaks with MLX',
+  'hub.compat_mlx_audio_title': 'This MLX-format text-to-speech model runs on the MLX audio runtime (mlx-audio) on Apple Silicon: the gateway’s /v1/audio/speech speaks with it.',
+  'hub.compat_needs_mlx_audio': 'Required: MLX audio runtime',
+  'hub.compat_needs_mlx_audio_title': 'This model runs on the MLX audio runtime (mlx-audio), which isn’t installed yet. It shares the MLX vision runtime’s environment (macOS 14+, about 800 MB).',
+  'mlxparam.max_chars': 'Longest text',
+  'mlxparam.max_chars_help': 'How many characters one request may have spoken (empty = 4096).',
 };
 
 export default { tr, en };

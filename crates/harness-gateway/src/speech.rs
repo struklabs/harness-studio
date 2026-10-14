@@ -232,11 +232,13 @@ async fn serve(
     let model = match tts::find_model(&models, wanted.as_deref()) {
         Ok(model) => model,
         Err(e) => {
-            // No sherpa-onnx voice by that name: a text-to-speech model of the Python engine may
-            // have it (sherpa-onnx comes first, the Python engine is the fallback).
+            // No sherpa-onnx voice by that name: a text-to-speech model of the Python engine or
+            // of mlx-audio may have it (sherpa-onnx comes first, the workers are the fallback).
             if let Some(def) = python_speech_model(state, wanted.as_deref()).await {
                 caller.check_model(&def.alias)?;
-                return python_speak(state, &def, &text, format, guard).await;
+                let voice = req.voice_name();
+                return python_speak(state, &def, &text, voice.as_deref(), speed, format, guard)
+                    .await;
             }
             return Err(map_error(&e));
         }
@@ -288,23 +290,37 @@ async fn serve(
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
 }
 
-/// The definition `model` names when it is a text-to-speech model of the Python engine.
+/// The definition `model` names when it is a text-to-speech model of the Python engine or of
+/// mlx-audio.
 async fn python_speech_model(
     state: &GwState,
     model: Option<&str>,
 ) -> Option<harness_core::domain::ModelDefinition> {
     let def = state.scheduler.resolve(Some(model?)).await.ok()?;
+    if is_mlx_speech(&def) {
+        return Some(def);
+    }
     crate::pyhf::task_of(&def)
         .filter(|t| crate::pyhf::is_speech_task(t))
         .map(|_| def)
 }
 
-/// Speech from a Python engine model: the worker's WAV, encoded to the asked format like
-/// sherpa-onnx's. `voice` and `speed` do not apply (the model has one voice).
+/// Whether a definition is an mlx-audio text-to-speech folder.
+fn is_mlx_speech(def: &harness_core::domain::ModelDefinition) -> bool {
+    def.base
+        .local_path()
+        .is_some_and(harness_core::engine::mlx::is_tts_dir)
+}
+
+/// Speech from a Python engine or mlx-audio model: the worker's WAV, encoded to the asked
+/// format like sherpa-onnx's. The Python engine's models have one voice and one speed; an
+/// mlx-audio model takes `voice` (one of its speakers) and `speed`.
 async fn python_speak(
     state: &GwState,
     def: &harness_core::domain::ModelDefinition,
     text: &str,
+    voice: Option<&str>,
+    speed: f32,
     format: AudioFormat,
     guard: &mut RecordGuard,
 ) -> Result<Response, GatewayError> {
@@ -313,7 +329,14 @@ async fn python_speak(
         r.alias = Some(def.alias.clone());
         r.definition_id = Some(def.id.clone());
     }
-    let body = serde_json::to_vec(&serde_json::json!({ "input": text }))
+    let mut request = serde_json::json!({ "input": text });
+    if is_mlx_speech(def) {
+        request["speed"] = serde_json::json!(speed);
+        if let Some(voice) = voice {
+            request["voice"] = serde_json::json!(voice);
+        }
+    }
+    let body = serde_json::to_vec(&request)
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?;
     let answer = crate::pyhf::post(
         state,

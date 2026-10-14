@@ -428,6 +428,11 @@ pub fn delete_model_dir(dir: &Path, roots: &[PathBuf]) -> Result<(), String> {
             .with("model", dir.display())
             .into());
     }
+    remove_folder_within(dir, roots)
+}
+
+/// Removes `dir` (everything in it) when it is strictly inside one of `roots`.
+pub(crate) fn remove_folder_within(dir: &Path, roots: &[PathBuf]) -> Result<(), String> {
     let inside = roots.iter().any(|r| {
         crate::paths::is_within(dir, r)
             && crate::paths::normalize(dir) != crate::paths::normalize(r)
