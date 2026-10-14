@@ -60,13 +60,13 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Fixed
 - Downloader: GGUF magic is checked only for `.gguf` files; companion files download with consistent file counters and byte progress.
-- ?ndirici: GGUF sihirli baytlar? yaln?z `.gguf` dosyalar?nda denetlenir; yard?mc? dosyalar tutarl? dosya sayac? ve bayt ilerlemesiyle indirilir.
+- İndirici: GGUF sihirli baytları yalnız `.gguf` dosyalarında denetlenir; yardımcı dosyalar tutarlı dosya sayacı ve bayt ilerlemesiyle indirilir.
 - Model Hub: the results heading follows the active search while its listing loads.
-- Model Merkezi: sonu? ba?l??? liste y?klenirken etkin aramay? izler.
+- Model Hub: sonuç başlığı, liste yüklenirken etkin aramayı izler.
 - Settings > Updates: release dates use the interface language's date format.
-- Ayarlar > G?ncellemeler: s?r?m tarihleri aray?z dilinin tarih bi?iminde g?sterilir.
+- Ayarlar > Güncellemeler: sürüm tarihleri arayüz dilinin tarih biçiminde gösterilir.
 - Library: the delete dialog can stop all servers using a file before enabling deletion.
-- K?t?phane: silme ileti?im kutusu, silmeyi etkinle?tirmeden ?nce dosyay? kullanan t?m sunucular? durdurabilir.
+- Kütüphane: silme iletişim kutusu, silmeyi etkinleştirmeden önce dosyayı kullanan tüm sunucuları durdurabilir.
 - Model Hub: each card's help button (?) sits inside the card's top-right corner instead of beside it, so the grid columns stay aligned.
 - Python engine: a model that fails to load stops its worker at once with the reason, instead of waiting for the 300 s load timeout. SpeechT5 and FastSpeech2 are no longer offered for text-to-speech (their pipeline downloads a vocoder at load, which the offline worker cannot), and root SentencePiece files such as `spm_char.model` are downloaded.
 - Dashboard and the Playground load settings showed llama.cpp settings (`-c`, `-ngl`, KV cache, flash attention) for models other engines run, and the ONNX accelerator could not be chosen anywhere. The form now follows the model's engine: ONNX, whisper.cpp, sd.cpp, python-hf, MLX and the other engines show their own settings from their catalogs (ONNX: Accelerator auto/cpu/directml/cuda, batch size, pooling...), the engine field names the engine that runs the model, and the llama.cpp web UI button is hidden for them.
