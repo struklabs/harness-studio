@@ -75,6 +75,27 @@ fn launch_files(c: &LaunchConfig) -> Vec<PathBuf> {
 
 /// Servers (starting or running) that use any of `files`: as model, draft, projector,
 /// adapter, or through a router serving their folder.
+/// Running servers of a library model: its files, and for a folder model (MLX) the folder too,
+/// since its server is launched with the folder.
+pub fn servers_using_model(
+    registry: &ServerRegistry,
+    model: &crate::models::LocalModel,
+) -> Vec<String> {
+    let mut files = model.shard_paths.clone();
+    if model.path.is_dir() {
+        files.push(model.path.clone());
+    }
+    servers_using(registry, &files)
+}
+
+/// Whether a server's launch file is one of `keys` or lies inside one (a folder key).
+fn uses_key(keys: &HashSet<String>, file: &str) -> bool {
+    keys.contains(file)
+        || keys
+            .iter()
+            .any(|k| file.starts_with(&format!("{}/", k.trim_end_matches('/'))))
+}
+
 pub fn servers_using(registry: &ServerRegistry, files: &[PathBuf]) -> Vec<String> {
     let keys: HashSet<String> = files.iter().map(|p| norm(p)).collect();
     registry
@@ -88,7 +109,7 @@ pub fn servers_using(registry: &ServerRegistry, files: &[PathBuf]) -> Vec<String
         })
         .filter_map(|(id, pm)| {
             let c = pm.launch_config()?;
-            let direct = launch_files(&c).iter().any(|f| keys.contains(&norm(f)));
+            let direct = launch_files(&c).iter().any(|f| uses_key(&keys, &norm(f)));
             let routed = c.router_mode
                 && c.models_path.as_ref().is_some_and(|dir| {
                     let d = format!("{}/", norm(dir).trim_end_matches('/'));
@@ -565,5 +586,19 @@ pub fn record_launch(config: &LaunchConfig) {
         preset.as_deref(),
     ) {
         eprintln!("[Harness Studio] Son kullanım kaydedilemedi: {}", e);
+    }
+}
+
+#[cfg(test)]
+mod uses_key_tests {
+    use super::*;
+
+    #[test]
+    fn a_folder_key_covers_the_files_inside_it() {
+        let keys: HashSet<String> = ["/lib/mlx-tts".to_string()].into();
+        assert!(uses_key(&keys, "/lib/mlx-tts"));
+        assert!(uses_key(&keys, "/lib/mlx-tts/model.safetensors"));
+        assert!(!uses_key(&keys, "/lib/mlx-tts-2/model.safetensors"));
+        assert!(!uses_key(&keys, "/lib/other.gguf"));
     }
 }

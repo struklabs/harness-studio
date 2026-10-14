@@ -69,7 +69,7 @@ pub(crate) async fn get_model_delete_preview(
     blocking(move || {
         let model = find_library_model(&mgr, &model_id)?;
         let domain = harness_core::domain::store::Domain::global();
-        let running = ops::servers_using(&registry, &model.shard_paths);
+        let running = ops::servers_using_model(&registry, &model);
         Ok(ops::delete_preview(
             &model,
             &domain.definitions()?,
