@@ -9,6 +9,7 @@
 //! separate capability levels.
 
 pub mod audio_cpp;
+pub mod crispasr;
 pub mod features;
 pub mod lemonade;
 pub mod mistralrs;

@@ -15,11 +15,12 @@ export interface EngineSpec {
   /** Managed Python environment of `pyenv` families. */
   env?: string;
   /** Locale key of the one-line description shown on the Installed Runtime page. */
-  descKey: 'eng.desc_audio_cpp' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio';
+  descKey: 'eng.desc_audio_cpp' | 'eng.desc_crispasr' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio';
 }
 
 export const ENGINES: readonly EngineSpec[] = [
   { family: 'audio.cpp', method: 'github', repo: '0xShug0/audio.cpp', descKey: 'eng.desc_audio_cpp' },
+  { family: 'crispasr', method: 'github', repo: 'CrispStrobe/CrispASR', descKey: 'eng.desc_crispasr' },
   { family: 'whisper.cpp', method: 'github', repo: 'ggml-org/whisper.cpp', descKey: 'eng.desc_whisper' },
   { family: 'stable-diffusion.cpp', method: 'github', repo: 'leejet/stable-diffusion.cpp', descKey: 'eng.desc_sdcpp' },
   { family: 'sherpa-onnx', method: 'github', repo: 'k2-fsa/sherpa-onnx', descKey: 'eng.desc_sherpa' },
@@ -107,4 +108,9 @@ export function workerRoutes(family: string | null | undefined): DirectRoute[] |
     default:
       return null;
   }
+}
+
+/** Display name of an engine family (its id, except for CrispASR). */
+export function engineLabel(family: string): string {
+  return family === 'crispasr' ? 'CrispASR' : family;
 }

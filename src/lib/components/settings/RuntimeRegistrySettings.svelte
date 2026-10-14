@@ -194,6 +194,13 @@
     pick = null;
   }
 
+  function fillCrispasr() {
+    family = 'crispasr';
+    repo = 'CrispStrobe/CrispASR';
+    ghName = 'CrispASR';
+    pick = null;
+  }
+
   function fillSdcpp() {
     family = 'stable-diffusion.cpp';
     repo = 'leejet/stable-diffusion.cpp';
@@ -354,6 +361,11 @@
         <Button variant="outline" size="xs" class="self-start" onclick={fillWhisper}>{t('rt.whisper_fill')}</Button>
       </div>
       <div class="flex flex-col gap-1 rounded-md border border-border bg-muted/30 px-2.5 py-2 text-xs">
+        <span class="font-medium">{t('rt.crispasr_title')}</span>
+        <span class="text-muted-foreground">{t('rt.crispasr_desc')}</span>
+        <Button variant="outline" size="xs" class="self-start" onclick={fillCrispasr}>{t('rt.crispasr_fill')}</Button>
+      </div>
+      <div class="flex flex-col gap-1 rounded-md border border-border bg-muted/30 px-2.5 py-2 text-xs">
         <span class="font-medium">{t('rt.sdcpp_title')}</span>
         <span class="text-muted-foreground">{t('rt.sdcpp_desc')}</span>
         <Button variant="outline" size="xs" class="self-start" onclick={fillSdcpp}>{t('rt.sdcpp_fill')}</Button>
@@ -461,6 +473,7 @@
         {t('rt.family_label')}
         <FieldHelp text={t('help.runtime_family')}><select id="{uid}-lfamily" bind:value={localFamily} class="h-8 rounded-md border border-input bg-background px-2 text-xs">
           <option value="llama.cpp">llama.cpp</option>
+          <option value="crispasr">CrispASR</option>
           <option value="whisper.cpp">whisper.cpp</option>
           <option value="audio.cpp">audio.cpp</option>
           <option value="stable-diffusion.cpp">stable-diffusion.cpp</option>

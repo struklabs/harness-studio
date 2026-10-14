@@ -137,6 +137,7 @@ pub fn family_of(explicit: &Option<String>, repo: Option<&str>) -> Option<String
             "whisper.cpp",
             "sherpa-onnx",
             "audio.cpp",
+            "crispasr",
         ]
         .into_iter()
         .find(|f| repo.ends_with(f))

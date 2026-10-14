@@ -23,6 +23,7 @@
 //! one segment at a time.
 
 pub mod catalog;
+pub mod crispasr;
 pub mod diarize;
 pub mod onnx;
 pub mod run;

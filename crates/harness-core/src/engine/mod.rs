@@ -17,6 +17,8 @@
 
 pub mod audio_cpp;
 pub use audio_cpp::{AudioCppEngine, AUDIO_CPP};
+pub mod crispasr;
+pub use crispasr::{CrispAsrEngine, CRISPASR};
 pub mod job;
 mod lemonade;
 mod llama_bench;
@@ -321,6 +323,7 @@ impl std::fmt::Debug for EngineRef {
 
 static LLAMA: LlamaCppEngine = LlamaCppEngine;
 static AUDIO: AudioCppEngine = AudioCppEngine;
+static CRISP: CrispAsrEngine = CrispAsrEngine;
 static WHISPER: WhisperCppEngine = WhisperCppEngine;
 static SDCPP: SdCppEngine = SdCppEngine;
 static SHERPA: SherpaOnnxEngine = SherpaOnnxEngine;
@@ -384,11 +387,12 @@ pub fn audio_cpp() -> &'static dyn ServerEngine {
 }
 
 /// Every known family.
-pub fn engines() -> [&'static dyn Engine; 12] {
+pub fn engines() -> [&'static dyn Engine; 13] {
     [
         &LLAMA,
         &WHISPER,
         &AUDIO,
+        &CRISP,
         &SDCPP,
         &SHERPA,
         &ONNX,
@@ -437,6 +441,9 @@ pub fn server_for(config: &LaunchConfig) -> &'static dyn ServerEngine {
     if let Some(engine) = mlx_engine_for(&config.model_path) {
         return engine;
     }
+    if crispasr::is_asr_gguf(&config.model_path) {
+        return &CRISP;
+    }
     match ModelFormat::of(&config.model_path) {
         ModelFormat::GgmlBin => &WHISPER,
         ModelFormat::Onnx => &ONNX,
@@ -456,7 +463,8 @@ pub fn is_llama_server(model_path: &Path, router_mode: bool) -> bool {
                 ModelFormat::GgmlBin | ModelFormat::Onnx
             ) || is_mistralrs_dir(model_path)
                 || python_hf::is_model_dir(model_path)
-                || mlx::is_any_model_dir(model_path)))
+                || mlx::is_any_model_dir(model_path)
+                || crispasr::is_asr_gguf(model_path)))
 }
 
 /// Device memory a launch of a non-llama.cpp family takes (whisper.cpp, stable-diffusion.cpp,
@@ -508,6 +516,12 @@ pub fn server_for_model(path: &Path) -> Option<&'static dyn ServerEngine> {
     }
     if let Some(engine) = mlx_engine_for(path) {
         return Some(engine);
+    }
+    if crispasr::is_model(path) {
+        return Some(&CRISP);
+    }
+    if crispasr::is_asr_gguf(path) {
+        return None;
     }
     let format = ModelFormat::of(path);
     engines()

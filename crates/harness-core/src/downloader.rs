@@ -483,6 +483,12 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     let genai = crate::hub_compat::is_genai_repo(&tags, &sibling_files(item));
     let compatibility = if crate::hub_compat::is_audio_cpp_repo(item) {
         crate::hub_compat::audio_cpp_compatibility(item)
+    } else if format == crate::hub_compat::ModelFormat::Gguf
+        && crate::engine::crispasr::supports_repo(&id, task)
+    {
+        crate::hub_compat::Compatibility::Runnable {
+            runtime: crate::engine::CRISPASR.into(),
+        }
     } else if ctc_export {
         format.compatibility()
     } else if diffusion_adapter {

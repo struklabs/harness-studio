@@ -23,7 +23,7 @@
   import { Progress } from '#lib/components/ui/progress/index.js';
   import { Download } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
-  import { fetchTranscription, isSpeechDefinition, isOnnxCtcDefinition, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
+  import { fetchTranscription, isSpeechDefinition, isOnnxCtcDefinition, crispasrCanTranslate, isCrispasrDefinition, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
   import { MAX_RECORD_SECONDS, RecordError } from './recorder';
   import { createRecordingSession, recordingClock as clock } from './recordingSession';
   import { speech } from './speech.svelte';
@@ -31,6 +31,7 @@
   import { languagesText } from './asr';
   import { asr } from './asr.svelte';
   import { tts } from './tts.svelte';
+  import { library } from '#lib/stores/library.svelte.js';
 
   /** Speech definitions: the gateway loads the selected model on the first request (JIT). */
   let models = $derived(
@@ -45,6 +46,8 @@
   let engineChosen = $derived(engineModels.find(m => m.name === speech.model) ?? null);
   /** A model that only transcribes (sherpa-onnx, CTC, Parakeet MLX): translation is Whisper's. */
   let onlyTranscribes = $derived(sherpaChosen || ctcChosen || (engineChosen !== null && !engineChosen.translates));
+  let crispChosen = $derived(models.some(d => d.alias === speech.model && isCrispasrDefinition(d)));
+  let crispNoTranslate = $derived(models.some(d => d.alias === speech.model && isCrispasrDefinition(d) && !crispasrCanTranslate(d, library.models)));
   let noModel = $derived(models.length === 0 && sherpaModels.length === 0 && engineModels.length === 0);
   let noModelNotice = $derived(noModel && !libraryDefinitions.busy);
   let installingRuntime = $derived(tts.installingRuntime);
@@ -53,10 +56,13 @@
   );
   const more = (list: string, count: number) => t('sasr.languages_more', { list, count });
 
-  onMount(() => void asr.load());
+  onMount(() => {
+    void asr.load();
+    void library.refresh();
+  });
   // sherpa-onnx models only transcribe; translation to English is a Whisper task.
   $effect(() => {
-    if (onlyTranscribes) task = 'transcriptions';
+    if (onlyTranscribes || crispNoTranslate) task = 'transcriptions';
   });
   // mlx-audio's worker answers the text only (no subtitles).
   $effect(() => {
@@ -198,7 +204,7 @@
 </script>
 
 <div class="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-4 py-6">
-  {#if isMac && !sherpaChosen && !ctcChosen && !engineChosen}
+  {#if isMac && !sherpaChosen && !ctcChosen && !engineChosen && !crispChosen}
     <!-- whisper.cpp ships no macOS server build: the Hub / gateway hints below only help once
          a self-built whisper-server is added as a local runtime. -->
     <div class="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-xs text-foreground" role="note">
@@ -335,11 +341,11 @@
     <div class="grid gap-3 sm:grid-cols-3">
       <div class="flex flex-col gap-1.5">
         <Label for="asr-task" class="text-sm font-semibold text-foreground">{t('asr.task_label')}</Label>
-        <select id="asr-task" bind:value={task} disabled={busy || onlyTranscribes} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+        <select id="asr-task" bind:value={task} disabled={busy || onlyTranscribes || crispNoTranslate} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
           <option value="transcriptions">{t('asr.task_transcribe')}</option>
-          <option value="translations">{t('asr.task_translate')}</option>
+          {#if !crispNoTranslate}<option value="translations">{t('asr.task_translate')}</option>{/if}
         </select>
-        {#if onlyTranscribes}<span class="text-xs text-muted-foreground">{t('sasr.only_transcribes')}</span>{/if}
+        {#if onlyTranscribes || crispNoTranslate}<span class="text-xs text-muted-foreground">{t('sasr.only_transcribes')}</span>{/if}
       </div>
       <div class="flex flex-col gap-1.5">
         <Label for="asr-format" class="text-sm font-semibold text-foreground">{t('asr.format_label')}</Label>

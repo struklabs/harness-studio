@@ -412,6 +412,13 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
+    if crate::audio::is_crispasr_model(&def) {
+        return Err(GatewayError::new(
+            400,
+            "model_is_speech",
+            "CrispASR only accepts /v1/audio/transcriptions and /v1/audio/translations",
+        ));
+    }
     if def.capture_content {
         guard.capture = Some(ContentCapture::new(
             &body,

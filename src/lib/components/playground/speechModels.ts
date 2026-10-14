@@ -10,13 +10,32 @@ export function isOnnxCtcDefinition(d: ModelDefinition): boolean {
   return d.load?.task === 'asr_ctc';
 }
 
+/** Mirrors `engine::crispasr::can_translate`: the architectures whose backend translates. */
+const CRISPASR_TRANSLATE_ARCHS = new Set([
+  'canary', 'cohere', 'cohere-transcribe', 'voxtral', 'voxtral4b', 'voxtral-4b', 'voxtral_4b',
+  'granitespeech', 'granite-speech', 'granite_speech',
+]);
+
+export function isCrispasrDefinition(d: ModelDefinition): boolean {
+  return d.load?.task === 'crispasr';
+}
+
+/** Whether a CrispASR definition can translate; an unknown file or architecture cannot. */
+export function crispasrCanTranslate(d: ModelDefinition, files: { path: string; architecture: string | null }[]): boolean {
+  if (!isCrispasrDefinition(d) || d.base.kind !== 'local') return false;
+  const path = d.base.path;
+  const arch = files.find(f => f.path === path)?.architecture?.toLowerCase();
+  return !!arch && CRISPASR_TRANSLATE_ARCHS.has(arch);
+}
+
 export function isSpeechDefinition(d: ModelDefinition): boolean {
-  return isOnnxCtcDefinition(d) || isSpeechFile(d.base.kind === 'local' ? d.base.path : d.base.file);
+  return d.load?.task === 'crispasr' || isOnnxCtcDefinition(d) || isSpeechFile(d.base.kind === 'local' ? d.base.path : d.base.file);
 }
 
 /** The engine family `model` transcribes with: sherpa-onnx for its recognition models, mlx-audio for
  *  the library's MLX ones (`engine`, aliases), else whisper.cpp. */
 export function dictationFamily(model: string, sherpa: string[] = [], definitions: ModelDefinition[] = [], engine: string[] = []): string {
+  if (definitions.some(d => d.alias === model && d.load?.task === 'crispasr')) return 'crispasr';
   if (definitions.some(d => d.alias === model && isOnnxCtcDefinition(d))) return 'onnxruntime';
   if (engine.includes(model)) return 'mlx-audio';
   return sherpa.includes(model) ? 'sherpa-onnx' : 'whisper.cpp';

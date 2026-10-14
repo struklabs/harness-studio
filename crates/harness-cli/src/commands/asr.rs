@@ -228,6 +228,10 @@ fn render(t: &Transcript, format: Format) -> String {
     }
 }
 
+fn is_resident_asr(path: &std::path::Path) -> bool {
+    asr::is_onnx_ctc_file(path) || harness_core::engine::crispasr::is_model(path)
+}
+
 pub async fn transcribe(args: &TranscribeArgs, out: &Out) -> CliResult<()> {
     let format = parse_format(&args.format)?;
     // `--json` is the whole result, like everywhere; without -o it replaces the plain text.
@@ -255,20 +259,19 @@ pub async fn transcribe(args: &TranscribeArgs, out: &Out) -> CliResult<()> {
                 .as_deref()
                 .and_then(|name| {
                     let path = std::path::PathBuf::from(name);
-                    if asr::is_onnx_ctc_file(&path) {
+                    if is_resident_asr(&path) {
                         return Some(path);
                     }
                     defs.iter()
                         .find(|d| d.alias == name || d.id == name)
                         .and_then(|d| d.base.local_path())
-                        .filter(|p| asr::is_onnx_ctc_file(p))
+                        .filter(|p| is_resident_asr(p))
                         .map(std::path::Path::to_path_buf)
                         .or_else(|| {
                             files
                                 .iter()
                                 .find(|m| {
-                                    (m.name == name || m.id == name)
-                                        && asr::is_onnx_ctc_file(&m.path)
+                                    (m.name == name || m.id == name) && is_resident_asr(&m.path)
                                 })
                                 .map(|m| m.path.clone())
                         })
@@ -277,7 +280,7 @@ pub async fn transcribe(args: &TranscribeArgs, out: &Out) -> CliResult<()> {
                     if wanted.is_none() && asr::installed_models().is_empty() {
                         files
                             .iter()
-                            .find(|m| asr::is_onnx_ctc_file(&m.path))
+                            .find(|m| is_resident_asr(&m.path))
                             .map(|m| m.path.clone())
                     } else {
                         None
@@ -290,14 +293,26 @@ pub async fn transcribe(args: &TranscribeArgs, out: &Out) -> CliResult<()> {
     {
         return Err(CliError::usage(
             "cli.invalid_value",
-            "ONNX CTC models cannot tell speakers apart; --diarize, --speakers and diarized_json need a sherpa-onnx model",
+            "Resident ASR models cannot tell speakers apart; --diarize, --speakers and diarized_json need a sherpa-onnx model",
         ));
     }
     let transcript = if let Some(path) = ctc {
         out.info(format!("Transcribing with {} ...", path.display()));
-        asr::onnx::transcribe(&path, audio, args.threads)
+        if harness_core::engine::crispasr::is_model(&path) {
+            asr::crispasr::transcribe(
+                &path,
+                audio,
+                args.threads,
+                args.runtime.as_deref(),
+                args.language.as_deref(),
+            )
             .await
             .map_err(CliError::core)?
+        } else {
+            asr::onnx::transcribe(&path, audio, args.threads)
+                .await
+                .map_err(CliError::core)?
+        }
     } else {
         let models = installed().await?;
         let model =

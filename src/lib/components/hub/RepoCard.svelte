@@ -139,6 +139,8 @@
       <span class="inline-flex items-center gap-1 text-warning" title={t(msg.key, msg.params)}>
         <Ban class="size-3" />{t('ort.compat_unsupported')}
       </span>
+    {:else if (compat.status === 'runnable' || compat.status === 'needs_runtime') && compat.runtime === 'crispasr'}
+      <span class="inline-flex items-center gap-1 text-info">CrispASR</span>
     {:else if compat.status === 'runnable' && compat.runtime in MLX_CHIPS}
       {@const k = MLX_CHIPS[compat.runtime]}
       <span class="inline-flex items-center gap-1 text-success" title={t(k.title)}>
@@ -163,7 +165,7 @@
     {/if}
     {#if unsupported}
       <!-- the format reason above covers the task verdict -->
-    {:else if taskNeeds && compat.status !== 'needs_runtime'}
+    {:else if taskNeeds && compat.status !== 'needs_runtime' && !((compat.status === 'runnable') && compat.runtime === 'crispasr')}
       <span class="inline-flex items-center gap-1 text-info" title={t('lib.runtime_needs_hint', { runtime: taskNeeds })}>
         <Info class="size-3" />{t('lib.runtime_needs', { runtime: taskNeeds })}
       </span>

@@ -105,6 +105,7 @@ pub enum SchedError {
         retry_after: u64,
     },
     AudioCppSpeechOnly,
+    CrispAsrTranscriptionOnly,
     Internal(String),
 }
 
@@ -121,14 +122,18 @@ impl SchedError {
             SchedError::InsufficientMemory { .. } => "insufficient_memory",
             SchedError::LoadFailed { .. } => "model_load_failed",
             SchedError::QueueTimeout { .. } => "queue_timeout",
-            SchedError::AudioCppSpeechOnly => "unsupported_route",
+            SchedError::AudioCppSpeechOnly | SchedError::CrispAsrTranscriptionOnly => {
+                "unsupported_route"
+            }
             SchedError::Internal(_) => "gateway_error",
         }
     }
 
     pub fn http_status(&self) -> u16 {
         match self {
-            SchedError::ModelRequired { .. } | SchedError::AudioCppSpeechOnly => 400,
+            SchedError::ModelRequired { .. }
+            | SchedError::AudioCppSpeechOnly
+            | SchedError::CrispAsrTranscriptionOnly => 400,
             SchedError::ModelNotFound { .. } | SchedError::ModelNotDownloaded { .. } => 404,
             SchedError::QueueFull { .. }
             | SchedError::MaxLoaded { .. }
@@ -169,6 +174,9 @@ impl SchedError {
         }
         match self {
             SchedError::AudioCppSpeechOnly => "audio.cpp only accepts POST /v1/audio/speech".into(),
+            SchedError::CrispAsrTranscriptionOnly => {
+                "CrispASR only accepts /v1/audio/transcriptions and /v1/audio/translations".into()
+            }
             SchedError::ModelRequired { available } => format!(
                 "The request has no \"model\". Available models: {}.",
                 list(available)
@@ -870,7 +878,8 @@ impl Scheduler {
         demand: Option<&Demand>,
         keep_alive: Option<KeepAlive>,
     ) -> Result<Lease, SchedError> {
-        self.acquire_for(def, demand, keep_alive, false).await
+        self.acquire_for(def, demand, keep_alive, Route::General)
+            .await
     }
 
     /// Only the speech handler may opt in, after validating and rebuilding its body.
@@ -878,7 +887,12 @@ impl Scheduler {
         self: &Arc<Self>,
         def: &ModelDefinition,
     ) -> Result<Lease, SchedError> {
-        self.acquire_for(def, None, None, true).await
+        self.acquire_for(def, None, None, Route::Speech).await
+    }
+
+    /// Only the transcription handler may opt in, after validating and rebuilding its form.
+    pub async fn acquire_asr(self: &Arc<Self>, def: &ModelDefinition) -> Result<Lease, SchedError> {
+        self.acquire_for(def, None, None, Route::Asr).await
     }
 
     async fn acquire_for(
@@ -886,10 +900,13 @@ impl Scheduler {
         def: &ModelDefinition,
         demand: Option<&Demand>,
         keep_alive: Option<KeepAlive>,
-        speech: bool,
+        route: Route,
     ) -> Result<Lease, SchedError> {
+        if is_crispasr(def) && route != Route::Asr {
+            return Err(SchedError::CrispAsrTranscriptionOnly);
+        }
         if is_audio_cpp(def) {
-            if !speech {
+            if route != Route::Speech {
                 return Err(SchedError::AudioCppSpeechOnly);
             }
             crate::engine::audio_cpp::require_enabled().map_err(|message| {
@@ -973,7 +990,7 @@ impl Scheduler {
             None => {
                 drop(budget);
                 drop(permit);
-                return Box::pin(self.acquire_for(def, demand, keep_alive, speech)).await;
+                return Box::pin(self.acquire_for(def, demand, keep_alive, route)).await;
             }
         };
         let activity = match self.ctx.registry.get(&server_id) {
@@ -982,7 +999,7 @@ impl Scheduler {
                 None => {
                     drop(budget);
                     drop(permit);
-                    return Box::pin(self.acquire_for(def, demand, keep_alive, speech)).await;
+                    return Box::pin(self.acquire_for(def, demand, keep_alive, route)).await;
                 }
             },
             None => None,
@@ -2556,6 +2573,20 @@ impl Scheduler {
         }
         out
     }
+}
+
+/// Which gateway handler asks for a lease: engines with a narrow API refuse the others.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Route {
+    General,
+    Speech,
+    Asr,
+}
+
+fn is_crispasr(def: &ModelDefinition) -> bool {
+    def.base
+        .local_path()
+        .is_some_and(crate::engine::crispasr::is_asr_gguf)
 }
 
 fn is_audio_cpp(def: &ModelDefinition) -> bool {

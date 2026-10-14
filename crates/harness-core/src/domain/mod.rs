@@ -283,6 +283,15 @@ impl ModelDefinition {
                 crate::params::ParamValue::Text("asr_ctc".into()),
             );
         }
+        if base
+            .local_path()
+            .is_some_and(crate::engine::crispasr::is_model)
+        {
+            load.insert(
+                "task".into(),
+                crate::params::ParamValue::Text("crispasr".into()),
+            );
+        }
         Self {
             id: String::new(),
             alias: alias.into(),

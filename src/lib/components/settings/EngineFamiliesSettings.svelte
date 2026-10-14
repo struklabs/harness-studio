@@ -4,7 +4,7 @@
   // and a one-click install button. The same installer as the "needs an engine" hints.
   import { onMount } from 'svelte';
   import { t } from '#lib/i18n.svelte.js';
-  import { ENGINES, engineDescKey, onnxUnsupportedText } from '#lib/engines.js';
+  import { ENGINES, engineDescKey, engineLabel, onnxUnsupportedText } from '#lib/engines.js';
   import { errorText } from '#lib/errors.js';
   import { isLinux, isMac } from '#lib/platform.js';
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
@@ -76,7 +76,7 @@
         <div class="flex min-w-0 items-center justify-between gap-3">
           <div class="flex min-w-0 flex-col gap-0.5">
             <span class="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-              <span class="truncate font-mono">{e.family}</span>
+              <span class="truncate font-mono">{engineLabel(e.family)}</span>
               <Badge variant={installed ? 'secondary' : 'outline'} class="text-xs">
                 {installed ? t('eng.state_installed') : unsupported || refusal ? t('ort.state_unsupported') : t('eng.state_missing')}
               </Badge>
@@ -90,10 +90,10 @@
               <Button size="sm" variant="outline" onclick={() => engineInstall.cancel(e.family)}>
                 <Square />{t('eng.cancel')}
               </Button>
-              <span class="flex items-center gap-1 text-xs text-muted-foreground"><LoaderCircle class="size-3.5 animate-spin" />{t(st.pct === null ? 'eng.installing' : 'eng.installing_pct', { runtime: e.family, pct: st.pct ?? 0 })}</span>
+              <span class="flex items-center gap-1 text-xs text-muted-foreground"><LoaderCircle class="size-3.5 animate-spin" />{t(st.pct === null ? 'eng.installing' : 'eng.installing_pct', { runtime: engineLabel(e.family), pct: st.pct ?? 0 })}</span>
             {:else if e.method === 'pyenv' && engineInstall.pyEnv(e.family)?.installed}
               {#if !installed}
-                <Button size="sm" disabled={engineInstall.anyBusy} onclick={() => engineInstall.install(e.family)}><Download />{t('eng.install', { runtime: e.family })}</Button>
+                <Button size="sm" disabled={engineInstall.anyBusy} onclick={() => engineInstall.install(e.family)}><Download />{t('eng.install', { runtime: engineLabel(e.family) })}</Button>
               {/if}
               <Button size="sm" variant="outline" disabled={engineInstall.anyBusy} onclick={() => engineInstall.remove(e.family)}>
                 <Trash2 />{t('eng.remove', { size: formatBytes(engineInstall.pyEnv(e.family)?.size_bytes ?? 0, 1) })}
@@ -101,8 +101,10 @@
             {:else if !installed && engineInstall.canInstall(e.family)}
               <Button size="sm" disabled={engineInstall.anyBusy} onclick={() => engineInstall.install(e.family)}>
                 {#if st.busy}<LoaderCircle class="animate-spin" />{:else}<Download />{/if}
-                {st.busy ? t(st.pct === null ? 'eng.installing' : 'eng.installing_pct', { runtime: e.family, pct: st.pct ?? 0 }) : t('eng.install', { runtime: e.family })}
+                {st.busy ? t(st.pct === null ? 'eng.installing' : 'eng.installing_pct', { runtime: engineLabel(e.family), pct: st.pct ?? 0 }) : t('eng.install', { runtime: engineLabel(e.family) })}
               </Button>
+            {:else if installed && e.family === 'crispasr'}
+              <Button variant="outline" size="sm" onclick={() => security.openSettings('runtime-registry')}>{t('eng.manage_crispasr')}</Button>
             {:else if !installed && uiLevel.advanced}
               <Button variant="outline" size="sm" onclick={() => security.openSettings('runtime-registry')}>{t('eng.open_registry')}</Button>
             {/if}
@@ -114,12 +116,12 @@
         {:else if refusal}
           <span class="text-xs text-warning" role="status">{errorText(refusal)}</span>
         {:else if !installed && !engineInstall.canInstall(e.family)}
-          <span class="text-xs text-muted-foreground">{t('eng.manual', { runtime: e.family })}</span>
+          <span class="text-xs text-muted-foreground">{t('eng.manual', { runtime: engineLabel(e.family) })}</span>
         {/if}
         {#if st.problem === 'unverified'}
-          <span class="text-xs text-warning" role="alert">{t('eng.unverified', { runtime: e.family })}</span>
+          <span class="text-xs text-warning" role="alert">{t('eng.unverified', { runtime: engineLabel(e.family) })}</span>
         {:else if st.problem === 'failed' && st.error}
-          <span class="text-xs text-destructive [overflow-wrap:anywhere]" role="alert">{t('eng.failed', { runtime: e.family, error: st.error })}</span>
+          <span class="text-xs text-destructive [overflow-wrap:anywhere]" role="alert">{t('eng.failed', { runtime: engineLabel(e.family), error: st.error })}</span>
         {/if}
       </div>
     {/each}

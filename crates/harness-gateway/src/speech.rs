@@ -190,6 +190,14 @@ async fn serve(
     let req: SpeechRequest =
         serde_json::from_slice(&body).map_err(|e| bad(format!("The body must be JSON ({e}).")))?;
     guard.get().model = req.model.clone();
+    if let Ok(def) = state.scheduler.resolve(req.model.as_deref()).await {
+        if crate::audio::is_crispasr_model(&def) {
+            return Err(
+                bad("CrispASR only accepts audio transcription and translation requests")
+                    .param("model"),
+            );
+        }
+    }
     guard.admitted(caller.admit(state)?);
 
     let input = req

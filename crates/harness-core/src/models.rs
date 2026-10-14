@@ -400,6 +400,12 @@ fn ggml_bin_traits(filename: &str) -> (crate::domain::ModelKind, String) {
 /// tensors) is [`crate::domain::ModelKind::Image`].
 fn image_aware_kind(path: &Path, metadata: Option<&GgufMetadata>) -> crate::domain::ModelKind {
     use crate::domain::ModelKind;
+    if crate::engine::crispasr::is_model(path) {
+        return ModelKind::Asr;
+    }
+    if crate::engine::crispasr::is_asr_gguf(path) {
+        return ModelKind::Unknown;
+    }
     let kind = crate::domain::detect_kind(metadata);
     if matches!(kind, ModelKind::Unknown | ModelKind::Llm)
         && crate::engine::is_image_gguf(path, metadata)

@@ -199,7 +199,8 @@ pub async fn find_release(q: &ReleaseQuery) -> Result<ReleasePick, String> {
     validate_repo(repo)?;
     let engine = family_engine(&q.family)?;
     let rel = engine.release_source();
-    let releases: Vec<serde_json::Value> = match q.tag.as_deref().map(str::trim) {
+    let pinned = (q.family == crate::engine::CRISPASR).then_some(crate::engine::crispasr::VERSION);
+    let releases: Vec<serde_json::Value> = match pinned.or(q.tag.as_deref()).map(str::trim) {
         Some(tag) if !tag.is_empty() => {
             if tag.contains('/') || tag.contains("..") {
                 return Err(format!("{}: {}", ERR_NO_RELEASE, tag));
@@ -212,7 +213,17 @@ pub async fn find_release(q: &ReleaseQuery) -> Result<ReleasePick, String> {
             .cloned()
             .unwrap_or_default(),
     };
-    let backends = backend_order(q.backend.as_deref());
+    let mut backends = backend_order(q.backend.as_deref());
+    if q.family == crate::engine::CRISPASR && q.backend.is_none() && cfg!(target_os = "linux") {
+        let hw = crate::hardware::detect_hardware();
+        if hw
+            .gpus
+            .iter()
+            .any(|g| g.vendor == crate::hardware::GpuVendor::Amd)
+        {
+            backends.insert(0, "hip".into());
+        }
+    }
     for release in releases
         .iter()
         .filter(|r| !r.get("draft").and_then(|d| d.as_bool()).unwrap_or(false))
@@ -309,6 +320,12 @@ pub async fn install(reg: &RuntimeRegistry, req: &GithubInstall) -> Result<Runti
         .filter(|n| !n.is_empty())
         .map(str::to_string)
         .unwrap_or_else(|| format!("{} {}", pick.repo, pick.tag));
+    let name =
+        if engine.family() == crate::engine::CRISPASR && name.eq_ignore_ascii_case("crispasr") {
+            "CrispASR".to_string()
+        } else {
+            name
+        };
     let reg2 = reg.clone();
     let (wanted, name2) = (req.id.clone(), name.clone());
     let id = tokio::task::spawn_blocking(move || reg2.unique_id(wanted.as_deref(), &name2))

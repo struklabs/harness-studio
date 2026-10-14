@@ -8,6 +8,7 @@
   import type { RuntimeAdvice } from '#lib/types.js';
   import { t } from '#lib/i18n.svelte.js';
   import { localizeError } from '#lib/network.js';
+  import { engineLabel } from '#lib/engines.js';
   import { runtimesStore, runtimeBuildLabel } from '#lib/stores/runtimes.svelte.js';
   import { security } from '#lib/stores/security.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -81,7 +82,7 @@
       <NativeSelect id="{uid}-runtime" bind:value={runtime}>
         <option value="">{t('rt.official')} · {runtimeBuildLabel(runtimesStore.get('official')) || t('rt.official_hint')}</option>
         {#each runtimesStore.list.filter((r) => r.id !== 'official') as r (r.id)}
-          <option value={r.id}>{r.kind === 'system' ? t('rt.system') : r.name || r.id}{runtimeBuildLabel(r) ? ` · ${runtimeBuildLabel(r)}` : ''}</option>
+          <option value={r.id}>{r.kind === 'system' ? t('rt.system') : engineLabel(r.name || r.id)}{runtimeBuildLabel(r) ? ` · ${runtimeBuildLabel(r)}` : ''}</option>
         {/each}
         {#if unknownChoice}
           <option value={runtime}>{runtime} ({t('runtime.not_found')})</option>

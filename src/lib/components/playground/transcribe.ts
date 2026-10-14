@@ -17,7 +17,7 @@ export interface TranscribeResult {
   segments?: { start: number; end: number; text: string }[];
 }
 
-export { isSpeechFile, isSpeechDefinition, isOnnxCtcDefinition } from './speechModels';
+export { isSpeechFile, isSpeechDefinition, isOnnxCtcDefinition, isCrispasrDefinition, crispasrCanTranslate } from './speechModels';
 
 /** whisper starts every segment line with a space; plain text drops it. */
 export function tidySegments(text: string): string {

@@ -441,6 +441,14 @@ impl Domain {
             if def
                 .base
                 .local_path()
+                .is_some_and(crate::engine::crispasr::is_model)
+            {
+                def.load
+                    .insert("task".into(), ParamValue::Text("crispasr".into()));
+            }
+            if def
+                .base
+                .local_path()
                 .is_some_and(crate::asr::is_onnx_ctc_file)
             {
                 def.load
