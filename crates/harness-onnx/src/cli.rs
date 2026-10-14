@@ -4,6 +4,13 @@
 //! table layout whisper-server prints), so a launch only sends flags the binary knows. Keep
 //! one flag per line; `harness-core` checks its parameter catalog against this text.
 
+/// Exit code of a launch with [`CUDA_FALLBACK_EXIT`] whose CUDA provider cannot be used:
+/// Harness starts the model again on DirectML instead of leaving it on the CPU.
+pub const EXIT_CUDA_UNUSABLE: i32 = 86;
+
+/// Harness passes it with the CUDA build on Windows (where the DirectML build can take over).
+pub const CUDA_FALLBACK_EXIT: &str = "--cuda-fallback-exit";
+
 /// `harness-onnx --help`.
 pub const HELP: &str = "\
 harness-onnx: serves a Hugging Face ONNX model over HTTP: an encoder (embeddings, reranking), CTC speech recognizer or an onnxruntime-genai chat model
@@ -19,6 +26,7 @@ options:
   -a,  --alias NAME                   [file name] model name for /v1/models and the responses
        --ort-lib PATH                 [onnxruntime] ONNX Runtime library to load (the managed runtime of Harness)
        --genai-lib PATH               [next to --ort-lib] onnxruntime-genai library to load for chat models
+       --cuda-fallback-exit           [off] exit with code 86 when CUDA cannot be used, instead of running on the CPU
        --ctx-size N                   [4096] chat models: tokens of context (prompt plus answer), at most the model's own
        --provider NAME                [auto] execution provider: auto, cpu, directml or cuda (chat models: auto follows genai_config.json)
        --threads N                    [auto] CPU threads

@@ -56,6 +56,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> Result<Args, String> {
             "--port" => out.port = number("--port", value("--port")?)?,
             "--alias" | "-a" => out.alias = Some(value("--alias")?),
             "--ort-lib" => out.load.ort_lib = Some(PathBuf::from(value("--ort-lib")?)),
+            harness_onnx::cli::CUDA_FALLBACK_EXIT => engine::set_cuda_fallback_exit(true),
             "--genai-lib" => out.genai_lib = Some(PathBuf::from(value("--genai-lib")?)),
             "--ctx-size" | "-c" => out.ctx_size = number("--ctx-size", value("--ctx-size")?)?,
             "--provider" => {

@@ -193,6 +193,17 @@ impl ServerEngine for OnnxEngine {
             provider = to.to_string();
         }
         let mut out = build_args(config, &lib, runtime, &provider)?;
+        // On the CUDA build a CUDA provider that cannot be used ends the sidecar (instead of
+        // running on the CPU) so the run starts again on DirectML (`process`, exit code
+        // `EXIT_CUDA_UNUSABLE`). Windows only: elsewhere there is no DirectML to go to.
+        if cfg!(windows)
+            && fallback.is_none()
+            && crate::onnx_runtime::variant_for_provider(&provider)
+                == crate::onnx_runtime::OrtVariant::Cuda
+        {
+            out.args
+                .push(harness_onnx::cli::CUDA_FALLBACK_EXIT.to_string());
+        }
         if let Some(to) = fallback {
             out.skipped.push(crate::params::SkippedParam {
                 id: PROVIDER_PARAM.into(),

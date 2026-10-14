@@ -238,6 +238,24 @@ fn pick_output(session: &Session, task: Task) -> Result<OutputSpec, String> {
     })
 }
 
+/// Set by `--cuda-fallback-exit`: a CUDA provider that cannot be used ends the process
+/// ([`crate::cli::EXIT_CUDA_UNUSABLE`]) instead of running on the CPU.
+static CUDA_FALLBACK_EXIT: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+pub fn set_cuda_fallback_exit(on: bool) {
+    CUDA_FALLBACK_EXIT.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// With `--cuda-fallback-exit`: says why CUDA is not usable and exits for Harness to restart
+/// the model on DirectML.
+fn cuda_unusable(why: &str) {
+    if CUDA_FALLBACK_EXIT.load(std::sync::atomic::Ordering::SeqCst) {
+        eprintln!("harness-onnx: CUDA is not usable ({why}); exiting so that Harness starts the model on DirectML");
+        std::process::exit(crate::cli::EXIT_CUDA_UNUSABLE);
+    }
+}
+
 /// Operators of dynamically quantized graphs that crash DirectML.
 const DML_UNSAFE_OPS: [&str; 2] = ["ConvInteger", "MatMulInteger"];
 
@@ -272,10 +290,19 @@ fn register_provider(
         match ep.is_available() {
             Ok(true) => match ep.register(builder) {
                 Ok(()) => return "CUDA",
-                Err(e) => explain("CUDA", e.to_string()),
+                Err(e) => {
+                    cuda_unusable(&e.to_string());
+                    explain("CUDA", e.to_string())
+                }
             },
-            Ok(false) => explain("CUDA", "this ONNX Runtime build has no CUDA".into()),
-            Err(e) => explain("CUDA", e.to_string()),
+            Ok(false) => {
+                cuda_unusable("this ONNX Runtime build has no CUDA");
+                explain("CUDA", "this ONNX Runtime build has no CUDA".into())
+            }
+            Err(e) => {
+                cuda_unusable(&e.to_string());
+                explain("CUDA", e.to_string())
+            }
         }
     }
     "CPU"
@@ -317,9 +344,12 @@ pub(crate) fn build_session(
                 .with_parallel_execution(false)
                 .map_err(|e| e.to_string())?;
         }
-        let session = builder
-            .commit_from_file(model)
-            .map_err(|e| format!("cannot load {} on {}: {}", model.display(), name, e))?;
+        let session = builder.commit_from_file(model).map_err(|e| {
+            if name == "CUDA" {
+                cuda_unusable(&e.to_string());
+            }
+            format!("cannot load {} on {}: {}", model.display(), name, e)
+        })?;
         Ok((session, name))
     };
     match make(choice) {
