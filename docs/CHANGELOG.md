@@ -88,6 +88,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 ### Fixed
 - Model Hub: the recommended variant is never a vision projector, a draft / MTP / assistant model, an image VAE or text encoder, or a LoRA adapter; the simplified drawer no longer falls back to one of them.
 - Model Hub: önerilen varyant artık görüntü projektörü, taslak / MTP / asistan modeli, görüntü VAE'si veya metin kodlayıcısı ya da LoRA bağdaştırıcısı olmaz; basit çekmece de bunlara geri düşmez.
+- Model Hub: safetensors repos whose architecture mistral.rs does not serve (GPT-2, GPT-NeoX, draft models) are no longer listed as runnable on mistral.rs.
+- Model Hub: mistral.rs'in desteklemediği mimarideki (GPT-2, GPT-NeoX, taslak modeller) safetensors depoları artık mistral.rs üzerinde çalışır olarak gösterilmez.
 - Downloader: GGUF magic is checked only for `.gguf` files; companion files download with consistent file counters and byte progress.
 - İndirici: GGUF sihirli baytları yalnız `.gguf` dosyalarında denetlenir; yardımcı dosyalar tutarlı dosya sayacı ve bayt ilerlemesiyle indirilir.
 - Model Hub: the results heading follows the active search while its listing loads.

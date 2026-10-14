@@ -432,16 +432,89 @@ pub fn is_llama_task(task: Option<&str>) -> bool {
     })
 }
 
+/// Architectures (`config.json` `architectures`) the mistral.rs loaders serve, from its
+/// "Supported models" reference (docs.mistralrs.dev/reference/supported-models, text and
+/// multimodal chat tables). The runtime is user-registered, so no version is pinned; this is a
+/// conservative list of documented loaders. A newer mistral.rs may serve more.
+const MISTRALRS_ARCHITECTURES: &[&str] = &[
+    "MistralForCausalLM",
+    "GemmaForCausalLM",
+    "MixtralForCausalLM",
+    "LlamaForCausalLM",
+    "PhiForCausalLM",
+    "Phi3ForCausalLM",
+    "Qwen2ForCausalLM",
+    "Gemma2ForCausalLM",
+    "Starcoder2ForCausalLM",
+    "PhiMoEForCausalLM",
+    "DeepseekV2ForCausalLM",
+    "DeepseekV3ForCausalLM",
+    "Qwen3ForCausalLM",
+    "Glm4ForCausalLM",
+    "Glm4MoeLiteForCausalLM",
+    "Glm4MoeForCausalLM",
+    "Qwen3MoeForCausalLM",
+    "SmolLM3ForCausalLM",
+    "GraniteMoeHybridForCausalLM",
+    "GptOssForCausalLM",
+    "HunYuanDenseV1ForCausalLM",
+    "HunYuanMoEV1ForCausalLM",
+    "Qwen3NextForCausalLM",
+    "Qwen3_5ForCausalLM",
+    "Lfm2ForCausalLM",
+    "Lfm2MoeForCausalLM",
+    "Phi3VForCausalLM",
+    "Idefics2ForConditionalGeneration",
+    "LlavaNextForConditionalGeneration",
+    "LlavaForConditionalGeneration",
+    "Lfm2VlForConditionalGeneration",
+    "MllamaForConditionalGeneration",
+    "Qwen2VLForConditionalGeneration",
+    "Idefics3ForConditionalGeneration",
+    "MiniCPMO",
+    "Phi4MMForCausalLM",
+    "Qwen2_5_VLForConditionalGeneration",
+    "Gemma3ForConditionalGeneration",
+    "Mistral3ForConditionalGeneration",
+    "Llama4ForConditionalGeneration",
+    "Gemma3nForConditionalGeneration",
+    "Qwen3VLForConditionalGeneration",
+    "Qwen3VLMoeForConditionalGeneration",
+    "Qwen3_5ForConditionalGeneration",
+    "Qwen3_5MoeForConditionalGeneration",
+    "Qwen4ExpForConditionalGeneration",
+    "Gemma4ForConditionalGeneration",
+    "MuseGlimmerForConditionalGeneration",
+];
+
+/// Whether a Hub `config` names an architecture mistral.rs serves. A listing without a config,
+/// or one with no `architectures`, is not judged (the file layout decides).
+fn mistralrs_serves_config(config: Option<&serde_json::Value>) -> bool {
+    let Some(archs) = config
+        .and_then(|c| c.get("architectures"))
+        .and_then(|a| a.as_array())
+    else {
+        return true;
+    };
+    let archs: Vec<&str> = archs.iter().filter_map(|a| a.as_str()).collect();
+    archs.is_empty() || archs.iter().any(|a| MISTRALRS_ARCHITECTURES.contains(a))
+}
+
 /// mistral.rs's verdict on a Hub repo: a safetensors chat model ([`MISTRALRS_TASKS`]) whose
 /// listing shows a `config.json` and `.safetensors` weights at the repo root (a listing without
 /// file names is taken by its tags). `None` for every other repo. Whether the runtime is
-/// installed is settled later ([`resolve_installed`]).
+/// installed is settled later ([`resolve_installed`]). A `config` whose `architectures` is not in
+/// [`MISTRALRS_ARCHITECTURES`] (GPT-2, GPT-NeoX, draft models...) is not a mistral.rs repo.
 pub fn mistralrs_compatibility(
     format: ModelFormat,
     task: Option<&str>,
     files: &[String],
+    config: Option<&serde_json::Value>,
 ) -> Option<Compatibility> {
-    if format != ModelFormat::Safetensors || !task.is_some_and(|t| MISTRALRS_TASKS.contains(&t)) {
+    if format != ModelFormat::Safetensors
+        || !task.is_some_and(|t| MISTRALRS_TASKS.contains(&t))
+        || !mistralrs_serves_config(config)
+    {
         return None;
     }
     let root = |f: &&String| !f.contains('/') && !f.contains('\\');
@@ -1226,31 +1299,66 @@ mod tests {
         let files = s(&["config.json", "model.safetensors", "tokenizer.json"]);
         for task in ["text-generation", "image-text-to-text"] {
             assert_eq!(
-                mistralrs_compatibility(ModelFormat::Safetensors, Some(task), &files),
+                mistralrs_compatibility(ModelFormat::Safetensors, Some(task), &files, None),
                 runnable
             );
         }
         // Without file names the tags decide.
         assert_eq!(
-            mistralrs_compatibility(ModelFormat::Safetensors, Some("text-generation"), &[]),
+            mistralrs_compatibility(ModelFormat::Safetensors, Some("text-generation"), &[], None),
             runnable
         );
+        // An architecture outside the mistral.rs loaders (GPT-2, GPT-NeoX, draft models) is not.
+        let cfg = |a: &str| serde_json::json!({"architectures": [a]});
+        for (arch, served) in [
+            ("Qwen3ForCausalLM", true),
+            ("Gemma4ForConditionalGeneration", true),
+            ("GPT2LMHeadModel", false),
+            ("GPTNeoXForCausalLM", false),
+            ("DSparkDraftModel", false),
+        ] {
+            let got = mistralrs_compatibility(
+                ModelFormat::Safetensors,
+                Some("text-generation"),
+                &files,
+                Some(&cfg(arch)),
+            );
+            assert_eq!(got.is_some(), served, "{arch}");
+        }
+        // A config without `architectures` is not judged.
+        assert!(mistralrs_compatibility(
+            ModelFormat::Safetensors,
+            Some("text-generation"),
+            &files,
+            Some(&serde_json::json!({"model_type": "gpt2"})),
+        )
+        .is_some());
         // Other tasks, formats and layouts are not.
         assert_eq!(
-            mistralrs_compatibility(ModelFormat::Safetensors, Some("feature-extraction"), &files),
+            mistralrs_compatibility(
+                ModelFormat::Safetensors,
+                Some("feature-extraction"),
+                &files,
+                None
+            ),
             None
         );
         assert_eq!(
-            mistralrs_compatibility(ModelFormat::Safetensors, None, &files),
+            mistralrs_compatibility(ModelFormat::Safetensors, None, &files, None),
             None
         );
         assert_eq!(
-            mistralrs_compatibility(ModelFormat::Gguf, Some("text-generation"), &files),
+            mistralrs_compatibility(ModelFormat::Gguf, Some("text-generation"), &files, None),
             None
         );
         let nested = s(&["ckpt/config.json", "ckpt/model.safetensors"]);
         assert_eq!(
-            mistralrs_compatibility(ModelFormat::Safetensors, Some("text-generation"), &nested),
+            mistralrs_compatibility(
+                ModelFormat::Safetensors,
+                Some("text-generation"),
+                &nested,
+                None
+            ),
             None
         );
         // mistral.rs is an optional runtime: missing until registered.
