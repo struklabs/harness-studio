@@ -67,9 +67,21 @@ pub const MLX: EnvSpec = EnvSpec {
     min_macos: Some(14),
 };
 
+/// The `mlx-vlm` engine's environment: mlx-vlm (vision-language models on MLX) and its
+/// FastAPI server. Its own environment because it is heavier than `mlx` (transformers, OpenCV,
+/// datasets, mlx-audio come along). `python/mlx-vlm.in` says how the lock is compiled.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub const MLX_VLM: EnvSpec = EnvSpec {
+    name: "mlx-vlm",
+    lock: include_str!("../../python/mlx-vlm.lock"),
+    verify: "import mlx.core, mlx_vlm.server.app, uvicorn",
+    estimated_size_bytes: 780 * 1024 * 1024,
+    min_macos: Some(14),
+};
+
 /// The environments engines can ask for.
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-pub const ENVS: &[EnvSpec] = &[HF_CPU, MLX];
+pub const ENVS: &[EnvSpec] = &[HF_CPU, MLX, MLX_VLM];
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 pub const ENVS: &[EnvSpec] = &[HF_CPU];
 
@@ -422,6 +434,31 @@ mod tests {
             assert!(pinned.iter().any(|l| l.starts_with(pkg)), "{pkg}");
         }
         // No PyTorch: the env is small.
+        assert!(!pinned.iter().any(|l| l.starts_with("torch==")));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn mlx_vlm_lock_pins_every_wheel_for_macos_14() {
+        assert_eq!(spec("mlx-vlm").unwrap().name, "mlx-vlm");
+        assert_eq!(MLX_VLM.min_macos, Some(14));
+        let pinned: Vec<&str> = MLX_VLM
+            .lock
+            .lines()
+            .filter(|l| l.contains("==") && !l.trim_start().starts_with('#'))
+            .collect();
+        for line in &pinned {
+            assert!(line.trim_end().ends_with('\\'), "no hashes after {line}");
+        }
+        for pkg in [
+            "mlx==",
+            "mlx-vlm==",
+            "mlx-metal==",
+            "fastapi==",
+            "uvicorn==",
+        ] {
+            assert!(pinned.iter().any(|l| l.starts_with(pkg)), "{pkg}");
+        }
         assert!(!pinned.iter().any(|l| l.starts_with("torch==")));
     }
 

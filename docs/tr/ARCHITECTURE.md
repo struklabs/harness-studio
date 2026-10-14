@@ -1039,8 +1039,46 @@ MLX biçimli sohbet modellerini (`mlx-community/...`, GGUF'u olmayanlar dahil) A
 
 - **Çalışma ortamı:** yönetilen Python ortamı `mlx` (`pyenv::envs::MLX`, yalnız macOS aarch64'te derlenir): `python/mlx.in` `mlx-lm`'yi sabitler, `python/mlx.lock` onun `aarch64-apple-darwin` için `MACOSX_DEPLOYMENT_TARGET=14.0` ile `uv pip compile --generate-hashes` çıktısıdır (MLX tekerleri macOS 14'ten başlar; uygulama 13.3'te çalışır). Diğer Python ortamları gibi kurulur (`--require-hashes --no-deps --only-binary :all:`, yaklaşık 330 MB, PyTorch yok). `EnvSpec.min_macos` eski macOS'ta kurulumu `pyenv.macos_too_old` ile reddeder; `EnvStatus.refusal` bunu Ayarlar > Motorlar'a taşır, satır gizlenmez, nedeni yazar.
 - **İşçi:** ortamın yanına yazılan `python/mlx_worker.py`, `mlx_lm.server`'ı aynı süreçte Harness kurallarıyla başlatır: ne verilirse verilsin 127.0.0.1'e bağlanır; `/health` dışındaki her yol `Authorization: Bearer <HARNESS_WORKER_API_KEY>` ister (anahtar ortam değişkeninden gelir, okununca silinir, sabit zamanda karşılaştırılır, günlüğe yazılmaz; `python-hf`'teki gibi kullanıcınınki ya da çalıştırmaya özel üretilmiş olanı); isteğin `model` / `adapters` alanı başka bir yolu yükleyemez (mlx-lm verilen her yerel klasörü ya da adaptörü yüklerdi); `/v1/models` tek modeli listeler; `--trust-remote-code`, `--adapter-path`, `--draft-model` ve `--allowed-origins` reddedilir (CORS yok); Harness'ın bayraklarının her kısaltması ve ikinci bir `--model` / `--port` da reddedilir (argparse `--trust`'ı `--trust-remote-code`'a genişletirdi; mlx-lm'nin ayrıştırıcısında kısaltma da kapatılır); anahtar yoksa kimliksiz sunmak yerine çıkar; proxy değişkenleri temizlenir; `HF_HUB_OFFLINE=1`. Rust tarafı aynı kısaltmaları özel argümanlarda reddeder (`params.protected_flag`). **macOS'ta ağ yalıtımı yoktur** (`python-hf`'in Linux'taki `unshare`'inin karşılığı yok): işçi her kullanıcı süreci gibi ağa erişebilir; yalnız yerel klasörü yükler, uzaktan kod çalıştırmaz.
-- **Model:** ağırlıkları MLX'in olan bir transformers metin üretici klasörü (`mistralrs::is_checkpoint_dir`): `config.json`'da MLX'in `quantization`'ı (`bits`, `group_size`) vardır ya da kart `library_name: mlx` der (bf16 dönüşümler). mistral.rs bunları okuyamaz, `mistralrs::is_model_dir` onları bırakır. Görüntülü klasörler (`vision_config`) mlx-vlm ister, henüz çalıştırılmaz. Kütüphane bunları yalnız Apple Silicon'da listeler (`ModelKind::Llm`, nicemleme `4bit`).
+- **Model:** ağırlıkları MLX'in olan bir transformers metin üretici klasörü (`mistralrs::is_checkpoint_dir`): `config.json`'da MLX'in `quantization`'ı (`bits`, `group_size`) vardır ya da kart `library_name: mlx` der (bf16 dönüşümler). mistral.rs bunları okuyamaz, `mistralrs::is_model_dir` onları bırakır. Görüntülü klasörler (`vision_config`) `mlx-vlm` motorunundur (§14.10). Kütüphane bunları yalnız Apple Silicon'da listeler (`ModelKind::Llm`, nicemleme `4bit`).
 - **Hub:** `hub_compat::mlx_compatibility`: kökünde `config.json` + `.safetensors` olan `text-generation` (ya da etiketsiz) MLX deposu (`library_name: mlx` / `mlx` etiketi) Apple Silicon'da `Runnable{mlx}` ("MLX ile çalışır"; kurulana dek "Gerekli: MLX motoru"), macOS 13'te `UnsupportedPlatform`, başka yerde değişmeden `Unsupported{mlx}`.
 - **Başlatma:** `<ortam python> mlx_worker.py --model <klasör> --port <port> [--alias <ad>] [--max-tokens N (varsayılan 8192; mlx-lm'ninki 512)] [--kv-bits 4|8] [--prompt-cache-size N]`; sağlık `GET /health`, OpenAI tabanı `/v1`, metrik yok. Sunum kipi `Chat`, ağ geçidinden mistral.rs gibi JIT/TTL.
 - **Bellek tahmini (kaba):** ağırlıklar + ağırlıklar/5 + 300 MiB birleşik bellek. M1 8 GB'de Qwen3-4B-Instruct-2507 ile ölçüldü: MLX 4 bit üretim 24,0 belirteç/sn, istem 158 belirteç/sn, en çok 2,7 GB; aynı model GGUF Q4_K_M ile llama.cpp'de (Metal) 22,4 / 200 belirteç/sn, 2,7 GB. Fark küçük olduğundan birini seçen bir kural yok: MLX, GGUF'u olmayan modeller için önemli.
 - **Testler:** klasör tanıma (MLX / mistral.rs, yalnız kart, görüntülü), argüman satırı ve korunan bayraklar, yalnız loopback başlatma, işçinin korumaları, kilidin her tekeri sabitlemesi, macOS sürümü reddi, Hub kararları. `harness-gateway/tests/mlx_e2e.rs` (`#[ignore]`, `HS_MLX_MODEL`): ortamı kurar (17 sn), kütüphane klasörü bulur, ağ geçidinden sohbet (yüklemeyle ilk yanıt 4,7 sn), akış, araç çağrısı; işçinin portuna anahtarsız istek reddedilir (401).
+
+### 14.10. MLX görüntü motoru (mlx-vlm, Apple Silicon)
+
+MLX biçimli görüntü-dil modelleriyle (`mlx-community/Qwen3-VL-...`, Gemma 3, ...) mlx-vlm'nin sunucusu üzerinden resimli sohbet sağlar. Aile `mlx-vlm`'dir; `MlxEngine`'in görüntülü türüdür (`MlxEngine::VISION`, `engine/mlx.rs`). Yalnız Apple Silicon'da, macOS 14 veya üstünde çalışır.
+
+- **Çalışma ortamı:** kendine ait yönetilen Python ortamı `mlx-vlm` (`pyenv::envs::MLX_VLM`). mlx-vlm, mlx-lm'den çok daha fazlasını getirdiği için ayrı tutulur (transformers, OpenCV, datasets, pyarrow, mlx-audio; yaklaşık 760 MB, PyTorch yok). `python/mlx-vlm.in` `mlx-vlm`'yi sabitler; `python/mlx-vlm.lock` `mlx.lock` gibi derlenir (`MACOSX_DEPLOYMENT_TARGET=14.0`, `aarch64-apple-darwin`, hash'ler). Aynı `min_macos` reddi geçerlidir.
+- **İşçi:** `python/mlx_vlm_worker.py`, mlx-vlm'nin FastAPI uygulamasını aynı süreçte bir ASGI korumasının arkasında sunar. Yalnız şu yollar açıktır:
+  - `GET /health`: `{"status":"ok"}` döner; mlx-vlm'ninki model yolunu listelediği için kullanılmaz.
+  - `GET /v1/models`: takma adı döner.
+  - `POST /v1/chat/completions`.
+
+  Geri kalan her şey 404 döner: yönetim, boşaltma, resim üretimi, ses, gömme, websocket ve CORS ön isteği.
+
+  Kimlik doğrulama `mlx`'teki gibidir. `Bearer` anahtarı `HARNESS_WORKER_API_KEY`'den gelir, sabit zamanda karşılaştırılır ve okununca silinir.
+
+  Sohbet gövdesi mlx-vlm'ye ulaşmadan denetlenir:
+  - `adapter_path`, `adapters`, `draft_model` ve `model_path` reddedilir.
+  - Her resim, ses ya da video kaynağı kendi türünde base64 bir `data:` URL'si olmalıdır (`data:image/…;base64,`, `data:audio/…`, `data:video/…`). OpenAI `input_audio` base64'ü denetlenir ve `data:audio/<biçim>;base64,` URL'sine çevrilir. Aksi halde mlx-vlm bir http adresini indirir ya da istekte adı geçen herhangi bir yerel dosyayı okur; `/` ile başlayan base64'ü de yol sanar. `detail` / `format` kısa etiket olmalıdır; dosyalar (`file_id`) reddedilir.
+  - Gövde en çok 64 MB olabilir.
+
+  mlx-vlm'nin model yükleyicisi başlangıçta verilen klasöre sabitlenir; isteğin `model` alanı başka bir şey yükleyemez. İşçi şu ortam ayarlarıyla çalışır:
+  - `MLX_TRUST_REMOTE_CODE=false` (mlx-vlm'nin yükleyicisine ayrıca `trust_remote_code=False` zorlanır) ve `HF_HUB_OFFLINE=1`.
+  - Vekil değişkenleri ile mlx-vlm'nin kendi anahtar ve model klasörü değişkenleri temizlenir.
+  - Yalnız 127.0.0.1'e bağlanır.
+
+  `mlx`'te olduğu gibi macOS'ta ağ yalıtımı yoktur.
+- **Model:** `config.json`'ında `vision_config` olan bir MLX klasörü (§14.9'daki gibi; `mlx::is_vlm_dir`). Kütüphane onu görüntü yetenekli bir sohbet modeli olarak listeler (`mlx::inspect` üzerinden `ModelCaps.vision`), böylece Playground ve ağ geçidi ona resim gönderir. `engine::server_for` bu klasörler için `mlx-vlm`'yi, diğerleri için `mlx`'i seçer.
+- **Hub:** kökünde `config.json` ve `.safetensors` bulunan `image-text-to-text` MLX deposu Apple Silicon'da `Runnable{mlx-vlm}` olarak işaretlenir. Kartta "MLX ile çalışır (görüntülü)" yazar; motor kurulana dek "Gerekli: MLX görüntü motoru" görünür.
+- **Başlatma:** `<ortam python> mlx_vlm_worker.py --model <klasör> --port <port> [--alias <ad>] [--max-tokens N (varsayılan 8192)] [--kv-bits 4|8]` (katalog: `params_mlx_vlm.toml`). Sağlık, OpenAI tabanı, sunum kipi, JIT/TTL ve bellek tahmini `mlx` ile aynıdır.
+- **Ölçüm:** M1 8 GB'de Qwen3-VL-2B-Instruct-4bit (1,8 GB) ile:
+  - Ortamın kurulumu 38 sn sürdü.
+  - Yüklemeyle birlikte resimli ilk yanıt 26 sn'de geldi.
+  - İstem yaklaşık 87 belirteç/sn, üretim yaklaşık 30 belirteç/sn işlendi; bellek en çok 2,0 GB'a çıktı.
+- **Testler:** görüntülü klasör tanıma (klasör `mlx-vlm`'e gider; `mlx`, mistral.rs ya da Python motoruna gitmez), argüman satırı, kilidin her tekeri sabitlemesi ve Hub kararları. Ayrıca `harness-gateway/tests/mlx_vlm_e2e.rs` (`#[ignore]`, `HS_MLX_VLM_MODEL`) şunları yapar:
+  - Ortamı kurar; kütüphanenin klasörü bulduğunu doğrular.
+  - Ağ geçidinden kırmızı bir resim gönderir; yanıt "red" olur.
+  - Metin akışını dener.
+  - http adresi, dosya yolu ve `file://` resmin reddedildiğini (400) doğrular.

@@ -1,22 +1,27 @@
-//! The MLX engine (`mlx`) as an [`Engine`]: a text-generation model folder in MLX's format
-//! (`mlx-community/...`), served by `python/mlx_worker.py` around mlx-lm's OpenAI-compatible
-//! server from the managed `mlx` environment (Apple Silicon, macOS 14 or later).
+//! The MLX engines as [`Engine`]s (Apple Silicon, macOS 14 or later), two flavours of one
+//! [`MlxEngine`]:
+//!
+//! * `mlx`: a text-generation model folder in MLX's format (`mlx-community/...`), served by
+//!   `python/mlx_worker.py` around mlx-lm's OpenAI-compatible server from the managed `mlx`
+//!   environment;
+//! * `mlx-vlm`: a vision-language folder (its config has a `vision_config`), served by
+//!   `python/mlx_vlm_worker.py` around mlx-vlm's server from the managed `mlx-vlm` environment.
 //!
 //! A launch runs
 //!
 //! ```text
-//! <env python> <env>/mlx_worker.py --model <dir> --port <port> [--alias <alias>] <catalog>
+//! <env python> <env>/<worker>.py --model <dir> --port <port> [--alias <alias>] <catalog>
 //! ```
 //!
-//! The worker listens on 127.0.0.1 only, asks every request but `/health` for the per-run API
-//! key (`HARNESS_WORKER_API_KEY`, from the environment), serves only the folder it was started
-//! with and never runs remote code. macOS has no network isolation for it (the Linux Python
-//! engine's `unshare` has no counterpart there).
+//! The workers listen on 127.0.0.1 only, ask every request but `/health` for the per-run API
+//! key (`HARNESS_WORKER_API_KEY`, from the environment), serve only the folder they were started
+//! with and never run remote code; the vision worker takes images only inline (`data:` URLs).
+//! macOS has no network isolation for them (the Linux Python engine's `unshare` has no
+//! counterpart there).
 //!
-//! An MLX folder is a transformers text generator (`config.json` + safetensors) that MLX wrote:
-//! its config has MLX's `quantization` (`bits`, `group_size`), or its card says
-//! `library_name: mlx`. mistral.rs can't read those weights, so it leaves them to this engine.
-//! Vision models (`vision_config`) need mlx-vlm and are not run yet.
+//! An MLX folder is a transformers generator (`config.json` + safetensors) that MLX wrote: its
+//! config has MLX's `quantization` (`bits`, `group_size`), or its card says
+//! `library_name: mlx`. mistral.rs can't read those weights, so it leaves them to these engines.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -36,11 +41,18 @@ use crate::vram::{
 /// Family id of the MLX engine.
 pub const MLX: &str = "mlx";
 
-/// The managed environment the worker runs in (`crate::pyenv::envs::MLX` on Apple Silicon).
+/// Family id of the MLX vision engine (mlx-vlm).
+pub const MLX_VLM: &str = "mlx-vlm";
+
+/// The managed environment the text worker runs in (`crate::pyenv::envs::MLX` on Apple Silicon).
 pub const ENV: &str = "mlx";
 
-/// The worker script, written next to the environment ([`worker_script`]).
+/// The managed environment the vision worker runs in (`crate::pyenv::envs::MLX_VLM`).
+pub const VLM_ENV: &str = "mlx-vlm";
+
+/// The worker scripts, written next to their environments ([`worker_script`]).
 const WORKER: &str = include_str!("../../python/mlx_worker.py");
+const VLM_WORKER: &str = include_str!("../../python/mlx_vlm_worker.py");
 
 /// Flags a custom argument line may never set (Harness owns the model, bind and code policy).
 const PROTECTED_FLAGS: &[&str] = &[
@@ -58,25 +70,61 @@ const PROTECTED_FLAGS: &[&str] = &[
 /// ordinary chat answers short.
 const DEFAULT_MAX_TOKENS: u32 = 8192;
 
-/// The MLX engine.
+/// An MLX engine: the text one (`mlx`) or the vision one (`mlx-vlm`).
 #[derive(Debug, Clone, Copy, Default)]
-pub struct MlxEngine;
+pub struct MlxEngine {
+    vision: bool,
+}
 
-/// The parsed catalog (`params_mlx.toml`).
-pub fn catalog() -> &'static ParamCatalog {
-    static CATALOG: OnceLock<ParamCatalog> = OnceLock::new();
-    CATALOG.get_or_init(|| {
-        toml::from_str(include_str!("../params_mlx.toml"))
-            .expect("params_mlx.toml is valid (unit tested)")
-    })
+impl MlxEngine {
+    /// `mlx` (mlx-lm).
+    pub const TEXT: MlxEngine = MlxEngine { vision: false };
+    /// `mlx-vlm`.
+    pub const VISION: MlxEngine = MlxEngine { vision: true };
+
+    fn env(&self) -> &'static str {
+        if self.vision {
+            VLM_ENV
+        } else {
+            ENV
+        }
+    }
+
+    /// Whether `path` is a folder this flavour runs.
+    pub fn runs(&self, path: &Path) -> bool {
+        if self.vision {
+            is_vlm_dir(path)
+        } else {
+            is_model_dir(path)
+        }
+    }
+}
+
+/// The parsed catalog (`params_mlx.toml`, or `params_mlx_vlm.toml` for the vision engine).
+pub fn catalog(vision: bool) -> &'static ParamCatalog {
+    static TEXT: OnceLock<ParamCatalog> = OnceLock::new();
+    static VISION: OnceLock<ParamCatalog> = OnceLock::new();
+    if vision {
+        VISION.get_or_init(|| {
+            toml::from_str(include_str!("../params_mlx_vlm.toml"))
+                .expect("params_mlx_vlm.toml is valid (unit tested)")
+        })
+    } else {
+        TEXT.get_or_init(|| {
+            toml::from_str(include_str!("../params_mlx.toml"))
+                .expect("params_mlx.toml is valid (unit tested)")
+        })
+    }
 }
 
 /// Capabilities as documented: every flag of the catalog. The worker has no `--help` to probe
 /// (its flags are the catalog's own), and without capabilities nothing would be rendered.
-fn documented_caps() -> &'static RuntimeCapabilities {
-    static CAPS: OnceLock<RuntimeCapabilities> = OnceLock::new();
-    CAPS.get_or_init(|| {
-        let help: String = catalog()
+fn documented_caps(vision: bool) -> &'static RuntimeCapabilities {
+    static TEXT: OnceLock<RuntimeCapabilities> = OnceLock::new();
+    static VISION: OnceLock<RuntimeCapabilities> = OnceLock::new();
+    let cell = if vision { &VISION } else { &TEXT };
+    cell.get_or_init(|| {
+        let help: String = catalog(vision)
             .params
             .iter()
             .map(|p| format!("{} N    {}\n", p.flags.join(", "), p.id))
@@ -133,11 +181,34 @@ pub fn is_mlx_checkpoint(dir: &Path) -> bool {
         || card_field(dir, "library_name").is_some_and(|l| l.eq_ignore_ascii_case("mlx"))
 }
 
-/// Whether `path` is a folder this engine runs: an MLX text generator (not a vision model).
+/// Whether an MLX folder has a vision tower, `None` when `path` is not an MLX folder.
+fn mlx_vision(path: &Path) -> Option<bool> {
+    (super::mistralrs::is_checkpoint_dir(path) && is_mlx_checkpoint(path)).then(|| {
+        read_json(&path.join("config.json")).is_some_and(|c| c.get("vision_config").is_some())
+    })
+}
+
+/// Whether `path` is a folder the `mlx` engine runs: an MLX text generator (not a vision model).
 pub fn is_model_dir(path: &Path) -> bool {
-    super::mistralrs::is_checkpoint_dir(path)
-        && is_mlx_checkpoint(path)
-        && read_json(&path.join("config.json")).is_some_and(|c| c.get("vision_config").is_none())
+    mlx_vision(path) == Some(false)
+}
+
+/// Whether `path` is a folder the `mlx-vlm` engine runs: an MLX vision-language model.
+pub fn is_vlm_dir(path: &Path) -> bool {
+    mlx_vision(path) == Some(true)
+}
+
+/// Whether `path` is an MLX folder of either engine.
+pub fn is_any_model_dir(path: &Path) -> bool {
+    mlx_vision(path).is_some()
+}
+
+/// What the files of an MLX folder say (chat template, vision tower...); `None` for other paths.
+pub fn inspect(dir: &Path) -> Option<super::mistralrs::ModelDirInfo> {
+    if !is_any_model_dir(dir) {
+        return None;
+    }
+    super::mistralrs::inspect_checkpoint(dir)
 }
 
 /// The library's view of an MLX folder: a chat model like mistral.rs's, with MLX's bits as its
@@ -162,7 +233,7 @@ pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {
         .flat_map(|root| {
             crate::tts::scan_folders(
                 std::slice::from_ref(root),
-                |dir| is_model_dir(dir).then(|| dir.to_path_buf()),
+                |dir| is_any_model_dir(dir).then(|| dir.to_path_buf()),
                 |a, b| a == b,
             )
             .into_iter()
@@ -174,16 +245,21 @@ pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {
 
 // ---- the environment -----------------------------------------------------------------------
 
-/// The worker script of this version, written next to the environment (rewritten when it
+/// The worker script of this version, written next to its environment (rewritten when it
 /// differs, so an app update brings its worker along).
-pub fn worker_script() -> Result<PathBuf, String> {
-    let dir = crate::pyenv::envs::env_dir_in(&crate::pyenv::envs::root(), ENV);
-    let path = dir.join("mlx_worker.py");
-    if std::fs::read_to_string(&path).ok().as_deref() == Some(WORKER) {
+pub fn worker_script(vision: bool) -> Result<PathBuf, String> {
+    let (env, name, body) = if vision {
+        (VLM_ENV, "mlx_vlm_worker.py", VLM_WORKER)
+    } else {
+        (ENV, "mlx_worker.py", WORKER)
+    };
+    let dir = crate::pyenv::envs::env_dir_in(&crate::pyenv::envs::root(), env);
+    let path = dir.join(name);
+    if std::fs::read_to_string(&path).ok().as_deref() == Some(body) {
         return Ok(path);
     }
     std::fs::create_dir_all(&dir)
-        .and_then(|_| std::fs::write(&path, WORKER))
+        .and_then(|_| std::fs::write(&path, body))
         .map_err(|e| {
             String::from(
                 err("fs.write_failed")
@@ -194,25 +270,37 @@ pub fn worker_script() -> Result<PathBuf, String> {
     Ok(path)
 }
 
-/// The interpreter a launch runs: the environment's, when it is installed for this version;
-/// else `runtime.family_not_installed: mlx` (the UI offers the install), or why this Mac can't
-/// have it.
+/// The interpreter a text launch runs: the `mlx` environment's, when it is installed for this
+/// version; else `runtime.family_not_installed: mlx` (the UI offers the install), or why this
+/// Mac can't have it.
 pub fn binary() -> Result<PathBuf, String> {
-    let root = crate::pyenv::envs::root();
-    let Some(spec) = crate::pyenv::envs::spec(ENV) else {
-        return Err(err("mlx.unsupported_platform").into());
-    };
-    if let Some(refusal) = crate::pyenv::envs::platform_refusal(spec) {
-        return Err(refusal);
+    MlxEngine::TEXT.binary()
+}
+
+/// [`binary`] of the vision engine (the `mlx-vlm` environment).
+pub fn vlm_binary() -> Result<PathBuf, String> {
+    MlxEngine::VISION.binary()
+}
+
+impl MlxEngine {
+    /// The interpreter of this flavour's environment (see [`binary`]).
+    pub fn binary(&self) -> Result<PathBuf, String> {
+        let root = crate::pyenv::envs::root();
+        let Some(spec) = crate::pyenv::envs::spec(self.env()) else {
+            return Err(err("mlx.unsupported_platform").into());
+        };
+        if let Some(refusal) = crate::pyenv::envs::platform_refusal(spec) {
+            return Err(refusal);
+        }
+        if !crate::pyenv::envs::status_in(&root, spec).ready {
+            return Err(format!(
+                "{}: {}",
+                crate::runtimes::ERR_FAMILY_NOT_INSTALLED,
+                self.family()
+            ));
+        }
+        Ok(crate::pyenv::envs::python_in(&root, self.env()))
     }
-    if !crate::pyenv::envs::status_in(&root, spec).ready {
-        return Err(format!(
-            "{}: {}",
-            crate::runtimes::ERR_FAMILY_NOT_INSTALLED,
-            MLX
-        ));
-    }
-    Ok(crate::pyenv::envs::python_in(&root, ENV))
 }
 
 /// Unified memory a launch takes: the weights and a margin for the KV cache and MLX itself.
@@ -227,7 +315,11 @@ pub fn vram_need(config: &LaunchConfig) -> u64 {
 
 impl Engine for MlxEngine {
     fn family(&self) -> &'static str {
-        MLX
+        if self.vision {
+            MLX_VLM
+        } else {
+            MLX
+        }
     }
 
     fn kind(&self) -> RuntimeKind {
@@ -258,7 +350,7 @@ impl Engine for MlxEngine {
         None
     }
 
-    /// Folders are told apart by [`is_model_dir`], not by a file format.
+    /// Folders are told apart by [`is_model_dir`] / [`is_vlm_dir`], not by a file format.
     fn supports(&self, _format: ModelFormat) -> bool {
         false
     }
@@ -277,7 +369,7 @@ impl Engine for MlxEngine {
     }
 
     fn param_catalog(&self) -> &'static ParamCatalog {
-        catalog()
+        catalog(self.vision)
     }
 
     fn as_server(&self) -> Option<&dyn ServerEngine> {
@@ -297,12 +389,12 @@ impl ServerEngine for MlxEngine {
                 .with("host", &config.host)
                 .into());
         }
-        if !is_model_dir(&config.model_path) {
+        if !self.runs(&config.model_path) {
             return Err(err("mlx.model_unsupported")
                 .with("path", config.model_path.display())
                 .into());
         }
-        build_args(config, &worker_script()?)
+        build_args(config, &worker_script(self.vision)?, self.vision)
     }
 
     fn health_path(&self) -> &'static str {
@@ -394,7 +486,7 @@ impl ServerEngine for MlxEngine {
 }
 
 /// The command line of a launch: the worker script first (the program is the interpreter).
-fn build_args(config: &LaunchConfig, script: &Path) -> Result<BuildOutput, String> {
+fn build_args(config: &LaunchConfig, script: &Path, vision: bool) -> Result<BuildOutput, String> {
     let mut args: Vec<String> = vec![
         script.to_string_lossy().to_string(),
         "--model".into(),
@@ -410,8 +502,12 @@ fn build_args(config: &LaunchConfig, script: &Path) -> Result<BuildOutput, Strin
         host: config.host.clone(),
         ..Default::default()
     };
-    let rendered =
-        crate::params::render_params(catalog(), Some(documented_caps()), &config.params, &ctx)?;
+    let rendered = crate::params::render_params(
+        catalog(vision),
+        Some(documented_caps(vision)),
+        &config.params,
+        &ctx,
+    )?;
     args.extend(rendered.args);
     if let Some(custom) = config
         .custom_args
@@ -454,9 +550,13 @@ mod tests {
     /// The files of `mlx-community/Qwen3-4B-Instruct-2507-4bit` (config trimmed).
     const MLX_CONFIG: &str = r#"{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","max_position_embeddings":262144,"quantization":{"group_size":64,"bits":4,"mode":"affine"},"quantization_config":{"group_size":64,"bits":4,"mode":"affine"}}"#;
 
+    /// `mlx-community/Qwen3-VL-2B-Instruct-4bit` (config trimmed).
+    const VLM_CONFIG: &str = r#"{"architectures":["Qwen3VLForConditionalGeneration"],"model_type":"qwen3_vl","vision_config":{"depth":24},"text_config":{"num_hidden_layers":28},"quantization":{"group_size":64,"bits":4,"mode":"affine"}}"#;
+
     #[test]
     fn catalog_parses() {
-        assert!(!catalog().params.is_empty());
+        assert!(!catalog(false).params.is_empty());
+        assert!(!catalog(true).params.is_empty());
     }
 
     #[test]
@@ -499,16 +599,29 @@ mod tests {
         assert!(!is_model_dir(plain.path()));
         assert!(super::super::mistralrs::is_model_dir(plain.path()));
 
-        // An MLX vision model needs mlx-vlm: neither engine takes it.
+        // An MLX vision model is mlx-vlm's: not the text engine's, not mistral.rs's.
         let vlm = folder(&[
-            (
-                "config.json",
-                r#"{"architectures":["Qwen2_5_VLForConditionalGeneration"],"model_type":"qwen2_5_vl","vision_config":{},"quantization":{"group_size":64,"bits":4}}"#,
-            ),
+            ("config.json", VLM_CONFIG),
             ("model.safetensors", "x"),
+            (
+                "README.md",
+                "---\nlibrary_name: transformers\npipeline_tag: image-text-to-text\ntags:\n- mlx\n---\n",
+            ),
         ]);
         assert!(!is_model_dir(vlm.path()));
+        assert!(is_vlm_dir(vlm.path()));
+        assert!(MlxEngine::VISION.runs(vlm.path()));
+        assert!(!MlxEngine::TEXT.runs(vlm.path()));
         assert!(!super::super::mistralrs::is_model_dir(vlm.path()));
+        assert!(!super::super::python_hf::is_model_dir(vlm.path()));
+        assert!(inspect(vlm.path()).unwrap().vision);
+        let m = to_local_model(vlm.path(), vlm.path().parent().unwrap()).unwrap();
+        assert_eq!(m.kind, crate::domain::ModelKind::Llm);
+        assert_eq!(m.quantization, "4bit");
+        // ...and the text folder is not a vision one.
+        assert!(!is_vlm_dir(quantized.path()));
+        assert!(!inspect(quantized.path()).unwrap().vision);
+        assert!(inspect(plain.path()).is_none());
     }
 
     #[test]
@@ -520,7 +633,7 @@ mod tests {
             port: 11450,
             ..Default::default()
         };
-        let out = build_args(&config, Path::new("/env/mlx_worker.py")).unwrap();
+        let out = build_args(&config, Path::new("/env/mlx_worker.py"), false).unwrap();
         assert_eq!(out.args[0], "/env/mlx_worker.py");
         let at = |flag: &str| {
             out.args
@@ -545,7 +658,7 @@ mod tests {
             "kv_bits".into(),
             crate::params::ParamValue::Text("8".into()),
         );
-        let out = build_args(&set, Path::new("w.py")).unwrap();
+        let out = build_args(&set, Path::new("w.py"), false).unwrap();
         assert!(out.skipped.is_empty(), "{:?}", out.skipped);
         let args = out.args.join(" ");
         assert!(args.contains("--max-tokens 512"), "{args}");
@@ -555,7 +668,7 @@ mod tests {
 
         let mut custom = config.clone();
         custom.custom_args = Some("--max-tokens 100".into());
-        let out = build_args(&custom, Path::new("w.py")).unwrap();
+        let out = build_args(&custom, Path::new("w.py"), false).unwrap();
         assert_eq!(
             out.args.iter().filter(|a| *a == "--max-tokens").count(),
             1,
@@ -576,9 +689,44 @@ mod tests {
         ] {
             let mut c = config.clone();
             c.custom_args = Some(bad.into());
-            let e = build_args(&c, Path::new("w.py")).unwrap_err();
+            let e = build_args(&c, Path::new("w.py"), false).unwrap_err();
+            assert!(e.contains("params.protected_flag"), "{bad}: {e}");
+            let e = build_args(&c, Path::new("w.py"), true).unwrap_err();
             assert!(e.contains("params.protected_flag"), "{bad}: {e}");
         }
+    }
+
+    #[test]
+    fn vision_launch_args() {
+        let dir = folder(&[("config.json", VLM_CONFIG), ("model.safetensors", "x")]);
+        let mut config = LaunchConfig {
+            model_path: dir.path().to_path_buf(),
+            host: "127.0.0.1".into(),
+            port: 11451,
+            ..Default::default()
+        };
+        config.params.insert(
+            "kv_bits".into(),
+            crate::params::ParamValue::Text("8".into()),
+        );
+        let out = build_args(&config, Path::new("/env/mlx_vlm_worker.py"), true).unwrap();
+        assert_eq!(out.args[0], "/env/mlx_vlm_worker.py");
+        assert!(out.skipped.is_empty(), "{:?}", out.skipped);
+        let at = |flag: &str| {
+            out.args
+                .iter()
+                .position(|a| a == flag)
+                .map(|i| out.args[i + 1].as_str())
+        };
+        assert_eq!(at("--max-tokens"), Some("8192"));
+        assert_eq!(at("--kv-bits"), Some("8"));
+        assert_eq!(MlxEngine::VISION.family(), MLX_VLM);
+        assert_eq!(MlxEngine::TEXT.family(), MLX);
+        // A text folder is not the vision engine's to launch, nor the reverse.
+        let e = MlxEngine::TEXT
+            .build_launch(&config, &ServerCaps::default(), None)
+            .unwrap_err();
+        assert!(e.contains("mlx.model_unsupported"), "{e}");
     }
 
     #[test]
@@ -590,10 +738,12 @@ mod tests {
             port: 11450,
             ..Default::default()
         };
-        let e = MlxEngine
-            .build_launch(&config, &ServerCaps::default(), None)
-            .unwrap_err();
-        assert!(e.contains("process.mlx_loopback_only"), "{e}");
+        for engine in [MlxEngine::TEXT, MlxEngine::VISION] {
+            let e = engine
+                .build_launch(&config, &ServerCaps::default(), None)
+                .unwrap_err();
+            assert!(e.contains("process.mlx_loopback_only"), "{e}");
+        }
     }
 
     /// The worker's own argument filter, run with a system Python when there is one (it needs
@@ -642,6 +792,192 @@ mod tests {
         }
     }
 
+    /// Runs `code` with a system Python (`None` when there is none) next to the vision worker
+    /// (it needs neither MLX nor the environment for its checks): `w` is the worker module.
+    fn vision_worker_py(code: &str) -> Option<(bool, String)> {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_vlm_worker.py"), VLM_WORKER).unwrap();
+        let python = if cfg!(windows) { "python" } else { "python3" };
+        let code = format!(
+            "import sys, json, asyncio; sys.path.insert(0, {:?}); import mlx_vlm_worker as w\n{code}",
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &code])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .ok()?;
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        Some((out.status.success(), text))
+    }
+
+    /// The vision worker's request check: only inline media of the right kind; input_audio is
+    /// rewritten into a data: URL; no adapters or other models.
+    #[test]
+    fn the_vision_worker_takes_only_inline_media() {
+        let image = |url: &str| {
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "text", "text": "hi"},
+                {"type": "image_url", "image_url": {"url": url, "detail": "auto"}}
+            ]}]})
+        };
+        let audio = |data: &str| {
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "input_audio", "input_audio": {"data": data, "format": "wav"}}
+            ]}]})
+        };
+        let check = |body: &serde_json::Value| {
+            vision_worker_py(&format!(
+                "e, out = w.check_body({:?}.encode())\nprint(json.dumps([e, out and json.loads(out)]))",
+                body.to_string()
+            ))
+            .map(|(ok, text)| {
+                assert!(ok, "{text}");
+                serde_json::from_str::<serde_json::Value>(text.trim()).unwrap()
+            })
+        };
+        let Some(ok) = check(&image("data:image/png;base64,iVBORw0K")) else {
+            eprintln!("no system python, skipping");
+            return;
+        };
+        assert!(ok[0].is_null(), "{ok}");
+        // Base64 audio becomes a data: URL, so mlx-vlm never takes it for a path ("/9j..." is
+        // valid base64).
+        let out = check(&audio("/9j/AAAA")).unwrap();
+        assert!(out[0].is_null(), "{out}");
+        assert_eq!(
+            out[1]["messages"][0]["content"][0]["input_audio"]["data"],
+            "data:audio/wav;base64,/9j/AAAA"
+        );
+        let out = check(&audio("data:audio/wav;base64,AAAA")).unwrap();
+        assert!(out[0].is_null(), "{out}");
+        for bad in [
+            image("http://example.com/x.png"),
+            image("/etc/hosts"),
+            image("file:///etc/hosts"),
+            image("data:text/plain;base64,AAAA"),
+            image("data:image/png,notbase64"),
+            image("data:image/png;base64,***"),
+            audio("/etc/hosts"),
+            audio("http://x"),
+            audio("file:///etc/hosts"),
+            audio("./a.wav"),
+            audio("data:image/png;base64,AAAA"),
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA", "detail": "../x"}}]}]}),
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "image_url", "image_url": "png"}]}]}),
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "video_url", "video_url": "/v.mp4"}]}]}),
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "video_url", "video_url": {"url": "data:image/png;base64,AAAA"}}]}]}),
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "file", "file": {"file_id": "x"}}]}]}),
+            serde_json::json!({"messages": [], "adapter_path": "/x"}),
+            serde_json::json!({"messages": [], "model_path": "/x"}),
+        ] {
+            let out = check(&bad).unwrap();
+            assert!(out[0].is_string(), "{bad} was accepted: {out}");
+        }
+    }
+
+    /// The vision worker's ASGI guard around a stand-in app: only its three routes, the key,
+    /// the body limit, and the (checked) body replayed to the app.
+    #[test]
+    fn the_vision_worker_guard_lets_through_only_what_it_checked() {
+        let script = r#"
+seen = []
+async def inner(scope, receive, send):
+    body = b""
+    while True:
+        m = await receive()
+        body += m.get("body", b"")
+        if not m.get("more_body"):
+            break
+    seen.append((scope["path"], body, dict(scope["headers"]).get(b"content-length")))
+    await send({"type": "http.response.start", "status": 200, "headers": []})
+    await send({"type": "http.response.body", "body": b"inner"})
+
+app = w.guard(inner, "alias")
+
+async def call(method, path, headers=(), chunks=(b"",), kind="http"):
+    sent = []
+    queue = [{"type": "http.request", "body": c, "more_body": i < len(chunks) - 1}
+             for i, c in enumerate(chunks)]
+    async def receive():
+        return queue.pop(0) if queue else {"type": "http.disconnect"}
+    async def send(m):
+        sent.append(m)
+    scope = {"type": kind, "method": method, "path": path,
+             "headers": [(k.lower().encode(), v.encode()) for k, v in headers]}
+    await app(scope, receive, send)
+    if kind == "websocket":
+        return sent[0]["type"], sent[0].get("code")
+    return sent[0]["status"], b"".join(m.get("body", b"") for m in sent[1:])
+
+KEY = [("Authorization", "Bearer k")]
+async def main():
+    r = {}
+    for m, p in [("HEAD", "/v1/models"), ("OPTIONS", "/v1/chat/completions"),
+                 ("GET", "/v1/models/"), ("GET", "//v1/models"), ("POST", "/unload"),
+                 ("GET", "/v1/chat/completions"), ("POST", "/v1/chat/completions/")]:
+        r[m + " " + p] = (await call(m, p, KEY))[0]
+    r["ws"] = await call("GET", "/v1/chat/completions", KEY, kind="websocket")
+    r["health"] = await call("GET", "/health")
+    r["no key"] = (await call("GET", "/v1/models"))[0]
+    r["wrong key"] = (await call("GET", "/v1/models", [("Authorization", "Bearer x")]))[0]
+    r["models"] = await call("GET", "/v1/models", KEY)
+    big = b"x" * (1024 * 1024)
+    r["big"] = (await call("POST", "/v1/chat/completions", KEY, [big] * 65))[0]
+    r["bad"] = (await call("POST", "/v1/chat/completions", KEY,
+                           [b'{"messages":[{"role":"user","content":[{"type":"input_audio",',
+                            b'"input_audio":{"data":"/etc/hosts","format":"wav"}}]}]}']))[0]
+    good = b'{"messages":[{"role":"user","content":"hi"}]}'
+    r["good"] = await call("POST", "/v1/chat/completions", KEY, [good[:10], good[10:]])
+    audio = b'{"messages":[{"role":"user","content":[{"type":"input_audio","input_audio":{"data":"AAAA"}}]}]}'
+    r["audio"] = (await call("POST", "/v1/chat/completions", KEY + [("Content-Length", str(len(audio)))], [audio]))[0]
+    return r
+
+r = asyncio.run(main())
+for k, v in r.items():
+    print(k, "=", v)
+print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
+"#;
+        let Some((ok, text)) = vision_worker_py(script) else {
+            eprintln!("no system python, skipping");
+            return;
+        };
+        assert!(ok, "{text}");
+        for line in [
+            "HEAD /v1/models = 404",
+            "OPTIONS /v1/chat/completions = 404",
+            "GET /v1/models/ = 404",
+            "GET //v1/models = 404",
+            "POST /unload = 404",
+            "GET /v1/chat/completions = 404",
+            "POST /v1/chat/completions/ = 404",
+            "ws = ('websocket.close', 1008)",
+            "health = (200, b'{\"status\": \"ok\"}')",
+            "no key = 401",
+            "wrong key = 401",
+            "big = 413",
+            "bad = 400",
+            "good = (200, b'inner')",
+            "audio = 200",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+        assert!(text.contains("\"id\": \"alias\""), "{text}");
+        // The app saw the body whole, and the rewritten one with its new length.
+        assert!(
+            text.contains("('/v1/chat/completions', '{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}', b'45')"),
+            "{text}"
+        );
+        assert!(text.contains("data:audio/wav;base64,AAAA"), "{text}");
+        assert_eq!(text.matches("('/v1/chat/completions'").count(), 2, "{text}");
+    }
+
     #[test]
     fn the_worker_guards_what_harness_relies_on() {
         // The key comes from the environment and is compared in constant time; the bind,
@@ -655,5 +991,8 @@ mod tests {
         assert!(WORKER.contains("HARNESS_WORKER_API_KEY is required"));
         assert!(WORKER.contains("allow_abbrev"));
         assert!(WORKER.contains("HTTPS_PROXY"));
+        assert!(VLM_WORKER.contains("kw[\"trust_remote_code\"] = False"));
+        assert!(VLM_WORKER.contains("MLX_TRUST_REMOTE_CODE\"] = \"false\""));
+        assert!(VLM_WORKER.contains("allow_abbrev=False"));
     }
 }
