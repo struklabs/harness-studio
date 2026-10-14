@@ -122,6 +122,8 @@ pub async fn launch(
         crate::engine::mlx::binary()?
     } else if engine.family() == crate::engine::MLX_VLM {
         crate::engine::mlx::vlm_binary()?
+    } else if engine.family() == crate::engine::MLX_AUDIO {
+        crate::engine::mlx::audio_binary()?
     } else {
         crate::runtimes::resolve_family_binary_in(&reg, engine.family(), config.runtime.as_deref())?
     };
@@ -885,7 +887,7 @@ pub async fn delete_library_model(
 ) -> Result<crate::library::ops::DeleteReport, String> {
     let _model_lease = gate.model_write(std::path::Path::new(&model_id)).await;
     let model = find_model(model_id).await?;
-    let running = crate::library::ops::servers_using(registry, &model.shard_paths);
+    let running = crate::library::ops::servers_using_model(registry, &model);
     if !running.is_empty() {
         return Err(format!("{}: {}", ERR_MODEL_IN_USE, running.join(", ")));
     }

@@ -33,6 +33,13 @@
   });
   // Capabilities come from the registry record (task + format). Tool support is not shown: the Hub
   // listing carries only a cut chat template, so it would be a guess from the name.
+  /** The Hub chips of the MLX engines, by family. */
+  const MLX_CHIPS: Record<string, { label: TKey; title: TKey; needs: TKey; needsTitle: TKey }> = {
+    mlx: { label: 'hub.compat_mlx', title: 'hub.compat_mlx_title', needs: 'hub.compat_needs_mlx', needsTitle: 'hub.compat_needs_mlx_title' },
+    'mlx-vlm': { label: 'hub.compat_mlx_vlm', title: 'hub.compat_mlx_vlm_title', needs: 'hub.compat_needs_mlx_vlm', needsTitle: 'hub.compat_needs_mlx_vlm_title' },
+    'mlx-audio': { label: 'hub.compat_mlx_audio', title: 'hub.compat_mlx_audio_title', needs: 'hub.compat_needs_mlx_audio', needsTitle: 'hub.compat_needs_mlx_audio_title' },
+  };
+
   const CAP_KEY: Record<ModelCapability, TKey> = {
     chat: 'hub.cap_chat',
     vision: 'hub.cap_vision',
@@ -132,15 +139,15 @@
       <span class="inline-flex items-center gap-1 text-warning" title={t(msg.key, msg.params)}>
         <Ban class="size-3" />{t('ort.compat_unsupported')}
       </span>
-    {:else if compat.status === 'runnable' && (compat.runtime === 'mlx' || compat.runtime === 'mlx-vlm')}
-      {@const vlm = compat.runtime === 'mlx-vlm'}
-      <span class="inline-flex items-center gap-1 text-success" title={t(vlm ? 'hub.compat_mlx_vlm_title' : 'hub.compat_mlx_title')}>
-        <CircleCheck class="size-3" />{t(vlm ? 'hub.compat_mlx_vlm' : 'hub.compat_mlx')}
+    {:else if compat.status === 'runnable' && compat.runtime in MLX_CHIPS}
+      {@const k = MLX_CHIPS[compat.runtime]}
+      <span class="inline-flex items-center gap-1 text-success" title={t(k.title)}>
+        <CircleCheck class="size-3" />{t(k.label)}
       </span>
-    {:else if compat.status === 'needs_runtime' && (compat.runtime === 'mlx' || compat.runtime === 'mlx-vlm')}
-      {@const vlm = compat.runtime === 'mlx-vlm'}
-      <span class="inline-flex items-center gap-1 text-info" title={t(vlm ? 'hub.compat_needs_mlx_vlm_title' : 'hub.compat_needs_mlx_title')}>
-        <Info class="size-3" />{t(vlm ? 'hub.compat_needs_mlx_vlm' : 'hub.compat_needs_mlx')}
+    {:else if compat.status === 'needs_runtime' && compat.runtime in MLX_CHIPS}
+      {@const k = MLX_CHIPS[compat.runtime]}
+      <span class="inline-flex items-center gap-1 text-info" title={t(k.needsTitle)}>
+        <Info class="size-3" />{t(k.needs)}
       </span>
     {:else if compat.status === 'needs_runtime' && compat.runtime === 'mistral.rs'}
       <span class="inline-flex items-center gap-1 text-info" title={t('hub.compat_needs_mistralrs_title')}>
