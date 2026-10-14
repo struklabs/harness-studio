@@ -68,6 +68,7 @@ pub const KNOWN_TASKS: &[&str] = &[
     "depth-estimation",
     "zero-shot-image-classification",
     "image-feature-extraction",
+    "zero-shot-object-detection",
 ];
 
 /// Lower-case alphanumeric words of a repo name (`Qwen3-VL-8B_Instruct` -> qwen3, vl, 8b, ...).
@@ -704,6 +705,7 @@ const TABLE: &[Row] = &[
     row_alt("depth-estimation", No, None, ONNX_ALTS),
     row_alt("zero-shot-image-classification", No, None, ONNX_ALTS),
     row_alt("image-feature-extraction", No, None, ONNX_ALTS),
+    row_alt("zero-shot-object-detection", No, None, ONNX_ALTS),
 ];
 
 /// One task's support on the installed runtime.

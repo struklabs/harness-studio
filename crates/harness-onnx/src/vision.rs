@@ -227,6 +227,17 @@ pub fn target_size(size: Size, w: u32, h: u32) -> (u32, u32) {
 
 /// The processed pixels, `[1, 3, height, width]` row-major, and that height and width.
 pub fn preprocess(img: &RgbImage, p: &Preprocess) -> (Vec<f32>, u32, u32) {
+    // OWLv2 pads to a square with 0.5 grey (after rescaling; 128 of 255 here) first.
+    let padded;
+    let img = if p.pad_square && img.width() != img.height() {
+        let side = img.width().max(img.height());
+        let mut square = RgbImage::from_pixel(side, side, image::Rgb([128, 128, 128]));
+        image::imageops::replace(&mut square, img, 0, 0);
+        padded = square;
+        &padded
+    } else {
+        img
+    };
     let mut img = match p.resize {
         Some(size) => {
             let (w, h) = target_size(size, img.width(), img.height());
@@ -347,6 +358,48 @@ pub fn detect(
         out.push(Detection {
             score,
             label: label(labels, best),
+            xmin: px(cx - bw / 2.0, w),
+            ymin: px(cy - bh / 2.0, h),
+            xmax: px(cx + bw / 2.0, w),
+            ymax: px(cy + bh / 2.0, h),
+        });
+    }
+    out.sort_by(|a, b| b.score.total_cmp(&a.score));
+    out
+}
+
+/// `zero-shot-object-detection` of an OWL-ViT head: `logits` `[patches, queries]` and `boxes`
+/// `[patches, 4]` as normalized `(cx, cy, w, h)` of a `width` × `height` frame. Each patch
+/// keeps its best query; patches scoring at least `threshold` (0.1 by default) after a sigmoid,
+/// best first.
+pub fn detect_open(
+    logits: &[f32],
+    boxes: &[f32],
+    queries: &[String],
+    threshold: Option<f32>,
+    width: u32,
+    height: u32,
+) -> Vec<Detection> {
+    let threshold = threshold.unwrap_or(0.1);
+    let q = queries.len().max(1);
+    let (w, h) = (width as f32, height as f32);
+    let mut out = Vec::new();
+    for (patch, row) in logits.chunks_exact(q).enumerate() {
+        let Some((best, &logit)) = row.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)) else {
+            continue;
+        };
+        let score = sigmoid(logit);
+        if score < threshold {
+            continue;
+        }
+        let Some(b) = boxes.get(patch * 4..patch * 4 + 4) else {
+            continue;
+        };
+        let (cx, cy, bw, bh) = (b[0], b[1], b[2], b[3]);
+        let px = |v: f32, size: f32| (v * size).round().clamp(0.0, size) as i64;
+        out.push(Detection {
+            score,
+            label: queries[best].clone(),
             xmin: px(cx - bw / 2.0, w),
             ymin: px(cy - bh / 2.0, h),
             xmax: px(cx + bw / 2.0, w),
@@ -507,6 +560,41 @@ pub fn task_name(t: VisionTask) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn open_detection_keeps_each_patch_best_query() {
+        let queries = vec!["cat".to_string(), "dog".to_string()];
+        // Two patches: the first is a cat (logit 2 → 0.88), the second scores below 0.1.
+        let logits = [2.0, -1.0, -5.0, -4.0];
+        let boxes = [0.5, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1, 0.1];
+        let found = detect_open(&logits, &boxes, &queries, None, 200, 100);
+        assert_eq!(found.len(), 1);
+        let d = &found[0];
+        assert_eq!(d.label, "cat");
+        assert_eq!((d.xmin, d.ymin, d.xmax, d.ymax), (50, 25, 150, 75));
+        assert!((d.score - 0.880797).abs() < 1e-4);
+    }
+
+    #[test]
+    fn owlv2_pads_to_a_square_before_resizing() {
+        let img = RgbImage::from_pixel(4, 2, image::Rgb([255, 0, 0]));
+        let p = Preprocess {
+            resize: None,
+            resample: crate::vision_pkg::Resample::Bilinear,
+            crop: None,
+            rescale: None,
+            mean: [0.0; 3],
+            std: [1.0; 3],
+            normalize: false,
+            bgr: false,
+            pad_square: true,
+        };
+        let (pixels, w, h) = preprocess(&img, &p);
+        assert_eq!((w, h), (4, 4));
+        // Red on top, grey padding below (bottom rows of the red plane).
+        assert_eq!(pixels[0], 255.0);
+        assert_eq!(pixels[15], 128.0);
+    }
 
     #[test]
     fn max_new_tokens_is_a_positive_integer() {
