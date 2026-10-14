@@ -9,6 +9,7 @@ Release notes with system requirements and known limitations (English and Turkis
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Added
+- Text to speech: Meta MMS voices as sherpa-onnx exports them (`vits-mms-<language>` folders: English, German, French, Spanish, Russian, Ukrainian, Thai, Min Nan) are recognized in the model folders. They are not offered for download, since their license is non-commercial.
 - Speech to text: NVIDIA Nemotron 3.5 ASR streaming (35 languages including Turkish, with punctuation) and Cohere Transcribe (14 languages) from the sherpa-onnx catalog. Streaming transducer folders are no longer skipped; they run with sherpa-onnx's online decoder.
 - Speech to text: speaker diarization for the sherpa-onnx models. `response_format=diarized_json` (or the `speakers` field) on `/v1/audio/transcriptions`, and `harness transcribe --diarize [--speakers N]`, say who spoke each segment (A, B...); SRT and VTT carry the speaker too. Two small models (35 MB) download on first use.
 - Playground: audio input for llama.cpp models whose projector (mmproj) accepts audio (for example Ultravox, Qwen2.5-Omni, Voxtral). Attach a WAV, MP3 or FLAC file (up to 4 MB, two per message) or record from the microphone; the clip is sent as an OpenAI `input_audio` part, plays back in the chat and is kept with the conversation. The capability check reports whether a model accepts audio, and Model Hub explains which speech models run.

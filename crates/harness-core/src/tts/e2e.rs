@@ -227,3 +227,37 @@ async fn real_turkish_and_english_speech() {
     .unwrap_err();
     assert!(e.starts_with("tts.voice_not_found"), "{e}");
 }
+
+/// An MMS voice the user unpacked (not in the catalog: Meta's MMS checkpoints are
+/// non-commercial). `HS_TTS_MMS_DIR=<folder of sherpa-onnx's vits-mms-<language> archive>`.
+#[tokio::test]
+#[ignore]
+async fn real_mms_speech() {
+    let Some(dir) = std::env::var_os("HS_TTS_MMS_DIR").map(PathBuf::from) else {
+        eprintln!("HS_TTS_MMS_DIR not set, skipping");
+        return;
+    };
+    let s = setup().await;
+    let m = super::detect(&dir).expect("an MMS folder");
+    assert_eq!(m.family, TtsFamily::Vits);
+    let t = std::time::Instant::now();
+    let speech = speak(
+        &s,
+        &m,
+        "Good morning. How was your trip to the mountains last week?",
+        None,
+        1.0,
+    )
+    .await;
+    eprintln!(
+        "{} ({:?}): {} bytes in {:?}",
+        m.name,
+        m.languages,
+        speech.wav.len(),
+        t.elapsed()
+    );
+    check_wav(&speech.wav, 2.0, 16_000);
+    if let Ok(keep) = std::env::var("HS_TTS_MMS_OUT") {
+        std::fs::write(keep, &speech.wav).unwrap();
+    }
+}
