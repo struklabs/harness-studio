@@ -431,6 +431,48 @@ fn vits_with_a_lexicon_instead_of_espeak() {
 }
 
 #[test]
+fn an_mms_folder_is_a_one_voice_vits_model() {
+    let tmp = tempfile::tempdir().unwrap();
+    // The files of sherpa-onnx's `vits-mms-deu` archive.
+    let dir = tmp.path().join("vits-mms-deu");
+    for f in [
+        "model.onnx",
+        "tokens.txt",
+        "README.md",
+        "vits-mms.py",
+        "vits-mms.sh",
+    ] {
+        touch(&dir.join(f), b"x");
+    }
+    touch(
+        &dir.join("config.json"),
+        br#"{"train":{"seed":1234},"data":{"sampling_rate":16000,"add_blank":true,"n_speakers":0}}"#,
+    );
+    let m = detect(&dir).unwrap();
+    assert_eq!(m.family, TtsFamily::Vits);
+    assert_eq!(m.languages, ["de"]);
+    assert_eq!(m.sample_rate, Some(16_000));
+    assert_eq!(m.voices.len(), 1);
+    assert_eq!(m.voices[0].id, "deu");
+    // Letters are the tokens: no phoneme data or lexicon.
+    let args = build_args(&m, Some(&m.voices[0]), &params("o.wav"));
+    assert!(find_arg(&args, "--vits-model")
+        .unwrap()
+        .ends_with("model.onnx"));
+    assert!(find_arg(&args, "--vits-data-dir").is_none());
+    assert!(find_arg(&args, "--vits-lexicon").is_none());
+    // Without its config the rate is MMS's own; a code with no two-letter form stays.
+    let dir = tmp.path().join("vits-mms-nan");
+    touch(&dir.join("model.onnx"), b"x");
+    touch(&dir.join("tokens.txt"), b"x");
+    let m = detect(&dir).unwrap();
+    assert_eq!(m.languages, ["nan"]);
+    assert_eq!(m.sample_rate, Some(16_000));
+    // Not a speech-recognition model.
+    assert!(crate::asr::detect(&dir).is_none());
+}
+
+#[test]
 fn requests_are_checked_like_openais() {
     assert_eq!(
         check_request("  Hello  ", None).unwrap(),
