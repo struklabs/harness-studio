@@ -119,6 +119,25 @@ pub fn redact_args(args: &Value) -> String {
     }
 }
 
+/// The tools in an order that does not depend on when they were registered: the built-ins in
+/// their own fixed order first, then the installed and MCP tools by name. MCP servers connect in
+/// parallel and a reconnect appends its tools again, so registration order varies between
+/// listings; a chat sends the tools in this order, and a stable list keeps the prompt's prefix
+/// (and llama-server's prompt cache) the same across turns.
+fn stable_order(mut tools: Vec<ToolDef>) -> Vec<ToolDef> {
+    // A stable sort: built-ins compare equal among themselves and keep their order.
+    tools.sort_by(|a, b| {
+        let builtin = |d: &ToolDef| d.source == ToolSource::Builtin;
+        match (builtin(a), builtin(b)) {
+            (true, true) => std::cmp::Ordering::Equal,
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            (false, false) => a.name.cmp(&b.name),
+        }
+    });
+    tools
+}
+
 impl ToolService {
     /// A service without MCP servers (tests, built-in tools only).
     pub fn new(registry: ToolRegistry, sink: LogSink) -> Self {
@@ -223,9 +242,7 @@ impl ToolService {
             web_search: settings.web_search.clone(),
             mcp_expose: settings.mcp_expose,
             limits: ToolLimits::default(),
-            tools: self
-                .registry
-                .list()
+            tools: stable_order(self.registry.list())
                 .into_iter()
                 .map(|def| {
                     let default_class = Some(def.class);
@@ -420,6 +437,42 @@ mod tests {
     use crate::analytics::ToolCallQuery;
     use crate::tools::policy::ToolPolicy;
     use serde_json::json;
+
+    /// Built-ins keep their order; MCP and installed tools follow by name, however they were
+    /// registered (MCP servers connect in parallel).
+    #[test]
+    fn listing_order_does_not_follow_registration() {
+        let def = |name: &str, source| ToolDef {
+            name: name.into(),
+            description: String::new(),
+            input_schema: json!({}),
+            class: PermissionClass::Safe,
+            source,
+            uses_workspace: false,
+        };
+        let names = |tools: Vec<ToolDef>| -> Vec<String> {
+            stable_order(tools).into_iter().map(|d| d.name).collect()
+        };
+        let a = names(vec![
+            def("read_file", ToolSource::Builtin),
+            def("srv_b__x", ToolSource::Mcp),
+            def("weather", ToolSource::Builtin),
+            def("my_pkg", ToolSource::Installed),
+            def("srv_a__y", ToolSource::Mcp),
+        ]);
+        let b = names(vec![
+            def("srv_a__y", ToolSource::Mcp),
+            def("read_file", ToolSource::Builtin),
+            def("my_pkg", ToolSource::Installed),
+            def("srv_b__x", ToolSource::Mcp),
+            def("weather", ToolSource::Builtin),
+        ]);
+        assert_eq!(
+            a,
+            ["read_file", "weather", "my_pkg", "srv_a__y", "srv_b__x"]
+        );
+        assert_eq!(a, b);
+    }
 
     // Fields drop in order: the service and database close before `_dir` is removed (Windows
     // cannot delete a directory with an open SQLite file).

@@ -43,6 +43,7 @@
   import SettingsPanel from './playground/SettingsPanel.svelte';
   import ToolGeneratorDialog from './playground/ToolGeneratorDialog.svelte';
   import { COMPACT_TOOLS_PARAMS, compactToolDefinitions, withToolGuidance } from './playground/toolGuidance';
+  import { warmBody, warmKey } from './playground/promptWarm';
   import { salvageToolCalls, TextCallStreamBuffer } from './playground/textToolCalls';
   import { chatRequest } from './playground/chatRequest';
   import { parseChoiceLogprobs, rememberLogprobs, type TokenLogprob } from './playground/logprobs';
@@ -974,12 +975,16 @@
 
   /** Parameters of the chat model's GGUF; below `COMPACT_TOOLS_PARAMS` the tools are sent with short descriptions. */
   let chatModelParams = $state<number | null>(null);
+  /** The lookup in flight: a turn waits for it, so a conversation's first request does not go out
+   *  with the full definitions and the next ones with the short ones (that would change the
+   *  prompt's prefix and lose llama-server's prompt cache). */
+  let chatParamsPending: Promise<void> = Promise.resolve();
   $effect(() => {
     const path = toolGenModelPath;
     chatModelParams = null;
     if (!path) return;
     let cancelled = false;
-    modelParams(path).then((n) => { if (!cancelled) chatModelParams = n ?? null; }).catch(() => {});
+    chatParamsPending = modelParams(path).then((n) => { if (!cancelled) chatModelParams = n ?? null; }).catch(() => {});
     return () => { cancelled = true; };
   });
   let compactTools = $derived(chatModelParams !== null && chatModelParams < COMPACT_TOOLS_PARAMS);
@@ -987,6 +992,77 @@
   function wireToolDefs() {
     const defs = activeTools.map((tl) => $state.snapshot(tl.definition));
     return compactTools ? compactToolDefinitions(defs) : defs;
+  }
+
+  /** Prompt-cache warm-up of a new conversation (see `promptWarm.ts`): the key last warmed, and
+   *  the request in flight, which the first turn waits for. */
+  let warmedKey = '';
+  let warming: Promise<void> | null = null;
+  /** Bumped to try again after a failed warm-up (a server still loading its model refuses it). */
+  let warmRetry = $state(0);
+  let warmFailures = 0;
+  let warmFailedKey = '';
+  $effect(() => {
+    void warmRetry;
+    const key = warmKey({
+      conversation: conv?.id ?? null,
+      model: settings.model,
+      turns: messages.length,
+      tools: activeTools.length,
+      documents: ragDocs.length,
+      localModel: toolGenModelPath !== null,
+      loaded: domain.states.some(
+        (s) => s.alias.toLowerCase() === settings.model.toLowerCase() && s.servers.some((v) => v.status === 'Running'),
+      ),
+      endpoint: app.inferenceUrl,
+    });
+    if (!key) {
+      if (messages.length > 0) warmedKey = '';
+      return;
+    }
+    // `streaming` covers a send creating the conversation (its id changes before the turn exists).
+    if (key === warmedKey || composerWaiting || streaming) return;
+    if (key !== warmFailedKey) warmFailures = 0;
+    warmedKey = key;
+    untrack(() => {
+      const run = warmPrompt(settings.model)
+        .then((ok) => {
+          // Up to three tries, a few seconds apart; the effect drops the retry once a turn exists.
+          if (ok || warmedKey !== key) return;
+          warmFailedKey = key;
+          if (++warmFailures >= 3) return;
+          setTimeout(() => {
+            if (warmedKey !== key) return;
+            warmedKey = '';
+            warmRetry++;
+          }, 3000);
+        })
+        .finally(() => { if (warming === run) warming = null; });
+      warming = run;
+    });
+  });
+  /** Whether the server took the warm-up (a failure only means the first turn processes the prefix). */
+  async function warmPrompt(model: string): Promise<boolean> {
+    await chatParamsPending;
+    const toolDefs = wireToolDefs();
+    if (!toolDefs.length) return true;
+    const extra = samplingParams($state.snapshot(settings) as PgSettings, { tools: true });
+    const body = warmBody(withToolGuidance(applyRag(buildApiMessages([], settings), null), toolDefs), toolDefs, model, extra);
+    const c = new AbortController();
+    const timer = setTimeout(() => c.abort(), 120_000);
+    try {
+      const res = await fetch(`${app.inferenceUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...app.inferenceHeaders() },
+        body: JSON.stringify(body),
+        signal: c.signal,
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   let verifiedTools = $state<boolean | null>(null);
@@ -2436,6 +2512,10 @@
     }
     scrollToBottom(true);
 
+    await chatParamsPending;
+    // A warm-up still processing the same prefix goes first: this turn then reuses its cache
+    // instead of competing with it for the GPU.
+    if (warming) await warming;
     const toolDefs = wireToolDefs();
     let sentTools = toolDefs.length > 0;
     // Wait for a complete candidate before rendering tool-call JSON as ordinary text.

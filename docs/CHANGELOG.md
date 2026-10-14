@@ -36,6 +36,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Speech recognition with Hugging Face CTC models (wav2vec2, HuBERT, WavLM, Data2Vec Audio, UniSpeech) exported to ONNX, for example `Xenova/wav2vec2-base-960h`. Model Hub recognizes them and offers the FP32 and quantized exports. They run in the ONNX sidecar (DirectML, CUDA or CPU) behind the gateway's `/v1/audio/transcriptions`, in Playground > Speech, in chat dictation and in `harness transcribe`. Long recordings are split into 20-second pieces with overlap, and segment times break at words or pauses. Source-only speech repositories show "Needs Conversion".
 
 ### Changed
+- Playground: with tools on, a new conversation on a model a local Harness server has loaded sends its fixed prefix (system prompt, tool guidance, tool definitions; about 2.2k tokens) once ahead with one output token, so llama-server's prompt cache holds it and the first message processes only the user's text (Qwen3-4B on a CPU: first token 61 s → 0.5 s). Only to loopback servers, once per conversation; the first message waits for a warm-up still in flight and is never slower. Tool definitions are listed in a fixed order (built-ins first, then by name), so the prefix does not change with registration order.
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed
