@@ -28,6 +28,8 @@ pub struct VisionJob {
     pub hypothesis_template: Option<String>,
     /// Feature extraction: the pooled output instead of every hidden state.
     pub pool: bool,
+    /// Captioning: tokens to generate (capped by the engine).
+    pub max_new_tokens: Option<usize>,
 }
 
 /// The bytes of an image given as a data URL or as plain base64.
@@ -110,8 +112,18 @@ pub fn parse(body: &Value) -> Result<VisionJob, ApiError> {
         Some(Value::Bool(b)) => *b,
         Some(_) => return Err(ApiError::invalid("pool must be true or false")),
     };
+    let max_new_tokens = match params.get("max_new_tokens") {
+        None | Some(Value::Null) => None,
+        Some(v) => Some(
+            v.as_u64()
+                .filter(|n| *n > 0)
+                .ok_or_else(|| ApiError::invalid("max_new_tokens must be a positive integer"))?
+                as usize,
+        ),
+    };
     Ok(VisionJob {
         image: image_bytes(image)?,
+        max_new_tokens,
         top_k,
         threshold,
         candidate_labels,
@@ -495,6 +507,21 @@ pub fn task_name(t: VisionTask) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn max_new_tokens_is_a_positive_integer() {
+        let tokens = |v: serde_json::Value| {
+            parse(&json!({"inputs": "UklGRg==", "parameters": {"max_new_tokens": v}}))
+                .map(|j| j.max_new_tokens)
+        };
+        assert_eq!(tokens(json!(1)).unwrap(), Some(1));
+        assert_eq!(tokens(json!(null)).unwrap(), None);
+        // Above the engine's cap is accepted here; the decoder clamps it.
+        assert_eq!(tokens(json!(100_000)).unwrap(), Some(100_000));
+        for bad in [json!(0), json!(-1), json!(1.5), json!("5")] {
+            assert!(tokens(bad.clone()).is_err(), "{bad} must be refused");
+        }
+    }
     use crate::vision_pkg::parse_preprocess;
 
     #[test]
