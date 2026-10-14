@@ -1116,7 +1116,9 @@ mod tests {
         .unwrap();
         let work = dir.path().join("work");
         std::fs::create_dir_all(&work).unwrap();
+        // The worker drops torch's escape hatch from its environment.
         let out = std::process::Command::new(python)
+            .env("TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD", "1")
             .arg("-I")
             .arg(&script)
             .arg(&worker)

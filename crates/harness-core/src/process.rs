@@ -423,6 +423,14 @@ const PROXY_ENV_VARS: [&str; 8] = [
     "no_proxy",
 ];
 
+/// torch switches a Python worker never inherits: either one set in the user's environment
+/// would change what `torch.load` does to a model's PyTorch `.bin` weights (the first turns the
+/// `weights_only=True` protection off; neither is Harness's to set).
+const TORCH_LOAD_ENV_VARS: [&str; 2] = [
+    "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD",
+    "TORCH_FORCE_WEIGHTS_ONLY_LOAD",
+];
+
 /// What the UI and telemetry need to talk to the running server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -1673,7 +1681,7 @@ impl ProcessManager {
         };
         if let Some(env) = worker_key.as_deref().and_then(|key| engine.worker_env(key)) {
             // Models are local: no proxy is ever needed, and an inherited one is a way out.
-            for var in PROXY_ENV_VARS {
+            for var in PROXY_ENV_VARS.iter().chain(&TORCH_LOAD_ENV_VARS) {
                 cmd.env_remove(var);
             }
             self.push_log(format!(

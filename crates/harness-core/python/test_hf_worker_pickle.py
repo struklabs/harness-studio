@@ -17,6 +17,9 @@ from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 spec = importlib.util.spec_from_file_location("hf_worker", sys.argv[1])
 worker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(worker)
+# Started with TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD=1: the worker drops it on import.
+assert "TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD" not in os.environ
+assert "TORCH_FORCE_WEIGHTS_ONLY_LOAD" not in os.environ
 work = sys.argv[2]
 good = os.path.join(work, "good")
 
