@@ -45,6 +45,14 @@ pub fn find_root(path: &Path) -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
+/// Whether `path` is a CTC speech model: a repo whose `config.json` names a `*ForCTC` head.
+/// Vision models and audio classifiers have a `preprocessor_config.json` too.
+pub fn is_ctc_model(path: &Path) -> bool {
+    find_root(path)
+        .and_then(|root| read_json(&root.join("config.json")).ok())
+        .is_some_and(|config| is_ctc_config(&config))
+}
+
 /// Audio and vocabulary metadata; `tokenizer.json` is never needed.
 #[derive(Debug, Clone)]
 pub struct CtcPackage {
@@ -537,6 +545,28 @@ fn argmax(row: &[f32]) -> usize {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn only_a_ctc_head_makes_a_ctc_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("vit");
+        std::fs::create_dir_all(repo.join("onnx")).unwrap();
+        std::fs::write(repo.join("preprocessor_config.json"), "{}").unwrap();
+        let model = repo.join("onnx").join("model.onnx");
+        // A vision model has the same two configs.
+        std::fs::write(
+            repo.join("config.json"),
+            json!({"architectures": ["ViTForImageClassification"]}).to_string(),
+        )
+        .unwrap();
+        assert!(!is_ctc_model(&model));
+        std::fs::write(
+            repo.join("config.json"),
+            json!({"architectures": ["Wav2Vec2ForCTC"]}).to_string(),
+        )
+        .unwrap();
+        assert!(is_ctc_model(&model));
+    }
 
     fn package() -> CtcPackage {
         CtcPackage {
