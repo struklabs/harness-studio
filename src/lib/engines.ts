@@ -4,7 +4,7 @@
 import type { RuntimeView } from './types';
 
 /** How a family is installed with one click. `manual` = no managed download exists. */
-export type EngineMethod = 'github' | 'onnx' | 'lemonade' | 'manual';
+export type EngineMethod = 'github' | 'onnx' | 'lemonade' | 'pyenv' | 'manual';
 
 export interface EngineSpec {
   /** Family id as the backend names it (`runtime.family_not_installed: whisper.cpp`). */
@@ -12,8 +12,10 @@ export interface EngineSpec {
   method: EngineMethod;
   /** Official GitHub repository for `github` families. */
   repo?: string;
+  /** Managed Python environment of `pyenv` families. */
+  env?: string;
   /** Locale key of the one-line description shown on the Installed Runtime page. */
-  descKey: 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs';
+  descKey: 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf';
 }
 
 export const ENGINES: readonly EngineSpec[] = [
@@ -23,11 +25,21 @@ export const ENGINES: readonly EngineSpec[] = [
   { family: 'onnxruntime', method: 'onnx', descKey: 'eng.desc_onnx' },
   { family: 'lemonade', method: 'lemonade', descKey: 'eng.desc_lemonade' },
   { family: 'mistral.rs', method: 'manual', descKey: 'eng.desc_mistralrs' },
+  { family: 'python-hf', method: 'pyenv', env: 'hf-cpu', descKey: 'eng.desc_pyhf' },
 ];
 
-/** Description key of a family on this host: Lemonade on a Mac has no Ryzen AI NPU. */
-export function engineDescKey(e: EngineSpec, mac: boolean): EngineSpec['descKey'] | 'eng.desc_lemonade_mac' {
-  return mac && e.family === 'lemonade' ? 'eng.desc_lemonade_mac' : e.descKey;
+/**
+ * Description key of a family on this host: Lemonade on a Mac has no Ryzen AI NPU, and the Python
+ * engine runs without network on Linux only (elsewhere it is reachable from this computer, with a key).
+ */
+export function engineDescKey(
+  e: EngineSpec,
+  mac: boolean,
+  linux = false,
+): EngineSpec['descKey'] | 'eng.desc_lemonade_mac' | 'eng.desc_pyhf_other' {
+  if (mac && e.family === 'lemonade') return 'eng.desc_lemonade_mac';
+  if (!linux && e.family === 'python-hf') return 'eng.desc_pyhf_other';
+  return e.descKey;
 }
 
 export function engineSpec(family: string | null | undefined): EngineSpec | undefined {

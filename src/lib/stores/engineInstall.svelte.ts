@@ -18,6 +18,7 @@ import type {
   OnnxRuntimeProgress,
   OnnxRuntimeSupport,
   OnnxRuntimeVariant,
+  PythonEnvStatus,
   RuntimeDownloadProgress,
   RuntimeEntry,
   RuntimeReleasePick,
@@ -47,6 +48,8 @@ class EngineInstaller {
   onnxSupport = $state<OnnxRuntimeSupport | null>(null);
   lemonadeInstalled = $state(false);
   lemonadeSupported = $state(false);
+  /** Managed Python environments of the Python engines, by name. */
+  pyEnvs = $state<Record<string, PythonEnvStatus>>({});
 
   state(family: string): EngineState {
     return this.states[family] ?? IDLE;
@@ -79,13 +82,30 @@ class EngineInstaller {
           this.lemonadeInstalled = s.installs.length > 0;
         })
         .catch(() => {}),
+      this.loadPyEnvs(),
     ]);
+  }
+
+  private async loadPyEnvs(): Promise<void> {
+    try {
+      const list = await invoke<PythonEnvStatus[]>('list_python_envs');
+      this.pyEnvs = Object.fromEntries(list.map((e) => [e.name, e]));
+    } catch {
+      /* best effort */
+    }
+  }
+
+  /** The managed Python environment of a `pyenv` family. */
+  pyEnv(family: string): PythonEnvStatus | undefined {
+    const env = engineSpec(family)?.env;
+    return env ? this.pyEnvs[env] : undefined;
   }
 
   installed(family: string): boolean {
     const spec = engineSpec(family);
     if (spec?.method === 'onnx') return this.onnxInstalled;
     if (spec?.method === 'lemonade') return this.lemonadeInstalled || familyInstalled(family, runtimesStore.list);
+    if (spec?.method === 'pyenv') return !!this.pyEnv(family)?.ready;
     return familyInstalled(family, runtimesStore.list);
   }
 
@@ -94,6 +114,7 @@ class EngineInstaller {
     const spec = engineSpec(family);
     if (spec?.method === 'onnx') return this.onnxAvailable;
     if (spec?.method === 'lemonade') return this.lemonadeSupported;
+    if (spec?.method === 'pyenv') return !!this.pyEnv(family)?.supported;
     return true;
   }
 
@@ -128,6 +149,8 @@ class EngineInstaller {
         if (!(await this.installGithub(family, spec.repo ?? ''))) return false;
       } else if (spec.method === 'onnx') {
         await this.installOnnx();
+      } else if (spec.method === 'pyenv') {
+        await this.installPyEnv(family, spec.env ?? '');
       } else {
         await this.installLemonade();
       }
@@ -199,6 +222,39 @@ class EngineInstaller {
     } finally {
       clearInterval(timer);
     }
+  }
+
+  /** Builds the Python environment; `packages` (uv's download) has no byte count, so the bar is indeterminate there. */
+  private async installPyEnv(family: string, env: string): Promise<void> {
+    const timer = setInterval(async () => {
+      await this.loadPyEnvs();
+      const p = this.pyEnvs[env]?.progress;
+      if (p) this.set(family, { pct: progressPercent(p.downloaded_bytes, p.total_bytes) });
+    }, 700);
+    try {
+      await invoke<PythonEnvStatus>('install_python_env', { name: env });
+    } finally {
+      clearInterval(timer);
+    }
+  }
+
+  /** Stops a Python environment build (the partial files are removed). */
+  async cancel(family: string): Promise<void> {
+    const env = engineSpec(family)?.env;
+    if (env) await invoke('cancel_python_env_install', { name: env }).catch(() => {});
+  }
+
+  /** Deletes the Python environment of a `pyenv` family. */
+  async remove(family: string): Promise<void> {
+    const env = engineSpec(family)?.env;
+    if (!env) return;
+    try {
+      await invoke('remove_python_env', { name: env });
+      toast.success(t('eng.removed', { runtime: family }));
+    } catch (e) {
+      toast.error(localizeError(e));
+    }
+    await this.afterInstall();
   }
 
   private async installLemonade(): Promise<void> {

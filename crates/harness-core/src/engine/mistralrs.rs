@@ -136,7 +136,10 @@ pub fn is_model_dir(path: &Path) -> bool {
     if weight_files(path).is_empty() {
         return false;
     }
+    // Encoder-decoders the Python engine serves (Whisper, BLIP, BART summarizers...) are
+    // `ForConditionalGeneration` too, but not chat models.
     read_json(&config).is_some_and(|c| is_generative_config(&c))
+        && !super::python_hf::is_model_dir(path)
 }
 
 /// What the files of a model folder say about it.

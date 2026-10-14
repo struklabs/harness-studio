@@ -329,12 +329,149 @@ pub fn mistralrs_compatibility(
     })
 }
 
+/// Runtime family of the Python engine (transformers / sentence-transformers task models).
+pub const PYTHON_HF_FAMILY: &str = crate::engine::PYTHON_HF;
+
+/// The Python engine's verdict on a Hub repo: a transformers or sentence-transformers repo of a
+/// task the worker serves ([`crate::engine::python_hf::TASKS`]), with safetensors or PyTorch
+/// weights and a `config.json` at the root (a listing without file names is taken by its tags).
+/// Remote code is never run, so a `custom_code` repo is not one; a text-to-image repo stays with
+/// stable-diffusion.cpp. `None` for every other repo. Whether the engine is installed is settled
+/// later ([`resolve_installed`]).
+pub fn python_hf_compatibility(
+    format: ModelFormat,
+    library: Option<&str>,
+    task: Option<&str>,
+    tags: &[String],
+    files: &[String],
+) -> Option<Compatibility> {
+    if !matches!(format, ModelFormat::Safetensors | ModelFormat::Pytorch) {
+        return None;
+    }
+    let task = task.filter(|t| *t != "text-to-image")?;
+    if !crate::engine::python_hf::TASKS.contains(&task) {
+        return None;
+    }
+    if !matches!(
+        library.map(str::to_ascii_lowercase).as_deref(),
+        None | Some("transformers") | Some("sentence-transformers")
+    ) {
+        return None;
+    }
+    if tags.iter().any(|t| t.eq_ignore_ascii_case("custom_code")) {
+        return None;
+    }
+    let root = |f: &&String| !f.contains('/') && !f.contains('\\');
+    let has_config = files.iter().filter(root).any(|f| f == "config.json");
+    let has_weights = files.iter().filter(root).any(|f| {
+        let f = f.to_ascii_lowercase();
+        f.ends_with(".safetensors") || (f.starts_with("pytorch_model") && f.ends_with(".bin"))
+    });
+    (files.is_empty() || (has_config && has_weights)).then(|| Compatibility::Runnable {
+        runtime: PYTHON_HF_FAMILY.to_string(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn s(items: &[&str]) -> Vec<String> {
         items.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn python_hf_takes_task_repos_without_remote_code() {
+        let files = s(&["config.json", "model.safetensors", "tokenizer.json"]);
+        let runnable = Some(Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.into(),
+        });
+        let verdict = |format, library, task, tags: &[&str], files: &[String]| {
+            python_hf_compatibility(format, library, task, &s(tags), files)
+        };
+        assert_eq!(
+            verdict(
+                ModelFormat::Safetensors,
+                Some("transformers"),
+                Some("token-classification"),
+                &[],
+                &files
+            ),
+            runnable
+        );
+        assert_eq!(
+            verdict(
+                ModelFormat::Pytorch,
+                Some("transformers"),
+                Some("visual-question-answering"),
+                &[],
+                &s(&["config.json", "pytorch_model.bin"])
+            ),
+            runnable
+        );
+        // Remote code, chat models, other libraries and image generation are not its own.
+        assert_eq!(
+            verdict(
+                ModelFormat::Safetensors,
+                Some("transformers"),
+                Some("text-classification"),
+                &["custom_code"],
+                &files
+            ),
+            None
+        );
+        assert_eq!(
+            verdict(
+                ModelFormat::Safetensors,
+                Some("transformers"),
+                Some("text-generation"),
+                &[],
+                &files
+            ),
+            None
+        );
+        assert_eq!(
+            verdict(
+                ModelFormat::Safetensors,
+                Some("timm"),
+                Some("image-classification"),
+                &[],
+                &files
+            ),
+            None
+        );
+        assert_eq!(
+            verdict(
+                ModelFormat::Diffusers,
+                Some("diffusers"),
+                Some("text-to-image"),
+                &[],
+                &files
+            ),
+            None
+        );
+        // No root config: not a folder the worker loads.
+        assert_eq!(
+            verdict(
+                ModelFormat::Safetensors,
+                None,
+                Some("fill-mask"),
+                &[],
+                &s(&["model.safetensors"])
+            ),
+            None
+        );
+        // A missing engine is reported as such.
+        let mut c = Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.into(),
+        };
+        resolve_installed_on(&mut c, &[], true);
+        assert_eq!(
+            c,
+            Compatibility::NeedsRuntime {
+                runtime: PYTHON_HF_FAMILY.into()
+            }
+        );
     }
 
     #[test]

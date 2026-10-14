@@ -479,7 +479,17 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         crate::model_registry::hub_compatibility(format, &capabilities)
     } else {
         // A safetensors chat model runs on mistral.rs (when the user registered it).
+        // A transformers task model (classifier, NER, ASR...) runs on the Python engine.
         crate::hub_compat::mistralrs_compatibility(format, task, &sibling_files(item))
+            .or_else(|| {
+                crate::hub_compat::python_hf_compatibility(
+                    format,
+                    item.get("library_name").and_then(|v| v.as_str()),
+                    task,
+                    &tags,
+                    &sibling_files(item),
+                )
+            })
             .unwrap_or_else(|| crate::hub_compat::hub_compatibility_for(format, task, genai))
     };
     // "No GGUF file" is llama-server's verdict; an ONNX encoder or an image model runs elsewhere.
@@ -3500,22 +3510,57 @@ const SAFETENSORS_COMPANIONS: [&str; 16] = [
     "video_preprocessor_config.json",
 ];
 
+/// More small root files the Python engine reads: sentence-transformers' module list and
+/// settings, SentencePiece and Marian vocabularies, feature extractors, the PyTorch shard index
+/// and the model card (its `pipeline_tag` names the task).
+const PYTHON_COMPANIONS: [&str; 13] = [
+    "modules.json",
+    "sentence_bert_config.json",
+    "config_sentence_transformers.json",
+    "spiece.model",
+    "sentencepiece.bpe.model",
+    "source.spm",
+    "target.spm",
+    "feature_extractor_config.json",
+    "image_processor_config.json",
+    "pytorch_model.bin.index.json",
+    "readme.md",
+    "normalizer.json",
+    "spm.model",
+];
+
 /// A companion file of a safetensors checkpoint at the repo root ([`SAFETENSORS_COMPANIONS`],
-/// a Jinja template or a tiktoken vocabulary).
+/// [`PYTHON_COMPANIONS`], a Jinja template or a tiktoken vocabulary), or a sentence-transformers
+/// module folder's file (`1_Pooling/config.json`, `2_Dense/model.safetensors`).
 fn is_safetensors_repo_file(path: &str) -> bool {
-    if path.contains('/') || path.contains('\\') {
-        return false;
+    let lower = path.to_ascii_lowercase().replace('\\', "/");
+    if let Some((dir, rest)) = lower.split_once('/') {
+        let module = dir
+            .split_once('_')
+            .is_some_and(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()));
+        return module
+            && !rest.contains('/')
+            && (rest.ends_with(".json")
+                || rest.ends_with(".safetensors")
+                || rest == "pytorch_model.bin");
     }
-    let lower = path.to_ascii_lowercase();
     SAFETENSORS_COMPANIONS.contains(&lower.as_str())
+        || PYTHON_COMPANIONS.contains(&lower.as_str())
         || lower.ends_with(".jinja")
         || lower.ends_with(".tiktoken")
 }
 
-/// The variant of a safetensors checkpoint repo (a chat model mistral.rs runs from its folder):
-/// one download of the root weights (`consolidated*.safetensors` left out when transformers
-/// shards are there) and every companion file, kept in the repo layout. Empty when the root has
-/// no `config.json` or no weights.
+/// A PyTorch weight file at the repo root (`pytorch_model.bin`, `pytorch_model-00001-of-00002.bin`).
+fn is_torch_weights(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    !lower.contains('/') && lower.starts_with("pytorch_model") && lower.ends_with(".bin")
+}
+
+/// The variant of a transformers checkpoint repo (a chat model mistral.rs runs from its folder,
+/// or a task model of the Python engine): one download of the root weights
+/// (`consolidated*.safetensors` left out when transformers shards are there; PyTorch `.bin`
+/// shards only when there is no safetensors file) and every companion file, kept in the repo
+/// layout. Empty when the root has no `config.json` or no weights.
 fn safetensors_variants(
     repo_id: &str,
     items: &[serde_json::Value],
@@ -3529,7 +3574,7 @@ fn safetensors_variants(
         .iter()
         .filter_map(|item| {
             let path = item.get("path").and_then(|v| v.as_str())?.to_string();
-            if path.contains('/') {
+            if path.contains('/') && !is_safetensors_repo_file(&path) {
                 return None;
             }
             let size = item
@@ -3546,12 +3591,18 @@ fn safetensors_variants(
             Some(F { path, size, sha256 })
         })
         .collect();
-    let is_weights = |f: &F| f.path.to_ascii_lowercase().ends_with(".safetensors");
+    let root = |f: &F| !f.path.contains('/');
+    let is_safetensors = |f: &F| root(f) && f.path.to_ascii_lowercase().ends_with(".safetensors");
     let consolidated = |f: &F| f.path.to_ascii_lowercase().starts_with("consolidated");
-    let mut weights: Vec<&F> = files.iter().filter(|f| is_weights(f)).collect();
+    let mut weights: Vec<&F> = files.iter().filter(|f| is_safetensors(f)).collect();
     if weights.iter().any(|f| !consolidated(f)) {
         weights.retain(|f| !consolidated(f));
     }
+    // A PyTorch-only repo: its `.bin` files (read with `torch.load(weights_only=True)`).
+    if weights.is_empty() {
+        weights = files.iter().filter(|f| is_torch_weights(&f.path)).collect();
+    }
+    let is_weights = |f: &F| root(f) && (is_safetensors(f) || is_torch_weights(&f.path));
     if weights.is_empty() || !files.iter().any(|f| f.path == "config.json") {
         return Ok(Vec::new());
     }
@@ -3594,7 +3645,10 @@ fn verify_model_magic(path: &Path, filename: &str) -> Result<(), String> {
     if lower.ends_with(".safetensors") {
         return verify_safetensors_header(path);
     }
-    if lower.ends_with(".ckpt") {
+    if lower.ends_with(".ckpt")
+        || lower.ends_with("pytorch_model.bin")
+        || is_torch_weights(filename)
+    {
         return verify_ckpt_magic(path);
     }
     if is_onnx_repo_file(filename)
@@ -4441,17 +4495,20 @@ mod tests {
         assert!(repos[1]
             .capabilities
             .contains(&crate::model_registry::Capability::Vision));
-        // GGUF wins; an embedder and weights in a sub-folder are not chat checkpoints.
+        // GGUF wins; an embedder and weights in a sub-folder are not chat checkpoints (a
+        // safetensors-only embedder runs on the Python engine).
         assert_eq!(
             repos[2].compatibility,
             Compatibility::Runnable {
                 runtime: "llama.cpp".into()
             }
         );
-        assert!(matches!(
+        assert_eq!(
             repos[3].compatibility,
-            Compatibility::Unsupported { .. }
-        ));
+            Compatibility::Runnable {
+                runtime: "python-hf".into()
+            }
+        );
         assert!(matches!(
             repos[4].compatibility,
             Compatibility::Unsupported { .. }
@@ -4491,6 +4548,7 @@ mod tests {
             [
                 "model-00001-of-00002.safetensors",
                 "model-00002-of-00002.safetensors",
+                "README.md",
                 "chat_template.jinja",
                 "config.json",
                 "generation_config.json",
@@ -4503,7 +4561,7 @@ mod tests {
         );
         assert_eq!(v.shards[0].sha256.as_deref(), Some(oid.as_str()));
         assert_eq!(v.shards[0].size_bytes, 4_000_000_000);
-        assert!(v.shards.iter().all(|s| s.total_shards == 10));
+        assert!(v.shards.iter().all(|s| s.total_shards == 11));
         assert!(v.shards[0]
             .download_url
             .ends_with("Qwen/Qwen2.5-7B-Instruct/resolve/main/model-00001-of-00002.safetensors"));
@@ -4530,8 +4588,62 @@ mod tests {
         // The companions pass the download check as text files.
         assert!(is_safetensors_repo_file("chat_template.jinja"));
         assert!(is_safetensors_repo_file("tokenizer.model"));
-        assert!(!is_safetensors_repo_file("README.md"));
+        // The model card names the task of a Python engine model.
+        assert!(is_safetensors_repo_file("README.md"));
         assert!(!is_safetensors_repo_file("onnx/model.onnx"));
+        assert!(!is_safetensors_repo_file("figures/benchmark.png"));
+    }
+
+    #[test]
+    fn checkpoint_variant_of_a_pytorch_only_and_a_sentence_transformers_repo() {
+        let file =
+            |p: &str, size: u64| serde_json::json!({"type": "file", "path": p, "size": size});
+        let lfs = |p: &str, size: u64, oid: &str| serde_json::json!({"type": "file", "path": p, "size": 100, "lfs": {"size": size, "oid": oid}});
+        let oid = "b".repeat(64);
+        // PyTorch weights are taken only when the repo has no safetensors.
+        let bin_only = vec![
+            file("config.json", 700),
+            file("vocab.txt", 200_000),
+            lfs("pytorch_model.bin", 400_000_000, &oid),
+            lfs("tf_model.h5", 400_000_000, &oid),
+            lfs("flax_model.msgpack", 400_000_000, &oid),
+        ];
+        let v = safetensors_variants("dandelin/vilt-b32-finetuned-vqa", &bin_only).unwrap();
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(names, ["pytorch_model.bin", "config.json", "vocab.txt"]);
+        let both = vec![
+            file("config.json", 700),
+            lfs("model.safetensors", 4, &oid),
+            lfs("pytorch_model.bin", 4, &oid),
+        ];
+        let v = safetensors_variants("a/b", &both).unwrap();
+        assert!(!v[0].shards.iter().any(|s| s.filename.ends_with(".bin")));
+        // sentence-transformers modules come along; ONNX and OpenVINO exports do not.
+        let st = vec![
+            file("config.json", 700),
+            file("modules.json", 300),
+            file("sentence_bert_config.json", 50),
+            file("1_Pooling/config.json", 200),
+            lfs("2_Dense/model.safetensors", 10, &oid),
+            file("2_Dense/config.json", 100),
+            lfs("model.safetensors", 90_000_000, &oid),
+            lfs("onnx/model.onnx", 90_000_000, &oid),
+            lfs("openvino/openvino_model.bin", 90_000_000, &oid),
+        ];
+        let v = safetensors_variants("sentence-transformers/x", &st).unwrap();
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "model.safetensors",
+                "1_Pooling/config.json",
+                "2_Dense/config.json",
+                "2_Dense/model.safetensors",
+                "config.json",
+                "modules.json",
+                "sentence_bert_config.json",
+            ]
+        );
     }
 
     /// Real Hugging Face: with `include_non_gguf` a safetensors repo is listed and classified
