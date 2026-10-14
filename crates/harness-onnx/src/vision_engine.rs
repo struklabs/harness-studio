@@ -106,6 +106,15 @@ fn pick_outputs(names: &[&str], task: VisionTask) -> Result<Vec<String>, String>
     }
 }
 
+/// Whether open-vocabulary detection outputs agree: `logits` `[patches, queries]` with one
+/// query per label, `pred_boxes` `[patches, 4]`.
+fn open_detection_fits(logits: usize, boxes: usize, queries: usize) -> bool {
+    queries > 0
+        && boxes.is_multiple_of(4)
+        && logits.is_multiple_of(queries)
+        && logits / queries == boxes / 4
+}
+
 /// Loads a vision model and runs one warm-up image through it.
 pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, String> {
     let (session, provider) = build_session(&package.onnx_path, opts.provider, opts.threads)?;
@@ -344,9 +353,11 @@ impl VisionEngine {
             VisionTask::ZeroShot => {
                 let (shape, data) = &outputs[0];
                 let n = job.candidate_labels.len();
-                let row = data
-                    .get(..n)
-                    .ok_or_else(|| bad("logits_per_image", shape))?;
+                // One image: a row of one score per label.
+                if data.len() != n {
+                    return Err(bad("logits_per_image", shape));
+                }
+                let row = &data[..];
                 let multi = self.text.as_ref().is_some_and(|t| t.sigmoid);
                 Ok(vision::labels_response(&vision::classify(
                     row,
@@ -378,8 +389,11 @@ impl VisionEngine {
                 Ok(vision::nested(&dims, data))
             }
             VisionTask::ZeroShotDetect => {
-                let (_, logits) = &outputs[0];
+                let (shape, logits) = &outputs[0];
                 let (_, boxes) = &outputs[1];
+                if !open_detection_fits(logits.len(), boxes.len(), job.candidate_labels.len()) {
+                    return Err(bad("logits", shape));
+                }
                 // OWLv2 boxes are relative to the padded square.
                 let (fw, fh) = if self.package.preprocess.pad_square {
                     let side = width.max(height);
@@ -392,8 +406,8 @@ impl VisionEngine {
                     boxes,
                     &job.candidate_labels,
                     job.threshold,
-                    fw,
-                    fh,
+                    (fw, fh),
+                    (width, height),
                 );
                 if let Some(k) = job.top_k {
                     found.truncate(k);
@@ -406,7 +420,7 @@ impl VisionEngine {
                     .decoder
                     .as_ref()
                     .ok_or_else(|| ApiError::server("the captioner has no decoder"))?;
-                let ids = decoder.generate(data, shape, job.max_new_tokens)?;
+                let ids = decoder.generate(data, shape, job.max_new_tokens, None)?;
                 let text = decoder.decode(&ids)?;
                 Ok(serde_json::json!([{ "generated_text": text }]))
             }
@@ -500,6 +514,18 @@ fn pad_batch(rows: &[Vec<i64>], pad: i64, fixed: Option<usize>) -> TextBatch {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn open_detection_outputs_must_match_the_labels() {
+        // 3 patches x 2 labels, 3 boxes.
+        assert!(open_detection_fits(6, 12, 2));
+        // The graph scored 3 queries, the request named 2.
+        assert!(!open_detection_fits(9, 12, 2));
+        // 6 logits as 2 labels is 3 patches, but there are 4 boxes.
+        assert!(!open_detection_fits(6, 16, 2));
+        assert!(!open_detection_fits(6, 13, 2));
+        assert!(!open_detection_fits(0, 0, 0));
+    }
 
     #[test]
     fn siglip_sentences_are_canonical() {

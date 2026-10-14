@@ -241,6 +241,9 @@ fn pipeline_package(path: &Path) -> Option<(String, &'static str, Vec<PathBuf>)>
         let others = p.caption.iter().map(|c| c.decoder_path.clone()).collect();
         return Some((p.name.clone(), p.task.pipeline_task(), others));
     }
+    if let Some(p) = harness_onnx::seq2seq_pkg::Seq2SeqPackage::discover(path) {
+        return Some((p.name.clone(), p.task, vec![p.decoder_path.clone()]));
+    }
     harness_onnx::audio_pkg::AudioPackage::discover(path)
         .map(|p| (p.name, "audio-classification", Vec::new()))
 }
@@ -1392,6 +1395,32 @@ mod tests {
         assert_eq!(models.len(), 1, "the decoder belongs to the encoder");
         let m = &models[0];
         assert_eq!(m.task.as_deref(), Some("image-to-text"));
+        assert_eq!(m.size_bytes, 800);
+    }
+
+    #[test]
+    fn scans_an_onnx_translator_as_one_model() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("Xenova").join("opus-mt-en-de");
+        let onnx = repo.join("onnx");
+        fs::create_dir_all(&onnx).unwrap();
+        fs::write(
+            repo.join("config.json"),
+            r#"{"architectures":["MarianMTModel"],"model_type":"marian","decoder_start_token_id":58100}"#,
+        )
+        .unwrap();
+        fs::write(repo.join("tokenizer.json"), "{}").unwrap();
+        fs::write(onnx.join("encoder_model_quantized.onnx"), vec![0u8; 300]).unwrap();
+        fs::write(
+            onnx.join("decoder_model_merged_quantized.onnx"),
+            vec![0u8; 500],
+        )
+        .unwrap();
+        let models = ModelManager.scan_directories(&[tmp.path().to_path_buf()]);
+        assert_eq!(models.len(), 1, "the decoder belongs to the encoder");
+        let m = &models[0];
+        assert_eq!(m.kind, crate::domain::ModelKind::Pipeline);
+        assert_eq!(m.task.as_deref(), Some("translation"));
         assert_eq!(m.size_bytes, 800);
     }
 

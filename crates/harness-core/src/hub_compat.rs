@@ -70,7 +70,7 @@ pub const MISTRALRS_FAMILY: &str = crate::engine::MISTRALRS;
 pub const MISTRALRS_TASKS: [&str; 2] = ["text-generation", "image-text-to-text"];
 /// Hub tasks (`pipeline_tag`) whose ONNX repos the ONNX family runs: an ONNX file of any other
 /// task (vision, speech, generation, classification) is a graph Harness has no server for.
-pub const ONNX_TASKS: [&str; 17] = [
+pub const ONNX_TASKS: [&str; 20] = [
     "feature-extraction",
     "sentence-similarity",
     "text-ranking",
@@ -95,6 +95,10 @@ pub const ONNX_TASKS: [&str; 17] = [
     "image-to-text",
     // Open-vocabulary detectors (OWL-ViT, OWLv2): boxes for the labels of the request.
     "zero-shot-object-detection",
+    // Text encoder-decoders (T5, BART, Marian): an encoder and a text decoder.
+    "summarization",
+    "translation",
+    "text2text-generation",
 ];
 
 /// Hub tasks of the onnxruntime-genai chat models the ONNX family runs (a repo with
@@ -294,6 +298,30 @@ pub fn has_ctc_files(files: &[String]) -> bool {
             let graph = f.strip_prefix("onnx/").unwrap_or(f);
             graph.ends_with(".onnx") && !graph.contains(['/', '\\'])
         })
+}
+
+/// Whether the sidecar serves the ONNX repo of `task` whose `config` (`config.json` as the Hub
+/// listing gives it) is this: the generative tasks are served for some architectures only (T5 /
+/// BART / Marian, not mBART / M2M100 / NLLB; ViT + GPT-2 captioners, not BLIP / GIT). Without a
+/// config, or for the other tasks, the task alone decides.
+pub fn onnx_config_served(task: Option<&str>, config: Option<&serde_json::Value>) -> bool {
+    let Some(config) = config else {
+        return true;
+    };
+    let architectures = || -> Vec<&str> {
+        config
+            .get("architectures")
+            .and_then(|a| a.as_array())
+            .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
+            .unwrap_or_default()
+    };
+    match task {
+        Some("summarization" | "translation" | "text2text-generation") => {
+            harness_onnx::seq2seq_pkg::is_seq2seq_config(config)
+        }
+        Some("image-to-text") => architectures().contains(&"VisionEncoderDecoderModel"),
+        _ => true,
+    }
 }
 
 /// Whether `task` is one the ONNX family serves ([`ONNX_TASKS`]).
@@ -626,6 +654,31 @@ mod tests {
 
     fn s(items: &[&str]) -> Vec<String> {
         items.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn onnx_generators_are_served_for_known_architectures_only() {
+        let served =
+            |task, config: serde_json::Value| onnx_config_served(Some(task), Some(&config));
+        let marian =
+            serde_json::json!({"model_type": "marian", "architectures": ["MarianMTModel"]});
+        let nllb = serde_json::json!({"model_type": "m2m_100", "architectures": ["M2M100ForConditionalGeneration"]});
+        assert!(served("translation", marian));
+        assert!(!served("translation", nllb));
+        assert!(served(
+            "image-to-text",
+            serde_json::json!({"architectures": ["VisionEncoderDecoderModel"]})
+        ));
+        assert!(!served(
+            "image-to-text",
+            serde_json::json!({"architectures": ["BlipForConditionalGeneration"]})
+        ));
+        // Other tasks, and listings without a config, are left to the task.
+        assert!(served(
+            "image-classification",
+            serde_json::json!({"model_type": "vit"})
+        ));
+        assert!(onnx_config_served(Some("translation"), None));
     }
 
     #[test]
