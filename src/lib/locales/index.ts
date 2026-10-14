@@ -57,11 +57,12 @@ import pipeline from './pipeline';
 import lemonade from './lemonade';
 import convert from './convert';
 import mistralrs from './mistralrs';
+import pyhf from './pyhf';
 import engines from './engines';
 
 // Common accessible field-help text.
 
-const namespaces = [uiLevel, menus, help, create, common, fit, kv, hub, settings, connections, perf, onboarding, dashboard, playground, servers, benchmark, importNs, caps, params, security, presets, library, embed, developer, recovery, gateway, harnessMcp, integrations, agentModels, analytics, ollama, responses, loading, runtimes, split, compaction, shell, ui, hfAuth, errors, errorsDownloads, errorsIntegrations, errorsRuntime, errorsStore, rag, errorsRag, tools, toolDiag, whisper, sdcpp, tts, sherpaAsr, onnx, pipeline, lemonade, convert, mistralrs, engines] as const;
+const namespaces = [uiLevel, menus, help, create, common, fit, kv, hub, settings, connections, perf, onboarding, dashboard, playground, servers, benchmark, importNs, caps, params, security, presets, library, embed, developer, recovery, gateway, harnessMcp, integrations, agentModels, analytics, ollama, responses, loading, runtimes, split, compaction, shell, ui, hfAuth, errors, errorsDownloads, errorsIntegrations, errorsRuntime, errorsStore, rag, errorsRag, tools, toolDiag, whisper, sdcpp, tts, sherpaAsr, onnx, pipeline, lemonade, convert, mistralrs, pyhf, engines] as const;
 
 type UnionToIntersection<U> = (U extends unknown ? (value: U) => void : never) extends (value: infer I) => void ? I : never;
 export type Dictionary = UnionToIntersection<(typeof namespaces)[number]['tr']>;

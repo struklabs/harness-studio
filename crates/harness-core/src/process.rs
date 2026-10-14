@@ -411,6 +411,18 @@ const PROTECTED_ENV_VARS: &[&str] = &[
     "LLAMA_ARG_AGENT",
 ];
 
+/// Proxy variables a Python worker never inherits (Python's HTTP clients read either case).
+const PROXY_ENV_VARS: [&str; 8] = [
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "NO_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+    "no_proxy",
+];
+
 /// What the UI and telemetry need to talk to the running server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -560,7 +572,13 @@ pub struct ProcessManager {
     /// Automatic-port runs restarted on another port after llama-server could not bind its
     /// port (another program took it between our check and its bind); reset by a user start.
     port_retries: Arc<std::sync::atomic::AtomicU32>,
+    /// The port-to-socket relay of an isolated Python worker run and its socket folder (the
+    /// task is aborted and the folder removed when the run ends).
+    relay: Arc<Mutex<Option<WorkerRelay>>>,
 }
+
+/// The relay task of an isolated Python worker and the folder of its Unix socket.
+type WorkerRelay = (tokio::task::JoinHandle<()>, PathBuf);
 
 /// Bind failures on an automatic port retried on the next free one before the start fails.
 pub const MAX_PORT_RETRIES: u32 = 3;
@@ -661,6 +679,7 @@ impl Default for ProcessManager {
             restart: Arc::new(Mutex::new(RestartTrack::default())),
             readers: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             port_retries: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            relay: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -1189,6 +1208,12 @@ impl ProcessManager {
                 },
                 notes: Vec::new(),
             }
+        } else if engine.family() == crate::engine::PYTHON_HF {
+            // Embedding and ranking models keep their OpenAI routes; other tasks are pipelines.
+            crate::serve_mode::Prepared {
+                mode: crate::engine::python_hf::serve_mode(&launch.model_path),
+                notes: Vec::new(),
+            }
         } else {
             crate::serve_mode::Prepared {
                 mode: crate::engine::serve_mode_of(engine.family()),
@@ -1392,11 +1417,24 @@ impl ProcessManager {
             }
             *self.launch_config.lock().unwrap() = Some(stored);
         }
+        // A Python worker always has a key (the user's, else one for this run): its port is a
+        // relay any local process could reach.
+        let is_worker = engine.worker_env("").is_some();
+        let worker_key = if is_worker {
+            match config.api_key.clone().filter(|k| !k.is_empty()) {
+                Some(key) => Some(key),
+                None => Some(crate::network::generate_api_key().map_err(|e| self.set_error(e))?),
+            }
+        } else {
+            None
+        };
         *self.active.lock().unwrap() = Some(ActiveServerInfo {
             connect_host: connect_host(&config.host),
             bind_host: config.host.clone(),
             port: config.port,
-            api_key: config.api_key.clone().filter(|k| !k.is_empty()),
+            api_key: worker_key
+                .clone()
+                .or_else(|| config.api_key.clone().filter(|k| !k.is_empty())),
             api_key_set: config.api_key.as_deref().is_some_and(|k| !k.is_empty()),
             model_path: model_target.clone(),
             router_mode: config.router_mode,
@@ -1436,7 +1474,55 @@ impl ProcessManager {
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."));
 
-        let mut cmd = Command::new(&config.binary_path);
+        // An isolated Python worker (no network) listens on a Unix socket; the port is relayed
+        // to it.
+        self.stop_relay();
+        let isolated = is_worker && crate::pyenv::isolation::available() && engine.uses_socket();
+        // On Linux a worker that can run without network must: no isolation (unprivileged user
+        // namespaces turned off) is a refusal with the reason, not a silent fallback.
+        if cfg!(target_os = "linux") && is_worker && engine.uses_socket() && !isolated {
+            let reason = crate::pyenv::isolation::status()
+                .reason
+                .clone()
+                .unwrap_or_default();
+            return Err(self.set_error(
+                err("pyenv.isolation_unavailable")
+                    .with("reason", reason)
+                    .into(),
+            ));
+        }
+        let mut cmd = if isolated {
+            #[cfg(unix)]
+            {
+                match self.start_relay(&config).await {
+                    Ok(socket) => engine.listen_on_socket(&mut args, &socket),
+                    Err(e) => return Err(self.set_error(e)),
+                }
+            }
+            let mut cmd = Command::new("unshare");
+            cmd.args(["--user", "--map-root-user", "--net", "--"])
+                .arg(&config.binary_path);
+            cmd
+        } else {
+            Command::new(&config.binary_path)
+        };
+        if let Some(env) = worker_key.as_deref().and_then(|key| engine.worker_env(key)) {
+            // Models are local: no proxy is ever needed, and an inherited one is a way out.
+            for var in PROXY_ENV_VARS {
+                cmd.env_remove(var);
+            }
+            self.push_log(format!(
+                "[Harness Studio] Python worker: {}",
+                if isolated {
+                    "isolated (no network)"
+                } else {
+                    "not isolated"
+                }
+            ));
+            for (var, value) in env {
+                cmd.env(var, value);
+            }
+        }
         cmd.args(&args)
             .current_dir(cwd)
             .stdin(Stdio::null())
@@ -1501,6 +1587,7 @@ impl ProcessManager {
         let mut child_group = match group.spawn() {
             Ok(c) => c,
             Err(e) => {
+                self.stop_relay();
                 self.record_failure(crate::failure::spawn_failure(&e));
                 return Err(self.set_error(
                     err("process.spawn_failed")
@@ -1579,6 +1666,51 @@ impl ProcessManager {
         Ok(())
     }
 
+    /// Aborts the relay of the last isolated Python worker run, if any, and removes its socket.
+    fn stop_relay(&self) {
+        if let Some((task, dir)) = self.relay.lock().unwrap().take() {
+            task.abort();
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+
+    /// Binds the run's port and relays it to a Unix socket in a private folder; returns the
+    /// socket path the worker should listen on.
+    #[cfg(unix)]
+    async fn start_relay(&self, config: &LaunchConfig) -> Result<PathBuf, String> {
+        let parent = std::env::var_os("XDG_RUNTIME_DIR")
+            .map(PathBuf::from)
+            .filter(|p| p.is_dir())
+            .unwrap_or_else(crate::paths::config_dir)
+            .join("harness-studio");
+        // A short, stable folder name (server ids can be long): `sun_path` holds 107 bytes.
+        use sha2::Digest;
+        let digest = crate::hex::lower(&sha2::Sha256::digest(self.id.as_bytes()));
+        let dir = crate::pyenv::isolation::socket_dir(&parent, &format!("w-{}", &digest[..12]))?;
+        let socket = dir.join("w.sock");
+        if socket.as_os_str().len() > 107 {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err(err("pyenv.socket_path_too_long")
+                .with("path", socket.display())
+                .into());
+        }
+        let _ = std::fs::remove_file(&socket);
+        let listener = tokio::net::TcpListener::bind((config.host.as_str(), config.port))
+            .await
+            .map_err(|e| {
+                String::from(
+                    err("process.spawn_failed")
+                        .with("program", format!("relay :{}", config.port))
+                        .with("error", e),
+                )
+            })?;
+        *self.relay.lock().unwrap() = Some((
+            crate::pyenv::isolation::relay(listener, socket.clone()),
+            dir,
+        ));
+        Ok(socket)
+    }
+
     fn is_current(&self, generation: u64) -> bool {
         self.generation.load(std::sync::atomic::Ordering::SeqCst) == generation
     }
@@ -1619,6 +1751,7 @@ impl ProcessManager {
                     }
                     self.child.lock().unwrap().take();
                     self.active.lock().unwrap().take();
+                    self.stop_relay();
                     crate::mcp::remove_runtime_config(&self.id);
                     let was_running = self.get_status() == ServerStatus::Running;
                     // The reader threads may still be pushing the last lines of the log.
@@ -2096,6 +2229,7 @@ impl ProcessManager {
         }
 
         self.active.lock().unwrap().take();
+        self.stop_relay();
         crate::mcp::remove_runtime_config(&self.id);
         self.set_status(ServerStatus::Stopped);
         self.push_log("[Harness Studio] Server stopped cleanly.".to_string());

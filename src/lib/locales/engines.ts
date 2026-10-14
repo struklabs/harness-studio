@@ -13,7 +13,7 @@ const tr = {
   'eng.list_banner': 'Listedeki bazı modeller için {runtime} motoru gerekli.',
   'eng.drawer_note': 'Bu model için {runtime} motoru gerekli. Modeli indirebilirsiniz ama çalıştırmak için motoru kurmanız gerekir.',
   'eng.group_title': 'Diğer Model Motorları',
-  'eng.group_desc': 'Konuşma, görsel, ses ve ONNX modellerinin ihtiyaç duyduğu ek motorlar. Bir model bunlardan birini istiyorsa buradan tek tıkla kurabilirsiniz; indirilen her dosya doğrulanır.',
+  'eng.group_desc': 'Konuşma, görsel, ses, ONNX ve Hugging Face görev modellerinin ihtiyaç duyduğu ek motorlar. Bir model bunlardan birini istiyorsa buradan tek tıkla kurabilirsiniz; indirilen her dosya doğrulanır.',
   'eng.state_installed': 'Kurulu',
   'eng.state_missing': 'Kurulu Değil',
   'eng.desc_whisper': 'Konuşma tanıma ve dikte (whisper ggml modelleri).',
@@ -23,6 +23,11 @@ const tr = {
   'eng.desc_lemonade': 'Ryzen AI NPU ve kendi llama.cpp arka uçlarıyla çalışan Lemonade sunucusu.',
   'eng.desc_lemonade_mac': 'Kendi llama.cpp (Metal) arka ucuyla çalışan Lemonade sunucusu. Ryzen AI NPU desteği yalnız Windows ve Linux’ta.',
   'eng.desc_mistralrs': 'Safetensors sohbet modelleri. Hazır indirme yok; kendi derlemenizi eklersiniz.',
+  'eng.desc_pyhf': 'Hugging Face görev modelleri (sınıflandırma, NER, soru-cevap, özetleme, çeviri, görüntü, konuşma, diffusers) için Python motoru. CPU sürümü, yaklaşık {size} iner; model ağ erişimi olmadan çalışır.',
+  'eng.desc_pyhf_other': 'Hugging Face görev modelleri (sınıflandırma, NER, soru-cevap, özetleme, çeviri, görüntü, konuşma, diffusers) için Python motoru. CPU sürümü, yaklaşık {size} iner; model yalnız bu bilgisayardan ve her çalıştırmaya özel bir anahtarla erişilebilir.',
+  'eng.cancel': 'Durdur',
+  'eng.remove': 'Kaldır ({size})',
+  'eng.removed': '{runtime} kaldırıldı.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -37,7 +42,7 @@ const en: Record<keyof typeof tr, string> = {
   'eng.list_banner': 'Some models in this list need the {runtime} runtime.',
   'eng.drawer_note': 'This model needs the {runtime} runtime. You can download the model, but you need to install the runtime to run it.',
   'eng.group_title': 'Other Runtimes',
-  'eng.group_desc': 'Extra runtimes that speech, image, voice and ONNX models need. When a model asks for one, you can install it here in one click; every downloaded file is verified.',
+  'eng.group_desc': 'Extra runtimes that speech, image, voice, ONNX and Hugging Face task models need. When a model asks for one, you can install it here in one click; every downloaded file is verified.',
   'eng.state_installed': 'Installed',
   'eng.state_missing': 'Not Installed',
   'eng.desc_whisper': 'Speech recognition and dictation (whisper ggml models).',
@@ -47,6 +52,11 @@ const en: Record<keyof typeof tr, string> = {
   'eng.desc_lemonade': 'The Lemonade server, with the Ryzen AI NPU and its own llama.cpp backends.',
   'eng.desc_lemonade_mac': 'The Lemonade server, with its own llama.cpp (Metal) backend. Ryzen AI NPU support is Windows and Linux only.',
   'eng.desc_mistralrs': 'Safetensors chat models. There is no ready download; you add your own build.',
+  'eng.desc_pyhf': 'Python runtime for Hugging Face task models (classification, NER, question answering, summarization, translation, vision, speech, diffusers). CPU build, about {size} to download; models run without network access.',
+  'eng.desc_pyhf_other': 'Python runtime for Hugging Face task models (classification, NER, question answering, summarization, translation, vision, speech, diffusers). CPU build, about {size} to download; a model is reachable only from this computer and with a key of its own for every run.',
+  'eng.cancel': 'Stop',
+  'eng.remove': 'Remove ({size})',
+  'eng.removed': '{runtime} removed.',
 };
 
 export default { tr, en };
