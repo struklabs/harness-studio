@@ -22,6 +22,7 @@
     target_dir_on_path: boolean;
     translocated: boolean;
     appimage: boolean;
+    on_path: boolean;
     profile: string | null;
   }
 
@@ -91,7 +92,10 @@
             .filter(Boolean)
             .join(' ')}
     >
-      {#if status.registered}
+      {#if status.on_path && !status.registered}
+        <!-- A package install (the .deb's /usr/bin): already reachable, nothing to link. -->
+        <Badge variant="outline" class="text-success">{t('cli.on_path')}</Badge>
+      {:else if status.registered}
         <Badge variant="outline" class="text-success">{t('cli.on_path')}</Badge>
         <Button size="sm" variant="outline" disabled={busy} onclick={() => run('cli_path_uninstall')}>{t('cli.remove')}</Button>
       {:else}

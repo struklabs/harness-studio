@@ -282,6 +282,9 @@ pub struct CliStatus {
     pub translocated: bool,
     /// Linux: the CLI runs from inside an AppImage; [`install`] refuses (the .deb links it).
     pub appimage: bool,
+    /// The CLI's own folder is already on PATH (a package install: the .deb puts it in
+    /// `/usr/bin`): nothing to add.
+    pub on_path: bool,
 }
 
 pub fn status(cli: Option<&CliLocation>) -> CliStatus {
@@ -295,10 +298,19 @@ pub fn status(cli: Option<&CliLocation>) -> CliStatus {
         profile: platform::profile().map(|p| p.to_string_lossy().into_owned()),
         translocated: cli.is_some_and(|c| refuse_translocated(&c.path).is_err()),
         appimage: cli.is_some_and(|c| is_appimage_mount(&c.path)),
+        on_path: cli.is_some_and(|c| dir_on_path(&c.path, super::launch::search_path().as_deref())),
         target: cli
             .and_then(|c| platform::target(&c.path))
             .map(|t| t.to_string_lossy().into_owned()),
     }
+}
+
+/// Whether the folder of `cli` is one of `path_var`'s entries.
+fn dir_on_path(cli: &Path, path_var: Option<&std::ffi::OsStr>) -> bool {
+    let Some(dir) = cli.parent() else {
+        return false;
+    };
+    path_var.is_some_and(|p| std::env::split_paths(p).any(|d| d == dir))
 }
 
 /// Adds the CLI to the user's PATH (Windows) or links it into `~/.local/bin` (elsewhere).
@@ -731,6 +743,17 @@ mod tests {
             refuse_translocated(Path::new("/x/AppTranslocation/u/d/harness")).is_err(),
             cfg!(target_os = "macos")
         );
+    }
+
+    #[test]
+    fn a_cli_in_a_path_folder_needs_no_link() {
+        let path = std::env::join_paths(["/usr/local/bin", "/usr/bin"]).unwrap();
+        assert!(dir_on_path(Path::new("/usr/bin/harness"), Some(&path)));
+        assert!(!dir_on_path(
+            Path::new("/opt/Harness Studio/harness"),
+            Some(&path)
+        ));
+        assert!(!dir_on_path(Path::new("/usr/bin/harness"), None));
     }
 
     #[test]

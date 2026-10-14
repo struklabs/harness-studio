@@ -1,7 +1,8 @@
 <script lang="ts">
   // Offers the bundled `harness` CLI on the user's PATH (same backend as Settings > Developer > CLI).
   // Nothing is changed here: the wizard applies the choice when it finishes. Hidden when there is
-  // no CLI binary, it is already reachable from new terminals, or it cannot be linked (inside a
+  // no CLI binary, it is already reachable from new terminals (linked, or installed on PATH by a
+  // package such as the .deb), or it cannot be linked (inside a
   // running AppImage, or a translocated macOS app: the backend refuses those paths).
   import { onMount } from 'svelte';
   import { invoke } from '#lib/ipc.js';
@@ -17,6 +18,8 @@
     translocated: boolean;
     /** Linux: the CLI is inside the running AppImage's mount. */
     appimage: boolean;
+    /** Its folder is already on PATH (the .deb's /usr/bin). */
+    on_path: boolean;
   }
 
   interface Props {
@@ -31,7 +34,7 @@
   onMount(async () => {
     try {
       const s = await invoke<CliStatus>('cli_status', { userPath: null });
-      offer = Boolean(s.path) && !s.registered && s.source !== 'path' && !s.appimage && !s.translocated;
+      offer = Boolean(s.path) && !s.registered && !s.on_path && s.source !== 'path' && !s.appimage && !s.translocated;
       // Changing PATH (and, on macOS, the shell profile) is a system change: always opt-in.
       enabled = false;
     } catch {
