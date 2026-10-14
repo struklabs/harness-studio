@@ -67,7 +67,12 @@
   let inferred = $derived(!repo.pipeline_tag && !!repo.inferred_task);
   let support = $derived(taskSupportStore.support(task?.id));
   /** Family that would run the task but is not installed (e.g. stable-diffusion.cpp for images). */
-  let taskNeeds = $derived(taskSupportStore.info(task?.id)?.needs_runtime ?? null);
+  let taskNeeds = $derived(
+    // A diffusers pipeline runs on the Python engine, not on the task's usual stable-diffusion.cpp.
+    'runtime' in repo.compatibility && repo.compatibility.runtime === 'python-hf'
+      ? null
+      : (taskSupportStore.info(task?.id)?.needs_runtime ?? null)
+  );
   let compat = $derived(repo.compatibility);
   /** A safetensors chat model: not run as it is, but the drawer offers the GGUF conversion. */
   let convertible = $derived(canConvert(repo));
