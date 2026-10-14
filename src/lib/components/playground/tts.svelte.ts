@@ -1,13 +1,13 @@
 // One text-to-speech state for the Speech tab and the chat's "Read Aloud" buttons: the
 // installed voice models, the selection, the downloads and the message player.
 import { toast } from 'svelte-sonner';
-import { invoke } from '$lib/ipc';
-import { t } from '$lib/i18n.svelte';
-import { localizeError } from '$lib/network';
-import { app } from '$lib/stores/app.svelte';
-import { engineInstall } from '$lib/stores/engineInstall.svelte';
-import { familyFromError } from '$lib/engines';
-import type { RuntimeDownloadProgress } from '$lib/types';
+import { invoke } from '#lib/ipc.js';
+import { t } from '#lib/i18n.svelte.js';
+import { localizeError } from '#lib/network.js';
+import { app } from '#lib/stores/app.svelte.js';
+import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
+import { familyFromError } from '#lib/engines.js';
+import type { RuntimeDownloadProgress } from '#lib/types.js';
 import { fetchSpeech, pickTtsModel, pickTtsVoice, type TtsModelInfo, type TtsOverview } from './tts';
 import { chunkSpeechText, plainSpeechText } from './ttsText';
 

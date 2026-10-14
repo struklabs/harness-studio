@@ -1,13 +1,13 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { toast } from 'svelte-sonner';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { Button, buttonVariants } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
   import {
     ChevronRight,
     Copy,
@@ -28,7 +28,7 @@
     X,
   } from '@lucide/svelte';
   import { convApi, type ConversationSummary, type Folder } from './conversations';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
 
   interface Props {
     activeId: string | null;

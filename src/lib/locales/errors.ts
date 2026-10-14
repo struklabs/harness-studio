@@ -1,6 +1,6 @@
 // Backend error keys shared by every area (harness_core::error_key). Parameters carry the
 // technical detail untranslated: `{path}`, `{error}` (OS / library text or a nested keyed
-// error, translated by $lib/errors), `{url}`, `{status}`. The CLI prints the English texts
+// error, translated by #lib/errors), `{url}`, `{status}`. The CLI prints the English texts
 // (harness-cli messages.rs compiles this file in): keep each text a single quoted literal.
 const tr = {
   'http.connect_failed_local': 'Sunucuya bağlanılamadı ({url}). Sunucu çalışıyor mu? Sunucular sayfasından kontrol edin.',

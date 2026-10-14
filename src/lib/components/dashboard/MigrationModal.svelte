@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { formatBytes } from '$lib/format';
-  import type { LocalModel, StorageDirInfo } from '$lib/types';
-  import { invoke } from '$lib/ipc';
+  import { formatBytes } from '#lib/format.js';
+  import type { LocalModel, StorageDirInfo } from '#lib/types.js';
+  import { invoke } from '#lib/ipc.js';
   import { onDestroy } from 'svelte';
-  import { t } from '$lib/i18n.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
+  import { t } from '#lib/i18n.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import Field from './parts/Field.svelte';
   import NativeSelect from './parts/NativeSelect.svelte';
 

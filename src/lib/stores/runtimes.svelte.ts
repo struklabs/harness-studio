@@ -1,5 +1,5 @@
-import { invoke } from '$lib/ipc';
-import type { RuntimeView } from '$lib/types';
+import { invoke } from '#lib/ipc.js';
+import type { RuntimeView } from '#lib/types.js';
 
 /**
  * Runtime registry (Settings > Runtime, Dashboard runtime selector): the official runtime

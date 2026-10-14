@@ -1,16 +1,16 @@
 <script lang="ts">
-  import AdvancedOnly from '$lib/components/common/AdvancedOnly.svelte';
+  import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
   // Runtime (llama-server build) of the launch form, with the capability summary of the
   // selected build and the advice from the model's GGUF tensor types (e.g. Bonsai PQ2_0 needs
   // the PrismML fork). Hidden while there is nothing to choose and nothing to warn about.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onMount } from 'svelte';
-  import type { RuntimeAdvice } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { runtimesStore, runtimeBuildLabel } from '$lib/stores/runtimes.svelte';
-  import { security } from '$lib/stores/security.svelte';
-  import { Button } from '$lib/components/ui/button';
+  import type { RuntimeAdvice } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { runtimesStore, runtimeBuildLabel } from '#lib/stores/runtimes.svelte.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import { TriangleAlert } from '@lucide/svelte';
   import Field from './parts/Field.svelte';
   import NativeSelect from './parts/NativeSelect.svelte';

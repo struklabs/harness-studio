@@ -1,4 +1,4 @@
-import type { GeneratorAttempt, GeneratorUsage } from '$lib/tools-client';
+import type { GeneratorAttempt, GeneratorUsage } from '#lib/tools-client.js';
 
 export interface GeneratorProgress {
   history: GeneratorAttempt[];

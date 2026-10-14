@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { getVersion } from '@tauri-apps/api/app';
   import { Check, TriangleAlert } from '@lucide/svelte';
-  import type { AppUpdateInfo, AppUpdateProgress } from '$lib/types';
-  import { formatBytes } from '$lib/format';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Progress } from '$lib/components/ui/progress';
-  import * as Collapsible from '$lib/components/ui/collapsible';
+  import type { AppUpdateInfo, AppUpdateProgress } from '#lib/types.js';
+  import { formatBytes } from '#lib/format.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
 

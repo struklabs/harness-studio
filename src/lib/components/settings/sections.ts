@@ -1,5 +1,5 @@
 import { Cpu, HardDrive, Network, Palette, ShieldCheck, Download, Lock, Code, Stethoscope, Route, Activity, Wrench } from '@lucide/svelte';
-import type { TKey } from '$lib/i18n.svelte';
+import type { TKey } from '#lib/i18n.svelte.js';
 
 export type SectionId = 'runtime' | 'storage' | 'network' | 'security' | 'gateway' | 'tools' | 'developer' | 'otel' | 'appearance' | 'updates' | 'privacy' | 'diagnostics';
 

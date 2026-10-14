@@ -1,11 +1,11 @@
 <script lang="ts">
   // Custom chat template: pick a Jinja file or write one here (starting from the template
   // embedded in the GGUF) and save it as a file the definition points at (--chat-template-file).
-  import { invoke } from '$lib/ipc';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Textarea } from '$lib/components/ui/textarea';
+  import { invoke } from '#lib/ipc.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
   import Field from '../parts/Field.svelte';
   import NativeSelect from '../parts/NativeSelect.svelte';
 

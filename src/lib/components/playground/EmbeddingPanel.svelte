@@ -1,10 +1,10 @@
 <script lang="ts">
   import HelpPopover from '../common/HelpPopover.svelte';
   import Field from '../dashboard/parts/Field.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
+  import { t } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
   import { Play, TriangleAlert } from '@lucide/svelte';
   import TextListInput from './TextListInput.svelte';
   import { InvalidResponseError, fetchEmbeddings, similarityMatrix, type EmbeddingResult } from './embed';

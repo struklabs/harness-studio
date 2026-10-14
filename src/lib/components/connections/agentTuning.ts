@@ -2,8 +2,8 @@
 // prompts, sometimes two at once. They need a large context, flash attention (long prompts are
 // several times slower without it) and the automatic concurrent-request count for agents (every
 // concurrent request keeps an agent-sized share of the shared context; `harness_core::slots`).
-import { invoke } from '$lib/ipc';
-import type { KvLevel } from '$lib/types';
+import { invoke } from '#lib/ipc.js';
+import type { KvLevel } from '#lib/types.js';
 import { fetchWithTimeout } from './net';
 
 /** The fields of the running server's launch config this feature reads. */

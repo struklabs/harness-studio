@@ -1,4 +1,4 @@
-import type { ModelDefinition } from '$lib/types';
+import type { ModelDefinition } from '#lib/types.js';
 import { isSpeechDefinition } from './speechModels';
 
 /** Keep the user's Speech selection while it is still available: a whisper definition (alias) or

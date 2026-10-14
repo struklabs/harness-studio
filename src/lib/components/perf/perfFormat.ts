@@ -1,4 +1,4 @@
-import { t } from '$lib/i18n.svelte';
+import { t } from '#lib/i18n.svelte.js';
 
 /** Placeholder for a value the server or OS doesn't report (never a fake zero). */
 export const NA = '—';

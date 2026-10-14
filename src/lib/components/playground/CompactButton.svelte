@@ -1,10 +1,10 @@
 <script lang="ts">
   import Field from '../dashboard/parts/Field.svelte';
   // Composer action: compact the conversation now, with an optional instruction for the summary.
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import * as Popover from '$lib/components/ui/popover';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import * as Popover from '#lib/components/ui/popover/index.js';
   import { FoldVertical } from '@lucide/svelte';
 
   interface Props {

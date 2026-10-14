@@ -1,18 +1,18 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { invoke } from '$lib/ipc';
-  import { rawError } from '$lib/errors';
+  import { invoke } from '#lib/ipc.js';
+  import { rawError } from '#lib/errors.js';
   import { Check, Package, Cpu } from '@lucide/svelte';
-  import type { BackendStatus, SystemHardwareInfo, RuntimeDetectionInfo, RuntimeDownloadProgress, ReleaseAssetInfo } from '$lib/types';
-  import { BACKEND_TOKEN, backendFallbackText, loadBackendFallback, missingBackendLibraries, backendName, normBackend, saveBackendFallback, type BackendFallbackNote } from '$lib/runtimeBackend';
-  import { formatBytes } from '$lib/format';
-  import { localizeError } from '$lib/network';
-  import { downloadRelease } from '$lib/stores/security.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Progress } from '$lib/components/ui/progress';
-  import { cn } from '$lib/utils';
+  import type { BackendStatus, SystemHardwareInfo, RuntimeDetectionInfo, RuntimeDownloadProgress, ReleaseAssetInfo } from '#lib/types.js';
+  import { BACKEND_TOKEN, backendFallbackText, loadBackendFallback, missingBackendLibraries, backendName, normBackend, saveBackendFallback, type BackendFallbackNote } from '#lib/runtimeBackend.js';
+  import { formatBytes } from '#lib/format.js';
+  import { localizeError } from '#lib/network.js';
+  import { downloadRelease } from '#lib/stores/security.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     /** True while a download is running; the wizard blocks navigation meanwhile. */

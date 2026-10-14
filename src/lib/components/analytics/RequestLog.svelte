@@ -1,16 +1,16 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { ListTree } from '@lucide/svelte';
-  import type { RequestPage, RequestQuery, RequestRow } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import * as Table from '$lib/components/ui/table';
-  import * as Empty from '$lib/components/ui/empty';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import NativeSelect from '$lib/components/dashboard/parts/NativeSelect.svelte';
+  import type { RequestPage, RequestQuery, RequestRow } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import * as Table from '#lib/components/ui/table/index.js';
+  import * as Empty from '#lib/components/ui/empty/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import NativeSelect from '#lib/components/dashboard/parts/NativeSelect.svelte';
   import RequestDetailSheet from './RequestDetailSheet.svelte';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
   import { fmtInt, fmtMs, fmtTime, fmtTps } from './anFormat';
   import { categoryLabel, toolDiagnosis, type ToolCategory } from './toolDiag';
 

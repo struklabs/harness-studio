@@ -1,4 +1,4 @@
-import { loadView, type ViewLoader } from '$lib/components/common/LazyView.svelte';
+import { loadView, type ViewLoader } from '#lib/components/common/LazyView.svelte';
 
 /**
  * Views loaded on first use (see `LazyView`): each is its own JS chunk, so starting the app
@@ -6,17 +6,17 @@ import { loadView, type ViewLoader } from '$lib/components/common/LazyView.svelt
  * loaded component is cached per loader).
  */
 export const views = {
-  create: (() => import('$lib/components/Create.svelte')) as ViewLoader,
-  playground: (() => import('$lib/components/Playground.svelte')) as ViewLoader,
-  servers: (() => import('$lib/components/Servers.svelte')) as ViewLoader,
-  library: (() => import('$lib/components/Library.svelte')) as ViewLoader,
-  hub: (() => import('$lib/components/ModelHub.svelte')) as ViewLoader,
-  connections: (() => import('$lib/components/Connections.svelte')) as ViewLoader,
-  performance: (() => import('$lib/components/PerformanceTab.svelte')) as ViewLoader,
-  analytics: (() => import('$lib/components/Analytics.svelte')) as ViewLoader,
-  settings: (() => import('$lib/components/Settings.svelte')) as ViewLoader,
-  onboarding: (() => import('$lib/components/OnboardingWizard.svelte')) as ViewLoader,
-  presets: (() => import('$lib/components/presets/PresetManager.svelte')) as ViewLoader,
+  create: (() => import('#lib/components/Create.svelte')) as ViewLoader,
+  playground: (() => import('#lib/components/Playground.svelte')) as ViewLoader,
+  servers: (() => import('#lib/components/Servers.svelte')) as ViewLoader,
+  library: (() => import('#lib/components/Library.svelte')) as ViewLoader,
+  hub: (() => import('#lib/components/ModelHub.svelte')) as ViewLoader,
+  connections: (() => import('#lib/components/Connections.svelte')) as ViewLoader,
+  performance: (() => import('#lib/components/PerformanceTab.svelte')) as ViewLoader,
+  analytics: (() => import('#lib/components/Analytics.svelte')) as ViewLoader,
+  settings: (() => import('#lib/components/Settings.svelte')) as ViewLoader,
+  onboarding: (() => import('#lib/components/OnboardingWizard.svelte')) as ViewLoader,
+  presets: (() => import('#lib/components/presets/PresetManager.svelte')) as ViewLoader,
 };
 
 /** Tabs that are a lazy view (the Dashboard is part of the main bundle). */

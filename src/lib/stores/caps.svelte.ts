@@ -1,5 +1,5 @@
-import { invoke } from '$lib/ipc';
-import type { FeatureStatus, FlagInfo, ParamCatalog, ParamSpec, RuntimeCapabilities } from '$lib/types';
+import { invoke } from '#lib/ipc.js';
+import type { FeatureStatus, FlagInfo, ParamCatalog, ParamSpec, RuntimeCapabilities } from '#lib/types.js';
 
 /**
  * Runtime capabilities of the selected server's llama-server binary, the parameter catalog

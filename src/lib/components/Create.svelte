@@ -1,17 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { panes } from '$lib/stores/panes.svelte';
+  import { t } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { panes } from '#lib/stores/panes.svelte.js';
   import AdvancedPageNotice from './common/AdvancedPageNotice.svelte';
-  import { pageLevel } from '$lib/uiLevel';
+  import { pageLevel } from '#lib/uiLevel.js';
   import SectionSidebar from './common/SectionSidebar.svelte';
   import { CREATE_GROUPS, CREATE_PAGES } from './create/navigation';
   import ModelPicker from './create/ModelPicker.svelte';
   import AutoTools from './create/AutoTools.svelte';
   import MyTools from './create/MyTools.svelte';
   import ToolGeneratorDialog from './create/ToolGenerator.svelte';
-  import type { GenerateToolRequest } from '$lib/tools-client';
+  import type { GenerateToolRequest } from '#lib/tools-client.js';
   let active = $state('generator');
   let endpoint = $state<GenerateToolRequest['endpoint'] | null>(null);
   let selectedModel = $state('');

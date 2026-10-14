@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   let { level }: { level?: 'advanced' } = $props();
 </script>
 

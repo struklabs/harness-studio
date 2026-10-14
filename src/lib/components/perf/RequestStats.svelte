@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { TelemetrySnapshot } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
+  import type { TelemetrySnapshot } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
   import StatRow from './StatRow.svelte';
   import { NA, fmtCount, fmtDuration, fmtSeconds, rate } from './perfFormat';
 

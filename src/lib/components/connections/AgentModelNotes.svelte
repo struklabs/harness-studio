@@ -5,14 +5,14 @@
   // the gateway log or only the chat template), a better model when tool calls fail, and how
   // long the first answer waits for the tool's big system prompt.
   import { FlaskConical, TriangleAlert } from '@lucide/svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { locale, t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { rawError } from '$lib/errors';
-  import { cn } from '$lib/utils';
-  import { security } from '$lib/stores/security.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { samePath } from '$lib/stores/domain.svelte';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { locale, t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { rawError } from '#lib/errors.js';
+  import { cn } from '#lib/utils.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { samePath } from '#lib/stores/domain.svelte.js';
   import {
     checkToolCalling,
     findAgentModel,

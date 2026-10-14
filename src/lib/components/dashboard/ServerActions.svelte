@@ -1,20 +1,20 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { onDestroy } from 'svelte';
-  import type { LocalModel, ServerStatus, AppSettings, RecoveryOption } from '$lib/types';
-  import { canRecover, serverErrorText } from '$lib/failure';
+  import type { LocalModel, ServerStatus, AppSettings, RecoveryOption } from '#lib/types.js';
+  import { canRecover, serverErrorText } from '#lib/failure.js';
   import RecoveryDialog from './RecoveryDialog.svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
-  import { app } from '$lib/stores/app.svelte';
-  import { t } from '$lib/i18n.svelte';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
   import { Play, Square, ExternalLink, CircleAlert, Search, LoaderCircle, Bookmark, LifeBuoy, TimerReset, MoreHorizontal } from '@lucide/svelte';
-  import { Button, buttonVariants } from '$lib/components/ui/button';
-  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import { shortWindow } from '$lib/stores/panes.svelte';
-  import { cn } from '$lib/utils';
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
+  import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+  import { shortWindow } from '#lib/stores/panes.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 
   interface Props {
     serverStatus: ServerStatus;

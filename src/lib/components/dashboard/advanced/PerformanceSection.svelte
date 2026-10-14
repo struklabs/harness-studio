@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
-  import type { SystemHardwareInfo } from '$lib/types';
-  import { Input } from '$lib/components/ui/input';
-  import { capsStore } from '$lib/stores/caps.svelte';
-  import { app } from '$lib/stores/app.svelte';
+  import { t } from '#lib/i18n.svelte.js';
+  import type { SystemHardwareInfo } from '#lib/types.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
   import type { LaunchParamsForm } from '../params';
   import Field from '../parts/Field.svelte';
   import NativeSelect from '../parts/NativeSelect.svelte';

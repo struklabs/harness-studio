@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { ServerStatus } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
+  import type { ServerStatus } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
   import { STATUS_LABEL, statusError, statusKind } from './utils';
-  import { cn } from '$lib/utils';
+  import { cn } from '#lib/utils.js';
   import Play from '@lucide/svelte/icons/play';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
   import Square from '@lucide/svelte/icons/square';

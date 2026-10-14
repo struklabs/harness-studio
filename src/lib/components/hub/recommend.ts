@@ -1,4 +1,4 @@
-import type { FitCategory, HfModelVariant } from '$lib/types';
+import type { FitCategory, HfModelVariant } from '#lib/types.js';
 
 /** Leading number of a quant name ("Q4_K_M" -> 4, "IQ3_XS" -> 3, "BF16" -> 16). */
 export function quantBits(q: string): number {

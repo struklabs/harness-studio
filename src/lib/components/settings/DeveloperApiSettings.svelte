@@ -3,18 +3,18 @@
   // Settings > Developer > Control API: the Harness Control API (off by default), its session token and
   // named tokens. Saved through its own commands (validated in the core), not the settings form.
   import { onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { toast } from 'svelte-sonner';
   import { Copy, Eye, EyeOff, ShieldAlert, ExternalLink } from '@lucide/svelte';
-  import type { ControlApiOverview, ControlApiSettings } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Switch } from '$lib/components/ui/switch';
-  import { Textarea } from '$lib/components/ui/textarea';
+  import type { ControlApiOverview, ControlApiSettings } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
   import NumberField from './NumberField.svelte';

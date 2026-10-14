@@ -1,4 +1,4 @@
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 import { isImageFile, loadImage, type PgImage } from './images';
 
 /** Dropped paths that are pictures (the rest are documents for the RAG side). */

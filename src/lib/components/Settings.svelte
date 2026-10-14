@@ -1,15 +1,15 @@
 <script lang="ts">
   import HelpPopover from './common/HelpPopover.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { tick, untrack } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { Check, TriangleAlert } from '@lucide/svelte';
-  import type { AppSettings, SystemHardwareInfo } from '$lib/types';
-  import { t, inAllLanguages } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { cn } from '$lib/utils';
+  import type { AppSettings, SystemHardwareInfo } from '#lib/types.js';
+  import { t, inAllLanguages } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { cn } from '#lib/utils.js';
   import { SettingsDraft } from './settings/form.svelte';
   import RuntimeSettings from './settings/RuntimeSettings.svelte';
   import StorageSettings from './settings/StorageSettings.svelte';
@@ -24,16 +24,16 @@
   import ToolsSettings from './settings/ToolsSettings.svelte';
   import DiagnosticsSettings from './settings/DiagnosticsSettings.svelte';
   import { SETTINGS_SECTIONS, SETTINGS_GROUPS, settingsPage } from './settings/sections';
-  import { security } from '$lib/stores/security.svelte';
-  import { localizeError } from '$lib/network';
-  import { panes } from '$lib/stores/panes.svelte';
-  import { SectionSelection } from '$lib/stores/sectionPage.svelte';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { panes } from '#lib/stores/panes.svelte.js';
+  import { SectionSelection } from '#lib/stores/sectionPage.svelte.js';
   import AdvancedPageNotice from './common/AdvancedPageNotice.svelte';
-  import { pageLevel } from '$lib/uiLevel';
+  import { pageLevel } from '#lib/uiLevel.js';
   import SectionSidebar from './common/SectionSidebar.svelte';
   import { SETTINGS_SEARCH_KEYS } from './settings/searchFields';
   import { revealSettingsField } from './settings/searchTarget';
-  import { holdReleaseWhile } from '$lib/windowActivity';
+  import { holdReleaseWhile } from '#lib/windowActivity.js';
 
   interface Props {
     settings: AppSettings;

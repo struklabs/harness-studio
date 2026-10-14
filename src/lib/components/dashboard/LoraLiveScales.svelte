@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { invoke } from '$lib/ipc';
-  import type { LoraAdapterLive, ServerStatus } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { Button } from '$lib/components/ui/button';
-  import { Slider } from '$lib/components/ui/slider';
+  import { invoke } from '#lib/ipc.js';
+  import type { LoraAdapterLive, ServerStatus } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Slider } from '#lib/components/ui/slider/index.js';
   import { toast } from 'svelte-sonner';
 
   interface Props {

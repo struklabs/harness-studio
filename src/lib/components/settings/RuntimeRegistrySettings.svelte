@@ -1,11 +1,11 @@
 <script lang="ts">
   import HelpPopover from '../common/HelpPopover.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Settings > Runtime > Additional runtimes: the registry of extra llama-server builds (forks
   // such as PrismML's for Bonsai, or local builds). Add from a GitHub release (archive checked
   // against GitHub's SHA-256 digest; an archive without one only after explicit consent) or a
   // local folder (hashed; used in place or copied), verify, remove.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onDestroy, onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
   import type {
@@ -16,19 +16,19 @@
     RuntimeUsers,
     RuntimeVerifyReport,
     RuntimeView,
-  } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { pathExample } from '$lib/platform';
-  import { formatBytes } from '$lib/format';
-  import { localizeError } from '$lib/network';
-  import { runtimeInstallErrorText } from '$lib/runtimeBackend';
-  import { runtimesStore, runtimeBuildLabel } from '$lib/stores/runtimes.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import { Progress } from '$lib/components/ui/progress';
-  import { cn } from '$lib/utils';
+  } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { pathExample } from '#lib/platform.js';
+  import { formatBytes } from '#lib/format.js';
+  import { localizeError } from '#lib/network.js';
+  import { runtimeInstallErrorText } from '#lib/runtimeBackend.js';
+  import { runtimesStore, runtimeBuildLabel } from '#lib/stores/runtimes.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
+  import { cn } from '#lib/utils.js';
   import { Check, FolderOpen, ShieldCheck, TriangleAlert } from '@lucide/svelte';
   import SettingGroup from './SettingGroup.svelte';
 

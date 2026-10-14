@@ -4,14 +4,14 @@
   // picked from disk). Hidden while no MCP server is configured.
   import { onDestroy, onMount } from 'svelte';
   import { Library } from '@lucide/svelte';
-  import { invoke } from '$lib/ipc';
-  import { Button } from '$lib/components/ui/button';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import type { McpConfig } from '$lib/mcp-types';
-  import { getMcpStatus, mcpResourceToFile, type McpServerStatus } from '$lib/tools-client';
+  import { invoke } from '#lib/ipc.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import type { McpConfig } from '#lib/mcp-types.js';
+  import { getMcpStatus, mcpResourceToFile, type McpServerStatus } from '#lib/tools-client.js';
   import NativeSelect from '../dashboard/parts/NativeSelect.svelte';
   import McpResourceList from '../connections/McpResourceList.svelte';
 

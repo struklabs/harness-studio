@@ -1,19 +1,19 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import SettingRow from '../settings/SettingRow.svelte';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { Lock, LockOpen, Network, Route, Settings2, ShieldAlert } from '@lucide/svelte';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import * as Table from '$lib/components/ui/table';
-  import { t } from '$lib/i18n.svelte';
-  import { bindScope } from '$lib/network';
-  import { app } from '$lib/stores/app.svelte';
-  import { security } from '$lib/stores/security.svelte';
-  import type { LanAddress, NetworkOverview } from '$lib/types';
-  import { cn } from '$lib/utils';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Table from '#lib/components/ui/table/index.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { bindScope } from '#lib/network.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import type { LanAddress, NetworkOverview } from '#lib/types.js';
+  import { cn } from '#lib/utils.js';
   import CopyButton from './CopyButton.svelte';
 
   let baseUrl = $derived(app.baseUrl);

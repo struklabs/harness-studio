@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { SlotInfo } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
+  import type { SlotInfo } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
   import { fmtCount } from './perfFormat';
 
   interface Props {

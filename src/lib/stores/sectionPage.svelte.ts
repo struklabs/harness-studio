@@ -1,7 +1,7 @@
 import { onMount } from 'svelte';
-import { initialPage } from '$lib/uiLevel';
+import { initialPage } from '#lib/uiLevel.js';
 import { uiLevel } from './uiLevel.svelte';
-import type { SectionGroup } from '$lib/components/common/sections';
+import type { SectionGroup } from '#lib/components/common/sections.js';
 
 const requested = $state<Record<string, string | undefined>>({});
 export function requestSection(screen: string, id: string) { requested[screen] = id; }

@@ -2,14 +2,14 @@
   import { onMount } from 'svelte';
   import { FolderOpen, Check, TriangleAlert } from '@lucide/svelte';
   import { toast } from 'svelte-sonner';
-  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import { Button } from '$lib/components/ui/button';
-  import { invoke } from '$lib/ipc';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { security } from '$lib/stores/security.svelte';
-  import { getToolSettings, listCoreTools, setToolSettings } from '$lib/tools-client';
-  import { recentFolders, folderName, sameFolder, NO_WORKSPACE } from '$lib/workspace-folders';
+  import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { invoke } from '#lib/ipc.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { getToolSettings, listCoreTools, setToolSettings } from '#lib/tools-client.js';
+  import { recentFolders, folderName, sameFolder, NO_WORKSPACE } from '#lib/workspace-folders.js';
 
   let { value = $bindable(''), disabled = false, conversationKey }: { value: string; disabled?: boolean; conversationKey: number } = $props();
   let folders = $state<string[]>([]);

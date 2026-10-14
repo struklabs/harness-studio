@@ -1,4 +1,4 @@
-import { locale } from '$lib/i18n.svelte';
+import { locale } from '#lib/i18n.svelte.js';
 
 /** Human-readable byte size (1024-based), e.g. 1536 → "1.5 KB" ("1,5 KB" in Turkish). */
 export function formatBytes(bytes: number | null | undefined, decimals = 2): string {

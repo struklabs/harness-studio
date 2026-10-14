@@ -1,5 +1,5 @@
 // My Models: tab membership, search, sorting and small formatters (pure; no Tauri calls).
-import type { LibraryEntry, ModelDefinition, ParamInfo } from '$lib/types';
+import type { LibraryEntry, ModelDefinition, ParamInfo } from '#lib/types.js';
 
 export type LibraryTab = 'all' | 'llm' | 'embedding' | 'vlm' | 'reranker' | 'asr' | 'tts' | 'image' | 'draft' | 'adapter' | 'mmproj';
 export type LibrarySort = 'name' | 'size' | 'last_used' | 'added';

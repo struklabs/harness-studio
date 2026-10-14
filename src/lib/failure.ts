@@ -1,6 +1,6 @@
-import type { ServerFailure, ServerStatus, ServerSummary } from '$lib/types';
-import { t, type TKey } from '$lib/i18n.svelte';
-import { localizeError } from '$lib/network';
+import type { ServerFailure, ServerStatus, ServerSummary } from '#lib/types.js';
+import { t, type TKey } from '#lib/i18n.svelte.js';
+import { localizeError } from '#lib/network.js';
 
 /** Localized message of a classified start failure (`failure.<kind>` with its params). */
 export function failureText(f: ServerFailure): string {

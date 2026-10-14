@@ -1,10 +1,10 @@
 <script lang="ts">
   import { PanelLeftClose, PanelLeftOpen } from '@lucide/svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { visibleGroups } from '$lib/uiLevel';
-  import { cn } from '$lib/utils';
-  import type { PaneState } from '$lib/stores/panes.svelte';
+  import { t } from '#lib/i18n.svelte.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { visibleGroups } from '#lib/uiLevel.js';
+  import { cn } from '#lib/utils.js';
+  import type { PaneState } from '#lib/stores/panes.svelte.js';
   import ResizablePane from './ResizablePane.svelte';
   import type { SectionGroup } from './sections';
   let { pane, label, groups, active, onSelect }: {

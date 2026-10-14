@@ -1,19 +1,19 @@
 <script lang="ts">
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import type { DeviceReport, RuntimeDeviceLive, SlotAdvice, SystemHardwareInfo } from '$lib/types';
-  import { invoke } from '$lib/ipc';
-  import { app } from '$lib/stores/app.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Slider } from '$lib/components/ui/slider';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import type { DeviceReport, RuntimeDeviceLive, SlotAdvice, SystemHardwareInfo } from '#lib/types.js';
+  import { invoke } from '#lib/ipc.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Slider } from '#lib/components/ui/slider/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import type { LaunchParamsForm } from './params';
   import Field from './parts/Field.svelte';
   import NativeSelect from './parts/NativeSelect.svelte';
-  import { capsStore } from '$lib/stores/caps.svelte';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
 
   interface Props {
     page?: string;

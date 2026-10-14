@@ -1,15 +1,15 @@
 <script lang="ts">
   import { toast } from 'svelte-sonner';
-  import { invoke } from '$lib/ipc';
-  import type { AppSettings } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { app } from '$lib/stores/app.svelte';
-  import { unsavedLoad } from '$lib/stores/unsavedLoad.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import { Label } from '$lib/components/ui/label';
-  import * as Dialog from '$lib/components/ui/dialog';
+  import { invoke } from '#lib/ipc.js';
+  import type { AppSettings } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { unsavedLoad } from '#lib/stores/unsavedLoad.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
 
   // Manual load settings were used but not saved: asked once when the user leaves the screen,
   // switches model, stops the server or closes the app (see `unsavedLoad`).

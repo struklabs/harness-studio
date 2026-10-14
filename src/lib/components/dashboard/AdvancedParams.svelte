@@ -1,12 +1,12 @@
 <script lang="ts">
-  import AdvancedOnly from '$lib/components/common/AdvancedOnly.svelte';
-  import type { LocalModel, SystemHardwareInfo } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
+  import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
+  import type { LocalModel, SystemHardwareInfo } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
   import { ListTree } from '@lucide/svelte';
-  import { Input } from '$lib/components/ui/input';
-  import { Button } from '$lib/components/ui/button';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import { toast } from 'svelte-sonner';
-  import { capsStore } from '$lib/stores/caps.svelte';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
   import { toolsExposureRisk, type LaunchParamsForm } from './params';
   import Field from './parts/Field.svelte';
   import PerformanceSection from './advanced/PerformanceSection.svelte';

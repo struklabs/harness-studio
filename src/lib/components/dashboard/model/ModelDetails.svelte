@@ -1,12 +1,12 @@
 <script lang="ts">
-  import AdvancedOnly from '$lib/components/common/AdvancedOnly.svelte';
-  import type { HardwareFitResult, LibraryEntry, LibraryView, LocalModel } from '$lib/types';
-  import { invoke } from '$lib/ipc';
-  import { library } from '$lib/stores/library.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { sourceLabel, type LocalModelExt } from '$lib/import-types';
-  import { Button } from '$lib/components/ui/button';
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
+  import type { HardwareFitResult, LibraryEntry, LibraryView, LocalModel } from '#lib/types.js';
+  import { invoke } from '#lib/ipc.js';
+  import { library } from '#lib/stores/library.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { sourceLabel, type LocalModelExt } from '#lib/import-types.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
   import { Link2, Folder, AlertTriangle } from '@lucide/svelte';
   import FitIndicator from './FitIndicator.svelte';
 

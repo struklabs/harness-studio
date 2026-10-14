@@ -1,4 +1,4 @@
-import type { CoreTool } from '$lib/tools-client';
+import type { CoreTool } from '#lib/tools-client.js';
 
 export interface WorkbenchCall {
   id: string;

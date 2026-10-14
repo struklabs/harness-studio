@@ -12,7 +12,7 @@
    * stays on the first phase.
    */
   import { onMount } from 'svelte';
-  import { t } from '$lib/i18n.svelte';
+  import { t } from '#lib/i18n.svelte.js';
 
   type Shape = 'cards' | 'rows' | 'chart' | 'panel' | 'page' | 'inline';
 

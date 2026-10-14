@@ -1,11 +1,11 @@
 <script lang="ts">
   import { onDestroy, untrack } from 'svelte';
   import { AudioLines, Square, X } from '@lucide/svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
   import { RecordError } from './recorder';
-  import { holdReleaseWhile } from '$lib/windowActivity';
+  import { holdReleaseWhile } from '#lib/windowActivity.js';
   import { createRecordingSession, recordingClock, type RecordingState } from './recordingSession';
   let { onFile, contextKey, blocked = false }: { onFile: (file: File) => void; contextKey: string; blocked?: boolean } = $props();
   let recState = $state<RecordingState>('idle');

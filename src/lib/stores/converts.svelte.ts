@@ -1,15 +1,15 @@
 import { toast } from 'svelte-sonner';
 import { listen } from '@tauri-apps/api/event';
-import { invoke } from '$lib/ipc';
-import { t } from '$lib/i18n.svelte';
-import { localizeError } from '$lib/network';
-import { ACTION_TOAST_DURATION } from '$lib/toast';
-import { app } from '$lib/stores/app.svelte';
-import { library } from '$lib/stores/library.svelte';
-import { samePath } from '$lib/stores/domain.svelte';
-import { ensureDefinition } from '$lib/stores/downloads.svelte';
-import { holdReleaseWhile, onWindowActive, windowActive } from '$lib/windowActivity';
-import type { ConvertJob } from '$lib/types';
+import { invoke } from '#lib/ipc.js';
+import { t } from '#lib/i18n.svelte.js';
+import { localizeError } from '#lib/network.js';
+import { ACTION_TOAST_DURATION } from '#lib/toast.js';
+import { app } from '#lib/stores/app.svelte.js';
+import { library } from '#lib/stores/library.svelte.js';
+import { samePath } from '#lib/stores/domain.svelte.js';
+import { ensureDefinition } from '#lib/stores/downloads.svelte.js';
+import { holdReleaseWhile, onWindowActive, windowActive } from '#lib/windowActivity.js';
+import type { ConvertJob } from '#lib/types.js';
 
 export const isConvertActive = (j: ConvertJob) => j.status === 'queued' || j.status === 'running';
 

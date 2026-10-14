@@ -1,16 +1,16 @@
 <script lang="ts">
   // Settings > Diagnostics: the `harness doctor` report (read-only checks, run on demand).
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
   import { CircleCheck, CircleX, TriangleAlert, LoaderCircle, RefreshCw, Copy } from '@lucide/svelte';
-  import type { DoctorCheck, DoctorReport, DoctorStatus } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { Button } from '$lib/components/ui/button';
-  import { cn } from '$lib/utils';
+  import type { DoctorCheck, DoctorReport, DoctorStatus } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { cn } from '#lib/utils.js';
   import SettingGroup from './SettingGroup.svelte';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
 
   let report = $state<DoctorReport | null>(null);
   let running = $state(false);

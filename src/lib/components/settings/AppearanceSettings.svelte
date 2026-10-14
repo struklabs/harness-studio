@@ -1,16 +1,16 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
-  import type { AppSettings, CloseAction } from '$lib/types';
-  import { applyTheme, baseMode, schemeOf, themeFromSettings, type ThemeId } from '$lib/theme';
+  import type { AppSettings, CloseAction } from '#lib/types.js';
+  import { applyTheme, baseMode, schemeOf, themeFromSettings, type ThemeId } from '#lib/theme.js';
   import Check from '@lucide/svelte/icons/check';
-  import { applyScale, normalizeScale } from '$lib/uiScale';
-  import { setLanguage, getLanguage, t, type Language } from '$lib/i18n.svelte';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
-  import { cn } from '$lib/utils';
+  import { applyScale, normalizeScale } from '#lib/uiScale.js';
+  import { setLanguage, getLanguage, t, type Language } from '#lib/i18n.svelte.js';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
+  import { cn } from '#lib/utils.js';
   import type { SettingsDraft } from './form.svelte';
-  import { app } from '$lib/stores/app.svelte';
+  import { app } from '#lib/stores/app.svelte.js';
   import UiLevelToggle from '../common/UiLevelToggle.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';

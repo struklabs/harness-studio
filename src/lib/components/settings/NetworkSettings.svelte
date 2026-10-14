@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { AppSettings } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
+  import type { AppSettings } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
   import type { SettingsDraft } from './form.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';

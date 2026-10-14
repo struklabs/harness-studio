@@ -1,4 +1,4 @@
-import type { LocalModel, ModelDefinition, ServeMode } from '$lib/types';
+import type { LocalModel, ModelDefinition, ServeMode } from '#lib/types.js';
 import { chatModelsOnly } from '../../chatModels';
 
 /** The library file a definition points at, when it is in `files`. */

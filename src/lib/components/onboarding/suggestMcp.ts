@@ -1,8 +1,8 @@
 // MCP servers other tools on this machine already know (Claude Code, Codex, Cursor, ...), offered
 // by the wizard. Reads through the same backend commands as Connections > MCP > Import.
-import { invoke } from '$lib/ipc';
-import { uniqueServerName, validateMcpConfig } from '$lib/mcp-client';
-import type { McpConfig, McpImportSource, McpImportSourceInfo, McpServerDef } from '$lib/mcp-types';
+import { invoke } from '#lib/ipc.js';
+import { uniqueServerName, validateMcpConfig } from '#lib/mcp-client.js';
+import type { McpConfig, McpImportSource, McpImportSourceInfo, McpServerDef } from '#lib/mcp-types.js';
 
 export const MCP_SOURCE_LABEL: Record<McpImportSource, string> = {
   claude: 'Claude Desktop',

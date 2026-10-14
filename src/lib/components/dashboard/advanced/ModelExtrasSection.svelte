@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { DraftSuggestion, LocalModel } from '$lib/types';
-  import { invoke } from '$lib/ipc';
-  import { t } from '$lib/i18n.svelte';
-  import { Input } from '$lib/components/ui/input';
-  import { capsStore } from '$lib/stores/caps.svelte';
+  import type { DraftSuggestion, LocalModel } from '#lib/types.js';
+  import { invoke } from '#lib/ipc.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
   import type { LaunchParamsForm } from '../params';
   import Field from '../parts/Field.svelte';
   import NativeSelect from '../parts/NativeSelect.svelte';
@@ -12,7 +12,7 @@
   import FeatureBadge from './FeatureBadge.svelte';
   import MetadataOverrides from './MetadataOverrides.svelte';
   import ChatTemplateEditor from './ChatTemplateEditor.svelte';
-  import { pathExample } from '$lib/platform';
+  import { pathExample } from '#lib/platform.js';
 
   interface Props {
     page?: string;

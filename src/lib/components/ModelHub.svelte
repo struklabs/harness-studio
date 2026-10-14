@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { onMount, untrack } from 'svelte';
-  import type { HfModelSearchResult, HfSearchOptions, HfSortKey, SystemHardwareInfo } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { downloads } from '$lib/stores/downloads.svelte';
-  import { library } from '$lib/stores/library.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import * as Empty from '$lib/components/ui/empty';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
-  import { cn } from '$lib/utils';
+  import type { HfModelSearchResult, HfSearchOptions, HfSortKey, SystemHardwareInfo } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { downloads } from '#lib/stores/downloads.svelte.js';
+  import { library } from '#lib/stores/library.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Empty from '#lib/components/ui/empty/index.js';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
+  import { cn } from '#lib/utils.js';
   import { CircleAlert, X, SearchX, Compass, LoaderCircle, RotateCcw, Info } from '@lucide/svelte';
   import CustomDownloadModal from './hub/CustomDownloadModal.svelte';
   import DownloadQueuePanel from './hub/DownloadQueuePanel.svelte';

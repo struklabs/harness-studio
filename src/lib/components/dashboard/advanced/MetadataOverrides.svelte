@@ -1,9 +1,9 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { Input } from '$lib/components/ui/input';
-  import { Button } from '$lib/components/ui/button';
-  import { capsStore } from '$lib/stores/caps.svelte';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
   import type { LaunchParamsForm } from '../params';
   import { METADATA_TYPES, parseMetadataOverrides, serializeMetadataOverrides, validMetadataOverride, type MetadataOverrideRow, type MetadataType } from '../metadataOverrides';
   import NativeSelect from '../parts/NativeSelect.svelte';

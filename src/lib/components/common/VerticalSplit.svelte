@@ -3,7 +3,7 @@
   // splitter): pointer drag, arrows = resize, Home/End = smallest/largest, double-click = the
   // top area's natural height. The chosen height is remembered per `id` (localStorage).
   import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     /** Storage key for the remembered height. */

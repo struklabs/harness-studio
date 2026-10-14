@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import * as Collapsible from '$lib/components/ui/collapsible';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
   import { ChevronRight } from '@lucide/svelte';
-  import { cn } from '$lib/utils';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     title: string;

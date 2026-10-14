@@ -1,11 +1,11 @@
 <script lang="ts">
-  import AdvancedOnly from '$lib/components/common/AdvancedOnly.svelte';
-  import type { FitCategory, HardwareFitResult } from '$lib/types';
-  import { formatBytes } from '$lib/format';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { Button } from '$lib/components/ui/button';
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
+  import type { FitCategory, HardwareFitResult } from '#lib/types.js';
+  import { formatBytes } from '#lib/format.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
   import { ChevronRight } from '@lucide/svelte';
   import KvNote from './KvNote.svelte';
 

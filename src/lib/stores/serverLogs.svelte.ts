@@ -4,8 +4,8 @@
 // written, and a merged view orders by that time (ties by arrival), so lines of different
 // servers that reach the UI in the same push (up to ~250 ms) still come in their real order.
 
-import { invoke } from '$lib/ipc';
-import type { LogEntry } from '$lib/components/dashboard/logFilter';
+import { invoke } from '#lib/ipc.js';
+import type { LogEntry } from '#lib/components/dashboard/logFilter.js';
 
 /** A line as the backend buffers it: text and the moment it was written (ms since the epoch). */
 interface TimedLine {

@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { PerfDetails, TelemetrySnapshot } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { formatBytes } from '$lib/format';
+  import type { PerfDetails, TelemetrySnapshot } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { formatBytes } from '#lib/format.js';
   import StatRow from './StatRow.svelte';
   import { fmtPercent } from './perfFormat';
 

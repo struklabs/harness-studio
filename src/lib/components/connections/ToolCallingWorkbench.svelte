@@ -1,23 +1,23 @@
 <script lang="ts">
   import HelpPopover from '../common/HelpPopover.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { onDestroy, onMount } from 'svelte';
   import { Calculator, CloudSun, FileText, Loader, Play, Wrench } from '@lucide/svelte';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import * as Collapsible from '$lib/components/ui/collapsible';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
-  import { t } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { cn } from '$lib/utils';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { cn } from '#lib/utils.js';
   import { fetchErrorText, fetchWithTimeout } from './net';
   import { streamInto } from '../playground/split';
   import type { ChatMessage } from '../playground/types';
   import MessageContent from '../playground/MessageContent.svelte';
-  import { cancelCoreTool, coreToolDecision, listCoreTools, newRunId, runCoreTool, type CoreTool } from '$lib/tools-client';
+  import { cancelCoreTool, coreToolDecision, listCoreTools, newRunId, runCoreTool, type CoreTool } from '#lib/tools-client.js';
   import { normalizeWorkbenchCall, realWorkbenchCall, runnableWorkbenchTool, sampleToolResult, toolRoundMessages, type WorkbenchCall } from './toolRound';
 
   interface Props {

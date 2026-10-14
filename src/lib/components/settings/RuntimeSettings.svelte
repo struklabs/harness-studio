@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import HelpPopover from '../common/HelpPopover.svelte';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { onMount, onDestroy, untrack } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { Search, Check, X, Compass, TriangleAlert } from '@lucide/svelte';
   import type {
@@ -14,18 +14,18 @@
     RuntimeDownloadProgress,
     RuntimeAutoUpdateStatus,
     BackendStatus,
-  } from '$lib/types';
-  import { BACKEND_TOKEN, backendFallbackText, backendName, loadBackendFallback, normBackend, runtimeInstallErrorText } from '$lib/runtimeBackend';
-  import { formatBytes } from '$lib/format';
-  import { errorCode } from '$lib/errors';
-  import { localizeError } from '$lib/network';
-  import { downloadRelease } from '$lib/stores/security.svelte';
-  import { t, locale, type TKey } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Progress } from '$lib/components/ui/progress';
-  import * as RadioGroup from '$lib/components/ui/radio-group';
-  import { cn } from '$lib/utils';
+  } from '#lib/types.js';
+  import { BACKEND_TOKEN, backendFallbackText, backendName, loadBackendFallback, normBackend, runtimeInstallErrorText } from '#lib/runtimeBackend.js';
+  import { formatBytes } from '#lib/format.js';
+  import { errorCode } from '#lib/errors.js';
+  import { localizeError } from '#lib/network.js';
+  import { downloadRelease } from '#lib/stores/security.svelte.js';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
+  import * as RadioGroup from '#lib/components/ui/radio-group/index.js';
+  import { cn } from '#lib/utils.js';
   import type { SettingsDraft } from './form.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
@@ -36,7 +36,7 @@
   import ConvertEnvSettings from './ConvertEnvSettings.svelte';
   import RuntimeCurrentState from './RuntimeCurrentState.svelte';
   import EngineFamiliesSettings from './EngineFamiliesSettings.svelte';
-  import { pathExample } from '$lib/platform';
+  import { pathExample } from '#lib/platform.js';
 
   interface Props {
     page?: string;

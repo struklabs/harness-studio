@@ -3,15 +3,15 @@
   // Playground split view (P2): two panes, each with its own model (gateway alias or a running
   // server) and preset. Both show the shared history; a split turn shows each side's answer.
   // One composer (in the parent) sends to both.
-  import { presetName } from '$lib/components/presets/presetText';
-  import { t, locale } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { app } from '$lib/stores/app.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Switch } from '$lib/components/ui/switch';
-  import * as Collapsible from '$lib/components/ui/collapsible';
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import { presetName } from '#lib/components/presets/presetText.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
   import NativeSelect from '../dashboard/parts/NativeSelect.svelte';
   import ChatMessage from './ChatMessage.svelte';
   import CompactionDivider from './CompactionDivider.svelte';

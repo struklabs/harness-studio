@@ -1,19 +1,19 @@
 <script lang="ts">
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Settings > Developer > Control API > Named tokens: create (value shown once), edit scopes and the
   // gateway policy (allowed models and endpoints, rate limits), revoke. Validated again in the
   // core (harness_core::control_api / token_policy).
   import { onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { Copy, KeyRound, Pencil, Plus, Trash2 } from '@lucide/svelte';
-  import type { ApiTokenInfo, ApiTokenUpdate, CreatedApiToken } from '$lib/types';
-  import { t, locale } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { app } from '$lib/stores/app.svelte';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
+  import type { ApiTokenInfo, ApiTokenUpdate, CreatedApiToken } from '#lib/types.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
   import SettingGroup from './SettingGroup.svelte';
   import TokenFields from './TokenFields.svelte';
   import {

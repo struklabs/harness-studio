@@ -2,14 +2,14 @@
   // A memory bar (VRAM / RAM) split by who uses it: Harness Studio, each llama-server (its own
   // colour), other programs (gray) and free space (empty). The numbers are the backend's
   // measurements; without a split (`breakdown` null) the bar is a single "used" segment.
-  import { formatBytes } from '$lib/format';
-  import { app } from '$lib/stores/app.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import type { MemoryBreakdown } from '$lib/types';
-  import { buildSegments, legendPct, type Segment } from '$lib/memorySegments';
-  import { slotColor, slotHatched } from '$lib/serverColor';
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import { formatBytes } from '#lib/format.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import type { MemoryBreakdown } from '#lib/types.js';
+  import { buildSegments, legendPct, type Segment } from '#lib/memorySegments.js';
+  import { slotColor, slotHatched } from '#lib/serverColor.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 
   interface Props {
     label: string;

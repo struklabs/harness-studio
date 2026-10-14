@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { TelemetryHistoryPoint, TelemetrySnapshot } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
+  import type { TelemetryHistoryPoint, TelemetrySnapshot } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
   import SparkChart from './SparkChart.svelte';
   import { fmtCount, fmtPercent } from './perfFormat';
   import { pct, pick, recent } from './perfSeries';

@@ -133,7 +133,7 @@ export interface AppSettings {
   hf_oauth_client_id?: string;
   /** Legacy base mode; kept in sync with `color_theme` so older builds open sensibly. */
   theme?: 'dark' | 'light' | 'system';
-  /** Full theme id (see $lib/theme.ts `ThemeId`); empty/absent = use `theme`. */
+  /** Full theme id (see #lib/theme.ts `ThemeId`); empty/absent = use `theme`. */
   color_theme?: string;
   /** Colour-vision-safe status and chart colours on top of any theme. */
   cvd_safe?: boolean;

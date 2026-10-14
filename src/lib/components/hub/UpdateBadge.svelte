@@ -1,8 +1,8 @@
 <script lang="ts">
   // "Update Available": a downloaded file has a newer upstream version. The flag comes from
   // `library.updates` (filled when the repo's drawer compared the file hashes), no request here.
-  import { t } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
+  import { t } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
   import { RefreshCw } from '@lucide/svelte';
 
   let { class: className = '' }: { class?: string } = $props();

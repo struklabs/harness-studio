@@ -1,7 +1,7 @@
 // Models an agent tool can use through Harness, with their tool-calling verdict and prompt
 // speed (`harness_core::integrations::agent_models`). The verdict comes from real answers (a
 // tool check, the gateway log) before the chat template; no model names are hard-coded.
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 
 export type ToolSupport = 'verified' | 'failed' | 'template_only' | 'no_template' | 'unknown';
 export type ToolEvidence = 'check' | 'gateway_log' | 'template' | 'none';

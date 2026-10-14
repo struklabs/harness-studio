@@ -1,17 +1,17 @@
 ﻿<script lang="ts">
   import { onMount } from 'svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import { library } from '$lib/stores/library.svelte';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import { library } from '#lib/stores/library.svelte.js';
   import { chatModelIds } from '../playground/modelModes';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { invoke } from '$lib/ipc';
-  import { validModelEndpoint } from '$lib/gateway-error';
-  import { Input } from '$lib/components/ui/input';
-  import { Button } from '$lib/components/ui/button';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { invoke } from '#lib/ipc.js';
+  import { validModelEndpoint } from '#lib/gateway-error.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import FieldHelp from '../common/FieldHelp.svelte';
   import { fetchErrorText, fetchWithTimeout } from '../connections/net';
-  import type { GenerateToolRequest } from '$lib/tools-client';
+  import type { GenerateToolRequest } from '#lib/tools-client.js';
   let { endpoint = $bindable(null), disabled = false, selectedModel = $bindable('') }: { endpoint: GenerateToolRequest['endpoint'] | null; disabled?: boolean; selectedModel?: string } = $props();
   const uid = $props.id();
   let url = $state(app.gateway?.status.endpoint?.base_url ?? 'http://127.0.0.1:11435/v1');

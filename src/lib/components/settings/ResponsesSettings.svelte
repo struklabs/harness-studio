@@ -10,14 +10,14 @@
     GatewaySettings,
     ResponsesCompactionSettings,
     ResponsesStoreSettings,
-  } from '$lib/types';
-  import { invoke } from '$lib/ipc';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { formatBytes } from '$lib/format';
-  import { Button } from '$lib/components/ui/button';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Switch } from '$lib/components/ui/switch';
+  } from '#lib/types.js';
+  import { invoke } from '#lib/ipc.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { formatBytes } from '#lib/format.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
   import NumberField from './NumberField.svelte';

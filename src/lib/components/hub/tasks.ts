@@ -2,7 +2,7 @@
 // How far Harness Studio runs each one is not kept here: the backend derives it from the installed
 // llama-server's capability registry (`get_task_support`, `harness_core::hub_tasks`), see
 // `taskSupport.svelte.ts`. `harness-core` checks that both lists name the same tasks.
-import type { TKey } from '$lib/i18n.svelte';
+import type { TKey } from '#lib/i18n.svelte.js';
 
 /** yes: runs here; partial: only some repos (e.g. with an audio/vision projector); no: not supported. */
 export type TaskSupport = 'yes' | 'partial' | 'no';

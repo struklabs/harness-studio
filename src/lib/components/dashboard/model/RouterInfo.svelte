@@ -1,8 +1,8 @@
 <script lang="ts">
-  import type { LocalModel } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { sourceLabel, type LocalModelExt } from '$lib/import-types';
-  import { Badge } from '$lib/components/ui/badge';
+  import type { LocalModel } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { sourceLabel, type LocalModelExt } from '#lib/import-types.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
 
   interface Props {
     models: LocalModel[];

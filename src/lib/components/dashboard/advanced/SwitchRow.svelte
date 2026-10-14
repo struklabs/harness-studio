@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { Switch } from '$lib/components/ui/switch';
-  import { Label } from '$lib/components/ui/label';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import HelpPopover from '../../common/HelpPopover.svelte';
   import FeatureBadge from './FeatureBadge.svelte';
 

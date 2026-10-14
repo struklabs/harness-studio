@@ -3,14 +3,14 @@
   // Duplicate models: groups with the same size and first/last MiB, "Tam doğrula" compares the
   // full SHA-256 (recorded download hashes are reused). Extra copies are deleted through the
   // regular delete dialog (same safety rules).
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onMount } from 'svelte';
-  import type { DuplicateGroup, VerifiedMember } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { formatBytes } from '$lib/format';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Skeleton } from '$lib/components/ui/skeleton';
+  import type { DuplicateGroup, VerifiedMember } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { formatBytes } from '#lib/format.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Skeleton } from '#lib/components/ui/skeleton/index.js';
   import { CircleCheck, CircleAlert, LoaderCircle, ShieldCheck, Trash2, Unlink } from '@lucide/svelte';
 
   interface Props {

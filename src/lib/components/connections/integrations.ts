@@ -1,6 +1,6 @@
 // Data access for client integrations. ALL backend calls for this feature live here so
 // ClientIntegrations.svelte only deals with presentation.
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 
 export type IntegrationId = string;
 

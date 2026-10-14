@@ -1,7 +1,7 @@
 // Formatting for the Analytics screen. A value the store does not have renders as "—", never 0.
-import { t, locale } from '$lib/i18n.svelte';
-import { formatBytes } from '$lib/format';
-import { NA, fmtDuration } from '$lib/components/perf/perfFormat';
+import { t, locale } from '#lib/i18n.svelte.js';
+import { formatBytes } from '#lib/format.js';
+import { NA, fmtDuration } from '#lib/components/perf/perfFormat.js';
 
 export { NA };
 

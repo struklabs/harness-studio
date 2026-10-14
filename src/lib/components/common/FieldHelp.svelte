@@ -2,7 +2,7 @@
   import type { Snippet } from 'svelte';
   import HelpPopover from './HelpPopover.svelte';
   import { describeFields } from './fieldHelp';
-  import { cn } from '$lib/utils';
+  import { cn } from '#lib/utils.js';
   let { text, id, label, children, class: className }: { text: string; id?: string; label?: string; children?: Snippet; class?: string } = $props();
   const uid = $props.id();
   let descriptionId = $derived(id ?? uid);

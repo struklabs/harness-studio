@@ -1,15 +1,15 @@
 <script lang="ts">
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // "Unsaved changes vs definition" indicator of the Dashboard form with the explicit save
   // actions. Starting a server never saves; these buttons do.
-  import type { ModelDefinition } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import { shortWindow } from '$lib/stores/panes.svelte';
-  import { Button, buttonVariants } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import { cn } from '$lib/utils';
+  import type { ModelDefinition } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import { shortWindow } from '#lib/stores/panes.svelte.js';
+  import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+  import { cn } from '#lib/utils.js';
   import { ChevronDown, CircleDot, Undo2 } from '@lucide/svelte';
 
   interface Props {

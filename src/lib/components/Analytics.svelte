@@ -1,9 +1,9 @@
 <script lang="ts">
   import AdvancedPageNotice from './common/AdvancedPageNotice.svelte';
-  import { pageLevel } from '$lib/uiLevel';
+  import { pageLevel } from '#lib/uiLevel.js';
   import SectionSidebar from './common/SectionSidebar.svelte';
-  import { panes } from '$lib/stores/panes.svelte';
-  import { SectionSelection } from '$lib/stores/sectionPage.svelte';
+  import { panes } from '#lib/stores/panes.svelte.js';
+  import { SectionSelection } from '#lib/stores/sectionPage.svelte.js';
   import { ANALYTICS_GROUPS } from './common/screenSections';
   import RequestDetailSheet from './analytics/RequestDetailSheet.svelte';
   import FieldHelp from './common/FieldHelp.svelte';
@@ -11,28 +11,28 @@
   let selectedRequest = $state<string | null>(null);
   function selectPage(id: string) { section.select(id); if (id === 'policy') openSettings(true); }
   function openRequest(id: string) { selectedRequest = id; section.select('detail'); }
-  import { localizeError } from '$lib/network';
+  import { localizeError } from '#lib/network.js';
   // Analytics: statistics of gateway traffic and the request inspector. Everything
   // shown comes from analytics.db; nothing is estimated. Direct llama-server traffic is not
   // observable and the screen says so.
   import { onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { listen } from '@tauri-apps/api/event';
   import { toast } from 'svelte-sonner';
   import { ChartColumn, ListTree, RefreshCw, SlidersHorizontal, Info, TriangleAlert, Trash2 } from '@lucide/svelte';
-  import type { AnalyticsInfo, AnalyticsSummary } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { windowActive } from '$lib/windowActivity';
-  import { security } from '$lib/stores/security.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Switch } from '$lib/components/ui/switch';
-  import NativeSelect from '$lib/components/dashboard/parts/NativeSelect.svelte';
+  import type { AnalyticsInfo, AnalyticsSummary } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { windowActive } from '#lib/windowActivity.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import NativeSelect from '#lib/components/dashboard/parts/NativeSelect.svelte';
   import Overview from './analytics/Overview.svelte';
   import RequestLog from './analytics/RequestLog.svelte';
   import ToolCallLog from './analytics/ToolCallLog.svelte';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import { RANGES, rangeStart, fmtBytes, fmtInt, type Range } from './analytics/anFormat';
 
   const VIEW_KEY = 'harness_analytics_view';

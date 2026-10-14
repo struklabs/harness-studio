@@ -1,23 +1,23 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import HelpPopover from '../common/HelpPopover.svelte';
   // Settings > OpenTelemetry: OTLP export of gateway traces, logs and metrics (off by default).
   // Saved through its own command (validated in the core, header values to the keychain), not
   // the general settings form. "Test export" sends one real span with the form's values.
   import { onDestroy, onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { CircleCheck, CircleX, Send } from '@lucide/svelte';
-  import type { OtelOverview, OtelSettings, OtelTestResult } from '$lib/types';
-  import { t, locale } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { windowActive } from '$lib/windowActivity';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Switch } from '$lib/components/ui/switch';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import NativeSelect from '$lib/components/dashboard/parts/NativeSelect.svelte';
+  import type { OtelOverview, OtelSettings, OtelTestResult } from '#lib/types.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { windowActive } from '#lib/windowActivity.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import NativeSelect from '#lib/components/dashboard/parts/NativeSelect.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
   import NumberField from './NumberField.svelte';

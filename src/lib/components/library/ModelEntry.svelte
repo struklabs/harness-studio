@@ -1,34 +1,34 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { type AgentModel, TOOL_MIN_ROUNDS } from '../connections/agentModels';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // One local model file (or split set) in My Models: facts, fit, state, its definitions with
   // load / unload / reload, and file actions (favorite, reveal, copy path, move, delete, repair).
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
-  import { ACTION_TOAST_DURATION } from '$lib/toast';
-  import type { HardwareFitResult, LibraryEntry, LoadTarget, ModelCapability, ModelDefinition, ModelKind } from '$lib/types';
-  import { presetName as presetDisplayName } from '$lib/components/presets/presetText';
-  import { t, locale, type TKey } from '$lib/i18n.svelte';
-  import { onnxUnsupportedText } from '$lib/engines';
+  import { ACTION_TOAST_DURATION } from '#lib/toast.js';
+  import type { HardwareFitResult, LibraryEntry, LoadTarget, ModelCapability, ModelDefinition, ModelKind } from '#lib/types.js';
+  import { presetName as presetDisplayName } from '#lib/components/presets/presetText.js';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import { onnxUnsupportedText } from '#lib/engines.js';
   import { savedPortText } from '../servers/utils';
-  import { cn } from '$lib/utils';
-  import { formatBytes } from '$lib/format';
-  import { localizeError } from '$lib/network';
-  import { hardwareFit } from '$lib/fit';
-  import { app, DEFAULT_SERVER_ID } from '$lib/stores/app.svelte';
-  import { domain, baseName, samePath } from '$lib/stores/domain.svelte';
-  import { library } from '$lib/stores/library.svelte';
-  import { loadAndChat, openInPlayground } from '$lib/stores/downloads.svelte';
-  import { playgroundTarget, speechKindKey } from '$lib/libraryDefinitions';
-  import { isChatLoadable, showUpdateBadge } from '$lib/downloadFollowUp';
-  import UpdateBadge from '$lib/components/hub/UpdateBadge.svelte';
-  import { Button, buttonVariants } from '$lib/components/ui/button';
-  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { Input } from '$lib/components/ui/input';
-  import PublisherAvatar from '$lib/components/hub/PublisherAvatar.svelte';
+  import { cn } from '#lib/utils.js';
+  import { formatBytes } from '#lib/format.js';
+  import { localizeError } from '#lib/network.js';
+  import { hardwareFit } from '#lib/fit.js';
+  import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
+  import { domain, baseName, samePath } from '#lib/stores/domain.svelte.js';
+  import { library } from '#lib/stores/library.svelte.js';
+  import { loadAndChat, openInPlayground } from '#lib/stores/downloads.svelte.js';
+  import { playgroundTarget, speechKindKey } from '#lib/libraryDefinitions.js';
+  import { isChatLoadable, showUpdateBadge } from '#lib/downloadFollowUp.js';
+  import UpdateBadge from '#lib/components/hub/UpdateBadge.svelte';
+  import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
+  import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import PublisherAvatar from '#lib/components/hub/PublisherAvatar.svelte';
   import {
     Star,
     Ellipsis,

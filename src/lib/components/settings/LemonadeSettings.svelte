@@ -3,7 +3,7 @@
   // its own ROCm / Vulkan llama.cpp builds. Install (SHA-256 checked), update / rollback by
   // build, start / stop, the NPU detection, the backends and Lemonade's model registry with
   // download and delete. Downloaded models are served by the gateway under their Lemonade names.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onDestroy, onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
   import type {
@@ -13,15 +13,15 @@
     LemonadeStatus,
     RuntimeEntry,
     RuntimeReleasePick,
-  } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { formatBytes } from '$lib/format';
-  import { isMac } from '$lib/platform';
-  import { localizeError } from '$lib/network';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Progress } from '$lib/components/ui/progress';
+  } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { formatBytes } from '#lib/format.js';
+  import { isMac } from '#lib/platform.js';
+  import { localizeError } from '#lib/network.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
   import { Cpu, ShieldCheck } from '@lucide/svelte';
   import SettingGroup from './SettingGroup.svelte';
 

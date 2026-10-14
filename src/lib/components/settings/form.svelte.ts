@@ -1,4 +1,4 @@
-import type { AppSettings, CloseAction, CustomBinaryConfig, RuntimeMode } from '$lib/types';
+import type { AppSettings, CloseAction, CustomBinaryConfig, RuntimeMode } from '#lib/types.js';
 
 /** Fields the Settings page edits and saves with the "Save" button. Theme, language and ui_level apply immediately. */
 export interface DraftShape {

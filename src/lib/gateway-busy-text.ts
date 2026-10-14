@@ -1,7 +1,7 @@
-import { t } from '$lib/i18n.svelte';
-import { contextExceededError, gatewayBusyError, gatewayMemoryError, type GatewayBusy } from '$lib/gateway-error';
-import { formatBytes } from '$lib/format';
-import { describeErrorBody } from '$lib/components/playground/sse';
+import { t } from '#lib/i18n.svelte.js';
+import { contextExceededError, gatewayBusyError, gatewayMemoryError, type GatewayBusy } from '#lib/gateway-error.js';
+import { formatBytes } from '#lib/format.js';
+import { describeErrorBody } from '#lib/components/playground/sse.js';
 
 /** Localized sentence for a busy-model 503: which model is blocked, by whom, and when to retry. */
 export function busyText(busy: GatewayBusy): string {
