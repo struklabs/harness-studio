@@ -38,6 +38,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed
+- Speech to text with whisper.cpp: `verbose_json` answers (the Playground Speech tab uses them) no longer pay for an extra language detection pass that whisper-server runs only to report the language probability, which OpenAI's format does not have. On a CPU build this took a third of the request time (an 11 s clip: 54 s, now 36 s).
 - MLX model folders are listed in the library with format MLX and their MLX engine, not as GGUF for llama.cpp. Deleting one removes the whole folder. MLX speech models (whisper, Qwen3-TTS, Kokoro conversions) are no longer taken for chat models.
 - Playground > Speech: the transcript now appears right under the Transcribe button instead of below the recommended model list.
 - Python engine: the model's settings (device, number type, threads from the catalog) now reach the worker; they were left out of its command line as "runtime unknown".
