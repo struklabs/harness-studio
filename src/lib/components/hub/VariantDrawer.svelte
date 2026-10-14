@@ -30,7 +30,7 @@
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
-  import { isCtcVariant, isWhisperVariant, recommendCtcVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from './recommend';
+  import { isCtcVariant, isWhisperVariant, recommendCtcVariant, recommendCrispasrVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from './recommend';
   import { security } from '#lib/stores/security.svelte.js';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
 
@@ -146,7 +146,9 @@
   /** ONNX CTC speech repo: precision matters more than size (see `recommendCtcVariant`). */
   let isCtcRepo = $derived(variants.length > 0 && variants.every(isCtcVariant));
   let recommended = $derived(
-    isWhisperRepo
+    repo?.compatibility && 'runtime' in repo.compatibility && repo.compatibility.runtime === 'crispasr'
+      ? recommendCrispasrVariant(variants, hardware?.available_ram_bytes, hardware?.gpus.reduce((sum, gpu) => sum + (gpu.vram_bytes ?? 0), 0))
+      : isWhisperRepo
       ? recommendWhisperVariant(variants, hardware?.available_ram_bytes)
       : isCtcRepo
         ? recommendCtcVariant(variants, hardware?.available_ram_bytes)

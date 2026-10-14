@@ -1046,6 +1046,10 @@ pub fn extract_quant_from_filename(filename: &str) -> String {
         "Q3_K_S",
         "Q2_K_S",
         "Q2_K",
+        // Plain k-quants (cstr naming: `...-q4_k.gguf`) after every suffixed variant.
+        "Q3_K",
+        "Q4_K",
+        "Q5_K",
         "Q6_K",
         "Q8_0",
         // ARM repacked Q4_0 (older llama.cpp builds; now repacked at load time).
@@ -1073,6 +1077,20 @@ pub fn extract_quant_from_filename(filename: &str) -> String {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn lowercase_plain_quant_suffixes_are_parsed() {
+        for (name, quant) in [
+            ("data2vec-audio-base-960h-q4_k.gguf", "Q4_K"),
+            ("model-q5_k.gguf", "Q5_K"),
+            ("model-q3_k.gguf", "Q3_K"),
+            ("model-q8_0.gguf", "Q8_0"),
+            ("model-f16.gguf", "F16"),
+            ("model-q4_k_m.gguf", "Q4_K_M"),
+        ] {
+            assert_eq!(extract_quant_from_filename(name), quant, "{name}");
+        }
+    }
 
     #[test]
     fn test_extract_quant_from_filename() {

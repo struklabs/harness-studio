@@ -63,9 +63,23 @@ async fn settle_port(
         let preferred = (config.port != 0).then_some(config.port);
         let taken = taken_ports(registry, id).await?;
         let host = config.host.clone();
-        config.port = blocking(move || crate::ports::pick_auto(&host, preferred, &taken))
-            .await?
-            .ok_or_else(|| String::from(err("servers.no_free_port")))?;
+        let crisp = crate::engine::server_for(config).family() == crate::engine::CRISPASR;
+        config.port = blocking(move || {
+            if crisp {
+                (0..32).find_map(|_| {
+                    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).ok()?;
+                    let port = listener.local_addr().ok()?.port();
+                    (!crate::ports::AUTO_RANGE.contains(&port)
+                        && ![11435, 11500].contains(&port)
+                        && !taken.contains(&port))
+                    .then_some(port)
+                })
+            } else {
+                crate::ports::pick_auto(&host, preferred, &taken)
+            }
+        })
+        .await?
+        .ok_or_else(|| String::from(err("servers.no_free_port")))?;
         return Ok(());
     }
     if let Some(other) = registry.port_conflict(id, config.port) {

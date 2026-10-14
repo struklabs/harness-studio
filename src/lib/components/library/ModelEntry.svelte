@@ -182,7 +182,7 @@
       ? t('audio_cpp.family_unsupported', { family: m.gguf?.audiocpp_family ?? 'audio.cpp' })
       : t('lib.runtime_none', { format: formatLabel });
     if (c.status === 'unsupported_platform') return `${c.runtime} · ${t('ort.state_unsupported')}`;
-    return c.status === 'needs_runtime' ? t('lib.runtime_needs', { runtime: c.runtime }) : c.runtime;
+    return c.status === 'needs_runtime' ? t('lib.runtime_needs', { runtime: c.runtime }) : c.runtime === 'crispasr' ? 'CrispASR' : c.runtime;
   });
   let needsRuntime = $derived(entry.record.compatibility?.status === 'needs_runtime' ? entry.record.compatibility.runtime : null);
   /** The runtime has no build for this OS / architecture (ONNX on an Intel Mac): the file cannot be loaded here. */

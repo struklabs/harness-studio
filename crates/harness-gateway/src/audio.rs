@@ -63,6 +63,8 @@ struct Form {
     temperature: Option<String>,
     /// Harness's extra: how many speakers there are (diarization; sherpa-onnx models).
     speakers: Option<String>,
+    timestamps: Vec<(String, String)>,
+    unknown: Vec<String>,
 }
 
 /// Response formats whisper-server can produce (`json`, `text`, `srt`, `vtt`, `verbose_json`).
@@ -106,6 +108,13 @@ async fn read_form(mut mp: Multipart) -> Result<Form, GatewayError> {
                     .await
                     .map_err(|e| bad(format!("Field {name}: {}", e.body_text())))?;
                 let text = text.trim().to_string();
+                if name == "model"
+                    && (text.ends_with(".gguf") || text.contains('\\') || text.starts_with('/'))
+                {
+                    return Err(
+                        bad("The model must be a definition alias, never a path").param("model")
+                    );
+                }
                 let slot = match name.as_str() {
                     "model" => &mut form.model,
                     "language" => &mut form.language,
@@ -118,9 +127,14 @@ async fn read_form(mut mp: Multipart) -> Result<Form, GatewayError> {
                     *slot = Some(text);
                 }
             }
+            "timestamp_granularities" | "timestamp_granularities[]" => {
+                let value = field.text().await.map_err(|e| bad(e.body_text()))?;
+                form.timestamps.push((name, value));
+            }
             // `timestamp_granularities[]`, `stream`, `chunking_strategy`...: not supported, and
             // not an error (clients send them by default).
             _ => {
+                form.unknown.push(name);
                 let _ = field.bytes().await;
             }
         }
@@ -130,7 +144,10 @@ async fn read_form(mut mp: Multipart) -> Result<Form, GatewayError> {
 
 /// A multipart/form-data body: `file` first, then the text fields.
 fn multipart_body(filename: &str, audio: &[u8], fields: &[(&str, String)]) -> (String, Vec<u8>) {
-    let boundary = format!("harness-{:x}", unix_ms());
+    let boundary = format!(
+        "harness-{}",
+        harness_core::network::generate_api_key().expect("multipart randomness")
+    );
     let mut body = Vec::with_capacity(audio.len() + 512);
     let name = filename.replace(['"', '\r', '\n'], "_");
     body.extend_from_slice(
@@ -161,7 +178,33 @@ pub fn is_speech_model(def: &ModelDefinition) -> bool {
         ModelRef::Local { path } => path.clone(),
         ModelRef::Hf { file, .. } => std::path::PathBuf::from(file),
     };
-    ModelFormat::of(&path) == ModelFormat::GgmlBin || harness_core::asr::is_onnx_ctc_file(&path)
+    ModelFormat::of(&path) == ModelFormat::GgmlBin
+        || harness_core::asr::is_onnx_ctc_file(&path)
+        || harness_core::engine::crispasr::is_asr_gguf(&path)
+}
+
+/// CrispASR definitions are identified from the local GGUF, never a caller flag.
+pub fn is_crispasr_model(def: &ModelDefinition) -> bool {
+    def.base
+        .local_path()
+        .is_some_and(harness_core::engine::crispasr::is_asr_gguf)
+}
+
+fn validate_crispasr_form(form: &Form) -> Result<(), GatewayError> {
+    if let Some(name) = form.unknown.first() {
+        return Err(bad(format!("CrispASR does not accept field `{name}`")).param(name));
+    }
+    if form.speakers.is_some() {
+        return Err(bad("CrispASR does not accept field `speakers`").param("speakers"));
+    }
+    if form
+        .model
+        .as_deref()
+        .is_some_and(|m| m.contains(['/', '\\']) || m.ends_with(".gguf"))
+    {
+        return Err(bad("The model must be a definition alias, never a path").param("model"));
+    }
+    Ok(())
 }
 
 /// Whether a definition is an mlx-audio speech recognition folder (Whisper, Parakeet in MLX's
@@ -297,6 +340,27 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
+    let crisp = is_crispasr_model(&def);
+    if crisp {
+        validate_crispasr_form(&form)?;
+        if !def
+            .base
+            .local_path()
+            .is_some_and(harness_core::engine::crispasr::is_model)
+        {
+            return Err(bad("Only CrispASR-format ASR GGUF models are supported").param("model"));
+        }
+        if task == Task::Translate
+            && !def
+                .base
+                .local_path()
+                .is_some_and(harness_core::engine::crispasr::can_translate)
+        {
+            return Err(
+                bad("This model cannot translate; use /v1/audio/transcriptions.").param("model"),
+            );
+        }
+    }
     if format == "diarized_json" || speakers.is_some() {
         return Err(bad(format!(
             "`{}` cannot tell speakers apart; diarized_json and speakers work with the sherpa-onnx speech recognition models (Parakeet, Nemotron...).",
@@ -431,7 +495,12 @@ async fn run(
         .await;
     }
 
-    let lease = match scheduler.acquire_tokens(&def, None).await {
+    let acquired = if crisp {
+        scheduler.acquire_asr(&def).await
+    } else {
+        scheduler.acquire_tokens(&def, None).await
+    };
+    let lease = match acquired {
         Ok(lease) => lease,
         Err(e) => {
             guard.get().oom = e.is_oom();
@@ -452,7 +521,9 @@ async fn run(
         }
     }
 
-    let engine_name = if lemonade.is_some() {
+    let engine_name = if crisp {
+        "CrispASR"
+    } else if lemonade.is_some() {
         "Lemonade"
     } else if onnx_ctc {
         "ONNX CTC"
@@ -479,6 +550,10 @@ async fn run(
     if let Some(model) = &lemonade {
         fields.push(("model", model.clone()));
     }
+    if crisp {
+        fields.push(("model", def.alias.clone()));
+        fields.extend(form.timestamps.iter().map(|(k, v)| (k.as_str(), v.clone())));
+    }
     if onnx_ctc {
         fields.retain(|(key, _)| *key == "response_format");
     }
@@ -496,7 +571,7 @@ async fn run(
         0 => None,
         n => Some(Duration::from_secs(u64::from(n))),
     };
-    let url = if lemonade.is_some() || onnx_ctc {
+    let url = if lemonade.is_some() || onnx_ctc || crisp {
         format!("{}/v1/audio/transcriptions", lease.upstream)
     } else {
         format!("{}/inference", lease.upstream)
@@ -550,7 +625,19 @@ async fn run(
         ));
     }
 
-    let (content_type, out) = shape(format, &bytes);
+    let (content_type, out) = if crisp {
+        (
+            match format {
+                "text" => "text/plain; charset=utf-8",
+                "srt" => "application/x-subrip",
+                "vtt" => "text/vtt",
+                _ => "application/json",
+            },
+            bytes.to_vec(),
+        )
+    } else {
+        shape(format, &bytes)
+    };
     guard.finish(200, None);
     let mut builder = Response::builder()
         .status(StatusCode::OK)

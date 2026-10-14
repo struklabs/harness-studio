@@ -64,7 +64,13 @@ pub fn ensure_in(
             }
             continue;
         }
-        let load = if crate::asr::is_onnx_ctc_file(&model.path) {
+        let load = if crate::engine::crispasr::is_model(&model.path) {
+            [(
+                "task".into(),
+                crate::params::ParamValue::Text("crispasr".into()),
+            )]
+            .into()
+        } else if crate::asr::is_onnx_ctc_file(&model.path) {
             [(
                 "task".into(),
                 crate::params::ParamValue::Text("asr_ctc".into()),

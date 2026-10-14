@@ -1,3 +1,13 @@
+# CrispASR ile Konuşma Tanıma
+
+CrispASR (MIT), v0.8.43 sürümüne sabitlenmiş yönetilen yerel bir ServerEngine motorudur. Ayarlar > Kurulu Model Motoru > Diğer Model Motorları bölümünden kurulur; kayıtlı motorlar sayfasından güncellenir/kaldırılır. Windows AMD için Vulkan, Linux AMD için önce HIP, yoksa Vulkan; NVIDIA için CUDA, Apple Silicon için Metal, diğer platformlar için CPU seçilir. Seçilen arka uç motor kaydına yazılır.
+
+Yalnız CrispASR biçimli konuşma tanıma GGUF dosyaları desteklenir: Parakeet, Canary, Cohere, Qwen3-ASR, Voxtral, Nemotron, GigaAM, Granite, VibeVoice, Moonshine, SenseVoice ve cstr wav2vec2/HuBERT/Data2Vec dışa aktarımları. Hub, ASR görevli `cstr/*-GGUF` depolarını ve belleğe sığan Q5/Q4 seçeneklerini sunar. Mimari/kaynak bilgileri denetlenir; Cohere için ayrıca CrispASR tensör adları gerekir. handy-computer dışa aktarımları desteklenmez; tek istisna `handy-computer/canary-180m-flash-gguf` deposudur. Seslendirme, kodek ve sohbet kapsam dışıdır. Kaynak ağırlık depolarının durumu değişmez; Whisper ggml .bin, sherpa-onnx ve ONNX CTC kendi motorlarında kalır.
+
+Oyun Alanı > Konuşma > Yazıya Çevir, ağ geçidi ses API’si ve `harness transcribe audio.wav --model <takma-ad>` kullanılır. Motor istek geldiğinde başlar ve ağ geçidinin boşta kalma süresi dolunca kapanır. İşlem kapanırsa istek hata verir; sonraki istek yeniden başlatabilir. Yalnız 127.0.0.1, otomatik sunucu aralığı dışında rastgele boş port ve her çalıştırmaya özel rastgele anahtar kullanılır. Anahtar yalnız CRISPASR_API_KEYS ortam değişkeniyle verilir; komut satırına yazılmaz. Harness Bearer kimlik doğrulaması gönderir; CORS ve otomatik indirme açılmaz.
+
+Yalnız POST /v1/audio/transcriptions ve POST /v1/audio/translations motora ulaşır. Multipart yeniden kurulur: file baytları, tanımın takma adı olan model, language, prompt, response_format, temperature ve timestamp_granularities ([] yazımı dahil). Bilinmeyen alanlar ve yol/model alanları (diarize_embedder, lid_model, punc_model, truecase_model, voice) 400 döndürür. /load, /inference, /backends, sohbet ve seslendirme iletilmez. Ollama /api/chat, /api/generate ve /api/embed istekleri motor başlamadan 400 döndürür.
+
 # Harness Studio — Özellikler ve Rakip Karşılaştırması
 
 [English](../en/FEATURES.md)

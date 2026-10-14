@@ -1552,6 +1552,15 @@ pub(crate) fn flatten_to_binary_dir_for(staging: &Path, binary: &str) -> Result<
             }
         }
     }
+    // The emptied package folders (`crispasr-windows-x86_64-vulkan/`...) are removed; a
+    // folder that still holds anything is left alone (`remove_dir` only removes empty ones).
+    let mut leftover = Some(bin_dir.as_path());
+    while let Some(dir) = leftover.filter(|d| *d != staging && d.starts_with(staging)) {
+        if fs::remove_dir(dir).is_err() {
+            break;
+        }
+        leftover = dir.parent();
+    }
     Ok(())
 }
 
@@ -2014,6 +2023,8 @@ mod tests {
         flatten_to_binary_dir(temp_dir.path()).unwrap();
         assert!(temp_dir.path().join(binary_name()).exists());
         assert!(temp_dir.path().join("libggml.so").exists());
+        // The emptied package folders are gone.
+        assert!(!temp_dir.path().join("build").exists());
     }
 
     #[test]

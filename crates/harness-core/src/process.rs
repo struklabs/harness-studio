@@ -1526,7 +1526,9 @@ impl ProcessManager {
         // A Python worker always has a key (the user's, else one for this run): its port is a
         // relay any local process could reach.
         let is_worker = engine.worker_env("").is_some();
-        let worker_key = if is_worker {
+        let worker_key = if engine.family() == crate::engine::CRISPASR {
+            Some(crate::network::generate_api_key().map_err(|e| self.set_error(e))?)
+        } else if is_worker {
             match config.api_key.clone().filter(|k| !k.is_empty()) {
                 Some(key) => Some(key),
                 None => Some(crate::network::generate_api_key().map_err(|e| self.set_error(e))?),
@@ -1621,7 +1623,7 @@ impl ProcessManager {
                 cmd.env_remove(var);
             }
             self.push_log(format!(
-                "[Harness Studio] Python worker: {}",
+                "[Harness Studio] Worker: {}",
                 if isolated {
                     "isolated (no network)"
                 } else {

@@ -8,7 +8,7 @@ import { invoke } from '#lib/ipc.js';
 import { t } from '#lib/i18n.svelte.js';
 import { localizeError } from '#lib/network.js';
 import { runtimeInstallErrorText } from '#lib/runtimeBackend.js';
-import { engineSpec, familyInstalled, progressPercent } from '#lib/engines.js';
+import { engineLabel, engineSpec, familyInstalled, progressPercent } from '#lib/engines.js';
 import { runtimesStore } from '#lib/stores/runtimes.svelte.js';
 import { library } from '#lib/stores/library.svelte.js';
 import { taskSupportStore } from '#lib/components/hub/taskSupport.svelte.js';
@@ -199,7 +199,7 @@ class EngineInstaller {
           // `cudart-*` runtime included), as the Registry page does.
           asset: null,
           backend: pick.backend || null,
-          name: family,
+          name: engineLabel(family),
           id: null,
           allow_unverified: false,
         },

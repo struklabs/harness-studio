@@ -1,3 +1,13 @@
+# CrispASR Yerel Konuşma Motoru
+
+CrispASR (MIT), v0.8.43 sürümüne sabitlenmiş yönetilen yerel bir ServerEngine motorudur. GitHub sürüm arşivi platforma ve GPU’ya göre seçilir: Windows AMD Vulkan, Linux AMD önce HIP sonra Vulkan, NVIDIA CUDA, Apple Silicon Metal, diğerleri CPU. Seçilen arka uç kaydedilir. Ayarlar’daki Diğer Model Motorları satırından kurulur; kayıtlı motorlar sayfasından güncellenir/kaldırılır.
+
+Yalnız CrispASR biçimli ASR GGUF dosyaları kabul edilir: Parakeet, Canary, Cohere, Qwen3-ASR, Voxtral, Nemotron, GigaAM, Granite, VibeVoice, Moonshine, SenseVoice, wav2vec2/HuBERT/Data2Vec. general.architecture ve kaynak bilgileri denetlenir; Cohere tensör adları ayrıca doğrulanır. handy-computer yalnız canary-180m-flash-gguf izin listesiyle kabul edilir. Hub, ASR görevli cstr/*-GGUF depolarını sunar; seslendirme/kodek/sohbet kapsam dışıdır. Whisper, sherpa-onnx ve ONNX CTC öncelikleri korunur. Kütüphane tanımları, Oyun Alanı > Konuşma > Yazıya Çevir ve `harness transcribe` aynı motoru kullanır.
+
+Motor istek geldiğinde başlar; ağ geçidinin boşta kalma süresi sonunda kapanır. İşlem kapanırsa istek açık bir hata verir; sonraki istek yeniden başlatır. Yalnız 127.0.0.1 adresi ve otomatik sunucu aralığı dışında rastgele boş port kullanılır. Her çalıştırma için yeni rastgele anahtar CRISPASR_API_KEYS ortam değişkenine yazılır, komut satırına yazılmaz. İstemci Bearer kimlik doğrulaması gönderir; CORS veya otomatik model indirme açılmaz.
+
+Ağ geçidi yalnız POST /v1/audio/transcriptions ve POST /v1/audio/translations yollarını iletir. Multipart sıfırdan kurulur: file baytları, tanımın takma adı olan model, language, prompt, response_format, temperature ve timestamp_granularities ([] dahil). Bilinmeyen alanlar, dosya/model yolları, diarize_embedder, lid_model, punc_model, truecase_model ve voice 400 döndürür. /load, /inference, /backends, sohbet ve seslendirme iletilmez; Ollama /api/chat, /api/generate ve /api/embed motoru başlatmadan 400 döndürür.
+
 # Harness Studio - Sistem Mimarisi (ARCHITECTURE.md)
 
 [English](../en/ARCHITECTURE.md)

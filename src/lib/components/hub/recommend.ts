@@ -89,3 +89,16 @@ export function recommendCtcVariant(variants: HfModelVariant[], availableRamByte
     return diff > 0 || (diff === 0 && b.total_size_bytes < a.total_size_bytes) ? b : a;
   });
 }
+
+/** Native ASR GGUF: prefer practical 4/5-bit variants that fit the available memory. */
+export function recommendCrispasrVariant(variants: HfModelVariant[], availableRamBytes?: number | null, availableVramBytes?: number | null): HfModelVariant | null {
+  const budget = Math.max(availableRamBytes ?? 0, availableVramBytes ?? 0);
+  if (!budget) return null;
+  const fits = variants.filter(v => v.total_size_bytes > 0 && v.total_size_bytes * 1.5 <= budget);
+  const preference = ['Q5_K_M', 'Q4_K_M', 'Q4_K', 'Q8_0', 'F16'];
+  for (const quant of preference) {
+    const choice = fits.find(v => v.quantization.toUpperCase() === quant);
+    if (choice) return choice;
+  }
+  return fits.sort((a, b) => a.total_size_bytes - b.total_size_bytes)[0] ?? null;
+}

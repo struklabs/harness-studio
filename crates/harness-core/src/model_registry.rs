@@ -162,6 +162,7 @@ pub fn local_format(model: &LocalModel) -> ModelFormat {
         {
             ModelFormat::Onnx
         }
+        ModelKind::Asr if crate::engine::crispasr::is_asr_gguf(&model.path) => ModelFormat::Gguf,
         ModelKind::Asr => ModelFormat::WhisperGgml,
         ModelKind::Tts => ModelFormat::Onnx,
         _ if crate::engine::mlx::is_any_model_dir(&model.path) => ModelFormat::Mlx,
@@ -206,6 +207,16 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
                 Compatibility::Runnable { runtime }
             } else {
                 Compatibility::Unsupported { format }
+            }),
+        };
+    }
+    if crate::engine::crispasr::is_model(&model.path) {
+        return ModelRecord {
+            capabilities: vec![Capability::Asr],
+            format,
+            runtime: Some(crate::engine::CRISPASR.into()),
+            compatibility: Some(Compatibility::Runnable {
+                runtime: crate::engine::CRISPASR.into(),
             }),
         };
     }

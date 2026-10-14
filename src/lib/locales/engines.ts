@@ -2,6 +2,12 @@
 // Lemonade): the Install buttons next to "this model needs an engine" hints and the Other
 // Engines group on Settings > Installed Runtime.
 const tr = {
+  'rt.crispasr_title': 'CrispASR',
+  'rt.crispasr_desc': 'CrispASR biçimli GGUF konuşma tanıma modelleri için yerel motor (v0.8.43).',
+  'rt.crispasr_fill': 'CrispASR Deposunu Doldur',
+  'eng.manage_crispasr': 'CrispASR G\u00fcncelle / Kald\u0131r',
+  'lib.kind_asr_crispasr': 'Konu\u015fma Tan\u0131ma (CrispASR)',
+  'eng.desc_crispasr': 'CrispASR bi\u00e7imli GGUF modelleriyle konu\u015fma tan\u0131ma. Yaln\u0131z yerel ba\u011flant\u0131, her \u00e7al\u0131\u015ft\u0131rmaya \u00f6zel anahtar (v0.8.43).',
   'eng.install': '{runtime} Kur',
   'eng.installing': '{runtime} Kuruluyor…',
   'eng.installing_pct': '{runtime} Kuruluyor… %{pct}',
@@ -34,6 +40,12 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'rt.crispasr_title': 'CrispASR',
+  'rt.crispasr_desc': 'Native engine for CrispASR-format GGUF speech recognition models (v0.8.43).',
+  'rt.crispasr_fill': 'Fill in the CrispASR Repository',
+  'eng.manage_crispasr': 'Update / Remove CrispASR',
+  'lib.kind_asr_crispasr': 'Speech Recognition (CrispASR)',
+  'eng.desc_crispasr': 'Speech recognition with CrispASR-format GGUF models. Loopback only, with a key for each run (v0.8.43).',
   'eng.install': 'Install {runtime}',
   'eng.installing': 'Installing {runtime}…',
   'eng.installing_pct': 'Installing {runtime}… {pct}%',
