@@ -492,6 +492,13 @@ pub fn installed(variant: OrtVariant) -> Option<Installed> {
     installed_in(&root(), variant)
 }
 
+/// Whether any build of this platform is installed in `root`.
+pub fn any_installed_in(root: &Path) -> bool {
+    specs()
+        .iter()
+        .any(|s| installed_in(root, s.variant).is_some())
+}
+
 /// Where a build lives, whether or not it is installed.
 pub fn target_dir(variant: OrtVariant) -> Option<PathBuf> {
     spec_for(variant).map(|s| dir_of(&root(), s))

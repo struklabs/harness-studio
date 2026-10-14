@@ -121,7 +121,10 @@ fn installed_needs_a_manifest_and_all_files() {
         return;
     }
     assert!(installed_in(tmp.path(), variant).is_none());
+    assert!(!any_installed_in(tmp.path()));
     let dir = fake_install(tmp.path(), variant);
+    // The Hub and the library count ONNX Runtime as installed from here.
+    assert!(any_installed_in(tmp.path()));
     let got = installed_in(tmp.path(), variant).expect("complete install");
     assert_eq!(got.lib, dir.join(spec_for(variant).unwrap().lib));
     assert!(got.size_bytes > 0);
