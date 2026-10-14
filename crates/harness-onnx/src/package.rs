@@ -655,6 +655,26 @@ pub fn graph_uses_op(onnx_path: &Path, op: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn owl_detectors_are_not_text_encoders() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path();
+        std::fs::create_dir_all(repo.join("onnx")).unwrap();
+        std::fs::write(
+            repo.join("config.json"),
+            serde_json::json!({"model_type": "owlv2", "architectures": ["Owlv2ForObjectDetection"]})
+                .to_string(),
+        )
+        .unwrap();
+        std::fs::write(repo.join("tokenizer.json"), "{}").unwrap();
+        let model = repo.join("onnx").join("model_quantized.onnx");
+        std::fs::write(&model, b"onnx").unwrap();
+        assert!(matches!(
+            ModelPackage::discover(&model),
+            Err(PackageError::DualEncoder(_))
+        ));
+    }
     use serde_json::json;
     use std::fs;
 

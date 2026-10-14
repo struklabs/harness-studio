@@ -377,33 +377,36 @@ pub fn detect_open(
     boxes: &[f32],
     queries: &[String],
     threshold: Option<f32>,
-    width: u32,
-    height: u32,
+    frame: (u32, u32),
+    image: (u32, u32),
 ) -> Vec<Detection> {
     let threshold = threshold.unwrap_or(0.1);
     let q = queries.len().max(1);
-    let (w, h) = (width as f32, height as f32);
+    let (w, h) = (frame.0 as f32, frame.1 as f32);
+    let (iw, ih) = (image.0 as f32, image.1 as f32);
     let mut out = Vec::new();
     for (patch, row) in logits.chunks_exact(q).enumerate() {
         let Some((best, &logit)) = row.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)) else {
             continue;
         };
         let score = sigmoid(logit);
-        if score < threshold {
+        // A NaN score (a broken export) is dropped.
+        if score.is_nan() || score < threshold {
             continue;
         }
         let Some(b) = boxes.get(patch * 4..patch * 4 + 4) else {
             continue;
         };
         let (cx, cy, bw, bh) = (b[0], b[1], b[2], b[3]);
-        let px = |v: f32, size: f32| (v * size).round().clamp(0.0, size) as i64;
+        // Scaled to the frame the boxes are relative to, clipped to the image itself.
+        let px = |v: f32, size: f32, limit: f32| (v * size).round().clamp(0.0, limit) as i64;
         out.push(Detection {
             score,
             label: queries[best].clone(),
-            xmin: px(cx - bw / 2.0, w),
-            ymin: px(cy - bh / 2.0, h),
-            xmax: px(cx + bw / 2.0, w),
-            ymax: px(cy + bh / 2.0, h),
+            xmin: px(cx - bw / 2.0, w, iw),
+            ymin: px(cy - bh / 2.0, h, ih),
+            xmax: px(cx + bw / 2.0, w, iw),
+            ymax: px(cy + bh / 2.0, h, ih),
         });
     }
     out.sort_by(|a, b| b.score.total_cmp(&a.score));
@@ -567,12 +570,49 @@ mod tests {
         // Two patches: the first is a cat (logit 2 → 0.88), the second scores below 0.1.
         let logits = [2.0, -1.0, -5.0, -4.0];
         let boxes = [0.5, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1, 0.1];
-        let found = detect_open(&logits, &boxes, &queries, None, 200, 100);
+        let found = detect_open(&logits, &boxes, &queries, None, (200, 100), (200, 100));
         assert_eq!(found.len(), 1);
         let d = &found[0];
         assert_eq!(d.label, "cat");
         assert_eq!((d.xmin, d.ymin, d.xmax, d.ymax), (50, 25, 150, 75));
         assert!((d.score - 0.880797).abs() < 1e-4);
+    }
+
+    #[test]
+    fn open_detection_threshold_is_inclusive_and_drops_nan() {
+        let queries = vec!["cat".to_string()];
+        let boxes = [0.5; 8];
+        // sigmoid(0) = 0.5 exactly at the threshold; NaN never passes.
+        let found = detect_open(
+            &[0.0, f32::NAN],
+            &boxes,
+            &queries,
+            Some(0.5),
+            (10, 10),
+            (10, 10),
+        );
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].score, 0.5);
+        assert!(detect_open(&[-0.01], &boxes, &queries, Some(0.5), (10, 10), (10, 10)).is_empty());
+    }
+
+    #[test]
+    fn padded_square_boxes_are_clipped_to_the_image() {
+        // OWLv2: a 200x100 image padded to 200x200; a box reaching into the padding.
+        let queries = vec!["cat".to_string()];
+        let found = detect_open(
+            &[3.0],
+            &[0.5, 0.5, 1.0, 1.0],
+            &queries,
+            None,
+            (200, 200),
+            (200, 100),
+        );
+        let d = &found[0];
+        assert_eq!((d.xmin, d.ymin, d.xmax, d.ymax), (0, 0, 200, 100));
+        // Best first.
+        let found = detect_open(&[1.0, 3.0], &[0.5; 8], &queries, None, (10, 10), (10, 10));
+        assert!(found[0].score > found[1].score);
     }
 
     #[test]
