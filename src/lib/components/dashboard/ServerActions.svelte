@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { capsStore } from '#lib/stores/caps.svelte.js';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { onDestroy } from 'svelte';
   import type { LocalModel, ServerStatus, AppSettings, RecoveryOption } from '#lib/types.js';
@@ -213,10 +214,12 @@
           <span class="sr-only">{t('srv.more_actions')}</span>
         </DropdownMenu.Trigger>
         <DropdownMenu.Content align="end" class="w-56">
-          <DropdownMenu.Item disabled={!running} onclick={openWebUi}>
-            <ExternalLink />
-            {t('dash.open_webui')}
-          </DropdownMenu.Item>
+          {#if !capsStore.otherEngine}
+            <DropdownMenu.Item disabled={!running} onclick={openWebUi}>
+              <ExternalLink />
+              {t('dash.open_webui')}
+            </DropdownMenu.Item>
+          {/if}
           <DropdownMenu.Item onclick={onSaveProfile}>
             <Bookmark />
             {isProfile ? t('srv.save_changes_btn') : t('srv.save_profile_btn')}
@@ -228,10 +231,13 @@
 
   {#if uiLevel.advanced && !shortWindow.current}
     <div class="flex items-center gap-2">
-      <Button variant="outline" size="sm" class="flex-1" disabled={!running} onclick={openWebUi}>
-        <ExternalLink />
-        {t('dash.open_webui')}
-      </Button>
+      <!-- llama-server's own web UI: other engines (ONNX, whisper.cpp, sd.cpp...) have none. -->
+      {#if !capsStore.otherEngine}
+        <Button variant="outline" size="sm" class="flex-1" disabled={!running} onclick={openWebUi}>
+          <ExternalLink />
+          {t('dash.open_webui')}
+        </Button>
+      {/if}
       <Button variant="ghost" size="sm" onclick={onSaveProfile}>
         <Bookmark />
         {isProfile ? t('srv.save_changes_btn') : t('srv.save_profile_btn')}

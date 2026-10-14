@@ -4,6 +4,7 @@
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { engineLabel } from '#lib/engines.js';
   import { capsStore } from '#lib/stores/caps.svelte.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import type { LaunchParamsForm } from './params';
   import AdvSection from './advanced/AdvSection.svelte';
   import CatalogFields from './advanced/CatalogFields.svelte';
@@ -16,7 +17,10 @@
 
   const KNOWN = ['performance', 'model', 'transcription', 'vad', 'components', 'generation', 'server', 'context', 'memory'];
   let engine = $derived(engineLabel(capsStore.engine));
-  let groups = $derived(capsStore.groups().filter((g) => capsStore.groupSpecs(g).length > 0));
+  /** Groups with something this level shows (basic mode hides an all-advanced group). */
+  let groups = $derived(
+    capsStore.groups().filter((g) => capsStore.groupSpecs(g).some((s) => uiLevel.advanced || s.level === 'basic')),
+  );
 
   function title(group: string): string {
     return KNOWN.includes(group) ? t(`dash.egroup_${group}` as TKey) : group;

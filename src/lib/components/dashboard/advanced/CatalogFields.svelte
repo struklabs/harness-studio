@@ -141,7 +141,7 @@
   {/if}
 {/snippet}
 
-{#if visible.length > 0 || hiddenCount > 0}
+{#if visible.length > 0 || hiddenCount > 0 || advancedCount > 0}
   <div class="flex flex-col gap-3">
     {#each visible as spec (spec.id)}
       <Field
