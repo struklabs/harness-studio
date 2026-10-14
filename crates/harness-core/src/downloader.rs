@@ -6097,11 +6097,15 @@ mod tests {
         }
         // The CTC config is checked before the encoder/vision path, which now also takes
         // `preprocessor_config.json` repos (vision models).
+        // Source weights are not a native CTC export; they go to the optional Python engine.
         item["siblings"] =
             serde_json::json!([{"rfilename":"model.safetensors"},{"rfilename":"config.json"}]);
+        // Runnable or NeedsRuntime depending on whether that engine is installed here.
         assert!(matches!(
             parse_search_item(&item).unwrap().compatibility,
-            crate::hub_compat::Compatibility::Unsupported { .. }
+            crate::hub_compat::Compatibility::Runnable { ref runtime }
+                | crate::hub_compat::Compatibility::NeedsRuntime { ref runtime }
+                if runtime == crate::hub_compat::PYTHON_HF_FAMILY
         ));
         item["siblings"] =
             serde_json::json!([{"rfilename":"onnx/model.onnx"},{"rfilename":"config.json"}]);
@@ -6112,10 +6116,13 @@ mod tests {
         item["siblings"] = serde_json::to_value(siblings).unwrap();
         item["config"]["architectures"] = serde_json::json!(["WhisperForConditionalGeneration"]);
         item["pipeline_tag"] = serde_json::json!("automatic-speech-recognition");
-        assert!(matches!(
+        // Not a native ONNX CTC model; it may still go to the optional Python engine.
+        assert_ne!(
             parse_search_item(&item).unwrap().compatibility,
-            crate::hub_compat::Compatibility::Unsupported { .. }
-        ));
+            crate::hub_compat::Compatibility::Runnable {
+                runtime: crate::engine::ONNX_FAMILY.into()
+            }
+        );
     }
 
     #[test]
