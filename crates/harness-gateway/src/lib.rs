@@ -21,6 +21,7 @@
 pub mod audio;
 pub mod auth;
 pub mod compat;
+pub mod crispasr_tts;
 pub mod errors;
 pub mod hf;
 pub mod images;
@@ -736,9 +737,84 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
         .route("/v1/messages", inference!(Api::Messages))
         .route("/v1/messages/count_tokens", inference!(Api::CountTokens))
         .fallback(not_found)
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            guard_tts_routes,
+        ))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .layer(cors(cors_origins))
         .with_state(state)
+}
+
+/// Reject model-targeted requests before route handlers can start a worker or expose controls.
+async fn guard_tts_routes(
+    State(state): State<GwState>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    if request.method() == Method::POST && request.uri().path() == "/v1/audio/speech" {
+        return next.run(request).await;
+    }
+    let path = request.uri().path();
+    if matches!(
+        path,
+        "/load" | "/v1/voices" | "/voices" | "/v1/audio/voices"
+    ) {
+        return errors::GatewayError::new(
+            400,
+            "unsupported_route",
+            "Worker control and voice upload routes are not exposed",
+        )
+        .into_response();
+    }
+    if !request
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|h| h.to_str().ok())
+        .is_some_and(|h| h.starts_with("application/json"))
+    {
+        return next.run(request).await;
+    }
+    let (parts, body) = request.into_parts();
+    let bytes = match axum::body::to_bytes(body, BODY_LIMIT).await {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            return errors::GatewayError::new(
+                400,
+                "invalid_request",
+                "Request body exceeds the gateway limit",
+            )
+            .into_response()
+        }
+    };
+    if let Some(model) = serde_json::from_slice::<serde_json::Value>(&bytes)
+        .ok()
+        .and_then(|v| v.get("model").and_then(|m| m.as_str()).map(String::from))
+    {
+        if let Ok(def) = state.scheduler.resolve(Some(&model)).await {
+            if speech::is_crispasr_tts(&def) {
+                if let Err(e) = auth::check(
+                    &state,
+                    &parts.headers,
+                    false,
+                    harness_core::token_policy::GatewayEndpoint::Audio,
+                ) {
+                    return e.into_response();
+                }
+                return errors::GatewayError::new(
+                    400,
+                    "unsupported_route",
+                    "CrispASR TTS only accepts POST /v1/audio/speech",
+                )
+                .into_response();
+            }
+        }
+    }
+    next.run(axum::extract::Request::from_parts(
+        parts,
+        axum::body::Body::from(bytes),
+    ))
+    .await
 }
 
 async fn health() -> Response {

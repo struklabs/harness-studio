@@ -67,12 +67,18 @@ pub async fn post(
     body: Vec<u8>,
 ) -> Result<Answer, GatewayError> {
     let audio_cpp = crate::speech::is_audio_cpp_model(def);
-    let engine = if audio_cpp {
+    let crisp_tts = crate::speech::is_crispasr_tts(def);
+    let engine = if crisp_tts {
+        "CrispASR"
+    } else if audio_cpp {
         "audio.cpp"
     } else {
         engine_name(def)
     };
-    let body = if audio_cpp {
+    let body = if crisp_tts {
+        serde_json::to_vec(&crate::crispasr_tts::body(def, "POST", path, &body)?)
+            .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?
+    } else if audio_cpp {
         crate::speech::check_audio_cpp_enabled()?;
         serde_json::to_vec(&crate::speech::audio_cpp_body(def, "POST", path, &body)?)
             .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?
@@ -81,7 +87,7 @@ pub async fn post(
     };
     let scheduler = state.scheduler.clone();
     let settings = scheduler.settings();
-    let acquired = if audio_cpp {
+    let acquired = if audio_cpp || crisp_tts {
         scheduler.acquire_speech(def).await
     } else {
         scheduler.acquire_tokens(def, None).await
@@ -114,15 +120,27 @@ pub async fn post(
     if let Some(key) = &lease.api_key {
         req = req.bearer_auth(key);
     }
-    if settings.request_timeout_secs > 0 {
+    if crisp_tts {
+        let configured = u64::from(settings.request_timeout_secs);
+        req = req.timeout(Duration::from_secs(if configured == 0 {
+            120
+        } else {
+            configured.min(120)
+        }));
+    } else if settings.request_timeout_secs > 0 {
         req = req.timeout(Duration::from_secs(u64::from(
             settings.request_timeout_secs,
         )));
     }
-    let upstream = req
-        .send()
-        .await
-        .map_err(|e| transport_error(engine, &e, "upstream_unreachable"))?;
+    let upstream = match req.send().await {
+        Ok(upstream) => upstream,
+        Err(e) => {
+            if crisp_tts && e.is_timeout() {
+                let _ = scheduler.unload(&def.id).await;
+            }
+            return Err(transport_error(engine, &e, "upstream_unreachable"));
+        }
+    };
     let status = upstream.status().as_u16();
     let content_type = upstream
         .headers()
@@ -131,10 +149,46 @@ pub async fn post(
         .unwrap_or("application/octet-stream")
         .to_string();
     let truncated = upstream.headers().contains_key("x-harness-truncated");
-    let body = upstream
-        .bytes()
-        .await
-        .map_err(|e| transport_error(engine, &e, "upstream_error"))?;
+    let body = if crisp_tts {
+        // Bounded buffering even when an upstream sends no Content-Length.
+        let mut upstream = upstream;
+        let mut bytes = Vec::new();
+        while let Some(chunk) = match upstream.chunk().await {
+            Ok(chunk) => chunk,
+            Err(e) => {
+                if e.is_timeout() {
+                    let _ = scheduler.unload(&def.id).await;
+                }
+                return Err(transport_error(engine, &e, "upstream_error"));
+            }
+        } {
+            if bytes.len() + chunk.len() > 24 * 1024 * 1024 {
+                let _ = scheduler.unload(&def.id).await;
+                return Err(GatewayError::new(
+                    502,
+                    "speech_limit",
+                    "Speech output exceeds 24 MiB",
+                ));
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        if (200..300).contains(&status)
+            && !harness_core::audio::wav_duration_secs(&bytes)
+                .is_some_and(|seconds| seconds > 0.0 && seconds <= 120.0)
+        {
+            return Err(GatewayError::new(
+                502,
+                "speech_limit",
+                "Speech output must be WAV and at most 120 seconds",
+            ));
+        }
+        Bytes::from(bytes)
+    } else {
+        upstream
+            .bytes()
+            .await
+            .map_err(|e| transport_error(engine, &e, "upstream_error"))?
+    };
     guard.get().status = status;
     guard.get().ttft_ms = Some(guard.started.elapsed().as_millis() as u64);
     if !(200..300).contains(&status) {

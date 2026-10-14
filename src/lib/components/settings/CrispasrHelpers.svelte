@@ -12,7 +12,7 @@
   import { Download, Trash2 } from '@lucide/svelte';
 
   interface Helper {
-    id: string;
+    id: 'lid' | 'punc' | 'kokoro_voice' | 'pocket_voice' | 'misaki' | 'cmudict';
     title: string;
     file: string;
     size_bytes: number;
@@ -58,8 +58,8 @@
     }
   }
 
-  const label = (id: string) => (id === 'lid' ? t('crisp.helper_lid') : t('crisp.helper_punc'));
-  const note = (id: string) => (id === 'lid' ? t('crisp.helper_lid_note') : t('crisp.helper_punc_note'));
+  const label = (id: Helper['id']) => t(`crisp.helper_${id}`);
+  const note = (id: Helper['id']) => t(`crisp.helper_${id}_note`);
 
   onMount(() => {
     void refresh();

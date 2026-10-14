@@ -44,7 +44,11 @@ pub fn ensure_in(
         .iter()
         .filter(|m| m.is_ready && KINDS.contains(&m.kind) && kinds.contains(&m.kind))
         // sherpa-onnx recognition models are ASR too, but run per request without a definition.
-        .filter(|m| m.kind != ModelKind::Tts || crate::engine::audio_cpp::is_tts(&m.path))
+        .filter(|m| {
+            m.kind != ModelKind::Tts
+                || crate::engine::audio_cpp::is_tts(&m.path)
+                || crate::engine::crispasr_tts::is_model(&m.path)
+        })
         .filter(|m| !(m.kind == ModelKind::Asr && crate::asr::is_sherpa_file(&m.path)))
     {
         let defs = domain.definitions()?;

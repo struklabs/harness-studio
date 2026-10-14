@@ -148,7 +148,9 @@ pub fn local_capabilities(caps: &ModelCaps) -> Vec<Capability> {
 /// (ONNX, [`ModelKind::Tts`]), speech-recognition folders of sherpa-onnx (ONNX,
 /// [`ModelKind::Asr`] with a `.onnx` file, see [`is_sherpa_asr`]) and ONNX encoders.
 pub fn local_format(model: &LocalModel) -> ModelFormat {
-    if model.architecture.as_deref() == Some("audiocpp") {
+    if model.architecture.as_deref() == Some("audiocpp")
+        || crate::engine::crispasr_tts::is_model(&model.path)
+    {
         return ModelFormat::Gguf;
     }
     match model.kind {
@@ -210,13 +212,29 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             }),
         };
     }
-    if crate::engine::crispasr::is_model(&model.path) {
+    if crate::engine::crispasr::is_model(&model.path)
+        || crate::engine::crispasr_tts::is_model(&model.path)
+    {
         return ModelRecord {
-            capabilities: vec![Capability::Asr],
+            capabilities: if crate::engine::crispasr_tts::is_model(&model.path) {
+                vec![Capability::Tts]
+            } else {
+                vec![Capability::Asr]
+            },
             format,
             runtime: Some(crate::engine::CRISPASR.into()),
             compatibility: Some(Compatibility::Runnable {
                 runtime: crate::engine::CRISPASR.into(),
+            }),
+        };
+    }
+    if crate::engine::crispasr_tts::is_tts_gguf(&model.path) {
+        return ModelRecord {
+            capabilities: vec![Capability::Tts],
+            format: ModelFormat::Gguf,
+            runtime: None,
+            compatibility: Some(Compatibility::Unsupported {
+                format: ModelFormat::Gguf,
             }),
         };
     }

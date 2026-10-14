@@ -423,6 +423,16 @@ pub fn normalize_definition(def: &mut ModelDefinition) {
     if def
         .base
         .local_path()
+        .is_some_and(crate::engine::crispasr_tts::is_model)
+    {
+        def.load.insert(
+            "task".into(),
+            crate::params::ParamValue::Text("crispasr_tts".into()),
+        );
+    }
+    if def
+        .base
+        .local_path()
         .is_some_and(crate::engine::crispasr::is_model)
     {
         def.load.insert(

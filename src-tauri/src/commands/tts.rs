@@ -128,6 +128,19 @@ pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
         ).is_ok();
         for def in harness_core::domain::store::Domain::global().definitions()? {
             let Some(path) = def.base.local_path() else { continue };
+            if let Some(family) = harness_core::engine::crispasr_tts::backend(path) {
+                let voices = harness_core::engine::crispasr_tts::voices(path).into_iter().enumerate()
+                    .map(|(sid, id)| harness_core::tts::Voice { id, sid: sid as u32, language: "en".into(), gender: String::new() }).collect();
+                models.push(TtsPickerModel {
+                    id: path.to_string_lossy().into_owned(), name: def.alias.clone(), family: family.into(),
+                    engine: harness_core::engine::CRISPASR.into(), supports_speed: family == "kokoro",
+                    runtime_installed: harness_core::runtimes::resolve_family_binary_in(
+                        &harness_core::runtimes::RuntimeRegistry::global(), harness_core::engine::CRISPASR, None).is_ok(),
+                    languages: vec!["en".into()], quantization: harness_core::gguf::read_gguf_metadata(path).map(|m| m.quantization).unwrap_or_default(),
+                    sample_rate: Some(24000), size_bytes: std::fs::metadata(path).map(|m| m.len()).unwrap_or(0), voices,
+                });
+                continue;
+            }
             let Some(meta) = audio_cpp::metadata(path) else { continue };
             let Some(family) = meta.audiocpp_family.filter(|f| audio_cpp::task(f).is_some()) else { continue };
             let voices = audio_cpp::voices(path).into_iter().enumerate().map(|(sid, id)| harness_core::tts::Voice {

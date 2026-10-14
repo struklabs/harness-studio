@@ -1,4 +1,4 @@
-//! Managed CrispASR v0.8.43 native ASR server (MIT).
+//! Managed CrispASR v0.8.43 native ASR and preset TTS server (MIT).
 use std::path::Path;
 use std::sync::Arc;
 
@@ -264,8 +264,11 @@ impl ServerEngine for CrispAsrEngine {
         if config.host != "127.0.0.1" {
             return Err("CrispASR requires 127.0.0.1".into());
         }
-        if !is_model(&config.model_path) {
-            return Err("Only CrispASR-format ASR GGUF models are supported".into());
+        if !is_model(&config.model_path) && !super::crispasr_tts::is_model(&config.model_path) {
+            return Err(
+                "Only CrispASR-format ASR and supported preset TTS GGUF models are supported"
+                    .into(),
+            );
         }
         if config
             .custom_args
@@ -295,6 +298,9 @@ impl ServerEngine for CrispAsrEngine {
             lid.as_deref(),
             punc.as_deref(),
         ));
+        if super::crispasr_tts::is_model(&config.model_path) {
+            args.extend(super::crispasr_tts::launch_args(&config.model_path)?);
+        }
         Ok(BuildOutput {
             args,
             skipped: Vec::new(),
@@ -305,6 +311,19 @@ impl ServerEngine for CrispAsrEngine {
             vec![("CRISPASR_API_KEYS", api_key.into())];
         env.extend(super::crispasr_helpers::worker_env(
             &super::crispasr_helpers::cache_dir(),
+        ));
+        if let Some(dict) = super::crispasr_helpers::MISAKI.verified() {
+            env.push(("CRISPASR_MISAKI_DICT_PATH", dict.into_os_string()));
+        }
+        if let Some(dict) = super::crispasr_helpers::CMUDICT.verified() {
+            env.push(("CRISPASR_CMUDICT_PATH", dict.into_os_string()));
+        }
+        env.push(("CRISPASR_KOKORO_G2P", "builtin-only".into()));
+        env.push((
+            "CRISPASR_G2P_MODEL_PATH",
+            super::crispasr_helpers::cache_dir()
+                .join("disabled-g2p.json")
+                .into_os_string(),
         ));
         Some(env)
     }
@@ -428,6 +447,29 @@ mod tests {
             CRISPASR
         );
         assert!(!super::super::is_llama_server(&path, false));
+        for (arch, file) in [
+            ("kokoro", "kokoro"),
+            ("pocket-tts", "pocket-tts-english-q8_0"),
+        ] {
+            let tts = dir.path().join(format!("{file}.gguf"));
+            model(&tts, arch, &[]);
+            assert!(super::super::crispasr_tts::is_model(&tts));
+            assert!(!is_asr_gguf(&tts));
+            assert!(!super::super::is_llama_server(&tts, false));
+            assert_eq!(
+                crate::domain::detect_kind(crate::models::cached_metadata(&tts).as_ref()),
+                crate::domain::ModelKind::Tts
+            );
+            assert_eq!(
+                super::super::server_for_model(&tts).unwrap().family(),
+                CRISPASR
+            );
+        }
+        let unsupported = dir.path().join("qwen3tts.gguf");
+        model(&unsupported, "qwen3tts", &[]);
+        assert!(super::super::crispasr_tts::is_tts_gguf(&unsupported));
+        assert!(super::super::server_for_model(&unsupported).is_none());
+        assert!(!super::super::is_llama_server(&unsupported, false));
         let config = LaunchConfig {
             model_path: path.clone(),
             ..Default::default()

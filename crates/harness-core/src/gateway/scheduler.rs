@@ -106,6 +106,7 @@ pub enum SchedError {
     },
     AudioCppSpeechOnly,
     CrispAsrTranscriptionOnly,
+    CrispAsrSpeechOnly,
     Internal(String),
 }
 
@@ -122,9 +123,9 @@ impl SchedError {
             SchedError::InsufficientMemory { .. } => "insufficient_memory",
             SchedError::LoadFailed { .. } => "model_load_failed",
             SchedError::QueueTimeout { .. } => "queue_timeout",
-            SchedError::AudioCppSpeechOnly | SchedError::CrispAsrTranscriptionOnly => {
-                "unsupported_route"
-            }
+            SchedError::AudioCppSpeechOnly
+            | SchedError::CrispAsrSpeechOnly
+            | SchedError::CrispAsrTranscriptionOnly => "unsupported_route",
             SchedError::Internal(_) => "gateway_error",
         }
     }
@@ -133,6 +134,7 @@ impl SchedError {
         match self {
             SchedError::ModelRequired { .. }
             | SchedError::AudioCppSpeechOnly
+            | SchedError::CrispAsrSpeechOnly
             | SchedError::CrispAsrTranscriptionOnly => 400,
             SchedError::ModelNotFound { .. } | SchedError::ModelNotDownloaded { .. } => 404,
             SchedError::QueueFull { .. }
@@ -173,6 +175,7 @@ impl SchedError {
                 .unwrap_or_else(|| "unknown".into())
         }
         match self {
+            SchedError::CrispAsrSpeechOnly => "CrispASR TTS only accepts POST /v1/audio/speech".into(),
             SchedError::AudioCppSpeechOnly => "audio.cpp only accepts POST /v1/audio/speech".into(),
             SchedError::CrispAsrTranscriptionOnly => {
                 "CrispASR only accepts /v1/audio/transcriptions and /v1/audio/translations".into()
@@ -942,6 +945,14 @@ impl Scheduler {
         keep_alive: Option<KeepAlive>,
         route: Route,
     ) -> Result<Lease, SchedError> {
+        if def
+            .base
+            .local_path()
+            .is_some_and(crate::engine::crispasr_tts::is_tts_gguf)
+            && route != Route::Speech
+        {
+            return Err(SchedError::CrispAsrSpeechOnly);
+        }
         if is_crispasr(def) && route != Route::Asr {
             return Err(SchedError::CrispAsrTranscriptionOnly);
         }
@@ -2467,7 +2478,13 @@ impl Scheduler {
             let Some(def) = defs.iter().find(|d| d.id == entry.def_id) else {
                 continue;
             };
-            if def.pinned && !is_audio_cpp(def) {
+            if def.pinned
+                && !is_audio_cpp(def)
+                && !def
+                    .base
+                    .local_path()
+                    .is_some_and(crate::engine::crispasr_tts::is_tts_gguf)
+            {
                 continue;
             }
             let keep_alive = entry.state().keep_alive;
@@ -2507,7 +2524,14 @@ impl Scheduler {
         let Ok(defs) = self.servable().await else {
             return;
         };
-        for def in defs.into_iter().filter(|d| d.pinned && !is_audio_cpp(d)) {
+        for def in defs.into_iter().filter(|d| {
+            d.pinned
+                && !is_audio_cpp(d)
+                && !d
+                    .base
+                    .local_path()
+                    .is_some_and(crate::engine::crispasr_tts::is_tts_gguf)
+        }) {
             let entry = self.entry(&def);
             {
                 entry.state().waiting += 1;
@@ -2646,7 +2670,12 @@ fn effective_ttl(
     keep_alive: Option<KeepAlive>,
     default_ttl: Option<u64>,
 ) -> Option<u64> {
-    if is_audio_cpp(def) {
+    if is_audio_cpp(def)
+        || def
+            .base
+            .local_path()
+            .is_some_and(crate::engine::crispasr_tts::is_tts_gguf)
+    {
         return Some(crate::engine::audio_cpp::IDLE_SECONDS);
     }
     if def.pinned {
@@ -3599,6 +3628,30 @@ mod tests {
             serde_json::to_value(KeepAlive::Forever).unwrap(),
             serde_json::json!("forever")
         );
+    }
+
+    #[test]
+    fn crispasr_tts_idle_expiry_cannot_be_disabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("kokoro.gguf");
+        let mut bytes = b"GGUF".to_vec();
+        bytes.extend(3u32.to_le_bytes());
+        bytes.extend(0u64.to_le_bytes());
+        bytes.extend(1u64.to_le_bytes());
+        for (i, text) in ["general.architecture", "kokoro"].iter().enumerate() {
+            if i == 1 {
+                bytes.extend(8u32.to_le_bytes());
+            }
+            bytes.extend((text.len() as u64).to_le_bytes());
+            bytes.extend(text.as_bytes());
+        }
+        std::fs::write(&path, bytes).unwrap();
+        let mut def = ModelDefinition::new("speech", crate::domain::ModelRef::Local { path });
+        def.pinned = true;
+        def.ttl_seconds = Some(86400);
+        for keep_alive in [None, Some(KeepAlive::Forever), Some(KeepAlive::Secs(86400))] {
+            assert_eq!(effective_ttl(&def, keep_alive, None), Some(300));
+        }
     }
 
     // qwen2.5-coder-14b Q4_K_M on a 16 GB card with 4.3 GB used by other apps (measured):

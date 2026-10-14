@@ -495,7 +495,8 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     let compatibility = if crate::hub_compat::is_audio_cpp_repo(item) {
         crate::hub_compat::audio_cpp_compatibility(item)
     } else if format == crate::hub_compat::ModelFormat::Gguf
-        && crate::engine::crispasr::supports_repo(&id, task)
+        && (crate::engine::crispasr::supports_repo(&id, task)
+            || crate::engine::crispasr_tts::supports_repo(&id, task))
     {
         crate::hub_compat::Compatibility::Runnable {
             runtime: crate::engine::CRISPASR.into(),
@@ -1776,6 +1777,19 @@ impl DownloadManager {
         repo_id: &str,
         token: Option<&str>,
     ) -> Result<Vec<HfModelVariant>, String> {
+        let mut variants = Self::repo_variants(repo_id, token).await?;
+        for v in &mut variants {
+            if !crate::engine::crispasr_tts::supports_variant(repo_id, &v.name) {
+                v.not_runnable = Some(crate::hub_tasks::NotRunnable::AudioCppUnsupported);
+            }
+        }
+        Ok(variants)
+    }
+
+    async fn repo_variants(
+        repo_id: &str,
+        token: Option<&str>,
+    ) -> Result<Vec<HfModelVariant>, String> {
         let items = Self::list_repo_files(repo_id, token).await?;
         // `.safetensors` / `.ckpt` files are model files only in an image repo (a language
         // model's shards are not variants of their own).
@@ -2107,6 +2121,26 @@ impl DownloadManager {
         variant_name: String,
         target_dir: PathBuf,
     ) -> Result<u64, String> {
+        self.start_pinned_file(file, variant_name, target_dir, false)
+    }
+
+    /// Same verified queue for a pinned upstream dictionary on GitHub.
+    pub fn start_pinned_github_download(
+        &self,
+        file: &PinnedFile<'_>,
+        variant_name: String,
+        target_dir: PathBuf,
+    ) -> Result<u64, String> {
+        self.start_pinned_file(file, variant_name, target_dir, true)
+    }
+
+    fn start_pinned_file(
+        &self,
+        file: &PinnedFile<'_>,
+        variant_name: String,
+        target_dir: PathBuf,
+        github: bool,
+    ) -> Result<u64, String> {
         let PinnedFile {
             repo: repo_id,
             rev,
@@ -2116,8 +2150,10 @@ impl DownloadManager {
         } = *file;
         Self::validate_repo_id(repo_id)?;
         let valid_rev = rev.len() == 40 && rev.chars().all(|c| c.is_ascii_hexdigit());
-        let valid_name =
-            !filename.is_empty() && !filename.contains(['/', '\\']) && filename != "..";
+        let valid_name = !filename.contains(['\\', ':'])
+            && filename
+                .split('/')
+                .all(|part| !part.is_empty() && part != "." && part != "..");
         let sha256 = valid_sha256(sha256);
         if !valid_rev || !valid_name || sha256.is_none() {
             return Err(err("downloads.invalid_file_name")
@@ -2126,13 +2162,19 @@ impl DownloadManager {
         }
         let mut url = Self::hf_file_url(repo_id, "resolve", filename)?;
         url.set_path(&format!("{repo_id}/resolve/{rev}/{filename}"));
+        if github {
+            url = reqwest::Url::parse(&format!(
+                "https://raw.githubusercontent.com/{repo_id}/{rev}/{filename}"
+            ))
+            .map_err(|e| e.to_string())?;
+        }
         let items = vec![DownloadItem {
             url: url.to_string(),
             filename: filename.to_string(),
             size,
             shard_index: 1,
             sha256,
-            custom_url: false,
+            custom_url: github,
         }];
         self.enqueue(repo_id.to_string(), variant_name, size, items, target_dir)
     }
@@ -4137,6 +4179,10 @@ fn verify_model_magic(path: &Path, filename: &str) -> Result<(), String> {
     if lower.ends_with(".safetensors") {
         return verify_safetensors_header(path);
     }
+    // Pinned text companions (pronunciation dictionaries); their SHA-256 is checked as well.
+    if lower.ends_with(".json") || lower.ends_with(".dict") {
+        return verify_not_a_web_page(path);
+    }
     if lower.ends_with(".ckpt")
         || lower.ends_with("pytorch_model.bin")
         || is_torch_weights(filename)
@@ -4416,6 +4462,32 @@ fn recorded_hash(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn crispasr_tts_hub_offers_only_initial_backends() {
+        for repo in ["cstr/kokoro-82m-GGUF", "cstr/pocket-tts-GGUF"] {
+            let item = serde_json::json!({"id":repo,"pipeline_tag":"text-to-speech", "tags":["gguf"],
+                "siblings":[{"rfilename":"model.gguf"}]});
+            assert_eq!(
+                parse_search_item(&item).unwrap().compatibility,
+                crate::hub_compat::Compatibility::Runnable {
+                    runtime: crate::engine::CRISPASR.into()
+                }
+            );
+        }
+        for repo in [
+            "cstr/Qwen3-TTS-GGUF",
+            "cstr/kokoro-voices-GGUF",
+            "cstr/chatterbox-GGUF",
+        ] {
+            let item = serde_json::json!({"id":repo,"pipeline_tag":"text-to-speech", "tags":["gguf"],
+                "siblings":[{"rfilename":"model.gguf"}]});
+            assert!(matches!(
+                parse_search_item(&item).unwrap().compatibility,
+                crate::hub_compat::Compatibility::Unsupported { .. }
+            ));
+        }
+    }
 
     #[test]
     fn test_valid_sha256() {

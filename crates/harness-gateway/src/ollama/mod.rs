@@ -412,7 +412,7 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
-    if crate::audio::is_crispasr_model(&def) {
+    if crate::audio::is_crispasr_model(&def) || crate::speech::is_crispasr_tts(&def) {
         return Err(GatewayError::new(
             400,
             "model_is_speech",
