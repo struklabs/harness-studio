@@ -107,6 +107,84 @@ pub const TASKS: &[&str] = &[
     "image-to-image",
 ];
 
+/// The transformers version of the environment locks (`python/hf-*.lock`); the model type lists
+/// below are read out of it.
+pub const TRANSFORMERS_VERSION: &str = "5.19.0";
+
+/// `model_type`s transformers' text-to-speech pipeline loads (its text-to-spectrogram and
+/// text-to-waveform auto mappings in [`TRANSFORMERS_VERSION`]). Most TTS repos on the Hub need
+/// their own package (`qwen3_tts`, Kokoro, Chatterbox...): the worker cannot load those.
+pub const TTS_MODEL_TYPES: &[&str] = &[
+    "bark",
+    "csm",
+    "fastspeech2_conformer",
+    "fastspeech2_conformer_with_hifigan",
+    "higgs_audio_v2",
+    "musicgen",
+    "musicgen_melody",
+    "qwen2_5_omni",
+    "qwen3_omni_moe",
+    "seamless_m4t",
+    "seamless_m4t_v2",
+    "speecht5",
+    "vibevoice",
+    "vits",
+];
+
+/// `model_type`s transformers' speech recognition pipeline loads (CTC and speech seq2seq auto
+/// mappings in [`TRANSFORMERS_VERSION`]).
+pub const ASR_MODEL_TYPES: &[&str] = &[
+    "canary",
+    "cohere_asr",
+    "data2vec-audio",
+    "dia",
+    "fun_asr_nano",
+    "granite_speech",
+    "granite_speech5_ctc",
+    "granite_speech_plus",
+    "hubert",
+    "kyutai_speech_to_text",
+    "lasr_ctc",
+    "moonshine",
+    "moonshine_streaming",
+    "parakeet_ctc",
+    "pop2piano",
+    "qwen3_asr",
+    "seamless_m4t",
+    "seamless_m4t_v2",
+    "sew",
+    "sew-d",
+    "speech-encoder-decoder",
+    "speech_to_text",
+    "speecht5",
+    "unispeech",
+    "unispeech-sat",
+    "vibevoice",
+    "vibevoice_asr",
+    "voxtral",
+    "voxtral_realtime",
+    "wav2vec2",
+    "wav2vec2-bert",
+    "wav2vec2-conformer",
+    "wavlm",
+    "whisper",
+];
+
+/// Whether the worker's transformers loads a model of `task` with this `config.json`
+/// `model_type`: checked for speech (text to speech, recognition), where many Hub repos are
+/// made for another package; every other task, or a repo without a model type, is left to the
+/// task.
+pub fn serves_model_type(task: Option<&str>, model_type: Option<&str>) -> bool {
+    let Some(model_type) = model_type.filter(|m| !m.is_empty()) else {
+        return true;
+    };
+    match task {
+        Some("text-to-speech" | "text-to-audio") => TTS_MODEL_TYPES.contains(&model_type),
+        Some("automatic-speech-recognition") => ASR_MODEL_TYPES.contains(&model_type),
+        _ => true,
+    }
+}
+
 /// The Python engine.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PythonHfEngine;
@@ -847,6 +925,37 @@ fn build_args(config: &LaunchConfig, script: &Path, task: &str) -> Result<BuildO
 
 #[cfg(test)]
 mod tests {
+    /// The model type lists were read out of the transformers the locks pin: a lock update
+    /// must refresh them (`MODEL_FOR_TEXT_TO_SPECTROGRAM/WAVEFORM_MAPPING_NAMES`,
+    /// `MODEL_FOR_CTC/SPEECH_SEQ_2_SEQ_MAPPING_NAMES` of transformers.models.auto).
+    #[test]
+    fn model_type_lists_follow_the_locked_transformers() {
+        let pin = format!("transformers=={} ", super::TRANSFORMERS_VERSION);
+        for lock in [
+            include_str!("../../python/hf-cpu.lock"),
+            include_str!("../../python/hf-cuda-windows.lock"),
+            include_str!("../../python/hf-cuda-linux.lock"),
+        ] {
+            assert!(
+                lock.contains(&pin),
+                "a lock pins another transformers than {pin}"
+            );
+        }
+        assert!(super::serves_model_type(
+            Some("text-to-speech"),
+            Some("vits")
+        ));
+        assert!(!super::serves_model_type(
+            Some("text-to-speech"),
+            Some("qwen3_tts")
+        ));
+        assert!(super::serves_model_type(
+            Some("text-classification"),
+            Some("anything")
+        ));
+        assert!(super::serves_model_type(Some("text-to-speech"), None));
+    }
+
     use super::*;
 
     #[test]

@@ -380,9 +380,15 @@
             <Empty.Title>{t('hub.search_no_results')}</Empty.Title>
             <Empty.Description>{t(searchQuery.trim() ? 'hub.no_results_hint' : 'hub.filter_no_results_hint')}</Empty.Description>
           </Empty.Header>
-          {#if pipelineTag || licenseFilter || authorFilter.trim() || includeNonGguf}
-            <Empty.Content>
-              <Button variant="outline" size="sm" onclick={resetServerFilters}><RotateCcw />{t('hub.reset_filters')}</Button>
+          {#if !includeNonGguf || pipelineTag || licenseFilter || authorFilter.trim()}
+            <Empty.Content class="flex-row flex-wrap justify-center">
+              <!-- GGUF-only listings miss safetensors / ONNX repos (an exact "owner/name" too). -->
+              {#if !includeNonGguf}
+                <Button size="sm" onclick={() => { includeNonGguf = true; onServerFiltersChange(); }}>{t('hub.include_non_gguf')}</Button>
+              {/if}
+              {#if pipelineTag || licenseFilter || authorFilter.trim() || includeNonGguf}
+                <Button variant="outline" size="sm" onclick={resetServerFilters}><RotateCcw />{t('hub.reset_filters')}</Button>
+              {/if}
             </Empty.Content>
           {/if}
         </Empty.Root>

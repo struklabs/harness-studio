@@ -60,6 +60,11 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Fixed
 - Dashboard and the Playground load settings showed llama.cpp settings (`-c`, `-ngl`, KV cache, flash attention) for models other engines run, and the ONNX accelerator could not be chosen anywhere. The form now follows the model's engine: ONNX, whisper.cpp, sd.cpp, python-hf, MLX and the other engines show their own settings from their catalogs (ONNX: Accelerator auto/cpu/directml/cuda, batch size, pooling...), the engine field names the engine that runs the model, and the llama.cpp web UI button is hidden for them.
+- Python engine (G8 scan on CUDA):
+  - **Speech recognition:** audio at another rate than the model's (a 44.1 kHz WAV for wav2vec2 / Whisper) failed with "torchaudio is required to resample". The worker now resamples it with SciPy, which is in the locks.
+  - **Task models served right away:** a downloaded task model (TTS, ASR, classifier...) gets its definition at once, so `/v1/audio/speech`, `/v1/audio/transcriptions` and `/v1/hf` serve it. Until now they answered 404 until the Playground Tasks tab was opened.
+  - **Hub:** a speech repo made for its own package (Qwen3-TTS, VibeVoice streaming, Kokoro tuners...) is no longer listed as runnable on the Python engine. Its `config.json` model type is checked against those the locked transformers 5.19 loads for that task.
+  - **Hub:** an empty result in a GGUF-only listing offers "Also show non-GGUF models".
 - Python workers no longer inherit `TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD` / `TORCH_FORCE_WEIGHTS_ONLY_LOAD` from the user's environment (the first turns off `torch.load`'s `weights_only` protection for PyTorch `.bin` weights); the worker also drops them itself before torch loads.
 - ONNX engine: a dynamically quantized text model (transformers.js `model_quantized` of BERT / DistilBERT and similar, with `MatMulInteger`) no longer crashes the sidecar with an access violation on DirectML (seen on an NVIDIA GPU). It runs on the CPU, as quantized vision and speech models already did; the FP32 / FP16 file runs on the GPU.
 - Model Hub and Library: ONNX repos no longer say "onnxruntime (not installed)" after ONNX Runtime was installed. Its builds live in their own folder, not in the runtime registry, so they were never counted.

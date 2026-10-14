@@ -477,8 +477,12 @@ def to_image(value):
         raise BadRequest(f"not an image: {e}")
 
 
-def to_audio(value):
-    """bytes of any soundfile-readable format -> {"raw": float32 mono, "sampling_rate"}."""
+def to_audio(value, pipe=None):
+    """bytes of any soundfile-readable format -> {"raw": float32 mono, "sampling_rate"}.
+
+    With `pipe`, the audio is resampled here to the rate its feature extractor expects (16 kHz
+    for Whisper / wav2vec2): transformers would otherwise ask for torchaudio, which the
+    environment does not carry."""
     import numpy as np
     import soundfile as sf
 
@@ -487,7 +491,16 @@ def to_audio(value):
         audio, sr = sf.read(io.BytesIO(data), dtype="float32", always_2d=True)
     except Exception as e:
         raise BadRequest(f"unreadable audio (wav, flac, ogg): {e}")
-    return {"raw": np.ascontiguousarray(audio.mean(axis=1)), "sampling_rate": sr}
+    raw = np.ascontiguousarray(audio.mean(axis=1))
+    target = getattr(getattr(pipe, "feature_extractor", None), "sampling_rate", None)
+    if isinstance(target, int) and target > 0 and sr != target and raw.size:
+        from math import gcd
+        from scipy.signal import resample_poly
+
+        g = gcd(int(sr), target)
+        raw = resample_poly(raw, target // g, int(sr) // g).astype("float32")
+        sr = target
+    return {"raw": raw, "sampling_rate": sr}
 
 
 def wav_bytes(audio, rate):
@@ -695,7 +708,7 @@ def run_hf(model: Model, body: dict, raw: bytes | None):
             return jsonable(sorted(out, key=lambda o: -o["score"]))
         return jsonable(out)
     if task in ("automatic-speech-recognition", "audio-classification", "zero-shot-audio-classification"):
-        audio = to_audio(inputs)
+        audio = to_audio(inputs, pipe)
         return jsonable(pipe(audio, **params))
     if task in ("text-to-speech", "text-to-audio"):
         out = pipe(inputs, **params)
@@ -1030,7 +1043,7 @@ def build_app(model: Model):
             # Whisper translates to English; other models have no such task (a 400 then).
             gen["task"] = "translate"
         params = {"generate_kwargs": gen} if gen else {}
-        r = await call(lambda: model.pipe(to_audio(data), **params))
+        r = await call(lambda: model.pipe(to_audio(data, model.pipe), **params))
         if isinstance(r, Response):
             return r
         return JSONResponse({"text": r.get("text", "").strip()})

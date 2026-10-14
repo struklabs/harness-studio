@@ -527,6 +527,22 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
             })
             .unwrap_or_else(|| crate::hub_compat::hub_compatibility_for(format, task, genai))
     };
+    // A speech repo made for its own package (Qwen3-TTS, VibeVoice streaming...) would show as
+    // runnable on the Python engine and fail at load.
+    let compatibility = match &compatibility {
+        crate::hub_compat::Compatibility::Runnable { runtime }
+            if runtime == crate::engine::PYTHON_HF
+                && !crate::engine::python_hf::serves_model_type(
+                    task,
+                    item.get("config")
+                        .and_then(|c| c.get("model_type"))
+                        .and_then(|v| v.as_str()),
+                ) =>
+        {
+            crate::hub_compat::Compatibility::Unsupported { format }
+        }
+        _ => compatibility,
+    };
     // An ONNX translator / captioner of an architecture the sidecar does not serve (NLLB, BLIP)
     // would show as runnable and fail at launch.
     let compatibility = if format == crate::hub_compat::ModelFormat::Onnx
@@ -5028,6 +5044,70 @@ mod tests {
                 format: crate::hub_compat::ModelFormat::Safetensors
             }
         );
+    }
+
+    /// Speech repos made for their own package are not offered for the Python engine; a
+    /// transformers model type of the same task still is (listing shapes of 2026-10-14).
+    #[test]
+    fn speech_repos_need_a_model_type_transformers_loads() {
+        let item = |id: &str, task: &str, model_type: &str| {
+            serde_json::json!({
+                "id": id,
+                "pipeline_tag": task,
+                "tags": ["safetensors", task],
+                "siblings": [{"rfilename": "config.json"}, {"rfilename": "model.safetensors"}],
+                "config": {"model_type": model_type},
+            })
+        };
+        let python = crate::hub_compat::Compatibility::Runnable {
+            runtime: crate::engine::PYTHON_HF.into(),
+        };
+        let unsupported = crate::hub_compat::Compatibility::Unsupported {
+            format: crate::hub_compat::ModelFormat::Safetensors,
+        };
+        for (id, task, model_type, runs) in [
+            (
+                "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+                "text-to-speech",
+                "qwen3_tts",
+                false,
+            ),
+            (
+                "microsoft/VibeVoice-Realtime-0.5B",
+                "text-to-speech",
+                "vibevoice_streaming",
+                false,
+            ),
+            (
+                "remsky/kokoro-inno-clone-tuner",
+                "text-to-speech",
+                "kokoro-inno-reference-tuner",
+                false,
+            ),
+            (
+                "microsoft/VibeVoice-1.5B",
+                "text-to-speech",
+                "vibevoice",
+                true,
+            ),
+            ("facebook/mms-tts-eng", "text-to-speech", "vits", true),
+            (
+                "openai/whisper-small",
+                "automatic-speech-recognition",
+                "whisper",
+                true,
+            ),
+            (
+                "someone/custom-asr",
+                "automatic-speech-recognition",
+                "my_asr",
+                false,
+            ),
+        ] {
+            let repo = parse_search_item(&item(id, task, model_type)).unwrap();
+            let want = if runs { &python } else { &unsupported };
+            assert_eq!(&repo.compatibility, want, "{id}");
+        }
     }
 
     #[test]
