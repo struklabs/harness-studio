@@ -39,6 +39,10 @@
     'mlx-vlm': { label: 'hub.compat_mlx_vlm', title: 'hub.compat_mlx_vlm_title', needs: 'hub.compat_needs_mlx_vlm', needsTitle: 'hub.compat_needs_mlx_vlm_title' },
     'mlx-audio': { label: 'hub.compat_mlx_audio', title: 'hub.compat_mlx_audio_title', needs: 'hub.compat_needs_mlx_audio', needsTitle: 'hub.compat_needs_mlx_audio_title' },
   };
+  /** mlx-audio runs speech recognition too: its chip then says it transcribes. */
+  const MLX_STT_CHIP = { label: 'hub.compat_mlx_audio_stt', title: 'hub.compat_mlx_audio_stt_title', needs: 'hub.compat_needs_mlx_audio', needsTitle: 'hub.compat_needs_mlx_audio_title' } as const;
+  const mlxChip = (runtime: string) =>
+    runtime === 'mlx-audio' && (repo.pipeline_tag ?? repo.inferred_task) === 'automatic-speech-recognition' ? MLX_STT_CHIP : MLX_CHIPS[runtime];
 
   const CAP_KEY: Record<ModelCapability, TKey> = {
     chat: 'hub.cap_chat',
@@ -147,12 +151,12 @@
     {:else if (compat.status === 'runnable' || compat.status === 'needs_runtime') && compat.runtime === 'crispasr'}
       <span class="inline-flex items-center gap-1 text-info">CrispASR</span>
     {:else if compat.status === 'runnable' && compat.runtime in MLX_CHIPS}
-      {@const k = MLX_CHIPS[compat.runtime]}
+      {@const k = mlxChip(compat.runtime)}
       <span class="inline-flex items-center gap-1 text-success" title={t(k.title)}>
         <CircleCheck class="size-3" />{t(k.label)}
       </span>
     {:else if compat.status === 'needs_runtime' && compat.runtime in MLX_CHIPS}
-      {@const k = MLX_CHIPS[compat.runtime]}
+      {@const k = mlxChip(compat.runtime)}
       <span class="inline-flex items-center gap-1 text-info" title={t(k.needsTitle)}>
         <Info class="size-3" />{t(k.needs)}
       </span>
