@@ -786,6 +786,64 @@ mod tests {
         }
     }
 
+    /// The vision worker's request check, run with a system Python when there is one (it needs
+    /// neither MLX nor the environment): only inline media, no adapters or other models.
+    #[test]
+    fn the_vision_worker_takes_only_inline_media() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_vlm_worker.py"), VLM_WORKER).unwrap();
+        let python = if cfg!(windows) { "python" } else { "python3" };
+        let check = |body: serde_json::Value| -> Option<String> {
+            let code = format!(
+                "import sys; sys.path.insert(0, {:?}); import mlx_vlm_worker as w; print(w.check_body(sys.stdin.buffer.read()))",
+                dir.path().to_string_lossy()
+            );
+            let mut child = std::process::Command::new(python)
+                .args(["-I", "-c", &code])
+                .env("HARNESS_WORKER_API_KEY", "k")
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .spawn()
+                .ok()?;
+            use std::io::Write;
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(body.to_string().as_bytes())
+                .unwrap();
+            let out = child.wait_with_output().unwrap();
+            assert!(out.status.success());
+            Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+        };
+        let image = |url: &str| {
+            serde_json::json!({"messages": [{"role": "user", "content": [
+                {"type": "text", "text": "hi"},
+                {"type": "image_url", "image_url": {"url": url, "detail": "auto"}}
+            ]}]})
+        };
+        let Some(ok) = check(image("data:image/png;base64,AAAA")) else {
+            eprintln!("no {python}, skipping");
+            return;
+        };
+        assert_eq!(ok, "None");
+        let audio = serde_json::json!({"messages": [{"role": "user", "content": [
+            {"type": "input_audio", "input_audio": {"data": "AAAA", "format": "wav"}}
+        ]}]});
+        assert_eq!(check(audio).unwrap(), "None");
+        for bad in [
+            image("http://example.com/x.png"),
+            image("/etc/hosts"),
+            image("file:///etc/hosts"),
+            serde_json::json!({"messages": [], "adapter_path": "/x"}),
+            serde_json::json!({"messages": [], "model_path": "/x"}),
+            serde_json::json!({"messages": [{"role": "user", "content": [{"type": "video_url", "video_url": "/v.mp4"}]}]}),
+        ] {
+            let out = check(bad.clone()).unwrap();
+            assert_ne!(out, "None", "{bad} was accepted");
+        }
+    }
+
     #[test]
     fn the_worker_guards_what_harness_relies_on() {
         // The key comes from the environment and is compared in constant time; the bind,
