@@ -102,3 +102,9 @@ test('audio tasks: a WAV data URL with top_k, labels back', async () => {
   });
   assert.equal(parseResponse('audio-classification', [{ label: 'Speech', score: 0.56 }]).kind, 'labels');
 });
+
+test('image features: the shape and a preview of the first row', () => {
+  const res = parseResponse('image-feature-extraction', [[[1, 2, 3], [4, 5, 6]]]);
+  assert.deepEqual(res, { kind: 'features', value: { shape: [1, 2, 3], preview: [1, 2, 3] } });
+  assert.deepEqual(parseResponse('image-feature-extraction', [[0.5, 0.25]]).value, { shape: [1, 2], preview: [0.5, 0.25] });
+});
