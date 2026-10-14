@@ -47,3 +47,13 @@ test('Open in Playground picks the tab and how the model is chosen', () => {
   assert.equal(playgroundTarget(file('chat.gguf', 'llm')), null);
   assert.equal(playgroundTarget(file('a.gguf', 'image', { is_ready: false })), null);
 });
+
+test('a served model is named by its definition, else by its file or ONNX repo folder', async () => {
+  const { servedModelName } = await import('../src/lib/libraryDefinitions.ts');
+  const onnx = 'C:\\Models\\Xenova\\segformer-b0\\onnx\\model_quantized.onnx';
+  const defs = [{ id: 'md-1', alias: 'segformer-b0-quantized', base: { kind: 'local', path: 'c:/models/xenova/segformer-b0/onnx/model_quantized.onnx' } }];
+  assert.equal(servedModelName(onnx, defs), 'segformer-b0-quantized');
+  assert.equal(servedModelName(onnx, []), 'segformer-b0');
+  assert.equal(servedModelName('/m/bge-reranker/model.onnx', []), 'bge-reranker');
+  assert.equal(servedModelName('C:\\Models\\bge-m3-Q8_0.gguf', []), 'bge-m3-Q8_0');
+});
