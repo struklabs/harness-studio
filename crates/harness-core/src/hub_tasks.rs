@@ -693,7 +693,7 @@ const TABLE: &[Row] = &[
     row("text-to-audio", No, None),
     row("audio-to-audio", No, None),
     row_alt("audio-classification", No, None, ONNX_ALTS),
-    row("image-to-text", Partial, Some("vision")),
+    row_alt("image-to-text", Partial, Some("vision"), ONNX_ALTS),
     row_alt("text-to-image", No, None, T2I_ALTS),
     row_alt("image-to-image", No, None, T2I_ALTS),
     row_alt("text-to-video", No, None, VIDEO_ALTS),

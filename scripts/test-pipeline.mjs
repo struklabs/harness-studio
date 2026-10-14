@@ -108,3 +108,7 @@ test('image features: the shape and a preview of the first row', () => {
   assert.deepEqual(res, { kind: 'features', value: { shape: [1, 2, 3], preview: [1, 2, 3] } });
   assert.deepEqual(parseResponse('image-feature-extraction', [[0.5, 0.25]]).value, { shape: [1, 2], preview: [0.5, 0.25] });
 });
+
+test('image to text: the generated caption', () => {
+  assert.deepEqual(parseResponse('image-to-text', [{ generated_text: 'two cats laying on a bed ' }]), { kind: 'text', value: 'two cats laying on a bed' });
+});

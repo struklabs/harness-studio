@@ -233,25 +233,35 @@ pub fn onnx_kind(path: &Path) -> Option<crate::domain::ModelKind> {
         .or_else(|| pipeline_package(path).map(|_| crate::domain::ModelKind::Pipeline))
 }
 
-/// The name and pipeline task of a vision or audio classification package (a processor config
-/// and a task head in `config.json`, no tokenizer-driven encoder task).
-fn pipeline_package(path: &Path) -> Option<(String, &'static str)> {
+/// The name, pipeline task and other graphs (a captioner's decoder) of a vision or audio
+/// classification package (a processor config and a task head in `config.json`, no
+/// tokenizer-driven encoder task).
+fn pipeline_package(path: &Path) -> Option<(String, &'static str, Vec<PathBuf>)> {
     if let Some(p) = harness_onnx::vision_pkg::VisionPackage::discover(path) {
-        return Some((p.name.clone(), p.task.pipeline_task()));
+        let others = p.caption.iter().map(|c| c.decoder_path.clone()).collect();
+        return Some((p.name.clone(), p.task.pipeline_task(), others));
     }
-    harness_onnx::audio_pkg::AudioPackage::discover(path).map(|p| (p.name, "audio-classification"))
+    harness_onnx::audio_pkg::AudioPackage::discover(path)
+        .map(|p| (p.name, "audio-classification", Vec::new()))
 }
 
 /// The library entry of a vision or audio model (`preprocessor_config.json` and a task head in
 /// `config.json`): a task pipeline.
 fn vision_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
-    let (package_name, task) = pipeline_package(path)?;
+    let (package_name, task, others) = pipeline_package(path)?;
     let stem = path.file_stem()?.to_string_lossy().to_string();
-    let mut size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
-    for ext in ["onnx_data", "onnx.data"] {
-        size += fs::metadata(path.with_file_name(format!("{stem}.{ext}")))
-            .map(|m| m.len())
-            .unwrap_or(0);
+    // A captioner's size is its encoder and decoder graphs, with their external weights.
+    let mut graphs = vec![path.to_path_buf()];
+    graphs.extend(others);
+    let mut size = 0;
+    for graph in &graphs {
+        size += fs::metadata(graph).map(|m| m.len()).unwrap_or(0);
+        let graph_stem = graph.file_stem()?.to_string_lossy().to_string();
+        for ext in ["onnx_data", "onnx.data"] {
+            size += fs::metadata(graph.with_file_name(format!("{graph_stem}.{ext}")))
+                .map(|m| m.len())
+                .unwrap_or(0);
+        }
     }
     Some(LocalModel {
         id: path.to_string_lossy().to_string(),
@@ -1353,6 +1363,28 @@ mod tests {
         assert_eq!(m.name, "detr-resnet-50-quantized");
         assert_eq!(m.quantization, "INT8");
         assert_eq!(onnx_kind(&graph), Some(crate::domain::ModelKind::Pipeline));
+    }
+
+    #[test]
+    fn scans_an_onnx_captioner_as_one_model() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("Xenova").join("vit-gpt2-image-captioning");
+        let onnx = repo.join("onnx");
+        fs::create_dir_all(&onnx).unwrap();
+        fs::write(
+            repo.join("config.json"),
+            r#"{"architectures":["VisionEncoderDecoderModel"],"decoder_start_token_id":50256}"#,
+        )
+        .unwrap();
+        fs::write(repo.join("preprocessor_config.json"), r#"{"size":224}"#).unwrap();
+        fs::write(repo.join("tokenizer.json"), "{}").unwrap();
+        fs::write(onnx.join("encoder_model.onnx"), vec![0u8; 300]).unwrap();
+        fs::write(onnx.join("decoder_model_merged.onnx"), vec![0u8; 500]).unwrap();
+        let models = ModelManager.scan_directories(&[tmp.path().to_path_buf()]);
+        assert_eq!(models.len(), 1, "the decoder belongs to the encoder");
+        let m = &models[0];
+        assert_eq!(m.task.as_deref(), Some("image-to-text"));
+        assert_eq!(m.size_bytes, 800);
     }
 
     #[test]

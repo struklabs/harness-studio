@@ -9,6 +9,7 @@
 //! What the image processor does before the graph and which head the graph has are read here;
 //! decoding and resizing the image happen in `vision` (feature `engine`). Pure.
 
+use crate::generation::GenConfig;
 use crate::package::labels_from_config;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -30,6 +31,9 @@ pub enum VisionTask {
     /// A bare image backbone (`ViTModel`, `Dinov2Model`, `ConvNextModel`...): its hidden
     /// states (or pooled output) as the image's features.
     Features,
+    /// An image captioner (`VisionEncoderDecoderModel`: ViT + GPT-2...) exported as an encoder
+    /// and a text decoder: the caption generated token by token.
+    Caption,
 }
 
 /// `model_type`s of image backbones whose bare `*Model` export is an image feature extractor.
@@ -69,6 +73,7 @@ impl VisionTask {
             VisionTask::Depth => "depth-estimation",
             VisionTask::ZeroShot => "zero-shot-image-classification",
             VisionTask::Features => "image-feature-extraction",
+            VisionTask::Caption => "image-to-text",
         }
     }
 }
@@ -157,6 +162,8 @@ pub struct VisionPackage {
     pub preprocess: Preprocess,
     /// The tokenizer of a zero-shot model (`None` for the other tasks).
     pub text: Option<TextSide>,
+    /// The text decoder of a captioner (`None` for the other tasks).
+    pub caption: Option<CaptionSide>,
     /// Display name: the repo folder.
     pub name: String,
     pub notes: Vec<String>,
@@ -197,6 +204,8 @@ pub fn task_from_config(config: &Value) -> Option<VisionTask> {
         .any(|n| matches!(*n, "CLIPModel" | "SiglipModel"))
     {
         Some(VisionTask::ZeroShot)
+    } else if heads.contains(&"VisionEncoderDecoderModel") {
+        Some(VisionTask::Caption)
     } else if heads.iter().any(|n| n.ends_with("Model"))
         && config
             .get("model_type")
@@ -314,6 +323,12 @@ impl VisionPackage {
         let task = task_from_config(&config)?;
         let processor = read_json(&root.join("preprocessor_config.json"))?;
         let preprocess = parse_preprocess(&processor);
+        // A captioner is found by its encoder graph; the decoder graphs belong to it.
+        let caption = if task == VisionTask::Caption {
+            Some(caption_side(&root, onnx_path)?)
+        } else {
+            None
+        };
         let text = if task == VisionTask::ZeroShot {
             // transformers.js also ships the two towers alone (`text_model`, `vision_model`);
             // only the joint graph scores an image against labels.
@@ -359,10 +374,36 @@ impl VisionPackage {
             ),
             preprocess,
             text,
+            caption,
             name,
             notes,
         })
     }
+}
+
+/// The text decoder of an image captioner and how it generates.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CaptionSide {
+    /// `decoder_model_merged*.onnx` (one graph with and without the KV cache) or
+    /// `decoder_model*.onnx` (no cache: the whole sequence every step).
+    pub decoder_path: PathBuf,
+    pub tokenizer_path: PathBuf,
+    pub gen: GenConfig,
+}
+
+/// The decoder, tokenizer and generation settings of a captioner's encoder graph; `None` for
+/// a decoder graph itself or a repo without them.
+fn caption_side(root: &Path, encoder: &Path) -> Option<CaptionSide> {
+    let decoder_path = crate::generation::decoder_beside(encoder)?;
+    let tokenizer_path = root.join("tokenizer.json");
+    if !tokenizer_path.is_file() {
+        return None;
+    }
+    Some(CaptionSide {
+        decoder_path,
+        tokenizer_path,
+        gen: GenConfig::read(root, None)?,
+    })
 }
 
 /// The tokenizer side of a zero-shot model; `None` without a `tokenizer.json`.
@@ -524,6 +565,60 @@ mod tests {
         // Without a processor config it is not a vision package.
         fs::remove_file(repo.join("preprocessor_config.json")).unwrap();
         assert!(VisionPackage::discover(&model).is_none());
+    }
+
+    #[test]
+    fn discovers_a_captioner_by_its_encoder() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = dir.path().join("Xenova").join("vit-gpt2-image-captioning");
+        fs::create_dir_all(repo.join("onnx")).unwrap();
+        fs::write(
+            repo.join("config.json"),
+            json!({"architectures": ["VisionEncoderDecoderModel"], "decoder_start_token_id": 50256,
+                   "eos_token_id": 50256})
+            .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            repo.join("preprocessor_config.json"),
+            json!({"size": {"height": 224, "width": 224}}).to_string(),
+        )
+        .unwrap();
+        fs::write(repo.join("tokenizer.json"), "{}").unwrap();
+        let onnx = repo.join("onnx");
+        for f in [
+            "encoder_model_quantized.onnx",
+            "decoder_model_merged.onnx",
+            "decoder_model_merged_quantized.onnx",
+        ] {
+            fs::write(onnx.join(f), b"onnx").unwrap();
+        }
+        let encoder = onnx.join("encoder_model_quantized.onnx");
+        let p = VisionPackage::discover(&encoder).unwrap();
+        assert_eq!(p.task, VisionTask::Caption);
+        let side = p.caption.unwrap();
+        // The decoder of the same precision; 19 new tokens by default (transformers' 20 in all).
+        assert_eq!(
+            side.decoder_path,
+            onnx.join("decoder_model_merged_quantized.onnx")
+        );
+        assert_eq!(
+            (side.gen.start_id, side.gen.eos_ids.clone()),
+            (50256, vec![50256])
+        );
+        assert_eq!(side.gen.length_of(None), 20);
+        assert_eq!(pipeline_task_of(&encoder), Some("image-to-text"));
+        // The decoder graphs belong to the encoder; they are no models of their own.
+        assert!(VisionPackage::discover(&onnx.join("decoder_model_merged.onnx")).is_none());
+        // Without a tokenizer there is no caption to decode.
+        fs::rename(repo.join("tokenizer.json"), repo.join("tokenizer.bak")).unwrap();
+        assert!(VisionPackage::discover(&encoder).is_none());
+        fs::rename(repo.join("tokenizer.bak"), repo.join("tokenizer.json")).unwrap();
+        // The repo has a tokenizer, but it is no text encoder.
+        assert!(matches!(
+            crate::package::ModelPackage::discover(&encoder),
+            Err(crate::package::PackageError::DualEncoder(_))
+        ));
     }
 
     #[test]
