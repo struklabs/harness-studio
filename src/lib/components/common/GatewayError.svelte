@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { gatewayMemoryError, gatewayBusyError } from '$lib/gateway-error';
-  import { busyText } from '$lib/gateway-busy-text';
-  import { app } from '$lib/stores/app.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import { invoke } from '$lib/ipc';
-  import { Button } from '$lib/components/ui/button';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { gatewayMemoryError, gatewayBusyError } from '#lib/gateway-error.js';
+  import { busyText } from '#lib/gateway-busy-text.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import { invoke } from '#lib/ipc.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   let { error, onUse, onRetry }: { error: unknown; onUse?: (model: string) => void; onRetry?: () => void | Promise<unknown> } = $props();
   let busy = $state(false);
   let actionError = $state('');

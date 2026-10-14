@@ -4,14 +4,14 @@
   // Settings > Runtime: what the official runtime really runs (managed / custom / a system
   // llama-server found on PATH or WinGet), whether that is a fallback for the configured
   // mode, and a staged managed build waiting to be activated.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
-  import type { AppSettings } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { runtimesStore, runtimeBuildLabel } from '$lib/stores/runtimes.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
+  import type { AppSettings } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { runtimesStore, runtimeBuildLabel } from '#lib/stores/runtimes.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
   import { TriangleAlert } from '@lucide/svelte';
   import type { SettingsDraft } from './form.svelte';
   import SettingRow from './SettingRow.svelte';

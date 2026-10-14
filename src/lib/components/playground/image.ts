@@ -1,7 +1,7 @@
 // Playground Image tab: request helper for the gateway's /v1/images/generations and, with a start
 // image, /v1/images/edits (a real sd-server behind it; nothing is simulated).
 import { describeErrorBody } from './sse';
-import type { LocalModel, ModelDefinition } from '$lib/types';
+import type { LocalModel, ModelDefinition } from '#lib/types.js';
 
 /** Largest side the gateway accepts (`images::SIDE_RANGE`). */
 export const MAX_SIDE = 4096;

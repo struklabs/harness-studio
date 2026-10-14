@@ -1,4 +1,4 @@
-import type { TKey } from '$lib/i18n.svelte';
+import type { TKey } from '#lib/i18n.svelte.js';
 
 /** Field labels and help, grouped by the page that owns them (including unvisited pages). */
 export const SETTINGS_SEARCH_KEYS: Record<string, TKey[]> = {

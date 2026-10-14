@@ -4,13 +4,13 @@
   // a field takes any URI, which is how a template's resource is reached.
   import { onDestroy, onMount } from 'svelte';
   import { FileText, Paperclip } from '@lucide/svelte';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { formatBytes } from '$lib/format';
-  import { listMcpResources, type McpResourceList } from '$lib/tools-client';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { formatBytes } from '#lib/format.js';
+  import { listMcpResources, type McpResourceList } from '#lib/tools-client.js';
 
   interface Props {
     server: string;

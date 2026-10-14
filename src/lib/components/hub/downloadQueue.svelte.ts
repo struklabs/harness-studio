@@ -1,10 +1,10 @@
-import { invoke } from '$lib/ipc';
-import type { DownloadProgress, DownloadStatus, HfModelVariant } from '$lib/types';
-import { t } from '$lib/i18n.svelte';
-import { localizeError } from '$lib/network';
+import { invoke } from '#lib/ipc.js';
+import type { DownloadProgress, DownloadStatus, HfModelVariant } from '#lib/types.js';
+import { t } from '#lib/i18n.svelte.js';
+import { localizeError } from '#lib/network.js';
 import { toast } from 'svelte-sonner';
 import { listen } from '@tauri-apps/api/event';
-import { onWindowActive, windowActive } from '$lib/windowActivity';
+import { onWindowActive, windowActive } from '#lib/windowActivity.js';
 
 export type StatusKey = 'Idle' | 'Queued' | 'Downloading' | 'Verifying' | 'Paused' | 'Completed' | 'Error';
 

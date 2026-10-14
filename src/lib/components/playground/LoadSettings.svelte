@@ -2,15 +2,15 @@
   // "Load Settings" of the Playground model picker: edit the context, GPU layers, KV cache
   // type, flash attention and parallel slots of one definition for this load (or save them to
   // the definition), with the memory estimate of the launch the load would start.
-  import { invoke } from '$lib/ipc';
-  import { t } from '$lib/i18n.svelte';
-  import { app, DEFAULT_SERVER_ID } from '$lib/stores/app.svelte';
-  import { capsStore } from '$lib/stores/caps.svelte';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import type { HardwareFitResult, LaunchConfig, LoadTarget, ModelDefinition, FitResult, ParamValues } from '$lib/types';
-  import { toHardwareFit } from '$lib/fit';
-  import { Input } from '$lib/components/ui/input';
-  import { Button } from '$lib/components/ui/button';
+  import { invoke } from '#lib/ipc.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import type { HardwareFitResult, LaunchConfig, LoadTarget, ModelDefinition, FitResult, ParamValues } from '#lib/types.js';
+  import { toHardwareFit } from '#lib/fit.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import Field from '../dashboard/parts/Field.svelte';
   import NativeSelect from '../dashboard/parts/NativeSelect.svelte';
   import SwitchRow from '../dashboard/advanced/SwitchRow.svelte';

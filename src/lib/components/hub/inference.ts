@@ -1,7 +1,7 @@
 // Locale keys for the backend's task inference (`harness_core::hub_tasks`): where a guessed task
 // came from, and why a repo cannot run at all.
-import { t, type TKey } from '$lib/i18n.svelte';
-import type { HfModelFormat, HfNotRunnable, HfTaskSource } from '$lib/types';
+import { t, type TKey } from '#lib/i18n.svelte.js';
+import type { HfModelFormat, HfNotRunnable, HfTaskSource } from '#lib/types.js';
 
 const SOURCE_KEYS: Record<HfTaskSource, TKey> = {
   tags: 'hub.task_source_tags',

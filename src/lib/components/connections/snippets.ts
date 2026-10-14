@@ -1,4 +1,4 @@
-import { t } from '$lib/i18n.svelte';
+import { t } from '#lib/i18n.svelte.js';
 import type { IntegrationId } from './integrations';
 
 export interface SnippetContext {

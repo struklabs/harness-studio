@@ -1,11 +1,11 @@
 <script lang="ts">
   let { page = 'gateway-endpoint' }: { page?: string } = $props();
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Settings > Gateway: the managed endpoint (harness-gateway, off by default), its scheduler
   // limits, the models it serves and the explicit "ignore this tool" consent per model.
   // Saved through its own command (validated in the core), not the general settings form.
   import { onDestroy, onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { Copy, Pin, ShieldAlert, Trash2 } from '@lucide/svelte';
   import type {
@@ -15,26 +15,26 @@
     ModelDefinition,
     QueueHint,
     SlotState,
-  } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { app } from '$lib/stores/app.svelte';
-  import { windowActive } from '$lib/windowActivity';
-  import { domain } from '$lib/stores/domain.svelte';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Switch } from '$lib/components/ui/switch';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import NativeSelect from '$lib/components/dashboard/parts/NativeSelect.svelte';
-  import { cn } from '$lib/utils';
+  } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { windowActive } from '#lib/windowActivity.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import NativeSelect from '#lib/components/dashboard/parts/NativeSelect.svelte';
+  import { cn } from '#lib/utils.js';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
   import NumberField from './NumberField.svelte';
   import OllamaSettings from './OllamaSettings.svelte';
-  import PortFallbackNote from '$lib/components/connections/PortFallbackNote.svelte';
+  import PortFallbackNote from '#lib/components/connections/PortFallbackNote.svelte';
   import ResponsesSettings from './ResponsesSettings.svelte';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
 
   let overview = $state<GatewayOverview | null>(null);
   let draft = $state<GatewaySettings | null>(null);

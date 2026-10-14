@@ -2,9 +2,9 @@
   import { onDestroy } from 'svelte';
   import { toast } from 'svelte-sonner';
   import { Check, Copy } from '@lucide/svelte';
-  import { Button, type ButtonSize, type ButtonVariant } from '$lib/components/ui/button';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { t } from '$lib/i18n.svelte';
+  import { Button, type ButtonSize, type ButtonVariant } from '#lib/components/ui/button/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { t } from '#lib/i18n.svelte.js';
 
   interface Props {
     text: string;

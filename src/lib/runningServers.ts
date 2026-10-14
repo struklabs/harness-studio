@@ -1,4 +1,4 @@
-import type { ServerSummary } from '$lib/types';
+import type { ServerSummary } from '#lib/types.js';
 
 export interface RunningServer {
   id: string;

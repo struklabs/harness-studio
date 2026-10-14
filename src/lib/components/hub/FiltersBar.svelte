@@ -1,10 +1,10 @@
 <script lang="ts">
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Switch } from '$lib/components/ui/switch';
-  import { cn } from '$lib/utils';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import { cn } from '#lib/utils.js';
   import { RotateCcw } from '@lucide/svelte';
   import FilterSelect from './FilterSelect.svelte';
 

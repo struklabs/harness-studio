@@ -1,5 +1,5 @@
 // Types for importing models from Ollama / LM Studio (see src-tauri/src/importer.rs).
-import type { LocalModel } from '$lib/types';
+import type { LocalModel } from '#lib/types.js';
 
 export type ImportSource = 'ollama' | 'lmstudio';
 export type ImportMode = 'link' | 'copy';

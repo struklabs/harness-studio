@@ -1,22 +1,22 @@
 import { toast } from 'svelte-sonner';
-import { ACTION_TOAST_DURATION } from '$lib/toast';
-import { DownloadQueue } from '$lib/components/hub/downloadQueue.svelte';
-import { t } from '$lib/i18n.svelte';
-import { app, DEFAULT_SERVER_ID } from '$lib/stores/app.svelte';
-import { localizeError } from '$lib/network';
-import { defaultLoadTarget, isChatLoadable, shouldAutoLoad } from '$lib/downloadFollowUp';
-import { library, repoRelative } from '$lib/stores/library.svelte';
-import { domain, samePath } from '$lib/stores/domain.svelte';
-import { invoke } from '$lib/ipc';
-import { holdReleaseWhile } from '$lib/windowActivity';
-import { suggestAlias } from '$lib/components/library/filters';
-import { isImageDefinition } from '$lib/components/playground/image';
-import { filesNeedingDefinition, playgroundTarget } from '$lib/libraryDefinitions';
-import { imageSession } from '$lib/components/playground/image.svelte';
-import { speech } from '$lib/components/playground/speech.svelte';
-import { asr } from '$lib/components/playground/asr.svelte';
-import { tts } from '$lib/components/playground/tts.svelte';
-import type { DownloadProgress, LoadTarget, LocalModel, ModelDefinition, ModelKind } from '$lib/types';
+import { ACTION_TOAST_DURATION } from '#lib/toast.js';
+import { DownloadQueue } from '#lib/components/hub/downloadQueue.svelte.js';
+import { t } from '#lib/i18n.svelte.js';
+import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
+import { localizeError } from '#lib/network.js';
+import { defaultLoadTarget, isChatLoadable, shouldAutoLoad } from '#lib/downloadFollowUp.js';
+import { library, repoRelative } from '#lib/stores/library.svelte.js';
+import { domain, samePath } from '#lib/stores/domain.svelte.js';
+import { invoke } from '#lib/ipc.js';
+import { holdReleaseWhile } from '#lib/windowActivity.js';
+import { suggestAlias } from '#lib/components/library/filters.js';
+import { isImageDefinition } from '#lib/components/playground/image.js';
+import { filesNeedingDefinition, playgroundTarget } from '#lib/libraryDefinitions.js';
+import { imageSession } from '#lib/components/playground/image.svelte.js';
+import { speech } from '#lib/components/playground/speech.svelte.js';
+import { asr } from '#lib/components/playground/asr.svelte.js';
+import { tts } from '#lib/components/playground/tts.svelte.js';
+import type { DownloadProgress, LoadTarget, LocalModel, ModelDefinition, ModelKind } from '#lib/types.js';
 
 /**
  * App-wide download queue. It lives outside the Model Hub component so progress

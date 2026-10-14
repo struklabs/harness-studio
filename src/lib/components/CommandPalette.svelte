@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Command as CommandPrimitive } from 'bits-ui';
-  import * as Command from '$lib/components/ui/command';
+  import * as Command from '#lib/components/ui/command/index.js';
   import {
     LayoutDashboard,
     MessageSquare,
@@ -20,25 +20,25 @@
     MessageSquarePlus,
     Boxes,
   } from '@lucide/svelte';
-  import { invoke } from '$lib/ipc';
-  import { presetName } from '$lib/components/presets/presetText';
-  import { t, getLanguage, inAllLanguages, type TKey } from '$lib/i18n.svelte';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { pageLevel, tabLevel } from '$lib/uiLevel';
-  import { app } from '$lib/stores/app.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import { security } from '$lib/stores/security.svelte';
+  import { invoke } from '#lib/ipc.js';
+  import { presetName } from '#lib/components/presets/presetText.js';
+  import { t, getLanguage, inAllLanguages, type TKey } from '#lib/i18n.svelte.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { pageLevel, tabLevel } from '#lib/uiLevel.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import { security } from '#lib/stores/security.svelte.js';
   import { PLAYGROUND_MODES } from './playground/navigation';
   import { CREATE_PAGES } from './create/navigation';
   import { CONNECTION_PAGES } from './connections/navigation';
-  import { requestSection } from '$lib/stores/sectionPage.svelte';
-  import { panes } from '$lib/stores/panes.svelte';
+  import { requestSection } from '#lib/stores/sectionPage.svelte.js';
+  import { panes } from '#lib/stores/panes.svelte.js';
   import { DASHBOARD_GROUPS, PLAYGROUND_GROUPS, LIBRARY_GROUPS, PERFORMANCE_GROUPS, ANALYTICS_GROUPS } from './common/screenSections';
   import { SETTINGS_SECTIONS } from './settings/sections';
   import { SETTINGS_SEARCH_KEYS } from './settings/searchFields';
-  import { paletteFilter } from '$lib/search';
-  import type { AppSettings } from '$lib/types';
-  import { UI_SCALES, normalizeScale } from '$lib/uiScale';
+  import { paletteFilter } from '#lib/search.js';
+  import type { AppSettings } from '#lib/types.js';
+  import { UI_SCALES, normalizeScale } from '#lib/uiScale.js';
   import type { Tab } from './Sidebar.svelte';
 
   interface Props {

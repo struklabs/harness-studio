@@ -1,21 +1,21 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import AdvancedOnly from '$lib/components/common/AdvancedOnly.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Create / edit a model definition: alias (the served model id), description, default
   // inference preset, LoRA adapters, projector, draft model and chat template. Saved at once.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onMount } from 'svelte';
-  import type { DraftSuggestion, LocalModel, ModelDefinition, ParamValues } from '$lib/types';
-  import { presetName } from '$lib/components/presets/presetText';
-  import { t } from '$lib/i18n.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import { capsStore } from '$lib/stores/caps.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import { Checkbox } from '$lib/components/ui/checkbox';
+  import type { DraftSuggestion, LocalModel, ModelDefinition, ParamValues } from '#lib/types.js';
+  import { presetName } from '#lib/components/presets/presetText.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
   import { Plus, X } from '@lucide/svelte';
   import Field from './parts/Field.svelte';
   import NativeSelect from './parts/NativeSelect.svelte';

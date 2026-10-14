@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { Check, X, TriangleAlert } from '@lucide/svelte';
-  import type { AppSettings } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import * as Dialog from '$lib/components/ui/dialog';
+  import type { AppSettings } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
 
   interface Props {
     settings: AppSettings;

@@ -2,15 +2,15 @@
   // The window's title bar (the OS frame is off, see tauri.conf.json): brand over the nav column,
   // page title, command search, the one global server indicator, window controls.
   // Empty areas and plain text are drag regions; double-click toggles maximize (Tauri's drag script).
-  import type { ServerStatus, SystemHardwareInfo, AppSettings } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { app } from '$lib/stores/app.svelte';
-  import { panes } from '$lib/stores/panes.svelte';
-  import { invoke } from '$lib/ipc';
+  import type { ServerStatus, SystemHardwareInfo, AppSettings } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { panes } from '#lib/stores/panes.svelte.js';
+  import { invoke } from '#lib/ipc.js';
   import { Square, Search, Cpu } from '@lucide/svelte';
-  import { Button } from '$lib/components/ui/button';
-  import * as Kbd from '$lib/components/ui/kbd';
-  import { cn } from '$lib/utils';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Kbd from '#lib/components/ui/kbd/index.js';
+  import { cn } from '#lib/utils.js';
   import Sparkline from './common/Sparkline.svelte';
   import ServerPicker from './common/ServerPicker.svelte';
   import BrandLogo from './common/BrandLogo.svelte';

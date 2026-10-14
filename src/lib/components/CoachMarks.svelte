@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
+  import { t } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
 
   interface Props {
     onClose: () => void;

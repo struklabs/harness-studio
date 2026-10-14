@@ -1,12 +1,12 @@
 <script lang="ts">
   import AdvancedPageNotice from './common/AdvancedPageNotice.svelte';
-  import { pageLevel } from '$lib/uiLevel';
+  import { pageLevel } from '#lib/uiLevel.js';
   import SectionSidebar from './common/SectionSidebar.svelte';
-  import { panes } from '$lib/stores/panes.svelte';
-  import { SectionSelection } from '$lib/stores/sectionPage.svelte';
+  import { panes } from '#lib/stores/panes.svelte.js';
+  import { SectionSelection } from '#lib/stores/sectionPage.svelte.js';
   import { PERFORMANCE_GROUPS } from './common/screenSections';
-  import type { AppSettings, ServerStatus } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
+  import type { AppSettings, ServerStatus } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
   import PerformanceView from './PerformanceView.svelte';
   import Benchmark from './Benchmark.svelte';
 

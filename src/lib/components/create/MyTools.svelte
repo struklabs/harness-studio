@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { Button } from '$lib/components/ui/button';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import InstalledToolsSettings from '../settings/InstalledToolsSettings.svelte';
   import { categories, categoryLabel, inventory, type InventoryTool } from './client';
   let { revision = 0 }: { revision?: number } = $props();

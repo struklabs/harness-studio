@@ -7,7 +7,7 @@
   /** Components already loaded, by loader: a view opened again renders at once. */
   const loaded = new Map<ViewLoader, Component<any>>();
 
-  /** Loads a view once; shared by the view itself and the idle/hover preloading (`$lib/views`). */
+  /** Loads a view once; shared by the view itself and the idle/hover preloading (`#lib/views.js`). */
   export function loadView(loader: ViewLoader): Promise<Component<any>> {
     const known = loaded.get(loader);
     if (known) return Promise.resolve(known);
@@ -22,9 +22,9 @@
   import { untrack } from 'svelte';
   import { TriangleAlert } from '@lucide/svelte';
   import SectionLoading from './SectionLoading.svelte';
-  import * as Empty from '$lib/components/ui/empty';
-  import { Button } from '$lib/components/ui/button';
-  import { t } from '$lib/i18n.svelte';
+  import * as Empty from '#lib/components/ui/empty/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { t } from '#lib/i18n.svelte.js';
 
   /**
    * Renders a component that is loaded on first use (its own JS chunk), so the start screen

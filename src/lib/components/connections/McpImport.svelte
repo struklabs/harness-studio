@@ -1,17 +1,17 @@
 <script lang="ts">
   import HelpPopover from '../common/HelpPopover.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import * as Dialog from '$lib/components/ui/dialog';
+  import { invoke } from '#lib/ipc.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
   import { ShieldAlert } from '@lucide/svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { uniqueServerName } from '$lib/mcp-client';
-  import type { McpConfig, McpImportSource, McpImportSourceInfo, McpServerDef } from '$lib/mcp-types';
-  import { cn } from '$lib/utils';
+  import { t } from '#lib/i18n.svelte.js';
+  import { uniqueServerName } from '#lib/mcp-client.js';
+  import type { McpConfig, McpImportSource, McpImportSourceInfo, McpServerDef } from '#lib/mcp-types.js';
+  import { cn } from '#lib/utils.js';
 
   // Rendered inside <Dialog.Content>; the parent owns the dialog's open state.
   interface Props {

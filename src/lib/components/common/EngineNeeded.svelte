@@ -3,12 +3,12 @@
   // successful install the whole notice goes away and `onInstalled` runs, so the model can be
   // loaded or used at once. A family without a managed download says how to add it instead.
   import { LoaderCircle, Download } from '@lucide/svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { engineInstall } from '$lib/stores/engineInstall.svelte';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { security } from '$lib/stores/security.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { cn } from '$lib/utils';
+  import { t } from '#lib/i18n.svelte.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     /** Engine family as the backend names it (`whisper.cpp`). */

@@ -1,13 +1,13 @@
 <script lang="ts">
   // Deleting a model definition: blocked while a server profile serves it (the profiles are
   // listed); otherwise confirmed.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onMount } from 'svelte';
-  import type { DefinitionRefs, ModelDefinition } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
+  import type { DefinitionRefs, ModelDefinition } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
 
   interface Props {
     definition: ModelDefinition;

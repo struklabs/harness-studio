@@ -7,13 +7,13 @@
   import { onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
   import { FlaskConical, FolderOpen, ShieldAlert, Trash2 } from '@lucide/svelte';
-  import { invoke } from '$lib/ipc';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { cn } from '$lib/utils';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Switch } from '$lib/components/ui/switch';
+  import { invoke } from '#lib/ipc.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { cn } from '#lib/utils.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
   import {
     inspectInstalledTool,
     installInstalledTool,
@@ -24,8 +24,8 @@
     type InstalledTool,
     type PermissionClass,
     type TestReport,
-  } from '$lib/tools-client';
-  import ToolTestReport from '$lib/components/tools/ToolTestReport.svelte';
+  } from '#lib/tools-client.js';
+  import ToolTestReport from '#lib/components/tools/ToolTestReport.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
 

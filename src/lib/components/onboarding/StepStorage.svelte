@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { FolderOpen, Lightbulb } from '@lucide/svelte';
-  import type { AppSettings } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
+  import type { AppSettings } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
 
   interface Props {
     modelsDir: string;

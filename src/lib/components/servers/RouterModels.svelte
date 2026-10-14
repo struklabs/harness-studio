@@ -1,13 +1,13 @@
 <script lang="ts">
   // The models of a running router server (one llama-server process, many models): each shows
   // whether it is loaded and can be loaded or unloaded without touching the others.
-  import { invoke } from '$lib/ipc';
-  import type { RouterModel, RouterModelState } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
+  import { invoke } from '#lib/ipc.js';
+  import type { RouterModel, RouterModelState } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
   import { AlertCircle, Play, Square } from '@lucide/svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { cn } from '$lib/utils';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     serverId: string;

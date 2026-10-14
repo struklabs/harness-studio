@@ -3,17 +3,17 @@ import { guardToolCalls } from './toolLoopGuard';
 // Pure helpers (no Svelte runes): pane settings, per-side history, one streaming request,
 // capacity errors (sequential fallback) and the small comparison summary.
 
-import type { InferencePreset, ServerSummary } from '$lib/types';
+import type { InferencePreset, ServerSummary } from '#lib/types.js';
 import { salvageToolCalls, TextCallStreamBuffer } from './textToolCalls';
 import { chatRequest } from './chatRequest';
-import { parseTextToolCalls } from '$lib/tools-client';
-import { invoke } from '$lib/ipc';
+import { parseTextToolCalls } from '#lib/tools-client.js';
+import { invoke } from '#lib/ipc.js';
 import { requestBody, requestOf } from '../presets/request';
 import { requestErrorText } from '../connections/net';
 import { buildApiMessages, buildStats, type Timings, type Usage } from './agentLoop';
 import { SseParser, type SseEvent } from './sse';
-import { describeError } from '$lib/gateway-busy-text';
-import { ToolCallAccumulator } from '$lib/mcp-client';
+import { describeError } from '#lib/gateway-busy-text.js';
+import { ToolCallAccumulator } from '#lib/mcp-client.js';
 import { newId, type ChatMessage, type PgSettings } from './types';
 
 export type Side = 'a' | 'b';

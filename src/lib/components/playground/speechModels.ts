@@ -1,4 +1,4 @@
-import type { ModelDefinition, RuntimeView } from '$lib/types';
+import type { ModelDefinition, RuntimeView } from '#lib/types.js';
 
 /** Models a speech request can name: definitions whose file is a whisper ggml `.bin`. */
 export function isSpeechFile(name: string): boolean {

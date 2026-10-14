@@ -1,17 +1,17 @@
 <script lang="ts">
   // Settings > Runtime > ONNX Runtime: the libraries harness-onnx loads (ONNX Runtime and, on Windows, GenAI: chat, embeddings / rerank for
   // Hugging Face ONNX models). Downloaded on demand, every file checked against a pinned SHA-256.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onDestroy, onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
-  import type { OnnxRuntimeProgress, OnnxRuntimeSupport, OnnxRuntimeVariant } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { formatBytes } from '$lib/format';
-  import { onnxUnsupportedText } from '$lib/engines';
-  import { localizeError } from '$lib/network';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Progress } from '$lib/components/ui/progress';
+  import type { OnnxRuntimeProgress, OnnxRuntimeSupport, OnnxRuntimeVariant } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { formatBytes } from '#lib/format.js';
+  import { onnxUnsupportedText } from '#lib/engines.js';
+  import { localizeError } from '#lib/network.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
   import { ShieldCheck } from '@lucide/svelte';
   import SettingGroup from './SettingGroup.svelte';
 

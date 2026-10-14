@@ -6,10 +6,10 @@
   import { onDestroy, onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import { ChevronDown, ChevronRight, KeyRound, LogOut, RefreshCw, RotateCcw, ShieldAlert } from '@lucide/svelte';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
   import {
     authorizeMcpServer,
     cancelMcpAuthorize,
@@ -22,8 +22,8 @@
     type McpServerState,
     type McpServerStatus,
     type PermissionClass,
-  } from '$lib/tools-client';
-  import { cn } from '$lib/utils';
+  } from '#lib/tools-client.js';
+  import { cn } from '#lib/utils.js';
   import NativeSelect from '../dashboard/parts/NativeSelect.svelte';
   import McpResourceList from './McpResourceList.svelte';
 

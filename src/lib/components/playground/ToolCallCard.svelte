@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { prettyArgs } from '$lib/mcp-client';
-  import { cn } from '$lib/utils';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import { Label } from '$lib/components/ui/label';
-  import * as Collapsible from '$lib/components/ui/collapsible';
-  import * as Tooltip from '$lib/components/ui/tooltip';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { prettyArgs } from '#lib/mcp-client.js';
+  import { cn } from '#lib/utils.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
   import type { PgToolCall, ToolCallStatus } from './types';
   import { ChevronRight, Wrench, LoaderCircle, Check, X, ShieldAlert } from '@lucide/svelte';
 

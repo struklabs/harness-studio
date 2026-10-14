@@ -6,8 +6,8 @@
   // `marked` and sanitized by DOMPurify before it reaches {@html}.
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { toast } from 'svelte-sonner';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import { Check, Copy } from '@lucide/svelte';
   import { renderChatMarkdown } from './markdown';
   import MermaidBlock from './MermaidBlock.svelte';

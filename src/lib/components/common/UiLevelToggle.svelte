@@ -1,7 +1,7 @@
 <script lang="ts">
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { t } from '$lib/i18n.svelte';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
 </script>
 
 <ToggleGroup.Root type="single" size="sm" aria-label={t('uiLevel.label')} disabled={uiLevel.busy}

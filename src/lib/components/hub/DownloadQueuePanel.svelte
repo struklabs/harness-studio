@@ -1,17 +1,17 @@
 <script lang="ts">
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
-  import { formatBytes } from '$lib/format';
-  import { t } from '$lib/i18n.svelte';
-  import type { DownloadProgress } from '$lib/types';
-  import { Button } from '$lib/components/ui/button';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import { Label } from '$lib/components/ui/label';
-  import { Progress } from '$lib/components/ui/progress';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { cn } from '$lib/utils';
-  import { library } from '$lib/stores/library.svelte';
-  import { loadAndChat, modelOfJob } from '$lib/stores/downloads.svelte';
-  import { isChatLoadable } from '$lib/downloadFollowUp';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
+  import { formatBytes } from '#lib/format.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import type { DownloadProgress } from '#lib/types.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
+  import { Progress } from '#lib/components/ui/progress/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { cn } from '#lib/utils.js';
+  import { library } from '#lib/stores/library.svelte.js';
+  import { loadAndChat, modelOfJob } from '#lib/stores/downloads.svelte.js';
+  import { isChatLoadable } from '#lib/downloadFollowUp.js';
   import { ArrowUpToLine, ChevronDown, ChevronUp, CircleAlert, CircleCheck, MessageSquare, Pause, Play, X } from '@lucide/svelte';
   import {
     DownloadQueue,

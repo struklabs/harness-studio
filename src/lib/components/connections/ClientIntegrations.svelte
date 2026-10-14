@@ -1,25 +1,25 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import HelpPopover from '../common/HelpPopover.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { onDestroy, onMount, untrack } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import { toast } from 'svelte-sonner';
   import { ChevronDown, ExternalLink, FlaskConical, History, KeyRound, Play, RefreshCw, RotateCcw, TriangleAlert, SlidersHorizontal } from '@lucide/svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
-  import { invoke } from '$lib/ipc';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import * as Collapsible from '$lib/components/ui/collapsible';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { app } from '$lib/stores/app.svelte';
-  import { cn } from '$lib/utils';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
+  import { invoke } from '#lib/ipc.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { cn } from '#lib/utils.js';
   import CopyButton from './CopyButton.svelte';
   import {
     applyIntegration,
@@ -44,12 +44,12 @@
   import { buildSnippet, PLACEHOLDER_KEY } from './snippets';
   import { buildGuide } from './guides';
   import LaunchDialog from './LaunchDialog.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
+  import { domain } from '#lib/stores/domain.svelte.js';
   import { diffStats, lineDiff } from './lineDiff';
   import { applyTuning, getRunningConfig, isTuned, kvText, planTuning, servedModel, type RunningConfig, type TuningPlan } from './agentTuning';
   import PrepareOptions from './PrepareOptions.svelte';
-  import { pathExample } from '$lib/platform';
-  import type { ServerStatus } from '$lib/types';
+  import { pathExample } from '#lib/platform.js';
+  import type { ServerStatus } from '#lib/types.js';
 
   interface Props {
     /** Model ID reported by the running server (used in snippets and written configs). */

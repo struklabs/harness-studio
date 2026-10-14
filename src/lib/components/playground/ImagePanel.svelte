@@ -1,23 +1,23 @@
 <script lang="ts">
   import Field from '../dashboard/parts/Field.svelte';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { invoke } from '$lib/ipc';
+  import { t } from '#lib/i18n.svelte.js';
+  import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
-  import { localizeError } from '$lib/network';
-  import type { GatewayOverview } from '$lib/types';
-  import { app } from '$lib/stores/app.svelte';
-  import { domain } from '$lib/stores/domain.svelte';
-  import { library } from '$lib/stores/library.svelte';
-  import { libraryDefinitions } from '$lib/stores/downloads.svelte';
-  import { filesNeedingDefinition } from '$lib/libraryDefinitions';
-  import { Button } from '$lib/components/ui/button';
+  import { localizeError } from '#lib/network.js';
+  import type { GatewayOverview } from '#lib/types.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import { library } from '#lib/stores/library.svelte.js';
+  import { libraryDefinitions } from '#lib/stores/downloads.svelte.js';
+  import { filesNeedingDefinition } from '#lib/libraryDefinitions.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import EngineNeeded from '../common/EngineNeeded.svelte';
-  import { familyFromError } from '$lib/engines';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import { holdReleaseWhile } from '$lib/windowActivity';
+  import { familyFromError } from '#lib/engines.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Label } from '#lib/components/ui/label/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import { holdReleaseWhile } from '#lib/windowActivity.js';
   import { Compass, Image as ImageIcon, ImagePlus, LoaderCircle, Power, Save, Square, Trash2, TriangleAlert, X } from '@lucide/svelte';
   import {
     dataUrl,

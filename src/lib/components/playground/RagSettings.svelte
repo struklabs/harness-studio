@@ -1,10 +1,10 @@
 <script lang="ts">
   import Field from '../dashboard/parts/Field.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { errorText } from '$lib/errors';
-  import { Button } from '$lib/components/ui/button';
-  import * as Select from '$lib/components/ui/select';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
+  import { t } from '#lib/i18n.svelte.js';
+  import { errorText } from '#lib/errors.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Select from '#lib/components/ui/select/index.js';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import { EMBED_NONE, resolveEmbedModel, type RagModels } from './rag';
   import type { PgSettings } from './types';
   let { settings = $bindable(), models, onEmbedChange, onGoToHub }: {

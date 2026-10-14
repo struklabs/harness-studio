@@ -1,7 +1,7 @@
 // Model Hub data: Hugging Face listing pages with a short in-memory cache (returning to the Hub
 // is instant and the list doesn't re-hit the API), plus the remembered list/filter choices.
-import { invoke } from '$lib/ipc';
-import type { HfSearchOptions, HfSearchPage, HfSortKey } from '$lib/types';
+import { invoke } from '#lib/ipc.js';
+import type { HfSearchOptions, HfSearchPage, HfSortKey } from '#lib/types.js';
 
 const TTL_MS = 5 * 60_000;
 const MAX_ENTRIES = 80;

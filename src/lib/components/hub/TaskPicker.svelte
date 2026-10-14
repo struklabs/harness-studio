@@ -1,9 +1,9 @@
 <script lang="ts">
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import * as Popover from '$lib/components/ui/popover';
-  import { cn } from '$lib/utils';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import * as Popover from '#lib/components/ui/popover/index.js';
+  import { cn } from '#lib/utils.js';
   import { ChevronDown, LayoutGrid } from '@lucide/svelte';
   import { QUICK_TASKS, TASKS, TASK_GROUPS, taskInfo, type HubTask, type TaskSupport } from './tasks';
   import { taskSupportStore } from './taskSupport.svelte';

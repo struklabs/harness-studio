@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { t, locale, type TKey } from '$lib/i18n.svelte';
-  import { compareRuns, pctDiff, type BenchmarkRun, type TestKind } from '$lib/benchmark-types';
-  import * as Table from '$lib/components/ui/table';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import { compareRuns, pctDiff, type BenchmarkRun, type TestKind } from '#lib/benchmark-types.js';
+  import * as Table from '#lib/components/ui/table/index.js';
   import Trophy from '@lucide/svelte/icons/trophy';
-  import { cn } from '$lib/utils';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     runs: BenchmarkRun[];

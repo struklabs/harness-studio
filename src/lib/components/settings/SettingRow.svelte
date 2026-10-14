@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
-  import { cn } from '$lib/utils';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
+  import { cn } from '#lib/utils.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import FieldHelp from '../common/FieldHelp.svelte';
   import { describeFields } from '../common/fieldHelp';
   import HelpPopover from '../common/HelpPopover.svelte';

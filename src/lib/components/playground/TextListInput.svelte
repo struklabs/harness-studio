@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Button } from '$lib/components/ui/button';
-  import { Textarea } from '$lib/components/ui/textarea';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
   import { Plus, X } from '@lucide/svelte';
 
   interface Props {

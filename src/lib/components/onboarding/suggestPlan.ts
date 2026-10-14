@@ -1,7 +1,7 @@
 // Pure parts of the first-run suggestion logic (no app imports, so node can test them): which
 // small-model listings to add when the top downloads do not fit this machine, and how the best
 // candidate is picked.
-import type { FitCategory } from '$lib/types';
+import type { FitCategory } from '#lib/types.js';
 
 /** Fit tier order, best first. */
 export const TIER_RANK: Record<FitCategory, number> = { full_gpu: 0, tight: 1, hybrid: 2, cpu_heavy: 3, oom_risk: 4 };

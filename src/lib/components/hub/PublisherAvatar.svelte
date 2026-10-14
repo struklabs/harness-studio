@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { avatars } from '$lib/stores/avatars.svelte';
-  import { cn } from '$lib/utils';
+  import { avatars } from '#lib/stores/avatars.svelte.js';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     /** Hugging Face user / organization name. */

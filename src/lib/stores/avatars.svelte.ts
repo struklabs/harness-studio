@@ -1,4 +1,4 @@
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 
 /**
  * Publisher avatar URLs for Hugging Face authors. Resolved (and cached on disk with a TTL) by

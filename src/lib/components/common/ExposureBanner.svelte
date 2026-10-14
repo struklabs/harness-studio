@@ -1,9 +1,9 @@
 <script lang="ts">
   import { ShieldAlert } from '@lucide/svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { bindScope } from '$lib/network';
-  import { app } from '$lib/stores/app.svelte';
-  import { security } from '$lib/stores/security.svelte';
+  import { t } from '#lib/i18n.svelte.js';
+  import { bindScope } from '#lib/network.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { security } from '#lib/stores/security.svelte.js';
 
   // Persistent warning while any server runs on a network address without an API key
   // (only possible after the user's "open anyway").

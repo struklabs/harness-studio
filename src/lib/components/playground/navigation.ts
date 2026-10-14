@@ -1,5 +1,5 @@
 import { AudioLines, Binary, Image, ListOrdered, MessageSquare, Workflow } from '@lucide/svelte';
-import type { ServeMode } from '$lib/types';
+import type { ServeMode } from '#lib/types.js';
 import type { SectionPage } from '../common/sections';
 
 export const PLAYGROUND_MODES: (SectionPage & { id: ServeMode })[] = [

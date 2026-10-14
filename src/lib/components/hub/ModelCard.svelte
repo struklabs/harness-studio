@@ -1,18 +1,18 @@
 <script lang="ts">
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import { onWindowActive } from '$lib/windowActivity';
-  import { invoke } from '$lib/ipc';
+  import { onWindowActive } from '#lib/windowActivity.js';
+  import { invoke } from '#lib/ipc.js';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import DOMPurify from 'dompurify';
   import type { Action } from 'svelte/action';
   import { untrack } from 'svelte';
   import { toast } from 'svelte-sonner';
-  import { t, locale } from '$lib/i18n.svelte';
-  import type { HfAccess, HfModelCard } from '$lib/types';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Skeleton } from '$lib/components/ui/skeleton';
-  import { cn } from '$lib/utils';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import type { HfAccess, HfModelCard } from '#lib/types.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Skeleton } from '#lib/components/ui/skeleton/index.js';
+  import { cn } from '#lib/utils.js';
   import { externalLinkFromEvent, renderReadme } from './markdown';
   import { notRunnableKey, taskSourceKey } from './inference';
   import { ExternalLink } from '@lucide/svelte';

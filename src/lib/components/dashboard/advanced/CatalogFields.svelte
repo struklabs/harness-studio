@@ -1,13 +1,13 @@
 <script lang="ts">
-  import AdvancedOnly from '$lib/components/common/AdvancedOnly.svelte';
-  import type { ParamSpec, ParamValue } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { capsStore } from '$lib/stores/caps.svelte';
-  import { Input } from '$lib/components/ui/input';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import { Switch } from '$lib/components/ui/switch';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import { Button } from '$lib/components/ui/button';
+  import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
+  import type { ParamSpec, ParamValue } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
   import { isUnsetParam, type LaunchParamsForm } from '../params';
   import Field from '../parts/Field.svelte';
   import NativeSelect from '../parts/NativeSelect.svelte';

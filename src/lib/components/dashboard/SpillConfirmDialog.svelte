@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { HardwareFitResult, KvChoice } from '$lib/types';
-  import { formatBytes } from '$lib/format';
-  import { t } from '$lib/i18n.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import * as Dialog from '$lib/components/ui/dialog';
+  import type { HardwareFitResult, KvChoice } from '#lib/types.js';
+  import { formatBytes } from '#lib/format.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
 
   // Shown before a start whose GPU part exceeds the dedicated VRAM: on Windows the driver then
   // moves the excess into shared system memory (no OOM, but slow, and RAM can fill up).

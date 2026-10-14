@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '$lib/i18n.svelte';
+  import { t } from '#lib/i18n.svelte.js';
   import type { GeneratorProgress } from './generatorProgress';
   let { progress }: { progress: GeneratorProgress } = $props();
 </script>

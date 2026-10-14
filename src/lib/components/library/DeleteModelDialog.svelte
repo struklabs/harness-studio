@@ -1,18 +1,18 @@
 <script lang="ts">
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Deleting a model file: lists every part with its size, the definitions and profiles that
   // use it, and refuses while a server uses it. Linked (Ollama / LM Studio) models only lose
   // their link; the file in the other app is never touched.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onMount } from 'svelte';
-  import type { DeletePreview, DeleteReport, UseRole } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { formatBytes } from '$lib/format';
-  import { app } from '$lib/stores/app.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Checkbox } from '$lib/components/ui/checkbox';
+  import type { DeletePreview, DeleteReport, UseRole } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { formatBytes } from '#lib/format.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 
   interface Props {
     modelId: string;

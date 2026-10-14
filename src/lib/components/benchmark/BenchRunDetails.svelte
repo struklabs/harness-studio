@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { localizeError } from '$lib/network';
-  import { errorCode } from '$lib/errors';
-  import { t, locale, type TKey } from '$lib/i18n.svelte';
-  import { concurrentServers, runToMarkdown, type BenchmarkRun, type RunStatus } from '$lib/benchmark-types';
+  import { localizeError } from '#lib/network.js';
+  import { errorCode } from '#lib/errors.js';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import { concurrentServers, runToMarkdown, type BenchmarkRun, type RunStatus } from '#lib/benchmark-types.js';
   import BenchResultsTable from './BenchResultsTable.svelte';
-  import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
+  import { Card, CardHeader, CardTitle, CardContent } from '#lib/components/ui/card/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
   import { X, Copy, Check, AlertCircle } from '@lucide/svelte';
 
   interface Props {

@@ -1,9 +1,9 @@
 <script lang="ts">
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { capsStore } from '$lib/stores/caps.svelte';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { cn } from '$lib/utils';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     /** Feature id (capabilities::features); nothing is shown while its status is unknown. */

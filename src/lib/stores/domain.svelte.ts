@@ -1,6 +1,6 @@
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 import { listen } from '@tauri-apps/api/event';
-import type { DefinitionState, InferencePreset, ModelDefinition } from '$lib/types';
+import type { DefinitionState, InferencePreset, ModelDefinition } from '#lib/types.js';
 
 /**
  * Model definitions, inference presets and the definitions' run state, shared by the

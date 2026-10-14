@@ -1,9 +1,9 @@
 <script lang="ts">
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import { t, locale } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { errorText } from '$lib/errors';
-  import * as Collapsible from '$lib/components/ui/collapsible';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { errorText } from '#lib/errors.js';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
   import { ChevronRight, FileText } from '@lucide/svelte';
   import { citedNumbers, pageRange, type RagSource, type RagTurn } from './rag';
 

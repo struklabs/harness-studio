@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { t, locale } from '$lib/i18n.svelte';
-  import { formatBytes } from '$lib/format';
-  import { bestByTest, flashAttnLabel, maxByTest, testKind, testLabel, type BenchResult } from '$lib/benchmark-types';
-  import * as Table from '$lib/components/ui/table';
-  import { Badge } from '$lib/components/ui/badge';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import { formatBytes } from '#lib/format.js';
+  import { bestByTest, flashAttnLabel, maxByTest, testKind, testLabel, type BenchResult } from '#lib/benchmark-types.js';
+  import * as Table from '#lib/components/ui/table/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
   import Trophy from '@lucide/svelte/icons/trophy';
-  import { cn } from '$lib/utils';
+  import { cn } from '#lib/utils.js';
 
   interface Props {
     results: BenchResult[];

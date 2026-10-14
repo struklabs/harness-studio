@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { invoke } from '$lib/ipc';
-  import type { LaunchConfig, ServerProfile } from '$lib/types';
-  import { app } from '$lib/stores/app.svelte';
-  import { t } from '$lib/i18n.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Checkbox } from '$lib/components/ui/checkbox';
+  import { invoke } from '#lib/ipc.js';
+  import type { LaunchConfig, ServerProfile } from '#lib/types.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
   import Field from './parts/Field.svelte';
   import { makeProfileId } from '../servers/utils';
 

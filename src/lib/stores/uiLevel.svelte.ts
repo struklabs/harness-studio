@@ -1,8 +1,8 @@
-import { invoke } from '$lib/ipc';
+import { invoke } from '#lib/ipc.js';
 import { toast } from 'svelte-sonner';
-import { t } from '$lib/i18n.svelte';
+import { t } from '#lib/i18n.svelte.js';
 import { app } from './app.svelte';
-import type { UiLevel } from '$lib/uiLevel';
+import type { UiLevel } from '#lib/uiLevel.js';
 
 class UiLevelState {
   #pending = $state<UiLevel | null>(null);

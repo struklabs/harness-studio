@@ -1,27 +1,27 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import AdvancedOnly from '$lib/components/common/AdvancedOnly.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import type { Snippet } from 'svelte';
-  import { invoke } from '$lib/ipc';
-  import { t, locale } from '$lib/i18n.svelte';
-  import type { LogFileInfo, LogMatch } from '$lib/types';
+  import { invoke } from '#lib/ipc.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
+  import type { LogFileInfo, LogMatch } from '#lib/types.js';
   import { toast } from 'svelte-sonner';
   import { Search, ArrowUp, ArrowDown, Copy, Download, Trash2, Clock, SlidersHorizontal, TriangleAlert, OctagonX } from '@lucide/svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Switch } from '$lib/components/ui/switch';
-  import { Checkbox } from '$lib/components/ui/checkbox';
-  import * as Popover from '$lib/components/ui/popover';
-  import * as ToggleGroup from '$lib/components/ui/toggle-group';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { cn } from '$lib/utils';
-  import { app } from '$lib/stores/app.svelte';
-  import { logFilter } from '$lib/stores/serverFilter.svelte';
-  import { slotColor, slotHatched } from '$lib/serverColor';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+  import * as Popover from '#lib/components/ui/popover/index.js';
+  import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { cn } from '#lib/utils.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { logFilter } from '#lib/stores/serverFilter.svelte.js';
+  import { slotColor, slotHatched } from '#lib/serverColor.js';
   import ServerChips from '../common/ServerChips.svelte';
   import NativeSelect from './parts/NativeSelect.svelte';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
   import {
     buildMatcher,
     filterLines,

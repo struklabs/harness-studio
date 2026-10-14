@@ -25,7 +25,7 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Palettes are picked by `data-theme` on <html>; `dark:` follows its scheme (see $lib/theme.ts). */
+/* Palettes are picked by `data-theme` on <html>; `dark:` follows its scheme (see #lib/theme.ts). */
 @custom-variant dark (&:where([data-scheme="dark"], [data-scheme="dark"] *));
 
 /* Short window, CSS px height (same threshold as `shortWindow` in stores/panes.svelte.ts). */
@@ -47,7 +47,7 @@
 /*
  * Colour themes. Every theme defines the SAME semantic tokens; components only ever use the
  * tokens (Tailwind `bg-card`, `text-success`, `bg-chart-3`, `text-log-error`…), never palette
- * classes or hex values. $lib/theme.ts sets on <html>:
+ * classes or hex values. #lib/theme.ts sets on <html>:
  *   data-theme  = dark | light | oled | night | hc-dark | hc-light   (the palette)
  *   data-scheme = dark | light                                       (`dark:` variant, color-scheme)
  *   data-cvd    = on                                                 (colour-vision-safe statuses)

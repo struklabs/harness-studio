@@ -1,17 +1,17 @@
 <script lang="ts">
   import { ChartColumn, TriangleAlert } from '@lucide/svelte';
-  import { getClientName } from '$lib/utils/clientName';
-  import type { AnalyticsSummary, ModelStats } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
-  import * as Table from '$lib/components/ui/table';
-  import * as Empty from '$lib/components/ui/empty';
-  import { Button } from '$lib/components/ui/button';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
+  import { getClientName } from '#lib/utils/clientName.js';
+  import type { AnalyticsSummary, ModelStats } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { Card, CardHeader, CardTitle, CardContent } from '#lib/components/ui/card/index.js';
+  import * as Table from '#lib/components/ui/table/index.js';
+  import * as Empty from '#lib/components/ui/empty/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
   import DailyBars from './DailyBars.svelte';
   import { NA, fmtAgo, fmtBytes, fmtCompact, fmtInt, fmtMs, fmtRate, fmtTps, type Range } from './anFormat';
-  import { formatTokens } from '$lib/utils/tokens';
-  import { locale } from '$lib/i18n.svelte';
+  import { formatTokens } from '#lib/utils/tokens.js';
+  import { locale } from '#lib/i18n.svelte.js';
 
   interface Props {
     page?: string;

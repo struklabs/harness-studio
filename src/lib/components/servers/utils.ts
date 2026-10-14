@@ -1,6 +1,6 @@
-import type { ServerStatus, ServerSummary } from '$lib/types';
-import type { TKey } from '$lib/i18n.svelte';
-import { localizeError } from '$lib/network';
+import type { ServerStatus, ServerSummary } from '#lib/types.js';
+import type { TKey } from '#lib/i18n.svelte.js';
+import { localizeError } from '#lib/network.js';
 
 export type StatusKind = 'running' | 'starting' | 'stopping' | 'stopped' | 'error';
 

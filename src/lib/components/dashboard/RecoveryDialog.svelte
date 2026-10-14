@@ -3,18 +3,18 @@
   // GPU layers / -ub, quantized KV cache, --fit, MoE experts on the CPU, stop another server),
   // each with concrete values. "Retry" is a real start with those values as a transient layer;
   // they are saved to the model definition only when the checkbox is on.
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
-  import type { RecoveryOption, RecoveryPlan } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { failureText, gib } from '$lib/failure';
-  import { app } from '$lib/stores/app.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Checkbox } from '$lib/components/ui/checkbox';
+  import type { RecoveryOption, RecoveryPlan } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { failureText, gib } from '#lib/failure.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Checkbox } from '#lib/components/ui/checkbox/index.js';
   import { LoaderCircle, RotateCcw, TriangleAlert } from '@lucide/svelte';
 
   interface Props {

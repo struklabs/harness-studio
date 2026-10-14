@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import AdvancedOnly from '$lib/components/common/AdvancedOnly.svelte';
-  import { invoke } from '$lib/ipc';
-  import type { EffectiveLaunchValues, ServerStatus } from '$lib/types';
-  import { locale, t } from '$lib/i18n.svelte';
-  import { windowActive } from '$lib/windowActivity';
-  import { spillWarning } from '$lib/fit';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
+  import { invoke } from '#lib/ipc.js';
+  import type { EffectiveLaunchValues, ServerStatus } from '#lib/types.js';
+  import { locale, t } from '#lib/i18n.svelte.js';
+  import { windowActive } from '#lib/windowActivity.js';
+  import { spillWarning } from '#lib/fit.js';
 
   interface Props {
     serverStatus: ServerStatus;

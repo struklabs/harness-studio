@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Harness Studio - llama.cpp Control Center</title>
     <script>
-      // First paint: same resolution as $lib/theme.ts (keep the two in sync).
+      // First paint: same resolution as #lib/theme.ts (keep the two in sync).
       (function () {
         try {
           var d = document.documentElement;
@@ -29,7 +29,7 @@
     </script>
     <style>
       /*
-       * Start screen ($lib/splash.ts removes it once the first real screen is up). Plain HTML/CSS
+       * Start screen (#lib/splash.ts removes it once the first real screen is up). Plain HTML/CSS
        * so it paints before any script runs: at app start and when the window is rebuilt from
        * the tray. Colours are the theme tokens from app.css (a render-blocking stylesheet in the
        * built app); the system colours are only a fallback for the dev server, where styles

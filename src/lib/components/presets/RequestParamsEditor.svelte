@@ -1,17 +1,17 @@
 <script lang="ts">
   import Field from '../dashboard/parts/Field.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Editor for the request-side settings of an inference preset (sampling, reasoning,
   // output format). Used by the preset manager and the Playground settings panel.
-  import type { SamplingParams } from '$lib/types';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import { capsStore } from '$lib/stores/caps.svelte';
-  import { Input } from '$lib/components/ui/input';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import { Button } from '$lib/components/ui/button';
-  import * as Collapsible from '$lib/components/ui/collapsible';
-  import NativeSelect from '$lib/components/dashboard/parts/NativeSelect.svelte';
+  import type { SamplingParams } from '#lib/types.js';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Collapsible from '#lib/components/ui/collapsible/index.js';
+  import NativeSelect from '#lib/components/dashboard/parts/NativeSelect.svelte';
   import { ChevronRight } from '@lucide/svelte';
   import type { PresetRequest } from './request';
 

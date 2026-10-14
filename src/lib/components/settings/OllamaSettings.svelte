@@ -4,13 +4,13 @@
   // replaced, only reported) and the /api/pull consent. Saved through the parent's
   // `set_gateway_settings` call, on top of the stored settings.
   import { TriangleAlert } from '@lucide/svelte';
-  import type { GatewayOverview, GatewaySettings } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { Switch } from '$lib/components/ui/switch';
-  import CopyButton from '$lib/components/connections/CopyButton.svelte';
+  import type { GatewayOverview, GatewaySettings } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Switch } from '#lib/components/ui/switch/index.js';
+  import CopyButton from '#lib/components/connections/CopyButton.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
   import NumberField from './NumberField.svelte';

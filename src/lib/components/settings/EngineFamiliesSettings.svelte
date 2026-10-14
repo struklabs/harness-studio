@@ -3,16 +3,16 @@
   // llama.cpp (speech, images, voices, ONNX, Lemonade, mistral.rs, the Python engine), each with its install state
   // and a one-click install button. The same installer as the "needs an engine" hints.
   import { onMount } from 'svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { ENGINES, engineDescKey, onnxUnsupportedText } from '$lib/engines';
-  import { errorText } from '$lib/errors';
-  import { isLinux, isMac } from '$lib/platform';
-  import { engineInstall } from '$lib/stores/engineInstall.svelte';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { security } from '$lib/stores/security.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
-  import { formatBytes } from '$lib/format';
+  import { t } from '#lib/i18n.svelte.js';
+  import { ENGINES, engineDescKey, onnxUnsupportedText } from '#lib/engines.js';
+  import { errorText } from '#lib/errors.js';
+  import { isLinux, isMac } from '#lib/platform.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { formatBytes } from '#lib/format.js';
   import { LoaderCircle, Download, Square, Trash2 } from '@lucide/svelte';
   import SettingGroup from './SettingGroup.svelte';
 

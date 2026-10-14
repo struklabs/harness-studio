@@ -18,16 +18,16 @@
     PanelLeftClose,
     PanelLeftOpen,
   } from '@lucide/svelte';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { preloadTab } from '$lib/views';
-  import { app, DEFAULT_SERVER_ID } from '$lib/stores/app.svelte';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { uiLevel } from '$lib/stores/uiLevel.svelte';
-  import { isVisible, tabLevel } from '$lib/uiLevel';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { preloadTab } from '#lib/views.js';
+  import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
+  import { isVisible, tabLevel } from '#lib/uiLevel.js';
   import UiLevelToggle from './common/UiLevelToggle.svelte';
-  import { cn } from '$lib/utils';
-  import { servedModelName } from '$lib/libraryDefinitions';
-  import { panes } from '$lib/stores/panes.svelte';
+  import { cn } from '#lib/utils.js';
+  import { servedModelName } from '#lib/libraryDefinitions.js';
+  import { panes } from '#lib/stores/panes.svelte.js';
   import ResizablePane from './common/ResizablePane.svelte';
 
   interface Props {

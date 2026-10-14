@@ -2,10 +2,10 @@
   // The result of a package's test (installed tools in Settings, a draft in the generator
   // dialog): one line per case, the reason a failed case failed in words.
   import { Check, X } from '@lucide/svelte';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import type { TestReport } from '$lib/tools-client';
-  import { localizeError } from '$lib/network';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import type { TestReport } from '#lib/tools-client.js';
+  import { localizeError } from '#lib/network.js';
 
   let { report }: { report: TestReport } = $props();
 

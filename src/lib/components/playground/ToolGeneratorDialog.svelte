@@ -1,29 +1,29 @@
 <script lang="ts">
-  import GenerationStatus from '$lib/components/create/GenerationStatus.svelte';
+  import GenerationStatus from '#lib/components/create/GenerationStatus.svelte';
   import { collectProgress, emptyProgress } from '../create/generatorProgress';
   let progress = $state(emptyProgress());
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import HelpPopover from '../common/HelpPopover.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // "Create a tool": the user describes a tool and the hosts and folders it
   // may reach; the chat model writes the package, the core tests it in the sandbox (retrying with
   // the errors up to its limit), and the user reads the code, the permissions and the test result
   // before approving. Approving registers the tool for this app session; "Save permanently"
   // writes it to <data dir>/tools/. Nothing here runs unless the user presses the button.
   import { onDestroy } from 'svelte';
-  import { holdReleaseWhile } from '$lib/windowActivity';
+  import { holdReleaseWhile } from '#lib/windowActivity.js';
   import { toast } from 'svelte-sonner';
   import { LoaderCircle, ShieldAlert, TriangleAlert } from '@lucide/svelte';
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { rawError } from '$lib/errors';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { rawError } from '#lib/errors.js';
   import GatewayError from '../common/GatewayError.svelte';
-  import { cn } from '$lib/utils';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import { Textarea } from '$lib/components/ui/textarea';
-  import ToolTestReport from '$lib/components/tools/ToolTestReport.svelte';
+  import { cn } from '#lib/utils.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import ToolTestReport from '#lib/components/tools/ToolTestReport.svelte';
   import {
     approveGeneratedTool,
     cancelToolGeneration,
@@ -37,7 +37,7 @@
     type GenerateToolRequest,
     type PermissionClass,
     type ToolDraft,
-  } from '$lib/tools-client';
+  } from '#lib/tools-client.js';
 
   interface Props {
     open: boolean;

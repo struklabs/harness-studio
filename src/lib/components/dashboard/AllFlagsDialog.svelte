@@ -1,16 +1,16 @@
 <script lang="ts">
-  import HelpPopover from '$lib/components/common/HelpPopover.svelte';
-  import FieldHelp from '$lib/components/common/FieldHelp.svelte';
-  import { invoke } from '$lib/ipc';
+  import HelpPopover from '#lib/components/common/HelpPopover.svelte';
+  import FieldHelp from '#lib/components/common/FieldHelp.svelte';
+  import { invoke } from '#lib/ipc.js';
   import { untrack } from 'svelte';
-  import type { RuntimeFlag } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { capsStore } from '$lib/stores/caps.svelte';
-  import * as Dialog from '$lib/components/ui/dialog';
-  import * as Tooltip from '$lib/components/ui/tooltip';
-  import { Input } from '$lib/components/ui/input';
-  import { Button } from '$lib/components/ui/button';
-  import { Badge } from '$lib/components/ui/badge';
+  import type { RuntimeFlag } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
   import { Plus } from '@lucide/svelte';
 
   interface Props {

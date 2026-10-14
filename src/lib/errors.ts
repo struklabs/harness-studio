@@ -8,8 +8,8 @@
 // whose `message` / `toString()` is the localized text: components that show `String(e)` or
 // `e.message` get the translation without knowing about keys. `errorCode(e)` gives the key for
 // code that branches on it.
-import { en } from '$lib/locales';
-import { t, type TKey } from '$lib/i18n.svelte';
+import { en } from '#lib/locales/index.js';
+import { t, type TKey } from '#lib/i18n.svelte.js';
 
 export type ErrorParams = Record<string, string | number>;
 

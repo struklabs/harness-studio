@@ -1,5 +1,5 @@
-import { bestSettingsField, normalizeSearch } from '$lib/search';
-import { inAllLanguages, t, type TKey } from '$lib/i18n.svelte';
+import { bestSettingsField, normalizeSearch } from '#lib/search.js';
+import { inAllLanguages, t, type TKey } from '#lib/i18n.svelte.js';
 
 /** Search only rendered field text; translated aliases keep cross-language queries working. */
 export function revealSettingsField(root: HTMLElement, query: string, labels: string[], keys: TKey[]): () => void {

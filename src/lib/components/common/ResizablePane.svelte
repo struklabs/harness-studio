@@ -4,9 +4,9 @@
   // (WAI-ARIA window splitter pattern).
   import { onDestroy, type Snippet } from 'svelte';
   import { ChevronLeft, ChevronRight, PanelLeftOpen, PanelRightOpen } from '@lucide/svelte';
-  import { t } from '$lib/i18n.svelte';
-  import { cn } from '$lib/utils';
-  import type { PaneState } from '$lib/stores/panes.svelte';
+  import { t } from '#lib/i18n.svelte.js';
+  import { cn } from '#lib/utils.js';
+  import type { PaneState } from '#lib/stores/panes.svelte.js';
 
   interface Props {
     pane: PaneState;

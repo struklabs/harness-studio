@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { t, type TKey } from '$lib/i18n.svelte';
-  import { capsStore } from '$lib/stores/caps.svelte';
+  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { capsStore } from '#lib/stores/caps.svelte.js';
   import type { LaunchParamsForm } from '../params';
   import AdvSection from './AdvSection.svelte';
   import CatalogFields from './CatalogFields.svelte';

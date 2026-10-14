@@ -2,13 +2,13 @@
   // Connections > Ollama-compatible endpoint (P2): the gateway address for Ollama clients
   // (OLLAMA_HOST) and, when turned on, the extra listener on the Ollama port.
   import { Boxes, Settings2, TriangleAlert } from '@lucide/svelte';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import { t } from '$lib/i18n.svelte';
-  import { localizeError } from '$lib/network';
-  import { app } from '$lib/stores/app.svelte';
-  import { security } from '$lib/stores/security.svelte';
-  import { cn } from '$lib/utils';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { localizeError } from '#lib/network.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { cn } from '#lib/utils.js';
   import CopyButton from './CopyButton.svelte';
 
   let gw = $derived(app.gateway);

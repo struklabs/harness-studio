@@ -1,17 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { invoke } from '$lib/ipc';
+  import { invoke } from '#lib/ipc.js';
   import { listen } from '@tauri-apps/api/event';
   import { toast } from 'svelte-sonner';
   import { ShieldAlert, FileWarning } from '@lucide/svelte';
-  import type { AppSettings } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
-  import { formatBytes } from '$lib/format';
-  import { localizeError } from '$lib/network';
-  import { app } from '$lib/stores/app.svelte';
-  import { security, type ExposureBlocked } from '$lib/stores/security.svelte';
-  import { Button } from '$lib/components/ui/button';
-  import * as Dialog from '$lib/components/ui/dialog';
+  import type { AppSettings } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
+  import { formatBytes } from '#lib/format.js';
+  import { localizeError } from '#lib/network.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { security, type ExposureBlocked } from '#lib/stores/security.svelte.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
 
   // App-wide: the "open anyway" confirmation for a refused keyless network bind (every start
   // path emits `network-exposure-blocked`) and the unverified runtime archive confirmation.

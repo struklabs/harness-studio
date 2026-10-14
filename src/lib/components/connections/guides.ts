@@ -1,6 +1,6 @@
 // Step-by-step setup for tools whose config Harness does not write (the tool keeps it in its
 // own UI or database). Steps come from each tool's official docs; see docs/en/INTEGRATIONS.md.
-import { t } from '$lib/i18n.svelte';
+import { t } from '#lib/i18n.svelte.js';
 import { hostOf, PLACEHOLDER_KEY, type SnippetContext } from './snippets';
 
 export interface GuideField {

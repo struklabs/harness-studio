@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { LocalModel, ServeMode } from '$lib/types';
-  import { t } from '$lib/i18n.svelte';
+  import type { LocalModel, ServeMode } from '#lib/types.js';
+  import { t } from '#lib/i18n.svelte.js';
   import type { LaunchParamsForm } from '../params';
   import Field from '../parts/Field.svelte';
   import NativeSelect from '../parts/NativeSelect.svelte';

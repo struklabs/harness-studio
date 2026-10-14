@@ -4,15 +4,15 @@
   // a row opens to show the arguments in full.
   import { SvelteSet } from 'svelte/reactivity';
   import { ChevronRight, ShieldAlert, Wrench } from '@lucide/svelte';
-  import { t } from '$lib/i18n.svelte';
-  import * as Table from '$lib/components/ui/table';
-  import * as Empty from '$lib/components/ui/empty';
-  import { Badge } from '$lib/components/ui/badge';
-  import { Button } from '$lib/components/ui/button';
-  import NativeSelect from '$lib/components/dashboard/parts/NativeSelect.svelte';
-  import SectionLoading from '$lib/components/common/SectionLoading.svelte';
-  import { fetchToolLog, type ToolLogRow } from '$lib/tools-client';
-  import { prettyArgs } from '$lib/mcp-client';
+  import { t } from '#lib/i18n.svelte.js';
+  import * as Table from '#lib/components/ui/table/index.js';
+  import * as Empty from '#lib/components/ui/empty/index.js';
+  import { Badge } from '#lib/components/ui/badge/index.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import NativeSelect from '#lib/components/dashboard/parts/NativeSelect.svelte';
+  import SectionLoading from '#lib/components/common/SectionLoading.svelte';
+  import { fetchToolLog, type ToolLogRow } from '#lib/tools-client.js';
+  import { prettyArgs } from '#lib/mcp-client.js';
   import { fmtInt, fmtMs, fmtTime } from './anFormat';
 
   interface Props {
