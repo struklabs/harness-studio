@@ -225,21 +225,27 @@ fn onnx_task_kind(task: harness_onnx::package::Task) -> crate::domain::ModelKind
     }
 }
 
-/// What an encoder, vision or CTC speech `.onnx` file serves (embedding, reranking, speech
+/// What an encoder, vision, audio or CTC speech `.onnx` file serves (embedding, reranking, speech
 /// recognition or a task pipeline), `None` for any other file.
 pub fn onnx_kind(path: &Path) -> Option<crate::domain::ModelKind> {
     harness_onnx::package::library_task(path)
         .map(onnx_task_kind)
-        .or_else(|| {
-            harness_onnx::vision_pkg::VisionPackage::discover(path)
-                .map(|_| crate::domain::ModelKind::Pipeline)
-        })
+        .or_else(|| pipeline_package(path).map(|_| crate::domain::ModelKind::Pipeline))
 }
 
-/// The library entry of a vision model (`preprocessor_config.json` and a vision head in
+/// The name and pipeline task of a vision or audio classification package (a processor config
+/// and a task head in `config.json`, no tokenizer-driven encoder task).
+fn pipeline_package(path: &Path) -> Option<(String, &'static str)> {
+    if let Some(p) = harness_onnx::vision_pkg::VisionPackage::discover(path) {
+        return Some((p.name.clone(), p.task.pipeline_task()));
+    }
+    harness_onnx::audio_pkg::AudioPackage::discover(path).map(|p| (p.name, "audio-classification"))
+}
+
+/// The library entry of a vision or audio model (`preprocessor_config.json` and a task head in
 /// `config.json`): a task pipeline.
 fn vision_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
-    let package = harness_onnx::vision_pkg::VisionPackage::discover(path)?;
+    let (package_name, task) = pipeline_package(path)?;
     let stem = path.file_stem()?.to_string_lossy().to_string();
     let mut size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     for ext in ["onnx_data", "onnx.data"] {
@@ -249,7 +255,7 @@ fn vision_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
     }
     Some(LocalModel {
         id: path.to_string_lossy().to_string(),
-        name: harness_onnx::package::alias_of(path).unwrap_or_else(|| package.name.clone()),
+        name: harness_onnx::package::alias_of(path).unwrap_or(package_name),
         filename: path.file_name()?.to_string_lossy().to_string(),
         path: path.to_path_buf(),
         size_bytes: size,
@@ -267,7 +273,7 @@ fn vision_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
         mmproj_path: None,
         kind: crate::domain::ModelKind::Pipeline,
         origin: crate::domain::ModelOrigin::Library,
-        task: Some(package.task.pipeline_task().to_string()),
+        task: Some(task.to_string()),
     })
 }
 
@@ -1346,6 +1352,32 @@ mod tests {
         assert_eq!(m.task.as_deref(), Some("object-detection"));
         assert_eq!(m.name, "detr-resnet-50-quantized");
         assert_eq!(m.quantization, "INT8");
+        assert_eq!(onnx_kind(&graph), Some(crate::domain::ModelKind::Pipeline));
+    }
+
+    #[test]
+    fn scans_onnx_audio_classifiers() {
+        let tmp = tempfile::tempdir().unwrap();
+        let repo = tmp.path().join("Xenova").join("ast-finetuned-audioset");
+        fs::create_dir_all(repo.join("onnx")).unwrap();
+        fs::write(
+            repo.join("config.json"),
+            r#"{"architectures":["ASTForAudioClassification"],"id2label":{"0":"Speech"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            repo.join("preprocessor_config.json"),
+            r#"{"feature_extractor_type":"ASTFeatureExtractor","sampling_rate":16000}"#,
+        )
+        .unwrap();
+        let graph = repo.join("onnx").join("model.onnx");
+        fs::write(&graph, vec![0u8; 400]).unwrap();
+        let models = ModelManager.scan_directories(&[tmp.path().to_path_buf()]);
+        assert_eq!(models.len(), 1);
+        let m = &models[0];
+        assert_eq!(m.kind, crate::domain::ModelKind::Pipeline);
+        assert_eq!(m.task.as_deref(), Some("audio-classification"));
+        assert_eq!(m.name, "ast-finetuned-audioset");
         assert_eq!(onnx_kind(&graph), Some(crate::domain::ModelKind::Pipeline));
     }
 }

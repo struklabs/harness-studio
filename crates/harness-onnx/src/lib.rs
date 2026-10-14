@@ -21,6 +21,8 @@
 pub mod api;
 /// CTC package discovery, audio preprocessing, decoding and speech inference.
 pub mod asr_ctc;
+/// Audio classifiers: package discovery and Kaldi filter banks.
+pub mod audio_pkg;
 pub mod cli;
 pub mod genai_pkg;
 pub mod hf_api;
@@ -29,6 +31,8 @@ pub mod pooling;
 pub mod tasks;
 pub mod vision_pkg;
 
+#[cfg(feature = "engine")]
+pub mod audio_engine;
 #[cfg(feature = "engine")]
 pub mod chat;
 #[cfg(feature = "engine")]

@@ -6,6 +6,7 @@
 
 use crate::api::{self, ApiError, EmbeddingsRequest, RerankRequest};
 use crate::asr_ctc::CtcEngine;
+use crate::audio_engine::AudioEngine;
 use crate::chat::{self, ChatJob, ChatRequest};
 use crate::chat_engine::ChatEngine;
 use crate::engine::Engine;
@@ -26,6 +27,7 @@ pub struct Shared {
     chat: RwLock<Option<Arc<ChatEngine>>>,
     vision: RwLock<Option<Arc<VisionEngine>>>,
     asr: RwLock<Option<Arc<CtcEngine>>>,
+    audio: RwLock<Option<Arc<AudioEngine>>>,
     requests: AtomicU64,
 }
 
@@ -37,6 +39,7 @@ impl Shared {
             chat: RwLock::new(None),
             vision: RwLock::new(None),
             asr: RwLock::new(None),
+            audio: RwLock::new(None),
             requests: AtomicU64::new(0),
         })
     }
@@ -55,6 +58,14 @@ impl Shared {
 
     fn vision(&self) -> Option<Arc<VisionEngine>> {
         self.vision.read().unwrap().clone()
+    }
+
+    pub fn set_audio(&self, engine: AudioEngine) {
+        *self.audio.write().unwrap() = Some(Arc::new(engine));
+    }
+
+    fn audio(&self) -> Option<Arc<AudioEngine>> {
+        self.audio.read().unwrap().clone()
     }
 
     pub fn set_asr(&self, engine: CtcEngine) {
@@ -78,6 +89,7 @@ impl Shared {
             || self.chat().is_some()
             || self.vision().is_some()
             || self.asr().is_some()
+            || self.audio().is_some()
     }
 }
 
@@ -169,6 +181,11 @@ async fn hf(State(s): State<Arc<Shared>>, body: axum::body::Bytes) -> Result<Jso
     if let Some(vision) = s.vision() {
         let job = crate::vision::parse(&request).map_err(Failure)?;
         let answer = blocking(move || vision.handle(&job)).await?;
+        return Ok(Json(answer));
+    }
+    if let Some(audio) = s.audio() {
+        let job = crate::audio_engine::parse(&request).map_err(Failure)?;
+        let answer = blocking(move || audio.handle(&job)).await?;
         return Ok(Json(answer));
     }
     let engine = s.engine().ok_or_else(|| not_an_encoder(&s))?;

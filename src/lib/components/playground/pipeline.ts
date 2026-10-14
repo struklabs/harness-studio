@@ -74,6 +74,19 @@ export function buildImageRequest(task: string, image: string, labels = ''): Rec
   return { inputs: image };
 }
 
+/** Tasks that take one audio clip (harness-onnx audio heads, the Python worker). */
+export const AUDIO_TASKS = ['audio-classification'] as const;
+
+export function isAudioTask(task: string | undefined): boolean {
+  return (AUDIO_TASKS as readonly string[]).includes(task ?? '');
+}
+
+/** The request of an audio task: the clip as a WAV data URL. */
+export function buildAudioRequest(audio: string): Record<string, unknown> | null {
+  if (!audio.startsWith('data:')) return null;
+  return { inputs: audio, parameters: { top_k: 5 } };
+}
+
 const png = (b64: string) => (b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`);
 
 /** Tasks with their own form; any other task gets a JSON body editor. */

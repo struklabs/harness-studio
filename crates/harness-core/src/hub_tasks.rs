@@ -649,7 +649,8 @@ const ASR_ALTS: &[(&str, Support)] = &[
 /// Text-to-speech: Kokoro / Piper through sherpa-onnx.
 const TTS_ALTS: &[(&str, Support)] = &[(SHERPA_FAMILY, Yes)];
 /// Encoder task heads (classification, NER, fill-mask, extractive QA) and vision heads
-/// (image classification, detection, segmentation, depth): harness-onnx on `/hf`.
+/// (image classification, detection, segmentation, depth) and audio classification:
+/// harness-onnx on `/hf`.
 const ONNX_ALTS: &[(&str, Support)] = &[(ONNX_FAMILY, Yes)];
 /// Text-to-image and image-to-image (`/v1/images/edits`): stable-diffusion.cpp.
 const T2I_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes)];
@@ -690,7 +691,7 @@ const TABLE: &[Row] = &[
     row_alt("text-to-speech", No, None, TTS_ALTS),
     row("text-to-audio", No, None),
     row("audio-to-audio", No, None),
-    row("audio-classification", No, None),
+    row_alt("audio-classification", No, None, ONNX_ALTS),
     row("image-to-text", Partial, Some("vision")),
     row_alt("text-to-image", No, None, T2I_ALTS),
     row_alt("image-to-image", No, None, T2I_ALTS),

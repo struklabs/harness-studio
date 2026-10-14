@@ -90,3 +90,15 @@ test('image tasks: requests and the results of each head', async () => {
   // Image classification answers like text classification.
   assert.equal(parseResponse('image-classification', [{ label: 'Egyptian cat', score: 0.94 }]).kind, 'labels');
 });
+
+test('audio tasks: a WAV data URL with top_k, labels back', async () => {
+  const { buildAudioRequest, isAudioTask } = await import('../src/lib/components/playground/pipeline.ts');
+  assert.ok(isAudioTask('audio-classification'));
+  assert.ok(!isAudioTask('automatic-speech-recognition'));
+  assert.equal(buildAudioRequest(''), null);
+  assert.deepEqual(buildAudioRequest('data:audio/wav;base64,UklGRg=='), {
+    inputs: 'data:audio/wav;base64,UklGRg==',
+    parameters: { top_k: 5 },
+  });
+  assert.equal(parseResponse('audio-classification', [{ label: 'Speech', score: 0.56 }]).kind, 'labels');
+});
