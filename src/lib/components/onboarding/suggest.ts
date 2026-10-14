@@ -11,7 +11,8 @@ import type { TKey } from '#lib/i18n.svelte.js';
 import type { FitCategory, HfModelSearchResult, HfModelVariant, HfSearchOptions, RuntimeReleasePick, RuntimeView, SystemHardwareInfo } from '#lib/types.js';
 import { fetchPage } from '../hub/hubData';
 import { quantBits, recommendVariant, recommendWhisperVariant, whisperFitsMemory } from '../hub/recommend';
-import { CHAT_FAMILY_QUERIES, isGeneralChatRepo, needsSmallModelWave, pickBest, pickChat, smallQueries } from './suggestPlan';
+import { asrEngine, CHAT_FAMILY_QUERIES, isGeneralChatRepo, mlxWhisperRepo, needsSmallModelWave, pickBest, pickChat, smallQueries } from './suggestPlan';
+import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
 
 export type Purpose = 'chat' | 'code' | 'rag' | 'asr';
 
@@ -53,7 +54,18 @@ export interface RuntimeSuggestion {
   reason: Reason;
 }
 
-export type Suggestion = ModelSuggestion | RuntimeSuggestion;
+/** An engine installed into its own Python environment (mlx-audio, for MLX Whisper). */
+export interface EngineSuggestion {
+  id: string;
+  kind: 'engine';
+  purpose: Purpose;
+  family: 'mlx-audio';
+  /** The environment's download size as the backend estimates it. */
+  sizeBytes: number;
+  reason: Reason;
+}
+
+export type Suggestion = ModelSuggestion | RuntimeSuggestion | EngineSuggestion;
 
 export function suggestionSelected(s: Suggestion, unchecked?: boolean): boolean {
   return !(unchecked ?? (s.kind === 'model' && s.defaultSelected === false));
@@ -253,6 +265,49 @@ async function suggestWhisperRuntime(): Promise<RuntimeSuggestion | null> {
   };
 }
 
+/** The mlx-audio engine when it is not installed yet; null when it is. */
+function suggestMlxEngine(): EngineSuggestion | null {
+  if (engineInstall.installed('mlx-audio')) return null;
+  return {
+    id: 'asr:engine:mlx-audio',
+    kind: 'engine',
+    purpose: 'asr',
+    family: 'mlx-audio',
+    sizeBytes: engineInstall.pyEnv('mlx-audio')?.estimated_size_bytes ?? 0,
+    reason: { key: 'onboarding.sg_reason_mlx_engine' },
+  };
+}
+
+/** An MLX Whisper model (a folder of safetensors; one variant) sized for the free memory. */
+async function suggestMlxWhisper(hardware: SystemHardwareInfo | null): Promise<ModelSuggestion | null> {
+  const repoId = mlxWhisperRepo(hardware?.available_ram_bytes);
+  const variants = await invoke<HfModelVariant[]>('get_hf_model_variants', { repoId });
+  const variant = variants[0];
+  if (!variant) return null;
+  return {
+    id: `asr:${repoId}`,
+    kind: 'model',
+    purpose: 'asr',
+    role: 'asr',
+    repoId,
+    variant,
+    sizeBytes: variant.total_size_bytes,
+    reason: { key: 'onboarding.sg_reason_mlx_whisper' },
+  };
+}
+
+/** Speech to text: MLX Whisper on Apple Silicon, else whisper.cpp and its ggml model. */
+async function asrJobs(hardware: SystemHardwareInfo | null): Promise<Promise<Suggestion | null>[]> {
+  let mlx = false;
+  if (asrEngine(hardware, true) === 'mlx') {
+    await engineInstall.refresh().catch(() => undefined);
+    mlx = asrEngine(hardware, engineInstall.offered('mlx-audio')) === 'mlx';
+  }
+  return mlx
+    ? [Promise.resolve(suggestMlxEngine()), suggestMlxWhisper(hardware)]
+    : [suggestWhisperRuntime(), suggestWhisperModel(hardware)];
+}
+
 export interface PurposeResult {
   suggestions: Suggestion[];
   /** A lookup that failed (offline, rate limited): shown instead of a silent gap. */
@@ -264,7 +319,7 @@ export interface PurposeResult {
 export async function suggestFor(purpose: Purpose, hardware: SystemHardwareInfo | null, ctx: number): Promise<PurposeResult> {
   const jobs: Promise<Suggestion | null>[] =
     purpose === 'asr'
-      ? [suggestWhisperRuntime(), suggestWhisperModel(hardware)]
+      ? await asrJobs(hardware)
       : ROLES_OF[purpose].map((role) => suggestModel(purpose, role, ctx));
   const settled = await Promise.allSettled(jobs);
   const suggestions = settled.flatMap((s) => (s.status === 'fulfilled' && s.value ? [s.value] : []));

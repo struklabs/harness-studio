@@ -10,7 +10,8 @@
   import { localizeError } from '#lib/network.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { downloads } from '#lib/stores/downloads.svelte.js';
-  import { library, repoRelative } from '#lib/stores/library.svelte.js';
+  import { library, normPath, repoRelative } from '#lib/stores/library.svelte.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { runtimesStore } from '#lib/stores/runtimes.svelte.js';
   import { isPending } from '#lib/components/hub/downloadQueue.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -113,6 +114,9 @@
   function haveModel(s: ModelSuggestion): boolean {
     const job = downloads.jobFor(s.repoId, s.variant.name);
     if (job && (isPending(job.status) || job.status === 'Completed')) return true;
+    // A folder model (MLX) is listed under the folder itself: `<library>/<owner>/<repo>`.
+    const folder = `/${s.repoId.toLowerCase()}`;
+    if (library.models.some((m) => normPath(m.path).endsWith(folder))) return true;
     const want = s.variant.name.toLowerCase();
     return library.forRepo(s.repoId).some((m) => {
       const rel = repoRelative(m, s.repoId);
@@ -181,6 +185,13 @@
     try {
       // The runtime first: it is the one step that takes a while; model downloads only join the queue.
       for (const s of chosen) if (s.kind === 'runtime') await installRuntime(s);
+      for (const s of chosen) {
+        if (s.kind !== 'engine') continue;
+        const ok = await engineInstall.install(s.family);
+        outcome[s.id] = ok
+          ? { ok: true, text: t('onboarding.sg_state_installed', { name: s.family }) }
+          : { ok: false, text: engineInstall.state(s.family).error ?? t('onboarding.sg_engine_failed') };
+      }
       for (const s of chosen) {
         if (s.kind !== 'model') continue;
         try {
@@ -281,8 +292,8 @@
             />
             <span class="flex min-w-0 flex-1 flex-col gap-1">
               <span class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                <span class="min-w-0 truncate text-sm font-medium" title={s.kind === 'model' ? s.variant.name : s.pick.tag}>
-                  {s.kind === 'model' ? s.variant.name : `whisper.cpp ${s.pick.tag}`}
+                <span class="min-w-0 truncate text-sm font-medium" title={s.kind === 'model' ? s.variant.name : s.kind === 'engine' ? s.family : s.pick.tag}>
+                  {s.kind === 'model' ? s.variant.name : s.kind === 'engine' ? s.family : `whisper.cpp ${s.pick.tag}`}
                 </span>
                 <Badge variant="secondary" class="text-xs">
                   {s.kind === 'model' ? t(ROLE_LABEL[s.role]) : t('onboarding.sg_role_runtime')}
@@ -361,6 +372,13 @@
     <div class="flex flex-col gap-1.5">
       <Progress value={pct} aria-label={t('onboarding.wizard_runtime_downloading')} />
       <span class="font-num text-xs text-muted-foreground">{formatBytes(progress.downloaded_bytes, 1)} / {formatBytes(progress.total_bytes, 1)}</span>
+    </div>
+  {/if}
+  {#if engineInstall.busy('mlx-audio')}
+    {@const pyPct = engineInstall.state('mlx-audio').pct}
+    <div class="flex flex-col gap-1.5">
+      <Progress value={pyPct ?? 0} aria-label={t('onboarding.wizard_runtime_downloading')} />
+      <span class="text-xs text-muted-foreground">mlx-audio · {t('onboarding.wizard_runtime_downloading')}</span>
     </div>
   {/if}
 
