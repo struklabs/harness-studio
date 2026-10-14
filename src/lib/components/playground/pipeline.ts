@@ -56,15 +56,19 @@ export type PipelineResult =
   | { kind: 'raw'; value: unknown };
 
 /** Tasks that take one image (harness-onnx vision heads, the Python worker's image tasks). */
-export const IMAGE_TASKS = ['image-classification', 'object-detection', 'image-segmentation', 'depth-estimation'] as const;
+export const IMAGE_TASKS = ['image-classification', 'object-detection', 'image-segmentation', 'depth-estimation', 'zero-shot-image-classification'] as const;
 
 export function isImageTask(task: string | undefined): boolean {
   return (IMAGE_TASKS as readonly string[]).includes(task ?? '');
 }
 
-/** The request of an image task: the image as a data URL. */
-export function buildImageRequest(task: string, image: string): Record<string, unknown> | null {
+/** The request of an image task: the image as a data URL (and the labels of a zero-shot one). */
+export function buildImageRequest(task: string, image: string, labels = ''): Record<string, unknown> | null {
   if (!image.startsWith('data:')) return null;
+  if (task === 'zero-shot-image-classification') {
+    const list = splitLabels(labels);
+    return list.length < 2 ? null : { inputs: image, parameters: { candidate_labels: list } };
+  }
   if (task === 'image-classification') return { inputs: image, parameters: { top_k: 5 } };
   if (task === 'object-detection') return { inputs: image, parameters: { threshold: 0.5 } };
   return { inputs: image };

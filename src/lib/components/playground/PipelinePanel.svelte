@@ -69,6 +69,7 @@
     lastTask = next;
     result = null;
     error = '';
+    form.labels = next === 'zero-shot-image-classification' ? t('pl.sample_image_labels') : t('pl.sample_labels');
     form.text =
       next === 'zero-shot-classification' ? t('pl.sample_zero_shot')
       : next === 'token-classification' ? t('pl.sample_ner')
@@ -77,7 +78,7 @@
   });
 
   let body = $derived.by<Record<string, unknown> | null>(() => {
-    if (task && isImageTask(task)) return buildImageRequest(task, image);
+    if (task && isImageTask(task)) return buildImageRequest(task, image, form.labels);
     if (isFormTask(task)) return buildRequest(task, form);
     try {
       const v = JSON.parse(raw) as unknown;
@@ -179,6 +180,11 @@
       </div>
       {#if image}
         <img src={image} alt={imageName} class="max-h-48 w-fit rounded-md border border-border object-contain" />
+      {/if}
+      {#if task === 'zero-shot-image-classification'}
+        <Field label={t('pl.labels_label')} id="pl-image-labels" hint={t('pl.image_labels_hint')}>
+          <Input id="pl-image-labels" bind:value={form.labels} disabled={busy} onkeydown={(e) => e.key === 'Enter' && run()} />
+        </Field>
       {/if}
     {:else if task === 'question-answering'}
       <div class="flex flex-col gap-1.5">

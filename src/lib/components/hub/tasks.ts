@@ -61,6 +61,7 @@ export const TASKS: HubTask[] = [
   { id: 'object-detection', hf: 'Object Detection', key: 'hub.task_object_detection', group: 'cv' },
   { id: 'image-segmentation', hf: 'Image Segmentation', key: 'hub.task_image_segmentation', group: 'cv' },
   { id: 'depth-estimation', hf: 'Depth Estimation', key: 'hub.task_depth_estimation', group: 'cv' },
+  { id: 'zero-shot-image-classification', hf: 'Zero-Shot Image Classification', key: 'hub.task_zero_shot_image_classification', group: 'cv' },
 ];
 
 /** Always-visible task chips (the ones that run today). */
