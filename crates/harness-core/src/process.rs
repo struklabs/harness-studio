@@ -1203,11 +1203,15 @@ impl ProcessManager {
                             | harness_onnx::package::Task::FillMask
                             | harness_onnx::package::Task::QuestionAnswering,
                         ) => crate::serve_mode::ServeMode::Pipeline,
-                        // A vision model (no tokenizer, an image processor).
+                        // A vision or audio model (no tokenizer, a processor config).
                         None if harness_onnx::vision_pkg::VisionPackage::discover(
                             &launch.model_path,
                         )
-                        .is_some() =>
+                        .is_some()
+                            || harness_onnx::audio_pkg::AudioPackage::discover(
+                                &launch.model_path,
+                            )
+                            .is_some() =>
                         {
                             crate::serve_mode::ServeMode::Pipeline
                         }
