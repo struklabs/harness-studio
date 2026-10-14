@@ -78,6 +78,10 @@ pub struct Usage {
 pub struct RequestRecord {
     /// Gateway request id (`X-Harness-Request-Id`).
     pub id: String,
+    /// A prompt-cache warm-up of the Harness Playground (see `x-harness-purpose` in the
+    /// gateway): not a user request, so it is never published (statistics, analytics, traces).
+    #[serde(skip)]
+    pub warmup: bool,
     /// Unix milliseconds of arrival.
     pub started_at_ms: u64,
     /// Route, e.g. `/v1/chat/completions`.
@@ -150,6 +154,9 @@ pub struct RequestRecord {
 impl RequestRecord {
     /// Publishes the record on the event bus.
     pub fn publish(self) {
+        if self.warmup {
+            return;
+        }
         crate::events::publish(crate::events::CoreEvent::GatewayRequest {
             record: Box::new(self),
         });

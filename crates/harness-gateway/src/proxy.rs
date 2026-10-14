@@ -248,6 +248,24 @@ struct Peek<'a> {
     model: Option<std::borrow::Cow<'a, str>>,
     #[serde(default)]
     stream: Option<bool>,
+    #[serde(default)]
+    max_tokens: Option<u64>,
+}
+
+/// A prompt-cache warm-up of the Harness Playground: `x-harness-purpose: warmup` from the
+/// Harness client token, not streamed, at most one output token. Only Harness itself can keep
+/// a request out of the statistics, and only one that generates nothing.
+fn is_warmup(
+    headers: &HeaderMap,
+    caller: &crate::auth::Caller,
+    stream: bool,
+    max_tokens: Option<u64>,
+) -> bool {
+    header_str(headers, "x-harness-purpose").as_deref() == Some("warmup")
+        && caller.token_name.as_deref() == Some("harness")
+        && caller.token_id.is_none()
+        && !stream
+        && max_tokens.is_some_and(|n| n <= 1)
 }
 
 /// Handles one inference request.
@@ -334,6 +352,9 @@ async fn run(
         )
     })?;
     let stream = peek.stream.unwrap_or(false);
+    if is_warmup(headers, &caller, stream, peek.max_tokens) {
+        guard.get().warmup = true;
+    }
     let mut model = peek.model.as_deref().map(str::to_string);
     drop(peek);
     {
@@ -1084,6 +1105,55 @@ fn model_object(
 mod tests {
     use super::*;
     use harness_core::domain::{ModelDefinition, ModelRef};
+
+    #[test]
+    fn only_harness_itself_can_mark_a_one_token_warmup() {
+        let mut h = HeaderMap::new();
+        h.insert("x-harness-purpose", "warmup".parse().unwrap());
+        let app = crate::auth::Caller {
+            token_name: Some("harness".into()),
+            ..Default::default()
+        };
+        assert!(is_warmup(&h, &app, false, Some(1)));
+        assert!(!is_warmup(&h, &app, true, Some(1)));
+        assert!(!is_warmup(&h, &app, false, Some(2)));
+        assert!(!is_warmup(&h, &app, false, None));
+        assert!(!is_warmup(&HeaderMap::new(), &app, false, Some(1)));
+        let named = crate::auth::Caller {
+            token_name: Some("harness".into()),
+            token_id: Some("t1".into()),
+            ..Default::default()
+        };
+        assert!(!is_warmup(&h, &named, false, Some(1)));
+        assert!(!is_warmup(
+            &h,
+            &crate::auth::Caller::default(),
+            false,
+            Some(1)
+        ));
+    }
+
+    #[test]
+    fn a_warmup_record_is_not_published() {
+        let mut rx = harness_core::events::subscribe();
+        let mut r = harness_core::gateway::record::RequestRecord {
+            id: "warm".into(),
+            warmup: true,
+            ..Default::default()
+        };
+        r.clone().publish();
+        r.warmup = false;
+        r.id = "real".into();
+        r.publish();
+        let mut ids = Vec::new();
+        while let Ok(e) = rx.try_recv() {
+            if let harness_core::events::CoreEvent::GatewayRequest { record } = e {
+                ids.push(record.id);
+            }
+        }
+        assert!(ids.contains(&"real".to_string()));
+        assert!(!ids.contains(&"warm".to_string()));
+    }
 
     #[test]
     fn only_a_mistralrs_upstream_gets_the_default_model_id() {

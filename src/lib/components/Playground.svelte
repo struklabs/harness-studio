@@ -1053,7 +1053,12 @@
     try {
       const res = await fetch(`${app.inferenceUrl}/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...app.inferenceHeaders() },
+        // Kept out of the gateway's request statistics (honoured for Harness's own token only).
+        headers: {
+          'Content-Type': 'application/json',
+          ...app.inferenceHeaders(),
+          ...(app.gatewayRunning ? { 'X-Harness-Purpose': 'warmup' } : {}),
+        },
         body: JSON.stringify(body),
         signal: c.signal,
       });
