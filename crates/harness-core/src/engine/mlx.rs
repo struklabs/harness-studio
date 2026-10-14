@@ -71,6 +71,20 @@ pub fn catalog() -> &'static ParamCatalog {
     })
 }
 
+/// Capabilities as documented: every flag of the catalog. The worker has no `--help` to probe
+/// (its flags are the catalog's own), and without capabilities nothing would be rendered.
+fn documented_caps() -> &'static RuntimeCapabilities {
+    static CAPS: OnceLock<RuntimeCapabilities> = OnceLock::new();
+    CAPS.get_or_init(|| {
+        let help: String = catalog()
+            .params
+            .iter()
+            .map(|p| format!("{} N    {}\n", p.flags.join(", "), p.id))
+            .collect();
+        RuntimeCapabilities::from_outputs(Default::default(), "", &help, "")
+    })
+}
+
 /// A flag Harness owns, or an abbreviation of one (Python's argparse expands `--trust` to
 /// `--trust-remote-code`; the worker refuses those too).
 fn is_protected(arg: &str) -> bool {
@@ -396,7 +410,8 @@ fn build_args(config: &LaunchConfig, script: &Path) -> Result<BuildOutput, Strin
         host: config.host.clone(),
         ..Default::default()
     };
-    let rendered = crate::params::render_params(catalog(), None, &config.params, &ctx)?;
+    let rendered =
+        crate::params::render_params(catalog(), Some(documented_caps()), &config.params, &ctx)?;
     args.extend(rendered.args);
     if let Some(custom) = config
         .custom_args
@@ -517,6 +532,26 @@ mod tests {
         assert_eq!(at("--max-tokens"), Some("8192"));
         // The worker binds 127.0.0.1 itself; no host on the command line.
         assert!(at("--host").is_none());
+
+        // The catalog is rendered (the worker has no --help to probe).
+        let mut set = config.clone();
+        set.params
+            .insert("max_tokens".into(), crate::params::ParamValue::Int(512));
+        set.params.insert(
+            "prompt_cache_size".into(),
+            crate::params::ParamValue::Int(4),
+        );
+        set.params.insert(
+            "kv_bits".into(),
+            crate::params::ParamValue::Text("8".into()),
+        );
+        let out = build_args(&set, Path::new("w.py")).unwrap();
+        assert!(out.skipped.is_empty(), "{:?}", out.skipped);
+        let args = out.args.join(" ");
+        assert!(args.contains("--max-tokens 512"), "{args}");
+        assert!(args.contains("--prompt-cache-size 4"), "{args}");
+        assert!(args.contains("--kv-bits 8"), "{args}");
+        assert_eq!(args.matches("--max-tokens").count(), 1, "{args}");
 
         let mut custom = config.clone();
         custom.custom_args = Some("--max-tokens 100".into());
