@@ -27,7 +27,37 @@ pub enum VisionTask {
     /// A dual encoder (`CLIPModel`, `SiglipModel`) exported as one graph: the image scored
     /// against labels the request names.
     ZeroShot,
+    /// A bare image backbone (`ViTModel`, `Dinov2Model`, `ConvNextModel`...): its hidden
+    /// states (or pooled output) as the image's features.
+    Features,
 }
+
+/// `model_type`s of image backbones whose bare `*Model` export is an image feature extractor.
+const IMAGE_BACKBONES: &[&str] = &[
+    "vit",
+    "vit_mae",
+    "vit_msn",
+    "deit",
+    "beit",
+    "data2vec-vision",
+    "dinov2",
+    "dinov2_with_registers",
+    "ijepa",
+    "convnext",
+    "convnextv2",
+    "swin",
+    "swinv2",
+    "mobilevit",
+    "mobilevitv2",
+    "efficientnet",
+    "resnet",
+    "regnet",
+    "levit",
+    "pvt",
+    "pvt_v2",
+    "clip_vision_model",
+    "siglip_vision_model",
+];
 
 impl VisionTask {
     /// The Hugging Face pipeline task.
@@ -38,6 +68,7 @@ impl VisionTask {
             VisionTask::Segment => "image-segmentation",
             VisionTask::Depth => "depth-estimation",
             VisionTask::ZeroShot => "zero-shot-image-classification",
+            VisionTask::Features => "image-feature-extraction",
         }
     }
 }
@@ -120,6 +151,9 @@ pub struct VisionPackage {
     pub labels: Vec<String>,
     /// Labels are independent (`problem_type: multi_label_classification`): sigmoid.
     pub multi_label: bool,
+    /// Feature extraction: the model's pooled output is its first (CLS) hidden state, so
+    /// `pool` works on an export without `pooler_output` (DINOv2).
+    pub cls_pool: bool,
     pub preprocess: Preprocess,
     /// The tokenizer of a zero-shot model (`None` for the other tasks).
     pub text: Option<TextSide>,
@@ -163,6 +197,13 @@ pub fn task_from_config(config: &Value) -> Option<VisionTask> {
         .any(|n| matches!(*n, "CLIPModel" | "SiglipModel"))
     {
         Some(VisionTask::ZeroShot)
+    } else if heads.iter().any(|n| n.ends_with("Model"))
+        && config
+            .get("model_type")
+            .and_then(Value::as_str)
+            .is_some_and(|t| IMAGE_BACKBONES.contains(&t))
+    {
+        Some(VisionTask::Features)
     } else {
         None
     }
@@ -312,6 +353,10 @@ impl VisionPackage {
             labels: labels_from_config(&config),
             multi_label: config.get("problem_type").and_then(Value::as_str)
                 == Some("multi_label_classification"),
+            cls_pool: matches!(
+                config.get("model_type").and_then(Value::as_str),
+                Some("dinov2" | "dinov2_with_registers")
+            ),
             preprocess,
             text,
             name,
@@ -387,6 +432,13 @@ mod tests {
         assert_eq!(t("CLIPVisionModelWithProjection"), None);
         assert_eq!(t("WhisperForConditionalGeneration"), None);
         assert_eq!(task_from_config(&json!({})), None);
+        // A bare backbone is a feature extractor only when its model type is an image one.
+        let bare =
+            |a: &str, t: &str| task_from_config(&json!({"architectures": [a], "model_type": t}));
+        assert_eq!(bare("Dinov2Model", "dinov2"), Some(VisionTask::Features));
+        assert_eq!(bare("ViTModel", "vit"), Some(VisionTask::Features));
+        assert_eq!(bare("BertModel", "bert"), None);
+        assert_eq!(bare("Wav2Vec2Model", "wav2vec2"), None);
     }
 
     #[test]
