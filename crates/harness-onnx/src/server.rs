@@ -5,11 +5,12 @@
 //! while the model loads and 200 once it serves, so Harness's readiness poll works unchanged.
 
 use crate::api::{self, ApiError, EmbeddingsRequest, RerankRequest};
+use crate::asr_ctc::CtcEngine;
 use crate::chat::{self, ChatJob, ChatRequest};
 use crate::chat_engine::ChatEngine;
 use crate::engine::Engine;
 use crate::vision_engine::VisionEngine;
-use axum::extract::{DefaultBodyLimit, State};
+use axum::extract::{DefaultBodyLimit, Multipart, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -24,6 +25,7 @@ pub struct Shared {
     engine: RwLock<Option<Arc<Engine>>>,
     chat: RwLock<Option<Arc<ChatEngine>>>,
     vision: RwLock<Option<Arc<VisionEngine>>>,
+    asr: RwLock<Option<Arc<CtcEngine>>>,
     requests: AtomicU64,
 }
 
@@ -34,6 +36,7 @@ impl Shared {
             engine: RwLock::new(None),
             chat: RwLock::new(None),
             vision: RwLock::new(None),
+            asr: RwLock::new(None),
             requests: AtomicU64::new(0),
         })
     }
@@ -54,6 +57,14 @@ impl Shared {
         self.vision.read().unwrap().clone()
     }
 
+    pub fn set_asr(&self, engine: CtcEngine) {
+        *self.asr.write().unwrap() = Some(Arc::new(engine));
+    }
+
+    fn asr(&self) -> Option<Arc<CtcEngine>> {
+        self.asr.read().unwrap().clone()
+    }
+
     fn engine(&self) -> Option<Arc<Engine>> {
         self.engine.read().unwrap().clone()
     }
@@ -63,7 +74,10 @@ impl Shared {
     }
 
     fn ready(&self) -> bool {
-        self.engine().is_some() || self.chat().is_some() || self.vision().is_some()
+        self.engine().is_some()
+            || self.chat().is_some()
+            || self.vision().is_some()
+            || self.asr().is_some()
     }
 }
 
@@ -109,7 +123,11 @@ async fn models(State(s): State<Arc<Shared>>) -> Json<Value> {
 
 /// Why `/v1/embeddings` and `/v1/rerank` have no model: still loading, or a chat model.
 fn not_an_encoder(s: &Shared) -> Failure {
-    if s.chat().is_some() {
+    if s.asr().is_some() {
+        Failure(ApiError::invalid(
+            "this model recognizes audio: use /v1/audio/transcriptions",
+        ))
+    } else if s.chat().is_some() {
         Failure(ApiError::invalid(
             "this model is a chat model: use /v1/chat/completions",
         ))
@@ -241,7 +259,7 @@ async fn chat_completions(
     body: axum::body::Bytes,
 ) -> Result<Response, Failure> {
     let engine = s.chat().ok_or_else(|| {
-        if s.engine().is_some() {
+        if s.engine().is_some() || s.asr().is_some() {
             Failure(ApiError::invalid(
                 "this model is an embedding or reranking model, not a chat model",
             ))
@@ -326,10 +344,112 @@ async fn chat_completions(
         .map_err(|e| Failure(ApiError::server(e.to_string())))
 }
 
+async fn transcriptions(
+    State(s): State<Arc<Shared>>,
+    multipart: Result<Multipart, axum::extract::multipart::MultipartRejection>,
+) -> Result<Response, Failure> {
+    let engine = s.asr().ok_or_else(|| {
+        if s.ready() {
+            Failure(ApiError::invalid(
+                "this model does not support CTC audio transcription",
+            ))
+        } else {
+            loading()
+        }
+    })?;
+    let multipart = multipart.map_err(|e| Failure(ApiError::invalid(e.to_string())))?;
+    let (file, format) = transcription_upload(multipart).await?;
+    let result = blocking(move || engine.transcribe(&file)).await?;
+    transcription_response(result, &format)
+}
+
+async fn transcription_upload(mut multipart: Multipart) -> Result<(Vec<u8>, String), Failure> {
+    let mut file = None;
+    let mut model = None;
+    let mut format = "json".to_string();
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| Failure(ApiError::invalid(e.to_string())))?
+    {
+        let name = field.name().unwrap_or_default().to_string();
+        match name.as_str() {
+            "file" => {
+                file = Some(
+                    field
+                        .bytes()
+                        .await
+                        .map_err(|e| Failure(ApiError::invalid(e.to_string())))?
+                        .to_vec(),
+                )
+            }
+            "model" => {
+                model = Some(
+                    field
+                        .text()
+                        .await
+                        .map_err(|e| Failure(ApiError::invalid(e.to_string())))?,
+                )
+            }
+            "response_format" => {
+                format = field
+                    .text()
+                    .await
+                    .map_err(|e| Failure(ApiError::invalid(e.to_string())))?
+            }
+            // HF CTC models are not language-conditioned.
+            _ => {}
+        }
+    }
+    if model.as_deref().is_none_or(|m| m.trim().is_empty()) {
+        return Err(Failure(ApiError::invalid(
+            "multipart field model is required",
+        )));
+    }
+    if !matches!(
+        format.as_str(),
+        "json" | "verbose_json" | "text" | "srt" | "vtt"
+    ) {
+        return Err(Failure(ApiError::invalid(
+            "response_format must be json, verbose_json, text, srt or vtt",
+        )));
+    }
+    let file =
+        file.ok_or_else(|| Failure(ApiError::invalid("multipart field file is required (WAV)")))?;
+    Ok((file, format))
+}
+
+fn transcription_response(
+    result: crate::asr_ctc::Transcription,
+    format: &str,
+) -> Result<Response, Failure> {
+    match format {
+        "json" => Ok(Json(json!({"text": result.text})).into_response()),
+        "verbose_json" => Ok(Json(json!({"task": "transcribe", "text": result.text,
+            "duration": result.duration, "segments": result.segments}))
+        .into_response()),
+        "text" => {
+            Ok(([("content-type", "text/plain; charset=utf-8")], result.text).into_response())
+        }
+        _ => {
+            let subtitles = result
+                .subtitles(format == "vtt")
+                .map_err(|e| Failure(ApiError::invalid(e)))?;
+            let mime = if format == "vtt" {
+                "text/vtt; charset=utf-8"
+            } else {
+                "application/x-subrip; charset=utf-8"
+            };
+            Ok(([("content-type", mime)], subtitles).into_response())
+        }
+    }
+}
+
 pub fn router(shared: Arc<Shared>) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/v1/models", get(models))
+        .route("/v1/audio/transcriptions", post(transcriptions))
         .route("/models", get(models))
         .route("/v1/embeddings", post(embeddings))
         .route("/embeddings", post(embeddings))
@@ -342,4 +462,120 @@ pub fn router(shared: Arc<Shared>) -> Router {
         .route("/reranking", post(rerank))
         .layer(DefaultBodyLimit::max(64 << 20))
         .with_state(shared)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::asr_ctc::{Segment, Transcription};
+    use axum::body::{to_bytes, Body};
+    use axum::extract::FromRequest;
+    use axum::http::Request;
+
+    async fn upload(fields: &[(&str, &str)]) -> Result<(Vec<u8>, String), Failure> {
+        let mut body = String::new();
+        for (name, value) in fields {
+            body.push_str(&format!(
+                "--ctc-test\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n"
+            ));
+        }
+        body.push_str("--ctc-test--\r\n");
+        let request = Request::builder()
+            .header("content-type", "multipart/form-data; boundary=ctc-test")
+            .body(Body::from(body))
+            .unwrap();
+        let multipart = Multipart::from_request(request, &()).await.unwrap();
+        transcription_upload(multipart).await
+    }
+
+    #[tokio::test]
+    async fn transcription_multipart_fields_and_validation() {
+        let (file, format) = upload(&[("file", "wav"), ("model", "ctc"), ("language", "tr")])
+            .await
+            .ok()
+            .unwrap();
+        assert_eq!(file, b"wav");
+        assert_eq!(format, "json");
+        for format in ["json", "verbose_json", "text", "srt", "vtt"] {
+            assert!(upload(&[
+                ("file", "wav"),
+                ("model", "ctc"),
+                ("response_format", format)
+            ])
+            .await
+            .is_ok());
+        }
+        for fields in [
+            vec![("model", "ctc")],
+            vec![("file", "wav")],
+            vec![
+                ("file", "wav"),
+                ("model", "ctc"),
+                ("response_format", "xml"),
+            ],
+        ] {
+            let error = upload(&fields).await.err().unwrap();
+            assert_eq!(error.0.status, 400);
+            assert!(error.0.body()["error"]["message"].is_string());
+        }
+    }
+
+    #[tokio::test]
+    async fn transcription_formats_have_openai_shapes_and_content_types() {
+        let result = Transcription {
+            text: "??".into(),
+            duration: 1.5,
+            segments: vec![Segment {
+                id: 0,
+                start: 0.0,
+                end: 1.5,
+                text: "??".into(),
+            }],
+        };
+        for format in ["json", "verbose_json", "text", "srt", "vtt"] {
+            let response = transcription_response(result.clone(), format).ok().unwrap();
+            assert_eq!(response.status(), 200);
+            let mime = response.headers()["content-type"]
+                .to_str()
+                .unwrap()
+                .to_string();
+            let body = to_bytes(response.into_body(), 10000).await.unwrap();
+            if matches!(format, "json" | "verbose_json") {
+                assert_eq!(mime, "application/json");
+                let json: Value = serde_json::from_slice(&body).unwrap();
+                assert_eq!(json["text"], "??");
+                if format == "json" {
+                    assert_eq!(json.as_object().unwrap().len(), 1);
+                } else {
+                    assert_eq!(json["task"], "transcribe");
+                    assert_eq!(json["segments"][0]["end"], 1.5);
+                }
+            } else {
+                let text = std::str::from_utf8(&body).unwrap();
+                assert!(text.contains("??"));
+                assert!(mime.contains("charset=utf-8"));
+                if format == "vtt" {
+                    assert!(text.starts_with("WEBVTT"));
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn loading_health_is_unchanged() {
+        let state = Shared::new("ctc".into());
+        let response = health(State(state.clone())).await;
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let response = transcriptions(
+            State(state),
+            Err(Multipart::from_request(Request::new(Body::empty()), &())
+                .await
+                .err()
+                .unwrap()),
+        )
+        .await
+        .err()
+        .unwrap();
+        assert_eq!(response.0.status, 503);
+    }
 }

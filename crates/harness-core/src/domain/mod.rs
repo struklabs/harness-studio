@@ -264,6 +264,13 @@ pub struct ModelDefinition {
 impl ModelDefinition {
     /// An empty definition (no id yet: `Domain::save_definition` assigns one).
     pub fn new(alias: impl Into<String>, base: ModelRef) -> Self {
+        let mut load = ParamValues::new();
+        if base.local_path().is_some_and(crate::asr::is_onnx_ctc_file) {
+            load.insert(
+                "task".into(),
+                crate::params::ParamValue::Text("asr_ctc".into()),
+            );
+        }
         Self {
             id: String::new(),
             alias: alias.into(),
@@ -275,7 +282,7 @@ impl ModelDefinition {
             chat_template: None,
             chat_template_kwargs: None,
             extra_args: None,
-            load: ParamValues::new(),
+            load,
             default_preset_id: None,
             ttl_seconds: None,
             pinned: false,

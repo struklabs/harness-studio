@@ -113,6 +113,8 @@ Besides Whisper, the **Recommended sherpa-onnx Recognition Models** section lets
 
 WAV, MP3, FLAC, and Ogg are read directly. Formats such as M4A, WebM, and Opus need ffmpeg. Microphone recording produces 16 kHz WAV. If microphone permission is denied, allow Harness Studio in your system privacy settings.
 
+ONNX CTC models (wav2vec2, HuBERT, WavLM) from Model Hub or library folders also appear in the model list. Use **Open in Playground** on the library card to select one. They use the managed ONNX Runtime engine and only transcribe: language and prompt fields are hidden, and translation is unavailable. Their output has no timed segments.
+
 ### Text to Speech
 
 The **Text to Speech** section of the **Speech** tab turns text into audio. Press **Install Engine** to install the sherpa-onnx engine (about 20 MB, verified), then download a voice under **Recommended Voice Models**: Kokoro (multilingual) and Piper voices, which are recommended for Turkish. Choose a **Model**, a **Voice**, and a **Speed**, type the **Text to read**, and press **Speak**. The audio plays in the app and can be downloaded. Once a voice model is installed, the **Read Aloud** button on a chat answer reads it with that voice; without a voice model the app points you to this section.

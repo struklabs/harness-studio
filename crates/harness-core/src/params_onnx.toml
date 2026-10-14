@@ -69,3 +69,13 @@ label_key = "oparam.max_length"
 help_key = "oparam.max_length_help"
 min = 8
 max = 8192
+
+[[param]]
+id = "task"
+flags = ["--task"]
+kind = "enum"
+values = ["embedding", "rerank", "asr_ctc"]
+group = "model"
+level = "advanced"
+label_key = "oparam.task"
+help_key = "oparam.task_help"

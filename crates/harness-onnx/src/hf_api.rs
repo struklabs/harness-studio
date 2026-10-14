@@ -213,6 +213,9 @@ pub fn parse(task: Task, body: &Value) -> Result<HfJob, ApiError> {
         Task::Embedding => Err(ApiError::unavailable(
             "this model is an embedding model: use /v1/embeddings",
         )),
+        Task::AsrCtc => Err(ApiError::unavailable(
+            "this model is a speech recognition model: use /v1/audio/transcriptions",
+        )),
     }
 }
 

@@ -34,7 +34,7 @@ half = { version = "2", optional = true }
 # builds (CPU/CUDA 1.28) serve it as well.
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic", "api-24", "half", "directml", "cuda"], optional = true }
 tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
-axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"], optional = true }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "multipart"], optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "signal", "time"], optional = true }
 tracing = { version = "0.1", default-features = false, optional = true }
 # onnxruntime-genai (chat models) is bound through its C API, loaded at run time like ONNX Runtime.

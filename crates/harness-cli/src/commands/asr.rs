@@ -244,50 +244,107 @@ pub async fn transcribe(args: &TranscribeArgs, out: &Out) -> CliResult<()> {
         )
     })?;
 
-    let models = installed().await?;
-    let model = asr::find_model(&models, args.model.as_deref(), false).map_err(CliError::core)?;
-    let runtime = args.runtime.clone();
-    let binary = blocking(move || run::resolve_binary(runtime.as_deref())).await?;
-    let vad = catalog::ensure_vad().await.map_err(CliError::core)?;
-    if let Some(n) = args
-        .speakers
-        .filter(|n| !(1..=asr::diarize::MAX_SPEAKERS).contains(n))
+    let ctc = blocking({
+        let wanted = args.model.clone();
+        move || {
+            let defs = harness_core::domain::store::Domain::global()
+                .definitions()
+                .unwrap_or_default();
+            let files = harness_core::models::ModelManager.scan_models();
+            Ok(wanted
+                .as_deref()
+                .and_then(|name| {
+                    let path = std::path::PathBuf::from(name);
+                    if asr::is_onnx_ctc_file(&path) {
+                        return Some(path);
+                    }
+                    defs.iter()
+                        .find(|d| d.alias == name || d.id == name)
+                        .and_then(|d| d.base.local_path())
+                        .filter(|p| asr::is_onnx_ctc_file(p))
+                        .map(std::path::Path::to_path_buf)
+                        .or_else(|| {
+                            files
+                                .iter()
+                                .find(|m| {
+                                    (m.name == name || m.id == name)
+                                        && asr::is_onnx_ctc_file(&m.path)
+                                })
+                                .map(|m| m.path.clone())
+                        })
+                })
+                .or_else(|| {
+                    if wanted.is_none() && asr::installed_models().is_empty() {
+                        files
+                            .iter()
+                            .find(|m| asr::is_onnx_ctc_file(&m.path))
+                            .map(|m| m.path.clone())
+                    } else {
+                        None
+                    }
+                }))
+        }
+    })
+    .await?;
+    if ctc.is_some() && (args.diarize || args.speakers.is_some() || format == Format::DiarizedJson)
     {
         return Err(CliError::usage(
             "cli.invalid_value",
-            format!(
-                "--speakers {n} is not between 1 and {}",
-                asr::diarize::MAX_SPEAKERS
-            ),
+            "ONNX CTC models cannot tell speakers apart; --diarize, --speakers and diarized_json need a sherpa-onnx model",
         ));
     }
-    let diarize = args.diarize || args.speakers.is_some() || format == Format::DiarizedJson;
-    let speaker_models = if diarize {
-        Some(
-            asr::diarize::ensure_models()
-                .await
-                .map_err(CliError::core)?,
-        )
+    let transcript = if let Some(path) = ctc {
+        out.info(format!("Transcribing with {} ...", path.display()));
+        asr::onnx::transcribe(&path, audio, args.threads)
+            .await
+            .map_err(CliError::core)?
     } else {
-        None
+        let models = installed().await?;
+        let model =
+            asr::find_model(&models, args.model.as_deref(), false).map_err(CliError::core)?;
+        let runtime = args.runtime.clone();
+        let binary = blocking(move || run::resolve_binary(runtime.as_deref())).await?;
+        let vad = catalog::ensure_vad().await.map_err(CliError::core)?;
+        if let Some(n) = args
+            .speakers
+            .filter(|n| !(1..=asr::diarize::MAX_SPEAKERS).contains(n))
+        {
+            return Err(CliError::usage(
+                "cli.invalid_value",
+                format!(
+                    "--speakers {n} is not between 1 and {}",
+                    asr::diarize::MAX_SPEAKERS
+                ),
+            ));
+        }
+        let diarize = args.diarize || args.speakers.is_some() || format == Format::DiarizedJson;
+        let speaker_models = if diarize {
+            Some(
+                asr::diarize::ensure_models()
+                    .await
+                    .map_err(CliError::core)?,
+            )
+        } else {
+            None
+        };
+        out.info(format!("Transcribing with {} ...", model.name));
+        run::transcribe(
+            &binary,
+            &run::TranscribeRequest {
+                model,
+                vad: &vad,
+                language: args.language.as_deref(),
+                threads: args.threads,
+                diarize: speaker_models.as_ref().map(|m| run::Diarization {
+                    models: m,
+                    speakers: args.speakers,
+                }),
+            },
+            audio,
+        )
+        .await
+        .map_err(CliError::core)?
     };
-    out.info(format!("Transcribing with {} ...", model.name));
-    let transcript = run::transcribe(
-        &binary,
-        &run::TranscribeRequest {
-            model,
-            vad: &vad,
-            language: args.language.as_deref(),
-            threads: args.threads,
-            diarize: speaker_models.as_ref().map(|m| run::Diarization {
-                models: m,
-                speakers: args.speakers,
-            }),
-        },
-        audio,
-    )
-    .await
-    .map_err(CliError::core)?;
 
     let text = render(&transcript, format);
     if to_stdout {

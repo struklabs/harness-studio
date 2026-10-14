@@ -41,8 +41,8 @@ export function sherpaNames(models: AsrModelInfo[]): string[] {
 }
 
 /** A library file that sherpa-onnx runs: speech recognition, but ONNX (whisper.cpp's are ggml `.bin`). */
-export function isSherpaAsrFile(file: { kind?: string | null; path: string }): boolean {
-  return file.kind === 'asr' && /\.onnx$/i.test(file.path);
+export function isSherpaAsrFile(file: { kind?: string | null; path: string; architecture?: string | null }): boolean {
+  return file.kind === 'asr' && file.architecture !== 'onnx' && /\.onnx$/i.test(file.path);
 }
 
 /** `en, de, fr, es, it, pt and 19 more` for the long language lists of a catalog row. */

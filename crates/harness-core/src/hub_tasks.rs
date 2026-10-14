@@ -263,15 +263,23 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
         pipeline_tag = Some("text-to-image".to_string());
     }
     let not_runnable = not_runnable(id, &tags, &files, library.as_deref(), gguf.as_ref());
-    let found = match (&pipeline_tag, not_runnable) {
-        (None, None) => infer(id, &tags, &files, library.as_deref(), gguf.as_ref()),
-        // A diffusion header (`flux`, `sdxl`...) is "not a language model" for llama-server, but
-        // an untagged repo of one is still a text-to-image model for stable-diffusion.cpp.
-        (None, Some(NotRunnable::NotLanguageModel)) => {
-            infer(id, &tags, &files, library.as_deref(), gguf.as_ref())
-                .filter(|(t, _)| *t == "text-to-image")
+    let found = if pipeline_tag.is_none()
+        && item
+            .get("config")
+            .is_some_and(crate::hub_compat::is_ctc_config)
+    {
+        Some(("automatic-speech-recognition", TaskSource::Files))
+    } else {
+        match (&pipeline_tag, not_runnable) {
+            (None, None) => infer(id, &tags, &files, library.as_deref(), gguf.as_ref()),
+            // A diffusion header (`flux`, `sdxl`...) is "not a language model" for llama-server, but
+            // an untagged repo of one is still a text-to-image model for stable-diffusion.cpp.
+            (None, Some(NotRunnable::NotLanguageModel)) => {
+                infer(id, &tags, &files, library.as_deref(), gguf.as_ref())
+                    .filter(|(t, _)| *t == "text-to-image")
+            }
+            _ => None,
         }
-        _ => None,
     };
     let adapter = not_runnable == Some(NotRunnable::Adapter);
     RepoAnalysis {
@@ -629,8 +637,14 @@ const fn row_alt(
     }
 }
 
-/// Speech recognition: whisper.cpp (ggml) and sherpa-onnx (ONNX) models.
-const ASR_ALTS: &[(&str, Support)] = &[(WHISPER_FAMILY, Yes), (SHERPA_FAMILY, Yes)];
+/// Speech recognition: whisper.cpp, sherpa-onnx, and exported HF CTC packages.
+// The ONNX sidecar handles exported HF ForCTC packages only; other ASR graphs
+// (Whisper encoder/decoder, transducers) are not covered by this implementation.
+const ASR_ALTS: &[(&str, Support)] = &[
+    (WHISPER_FAMILY, Yes),
+    (SHERPA_FAMILY, Yes),
+    (crate::engine::ONNX_FAMILY, Partial),
+];
 /// Text-to-speech: Kokoro / Piper through sherpa-onnx.
 const TTS_ALTS: &[(&str, Support)] = &[(SHERPA_FAMILY, Yes)];
 /// Encoder task heads (classification, NER, fill-mask, extractive QA) and vision heads
@@ -1239,6 +1253,29 @@ mod tests {
 
     fn installed(list: &[&str]) -> Vec<String> {
         s(list)
+    }
+
+    #[test]
+    fn onnx_asr_is_only_partial_and_never_endpoint_verified() {
+        // Without llama audio input, the conservative CTC alternative is what remains.
+        let caps = crate::capabilities::testdata::caps("b11236");
+        let mut features = feature_status(&caps, FeatureContext::default());
+        for f in features
+            .iter_mut()
+            .filter(|f| f.id == "vision" || f.id == "audio_input")
+        {
+            f.level = CapabilityLevel::Unsupported;
+            f.available = Some(false);
+        }
+        let rows = task_support(
+            Some(&caps),
+            &features,
+            &installed(&[crate::engine::ONNX_FAMILY]),
+        );
+        let asr = support_of(&rows, "automatic-speech-recognition");
+        assert_eq!(asr.support, Partial);
+        assert_eq!(asr.runtime.as_deref(), Some(crate::engine::ONNX_FAMILY));
+        assert!(!asr.verified);
     }
 
     #[test]
