@@ -11,9 +11,6 @@ use ort::value::Tensor;
 use serde_json::Value;
 use std::sync::Mutex;
 
-/// Longest clip read for a raw-waveform model (an AST reads its first ~10 s anyway).
-const MAX_SECONDS: usize = 600;
-
 /// A parsed `/hf` request of an audio classifier.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct AudioJob {
@@ -131,21 +128,13 @@ pub fn load(opts: &LoadOptions, package: AudioPackage) -> Result<AudioEngine, St
 }
 
 impl AudioEngine {
-    /// One request: decode and resample the WAV, compute the features, run, rank the labels.
+    /// One request: decode and check the WAV ([`AudioPackage::prepare`]), compute the
+    /// features, run, rank the labels.
     pub fn handle(&self, job: &AudioJob) -> Result<Value, ApiError> {
-        let (samples, rate) = crate::asr_ctc::read_wav(&job.audio).map_err(ApiError::invalid)?;
-        let target = self.package.sampling_rate;
-        if samples.len() / rate.max(1) as usize > MAX_SECONDS {
-            return Err(ApiError::invalid(format!(
-                "the clip is longer than {} minutes",
-                MAX_SECONDS / 60
-            )));
-        }
-        let samples =
-            crate::asr_ctc::resample(&samples, rate, target).map_err(ApiError::invalid)?;
-        if samples.is_empty() {
-            return Err(ApiError::invalid("the audio is empty"));
-        }
+        let samples = self
+            .package
+            .prepare(&job.audio)
+            .map_err(ApiError::invalid)?;
         self.classify(&samples, job.top_k)
     }
 

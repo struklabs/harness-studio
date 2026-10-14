@@ -22,6 +22,12 @@ const SPEECH_MODEL_TYPES: &[&str] = &[
     "sew-d",
 ];
 
+/// Longest clip read at all (an AST reads only its first ~10 s).
+pub const MAX_SECONDS: usize = 600;
+/// Longest clip a raw-waveform model takes in one pass: its encoder makes ~50 frames a second
+/// and self-attention grows with the square of that, so a long clip exhausts memory.
+pub const MAX_RAW_SECONDS: usize = 60;
+
 /// What the graph takes as `input_values`.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Features {
@@ -156,6 +162,35 @@ impl AudioPackage {
     }
 }
 
+impl AudioPackage {
+    /// A WAV file as the samples the model's front end takes: decoded, mixed to mono,
+    /// resampled to `sampling_rate`, at least one 25 ms frame long and within the length
+    /// limits.
+    pub fn prepare(&self, wav: &[u8]) -> Result<Vec<f32>, String> {
+        let (samples, rate) = crate::asr_ctc::read_wav(wav)?;
+        if samples.len() / rate.max(1) as usize > MAX_SECONDS {
+            return Err(format!(
+                "the clip is longer than {} minutes",
+                MAX_SECONDS / 60
+            ));
+        }
+        let samples = crate::asr_ctc::resample(&samples, rate, self.sampling_rate)?;
+        let rate = self.sampling_rate as usize;
+        if samples.len() < rate * 25 / 1000 {
+            return Err("the audio is too short (at least 25 ms)".into());
+        }
+        if matches!(self.features, Features::Raw { .. }) && samples.len() > MAX_RAW_SECONDS * rate {
+            return Err(format!(
+                "{} takes at most {} s of audio in one pass; this clip is {:.0} s",
+                self.name,
+                MAX_RAW_SECONDS,
+                samples.len() as f64 / rate as f64
+            ));
+        }
+        Ok(samples)
+    }
+}
+
 /// In-place radix-2 FFT of `re` + i`im` (length a power of two).
 fn fft(re: &mut [f64], im: &mut [f64]) {
     let n = re.len();
@@ -271,7 +306,11 @@ pub fn ast_input(
     std: f32,
     normalize: bool,
 ) -> Vec<f32> {
-    let bank = kaldi_fbank(samples, rate, mel_bins);
+    // Only the first `max_length` frames are kept: the rest of a long clip is not computed.
+    let frame = (f64::from(rate) * 0.025).round() as usize;
+    let shift = (f64::from(rate) * 0.010).round() as usize;
+    let need = frame + max_length.saturating_sub(1) * shift;
+    let bank = kaldi_fbank(&samples[..samples.len().min(need)], rate, mel_bins);
     let mut out = vec![0.0f32; max_length * mel_bins];
     for (row, values) in bank.iter().take(max_length).enumerate() {
         out[row * mel_bins..(row + 1) * mel_bins].copy_from_slice(values);
@@ -389,6 +428,112 @@ mod tests {
         assert_eq!(x.len(), 40);
         // A padding row is 0 before normalization: (0 - -1) / 4.
         assert!((x[39] - 0.25).abs() < 1e-6);
+    }
+
+    /// A mono 16-bit PCM WAV of `n` samples of a 440 Hz tone at `rate`.
+    fn tone_wav(rate: u32, n: usize) -> Vec<u8> {
+        let mut v = Vec::new();
+        let data = (n * 2) as u32;
+        v.extend_from_slice(b"RIFF");
+        v.extend_from_slice(&(36 + data).to_le_bytes());
+        v.extend_from_slice(b"WAVEfmt ");
+        v.extend_from_slice(&16u32.to_le_bytes());
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&1u16.to_le_bytes());
+        v.extend_from_slice(&rate.to_le_bytes());
+        v.extend_from_slice(&(rate * 2).to_le_bytes());
+        v.extend_from_slice(&2u16.to_le_bytes());
+        v.extend_from_slice(&16u16.to_le_bytes());
+        v.extend_from_slice(b"data");
+        v.extend_from_slice(&data.to_le_bytes());
+        for i in 0..n {
+            let x = (2.0 * std::f32::consts::PI * 440.0 * i as f32 / rate as f32).sin();
+            v.extend_from_slice(&((x * 8000.0) as i16).to_le_bytes());
+        }
+        v
+    }
+
+    fn package(features: Features) -> AudioPackage {
+        AudioPackage {
+            onnx_path: PathBuf::from("model.onnx"),
+            root: PathBuf::from("."),
+            labels: vec!["a".into()],
+            sampling_rate: 16_000,
+            features,
+            name: "m".into(),
+            notes: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn clips_are_checked_before_inference() {
+        let raw = package(Features::Raw { normalize: true });
+        let ast = package(
+            parse_features(&json!({"feature_extractor_type": "ASTFeatureExtractor"})).unwrap(),
+        );
+        assert!(raw.prepare(b"not a wav").is_err());
+        // 10 ms: shorter than one frame.
+        assert!(raw
+            .prepare(&tone_wav(16_000, 160))
+            .unwrap_err()
+            .contains("too short"));
+        assert!(ast.prepare(&tone_wav(16_000, 160)).is_err());
+        // 8 kHz is resampled to the model's 16 kHz.
+        assert_eq!(raw.prepare(&tone_wav(8_000, 8_000)).unwrap().len(), 16_000);
+        // A raw-waveform model takes a minute at most; an AST reads any clip up to the cap.
+        let long = tone_wav(1_000, 61_000);
+        assert!(raw.prepare(&long).unwrap_err().contains("at most 60 s"));
+        assert_eq!(ast.prepare(&long).unwrap().len(), 61 * 16_000);
+        assert!(ast
+            .prepare(&tone_wav(1_000, 601_000))
+            .unwrap_err()
+            .contains("10 minutes"));
+    }
+
+    #[test]
+    fn ast_input_reads_only_the_frames_it_keeps() {
+        let samples: Vec<f32> = (0..16_000 * 3)
+            .map(|i| (i as f32 * 0.37).sin() * 0.3)
+            .collect();
+        // 100 frames cover 25 ms + 99 * 10 ms; the rest of the clip changes nothing.
+        let short = ast_input(&samples[..400 + 99 * 160], 16_000, 64, 100, 0.0, 1.0, true);
+        assert_eq!(ast_input(&samples, 16_000, 64, 100, 0.0, 1.0, true), short);
+    }
+
+    #[test]
+    fn other_models_are_not_audio_classifiers() {
+        let dir = tempfile::tempdir().unwrap();
+        let rejected = |name: &str, config: Value, processor: Value| {
+            let repo = dir.path().join(name);
+            fs::create_dir_all(repo.join("onnx")).unwrap();
+            fs::write(repo.join("config.json"), config.to_string()).unwrap();
+            fs::write(repo.join("preprocessor_config.json"), processor.to_string()).unwrap();
+            let model = repo.join("onnx").join("model.onnx");
+            fs::write(&model, b"onnx").unwrap();
+            AudioPackage::discover(&model).is_none()
+        };
+        let w2v = json!({"feature_extractor_type": "Wav2Vec2FeatureExtractor"});
+        assert!(rejected(
+            "ctc",
+            json!({"architectures": ["Wav2Vec2ForCTC"], "model_type": "wav2vec2"}),
+            w2v.clone()
+        ));
+        assert!(rejected(
+            "vit",
+            json!({"architectures": ["ViTForImageClassification"], "model_type": "vit"}),
+            json!({"image_processor_type": "ViTImageProcessor", "size": 224})
+        ));
+        assert!(rejected(
+            "bert",
+            json!({"architectures": ["BertForSequenceClassification"], "model_type": "bert"}),
+            w2v
+        ));
+        // Whisper's log-mel front end is not one this crate computes.
+        assert!(rejected(
+            "whisper",
+            json!({"architectures": ["WhisperForAudioClassification"], "model_type": "whisper"}),
+            json!({"feature_extractor_type": "WhisperFeatureExtractor"})
+        ));
     }
 
     #[test]
