@@ -207,7 +207,7 @@ llama-server build 11236'nın `--help` çıktısına göre:
 | OpenAPI şeması | ✅ (`openapi.json`, utoipa) | ❌ | ✅ | — |
 | Karar modelleri `/v1/systemone` (Ollama) / `/v1/decisions` (LM Studio, Jev uyumlu) | ❌ | ✅ (0.4.26) | ✅ (0.35.0) | Evet/hayır olasılığı, seçim, puan soruları; planlı (GBNF + logprobs); bkz. ROADMAP |
 | Video üretimi (`/v1/videos`, işler) | ✅ (stable-diffusion.cpp `sd-server`; Wan2.1 T2V 1.3B paketi; webm / hareketli webp / avi) | ? | ❌ | — |
-| Görsel üretimi (`/v1/images/generations`, görsel düzenleme `/v1/images/edits`) | ✅ (stable-diffusion.cpp `sd-server`; SD1.5/SDXL/SD-Turbo/SD3.5/FLUX/FLUX.2 klein paketleri; Playground Görsel sekmesi, `harness image`) | ? | ❌ (kaldırıldı) | — |
+| Görsel üretimi (`/v1/images/generations`, görsel düzenleme `/v1/images/edits`) | ✅ (stable-diffusion.cpp `sd-server`; SD1.5/SDXL/SD-Turbo/SD3.5/FLUX/FLUX.2 klein paketleri; Playground Görsel sekmesi, `harness image`; isteğe bağlı olarak Python motorunun diffusers klasörleri: metinden görsele, `strength` ile görselden görsele ve maskeli düzenleme (inpainting), örnekleyici seçimi (`euler`, `euler_a`, `dpm++2m`... ve `karras`), "En büyük görsel" (istek başına megapiksel) ve "Az bellek" (dilimli dikkat ve VAE) ayarları) | ? | ❌ (kaldırıldı) | — |
 | Durumlu sohbet (`previous_response_id`) | ✅ (P2, gateway: `store` varsayılan açık, `GET`/`DELETE /v1/responses/{id}`, `input_items`, `background: true` + `POST .../cancel`, `context_management` ile zincir sıkıştırma; `state.db`'de token'a ait, saklama süresi/sayı/boyut sınırlı; Ayarlar > Gateway'den kapatılır) | ✅ | ❌ | Doğrudan llama-server portunda yok (llama.cpp stateless) |
 
 ## 9. CLI, headless, ajan kontrol düzlemi
