@@ -630,24 +630,31 @@ pub fn library_task(onnx_path: &Path) -> Option<Task> {
 /// Whether the graph uses the `op` operator. Operator types are plain strings in the protobuf,
 /// so the file is scanned for the name in chunks (no ONNX parser, no full read into memory).
 pub fn graph_uses_op(onnx_path: &Path, op: &str) -> bool {
+    graph_uses_any_op(onnx_path, &[op]).is_some()
+}
+
+/// The first of `ops` found in the graph, in one pass over the file.
+pub fn graph_uses_any_op<'a>(onnx_path: &Path, ops: &[&'a str]) -> Option<&'a str> {
     use std::io::Read;
-    let needle = op.as_bytes();
-    let Ok(mut file) = std::fs::File::open(onnx_path) else {
-        return false;
-    };
-    let mut buf = vec![0u8; (1 << 20) + needle.len()];
+    let longest = ops.iter().map(|o| o.len()).max()?;
+    let mut file = std::fs::File::open(onnx_path).ok()?;
+    let mut buf = vec![0u8; (1 << 20) + longest];
     // Bytes carried over from the previous chunk, so a name split across two reads is found.
     let mut kept = 0;
     loop {
         let n = match file.read(&mut buf[kept..]) {
-            Ok(0) | Err(_) => return false,
+            Ok(0) | Err(_) => return None,
             Ok(n) => n,
         };
         let filled = kept + n;
-        if buf[..filled].windows(needle.len()).any(|w| w == needle) {
-            return true;
+        let found = ops.iter().find(|op| {
+            let needle = op.as_bytes();
+            buf[..filled].windows(needle.len()).any(|w| w == needle)
+        });
+        if let Some(op) = found {
+            return Some(op);
         }
-        kept = (needle.len() - 1).min(filled);
+        kept = (longest - 1).min(filled);
         buf.copy_within(filled - kept..filled, 0);
     }
 }
@@ -691,6 +698,11 @@ mod tests {
         assert!(graph_uses_op(&path, "ConvInteger"));
         assert!(!graph_uses_op(&path, "MatMulInteger"));
         assert!(!graph_uses_op(&dir.join("missing.onnx"), "ConvInteger"));
+        assert_eq!(
+            graph_uses_any_op(&path, &["MatMulInteger", "ConvInteger"]),
+            Some("ConvInteger")
+        );
+        assert_eq!(graph_uses_any_op(&path, &["MatMulInteger"]), None);
         fs::remove_dir_all(&dir).unwrap();
     }
 
