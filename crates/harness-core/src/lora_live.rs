@@ -128,8 +128,12 @@ fn check(resp: &reqwest::Response) -> Result<(), String> {
     }
 }
 
-/// The adapters of a server.
+/// The adapters of a server. Only llama-server has the route: another engine's server (MLX,
+/// Python, whisper...) has no adapters to list and is not asked.
 pub async fn list(server: &ActiveServerInfo) -> Result<Vec<LoraAdapter>, String> {
+    if !server.is_llama() {
+        return Ok(Vec::new());
+    }
     let resp = authed(client()?.get(url(server)), server)
         .send()
         .await
@@ -218,6 +222,50 @@ pub async fn set_scales_for(
 mod tests {
     use super::*;
     use crate::error_key::parse;
+
+    fn server_of(model_path: std::path::PathBuf) -> ActiveServerInfo {
+        ActiveServerInfo {
+            connect_host: "127.0.0.1".into(),
+            bind_host: "127.0.0.1".into(),
+            // Nothing listens on port 1: a request would fail.
+            port: 1,
+            api_key: None,
+            api_key_set: false,
+            api_key_required: false,
+            model_path,
+            router_mode: false,
+            exposure_acknowledged: false,
+            cors_origins: None,
+            serve_mode: crate::serve_mode::ServeMode::Chat,
+            engine_family: String::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn only_llama_server_is_asked_for_adapters() {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, body) in [
+            (
+                "config.json",
+                r#"{"n_mels":80,"n_audio_ctx":1500,"model_type":"whisper"}"#,
+            ),
+            ("weights.safetensors", "x"),
+            (
+                "README.md",
+                "---\nlibrary_name: mlx\npipeline_tag: automatic-speech-recognition\n---\n",
+            ),
+        ] {
+            std::fs::write(dir.path().join(name), body).unwrap();
+        }
+        let mlx = server_of(dir.path().to_path_buf());
+        assert!(!mlx.is_llama());
+        assert_eq!(list(&mlx).await.unwrap(), Vec::new());
+
+        // A GGUF server is asked (and here fails: nothing listens).
+        let llama = server_of("m/model.gguf".into());
+        assert!(llama.is_llama());
+        assert!(list(&llama).await.is_err());
+    }
 
     #[test]
     fn slot_ids_of_a_slots_body() {
