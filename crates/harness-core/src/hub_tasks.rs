@@ -1257,12 +1257,15 @@ mod tests {
 
     #[test]
     fn onnx_asr_is_only_partial_and_never_endpoint_verified() {
-        // A missing llama vision endpoint leaves the conservative CTC alternative.
+        // Without llama audio input, the conservative CTC alternative is what remains.
         let caps = crate::capabilities::testdata::caps("b11236");
         let mut features = feature_status(&caps, FeatureContext::default());
-        if let Some(vision) = features.iter_mut().find(|f| f.id == "vision") {
-            vision.level = CapabilityLevel::Unsupported;
-            vision.available = Some(false);
+        for f in features
+            .iter_mut()
+            .filter(|f| f.id == "vision" || f.id == "audio_input")
+        {
+            f.level = CapabilityLevel::Unsupported;
+            f.available = Some(false);
         }
         let rows = task_support(
             Some(&caps),
