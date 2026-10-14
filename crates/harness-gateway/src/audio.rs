@@ -190,6 +190,11 @@ pub fn is_crispasr_model(def: &ModelDefinition) -> bool {
         .is_some_and(harness_core::engine::crispasr::is_asr_gguf)
 }
 
+fn language_required() -> GatewayError {
+    bad("Choose a language or download the language detection model (Settings > Installed Runtime > Other Runtimes > CrispASR Helper Models). / Bir dil seçin veya dil algılama modelini indirin (Ayarlar > Kurulu Model Motoru > Diğer Model Motorları > CrispASR Yardımcı Modelleri).")
+        .param("language")
+}
+
 fn validate_crispasr_form(form: &Form) -> Result<(), GatewayError> {
     if let Some(name) = form.unknown.first() {
         return Err(bad(format!("CrispASR does not accept field `{name}`")).param(name));
@@ -360,6 +365,15 @@ async fn run(
                 bad("This model cannot translate; use /v1/audio/transcriptions.").param("model"),
             );
         }
+        // Language identification is a helper model Harness downloads itself; without it a
+        // request has to name its language (the worker never fetches anything).
+        if !harness_core::engine::crispasr_helpers::language_known(form.language.as_deref())
+            && harness_core::engine::crispasr_helpers::LID
+                .installed()
+                .is_none()
+        {
+            return Err(language_required());
+        }
     }
     if format == "diarized_json" || speakers.is_some() {
         return Err(bad(format!(
@@ -507,6 +521,19 @@ async fn run(
             return Err(GatewayError::from_sched(&e));
         }
     };
+    // A worker that was started before the language detection model arrived has none: the
+    // request names its language or waits for the worker to restart.
+    if crisp
+        && !harness_core::engine::crispasr_helpers::language_known(form.language.as_deref())
+        && !lease
+            .upstream
+            .rsplit(':')
+            .next()
+            .and_then(|p| p.trim_end_matches('/').parse::<u16>().ok())
+            .is_some_and(harness_core::engine::crispasr_helpers::worker_has_lid)
+    {
+        return Err(language_required());
+    }
     {
         let r = guard.get();
         r.server_id = Some(lease.server_id.clone());

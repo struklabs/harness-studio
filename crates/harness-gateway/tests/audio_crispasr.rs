@@ -182,6 +182,13 @@ async fn crispasr_allowlist_and_authenticated_multipart() {
             let res = http.post(format!("{base}{endpoint}")).json(&json!({"model":"crisp","messages":[{"role":"user","content":"hello"}],"prompt":"hello","input":"hello","stream":false})).send().await.unwrap();
             assert_eq!(res.status(), 400, "{endpoint}: {}", res.text().await.unwrap());
         }
+        // No language and no language detection model (a fresh data folder has none): 400
+        // before any worker is asked.
+        let (ct_nolang, body_nolang) =
+            harness_core::asr::onnx::multipart(b"RIFF0000WAVEdata", "verbose_json", "crisp");
+        let res = http.post(format!("{base}/v1/audio/transcriptions")).header("content-type", &ct_nolang).body(body_nolang).send().await.unwrap();
+        assert_eq!(res.status(), 400, "no language");
+        assert!(res.text().await.unwrap().contains("Choose a language"));
         for endpoint in ["/load", "/inference", "/backends"] {
             let res = http.post(format!("{base}{endpoint}")).json(&json!({"model":"crisp"})).send().await.unwrap();
             assert!(!res.status().is_success(), "{endpoint}");

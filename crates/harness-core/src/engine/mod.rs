@@ -18,6 +18,7 @@
 pub mod audio_cpp;
 pub use audio_cpp::{AudioCppEngine, AUDIO_CPP};
 pub mod crispasr;
+pub mod crispasr_helpers;
 pub use crispasr::{CrispAsrEngine, CRISPASR};
 pub mod job;
 mod lemonade;

@@ -270,21 +270,39 @@ impl ServerEngine for CrispAsrEngine {
         {
             return Err("CrispASR custom launch arguments are not supported".into());
         }
+        // Helper models come from Harness's verified downloader and travel as local paths; the
+        // worker's own cache folder is ours, so nothing it might fetch lands in the home folder.
+        let cache = super::crispasr_helpers::cache_dir();
+        std::fs::create_dir_all(&cache).map_err(|e| format!("{}: {e}", cache.display()))?;
+        let lid = super::crispasr_helpers::LID.installed();
+        let punc = super::crispasr_helpers::PUNC.installed();
+        super::crispasr_helpers::note_launch(config.port, lid.is_some(), punc.is_some());
+        let mut args = vec![
+            "--server".into(),
+            "--host".into(),
+            "127.0.0.1".into(),
+            "--port".into(),
+            config.port.to_string(),
+            "-m".into(),
+            config.model_path.to_string_lossy().into(),
+        ];
+        args.extend(super::crispasr_helpers::launch_args(
+            &cache,
+            lid.as_deref(),
+            punc.as_deref(),
+        ));
         Ok(BuildOutput {
-            args: vec![
-                "--server".into(),
-                "--host".into(),
-                "127.0.0.1".into(),
-                "--port".into(),
-                config.port.to_string(),
-                "-m".into(),
-                config.model_path.to_string_lossy().into(),
-            ],
+            args,
             skipped: Vec::new(),
         })
     }
     fn worker_env(&self, api_key: &str) -> Option<Vec<(&'static str, std::ffi::OsString)>> {
-        Some(vec![("CRISPASR_API_KEYS", api_key.into())])
+        let mut env: Vec<(&'static str, std::ffi::OsString)> =
+            vec![("CRISPASR_API_KEYS", api_key.into())];
+        env.extend(super::crispasr_helpers::worker_env(
+            &super::crispasr_helpers::cache_dir(),
+        ));
+        Some(env)
     }
     fn health_path(&self) -> &'static str {
         "/health"
@@ -516,16 +534,27 @@ mod tests {
             .build_launch(&config, &ServerCaps::default(), None)
             .unwrap()
             .args;
-        assert_eq!(args.len(), 7);
         assert_eq!(
             &args[..5],
             ["--server", "--host", "127.0.0.1", "--port", "32123"]
         );
+        let cache = super::super::crispasr_helpers::cache_dir();
+        assert_eq!(args[7], "--cache-dir");
+        assert_eq!(args[8], cache.to_string_lossy());
+        assert!(cache.starts_with(crate::paths::data_root()));
+        // No helper file in a fresh data folder: both features are off, nothing is fetched.
+        assert!(args.windows(2).any(|w| w == ["--lid-backend", "off"]));
+        assert!(args.contains(&"--no-punctuation".to_string()));
+        assert!(!args
+            .iter()
+            .any(|a| a == "--lid-model" || a == "--punc-model"));
         assert!(!args.iter().any(|a| a.contains("secret")));
-        assert_eq!(
-            CrispAsrEngine.worker_env("secret").unwrap(),
-            vec![("CRISPASR_API_KEYS", "secret".into())]
-        );
+        let env = CrispAsrEngine.worker_env("secret").unwrap();
+        assert_eq!(env[0], ("CRISPASR_API_KEYS", "secret".into()));
+        assert!(env.iter().any(|e| e.0 == "CRISPASR_CACHE_DIR"));
+        assert!(env
+            .iter()
+            .any(|e| e.0 == "HTTPS_PROXY" && e.1 == "http://127.0.0.1:9"));
         for flag in [
             "--api-keys secret",
             "--cors-origin *",
@@ -548,5 +577,120 @@ mod tests {
         assert!(CrispAsrEngine
             .build_launch(&config, &ServerCaps::default(), None)
             .is_err());
+    }
+
+    /// Real binary, real model, no network side effects. Run with:
+    /// `CRISPASR_TEST_BIN=<crispasr[.exe]> CRISPASR_TEST_MODEL=<model.gguf> cargo test -p
+    /// harness-core real_worker_writes_nothing_outside -- --ignored`
+    #[tokio::test]
+    #[ignore]
+    async fn real_worker_writes_nothing_outside_the_data_folder() {
+        use std::process::{Command, Stdio};
+        let (Some(bin), Some(model)) = (
+            std::env::var_os("CRISPASR_TEST_BIN"),
+            std::env::var_os("CRISPASR_TEST_MODEL"),
+        ) else {
+            panic!("set CRISPASR_TEST_BIN and CRISPASR_TEST_MODEL");
+        };
+        let home = tempfile::tempdir().unwrap();
+        let cache = super::super::crispasr_helpers::cache_dir();
+        let _ = std::fs::remove_dir_all(&cache);
+        let port = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            l.local_addr().unwrap().port()
+        };
+        let config = LaunchConfig {
+            model_path: model.into(),
+            host: "127.0.0.1".into(),
+            port,
+            ..Default::default()
+        };
+        let args = CrispAsrEngine
+            .build_launch(&config, &ServerCaps::default(), None)
+            .unwrap()
+            .args;
+        let key = "real-test-key";
+        let mut cmd = Command::new(&bin);
+        cmd.args(&args)
+            .envs(CrispAsrEngine.worker_env(key).unwrap())
+            .env("HOME", home.path())
+            .env("USERPROFILE", home.path())
+            .env("XDG_CACHE_HOME", home.path().join(".cache"))
+            .env("LOCALAPPDATA", home.path())
+            .env("APPDATA", home.path())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let mut child = cmd.spawn().unwrap();
+        let http = reqwest::Client::builder().no_proxy().build().unwrap();
+        let base = format!("http://127.0.0.1:{port}");
+        let mut up = false;
+        for _ in 0..300 {
+            if http.get(format!("{base}/health")).send().await.is_ok() {
+                up = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        }
+        assert!(up, "the worker never listened");
+        let mut wav = b"RIFF".to_vec();
+        let samples = 16_000u32;
+        wav.extend((36 + samples * 2).to_le_bytes());
+        wav.extend(b"WAVEfmt ");
+        wav.extend(16u32.to_le_bytes());
+        wav.extend([1, 0, 1, 0]);
+        wav.extend(16_000u32.to_le_bytes());
+        wav.extend(32_000u32.to_le_bytes());
+        wav.extend([2, 0, 16, 0]);
+        wav.extend(b"data");
+        wav.extend((samples * 2).to_le_bytes());
+        wav.extend(vec![0u8; (samples * 2) as usize]);
+        let (ct, mut body) = crate::asr::onnx::multipart(&wav, "json", "x");
+        let boundary = ct.split("boundary=").nth(1).unwrap().to_string();
+        let close = format!("--{boundary}--\r\n");
+        body.truncate(body.len() - close.len());
+        body.extend(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"language\"\r\n\r\nen\r\n--{boundary}--\r\n"
+            )
+            .into_bytes(),
+        );
+        let res = http
+            .post(format!("{base}/v1/audio/transcriptions"))
+            .bearer_auth(key)
+            .header("content-type", ct)
+            .body(body)
+            .send()
+            .await
+            .unwrap();
+        let status = res.status();
+        let text = res.text().await.unwrap();
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(status.is_success(), "{status}: {text}");
+        fn files(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
+            for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+                let p = e.path();
+                if p.is_dir() {
+                    files(&p, out);
+                } else {
+                    out.push(p);
+                }
+            }
+        }
+        let (mut in_cache, mut in_home) = (Vec::new(), Vec::new());
+        files(&cache, &mut in_cache);
+        files(home.path(), &mut in_home);
+        // GPU drivers keep their own shader caches under the cache folder of the user.
+        in_home.retain(|p| {
+            !p.components().any(|c| {
+                matches!(
+                    c.as_os_str().to_str(),
+                    Some("VkCache" | "GLCache" | "DxCache" | "mesa_shader_cache")
+                )
+            })
+        });
+        assert!(in_cache.is_empty(), "cache: {in_cache:?}");
+        assert!(in_home.is_empty(), "home: {in_home:?}");
     }
 }

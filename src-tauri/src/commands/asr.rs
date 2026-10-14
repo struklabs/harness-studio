@@ -82,3 +82,24 @@ pub(crate) async fn install_asr_model(id: String) -> Result<harness_core::asr::A
 pub(crate) fn get_asr_install_progress() -> Option<RuntimeDownloadProgress> {
     harness_core::asr::catalog::install_progress()
 }
+
+/// CrispASR's helper models (language detection, punctuation): pinned files, with whether each
+/// is installed. The worker never fetches them itself.
+#[tauri::command]
+pub(crate) async fn get_crispasr_helpers() -> Result<Vec<harness_core::engine::crispasr_helpers::HelperStatus>, String> {
+    blocking(harness_core::engine::crispasr_helpers::status).await
+}
+
+/// Queues the download of one helper model; it shows in the download queue.
+#[tauri::command]
+pub(crate) fn download_crispasr_helper(
+    download_mgr: State<'_, Arc<DownloadManager>>,
+    id: String,
+) -> Result<u64, String> {
+    harness_core::engine::crispasr_helpers::start_download(&download_mgr, &id)
+}
+
+#[tauri::command]
+pub(crate) async fn remove_crispasr_helper(id: String) -> Result<(), String> {
+    blocking(move || harness_core::engine::crispasr_helpers::remove(&id)).await?
+}
