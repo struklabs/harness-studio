@@ -371,6 +371,8 @@ async fn cors_is_off_by_default_and_follows_the_allow_list() {
         .await
         .unwrap();
     assert!(resp.headers().get("access-control-allow-origin").is_none());
+    // No CORS list: a browser page is refused outright, not just kept from reading.
+    assert_eq!(resp.status(), 403);
     api.server.stop().await;
 
     let api = start_with(|s| s.cors_origins = vec!["http://localhost:5173".into()]).await;
@@ -396,6 +398,68 @@ async fn cors_is_off_by_default_and_follows_the_allow_list() {
         .await
         .unwrap();
     assert!(other.headers().get("access-control-allow-origin").is_none());
+    assert_eq!(other.status(), 403);
+    api.server.stop().await;
+}
+
+#[tokio::test]
+async fn foreign_browser_origins_are_refused_before_any_route() {
+    let api = start_with(|s| s.cors_origins = vec!["http://localhost:5173".into()]).await;
+    // A simple cross-site POST (no preflight), a preflight, `Origin: null` and a no-cors
+    // request: all 403 api.forbidden_origin, even with a valid token.
+    type Case<'a> = (Method, &'a str, Vec<(&'a str, &'a str)>);
+    let cases: Vec<Case> = vec![
+        (
+            Method::POST,
+            "/tokens",
+            vec![
+                ("origin", "http://evil.example"),
+                ("content-type", "text/plain"),
+            ],
+        ),
+        (
+            Method::OPTIONS,
+            "/status",
+            vec![
+                ("origin", "http://evil.example"),
+                ("access-control-request-method", "GET"),
+            ],
+        ),
+        (Method::GET, "/health", vec![("origin", "null")]),
+        (
+            Method::GET,
+            "/health",
+            vec![("sec-fetch-site", "cross-site")],
+        ),
+    ];
+    for (method, path, headers) in cases {
+        let mut req = api
+            .http
+            .request(method.clone(), api.url(path))
+            .bearer_auth(&api.token);
+        for (k, v) in &headers {
+            req = req.header(*k, *v);
+        }
+        let (status, body) = json(req.send().await.unwrap()).await;
+        assert_eq!(status, 403, "{method} {path} {headers:?}");
+        assert_error(&body, "api.forbidden_origin");
+    }
+    // An allowed origin (cross-site fetch included) and no origin keep working.
+    let ok = api
+        .http
+        .get(api.url("/health"))
+        .header("origin", "http://localhost:5173")
+        .header("sec-fetch-site", "cross-site")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(ok.status(), 200);
+    assert_eq!(
+        ok.headers()["access-control-allow-origin"],
+        "http://localhost:5173"
+    );
+    let (status, _) = json(api.get("/status").await).await;
+    assert_eq!(status, 200);
     api.server.stop().await;
 }
 

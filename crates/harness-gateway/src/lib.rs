@@ -595,6 +595,7 @@ async fn ollama_listener(
 
 /// The gateway's routes (exposed for tests).
 pub fn router(state: GwState, cors_origins: &[String]) -> Router {
+    let allowed: Arc<[String]> = cors_origins.to_vec().into();
     Router::new()
         .merge(ollama::routes())
         .route("/health", get(health))
@@ -752,7 +753,44 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
         ))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .layer(cors(cors_origins))
+        // Outermost: a foreign browser origin is answered before CORS (which would answer a
+        // preflight itself), the body, a worker or a model load. One layer covers both the
+        // gateway port and the Ollama-compatible port (both are built by this function).
+        .layer(axum::middleware::from_fn_with_state(allowed, origin_guard))
         .with_state(state)
+}
+
+/// `403 forbidden_origin` for browser requests from a page that is neither the Harness window
+/// nor on the user's CORS list (see [`harness_core::network::check_browser_origin`]). Requests
+/// without an `Origin` header (curl, SDKs, CLI clients) pass untouched.
+async fn origin_guard(
+    State(allowed): State<Arc<[String]>>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    use harness_core::network::OriginDenied;
+    if let Err((why, origin)) = harness_core::network::check_browser_headers(
+        request.headers().get("origin").map(|v| v.as_bytes()),
+        request
+            .headers()
+            .get("sec-fetch-site")
+            .map(|v| v.as_bytes()),
+        &allowed,
+    ) {
+        let message = match why {
+            OriginDenied::Null => {
+                "Requests with Origin: null are not accepted by the Harness gateway.".to_string()
+            }
+            OriginDenied::CrossSite => "Cross-site browser requests without an allowed Origin are not accepted by the Harness gateway.".to_string(),
+            OriginDenied::NotAllowed => format!(
+                "The origin \"{origin}\" is not allowed. Add it to \"Allowed browser origins\" in the gateway settings to let that web page call the gateway."
+            ),
+        };
+        return errors::GatewayError::new(403, "forbidden_origin", message)
+            .anthropic(request.uri().path().starts_with("/v1/messages"))
+            .into_response();
+    }
+    next.run(request).await
 }
 
 /// Reject model-targeted requests before route handlers can start a worker or expose controls.

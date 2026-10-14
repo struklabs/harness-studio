@@ -197,6 +197,7 @@ pub fn base(code: &str) -> Option<&'static str> {
         "api.unauthorized" => "The Control API rejected the token (missing, wrong or revoked).",
         "api.insufficient_scope" => "The token lacks the scope this command needs.",
         "api.forbidden_host" => "The Control API refused the Host header.",
+        "api.forbidden_origin" => "The Control API refused the browser Origin.",
         "api.no_route" => "The Control API has no such endpoint (version mismatch?).",
         "api.invalid_body" => "The Control API rejected the request body.",
         "api.invalid_query" => "The Control API rejected the query string.",

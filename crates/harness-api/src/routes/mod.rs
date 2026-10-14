@@ -18,6 +18,8 @@ mod system;
 mod tokens;
 mod tools;
 
+use std::sync::Arc;
+
 use axum::http::{header, HeaderValue, Method};
 use axum::middleware::from_fn_with_state;
 use axum::Router;
@@ -249,23 +251,53 @@ pub fn router(state: AppState, cors_origins: &[String]) -> Router {
             crate::error::ApiError::new(axum::http::StatusCode::NOT_FOUND, "api.no_route")
         })
         .with_state(state);
-    if cors_origins.is_empty() {
-        return router;
-    }
+    let allowed: Arc<[String]> = cors_origins.to_vec().into();
     let origins: Vec<HeaderValue> = cors_origins
         .iter()
         .filter_map(|o| HeaderValue::from_str(o).ok())
         .collect();
-    router.layer(
-        CorsLayer::new()
-            .allow_origin(AllowOrigin::list(origins))
-            .allow_methods([
-                Method::GET,
-                Method::POST,
-                Method::PUT,
-                Method::PATCH,
-                Method::DELETE,
-            ])
-            .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
+    let router = if origins.is_empty() {
+        router
+    } else {
+        router.layer(
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::list(origins))
+                .allow_methods([
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::PATCH,
+                    Method::DELETE,
+                ])
+                .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
+        )
+    };
+    // Outermost, on every request including preflights: a foreign browser origin gets 403
+    // before any route (and before CORS answers a preflight). Requests without an `Origin`
+    // header (the CLI, SDKs, curl) are untouched.
+    router.layer(axum::middleware::from_fn_with_state(allowed, origin_guard))
+}
+
+/// `403 api.forbidden_origin` unless the request has no `Origin` or comes from the Harness
+/// window or an allowed CORS origin (see [`harness_core::network::check_browser_origin`]).
+async fn origin_guard(
+    axum::extract::State(allowed): axum::extract::State<Arc<[String]>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    if harness_core::network::check_browser_headers(
+        req.headers().get("origin").map(|v| v.as_bytes()),
+        req.headers().get("sec-fetch-site").map(|v| v.as_bytes()),
+        &allowed,
     )
+    .is_err()
+    {
+        return crate::error::ApiError::new(
+            axum::http::StatusCode::FORBIDDEN,
+            "api.forbidden_origin",
+        )
+        .into_response();
+    }
+    next.run(req).await
 }
