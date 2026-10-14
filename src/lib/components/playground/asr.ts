@@ -26,11 +26,27 @@ export interface AsrCatalogRow {
   installed: boolean;
 }
 
+/** A recognition model of an engine (mlx-audio: Whisper, Parakeet), served by the gateway under its definition alias. */
+export interface EngineAsrModel {
+  id: string;
+  /** Definition alias: what a request's `model` names. */
+  name: string;
+  family: 'mlx-audio';
+  size_bytes: number;
+  /** Translates to English too (Whisper); Parakeet only transcribes. */
+  translates: boolean;
+}
+
 export interface AsrOverview {
   models: AsrModelInfo[];
   catalog: AsrCatalogRow[];
+  /** A sherpa-onnx runtime is registered (the engine models do not need it). */
   runtime_installed: boolean;
+  engine_models?: EngineAsrModel[];
 }
+
+/** Runtime family of the engine recognition models. */
+export const MLX_AUDIO_FAMILY = 'mlx-audio';
 
 /** Runtime family that runs these models (the one text to speech uses too). */
 export const SHERPA_FAMILY = 'sherpa-onnx';

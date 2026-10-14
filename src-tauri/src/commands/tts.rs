@@ -28,14 +28,16 @@ pub(crate) struct EngineTtsModel {
     voices: Vec<String>,
 }
 
-/// The library's mlx-audio folders, each with a definition (made once, like the library's
-/// default definitions).
-fn engine_tts_models() -> Vec<EngineTtsModel> {
+/// The library's ready folders `keep` accepts, each with the alias of its definition (made once,
+/// like the library's default definitions, as a pipeline model).
+pub(crate) fn engine_folders(
+    keep: fn(&std::path::Path) -> bool,
+) -> Vec<(harness_core::models::LocalModel, String)> {
     use harness_core::domain::ModelKind;
     let folders: Vec<_> = harness_core::models::ModelManager
         .scan_models()
         .into_iter()
-        .filter(|m| m.is_ready && harness_core::engine::mlx::is_tts_dir(&m.path))
+        .filter(|m| m.is_ready && keep(&m.path))
         .map(|mut m| {
             m.kind = ModelKind::Pipeline;
             m
@@ -51,16 +53,26 @@ fn engine_tts_models() -> Vec<EngineTtsModel> {
     folders
         .into_iter()
         .filter_map(|m| {
-            let def = defs
+            let alias = defs
                 .iter()
-                .find(|d| d.base.local_path() == Some(m.path.as_path()))?;
-            Some(EngineTtsModel {
-                id: m.id.clone(),
-                name: def.alias.clone(),
-                family: harness_core::engine::MLX_AUDIO,
-                size_bytes: m.size_bytes,
-                voices: harness_core::engine::mlx::tts_voices(&m.path),
-            })
+                .find(|d| d.base.local_path() == Some(m.path.as_path()))?
+                .alias
+                .clone();
+            Some((m, alias))
+        })
+        .collect()
+}
+
+/// The library's mlx-audio text-to-speech folders.
+fn engine_tts_models() -> Vec<EngineTtsModel> {
+    engine_folders(harness_core::engine::mlx::is_tts_dir)
+        .into_iter()
+        .map(|(m, name)| EngineTtsModel {
+            id: m.id.clone(),
+            name,
+            family: harness_core::engine::MLX_AUDIO,
+            size_bytes: m.size_bytes,
+            voices: harness_core::engine::mlx::tts_voices(&m.path),
         })
         .collect()
 }

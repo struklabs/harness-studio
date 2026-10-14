@@ -26,6 +26,20 @@ pub fn task_of(def: &ModelDefinition) -> Option<String> {
         .and_then(harness_core::engine::python_hf::detect)
 }
 
+/// What error messages call the worker of `def`: mlx-audio for its speech folders, else the
+/// Python engine.
+pub fn engine_name(def: &ModelDefinition) -> &'static str {
+    if def
+        .base
+        .local_path()
+        .is_some_and(harness_core::engine::mlx::is_audio_dir)
+    {
+        "mlx-audio"
+    } else {
+        "Python engine"
+    }
+}
+
 /// Whether a Python engine task answers `/v1/audio/speech`.
 pub fn is_speech_task(task: &str) -> bool {
     matches!(task, "text-to-speech" | "text-to-audio")
@@ -53,10 +67,10 @@ pub async fn post(
     body: Vec<u8>,
 ) -> Result<Answer, GatewayError> {
     let audio_cpp = crate::speech::is_audio_cpp_model(def);
-    let engine_name = if audio_cpp {
+    let engine = if audio_cpp {
         "audio.cpp"
     } else {
-        "Python engine"
+        engine_name(def)
     };
     let body = if audio_cpp {
         crate::speech::check_audio_cpp_enabled()?;
@@ -108,7 +122,7 @@ pub async fn post(
     let upstream = req
         .send()
         .await
-        .map_err(|e| transport_error(engine_name, &e, "upstream_unreachable"))?;
+        .map_err(|e| transport_error(engine, &e, "upstream_unreachable"))?;
     let status = upstream.status().as_u16();
     let content_type = upstream
         .headers()
@@ -120,15 +134,11 @@ pub async fn post(
     let body = upstream
         .bytes()
         .await
-        .map_err(|e| transport_error(engine_name, &e, "upstream_error"))?;
+        .map_err(|e| transport_error(engine, &e, "upstream_error"))?;
     guard.get().status = status;
     guard.get().ttft_ms = Some(guard.started.elapsed().as_millis() as u64);
     if !(200..300).contains(&status) {
-        return Err(if audio_cpp {
-            upstream_error_for(engine_name, status, &body)
-        } else {
-            upstream_error(status, &body)
-        });
+        return Err(upstream_error(engine, status, &body));
     }
     Ok(Answer {
         status,
@@ -139,26 +149,22 @@ pub async fn post(
     })
 }
 
-fn transport_error(engine_name: &str, error: &reqwest::Error, code: &str) -> GatewayError {
+fn transport_error(engine: &str, error: &reqwest::Error, code: &str) -> GatewayError {
     if error.is_timeout() {
-        let message = if engine_name == "audio.cpp" {
-            "The audio.cpp server did not answer in time."
+        let message = if engine == "audio.cpp" {
+            "The audio.cpp server did not answer in time.".to_string()
         } else {
-            "The Python engine did not answer in time."
+            format!("{engine} did not answer in time.")
         };
         GatewayError::new(504, "upstream_timeout", message)
     } else {
-        GatewayError::new(502, code, format!("{engine_name}: {error}"))
+        GatewayError::new(502, code, format!("{engine}: {error}"))
     }
 }
 
 /// The gateway's error for a failed worker answer: the worker's own OpenAI error message, a 400
 /// kept as a 400 (the request was wrong), anything else a 502.
-pub fn upstream_error(status: u16, body: &[u8]) -> GatewayError {
-    upstream_error_for("Python engine", status, body)
-}
-
-fn upstream_error_for(engine_name: &str, status: u16, body: &[u8]) -> GatewayError {
+pub fn upstream_error(engine: &str, status: u16, body: &[u8]) -> GatewayError {
     let detail = serde_json::from_slice::<serde_json::Value>(body)
         .ok()
         .and_then(|v| {
@@ -181,7 +187,7 @@ fn upstream_error_for(engine_name: &str, status: u16, body: &[u8]) -> GatewayErr
         504 => (504, "upstream_timeout"),
         _ => (502, "upstream_error"),
     };
-    GatewayError::new(status, code, format!("{engine_name}: {detail}"))
+    GatewayError::new(status, code, format!("{engine}: {detail}"))
 }
 
 /// The `x-harness-*` headers every answer of a leased model carries.
@@ -213,6 +219,7 @@ mod tests {
     #[test]
     fn worker_errors_keep_their_message() {
         let e = upstream_error(
+            "Python engine",
             400,
             br#"{"error":{"message":"parameter 'n' must be between 0 and 4","type":"invalid_request_error"}}"#,
         );
@@ -223,13 +230,16 @@ mod tests {
             e.message
         );
         let e = upstream_error(
+            "Python engine",
             404,
             br#"{"error":{"message":"this model serves fill-mask"}}"#,
         );
         assert_eq!((e.status, e.code.as_str()), (400, "wrong_task"));
-        assert_eq!(upstream_error(500, b"boom").status, 502);
-        assert_eq!(upstream_error(503, b"{}").status, 503);
-        assert_eq!(upstream_error(504, b"{}").status, 504);
+        assert_eq!(upstream_error("Python engine", 500, b"boom").status, 502);
+        assert_eq!(upstream_error("Python engine", 503, b"{}").status, 503);
+        let e = upstream_error("mlx-audio", 504, b"{}");
+        assert_eq!(e.status, 504);
+        assert!(e.message.starts_with("mlx-audio: "), "{}", e.message);
     }
 
     #[test]

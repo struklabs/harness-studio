@@ -14,17 +14,22 @@ export function isSpeechDefinition(d: ModelDefinition): boolean {
   return isOnnxCtcDefinition(d) || isSpeechFile(d.base.kind === 'local' ? d.base.path : d.base.file);
 }
 
-/** The engine family `model` transcribes with: sherpa-onnx for its recognition models, else whisper.cpp. */
-export function dictationFamily(model: string, sherpa: string[] = [], definitions: ModelDefinition[] = []): string {
+/** The engine family `model` transcribes with: sherpa-onnx for its recognition models, mlx-audio for
+ *  the library's MLX ones (`engine`, aliases), else whisper.cpp. */
+export function dictationFamily(model: string, sherpa: string[] = [], definitions: ModelDefinition[] = [], engine: string[] = []): string {
   if (definitions.some(d => d.alias === model && isOnnxCtcDefinition(d))) return 'onnxruntime';
+  if (engine.includes(model)) return 'mlx-audio';
   return sherpa.includes(model) ? 'sherpa-onnx' : 'whisper.cpp';
 }
 
+/** Families whose environment the app manages itself: no runtime to register first. */
+const MANAGED_FAMILIES = ['onnxruntime', 'mlx-audio'];
+
 /** What is missing before `model` can transcribe; a sherpa-onnx model needs the sherpa-onnx runtime, a whisper one whisper.cpp. */
-export function dictationRequirement(model: string, runtimes: RuntimeView[], gatewayRunning: boolean, sherpa: string[] = [], definitions: ModelDefinition[] = []): 'model' | 'runtime' | 'gateway' | null {
+export function dictationRequirement(model: string, runtimes: RuntimeView[], gatewayRunning: boolean, sherpa: string[] = [], definitions: ModelDefinition[] = [], engine: string[] = []): 'model' | 'runtime' | 'gateway' | null {
   if (!model) return 'model';
-  const family = dictationFamily(model, sherpa, definitions);
-  if (family !== 'onnxruntime' && !runtimes.some(r => r.available && r.entry?.family === family)) return 'runtime';
+  const family = dictationFamily(model, sherpa, definitions, engine);
+  if (!MANAGED_FAMILIES.includes(family) && !runtimes.some(r => r.available && r.entry?.family === family)) return 'runtime';
   return gatewayRunning ? null : 'gateway';
 }
 

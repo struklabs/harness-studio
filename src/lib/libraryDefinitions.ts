@@ -64,13 +64,14 @@ export type PlaygroundTab = 'embedding' | 'rerank' | 'transcription' | 'image' |
  * sherpa-onnx recognition models, which run per request). Null for files without a tab.
  */
 export function playgroundTarget(
-  file: Pick<LocalModel, 'kind' | 'path' | 'is_ready' | 'architecture'>,
+  file: Pick<LocalModel, 'kind' | 'path' | 'is_ready' | 'architecture' | 'task'>,
   /** Runtime family of the file (`LibraryEntry.record.runtime`). */
   runtime?: string | null,
 ): { tab: PlaygroundTab; pick: 'definition' | 'name'; speech?: 'transcribe' | 'speak' } | null {
   if (!file.is_ready) return null;
-  // An mlx-audio folder speaks: the Speech tab lists it under its definition's alias.
-  if (runtime === 'mlx-audio') return { tab: 'transcription', pick: 'name', speech: 'speak' };
+  // An mlx-audio folder speaks or transcribes: the Speech tab lists it under its definition's alias.
+  if (runtime === 'mlx-audio')
+    return { tab: 'transcription', pick: 'name', speech: file.task === 'automatic-speech-recognition' ? 'transcribe' : 'speak' };
   switch (file.kind) {
     case 'image':
       return { tab: 'image', pick: 'definition' };

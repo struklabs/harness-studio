@@ -164,6 +164,14 @@ pub fn is_speech_model(def: &ModelDefinition) -> bool {
     ModelFormat::of(&path) == ModelFormat::GgmlBin || harness_core::asr::is_onnx_ctc_file(&path)
 }
 
+/// Whether a definition is an mlx-audio speech recognition folder (Whisper, Parakeet in MLX's
+/// format); whisper.cpp's ggml files and the Python engine's checkpoints are not.
+pub fn is_mlx_speech_model(def: &ModelDefinition) -> bool {
+    def.base
+        .local_path()
+        .is_some_and(harness_core::engine::mlx::is_stt_dir)
+}
+
 /// Handles one transcription / translation request.
 pub async fn handle(
     state: GwState,
@@ -296,9 +304,10 @@ async fn run(
         ))
         .param("response_format"));
     }
-    // A speech recognition model of the Python engine answers OpenAI's request itself (after the
-    // audio is in a container it reads, below).
-    let python = crate::pyhf::task_of(&def);
+    // A speech recognition model of the Python engine or of mlx-audio answers OpenAI's request
+    // itself (after the audio is in a container it reads, below).
+    let python = crate::pyhf::task_of(&def)
+        .or_else(|| is_mlx_speech_model(&def).then(|| "automatic-speech-recognition".to_string()));
     if let Some(model_task) = &python {
         if model_task != "automatic-speech-recognition" {
             return Err(GatewayError::new(
@@ -564,11 +573,12 @@ async fn run(
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
 }
 
-/// `response_format`s a Python engine model answers (its worker returns the text only).
+/// `response_format`s a Python engine or mlx-audio model answers (its worker returns the text
+/// only).
 const PYTHON_FORMATS: [&str; 2] = ["json", "text"];
 
-/// A transcription (or a Whisper translation) on a Python engine model: the audio goes to the
-/// worker's `/v1/audio/transcriptions`; `text` is made from its JSON here.
+/// A transcription (or a Whisper translation) on a Python engine or mlx-audio model: the audio
+/// goes to the worker's `/v1/audio/transcriptions`; `text` is made from its JSON here.
 #[allow(clippy::too_many_arguments)]
 async fn python_transcribe(
     state: &GwState,
@@ -608,7 +618,7 @@ async fn python_transcribe(
             GatewayError::new(
                 502,
                 "upstream_error",
-                "Python engine: the answer has no text.",
+                "The speech worker's answer has no text.",
             )
         })?;
     let (content_type, out) = if format == "text" {

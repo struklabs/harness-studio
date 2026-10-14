@@ -205,7 +205,11 @@
   /** "LLM · 8B · Q4_K_M · 4.9 GB": what tells two files apart, in reading order. */
   let summary = $derived(
     [
-      m.kind === 'asr' ? t(speechKindKey(m)) : entry.record.runtime === 'mlx-audio' ? t('lib.kind_tts_mlx') : t(KIND[m.kind ?? 'unknown']),
+      m.kind === 'asr'
+        ? t(speechKindKey(m))
+        : entry.record.runtime === 'mlx-audio'
+          ? t(m.task === 'automatic-speech-recognition' ? 'lib.kind_asr_mlx' : 'lib.kind_tts_mlx')
+          : t(KIND[m.kind ?? 'unknown']),
       entry.multimodal ? t('lib.kind_vlm') : null,
       uiLevel.advanced ? params : null,
       uiLevel.advanced && m.quantization && m.quantization !== 'Unknown' ? m.quantization : null,

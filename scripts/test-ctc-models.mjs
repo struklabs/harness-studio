@@ -62,3 +62,15 @@ test('Hub recommends the most precise CTC export that fits, FP32 before INT8', (
   assert.equal(recommendCtcVariant([int8, fp32], null)?.name, 'model');
   assert.equal(recommendCtcVariant([int8], 100e6), null);
 });
+
+test('MLX recognition models dictate through mlx-audio without a registered runtime', () => {
+  assert.equal(dictationFamily('whisper-mlx', [], [], ['whisper-mlx']), 'mlx-audio');
+  assert.equal(dictationRequirement('whisper-mlx', [], true, [], [], ['whisper-mlx']), null);
+  assert.equal(dictationRequirement('whisper-mlx', [], false, [], [], ['whisper-mlx']), 'gateway');
+});
+
+test('an mlx-audio folder opens in the Speech tab: recognition transcribes, synthesis speaks', () => {
+  const folder = { kind: 'pipeline', path: 'mlx-community/whisper-tiny-asr-fp16', is_ready: true, architecture: 'whisper' };
+  assert.deepEqual(playgroundTarget({ ...folder, task: 'automatic-speech-recognition' }, 'mlx-audio'), { tab: 'transcription', pick: 'name', speech: 'transcribe' });
+  assert.deepEqual(playgroundTarget({ ...folder, architecture: 'qwen3_tts' }, 'mlx-audio'), { tab: 'transcription', pick: 'name', speech: 'speak' });
+});

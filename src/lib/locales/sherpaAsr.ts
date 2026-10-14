@@ -4,6 +4,8 @@
 const tr = {
   'sasr.group_definitions': 'Kütüphane modelleri',
   'sasr.group_sherpa': 'sherpa-onnx',
+  'sasr.group_mlx': 'MLX (mlx-audio)',
+  'sasr.text_only': 'Bu model düz metin döndürür; altyazı (SRT, WebVTT) çıkarmaz.',
   'sasr.kind': 'Konuşma tanıma (sherpa-onnx)',
   'sasr.catalog_title': 'Önerilen sherpa-onnx Tanıma Modelleri',
   'sasr.catalog_desc': 'Whisper’ın çalıştıramadığı ONNX modelleri: NVIDIA Parakeet, SenseVoice ve Türkçe dahil 1600 dili tanıyan Omnilingual. Uzun kayıtlar duraklardan bölünür ve her parçanın zamanı yazılır.',
@@ -23,6 +25,8 @@ const tr = {
 const en: Record<keyof typeof tr, string> = {
   'sasr.group_definitions': 'Library models',
   'sasr.group_sherpa': 'sherpa-onnx',
+  'sasr.group_mlx': 'MLX (mlx-audio)',
+  'sasr.text_only': 'This model returns plain text; it makes no subtitles (SRT, WebVTT).',
   'sasr.kind': 'Speech recognition (sherpa-onnx)',
   'sasr.catalog_title': 'Recommended sherpa-onnx Recognition Models',
   'sasr.catalog_desc': 'ONNX models Whisper cannot run: NVIDIA Parakeet, SenseVoice and Omnilingual, which knows 1600 languages including Turkish. Long recordings are cut at pauses and every segment gets its time.',

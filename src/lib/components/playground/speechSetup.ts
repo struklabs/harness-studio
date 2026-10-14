@@ -1,10 +1,10 @@
 import type { ModelDefinition } from '#lib/types.js';
 import { isSpeechDefinition } from './speechModels';
 
-/** Keep the user's Speech selection while it is still available: a whisper definition (alias) or
- *  an installed sherpa-onnx recognition model (`sherpa`, folder names). */
-export function speechModel(current: string, definitions: ModelDefinition[], sherpa: string[] = []): string {
-  const all = [...definitions.filter(isSpeechDefinition).map(d => d.alias), ...sherpa];
+/** Keep the user's Speech selection while it is still available: a whisper definition (alias), an
+ *  installed sherpa-onnx recognition model (`sherpa`, folder names) or an mlx-audio one (`engine`, aliases). */
+export function speechModel(current: string, definitions: ModelDefinition[], sherpa: string[] = [], engine: string[] = []): string {
+  const all = [...definitions.filter(isSpeechDefinition).map(d => d.alias), ...sherpa, ...engine];
   return all.includes(current) ? current : all[0] ?? '';
 }
 
