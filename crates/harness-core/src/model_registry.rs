@@ -318,7 +318,8 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
     }
 }
 
-/// Families of the installed runtimes (`runtimes.json`), and the Python engine when its
+/// Families of the installed runtimes (`runtimes.json`), ONNX Runtime when one of its builds is
+/// installed (it keeps its own folder, not `runtimes.json`), and the Python engine when its
 /// environment is ready.
 pub fn installed_families() -> Vec<String> {
     let mut families: Vec<String> = crate::runtimes::RuntimeRegistry::global()
@@ -327,6 +328,9 @@ pub fn installed_families() -> Vec<String> {
         .into_iter()
         .map(|e| e.family)
         .collect();
+    if crate::onnx_runtime::any_installed_in(&crate::onnx_runtime::root()) {
+        families.push(crate::onnx_runtime::ONNX_FAMILY.to_string());
+    }
     if crate::engine::python_hf::binary().is_ok() {
         families.push(crate::engine::PYTHON_HF.to_string());
     }
