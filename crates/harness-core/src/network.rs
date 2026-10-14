@@ -278,6 +278,8 @@ pub fn sanitize_settings(incoming: &mut AppSettings, stored: &AppSettings) -> Re
     incoming.control_api = stored.control_api.clone();
     // So does the gateway block.
     incoming.gateway = stored.gateway.clone();
+    // Experimental engine consent changes only through its dedicated desktop command.
+    incoming.audio_cpp_enabled = stored.audio_cpp_enabled;
     // And the OpenTelemetry block (its header values live in the keychain).
     incoming.otel = stored.otel.clone();
     Ok(())

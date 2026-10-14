@@ -1,4 +1,4 @@
-// Text to speech (sherpa-onnx): the voice models on disk and the recommended downloads. The
+// Text to speech (sherpa-onnx and resident audio.cpp): the voice models on disk and the recommended downloads. The
 // audio itself is made by the gateway (`/v1/audio/speech`), which the Playground calls like it
 // calls `/v1/audio/transcriptions`; nothing here synthesizes.
 
@@ -6,7 +6,7 @@
 #[derive(serde::Serialize)]
 pub(crate) struct TtsOverview {
     /// Installed voice models (folders under the model directories).
-    models: Vec<harness_core::tts::TtsModel>,
+    models: Vec<TtsPickerModel>,
     /// Recommended downloads, each with whether it is installed.
     catalog: Vec<TtsCatalogRow>,
     /// A sherpa-onnx runtime is registered.
@@ -72,10 +72,69 @@ pub(crate) struct TtsCatalogRow {
     installed: bool,
 }
 
+/// Fields shared by native TTS models in the Playground picker.
+#[derive(serde::Serialize)]
+pub(crate) struct TtsPickerModel {
+    id: String,
+    name: String,
+    family: String,
+    engine: String,
+    supports_speed: bool,
+    runtime_installed: bool,
+    languages: Vec<String>,
+    quantization: String,
+    sample_rate: Option<u32>,
+    size_bytes: u64,
+    voices: Vec<harness_core::tts::Voice>,
+}
+
 #[tauri::command]
 pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
-    blocking(|| {
-        let models = harness_core::tts::installed_models();
+    blocking(|| -> Result<TtsOverview, String> {
+        use harness_core::engine::{audio_cpp, AUDIO_CPP, SHERPA_ONNX};
+        let sherpa_ready = harness_core::tts::run::resolve_binary(None).is_ok();
+        let mut models: Vec<TtsPickerModel> = harness_core::tts::installed_models()
+            .into_iter()
+            .map(|m| TtsPickerModel {
+                id: m.id,
+                name: m.name,
+                family: m.family.as_str().into(),
+                engine: SHERPA_ONNX.into(),
+                supports_speed: true,
+                runtime_installed: sherpa_ready,
+                languages: m.languages,
+                quantization: m.quantization,
+                sample_rate: m.sample_rate,
+                size_bytes: m.size_bytes,
+                voices: m.voices,
+            })
+            .collect();
+        let library = harness_core::models::ModelManager.scan_models();
+        harness_core::library_definitions::ensure(&library, &[harness_core::domain::ModelKind::Tts])?;
+        let audio_ready = harness_core::runtimes::resolve_family_binary_in(
+            &harness_core::runtimes::RuntimeRegistry::global(), AUDIO_CPP, None,
+        ).is_ok();
+        for def in harness_core::domain::store::Domain::global().definitions()? {
+            let Some(path) = def.base.local_path() else { continue };
+            let Some(meta) = audio_cpp::metadata(path) else { continue };
+            let Some(family) = meta.audiocpp_family.filter(|f| audio_cpp::task(f).is_some()) else { continue };
+            let voices = audio_cpp::voices(path).into_iter().enumerate().map(|(sid, id)| harness_core::tts::Voice {
+                id, sid: sid as u32, language: String::new(), gender: String::new(),
+            }).collect();
+            models.push(TtsPickerModel {
+                id: path.to_string_lossy().into_owned(),
+                name: def.alias.clone(),
+                supports_speed: audio_cpp::supports_speed(&family),
+                family,
+                engine: AUDIO_CPP.into(),
+                runtime_installed: audio_ready,
+                languages: audio_cpp::language(path).into_iter().collect(),
+                quantization: meta.quantization,
+                sample_rate: None,
+                size_bytes: audio_cpp::weights_bytes(path),
+                voices,
+            });
+        }
         let catalog = harness_core::tts::catalog::catalog()
             .into_iter()
             .map(|entry| TtsCatalogRow {
@@ -83,14 +142,14 @@ pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
                 entry,
             })
             .collect();
-        TtsOverview {
+        Ok(TtsOverview {
             models,
             catalog,
-            runtime_installed: harness_core::tts::run::resolve_binary(None).is_ok(),
+            runtime_installed: sherpa_ready,
             engine_models: engine_tts_models(),
-        }
+        })
     })
-    .await
+    .await?
 }
 
 /// Downloads a recommended voice model (checked against its SHA-256); progress is read with

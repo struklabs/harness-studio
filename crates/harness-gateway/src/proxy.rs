@@ -375,6 +375,13 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
+    if crate::speech::is_audio_cpp_model(&def) {
+        return Err(GatewayError::new(
+            400,
+            "invalid_request",
+            "audio.cpp only accepts POST /v1/audio/speech through the gateway.",
+        ));
+    }
     if crate::audio::is_speech_model(&def) {
         return Err(GatewayError::new(
             400,

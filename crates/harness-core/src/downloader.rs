@@ -481,7 +481,9 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         capabilities.clear();
     }
     let genai = crate::hub_compat::is_genai_repo(&tags, &sibling_files(item));
-    let compatibility = if ctc_export {
+    let compatibility = if crate::hub_compat::is_audio_cpp_repo(item) {
+        crate::hub_compat::audio_cpp_compatibility(item)
+    } else if ctc_export {
         format.compatibility()
     } else if diffusion_adapter {
         // sd.cpp LoRA usage is not wired in Harness.
@@ -648,10 +650,82 @@ pub struct HfShardInfo {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct HfModelVariant {
     pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
+    pub not_runnable: Option<crate::hub_tasks::NotRunnable>,
     pub quantization: String,
     pub total_size_bytes: u64,
     pub is_split: bool,
     pub shards: Vec<HfShardInfo>,
+}
+
+/// Each audio.cpp GGUF is a model variant with only its own folder's companion
+/// files. In the package repo, unrelated families and languages stay separate.
+fn audio_cpp_variants(
+    repo: &str,
+    items: &[serde_json::Value],
+) -> Result<Vec<HfModelVariant>, String> {
+    let mut variants = Vec::new();
+    for model in items
+        .iter()
+        .filter_map(|i| i["path"].as_str())
+        .filter(|p| p.ends_with(".gguf"))
+    {
+        let prefix = model
+            .rsplit_once('/')
+            .map(|(dir, _)| format!("{dir}/"))
+            .unwrap_or_default();
+        let mut shards = Vec::new();
+        for item in items {
+            let Some(path) = item["path"].as_str() else {
+                continue;
+            };
+            if item["type"] == "directory"
+                || !path.starts_with(&prefix)
+                || (path.ends_with(".gguf") && path != model)
+            {
+                continue;
+            }
+            // Nested GGUF folders are other variants, not this model's companions.
+            if items
+                .iter()
+                .filter_map(|i| i["path"].as_str())
+                .filter(|p| *p != model && p.ends_with(".gguf"))
+                .filter_map(|p| p.rsplit_once('/').map(|(d, _)| format!("{d}/")))
+                .any(|p| p != prefix && p.starts_with(&prefix) && path.starts_with(&p))
+            {
+                continue;
+            }
+            shards.push(HfShardInfo {
+                filename: path.into(),
+                download_url: DownloadManager::hf_file_url(repo, "resolve", path)?.to_string(),
+                size_bytes: item["lfs"]["size"]
+                    .as_u64()
+                    .or_else(|| item["size"].as_u64())
+                    .unwrap_or(0),
+                shard_index: 1,
+                total_shards: 1,
+                sha256: item["lfs"]["oid"].as_str().and_then(valid_sha256),
+            });
+        }
+        shards.sort_by(|a, b| {
+            (a.filename != model)
+                .cmp(&(b.filename != model))
+                .then_with(|| a.filename.cmp(&b.filename))
+        });
+        variants.push(HfModelVariant {
+            not_runnable: crate::engine::audio_cpp::family_from_package_path(model)
+                .is_none()
+                .then_some(crate::hub_tasks::NotRunnable::AudioCppUnsupported),
+            name: model.trim_end_matches(".gguf").into(),
+            quantization: crate::gguf::extract_quant_from_filename(model),
+            total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
+            is_split: false,
+            shards,
+        });
+    }
+    variants.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(variants)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -1660,6 +1734,24 @@ impl DownloadManager {
             .iter()
             .filter_map(|i| i.get("path").and_then(|v| v.as_str()).map(String::from))
             .collect();
+        let audio_repo = repo_id == "audio-cpp/audio.cpp-gguf"
+            || (paths.iter().any(|p| p.ends_with(".gguf")) && {
+                let url = format!("{HF_API}/models/{repo_id}");
+                let info: serde_json::Value =
+                    Self::apply_hf_auth(Self::client()?.get(&url), &url, token)
+                        .send()
+                        .await
+                        .map_err(|e| crate::http_error::transport(&e, &url))?
+                        .error_for_status()
+                        .map_err(|e| crate::http_error::transport(&e, &url))?
+                        .json()
+                        .await
+                        .map_err(|e| crate::http_error::transport(&e, &url))?;
+                crate::hub_compat::is_audio_cpp_repo(&info)
+            });
+        if audio_repo {
+            return audio_cpp_variants(repo_id, &items);
+        }
         let image_repo = crate::image_bundles::repo_has_image_files(&paths);
         // A repo without GGUF or ggml files but with an ONNX encoder is served by harness-onnx.
         let llama_or_whisper = image_repo
@@ -1766,6 +1858,7 @@ impl DownloadManager {
                 crate::gguf::extract_quant_from_filename(&shard.filename)
             };
             variants.push(HfModelVariant {
+                not_runnable: None,
                 name: shard
                     .filename
                     .trim_end_matches(".gguf")
@@ -1783,6 +1876,7 @@ impl DownloadManager {
         for (base_name, mut shards) in split_groups {
             shards.sort_by_key(|s| s.shard_index);
             variants.push(HfModelVariant {
+                not_runnable: None,
                 quantization: crate::gguf::extract_quant_from_filename(&base_name),
                 total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
                 name: base_name,
@@ -2237,6 +2331,18 @@ impl DownloadManager {
                     if let Ok(Err(e)) = synced {
                         eprintln!("[downloads] image model definitions: {e}");
                     }
+                }
+                if status == DownloadStatus::Completed
+                    && items.iter().any(|i| i.filename.ends_with(".gguf"))
+                {
+                    let _ = tokio::task::spawn_blocking(|| {
+                        let models = crate::models::ModelManager.scan_models();
+                        crate::library_definitions::ensure(
+                            &models,
+                            &[crate::domain::ModelKind::Tts],
+                        )
+                    })
+                    .await;
                 }
                 this.update(id, |p| {
                     if status == DownloadStatus::Completed {
@@ -3392,6 +3498,7 @@ fn onnx_variants(
             .map(|(i, f)| shard(f, i as u32 + 1, total))
             .collect::<Result<Vec<_>, _>>()?;
         variants.push(HfModelVariant {
+            not_runnable: None,
             name: stem.to_string(),
             quantization: harness_onnx::package::variant_quantization(stem).to_string(),
             total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
@@ -3558,6 +3665,7 @@ fn genai_variants(
         variants.push((
             rank,
             HfModelVariant {
+                not_runnable: None,
                 quantization: harness_onnx::genai_pkg::precision_of(&name).to_string(),
                 total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
                 is_split: false,
@@ -3722,6 +3830,7 @@ fn safetensors_variants(
         })
         .collect::<Result<Vec<_>, String>>()?;
     Ok(vec![HfModelVariant {
+        not_runnable: None,
         name: repo_id.rsplit('/').next().unwrap_or(repo_id).to_string(),
         quantization: "SAFETENSORS".to_string(),
         total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
@@ -5413,6 +5522,7 @@ mod tests {
 
     fn variant(name: &str, quant: &str, files: &[&str]) -> HfModelVariant {
         HfModelVariant {
+            not_runnable: None,
             name: name.into(),
             quantization: quant.into(),
             total_size_bytes: 1,
@@ -5572,6 +5682,7 @@ mod tests {
         use std::time::{Duration, Instant};
         let file = "tinyllamas/stories15M-q4_0.gguf";
         let variant = HfModelVariant {
+            not_runnable: None,
             name: "stories15M-q4_0".into(),
             quantization: "Q4_0".into(),
             total_size_bytes: 19077344,
@@ -6307,5 +6418,88 @@ mod tests {
             }
         );
         assert_eq!(m.not_runnable, None);
+    }
+}
+
+#[cfg(test)]
+mod audio_cpp_tests {
+    use super::*;
+
+    #[test]
+    fn mixed_audio_packages_mark_only_tts_variants_runnable() {
+        let supported = [
+            "PocketTTS-GGUF",
+            "Kokoro-82M-GGUF",
+            "Piper-TTS-GGUF",
+            "Breeze-TTS-2-GGUF",
+            "Qwen3-TTS-12Hz-1.7B-Base-GGUF",
+            "Chatterbox-Turbo-GGUF",
+            "VibeVoice-1.5B-GGUF",
+        ];
+        let unsupported = [
+            "ACE-Step1.5-GGUF",
+            "AST-AudioSet-GGUF",
+            "AudioSR-GGUF",
+            "BS-RoFormer-ep368-GGUF",
+            "PersonaPlex-GGUF",
+            "Phonon-2-GGUF",
+            "VibeVoice-ASR-GGUF",
+            "Qwen3-ASR-0.6B-GGUF",
+            "unknown",
+        ];
+        let items: Vec<_> = supported
+            .iter()
+            .chain(&unsupported)
+            .map(|folder| json!({"path":format!("{folder}/model.gguf"),"size":10}))
+            .collect();
+        let variants = audio_cpp_variants("audio-cpp/audio.cpp-gguf", &items).unwrap();
+        assert_eq!(variants.len(), supported.len() + unsupported.len());
+        for v in variants {
+            let runnable = supported.contains(&v.name.split('/').next().unwrap());
+            assert_eq!(v.not_runnable.is_none(), runnable, "{}", v.name);
+            if !runnable {
+                assert_eq!(
+                    serde_json::to_value(v).unwrap()["not_runnable"],
+                    "audio_cpp_unsupported"
+                );
+            }
+        }
+    }
+    use serde_json::json;
+
+    #[test]
+    fn package_variants_keep_each_language_and_family_with_its_companions() {
+        let items = [
+            "PocketTTS-GGUF/english/pocket-q8_0.gguf",
+            "PocketTTS-GGUF/english/embeddings/alba.safetensors",
+            "PocketTTS-GGUF/french/pocket-q8_0.gguf",
+            "PocketTTS-GGUF/french/embeddings/anna.safetensors",
+            "Kokoro-GGUF/kokoro-q8_0.gguf",
+            "Kokoro-GGUF/voices.bin",
+        ]
+        .iter()
+        .map(|p| json!({"type":"file", "path":p, "size":10}))
+        .collect::<Vec<_>>();
+        let variants = audio_cpp_variants("audio-cpp/audio.cpp-gguf", &items).unwrap();
+        assert_eq!(variants.len(), 3);
+        for v in &variants {
+            let folder = v.shards[0].filename.rsplit_once('/').unwrap().0;
+            assert_eq!(v.shards.len(), 2);
+            assert_eq!(v.total_size_bytes, 20);
+            assert!(v.shards[0].filename.ends_with(".gguf"));
+            assert!(v
+                .shards
+                .iter()
+                .all(|s| s.filename.starts_with(&format!("{folder}/"))));
+        }
+        let item = json!({"id":"audio-cpp/audio.cpp-gguf", "siblings":[{"rfilename":"PocketTTS-GGUF/english/pocket.gguf"}]});
+        let result = parse_search_item(&item).unwrap();
+        assert_eq!(
+            result.compatibility,
+            crate::hub_compat::Compatibility::Runnable {
+                runtime: crate::engine::AUDIO_CPP.into()
+            }
+        );
+        assert_eq!(result.pipeline_tag.as_deref(), Some("text-to-speech"));
     }
 }

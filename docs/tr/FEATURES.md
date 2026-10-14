@@ -276,6 +276,8 @@ zaman damgalı 5 kuşak yedek, dosya elle değiştiyse hash uyarısı. Başvuru:
 
 ## 13. Donanım, backend ve motorlar
 
+- **audio.cpp TTS:** Windows, Linux ve macOS için GitHub sürümlerinden yönetilen motor kurulumu; AMD/Intel için Vulkan, Windows NVIDIA için ek çalışma kitaplıklarıyla CUDA, macOS için Metal ve CPU seçeneği. PocketTTS ve diğer audio.cpp TTS GGUF aileleri bellekte tutulan sunucu, gateway `/v1/audio/speech` ve Playground üzerinden konuşur. Ses seçicisi `embeddings/*.safetensors` dosyalarını okur; arka uç, aygıt, iş parçacığı ve boşta bırakma süresi katalogdan ayarlanır. Hub paket varyantları seçili model klasörünü ve yardımcı dosyalarını korur. Diğer audio.cpp görevleri algılanır ancak henüz desteklenmez.
+
 | Özellik | Harness | LM Studio | Ollama | Yol / not |
 |---|---|---|---|---|
 | Windows GPU: DXGI VRAM + PDH canlı kullanım, çoklu GPU sıralama | ✅ | ✅ | ✅ | — |
@@ -349,3 +351,12 @@ Araçlarım yerleşik, kurulu/üretilmiş ve sunucu bazında MCP araçlarını i
 1. **Ses uç noktaları (LM Studio, Ollama):** LM Studio'nun OpenAI uyumluluk sayfası (lmstudio.ai/docs/developer/openai-compat) yalnız `/v1/models`, `/responses`, `/decisions`, `/chat/completions`, `/embeddings`, `/completions` uç noktalarını listeler; Ollama'nın OpenAI uyumluluk sayfası (docs.ollama.com/api/openai-compatibility) ses uç noktası anmaz. Bu yüzden önceki ✅ değerleri ❌ yapıldı; belgesiz bir uç nokta olabilir, elle denenmedi. LM Studio'nun Bionic uygulamasındaki ses yazıya çevirme özelliği (Bionic 1.1.3) LM Studio sunucusu değildir.
 2. **LM Studio arayüz dilleri:** belgelerin bir sürümü "26+ daha fazla dil", diğeri yaklaşık 14 dil sayıyor (lmstudio.ai/docs/app/user-interface/languages); "30+" yaklaşık değerdir, kesin sayı doğrulanamadı.
 3. `?` işaretli hücreler (ör. Ollama arayüz dilleri, LM Studio web araması/bulutu, MTP, görsel üretimi, `count_tokens`) resmi belgelerde doğrulanamadığı için tahmin edilmedi.
+
+
+### Deneysel audio.cpp TTS
+
+audio.cpp **deneyseldir ve varsayılan olarak kapalıdır**. Risk bildirimini onayladıktan sonra Ayarlar > Kurulu Model Motoru > Diğer Model Motorları bölümünden etkinleştirin. Yerel sunucusunda kimlik doğrulama veya Host/Origin denetimi yoktur; sunucu dosya yollarını kabul eder (`voice_ref`, JSON `audio` ve `/v1/tasks/*`). Açıkken bu bilgisayarda çalışan bir web sayfası sunucuya doğrudan istek gönderebilir ve dosya yolu verebilir. Yalnızca yerel adrese bağlanmak bu riski ortadan kaldırmaz.
+
+Motor kapalıyken ağ geçidi, Yükle ve CLI başlatmayı reddeder. Modeller Hub ve kütüphanede deneysel motor gereksinimiyle görünmeye devam eder. İşçiler istek üzerine başlar, yalnızca `127.0.0.1` üzerinde rastgele boş bir porta bağlanır (11435, 11440 ve 11500 hariç); `--no-ui` kullanılır, `--ui-management` kullanılmaz. Beş dakika istek gelmezse Harness işlemi durdurur; `--idle-unload-ms 300000` model belleğini de boşaltır. Sabitlenmiş modeller bu süreyi aşamaz ve ağ geçidi açılışında başlatılmaz.
+
+Ağ geçidi yalnızca `POST /v1/audio/speech` isteğini iletir; model, input, keşfedilmiş voice, speed, response_format ve isteğe bağlı satır içi `voice_ref` (`type: base64`, çözülmüş boyut en fazla 5 MiB) alanlarını yeniden oluşturur. Metin/dosya yolu referansları ve keşfedilmemiş sesler 400 döndürür. Diğer alanlar atılır; transkripsiyon, hizalama, görevler, model yönetimi ve diğer işçi uç noktaları iletilmez. Bu ağ geçidi kısıtlamaları işçi portuna doğrudan erişimi güvenli hale getirmez.

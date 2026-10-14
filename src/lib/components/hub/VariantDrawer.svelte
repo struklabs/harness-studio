@@ -150,7 +150,7 @@
       ? recommendWhisperVariant(variants, hardware?.available_ram_bytes)
       : isCtcRepo
         ? recommendCtcVariant(variants, hardware?.available_ram_bytes)
-        : recommendVariant(variants, new Map([...variantFits].map(([name, fit]) => [name, fit.category])))
+        : recommendVariant(variants.filter(v => !v.not_runnable), new Map([...variantFits].map(([name, fit]) => [name, fit.category])))
   );
   $effect(() => {
     const id = repoId;
@@ -262,7 +262,7 @@
   let needsGateConfirm = $derived(!!repoGated && repoAccess?.has_access !== true);
 
   function requestDownload(variant: HfModelVariant) {
-    if (isLoadingVariants) return;
+    if (isLoadingVariants || variant.not_runnable) return;
     if (needsGateConfirm) {
       gateConfirmFor = variant.name;
       return;
@@ -272,6 +272,7 @@
 
   async function enqueueVariant(variant: HfModelVariant) {
     gateConfirmFor = null;
+    if (variant.not_runnable) return;
     const id = repoId;
     if (!id) return;
     enqueueing = [...enqueueing, variant.name];
@@ -325,7 +326,7 @@
     const list = variants;
     const ctx = app.settings?.server.default_ctx || 32768;
     void hardware;
-    const sized = list.filter((v) => v.total_size_bytes > 0);
+    const sized = list.filter((v) => !v.not_runnable && v.total_size_bytes > 0);
     Promise.all(
       sized.map((v) =>
         // As a default load starts it (automatic KV, fewer GPU layers when the full offload
@@ -572,7 +573,7 @@
               {:else if unsupportedFormat}
                 <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
                   <Ban class="mt-px size-3.5 shrink-0 text-warning" />
-                  <span class="min-w-0 flex-1">{speechNeedsConversion(repo) ? t('hub.asr_needs_conversion_drawer') : unsupportedFormat === 'gguf' ? t('hub.compat_gguf_other_engine_drawer') : t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
+                  <span class="min-w-0 flex-1">{repo.not_runnable === 'audio_cpp_unsupported' ? t('hub.not_runnable_audio_cpp') : speechNeedsConversion(repo) ? t('hub.asr_needs_conversion_drawer') : unsupportedFormat === 'gguf' ? t('hub.compat_gguf_other_engine_drawer') : t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
                 </div>
               {:else if platformBlocked}
                 {@const msg = onnxUnsupportedText(platformBlocked)}
@@ -655,7 +656,9 @@
                             {variant.total_size_bytes > 0 ? formatBytes(variant.total_size_bytes) : '–'}
                           </Table.Cell>
                           <Table.Cell>
-                            {#if isWhisperRepo}
+                            {#if variant.not_runnable === 'audio_cpp_unsupported'}
+                              <span class="text-xs text-warning">{t('hub.not_runnable_audio_cpp')}</span>
+                            {:else if isWhisperRepo}
                               {@const wfit = whisperFitsMemory(variant.total_size_bytes, hardware?.available_ram_bytes)}
                               {#if wfit === null}
                                 <span class="text-xs text-muted-foreground">{variant.total_size_bytes > 0 ? '–' : t('hub.fit_calculating')}</span>
@@ -687,44 +690,46 @@
                             {/if}
                           </Table.Cell>
                           <Table.Cell>
-                            <div class="flex items-center justify-end gap-1">
-                              <AdvancedOnly>
-                                <Tooltip.Root>
-                                  <Tooltip.Trigger>
-                                    {#snippet child({ props })}
-                                      <Button
-                                        {...props}
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        onclick={() => checkVariantUpdate(variant)}
-                                        disabled={checkingUpdateFor === variant.name}
-                                        aria-label={t('hub.check_update_button')}
-                                      >
-                                        <RefreshCw class={cn(checkingUpdateFor === variant.name && 'animate-spin')} />
-                                      </Button>
-                                    {/snippet}
-                                  </Tooltip.Trigger>
-                                  <Tooltip.Content class="max-w-64">{t('hub.check_update_title')}</Tooltip.Content>
-                                </Tooltip.Root>
-                              </AdvancedOnly>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                class="min-w-24 font-num"
-                                onclick={() => requestDownload(variant)}
-                                disabled={pending || adding || isLoadingVariants}
-                              >
-                                {#if adding}
-                                  <LoaderCircle class="animate-spin" />
-                                {:else if job && job.status === 'Queued'}
-                                  {t('hub.variant_queued')}
-                                {:else if job && pending}
-                                  {progressPercent(job).toFixed(0)}%
-                                {:else}
-                                  <Download />{t('hub.download_short')}
-                                {/if}
-                              </Button>
-                            </div>
+                            {#if !variant.not_runnable}
+                              <div class="flex items-center justify-end gap-1">
+                                <AdvancedOnly>
+                                  <Tooltip.Root>
+                                    <Tooltip.Trigger>
+                                      {#snippet child({ props })}
+                                        <Button
+                                          {...props}
+                                          variant="ghost"
+                                          size="icon-sm"
+                                          onclick={() => checkVariantUpdate(variant)}
+                                          disabled={checkingUpdateFor === variant.name}
+                                          aria-label={t('hub.check_update_button')}
+                                        >
+                                          <RefreshCw class={cn(checkingUpdateFor === variant.name && 'animate-spin')} />
+                                        </Button>
+                                      {/snippet}
+                                    </Tooltip.Trigger>
+                                    <Tooltip.Content class="max-w-64">{t('hub.check_update_title')}</Tooltip.Content>
+                                  </Tooltip.Root>
+                                </AdvancedOnly>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  class="min-w-24 font-num"
+                                  onclick={() => requestDownload(variant)}
+                                  disabled={pending || adding || isLoadingVariants}
+                                >
+                                  {#if adding}
+                                    <LoaderCircle class="animate-spin" />
+                                  {:else if job && job.status === 'Queued'}
+                                    {t('hub.variant_queued')}
+                                  {:else if job && pending}
+                                    {progressPercent(job).toFixed(0)}%
+                                  {:else}
+                                    <Download />{t('hub.download_short')}
+                                  {/if}
+                                </Button>
+                              </div>
+                            {/if}
                           </Table.Cell>
                         </Table.Row>
                       {/each}

@@ -132,7 +132,7 @@
       </span>
     {:else if compat.status === 'unsupported'}
       <span class="inline-flex items-center gap-1 text-warning">
-        <Ban class="size-3" />{speechNeedsConversion(repo) ? t('hub.asr_needs_conversion') : compat.format === 'gguf' ? t('hub.compat_gguf_other_engine') : t('hub.compat_unsupported', { format: formatName(compat.format) })}
+        <Ban class="size-3" />{repo.not_runnable === 'audio_cpp_unsupported' ? t('hub.not_runnable_audio_cpp') : speechNeedsConversion(repo) ? t('hub.asr_needs_conversion') : compat.format === 'gguf' ? t('hub.compat_gguf_other_engine') : t('hub.compat_unsupported', { format: formatName(compat.format) })}
       </span>
     {:else if compat.status === 'unsupported_platform'}
       {@const msg = onnxUnsupportedText(compat)}
@@ -153,6 +153,8 @@
       <span class="inline-flex items-center gap-1 text-info" title={t('hub.compat_needs_mistralrs_title')}>
         <Info class="size-3" />{t('hub.compat_needs_mistralrs')}
       </span>
+    {:else if (compat.status === 'needs_runtime' || compat.status === 'runnable') && compat.runtime === 'audio.cpp'}
+      <span class="inline-flex items-center gap-1 text-warning" title={t('audio_cpp.needs_engine')}><Info class="size-3" />{t('audio_cpp.experimental')}</span>
     {:else if compat.status === 'needs_runtime'}
       {@const sd = compat.runtime === 'stable-diffusion.cpp'}
       <span class="inline-flex items-center gap-1 text-info" title={t(sd ? 'hub.compat_needs_sd_title' : 'hub.compat_needs_whisper_title')}>

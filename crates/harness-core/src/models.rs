@@ -682,7 +682,7 @@ impl ModelManager {
                 root_dir: root_dir_str.clone(),
                 kind,
                 origin: crate::domain::ModelOrigin::Library,
-                task: None,
+                task: (kind == crate::domain::ModelKind::Tts).then(|| "text-to-speech".into()),
                 gguf: metadata,
                 source: None,
                 mmproj_path: None,
@@ -804,7 +804,9 @@ impl ModelManager {
                 root_dir: root_dir_str.clone(),
                 kind: crate::domain::detect_kind(metadata.as_ref()),
                 origin: crate::domain::ModelOrigin::Library,
-                task: None,
+                task: (crate::domain::detect_kind(metadata.as_ref())
+                    == crate::domain::ModelKind::Tts)
+                    .then(|| "text-to-speech".into()),
                 gguf: metadata,
                 source: None,
                 mmproj_path: None,

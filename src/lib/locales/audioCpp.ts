@@ -1,0 +1,43 @@
+const tr = {
+  'audio_cpp.experimental': 'Deneysel audio.cpp Motoru',
+  'audio_cpp.switch_hint': 'Metinden konuşma için audio.cpp sunucusunu kullanılabilir yapar. Varsayılan kapalı.',
+  'audio_cpp.needs_engine': 'Deneysel audio.cpp motorunu Ayarlar > Kurulu Model Motoru > Diğer Model Motorları bölümünden etkinleştirin.',
+  'audio_cpp.enable': 'Motoru Etkinleştir',
+  'audio_cpp.confirm': 'Deneysel Motoru Etkinleştir',
+  'audio_cpp.risk': 'Bu motorun yerel sunucusunda kimlik doğrulama yok; açıkken bu bilgisayarda çalışan bir web sayfası sunucuya istek gönderebilir ve dosya yolu verebilir.',
+  'eng.desc_audio_cpp': 'GGUF ses modelleriyle yerel metinden konuşma üretimi.',
+  'aparam.backend': 'Hesaplama arka ucu',
+  'aparam.backend_help': 'Otomatik, Vulkan, CPU, CUDA veya Metal arka ucunu seçer.',
+  'aparam.device': 'GPU aygıtı',
+  'aparam.device_help': 'Motorun kullanacağı GPU aygıtının sıra numarası.',
+  'aparam.threads': 'İş parçacığı',
+  'aparam.threads_help': 'CPU hesaplamasında kullanılacak iş parçacığı sayısı.',
+  'aparam.idle_unload_ms': 'Boşta bırakma süresi (ms)',
+  'aparam.idle_unload_ms_help': 'Boşta kalan modelin bellekten çıkarılacağı süre. 0 = kapalı.',
+  'hub.not_runnable_audio_cpp': 'Bu audio.cpp görevi henüz desteklenmiyor. Yalnızca metinden konuşma modelleri çalıştırılabilir.',
+  'speak.engine_missing': '{family} motoru kurulu değil.',
+  'speak.install_engine': '{family} Motorunu Kur',
+};
+
+const en: Record<keyof typeof tr, string> = {
+  'audio_cpp.experimental': 'Experimental audio.cpp Engine',
+  'audio_cpp.switch_hint': 'Makes the audio.cpp server available for text to speech. Off by default.',
+  'audio_cpp.needs_engine': 'Enable the experimental audio.cpp engine in Settings > Installed Runtime > Other Runtimes.',
+  'audio_cpp.enable': 'Enable Engine',
+  'audio_cpp.confirm': 'Enable Experimental Engine',
+  'audio_cpp.risk': "This engine's local server has no authentication. While it is on, a web page running on this computer can send it requests and pass it file paths.",
+  'eng.desc_audio_cpp': 'Local text-to-speech with GGUF audio models.',
+  'aparam.backend': 'Compute backend',
+  'aparam.backend_help': 'Selects auto, Vulkan, CPU, CUDA or Metal.',
+  'aparam.device': 'GPU device',
+  'aparam.device_help': 'Index of the GPU device the engine uses.',
+  'aparam.threads': 'Threads',
+  'aparam.threads_help': 'Number of CPU threads used for computation.',
+  'aparam.idle_unload_ms': 'Idle unload delay (ms)',
+  'aparam.idle_unload_ms_help': 'Time before an idle model leaves memory. 0 = disabled.',
+  'hub.not_runnable_audio_cpp': 'This audio.cpp task is not supported yet. Only text-to-speech models can run.',
+  'speak.engine_missing': 'The {family} engine is not installed.',
+  'speak.install_engine': 'Install {family} Engine',
+};
+
+export default { tr, en };

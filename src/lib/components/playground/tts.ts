@@ -13,8 +13,11 @@ export interface TtsVoice {
 export interface TtsModelInfo {
   id: string;
   name: string;
-  family: 'kokoro' | 'vits' | 'mlx-audio';
+  family: string;
   languages: string[];
+  engine?: string;
+  supports_speed?: boolean;
+  runtime_installed?: boolean;
   quantization: string;
   sample_rate: number | null;
   size_bytes: number;
@@ -25,7 +28,7 @@ export interface TtsModelInfo {
 export interface TtsCatalogRow {
   id: string;
   title: string;
-  family: 'kokoro' | 'vits';
+  family: string;
   languages: string[];
   voices: number;
   size_bytes: number;
@@ -62,6 +65,9 @@ export function allTtsModels(o: TtsOverview | null): TtsModelInfo[] {
       id: m.id,
       name: m.name,
       family: m.family,
+      engine: m.family,
+      // The engine's own runtime serves it; sherpa-onnx is not needed.
+      runtime_installed: true,
       languages: [],
       quantization: '',
       sample_rate: null,
@@ -72,11 +78,6 @@ export function allTtsModels(o: TtsOverview | null): TtsModelInfo[] {
   return [...o.models, ...engine];
 }
 
-/** Whether a model runs on sherpa-onnx (an engine's model brings its own runtime). */
-export function isSherpaTts(models: readonly TtsModelInfo[], name: string): boolean {
-  const m = models.find((x) => x.name === name);
-  return !m || m.family !== 'mlx-audio';
-}
 
 export interface SpeechResult {
   blob: Blob;
@@ -102,7 +103,8 @@ export async function fetchSpeech(
   headers: Record<string, string>,
   signal?: AbortSignal,
 ): Promise<SpeechResult> {
-  const body: Record<string, unknown> = { input: req.input, response_format: 'wav', speed: req.speed };
+  const body: Record<string, unknown> = { input: req.input, response_format: 'wav' };
+  if (req.speed !== 1) body.speed = req.speed;
   if (req.model) body.model = req.model;
   if (req.voice) body.voice = req.voice;
   const started = performance.now();
@@ -127,7 +129,18 @@ export async function fetchSpeech(
   };
 }
 
-/** The voices to offer for a model: its own list, `Default` first when it has several. */
+/** Runtime speed support advertised by the picker; legacy sherpa rows support it. */
+export function ttsSupportsSpeed(models: TtsModelInfo[], name: string): boolean {
+  return models.find(m => m.name === name)?.supports_speed ?? true;
+}
+
+/** Engine missing for the selected TTS model; legacy rows use sherpa's overview flag. */
+export function ttsRequirement(models: TtsModelInfo[], name: string, sherpaReady: boolean): string | null {
+  const model = models.find(m => m.name === name);
+  return (model?.runtime_installed ?? sherpaReady) ? null : (model?.engine ?? 'sherpa-onnx');
+}
+
+/** The installed model's own voice ids, including audio.cpp embedding stems. */
 export function voicesOf(models: TtsModelInfo[], name: string): TtsVoice[] {
   return models.find((m) => m.name === name)?.voices ?? [];
 }

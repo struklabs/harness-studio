@@ -555,10 +555,26 @@ pub fn resolve_launch(
 /// when it cannot be made: no readable GGUF header (router mode, missing file, bad file).
 /// Reads the header (cached by path/size/mtime) and the cached hardware probe.
 fn recommended_layers(c: &LaunchConfig) -> Option<u32> {
-    if !c.model_path.is_file() || crate::models::cached_metadata(&c.model_path).is_none() {
+    recommended_layers_with(c, &crate::hardware::detect_hardware())
+}
+
+fn recommended_layers_with(
+    c: &LaunchConfig,
+    hw: &crate::hardware::SystemHardwareInfo,
+) -> Option<u32> {
+    let audio_cpp = crate::engine::audio_cpp::is_model(&c.model_path);
+    if !audio_cpp
+        && (!c.model_path.is_file() || crate::models::cached_metadata(&c.model_path).is_none())
+    {
         return None;
     }
-    Some(crate::vram::fit_launch(c, &crate::hardware::detect_hardware()).recommended_gpu_layers)
+    let mut candidate = c.clone();
+    // Whole-model audio runtimes have no partial layer offload. Estimate the GPU
+    // candidate before deciding; the inherited default of zero would estimate CPU.
+    if audio_cpp {
+        candidate.gpu_layers = if hw.gpus.is_empty() { 0 } else { 999 };
+    }
+    Some(crate::vram::fit_launch(&candidate, hw).recommended_gpu_layers)
 }
 
 /// The definition's own `load` sets `gpu_layers` (otherwise a launch gets the recommendation).
@@ -719,6 +735,56 @@ pub fn apply_auto_fields(c: &mut LaunchConfig) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn audio_cpp_auto_load_uses_gpu_despite_zero_default_and_keeps_explicit_cpu() {
+        use std::io::Write;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("pocket.gguf");
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(b"GGUF").unwrap();
+        file.write_all(&3u32.to_le_bytes()).unwrap();
+        file.write_all(&0u64.to_le_bytes()).unwrap();
+        file.write_all(&2u64.to_le_bytes()).unwrap();
+        for (key, value) in [
+            ("general.architecture", "audiocpp"),
+            ("audiocpp.model_spec.family", "pocket_tts"),
+        ] {
+            file.write_all(&(key.len() as u64).to_le_bytes()).unwrap();
+            file.write_all(key.as_bytes()).unwrap();
+            file.write_all(&8u32.to_le_bytes()).unwrap();
+            file.write_all(&(value.len() as u64).to_le_bytes()).unwrap();
+            file.write_all(value.as_bytes()).unwrap();
+        }
+        drop(file);
+        let mut hw = crate::hardware::detect_hardware();
+        hw.gpus = vec![crate::hardware::GpuInfo {
+            index: 0,
+            name: "Test AMD".into(),
+            vendor: crate::hardware::GpuVendor::Amd,
+            vram_bytes: Some(8 * 1024 * 1024 * 1024),
+            driver_version: None,
+            is_discrete: true,
+            is_default: true,
+        }];
+        hw.primary_gpu_index = Some(0);
+        hw.recommended_backend = crate::hardware::RecommendedBackend::Vulkan;
+        let mut def = ModelDefinition::new("pocket", ModelRef::Local { path });
+        def.load
+            .insert("backend".into(), ParamValue::Text("vulkan".into()));
+        let mut defaults = defaults();
+        defaults.gpu_layers = 0;
+        let recommend = |c: &LaunchConfig| recommended_layers_with(c, &hw);
+        let config =
+            resolve_launch_with(&defaults, Some(&def), None, &Default::default(), &recommend)
+                .unwrap();
+        assert_eq!(config.gpu_layers, 999);
+        def.load.insert("gpu_layers".into(), ParamValue::Int(0));
+        let config =
+            resolve_launch_with(&defaults, Some(&def), None, &Default::default(), &recommend)
+                .unwrap();
+        assert_eq!(config.gpu_layers, 0);
+    }
 
     fn defaults() -> LaunchDefaults {
         LaunchDefaults {

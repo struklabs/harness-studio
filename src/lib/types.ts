@@ -116,6 +116,7 @@ export interface PrivacySettings {
 }
 
 export interface AppSettings {
+  audio_cpp_enabled: boolean;
   runtime_mode: RuntimeMode;
   managed_runtime: ManagedRuntimeConfig;
   custom_binary: CustomBinaryConfig;
@@ -875,7 +876,8 @@ export interface GgufMetadata {
   version: number;
   tensor_count: number;
   kv_count: number;
-  architecture: string | null;
+    architecture: string | null;
+    audiocpp_family?: string | null;
   model_name: string | null;
   context_length: number | null;
   file_type: number | null;
@@ -1016,7 +1018,7 @@ export interface CustomBinaryValidation {
 export type HfTaskSource = 'tags' | 'name' | 'files' | 'library' | 'gguf';
 
 /** `harness_core::hub_tasks::NotRunnable`. */
-export type HfNotRunnable = 'no_gguf' | 'adapter' | 'not_language_model';
+export type HfNotRunnable = 'no_gguf' | 'adapter' | 'not_language_model' | 'audio_cpp_unsupported';
 
 /** `harness_core::model_registry::Capability`. */
 export type ModelCapability = 'chat' | 'vision' | 'audio' | 'embedding' | 'rerank' | 'asr' | 'tts' | 'image_generation';
@@ -1175,6 +1177,7 @@ export interface HfShardInfo {
 
 export interface HfModelVariant {
   name: string;
+  not_runnable?: string | null;
   quantization: string;
   total_size_bytes: number;
   is_split: boolean;

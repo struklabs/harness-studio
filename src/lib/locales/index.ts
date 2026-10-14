@@ -60,10 +60,11 @@ import mistralrs from './mistralrs';
 import pyhf from './pyhf';
 import mlx from './mlx';
 import engines from './engines';
+import audioCpp from './audioCpp';
 
 // Common accessible field-help text.
 
-const namespaces = [uiLevel, menus, help, create, common, fit, kv, hub, settings, connections, perf, onboarding, dashboard, playground, servers, benchmark, importNs, caps, params, security, presets, library, embed, developer, recovery, gateway, harnessMcp, integrations, agentModels, analytics, ollama, responses, loading, runtimes, split, compaction, shell, ui, hfAuth, errors, errorsDownloads, errorsIntegrations, errorsRuntime, errorsStore, rag, errorsRag, tools, toolDiag, whisper, sdcpp, tts, sherpaAsr, onnx, pipeline, lemonade, convert, mistralrs, pyhf, mlx, engines] as const;
+const namespaces = [uiLevel, menus, help, create, common, fit, kv, hub, settings, connections, perf, onboarding, dashboard, playground, servers, benchmark, importNs, caps, params, security, presets, library, embed, developer, recovery, gateway, harnessMcp, integrations, agentModels, analytics, ollama, responses, loading, runtimes, split, compaction, shell, ui, hfAuth, errors, errorsDownloads, errorsIntegrations, errorsRuntime, errorsStore, rag, errorsRag, tools, toolDiag, whisper, sdcpp, tts, sherpaAsr, onnx, pipeline, lemonade, convert, mistralrs, pyhf, mlx, engines, audioCpp] as const;
 
 type UnionToIntersection<U> = (U extends unknown ? (value: U) => void : never) extends (value: infer I) => void ? I : never;
 export type Dictionary = UnionToIntersection<(typeof namespaces)[number]['tr']>;

@@ -273,6 +273,8 @@ For every persistent integration: a preview (a colored diff), "Test Connection" 
 
 ## 13. Hardware, Backends, and Engines
 
+- **audio.cpp TTS:** managed GitHub-release builds for Windows, Linux, and macOS; Vulkan for AMD/Intel, CUDA with companion runtime libraries for Windows NVIDIA, Metal on macOS, and CPU fallback. PocketTTS and other audio.cpp TTS GGUF families speak through the resident server, gateway `/v1/audio/speech`, and Playground. The voice picker reads `embeddings/*.safetensors`; backend, device, threads, and idle unload are catalog settings. Hub package variants preserve the selected model folder and its companions. Other audio.cpp tasks are detected but not supported yet.
+
 | Feature | Harness | LM Studio | Ollama | Path / note |
 |---|---|---|---|---|
 | Windows GPU: DXGI VRAM + PDH live usage, multi-GPU ordering | ✅ | ✅ | ✅ | — |
@@ -346,3 +348,12 @@ My Tools lists built-in, installed/generated, and per-server MCP tools in functi
 1. **Audio endpoints (LM Studio, Ollama):** LM Studio's OpenAI compatibility page (lmstudio.ai/docs/developer/openai-compat) lists only the endpoints `/v1/models`, `/responses`, `/decisions`, `/chat/completions`, `/embeddings`, `/completions`; Ollama's OpenAI compatibility page (docs.ollama.com/api/openai-compatibility) mentions no audio endpoint. The earlier ✅ values were therefore changed to ❌; an undocumented endpoint may exist, and it was not tried by hand. The speech-to-text feature in LM Studio's Bionic application (Bionic 1.1.3) is not an LM Studio server.
 2. **LM Studio interface languages:** one version of the documentation counts "26+ more languages", another about 14 languages (lmstudio.ai/docs/app/user-interface/languages); "30+" is approximate, and the exact number could not be verified.
 3. Cells marked `?` (for example Ollama interface languages, LM Studio web search/cloud, MTP, image generation, `count_tokens`) were not guessed because they could not be verified in the official documentation.
+
+
+### Experimental audio.cpp TTS
+
+audio.cpp is **experimental and off by default**. Enable it in Settings > Installed Runtime > Other Runtimes after confirming the risk notice. Its local server has no authentication or Host/Origin checks and accepts server-side file paths (`voice_ref`, JSON `audio`, and `/v1/tasks/*`). While running, a web page on this computer can send requests and pass file paths directly to that server. Loopback binding does not remove this risk.
+
+Disabled engines refuse gateway, Load, and CLI launches. Models remain visible in the Hub and library with an experimental engine requirement. Workers start on demand, bind only to `127.0.0.1` on a random free port (excluding 11435, 11440, and 11500), and use `--no-ui` without `--ui-management`. Harness stops the process after five minutes without requests; `--idle-unload-ms 300000` also releases model memory. Pinned models do not bypass this timeout or start at gateway startup.
+
+The gateway forwards only `POST /v1/audio/speech`, rebuilding model, input, discovered voice, speed, response format, and optional inline `voice_ref` (`type: base64`, decoded size at most 5 MiB). String/path references and undiscovered voices return 400. Other fields are dropped; transcriptions, alignments, tasks, models management, and all other worker routes are never forwarded. These gateway restrictions do not secure direct access to the worker port.

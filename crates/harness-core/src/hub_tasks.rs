@@ -165,6 +165,8 @@ pub enum TaskSource {
 pub enum NotRunnable {
     /// The repo lists files but none is a `.gguf`.
     NoGguf,
+    /// audio.cpp family outside the supported TTS surface.
+    AudioCppUnsupported,
     /// A LoRA adapter: loads on top of a base model, not on its own.
     Adapter,
     /// An image / video generator or diffusion checkpoint.
@@ -228,6 +230,17 @@ fn gguf_file_names(files: &[String]) -> Vec<String> {
 /// lists files but no `.gguf`, a LoRA adapter, and image generators are marked not runnable
 /// instead of getting a guess.
 pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
+    if crate::hub_compat::is_audio_cpp_repo(item) {
+        let tts = crate::hub_compat::audio_cpp_repo_tts(item);
+        return RepoAnalysis {
+            pipeline_tag: tts.then(|| "text-to-speech".into()),
+            inferred_task: None,
+            source: None,
+            not_runnable: (!tts).then_some(NotRunnable::AudioCppUnsupported),
+            diffusion_adapter: false,
+            adapter_base: None,
+        };
+    }
     let id = item.get("id").and_then(|v| v.as_str()).unwrap_or_default();
     let card = item.get("cardData");
     let text = |key: &str| {
@@ -649,7 +662,7 @@ const ASR_ALTS: &[(&str, Support)] = &[
     (crate::engine::ONNX_FAMILY, Partial),
 ];
 /// Text-to-speech: Kokoro / Piper through sherpa-onnx.
-const TTS_ALTS: &[(&str, Support)] = &[(SHERPA_FAMILY, Yes)];
+const TTS_ALTS: &[(&str, Support)] = &[(crate::engine::AUDIO_CPP, Yes), (SHERPA_FAMILY, Yes)];
 /// Encoder task heads (classification, NER, fill-mask, extractive QA) and vision heads
 /// (image classification, detection, segmentation, depth) and audio classification:
 /// harness-onnx on `/hf`.
@@ -1297,7 +1310,7 @@ mod tests {
         assert_eq!(t2i.runtime, None);
         assert_eq!(
             support_of(&none, "text-to-speech").needs_runtime.as_deref(),
-            Some(SHERPA_FAMILY)
+            Some(crate::engine::AUDIO_CPP)
         );
         // Encoder pipelines point at ONNX Runtime.
         assert_eq!(

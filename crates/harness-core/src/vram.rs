@@ -1191,6 +1191,9 @@ pub fn fit_with(
     budget: &MemoryBudget,
     measured: &[Measurement],
 ) -> FitResult {
+    if meta.is_some_and(|m| m.architecture.as_deref() == Some("audiocpp")) {
+        return crate::engine::audio_cpp().estimate_memory(input, meta, budget, measured);
+    }
     if input.kv_auto {
         let v_quant_ok = input.flash_attn != Some(false);
         let (choice, mut r) = crate::kv_policy::choose(input, meta, budget, measured, v_quant_ok);
@@ -1419,6 +1422,14 @@ pub fn fit(input: FitInput, hw: &SystemHardwareInfo) -> FitResult {
 /// conversion, this includes custom slot arguments and the selected runtime's unified-KV
 /// capability through the same launch planner used by [`crate::process::ProcessManager`].
 pub fn fit_launch(config: &crate::process::LaunchConfig, hw: &SystemHardwareInfo) -> FitResult {
+    if crate::engine::audio_cpp::is_model(&config.model_path) {
+        let mut input = base_input_from_launch(config);
+        if crate::engine::audio_cpp::backend(config) == "cpu" {
+            input.gpu_layers = 0;
+        }
+        let budget = budget_for_model(hw, input.model_path.as_deref());
+        return crate::engine::audio_cpp().estimate_memory(&input, None, &budget, &[]);
+    }
     let base = base_input_from_launch(config);
     let path = base.model_path.clone().unwrap_or_default();
     let meta = crate::models::cached_metadata(std::path::Path::new(&path));
@@ -1445,6 +1456,9 @@ pub fn fit_launch_with(
     has_unified: bool,
     backend: RecommendedBackend,
 ) -> FitResult {
+    if meta.is_some_and(|m| m.architecture.as_deref() == Some("audiocpp")) {
+        return crate::engine::audio_cpp().estimate_memory(base, meta, budget, measured);
+    }
     let plan =
         crate::slots::plan_for_launch_with(config, base, meta, budget, measured, has_unified);
     let input = match plan {
@@ -1473,6 +1487,9 @@ pub fn fit_auto(
     measured: &[Measurement],
     hw: &SystemHardwareInfo,
 ) -> FitResult {
+    if meta.is_some_and(|m| m.architecture.as_deref() == Some("audiocpp")) {
+        return crate::engine::audio_cpp().estimate_memory(input, meta, budget, measured);
+    }
     let advice = crate::slots::advise(input, meta, budget, measured);
     let input = crate::slots::with_slots(input, advice.slots);
     let mut r = fit_with(&input, meta, budget, measured);

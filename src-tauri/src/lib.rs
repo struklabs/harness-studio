@@ -318,6 +318,7 @@ pub fn run() {
             get_backend_status,
             get_app_settings,
             save_app_settings,
+            set_audio_cpp_enabled,
             get_network_overview,
             acknowledge_lan_exposure,
             revoke_lan_exposure,

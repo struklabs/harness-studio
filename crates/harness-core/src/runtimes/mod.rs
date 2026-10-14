@@ -156,6 +156,19 @@ pub struct RuntimeEntry {
 }
 
 impl RuntimeEntry {
+    pub fn effective_backend(&self) -> Option<String> {
+        self.backend.clone().or_else(|| {
+            if self.family != crate::engine::AUDIO_CPP {
+                return None;
+            }
+            match &self.source {
+                RuntimeSource::Github { assets, .. } => assets
+                    .iter()
+                    .find_map(|asset| crate::engine::audio_cpp::backend_from_archive(&asset.name)),
+                RuntimeSource::Local { .. } => None,
+            }
+        })
+    }
     /// The engine of this entry's family; `None` for a family this build does not know.
     pub fn engine(&self) -> Option<&'static dyn crate::engine::Engine> {
         crate::engine::engine(&self.family)
@@ -660,7 +673,7 @@ impl RuntimeRegistry {
                     entry.build = p.build;
                     entry.commit = p.commit;
                 }
-                entry.backend = p.backend;
+                entry.backend = p.backend.or_else(|| entry.effective_backend());
                 entry.quant_types = p.quant_types;
                 entry.verified_at = now_secs();
                 self.save_entry(entry)?;
@@ -967,9 +980,14 @@ fn view_for_binary(
                 }
             }
             RuntimeView {
-                backend: binary
-                    .parent()
-                    .and_then(crate::runtime::detect_backend_in_dir),
+                backend: entry
+                    .as_ref()
+                    .and_then(RuntimeEntry::effective_backend)
+                    .or_else(|| {
+                        binary
+                            .parent()
+                            .and_then(crate::runtime::detect_backend_in_dir)
+                    }),
                 id,
                 name,
                 kind: kind.into(),
@@ -986,7 +1004,7 @@ fn view_for_binary(
             }
         }
         Err(e) => RuntimeView {
-            backend: entry.as_ref().and_then(|e| e.backend.clone()),
+            backend: entry.as_ref().and_then(RuntimeEntry::effective_backend),
             quant_types: entry
                 .as_ref()
                 .map(|e| e.quant_types.clone())
@@ -1216,6 +1234,9 @@ pub fn check_model_support(
     let Ok(meta) = crate::gguf::read_gguf_metadata(model_path) else {
         return Ok(());
     };
+    if meta.architecture.as_deref() == Some("audiocpp") {
+        return Err(crate::error_key::err("audio_cpp.llama_rejected").into());
+    }
     let types = quant::model_types(&meta.tensor_types, meta.legacy_prism_q2_0);
     if quant::special_types(&types).is_empty() {
         return Ok(());

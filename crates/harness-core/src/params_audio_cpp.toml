@@ -1,0 +1,42 @@
+schema_version = 1
+
+[[param]]
+id = "backend"
+flags = ["--backend"]
+kind = "enum"
+group = "performance"
+level = "basic"
+label_key = "aparam.backend"
+help_key = "aparam.backend_help"
+values = ["auto", "vulkan", "cpu", "cuda", "metal"]
+
+[[param]]
+id = "device"
+flags = ["--device"]
+kind = "int"
+group = "performance"
+level = "basic"
+label_key = "aparam.device"
+help_key = "aparam.device_help"
+min = 0
+
+[[param]]
+id = "threads"
+flags = ["--threads"]
+kind = "int"
+group = "performance"
+level = "basic"
+label_key = "aparam.threads"
+help_key = "aparam.threads_help"
+min = 1
+legacy_field = "threads"
+
+[[param]]
+id = "idle_unload_ms"
+flags = ["--idle-unload-ms"]
+kind = "int"
+group = "performance"
+level = "basic"
+label_key = "aparam.idle_unload_ms"
+help_key = "aparam.idle_unload_ms_help"
+min = 0

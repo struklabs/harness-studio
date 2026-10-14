@@ -94,6 +94,8 @@ You do not have to work this out yourself. The Model Hub and the Dashboard show 
 
 ## Features
 
+- **Native text-to-speech with audio.cpp:** run PocketTTS and other audio.cpp TTS GGUF families through the Playground and `/v1/audio/speech`. Install, update, and remove the engine in Settings > Runtime; Vulkan, CUDA, Metal, and CPU release builds are selected for the platform. Voice embeddings are listed in the speech picker, and models stay resident under the gateway scheduler.
+
 Everything below works locally. Details are in the [user guide](docs/guide/en/README.md) and [FEATURES.md](docs/en/FEATURES.md).
 
 ### For everyday users
@@ -400,6 +402,8 @@ Please read our [Code of Conduct](CODE_OF_CONDUCT.md). Questions: [Discussions](
 Harness Studio is released under the [MIT License](LICENSE). Copyright (c) 2026 struklabs and Harness Studio contributors.
 
 ### Acknowledgements
+
+- [audio.cpp](https://github.com/0xShug0/audio.cpp) — native audio inference engine, [Apache-2.0](https://github.com/0xShug0/audio.cpp/blob/main/LICENSE). Model licenses are separate from the engine license.
 
 Harness Studio stands on the shoulders of great open-source projects:
 

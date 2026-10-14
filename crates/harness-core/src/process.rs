@@ -583,6 +583,44 @@ pub struct ProcessManager {
     /// The port-to-socket relay of an isolated Python worker run and its socket folder (the
     /// task is aborted and the folder removed when the run ends).
     relay: Arc<Mutex<Option<WorkerRelay>>>,
+    /// Temporary configuration folder of the resident audio.cpp server.
+    audio_run: Arc<Mutex<Option<tempfile::TempDir>>>,
+    activity: Arc<Mutex<ProcessActivity>>,
+}
+
+struct ProcessActivity {
+    last_used: Instant,
+    in_flight: usize,
+    retiring: bool,
+    epoch: u64,
+}
+
+impl Default for ProcessActivity {
+    fn default() -> Self {
+        Self {
+            last_used: Instant::now(),
+            in_flight: 0,
+            retiring: false,
+            epoch: 0,
+        }
+    }
+}
+
+/// Keeps a server active until the forwarded request (including its body) completes.
+pub struct RequestActivity {
+    epoch: u64,
+    activity: Arc<Mutex<ProcessActivity>>,
+}
+
+impl Drop for RequestActivity {
+    fn drop(&mut self) {
+        let mut activity = self.activity.lock().unwrap();
+        if activity.epoch != self.epoch {
+            return;
+        }
+        activity.in_flight = activity.in_flight.saturating_sub(1);
+        activity.last_used = Instant::now();
+    }
 }
 
 /// The relay task of an isolated Python worker and the folder of its Unix socket.
@@ -688,6 +726,8 @@ impl Default for ProcessManager {
             readers: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
             port_retries: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             relay: Arc::new(Mutex::new(None)),
+            audio_run: Arc::new(Mutex::new(None)),
+            activity: Arc::new(Mutex::new(ProcessActivity::default())),
         }
     }
 }
@@ -702,6 +742,37 @@ impl ProcessManager {
             id: id.to_string(),
             ..Self::default()
         }
+    }
+
+    pub fn request_activity(&self) -> Option<RequestActivity> {
+        let mut activity = self.activity.lock().unwrap();
+        if activity.retiring {
+            return None;
+        }
+        activity.in_flight += 1;
+        activity.last_used = Instant::now();
+        Some(RequestActivity {
+            epoch: activity.epoch,
+            activity: self.activity.clone(),
+        })
+    }
+
+    async fn stop_audio_if_idle(&self, generation: u64, idle: Duration) -> bool {
+        let _lifecycle = self.lifecycle.lock().await;
+        if !self.is_current(generation) || self.get_status() != ServerStatus::Running {
+            return false;
+        }
+        {
+            let mut activity = self.activity.lock().unwrap();
+            if activity.in_flight != 0 || activity.last_used.elapsed() < idle {
+                return false;
+            }
+            activity.retiring = true;
+        }
+        let _ = self
+            .stop_locked_until(Instant::now() + Duration::from_secs(7))
+            .await;
+        true
     }
 
     /// Config the current (or last) run was started with.
@@ -1086,7 +1157,13 @@ impl ProcessManager {
         self.start_run(config).await
     }
 
-    async fn start_run(&self, config: LaunchConfig) -> Result<(), String> {
+    async fn start_run(&self, mut config: LaunchConfig) -> Result<(), String> {
+        if crate::engine::server_for(&config).family() == crate::engine::AUDIO_CPP {
+            crate::engine::audio_cpp::require_enabled()?;
+            config.host = "127.0.0.1".into();
+            config.port = crate::engine::audio_cpp::random_port()?;
+            config.port_auto = false;
+        }
         let _lifecycle = self.lifecycle.lock().await;
         // 1. Atomically claim the "Starting" state so two concurrent starts can't both proceed.
         {
@@ -1382,6 +1459,15 @@ impl ProcessManager {
             parallel_slots: slot_plan.as_ref().map(|p| p.advice.slots),
             applied: kv_applied.clone().unwrap_or_default(),
         });
+        if engine.family() == crate::engine::AUDIO_CPP {
+            let dir = tempfile::Builder::new()
+                .prefix("harness-audio-")
+                .tempdir()
+                .map_err(|e| self.set_error(e.to_string()))?;
+            crate::engine::audio_cpp::write_config(&launch, dir.path())
+                .map_err(|e| self.set_error(e))?;
+            *self.audio_run.lock().unwrap() = Some(dir);
+        }
         let mut args = match engine.build_launch(&launch, &caps, runtime_for_params) {
             Ok(out) => {
                 for s in &out.skipped {
@@ -1551,6 +1637,17 @@ impl ProcessManager {
                 crate::network::worker_origins(config.cors_origins.as_deref()),
             );
         }
+        let audio_cwd = self
+            .audio_run
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|d| d.path().to_path_buf());
+        let cwd = if engine.family() == crate::engine::AUDIO_CPP {
+            audio_cwd.as_deref().unwrap_or(cwd)
+        } else {
+            cwd
+        };
         cmd.args(&args)
             .current_dir(cwd)
             .stdin(Stdio::null())
@@ -1667,6 +1764,13 @@ impl ProcessManager {
             });
         }
 
+        {
+            let mut activity = self.activity.lock().unwrap();
+            *activity = ProcessActivity {
+                epoch: activity.epoch + 1,
+                ..Default::default()
+            };
+        }
         *self.child.lock().unwrap() = Some(child_group);
         let generation = self
             .generation
@@ -1763,6 +1867,24 @@ impl ProcessManager {
                 return; // stopped or restarted
             }
 
+            if engine.family() == crate::engine::AUDIO_CPP
+                && crate::engine::audio_cpp::require_enabled().is_err()
+            {
+                let _ = self.stop().await;
+                return;
+            }
+
+            if engine.family() == crate::engine::AUDIO_CPP
+                && self
+                    .stop_audio_if_idle(
+                        generation,
+                        Duration::from_secs(crate::engine::audio_cpp::IDLE_SECONDS),
+                    )
+                    .await
+            {
+                return;
+            }
+
             // Did the process exit?
             let exit = {
                 let mut lock = self.child.lock().unwrap();
@@ -1779,6 +1901,7 @@ impl ProcessManager {
                     }
                     self.child.lock().unwrap().take();
                     self.active.lock().unwrap().take();
+                    self.audio_run.lock().unwrap().take();
                     self.stop_relay();
                     crate::mcp::remove_runtime_config(&self.id);
                     let was_running = self.get_status() == ServerStatus::Running;
@@ -1868,6 +1991,7 @@ impl ProcessManager {
                             if *status == ServerStatus::Starting {
                                 *status = ServerStatus::Running;
                                 drop(status);
+                                self.activity.lock().unwrap().last_used = Instant::now();
                                 self.restart.lock().unwrap().ready_at = Some(Instant::now());
                                 self.publish_status(ServerStatus::Running);
                                 let secs = start_time.elapsed().as_secs_f32();
@@ -2234,6 +2358,10 @@ impl ProcessManager {
 
     pub(crate) async fn stop_until(&self, deadline: Instant) -> Result<(), String> {
         let _lifecycle = self.lifecycle.lock().await;
+        self.stop_locked_until(deadline).await
+    }
+
+    async fn stop_locked_until(&self, deadline: Instant) -> Result<(), String> {
         // A stop also cancels a scheduled automatic restart.
         self.restart.lock().unwrap().pending = None;
         {
@@ -2257,6 +2385,7 @@ impl ProcessManager {
         }
 
         self.active.lock().unwrap().take();
+        self.audio_run.lock().unwrap().take();
         self.stop_relay();
         crate::mcp::remove_runtime_config(&self.id);
         self.set_status(ServerStatus::Stopped);
@@ -2281,6 +2410,9 @@ impl ProcessManager {
         caps: &ServerCaps,
         runtime: Option<&crate::capabilities::RuntimeCapabilities>,
     ) -> Result<BuildOutput, String> {
+        if crate::engine::audio_cpp::is_model(&config.model_path) {
+            return Err(err("audio_cpp.llama_rejected").into());
+        }
         let mut args: Vec<String> = Vec::new();
 
         if config.router_mode {
@@ -3321,6 +3453,54 @@ mod tests {
         let args = ProcessManager::build_args(&config, &ServerCaps::default()).unwrap();
         assert!(args.windows(2).any(|p| p == ["--alias", "mine"]));
         assert_eq!(args.iter().filter(|a| *a == "--alias").count(), 1);
+    }
+
+    #[tokio::test]
+    async fn audio_idle_stop_without_gateway_respects_activity_and_generation() {
+        let mgr = ProcessManager::new();
+        *mgr.child.lock().unwrap() = Some(long_running_child());
+        *mgr.status.lock().unwrap() = ServerStatus::Running;
+        // Match start(): the idle clock starts after the OS has spawned the child.
+        *mgr.activity.lock().unwrap() = ProcessActivity::default();
+        let idle = Duration::from_millis(100);
+        let request = mgr.request_activity().unwrap();
+        sleep(idle * 2).await;
+        assert!(
+            !mgr.stop_audio_if_idle(0, idle).await,
+            "active speech must survive"
+        );
+        drop(request);
+        assert!(
+            !mgr.stop_audio_if_idle(0, idle).await,
+            "completion resets idle time"
+        );
+        sleep(idle * 2).await;
+        assert!(
+            !mgr.stop_audio_if_idle(1, idle).await,
+            "stale supervisor must not stop a run"
+        );
+        assert!(mgr.stop_audio_if_idle(0, idle).await);
+        assert_eq!(mgr.get_status(), ServerStatus::Stopped);
+        assert!(!mgr.has_child());
+        assert!(
+            mgr.request_activity().is_none(),
+            "retiring run refuses requests"
+        );
+    }
+
+    #[tokio::test]
+    async fn audio_idle_stop_without_requests_uses_launch_time() {
+        let mgr = ProcessManager::new();
+        *mgr.child.lock().unwrap() = Some(long_running_child());
+        *mgr.status.lock().unwrap() = ServerStatus::Running;
+        // Match start(): the idle clock starts after the OS has spawned the child.
+        *mgr.activity.lock().unwrap() = ProcessActivity::default();
+        let idle = Duration::from_millis(100);
+        assert!(!mgr.stop_audio_if_idle(0, idle).await);
+        sleep(idle * 2).await;
+        assert!(mgr.stop_audio_if_idle(0, idle).await);
+        assert_eq!(mgr.get_status(), ServerStatus::Stopped);
+        assert!(!mgr.has_child());
     }
 
     #[tokio::test]

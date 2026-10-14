@@ -16,7 +16,7 @@
   import { formatBytes } from '#lib/format.js';
   import { Download, LoaderCircle, Power, Square, Volume2, TriangleAlert } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
-  import { fetchSpeech, isSherpaTts, pickTtsModel, pickTtsVoice, voicesOf, type SpeechResult } from './tts';
+  import { fetchSpeech, pickTtsModel, pickTtsVoice, voicesOf, ttsRequirement, ttsSupportsSpeed, type SpeechResult } from './tts';
   import { readAloud, tts } from './tts.svelte';
   import { MAX_SPEECH_CHARS } from './ttsText';
 
@@ -39,9 +39,10 @@
     tts.voice = pickTtsVoice(tts.voice, tts.models, tts.model);
   });
 
+  let supportsSpeed = $derived(ttsSupportsSpeed(tts.models, tts.model));
   let voices = $derived(voicesOf(tts.models, tts.model));
-  // An mlx-audio model needs no sherpa-onnx runtime.
-  let runtimeMissing = $derived(!!tts.overview && !tts.overview.runtime_installed && isSherpaTts(tts.models, tts.model));
+  let missingFamily = $derived(tts.overview ? ttsRequirement(tts.models, tts.model, tts.overview.runtime_installed) : null);
+  let runtimeMissing = $derived(!!missingFamily);
   let canRun = $derived(!busy && app.gatewayRunning && !runtimeMissing && tts.models.length > 0 && text.trim().length > 0);
   let progressPct = $derived(
     tts.modelProgress && tts.modelProgress.total_bytes > 0 ? (tts.modelProgress.downloaded_bytes / tts.modelProgress.total_bytes) * 100 : 0,
@@ -59,7 +60,7 @@
     try {
       const info = await fetchSpeech(
         app.inferenceUrl,
-        { model: tts.model, input: text.trim(), voice: tts.voice, speed: tts.speed },
+        { model: tts.model, input: text.trim(), voice: tts.voice, speed: supportsSpeed ? tts.speed : 1 },
         app.inferenceHeaders(),
         c.signal,
       );
@@ -122,10 +123,10 @@
   {#if runtimeMissing}
     <div class="flex items-start gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-foreground" role="status">
       <TriangleAlert class="mt-px size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span class="min-w-0 flex-1">{t('speak.no_runtime')}</span>
-      <Button variant="outline" size="sm" class="shrink-0" disabled={tts.installingRuntime} onclick={() => tts.installRuntime()}>
+      <span class="min-w-0 flex-1">{t('speak.engine_missing', { family: missingFamily ?? 'sherpa-onnx' })}</span>
+      <Button variant="outline" size="sm" class="shrink-0" disabled={tts.installingRuntime} onclick={() => tts.installRuntime(missingFamily ?? 'sherpa-onnx')}>
         {#if tts.installingRuntime}<LoaderCircle class="animate-spin" />{:else}<Download />{/if}
-        {tts.installingRuntime ? t('speak.installing') : t('speak.install_runtime')}
+        {tts.installingRuntime ? t('speak.installing') : t('speak.install_engine', { family: missingFamily ?? 'sherpa-onnx' })}
       </Button>
     </div>
   {/if}
@@ -194,13 +195,15 @@
           {/each}
         </select>
       </div>
-      <div class="flex flex-col gap-1.5">
-        <Label for="tts-speed" class="text-sm font-semibold text-foreground">{t('speak.speed_label')}</Label>
-        <div class="flex h-9 items-center gap-2">
-          <input id="tts-speed" type="range" min="0.5" max="2" step="0.05" bind:value={tts.speed} disabled={busy} class="min-w-0 flex-1" />
-          <span class="font-num w-10 text-right text-xs text-muted-foreground">{tts.speed.toFixed(2)}×</span>
+      {#if supportsSpeed}
+        <div class="flex flex-col gap-1.5">
+          <Label for="tts-speed" class="text-sm font-semibold text-foreground">{t('speak.speed_label')}</Label>
+          <div class="flex h-9 items-center gap-2">
+            <input id="tts-speed" type="range" min="0.5" max="2" step="0.05" bind:value={tts.speed} disabled={busy} class="min-w-0 flex-1" />
+            <span class="font-num w-10 text-right text-xs text-muted-foreground">{tts.speed.toFixed(2)}×</span>
+          </div>
         </div>
-      </div>
+      {/if}
     </div>
     <div class="flex flex-col gap-1.5">
       <Label for="tts-text" class="text-sm font-semibold text-foreground">{t('speak.text_label')}</Label>

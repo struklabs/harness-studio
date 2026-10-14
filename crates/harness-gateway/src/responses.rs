@@ -365,6 +365,9 @@ async fn compact_links(
     use std::collections::HashMap;
     use std::sync::atomic::AtomicBool;
 
+    if crate::speech::is_audio_cpp_model(def) {
+        return Err("audio.cpp only accepts POST /v1/audio/speech through the gateway.".into());
+    }
     let cancel = AtomicBool::new(false);
     // The summary is written by the same model, on a slot of its own server.
     let lease = state

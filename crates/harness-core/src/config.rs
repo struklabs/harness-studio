@@ -122,6 +122,8 @@ fn default_language() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppSettings {
+    /// Experimental unauthenticated local TTS server. Explicit opt-in in Settings > Installed Runtime > Other Runtimes.
+    pub audio_cpp_enabled: bool,
     /// None preserves the full interface for existing installations.
     #[serde(default)]
     pub ui_level: Option<UiLevel>,
@@ -242,6 +244,7 @@ impl StartupSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            audio_cpp_enabled: false,
             runtime_mode: RuntimeMode::Managed,
             managed_runtime: ManagedRuntimeConfig::default(),
             custom_binary: CustomBinaryConfig::default(),
@@ -408,8 +411,23 @@ impl AppSettings {
         settings
     }
 
-    /// Persists the settings. The token is never part of this call: it is only changed by
-    /// `set_hf_token` / `clear_hf_token`, so a payload without it can't wipe the stored one.
+    /// The dedicated experimental-engine command must carry explicit risk consent.
+    pub fn set_audio_cpp_enabled(
+        &mut self,
+        enabled: bool,
+        acknowledged: bool,
+    ) -> Result<(), String> {
+        if enabled && !acknowledged {
+            return Err(
+                "Enabling audio.cpp requires acknowledgement of the experimental engine risks."
+                    .into(),
+            );
+        }
+        self.audio_cpp_enabled = enabled;
+        Ok(())
+    }
+
+    /// Persists settings; the token changes only through its dedicated commands.
     pub fn save(&self) -> Result<(), String> {
         self.write_file()?;
         let mut cached = self.clone();
@@ -488,8 +506,32 @@ mod tests {
     }
 
     #[test]
+    fn audio_cpp_enable_requires_explicit_acknowledgement() {
+        let mut settings = AppSettings::default();
+        assert!(settings.set_audio_cpp_enabled(true, false).is_err());
+        assert!(!settings.audio_cpp_enabled);
+        settings.set_audio_cpp_enabled(true, true).unwrap();
+        assert!(settings.audio_cpp_enabled);
+        assert!(settings.set_audio_cpp_enabled(true, false).is_err());
+        assert!(settings.audio_cpp_enabled);
+        settings.set_audio_cpp_enabled(false, false).unwrap();
+        assert!(!settings.audio_cpp_enabled);
+    }
+
+    #[test]
     fn test_default_settings() {
         let settings = AppSettings::default();
+        assert!(!settings.audio_cpp_enabled);
+        assert!(
+            !serde_json::from_str::<AppSettings>("{}")
+                .unwrap()
+                .audio_cpp_enabled
+        );
+        assert!(
+            serde_json::from_str::<AppSettings>(r#"{"audio_cpp_enabled":true}"#)
+                .unwrap()
+                .audio_cpp_enabled
+        );
         assert_eq!(settings.runtime_mode, RuntimeMode::Managed);
         assert_eq!(settings.server.port, 0);
         assert!(!settings.privacy.onboarding_completed);
