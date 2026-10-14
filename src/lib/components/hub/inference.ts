@@ -14,6 +14,8 @@ const SOURCE_KEYS: Record<HfTaskSource, TKey> = {
 const NOT_RUNNABLE_KEYS: Record<HfNotRunnable, TKey> = {
   no_gguf: 'hub.not_runnable_no_gguf',
   adapter: 'hub.not_runnable_adapter',
+  crispasr_pocket_english_only: 'hub.crispasr_pocket_english_only',
+  audio_cpp_espeak_missing: 'hub.audio_cpp_espeak_missing',
   audio_cpp_unsupported: 'hub.not_runnable_audio_cpp',
   not_language_model: 'hub.not_runnable_non_llm'
 };

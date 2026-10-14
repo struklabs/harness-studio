@@ -178,7 +178,7 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
         LaunchConfig {
             binary_path: bridge.clone(),
             model_path: transport.clone(),
-            definition_id: Some(def.id),
+            definition_id: Some(def.id.clone()),
             host: "127.0.0.1".into(),
             port: 0,
             custom_args: Some(format!("--bridge-target {target}")),
@@ -191,8 +191,8 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
     common::start_process(
         &mlx_pm,
         LaunchConfig {
-            binary_path: bridge,
-            model_path: transport,
+            binary_path: bridge.clone(),
+            model_path: transport.clone(),
             definition_id: Some(mlx_def.id),
             host: "127.0.0.1".into(),
             port: 0,
@@ -327,7 +327,13 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
             .unwrap();
         assert_eq!(response.status(), 502);
         let error: Value = response.json().await.unwrap();
-        assert_eq!(error["error"]["message"], "audio.cpp: synthesis failed");
+        assert_eq!(error["error"]["message"], "tts.worker_failed");
+        assert_eq!(pm.get_status(), ServerStatus::Stopped);
+        common::start_process(&pm, LaunchConfig {
+            binary_path: bridge.clone(), model_path: transport.clone(),
+            definition_id: Some(def.id.clone()), host: "127.0.0.1".into(), port: 0,
+            custom_args: Some(format!("--bridge-target {target}")), ..Default::default()
+        }).await.unwrap();
         let response = http
             .post(&url)
             .json(&json!({"model":"pocket","input":"timeout","response_format":"wav"}))
@@ -338,8 +344,9 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
         let error: Value = response.json().await.unwrap();
         assert_eq!(
             error["error"]["message"],
-            "The audio.cpp server did not answer in time."
+            "tts.worker_failed"
         );
+        assert_eq!(pm.get_status(), ServerStatus::Stopped);
         let response = http
             .post(&url)
             .json(&json!({"model":"asr","input":"Hello","response_format":"wav"}))

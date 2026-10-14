@@ -167,6 +167,8 @@ pub enum NotRunnable {
     NoGguf,
     /// audio.cpp family outside the supported TTS surface.
     AudioCppUnsupported,
+    CrispasrPocketEnglishOnly,
+    AudioCppEspeakMissing,
     /// A LoRA adapter: loads on top of a base model, not on its own.
     Adapter,
     /// An image / video generator or diffusion checkpoint.

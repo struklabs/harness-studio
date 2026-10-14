@@ -187,6 +187,18 @@ pub fn start_download(
     id: &str,
 ) -> Result<u64, String> {
     let helper = find(id).ok_or_else(|| format!("Unknown CrispASR helper model: {id}"))?;
+    if let Some(job) = manager.list().into_iter().find(|job| {
+        job.repo_id == helper.repo
+            && job.variant_name == format!("{} (CrispASR helper)", helper.file)
+            && matches!(
+                job.status,
+                crate::downloader::DownloadStatus::Queued
+                    | crate::downloader::DownloadStatus::Downloading
+                    | crate::downloader::DownloadStatus::Verifying
+            )
+    }) {
+        return Ok(job.id);
+    }
     let file = crate::downloader::PinnedFile {
         repo: helper.repo,
         rev: helper.rev,

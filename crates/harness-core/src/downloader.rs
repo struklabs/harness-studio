@@ -777,6 +777,13 @@ fn audio_cpp_variants(
             shards,
         });
     }
+    for variant in &mut variants {
+        if crate::engine::audio_cpp::family_from_package_path(&variant.name)
+            .is_some_and(crate::engine::audio_cpp::espeak_unavailable)
+        {
+            variant.not_runnable = Some(crate::hub_tasks::NotRunnable::AudioCppEspeakMissing);
+        }
+    }
     variants.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(variants)
 }
@@ -1796,7 +1803,7 @@ impl DownloadManager {
         let mut variants = Self::repo_variants(repo_id, token).await?;
         for v in &mut variants {
             if !crate::engine::crispasr_tts::supports_variant(repo_id, &v.name) {
-                v.not_runnable = Some(crate::hub_tasks::NotRunnable::AudioCppUnsupported);
+                v.not_runnable = Some(crate::hub_tasks::NotRunnable::CrispasrPocketEnglishOnly);
             }
         }
         Ok(variants)
@@ -2118,6 +2125,11 @@ impl DownloadManager {
                 sha256: shard.sha256.as_deref().and_then(valid_sha256),
                 custom_url: false,
             });
+        }
+        for helper in crate::engine::crispasr_tts::required_helpers(&repo_id, &variant.name) {
+            if helper.verified().is_none() {
+                crate::engine::crispasr_helpers::start_download(self, helper.id)?;
+            }
         }
         self.enqueue(
             repo_id,
@@ -7037,8 +7049,20 @@ mod audio_cpp_tests {
         assert_eq!(variants.len(), supported.len() + unsupported.len());
         for v in variants {
             let runnable = supported.contains(&v.name.split('/').next().unwrap());
-            assert_eq!(v.not_runnable.is_none(), runnable, "{}", v.name);
-            if !runnable {
+            let dependency_missing = crate::engine::audio_cpp::family_from_package_path(&v.name)
+                .is_some_and(crate::engine::audio_cpp::espeak_unavailable);
+            assert_eq!(
+                v.not_runnable.is_none(),
+                runnable && !dependency_missing,
+                "{}",
+                v.name
+            );
+            if dependency_missing {
+                assert_eq!(
+                    v.not_runnable,
+                    Some(crate::hub_tasks::NotRunnable::AudioCppEspeakMissing)
+                );
+            } else if !runnable {
                 assert_eq!(
                     serde_json::to_value(v).unwrap()["not_runnable"],
                     "audio_cpp_unsupported"

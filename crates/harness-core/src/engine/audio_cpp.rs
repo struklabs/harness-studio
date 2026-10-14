@@ -91,6 +91,31 @@ pub const TTS_FAMILIES: &[&str] = &[
     "mira_tts",
 ];
 
+/// Shared phonemizer consumers audited in audio.cpp v0.9.1 sources.
+pub fn needs_espeak(family: &str) -> bool {
+    matches!(
+        family,
+        "piper_tts" | "kitten_tts" | "sanotts" | "inflect_v2" | "zipvoice" | "kokoro_tts"
+    )
+}
+
+pub fn espeak_unavailable(family: &str) -> bool {
+    cfg!(windows)
+        && needs_espeak(family)
+        && !crate::runtimes::RuntimeRegistry::global()
+            .entries()
+            .unwrap_or_default()
+            .iter()
+            .filter(|r| r.family == AUDIO_CPP)
+            .any(|r| {
+                r.dir.join("espeak-ng-data.bin").is_file()
+                    || r.dir.join("espeak-ng-data.gguf").is_file()
+                    || ((r.dir.join("libespeak-ng.dll").is_file()
+                        || r.dir.join("espeak-ng.dll").is_file())
+                        && r.dir.join("espeak-ng-data").is_dir())
+            })
+}
+
 pub fn task(family: &str) -> Option<&'static str> {
     if TTS_FAMILIES.contains(&family) {
         Some("tts")
@@ -698,6 +723,30 @@ pub fn vram_need(config: &LaunchConfig) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn espeak_dependencies_do_not_block_self_contained_speech_or_processing() {
+        for family in [
+            "piper_tts",
+            "kitten_tts",
+            "sanotts",
+            "inflect_v2",
+            "zipvoice",
+            "kokoro_tts",
+        ] {
+            assert!(super::needs_espeak(family));
+        }
+        for family in [
+            "pocket_tts",
+            "qwen3_tts",
+            "kitten_tts2",
+            "sam_audio",
+            "bs_roformer",
+        ] {
+            assert!(!super::needs_espeak(family));
+            assert!(!super::espeak_unavailable(family));
+        }
+    }
+
     use super::*;
     use crate::params::ParamValue;
 

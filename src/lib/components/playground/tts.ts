@@ -116,7 +116,8 @@ export async function fetchSpeech(
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`HTTP ${res.status}: ${describeErrorBody(text) || res.statusText}`);
+    const detail = describeErrorBody(text) || res.statusText;
+    throw new Error(detail.startsWith('tts.') ? detail : `HTTP ${res.status}: ${detail}`);
   }
   const blob = await res.blob();
   const rate = Number(res.headers.get('x-harness-sample-rate'));

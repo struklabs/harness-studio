@@ -65,6 +65,15 @@ pub fn supports_repo(repo: &str, task: Option<&str>) -> bool {
         )
 }
 
+pub fn required_helpers(repo: &str, variant: &str) -> Vec<super::crispasr_helpers::Helper> {
+    use super::crispasr_helpers::{CMUDICT, KOKORO_VOICE, MISAKI, POCKET_VOICE};
+    match repo.to_ascii_lowercase().as_str() {
+        "cstr/kokoro-82m-gguf" => vec![KOKORO_VOICE, MISAKI, CMUDICT],
+        "cstr/pocket-tts-gguf" if is_english_pocket(variant) => vec![POCKET_VOICE],
+        _ => Vec::new(),
+    }
+}
+
 pub fn voice_dir(path: &Path) -> PathBuf {
     let id = Sha256::digest(path.to_string_lossy().as_bytes());
     crate::paths::data_root()
@@ -92,11 +101,15 @@ pub fn launch_args(path: &Path) -> Result<Vec<String>, String> {
     } else {
         POCKET_VOICE
     };
-    let source = helper
-        .verified()
-        .ok_or("Download this model's voice first (Settings > Installed Runtime > Other Runtimes > CrispASR Helper Models). / Önce bu modelin sesini indirin (Ayarlar > Kurulu Model Motoru > Diğer Model Motorları > CrispASR Yardımcı Modelleri).")?;
-    if backend == "kokoro" && (MISAKI.verified().is_none() || CMUDICT.verified().is_none()) {
-        return Err("Kokoro needs the Pronunciation Dictionary and the English Fallback Dictionary (Settings > Installed Runtime > Other Runtimes > CrispASR Helper Models). / Kokoro için Telaffuz Sözlüğü ve İngilizce Yedek Sözlük gerekir (Ayarlar > Kurulu Model Motoru > Diğer Model Motorları > CrispASR Yardımcı Modelleri).".into());
+    let source = helper.verified().ok_or_else(|| {
+        String::from(crate::error_key::err("tts.crispasr_helper_missing").with("helper", helper.id))
+    })?;
+    for dictionary in [MISAKI, CMUDICT] {
+        if backend == "kokoro" && dictionary.verified().is_none() {
+            return Err(crate::error_key::err("tts.crispasr_helper_missing")
+                .with("helper", dictionary.id)
+                .into());
+        }
     }
     let dir = voice_dir(path);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -130,6 +143,26 @@ fn managed_args(backend: &str, dir: &Path, target: &Path) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn required_helpers_cover_only_supported_tts_downloads() {
+        let ids = |repo, variant| {
+            required_helpers(repo, variant)
+                .iter()
+                .map(|h| h.id)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            ids("cstr/kokoro-82m-GGUF", "kokoro-q8_0"),
+            ["kokoro_voice", "misaki", "cmudict"]
+        );
+        assert_eq!(
+            ids("cstr/pocket-tts-GGUF", "pocket-tts-english-q8_0"),
+            ["pocket_voice"]
+        );
+        assert!(ids("cstr/pocket-tts-GGUF", "pocket-tts-german-q8_0").is_empty());
+        assert!(ids("other/kokoro", "kokoro-q8_0").is_empty());
+    }
 
     #[test]
     fn only_english_pocket_builds_are_offered() {
