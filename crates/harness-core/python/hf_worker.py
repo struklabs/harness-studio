@@ -32,6 +32,7 @@ import io
 import ipaddress
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -237,19 +238,10 @@ class Model:
             trust = False  # never: model code is not run
             refuse_custom_code(folder)
             if task in DIFFUSERS_TASKS:
-                from diffusers import AutoPipelineForText2Image
-
                 dtype = self.dtype()
                 if dtype == "auto":
                     dtype = torch.float16 if self.device() == "cuda" else torch.float32
-                self.pipe = AutoPipelineForText2Image.from_pretrained(
-                    # safetensors when the repo has them, else .bin through torch.load(weights_only=True)
-                    folder,
-                    torch_dtype=dtype,
-                    local_files_only=True,
-                    use_safetensors=None,
-                    trust_remote_code=False,
-                ).to(self.device())
+                self.pipe = load_text_to_image(folder, dtype).to(self.device())
                 self.default_scheduler = self.pipe.scheduler
                 low = self.args.low_memory
                 if low == "on" or (low == "auto" and self.device() in ("cpu", "mps")):
@@ -301,6 +293,67 @@ class Model:
 
 class CustomCodeRefused(Exception):
     pass
+
+
+class UnsafeWeights(Exception):
+    pass
+
+
+def pickle_weights(folder):
+    """Whether a pipeline component's weights are a PyTorch `.bin` (a pickle) rather than
+    safetensors: `unet/diffusion_pytorch_model.bin` (`segmind/tiny-sd` has only those)."""
+    for entry in os.scandir(folder):
+        if entry.is_dir():
+            for name in os.listdir(entry.path):
+                if name.endswith(".bin") and ".index" not in name:
+                    return True
+    return False
+
+
+def torch_loads_weights_only(version):
+    """torch >= 2.6 loads with `weights_only=True` by default: a pickle may hold tensors and
+    plain containers, no callable (no code runs while it loads)."""
+    major, minor = (int(x) for x in re.findall(r"\d+", version)[:2])
+    return (major, minor) >= (2, 6)
+
+
+def load_text_to_image(folder, dtype):
+    """A diffusers text-to-image pipeline from its folder: safetensors only when no component has
+    a `.bin`; `.bin` weights only through `torch.load(weights_only=True)` (diffusers and
+    transformers pass it, and torch >= 2.6 defaults to it), never with an older torch."""
+    import torch
+    from diffusers import AutoPipelineForText2Image
+
+    pickles = pickle_weights(folder)
+    if pickles and not torch_loads_weights_only(torch.__version__):
+        raise UnsafeWeights(f"PyTorch .bin weights need torch 2.6 or later (found {torch.__version__})")
+    return AutoPipelineForText2Image.from_pretrained(
+        folder,
+        torch_dtype=dtype,
+        local_files_only=True,
+        use_safetensors=None if pickles else True,
+        trust_remote_code=False,
+        variant=weights_variant(folder),
+    )
+
+
+def weights_variant(folder):
+    """"fp16" when the pipeline's components hold only fp16 weights (the Hub download takes that
+    one variant: `unet/diffusion_pytorch_model.fp16.safetensors`), else None (plain weights)."""
+    fp16 = plain = False
+    for entry in os.scandir(folder):
+        if not entry.is_dir():
+            continue
+        for name in os.listdir(entry.path):
+            stem, ext = os.path.splitext(name)
+            if ext not in (".safetensors", ".bin") or ".index" in stem:
+                continue
+            stem = re.sub(r"-\d{5}-of-\d{5}$", "", stem)
+            if stem.endswith(".fp16"):
+                fp16 = True
+            elif "." not in stem:
+                plain = True
+    return "fp16" if fp16 and not plain else None
 
 
 # Libraries a diffusers `model_index.json` component may come from (anything else is a module of

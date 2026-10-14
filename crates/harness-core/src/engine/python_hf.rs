@@ -1095,6 +1095,42 @@ mod tests {
     /// Browsers: the worker answers the Harness window's preflight (no key needed), refuses
     /// every other Origin with 403 before the key, and keeps the key for real requests. Run
     /// over a stand-in Starlette (the checks are the worker's own ASGI code).
+    /// A diffusers pipeline whose PyTorch `.bin` is a malicious pickle does not load and its code
+    /// does not run (`torch.load(weights_only=True)`): `python/test_hf_worker_pickle.py` with the
+    /// hf-cpu environment's Python in `HS_PYHF_PYTHON` (torch, diffusers, transformers). Skipped
+    /// without it.
+    #[test]
+    fn pickle_weights_do_not_run_code() {
+        let Some(python) = std::env::var_os("HS_PYHF_PYTHON") else {
+            eprintln!("HS_PYHF_PYTHON not set, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let worker = dir.path().join("hf_worker.py");
+        std::fs::write(&worker, WORKER).unwrap();
+        let script = dir.path().join("test_hf_worker_pickle.py");
+        std::fs::write(
+            &script,
+            include_str!("../../python/test_hf_worker_pickle.py"),
+        )
+        .unwrap();
+        let work = dir.path().join("work");
+        std::fs::create_dir_all(&work).unwrap();
+        let out = std::process::Command::new(python)
+            .arg("-I")
+            .arg(&script)
+            .arg(&worker)
+            .arg(&work)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            out.status.success() && stdout.contains("PASS"),
+            "{stdout}\n{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
     #[test]
     fn the_worker_answers_only_harness_origins() {
         use crate::engine::mlx::tests::{cors_expected, system_python, CORS_DRIVER};

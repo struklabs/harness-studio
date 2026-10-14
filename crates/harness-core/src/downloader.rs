@@ -68,6 +68,10 @@ pub struct HfModelSearchResult {
     /// Repo creation time (ISO 8601).
     #[serde(default)]
     pub created_at: Option<String>,
+    /// A diffusers pipeline of the Python engine whose download includes PyTorch `.bin` weights
+    /// (a component without safetensors): they load as weights only, never as code.
+    #[serde(default)]
+    pub pickle_weights: bool,
 }
 
 /// Hugging Face search filters. Empty/None fields are not sent.
@@ -533,6 +537,14 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     {
         capabilities.push(crate::model_registry::Capability::Chat);
     }
+    let pickle_weights = format == crate::hub_compat::ModelFormat::Diffusers
+        && matches!(
+            &compatibility,
+            crate::hub_compat::Compatibility::Runnable { runtime }
+                | crate::hub_compat::Compatibility::NeedsRuntime { runtime }
+                if runtime == crate::hub_compat::PYTHON_HF_FAMILY
+        )
+        && crate::hub_compat::diffusers_pickle_weights(&sibling_files(item));
     Some(HfModelSearchResult {
         id,
         author: str_field("author"),
@@ -553,6 +565,7 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         gated: gated_value(item.get("gated")),
         quants: quants_from_siblings(item),
         created_at: str_field("createdAt"),
+        pickle_weights,
     })
 }
 
@@ -1687,6 +1700,8 @@ impl DownloadManager {
                                         || (onnx_repo && is_onnx_repo_file(rfilename))
                                         || (genai_repo && is_genai_repo_file(rfilename))
                                         || is_safetensors_repo_file(rfilename)
+                                        || is_diffusers_repo_file(rfilename)
+                                        || is_diffusers_component_weight(rfilename)
                                     {
                                         all.push(serde_json::json!({
                                             "type": "file",
@@ -1780,6 +1795,12 @@ impl DownloadManager {
             let onnx = encoder_onnx_variants(repo_id, &items)?;
             if !onnx.is_empty() {
                 return Ok(onnx);
+            }
+            // A diffusers pipeline (the Python engine): `model_index.json` and its component
+            // folders, one weight variant.
+            let pipeline = diffusers_variants(repo_id, &items)?;
+            if !pipeline.is_empty() {
+                return Ok(pipeline);
             }
             // A safetensors checkpoint (mistral.rs): the whole repo folder in one download.
             let checkpoint = safetensors_variants(repo_id, &items)?;
@@ -3762,6 +3783,203 @@ fn is_torch_weights(path: &str) -> bool {
     !lower.contains('/') && lower.starts_with("pytorch_model") && lower.ends_with(".bin")
 }
 
+/// Weight variant of a diffusers component file (`diffusion_pytorch_model.fp16.safetensors` ->
+/// `fp16`, a shard `model.fp16-00001-of-00002.safetensors` too); `None` for the plain weights.
+fn diffusers_weight_variant(name: &str) -> Option<String> {
+    let stem = name
+        .strip_suffix(".safetensors")
+        .or_else(|| name.strip_suffix(".bin"))
+        .unwrap_or(name);
+    let stem = Regex::new(r"-\d{5}-of-\d{5}$")
+        .map(|re| re.replace(stem, "").into_owned())
+        .unwrap_or_else(|_| stem.to_string());
+    stem.split_once('.').map(|(_, v)| v.to_string())
+}
+
+/// A non-weight file of a diffusers component folder (`unet/config.json`, `tokenizer/merges.txt`,
+/// `scheduler/scheduler_config.json`): one folder down, a config or tokenizer file.
+fn is_diffusers_repo_file(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase().replace('\\', "/");
+    let Some((_, name)) = lower.split_once('/') else {
+        return lower == "model_index.json";
+    };
+    !name.contains('/')
+        && !name.contains(".index.")
+        && (name.ends_with(".json")
+            || name.ends_with(".txt")
+            || name.ends_with(".model")
+            || name == "tokenizer.json")
+}
+
+/// A weight file one folder down (`unet/diffusion_pytorch_model.safetensors`): a diffusers
+/// component's, which [`diffusers_variants`] chooses among.
+fn is_diffusers_component_weight(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase().replace('\\', "/");
+    lower.split('/').count() == 2 && (lower.ends_with(".safetensors") || lower.ends_with(".bin"))
+}
+
+/// The variant of a diffusers pipeline repo (the Python engine loads it from its folders): one
+/// download of `model_index.json` and every component folder (`unet/`, `vae/`, `text_encoder/`,
+/// `tokenizer/`, `scheduler/`...) in the repo layout, with one set of weights: the fp16
+/// safetensors when every component has them, else the plain safetensors, and PyTorch `.bin`
+/// only for a component that has no safetensors (`segmind/tiny-sd`). Other variants
+/// (`non_ema`...), Flax, ONNX and OpenVINO exports, nested folders and root checkpoints are
+/// left out. Empty when the repo has no `model_index.json` or no component weights.
+fn diffusers_variants(
+    repo_id: &str,
+    items: &[serde_json::Value],
+) -> Result<Vec<HfModelVariant>, String> {
+    struct F {
+        path: String,
+        dir: String,
+        name: String,
+        size: u64,
+        sha256: Option<String>,
+    }
+    let files: Vec<F> = items
+        .iter()
+        .filter_map(|item| {
+            let path = item.get("path").and_then(|v| v.as_str())?.to_string();
+            let lower = path.to_ascii_lowercase();
+            let (dir, name) = match lower.split_once('/') {
+                Some((d, n)) if !n.contains('/') => (d.to_string(), n.to_string()),
+                Some(_) => return None,
+                None => (String::new(), lower.clone()),
+            };
+            let size = item
+                .get("lfs")
+                .and_then(|l| l.get("size"))
+                .and_then(|v| v.as_u64())
+                .or_else(|| item.get("size").and_then(|v| v.as_u64()))
+                .unwrap_or(0);
+            let sha256 = item
+                .get("lfs")
+                .and_then(|l| l.get("oid"))
+                .and_then(|v| v.as_str())
+                .and_then(valid_sha256);
+            Some(F {
+                path,
+                dir,
+                name,
+                size,
+                sha256,
+            })
+        })
+        .collect();
+    if !files
+        .iter()
+        .any(|f| f.dir.is_empty() && f.name == "model_index.json")
+    {
+        return Ok(Vec::new());
+    }
+    let safetensors = |f: &F| !f.dir.is_empty() && f.name.ends_with(".safetensors");
+    let torch_bin = |f: &F| {
+        !f.dir.is_empty()
+            && f.name.ends_with(".bin")
+            && (f.name.starts_with("diffusion_pytorch_model")
+                || f.name.starts_with("pytorch_model")
+                || f.name.starts_with("model"))
+    };
+    let mut dirs: Vec<&str> = files
+        .iter()
+        .filter(|f| safetensors(f) || torch_bin(f))
+        .map(|f| f.dir.as_str())
+        // A component has its config next to its weights (`unet/config.json`).
+        .filter(|d| files.iter().any(|f| f.dir == *d && f.name == "config.json"))
+        .collect();
+    dirs.sort();
+    dirs.dedup();
+    if dirs.is_empty() {
+        return Ok(Vec::new());
+    }
+    let variant = |f: &F| diffusers_weight_variant(&f.name);
+    let fp16 = |f: &F| variant(f).as_deref() == Some("fp16");
+    // fp16 only when every component has it: diffusers loads one variant for the whole pipeline.
+    let all_fp16 = dirs.iter().all(|d| {
+        files
+            .iter()
+            .any(|f| f.dir == *d && safetensors(f) && fp16(f))
+    });
+    let mut parts: Vec<&F> = Vec::new();
+    for d in &dirs {
+        let mine = |f: &&F| f.dir == *d;
+        let pick: Vec<&F> = if all_fp16 {
+            files
+                .iter()
+                .filter(mine)
+                .filter(|f| safetensors(f) && fp16(f))
+                .collect()
+        } else {
+            let plain: Vec<&F> = files
+                .iter()
+                .filter(mine)
+                .filter(|f| safetensors(f) && variant(f).is_none())
+                .collect();
+            if plain.is_empty() {
+                files
+                    .iter()
+                    .filter(mine)
+                    .filter(|f| torch_bin(f) && variant(f).is_none())
+                    .collect()
+            } else {
+                plain
+            }
+        };
+        parts.extend(pick);
+    }
+    if parts.is_empty() {
+        return Ok(Vec::new());
+    }
+    // The shard index of the chosen weights (`x.safetensors.index.json`, `x.safetensors.index.fp16.json`).
+    let index_of = |name: &str| {
+        let wanted = if all_fp16 {
+            ".index.fp16.json"
+        } else {
+            ".index.json"
+        };
+        let ext = if parts.iter().any(|p| p.name.ends_with(".safetensors")) {
+            ".safetensors"
+        } else {
+            ".bin"
+        };
+        name.ends_with(wanted) && name.contains(ext)
+    };
+    let mut companions: Vec<&F> = files
+        .iter()
+        .filter(|f| {
+            is_diffusers_repo_file(&f.path)
+                || (!f.dir.is_empty() && f.name.contains(".index.") && index_of(&f.name))
+        })
+        .collect();
+    companions.sort_by(|a, b| a.path.cmp(&b.path));
+    parts.sort_by(|a, b| a.path.cmp(&b.path));
+    let parts: Vec<&F> = parts.into_iter().chain(companions).collect();
+    let total = parts.len() as u32;
+    let shards = parts
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            Ok(HfShardInfo {
+                download_url: DownloadManager::hf_file_url(repo_id, "resolve", &f.path)?
+                    .to_string(),
+                filename: f.path.clone(),
+                size_bytes: f.size,
+                shard_index: i as u32 + 1,
+                total_shards: total,
+                sha256: f.sha256.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(vec![HfModelVariant {
+        not_runnable: None,
+        name: repo_id.rsplit('/').next().unwrap_or(repo_id).to_string(),
+        quantization: if all_fp16 { "FP16" } else { "DIFFUSERS" }.to_string(),
+        total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
+        is_split: false,
+        shards,
+    }])
+}
+
 /// The variant of a transformers checkpoint repo (a chat model mistral.rs runs from its folder,
 /// or a task model of the Python engine): one download of the root weights
 /// (`consolidated*.safetensors` left out when transformers shards are there; PyTorch `.bin`
@@ -3858,7 +4076,8 @@ fn verify_model_magic(path: &Path, filename: &str) -> Result<(), String> {
     {
         return verify_ckpt_magic(path);
     }
-    if is_onnx_repo_file(filename)
+    if is_diffusers_repo_file(filename)
+        || is_onnx_repo_file(filename)
         || is_genai_repo_file(filename)
         || is_safetensors_repo_file(filename)
     {
@@ -4626,12 +4845,16 @@ mod tests {
             "siblings": [{"rfilename": "model_index.json"},
                          {"rfilename": "unet/diffusion_pytorch_model.safetensors"}],
         });
+        // A diffusers-only pipeline (no single-file checkpoint) is the Python engine's.
         let repo = parse_search_item(&folders).unwrap();
-        assert!(repo.not_runnable.is_some());
-        assert!(!matches!(
+        assert_eq!(repo.not_runnable, None);
+        assert_eq!(repo.format, ModelFormat::Diffusers);
+        assert_eq!(
             repo.compatibility,
-            Compatibility::Runnable { .. }
-        ));
+            Compatibility::Runnable {
+                runtime: "python-hf".into()
+            }
+        );
     }
 
     #[test]
@@ -4799,6 +5022,130 @@ mod tests {
         assert!(is_safetensors_repo_file("README.md"));
         assert!(!is_safetensors_repo_file("onnx/model.onnx"));
         assert!(!is_safetensors_repo_file("figures/benchmark.png"));
+    }
+
+    #[test]
+    fn diffusers_variant_takes_one_set_of_component_weights() {
+        let file =
+            |p: &str, size: u64| serde_json::json!({"type": "file", "path": p, "size": size});
+        let names = |v: &[HfModelVariant]| -> Vec<String> {
+            v[0].shards.iter().map(|s| s.filename.clone()).collect()
+        };
+        // segmind/tiny-sd: PyTorch weights only, so the .bin files come.
+        let tiny = vec![
+            file("README.md", 1),
+            file("grid_tiny.png", 1),
+            file("model_index.json", 1),
+            file("scheduler/scheduler_config.json", 1),
+            file("text_encoder/config.json", 1),
+            file("text_encoder/pytorch_model.bin", 246),
+            file("tokenizer/merges.txt", 1),
+            file("tokenizer/special_tokens_map.json", 1),
+            file("tokenizer/tokenizer_config.json", 1),
+            file("tokenizer/vocab.json", 1),
+            file("unet/config.json", 1),
+            file("unet/diffusion_pytorch_model.bin", 647),
+            file("vae/config.json", 1),
+            file("vae/diffusion_pytorch_model.bin", 167),
+        ];
+        let v = diffusers_variants("segmind/tiny-sd", &tiny).unwrap();
+        assert_eq!(v[0].quantization, "DIFFUSERS");
+        assert_eq!(v[0].total_size_bytes, 246 + 647 + 167 + 9);
+        assert_eq!(
+            names(&v),
+            [
+                "text_encoder/pytorch_model.bin",
+                "unet/diffusion_pytorch_model.bin",
+                "vae/diffusion_pytorch_model.bin",
+                "model_index.json",
+                "scheduler/scheduler_config.json",
+                "text_encoder/config.json",
+                "tokenizer/merges.txt",
+                "tokenizer/special_tokens_map.json",
+                "tokenizer/tokenizer_config.json",
+                "tokenizer/vocab.json",
+                "unet/config.json",
+                "vae/config.json",
+            ]
+        );
+        // Every component has fp16 safetensors: only those, no .bin, non_ema, ONNX or root files.
+        let mut sd = vec![
+            file("model_index.json", 1),
+            file("v1-5-pruned.safetensors", 7703),
+            file("feature_extractor/preprocessor_config.json", 1),
+            file("onnx/unet/model.onnx", 3000),
+            file("unet/config.json", 1),
+            file("unet/diffusion_pytorch_model.bin", 3438),
+            file("unet/diffusion_pytorch_model.fp16.bin", 1719),
+            file("unet/diffusion_pytorch_model.fp16.safetensors", 1719),
+            file("unet/diffusion_pytorch_model.non_ema.safetensors", 3438),
+            file("unet/diffusion_pytorch_model.safetensors", 3438),
+            file("vae/config.json", 1),
+            file("vae/diffusion_pytorch_model.fp16.safetensors", 167),
+            file("vae/diffusion_pytorch_model.safetensors", 334),
+            file("vae/diffusion_flax_model.msgpack", 334),
+        ];
+        let v = diffusers_variants("a/sd", &sd).unwrap();
+        assert_eq!(v[0].quantization, "FP16");
+        assert_eq!(
+            names(&v),
+            [
+                "unet/diffusion_pytorch_model.fp16.safetensors",
+                "vae/diffusion_pytorch_model.fp16.safetensors",
+                "feature_extractor/preprocessor_config.json",
+                "model_index.json",
+                "unet/config.json",
+                "vae/config.json",
+            ]
+        );
+        // A component without fp16: the plain safetensors for all.
+        sd.retain(|f| f["path"] != "vae/diffusion_pytorch_model.fp16.safetensors");
+        let v = diffusers_variants("a/sd", &sd).unwrap();
+        assert!(names(&v).contains(&"unet/diffusion_pytorch_model.safetensors".to_string()));
+        assert!(names(&v).contains(&"vae/diffusion_pytorch_model.safetensors".to_string()));
+        assert!(!names(&v)
+            .iter()
+            .any(|n| n.contains("fp16") || n.ends_with(".bin")));
+        // Sharded weights keep the index of their variant.
+        let sharded = vec![
+            file("model_index.json", 1),
+            file("transformer/config.json", 1),
+            file(
+                "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+                5,
+            ),
+            file(
+                "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+                5,
+            ),
+            file(
+                "transformer/diffusion_pytorch_model.safetensors.index.json",
+                1,
+            ),
+            file("transformer/diffusion_pytorch_model.bin.index.json", 1),
+        ];
+        let v = diffusers_variants("a/flux", &sharded).unwrap();
+        let n = names(&v);
+        assert!(
+            n.contains(&"transformer/diffusion_pytorch_model.safetensors.index.json".to_string())
+        );
+        assert!(!n.contains(&"transformer/diffusion_pytorch_model.bin.index.json".to_string()));
+        assert_eq!(n.iter().filter(|n| n.ends_with(".safetensors")).count(), 2);
+        // No model_index.json: not a pipeline.
+        let no_index: Vec<_> = tiny
+            .iter()
+            .filter(|f| f["path"] != "model_index.json")
+            .cloned()
+            .collect();
+        assert!(diffusers_variants("a/b", &no_index).unwrap().is_empty());
+        assert_eq!(
+            diffusers_weight_variant("model.fp16-00001-of-00002.safetensors").as_deref(),
+            Some("fp16")
+        );
+        assert_eq!(
+            diffusers_weight_variant("diffusion_pytorch_model-00001-of-00002.safetensors"),
+            None
+        );
     }
 
     #[test]
