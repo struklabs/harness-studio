@@ -202,14 +202,18 @@ def cors(inner):
     request without Origin (not a browser) passes unchanged."""
 
     async def app(scope, receive, send):
-        if scope["type"] != "http":
+        if scope["type"] not in ("http", "websocket"):
             return await inner(scope, receive, send)
         origin = dict(scope.get("headers") or []).get(b"origin")
         if origin is None:
             return await inner(scope, receive, send)
         if origin.decode("latin-1") not in ORIGINS:
+            if scope["type"] == "websocket":
+                return await send({"type": "websocket.close", "code": 1008})
             return await respond(send, 403, error(
                 "Origin not allowed.", "permission_error", "origin_not_allowed"))
+        if scope["type"] == "websocket":
+            return await inner(scope, receive, send)
         allow = [(b"access-control-allow-origin", origin), (b"vary", b"Origin")]
         if scope["method"] == "OPTIONS":
             await send({"type": "http.response.start", "status": 204,

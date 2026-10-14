@@ -1140,7 +1140,7 @@ mod tests {
         let text = String::from_utf8_lossy(&out.stdout).to_string()
             + &String::from_utf8_lossy(&out.stderr);
         assert!(out.status.success(), "{text}");
-        for line in cors_expected("hf", "-") {
+        for line in cors_expected("hf", "-", 401) {
             assert!(text.contains(&line), "{line} missing:\n{text}");
         }
     }

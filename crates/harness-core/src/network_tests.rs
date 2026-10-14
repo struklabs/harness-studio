@@ -376,6 +376,13 @@ fn worker_origins_are_the_window_and_exact_user_origins() {
         )),
         format!("{app},http://a.example,https://b.example:8443")
     );
+    // The form a browser sends: lowercase, no trailing slash; wildcards and paths never match.
+    assert_eq!(
+        worker_origins(Some(
+            "HTTP://Example.COM/,http://*,http://*.example,http://a.example/path,https://,http://:80,http://example.com"
+        )),
+        format!("{app},http://example.com")
+    );
 }
 
 #[test]

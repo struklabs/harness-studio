@@ -121,6 +121,8 @@ def main(argv=None):
             return self._refuse(403, "Origin not allowed.", "permission_error", "origin_not_allowed")
 
         def do_OPTIONS(self):
+            if self.headers.get("Origin") is None:
+                return super().do_OPTIONS()
             if self.headers.get("Origin") not in ORIGINS:
                 return self._forbid()
             self.send_response(204)

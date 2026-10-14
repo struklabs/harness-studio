@@ -883,7 +883,7 @@ def build_app(model: Model):
     ]
 
     async def cors(scope, receive, send):
-        if scope["type"] != "http":
+        if scope["type"] not in ("http", "websocket"):
             await guarded(scope, receive, send)
             return
         origin = dict(scope.get("headers") or []).get(b"origin")
@@ -891,7 +891,13 @@ def build_app(model: Model):
             await guarded(scope, receive, send)
             return
         if origin.decode("latin-1") not in origins:
-            await error(403, "Origin not allowed.", "permission_error", "origin_not_allowed")(scope, receive, send)
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
+            else:
+                await error(403, "Origin not allowed.", "permission_error", "origin_not_allowed")(scope, receive, send)
+            return
+        if scope["type"] == "websocket":
+            await guarded(scope, receive, send)
             return
         allow = [(b"access-control-allow-origin", origin), (b"vary", b"Origin")]
         if scope["method"] == "OPTIONS":

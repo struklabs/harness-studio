@@ -1350,9 +1350,11 @@ asyncio.run(main())
     /// The workers run with `HARNESS_WORKER_ORIGINS=tauri://localhost` and key `k`.
     pub(crate) const CORS_DRIVER: &str = r#"
 import asyncio
-async def _call(app, method, path, origin=None, key=True):
+async def _call(app, method, path, origin=None, key=True, kind="http"):
     body = b'{"messages": [{"role": "user", "content": "hi"}]}'
-    sent, queue = [], [{"type": "http.request", "body": body, "more_body": False}]
+    first = {"type": "websocket.connect"} if kind == "websocket" else {
+        "type": "http.request", "body": body, "more_body": False}
+    sent, queue = [], [first]
     async def receive():
         return queue.pop(0) if queue else {"type": "http.disconnect"}
     async def send(m):
@@ -1360,7 +1362,9 @@ async def _call(app, method, path, origin=None, key=True):
     headers = [(b"authorization", b"Bearer k")] if key else []
     if origin:
         headers.append((b"origin", origin.encode()))
-    await app({"type": "http", "method": method, "path": path, "headers": headers}, receive, send)
+    await app({"type": kind, "method": method, "path": path, "headers": headers}, receive, send)
+    if kind == "websocket":
+        return sent[0]["type"], sent[0].get("code")
     h = dict(sent[0].get("headers") or [])
     return (sent[0]["status"], h.get(b"access-control-allow-origin", b"-").decode(),
             h.get(b"access-control-allow-headers", b"-").decode())
@@ -1369,13 +1373,18 @@ def report(name, app, method, path):
     for label, args in [("preflight", ("OPTIONS", T, False)), ("preflight foreign", ("OPTIONS", E, False)),
                         ("foreign", (method, E)), ("foreign nokey", (method, E, False)),
                         ("allowed nokey", (method, T, False)), ("allowed", (method, T)),
-                        ("plain", (method, None))]:
+                        ("plain", (method, None)), ("options plain", ("OPTIONS", None, False)),
+                        # Browsers send "null", lowercase and no slash: anything else is foreign.
+                        ("null", (method, "null")), ("upper", (method, "TAURI://LOCALHOST")),
+                        ("slash", (method, T + "/")),
+                        ("ws foreign", ("GET", E, True, "websocket"))]:
         print(name, label, asyncio.run(_call(app, args[0], path, *args[1:])))
 "#;
 
     /// What [`CORS_DRIVER`] prints for a worker that answers `path` with 200 (`plain` is the
-    /// header a request without Origin gets: the inner app's own, unchanged).
-    pub(crate) fn cors_expected(name: &str, plain: &str) -> Vec<String> {
+    /// header a request without Origin gets: the inner app's own, unchanged; `options` the
+    /// status of an OPTIONS without Origin, also the worker's own answer).
+    pub(crate) fn cors_expected(name: &str, plain: &str, options: u16) -> Vec<String> {
         [
             "preflight (204, 'tauri://localhost', 'authorization, content-type')",
             "preflight foreign (403, '-', '-')",
@@ -1383,10 +1392,17 @@ def report(name, app, method, path):
             "foreign nokey (403, '-', '-')",
             "allowed nokey (401, 'tauri://localhost', '-')",
             "allowed (200, 'tauri://localhost', '-')",
+            "null (403, '-', '-')",
+            "upper (403, '-', '-')",
+            "slash (403, '-', '-')",
+            "ws foreign ('websocket.close', 1008)",
         ]
         .iter()
         .map(|l| format!("{name} {l}"))
-        .chain([format!("{name} plain (200, '{plain}', '-')")])
+        .chain([
+            format!("{name} plain (200, '{plain}', '-')"),
+            format!("{name} options plain ({options}, "),
+        ])
         .collect()
     }
 
@@ -1428,9 +1444,9 @@ report("audio", a.cors(a.app_for(lambda *x: b"RIFF", "tts", [], 50)), "GET", "/v
         let text = String::from_utf8_lossy(&out.stdout).to_string()
             + &String::from_utf8_lossy(&out.stderr);
         assert!(out.status.success(), "{text}");
-        for line in cors_expected("vlm", "*")
+        for line in cors_expected("vlm", "*", 404)
             .into_iter()
-            .chain(cors_expected("audio", "-"))
+            .chain(cors_expected("audio", "-", 404))
         {
             assert!(text.contains(&line), "{line} missing:\n{text}");
         }
@@ -1474,6 +1490,9 @@ class APIHandler(BaseHTTPRequestHandler):
         self._ok()
     def do_POST(self):
         self._ok()
+    def do_OPTIONS(self):
+        self._set_completion_headers(204)
+        self.end_headers()
 class ModelProvider:
     def __init__(self, cli_args):
         self.cli_args = cli_args
@@ -1502,9 +1521,11 @@ from mlx_lm import server
 w.main(["--model", "m", "--port", "0"])
 httpd = server.ThreadingHTTPServer(("127.0.0.1", 0), server.HANDLER[0])
 threading.Thread(target=httpd.serve_forever, daemon=True).start()
-def call(method, path, origin=None, key=True):
+def call(method, path, origin=None, key=True, upgrade=False):
     c = http.client.HTTPConnection("127.0.0.1", httpd.server_port)
     h = {{"Authorization": "Bearer k"}} if key else {{}}
+    if upgrade:
+        h.update({{"Upgrade": "websocket", "Connection": "Upgrade"}})
     if origin:
         h["Origin"] = origin
     c.request(method, path, body=b"{{}}" if method == "POST" else None, headers=h)
@@ -1516,7 +1537,9 @@ T, E = "tauri://localhost", "https://evil.example"
 for label, args in [("preflight", ("OPTIONS", T, False)), ("preflight foreign", ("OPTIONS", E, False)),
                     ("foreign", ("POST", E)), ("foreign nokey", ("POST", E, False)),
                     ("allowed nokey", ("POST", T, False)), ("allowed", ("POST", T)),
-                    ("plain", ("POST", None))]:
+                    ("plain", ("POST", None)), ("options plain", ("OPTIONS", None, False)),
+                    ("null", ("POST", "null")), ("upper", ("POST", "TAURI://LOCALHOST")),
+                    ("slash", ("POST", T + "/")), ("ws foreign", ("GET", E, True, True))]:
     print("text", label, call(args[0], "/v1/chat/completions", *args[1:]))
 print("text health foreign", call("GET", "/health", E, False))
 "#,
@@ -1534,9 +1557,14 @@ print("text health foreign", call("GET", "/health", E, False))
         let text = String::from_utf8_lossy(&out.stdout).to_string()
             + &String::from_utf8_lossy(&out.stderr);
         assert!(out.status.success(), "{text}");
-        for line in cors_expected("text", "-")
+        // mlx-lm has no websockets: an upgrade from a foreign page is a GET, refused the same.
+        for line in cors_expected("text", "-", 204)
             .into_iter()
-            .chain(["text health foreign (403, '-', '-')".to_string()])
+            .filter(|l| !l.contains("ws foreign"))
+            .chain([
+                "text health foreign (403, '-', '-')".to_string(),
+                "text ws foreign (403, '-', '-')".to_string(),
+            ])
         {
             assert!(text.contains(&line), "{line} missing:\n{text}");
         }

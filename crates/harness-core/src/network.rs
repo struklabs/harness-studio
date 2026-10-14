@@ -217,14 +217,26 @@ pub fn cors_arg(origins: &[String], scope: BindScope) -> Option<String> {
 }
 
 /// Browser origins a Python worker answers (comma-joined, for its environment): the Harness
-/// window and the exact origins of `cors` (a launch's resolved `--cors-origins` value). `*`,
-/// `localhost` and [`CORS_DENY_ALL`] are llama-server values that no browser `Origin` equals,
-/// so they add nothing: a worker never opens to every page.
+/// window and the origins of `cors` (a launch's resolved `--cors-origins` value), in the form a
+/// browser sends (`scheme://host[:port]`, lowercase, no trailing slash), since the worker
+/// compares them exactly. `*`, `localhost`, [`CORS_DENY_ALL`], wildcards and entries with a
+/// path add nothing: a worker never opens to every page.
 pub fn worker_origins(cors: Option<&str>) -> String {
-    let mut out: Vec<&str> = APP_ORIGINS.to_vec();
-    for origin in cors.unwrap_or("").split(',').map(str::trim) {
-        let scheme = origin.starts_with("http://") || origin.starts_with("https://");
-        if scheme && !out.contains(&origin) {
+    let mut out: Vec<String> = APP_ORIGINS.iter().map(|o| o.to_string()).collect();
+    for raw in cors.unwrap_or("").split(',') {
+        let origin = raw.trim().trim_end_matches('/').to_ascii_lowercase();
+        let Some(rest) = origin
+            .strip_prefix("http://")
+            .or_else(|| origin.strip_prefix("https://"))
+        else {
+            continue;
+        };
+        let host_ok = !rest.is_empty()
+            && !rest.starts_with(':')
+            && rest
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '[' | ']'));
+        if host_ok && !out.contains(&origin) {
             out.push(origin);
         }
     }
