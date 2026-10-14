@@ -1262,9 +1262,12 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
     /// The audio worker's checks and routes around a stand-in speaker (system Python, no MLX).
     #[test]
     fn the_audio_worker_speaks_only_checked_requests() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
-        let python = if cfg!(windows) { "python" } else { "python3" };
         let script = format!(
             r#"
 import sys, asyncio; sys.path.insert(0, {:?}); import mlx_audio_worker as w
@@ -1310,14 +1313,11 @@ asyncio.run(main())
 "#,
             dir.path().to_string_lossy()
         );
-        let Ok(out) = std::process::Command::new(python)
+        let out = std::process::Command::new(python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()
-        else {
-            eprintln!("no {python}, skipping");
-            return;
-        };
+            .unwrap();
         let text = String::from_utf8_lossy(&out.stdout).to_string()
             + &String::from_utf8_lossy(&out.stderr);
         assert!(out.status.success(), "{text}");
