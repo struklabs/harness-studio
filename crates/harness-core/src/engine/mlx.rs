@@ -88,6 +88,16 @@ pub fn is_stt_repo(id: &str, tags: &[String]) -> bool {
         || STT_REPO_NAMES.iter().any(|n| name.contains(n))
 }
 
+/// Whether a Hub repo is one of mlx-audio's speech models by its tags (an [`AUDIO_TYPES`]
+/// `model_type`, or the `mlx-audio` library tag): never a chat model, whatever task it lacks
+/// (`mlx-community/Qwen3-ASR-0.6B-4bit` has none). The folder check is [`is_model_dir`]'s.
+pub fn is_audio_repo(tags: &[String]) -> bool {
+    tags.iter().any(|t| {
+        let t = t.to_ascii_lowercase();
+        t == "mlx-audio" || AUDIO_TYPES.contains(&t.as_str())
+    })
+}
+
 /// Whether a Hub repo id names a text-to-speech model of a tested architecture.
 pub fn is_tts_repo(id: &str) -> bool {
     let id = id.to_ascii_lowercase();

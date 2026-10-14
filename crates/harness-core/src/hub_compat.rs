@@ -483,6 +483,8 @@ pub fn mlx_compatibility_on(
     os_too_old: bool,
 ) -> Option<Compatibility> {
     let family = match task {
+        // A speech model without a task (Qwen3-ASR) is no chat model.
+        None | Some("text-generation") if crate::engine::mlx::is_audio_repo(tags) => return None,
         None | Some("text-generation") => MLX_FAMILY,
         Some("image-text-to-text") => MLX_VLM_FAMILY,
         Some("text-to-speech") if crate::engine::mlx::is_tts_repo(repo) => MLX_AUDIO_FAMILY,
@@ -1266,6 +1268,20 @@ mod tests {
                 false
             ),
             audio
+        );
+
+        // An untested recognizer without a task is not taken for a chat model either.
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/Qwen3-ASR-0.6B-4bit",
+                ModelFormat::Mlx,
+                None,
+                &files,
+                &s(&["mlx-audio", "safetensors", "qwen3_asr", "mlx", "asr"]),
+                true,
+                false
+            ),
+            None
         );
 
         // whisper-large-v3-turbo-asr-fp16 names no task: it is a recognizer, not a chat model.
