@@ -37,6 +37,7 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Changed
 - Playground: with tools on, a new conversation on a model a local Harness server has loaded sends its fixed prefix (system prompt, tool guidance, tool definitions; about 2.2k tokens) once ahead with one output token, so llama-server's prompt cache holds it and the first message processes only the user's text (Qwen3-4B on a CPU: first token 61 s → 0.5 s). Only to loopback servers, once per conversation; the first message waits for a warm-up still in flight and is never slower. Tool definitions are listed in a fixed order (built-ins first, then by name), so the prefix does not change with registration order.
+- Speech to text on Linux (whisper.cpp ships a CPU-only build there): onboarding and the Hub variant drawer recommend whisper `small` before `large-v3-turbo` (an 11 s clip: 4.2 s instead of 18.9 s with the language given). The Playground Speech tab starts with the interface language as the audio language, so whisper skips language detection (it doubles the time on a CPU: 7.3 s vs 4.2 s with `small`); clearing it detects the language.
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed

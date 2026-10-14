@@ -136,3 +136,14 @@ test('speech to text runs on MLX on Apple Silicon when its engine can be install
   assert.equal(mlxWhisperRepo(null), MLX_WHISPER_REPOS[0]);
   assert.equal(mlxWhisperRepo(2 * 1024 ** 3), MLX_WHISPER_REPOS[1]);
 });
+
+test('whisper on the CPU (Linux) starts from small; elsewhere from large-v3-turbo', async () => {
+  const { recommendWhisperVariant, whisperOnCpu } = await import('../src/lib/components/hub/recommend.ts');
+  const v = (name, mb) => ({ name, quantization: 'Q8_0', total_size_bytes: mb * 1e6, is_split: false, shards: [] });
+  const variants = [v('ggml-large-v3-turbo-q8_0', 874), v('ggml-small-q8_0', 264), v('ggml-base-q8_0', 82)];
+  const ram = 16e9;
+  assert.equal(recommendWhisperVariant(variants, ram).name, 'ggml-large-v3-turbo-q8_0');
+  assert.equal(recommendWhisperVariant(variants, ram, true).name, 'ggml-small-q8_0');
+  assert.equal(recommendWhisperVariant(variants, 300e6, true).name, 'ggml-base-q8_0');
+  assert.ok(whisperOnCpu('linux') && !whisperOnCpu('windows') && !whisperOnCpu('macos') && !whisperOnCpu(undefined));
+});

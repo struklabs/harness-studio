@@ -78,7 +78,15 @@
   }
   let task = $state<AudioTask>('transcriptions');
   let format = $state<AudioFormat>('json');
-  let language = $state('');
+  // The UI's language: naming it saves whisper a language detection pass (on a CPU build as long
+  // as the transcription itself). Cleared, whisper detects the language.
+  const uiLanguage = locale().slice(0, 2);
+  let language = $state(uiLanguage);
+  /** The language sent: the prefilled UI language goes to whisper only; other recognition models
+   *  (sherpa-onnx, CrispASR, MLX) keep detecting unless the user types one. */
+  let sentLanguage = $derived(
+    ctcChosen ? '' : language === uiLanguage && (sherpaChosen || crispChosen || engineChosen) ? '' : language
+  );
   let prompt = $state('');
   let file = $state<File | null>(null);
   let busy = $state(false);
@@ -111,7 +119,7 @@
     error = '';
     needFamily = null;
     try {
-      result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language: ctcChosen ? '' : language, prompt: ctcChosen || engineChosen ? '' : prompt, format, textOnly: !!engineChosen }, app.inferenceHeaders(), c.signal);
+      result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language: sentLanguage, prompt: ctcChosen || engineChosen ? '' : prompt, format, textOnly: !!engineChosen }, app.inferenceHeaders(), c.signal);
     } catch (e) {
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -360,6 +368,7 @@
       <div class="flex flex-col gap-1.5">
         <Label for="asr-lang" class="text-sm font-semibold text-foreground">{t('asr.language_label')}</Label>
         <Input id="asr-lang" bind:value={language} placeholder={t('asr.language_placeholder')} disabled={busy} />
+        <span class="text-xs text-muted-foreground">{t('asr.language_hint')}</span>
       </div>
       {/if}
     </div>
