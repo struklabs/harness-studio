@@ -8,7 +8,19 @@ import type { FeatureStatus, FlagInfo, ParamCatalog, ParamSpec, RuntimeCapabilit
  */
 class CapsState {
   caps = $state<RuntimeCapabilities | null>(null);
-  catalog = $state<ParamCatalog | null>(null);
+  /** llama.cpp's catalog (the runtime-gated launch form). */
+  private llamaCatalog = $state<ParamCatalog | null>(null);
+  /**
+   * Engine family that runs the form's model (`llama.cpp`, `onnxruntime`, `whisper.cpp`,
+   * `stable-diffusion.cpp`, `python-hf`, ...); llama.cpp until a model says otherwise.
+   */
+  engine = $state<string>('llama.cpp');
+  /** That engine's own catalog (`null` for llama.cpp). */
+  private engineCatalog = $state<ParamCatalog | null>(null);
+  /** The catalog the form renders: the model's engine's, else llama.cpp's. */
+  catalog = $derived<ParamCatalog | null>(this.engine === 'llama.cpp' ? this.llamaCatalog : this.engineCatalog);
+  /** The model runs on another engine than llama.cpp (its settings come from its own catalog). */
+  otherEngine = $derived(this.engine !== 'llama.cpp');
   features = $state<Record<string, FeatureStatus>>({});
   loading = $state(false);
   error = $state<string | null>(null);
@@ -22,10 +34,15 @@ class CapsState {
     return map;
   });
 
-  /** The runtime's help was read, so missing flags really are missing. */
-  known = $derived(!!this.caps?.help_parsed);
+  /**
+   * The runtime's help was read, so missing flags really are missing. The probe is of a
+   * llama-server build, so it never gates another engine's catalog.
+   */
+  known = $derived(!!this.caps?.help_parsed && !this.otherEngine);
 
   private loadedFor: string | null = null;
+  private engineFor: string | null = null;
+  private catalogs = new Map<string, ParamCatalog>();
   private featureToken = 0;
   /** Runtime the form selects (`null` = the server's own / Settings > Runtime). */
   runtimeId = $state<string | null>(null);
@@ -43,19 +60,19 @@ class CapsState {
     try {
       const [caps, catalog] = await Promise.all([
         invoke<RuntimeCapabilities>('get_runtime_capabilities', { serverId, runtimeId }),
-        this.catalog ? Promise.resolve(this.catalog) : invoke<ParamCatalog>('get_param_catalog'),
+        this.llamaCatalog ? Promise.resolve(this.llamaCatalog) : invoke<ParamCatalog>('get_param_catalog'),
       ]);
       if (this.loadedFor !== key) return;
       this.caps = caps;
-      this.catalog = catalog;
+      this.llamaCatalog = catalog;
       this.error = null;
     } catch (e) {
       if (this.loadedFor !== key) return;
       this.caps = null;
       this.error = String(e);
-      if (!this.catalog) {
+      if (!this.llamaCatalog) {
         try {
-          this.catalog = await invoke<ParamCatalog>('get_param_catalog');
+          this.llamaCatalog = await invoke<ParamCatalog>('get_param_catalog');
         } catch {
           // catalog is embedded; this only fails outside Tauri
         }
@@ -63,6 +80,40 @@ class CapsState {
     } finally {
       this.loading = false;
     }
+  }
+
+  /**
+   * Follows the engine of the form's model (`null`: router mode or no model, so llama.cpp):
+   * an ONNX, whisper.cpp or sd.cpp model shows its engine's settings, not llama-server's.
+   */
+  async loadEngine(modelPath: string | null) {
+    const key = modelPath ?? '';
+    if (this.engineFor === key) return;
+    this.engineFor = key;
+    if (!modelPath) {
+      this.engine = 'llama.cpp';
+      return;
+    }
+    try {
+      const family = (await invoke<string | null>('get_model_engine', { modelPath })) ?? 'llama.cpp';
+      let catalog: ParamCatalog | null = null;
+      if (family !== 'llama.cpp') {
+        catalog = this.catalogs.get(family) ?? (await invoke<ParamCatalog>('get_param_catalog', { modelPath }));
+        this.catalogs.set(family, catalog);
+      }
+      if (this.engineFor !== key) return;
+      this.engineCatalog = catalog;
+      this.engine = family;
+    } catch {
+      if (this.engineFor === key) this.engine = 'llama.cpp';
+    }
+  }
+
+  /** Groups of the catalog in their catalog order. */
+  groups(): string[] {
+    const out: string[] = [];
+    for (const p of this.catalog?.param ?? []) if (!out.includes(p.group)) out.push(p.group);
+    return out;
   }
 
   async loadFeatures(serverId: string, modelPath: string | null, hasMmproj: boolean) {

@@ -20,6 +20,8 @@
   import MetadataFixNotice from './dashboard/MetadataFixNotice.svelte';
   import RouterModels from './servers/RouterModels.svelte';
   import RuntimePicker from './dashboard/RuntimePicker.svelte';
+  import EngineParams from './dashboard/EngineParams.svelte';
+  import { engineLabel } from '#lib/engines.js';
   import ServerActions from './dashboard/ServerActions.svelte';
   import TelemetryPanel from './dashboard/TelemetryPanel.svelte';
   import EffectiveValues from './dashboard/EffectiveValues.svelte';
@@ -308,6 +310,13 @@
     untrack(() => capsStore.load(id, false, runtime));
   });
   onMount(() => void runtimesStore.load());
+
+  // The model's engine (ONNX, whisper.cpp, sd.cpp, python-hf, MLX...) decides which settings the
+  // form shows: llama-server's catalog only for a model llama.cpp runs.
+  $effect(() => {
+    const path = routerMode ? null : (selectedModel?.path ?? null);
+    untrack(() => capsStore.loadEngine(path));
+  });
 
   // Feature levels depend on the model, the mmproj and what the last run verified.
   $effect(() => {
@@ -1374,14 +1383,23 @@
       <!-- Hand edits below (not the model picker above) count as a draft worth keeping. -->
       <div class="contents" oninput={markEdited} onchange={markEdited} onclick={markEdited} role="presentation">
 <div hidden={section.active !== 'model'} class="flex flex-col gap-3">
-      <RuntimePicker bind:runtime={params.runtime} modelPath={routerMode ? null : (selectedModel?.path ?? null)} />
+      <RuntimePicker bind:runtime={params.runtime} modelPath={routerMode ? null : (selectedModel?.path ?? null)} engine={capsStore.engine} />
       <MetadataFixNotice modelPath={routerMode ? null : (selectedModel?.path ?? null)} bind:params onApply={() => (userEdited = true)} />
       {#if serverStatus === 'Running' && app.selectedServer?.active?.router_mode}
         <RouterModels serverId={app.selectedServerId} />
       {/if}
 
 </div>
-      {#if selectedModel?.kind !== 'asr'}
+      {#if capsStore.otherEngine}
+        <div hidden={section.active !== 'model'} class="flex flex-col gap-3">
+          <h2 class="text-sm font-semibold">{t('dash.engine_settings')}</h2>
+          <EngineParams bind:params />
+        </div>
+        <LaunchParams page={section.active === 'network' ? 'network' : ''} bind:params bind:port bind:portAuto {maxGpuLayers} {hardware} {portWarning} slotAdvice={null} />
+        {#if !['overview', 'model', 'network'].includes(section.active)}
+          <p class="text-xs text-muted-foreground" role="note">{t('dash.engine_page_note', { engine: engineLabel(capsStore.engine) })}</p>
+        {/if}
+      {:else if selectedModel?.kind !== 'asr'}
       <LaunchParams page={section.active} bind:params bind:port bind:portAuto {maxGpuLayers} {hardware} {portWarning} slotAdvice={routerMode ? null : (fitResult?.slots ?? null)} />
 
       <AdvancedParams page={section.active}
