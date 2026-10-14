@@ -6,9 +6,10 @@
 //!   environment;
 //! * `mlx-vlm`: a vision-language folder (its config has a `vision_config`), served by
 //!   `python/mlx_vlm_worker.py` around mlx-vlm's server from the managed `mlx-vlm` environment;
-//! * `mlx-audio`: a text-to-speech folder of mlx-audio (Qwen3-TTS), served by
-//!   `python/mlx_audio_worker.py` (Harness's own small server around mlx-audio's model, which
-//!   the `mlx-vlm` environment carries).
+//! * `mlx-audio`: a text-to-speech folder of mlx-audio (Qwen3-TTS) or a speech recognition one
+//!   (Whisper, Parakeet), served by `python/mlx_audio_worker.py` (Harness's own small server
+//!   around mlx-audio's model, which the `mlx-vlm` environment carries; `--task transcription`
+//!   for recognition).
 //!
 //! A launch runs
 //!
@@ -65,6 +66,10 @@ const AUDIO_WORKER: &str = include_str!("../../python/mlx_audio_worker.py");
 /// mlx-audio text-to-speech architectures (`model_type`) Harness runs: the ones checked end to
 /// end. Others (Kokoro needs misaki and spaCy data fetched at run time) are not offered.
 const TTS_TYPES: &[&str] = &["qwen3_tts"];
+
+/// mlx-audio speech recognition architectures (`model_type`) Harness runs. A NeMo Parakeet
+/// config has no `model_type` but its `target` class (see [`is_parakeet_config`]).
+const STT_TYPES: &[&str] = &["whisper", "parakeet", "parakeet_tdt"];
 
 /// What the name of a Hub repo of a [`TTS_TYPES`] model contains (the listing has no config).
 const TTS_REPO_NAMES: &[&str] = &["qwen3-tts"];
@@ -132,6 +137,7 @@ const PROTECTED_FLAGS: &[&str] = &[
     "--adapter-path",
     "--draft-model",
     "--allowed-origins",
+    "--task",
 ];
 
 /// What a launch without a `max_tokens` parameter gets: mlx-lm's own default (512) cuts
@@ -146,7 +152,7 @@ pub enum Flavour {
     Text,
     /// `mlx-vlm`: chat with images.
     Vision,
-    /// `mlx-audio`: text to speech.
+    /// `mlx-audio`: text to speech or speech recognition.
     Audio,
 }
 
@@ -183,7 +189,7 @@ impl MlxEngine {
         match self.flavour {
             Flavour::Text => is_model_dir(path),
             Flavour::Vision => is_vlm_dir(path),
-            Flavour::Audio => is_tts_dir(path),
+            Flavour::Audio => is_audio_dir(path),
         }
     }
 }
@@ -308,6 +314,42 @@ pub fn is_tts_dir(path: &Path) -> bool {
             || read_json(&path.join("config.json")).is_some_and(|c| quant_bits(&c).is_some()))
 }
 
+/// Whether a config is NeMo's for a Parakeet (RNNT / TDT / CTC) recognizer: no `model_type`, a
+/// `target` of NeMo's ASR models.
+fn is_parakeet_config(cfg: &serde_json::Value) -> bool {
+    cfg.get("model_type").is_none()
+        && cfg
+            .get("target")
+            .and_then(|t| t.as_str())
+            .is_some_and(|t| t.starts_with("nemo.collections.asr.models.") && t.contains("EncDec"))
+}
+
+/// Whether `path` is a speech recognition folder the `mlx-audio` engine runs: a Whisper or
+/// Parakeet model in MLX's format (its card says `library_name: mlx` / `mlx-audio`, or its
+/// config has MLX's quantization), with `config.json` and safetensors weights. A transformers
+/// Whisper checkpoint (no MLX card) stays the Python engine's.
+pub fn is_stt_dir(path: &Path) -> bool {
+    if !path.is_dir() || super::mistralrs::weight_files(path).is_empty() {
+        return false;
+    }
+    let Some(cfg) = read_json(&path.join("config.json")) else {
+        return false;
+    };
+    let arch = cfg
+        .get("model_type")
+        .and_then(|t| t.as_str())
+        .is_some_and(|t| STT_TYPES.contains(&t.to_ascii_lowercase().as_str()))
+        || is_parakeet_config(&cfg);
+    arch && (card_field(path, "library_name")
+        .is_some_and(|l| l.eq_ignore_ascii_case("mlx-audio") || l.eq_ignore_ascii_case("mlx"))
+        || quant_bits(&cfg).is_some())
+}
+
+/// Whether `path` is a folder of the `mlx-audio` engine (text to speech or recognition).
+pub fn is_audio_dir(path: &Path) -> bool {
+    is_tts_dir(path) || is_stt_dir(path)
+}
+
 /// The named voices of an mlx-audio text-to-speech folder (Qwen3-TTS: the keys of
 /// `talker_config.spk_id`), sorted; empty when it has none (one default voice).
 pub fn tts_voices(path: &Path) -> Vec<String> {
@@ -338,7 +380,7 @@ pub fn is_vlm_dir(path: &Path) -> bool {
 
 /// Whether `path` is an MLX folder of any MLX engine.
 pub fn is_any_model_dir(path: &Path) -> bool {
-    mlx_vision(path).is_some() || is_tts_dir(path)
+    mlx_vision(path).is_some() || is_audio_dir(path)
 }
 
 /// The flavour that runs an MLX folder, `None` for other paths.
@@ -346,7 +388,7 @@ pub fn flavour_of(path: &Path) -> Option<Flavour> {
     match mlx_vision(path) {
         Some(true) => Some(Flavour::Vision),
         Some(false) => Some(Flavour::Text),
-        None => is_tts_dir(path).then_some(Flavour::Audio),
+        None => is_audio_dir(path).then_some(Flavour::Audio),
     }
 }
 
@@ -357,19 +399,45 @@ pub fn inspect(dir: &Path) -> Option<super::mistralrs::ModelDirInfo> {
     super::mistralrs::inspect_checkpoint(dir)
 }
 
-/// The library's view of an MLX folder: a chat model like mistral.rs's, or (text to speech) a
-/// pipeline model like the Python engine's, with MLX's bits as its quantization (`4bit`).
+/// The library's view of an MLX folder: a chat model like mistral.rs's, or (speech) a pipeline
+/// model like the Python engine's, with MLX's bits as its quantization (`4bit`).
 fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> {
-    let info = super::mistralrs::inspect_checkpoint(dir)?;
+    let stt = is_stt_dir(dir);
+    // A recognition config is no text generator's (Whisper's MLX port, NeMo's Parakeet): its
+    // folder is described by its weights and `model_type` alone.
+    let info = match super::mistralrs::inspect_checkpoint(dir) {
+        Some(info) => info,
+        None if stt => audio_dir_info(dir),
+        None => return None,
+    };
     let mut model = super::mistralrs::to_local_model(dir, &info, root);
-    if is_tts_dir(dir) {
+    if is_audio_dir(dir) {
         model.kind = crate::domain::ModelKind::Pipeline;
         model.context_length = None;
+    }
+    if stt {
+        model.task = Some("automatic-speech-recognition".into());
     }
     if let Some(bits) = read_json(&dir.join("config.json")).and_then(|c| quant_bits(&c)) {
         model.quantization = format!("{bits}bit");
     }
     Some(model)
+}
+
+/// What the files of a speech recognition folder say: its weights and `model_type`.
+fn audio_dir_info(dir: &Path) -> super::mistralrs::ModelDirInfo {
+    let weights = super::mistralrs::weight_files(dir);
+    super::mistralrs::ModelDirInfo {
+        weights_bytes: weights
+            .iter()
+            .filter_map(|p| std::fs::metadata(p).ok())
+            .map(|m| m.len())
+            .sum(),
+        weights,
+        architecture: model_type(dir).or_else(|| Some("parakeet".into())),
+        complete: true,
+        ..Default::default()
+    }
 }
 
 /// MLX model folders under `roots` (a few levels deep: `<root>/<owner>/<repo>`). Only where
@@ -677,6 +745,10 @@ fn build_args(
     if let Some(alias) = crate::process::served_alias(config) {
         args.push("--alias".into());
         args.push(alias);
+    }
+    if flavour == Flavour::Audio && is_stt_dir(&config.model_path) {
+        args.push("--task".into());
+        args.push("transcription".into());
     }
     let ctx = RenderContext {
         host: config.host.clone(),
@@ -1207,7 +1279,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         assert_eq!(m.quantization, "8bit");
 
         // A whisper conversion (an MLX card, a transformers-like config) is a speech model:
-        // not a chat model, and not run here (recognition stays with whisper.cpp / sherpa-onnx).
+        // not a chat model; mlx-audio recognizes with it (see the next test).
         let whisper = folder(&[
             (
                 "config.json",
@@ -1217,7 +1289,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             ("README.md", "---\nlibrary_name: mlx\ntags:\n- mlx\n---\n"),
         ]);
         assert!(is_audio_folder(whisper.path()));
-        assert_eq!(flavour_of(whisper.path()), None);
+        assert!(!is_model_dir(whisper.path()) && !is_vlm_dir(whisper.path()));
         assert!(!super::super::mistralrs::is_model_dir(whisper.path()));
         // Kokoro (an untested architecture) is not offered.
         let kokoro = folder(&[
@@ -1238,6 +1310,137 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         assert_eq!(flavour_of(tagged.path()), None);
         assert!(is_tts_repo("mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"));
         assert!(!is_tts_repo("mlx-community/Kokoro-82M-bf16"));
+    }
+
+    /// Speech recognition folders in MLX's format (mlx-audio's Whisper port with a transformers
+    /// config, mlx-whisper's own config, NeMo's Parakeet config) are mlx-audio's, launched for
+    /// transcription; the same folders without an MLX card stay with the Python engine, and
+    /// nothing else of mlx-audio's recognizers is offered.
+    #[test]
+    fn mlx_recognition_folders_are_mlx_audio_transcription_models() {
+        let hf_whisper = r#"{"architectures":["WhisperForConditionalGeneration"],"model_type":"whisper","d_model":384}"#;
+        let ported = folder(&[
+            ("config.json", hf_whisper),
+            ("model.safetensors", "x"),
+            ("preprocessor_config.json", "{}"),
+            (
+                "README.md",
+                "---\npipeline_tag: automatic-speech-recognition\nlibrary_name: mlx-audio\n---\n",
+            ),
+        ]);
+        let turbo = folder(&[
+            (
+                "config.json",
+                r#"{"n_mels":128,"n_audio_ctx":1500,"n_text_layer":4,"model_type":"whisper"}"#,
+            ),
+            ("weights.safetensors", "x"),
+            (
+                "README.md",
+                "---\nlibrary_name: mlx\npipeline_tag: automatic-speech-recognition\n---\n",
+            ),
+        ]);
+        let parakeet = folder(&[
+            (
+                "config.json",
+                r#"{"sample_rate":16000,"encoder":{},"decoder":{},"target":"nemo.collections.asr.models.rnnt_bpe_models.EncDecRNNTBPEModel"}"#,
+            ),
+            ("model.safetensors", "x"),
+            ("tokenizer.model", "x"),
+            ("README.md", "---\nlibrary_name: mlx\n---\n"),
+        ]);
+        for dir in [&ported, &turbo, &parakeet] {
+            let path = dir.path();
+            assert!(is_stt_dir(path), "{}", path.display());
+            assert!(!is_tts_dir(path));
+            assert_eq!(flavour_of(path), Some(Flavour::Audio));
+            assert_eq!(family_of(path), Some(MLX_AUDIO));
+            assert!(MlxEngine::AUDIO.runs(path) && is_any_model_dir(path));
+            assert!(!is_model_dir(path) && !is_vlm_dir(path));
+            assert!(!super::super::mistralrs::is_model_dir(path));
+            assert_eq!(super::super::python_hf::detect(path), None);
+            let m = to_local_model(path, path.parent().unwrap()).unwrap();
+            assert_eq!(m.kind, crate::domain::ModelKind::Pipeline);
+            assert_eq!(m.task.as_deref(), Some("automatic-speech-recognition"));
+            assert!(m.is_ready && m.size_bytes == 1);
+            assert_eq!(
+                super::super::server_for_model(path).map(|e| e.family()),
+                Some(MLX_AUDIO)
+            );
+        }
+        assert_eq!(
+            to_local_model(turbo.path(), turbo.path())
+                .unwrap()
+                .architecture
+                .as_deref(),
+            Some("whisper")
+        );
+        assert_eq!(
+            to_local_model(parakeet.path(), parakeet.path())
+                .unwrap()
+                .architecture
+                .as_deref(),
+            Some("parakeet")
+        );
+
+        // A transformers Whisper checkpoint (no MLX card) is the Python engine's.
+        let hf = folder(&[
+            ("config.json", hf_whisper),
+            ("model.safetensors", "x"),
+            (
+                "README.md",
+                "---\npipeline_tag: automatic-speech-recognition\n---\n",
+            ),
+        ]);
+        assert!(!is_stt_dir(hf.path()));
+        assert_eq!(flavour_of(hf.path()), None);
+        assert_eq!(
+            super::super::python_hf::detect(hf.path()).as_deref(),
+            Some("automatic-speech-recognition")
+        );
+        // Old mlx-whisper weights (`weights.npz`) and untested recognizers are not offered.
+        let npz = folder(&[
+            ("config.json", r#"{"n_mels":80,"model_type":"whisper"}"#),
+            ("weights.npz", "x"),
+            ("README.md", "---\nlibrary_name: mlx\n---\n"),
+        ]);
+        assert!(!is_stt_dir(npz.path()));
+        let moonshine = folder(&[
+            ("config.json", r#"{"model_type":"moonshine"}"#),
+            ("model.safetensors", "x"),
+            ("README.md", "---\nlibrary_name: mlx-audio\n---\n"),
+        ]);
+        assert!(!is_stt_dir(moonshine.path()));
+        assert_eq!(flavour_of(moonshine.path()), None);
+
+        // Launched for transcription; a custom line cannot change the task.
+        let mut config = LaunchConfig {
+            model_path: turbo.path().to_path_buf(),
+            host: "127.0.0.1".into(),
+            port: 11453,
+            ..Default::default()
+        };
+        config
+            .params
+            .insert("max_seconds".into(), crate::params::ParamValue::Int(300));
+        let script = Path::new("/env/mlx_audio_worker.py");
+        let args = build_args(&config, script, Flavour::Audio).unwrap().args;
+        let args = args.join(" ");
+        assert!(args.contains(" --task transcription"), "{args}");
+        assert!(args.contains("--max-seconds 300"), "{args}");
+        assert!(!args.contains("--max-tokens"), "{args}");
+        config.custom_args = Some("--task speech".into());
+        let e = build_args(&config, script, Flavour::Audio).unwrap_err();
+        assert!(e.contains("params.protected_flag"), "{e}");
+        // A text-to-speech folder is launched without a task (the worker speaks by default).
+        let tts = folder(&[
+            ("config.json", TTS_CONFIG),
+            ("model.safetensors", "x"),
+            ("README.md", TTS_CARD),
+        ]);
+        config.model_path = tts.path().to_path_buf();
+        config.custom_args = None;
+        let args = build_args(&config, script, Flavour::Audio).unwrap().args;
+        assert!(!args.iter().any(|a| a == "--task"), "{args:?}");
     }
 
     #[test]
@@ -1675,6 +1878,325 @@ print("plain", speak("hi", None, 1.0, None))
             "runaway ('wav of 3 chunks', True) [{'voice': 'ryan', 'max_tokens': 75, 'stream': True}] closed True",
             "too slow",
             "plain ('wav of 1 chunks', False)",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+    }
+
+    /// The transcription app: the key, its one route, a multipart body of known fields only, a
+    /// body cap (by Content-Length too), audio decoded from the body (never a path) and the
+    /// worker's time limit as a 504.
+    #[test]
+    fn the_audio_worker_transcribes_only_checked_requests() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let script = format!(
+            r#"
+import sys, asyncio; sys.path.insert(0, {:?}); import mlx_audio_worker as w
+heard = []
+def decode(audio):
+    if audio == b"junk":
+        raise ValueError("not audio")
+    return audio
+def transcribe(samples, language, task):
+    heard.append((samples, language, task))
+    if samples == b"slow":
+        raise w.TooSlow()
+    if samples == b"long":
+        raise w.Refused("the audio is longer than 10 seconds")
+    return "hello world"
+app = w.transcription_app_for(transcribe, decode, "stt")
+def form(*fields, boundary="XyZ"):
+    body = b""
+    for name, value in fields:
+        disposition = b'form-data; name="%s"' % name.encode()
+        if name == "file":
+            disposition += b'; filename="a.wav"'
+        body += b"--" + boundary.encode() + b"\r\nContent-Disposition: " + disposition + b"\r\n\r\n" + value + b"\r\n"
+    return body + b"--" + boundary.encode() + b"--\r\n"
+CT = b"multipart/form-data; boundary=XyZ"
+async def call(method, path, body=b"", ct=CT, key=True, length=None):
+    sent, queue = [], [{{"type": "http.request", "body": body, "more_body": False}}]
+    async def receive():
+        return queue.pop(0) if queue else {{"type": "http.disconnect"}}
+    async def send(m):
+        sent.append(m)
+    headers = [(b"content-type", ct)]
+    if key:
+        headers.append((b"authorization", b"Bearer k"))
+    if length is not None:
+        headers.append((b"content-length", str(length).encode()))
+    await app({{"type": "http", "method": method, "path": path, "headers": headers}}, receive, send)
+    return sent[0]["status"], b"".join(m.get("body", b"") for m in sent[1:]).decode(errors="replace")
+async def main():
+    T = "/v1/audio/transcriptions"
+    binary = bytes(range(256)) * 4 + b"\r\n--Xy\r\n"
+    for name, args in [
+        ("health", ("GET", "/health")),
+        ("nokey", ("POST", T, form(("file", b"RIFF")), CT, False)),
+        ("models", ("GET", "/v1/models")),
+        ("speech", ("POST", "/v1/audio/speech", b'{{"input":"x"}}')),
+        ("ok", ("POST", T, form(("file", binary), ("language", b"tr"), ("model", b"stt")))),
+        ("translate", ("POST", T, form(("file", b"RIFF"), ("task", b"translate")))),
+        ("json", ("POST", T, form(("file", b"RIFF"), ("response_format", b"json")))),
+        ("srt", ("POST", T, form(("file", b"RIFF"), ("response_format", b"srt")))),
+        ("nofile", ("POST", T, form(("language", b"en")))),
+        ("emptyfile", ("POST", T, form(("file", b"")))),
+        ("path", ("POST", T, form(("file", b"RIFF"), ("path", b"/etc/hosts")))),
+        ("twice", ("POST", T, form(("file", b"RIFF"), ("file", b"RIFF")))),
+        ("task", ("POST", T, form(("file", b"RIFF"), ("task", b"summarize")))),
+        ("lang", ("POST", T, form(("file", b"RIFF"), ("language", b"../x")))),
+        ("json body", ("POST", T, b'{{"file":"/etc/hosts"}}', b"application/json")),
+        ("noboundary", ("POST", T, form(("file", b"RIFF")), b"multipart/form-data")),
+        ("malformed", ("POST", T, b"--XyZ\r\nno headers--XyZ--\r\n")),
+        ("big", ("POST", T, b"x", CT, True, w.MAX_AUDIO_BODY + 1)),
+        ("junk", ("POST", T, form(("file", b"junk")))),
+        ("slow", ("POST", T, form(("file", b"slow")))),
+        ("long", ("POST", T, form(("file", b"long")))),
+    ]:
+        print(name, await call(*args))
+    print("heard", [(s if len(s) < 10 else (len(s), s == binary), l, t) for s, l, t in heard])
+asyncio.run(main())
+"#,
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "health (200, '{\"status\": \"ok\"}')",
+            "nokey (401,",
+            "models (200, '{\"object\": \"list\", \"data\": [{\"id\": \"stt\"",
+            "speech (404,",
+            "ok (200, '{\"text\": \"hello world\"}')",
+            "translate (200,",
+            "json (200,",
+            "srt (400,",
+            "nofile (400,",
+            "emptyfile (400,",
+            "path (400,",
+            "twice (400,",
+            "task (400,",
+            "lang (400,",
+            "json body (400,",
+            "noboundary (400,",
+            "malformed (400,",
+            "big (413,",
+            "junk (400,",
+            "slow (504,",
+            "long (400,",
+            // The body's bytes reach the decoder unchanged (CRLF and boundary-like bytes too).
+            "heard [((1032, True), 'tr', 'transcribe'), (b'RIFF', None, 'translate'), (b'RIFF', None, 'transcribe'), (b'slow', None, 'transcribe'), (b'long', None, 'transcribe')]",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+    }
+
+    /// A transcription cannot run away: audio over the length limit is refused, Whisper is
+    /// stopped before its next 30 s window once the time is up (its `decode`), Parakeet after
+    /// its next chunk (`chunk_callback`, with chunking for long audio); Parakeet does not
+    /// translate.
+    #[test]
+    fn the_audio_worker_caps_transcriptions() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let script = format!(
+            r#"
+import sys, types; sys.path.insert(0, {:?}); import mlx_audio_worker as w
+now = [0.0]
+clock = lambda: now[0]
+class Whisper:
+    # Decodes one 30 s window per call; each takes 4 s of (fake) clock.
+    def __init__(self):
+        self.calls = []
+    def decode(self, segment, options=None):
+        now[0] += 4.0
+        return "w"
+    def generate(self, audio, *, verbose=None, language=None, task="transcribe", **kw):
+        self.calls.append(dict(language=language, task=task))
+        windows = max(1, len(audio) // (30 * w.SAMPLE_RATE))
+        return types.SimpleNamespace(text=" " + "".join(self.decode(None) for _ in range(windows)) + " ")
+class Parakeet:
+    def __init__(self):
+        self.calls = []
+    def generate(self, audio, *, dtype=None, chunk_duration=None, overlap_duration=None, chunk_callback=None, stream=False, **kw):
+        self.calls.append(dict(chunk_duration=chunk_duration))
+        step = int((chunk_duration or 1e9) * w.SAMPLE_RATE)
+        for end in range(step, len(audio) + step, step):
+            now[0] += 4.0
+            if chunk_callback:
+                chunk_callback(min(end, len(audio)), len(audio))
+        return types.SimpleNamespace(text="p")
+second = [0.0] * w.SAMPLE_RATE
+def run(name, transcribe, samples, language=None, task="transcribe"):
+    try:
+        print(name, repr(transcribe(samples, language, task)))
+    except w.TooSlow:
+        print(name, "too slow")
+    except w.Refused as e:
+        print(name, "refused", e)
+whisper = Whisper()
+t = w.make_transcribe(whisper, 10, 600, clock)
+run("whisper short", t, second * 60, "tr", "translate")
+run("whisper runaway", t, second * 300)
+run("whisper too long", t, second * 601)
+print("whisper calls", whisper.calls)
+now[0] = 0.0
+parakeet = Parakeet()
+t = w.make_transcribe(parakeet, 10, 600, clock)
+run("parakeet short", t, second * 60)
+run("parakeet runaway", t, second * 600)
+run("parakeet translate", t, second, None, "translate")
+print("parakeet calls", parakeet.calls)
+# Whisper's made-up segments past the end of the audio are dropped; without start times the
+# text is kept as it is.
+seg = lambda start, text, end=None, score=-0.2: dict(start=start, end=start + 1 if end is None else end, text=text, avg_logprob=score)
+heard = types.SimpleNamespace(text=" Hello there. pop pop", segments=[
+    seg(0.0, " Hello"), seg(1.2, " there."), seg(2.95, " pop"), seg(4.0, " pop"),
+    seg(2.0, " K", end=1.0), seg(2.5, " My?", end=9.0)])
+nan = types.SimpleNamespace(segments=[seg(0.0, " Real", score=float("nan")), seg(1.0, " speech.", score=float("nan"))])
+print("nan scores", repr(w.heard_text(nan, 3.0)))
+print("tail", repr(w.heard_text(heard, 3.0)))
+print("no starts", repr(w.heard_text(types.SimpleNamespace(text=" as is ", segments=[dict(text="x")]), 3.0)))
+print("no segments", repr(w.heard_text(types.SimpleNamespace(text=" p "), 3.0)))
+print("parakeet options", w.stt_options({:?}))
+"#,
+            dir.path().to_string_lossy(),
+            dir.path().join("parakeet").to_string_lossy()
+        );
+        let parakeet = dir.path().join("parakeet");
+        std::fs::create_dir_all(&parakeet).unwrap();
+        std::fs::write(
+            parakeet.join("config.json"),
+            r#"{"target":"nemo.collections.asr.models.rnnt_bpe_models.EncDecRNNTBPEModel"}"#,
+        )
+        .unwrap();
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "whisper short 'ww'",
+            // 10 windows of 4 s: stopped before the fourth (12 s > 10 s).
+            "whisper runaway too slow",
+            "whisper too long refused the audio is longer than 600 seconds",
+            "whisper calls [{'language': 'tr', 'task': 'translate'}, {'language': None, 'task': 'transcribe'}]",
+            "parakeet short 'p'",
+            "parakeet runaway too slow",
+            "parakeet translate refused this model only transcribes",
+            "parakeet calls [{'chunk_duration': None}, {'chunk_duration': 120.0}]",
+            "parakeet options {'model_type': 'parakeet'}",
+            "tail 'Hello there.'",
+            "nan scores 'Real speech.'",
+            "no starts 'as is'",
+            "no segments 'p'",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+    }
+
+    /// Uploaded audio is never decoded past the length limit: a container header declaring more
+    /// is refused before decoding, a header that says less (or nothing) is caught while
+    /// streaming, one step past the limit; only WAV, FLAC, MP3 and Ogg Vorbis are taken, and
+    /// other rates are resampled to 16 kHz.
+    #[test]
+    fn the_audio_worker_caps_decoding() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let script = format!(
+            r#"
+import sys, types; sys.path.insert(0, {:?})
+# Stand-ins for numpy (lists) and miniaudio (a header and a stream of chunks).
+np = types.ModuleType("numpy")
+np.float32 = "f"
+np.asarray = lambda x, dtype=None: list(x)
+np.concatenate = lambda parts: [v for p in parts for v in p]
+np.zeros = lambda n, dtype=None: [0.0] * n
+sys.modules["numpy"] = np
+import mlx_audio_worker as w
+w.DECODE_FRAMES = 1000
+class Mini:
+    SampleFormat = types.SimpleNamespace(FLOAT32="f32")
+    def __init__(self, rate, declared, actual):
+        self.rate, self.declared, self.actual, self.read, self.closed = rate, declared, actual, 0, False
+    def info(self, data):
+        return types.SimpleNamespace(sample_rate=self.rate, nchannels=2, num_frames=self.declared)
+    wav_get_info = flac_get_info = mp3_get_info = vorbis_get_info = info
+    def stream_memory(self, data, fmt, nchannels, rate, frames):
+        assert (fmt, nchannels, rate, frames) == ("f32", 1, self.rate, 1000), (fmt, nchannels, rate, frames)
+        def gen():
+            try:
+                while self.read < self.actual:
+                    n = min(frames, self.actual - self.read)
+                    self.read += n
+                    yield [0.0] * n
+            finally:
+                self.closed = True
+        return gen()
+resampled = []
+def resample(samples, src, dst):
+    resampled.append((len(samples), src, dst))
+    return samples[: len(samples) * dst // src]
+FLAC = b"fLaC" + b"\0" * 20
+def run(name, data, mini, limit=10):
+    try:
+        out = w.decode_capped(data, limit, mini, resample)
+        print(name, "ok", len(out), "read", mini.read, "closed", mini.closed)
+    except w.Refused as e:
+        print(name, "refused", e, "read", mini.read, "closed", mini.closed)
+# 30 minutes declared: refused before any decoding.
+run("declared", FLAC, Mini(16000, 30 * 60 * 16000, 30 * 60 * 16000))
+# The header says 1 s (or nothing) but the stream goes on: stopped one step past 10 s.
+run("lying", FLAC, Mini(16000, 16000, 30 * 60 * 16000))
+run("unknown length", FLAC, Mini(16000, 0, 30 * 60 * 16000))
+run("fits", b"RIFF\0\0\0\0WAVEfmt ", Mini(16000, 5 * 16000, 5 * 16000))
+run("44.1k", b"ID3\3\0\0", Mini(44100, 0, 2 * 44100))
+run("ogg", b"OggS\0\2" + b"\0" * 8, Mini(16000, 0, 100))
+run("opus-like junk", b"\x1a\x45\xdf\xa3webm", Mini(16000, 0, 100))
+run("text", b"hello world!", Mini(16000, 0, 100))
+print("resampled", resampled)
+"#,
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "declared refused the audio is longer than 10 seconds read 0 closed False",
+            "lying refused the audio is longer than 10 seconds read 161000 closed True",
+            "unknown length refused the audio is longer than 10 seconds read 161000 closed True",
+            "fits ok 80000 read 80000 closed True",
+            "44.1k ok 32000 read 88200 closed True",
+            "ogg ok 100",
+            "opus-like junk refused the audio must be WAV, FLAC, MP3 or Ogg Vorbis read 0",
+            "text refused the audio must be WAV, FLAC, MP3 or Ogg Vorbis read 0",
+            "resampled [(88200, 44100, 16000)]",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }

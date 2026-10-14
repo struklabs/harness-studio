@@ -67,12 +67,12 @@
     await Promise.all([domain.refreshDefinitions(), runtimesStore.load(true), asr.load()]);
     if (token !== generation) return;
     checking = false;
-    speech.model = speechModel(speech.model, domain.definitions, asr.names);
-    const missing = dictationRequirement(speech.model, runtimesStore.list, app.gatewayRunning, asr.names, domain.definitions);
+    speech.model = speechModel(speech.model, domain.definitions, asr.names, asr.engineNames);
+    const missing = dictationRequirement(speech.model, runtimesStore.list, app.gatewayRunning, asr.names, domain.definitions, asr.engineNames);
     if (missing) {
       setup = true;
       setupSection = missing === 'gateway' ? 'gateway' : 'runtime';
-      if (missing === 'runtime') needFamily = dictationFamily(speech.model, asr.names, domain.definitions);
+      if (missing === 'runtime') needFamily = dictationFamily(speech.model, asr.names, domain.definitions, asr.engineNames);
       else error = t(missing === 'model' ? 'pg.dictation_need_model' : 'asr.need_gateway');
       return;
     }

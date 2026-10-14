@@ -1,7 +1,7 @@
-"""Harness MLX audio worker: text to speech with one local mlx-audio model folder.
+"""Harness MLX audio worker: text to speech or speech recognition with one local mlx-audio model folder.
 
     <env python> mlx_audio_worker.py --model <dir> --port <port> [--alias <name>]
-        [--max-chars N] [--max-seconds N]
+        [--task speech|transcription] [--max-chars N] [--max-seconds N] [--max-audio-seconds N]
 
 mlx-audio's own server is large (realtime websockets, transcription, voice lists fetched from
 the Hub, reference audio read from a path the request names) and loads whatever a request
@@ -10,20 +10,25 @@ names. This worker serves only what Harness needs, itself:
 * HARNESS_WORKER_API_KEY must be in the environment (it exits otherwise); every route but
   /health needs "Authorization: Bearer <key>" (constant-time comparison of bytes). The key is
   removed from the environment once read and never logged.
-* GET /health ({"status": "ok"}), GET /v1/models (the alias and the model's voices) and
-  POST /v1/audio/speech ({"input", "voice", "speed", "language"} in, 16-bit WAV out); every
-  other route is 404.
+* GET /health ({"status": "ok"}), GET /v1/models (the alias and the model's voices) and one
+  POST route by --task: /v1/audio/speech ({"input", "voice", "speed", "language"} in, 16-bit
+  WAV out) or /v1/audio/transcriptions (multipart "file" with optional "language" and "task"
+  in, {"text"} out); every other route is 404.
 * Browsers: only the origins in HARNESS_WORKER_ORIGINS (the Harness window and the user's CORS
   origins) get CORS headers; their preflight is answered here (it carries no key). A request
   with any other Origin is refused (403) before anything else, so no web page can drive it.
 * The model is the folder given here, loaded at start. Voice cloning (a reference audio) is not
-  offered, so a request never names a file.
+  offered and the audio to transcribe comes in the body (decoded in memory), so a request
+  never names a file.
 * It listens on 127.0.0.1 only; remote code is never trusted; Hugging Face Hub access is off;
   proxy variables are cleared.
 * A request cannot run away: generation is capped at a number of codec frames that grows with
   the text (see `frame_budget`; sampling can miss the end token and keep talking), and it stops
   after --max-seconds of wall-clock time. Audio made by then is answered with
-  "x-harness-truncated: time"; nothing made by then is a 504.
+  "x-harness-truncated: time"; nothing made by then is a 504. A transcription takes a body of
+  at most MAX_AUDIO_BODY bytes and audio of at most --max-audio-seconds (checked against the
+  container's header, and decoding stops at the limit whatever it says), and stops with a 504
+  after --max-seconds (checked between decoded windows / chunks).
 """
 
 import argparse
@@ -48,10 +53,19 @@ for _var in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_prox
 KEY = os.environ.pop("HARNESS_WORKER_API_KEY", None) or None
 ORIGINS = frozenset(o for o in os.environ.pop("HARNESS_WORKER_ORIGINS", "").split(",") if o)
 HOST = "127.0.0.1"
-ROUTES = {("GET", "/health"), ("GET", "/v1/models"), ("POST", "/v1/audio/speech")}
+SPEECH_PATH = "/v1/audio/speech"
+TRANSCRIPTION_PATH = "/v1/audio/transcriptions"
 FIELDS = {"model", "input", "voice", "speed", "language", "response_format"}
+FORM_FIELDS = {"file", "model", "language", "task", "response_format"}
 LABEL = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 MAX_BODY = 1024 * 1024
+# OpenAI's own upload limit for a transcription.
+MAX_AUDIO_BODY = 25 * 1024 * 1024
+# What the recognition models take: 16 kHz mono.
+SAMPLE_RATE = 16000
+DEFAULT_MAX_AUDIO_SECONDS = 1800
+# Longer audio is fed to a chunking model (Parakeet) in windows of this many seconds.
+CHUNK_SECONDS = 120.0
 # OpenAI's voice names: a client written for OpenAI sends one; the model's default voice speaks.
 OPENAI_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage",
                  "shimmer", "verse"}
@@ -76,6 +90,8 @@ def parser():
     p.add_argument("--alias", default=None)
     p.add_argument("--max-chars", type=int, default=4096)
     p.add_argument("--max-seconds", type=float, default=DEFAULT_MAX_SECONDS)
+    p.add_argument("--task", choices=("speech", "transcription"), default="speech")
+    p.add_argument("--max-audio-seconds", type=float, default=DEFAULT_MAX_AUDIO_SECONDS)
     return p
 
 
@@ -112,6 +128,204 @@ def speech_request(raw, max_chars):
     if fmt != "wav":
         raise Refused("the worker answers WAV only")
     return text, labels[0], float(speed), labels[1]
+
+
+def form_fields(content_type, raw):
+    """The fields of a multipart/form-data body as {name: bytes}; only FORM_FIELDS, each once."""
+    kind, _, params = (content_type or "").partition(";")
+    if kind.strip().lower() != "multipart/form-data":
+        raise Refused("send the audio as multipart/form-data with a 'file' field")
+    boundary = None
+    for param in params.split(";"):
+        name, _, value = param.strip().partition("=")
+        if name.lower() == "boundary":
+            boundary = value.strip().strip('"')
+    if not boundary or len(boundary) > 200:
+        raise Refused("the multipart body has no boundary")
+    parts = raw.split(b"--" + boundary.encode("latin-1"))
+    if len(parts) < 3 or parts[0].strip() or not parts[-1].startswith(b"--"):
+        raise Refused("the multipart body is malformed")
+    fields = {}
+    for part in parts[1:-1]:
+        if not part.startswith(b"\r\n") or not part.endswith(b"\r\n"):
+            raise Refused("the multipart body is malformed")
+        head, sep, body = part[2:-2].partition(b"\r\n\r\n")
+        if not sep:
+            raise Refused("the multipart body is malformed")
+        name = None
+        for line in head.decode("latin-1").split("\r\n"):
+            key, _, value = line.partition(":")
+            if key.strip().lower() == "content-disposition":
+                found = re.search(r'(?:^|;)\s*name="([^"]*)"', value)
+                name = found.group(1) if found else None
+        if name is None:
+            raise Refused("a multipart part has no name")
+        if name not in FORM_FIELDS:
+            raise Refused("unsupported field: %s" % name[:40])
+        if name in fields:
+            raise Refused("'%s' is given twice" % name)
+        fields[name] = body
+    return fields
+
+
+def transcription_request(content_type, raw):
+    """The checked fields of a transcription request: (audio bytes, language or None, task)."""
+    fields = form_fields(content_type, raw)
+    audio = fields.get("file")
+    if not audio:
+        raise Refused("the 'file' field (the audio to transcribe) is required")
+    text = {}
+    for name in ("language", "task", "response_format"):
+        if name in fields:
+            try:
+                text[name] = fields[name].decode("utf-8").strip() or None
+            except UnicodeDecodeError:
+                raise Refused("'%s' must be text" % name)
+    language = text.get("language")
+    if language is not None and not LABEL.match(language):
+        raise Refused("'language' must be a short name")
+    task = text.get("task") or "transcribe"
+    if task not in ("transcribe", "translate"):
+        raise Refused("'task' must be transcribe or translate")
+    if text.get("response_format") not in (None, "json"):
+        raise Refused("the worker answers JSON only")
+    return audio, language, task
+
+
+# Samples decoded per step of a capped decode.
+DECODE_FRAMES = 16384
+
+
+def audio_format(audio):
+    """The container of uploaded audio by its first bytes: wav, flac, vorbis (Ogg) or mp3; None
+    for anything else (the gateway converts other formats to WAV before they get here)."""
+    head = bytes(audio[:12])
+    if head[:4] == b"RIFF" and head[8:12] == b"WAVE":
+        return "wav"
+    if head[:4] == b"fLaC":
+        return "flac"
+    if head[:4] == b"OggS":
+        return "vorbis"
+    if head[:3] == b"ID3" or (len(head) > 1 and head[0] == 0xFF and head[1] & 0xE0 == 0xE0):
+        return "mp3"
+    return None
+
+
+def decode_capped(audio, max_seconds, miniaudio, resample):
+    """16 kHz mono float32 samples of uploaded audio, never more than `max_seconds` of them: a
+    length the container declares over the limit is refused before decoding, and decoding (mono,
+    at the file's own rate) stops one step past the limit whatever the header says, so a small
+    compressed file of hours of silence never fills memory. `resample(samples, from, to)`."""
+    import numpy as np
+
+    kind = audio_format(audio)
+    if kind is None:
+        raise Refused("the audio must be WAV, FLAC, MP3 or Ogg Vorbis")
+    too_long = Refused("the audio is longer than %d seconds" % max_seconds)
+    try:
+        info = getattr(miniaudio, kind + "_get_info")(audio)
+    except Exception:
+        raise Refused("the audio could not be decoded")
+    rate = int(getattr(info, "sample_rate", 0) or 0)
+    if rate <= 0:
+        raise Refused("the audio could not be decoded")
+    if (getattr(info, "num_frames", 0) or 0) > max_seconds * rate:
+        raise too_long
+    limit = int(max_seconds * rate)
+    parts, total = [], 0
+    stream = miniaudio.stream_memory(audio, miniaudio.SampleFormat.FLOAT32, 1, rate,
+                                     DECODE_FRAMES)
+    try:
+        for chunk in stream:
+            total += len(chunk)
+            if total > limit:
+                raise too_long
+            parts.append(np.asarray(chunk, dtype=np.float32))
+    except Refused:
+        raise
+    except Exception:
+        raise Refused("the audio could not be decoded")
+    finally:
+        close = getattr(stream, "close", None)
+        if close:
+            close()
+    samples = np.concatenate(parts) if parts else np.zeros(0, dtype=np.float32)
+    if rate != SAMPLE_RATE and len(samples):
+        samples = np.asarray(resample(samples, rate, SAMPLE_RATE), dtype=np.float32)
+    return samples
+
+
+def make_transcribe(model, max_seconds, max_audio_seconds, clock=time.monotonic):
+    """`transcribe(samples, language, task)` -> text, for 16 kHz mono `samples`. Audio longer
+    than `max_audio_seconds` is refused; a run is stopped with TooSlow after `max_seconds`:
+    a Whisper model is checked before each 30 s window it decodes (its `decode`), a chunking
+    model (Parakeet) after each chunk (`chunk_callback`)."""
+    params = inspect.signature(model.generate).parameters
+    translates = "task" in params
+    chunked = "chunk_callback" in params
+    state = {"deadline": None}
+
+    def check(*_):
+        if state["deadline"] is not None and clock() > state["deadline"]:
+            raise TooSlow()
+
+    decode = getattr(model, "decode", None)
+    if not chunked and callable(decode):
+        def checked_decode(*a, **kw):
+            check()
+            return decode(*a, **kw)
+
+        model.decode = checked_decode
+
+    def transcribe(samples, language, task):
+        seconds = len(samples) / SAMPLE_RATE
+        if seconds > max_audio_seconds:
+            raise Refused("the audio is longer than %d seconds" % max_audio_seconds)
+        kwargs = {}
+        if translates:
+            kwargs["task"] = task
+            if language is not None:
+                kwargs["language"] = language
+        elif task == "translate":
+            raise Refused("this model only transcribes")
+        if chunked:
+            kwargs["chunk_callback"] = check
+            if seconds > CHUNK_SECONDS and "chunk_duration" in params:
+                kwargs["chunk_duration"] = CHUNK_SECONDS
+        state["deadline"] = clock() + max_seconds
+        try:
+            result = model.generate(samples, **kwargs)
+        finally:
+            state["deadline"] = None
+        return heard_text(result, seconds)
+
+    return transcribe
+
+
+# A segment that starts this close to the end of the audio has no room for a word; one may end
+# this much past it (timestamps are rounded to Whisper's 20 ms steps).
+TAIL_SECONDS = 0.1
+OVERRUN_SECONDS = 1.0
+
+
+def heard_text(result, seconds):
+    """The text of a recognition result. Whisper can keep decoding into the silence that pads its
+    30 s window and make up segments there: ones that start or end past the end of the audio, or
+    end before they start, are dropped (their scores do not tell them apart: mlx-audio's
+    log probabilities can be NaN for real speech too). Segments are kept as they come when any
+    has no start time."""
+    segments = getattr(result, "segments", None) or []
+    timed = lambda s: isinstance(s, dict) and isinstance(s.get("text"), str) \
+        and all(isinstance(s.get(k), (int, float)) for k in ("start", "end"))
+    if segments and all(timed(s) for s in segments):
+        def heard(s):
+            return s["start"] < seconds - TAIL_SECONDS \
+                and s["start"] <= s["end"] <= seconds + OVERRUN_SECONDS
+        return "".join(s["text"] for s in segments if heard(s)).strip()
+    text = getattr(result, "text", None)
+    if not isinstance(text, str):
+        raise RuntimeError("no text")
+    return text.strip()
 
 
 def wav_bytes(samples, rate):
@@ -249,15 +463,12 @@ def cors(inner):
     return app
 
 
-def app_for(speak, alias, voices, max_chars):
-    """The ASGI app; `speak(text, voice, speed, language)` returns (WAV bytes, truncated)
-    (blocking)."""
+def app_with(path, handle, model_entry, max_body):
+    """The ASGI app: /health, /v1/models (`model_entry`) and POST `path`, whose body (at most
+    `max_body` bytes) goes to `await handle(body, content_type)` -> (status, payload,
+    content_type, extra headers)."""
     expected = f"Bearer {KEY}".encode()
-    one_at_a_time = threading.Lock()
-
-    def run(*args):
-        with one_at_a_time:
-            return speak(*args)
+    routes = {("GET", "/health"), ("GET", "/v1/models"), ("POST", path)}
 
     async def app(scope, receive, send):
         if scope["type"] == "lifespan":
@@ -272,19 +483,21 @@ def app_for(speak, alias, voices, max_chars):
             if scope["type"] == "websocket":
                 await send({"type": "websocket.close", "code": 1008})
             return
-        method, path = scope["method"], scope["path"]
-        if (method, path) not in ROUTES:
+        method, route = scope["method"], scope["path"]
+        if (method, route) not in routes:
             return await respond(send, 404, error("Not found.", "not_found", "not_found"))
-        if path == "/health":
+        if route == "/health":
             return await respond(send, 200, {"status": "ok"})
-        auth = dict(scope.get("headers") or []).get(b"authorization", b"")
-        if not hmac.compare_digest(auth, expected):
+        headers = dict(scope.get("headers") or [])
+        if not hmac.compare_digest(headers.get(b"authorization", b""), expected):
             return await respond(send, 401, error(
                 "Missing or invalid API key.", "authentication_error", "invalid_api_key"))
-        if path == "/v1/models":
-            return await respond(send, 200, {"object": "list", "data": [
-                {"id": alias or "default_model", "object": "model", "owned_by": "harness",
-                 "voices": voices}]})
+        if route == "/v1/models":
+            return await respond(send, 200, {"object": "list", "data": [model_entry]})
+        declared = headers.get(b"content-length", b"")
+        if declared.isdigit() and int(declared) > max_body:
+            return await respond(send, 413, error(
+                "Request body too large.", "invalid_request_error", "body_too_large"))
         chunks, size, more = [], 0, True
         while more:
             message = await receive()
@@ -292,32 +505,103 @@ def app_for(speak, alias, voices, max_chars):
                 return
             chunk = message.get("body", b"")
             size += len(chunk)
-            if size > MAX_BODY:
+            if size > max_body:
                 return await respond(send, 413, error(
                     "Request body too large.", "invalid_request_error", "body_too_large"))
             chunks.append(chunk)
             more = message.get("more_body", False)
+        content_type = headers.get(b"content-type", b"").decode("latin-1")
+        status, payload, kind, extra = await handle(b"".join(chunks), content_type)
+        await respond(send, status, payload, kind, extra)
+
+    return app
+
+
+def app_for(speak, alias, voices, max_chars):
+    """The speech app; `speak(text, voice, speed, language)` returns (WAV bytes, truncated)
+    (blocking)."""
+    one_at_a_time = threading.Lock()
+
+    def run(*args):
+        with one_at_a_time:
+            return speak(*args)
+
+    async def handle(raw, _content_type):
         try:
-            text, voice, speed, language = speech_request(b"".join(chunks), max_chars)
+            text, voice, speed, language = speech_request(raw, max_chars)
             if voice in OPENAI_VOICES and voice not in voices:
                 voice = None
             if voice is not None and voices and voice not in voices:
                 raise Refused("unknown voice %r; this model has: %s" % (voice, ", ".join(voices)))
         except Refused as e:
-            return await respond(send, 400, error(
-                str(e) + ".", "invalid_request_error", "invalid_request"))
+            return 400, error(str(e) + ".", "invalid_request_error", "invalid_request"), \
+                b"application/json", []
         try:
             audio, truncated = await asyncio.to_thread(run, text, voice, speed, language)
         except TooSlow:
-            return await respond(send, 504, error(
-                "Speech took longer than the worker's time limit.", "server_error", "speech_timeout"))
+            return 504, error("Speech took longer than the worker's time limit.", "server_error",
+                              "speech_timeout"), b"application/json", []
         except Exception as e:  # the model's own failure, without the folder's path
-            return await respond(send, 500, error(
-                "Speech failed: %s" % type(e).__name__, "server_error", "speech_failed"))
-        await respond(send, 200, audio, b"audio/wav",
-                      [(b"x-harness-truncated", b"time")] if truncated else [])
+            return 500, error("Speech failed: %s" % type(e).__name__, "server_error",
+                              "speech_failed"), b"application/json", []
+        return 200, audio, b"audio/wav", [(b"x-harness-truncated", b"time")] if truncated else []
 
-    return app
+    entry = {"id": alias or "default_model", "object": "model", "owned_by": "harness",
+             "voices": voices}
+    return app_with(SPEECH_PATH, handle, entry, MAX_BODY)
+
+
+def transcription_app_for(transcribe, decode, alias):
+    """The speech recognition app; `decode(bytes)` makes 16 kHz mono samples of the uploaded
+    audio and `transcribe(samples, language, task)` returns the text (both blocking)."""
+    one_at_a_time = threading.Lock()
+
+    def run(audio, language, task):
+        try:
+            samples = decode(audio)
+        except Refused:
+            raise
+        except Exception:
+            raise Refused("the audio could not be decoded")
+        with one_at_a_time:
+            return transcribe(samples, language, task)
+
+    def refused(e):
+        return 400, error(str(e) + ".", "invalid_request_error", "invalid_request"), \
+            b"application/json", []
+
+    async def handle(raw, content_type):
+        try:
+            audio, language, task = transcription_request(content_type, raw)
+        except Refused as e:
+            return refused(e)
+        try:
+            text = await asyncio.to_thread(run, audio, language, task)
+        except Refused as e:
+            return refused(e)
+        except TooSlow:
+            return 504, error("Transcription took longer than the worker's time limit.",
+                              "server_error", "transcription_timeout"), b"application/json", []
+        except Exception as e:  # the model's own failure, without the folder's path
+            return 500, error("Transcription failed: %s" % type(e).__name__, "server_error",
+                              "transcription_failed"), b"application/json", []
+        return 200, {"text": text}, b"application/json", []
+
+    entry = {"id": alias or "default_model", "object": "model", "owned_by": "harness"}
+    return app_with(TRANSCRIPTION_PATH, handle, entry, MAX_AUDIO_BODY)
+
+
+def stt_options(model_dir):
+    """Loader options of a recognition folder: a NeMo Parakeet config names no `model_type`
+    (mlx-audio would guess it from the folder's name), so it is given here."""
+    try:
+        with open(os.path.join(model_dir, "config.json")) as f:
+            config = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    if not config.get("model_type") and "EncDec" in str(config.get("target", "")):
+        return {"model_type": "parakeet"}
+    return {}
 
 
 def main(argv=None):
@@ -344,6 +628,22 @@ def main(argv=None):
             return _original(*a, **kw)
 
         cls.from_pretrained = no_remote_code
+
+    if args.task == "transcription":
+        import miniaudio
+        import mlx.core as mx
+        from mlx_audio.stt.utils import load_model as load_stt
+        from mlx_audio.stt.utils import resample_audio
+
+        model = load_stt(model_dir, **stt_options(model_dir))
+
+        def decode(audio):
+            return mx.array(decode_capped(audio, args.max_audio_seconds, miniaudio, resample_audio))
+
+        transcribe = make_transcribe(model, args.max_seconds, args.max_audio_seconds)
+        app = transcription_app_for(transcribe, decode, args.alias)
+        uvicorn.run(cors(app), host=HOST, port=args.port, log_level="info", access_log=True)
+        return
 
     from mlx_audio.tts.utils import load_model
 

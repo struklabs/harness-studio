@@ -40,7 +40,12 @@
   let sherpaModels = $derived(asr.models);
   let sherpaChosen = $derived(isSherpaChoice(speech.model, domain.definitions, asr.names));
   let ctcChosen = $derived(models.some(d => d.alias === speech.model && isOnnxCtcDefinition(d)));
-  let noModel = $derived(models.length === 0 && sherpaModels.length === 0);
+  /** The library's mlx-audio recognition models (Whisper, Parakeet in MLX's format), by definition alias. */
+  let engineModels = $derived(asr.engineModels);
+  let engineChosen = $derived(engineModels.find(m => m.name === speech.model) ?? null);
+  /** A model that only transcribes (sherpa-onnx, CTC, Parakeet MLX): translation is Whisper's. */
+  let onlyTranscribes = $derived(sherpaChosen || ctcChosen || (engineChosen !== null && !engineChosen.translates));
+  let noModel = $derived(models.length === 0 && sherpaModels.length === 0 && engineModels.length === 0);
   let noModelNotice = $derived(noModel && !libraryDefinitions.busy);
   let installingRuntime = $derived(tts.installingRuntime);
   let progressPct = $derived(
@@ -51,7 +56,11 @@
   onMount(() => void asr.load());
   // sherpa-onnx models only transcribe; translation to English is a Whisper task.
   $effect(() => {
-    if (sherpaChosen || ctcChosen) task = 'transcriptions';
+    if (onlyTranscribes) task = 'transcriptions';
+  });
+  // mlx-audio's worker answers the text only (no subtitles).
+  $effect(() => {
+    if (engineChosen && format !== 'json') format = 'json';
   });
 
   async function installRuntime() {
@@ -79,7 +88,7 @@
   $effect(() => holdReleaseWhile('transcribe-audio', () => recState !== 'idle' || !!file || !!result));
 
   $effect(() => {
-    speech.model = speechModel(speech.model, domain.definitions, asr.names);
+    speech.model = speechModel(speech.model, domain.definitions, asr.names, asr.engineNames);
   });
   $effect(() => {
     void domain.refreshDefinitions();
@@ -96,7 +105,7 @@
     error = '';
     needFamily = null;
     try {
-      result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language: ctcChosen ? '' : language, prompt: ctcChosen ? '' : prompt, format }, app.inferenceHeaders(), c.signal);
+      result = await fetchTranscription(app.inferenceUrl, task, file, speech.model, { language: ctcChosen ? '' : language, prompt: ctcChosen || engineChosen ? '' : prompt, format }, app.inferenceHeaders(), c.signal);
     } catch (e) {
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -189,7 +198,7 @@
 </script>
 
 <div class="mx-auto flex w-full max-w-[860px] flex-col gap-5 px-4 py-6">
-  {#if isMac && !sherpaChosen && !ctcChosen}
+  {#if isMac && !sherpaChosen && !ctcChosen && !engineChosen}
     <!-- whisper.cpp ships no macOS server build: the Hub / gateway hints below only help once
          a self-built whisper-server is added as a local runtime. -->
     <div class="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-xs text-foreground" role="note">
@@ -235,17 +244,28 @@
         disabled={busy || noModel}
         class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
       >
-        {#if sherpaModels.length > 0}
-          <optgroup label={t('sasr.group_definitions')}>
-            {#each models as d (d.id)}
-              <option value={d.alias}>{d.alias}</option>
-            {/each}
-          </optgroup>
-          <optgroup label={t('sasr.group_sherpa')}>
-            {#each sherpaModels as m (m.id)}
-              <option value={m.name}>{m.name}</option>
-            {/each}
-          </optgroup>
+        {#if sherpaModels.length > 0 || engineModels.length > 0}
+          {#if models.length > 0}
+            <optgroup label={t('sasr.group_definitions')}>
+              {#each models as d (d.id)}
+                <option value={d.alias}>{d.alias}</option>
+              {/each}
+            </optgroup>
+          {/if}
+          {#if engineModels.length > 0}
+            <optgroup label={t('sasr.group_mlx')}>
+              {#each engineModels as m (m.id)}
+                <option value={m.name}>{m.name}</option>
+              {/each}
+            </optgroup>
+          {/if}
+          {#if sherpaModels.length > 0}
+            <optgroup label={t('sasr.group_sherpa')}>
+              {#each sherpaModels as m (m.id)}
+                <option value={m.name}>{m.name}</option>
+              {/each}
+            </optgroup>
+          {/if}
         {:else}
           {#each models as d (d.id)}
             <option value={d.alias}>{d.alias}</option>
@@ -315,19 +335,20 @@
     <div class="grid gap-3 sm:grid-cols-3">
       <div class="flex flex-col gap-1.5">
         <Label for="asr-task" class="text-sm font-semibold text-foreground">{t('asr.task_label')}</Label>
-        <select id="asr-task" bind:value={task} disabled={busy || sherpaChosen || ctcChosen} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+        <select id="asr-task" bind:value={task} disabled={busy || onlyTranscribes} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
           <option value="transcriptions">{t('asr.task_transcribe')}</option>
           <option value="translations">{t('asr.task_translate')}</option>
         </select>
-        {#if sherpaChosen || ctcChosen}<span class="text-xs text-muted-foreground">{t('sasr.only_transcribes')}</span>{/if}
+        {#if onlyTranscribes}<span class="text-xs text-muted-foreground">{t('sasr.only_transcribes')}</span>{/if}
       </div>
       <div class="flex flex-col gap-1.5">
         <Label for="asr-format" class="text-sm font-semibold text-foreground">{t('asr.format_label')}</Label>
-        <select id="asr-format" bind:value={format} disabled={busy} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
+        <select id="asr-format" bind:value={format} disabled={busy || !!engineChosen} class="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground">
           <option value="json">{t('asr.format_text')}</option>
           <option value="srt">SRT</option>
           <option value="vtt">WebVTT</option>
         </select>
+        {#if engineChosen}<span class="text-xs text-muted-foreground">{t('sasr.text_only')}</span>{/if}
       </div>
       {#if !ctcChosen}
       <div class="flex flex-col gap-1.5">
@@ -336,7 +357,7 @@
       </div>
       {/if}
     </div>
-    {#if !ctcChosen}
+    {#if !ctcChosen && !engineChosen}
       <div class="flex flex-col gap-1.5">
         <Label for="asr-prompt" class="text-sm font-semibold text-foreground">{t('asr.prompt_label')}</Label>
         <Input id="asr-prompt" bind:value={prompt} placeholder={t('asr.prompt_placeholder')} disabled={busy} />

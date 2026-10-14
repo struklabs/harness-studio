@@ -345,7 +345,8 @@ export async function openInPlayground(model: LocalModel, runtime?: string | nul
       tts.voice = '';
     } else {
       await asr.load();
-      speech.model = (asr.models.find((x) => x.id === model.id) ?? asr.models.find((x) => x.name === model.name))?.name ?? model.name;
+      const known = [...asr.models, ...asr.engineModels];
+      speech.model = (known.find((x) => x.id === model.id) ?? known.find((x) => x.name === model.name))?.name ?? model.name;
     }
     app.openPlaygroundTab(target.tab);
   } catch (e) {

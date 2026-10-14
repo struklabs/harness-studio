@@ -5,7 +5,7 @@ import { invoke } from '#lib/ipc.js';
 import { t } from '#lib/i18n.svelte.js';
 import { localizeError } from '#lib/network.js';
 import type { RuntimeDownloadProgress } from '#lib/types.js';
-import { sherpaNames, type AsrModelInfo, type AsrOverview } from './asr';
+import { sherpaNames, type AsrModelInfo, type AsrOverview, type EngineAsrModel } from './asr';
 
 class AsrStore {
   overview = $state<AsrOverview | null>(null);
@@ -15,6 +15,9 @@ class AsrStore {
 
   models = $derived<AsrModelInfo[]>(this.overview?.models ?? []);
   names = $derived(sherpaNames(this.models));
+  /** The library's mlx-audio recognition models (by definition alias). */
+  engineModels = $derived<EngineAsrModel[]>(this.overview?.engine_models ?? []);
+  engineNames = $derived(this.engineModels.map((m) => m.name));
 
   async load() {
     try {
