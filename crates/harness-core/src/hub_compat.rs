@@ -300,6 +300,30 @@ pub fn has_ctc_files(files: &[String]) -> bool {
         })
 }
 
+/// Whether the sidecar serves the ONNX repo of `task` whose `config` (`config.json` as the Hub
+/// listing gives it) is this: the generative tasks are served for some architectures only (T5 /
+/// BART / Marian, not mBART / M2M100 / NLLB; ViT + GPT-2 captioners, not BLIP / GIT). Without a
+/// config, or for the other tasks, the task alone decides.
+pub fn onnx_config_served(task: Option<&str>, config: Option<&serde_json::Value>) -> bool {
+    let Some(config) = config else {
+        return true;
+    };
+    let architectures = || -> Vec<&str> {
+        config
+            .get("architectures")
+            .and_then(|a| a.as_array())
+            .map(|a| a.iter().filter_map(|v| v.as_str()).collect())
+            .unwrap_or_default()
+    };
+    match task {
+        Some("summarization" | "translation" | "text2text-generation") => {
+            harness_onnx::seq2seq_pkg::is_seq2seq_config(config)
+        }
+        Some("image-to-text") => architectures().contains(&"VisionEncoderDecoderModel"),
+        _ => true,
+    }
+}
+
 /// Whether `task` is one the ONNX family serves ([`ONNX_TASKS`]).
 pub fn is_onnx_task(task: Option<&str>) -> bool {
     task.is_some_and(|t| ONNX_TASKS.contains(&t))
@@ -630,6 +654,31 @@ mod tests {
 
     fn s(items: &[&str]) -> Vec<String> {
         items.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn onnx_generators_are_served_for_known_architectures_only() {
+        let served =
+            |task, config: serde_json::Value| onnx_config_served(Some(task), Some(&config));
+        let marian =
+            serde_json::json!({"model_type": "marian", "architectures": ["MarianMTModel"]});
+        let nllb = serde_json::json!({"model_type": "m2m_100", "architectures": ["M2M100ForConditionalGeneration"]});
+        assert!(served("translation", marian));
+        assert!(!served("translation", nllb));
+        assert!(served(
+            "image-to-text",
+            serde_json::json!({"architectures": ["VisionEncoderDecoderModel"]})
+        ));
+        assert!(!served(
+            "image-to-text",
+            serde_json::json!({"architectures": ["BlipForConditionalGeneration"]})
+        ));
+        // Other tasks, and listings without a config, are left to the task.
+        assert!(served(
+            "image-classification",
+            serde_json::json!({"model_type": "vit"})
+        ));
+        assert!(onnx_config_served(Some("translation"), None));
     }
 
     #[test]

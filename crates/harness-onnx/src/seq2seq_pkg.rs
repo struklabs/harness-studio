@@ -104,14 +104,24 @@ impl Seq2SeqPackage {
             .and_then(|t| t.get("model_max_length").and_then(Value::as_f64))
             .filter(|n| *n >= 1.0 && *n < 1e6)
             .map(|n| n as usize);
-        let max_input = tokenizer_limit
-            .or_else(|| {
-                ["max_position_embeddings", "n_positions"]
-                    .iter()
-                    .find_map(|k| config.get(*k).and_then(Value::as_u64))
-                    .map(|n| n as usize)
-            })
-            .unwrap_or(DEFAULT_MAX_INPUT);
+        // BART, Marian, Pegasus have learned positions: no input beyond them. T5's are relative,
+        // its `n_positions` only a training length.
+        let positions = config
+            .get("max_position_embeddings")
+            .and_then(Value::as_u64)
+            .map(|n| n as usize);
+        let max_input = match (tokenizer_limit, positions) {
+            (Some(t), Some(p)) => t.min(p),
+            (t, p) => t
+                .or(p)
+                .or_else(|| {
+                    config
+                        .get("n_positions")
+                        .and_then(Value::as_u64)
+                        .map(|n| n as usize)
+                })
+                .unwrap_or(DEFAULT_MAX_INPUT),
+        };
         let name = root
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
@@ -242,6 +252,11 @@ mod tests {
         );
         let p = Seq2SeqPackage::discover(&t5).unwrap();
         assert_eq!((p.task, p.max_input), ("text2text-generation", 512));
+        // Every graph of the repo is refused as a text encoder.
+        assert!(matches!(
+            crate::package::ModelPackage::discover(&t5),
+            Err(crate::package::PackageError::TextGenerator(_))
+        ));
         // Marian translates; its pad token is never generated.
         let marian = repo(
             &tmp.path().join("opus-mt-en-de"),
@@ -301,6 +316,14 @@ mod tests {
         );
         assert!(parse(&json!({"inputs": "  "})).is_err());
         assert!(parse(&json!({"inputs": ["a", "b"]})).is_err());
-        assert!(parse(&json!({"inputs": "a", "parameters": {"max_new_tokens": 0}})).is_err());
+        let tokens = |v: Value| parse(&json!({"inputs": "a", "parameters": {"max_new_tokens": v}}));
+        for bad in [json!(0), json!(-1), json!(1.5), json!("5")] {
+            assert!(tokens(bad.clone()).is_err(), "{bad} must be refused");
+        }
+        // Above the cap is accepted here; the decoder clamps it to 256.
+        assert_eq!(
+            tokens(json!(100_000)).unwrap().max_new_tokens,
+            Some(100_000)
+        );
     }
 }

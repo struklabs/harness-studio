@@ -526,6 +526,16 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
             })
             .unwrap_or_else(|| crate::hub_compat::hub_compatibility_for(format, task, genai))
     };
+    // An ONNX translator / captioner of an architecture the sidecar does not serve (NLLB, BLIP)
+    // would show as runnable and fail at launch.
+    let compatibility = if format == crate::hub_compat::ModelFormat::Onnx
+        && !genai
+        && !crate::hub_compat::onnx_config_served(task, item.get("config"))
+    {
+        crate::hub_compat::Compatibility::Unsupported { format }
+    } else {
+        compatibility
+    };
     // "No GGUF file" is llama-server's verdict; an ONNX encoder or an image model runs elsewhere.
     let not_runnable = analysis.not_runnable.filter(|_| {
         diffusion_adapter
