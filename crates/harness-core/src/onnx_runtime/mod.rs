@@ -18,9 +18,11 @@
 //!
 //! **Variants.** Windows x64: `directml` (ONNX Runtime 1.24.4, the last release Microsoft
 //! publishes with the DirectML execution provider, plus DirectML 1.15.4: AMD, NVIDIA and Intel
-//! GPUs through DirectX 12, and the CPU as fallback), `cpu` and `cuda` (1.28.3, CUDA 12; the
-//! 450 MB archive is opt-in and needs the CUDA 12 runtime and cuDNN 9 DLLs on the PATH, which
-//! NVIDIA does not allow Harness to redistribute). Linux x64 and macOS arm64: `cpu`.
+//! GPUs through DirectX 12, and the CPU as fallback), `cpu` and `cuda` (1.28.3, CUDA 12; opt-in: with
+//! it come the CUDA 12.9 runtime, cuBLAS, cuFFT and cuDNN 9.27 DLLs, read out of NVIDIA's
+//! `nvidia-*-cu12` PyPI wheels and pinned like the rest, about 2.1 GB on disk; their NVIDIA
+//! licence texts are installed beside them. Harness downloads them from NVIDIA's packages on
+//! the user's request and does not ship them). Linux x64 and macOS arm64: `cpu`.
 //! The sidecar asks ONNX Runtime for API level 24, which every version above serves.
 //!
 //! **GenAI.** The Windows builds also carry `onnxruntime-genai.dll` (ONNX Runtime GenAI 0.17.0,
@@ -261,7 +263,123 @@ const SPECS: &[VariantSpec] = &[
                 },
             ],
         },
-        GENAI_WIN_CUDA],
+        GENAI_WIN_CUDA,
+        // The CUDA 12 and cuDNN 9 libraries the CUDA provider loads, from NVIDIA's PyPI wheels
+        // (only these DLLs and the licence texts are read out of them). The sidecar puts the
+        // install folder on its own DLL search path, so nothing system-wide changes.
+        ArchiveSpec {
+            url: "https://files.pythonhosted.org/packages/59/df/e7c3a360be4f7b93cee39271b792669baeb3846c58a4df6dfcf187a7ffab/nvidia_cuda_runtime_cu12-12.9.79-py3-none-win_amd64.whl",
+            size: 3_591_604,
+            sha256: "8e018af8fa02363876860388bd10ccb89eb9ab8fb0aa749aaf58430a9f7c4891",
+            format: ArchiveFormat::Zip,
+            files: &[
+                FileSpec {
+                    inner: "nvidia/cuda_runtime/bin/cudart64_12.dll",
+                    out: "cudart64_12.dll",
+                    sha256: "760c38928bbe5759f7b31ed6692599eb7ec83cedd5702e84c2b72028a89837e1",
+                },
+                FileSpec {
+                    inner: "nvidia_cuda_runtime_cu12-12.9.79.dist-info/licenses/License.txt",
+                    out: "NVIDIA-CUDA-LICENSE.txt",
+                    sha256: "ad6f5853fba0ca0d159d0f58d49ae49830c2f8c93f7a92648b9ce90adb4c6ccd",
+                },
+            ],
+        },
+        ArchiveSpec {
+            url: "https://files.pythonhosted.org/packages/20/e2/fc9a0e985249d873150276d5afb02e39a66817fedbf1a385724393e505ed/nvidia_cublas_cu12-12.9.2.10-py3-none-win_amd64.whl",
+            size: 553_162_896,
+            sha256: "623f43027d40d44ceadf0043f002bd25cf353e8f13ce90b9a87057019f560661",
+            format: ArchiveFormat::Zip,
+            files: &[
+                FileSpec {
+                    inner: "nvidia/cublas/bin/cublas64_12.dll",
+                    out: "cublas64_12.dll",
+                    sha256: "52ce5ba0ec5327d39be6021f0f9362d2ed4d64d7206f9b5afc06398d827b8e82",
+                },
+                FileSpec {
+                    inner: "nvidia/cublas/bin/cublasLt64_12.dll",
+                    out: "cublasLt64_12.dll",
+                    sha256: "71705a7cf0923f4ab034d0d2620bbfc989ff669ac3d79f868b7a7c597ca559c5",
+                },
+            ],
+        },
+        ArchiveSpec {
+            url: "https://files.pythonhosted.org/packages/20/ee/29955203338515b940bd4f60ffdbc073428f25ef9bfbce44c9a066aedc5c/nvidia_cufft_cu12-11.4.1.4-py3-none-win_amd64.whl",
+            size: 200_067_309,
+            sha256: "8e5bfaac795e93f80611f807d42844e8e27e340e0cde270dcb6c65386d795b80",
+            format: ArchiveFormat::Zip,
+            files: &[
+                FileSpec {
+                    inner: "nvidia/cufft/bin/cufft64_11.dll",
+                    out: "cufft64_11.dll",
+                    sha256: "5b90655ca9cdf5d91cbdf2c72b995ec937eed0aef2d6954370c711b45c929b35",
+                },
+            ],
+        },
+        ArchiveSpec {
+            url: "https://files.pythonhosted.org/packages/aa/38/f856579877f7c1c5066e61182e7de7bc27bf35a78c8d1b0fa592e6985bc4/nvidia_cudnn_cu12-9.27.0.42-py3-none-win_amd64.whl",
+            size: 743_068_852,
+            sha256: "06e9b0026f3bad97d2b58666330fabec04fe1672f776661ecb0ce0029c27f142",
+            format: ArchiveFormat::Zip,
+            files: &[
+                FileSpec {
+                    inner: "nvidia/cudnn/bin/cudnn64_9.dll",
+                    out: "cudnn64_9.dll",
+                    sha256: "7268ef53e32c2c574372326dfc9d94a26095f4ed9c89dba87cfb3ab1e40a6470",
+                },
+                FileSpec {
+                    inner: "nvidia/cudnn/bin/cudnn_adv64_9.dll",
+                    out: "cudnn_adv64_9.dll",
+                    sha256: "712ace96559e60b5be81a1097acb7609f601ff4cd0cdef848b013d671753b4b4",
+                },
+                FileSpec {
+                    inner: "nvidia/cudnn/bin/cudnn_cnn64_9.dll",
+                    out: "cudnn_cnn64_9.dll",
+                    sha256: "dff4c446c855b3ab2d486aebf4c11388cf74da14d7bd0bfafb61c3a75481313d",
+                },
+                FileSpec {
+                    inner: "nvidia/cudnn/bin/cudnn_engines_precompiled64_9.dll",
+                    out: "cudnn_engines_precompiled64_9.dll",
+                    sha256: "6b603ac45fc018a96f014d0c6cdbc8f480dce2dbe33b8ca38228a4e4c531f3fe",
+                },
+                FileSpec {
+                    inner: "nvidia/cudnn/bin/cudnn_engines_runtime_compiled64_9.dll",
+                    out: "cudnn_engines_runtime_compiled64_9.dll",
+                    sha256: "f92f4776261e4409aa9f84357c40bc3626700292a1d22025746388bea43ae11b",
+                },
+                FileSpec {
+                    inner: "nvidia/cudnn/bin/cudnn_engines_tensor_ir64_9.dll",
+                    out: "cudnn_engines_tensor_ir64_9.dll",
+                    sha256: "d7380a7c4ad90590968e97b4d8b43a616e7e0070bfdeeee04c4d0be85ad52394",
+                },
+                FileSpec {
+                    inner: "nvidia/cudnn/bin/cudnn_ext64_9.dll",
+                    out: "cudnn_ext64_9.dll",
+                    sha256: "f20888488b701e429830e19cf59022e90a0c5dd398723162ea9f320b3ca06636",
+                },
+                FileSpec {
+                    inner: "nvidia/cudnn/bin/cudnn_graph64_9.dll",
+                    out: "cudnn_graph64_9.dll",
+                    sha256: "445e8c3e44a6a6035749380009ae35ae8c2bc246428229b79545a25238bb56e2",
+                },
+                FileSpec {
+                    inner: "nvidia/cudnn/bin/cudnn_heuristic64_9.dll",
+                    out: "cudnn_heuristic64_9.dll",
+                    sha256: "0634af738266cd36c912e99cd3807ee452450e963bf885be204fdcfb322cfc70",
+                },
+                FileSpec {
+                    inner: "nvidia/cudnn/bin/cudnn_ops64_9.dll",
+                    out: "cudnn_ops64_9.dll",
+                    sha256: "390bfe103a244c714fca5a1320950ba51a3173a7fbd6664ed535ce7367891ccd",
+                },
+                FileSpec {
+                    inner: "nvidia_cudnn_cu12-9.27.0.42.dist-info/licenses/License.txt",
+                    out: "NVIDIA-CUDNN-LICENSE.txt",
+                    sha256: "49cf79bdb35734b52fe6203013b3bd759f81e998cd32aa2c65c51db9a88c61d2",
+                },
+            ],
+        },
+        ],
     },
 ];
 
@@ -383,16 +501,39 @@ pub fn default_variant() -> OrtVariant {
 
 /// The build the sidecar needs for `--provider <choice>` (`auto`, `cpu`, `directml`, `cuda`).
 /// A CPU choice reuses any build that is already installed (every build runs on the CPU).
+/// `auto` takes the CUDA build once the user installed it (an opt-in download, so the NVIDIA
+/// GPU is the one they want), else the platform default.
 pub fn variant_for_provider(choice: &str) -> OrtVariant {
+    variant_for_provider_in(&root(), choice)
+}
+
+fn variant_for_provider_in(root: &Path, choice: &str) -> OrtVariant {
     match choice.trim().to_ascii_lowercase().as_str() {
         "directml" | "dml" => OrtVariant::Directml,
         "cuda" => OrtVariant::Cuda,
         "cpu" => specs()
             .iter()
             .map(|s| s.variant)
-            .find(|v| installed(*v).is_some())
+            .find(|v| installed_in(root, *v).is_some())
             .unwrap_or_else(default_variant),
+        _ if installed_in(root, OrtVariant::Cuda).is_some() => OrtVariant::Cuda,
         _ => default_variant(),
+    }
+}
+
+/// The build a launch with `--provider <choice>` fetches when it is missing. The Windows CUDA
+/// build (about 2.1 GB with its CUDA and cuDNN libraries) is installed only from Settings, so
+/// a CUDA launch without it takes the DirectML build instead (the engine says so in the log).
+pub fn launch_variant(choice: &str) -> OrtVariant {
+    launch_variant_in(&root(), choice)
+}
+
+fn launch_variant_in(root: &Path, choice: &str) -> OrtVariant {
+    match variant_for_provider_in(root, choice) {
+        OrtVariant::Cuda if cfg!(windows) && installed_in(root, OrtVariant::Cuda).is_none() => {
+            default_variant()
+        }
+        v => v,
     }
 }
 
