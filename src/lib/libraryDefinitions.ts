@@ -7,9 +7,17 @@ export const DEFINITION_KINDS: readonly ModelKind[] = ['image', 'asr', 'embeddin
 
 const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 
+/** Speech engine label from the library's detected format and architecture. */
+export function speechKindKey(file: Pick<LocalModel, 'kind' | 'path' | 'architecture'>): 'lib.kind_asr' | 'lib.kind_asr_ctc' | 'lib.kind_asr_whisper' | 'sasr.kind' {
+  if (file.kind !== 'asr') return 'lib.kind_asr';
+  if (isOnnxAsr(file)) return 'sasr.kind';
+  if (/\.onnx$/i.test(file.path) && file.architecture === 'onnx') return 'lib.kind_asr_ctc';
+  return /\.bin$/i.test(file.path) ? 'lib.kind_asr_whisper' : 'lib.kind_asr';
+}
+
 /** A sherpa-onnx recognition model (ONNX): run per request, no definition. whisper.cpp's are ggml `.bin`. */
-function isOnnxAsr(file: Pick<LocalModel, 'kind' | 'path'>): boolean {
-  return file.kind === 'asr' && /\.onnx$/i.test(file.path);
+function isOnnxAsr(file: Pick<LocalModel, 'kind' | 'path' | 'architecture'>): boolean {
+  return file.kind === 'asr' && file.architecture !== 'onnx' && /\.onnx$/i.test(file.path);
 }
 
 /** Ready library files of `kinds` that no definition points at: the ones the pickers and `/v1/models` do not list yet. */
@@ -56,7 +64,7 @@ export type PlaygroundTab = 'embedding' | 'rerank' | 'transcription' | 'image' |
  * sherpa-onnx recognition models, which run per request). Null for files without a tab.
  */
 export function playgroundTarget(
-  file: Pick<LocalModel, 'kind' | 'path' | 'is_ready'>,
+  file: Pick<LocalModel, 'kind' | 'path' | 'is_ready' | 'architecture'>,
 ): { tab: PlaygroundTab; pick: 'definition' | 'name'; speech?: 'transcribe' | 'speak' } | null {
   if (!file.is_ready) return null;
   switch (file.kind) {

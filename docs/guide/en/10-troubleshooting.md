@@ -102,11 +102,11 @@ Server start failures can also show a classified explanation and **Recovery Opti
 
 **Which model should I download?** In **Model Hub**, first choose a file whose **Hardware fit** column says **Fits in VRAM**. If you are unsure, start with the Q4_K_M quant and a small model (1B to 8B parameters), then go bigger.
 
-**I downloaded a model. Why can't I chat?** A downloaded file has to be loaded by a server. Start it from the Dashboard, or pick the model definition on the open gateway. If the model is an embedding, reranker, Whisper, voice, or image model, use the matching Playground tab, or press **Open in Playground** on its library card. Files that were already in your folders are listed there without any extra step.
+**I downloaded a model. Why can't I chat?** A downloaded file has to be loaded by a server. Start it from the Dashboard, or pick the model definition on the open gateway. If the model is an embedding, reranker, speech recognition, voice, or image model, use the matching Playground tab, or press **Open in Playground** on its library card. Files that were already in your folders are listed there without any extra step.
 
 **I cannot find a page this guide mentions.** You may be in the **Simple** interface level. Switch to **Advanced** with the switch under the main navigation (see [Simple and Advanced levels](README.md#simple-and-advanced-interface-levels)); switching never changes a saved value.
 
-**A model does not show up in search. Do I need an account?** First reset the filters. The default Hub list is limited to GGUF repositories, so official repositories without a GGUF file (for example `meta-llama/Llama-3.2-1B-Instruct`) do not appear; only third-party GGUF copies are listed. For speech, search for `whisper`. For private or license-gated repositories, account access is needed as well.
+**A model does not show up in search. Do I need an account?** First reset the filters. The default Hub list is limited to GGUF repositories, so official repositories without a GGUF file (for example `meta-llama/Llama-3.2-1B-Instruct`) do not appear; only third-party GGUF copies are listed. For speech, pick the **Speech recognition (ASR)** task to find Whisper and ONNX CTC models. For private or license-gated repositories, account access is needed as well.
 
 **I added a token. Why won't the gated model download?** The token's account must have accepted that model's license. Some model owners approve access by hand. An OAuth client ID is not a substitute for model access permission.
 

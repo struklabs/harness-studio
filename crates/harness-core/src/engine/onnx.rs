@@ -312,6 +312,13 @@ fn build_args(
         host: config.host.clone(),
         ..Default::default()
     };
+    // CTC packages can be launched without tokenizer.json; explicit task wins.
+    if !config.params.contains_key("task")
+        && harness_onnx::package::library_task(&config.model_path)
+            == Some(harness_onnx::package::Task::AsrCtc)
+    {
+        args.extend(["--task".into(), "asr_ctc".into()]);
+    }
     // `provider` is sent above (it also picks the library).
     let mut values = config.params.clone();
     values.remove(PROVIDER_PARAM);
@@ -381,6 +388,42 @@ mod tests {
                 assert!(!is_protected(f), "{f} is set by Harness itself");
             }
         }
+    }
+
+    #[test]
+    fn onnx_ctc_launch_detects_audio_without_a_text_tokenizer() {
+        let d = tempfile::tempdir().unwrap();
+        let root = d.path();
+        std::fs::create_dir(root.join("onnx")).unwrap();
+        let model = root.join("onnx/model.onnx");
+        std::fs::write(&model, b"fixture").unwrap();
+        for (name, value) in [
+            (
+                "config.json",
+                r#"{"architectures":["Wav2Vec2ForCTC"],"vocab_size":2,"pad_token_id":1}"#,
+            ),
+            (
+                "preprocessor_config.json",
+                r#"{"feature_size":1,"sampling_rate":16000}"#,
+            ),
+            ("vocab.json", r#"{"a":0,"<pad>":1}"#),
+        ] {
+            std::fs::write(root.join(name), value).unwrap();
+        }
+        let mut c = config();
+        c.model_path = model;
+        let caps = crate::capabilities::whisper::from_help(
+            crate::capabilities::BinaryKey::default(),
+            harness_onnx::cli::HELP,
+        );
+        let launch = build_args(&c, Path::new("C:/rt/onnxruntime.dll"), Some(&caps)).unwrap();
+        assert!(launch.args.join(" ").contains("--task asr_ctc"));
+        assert_eq!(launch.args.iter().filter(|a| *a == "--task").count(), 1);
+        c.params
+            .insert("task".into(), ParamValue::Text("asr_ctc".into()));
+        let launch = build_args(&c, Path::new("C:/rt/onnxruntime.dll"), Some(&caps)).unwrap();
+        assert!(launch.args.join(" ").contains("--task asr_ctc"));
+        assert_eq!(launch.args.iter().filter(|a| *a == "--task").count(), 1);
     }
 
     /// The sidecar's own `--help` is what Harness parses: every catalog flag is in it, the

@@ -1,4 +1,4 @@
 /* Microphone permission prompt (Playground > Konuşma > Kaydet). */
-"NSMicrophoneUsageDescription" = "Harness Studio mikrofonu yalnız Playground > Konuşma'da Kaydet'e bastığınızda, kaydı yerel Whisper modelinizle yazıya dökmek için kullanır.";
+"NSMicrophoneUsageDescription" = "Harness Studio mikrofonu yalnız Playground > Konuşma'da Kaydet'e bastığınızda, kaydı yerel konuşma tanıma modelinizle yazıya dökmek için kullanır.";
 /* Terminal automation prompt (Bağlantılar > Başlat). */
 "NSAppleEventsUsageDescription" = "Harness Studio, Terminal'e (ya da iTerm'e) yalnız Bağlantılar'da bir kodlama ajanı için Başlat'a bastığınızda pencere açtırır.";

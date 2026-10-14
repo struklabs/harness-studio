@@ -55,7 +55,7 @@ Other kinds of models use optional engines that you install when you need them, 
 
 | Capability | Engine |
 | --- | --- |
-| Speech to text | whisper.cpp (Whisper models) and sherpa-onnx (Parakeet, SenseVoice, Omnilingual) |
+| Speech to text | whisper.cpp (Whisper models), sherpa-onnx (Parakeet, SenseVoice, Omnilingual), and ONNX Runtime (wav2vec2, HuBERT, WavLM CTC) |
 | Text to speech | sherpa-onnx (Kokoro and Piper voices) |
 | Image generation | stable-diffusion.cpp |
 | ONNX embeddings, reranking, and chat | ONNX Runtime and ONNX Runtime GenAI (through the bundled `harness-onnx` helper) |

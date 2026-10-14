@@ -43,6 +43,8 @@ pub enum Task {
     FillMask,
     /// An answer span of a context (`/v1/question-answering`): extractive QA.
     QuestionAnswering,
+    /// Raw audio to text through a CTC head.
+    AsrCtc,
 }
 
 impl Task {
@@ -54,6 +56,7 @@ impl Task {
             Task::TokenClassify => "token-classify",
             Task::FillMask => "fill-mask",
             Task::QuestionAnswering => "question-answering",
+            Task::AsrCtc => "asr_ctc",
         }
     }
 
@@ -67,6 +70,7 @@ impl Task {
             "token-classify" | "token-classification" | "ner" => Some(Task::TokenClassify),
             "fill-mask" | "fill_mask" => Some(Task::FillMask),
             "question-answering" | "qa" => Some(Task::QuestionAnswering),
+            "asr_ctc" => Some(Task::AsrCtc),
             _ => None,
         }
     }
@@ -123,13 +127,15 @@ impl Pooling {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelPackage {
     pub onnx_path: PathBuf,
+    /// tokenizer.json for text models; vocab.json for CTC packages.
     pub tokenizer_path: PathBuf,
-    /// Folder of `tokenizer.json` and the configs.
+    /// Text tokenizer (or CTC vocabulary) and configuration folder.
     pub root: PathBuf,
     pub task: Task,
     pub pooling: Pooling,
     /// L2-normalize the pooled vector (a `Normalize` module in `modules.json`).
     pub normalize: bool,
+    /// Text token limit; zero for CTC audio packages.
     pub max_length: usize,
     /// Embedding size from `1_Pooling/config.json`, when it names one.
     pub dimension: Option<usize>,
@@ -153,7 +159,7 @@ impl ModelPackage {
     /// zero-shot classifier.
     pub fn pipeline_task(&self) -> Option<&'static str> {
         match self.task {
-            Task::Embedding | Task::Rerank => None,
+            Task::Embedding | Task::Rerank | Task::AsrCtc => None,
             Task::Classify if crate::tasks::nli_indices(&self.labels).is_some() => {
                 Some("zero-shot-classification")
             }
@@ -170,11 +176,13 @@ impl ModelPackage {
 pub enum PackageError {
     NotOnnx(PathBuf),
     MissingTokenizer(PathBuf),
+    InvalidCtc(String),
 }
 
 impl std::fmt::Display for PackageError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            PackageError::InvalidCtc(message) => write!(f, "{message}"),
             PackageError::NotOnnx(p) => write!(f, "{} is not an .onnx file", p.display()),
             PackageError::MissingTokenizer(p) => write!(
                 f,
@@ -329,6 +337,9 @@ fn generic_labels(labels: &[String]) -> bool {
 /// head is a cross-encoder (reranker) with one output, or with two outputs whose labels have no
 /// names (some cross-encoders are trained as binary classifiers); otherwise a classifier.
 pub fn task_from_config(config: &Value) -> Task {
+    if crate::asr_ctc::is_ctc_config(config) {
+        return Task::AsrCtc;
+    }
     let heads: Vec<&str> = config
         .get("architectures")
         .and_then(Value::as_array)
@@ -418,6 +429,32 @@ impl ModelPackage {
             .is_some_and(|e| e.eq_ignore_ascii_case("onnx"))
         {
             return Err(PackageError::NotOnnx(onnx_path.to_path_buf()));
+        }
+        if let Some(root) = crate::asr_ctc::find_root(onnx_path) {
+            if read_json(&root.join("config.json"))
+                .is_some_and(|c| crate::asr_ctc::is_ctc_config(&c))
+            {
+                let ctc = crate::asr_ctc::CtcPackage::discover(onnx_path)
+                    .map_err(PackageError::InvalidCtc)?;
+                return Ok(Self {
+                    onnx_path: ctc.onnx_path,
+                    tokenizer_path: root.join("vocab.json"),
+                    name: root
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                    root,
+                    task: Task::AsrCtc,
+                    pooling: Pooling::Mean,
+                    normalize: false,
+                    max_length: 0,
+                    dimension: None,
+                    labels: Vec::new(),
+                    multi_label: false,
+                    unsupported_modules: Vec::new(),
+                    notes: vec!["task asr_ctc (config.json architectures)".into()],
+                });
+            }
         }
         let root = find_root(onnx_path)
             .ok_or_else(|| PackageError::MissingTokenizer(onnx_path.to_path_buf()))?;

@@ -12,7 +12,7 @@ export function definitionFile(def: ModelDefinition, files: LocalModel[] = []): 
 export function definitionMode(def: ModelDefinition, files: LocalModel[] = []): ServeMode {
   const path = def.base.kind === 'local' ? def.base.path : def.base.file;
   const file = definitionFile(def, files);
-  if (file?.kind === 'asr' || /\.bin$/i.test(path)) return 'transcription';
+  if (def.load?.task === 'asr_ctc' || file?.kind === 'asr' || /\.bin$/i.test(path)) return 'transcription';
   if (file?.kind === 'pipeline') return 'pipeline';
   if (file?.kind === 'image' || /\.(safetensors|ckpt)$/i.test(path)) return 'image';
   const mode = def.load?.serve_mode;
