@@ -112,12 +112,13 @@ pub const TASKS: &[&str] = &[
 pub const TRANSFORMERS_VERSION: &str = "5.19.0";
 
 /// `model_type`s transformers' text-to-speech pipeline loads (its text-to-spectrogram and
-/// text-to-waveform auto mappings in [`TRANSFORMERS_VERSION`]). Most TTS repos on the Hub need
-/// their own package (`qwen3_tts`, Kokoro, Chatterbox...): the worker cannot load those.
+/// text-to-waveform auto mappings in [`TRANSFORMERS_VERSION`]), without `speecht5` and
+/// `fastspeech2_conformer`: their pipeline downloads a separate vocoder repo at load, which the
+/// offline worker cannot. Most TTS repos on the Hub need their own package (`qwen3_tts`,
+/// Kokoro, Chatterbox...): the worker cannot load those either.
 pub const TTS_MODEL_TYPES: &[&str] = &[
     "bark",
     "csm",
-    "fastspeech2_conformer",
     "fastspeech2_conformer_with_hifigan",
     "higgs_audio_v2",
     "musicgen",
@@ -126,7 +127,6 @@ pub const TTS_MODEL_TYPES: &[&str] = &[
     "qwen3_omni_moe",
     "seamless_m4t",
     "seamless_m4t_v2",
-    "speecht5",
     "vibevoice",
     "vits",
 ];
@@ -954,6 +954,15 @@ mod tests {
             Some("anything")
         ));
         assert!(super::serves_model_type(Some("text-to-speech"), None));
+        // SpeechT5 fetches microsoft/speecht5_hifigan at load: not offline-servable as TTS.
+        assert!(!super::serves_model_type(
+            Some("text-to-speech"),
+            Some("speecht5")
+        ));
+        assert!(super::serves_model_type(
+            Some("automatic-speech-recognition"),
+            Some("speecht5")
+        ));
     }
 
     use super::*;

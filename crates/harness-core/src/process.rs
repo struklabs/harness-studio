@@ -2353,7 +2353,24 @@ impl ProcessManager {
         }
         self.generation
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        self.push_log("[Harness Studio] Hatalı llama-server süreci sonlandırılıyor...".to_string());
+        let family = self
+            .active
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|a| a.engine_family.clone())
+            .filter(|f| !f.is_empty());
+        let tr = crate::config::AppSettings::load().language != "en";
+        self.push_log(match (family, tr) {
+            (Some(f), true) => {
+                format!("[Harness Studio] Hatalı {f} sunucu süreci sonlandırılıyor...")
+            }
+            (Some(f), false) => {
+                format!("[Harness Studio] Stopping the failed {f} server process...")
+            }
+            (None, true) => "[Harness Studio] Hatalı sunucu süreci sonlandırılıyor...".to_string(),
+            (None, false) => "[Harness Studio] Stopping the failed server process...".to_string(),
+        });
         let cleanup = self
             .terminate_child_until(Instant::now() + Duration::from_secs(7))
             .await;

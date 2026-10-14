@@ -182,6 +182,8 @@ class Model:
         self.args = args
         self.state = "loading"
         self.error = None
+        # The server (`main`) exits on a load error; a test that calls `load()` reads `state`.
+        self.exit_on_error = False
         self.pipe = None
         self.st = None  # sentence-transformers model (embeddings / rerank), when the folder is one
         self.lock = threading.Lock()  # pipelines are not thread-safe: one request at a time
@@ -295,10 +297,16 @@ class Model:
             self.state = "ok"
             self.loaded_at = int(time.time())
             log(f"ready: {task} {folder} on {self.device()}")
-        except Exception as e:  # reported by /health and every request
+        except Exception as e:
             self.state = "error"
             self.error = f"{type(e).__name__}: {e}"
             log(traceback.format_exc())
+            if self.exit_on_error:
+                # Harness waits for a healthy /health: leave at once with the reason as the last
+                # log line, so the launch fails now instead of at the load timeout.
+                log(f"load failed: {self.error}")
+                sys.stderr.flush()
+                os._exit(3)
 
 
 class CustomCodeRefused(Exception):
@@ -1217,6 +1225,7 @@ def build_app(model: Model):
 def main(argv=None):
     args = parse_args(argv)
     model = Model(args)
+    model.exit_on_error = True
     threading.Thread(target=model.load, name="load", daemon=True).start()
     import uvicorn
 

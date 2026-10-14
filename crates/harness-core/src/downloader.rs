@@ -3898,6 +3898,8 @@ fn is_safetensors_repo_file(path: &str) -> bool {
     }
     SAFETENSORS_COMPANIONS.contains(&lower.as_str())
         || PYTHON_COMPANIONS.contains(&lower.as_str())
+        // A SentencePiece model under another name (SpeechT5's `spm_char.model`).
+        || lower.ends_with(".model")
         || lower.ends_with(".jinja")
         || lower.ends_with(".tiktoken")
 }
@@ -5237,6 +5239,8 @@ mod tests {
         // The companions pass the download check as text files.
         assert!(is_safetensors_repo_file("chat_template.jinja"));
         assert!(is_safetensors_repo_file("tokenizer.model"));
+        assert!(is_safetensors_repo_file("spm_char.model"));
+        assert!(!is_safetensors_repo_file("sub/spm_char.model"));
         // The model card names the task of a Python engine model.
         assert!(is_safetensors_repo_file("README.md"));
         assert!(!is_safetensors_repo_file("onnx/model.onnx"));
