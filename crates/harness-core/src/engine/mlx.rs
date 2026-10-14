@@ -5,7 +5,10 @@
 //!   `python/mlx_worker.py` around mlx-lm's OpenAI-compatible server from the managed `mlx`
 //!   environment;
 //! * `mlx-vlm`: a vision-language folder (its config has a `vision_config`), served by
-//!   `python/mlx_vlm_worker.py` around mlx-vlm's server from the managed `mlx-vlm` environment.
+//!   `python/mlx_vlm_worker.py` around mlx-vlm's server from the managed `mlx-vlm` environment;
+//! * `mlx-audio`: a text-to-speech folder of mlx-audio (Qwen3-TTS), served by
+//!   `python/mlx_audio_worker.py` (Harness's own small server around mlx-audio's model, which
+//!   the `mlx-vlm` environment carries).
 //!
 //! A launch runs
 //!
@@ -44,16 +47,81 @@ pub const MLX: &str = "mlx";
 /// Family id of the MLX vision engine (mlx-vlm).
 pub const MLX_VLM: &str = "mlx-vlm";
 
+/// Family id of the MLX audio engine (mlx-audio: text to speech).
+pub const MLX_AUDIO: &str = "mlx-audio";
+
 /// The managed environment the text worker runs in (`crate::pyenv::envs::MLX` on Apple Silicon).
 pub const ENV: &str = "mlx";
 
-/// The managed environment the vision worker runs in (`crate::pyenv::envs::MLX_VLM`).
+/// The managed environment the vision and audio workers run in (`crate::pyenv::envs::MLX_VLM`:
+/// mlx-vlm brings mlx-audio along).
 pub const VLM_ENV: &str = "mlx-vlm";
 
 /// The worker scripts, written next to their environments ([`worker_script`]).
 const WORKER: &str = include_str!("../../python/mlx_worker.py");
 const VLM_WORKER: &str = include_str!("../../python/mlx_vlm_worker.py");
+const AUDIO_WORKER: &str = include_str!("../../python/mlx_audio_worker.py");
 
+/// mlx-audio text-to-speech architectures (`model_type`) Harness runs: the ones checked end to
+/// end. Others (Kokoro needs misaki and spaCy data fetched at run time) are not offered.
+const TTS_TYPES: &[&str] = &["qwen3_tts"];
+
+/// What the name of a Hub repo of a [`TTS_TYPES`] model contains (the listing has no config).
+const TTS_REPO_NAMES: &[&str] = &["qwen3-tts"];
+
+/// Whether a Hub repo id names a text-to-speech model of a tested architecture.
+pub fn is_tts_repo(id: &str) -> bool {
+    let id = id.to_ascii_lowercase();
+    TTS_REPO_NAMES.iter().any(|n| id.contains(n))
+}
+
+/// `model_type`s of mlx-audio's speech models (recognition and synthesis): such a folder is
+/// never a chat model even when its config looks like one (`WhisperForConditionalGeneration`,
+/// `Qwen3TTSForConditionalGeneration`).
+const AUDIO_TYPES: &[&str] = &[
+    "qwen3_tts",
+    "whisper",
+    "parakeet",
+    "kokoro",
+    "chatterbox",
+    "chatterbox_turbo",
+    "dia",
+    "sesame",
+    "csm",
+    "orpheus",
+    "outetts",
+    "spark",
+    "voxcpm",
+    "voxcpm2",
+    "vibevoice",
+    "voxtral",
+    "voxtral_tts",
+    "qwen3_asr",
+    "qwen2_audio",
+    "moonshine",
+    "sensevoice",
+    "indextts",
+    "kitten_tts",
+    "pocket_tts",
+    "soprano",
+    "melotts",
+    "bark",
+    "higgs_audio",
+    "fish_qwen3_omni",
+    "granite_speech",
+    "canary",
+    "nemotron_asr",
+    "wav2vec",
+    "mms",
+];
+
+/// Model card tasks of speech models.
+const AUDIO_TASKS: &[&str] = &[
+    "text-to-speech",
+    "text-to-audio",
+    "automatic-speech-recognition",
+    "audio-to-audio",
+];
 /// Flags a custom argument line may never set (Harness owns the model, bind and code policy).
 const PROTECTED_FLAGS: &[&str] = &[
     "--model",
@@ -70,61 +138,85 @@ const PROTECTED_FLAGS: &[&str] = &[
 /// ordinary chat answers short.
 const DEFAULT_MAX_TOKENS: u32 = 8192;
 
-/// An MLX engine: the text one (`mlx`) or the vision one (`mlx-vlm`).
+/// What an MLX engine serves.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Flavour {
+    /// `mlx`: chat (mlx-lm).
+    #[default]
+    Text,
+    /// `mlx-vlm`: chat with images.
+    Vision,
+    /// `mlx-audio`: text to speech.
+    Audio,
+}
+
+/// An MLX engine: the text one (`mlx`), the vision one (`mlx-vlm`) or the audio one
+/// (`mlx-audio`).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MlxEngine {
-    vision: bool,
+    flavour: Flavour,
 }
 
 impl MlxEngine {
     /// `mlx` (mlx-lm).
-    pub const TEXT: MlxEngine = MlxEngine { vision: false };
+    pub const TEXT: MlxEngine = MlxEngine {
+        flavour: Flavour::Text,
+    };
     /// `mlx-vlm`.
-    pub const VISION: MlxEngine = MlxEngine { vision: true };
+    pub const VISION: MlxEngine = MlxEngine {
+        flavour: Flavour::Vision,
+    };
+    /// `mlx-audio`.
+    pub const AUDIO: MlxEngine = MlxEngine {
+        flavour: Flavour::Audio,
+    };
 
     fn env(&self) -> &'static str {
-        if self.vision {
-            VLM_ENV
-        } else {
-            ENV
+        match self.flavour {
+            Flavour::Text => ENV,
+            Flavour::Vision | Flavour::Audio => VLM_ENV,
         }
     }
 
     /// Whether `path` is a folder this flavour runs.
     pub fn runs(&self, path: &Path) -> bool {
-        if self.vision {
-            is_vlm_dir(path)
-        } else {
-            is_model_dir(path)
+        match self.flavour {
+            Flavour::Text => is_model_dir(path),
+            Flavour::Vision => is_vlm_dir(path),
+            Flavour::Audio => is_tts_dir(path),
         }
     }
 }
 
-/// The parsed catalog (`params_mlx.toml`, or `params_mlx_vlm.toml` for the vision engine).
-pub fn catalog(vision: bool) -> &'static ParamCatalog {
+/// The parsed catalog of a flavour (`params_mlx.toml`, `params_mlx_vlm.toml`,
+/// `params_mlx_audio.toml`).
+pub fn catalog(flavour: Flavour) -> &'static ParamCatalog {
     static TEXT: OnceLock<ParamCatalog> = OnceLock::new();
     static VISION: OnceLock<ParamCatalog> = OnceLock::new();
-    if vision {
-        VISION.get_or_init(|| {
-            toml::from_str(include_str!("../params_mlx_vlm.toml"))
-                .expect("params_mlx_vlm.toml is valid (unit tested)")
-        })
-    } else {
-        TEXT.get_or_init(|| {
-            toml::from_str(include_str!("../params_mlx.toml"))
-                .expect("params_mlx.toml is valid (unit tested)")
-        })
+    static AUDIO: OnceLock<ParamCatalog> = OnceLock::new();
+    let parse = |text: &str| -> ParamCatalog {
+        toml::from_str(text).expect("the MLX catalogs are valid (unit tested)")
+    };
+    match flavour {
+        Flavour::Text => TEXT.get_or_init(|| parse(include_str!("../params_mlx.toml"))),
+        Flavour::Vision => VISION.get_or_init(|| parse(include_str!("../params_mlx_vlm.toml"))),
+        Flavour::Audio => AUDIO.get_or_init(|| parse(include_str!("../params_mlx_audio.toml"))),
     }
 }
 
 /// Capabilities as documented: every flag of the catalog. The worker has no `--help` to probe
 /// (its flags are the catalog's own), and without capabilities nothing would be rendered.
-fn documented_caps(vision: bool) -> &'static RuntimeCapabilities {
+fn documented_caps(flavour: Flavour) -> &'static RuntimeCapabilities {
     static TEXT: OnceLock<RuntimeCapabilities> = OnceLock::new();
     static VISION: OnceLock<RuntimeCapabilities> = OnceLock::new();
-    let cell = if vision { &VISION } else { &TEXT };
+    static AUDIO: OnceLock<RuntimeCapabilities> = OnceLock::new();
+    let cell = match flavour {
+        Flavour::Text => &TEXT,
+        Flavour::Vision => &VISION,
+        Flavour::Audio => &AUDIO,
+    };
     cell.get_or_init(|| {
-        let help: String = catalog(vision)
+        let help: String = catalog(flavour)
             .params
             .iter()
             .map(|p| format!("{} N    {}\n", p.flags.join(", "), p.id))
@@ -181,11 +273,39 @@ pub fn is_mlx_checkpoint(dir: &Path) -> bool {
         || card_field(dir, "library_name").is_some_and(|l| l.eq_ignore_ascii_case("mlx"))
 }
 
-/// Whether an MLX folder has a vision tower, `None` when `path` is not an MLX folder.
+/// `model_type` of a folder's config.
+fn model_type(dir: &Path) -> Option<String> {
+    read_json(&dir.join("config.json"))?
+        .get("model_type")?
+        .as_str()
+        .map(str::to_ascii_lowercase)
+}
+
+/// Whether a folder is a speech model by its card (`library_name: mlx-audio`, a speech task) or
+/// its `model_type`: never a chat model then.
+pub fn is_audio_folder(dir: &Path) -> bool {
+    card_field(dir, "library_name").is_some_and(|l| l.eq_ignore_ascii_case("mlx-audio"))
+        || card_field(dir, "pipeline_tag").is_some_and(|t| AUDIO_TASKS.contains(&t.as_str()))
+        || model_type(dir).is_some_and(|t| AUDIO_TYPES.contains(&t.as_str()))
+}
+
+/// Whether an MLX folder has a vision tower, `None` when `path` is not an MLX chat folder.
 fn mlx_vision(path: &Path) -> Option<bool> {
-    (super::mistralrs::is_checkpoint_dir(path) && is_mlx_checkpoint(path)).then(|| {
-        read_json(&path.join("config.json")).is_some_and(|c| c.get("vision_config").is_some())
-    })
+    (super::mistralrs::is_checkpoint_dir(path) && is_mlx_checkpoint(path) && !is_audio_folder(path))
+        .then(|| {
+            read_json(&path.join("config.json")).is_some_and(|c| c.get("vision_config").is_some())
+        })
+}
+
+/// Whether `path` is a folder the `mlx-audio` engine runs: an mlx-audio text-to-speech model
+/// of a tested architecture ([`TTS_TYPES`]), with `config.json` and safetensors weights.
+pub fn is_tts_dir(path: &Path) -> bool {
+    path.is_dir()
+        && !super::mistralrs::weight_files(path).is_empty()
+        && model_type(path).is_some_and(|t| TTS_TYPES.contains(&t.as_str()))
+        && (card_field(path, "library_name")
+            .is_some_and(|l| l.eq_ignore_ascii_case("mlx-audio") || l.eq_ignore_ascii_case("mlx"))
+            || read_json(&path.join("config.json")).is_some_and(|c| quant_bits(&c).is_some()))
 }
 
 /// Whether `path` is a folder the `mlx` engine runs: an MLX text generator (not a vision model).
@@ -198,24 +318,36 @@ pub fn is_vlm_dir(path: &Path) -> bool {
     mlx_vision(path) == Some(true)
 }
 
-/// Whether `path` is an MLX folder of either engine.
+/// Whether `path` is an MLX folder of any MLX engine.
 pub fn is_any_model_dir(path: &Path) -> bool {
-    mlx_vision(path).is_some()
+    mlx_vision(path).is_some() || is_tts_dir(path)
 }
 
-/// What the files of an MLX folder say (chat template, vision tower...); `None` for other paths.
-pub fn inspect(dir: &Path) -> Option<super::mistralrs::ModelDirInfo> {
-    if !is_any_model_dir(dir) {
-        return None;
+/// The flavour that runs an MLX folder, `None` for other paths.
+pub fn flavour_of(path: &Path) -> Option<Flavour> {
+    match mlx_vision(path) {
+        Some(true) => Some(Flavour::Vision),
+        Some(false) => Some(Flavour::Text),
+        None => is_tts_dir(path).then_some(Flavour::Audio),
     }
+}
+
+/// What the files of an MLX chat folder say (chat template, vision tower...); `None` for other
+/// paths (speech folders included).
+pub fn inspect(dir: &Path) -> Option<super::mistralrs::ModelDirInfo> {
+    mlx_vision(dir)?;
     super::mistralrs::inspect_checkpoint(dir)
 }
 
-/// The library's view of an MLX folder: a chat model like mistral.rs's, with MLX's bits as its
-/// quantization (`4bit`).
+/// The library's view of an MLX folder: a chat model like mistral.rs's, or (text to speech) a
+/// pipeline model like the Python engine's, with MLX's bits as its quantization (`4bit`).
 fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> {
     let info = super::mistralrs::inspect_checkpoint(dir)?;
     let mut model = super::mistralrs::to_local_model(dir, &info, root);
+    if is_tts_dir(dir) {
+        model.kind = crate::domain::ModelKind::Pipeline;
+        model.context_length = None;
+    }
     if let Some(bits) = read_json(&dir.join("config.json")).and_then(|c| quant_bits(&c)) {
         model.quantization = format!("{bits}bit");
     }
@@ -243,15 +375,35 @@ pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {
         .collect()
 }
 
+/// Removes an MLX model folder (everything in it: config, tokenizer, weights); refuses anything
+/// that is not one strictly inside one of `roots`.
+pub fn delete_model_dir(dir: &Path, roots: &[PathBuf]) -> Result<(), String> {
+    if !is_any_model_dir(dir) {
+        return Err(err("mlx.model_unsupported")
+            .with("path", dir.display())
+            .into());
+    }
+    super::mistralrs::remove_folder_within(dir, roots)
+}
+
+/// The family that runs an MLX folder (`mlx`, `mlx-vlm`, `mlx-audio`), `None` for other paths.
+pub fn family_of(path: &Path) -> Option<&'static str> {
+    Some(match flavour_of(path)? {
+        Flavour::Text => MLX,
+        Flavour::Vision => MLX_VLM,
+        Flavour::Audio => MLX_AUDIO,
+    })
+}
+
 // ---- the environment -----------------------------------------------------------------------
 
 /// The worker script of this version, written next to its environment (rewritten when it
 /// differs, so an app update brings its worker along).
-pub fn worker_script(vision: bool) -> Result<PathBuf, String> {
-    let (env, name, body) = if vision {
-        (VLM_ENV, "mlx_vlm_worker.py", VLM_WORKER)
-    } else {
-        (ENV, "mlx_worker.py", WORKER)
+pub fn worker_script(flavour: Flavour) -> Result<PathBuf, String> {
+    let (env, name, body) = match flavour {
+        Flavour::Text => (ENV, "mlx_worker.py", WORKER),
+        Flavour::Vision => (VLM_ENV, "mlx_vlm_worker.py", VLM_WORKER),
+        Flavour::Audio => (VLM_ENV, "mlx_audio_worker.py", AUDIO_WORKER),
     };
     let dir = crate::pyenv::envs::env_dir_in(&crate::pyenv::envs::root(), env);
     let path = dir.join(name);
@@ -280,6 +432,11 @@ pub fn binary() -> Result<PathBuf, String> {
 /// [`binary`] of the vision engine (the `mlx-vlm` environment).
 pub fn vlm_binary() -> Result<PathBuf, String> {
     MlxEngine::VISION.binary()
+}
+
+/// [`binary`] of the audio engine (the `mlx-vlm` environment too).
+pub fn audio_binary() -> Result<PathBuf, String> {
+    MlxEngine::AUDIO.binary()
 }
 
 impl MlxEngine {
@@ -315,10 +472,10 @@ pub fn vram_need(config: &LaunchConfig) -> u64 {
 
 impl Engine for MlxEngine {
     fn family(&self) -> &'static str {
-        if self.vision {
-            MLX_VLM
-        } else {
-            MLX
+        match self.flavour {
+            Flavour::Text => MLX,
+            Flavour::Vision => MLX_VLM,
+            Flavour::Audio => MLX_AUDIO,
         }
     }
 
@@ -350,7 +507,8 @@ impl Engine for MlxEngine {
         None
     }
 
-    /// Folders are told apart by [`is_model_dir`] / [`is_vlm_dir`], not by a file format.
+    /// Folders are told apart by [`is_model_dir`] / [`is_vlm_dir`] / [`is_tts_dir`], not by a
+    /// file format.
     fn supports(&self, _format: ModelFormat) -> bool {
         false
     }
@@ -369,7 +527,7 @@ impl Engine for MlxEngine {
     }
 
     fn param_catalog(&self) -> &'static ParamCatalog {
-        catalog(self.vision)
+        catalog(self.flavour)
     }
 
     fn as_server(&self) -> Option<&dyn ServerEngine> {
@@ -394,7 +552,7 @@ impl ServerEngine for MlxEngine {
                 .with("path", config.model_path.display())
                 .into());
         }
-        build_args(config, &worker_script(self.vision)?, self.vision)
+        build_args(config, &worker_script(self.flavour)?, self.flavour)
     }
 
     fn health_path(&self) -> &'static str {
@@ -486,7 +644,11 @@ impl ServerEngine for MlxEngine {
 }
 
 /// The command line of a launch: the worker script first (the program is the interpreter).
-fn build_args(config: &LaunchConfig, script: &Path, vision: bool) -> Result<BuildOutput, String> {
+fn build_args(
+    config: &LaunchConfig,
+    script: &Path,
+    flavour: Flavour,
+) -> Result<BuildOutput, String> {
     let mut args: Vec<String> = vec![
         script.to_string_lossy().to_string(),
         "--model".into(),
@@ -503,8 +665,8 @@ fn build_args(config: &LaunchConfig, script: &Path, vision: bool) -> Result<Buil
         ..Default::default()
     };
     let rendered = crate::params::render_params(
-        catalog(vision),
-        Some(documented_caps(vision)),
+        catalog(flavour),
+        Some(documented_caps(flavour)),
         &config.params,
         &ctx,
     )?;
@@ -520,9 +682,10 @@ fn build_args(config: &LaunchConfig, script: &Path, vision: bool) -> Result<Buil
         }
         args.extend(custom);
     }
-    if !args
-        .iter()
-        .any(|a| a.split('=').next() == Some("--max-tokens"))
+    if flavour != Flavour::Audio
+        && !args
+            .iter()
+            .any(|a| a.split('=').next() == Some("--max-tokens"))
     {
         args.push("--max-tokens".into());
         args.push(DEFAULT_MAX_TOKENS.to_string());
@@ -555,8 +718,9 @@ mod tests {
 
     #[test]
     fn catalog_parses() {
-        assert!(!catalog(false).params.is_empty());
-        assert!(!catalog(true).params.is_empty());
+        for flavour in [Flavour::Text, Flavour::Vision, Flavour::Audio] {
+            assert!(!catalog(flavour).params.is_empty());
+        }
     }
 
     #[test]
@@ -633,7 +797,7 @@ mod tests {
             port: 11450,
             ..Default::default()
         };
-        let out = build_args(&config, Path::new("/env/mlx_worker.py"), false).unwrap();
+        let out = build_args(&config, Path::new("/env/mlx_worker.py"), Flavour::Text).unwrap();
         assert_eq!(out.args[0], "/env/mlx_worker.py");
         let at = |flag: &str| {
             out.args
@@ -658,7 +822,7 @@ mod tests {
             "kv_bits".into(),
             crate::params::ParamValue::Text("8".into()),
         );
-        let out = build_args(&set, Path::new("w.py"), false).unwrap();
+        let out = build_args(&set, Path::new("w.py"), Flavour::Text).unwrap();
         assert!(out.skipped.is_empty(), "{:?}", out.skipped);
         let args = out.args.join(" ");
         assert!(args.contains("--max-tokens 512"), "{args}");
@@ -668,7 +832,7 @@ mod tests {
 
         let mut custom = config.clone();
         custom.custom_args = Some("--max-tokens 100".into());
-        let out = build_args(&custom, Path::new("w.py"), false).unwrap();
+        let out = build_args(&custom, Path::new("w.py"), Flavour::Text).unwrap();
         assert_eq!(
             out.args.iter().filter(|a| *a == "--max-tokens").count(),
             1,
@@ -689,9 +853,9 @@ mod tests {
         ] {
             let mut c = config.clone();
             c.custom_args = Some(bad.into());
-            let e = build_args(&c, Path::new("w.py"), false).unwrap_err();
+            let e = build_args(&c, Path::new("w.py"), Flavour::Text).unwrap_err();
             assert!(e.contains("params.protected_flag"), "{bad}: {e}");
-            let e = build_args(&c, Path::new("w.py"), true).unwrap_err();
+            let e = build_args(&c, Path::new("w.py"), Flavour::Vision).unwrap_err();
             assert!(e.contains("params.protected_flag"), "{bad}: {e}");
         }
     }
@@ -709,7 +873,12 @@ mod tests {
             "kv_bits".into(),
             crate::params::ParamValue::Text("8".into()),
         );
-        let out = build_args(&config, Path::new("/env/mlx_vlm_worker.py"), true).unwrap();
+        let out = build_args(
+            &config,
+            Path::new("/env/mlx_vlm_worker.py"),
+            Flavour::Vision,
+        )
+        .unwrap();
         assert_eq!(out.args[0], "/env/mlx_vlm_worker.py");
         assert!(out.skipped.is_empty(), "{:?}", out.skipped);
         let at = |flag: &str| {
@@ -994,6 +1163,188 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         assert_eq!(text.matches("('/v1/chat/completions'").count(), 2, "{text}");
     }
 
+    /// `mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit` (config trimmed) and its card.
+    const TTS_CONFIG: &str = r#"{"architectures":["Qwen3TTSForConditionalGeneration"],"model_type":"qwen3_tts","quantization":{"group_size":64,"bits":8,"mode":"affine"},"talker_config":{}}"#;
+    const TTS_CARD: &str =
+        "---\nlicense: apache-2.0\nlibrary_name: mlx-audio\ntags:\n- mlx\n- text-to-speech\n---\n";
+
+    #[test]
+    fn speech_folders_are_mlx_audio_and_never_chat_models() {
+        let tts = folder(&[
+            ("config.json", TTS_CONFIG),
+            ("model.safetensors", "x"),
+            ("README.md", TTS_CARD),
+            ("speech_tokenizer/model.safetensors", "x"),
+        ]);
+        assert!(is_tts_dir(tts.path()));
+        assert!(!is_model_dir(tts.path()) && !is_vlm_dir(tts.path()));
+        assert!(!super::super::mistralrs::is_model_dir(tts.path()));
+        assert_eq!(flavour_of(tts.path()), Some(Flavour::Audio));
+        assert_eq!(family_of(tts.path()), Some(MLX_AUDIO));
+        assert!(MlxEngine::AUDIO.runs(tts.path()));
+        assert!(inspect(tts.path()).is_none());
+        let m = to_local_model(tts.path(), tts.path().parent().unwrap()).unwrap();
+        assert_eq!(m.kind, crate::domain::ModelKind::Pipeline);
+        assert_eq!(m.quantization, "8bit");
+
+        // A whisper conversion (an MLX card, a transformers-like config) is a speech model:
+        // not a chat model, and not run here (recognition stays with whisper.cpp / sherpa-onnx).
+        let whisper = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["WhisperForConditionalGeneration"],"model_type":"whisper"}"#,
+            ),
+            ("model.safetensors", "x"),
+            ("README.md", "---\nlibrary_name: mlx\ntags:\n- mlx\n---\n"),
+        ]);
+        assert!(is_audio_folder(whisper.path()));
+        assert_eq!(flavour_of(whisper.path()), None);
+        assert!(!super::super::mistralrs::is_model_dir(whisper.path()));
+        // Kokoro (an untested architecture) is not offered.
+        let kokoro = folder(&[
+            ("config.json", r#"{"model_type":"kokoro","istftnet":{}}"#),
+            ("kokoro-v1_0.safetensors", "x"),
+            (
+                "README.md",
+                "---\nlibrary_name: mlx\npipeline_tag: text-to-speech\n---\n",
+            ),
+        ]);
+        assert_eq!(flavour_of(kokoro.path()), None);
+        // A chat model whose card names a speech task is not a chat model either.
+        let tagged = folder(&[
+            ("config.json", MLX_CONFIG),
+            ("model.safetensors", "x"),
+            ("README.md", "---\npipeline_tag: text-to-speech\n---\n"),
+        ]);
+        assert_eq!(flavour_of(tagged.path()), None);
+        assert!(is_tts_repo("mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"));
+        assert!(!is_tts_repo("mlx-community/Kokoro-82M-bf16"));
+    }
+
+    #[test]
+    fn audio_launch_args_have_no_answer_limit() {
+        let dir = folder(&[
+            ("config.json", TTS_CONFIG),
+            ("model.safetensors", "x"),
+            ("README.md", TTS_CARD),
+        ]);
+        let mut config = LaunchConfig {
+            model_path: dir.path().to_path_buf(),
+            host: "127.0.0.1".into(),
+            port: 11452,
+            ..Default::default()
+        };
+        config
+            .params
+            .insert("max_chars".into(), crate::params::ParamValue::Int(900));
+        let out = build_args(
+            &config,
+            Path::new("/env/mlx_audio_worker.py"),
+            Flavour::Audio,
+        )
+        .unwrap();
+        assert!(out.skipped.is_empty(), "{:?}", out.skipped);
+        let args = out.args.join(" ");
+        assert!(
+            args.starts_with("/env/mlx_audio_worker.py --model "),
+            "{args}"
+        );
+        assert!(args.contains("--max-chars 900"), "{args}");
+        assert!(!args.contains("--max-tokens"), "{args}");
+        assert_eq!(MlxEngine::AUDIO.family(), MLX_AUDIO);
+        assert_eq!(MlxEngine::AUDIO.env(), VLM_ENV);
+        let e = MlxEngine::TEXT
+            .build_launch(&config, &ServerCaps::default(), None)
+            .unwrap_err();
+        assert!(e.contains("mlx.model_unsupported"), "{e}");
+    }
+
+    /// The audio worker's checks and routes around a stand-in speaker (system Python, no MLX).
+    #[test]
+    fn the_audio_worker_speaks_only_checked_requests() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let script = format!(
+            r#"
+import sys, asyncio; sys.path.insert(0, {:?}); import mlx_audio_worker as w
+spoken = []
+def speak(text, voice, speed, language):
+    spoken.append((text, voice, speed, language))
+    return b"RIFFfake"
+app = w.app_for(speak, "tts", ["serena", "ryan"], 50)
+async def call(method, path, body=b"", key=True, kind="http"):
+    sent, queue = [], [{{"type": "http.request", "body": body, "more_body": False}}]
+    async def receive():
+        return queue.pop(0) if queue else {{"type": "http.disconnect"}}
+    async def send(m):
+        sent.append(m)
+    headers = [(b"authorization", b"Bearer k")] if key else []
+    await app({{"type": kind, "method": method, "path": path, "headers": headers}}, receive, send)
+    if kind == "websocket":
+        return sent[0].get("code")
+    return sent[0]["status"], b"".join(m.get("body", b"") for m in sent[1:]).decode(errors="replace")
+async def main():
+    S = "/v1/audio/speech"
+    for name, args in [
+        ("health", ("GET", "/health", b"", False)),
+        ("nokey", ("GET", "/v1/models", b"", False)),
+        ("models", ("GET", "/v1/models")),
+        ("stt", ("POST", "/v1/audio/transcriptions")),
+        ("voices", ("GET", "/v1/audio/voices")),
+        ("slash", ("POST", S + "/")),
+        ("ok", ("POST", S, b'{{"input":"hello","voice":"ryan","speed":1.5}}')),
+        ("openai", ("POST", S, b'{{"input":"hello","voice":"alloy","model":"tts"}}')),
+        ("ref", ("POST", S, b'{{"input":"x","ref_audio":"/etc/hosts"}}')),
+        ("path", ("POST", S, b'{{"input":"x","voice":"../etc/passwd"}}')),
+        ("unknown", ("POST", S, b'{{"input":"x","voice":"bob"}}')),
+        ("long", ("POST", S, b'{{"input":"' + b"a" * 60 + b'"}}')),
+        ("speed", ("POST", S, b'{{"input":"x","speed":9}}')),
+        ("mp3", ("POST", S, b'{{"input":"x","response_format":"mp3"}}')),
+        ("empty", ("POST", S, b'{{"input":"  "}}')),
+    ]:
+        print(name, await call(*args))
+    print("ws", await call("GET", S, kind="websocket"))
+    print("spoken", spoken)
+asyncio.run(main())
+"#,
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "health (200, '{\"status\": \"ok\"}')",
+            "nokey (401,",
+            "models (200, '{\"object\": \"list\", \"data\": [{\"id\": \"tts\"",
+            "\"voices\": [\"serena\", \"ryan\"]",
+            "stt (404,",
+            "voices (404,",
+            "slash (404,",
+            "ok (200, 'RIFFfake')",
+            "openai (200, 'RIFFfake')",
+            "ref (400,",
+            "path (400,",
+            "unknown (400,",
+            "long (400,",
+            "speed (400,",
+            "mp3 (400,",
+            "empty (400,",
+            "ws 1008",
+            "spoken [('hello', 'ryan', 1.5, None), ('hello', None, 1.0, None)]",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+    }
+
     #[test]
     fn the_worker_guards_what_harness_relies_on() {
         // The key comes from the environment and is compared in constant time; the bind,
@@ -1010,5 +1361,9 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         assert!(VLM_WORKER.contains("kw[\"trust_remote_code\"] = False"));
         assert!(VLM_WORKER.contains("MLX_TRUST_REMOTE_CODE\"] = \"false\""));
         assert!(VLM_WORKER.contains("allow_abbrev=False"));
+        assert!(AUDIO_WORKER.contains("os.environ.pop(\"HARNESS_WORKER_API_KEY\""));
+        assert!(AUDIO_WORKER.contains("HOST = \"127.0.0.1\""));
+        assert!(AUDIO_WORKER.contains("kw[\"trust_remote_code\"] = False"));
+        assert!(AUDIO_WORKER.contains("HF_HUB_OFFLINE"));
     }
 }

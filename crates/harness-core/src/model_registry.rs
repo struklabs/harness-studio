@@ -161,6 +161,7 @@ pub fn local_format(model: &LocalModel) -> ModelFormat {
         }
         ModelKind::Asr => ModelFormat::WhisperGgml,
         ModelKind::Tts => ModelFormat::Onnx,
+        _ if crate::engine::mlx::is_any_model_dir(&model.path) => ModelFormat::Mlx,
         _ if crate::engine::ModelFormat::of(&model.path) == crate::engine::ModelFormat::Onnx => {
             ModelFormat::Onnx
         }
@@ -201,6 +202,20 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             runtime: Some(hub_compat::SDCPP_FAMILY.to_string()),
             compatibility: Some(Compatibility::Runnable {
                 runtime: hub_compat::SDCPP_FAMILY.to_string(),
+            }),
+        };
+    }
+    if let Some(family) = (format == ModelFormat::Mlx)
+        .then(|| crate::engine::mlx::family_of(&model.path))
+        .flatten()
+    {
+        // An MLX folder: its MLX engine (chat, vision or speech) runs it.
+        return ModelRecord {
+            capabilities: local_capabilities(caps),
+            format,
+            runtime: Some(family.to_string()),
+            compatibility: Some(Compatibility::Runnable {
+                runtime: family.to_string(),
             }),
         };
     }
@@ -253,6 +268,8 @@ pub fn installed_families() -> Vec<String> {
     }
     if crate::engine::mlx::vlm_binary().is_ok() {
         families.push(crate::engine::MLX_VLM.to_string());
+        // The audio engine runs in the same environment.
+        families.push(crate::engine::MLX_AUDIO.to_string());
     }
     families
 }
@@ -451,6 +468,67 @@ mod tests {
         let rec = local_record(&model, &caps);
         assert_eq!(rec.format, ModelFormat::WhisperGgml);
         assert_eq!(rec.runtime.as_deref(), Some("whisper.cpp"));
+    }
+
+    #[test]
+    fn mlx_folders_are_recorded_as_mlx_with_their_engine() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = |name: &str, config: &str, card: &str| {
+            let d = dir.path().join(name);
+            std::fs::create_dir_all(&d).unwrap();
+            std::fs::write(d.join("config.json"), config).unwrap();
+            std::fs::write(d.join("model.safetensors"), b"x").unwrap();
+            std::fs::write(d.join("README.md"), card).unwrap();
+            d
+        };
+        let q = r#""quantization":{"group_size":64,"bits":4}"#;
+        for (name, config, card, family) in [
+            (
+                "chat",
+                format!(r#"{{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3",{q}}}"#),
+                "",
+                "mlx",
+            ),
+            (
+                "vlm",
+                format!(
+                    r#"{{"architectures":["Qwen3VLForConditionalGeneration"],"model_type":"qwen3_vl","vision_config":{{}},{q}}}"#
+                ),
+                "",
+                "mlx-vlm",
+            ),
+            (
+                "tts",
+                format!(
+                    r#"{{"architectures":["Qwen3TTSForConditionalGeneration"],"model_type":"qwen3_tts",{q}}}"#
+                ),
+                "---\nlibrary_name: mlx-audio\n---\n",
+                "mlx-audio",
+            ),
+        ] {
+            let path = folder(name, &config, card);
+            let info = crate::engine::mistralrs::inspect_checkpoint(&path).unwrap();
+            let mut model = crate::engine::mistralrs::to_local_model(&path, &info, dir.path());
+            if family == "mlx-audio" {
+                model.kind = ModelKind::Pipeline;
+            }
+            assert_eq!(local_format(&model), ModelFormat::Mlx, "{name}");
+            let rec = local_record(&model, &ModelCaps::default());
+            assert_eq!(rec.runtime.as_deref(), Some(family), "{name}");
+            assert_eq!(
+                rec.compatibility,
+                Some(Compatibility::Runnable {
+                    runtime: family.into()
+                }),
+                "{name}"
+            );
+            // Deleting it removes the whole folder, only inside the library.
+            assert!(
+                crate::engine::mlx::delete_model_dir(&path, std::slice::from_ref(&path)).is_err()
+            );
+            crate::engine::mlx::delete_model_dir(&path, &[dir.path().to_path_buf()]).unwrap();
+            assert!(!path.exists(), "{name}");
+        }
     }
 
     #[test]

@@ -357,18 +357,24 @@ pub const MLX_FAMILY: &str = crate::engine::MLX;
 /// Runtime family of the MLX vision engine (mlx-vlm, Apple Silicon).
 pub const MLX_VLM_FAMILY: &str = crate::engine::MLX_VLM;
 
+/// Runtime family of the MLX audio engine (mlx-audio text to speech, Apple Silicon).
+pub const MLX_AUDIO_FAMILY: &str = crate::engine::MLX_AUDIO;
+
 /// The MLX engines' verdict on a Hub repo: an MLX repo (`library_name: mlx` or the `mlx` tag)
 /// with a `config.json` and safetensors at the root (a listing without file names is taken by
-/// its tags), `text-generation` or untagged for `mlx`, `image-text-to-text` for `mlx-vlm`.
+/// its tags), `text-generation` or untagged for `mlx`, `image-text-to-text` for `mlx-vlm`,
+/// `text-to-speech` of a tested architecture (by the repo name: Qwen3-TTS) for `mlx-audio`.
 /// Runnable where MLX runs (Apple Silicon; installed or not is settled later by
 /// [`resolve_installed`]); on a Mac whose macOS is too old for the MLX wheels,
 /// [`Compatibility::UnsupportedPlatform`]; `None` elsewhere and for every other repo.
 pub fn mlx_compatibility(
+    repo: &str,
     format: ModelFormat,
     task: Option<&str>,
     files: &[String],
 ) -> Option<Compatibility> {
     mlx_compatibility_on(
+        repo,
         format,
         task,
         files,
@@ -381,6 +387,7 @@ pub fn mlx_compatibility(
 
 /// [`mlx_compatibility`] with the platform facts given.
 pub fn mlx_compatibility_on(
+    repo: &str,
     format: ModelFormat,
     task: Option<&str>,
     files: &[String],
@@ -390,6 +397,7 @@ pub fn mlx_compatibility_on(
     let family = match task {
         None | Some("text-generation") => MLX_FAMILY,
         Some("image-text-to-text") => MLX_VLM_FAMILY,
+        Some("text-to-speech") if crate::engine::mlx::is_tts_repo(repo) => MLX_AUDIO_FAMILY,
         Some(_) => return None,
     };
     if !apple_silicon || format != ModelFormat::Mlx {
@@ -971,45 +979,119 @@ mod tests {
             runtime: MLX_FAMILY.into(),
         });
         assert_eq!(
-            mlx_compatibility_on(format, Some("text-generation"), &files, true, false),
+            mlx_compatibility_on(
+                "mlx-community/x",
+                format,
+                Some("text-generation"),
+                &files,
+                true,
+                false
+            ),
             runnable
         );
         // Untagged, or a listing without file names.
         assert_eq!(
-            mlx_compatibility_on(format, None, &[], true, false),
+            mlx_compatibility_on("mlx-community/x", format, None, &[], true, false),
             runnable
         );
         // A vision repo is mlx-vlm's.
         assert_eq!(
-            mlx_compatibility_on(format, Some("image-text-to-text"), &files, true, false),
+            mlx_compatibility_on(
+                "mlx-community/x",
+                format,
+                Some("image-text-to-text"),
+                &files,
+                true,
+                false
+            ),
             Some(Compatibility::Runnable {
                 runtime: MLX_VLM_FAMILY.into()
             })
         );
+        // A Qwen3-TTS repo is mlx-audio's; a TTS repo of an untested architecture is nobody's.
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit",
+                format,
+                Some("text-to-speech"),
+                &files,
+                true,
+                false
+            ),
+            Some(Compatibility::Runnable {
+                runtime: MLX_AUDIO_FAMILY.into()
+            })
+        );
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/Kokoro-82M-bf16",
+                format,
+                Some("text-to-speech"),
+                &files,
+                true,
+                false
+            ),
+            None
+        );
         // Not on an Intel Mac / Windows / Linux; other tasks; no weights at the root.
         assert_eq!(
-            mlx_compatibility_on(format, Some("text-generation"), &files, false, false),
+            mlx_compatibility_on(
+                "mlx-community/x",
+                format,
+                Some("text-generation"),
+                &files,
+                false,
+                false
+            ),
             None
         );
         assert_eq!(
-            mlx_compatibility_on(format, Some("image-text-to-text"), &files, false, false),
+            mlx_compatibility_on(
+                "mlx-community/x",
+                format,
+                Some("image-text-to-text"),
+                &files,
+                false,
+                false
+            ),
             None
         );
         assert_eq!(
-            mlx_compatibility_on(format, Some("text-to-speech"), &files, true, false),
+            mlx_compatibility_on(
+                "mlx-community/x",
+                format,
+                Some("text-to-speech"),
+                &files,
+                true,
+                false
+            ),
             None
         );
         assert_eq!(
-            mlx_compatibility_on(format, None, &s(&["config.json", "README.md"]), true, false),
+            mlx_compatibility_on(
+                "mlx-community/x",
+                format,
+                None,
+                &s(&["config.json", "README.md"]),
+                true,
+                false
+            ),
             None
         );
         assert_eq!(
-            mlx_compatibility_on(ModelFormat::Safetensors, None, &files, true, false),
+            mlx_compatibility_on(
+                "mlx-community/x",
+                ModelFormat::Safetensors,
+                None,
+                &files,
+                true,
+                false
+            ),
             None
         );
         // macOS 13: says so instead of offering an engine that can't install.
         assert!(matches!(
-            mlx_compatibility_on(format, None, &files, true, true),
+            mlx_compatibility_on("mlx-community/x", format, None, &files, true, true),
             Some(Compatibility::UnsupportedPlatform { runtime, .. }) if runtime == MLX_FAMILY
         ));
         // Installed or not.
