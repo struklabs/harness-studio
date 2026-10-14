@@ -501,15 +501,22 @@ pub fn default_variant() -> OrtVariant {
 
 /// The build the sidecar needs for `--provider <choice>` (`auto`, `cpu`, `directml`, `cuda`).
 /// A CPU choice reuses any build that is already installed (every build runs on the CPU).
+/// `auto` takes the CUDA build once the user installed it (an opt-in download, so the NVIDIA
+/// GPU is the one they want), else the platform default.
 pub fn variant_for_provider(choice: &str) -> OrtVariant {
+    variant_for_provider_in(&root(), choice)
+}
+
+fn variant_for_provider_in(root: &Path, choice: &str) -> OrtVariant {
     match choice.trim().to_ascii_lowercase().as_str() {
         "directml" | "dml" => OrtVariant::Directml,
         "cuda" => OrtVariant::Cuda,
         "cpu" => specs()
             .iter()
             .map(|s| s.variant)
-            .find(|v| installed(*v).is_some())
+            .find(|v| installed_in(root, *v).is_some())
             .unwrap_or_else(default_variant),
+        _ if installed_in(root, OrtVariant::Cuda).is_some() => OrtVariant::Cuda,
         _ => default_variant(),
     }
 }

@@ -39,7 +39,11 @@ fn defaults_and_provider_choices() {
     #[cfg(windows)]
     {
         assert_eq!(default_variant(), OrtVariant::Directml);
-        assert_eq!(variant_for_provider("auto"), OrtVariant::Directml);
+        let tmp = tempfile::tempdir().unwrap();
+        assert_eq!(
+            variant_for_provider_in(tmp.path(), "auto"),
+            OrtVariant::Directml
+        );
         assert_eq!(variant_for_provider("DML"), OrtVariant::Directml);
     }
     #[cfg(not(windows))]
@@ -111,6 +115,28 @@ fn fake_install(root: &Path, variant: OrtVariant) -> PathBuf {
     )
     .unwrap();
     dir
+}
+
+/// Once the CUDA build is installed, `auto` launches with it (and a CPU choice reuses it).
+#[test]
+fn auto_takes_the_installed_cuda_build() {
+    if spec_for(OrtVariant::Cuda).is_none() {
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    assert_ne!(
+        variant_for_provider_in(tmp.path(), "auto"),
+        OrtVariant::Cuda
+    );
+    fake_install(tmp.path(), OrtVariant::Cuda);
+    assert_eq!(
+        variant_for_provider_in(tmp.path(), "auto"),
+        OrtVariant::Cuda
+    );
+    assert_eq!(
+        variant_for_provider_in(tmp.path(), "directml"),
+        OrtVariant::Directml
+    );
 }
 
 #[test]
