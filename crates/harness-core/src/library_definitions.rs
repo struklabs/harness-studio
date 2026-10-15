@@ -51,6 +51,7 @@ pub fn ensure_in(
             m.kind != ModelKind::Tts
                 || crate::engine::audio_cpp::is_tts(&m.path)
                 || crate::engine::crispasr_tts::is_model(&m.path)
+                || crate::tts::llama::companion_projector(&m.path).is_some()
         })
         .filter(|m| !(m.kind == ModelKind::Asr && crate::asr::is_sherpa_file(&m.path)))
     {
@@ -136,6 +137,10 @@ pub fn ensure_in(
             },
         );
         def.load = load;
+        // Qwen3-TTS speaks through llama-tts with its projector next to it.
+        if model.kind == ModelKind::Tts && crate::tts::llama::is_tts_file(&model.path) {
+            def.mmproj = crate::tts::llama::companion_projector(&model.path);
+        }
         created.push(domain.save_definition(def)?.alias);
     }
     Ok(created)

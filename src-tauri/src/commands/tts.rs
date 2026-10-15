@@ -131,6 +131,23 @@ pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
         ).is_ok();
         for def in harness_core::domain::store::Domain::global().definitions()? {
             let Some(path) = def.base.local_path() else { continue };
+            // Qwen3-TTS GGUF: the llama.cpp runtime's `llama-tts`, the model's own voice.
+            if harness_core::tts::llama::model_of(&def).is_some() {
+                models.push(TtsPickerModel {
+                    id: path.to_string_lossy().into_owned(),
+                    name: def.alias.clone(),
+                    family: "qwen3-tts".into(),
+                    engine: harness_core::hub_compat::LLAMA_FAMILY.into(),
+                    supports_speed: false,
+                    runtime_installed: true,
+                    languages: harness_core::tts::llama::LANGUAGES.iter().map(|(c, _)| (*c).into()).collect(),
+                    quantization: harness_core::gguf::read_gguf_metadata(path).map(|m| m.quantization).unwrap_or_default(),
+                    sample_rate: None,
+                    size_bytes: std::fs::metadata(path).map(|m| m.len()).unwrap_or(0),
+                    voices: vec![harness_core::tts::Voice { id: "default".into(), sid: 0, language: String::new(), gender: String::new() }],
+                });
+                continue;
+            }
             if let Some(family) = harness_core::engine::crispasr_tts::backend(path) {
                 let voices = harness_core::engine::crispasr_tts::voices(path).into_iter().enumerate()
                     .map(|(sid, id)| harness_core::tts::Voice { id, sid: sid as u32, language: "en".into(), gender: String::new() }).collect();

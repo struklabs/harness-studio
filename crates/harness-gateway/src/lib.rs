@@ -30,6 +30,7 @@ pub mod decisions;
 pub mod errors;
 pub mod hf;
 pub mod images;
+pub mod llama_tts;
 mod model_name;
 pub mod ollama;
 pub mod proxy;

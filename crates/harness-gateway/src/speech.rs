@@ -42,6 +42,9 @@ pub struct SpeechRequest {
     pub speed: Option<f64>,
     #[serde(default)]
     pub voice_ref: Option<serde_json::Value>,
+    /// Language of the text (an extension of OpenAI's fields): llama.cpp's Qwen3-TTS takes it.
+    #[serde(default)]
+    pub language: Option<String>,
 }
 
 impl SpeechRequest {
@@ -193,6 +196,15 @@ async fn serve(
     if let Ok(def) = state.scheduler.resolve(req.model.as_deref()).await {
         caller.check_model(&def.alias)?;
         GatewayError::reject_remote(&def)?;
+        // A Qwen3-TTS GGUF with its projector speaks through llama-tts; CrispASR also reads
+        // `*tts*` architectures, so this comes first.
+        if let Some(model) = harness_core::tts::llama::model_of(&def) {
+            let checked = crate::llama_tts::check(&req, req.language.as_deref(), &def.alias)?;
+            guard.admitted(caller.admit(state)?);
+            guard.get().alias = Some(def.alias.clone());
+            guard.get().definition_id = Some(def.id.clone());
+            return crate::llama_tts::speak(state, model, &def.alias, checked, guard).await;
+        }
         if is_crispasr_tts(&def) {
             caller.check_model(&def.alias)?;
             crate::crispasr_tts::body(&def, "POST", "/v1/audio/speech", &body)?;

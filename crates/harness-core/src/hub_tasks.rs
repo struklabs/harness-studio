@@ -346,6 +346,15 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
     {
         pipeline_tag = Some("audio-text-to-text".to_string());
     }
+    // A GGUF whose header names a speaking architecture (Qwen3-TTS) is text to speech for
+    // `llama-tts`, whether or not the repo declares a task.
+    if gguf
+        .as_ref()
+        .and_then(|g| g.architecture.as_deref())
+        .is_some_and(crate::tts::llama::is_tts_architecture)
+    {
+        pipeline_tag = Some("text-to-speech".to_string());
+    }
     let not_runnable =
         not_runnable(id, &tags, &files, library.as_deref(), gguf.as_ref()).or_else(|| {
             (matches!(
