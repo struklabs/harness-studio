@@ -333,9 +333,7 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
     if matches!(
         pipeline_tag.as_deref(),
         Some("audio-to-audio" | "automatic-speech-recognition")
-    ) && gguf_file_names(&files)
-        .iter()
-        .any(|f| f.contains("mmproj"))
+    ) && gguf_file_names(&files).iter().any(|f| f.contains("mmproj"))
     {
         pipeline_tag = Some("audio-text-to-text".to_string());
     }
