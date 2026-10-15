@@ -723,7 +723,10 @@ fn audio_dir_info(dir: &Path) -> super::mistralrs::ModelDirInfo {
             .map(|m| m.len())
             .sum(),
         weights,
-        architecture: model_type(dir).or_else(|| Some("parakeet".into())),
+        // No `model_type`: a Spark-TTS or OuteTTS folder by its codec or card, else Parakeet.
+        architecture: model_type(dir)
+            .or_else(|| tts_type(dir))
+            .or_else(|| Some("parakeet".into())),
         complete: true,
         ..Default::default()
     }
@@ -736,9 +739,11 @@ pub(crate) fn library_models_in(
     if !cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         return Vec::new();
     }
+    // Spark-TTS and OuteTTS folders are told by their codec or card ([`tts_type`]), not
+    // necessarily by a `config.json`.
     tree.scan(
         root,
-        &["config.json"],
+        &["config.json", "audio_tokenizer_config.yaml", "README.md"],
         |dir| is_any_model_dir(dir).then(|| dir.to_path_buf()),
         |dir| dir.clone(),
     )
