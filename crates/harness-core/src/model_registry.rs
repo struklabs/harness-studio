@@ -409,6 +409,26 @@ pub fn fit_on_machine(input: FitInput, hw: &SystemHardwareInfo) -> FitResult {
     fit_for(input, hw, gpu)
 }
 
+/// Memory fit of a stable-diffusion.cpp image model of `bytes` on `hw`: the main file plus the
+/// companions it loads with (VAE, text encoders). For the Hub, whose files are not on disk to be
+/// told apart from an LLM GGUF: the llama.cpp estimate read them as 32k-context chat models
+/// (FLUX.2 klein 4B on a 4 GB card: Q4_K_M 2.43 GB "fits", Q4_0 2.29 GB "tight", Q2_K 1.7 GB
+/// "fits", its 2.6 GB of companions not counted).
+pub fn image_fit_on_machine(bytes: u64, hw: &SystemHardwareInfo) -> FitResult {
+    let gpu = crate::engine::sd_installed_build_has_gpu() != Some(false);
+    image_fit_for(bytes, hw, gpu)
+}
+
+fn image_fit_for(bytes: u64, hw: &SystemHardwareInfo, gpu: bool) -> FitResult {
+    let input = FitInput {
+        model_size_bytes: bytes,
+        gpu_layers: if gpu { 999 } else { 0 },
+        ..Default::default()
+    };
+    let budget = crate::vram::budget_for_model(hw, None);
+    crate::engine::sd_cpp().estimate_memory(&input, None, &budget, &[])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -695,5 +715,34 @@ mod tests {
             fit_for(input.clone(), &hw, None),
             crate::vram::fit(input, &hw)
         );
+    }
+
+    /// The Hub's image files on a 4 GB card, with the companions they load with: the label only
+    /// gets worse as the files grow, and a bundle larger than the card loads partly.
+    #[test]
+    fn an_image_model_fit_grows_with_its_files() {
+        use crate::vram::FitCategory::*;
+        let hw = gpu_machine(4 << 30);
+        let rank = |c: FitCategory| {
+            [FullGpu, Tight, Hybrid, CpuHeavy, OomRisk]
+                .iter()
+                .position(|x| *x == c)
+        };
+        let mb = |n: u64| n * 1_000_000;
+        // FLUX.2 klein 4B Q2_K .. Q8_0 + Qwen3-4B Q4_K_M (2.33 GB) + VAE (321 MB).
+        let companions = mb(2330) + mb(321);
+        let mut last = 0;
+        for main in [1700, 1960, 1980, 2290, 2410, 2430, 2510, 4010] {
+            let r = image_fit_for(mb(main) + companions, &hw, true);
+            let now = rank(r.category).unwrap();
+            assert!(now >= last, "{main} MB: {:?}", r.category);
+            assert_eq!(r.category, Hybrid, "{main} MB");
+            last = now;
+        }
+        // SD-Turbo q8 alone fits the card.
+        assert_eq!(image_fit_for(mb(1880), &hw, true).category, FullGpu);
+        // A CPU build keeps everything in system memory.
+        let cpu = image_fit_for(mb(1880), &hw, false);
+        assert_eq!((cpu.category, cpu.estimate.vram_bytes), (CpuHeavy, 0));
     }
 }
