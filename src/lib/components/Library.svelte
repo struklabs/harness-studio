@@ -16,8 +16,8 @@
   import { invoke } from '#lib/ipc.js';
   import { onMount, untrack } from 'svelte';
   import { toast } from 'svelte-sonner';
-  import type { LibraryEntry, LibraryView, ModelDefinition, StorageDirInfo } from '#lib/types.js';
-  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import type { FitInput, LibraryEntry, LibraryView, ModelDefinition, StorageDirInfo } from '#lib/types.js';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
   import { cn } from '#lib/utils.js';
   import { app } from '#lib/stores/app.svelte.js';
   import { domain } from '#lib/stores/domain.svelte.js';
@@ -31,6 +31,9 @@
   import FilterSelect from './hub/FilterSelect.svelte';
   import { listAgentModels, type AgentModel } from './connections/agentModels';
   import ModelEntry from './library/ModelEntry.svelte';
+  import { createCardState, FitCache, type CardState } from './library/cardState';
+  import { hardwareFit } from '#lib/fit.js';
+  import WindowedModels from './library/WindowedModels.svelte';
   import DeleteModelDialog from './library/DeleteModelDialog.svelte';
   import DuplicatesDialog from './library/DuplicatesDialog.svelte';
   import DefinitionDialog from './dashboard/DefinitionDialog.svelte';
@@ -60,6 +63,21 @@
   let sort = $state<LibrarySort>('name');
   let favoritesOnly = $state(false);
   let layout = $state<'grid' | 'list'>('grid');
+  let modelsViewport = $state<HTMLDivElement>();
+  // State belongs to the library, not the currently mounted window of cards.
+  const cardStates = $state<Record<string, CardState>>({});
+  const fits = new FitCache();
+  const openMenus = $state<Record<string, boolean>>({});
+  let fitScanVersion = $state(0);
+  let fitEnvironment = $derived(JSON.stringify([app.hardware, app.settings, locale(), library.version, fitScanVersion]));
+  function cardState(id: string) {
+    return cardStates[id] ??= createCardState();
+  }
+  function fitFor(entry: LibraryEntry, input: FitInput, environment: string) {
+    // Include file metadata; each rescan also invalidates same-size replacements (no mtime in the scan).
+    const key = JSON.stringify([environment, entry.model, input]);
+    return fits.get(entry.model.path, key, () => hardwareFit(input));
+  }
 
   let editDef = $state<ModelDefinition | null>(null);
   let deleteId = $state<string | null>(null);
@@ -134,6 +152,8 @@
         listAgentModels().catch(() => []),
       ]);
       if (token !== refreshToken) return;
+      for (const entry of v.entries) cardState(entry.model.id);
+      fitScanVersion++;
       view = v;
       agentModels = agents;
       storageDirs = dirs;
@@ -254,7 +274,7 @@
       </div>
     {:else}<p class="text-sm text-muted-foreground">{t('def.no_definition')}</p>{/each}
   </div>
-  <div hidden={section.active === 'definitions'} class="min-h-0 flex-1 overflow-y-auto" aria-busy={loading}>
+  <div bind:this={modelsViewport} hidden={section.active === 'definitions'} class="min-h-0 flex-1 overflow-y-auto" aria-busy={loading}>
     {#if loadError}
       <div class="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
         <CircleAlert class="size-3.5 shrink-0" /><span class="min-w-0 break-words">{t('lib.load_error', { error: loadError })}</span>
@@ -291,10 +311,14 @@
         </Empty.Content>
       </Empty.Root>
     {:else}
-      <div class={cn('grid gap-2', layout === 'grid' ? 'grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))]' : 'grid-cols-1')}>
-        {#each visible as entry (entry.model.id)}
+      <WindowedModels pinnedIds={Object.keys(openMenus).filter(id => openMenus[id])} entries={visible} {layout} viewport={modelsViewport} resetKey={query}>
+        {#snippet children(entry)}
           <ModelEntry
             {entry}
+            bind:state={cardStates[entry.model.id]}
+            {fitFor}
+            {fitEnvironment}
+            onMenuChange={(open) => openMenus[entry.model.id] = open}
             {entries}
             {agentModels}
             {layout}
@@ -306,8 +330,8 @@
             onToggleFavorite={toggleFavorite}
             onChanged={() => void refresh()}
           />
-        {/each}
-      </div>
+        {/snippet}
+      </WindowedModels>
     {/if}
   </div>
     </div>

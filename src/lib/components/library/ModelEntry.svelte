@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { type AgentModel, TOOL_MIN_ROUNDS } from '../connections/agentModels';
@@ -8,7 +9,7 @@
   import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { ACTION_TOAST_DURATION } from '#lib/toast.js';
-  import type { HardwareFitResult, LibraryEntry, LoadTarget, ModelCapability, ModelDefinition } from '#lib/types.js';
+  import type { FitInput, HardwareFitResult, LibraryEntry, LoadTarget, ModelCapability, ModelDefinition } from '#lib/types.js';
   import { presetName as presetDisplayName } from '#lib/components/presets/presetText.js';
   import { t, locale, type TKey } from '#lib/i18n.svelte.js';
   import { onnxUnsupportedText } from '#lib/engines.js';
@@ -16,7 +17,7 @@
   import { cn } from '#lib/utils.js';
   import { formatBytes } from '#lib/format.js';
   import { localizeError } from '#lib/network.js';
-  import { hardwareFit } from '#lib/fit.js';
+  import { beginDefinitionAction, type CardState } from './cardState';
   import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
   import { domain, baseName, samePath } from '#lib/stores/domain.svelte.js';
   import { library } from '#lib/stores/library.svelte.js';
@@ -56,6 +57,9 @@
 
   interface Props {
     entry: LibraryEntry;
+    state: CardState;
+    fitFor: (entry: LibraryEntry, input: FitInput, environment: string) => Promise<HardwareFitResult>;
+    fitEnvironment: string;
     /** All entries (names of paired projectors / draft targets). */
     entries: LibraryEntry[];
     agentModels: AgentModel[];
@@ -67,14 +71,17 @@
     onDelete: (entry: LibraryEntry) => void;
     onToggleFavorite: (entry: LibraryEntry) => void;
     onChanged: () => void;
+    onMenuChange: (open: boolean) => void;
   }
 
-  let { entry, entries, agentModels, definitions, layout, onEditDefinition, onNewDefinition, onMove, onDelete, onToggleFavorite, onChanged }: Props = $props();
+  let { entry, state = $bindable(), fitFor, fitEnvironment, entries, agentModels, definitions, layout, onEditDefinition, onNewDefinition, onMove, onDelete, onToggleFavorite, onChanged, onMenuChange }: Props = $props();
+
+  // Menus are card-owned portals: keep the source card mounted until they close.
+  onDestroy(() => onMenuChange(false));
 
   /** Kinds the gateway loads on the first request (speech, image, task pipelines): no Load button, no llama-server settings. */
   const GATEWAY_LOADED = ['asr', 'image', 'pipeline'];
 
-  let busy = $state<Record<string, boolean>>({});
   let m = $derived(entry.model);
   /** A sherpa-onnx recognition folder (Parakeet, SenseVoice...): run per request by the gateway, no definition or server. */
   let sherpaAsr = $derived(isSherpaAsrFile(m));
@@ -99,7 +106,7 @@
   );
 
   // Rust estimate (batched with the other rows), corrected with measured loads of this file.
-  let fit = $state<HardwareFitResult | null>(null);
+  let fit = $derived(state.fit);
   /** Memory figure label: Apple Silicon has no separate VRAM. */
   function fitMemKey(f: HardwareFitResult): TKey {
     const apple = f.unifiedMemory && !f.sharedIgpu;
@@ -110,15 +117,16 @@
     const ctx = Math.min(m.context_length || 32768, app.settings?.server.default_ctx || 32768);
     const path = m.path;
     const size = m.size_bytes;
-    void app.hardware;
+    const environment = fitEnvironment;
     if (!eligible) {
-      fit = null;
+      state.fit = null;
       return;
     }
     let live = true;
-    hardwareFit({ model_path: path, model_size_bytes: size, context_size: ctx, gpu_layers: 999 })
+    state.fit = null;
+    fitFor(entry, { model_path: path, model_size_bytes: size, context_size: ctx, gpu_layers: 999 }, environment)
       .then((r) => {
-        if (live) fit = r;
+        if (live) state.fit = r;
       })
       .catch(() => {});
     return () => {
@@ -220,7 +228,7 @@
   }
 
   async function load(def: ModelDefinition, target: LoadTarget) {
-    busy[def.id] = true;
+    if (!beginDefinitionAction(state, def.id)) return;
     try {
       const serverId = await invoke<string>('load_definition', { definitionId: def.id, target });
       await app.refreshProfiles();
@@ -230,7 +238,7 @@
     } catch (e) {
       toast.error(t('lib.load_failed', { error: localizeError(e) }));
     } finally {
-      busy[def.id] = false;
+      state.busy[def.id] = false;
     }
   }
 
@@ -243,14 +251,14 @@
   }
 
   async function unload(def: ModelDefinition, serverId: string) {
-    busy[def.id] = true;
+    if (!beginDefinitionAction(state, def.id)) return;
     try {
       await invoke('stop_server', { serverId });
       await domain.refreshStates();
     } catch (e) {
       toast.error(String(e));
     } finally {
-      busy[def.id] = false;
+      state.busy[def.id] = false;
     }
   }
 
@@ -272,11 +280,9 @@
     }
   }
 
-  let repairing = $state(false);
-  /** Address of one part, typed when nothing records where the file came from. */
-  let repairUrl = $state('');
   async function repair(url: string | null = null) {
-    repairing = true;
+    if (state.repairing) return;
+    state.repairing = true;
     try {
       await invoke<number>('repair_model_shards', { modelId: m.id, url });
       toast.success(t('lib.repair_queued', { count: entry.shards?.missing.length ?? 0 }), {
@@ -287,34 +293,34 @@
     } catch (e) {
       toast.error(t('lib.repair_failed', { error: String(e) }));
     } finally {
-      repairing = false;
+      state.repairing = false;
     }
   }
 
   /** An MLX chat or vision folder: loaded like a GGUF chat model (its engine follows the folder). */
   let mlxChat = $derived(m.is_ready && m.kind === 'llm' && (entry.record.runtime === 'mlx' || entry.record.runtime === 'mlx-vlm'));
 
-  let startingChat = $state(false);
   async function startChat() {
-    startingChat = true;
+    if (state.startingChat) return;
+    state.startingChat = true;
     try {
       await loadAndChat(m);
       onChanged();
     } finally {
-      startingChat = false;
+      state.startingChat = false;
     }
   }
 
-  let openingPlayground = $state(false);
   /** The tab this file runs in (image, speech, embedding, rerank), or null for chat models and unfinished files. */
   let playgroundTab = $derived(playgroundTarget(m, entry.record.runtime));
   async function openPlayground() {
-    openingPlayground = true;
+    if (state.openingPlayground) return;
+    state.openingPlayground = true;
     try {
       await openInPlayground(m, entry.record.runtime);
       onChanged();
     } finally {
-      openingPlayground = false;
+      state.openingPlayground = false;
     }
   }
 
@@ -347,8 +353,8 @@
 </script>
 
 {#snippet loadMenu(def: ModelDefinition)}
-  <DropdownMenu.Root>
-    <DropdownMenu.Trigger class={cn(buttonVariants({ variant: 'outline', size: 'xs' }))} disabled={busy[def.id] || !!platformBlocked}>
+  <DropdownMenu.Root onOpenChange={onMenuChange}>
+    <DropdownMenu.Trigger class={cn(buttonVariants({ variant: 'outline', size: 'xs' }))} disabled={state.busy[def.id] || !!platformBlocked}>
       <Play />{t('pgm.load')}<ChevronDown class="opacity-60" />
     </DropdownMenu.Trigger>
     <DropdownMenu.Content align="end" class="w-64">
@@ -411,7 +417,7 @@
       <!-- Primary facts in one line of text (no badge per fact); the rest is under "Details". -->
       <p class="truncate text-xs text-muted-foreground" title={summary}>{summary}</p>
     </div>
-    <DropdownMenu.Root>
+    <DropdownMenu.Root onOpenChange={onMenuChange}>
       <DropdownMenu.Trigger class={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'shrink-0')} aria-label={t('lib.actions')}>
         <Ellipsis />
       </DropdownMenu.Trigger>
@@ -473,23 +479,23 @@
               class="flex min-w-0 items-center gap-1.5"
               onsubmit={(e) => {
                 e.preventDefault();
-                void repair(repairUrl);
+                void repair(state.repairUrl);
               }}
             >
-              <FieldHelp text={t('help.repair_url')}><Input class="h-7 min-w-0 flex-1 font-mono text-xs" bind:value={repairUrl} placeholder={t('lib.repair_url_placeholder')} aria-label={t('lib.repair_url_label')} disabled={repairing} /></FieldHelp>
-              <Button size="xs" variant="outline" type="submit" disabled={repairing || !repairUrl.trim()}>
-                {#if repairing}<LoaderCircle class="animate-spin" />{:else}<Wrench />{/if}{t('lib.repair_url_button')}
+              <FieldHelp text={t('help.repair_url')}><Input class="h-7 min-w-0 flex-1 font-mono text-xs" bind:value={state.repairUrl} placeholder={t('lib.repair_url_placeholder')} aria-label={t('lib.repair_url_label')} disabled={state.repairing} /></FieldHelp>
+              <Button size="xs" variant="outline" type="submit" disabled={state.repairing || !state.repairUrl.trim()}>
+                {#if state.repairing}<LoaderCircle class="animate-spin" />{:else}<Wrench />{/if}{t('lib.repair_url_button')}
               </Button>
             </form>
           {/if}
         {:else if entry.repair?.repo_id}
-          <Button size="xs" variant="outline" class="self-start" onclick={() => repair()} disabled={repairing}>
-            {#if repairing}<LoaderCircle class="animate-spin" />{:else}<Wrench />{/if}{t('lib.repair', { repo: entry.repair.repo_id })}
+          <Button size="xs" variant="outline" class="self-start" onclick={() => repair()} disabled={state.repairing}>
+            {#if state.repairing}<LoaderCircle class="animate-spin" />{:else}<Wrench />{/if}{t('lib.repair', { repo: entry.repair.repo_id })}
           </Button>
         {:else if entry.repair?.source_url}
           <span class="truncate font-mono text-xs text-muted-foreground" title={entry.repair.source_url}>{entry.repair.source_url}</span>
-          <Button size="xs" variant="outline" class="self-start" onclick={() => repair()} disabled={repairing}>
-            {#if repairing}<LoaderCircle class="animate-spin" />{:else}<Wrench />{/if}{t('lib.repair_recorded')}
+          <Button size="xs" variant="outline" class="self-start" onclick={() => repair()} disabled={state.repairing}>
+            {#if state.repairing}<LoaderCircle class="animate-spin" />{:else}<Wrench />{/if}{t('lib.repair_recorded')}
           </Button>
         {/if}
       </div>
@@ -506,7 +512,7 @@
   {/if}
 
   <AdvancedOnly>
-  <details class="group/details text-xs text-muted-foreground">
+  <details bind:open={state.detailsOpen} class="group/details text-xs text-muted-foreground">
     <summary class="flex w-fit cursor-pointer list-none items-center gap-1 rounded-sm text-muted-foreground outline-none select-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
       <ChevronRight class="size-3.5 transition-transform group-open/details:rotate-90 motion-reduce:transition-none" />
       {t('ui.lib_details')}
@@ -546,15 +552,15 @@
   <!-- Primary action: load the chat model and start talking to it. -->
   {#if isChatLoadable(m) || mlxChat}
     <div class="flex items-center gap-2 border-t border-border pt-2">
-      <Button size="xs" onclick={startChat} disabled={startingChat || !!platformBlocked}>
-        {#if startingChat}<LoaderCircle class="animate-spin" />{:else}<MessageSquare />{/if}{running.length > 0 ? t('hub.chat_now') : t('hub.load_and_chat')}
+      <Button size="xs" onclick={startChat} disabled={state.startingChat || !!platformBlocked}>
+        {#if state.startingChat}<LoaderCircle class="animate-spin" />{:else}<MessageSquare />{/if}{running.length > 0 ? t('hub.chat_now') : t('hub.load_and_chat')}
       </Button>
     </div>
   {:else if playgroundTab}
     <!-- Image, speech, voice, embedding and rerank files: open the Playground tab with the file selected (its definition is made when missing). -->
     <div class="flex items-center gap-2 border-t border-border pt-2">
-      <Button size="xs" onclick={openPlayground} disabled={openingPlayground}>
-        {#if openingPlayground}<LoaderCircle class="animate-spin" />{:else}<SquareArrowOutUpRight />{/if}{t('lib.open_in_playground')}
+      <Button size="xs" onclick={openPlayground} disabled={state.openingPlayground}>
+        {#if state.openingPlayground}<LoaderCircle class="animate-spin" />{:else}<SquareArrowOutUpRight />{/if}{t('lib.open_in_playground')}
       </Button>
     </div>
   {/if}
@@ -589,12 +595,12 @@
       {/if}
       {#each definitions as def (def.id)}
         {@const st = domain.state(def.id)}
-        {@const state = st?.state ?? 'idle'}
+        {@const definitionState = st?.state ?? 'idle'}
         <div class="flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-muted/40">
           <div class="flex min-w-0 flex-1 flex-col">
             <span class="truncate font-mono text-xs" title={def.description || def.alias}>{def.alias}</span>
             <span class="truncate text-xs">
-              <span class={STATE_TONE[state]}>{t(STATE_LABEL[state])}</span>
+              <span class={STATE_TONE[definitionState]}>{t(STATE_LABEL[definitionState])}</span>
               {#if st?.servers.length}
                 <span class="text-muted-foreground"> · {st.servers.map((s) => `${app.serverLabel(s.server_id)} :${s.port}`).join(', ')}</span>
               {:else if def.default_preset_id}
@@ -602,28 +608,28 @@
               {/if}
             </span>
           </div>
-          {#if busy[def.id] || state === 'loading'}
+          {#if state.busy[def.id] || definitionState === 'loading'}
             <LoaderCircle class="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label={t('pgm.state_loading')} />
           {/if}
-          {#if state === 'running' && st}
+          {#if definitionState === 'running' && st}
             {#each st.servers.filter((s) => s.status === 'Running') as s (s.server_id)}
               <Tooltip.Root>
                 <Tooltip.Trigger>
                   {#snippet child({ props })}
-                    <Button {...props} size="icon-xs" variant="ghost" disabled={busy[def.id]} aria-label={t('lib.reload')} onclick={() => reload(def, s.server_id)}><RotateCw /></Button>
+                    <Button {...props} size="icon-xs" variant="ghost" disabled={state.busy[def.id]} aria-label={t('lib.reload')} onclick={() => reload(def, s.server_id)}><RotateCw /></Button>
                   {/snippet}
                 </Tooltip.Trigger>
                 <Tooltip.Content>{t('lib.reload_title', { server: app.serverLabel(s.server_id) })}</Tooltip.Content>
               </Tooltip.Root>
-              <Button size="xs" variant="ghost" disabled={busy[def.id]} onclick={() => unload(def, s.server_id)} title={t('pgm.unload_title', { server: app.serverLabel(s.server_id) })}>
+              <Button size="xs" variant="ghost" disabled={state.busy[def.id]} onclick={() => unload(def, s.server_id)} title={t('pgm.unload_title', { server: app.serverLabel(s.server_id) })}>
                 <Square />{t('pgm.unload')}
               </Button>
             {/each}
-          {:else if state === 'idle' && !GATEWAY_LOADED.includes(m.kind ?? '')}
+          {:else if definitionState === 'idle' && !GATEWAY_LOADED.includes(m.kind ?? '')}
             <!-- A whisper model is loaded by the gateway on the first speech request, not by hand. -->
             {@render loadMenu(def)}
           {/if}
-          <DropdownMenu.Root>
+          <DropdownMenu.Root onOpenChange={onMenuChange}>
             <DropdownMenu.Trigger class={cn(buttonVariants({ variant: 'ghost', size: 'icon-xs' }))} aria-label={t('lib.definition_menu', { alias: def.alias })}>
               <Pencil />
             </DropdownMenu.Trigger>
