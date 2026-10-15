@@ -18,6 +18,12 @@ export function isCompanionVariant(v: HfModelVariant): boolean {
   return COMPANION_QUANTS.has(v.quantization.toLowerCase()) || [v.name, ...v.shards.map((s) => s.filename)].some((path) => COMPANION_PATH.test(path));
 }
 
+/** Whether the precision label says anything ("SAFETENSORS", "Unknown", "component" do not). */
+export function hasKnownPrecision(q: string): boolean {
+  const u = q.toUpperCase();
+  return !u.startsWith('TYPE_') && /\d/.test(u);
+}
+
 const TIERS = ['full_gpu', 'tight', 'hybrid', 'cpu_heavy'] as const;
 
 function currentVariants(variants: HfModelVariant[]): HfModelVariant[] {
@@ -33,7 +39,11 @@ function currentVariants(variants: HfModelVariant[]): HfModelVariant[] {
  * 4-bit-or-better file of the best tier still possible. Null when sizes or fits are unknown.
  */
 export function recommendVariant(variants: HfModelVariant[], fits: Map<string, FitCategory>): HfModelVariant | null {
-  const sized = currentVariants(variants.filter((v) => !isCompanionVariant(v) && v.total_size_bytes > 0 && quantBits(v.quantization) <= 8 && fits.has(v.name)));
+  // An unparsed precision reads as 0 bits: it must not beat a file whose precision is known.
+  const mains = variants.filter((v) => !isCompanionVariant(v));
+  const anyKnown = mains.some((v) => hasKnownPrecision(v.quantization));
+  const sized = currentVariants(mains.filter((v) => v.total_size_bytes > 0 && quantBits(v.quantization) <= 8 && fits.has(v.name)
+    && (!anyKnown || hasKnownPrecision(v.quantization))));
   if (sized.length === 0) return null;
   for (const tier of TIERS) {
     const group = sized.filter((v) => fits.get(v.name) === tier);
@@ -44,6 +54,25 @@ export function recommendVariant(variants: HfModelVariant[], fits: Map<string, F
     const decent = group.filter((v) => quantBits(v.quantization) >= 4);
     const pool = decent.length ? decent : group;
     return pool.reduce((a, b) => (b.total_size_bytes < a.total_size_bytes ? b : a));
+  }
+  return null;
+}
+
+/**
+ * Fallback for a repo that has no quantized file, only floats (diffusers/safetensors checkpoints):
+ * the best fit tier, and in it FP16/BF16 over FP32 (half the size, same quality in practice),
+ * then the smaller file. Files with an unparsed precision never qualify. Kept apart from
+ * `recommendVariant` so onboarding, which wants quantized files only, is unchanged.
+ */
+export function recommendFloatVariant(variants: HfModelVariant[], fits: Map<string, FitCategory>): HfModelVariant | null {
+  const floats = currentVariants(variants.filter((v) => !isCompanionVariant(v) && v.total_size_bytes > 0 && fits.has(v.name) && /^(BF16|F16|FP16|F32|FP32)/i.test(v.quantization)));
+  for (const tier of TIERS) {
+    const group = floats.filter((v) => fits.get(v.name) === tier);
+    if (group.length === 0) continue;
+    return group.reduce((a, b) => {
+      const d = quantBits(a.quantization) - quantBits(b.quantization);
+      return d > 0 || (d === 0 && b.total_size_bytes < a.total_size_bytes) ? b : a;
+    });
   }
   return null;
 }

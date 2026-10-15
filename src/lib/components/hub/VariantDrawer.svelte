@@ -31,7 +31,7 @@
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
-  import { isCompanionVariant, isCtcVariant, isWhisperVariant, pickProjectorVariant, recommendCrispasrVariant, recommendCtcVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
+  import { isCompanionVariant, isCtcVariant, isWhisperVariant, pickProjectorVariant, recommendCrispasrVariant, recommendCtcVariant, recommendFloatVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
   import { security } from '#lib/stores/security.svelte.js';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
 
@@ -160,7 +160,11 @@
       ? recommendWhisperVariant(variants, hardware?.available_ram_bytes, whisperOnCpu(hardware?.os))
       : isCtcRepo
         ? recommendCtcVariant(variants, hardware?.available_ram_bytes)
-        : recommendVariant(variants.filter(v => !v.not_runnable), new Map([...variantFits].map(([name, fit]) => [name, fit.category])))
+        : (() => {
+            const runnable = variants.filter(v => !v.not_runnable);
+            const fits = new Map([...variantFits].map(([name, fit]) => [name, fit.category]));
+            return recommendVariant(runnable, fits) ?? recommendFloatVariant(runnable, fits);
+          })()
   );
   $effect(() => {
     const id = repoId;
