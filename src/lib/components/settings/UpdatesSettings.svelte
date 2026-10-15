@@ -7,7 +7,7 @@
   import { toast } from 'svelte-sonner';
   import { Check, TriangleAlert } from '@lucide/svelte';
   import type { AppUpdateInfo, AppUpdateProgress } from '#lib/types.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText } from '#lib/format.js';
   import { t, locale } from '#lib/i18n.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Progress } from '#lib/components/ui/progress/index.js';
@@ -156,7 +156,7 @@
               <span class="font-num text-xs text-muted-foreground">
                 {progress?.finished ? t('settings.app_install_finished') : t('settings.app_installing')}
                 {#if progress}
-                  {fmt(progress.downloaded)}{progress.total ? ` / ${fmt(progress.total)}` : ''}
+                  {progress.total ? formatBytesPairText(progress.downloaded, progress.total) : fmt(progress.downloaded)}
                   {#if progressPct !== null}({progressPct}%){/if}
                 {/if}
               </span>

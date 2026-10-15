@@ -3,7 +3,7 @@
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { t } from '#lib/i18n.svelte.js';
   import { cn } from '#lib/utils.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText } from '#lib/format.js';
   import { kvText, type PreparePlan, type PrepareOption } from './agentTuning';
 
   interface Props {
@@ -21,9 +21,9 @@
     {t(pp.verdict === 'recommended' ? 'conn.prepare_recommended' : pp.verdict === 'below_recommended' ? 'conn.prepare_below' : 'conn.prepare_insufficient', { name })}
   {:else if pp.verdict === 'recommended' && pp.choice}
     {#if pp.cpu_only}
-      {t('conn.tune_v_ok_cpu', { ctx: pp.choice.context_size.toLocaleString(), kv: kvText(pp.choice), used: formatBytes(pp.choice.ram_bytes + pp.choice.vram_bytes, 1), total: formatBytes(pp.budget_ram_bytes, 1) })}
+      {t('conn.tune_v_ok_cpu', { ctx: pp.choice.context_size.toLocaleString(), kv: kvText(pp.choice), pair: formatBytesPairText(pp.choice.ram_bytes + pp.choice.vram_bytes, pp.budget_ram_bytes) })}
     {:else}
-      {t('conn.tune_v_ok', { ctx: pp.choice.context_size.toLocaleString(), kv: kvText(pp.choice), used: formatBytes(pp.choice.vram_bytes, 1), total: formatBytes(pp.budget_vram_bytes, 1) })}
+      {t('conn.tune_v_ok', { ctx: pp.choice.context_size.toLocaleString(), kv: kvText(pp.choice), pair: formatBytesPairText(pp.choice.vram_bytes, pp.budget_vram_bytes) })}
     {/if}
   {:else if pp.verdict === 'below_recommended' && pp.choice}
     {t(pp.cpu_only ? 'conn.tune_v_below_cpu' : 'conn.tune_v_below', { name, rec: pp.need.recommended.toLocaleString(), ctx: pp.choice.context_size.toLocaleString() })}
@@ -57,9 +57,9 @@
       <AdvancedOnly>
         <span class="mt-0.5 block font-num text-muted-foreground">
           {#if pp.cpu_only}
-            {t('conn.tune_o_line_cpu', { ctx: o.context_size.toLocaleString(), kv: kvText(o), ram: formatBytes(o.ram_bytes + o.vram_bytes, 1), total: formatBytes(pp.budget_ram_bytes, 1), percent: o.percent })}
+            {t('conn.tune_o_line_cpu', { ctx: o.context_size.toLocaleString(), kv: kvText(o), pair: formatBytesPairText(o.ram_bytes + o.vram_bytes, pp.budget_ram_bytes), percent: o.percent })}
           {:else}
-            {t('conn.tune_o_line', { ctx: o.context_size.toLocaleString(), kv: kvText(o), vram: formatBytes(o.vram_bytes, 1), total: formatBytes(pp.budget_vram_bytes, 1), percent: o.percent })}
+            {t('conn.tune_o_line', { ctx: o.context_size.toLocaleString(), kv: kvText(o), pair: formatBytesPairText(o.vram_bytes, pp.budget_vram_bytes), percent: o.percent })}
           {/if}
           {#if o.gpu_layers !== null && !pp.cpu_only}· {t('conn.tune_o_layers', { n: o.gpu_layers, ram: formatBytes(o.ram_bytes, 1) })}{/if}
         </span>

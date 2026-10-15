@@ -8,7 +8,7 @@
   import { toast } from 'svelte-sonner';
   import type { OnnxRuntimeProgress, OnnxRuntimeSupport, OnnxRuntimeVariant } from '#lib/types.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText } from '#lib/format.js';
   import { onnxUnsupportedText } from '#lib/engines.js';
   import { localizeError } from '#lib/network.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -149,7 +149,7 @@
           {#if busy === v.variant && progress}
             <Progress value={pct} aria-label={progress.current} />
             <span class="font-num text-xs text-muted-foreground">
-              {fmt(progress.downloaded_bytes)}{progress.total_bytes > 0 ? ` / ${fmt(progress.total_bytes)}` : ''}
+              {progress.total_bytes > 0 ? formatBytesPairText(progress.downloaded_bytes, progress.total_bytes) : fmt(progress.downloaded_bytes)}
             </span>
           {/if}
           {#if verified[v.variant]}

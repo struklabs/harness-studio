@@ -19,11 +19,21 @@ export function formatBytes(bytes: number | null | undefined, decimals = 2): str
 export function formatBytesPair(used: number, total: number, decimals = 1): { used: string; rest: string } {
   const u = byteParts(used);
   const t = byteParts(total);
-  const options = { minimumFractionDigits: decimals, maximumFractionDigits: decimals };
-  return {
-    used: `${u.value.toLocaleString(locale(), options)}${u.unit === t.unit ? '' : ` ${u.unit}`}`,
-    rest: ` / ${t.value.toLocaleString(locale(), options)} ${t.unit}`,
+  // Whole bytes have no fraction ("0 B", not "0,0 B").
+  const fmt = (p: { value: number; unit: string }) => {
+    const digits = p.unit === 'B' ? 0 : decimals;
+    return p.value.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
   };
+  return {
+    used: `${fmt(u)}${u.unit === t.unit ? '' : ` ${u.unit}`}`,
+    rest: ` / ${fmt(t)} ${t.unit}`,
+  };
+}
+
+/** Single-string form of the shared byte pair. */
+export function formatBytesPairText(used: number, total: number, decimals = 1): string {
+  const pair = formatBytesPair(used, total, decimals);
+  return pair.used + pair.rest;
 }
 
 /** Readable model name: a file path id ("C:\\AI\\model-q4.gguf") becomes "model-q4". */

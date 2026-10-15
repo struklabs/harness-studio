@@ -1,7 +1,7 @@
 <script lang="ts">
   // The safetensors to GGUF conversions of the Model Hub, listed next to the download queue:
   // each one shows its stage (environment, download, convert, quantize, finalize) and progress.
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText } from '#lib/format.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { localizeError } from '#lib/network.js';
   import type { ConvertJob } from '#lib/types.js';
@@ -90,7 +90,7 @@
             <Progress value={percent(job)} max={100} aria-label={`${job.repo_id}: ${stageLabel(job)}`} class={cn(job.progress === null && 'animate-pulse')} />
             <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 font-num text-xs text-muted-foreground">
               {#if job.stage === 'downloading'}
-                <span>{formatBytes(job.downloaded_bytes)} / {formatBytes(job.total_bytes)}</span>
+                <span>{formatBytesPairText(job.downloaded_bytes, job.total_bytes)}</span>
               {/if}
               {#if job.progress !== null}<span>{percent(job)}%</span>{/if}
               {#if job.detail}<span class="min-w-0 truncate font-mono" title={job.detail}>{job.detail}</span>{/if}

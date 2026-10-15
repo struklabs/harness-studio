@@ -16,7 +16,7 @@
     RuntimeReleasePick,
   } from '#lib/types.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText } from '#lib/format.js';
   import { isMac } from '#lib/platform.js';
   import { localizeError } from '#lib/network.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -238,7 +238,7 @@
         </div>
         {#if busy === 'install' && progress}
           <Progress value={progress.total > 0 ? (progress.done / progress.total) * 100 : 0} aria-label={progress.label} />
-          <span class="font-num text-xs text-muted-foreground">{fmt(progress.done)}{progress.total > 0 ? ` / ${fmt(progress.total)}` : ''}</span>
+          <span class="font-num text-xs text-muted-foreground">{progress.total > 0 ? formatBytesPairText(progress.done, progress.total) : fmt(progress.done)}</span>
         {/if}
         {#if status.installs.length > 1}
           <div class="flex flex-col gap-1" role="group" aria-label={t('lem.builds')}>
@@ -351,7 +351,7 @@
           <p class="text-xs text-muted-foreground">{t('lem.models_hint')}</p>
           {#if busy?.startsWith('pull:') && progress}
             <Progress value={progress.total > 0 ? (progress.done / progress.total) * 100 : 0} aria-label={progress.label} />
-            <span class="font-num text-xs text-muted-foreground">{fmt(progress.done)}{progress.total > 0 ? ` / ${fmt(progress.total)}` : ''}</span>
+            <span class="font-num text-xs text-muted-foreground">{progress.total > 0 ? formatBytesPairText(progress.done, progress.total) : fmt(progress.done)}</span>
           {/if}
           {#if list && list.models.length > 0}
             <div class="flex items-center gap-3">

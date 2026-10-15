@@ -5,7 +5,7 @@
   import { Check, Package, Cpu } from '@lucide/svelte';
   import type { BackendStatus, SystemHardwareInfo, RuntimeDetectionInfo, RuntimeDownloadProgress, ReleaseAssetInfo } from '#lib/types.js';
   import { BACKEND_TOKEN, backendFallbackText, loadBackendFallback, missingBackendLibraries, backendName, normBackend, saveBackendFallback, type BackendFallbackNote } from '#lib/runtimeBackend.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytesPairText } from '#lib/format.js';
   import { localizeError } from '#lib/network.js';
   import { downloadRelease } from '#lib/stores/security.svelte.js';
   import { t } from '#lib/i18n.svelte.js';
@@ -226,7 +226,7 @@
         <div class="flex flex-col gap-1.5">
           <Progress value={pct} aria-label={t('onboarding.wizard_runtime_downloading')} />
           <span class="font-num text-xs text-muted-foreground">
-            {formatBytes(installProgress.downloaded_bytes, 1)} / {formatBytes(installProgress.total_bytes, 1)}
+            {formatBytesPairText(installProgress.downloaded_bytes, installProgress.total_bytes)}
           </span>
         </div>
       {/if}

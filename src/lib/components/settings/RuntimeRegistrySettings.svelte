@@ -19,7 +19,7 @@
   } from '#lib/types.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { pathExample } from '#lib/platform.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText } from '#lib/format.js';
   import { localizeError } from '#lib/network.js';
   import { runtimeInstallErrorText } from '#lib/runtimeBackend.js';
   import { runtimesStore, runtimeBuildLabel } from '#lib/stores/runtimes.svelte.js';
@@ -435,7 +435,7 @@
           {#if progress}
             <Progress value={pct} aria-label={progress.current_asset} />
             <span class="font-num text-xs text-muted-foreground">
-              {fmt(progress.downloaded_bytes)}{progress.total_bytes > 0 ? ` / ${fmt(progress.total_bytes)}` : ''}
+              {progress.total_bytes > 0 ? formatBytesPairText(progress.downloaded_bytes, progress.total_bytes) : fmt(progress.downloaded_bytes)}
             </span>
           {/if}
           <Button size="sm" class="self-start" disabled={installing || (pick.unverified.length > 0 && !acceptUnverified)} onclick={install}>

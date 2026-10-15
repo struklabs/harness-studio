@@ -7,7 +7,7 @@
   import { Check, Info, LoaderCircle, MessageSquare, Code, FileSearch, Mic, ShieldAlert, TriangleAlert } from '@lucide/svelte';
   import type { Component } from 'svelte';
   import type { DownloadProgress, RuntimeDownloadProgress, RuntimeEntry, SystemHardwareInfo } from '#lib/types.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText } from '#lib/format.js';
   import { localizeError } from '#lib/network.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { downloads } from '#lib/stores/downloads.svelte.js';
@@ -155,8 +155,7 @@
     if (job.status === 'Verifying') return t('onboarding.sg_dl_verifying');
     return t('onboarding.sg_dl_progress', {
       pct: Math.round(progressPercent(job)),
-      done: formatBytes(job.downloaded_bytes, 1),
-      total: formatBytes(job.total_bytes, 1),
+      pair: formatBytesPairText(job.downloaded_bytes, job.total_bytes),
     });
   }
 
@@ -433,7 +432,7 @@
   {#if progress}
     <div class="flex flex-col gap-1.5">
       <Progress value={pct} aria-label={t('onboarding.wizard_runtime_downloading')} />
-      <span class="font-num text-xs text-muted-foreground">{formatBytes(progress.downloaded_bytes, 1)} / {formatBytes(progress.total_bytes, 1)}</span>
+      <span class="font-num text-xs text-muted-foreground">{formatBytesPairText(progress.downloaded_bytes, progress.total_bytes)}</span>
     </div>
   {/if}
   {#if engineInstall.busy('mlx-audio')}

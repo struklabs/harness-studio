@@ -1,6 +1,6 @@
 <script lang="ts">
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText } from '#lib/format.js';
   import { t } from '#lib/i18n.svelte.js';
   import type { DownloadProgress } from '#lib/types.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -183,7 +183,7 @@
             {/if}
 
             <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 font-num text-xs text-muted-foreground">
-              <span>{formatBytes(job.downloaded_bytes)} / {formatBytes(job.total_bytes)}</span>
+              <span>{formatBytesPairText(job.downloaded_bytes, job.total_bytes)}</span>
               {#if key !== 'Completed'}<span>{pct.toFixed(1)}%</span>{/if}
               {#if job.status === 'Downloading'}<span>{formatBytes(job.speed_bytes_per_sec)}/s</span>{/if}
               {#if eta !== null}<span>{t('hub.eta', { time: formatDuration(eta) })}</span>{/if}
