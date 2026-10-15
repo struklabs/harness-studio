@@ -4249,7 +4249,8 @@ fn safetensors_variants(
     }
     // One weight set: the default `model*.safetensors` (transformers loads that name, with its
     // `model.safetensors.index.json`) over a precision copy (`model.fp32-0000x-of-0000y`) or a
-    // second layout (`transformers-0000x-of-0000y`) of the same model.
+    // second layout (`transformers-0000x-of-0000y`) of the same model. Only root files are
+    // weights here; module folders (`2_Dense/model.safetensors`) are companions and stay.
     let weight_stem = |f: &F| {
         let lower = f.path.to_ascii_lowercase();
         let stem = lower.strip_suffix(".safetensors").unwrap_or(&lower);
@@ -5638,6 +5639,27 @@ mod tests {
                 "config.json",
                 "modules.json",
                 "sentence_bert_config.json",
+            ]
+        );
+        // Pruning a root precision copy leaves module weights in their folders alone.
+        let st_fp16 = vec![
+            file("config.json", 700),
+            file("modules.json", 300),
+            lfs("model.safetensors", 90, &oid),
+            lfs("model.fp16.safetensors", 45, &oid),
+            lfs("2_Dense/model.safetensors", 10, &oid),
+            lfs("3_Dense/model.safetensors", 10, &oid),
+        ];
+        let v = safetensors_variants("sentence-transformers/y", &st_fp16).unwrap();
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "model.safetensors",
+                "2_Dense/model.safetensors",
+                "3_Dense/model.safetensors",
+                "config.json",
+                "modules.json",
             ]
         );
     }
