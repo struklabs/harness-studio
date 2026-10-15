@@ -2335,6 +2335,15 @@ impl DownloadManager {
             .collect();
         let mut ids = Vec::new();
         for c in plan.missing() {
+            // An MLX codec is taken from its pinned commit and checked against its SHA-256.
+            if let Some(file) = crate::engine::mlx::pinned_codec_file(&c.repo, &c.file) {
+                if active.iter().any(|(r, v)| r == &c.repo && v == &c.file) {
+                    continue;
+                }
+                let target = Self::models_dir().join(&c.repo);
+                ids.push(self.start_pinned_download(&file, c.file.clone(), target)?);
+                continue;
+            }
             let variant = Self::companion_variant(&c.repo, &c.file, token).await?;
             // Already on its way (the bundle was asked for twice).
             if active

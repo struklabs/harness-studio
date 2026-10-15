@@ -335,7 +335,12 @@ pub async fn pull(
             ) + &started["companions"]
                 .as_array()
                 .filter(|a| !a.is_empty())
-                .map(|a| format!(" and {} companion file(s) (VAE, text encoders)", a.len()))
+                .map(|a| {
+                    format!(
+                        " and {} companion file(s) (VAE, text encoders, speech codecs)",
+                        a.len()
+                    )
+                })
                 .unwrap_or_default()
         });
         return Ok(());

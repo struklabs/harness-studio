@@ -65,9 +65,10 @@ const VLM_WORKER: &str = include_str!("../../python/mlx_vlm_worker.py");
 const AUDIO_WORKER: &str = include_str!("../../python/mlx_audio_worker.py");
 
 /// mlx-audio text-to-speech architectures Harness runs (see [`tts_type`]): the ones checked end
-/// to end. OuteTTS, Orpheus and Dia load a codec from the Hub by name: it is a companion
-/// download ([`codecs_of`]) that the worker finds offline. Kokoro (misaki, spaCy data and voices
-/// fetched at run time) and CSM (Mimi, a gated tokenizer, voice prompts) are not offered.
+/// to end. OuteTTS, Orpheus, Dia and CSM (`sesame`) load a codec (and CSM its text tokenizer and
+/// voice prompts) from the Hub by name: they are companion downloads ([`codecs_of`]) that the
+/// worker finds offline. Kokoro (misaki, spaCy data and voices fetched at run time) is not
+/// offered.
 const TTS_TYPES: &[&str] = &[
     "qwen3_tts",
     "chatterbox_turbo",
@@ -77,6 +78,7 @@ const TTS_TYPES: &[&str] = &[
     "outetts",
     "orpheus",
     "dia",
+    "sesame",
 ];
 
 /// A codec repo an mlx-audio family's loader asks the Hub for by name, with its files and
@@ -85,29 +87,152 @@ const TTS_TYPES: &[&str] = &[
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Codec {
     pub repo: &'static str,
-    pub files: &'static [(&'static str, u64)],
+    /// The commit the files are taken from: an upstream change cannot swap them.
+    pub rev: &'static str,
+    /// `(file, size, sha256)`; each download is checked against both.
+    pub files: &'static [(&'static str, u64, &'static str)],
 }
 
 const DAC_24K: Codec = Codec {
     repo: "mlx-community/dac-speech-24khz-1.5kbps",
-    files: &[("config.json", 391), ("model.safetensors", 295_669_897)],
+    rev: "d8dd32d0124c3c3d06b905980346994c3fd56de1",
+    files: &[
+        (
+            "config.json",
+            391,
+            "4b0d4c6929bc741cc0a5f7dde1f376294c4db78886b9173455e19a96fb2f6852",
+        ),
+        (
+            "model.safetensors",
+            295_669_897,
+            "d8295d38f06edd961ae39d75945564828504bfdf5c995f14c1c536a2ac1abe0c",
+        ),
+    ],
 };
 const SNAC_24K: Codec = Codec {
     repo: "mlx-community/snac_24khz",
-    files: &[("config.json", 300), ("model.safetensors", 79_404_951)],
+    rev: "556af1cd3b1c5f2d294f6aa9bb886245d7b716ac",
+    files: &[
+        (
+            "config.json",
+            300,
+            "e119b9366d4f5e73c6ca5f31137c4ff361578bbb132953a5203afe037c4012be",
+        ),
+        (
+            "model.safetensors",
+            79_404_951,
+            "e61ae2f638f56ee07a37592cd5a6a9e7d642560ddc78a76ee4a7f96d6922f1be",
+        ),
+    ],
 };
 const DAC_44K: Codec = Codec {
     repo: "mlx-community/descript-audio-codec-44khz",
-    files: &[("config.json", 219), ("model.safetensors", 306_644_869)],
+    rev: "91dff27c81edbb0992be17ac51d2c7d515411a32",
+    files: &[
+        (
+            "config.json",
+            219,
+            "c3ad73d9f58d6aa4889856597eea8147c36ea49efc2fcb8efcb9a812b30917ec",
+        ),
+        (
+            "model.safetensors",
+            306_644_869,
+            "cf9b0711afdc362182afda1d6addfd1b6b6e95509dec85fe237ac9a0b8a7522b",
+        ),
+    ],
+};
+/// Kyutai's Mimi codec of CSM: the one tokenizer file of the Moshi repo (not its 15 GB model).
+const MIMI: Codec = Codec {
+    repo: "kyutai/moshiko-pytorch-bf16",
+    rev: "2bfc9ae6e89079a5cc7ed2a68436010d91a3d289",
+    files: &[(
+        "tokenizer-e351c8d8-checkpoint125.safetensors",
+        384_644_900,
+        "09b782f0629851a271227fb9d36db65c041790365f11bbe5d3d59369cf863f50",
+    )],
+};
+/// CSM's text tokenizer: Llama 3.2's, from the ungated copy mlx-audio itself loads (Meta's repo
+/// is gated); the tokenizer files only.
+const LLAMA32_TOKENIZER: Codec = Codec {
+    repo: "unsloth/Llama-3.2-1B",
+    rev: "9535bd9b1d1dea6acafbdc4813b728796aeb28da",
+    files: &[
+        (
+            "config.json",
+            889,
+            "8f028e2cd88148fad38c7dece460947681adf6178e46e11ece9742aa49b378dd",
+        ),
+        (
+            "special_tokens_map.json",
+            459,
+            "32f404d626cf7b1b6eea36c241ae7cbd6ec29c777a8701ea48c0fe9ebb94c9b1",
+        ),
+        (
+            "tokenizer.json",
+            17_209_920,
+            "6b9e4e7fb171f92fd137b777cc2714bf87d11576700a1dcd7a399e7bbe39537b",
+        ),
+        (
+            "tokenizer_config.json",
+            50_641,
+            "8ca815f697b8f6953d9bad3130ddd6238b99d36c20fde052cf730207ac0926d4",
+        ),
+    ],
+};
+/// CSM's voice prompts (a voice is a recorded prompt the model continues): mlx-community's
+/// ungated copy of the ones in `sesame/csm-1b` (gated); mlx-audio has their texts.
+const CSM_PROMPTS: Codec = Codec {
+    repo: "mlx-community/csm-1b",
+    rev: "5bf5ec118cf45fecc7b51198fd9f1a20a5aab65a",
+    files: &[
+        (
+            "prompts/conversational_a.wav",
+            2_646_044,
+            "356648c1bc6c1da7883004557e9b21a2ef7d01682d8b9d02d6dcb950b348b04f",
+        ),
+        (
+            "prompts/conversational_b.wav",
+            2_646_044,
+            "c247153011385d33aaeed193adfec562c32182e2facd30cc8cd0b3e820e94afb",
+        ),
+    ],
 };
 
+/// The voices of a CSM folder: its [`CSM_PROMPTS`].
+pub const CSM_VOICES: &[&str] = &["conversational_a", "conversational_b"];
+
+/// The pinned download of a codec file ([`codecs_of`]), `None` for other files.
+pub fn pinned_codec_file(repo: &str, file: &str) -> Option<crate::downloader::PinnedFile<'static>> {
+    [
+        DAC_24K,
+        SNAC_24K,
+        DAC_44K,
+        MIMI,
+        LLAMA32_TOKENIZER,
+        CSM_PROMPTS,
+    ]
+    .iter()
+    .filter(|c| c.repo == repo)
+    .flat_map(|c| c.files.iter().map(move |f| (c, f)))
+    .find(|(_, (name, _, _))| *name == file)
+    .map(|(c, (name, size, sha256))| crate::downloader::PinnedFile {
+        repo: c.repo,
+        rev: c.rev,
+        filename: name,
+        size: *size,
+        sha256,
+    })
+}
+
 /// The codecs a text-to-speech family loads (mlx-audio 0.5.9: OuteTTS `DacInterface`, Orpheus
-/// `SNAC.from_pretrained`, Dia `DAC.from_pretrained`).
+/// `SNAC.from_pretrained`, Dia `DAC.from_pretrained`, CSM `Mimi.from_pretrained`, its Llama 3.2
+/// tokenizer and `default_speaker_prompt`).
 pub fn codecs_of(family: &str) -> &'static [Codec] {
     match family {
         "outetts" => &[DAC_24K],
         "orpheus" => &[SNAC_24K],
         "dia" => &[DAC_44K],
+        "sesame" => &[MIMI, LLAMA32_TOKENIZER, CSM_PROMPTS],
         _ => &[],
     }
 }
@@ -118,7 +243,7 @@ pub fn codec_dir(codec: &Codec, libraries: &[PathBuf]) -> Option<PathBuf> {
     libraries
         .iter()
         .map(|root| root.join(codec.repo))
-        .find(|dir| codec.files.iter().all(|(f, _)| dir.join(f).is_file()))
+        .find(|dir| codec.files.iter().all(|(f, _, _)| dir.join(f).is_file()))
 }
 
 /// The codecs a text-to-speech folder needs, each with its library folder (`None` when it is
@@ -162,7 +287,7 @@ pub fn codec_plan_for_repo(
             let dir = codec_dir(c, libraries);
             c.files
                 .iter()
-                .map(move |(file, size)| crate::image_bundles::ComponentPlan {
+                .map(move |(file, size, _)| crate::image_bundles::ComponentPlan {
                     role: "codec".into(),
                     repo: c.repo.into(),
                     file: (*file).into(),
@@ -195,6 +320,7 @@ const TTS_REPO_NAMES: &[(&str, &str)] = &[
     ("spark-tts", "spark"),
     ("outetts", "outetts"),
     ("orpheus", "orpheus"),
+    ("csm-1b", "sesame"),
 ];
 
 /// What the name of a Hub repo of a [`STT_TYPES`] model contains (a NeMo Parakeet repo has no
@@ -613,12 +739,26 @@ pub fn is_audio_dir(path: &Path) -> bool {
     is_tts_dir(path) || is_stt_dir(path)
 }
 
+/// Families whose mlx-audio `generate` takes a `speed` (mlx-audio 0.5.9); the worker refuses a
+/// speed other than 1 for the others.
+const TTS_SPEED_TYPES: &[&str] = &["qwen3_tts", "spark"];
+
+/// Whether an mlx-audio text-to-speech folder speaks at a chosen speed (the Speech panel's
+/// slider).
+pub fn tts_supports_speed(path: &Path) -> bool {
+    tts_type(path).is_some_and(|t| TTS_SPEED_TYPES.contains(&t.as_str()))
+}
+
 /// The named voices of an mlx-audio text-to-speech folder (Qwen3-TTS: the keys of
 /// `talker_config.spk_id`), sorted; empty when it has none (one default voice).
 pub fn tts_voices(path: &Path) -> Vec<String> {
     let Some(config) = read_json(&path.join("config.json")) else {
         return Vec::new();
     };
+    // CSM speaks in the voice of a recorded prompt: the two it has.
+    if config.get("model_type").and_then(|t| t.as_str()) == Some("sesame") {
+        return CSM_VOICES.iter().map(|v| v.to_string()).collect();
+    }
     let ids = config
         .get("talker_config")
         .and_then(|t| t.get("spk_id"))
@@ -1732,6 +1872,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         ]);
         assert!(is_tts_dir(tts.path()));
         assert_eq!(tts_voices(tts.path()), ["ryan", "serena"]);
+        assert!(tts_supports_speed(tts.path()), "Qwen3-TTS takes a speed");
         assert!(!is_model_dir(tts.path()) && !is_vlm_dir(tts.path()));
         assert!(!super::super::mistralrs::is_model_dir(tts.path()));
         assert_eq!(flavour_of(tts.path()), Some(Flavour::Audio));
@@ -1779,14 +1920,11 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             "mlx-community/Soprano-80M-bf16",
             "mlx-community/VoxCPM2-4bit",
             "mlx-community/Spark-TTS-0.5B-bf16",
+            "mlx-community/csm-1b-fp16",
         ] {
             assert!(is_tts_repo(repo), "{repo}");
         }
-        for repo in [
-            "mlx-community/chatterbox-fp16",
-            "mlx-community/VoxCPM1.5",
-            "mlx-community/csm-1b",
-        ] {
+        for repo in ["mlx-community/chatterbox-fp16", "mlx-community/VoxCPM1.5"] {
             assert!(!is_tts_repo(repo), "{repo}");
         }
     }
@@ -1980,7 +2118,8 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         );
         assert_eq!(tts_repo_family("mlx-community/Dia-1.6B-4bit"), Some("dia"));
         assert_eq!(tts_repo_family("mlx-community/multimedia-model"), None);
-        assert_eq!(tts_repo_family("mlx-community/csm-1b"), None);
+        assert_eq!(tts_repo_family("mlx-community/csm-1b"), Some("sesame"));
+        assert_eq!(tts_repo_family("mlx-community/csm-1b-fp16"), Some("sesame"));
         let empty = tempfile::tempdir().unwrap();
         let libs = [empty.path().to_path_buf()];
         // Only MLX builds pull a codec: the original Dia, a GGUF Orpheus and an OuteTTS release
@@ -2012,6 +2151,88 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         assert!(plan.complete(), "{plan:?}");
         assert!(codec_plan_for_repo("mlx-community/Soprano-80M-bf16", &libraries).is_none());
         assert!(codec_plan_for_repo("mlx-community/whisper-tiny-asr-fp16", &libraries).is_none());
+    }
+
+    /// CSM (`sesame`, `mlx-community/csm-1b-fp16`): a speech folder whose Mimi codec, Llama 3.2
+    /// tokenizer and two voice prompts come with it from pinned commits; its voices are those
+    /// prompts. Every codec file is pinned (40-hex commit, SHA-256, size as the plan lists it).
+    #[test]
+    fn csm_brings_mimi_its_tokenizer_and_voice_prompts() {
+        let csm = folder(&[
+            (
+                "config.json",
+                r#"{"model_type":"sesame","backbone_flavor":"llama-1B","decoder_flavor":"llama-100M","text_vocab_size":128256,"audio_vocab_size":2051,"audio_num_codebooks":32}"#,
+            ),
+            ("model.safetensors", "x"),
+            (
+                "README.md",
+                "---\npipeline_tag: text-to-speech\nlibrary_name: mlx\n---\n",
+            ),
+        ]);
+        let path = csm.path();
+        assert_eq!(tts_type(path).as_deref(), Some("sesame"));
+        assert!(is_tts_dir(path));
+        assert!(!is_model_dir(path) && !super::super::mistralrs::is_model_dir(path));
+        assert_eq!(family_of(path), Some(MLX_AUDIO));
+        assert_eq!(tts_voices(path), ["conversational_a", "conversational_b"]);
+        // CSM speaks at one speed (the panel hides its slider).
+        assert!(!tts_supports_speed(path));
+        let library = tempfile::tempdir().unwrap();
+        let libraries = vec![library.path().to_path_buf()];
+        let e = companion_args(path, &libraries).unwrap_err();
+        assert!(e.contains("kyutai/moshiko-pytorch-bf16"), "{e}");
+
+        let plan = codec_plan_for_repo("mlx-community/csm-1b-fp16", &libraries).unwrap();
+        assert_eq!(plan.bundle_id, "mlx-audio:sesame");
+        let repos: std::collections::BTreeSet<_> =
+            plan.components.iter().map(|c| c.repo.as_str()).collect();
+        assert_eq!(
+            repos.into_iter().collect::<Vec<_>>(),
+            [
+                "kyutai/moshiko-pytorch-bf16",
+                "mlx-community/csm-1b",
+                "unsloth/Llama-3.2-1B"
+            ]
+        );
+        // Never Moshi's 15 GB model: the codec file, the tokenizer and the prompts (~410 MB).
+        let total: u64 = plan.components.iter().map(|c| c.size).sum();
+        assert!(total < 420_000_000, "{total}");
+        for c in &plan.components {
+            let pin = pinned_codec_file(&c.repo, &c.file).expect("pinned");
+            assert_eq!((pin.size, pin.filename), (c.size, c.file.as_str()));
+            assert!(pin.rev.len() == 40 && pin.rev.chars().all(|c| c.is_ascii_hexdigit()));
+            assert!(pin.sha256.len() == 64 && pin.sha256.chars().all(|c| c.is_ascii_hexdigit()));
+        }
+        // The older codecs are pinned as well; anything else is not a codec file.
+        for (repo, file) in [
+            ("mlx-community/snac_24khz", "model.safetensors"),
+            ("mlx-community/dac-speech-24khz-1.5kbps", "config.json"),
+            (
+                "mlx-community/descript-audio-codec-44khz",
+                "model.safetensors",
+            ),
+        ] {
+            assert!(pinned_codec_file(repo, file).is_some(), "{repo}");
+        }
+        assert!(pinned_codec_file("kyutai/moshiko-pytorch-bf16", "model.safetensors").is_none());
+        assert!(pinned_codec_file("mlx-community/csm-1b", "model.safetensors").is_none());
+
+        // Downloaded into the library, they are the worker's companions.
+        for c in &plan.components {
+            let file = library.path().join(&c.repo).join(&c.file);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, "x").unwrap();
+        }
+        let args = companion_args(path, &libraries).unwrap();
+        assert_eq!(
+            args.iter().filter(|a| *a == "--companion").count(),
+            3,
+            "{args:?}"
+        );
+        assert!(
+            args.iter().any(|a| a.starts_with("mlx-community/csm-1b=")),
+            "{args:?}"
+        );
     }
 
     /// Speech recognition folders in MLX's format (mlx-audio's Whisper port with a transformers
@@ -2676,6 +2897,28 @@ class Drifter(Streamer):
         yield types.SimpleNamespace(audio=[0.0] * int(max_tokens / w.FRAME_RATE * 24000))
 speak = w.make_speak(Drifter(), [], 24000, 1000, lambda parts, rate: len(parts), clock)
 print("drifted", speak("Short one. Two.", None, 1.0, None))
+# CSM is capped by audio length, not tokens: the budget's length (75 frames = 6 s); a run that
+# makes all of it is "frames", one that stops before is whole.
+class Csm:
+    tokenizer = types.SimpleNamespace(encode=lambda t: t.split())
+    def __init__(self, fill):
+        self.fill, self.calls = fill, []
+    def default_speaker_prompt(self, voice, repo_id="sesame/csm-1b"):
+        return (voice, repo_id)
+    def generate(self, text, voice=None, speaker=0, max_audio_length_ms=90000, stream=False, **kw):
+        self.calls.append((voice, max_audio_length_ms, "max_tokens" in kw))
+        yield types.SimpleNamespace(audio=[0.0] * int(max_audio_length_ms / 1000 * 24000 * self.fill))
+for fill in (1.0, 0.5):
+    csm = Csm(fill)
+    speak = w.make_speak(csm, w.CSM_VOICES, 24000, 1000, lambda parts, rate: len(parts), clock,
+                         family="sesame")
+    print("csm", fill, speak("Hello there.", "conversational_b", 1.0, None), csm.calls)
+print("csm prompts", w.csm_prompts(Csm(1.0)).default_speaker_prompt("conversational_a"))
+# The weights stay wired up to the GPU's working set; without a Metal device nothing changes.
+wired = []
+metal = types.SimpleNamespace(device_info=lambda: {{"max_recommended_working_set_size": 5726623744}},
+                              set_wired_limit=wired.append)
+print("wired", w.wire_weights(metal), wired, w.wire_weights(types.SimpleNamespace()))
 "#,
             dir.path().to_string_lossy()
         );
@@ -2722,6 +2965,10 @@ print("drifted", speak("Short one. Two.", None, 1.0, None))
             "mixed ['今天很好。 Hello there. 再见。谢谢。']",
             "unpunctuated 3 True",
             "drifted (1, 'frames')",
+            "csm 1.0 (1, 'frames') [('conversational_b', 6000.0, False)]",
+            "csm 0.5 (1, None) [('conversational_b', 6000.0, False)]",
+            "csm prompts ('conversational_a', 'mlx-community/csm-1b')",
+            "wired 5726623744 [5726623744] None",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }
