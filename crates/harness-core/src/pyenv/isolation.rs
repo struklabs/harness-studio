@@ -86,6 +86,13 @@ fn probe() -> IsolationStatus {
 /// it is not: `program` itself, or with `required` the error `pyenv.isolation_unavailable`
 /// carrying the reason. The second value says whether the command is isolated.
 pub fn command(program: &Path, required: bool) -> Result<(tokio::process::Command, bool), String> {
+    command_raw(program, required).map(|(mut cmd, isolated)| {
+        crate::appimage::foreign_tokio(&mut cmd);
+        (cmd, isolated)
+    })
+}
+
+fn command_raw(program: &Path, required: bool) -> Result<(tokio::process::Command, bool), String> {
     let st = status();
     if st.available {
         let mut cmd = tokio::process::Command::new("unshare");
@@ -104,6 +111,12 @@ pub fn command(program: &Path, required: bool) -> Result<(tokio::process::Comman
 /// A command for a local tool that needs no network (sherpa-onnx): without network interfaces
 /// when that is [`available`], else as before, said once on stderr.
 pub fn offline_command(program: &Path) -> tokio::process::Command {
+    let mut cmd = offline_command_raw(program);
+    crate::appimage::foreign_tokio(&mut cmd);
+    cmd
+}
+
+fn offline_command_raw(program: &Path) -> tokio::process::Command {
     let st = status();
     if st.available && cfg!(target_os = "linux") {
         let mut cmd = tokio::process::Command::new("unshare");

@@ -3,6 +3,7 @@
 //! wraps these services in `#[tauri::command]`s.
 
 pub mod analytics;
+pub mod appimage;
 pub mod asr;
 pub mod audio;
 pub mod auto_bench;
