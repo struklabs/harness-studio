@@ -1635,11 +1635,13 @@
   });
 
   /** Keyboard / screen reader path to older history: one batch per press, focus stays at the top. */
-  async function loadOlderFromButton() {
-    await mountOlder();
-    await tick();
-    if (shownStart <= 0) listEl?.querySelector<HTMLElement>('article')?.focus();
-  }
+  let olderButton = $state<HTMLButtonElement | null>(null);
+  // When the last batch mounts (by the button or while idle) the button goes away: hand its focus
+  // to the first message instead of dropping it to the page. Runs before the DOM update removes it.
+  $effect.pre(() => {
+    if (shownStart > 0 || !olderButton || document.activeElement !== olderButton) return;
+    void tick().then(() => listEl?.querySelector<HTMLElement>('article')?.focus());
+  });
 
   /** The running follow-the-end loop of scrollToBottom; a new call restarts its frame count. */
   let bottomSettle: { frames: number } | null = null;
@@ -3089,7 +3091,7 @@
       >
         <div class="mx-auto flex min-h-full w-full max-w-[760px] flex-col gap-6 px-4 py-6">
           {#if !openingConv && shownStart > 0}
-            <Button variant="ghost" size="sm" class="self-center text-muted-foreground" onclick={loadOlderFromButton}>
+            <Button bind:ref={olderButton} variant="ghost" size="sm" class="self-center text-muted-foreground" onclick={() => mountOlder()}>
               {t('pg.load_older')}
             </Button>
           {/if}
