@@ -5853,6 +5853,67 @@
         }
       }
     },
+    "/api/harness/v1/servers/{id}/api-key": {
+      "get": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "The key of a running server's own endpoint, for local clients that talk to it directly\n(`harness run` without the gateway). Session token on a loopback API only\n(`api.server_key_local_only`, 403); never cached (`Cache-Control: no-store`).",
+        "operationId": "get_server_api_key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The key of the server's run (`null`: none, or not running); never cached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerKeyResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`api.server_key_local_only`: not the local session token, or the API is not bound to loopback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/servers/{id}/effective": {
       "get": {
         "tags": [
@@ -18902,6 +18963,19 @@
             "format": "int64",
             "description": "Unix seconds.",
             "minimum": 0
+          }
+        }
+      },
+      "ServerKeyResponse": {
+        "type": "object",
+        "properties": {
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The key requests to the server's own endpoint need: the user's, or the one made for this\nrun (a Python worker always has one). `null` when it needs none or is not running.",
+            "example": "<key of this run>"
           }
         }
       },

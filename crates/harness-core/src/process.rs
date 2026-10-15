@@ -433,7 +433,7 @@ const TORCH_LOAD_ENV_VARS: [&str; 2] = [
 ];
 
 /// What the UI and telemetry need to talk to the running server.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ActiveServerInfo {
     /// Host to connect to (wildcard bind addresses mapped to loopback).
@@ -465,6 +465,26 @@ pub struct ActiveServerInfo {
     /// routes a client can call depend on it. Empty for runs recorded before it existed.
     #[serde(default)]
     pub engine_family: String,
+}
+
+/// The key is redacted: a `{:?}` of this (logs, panics, tracing) must never print it.
+impl std::fmt::Debug for ActiveServerInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ActiveServerInfo")
+            .field("connect_host", &self.connect_host)
+            .field("bind_host", &self.bind_host)
+            .field("port", &self.port)
+            .field("api_key", &self.api_key.as_ref().map(|_| "<redacted>"))
+            .field("api_key_set", &self.api_key_set)
+            .field("api_key_required", &self.api_key_required)
+            .field("model_path", &self.model_path)
+            .field("router_mode", &self.router_mode)
+            .field("exposure_acknowledged", &self.exposure_acknowledged)
+            .field("cors_origins", &self.cors_origins)
+            .field("serve_mode", &self.serve_mode)
+            .field("engine_family", &self.engine_family)
+            .finish()
+    }
 }
 
 impl ActiveServerInfo {
@@ -814,6 +834,15 @@ impl ProcessManager {
             .stop_locked_until(Instant::now() + Duration::from_secs(7))
             .await;
         true
+    }
+
+    /// Test seam: this instance looks Running with `active`, without a process. Only the Control
+    /// API's integration tests call it (a server key needs a running server).
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn simulate_running_for_tests(&self, active: ActiveServerInfo) {
+        *self.active.lock().unwrap() = Some(active);
+        *self.status.lock().unwrap() = ServerStatus::Running;
     }
 
     /// Config the current (or last) run was started with.
@@ -3900,6 +3929,28 @@ mod tests {
             );
             mgr.stop().await.unwrap();
         }
+    }
+
+    /// `{:?}` of a server's connection info never prints its key.
+    #[test]
+    fn active_server_debug_redacts_the_key() {
+        let info = ActiveServerInfo {
+            connect_host: "127.0.0.1".into(),
+            bind_host: "127.0.0.1".into(),
+            port: 1,
+            api_key: Some("k-secret-value".into()),
+            api_key_set: true,
+            api_key_required: true,
+            model_path: PathBuf::from("m"),
+            router_mode: false,
+            exposure_acknowledged: false,
+            cors_origins: None,
+            serve_mode: Default::default(),
+            engine_family: String::new(),
+        };
+        let text = format!("{info:?}");
+        assert!(!text.contains("k-secret-value"), "{text}");
+        assert!(text.contains("api_key: Some(\"<redacted>\")"), "{text}");
     }
 
     /// A failure names the engine of its run (its messages say "the mlx server", not always

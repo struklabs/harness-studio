@@ -548,6 +548,7 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/unload", &["post"]),
         ("/servers/{id}/metrics", &["get"]),
         ("/servers/{id}/effective", &["get"]),
+        ("/servers/{id}/api-key", &["get"]),
         ("/servers/{id}/lora", &["get", "post"]),
         ("/servers/{id}/logs", &["get"]),
         ("/servers/{id}/logs/stream", &["get"]),
@@ -2050,4 +2051,75 @@ async fn conversations_have_their_own_scope_and_read_back() {
     assert_eq!(status, 200, "{hints}");
     assert!(hints.is_array());
     api.server.stop().await;
+}
+
+/// `GET /servers/{id}/api-key`: the session token on a loopback API reads a running server's key
+/// (never cached); a named token, even an admin one, gets 403 without learning whether the server
+/// exists; an unknown id is 404; the key shows up nowhere else (views, errors, logs).
+#[tokio::test]
+async fn only_the_local_session_reads_a_server_key() {
+    let api = start().await;
+    let key = format!("k-{}-not-a-real-key", std::process::id());
+    api.ctx
+        .registry
+        .get_or_create("worker")
+        .simulate_running_for_tests(harness_core::process::ActiveServerInfo {
+            connect_host: "127.0.0.1".into(),
+            bind_host: "127.0.0.1".into(),
+            port: 1,
+            api_key: Some(key.clone()),
+            api_key_set: false,
+            api_key_required: true,
+            model_path: "model".into(),
+            router_mode: false,
+            exposure_acknowledged: false,
+            cors_origins: None,
+            serve_mode: Default::default(),
+            engine_family: "mlx".into(),
+        });
+
+    let resp = api.get("/servers/worker/api-key").await;
+    assert_eq!(resp.status(), 200);
+    assert_eq!(
+        resp.headers()
+            .get(reqwest::header::CACHE_CONTROL)
+            .and_then(|v| v.to_str().ok()),
+        Some("no-store")
+    );
+    let body: serde_json::Value = resp.json().await.unwrap();
+    assert_eq!(body["api_key"], key.as_str());
+
+    // A stopped (or never started) server has no key; an unknown one is 404.
+    let (status, body) = json(api.get("/servers/default/api-key").await).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body["api_key"].is_null());
+    let (status, body) = json(api.get("/servers/nope/api-key").await).await;
+    assert_eq!(status, 404, "{body}");
+
+    // Named tokens never read it, whatever their scope, and learn nothing about the id.
+    let (_, admin) = json(
+        api.post(
+            "/tokens",
+            json!({"name": "remote-admin", "scopes": ["admin"]}),
+        )
+        .await,
+    )
+    .await;
+    let admin = admin["token"].as_str().unwrap().to_string();
+    for id in ["worker", "nope"] {
+        let (status, body) = json(
+            api.send(Method::GET, &format!("/servers/{id}/api-key"), &admin, None)
+                .await,
+        )
+        .await;
+        assert_eq!(status, 403, "{body}");
+        assert_error(&body, "api.server_key_local_only");
+        assert!(!body.to_string().contains(&key));
+    }
+
+    // The key is in no other answer and in no log line.
+    let (_, view) = json(api.get("/servers/worker").await).await;
+    assert!(!view.to_string().contains(&key), "{view}");
+    let (_, logs) = json(api.get("/servers/worker/logs").await).await;
+    assert!(!logs.to_string().contains(&key));
 }

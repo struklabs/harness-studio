@@ -71,6 +71,9 @@ pub async fn ensure_loaded(
             "This server requires an API key: pass --api-key or set HARNESS_SERVER_API_KEY",
         ));
     }
+    // A Python worker (MLX, Hugging Face) always needs a key, made for its run when the user set
+    // none: asked from this computer's instance only when requests go to the server directly.
+    let run_key_needed = !key_needed && view["active"]["api_key_required"] == true;
     let mut target = Target {
         server_id: str_of(&view["id"]),
         alias: view["served_alias"]
@@ -83,7 +86,52 @@ pub async fn ensure_loaded(
         managed: false,
     };
     use_managed_endpoint(session, &mut target).await;
+    if run_key_needed && !target.managed {
+        target.api_key = Some(run_key(session, &view).await?);
+    }
     Ok(target)
+}
+
+/// The key made for a server's run (`GET /servers/{id}/api-key`), kept in memory only. Only this
+/// computer's session reads it; otherwise the error says how to reach the server instead.
+async fn run_key(session: &Session, view: &Value) -> CliResult<String> {
+    let engine =
+        harness_core::engine::display_name(view["active"]["engine_family"].as_str().unwrap_or(""))
+            .to_string();
+    let path = format!("/servers/{}/api-key", seg(&str_of(&view["id"])));
+    match session.client.get(&path).await {
+        Ok(v) => match v["api_key"].as_str().filter(|k| !k.is_empty()) {
+            Some(key) => Ok(key.to_string()),
+            None => Err(run_key_unavailable(&engine)),
+        },
+        // Refused (another computer's token) or unknown here (an older Harness without the
+        // route): say how to reach the server instead. Anything else keeps its own cause.
+        Err(e)
+            if matches!(
+                e.params.get("http_status").and_then(Value::as_u64),
+                Some(403 | 404)
+            ) =>
+        {
+            Err(run_key_unavailable(&engine))
+        }
+        Err(e) => Err(e),
+    }
+}
+
+fn run_key_unavailable(engine: &str) -> CliError {
+    let server = if engine.is_empty() {
+        "This server".to_string()
+    } else {
+        format!("The {engine} server")
+    };
+    CliError::general(
+        "cli.server_key_unavailable",
+        format!(
+            "{server} takes requests with a key made for its run, and this instance did not give \
+             it (another computer, or an older Harness). Turn on the gateway (Settings > Gateway) \
+             to reach the model through it, or run this command on that computer."
+        ),
+    )
 }
 
 /// While the instance's gateway runs, `run`/`chat` use the managed endpoint (the alias routes
@@ -168,7 +216,7 @@ fn server_error(status: u16, body: &str) -> CliError {
     CliError::new(
         exit,
         "cli.chat_failed",
-        format!("llama-server answered HTTP {}: {}", status, msg),
+        format!("The server answered HTTP {}: {}", status, msg),
     )
     .with("http_status", status)
 }

@@ -175,6 +175,7 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(servers::router_unload))
         .routes(routes!(servers::metrics))
         .routes(routes!(servers::effective))
+        .routes(routes!(servers::api_key))
         .routes(routes!(servers::lora_list, servers::lora_set))
         .routes(routes!(servers::logs))
         .routes(routes!(servers::logs_stream))
