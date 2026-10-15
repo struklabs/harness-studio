@@ -86,19 +86,27 @@ test('fallback clause selection keeps one-word colon labels and skips only subst
   assert.equal(fallbackTitle('Hello, world program needs fixing'), 'World program needs fixing');
   assert.equal(fallbackTitle('Hello, world program in C'), 'World program in C');
   assert.equal(fallbackTitle('Örn. Başlık x'), 'Örn. Başlık x');
+  assert.equal(fallbackTitle('Prof. Dr. Ali Yılmaz kimdir?'), 'Prof. Dr. Ali Yılmaz kimdir');
+  assert.equal(fallbackTitle('Doç. Dr. Ayşe ile görüşme'), 'Doç. Dr. Ayşe ile görüşme');
+  assert.equal(fallbackTitle('Apples, pears etc. are fruit'), 'Apples');
+  assert.equal(fallbackTitle('Fruit etc. are healthy. Eat more.'), 'Fruit etc. are healthy');
+  assert.equal(fallbackTitle('Call Dr. Smith today. Then rest.'), 'Call Dr. Smith today');
+  assert.equal(fallbackTitle('Explain recursion. Then show code.'), 'Explain recursion');
+  // Accepted trade-off: an abbreviation at a real sentence end keeps the next sentence in the clause.
+  assert.equal(fallbackTitle('Convert it to ms. Then plot it.'), 'Convert it to ms. Then plot');
   assert.equal(fallbackTitle('Use vs. code for this. Then more.'), 'Use vs. code for this');
   assert.equal(fallbackTitle('Hello, explain recursion'), 'Hello');
   assert.equal(fallbackTitle('Hello. can you explain recursion'), 'Hello');
   assert.equal(fallbackTitle('Hello! can you explain recursion'), 'Can you explain recursion');
 });
 
-test('Unicode abbreviation boundaries and English content words are validated conservatively', () => {
+test('Unicode abbreviation boundaries and English function words are validated conservatively', () => {
   assert.equal(cleanGeneratedTitle('Örnekler örn. Python'), 'Örnekler örn. Python');
   assert.equal(cleanGeneratedTitle('Karşılaştırma vb. örnekler'), 'Karşılaştırma vb. örnekler');
   for (const raw of ['Örnekler xörn. Python', 'Examples avs. Python', 'Examples 1etc. Python']) {
     assert.equal(cleanGeneratedTitle(raw), '');
   }
-  for (const title of ['Sorting Methods', 'Travel Tips', 'The Guide', 'IS Python Fast']) {
+  for (const title of ['The Guide', 'IS Python Fast', 'How to Sort a List', 'Tips for Travel']) {
     assert.equal(resolveGeneratedTitle(title, turkish, 'en').source, 'fallback', title);
   }
   for (const title of ['Python', 'Kubernetes CrashLoopBackOff', 'Python Sorting', "Python'da Sorting Methods", 'Sıralama Methods']) {
@@ -187,8 +195,10 @@ test('wrong-language and invalid replies use the first user message with fallbac
   }
   assert.deepEqual(resolveGeneratedTitle('İki katını bulma', turkish, 'en'), { title: 'İki katını bulma', source: 'auto' });
   assert.deepEqual(resolveGeneratedTitle('Two times seven', english, 'tr'), { title: 'Two times seven', source: 'auto' });
-  for (const raw of ['Two times seven', 'Twice seven doubled', 'Number doubling result']) {
-    assert.equal(resolveGeneratedTitle(raw, turkish, 'en').source, 'fallback', raw);
+  // Without an English function word a Turkish chat keeps the model's title: a wrong rejection is worse.
+  for (const title of ['Proje Plan Listesi', 'Web Sitesi Tasarimi', 'Python Hata Ayiklama', 'Sunum Hazirligi Plani',
+    'Kubernetes Pod Yonetimi', 'Elon Musk Hakkinda', 'useEffect cleanup function', 'git rebase onto main', 'Two times seven']) {
+    assert.deepEqual(resolveGeneratedTitle(title, turkish, 'en'), { title, source: 'auto' }, title);
   }
   assert.deepEqual(resolveGeneratedTitle('Kubernetes CrashLoopBackOff', turkish, 'en'), { title: 'Kubernetes CrashLoopBackOff', source: 'auto' });
   assert.deepEqual(resolveGeneratedTitle('İki katı 14', turkish, 'en'), { title: 'İki katı 14', source: 'auto' });

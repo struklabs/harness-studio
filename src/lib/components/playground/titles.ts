@@ -1,6 +1,9 @@
 const turkishWords = new Set('bir bu şu o ve veya ile için ama gibi daha çok nasıl neden nedir ne nerede hangi kaç mı mi mu mü de da ki değil var yok olan olarak kadar sonra önce çünkü eğer bana ben sen biz siz benim senin bunu şunu yaz anlat açıkla lütfen merhaba'.split(' '));
 const englishWords = new Set('a an the this that these those and or with for but as how why what which where when is are was were be to of in on at from my your you we it can do does please only write explain tell hello'.split(' '));
-const englishContentWords = new Set('sorting methods sort list lists travel tips history computing number numbers error errors programming guide introduction learning search data file files module modules setup installation troubleshooting'.split(' '));
+// Abbreviations whose full stop does not end a sentence (Turkish and English).
+const abbreviations = 'vs|etc|vb|vd|örn|ör|bkz|prof|doç|yrd|sn|no|dr|mr|mrs|ms|st';
+const sentenceBreak = new RegExp(String.raw`(?<!(?<![\p{L}\p{N}])(?:${abbreviations}))[.!?]\s+\S`, 'iu');
+const clauseSplit = new RegExp(String.raw`[,!?;。！？]|(?<!\d|(?<![\p{L}\p{N}])(?:${abbreviations}))\.(?:\s|$)|\s+[—–]\s+`, 'iu');
 const otherLanguageWords = new Set('el la los las un una y para por que como cómo qué es en del der die das ein eine und für mit von ist wie was des les le une et pour dans est comment explique'.split(' '));
 const greetings = new Set(['merhaba', 'selam', 'selamlar', 'günaydın', 'iyi günler', 'iyi akşamlar', 'hi', 'hello', 'hey', 'good morning', 'good evening']);
 // Turkish case suffixes after an apostrophe (London'da, Python'un); English uses 's, 't, 'll, 're, 've, 'd, 'm.
@@ -91,7 +94,7 @@ export function fallbackTitle(text: string): string {
   const colon = plain.indexOf(':');
   if (colon >= 0 && plain.slice(0, colon).trim().split(/\s+/).length > 1) plain = plain.slice(0, colon);
   // Abbreviations ("Örn.", "vs.") do not end a sentence.
-  const clauses = plain.split(/[,!?;。！？]|(?<!\d|(?<![\p{L}\p{N}])(?:vs|etc|vb|vd|örn|bkz|dr|mr|mrs|ms|st))\.(?:\s|$)|\s+[—–]\s+/iu)
+  const clauses = plain.split(clauseSplit)
     .map((c) => c.trim()).filter(Boolean);
   // "Merhaba, kısa bir şiir yaz" is about the poem, not the greeting.
   if (clauses.length > 1 && greetings.has(clauses[0].toLocaleLowerCase('tr')) &&
@@ -116,10 +119,10 @@ function titleInOtherLanguage(title: string, language: string): boolean {
   const trWords = words.filter(w => turkishWords.has(w)).length;
   const turkishLetters = hasTurkishLetters(title, trWords > 0);
   const enWords = title.toLowerCase().match(/\p{L}+/gu) ?? [];
-  // Short ASCII titles ("Two times seven") carry no Turkish evidence; two words still allow names ("Kubernetes CrashLoopBackOff").
+  // Only an English function word is clear evidence: unaccented Turkish ("Proje Plan Listesi"),
+  // names and code ("git rebase onto main") must not be rejected.
   if (language === 'tr') return !turkishLetters && !turkishSuffix.test(title) && trWords === 0 &&
-    (enWords.some(w => englishWords.has(w)) || new Set(enWords.filter(w => englishContentWords.has(w))).size >= 2 ||
-      (/^[\x20-\x7e]+$/.test(title) && title.trim().split(/\s+/).length > 2));
+    enWords.some(w => englishWords.has(w));
   if (language === 'en') return turkishLetters || turkishSuffix.test(title) || words.filter((w) => turkishWords.has(w)).length >= 2;
   return false;
 }
@@ -157,7 +160,7 @@ export function cleanGeneratedTitle(raw: string): string {
   if (/<\/?think>/i.test(withoutThinking)) return '';
   let text = withoutThinking.trim().replace(/^(title|başlık)\s*:\s*/i, '');
   if (!text || text.split(/\n/).filter(line => line.trim()).length > 1) return '';
-  if (/\d{1,2}:\d{2}/.test(text) || /(?<!(?<![\p{L}\p{N}])(?:vs|etc|vb|vd|örn))[.!?]\s+\S/iu.test(text)) return '';
+  if (/\d{1,2}:\d{2}/.test(text) || sentenceBreak.test(text)) return '';
   text = text.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/[*_`#~]/g, '').replace(/^["'“”‘’\s]+|["'“”‘’\s]+$/g, '').trim();
   if (!text || text.length > 60 || text.split(/\s+/).length > 6 || /[.!?]$/.test(text)) return '';
