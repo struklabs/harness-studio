@@ -256,6 +256,8 @@ pub fn run() {
             desktop::set_app_menu(app.handle(), &AppSettings::load().language);
             if let Err(e) = desktop::setup_tray(app.handle()) {
                 eprintln!("[Harness Studio] Tray unavailable: {}", e);
+                #[cfg(target_os = "linux")]
+                desktop::setup_tray_when_host_appears(app.handle());
             }
             // The window starts hidden (tauri.conf.json) to avoid a flash when
             // launched at login with "start minimized".
