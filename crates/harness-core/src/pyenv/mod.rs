@@ -448,8 +448,59 @@ impl Uv {
             "--no-config",
         ])
         .arg(venv);
-        run_step(cmd, "python", keys, cancel, report).await
+        let first = run_step(cmd, "python", keys, cancel, report).await;
+        let Err(error) = first else {
+            return Ok(());
+        };
+        // uv points `cpython-3.12-…` at the patch install with an NTFS junction and checks it at
+        // once. On some Windows 11 machines (25H2) nothing that stats by name (uv, Node) follows a
+        // junction under %APPDATA%, so this step failed every time although the Python was
+        // unpacked: the venv is then made from that python.exe directly.
+        if !error.contains(MINOR_LINK_ERROR) {
+            return Err(error);
+        }
+        let Some(python) = unpacked_python(&self.python_dir) else {
+            return Err(error);
+        };
+        let mut cmd = self.command();
+        cmd.args(["venv", "--no-config", "--python"])
+            .arg(&python)
+            .arg(venv)
+            .env("UV_PYTHON_DOWNLOADS", "never");
+        run_step(cmd, "python", keys, cancel, report)
+            .await
+            .map_err(|_| error)
     }
+}
+
+/// uv's error when the junction of a minor version (`cpython-3.12-…`) cannot be followed.
+const MINOR_LINK_ERROR: &str = "Missing expected target directory for Python minor version link";
+
+/// The newest unpacked [`PYTHON_SERIES`] install in `python_dir` (`cpython-3.12.<patch>-…`, not
+/// the minor version's link), as its interpreter path.
+pub fn unpacked_python(python_dir: &Path) -> Option<PathBuf> {
+    let prefix = format!("cpython-{PYTHON_SERIES}.");
+    std::fs::read_dir(python_dir)
+        .ok()?
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let patch: u32 = name
+                .strip_prefix(&prefix)?
+                .split('-')
+                .next()?
+                .parse()
+                .ok()?;
+            let dir = entry.path();
+            let python = if cfg!(windows) {
+                dir.join("python.exe")
+            } else {
+                dir.join("bin").join("python3")
+            };
+            python.is_file().then_some((patch, python))
+        })
+        .max_by_key(|(patch, _)| *patch)
+        .map(|(_, python)| python)
 }
 
 /// Runs a uv (or verification) step to its end: output lines go to `report`, a failure carries
@@ -515,4 +566,33 @@ pub fn python_env(hf_home_parent: &Path) -> Vec<(&'static str, std::ffi::OsStrin
         ("TOKENIZERS_PARALLELISM", "false".into()),
         ("NO_COLOR", "1".into()),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_newest_unpacked_python_of_the_series_is_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let make = |name: &str| {
+            let d = dir.path().join(name);
+            let exe = if cfg!(windows) {
+                d.join("python.exe")
+            } else {
+                d.join("bin").join("python3")
+            };
+            std::fs::create_dir_all(exe.parent().unwrap()).unwrap();
+            std::fs::write(&exe, b"").unwrap();
+            exe
+        };
+        assert_eq!(unpacked_python(dir.path()), None);
+        make("cpython-3.12.9-windows-x86_64-none");
+        let newest = make("cpython-3.12.14-windows-x86_64-none");
+        // Another series, the minor version's link name and an empty folder are not installs.
+        make("cpython-3.13.1-windows-x86_64-none");
+        make(&format!("cpython-{PYTHON_SERIES}-windows-x86_64-none"));
+        std::fs::create_dir_all(dir.path().join("cpython-3.12.20-windows-x86_64-none")).unwrap();
+        assert_eq!(unpacked_python(dir.path()), Some(newest));
+    }
 }
