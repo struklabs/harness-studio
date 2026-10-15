@@ -11,7 +11,7 @@
   import PublisherAvatar from './PublisherAvatar.svelte';
   import UpdateBadge from './UpdateBadge.svelte';
   import { showUpdateBadge } from '#lib/downloadFollowUp.js';
-  import { taskInfo } from './tasks';
+  import { isDecisionRepo, taskInfo } from './tasks';
   import { formatName, notRunnableKey, taskSourceKey } from './inference';
   import { taskSupportStore } from './taskSupport.svelte';
   import { canConvert, speechNeedsConversion } from './convertible';
@@ -69,8 +69,11 @@
    * Only warn when the repo's task is known: many GGUF re-uploads carry no pipeline_tag, so the
    * backend infers one from tags / files (`inferred_task`); the card says so.
    */
-  let task = $derived(taskInfo(repo.pipeline_tag ?? repo.inferred_task));
-  let inferred = $derived(!repo.pipeline_tag && !!repo.inferred_task);
+  /** A decision model's pipeline_tag (text-classification...) does not say how Harness runs it. */
+  let decision = $derived(isDecisionRepo(repo));
+  let task = $derived(taskInfo(decision ? 'decision-model' : (repo.pipeline_tag ?? repo.inferred_task)));
+  // A decision repo's task comes from its tag, not from an inference.
+  let inferred = $derived(!decision && !repo.pipeline_tag && !!repo.inferred_task);
   let support = $derived(taskSupportStore.support(task?.id));
   /** Family that would run the task but is not installed (e.g. stable-diffusion.cpp for images). */
   let taskNeeds = $derived(
@@ -187,6 +190,11 @@
       {@const sd = compat.runtime === 'stable-diffusion.cpp'}
       <span class="inline-flex items-center gap-1 text-info" title={t(sd ? 'hub.compat_needs_sd_title' : 'hub.compat_needs_whisper_title')}>
         <Info class="size-3" />{t(sd ? 'hub.compat_needs_sd' : 'hub.compat_needs_whisper')}
+      </span>
+    {/if}
+    {#if decision}
+      <span class="inline-flex items-center gap-1 text-info" title={t('hub.badge_decision_title')}>
+        <Info class="size-3" />{t('hub.badge_decision')}
       </span>
     {/if}
     {#if repo.pickle_weights}
