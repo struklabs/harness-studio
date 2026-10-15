@@ -2,7 +2,7 @@
   // A memory bar (VRAM / RAM) split by who uses it: Harness Studio, each llama-server (its own
   // colour), other programs (gray) and free space (empty). The numbers are the backend's
   // measurements; without a split (`breakdown` null) the bar is a single "used" segment.
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, formatBytesPair } from '#lib/format.js';
   import { app } from '#lib/stores/app.svelte.js';
   import { t } from '#lib/i18n.svelte.js';
   import { cn } from '#lib/utils.js';
@@ -29,11 +29,7 @@
   let bar = $derived(breakdown ? buildSegments(used, total, breakdown) : null);
 
   /** "15.9 / 31.1 GB": one unit when both sides share it, so the pair fits a narrow column. */
-  let pair = $derived.by(() => {
-    const [uv, uu] = formatBytes(used, 1).split(' ');
-    const [tv, tu] = formatBytes(total, 1).split(' ');
-    return uu === tu ? { used: uv, rest: ` / ${tv} ${tu}` } : { used: `${uv} ${uu}`, rest: ` / ${tv} ${tu}` };
-  });
+  let pair = $derived(formatBytesPair(used, total));
 
   let tone = $derived(p >= 92 ? 'text-destructive' : p >= 80 ? 'text-warning' : 'text-foreground');
   let ring = $derived(p >= 92 ? 'ring-1 ring-destructive' : p >= 80 ? 'ring-1 ring-warning' : '');
@@ -58,7 +54,7 @@
   /** Spoken form of the bar: used / total, then each consumer. */
   let valueText = $derived(
     [
-      `${formatBytes(used, 1)} / ${formatBytes(total, 1)}`,
+      `${pair.used}${pair.rest}`,
       ...(bar ? bar.segments.filter((s) => s.bytes > 0).map((s) => `${segName(s)} ${formatBytes(s.bytes, 1)}`) : []),
     ].join(', '),
   );
