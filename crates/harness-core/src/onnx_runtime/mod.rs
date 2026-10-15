@@ -119,6 +119,9 @@ pub struct VariantSpec {
     pub archives: &'static [ArchiveSpec],
     /// File name of the library the sidecar loads (`--ort-lib`).
     pub lib: &'static str,
+    /// Size of the installed files (the extracted files of every archive), measured from the
+    /// pinned archives: what the build takes on disk, unlike the download size of the archives.
+    pub disk_bytes: u64,
 }
 
 /// File name of the GenAI library in an install folder.
@@ -173,6 +176,7 @@ const SPECS: &[VariantSpec] = &[
         variant: OrtVariant::Directml,
         version: "1.24.4",
         lib: "onnxruntime.dll",
+        disk_bytes: 44_572_240,
         archives: &[
             ArchiveSpec {
                 url: "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.24.4/microsoft.ml.onnxruntime.directml.1.24.4.nupkg",
@@ -210,6 +214,7 @@ const SPECS: &[VariantSpec] = &[
         variant: OrtVariant::Cpu,
         version: "1.28.3",
         lib: "onnxruntime.dll",
+        disk_bytes: 24_544_960,
         archives: &[ArchiveSpec {
             url: concat!(
                 "https://github.com/microsoft/onnxruntime/releases/download/v1.28.3/",
@@ -237,6 +242,7 @@ const SPECS: &[VariantSpec] = &[
         variant: OrtVariant::Cuda,
         version: "1.28.3",
         lib: "onnxruntime.dll",
+        disk_bytes: 2_734_212_780,
         archives: &[ArchiveSpec {
             url: concat!(
                 "https://github.com/microsoft/onnxruntime/releases/download/v1.28.3/",
@@ -388,6 +394,7 @@ const SPECS: &[VariantSpec] = &[VariantSpec {
     variant: OrtVariant::Cpu,
     version: "1.28.3",
     lib: "libonnxruntime.so",
+    disk_bytes: 24_316_248,
     archives: &[ArchiveSpec {
         url: concat!(
             "https://github.com/microsoft/onnxruntime/releases/download/v1.28.3/",
@@ -416,6 +423,7 @@ const SPECS: &[VariantSpec] = &[VariantSpec {
     variant: OrtVariant::Cpu,
     version: "1.28.3",
     lib: "libonnxruntime.dylib",
+    disk_bytes: 39_350_024,
     archives: &[ArchiveSpec {
         url: concat!(
             "https://github.com/microsoft/onnxruntime/releases/download/v1.28.3/",
@@ -628,6 +636,34 @@ pub fn installed_in(root: &Path, variant: OrtVariant) -> Option<Installed> {
     })
 }
 
+/// Files of an install of `variant` under `root` that are missing or no longer have the size the
+/// install recorded: a build that was installed and then changed on disk (an antivirus
+/// quarantine, a partial copy). Empty when the build is complete or was never installed (no
+/// manifest of this version). A changed file of the same size is caught by [`verify_in`] (and
+/// by the CUDA launch, which falls back to DirectML when the provider cannot load).
+pub fn damaged_in(root: &Path, variant: OrtVariant) -> Vec<String> {
+    let Some(spec) = spec_for(variant) else {
+        return Vec::new();
+    };
+    let dir = dir_of(root, spec);
+    let Some(m) = read_manifest(&dir) else {
+        return Vec::new();
+    };
+    if m.variant != variant || m.version != spec.version {
+        return Vec::new();
+    }
+    m.files
+        .iter()
+        .filter(|f| !std::fs::metadata(dir.join(&f.name)).is_ok_and(|md| md.len() == f.size))
+        .map(|f| f.name.clone())
+        .collect()
+}
+
+/// [`damaged_in`] in the managed folder.
+pub fn damaged(variant: OrtVariant) -> Vec<String> {
+    damaged_in(&root(), variant)
+}
+
 /// The installed build of `variant`, if complete.
 pub fn installed(variant: OrtVariant) -> Option<Installed> {
     installed_in(&root(), variant)
@@ -659,6 +695,13 @@ pub fn verify_in(root: &Path, variant: OrtVariant) -> Result<Vec<String>, String
         }
     }
     Ok(changed)
+}
+
+/// Removes an installed build and tells the views (`engines_changed`).
+pub fn remove(variant: OrtVariant) -> Result<(), String> {
+    remove_in(&root(), variant)?;
+    crate::events::publish(crate::events::CoreEvent::EnginesChanged);
+    Ok(())
 }
 
 /// Removes an installed build.
@@ -984,7 +1027,10 @@ async fn install_inner(root: &Path, spec: &'static VariantSpec) -> Result<Instal
 
 /// [`install_in`] in the data folder.
 pub async fn install(variant: OrtVariant) -> Result<Installed, String> {
-    install_in(&root(), variant).await
+    let installed = install_in(&root(), variant).await?;
+    // Also after the automatic install of a first ONNX launch: the Settings views reload.
+    crate::events::publish(crate::events::CoreEvent::EnginesChanged);
+    Ok(installed)
 }
 
 /// The library for a launch with `--provider <choice>`: installed, or an error that says to
@@ -1016,8 +1062,14 @@ pub struct VariantView {
     pub version: String,
     /// Download size of the pinned archives (the real transfer is smaller for ZIPs).
     pub download_bytes: u64,
+    /// Size on disk once installed ([`VariantSpec::disk_bytes`]).
+    pub disk_bytes: u64,
     pub default: bool,
     pub installed: Option<Installed>,
+    /// Files of an install that are missing or changed in size ([`damaged_in`]); the build then
+    /// reads as not installed and is installed again.
+    #[serde(default)]
+    pub damaged: Vec<String>,
 }
 
 pub fn view_in(root: &Path) -> Vec<VariantView> {
@@ -1027,8 +1079,10 @@ pub fn view_in(root: &Path) -> Vec<VariantView> {
             variant: s.variant,
             version: s.version.to_string(),
             download_bytes: s.archives.iter().map(|a| a.size).sum(),
+            disk_bytes: s.disk_bytes,
             default: s.variant == default_variant(),
             installed: installed_in(root, s.variant),
+            damaged: damaged_in(root, s.variant),
         })
         .collect()
 }

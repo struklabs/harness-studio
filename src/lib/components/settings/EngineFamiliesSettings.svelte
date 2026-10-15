@@ -3,6 +3,7 @@
   // llama.cpp (speech, images, voices, ONNX, Lemonade, mistral.rs, the Python engine), each with its install state
   // and a one-click install button. The same installer as the "needs an engine" hints.
   import { onMount } from 'svelte';
+  import { listen } from '@tauri-apps/api/event';
   import { t } from '#lib/i18n.svelte.js';
   import { ENGINES, engineDescKey, engineLabel, onnxUnsupportedText } from '#lib/engines.js';
   import { errorText } from '#lib/errors.js';
@@ -44,6 +45,17 @@
   }
 
   onMount(() => void engineInstall.refresh());
+
+  // Installs and removals elsewhere (Settings > Installed Runtime, the automatic install of a
+  // first ONNX launch) arrive as `engines-changed`.
+  onMount(() => {
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void listen('engines-changed', () => {
+      if (!disposed) void engineInstall.refresh();
+    }).then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; }).catch(() => {});
+    return () => { disposed = true; cleanup?.(); };
+  });
 
   // ONNX Runtime stays listed where it has no build at all, and a Python engine whose wheels need
   // a newer OS (MLX on macOS 13), so the page says why instead of hiding it.

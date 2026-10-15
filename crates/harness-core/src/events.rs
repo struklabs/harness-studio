@@ -24,6 +24,9 @@ pub enum CoreEvent {
     DefinitionsChanged,
     /// The tool registry changed (generated, installed or MCP tools).
     ToolsChanged,
+    /// A managed engine library was installed or removed (an ONNX Runtime build, also the
+    /// automatic install of a first ONNX launch); install-state views reload on this.
+    EnginesChanged,
     /// A server instance changed status (starting, running, stopped, error...).
     ServerStatus {
         server_id: String,
@@ -91,6 +94,7 @@ impl CoreEvent {
         match self {
             CoreEvent::DefinitionsChanged => "definitions_changed",
             CoreEvent::ToolsChanged => "tools_changed",
+            CoreEvent::EnginesChanged => "engines_changed",
             CoreEvent::ServerStatus { .. } => "server_status",
             CoreEvent::Download { .. } => "download",
             CoreEvent::DownloadRemoved { .. } => "download_removed",

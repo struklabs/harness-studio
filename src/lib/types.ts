@@ -2310,9 +2310,14 @@ export interface OnnxRuntimeInstalled {
 export interface OnnxRuntimeVariant {
   variant: string;
   version: string;
+  /** Size of the archives to download. */
   download_bytes: number;
+  /** Size of the installed files on disk. */
+  disk_bytes: number;
   default: boolean;
   installed: OnnxRuntimeInstalled | null;
+  /** Files of an earlier install that are missing or changed in size (install again). */
+  damaged?: string[];
 }
 
 /** `onnx_runtime::PlatformSupport`: whether this OS / architecture has any ONNX Runtime build. */

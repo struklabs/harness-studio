@@ -205,9 +205,16 @@ impl ServerEngine for OnnxEngine {
                 .push(harness_onnx::cli::CUDA_FALLBACK_EXIT.to_string());
         }
         if let Some(to) = fallback {
+            // An installed CUDA build whose files went missing or changed in size: say so (it is
+            // installed again from Settings) instead of "not installed".
+            let damaged = crate::onnx_runtime::damaged(crate::onnx_runtime::OrtVariant::Cuda);
             out.skipped.push(crate::params::SkippedParam {
                 id: PROVIDER_PARAM.into(),
-                reason: format!("cuda_runtime_missing:{to}"),
+                reason: if damaged.is_empty() {
+                    format!("cuda_runtime_missing:{to}")
+                } else {
+                    format!("cuda_runtime_damaged:{to}:{}", damaged.join(","))
+                },
             });
         }
         Ok(out)

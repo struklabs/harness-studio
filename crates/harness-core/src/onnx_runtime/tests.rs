@@ -174,9 +174,41 @@ fn installed_needs_a_manifest_and_all_files() {
         .iter()
         .any(|v| v.variant == variant && v.installed.is_some()));
 
-    // A changed size (an interrupted copy, an antivirus quarantine) is "not installed".
+    assert!(damaged_in(tmp.path(), variant).is_empty());
+
+    // A changed size (an interrupted copy, an antivirus quarantine) is "not installed", and the
+    // view names the damaged files so Settings offers to install again.
     std::fs::write(&got.lib, b"x").unwrap();
     assert!(installed_in(tmp.path(), variant).is_none());
+    let lib = spec_for(variant).unwrap().lib.to_string();
+    assert_eq!(damaged_in(tmp.path(), variant), vec![lib.clone()]);
+    let row = view_in(tmp.path())
+        .into_iter()
+        .find(|v| v.variant == variant)
+        .unwrap();
+    assert!(row.installed.is_none());
+    assert_eq!(row.damaged, vec![lib.clone()]);
+    // A missing file as well.
+    std::fs::remove_file(&got.lib).unwrap();
+    assert_eq!(damaged_in(tmp.path(), variant), vec![lib]);
+    // Never installed: nothing damaged.
+    let empty = tempfile::tempdir().unwrap();
+    assert!(damaged_in(empty.path(), variant).is_empty());
+}
+
+/// Settings shows the download and the size on disk of every build as two figures from the spec.
+#[test]
+fn every_build_has_a_download_and_a_disk_size() {
+    for spec in specs() {
+        let download: u64 = spec.archives.iter().map(|a| a.size).sum();
+        assert!(download > 0 && spec.disk_bytes > 0, "{:?}", spec.variant);
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    for row in view_in(tmp.path()) {
+        let spec = spec_for(row.variant).unwrap();
+        assert_eq!(row.disk_bytes, spec.disk_bytes);
+        assert!(row.damaged.is_empty());
+    }
 }
 
 /// Windows builds carry the GenAI library; an install from before it was added (its manifest
