@@ -76,7 +76,7 @@ Rules:
 - `common/FieldHelp`: contextual text through `text` for short explanations that are always needed; when a child control is given, it creates a help popover next to the control and a persistent accessible description. `id` is optional.
 - The Dashboard `Field` and Settings `SettingRow` connect their existing `hint` descriptions to this shared mechanism; do not write a sufficient description a second time. `Field.Description` in `ui/field` is also connected automatically. In custom layouts, use `aria-describedby` with the id of the existing description.
 - Descriptions are written in TR/EN together; units, defaults, ranges, and effects describe actual application behavior. The ids of error descriptions are preserved. Help buttons are focusable with a 28 px touch target; portal layers do not shift the layout and use the theme tokens.
-- `node scripts/check-field-help.mjs --strict` scans the editable control points in scope; `--baseline <commit>` compares, and `--json` gives an inventory. A static reference check does not replace text accuracy or a live accessibility review. A single source control is counted once in loops.
+- Repeated controls in a grid or a row (cards, counters, filter buttons) get one help for the group, not one per item: a help icon beside every item breaks the alignment. Put the icon inside the item's corner (Hub cards) or once beside the group, and point each item at the group's description with `aria-describedby`.
 
 ## Interface level and text layers
 

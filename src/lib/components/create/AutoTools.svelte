@@ -3,6 +3,7 @@
   import AttemptHistory from './AttemptHistory.svelte';
   import InfoTip from '#lib/components/common/InfoTip.svelte';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
+  import HelpPopover from '#lib/components/common/HelpPopover.svelte';
   import { onMount, tick } from 'svelte';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { ArrowUp, ArrowDown, GripVertical, Workflow, Pause, Square, Play, CircleCheck, ShieldAlert, Check } from '@lucide/svelte';
@@ -18,6 +19,7 @@
   import { tokenEstimate, action, retryFailed as retryAllFailed, start, state as getRunState, categories, categoryLabel, statusLabel, type RunState } from './client';
   import type { GeneratorEstimate, GeneratorUsage, GenerateToolRequest } from '#lib/tools-client.js';
   let { onChanged }: { onChanged: () => void } = $props();
+  const filterHelpId = $props.id();
   let run = $state<RunState | null>(null);
   let endpoint = $state<GenerateToolRequest['endpoint'] | null>(null);
   let selectedModel = $state('');
@@ -144,9 +146,11 @@
     </li>
   {/each}
 </ol>
-<div class="grid grid-cols-2 gap-2 border-y border-border py-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7" aria-live="polite">
-  <span data-run-tokens class="relative flex min-w-0 flex-col items-start gap-1 pr-6"><span class="font-num inline-block w-full whitespace-nowrap text-lg">{run?.usage?.estimated ? '≈ ' : ''}{fmt(total(run?.usage))}</span><span class="text-xs text-muted-foreground">{t('create.tokens_spent')}</span><span class="absolute right-0 top-0"><InfoTip text={t('create.token_usage_help', { input: fmt(run?.usage?.prompt_tokens ?? 0), output: fmt(run?.usage?.completion_tokens ?? 0) })} /></span></span>
-  {#each counters as [label, value], i}<FieldHelp text={t('create.filter_help')}><button type="button" data-queue-counter={i} class="flex w-full min-w-0 flex-col items-start gap-1 rounded-md px-2 py-1 hover:bg-muted" aria-pressed={filter === counterFilters[i]} onclick={() => chooseFilter(counterFilters[i])}><span class="font-num inline-block min-w-[3ch] text-lg font-medium">{value}</span><span class="text-xs text-muted-foreground">{t(label)}</span></button></FieldHelp>{/each}
+<!-- One help for the counter group: a help icon beside every counter broke the grid alignment. -->
+<div class="relative grid grid-cols-2 gap-2 border-y border-border py-3 pr-8 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7" aria-live="polite">
+  <span class="absolute right-0 top-3"><HelpPopover text={t('create.filter_help')} /></span><span id={filterHelpId} class="sr-only">{t('create.filter_help')}</span>
+  <span data-run-tokens class="relative flex min-w-0 flex-col items-start gap-1 px-2 py-1 pr-8"><span class="font-num inline-block w-full whitespace-nowrap text-lg">{run?.usage?.estimated ? '≈ ' : ''}{fmt(total(run?.usage))}</span><span class="text-xs text-muted-foreground">{t('create.tokens_spent')}</span><span class="absolute right-0 top-0"><InfoTip text={t('create.token_usage_help', { input: fmt(run?.usage?.prompt_tokens ?? 0), output: fmt(run?.usage?.completion_tokens ?? 0) })} /></span></span>
+  {#each counters as [label, value], i}<button type="button" data-queue-counter={i} aria-describedby={filterHelpId} class="flex w-full min-w-0 flex-col items-start gap-1 rounded-md px-2 py-1 hover:bg-muted" aria-pressed={filter === counterFilters[i]} onclick={() => chooseFilter(counterFilters[i])}><span class="font-num inline-block min-w-[3ch] text-lg font-medium">{value}</span><span class="text-xs text-muted-foreground">{t(label)}</span></button>{/each}
 </div>
 
 {#if run?.inventory.length}
@@ -162,8 +166,9 @@
     <h2 class="text-sm font-semibold">{t('create.queue')}</h2><p class="mt-1 text-xs text-muted-foreground">{t('create.queue_hint')}</p>
     <div class="mt-3 flex flex-wrap items-center gap-2" aria-label={t('create.filter_help')}>
       {#each filters as selected}
-        <FieldHelp text={t('create.filter_help')}><Button variant={filter === selected ? 'default' : 'outline'} size="sm" data-queue-filter={selected} aria-pressed={filter === selected} onclick={() => chooseFilter(selected)}>{filterLabel(selected)} <span class="font-num inline-block w-[3ch] text-right">{run?.queue.filter(q => accepts(q.status, q.draft, selected)).length ?? 0}</span></Button></FieldHelp>
+        <Button variant={filter === selected ? 'default' : 'outline'} size="sm" data-queue-filter={selected} aria-describedby={filterHelpId} aria-pressed={filter === selected} onclick={() => chooseFilter(selected)}>{filterLabel(selected)} <span class="font-num inline-block w-[3ch] text-right">{run?.queue.filter(q => accepts(q.status, q.draft, selected)).length ?? 0}</span></Button>
       {/each}
+      <HelpPopover text={t('create.filter_help')} />
       {#if filter === 'built'}<Badge variant="outline">{filterLabel('built')}</Badge>{/if}
       <FieldHelp text={t('create.retry_failed_help')}><Button variant="outline" size="sm" data-retry-failed disabled={busy || !failedCount} onclick={() => retry()}>{t('create.retry_failed')} (<span class="font-num inline-block w-[3ch] text-right">{failedCount}</span>)</Button></FieldHelp>
     </div>
