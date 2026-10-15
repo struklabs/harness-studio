@@ -33,6 +33,22 @@ pub(crate) async fn estimate_fit(
     .await
 }
 
+/// Memory estimates of stable-diffusion.cpp image models by their size (main file plus the
+/// companions it loads with): the Hub's files are not on disk to be told from an LLM GGUF.
+#[tauri::command]
+pub(crate) async fn estimate_image_fit(
+    sizes: Vec<u64>,
+) -> Result<Vec<crate::vram::FitResult>, String> {
+    blocking(move || {
+        let hw = detect_hardware();
+        sizes
+            .into_iter()
+            .map(|bytes| harness_core::model_registry::image_fit_on_machine(bytes, &hw))
+            .collect()
+    })
+    .await
+}
+
 /// Estimate the Dashboard's exact launch form through the same core launch plan as Start.
 #[tauri::command]
 pub(crate) async fn estimate_launch_fit(

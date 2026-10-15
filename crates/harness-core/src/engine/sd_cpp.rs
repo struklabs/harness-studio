@@ -520,11 +520,19 @@ impl ServerEngine for SdCppEngine {
         let gpu = budget.vram_bytes > 0 && input.gpu_layers > 0;
         let (weights, compute) = (model, compute_bytes(model));
         let total = weights + compute;
+        // sd.cpp's auto-fit (on by default) keeps on the card what fits and the rest of the
+        // weights in system memory; the compute buffers stay on the card (see `min_vram_need`).
+        let host_weights = if gpu {
+            total.saturating_sub(budget.vram_bytes).min(weights)
+        } else {
+            weights
+        };
+        let gpu_weights = if gpu { weights - host_weights } else { 0 };
         let estimate = MemoryEstimate {
-            vram_bytes: if gpu { total } else { 0 },
-            ram_bytes: if gpu { 0 } else { total },
-            model_gpu_bytes: if gpu { weights } else { 0 },
-            model_host_bytes: if gpu { 0 } else { weights },
+            vram_bytes: if gpu { gpu_weights + compute } else { 0 },
+            ram_bytes: if gpu { host_weights } else { total },
+            model_gpu_bytes: gpu_weights,
+            model_host_bytes: host_weights,
             compute_gpu_bytes: if gpu { compute } else { 0 },
             compute_host_bytes: if gpu { 0 } else { compute },
             slots: 1,
@@ -534,6 +542,12 @@ impl ServerEngine for SdCppEngine {
         let category = match (gpu, total) {
             (true, t) if t * 10 <= budget.vram_bytes * 9 => FitCategory::FullGpu,
             (true, t) if t <= budget.vram_bytes => FitCategory::Tight,
+            (true, _)
+                if compute * 10 <= budget.vram_bytes * 9
+                    && host_weights * 10 <= budget.ram_bytes * 9 =>
+            {
+                FitCategory::Hybrid
+            }
             (false, t) if t * 10 <= budget.ram_bytes * 9 => FitCategory::CpuHeavy,
             _ => FitCategory::OomRisk,
         };
@@ -1105,15 +1119,25 @@ mod tests {
         let r = SdCppEngine.estimate_memory(&cpu, None, &budget, &[]);
         assert_eq!(r.estimate.vram_bytes, 0);
         assert_eq!(r.category, FitCategory::CpuHeavy);
-        // A FLUX bundle (12 GiB of weights) does not fit an 8 GiB card.
+        // A FLUX bundle (12 GiB of weights) does not fit an 8 GiB card whole: auto-fit keeps
+        // what does not fit in system memory.
         let flux = FitInput {
             model_size_bytes: 12 << 30,
             gpu_layers: 999,
             ..Default::default()
         };
+        let r = SdCppEngine.estimate_memory(&flux, None, &budget, &[]);
+        assert_eq!(r.category, FitCategory::Hybrid);
+        assert_eq!(r.estimate.vram_bytes, 8 << 30);
+        assert_eq!(r.estimate.ram_bytes, 7 << 30);
+        // Nor in system memory: out of memory.
+        let huge = FitInput {
+            model_size_bytes: 24 << 30,
+            ..flux
+        };
         assert_eq!(
             SdCppEngine
-                .estimate_memory(&flux, None, &budget, &[])
+                .estimate_memory(&huge, None, &budget, &[])
                 .category,
             FitCategory::OomRisk
         );

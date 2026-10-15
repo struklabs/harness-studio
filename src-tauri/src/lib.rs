@@ -313,6 +313,7 @@ pub fn run() {
             detect_system_hardware,
             get_runtime_devices,
             estimate_fit,
+            estimate_image_fit,
             model_picker_memory,
             estimate_launch_fit,
             automatic_launch_choice,

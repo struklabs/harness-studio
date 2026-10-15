@@ -14,7 +14,7 @@
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { downloads } from '#lib/stores/downloads.svelte.js';
   import { isRepoFolder, library, normPath, repoRelative } from '#lib/stores/library.svelte.js';
-  import type { HardwareFitResult, HfAccess, HfModelSearchResult, HfModelVariant, ImageBundlePlan, LocalModel, ModelArtifactUpdate, SystemHardwareInfo } from '#lib/types.js';
+  import type { FitResult, HardwareFitResult, HfAccess, HfModelSearchResult, HfModelVariant, ImageBundlePlan, LocalModel, ModelArtifactUpdate, SystemHardwareInfo } from '#lib/types.js';
   import * as Sheet from '#lib/components/ui/sheet/index.js';
   import * as Table from '#lib/components/ui/table/index.js';
   import * as Tabs from '#lib/components/ui/tabs/index.js';
@@ -373,6 +373,18 @@
     const ctx = app.settings?.server.default_ctx || 32768;
     void hardware;
     const sized = list.filter((v) => !v.not_runnable && v.total_size_bytes > 0);
+    if (isImageRepo) {
+      // stable-diffusion.cpp's estimate (the llama.cpp one read these files as 32k-context chat
+      // models); a main file loads with every component of its bundle, downloaded or not.
+      const companions = (bundlePlan?.components ?? []).reduce((sum, c) => sum + c.size, 0);
+      const size = (v: HfModelVariant) => v.total_size_bytes + (isCompanionVariant(v) ? 0 : companions);
+      invoke<FitResult[]>('estimate_image_fit', { sizes: sized.map(size) })
+        .then((results) => {
+          if (list === untrack(() => variants)) variantFits = new Map(sized.map((v, i) => [v.name, toHardwareFit(results[i])]));
+        })
+        .catch(() => {});
+      return;
+    }
     Promise.all(
       sized.map((v) =>
         // As a default load starts it (automatic KV, fewer GPU layers when the full offload
