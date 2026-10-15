@@ -367,9 +367,13 @@
     openUrl(`https://huggingface.co/${path}`).catch((e) => toast.error(t('hub.open_link_failed', { error: String(e) })));
   }
 
-  // Fit per variant (Rust estimate, one batched call), once per list/hardware change.
+  // Fit per variant (Rust estimate, one batched call), once per list/hardware change. Only the
+  // latest request may write: an image repo asks again once its bundle plan arrives, and the
+  // earlier answer (without the companions) can come back later.
+  let fitToken = 0;
   $effect(() => {
     const list = variants;
+    const my = ++fitToken;
     const ctx = app.settings?.server.default_ctx || 32768;
     void hardware;
     const sized = list.filter((v) => !v.not_runnable && v.total_size_bytes > 0);
@@ -380,7 +384,7 @@
       const size = (v: HfModelVariant) => v.total_size_bytes + (isCompanionVariant(v) ? 0 : companions);
       invoke<FitResult[]>('estimate_image_fit', { sizes: sized.map(size) })
         .then((results) => {
-          if (list === untrack(() => variants)) variantFits = new Map(sized.map((v, i) => [v.name, toHardwareFit(results[i])]));
+          if (my === fitToken) variantFits = new Map(sized.map((v, i) => [v.name, toHardwareFit(results[i])]));
         })
         .catch(() => {});
       return;
@@ -401,7 +405,7 @@
       )
     )
       .then((pairs) => {
-        if (list === untrack(() => variants)) variantFits = new Map(pairs);
+        if (my === fitToken) variantFits = new Map(pairs);
       })
       .catch(() => {});
   });
