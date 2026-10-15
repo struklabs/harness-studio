@@ -31,6 +31,21 @@ test('ordinary variant quality and fit ranking is preserved', () => {
   assert.equal(recommendVariant([smaller, larger], new Map([[smaller.name, 'hybrid'], [larger.name, 'hybrid']])), smaller);
 });
 
+test('an image repo without quantized files recommends FP16 over the full-precision checkpoint', () => {
+  // stabilityai/sdxl-turbo on a 4 GB card: both files only partly fit.
+  const full = { name: 'sd_xl_turbo_1.0', total_size_bytes: 12_920_000_000, quantization: 'SAFETENSORS', shards: [{ filename: 'sd_xl_turbo_1.0.safetensors' }] };
+  const half = { name: 'sd_xl_turbo_1.0_fp16', total_size_bytes: 6_460_000_000, quantization: 'FP16', shards: [{ filename: 'sd_xl_turbo_1.0_fp16.safetensors' }] };
+  for (const tier of ['full_gpu', 'hybrid']) {
+    assert.equal(recommendVariant([full, half], new Map([[full.name, tier], [half.name, tier]])), half, tier);
+  }
+  // A lone checkpoint, and quantized files still win over 16-bit ones.
+  assert.equal(recommendVariant([full], new Map([[full.name, 'hybrid']])), full);
+  const q8 = gguf('model-Q8_0', 'Q8_0', 1_000);
+  const f16 = gguf('model-F16', 'F16', 2_000);
+  assert.equal(recommendVariant([q8, f16], new Map([[q8.name, 'full_gpu'], [f16.name, 'full_gpu']])), q8);
+  assert.equal(recommendVariant([f16], new Map([[f16.name, 'full_gpu']])), f16);
+});
+
 const gguf = (name, quantization, size) => ({ name, total_size_bytes: size, quantization, shards: [{ filename: `${name}.gguf` }] });
 
 test('projectors, drafts, and image components are never the recommended main model', () => {

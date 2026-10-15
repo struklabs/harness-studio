@@ -27,13 +27,27 @@ function currentVariants(variants: HfModelVariant[]): HfModelVariant[] {
 }
 
 /**
+ * Variants the recommendation picks from: quantized files (8 bits or fewer); without any, the
+ * 16-bit ones; without those, the rest (32-bit and labels that name no precision, such as an
+ * image repo's `SAFETENSORS` checkpoint, which is usually the full-precision file). Before, a
+ * label without a number counted as 0 bits, so stabilityai/sdxl-turbo recommended its 12.9 GB
+ * full-precision file over the 6.5 GB FP16 one.
+ */
+function precisionPool(variants: HfModelVariant[]): HfModelVariant[] {
+  const quantized = variants.filter((v) => { const bits = quantBits(v.quantization); return bits > 0 && bits <= 8; });
+  if (quantized.length) return quantized;
+  const half = variants.filter((v) => quantBits(v.quantization) === 16);
+  return half.length ? half : variants;
+}
+
+/**
  * The variant that suits this machine best, from the same fit estimate as the variant table
  * (`fits`: variant name -> category of the Rust estimate). Prefers the largest (best quality)
  * quantized file that fully fits in VRAM; when nothing fits fully, the smallest
  * 4-bit-or-better file of the best tier still possible. Null when sizes or fits are unknown.
  */
 export function recommendVariant(variants: HfModelVariant[], fits: Map<string, FitCategory>): HfModelVariant | null {
-  const sized = currentVariants(variants.filter((v) => !isCompanionVariant(v) && v.total_size_bytes > 0 && quantBits(v.quantization) <= 8 && fits.has(v.name)));
+  const sized = precisionPool(currentVariants(variants.filter((v) => !isCompanionVariant(v) && v.total_size_bytes > 0 && fits.has(v.name))));
   if (sized.length === 0) return null;
   for (const tier of TIERS) {
     const group = sized.filter((v) => fits.get(v.name) === tier);

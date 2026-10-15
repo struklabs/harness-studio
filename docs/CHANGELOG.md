@@ -6,6 +6,9 @@ Release notes with system requirements and known limitations (English and Turkis
 
 ## [Unreleased]
 
+- Model Hub: image repos without quantized files recommend the FP16 checkpoint rather than the full-precision one (stabilityai/sdxl-turbo: 6.5 GB instead of 12.9 GB).
+- Model Hub: nicemlenmiş dosyası olmayan görsel depoları tam hassasiyetli checkpoint yerine FP16 olanı önerir (stabilityai/sdxl-turbo: 12,9 GB yerine 6,5 GB).
+
 - Image generation: GPU memory failures show localized guidance, blocking server names when available, and a Manage Servers action.
 - Görsel üretimi: GPU belleği hataları yerelleştirilmiş yönlendirme, varsa belleği tutan sunucu adları ve Sunucuları Yönet eylemi gösterir.
 - Playground: the Image tab header model chip follows the image model selection.
