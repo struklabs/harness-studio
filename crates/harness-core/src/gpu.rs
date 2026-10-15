@@ -313,9 +313,18 @@ pub fn parse_nvidia_smi_apps(text: &str, pid: u32) -> Option<u64> {
 /// `drm-resident-system*` counts (i915 on an HD 6000: `drm-resident-system0`, the model and
 /// KV of a fully offloaded llama-server). Values carry a `KiB`/`MiB` unit or none (bytes).
 pub fn parse_drm_fdinfo(text: &str) -> Option<(String, u64)> {
+    parse_drm_fdinfo_in(text, false)
+}
+
+/// [`parse_drm_fdinfo`]; `with_gtt` adds the client's GTT (`drm-resident-gtt`, older amdgpu
+/// `drm-memory-gtt`). On an AMD APU the BIOS carve-out ("VRAM") is small and a model's buffers
+/// live in GTT, system RAM the GPU maps: without it a fully offloaded llama-server shows a few
+/// MB. Not for discrete cards, where GTT is staging memory outside the card.
+pub fn parse_drm_fdinfo_in(text: &str, with_gtt: bool) -> Option<(String, u64)> {
     let mut client = None;
     let (mut memory, mut resident, mut total) = (None::<u64>, None::<u64>, None::<u64>);
     let mut system = None::<u64>;
+    let (mut gtt_memory, mut gtt_resident) = (None::<u64>, None::<u64>);
     for line in text.lines() {
         let Some((key, value)) = line.split_once(':') else {
             continue;
@@ -349,9 +358,21 @@ pub fn parse_drm_fdinfo(text: &str) -> Option<(String, u64)> {
             add(&mut total);
         } else if key.starts_with("drm-resident-system") {
             add(&mut system);
+        } else if key == "drm-memory-gtt" {
+            add(&mut gtt_memory);
+        } else if key == "drm-resident-gtt" {
+            add(&mut gtt_resident);
         }
     }
-    let bytes = memory.or(resident).or(total).or(system)?;
+    let gtt = if with_gtt {
+        gtt_resident.or(gtt_memory)
+    } else {
+        None
+    };
+    let bytes = match (memory.or(resident).or(total).or(system), gtt) {
+        (None, None) => return None,
+        (local, gtt) => local.unwrap_or(0) + gtt.unwrap_or(0),
+    };
     Some((client.unwrap_or_default(), bytes))
 }
 
@@ -965,10 +986,19 @@ mod platform {
                 .or_else(|| query_nvidia_smi_for(adapter.index, adapter.uuid.as_deref())),
             Some(VENDOR_AMD) => {
                 let dev = adapter.sysfs.as_ref()?;
-                Some((
+                let vram = (
                     read_u64(dev.join("mem_info_vram_used"))?,
                     read_u64(dev.join("mem_info_vram_total"))?,
-                ))
+                );
+                if adapter.is_discrete {
+                    return Some(vram);
+                }
+                // An APU's GPU memory is its carve-out plus GTT (see `parse_drm_fdinfo_in`).
+                let gtt = (
+                    read_u64(dev.join("mem_info_gtt_used")).unwrap_or(0),
+                    read_u64(dev.join("mem_info_gtt_total")).unwrap_or(0),
+                );
+                Some((vram.0 + gtt.0, vram.1 + gtt.1))
             }
             _ => None,
         }
@@ -1018,6 +1048,8 @@ mod platform {
         /// counted (descriptors without `drm-pdev` are).
         pci: Option<String>,
         nvml: Option<crate::nvml::NvmlDevice>,
+        /// An AMD APU: GTT counts as GPU memory.
+        with_gtt: bool,
     }
 
     impl ProcessVramProbe {
@@ -1027,10 +1059,12 @@ mod platform {
                     .map(|d| Self {
                         pci: None,
                         nvml: Some(d),
+                        with_gtt: false,
                     }),
                 Some(VENDOR_AMD | VENDOR_INTEL) => Some(Self {
                     pci: adapter.sysfs_dir().and_then(pci_slot),
                     nvml: None,
+                    with_gtt: adapter.vendor_id == Some(VENDOR_AMD) && !adapter.is_discrete,
                 }),
                 _ => None,
             }
@@ -1059,7 +1093,7 @@ mod platform {
                             continue;
                         }
                     }
-                    if let Some((client, bytes)) = parse_drm_fdinfo(&text) {
+                    if let Some((client, bytes)) = parse_drm_fdinfo_in(&text, self.with_gtt) {
                         let slot = clients.entry(client).or_default();
                         *slot = (*slot).max(bytes);
                     }
@@ -1497,6 +1531,36 @@ drm-resident-vram0:\t6291456 KiB\ndrm-purgeable-vram0:\t0\ndrm-cycles-rcs:\t2825
         assert_eq!(m.get(&20), None);
         assert_eq!(m.get(&30), Some(&7));
         assert_eq!(m.len(), 2);
+    }
+
+    /// amdgpu on a Renoir APU (Ryzen 7 4700U, Linux 7.0), a llama-server with every layer on
+    /// the GPU: the model is in GTT, the 512 MiB carve-out holds almost nothing of it.
+    #[test]
+    fn drm_fdinfo_apu_counts_gtt() {
+        let text = "drm-driver:\tamdgpu\ndrm-client-id:\t64\ndrm-pdev:\t0000:05:00.0\n\
+drm-total-cpu:\t0\ndrm-resident-cpu:\t0\ndrm-total-gtt:\t407080 KiB\n\
+drm-resident-gtt:\t7670244 KiB\ndrm-total-vram:\t7278464 KiB\n\
+drm-shared-vram:\t0\ndrm-resident-vram:\t15300 KiB\n";
+        assert_eq!(parse_drm_fdinfo(text), Some(("64".into(), 15300 * 1024)));
+        assert_eq!(
+            parse_drm_fdinfo_in(text, true),
+            Some(("64".into(), (15300 + 7670244) * 1024))
+        );
+        // Older amdgpu keys.
+        let old = "drm-client-id:\t3\ndrm-memory-vram:\t2048 KiB\ndrm-memory-gtt:\t1024 KiB\n";
+        assert_eq!(
+            parse_drm_fdinfo_in(old, true),
+            Some(("3".into(), 3072 * 1024))
+        );
+        // A client with only GTT still counts on an APU.
+        assert_eq!(
+            parse_drm_fdinfo_in("drm-client-id:\t5\ndrm-resident-gtt:\t10 KiB\n", true),
+            Some(("5".into(), 10 * 1024))
+        );
+        assert_eq!(
+            parse_drm_fdinfo("drm-client-id:\t5\ndrm-resident-gtt:\t10 KiB\n"),
+            None
+        );
     }
 
     #[test]
