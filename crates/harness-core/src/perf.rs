@@ -50,20 +50,28 @@ struct Inner {
 }
 
 pub struct PerfSampler {
-    inner: Mutex<Inner>,
+    /// Created by the first sample: building the `System` initialises the CPU counters, which
+    /// takes hundreds of milliseconds on Windows and is not needed before the Performance view.
+    inner: Mutex<Option<Inner>>,
 }
 
-impl Default for PerfSampler {
-    fn default() -> Self {
+impl Inner {
+    fn new() -> Self {
         let sys = System::new_with_specifics(
             RefreshKind::nothing().with_cpu(CpuRefreshKind::nothing().with_cpu_usage()),
         );
         Self {
-            inner: Mutex::new(Inner {
-                sys,
-                primed: false,
-                gpu_cache: None,
-            }),
+            sys,
+            primed: false,
+            gpu_cache: None,
+        }
+    }
+}
+
+impl Default for PerfSampler {
+    fn default() -> Self {
+        Self {
+            inner: Mutex::new(None),
         }
     }
 }
@@ -91,7 +99,8 @@ impl PerfSampler {
         server_pid: Option<u32>,
         gpu: Option<&crate::gpu::GpuAdapter>,
     ) -> PerfDetails {
-        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        let inner = guard.get_or_insert_with(Inner::new);
         inner.sys.refresh_cpu_usage();
         inner.sys.refresh_processes_specifics(
             ProcessesToUpdate::All,

@@ -7,6 +7,7 @@ pub mod desktop;
 pub mod push;
 #[cfg(all(windows, debug_assertions, feature = "qa-cdp"))]
 mod qa_cdp;
+pub mod startup;
 
 // Core services live in `harness-core`; re-exported so `crate::<module>` paths keep working.
 pub use harness_core::{
@@ -135,6 +136,7 @@ pub fn run() {
     }
     builder
         .setup(move |app| {
+            startup::mark("setup entry (window created)");
             // Persistent data lives in the per-user app data dir, independent of the CWD.
             let data_dir = match &data_dir_override {
                 Some(dir) => dir.clone(),
@@ -308,6 +310,7 @@ pub fn run() {
                     let _ = update_handle.emit("runtime-updated", settings);
                 },
             ));
+            startup::mark("setup complete");
             Ok(())
         })
         .manage(registry)
