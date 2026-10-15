@@ -136,7 +136,7 @@
     type Conversation,
     type ConversationView,
   } from './playground/conversations';
-  import { buildTitleMessages, resolveGeneratedTitle } from './playground/titles';
+  import { generateTitleWithRetry } from './playground/titles';
   import { isTurnEnd as turnEndAt, regeneratePlan, turnRoot, variantNavOf, variantTarget } from './playground/branching';
   import { ToolCallAccumulator } from '#lib/mcp-client.js';
   import { coreToolAsServerTool, getMcpStatus, listCoreTools, type ToolLimits } from '#lib/tools-client.js';
@@ -2434,7 +2434,7 @@
 
   const titleAttempted = new Set<string>();
 
-  /** Asks the model for a short title once, after the first answer. Optional; failures are ignored. */
+  /** Asks for a title after the first answer, retrying templates that reject the system role. */
   async function autoTitle(convId: string, ep?: Endpoint) {
     const c = conv;
     if (!c || c.id !== convId || c.title_source !== 'fallback' || !settings.autoTitle || !canChat) return;
@@ -2448,7 +2448,6 @@
     try {
       const uiLanguage = locale();
       const body: Record<string, unknown> = {
-        messages: buildTitleMessages(firstUser.content, firstAnswer.content, uiLanguage),
         stream: false,
         max_tokens: 32,
         temperature: 0.3,
@@ -2458,15 +2457,13 @@
       const model = ep ? ep.model : settings.model;
       if (model) body.model = model;
       // Managed endpoint while the gateway runs (the alias routes to this server), else direct.
-      const res = await fetch(`${ep ? ep.baseUrl : app.inferenceUrl}/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(ep ? ep.headers : app.inferenceHeaders()) },
-        body: JSON.stringify(body),
-        signal: ctl.signal,
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      const { title, source } = resolveGeneratedTitle(String(data?.choices?.[0]?.message?.content ?? ''), firstUser.content, uiLanguage);
+      const { title, source } = await generateTitleWithRetry(firstUser.content, firstAnswer.content, uiLanguage,
+        (titleMessages) => fetch(`${ep ? ep.baseUrl : app.inferenceUrl}/chat/completions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(ep ? ep.headers : app.inferenceHeaders()) },
+          body: JSON.stringify({ ...body, messages: titleMessages }),
+          signal: ctl.signal,
+        }));
       if (!title) return;
       const changed = await queue(() => convApi.setTitle(convId, title, source, 'fallback'));
       if (changed) {
