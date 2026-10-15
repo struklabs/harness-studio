@@ -9,6 +9,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import { selectChatModel } from './playground/modelSelection';
   import { estimatePromptBudget, hasContextPressure } from './playground/contextBudget';
+  import { anchoredScroll, needsOlder, pathStart, previousBatch, settledWhile, tailStart } from './playground/longChat';
   import { definitionFile, definitionsForMode, selectModeModel } from './playground/modelModes';
   import { library } from '#lib/stores/library.svelte.js';
   import { holdReleaseWhile } from '#lib/windowActivity.js';
@@ -189,6 +190,10 @@
   // ---- Conversation (state.db) ----
   let conv = $state<Conversation | null>(null);
   let messages = $state<Msg[]>([]);
+  /** Index of the first mounted message: a long chat opens with its tail only; older ones mount on scroll. */
+  let winStart = $state(0);
+  let shownStart = $derived(Math.min(winStart, Math.max(0, messages.length - 1)));
+  let shownMessages = $derived(shownStart > 0 ? messages.slice(shownStart) : messages);
   let settings = $state<PgSettings>({ ...DEFAULT_SETTINGS });
   let settingsLoaded = $state(false);
   /** Bumped whenever the sidebar list may have changed. */
@@ -479,9 +484,14 @@
 
   function applyView(view: ConversationView, restoreSettings: boolean) {
     workspaceVersion++;
+    const prevConvId = conv?.id;
     conv = view.conversation;
     const list = viewMessages(view);
     for (const m of list) if (m.variantId) savedVariants.add(m.variantId);
+    // Same chat (branch switch): keep the first mounted message; a freshly opened chat starts at its tail.
+    winStart = prevConvId !== undefined && view.conversation.id === prevConvId
+      ? pathStart(list.map((m) => m.id), untrack(() => messages[shownStart])?.id)
+      : tailStart(list.length);
     messages = list;
     if (restoreSettings) {
       const restored = settingsFromConversation(view.conversation, $state.snapshot(settings) as PgSettings);
@@ -576,6 +586,7 @@
     await stopAndWait();
     conv = null;
     messages = [];
+    winStart = 0;
     input = '';
     pendingImages = [];
     pendingAudio = [];
@@ -1238,7 +1249,8 @@
   // History/tools are rebuilt only when they change; serialization runs after debounce.
   // Picture data stays out of the estimate and the token-count request (megabytes of base64);
   // each picture is counted as a fixed cost instead (`IMAGE_TOKEN_ESTIMATE`).
-  let historyWithImages = $derived(buildApiMessages(messages, settings));
+  // Held while a reply streams: each token would otherwise rebuild the whole history.
+  let historyWithImages = $derived.by(settledWhile(() => streaming, () => buildApiMessages(messages, settings)));
   let countHistory = $derived(withoutImages(historyWithImages));
   let imageEstimate = $derived((countImageParts(historyWithImages) + pendingImages.length) * IMAGE_TOKEN_ESTIMATE);
   let countTools = $derived(wireToolDefs());
@@ -1582,6 +1594,27 @@
   function onListScroll() {
     if (!listEl) return;
     stickToBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 48;
+    if (needsOlder(shownStart, listEl.scrollTop)) void mountOlder();
+  }
+
+  let mountingOlder = false;
+  /** Mounts the next batch of older messages above the view and keeps the same content under the viewport. */
+  async function mountOlder() {
+    if (mountingOlder || !listEl || shownStart <= 0) return;
+    mountingOlder = true;
+    try {
+      const el = listEl;
+      const top = el.scrollTop;
+      const before = el.scrollHeight;
+      winStart = previousBatch(shownStart);
+      await tick();
+      // Chromium's own scroll anchoring may already have compensated; only fix what it left.
+      if (Math.abs(el.scrollTop - top) < 1) el.scrollTop = anchoredScroll(top, before, el.scrollHeight);
+    } finally {
+      mountingOlder = false;
+    }
+    // A tall viewport (or short messages) can still show the top: keep going until it is covered.
+    if (listEl && needsOlder(shownStart, listEl.scrollTop)) void mountOlder();
   }
 
   function scrollToBottom(force = false) {
@@ -1591,6 +1624,8 @@
     requestAnimationFrame(() => {
       scrollQueued = false;
       if (listEl && stickToBottom) listEl.scrollTop = listEl.scrollHeight;
+      // A short tail that does not scroll never fires a scroll event: fill upwards from here.
+      if (listEl && listEl.scrollHeight - listEl.clientHeight < 600 && needsOlder(shownStart, listEl.scrollTop)) void mountOlder();
     });
   }
 
@@ -3022,7 +3057,8 @@
               </div>
             </div>
           {/if}
-          {#each openingConv ? [] : messages as message, i (message.id)}
+          {#each openingConv ? [] : shownMessages as message, k (message.id)}
+            {@const i = shownStart + k}
             {#if message.role === 'compaction'}
               <CompactionDivider
                 {message}
