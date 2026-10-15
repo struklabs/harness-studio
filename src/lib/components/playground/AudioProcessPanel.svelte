@@ -12,6 +12,7 @@
   import { library } from '#lib/stores/library.svelte.js';
   import { runtimesStore } from '#lib/stores/runtimes.svelte.js';
   import { describeErrorBody } from '#lib/components/playground/sse.js';
+  import { BackendError } from '#lib/errors.js';
 
   type OptionName = 'audio_chunk_duration_sec' | 'audio_chunk_overlap_sec' | 'edge_pad_duration_sec' | 'num_inference_steps' | 'guidance_scale' | 'ddim_eta' | 'seed' | 'input_sample_rate' | 'sampler_mode';
   interface OptionSpec { name: OptionName; min: number; max: number; default: number; integer: boolean; choices: string[] }
@@ -68,7 +69,13 @@
       // UniverSR requires an explicit effective bandwidth for 44.1/48 kHz uploads.
       if (chosen.family === 'universr' && options.input_sample_rate === undefined) body.append('input_sample_rate', '16000');
       const response = await fetch(`${app.inferenceUrl}/audio/process`, { method: 'POST', headers: app.inferenceHeaders(), body, signal: c.signal });
-      if (!response.ok) throw new Error(describeErrorBody(await response.text()) || `HTTP ${response.status}`);
+      if (!response.ok) {
+        const text = await response.text();
+        let key: unknown;
+        try { key = JSON.parse(text)?.error?.harness?.error_key; } catch { /* plain text */ }
+        if (typeof key === 'string') throw new BackendError(key);
+        throw new Error(describeErrorBody(text) || `HTTP ${response.status}`);
+      }
       const result: { outputs: Omit<Output, 'url'>[] } = await response.json();
       outputs = result.outputs.map(o => {
         const bytes = Uint8Array.from(atob(o.audio_base64), c => c.charCodeAt(0));
