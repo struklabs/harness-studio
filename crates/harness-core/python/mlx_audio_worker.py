@@ -434,7 +434,9 @@ def sentences(text, limit=MAX_SENTENCE_CHARS):
     parts, start = [], 0
     for m in SENTENCE_END.finditer(text):
         mark = m.group()
-        if mark.startswith(".") and not mark.startswith("..") and not ends_sentence(text, m.start()):
+        # A period that ends no sentence ("Dr.") is skipped, unless a line break follows it.
+        if (mark.startswith(".") and not mark.startswith("..") and "\n" not in mark
+                and not ends_sentence(text, m.start())):
             continue
         parts.append(text[start:m.end()])
         start = m.end()

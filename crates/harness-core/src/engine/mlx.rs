@@ -2464,6 +2464,7 @@ print("split", w.sentences("Hi there.  Bye。Yes"), w.sentences("   "))
 # the sentence; an ellipsis does; a line break always does; a long run is cut at a space.
 print("tr", w.sentences("Dr. Ali geldi. 3. madde önemli, vs. bitti… A. Yılmaz yazdı."))
 print("lines", w.sentences("- süt\n- ekmek\n\n- yumurta"))
+print("line ends", [w.sentences(t) for t in ("Madde 3.\nSonraki satır", "Bkz.\nAli", "Saat 10.\nGeldi.", "Hi Dr.\r\nAli")])
 print("quote", w.sentences('He said "Go." Then left.'))
 print("cap", [len(p) for p in w.sentences(" ".join(["kelime"] * 100), 120)])
 "#,
@@ -2496,6 +2497,7 @@ print("cap", [len(p) for p in w.sentences(" ".join(["kelime"] * 100), 120)])
             "split ['Hi there.', 'Bye。', 'Yes'] ['   ']",
             "tr ['Dr. Ali geldi.', '3. madde önemli, vs. bitti…', 'A. Yılmaz yazdı.']",
             "lines ['- süt', '- ekmek', '- yumurta']",
+            "line ends [['Madde 3.', 'Sonraki satır'], ['Bkz.', 'Ali'], ['Saat 10.', 'Geldi.'], ['Hi Dr.', 'Ali']]",
             "quote ['He said \"Go.\"', 'Then left.']",
             "cap [118, 118, 118, 118, 118, 104]",
         ] {
