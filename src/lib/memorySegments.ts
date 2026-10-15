@@ -29,7 +29,11 @@ export interface SegmentedBar {
 export function buildSegments(used: number, total: number, b: MemoryBreakdown): SegmentedBar {
   const parts: Omit<Segment, 'pct'>[] = [
     { key: 'harness', kind: 'harness', bytes: b.harness_bytes },
-    ...b.servers.map((s) => ({ key: `server:${s.id}`, kind: 'server' as const, serverId: s.id, model: s.name, bytes: s.bytes })),
+    // A server with nothing on this device (another GPU, or a CPU run) is not a consumer here: the
+    // per-adapter split lists every running server, the legend would show it with 0 B.
+    ...b.servers
+      .filter((s) => s.bytes > 0)
+      .map((s) => ({ key: `server:${s.id}`, kind: 'server' as const, serverId: s.id, model: s.name, bytes: s.bytes })),
     { key: 'other', kind: 'other', bytes: b.other_bytes },
   ];
   const sum = parts.reduce((a, p) => a + p.bytes, 0);
