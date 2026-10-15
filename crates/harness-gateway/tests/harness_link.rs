@@ -25,6 +25,7 @@ const MODEL: &str = "remote:office/org/model";
 #[derive(Clone, Default)]
 struct Remote {
     status: Arc<AtomicU16>,
+    identity: Arc<AtomicU16>,
     seen: Arc<Mutex<Vec<Value>>>,
     redirect_hits: Arc<AtomicU16>,
 }
@@ -34,7 +35,10 @@ async fn models(State(remote): State<Remote>, headers: HeaderMap) -> Response {
     match remote.status.load(Ordering::SeqCst) {
         401 => (StatusCode::UNAUTHORIZED, TOKEN).into_response(),
         302 => (StatusCode::FOUND, [("location", "/redirect-target")]).into_response(),
-        _ => Json(json!({"data": [{"id": "org/model", "harness": {"definition_id": "upstream-definition", "state": "unloaded"}}]})).into_response(),
+        _ => Json(json!({"data": [
+            {"id": "org/model", "harness": {"definition_id": "upstream-definition", "state": "unloaded"}},
+            {"id": "remote:other/loop", "owned_by": "harness-link"}
+        ]})).into_response(),
     }
 }
 
@@ -44,6 +48,7 @@ async fn inference(
     Json(body): Json<Value>,
 ) -> Response {
     assert_eq!(headers["authorization"], format!("Bearer {TOKEN}"));
+    assert_eq!(headers["x-harness-link-hop"], "1");
     assert_eq!(body["model"], "org/model");
     assert!(headers.get("x-harness-client").is_none());
     remote.seen.lock().unwrap().push(body.clone());
@@ -73,6 +78,19 @@ async fn remote_models_proxy_policy_and_failures() {
             }),
         )
         .route("/v1/models", get(models))
+        .route(
+            "/v1/harness/whoami",
+            get(
+                |State(remote): State<Remote>, headers: HeaderMap| async move {
+                    assert_eq!(headers["authorization"], format!("Bearer {TOKEN}"));
+                    match remote.identity.load(Ordering::SeqCst) {
+                        1 => Json(json!({"scopes": ["admin"]})).into_response(),
+                        2 => Json(json!({"scopes": ["inference"]})).into_response(),
+                        _ => StatusCode::NOT_FOUND.into_response(),
+                    }
+                },
+            ),
+        )
         .route("/v1/chat/completions", post(inference))
         .route("/v1/embeddings", post(inference))
         .route("/v1/completions", post(inference))
@@ -100,6 +118,18 @@ async fn remote_models_proxy_policy_and_failures() {
     .unwrap();
     assert_eq!(added.status.state, link::State::Online);
     assert_eq!(added.status.model_count, 1);
+    assert!(added.status.warning.is_none());
+    remote.identity.store(1, Ordering::SeqCst);
+    let tested = link::test(&added.link.id).await.unwrap();
+    assert_eq!(tested.state, link::State::Online);
+    assert_eq!(
+        harness_core::error_key::parse(tested.warning.as_deref().unwrap())
+            .unwrap()
+            .0,
+        "link.inference_scope_warning"
+    );
+    remote.identity.store(2, Ordering::SeqCst);
+    assert!(link::test(&added.link.id).await.unwrap().warning.is_none());
     assert!(!serde_json::to_string(&link::list())
         .unwrap()
         .contains(TOKEN));
@@ -141,6 +171,70 @@ async fn remote_models_proxy_policy_and_failures() {
     let base = status.endpoint.unwrap().host_url;
     let http = reqwest::Client::new();
     let session = gateway.client_token().await.unwrap();
+    let whoami_url = format!("{base}/v1/harness/whoami");
+    for token in [None, Some("invalid")] {
+        let mut request = http.get(&whoami_url);
+        if let Some(token) = token {
+            request = request.bearer_auth(token);
+        }
+        assert_eq!(request.send().await.unwrap().status(), 401);
+    }
+    let identity: Value = http
+        .get(&whoami_url)
+        .bearer_auth(&session)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(identity["token_name"], "harness");
+    assert_eq!(identity["scopes"], json!(["inference"]));
+    assert!(identity["harness_version"]
+        .as_str()
+        .is_some_and(|v| !v.is_empty()));
+    assert!(!identity.to_string().contains(&session));
+
+    for (name, scopes, policy, status) in [
+        (
+            "identity-admin",
+            vec![Scope::Admin],
+            TokenPolicy::default(),
+            200,
+        ),
+        (
+            "identity-inference",
+            vec![Scope::Inference],
+            TokenPolicy {
+                endpoints: vec![harness_core::token_policy::GatewayEndpoint::Chat],
+                ..Default::default()
+            },
+            200,
+        ),
+        (
+            "identity-read",
+            vec![Scope::Read],
+            TokenPolicy::default(),
+            403,
+        ),
+    ] {
+        let token = TokenStore::global()
+            .create_with_policy(name, &scopes, &policy)
+            .unwrap();
+        let response = http
+            .get(&whoami_url)
+            .bearer_auth(&token.token)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status().as_u16(), status);
+        if status == 200 {
+            let identity: Value = response.json().await.unwrap();
+            assert_eq!(identity["token_name"], name);
+            assert_eq!(identity["scopes"], serde_json::to_value(scopes).unwrap());
+            assert!(!identity.to_string().contains(&token.token));
+        }
+    }
     let listing: Value = http
         .get(format!("{base}/v1/models"))
         .bearer_auth(&session)
@@ -169,6 +263,34 @@ async fn remote_models_proxy_policy_and_failures() {
         "upstream-definition"
     );
     assert_eq!(found["harness"]["remote"]["model_state"], "unloaded");
+
+    for path in [
+        "chat/completions",
+        "completions",
+        "responses",
+        "embeddings",
+        "rerank",
+        "messages",
+    ] {
+        for hop in ["1", "", "2"] {
+            let response = http
+                .post(format!("{base}/v1/{path}"))
+                .bearer_auth(&session)
+                .header("x-harness-link-hop", hop)
+                .json(&json!({"model": MODEL, "messages": [], "input": "hi"}))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), 400, "{path}");
+            let error: Value = response.json().await.unwrap();
+            assert_eq!(error["error"]["code"], "link.chained_not_allowed");
+            assert_eq!(
+                error["error"]["harness"]["error_key"],
+                "link.chained_not_allowed"
+            );
+        }
+    }
+    assert!(remote.seen.lock().unwrap().is_empty());
 
     let mut events = harness_core::events::subscribe();
     for stream in [false, true] {

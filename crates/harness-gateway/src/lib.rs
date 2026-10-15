@@ -612,6 +612,20 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
         .merge(ollama::routes())
         .route("/health", get(health))
         .route(
+            "/v1/harness/whoami",
+            get(|State(s): State<GwState>, h: HeaderMap| async move {
+                match auth::whoami(&s, &h) {
+                    Ok(caller) => axum::Json(serde_json::json!({
+                        "token_name": caller.token_name,
+                        "scopes": caller.scopes,
+                        "harness_version": env!("CARGO_PKG_VERSION"),
+                    }))
+                    .into_response(),
+                    Err(error) => error.into_response(),
+                }
+            }),
+        )
+        .route(
             "/metrics",
             get(|State(s): State<GwState>, h: HeaderMap| metrics(s, h)),
         )

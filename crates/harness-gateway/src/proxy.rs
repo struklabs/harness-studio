@@ -324,7 +324,8 @@ pub(crate) async fn handle_with(
     let mut resp = match result {
         Ok(resp) => resp,
         Err(err) => {
-            let err = err.anthropic(anthropic);
+            let openai = err.code == "link.chained_not_allowed";
+            let err = err.anthropic(anthropic && !openai);
             guard.finish(err.status, Some(&err.code));
             err.into_response()
         }
@@ -414,6 +415,9 @@ async fn run(
     }
     caller.check_model(&def.alias)?;
     let remote = harness_core::link::parse_model(&def.id);
+    if remote.is_some() && headers.contains_key("x-harness-link-hop") {
+        return Err(GatewayError::remote("link.chained_not_allowed"));
+    }
     if remote.is_some() && matches!(api, Api::Hf | Api::CountTokens) {
         return Err(GatewayError::remote("link.unsupported_endpoint"));
     }
@@ -617,6 +621,9 @@ async fn run(
             req = req.header(name, v.clone());
         }
     }
+    if remote.is_some() {
+        req = req.header("x-harness-link-hop", "1");
+    }
     if let Some(context) = &guard.trace_context.as_ref().filter(|_| remote.is_none()) {
         req = req.header("traceparent", context.traceparent());
         if let Some(state) = context.tracestate() {
@@ -651,6 +658,7 @@ async fn run(
             let key = match harness_core::error_key::parse(&error).map(|(k, _)| k) {
                 Some("link.timeout") => "link.timeout",
                 Some("link.tls_failed") => "link.tls_failed",
+                Some("link.certificate_invalid") => "link.certificate_invalid",
                 Some("link.dns_failed") => "link.dns_failed",
                 _ => "link.unreachable",
             };

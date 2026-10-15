@@ -32,6 +32,7 @@ pub struct Caller {
     /// Named token's id (policy and rate-limit counters); `None` for the client token and
     /// anonymous callers.
     pub token_id: Option<String>,
+    pub scopes: Vec<Scope>,
     /// The named token's policy (empty = unrestricted).
     pub policy: TokenPolicy,
     pub anthropic: bool,
@@ -246,6 +247,20 @@ pub fn check(
     anthropic: bool,
     endpoint: GatewayEndpoint,
 ) -> Result<Caller, GatewayError> {
+    authenticate(state, headers, anthropic, Some(endpoint), false)
+}
+
+pub fn whoami(state: &GwState, headers: &HeaderMap) -> Result<Caller, GatewayError> {
+    authenticate(state, headers, false, None, true)
+}
+
+fn authenticate(
+    state: &GwState,
+    headers: &HeaderMap,
+    anthropic: bool,
+    endpoint: Option<GatewayEndpoint>,
+    require_token: bool,
+) -> Result<Caller, GatewayError> {
     if !host_allowed(state, headers) {
         return Err(GatewayError::new(
             403,
@@ -258,7 +273,7 @@ pub fn check(
         anthropic,
         ..Default::default()
     };
-    let required = state.scheduler.settings().token_required();
+    let required = require_token || state.scheduler.settings().token_required();
     let Some(token) = presented(headers) else {
         if required {
             return Err(unauthorized(anthropic));
@@ -268,13 +283,14 @@ pub fn check(
     if control_api::ct_eq(token.as_bytes(), state.client_token.as_bytes()) {
         return Ok(Caller {
             token_name: Some("harness".into()),
+            scopes: vec![Scope::Inference],
             anthropic,
             ..Default::default()
         });
     }
     match state.tokens.verify(&token) {
         Some((info, scopes)) if control_api::allows(&scopes, Scope::Inference) => {
-            if !info.policy.allows_endpoint(endpoint) {
+            if let Some(endpoint) = endpoint.filter(|e| !info.policy.allows_endpoint(*e)) {
                 return Err(GatewayError::new(
                     403,
                     "endpoint_not_allowed",
@@ -295,6 +311,7 @@ pub fn check(
             Ok(Caller {
                 token_name: Some(info.name),
                 token_id: Some(info.id),
+                scopes,
                 policy: info.policy,
                 anthropic,
             })

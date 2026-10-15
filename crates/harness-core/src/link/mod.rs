@@ -41,6 +41,7 @@ pub struct LinkStatus {
     pub model_count: usize,
     pub last_error: Option<String>,
     pub last_ok: Option<u64>,
+    pub warning: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -170,6 +171,7 @@ pub fn transport_error(error: reqwest::Error, token: &str) -> String {
     let error = error.without_url();
     let classified = crate::http_error::transport(&error, "");
     let key = match crate::error_key::parse(&classified).map(|(key, _)| key) {
+        _ if certificate_invalid(&error) => "link.certificate_invalid",
         Some("http.tls_failed") => "link.tls_failed",
         Some("http.dns_failed") => "link.dns_failed",
         _ if error.is_timeout() => "link.timeout",
@@ -177,6 +179,37 @@ pub fn transport_error(error: reqwest::Error, token: &str) -> String {
     };
     // Only the classified key escapes this boundary; remote text can contain credentials.
     crate::integrations::launch::redact_text(&String::from(err(key)), vec![token])
+}
+
+fn certificate_invalid(error: &(dyn std::error::Error + 'static)) -> bool {
+    let mut source = Some(error);
+    while let Some(error) = source {
+        let text = error.to_string().to_ascii_lowercase();
+        if [
+            "certificate",
+            "cert validation",
+            "unknownissuer",
+            "unknown issuer",
+            "cert_e_",
+            "sec_e_untrusted_root",
+            "sec_e_wrong_principal",
+        ]
+        .iter()
+        .any(|s| text.contains(s))
+        {
+            return true;
+        }
+        source = error.source();
+    }
+    false
+}
+
+fn scope_warning(token: &str, identity: &serde_json::Value) -> Option<String> {
+    (token.starts_with("hss_")
+        || identity["scopes"]
+            .as_array()
+            .is_some_and(|scopes| scopes.iter().any(|s| s == "admin")))
+    .then(|| err("link.inference_scope_warning").into())
 }
 
 pub fn token(link: &RemoteLink) -> Result<String, String> {
@@ -223,7 +256,7 @@ pub fn mark_failed(name: &str, key: &'static str) {
     c.status.last_error = Some(err(key).into());
 }
 
-async fn discover(link: &RemoteLink) -> Result<Vec<RemoteModel>, String> {
+async fn discover(link: &RemoteLink) -> Result<(Vec<RemoteModel>, Option<String>), String> {
     let base = validate_url(&link.base_url, link.allow_insecure_http).await?;
     let token = token(link)?;
     let http = client(10)?;
@@ -256,6 +289,9 @@ async fn discover(link: &RemoteLink) -> Result<Vec<RemoteModel>, String> {
     let mut models: Vec<RemoteModel> = data
         .iter()
         .filter_map(|v| {
+            if v["owned_by"] == "harness-link" {
+                return None;
+            }
             let id = v["id"].as_str()?;
             if id.is_empty() || id.len() > 1024 || id.chars().any(char::is_control) {
                 return None;
@@ -275,7 +311,17 @@ async fn discover(link: &RemoteLink) -> Result<Vec<RemoteModel>, String> {
         .collect();
     models.sort_by(|a, b| a.id.cmp(&b.id));
     models.dedup_by(|a, b| a.id == b.id);
-    Ok(models)
+    let identity = match http
+        .get(format!("{base}/v1/harness/whoami"))
+        .timeout(Duration::from_secs(10))
+        .bearer_auth(&token)
+        .send()
+        .await
+    {
+        Ok(response) if response.status().is_success() => response.json().await.unwrap_or_default(),
+        _ => serde_json::Value::Null,
+    };
+    Ok((models, scope_warning(&token, &identity)))
 }
 
 pub async fn refresh(link: &RemoteLink) -> LinkStatus {
@@ -286,6 +332,9 @@ pub async fn refresh(link: &RemoteLink) -> LinkStatus {
         .or_default()
         .revision;
     let result = discover(link).await;
+    let local_warning = token(link)
+        .ok()
+        .and_then(|token| scope_warning(&token, &serde_json::Value::Null));
     // An edit/removal while discovery was in flight must not restore stale state.
     if !AppSettings::load().links.contains(link) {
         return LinkStatus::default();
@@ -295,11 +344,15 @@ pub async fn refresh(link: &RemoteLink) -> LinkStatus {
     if c.revision != revision {
         return c.status.clone();
     }
+    if local_warning.is_some() {
+        c.status.warning = local_warning;
+    }
     match result {
-        Ok(models) => {
+        Ok((models, warning)) => {
             c.status.state = State::Online;
             c.status.model_count = models.len();
             c.status.last_error = None;
+            c.status.warning = warning;
             c.status.last_ok = Some(
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -488,6 +541,9 @@ async fn update_inner(
         if prior.as_ref().is_some_and(|p| p.base_url != link.base_url) {
             c.models.clear();
             c.status = LinkStatus::default();
+        }
+        if old_token.as_deref() != Some(token.as_str()) {
+            c.status.warning = scope_warning(&token, &serde_json::Value::Null);
         }
         c.revision += 1;
     }

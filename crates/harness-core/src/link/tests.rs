@@ -1,6 +1,66 @@
 use super::*;
 
 #[test]
+fn full_access_tokens_warn_without_blocking() {
+    let admin = serde_json::json!({"scopes": ["read", "admin"]});
+    let inference = serde_json::json!({"scopes": ["inference"]});
+    for (token, identity, expected) in [
+        ("hs_named", &admin, true),
+        ("hs_named", &inference, false),
+        ("hs_named", &serde_json::Value::Null, false),
+        ("hss_session", &serde_json::Value::Null, true),
+        ("hss_session", &inference, true),
+    ] {
+        let warning = scope_warning(token, identity);
+        assert_eq!(warning.is_some(), expected);
+        if let Some(warning) = warning {
+            assert_eq!(
+                crate::error_key::parse(&warning).unwrap().0,
+                "link.inference_scope_warning"
+            );
+        }
+    }
+}
+
+#[test]
+fn certificate_errors_are_distinct_from_other_tls_failures() {
+    #[derive(Debug)]
+    struct Wrapped(std::io::Error);
+    impl std::fmt::Display for Wrapped {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("TLS connection failed")
+        }
+    }
+    impl std::error::Error for Wrapped {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            Some(&self.0)
+        }
+    }
+    for detail in [
+        "invalid peer certificate: UnknownIssuer",
+        "self signed certificate",
+        "certificate has expired",
+        "CERT_E_CN_NO_MATCH",
+        "SEC_E_UNTRUSTED_ROOT",
+    ] {
+        assert!(
+            certificate_invalid(&Wrapped(std::io::Error::other(detail))),
+            "{detail}"
+        );
+    }
+    for detail in [
+        "TLS handshake failed",
+        "connection refused",
+        "dns lookup failed",
+    ] {
+        assert!(
+            !certificate_invalid(&Wrapped(std::io::Error::other(detail))),
+            "{detail}"
+        );
+    }
+}
+
+#[test]
 fn remote_ids_preserve_model_paths() {
     let id = model_id("office", "org/model:latest");
     assert_eq!(parse_model(&id), Some(("office", "org/model:latest")));

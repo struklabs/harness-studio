@@ -20,6 +20,7 @@
     model_count: number;
     last_error: string | null;
     last_ok: number | null;
+    warning: string | null;
   }
 
   let links = $state<Link[]>([]);
@@ -36,6 +37,7 @@
   let formError = $state('');
   let alive = true;
   const http = $derived(address.trim().toLowerCase().startsWith('http:'));
+  const warning = $derived(token ? (token.startsWith('hss_') ? t('link.inference_scope_warning') : '') : errorText(editing?.warning ?? ''));
 
   async function load() {
     try {
@@ -66,9 +68,11 @@
     formError = '';
     try {
       const args = { name, baseUrl: address, token: token || null, allowInsecureHttp: http && allowHttp };
-      if (editing) await invoke('link_update', { ...args, id: editing.id, enabled });
-      else await invoke('link_add', { ...args, token });
-      open = false;
+      const result = editing
+        ? await invoke<Link>('link_update', { ...args, id: editing.id, enabled })
+        : await invoke<Link>('link_add', { ...args, token });
+      editing = result;
+      open = !!result.warning;
       await load();
     } catch (e) { formError = errorText(e); }
     finally { token = ''; busy = false; }
@@ -77,7 +81,11 @@
   async function test(link: Link) {
     busy = true;
     error = '';
-    try { await invoke('link_test', { id: link.id }); await load(); }
+    try {
+      await invoke('link_test', { id: link.id });
+      await load();
+      if (editing?.id === link.id) editing = links.find((item) => item.id === link.id) ?? editing;
+    }
     catch (e) { error = errorText(e); }
     finally { busy = false; }
   }
@@ -109,6 +117,7 @@
       </div>
       <p class="break-all font-mono text-xs text-muted-foreground">{link.base_url}</p>
       {#if link.last_error}<p class="text-xs text-destructive">{errorText(link.last_error)}</p>{/if}
+      {#if link.warning}<p class="text-xs text-muted-foreground" role="status">{errorText(link.warning)}</p>{/if}
       {#if link.last_ok}<p class="text-xs text-muted-foreground">{t('link.last_ok', { time: new Date(link.last_ok * 1000).toLocaleString() })}</p>{/if}
       <div class="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" disabled={busy} onclick={() => test(link)}>{t('link.test')}</Button>
@@ -134,7 +143,9 @@
       {#if http}<label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={allowHttp} disabled={busy} />{t('link.allow_http')}</label>{/if}
       {#if editing}<label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={enabled} disabled={busy} />{t('link.enabled')}</label>{/if}
       {#if formError}<p class="text-sm text-destructive" role="alert">{formError}</p>{/if}
+      {#if warning}<p class="text-sm text-muted-foreground" role="status">{warning}</p>{/if}
       <Dialog.Footer>
+        {#if editing}<Button type="button" variant="outline" disabled={busy} onclick={() => test(editing!)}>{t('link.test')}</Button>{/if}
         <Button type="button" variant="outline" disabled={busy} onclick={() => { open = false; token = ''; }}>{t('link.cancel')}</Button>
         <Button type="submit" disabled={busy || (http && !allowHttp)}>{t('link.save')}</Button>
       </Dialog.Footer>
