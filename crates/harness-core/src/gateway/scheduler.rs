@@ -214,7 +214,7 @@ impl SchedError {
                 tried,
                 ..
             } => format!(
-                "Not enough GPU memory to load \"{}\" (needs about {}, {} free){}{}.",
+                "Not enough GPU memory to load \"{}\" (needs about {} with the memory reserve, {} free){}{}.",
                 alias,
                 mib(*need_bytes),
                 mib(*available_bytes),
@@ -2054,7 +2054,9 @@ impl Scheduler {
             }
             return Err(SchedError::InsufficientMemory {
                 alias: def.alias.clone(),
-                need_bytes: Some(need),
+                // What admission compared with the free memory: the estimate plus the memory
+                // reserve (the bare estimate can be below "free" and read as a contradiction).
+                need_bytes: Some(need.saturating_add(load_headroom)),
                 available_bytes: Some(available),
                 // Only what could not leave: pinned, busy or user-started models. The idle
                 // models were already counted as gone (`footprints`), so they are not listed.
