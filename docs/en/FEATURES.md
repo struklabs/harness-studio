@@ -220,7 +220,7 @@ According to the `--help` output of llama-server build 11236:
 | Remote instance (`--host`) | ✅ (`HARNESS_HOST` + `HARNESS_TOKEN`, named-token scopes) | ✅ | ✅ (`OLLAMA_HOST`) | — |
 | Its own MCP server (agents use Harness as a tool) | ✅ (`harness mcp` stdio + Control API `/mcp`, 20 tools (16 in the default scope; 4 conversation tools need the `conversations` scope), token scopes; [MCP.md](MCP.md)) | ❌ | ❌ | A differentiator |
 | `launch <tool>` (start a tool with the right environment) | ✅ (`harness launch`) | ❌ | ✅ | **L** |
-| Official SDKs (JS / Python) and plugin development (`lms dev`, `lms push`/`clone` to the Hub) | ❌ (OpenAPI schema + MCP; no SDK) | ✅ | ✅ (Python / JS client libraries) | Control API SDKs are planned (see the ROADMAP); a plugin runtime and Hub publishing are deliberately out of scope (§14) |
+| Official SDKs (JS / Python) and plugin development (`lms dev`, `lms push`/`clone` to the Hub) | 🟡 (TypeScript and Python clients of the Control API in [`sdk/`](../../sdk/README.md), generated from the OpenAPI schema; not on npm / PyPI yet) | ✅ | ✅ (Python / JS client libraries) | A plugin runtime and Hub publishing are deliberately out of scope (§14) |
 | Shell completion | ✅ (`harness completion <shell>`) | ? | ❌ | — |
 
 ## 10. Integrations

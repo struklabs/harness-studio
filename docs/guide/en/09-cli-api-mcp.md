@@ -23,6 +23,22 @@ Management requests are protected by a token. The exceptions for local `/health`
 
 On the **CLI** page (**Settings > Developer > CLI**), **Use in a Terminal** shows the command-line tool and **Add to PATH** makes `harness` available from a terminal; open a new terminal afterwards. CLI output is in English.
 
+## Use the API from Code
+
+The repository has ready-made clients for the Control API in [`sdk/`](../../../sdk/README.md): a TypeScript package and a Python package. They are generated from the OpenAPI schema, so every endpoint, parameter and answer has a type. They are not on npm or PyPI yet; install them from the repository folder.
+
+Both find the running Harness Studio by themselves: the app, or `harness serve`, writes its address to `instance.json` in its data folder, and the session token is in `api-token` next to it. On another computer, give the address and a named token instead.
+
+```python
+from harness_studio import connect, unwrap
+from harness_studio_api.api.system import get_status
+
+status = unwrap(get_status.sync_detailed(client=connect()))
+print(status.version)
+```
+
+An error answer becomes an exception (`HarnessError` in Python, `HarnessApiError` in TypeScript) that carries the same `code` the app shows, for example `api.insufficient_scope` when the token lacks a scope.
+
 ## Two Directions of MCP
 
 When Harness Studio is an **MCP server**, other agents call its management tools. `harness mcp` is the local command route; the Control API also offers an HTTP MCP endpoint. Follow the [MCP reference](../../en/MCP.md) for setup and scopes. You can also add it to a client from **Connections > Tools and Clients > Add Harness MCP**.

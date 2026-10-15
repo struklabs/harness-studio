@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[project]
+name = "harness-studio-sdk"
+version = "0.1.0"
+description = "Python client for the Harness Studio Control API (generated from its OpenAPI document)."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = [
+    "httpx>=0.23,<0.29",
+    "attrs>=22.2",
+    "python-dateutil>=2.8",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Repository = "https://github.com/struklabs/harness-studio"
+
+[dependency-groups]
+test = ["pytest==9.1.1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/harness_studio", "src/harness_studio_api"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

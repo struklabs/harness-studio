@@ -1,0 +1,39 @@
+# harness-studio-sdk (TypeScript)
+
+Typed client of the [Harness Studio](https://github.com/struklabs/harness-studio) Control API. Every path, parameter, request body and answer comes from the API's OpenAPI document; requests go through [openapi-fetch](https://openapi-ts.dev/openapi-fetch/).
+
+Not on npm yet. Build it from the repository:
+
+```bash
+cd sdk/typescript
+npm ci
+npm run build
+```
+
+## Use
+
+```ts
+import { connect } from 'harness-studio-sdk/node';
+import { unwrap } from 'harness-studio-sdk';
+
+// Finds the running app or `harness serve` through <data dir>/instance.json
+// (HARNESS_DATA_DIR, else the app's folder) and uses the session token.
+const client = connect();
+
+const status = await unwrap(client.GET('/api/harness/v1/status'));
+console.log(status.version, status.servers.running);
+
+const library = await unwrap(client.GET('/api/harness/v1/models'));
+await unwrap(client.POST('/api/harness/v1/load', { body: { alias: library.definitions[0].alias } }));
+```
+
+- `createHarnessClient({ baseUrl, token })` connects to a given address (another computer, a named token). It works in browsers too; `harness-studio-sdk/node` adds `connect()` and `discover()`, which read files.
+- `client.GET / POST / PUT / PATCH / DELETE` return `{ data, error, response }`. `unwrap(...)` returns `data` or throws a `HarnessApiError` with `status`, `code` (`api.not_found`, `api.insufficient_scope`...), `messageKey` and `params`.
+- `streamEvents(client, { types, signal })` yields the event bus (`GET /events`) as `{ type, event }`; `readServerSentEvents(response)` reads any event stream, for example `/servers/{id}/logs/stream`.
+- Schema types are exported by name: `import type { ModelDefinition, ServerView } from 'harness-studio-sdk'`.
+
+Examples: [`examples/status.mjs`](examples/status.mjs), [`examples/load-model.mjs`](examples/load-model.mjs).
+
+## Development
+
+`src/schema.ts` is generated: run `node sdk/generate.mjs` from the repository root, don't edit it. Tests: see [`sdk/README.md`](../README.md#tests). `npm run typecheck` checks the sources, tests and examples.
