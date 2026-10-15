@@ -47,6 +47,7 @@ const tr = {
   'mcp.import_config_not_found': 'Yapılandırma bulunamadı: {path}',
   'mcp.import_state_locked': 'MCP içe aktarma durumu kilitlendi.',
   'desktop.autostart_failed': 'Oturum açılışında başlatma ayarlanamadı: {error}',
+  'desktop.autostart_status_failed': 'Oturum açılışında başlatma durumu okunamadı: {error}',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -96,6 +97,7 @@ const en: Record<keyof typeof tr, string> = {
   'mcp.import_config_not_found': 'Config not found: {path}',
   'mcp.import_state_locked': 'The MCP import state is locked.',
   'desktop.autostart_failed': 'Could not set up launch at login: {error}',
+  'desktop.autostart_status_failed': 'Could not read the launch at login status: {error}',
 };
 
 export default { tr, en };
