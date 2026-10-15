@@ -493,12 +493,13 @@ pub fn pick_assets(
                     && (a.name.ends_with(".zip") || a.name.ends_with(".tar.gz"))
             })
             .collect();
-        // Prefer standard archives to portable builds, then the lowest CUDA
-        // version (12.4 before 13.3, for older NVIDIA drivers).
+        // Prefer portable builds: the standard archives are built for the release runner's CPU
+        // (AVX-512) and die with SIGILL on most desktop CPUs; portable ones pick the CPU code at
+        // run time. Then the lowest CUDA version (12.4 before 13.3, for older NVIDIA drivers).
         hits.sort_by(|a, b| {
-            a.name
+            b.name
                 .contains("portable")
-                .cmp(&b.name.contains("portable"))
+                .cmp(&a.name.contains("portable"))
                 .then_with(|| a.name.cmp(&b.name))
         });
         if let Some(main) = hits.first() {
@@ -1013,7 +1014,7 @@ mod tests {
             "audio-v0.9.1-bin-windows-x64-vulkan.zip", "audio-v0.9.1-bin-windows-x64-vulkan-portable.zip", "audio-v0.9.1-bin-windows-x64-cpu.zip",
             "audio-v0.9.1-bin-windows-x64-cuda12.4.zip", "audio-v0.9.1-bin-windows-x64-cuda13.3.zip",
             "audio-v0.9.1-cudart-windows-x64-cuda12.4.zip", "audio-v0.9.1-cudart-windows-x64-cuda13.3.zip",
-            "audio-v0.9.1-bin-ubuntu-x64-vulkan.tar.gz", "audio-v0.9.1-bin-ubuntu-x64-cpu.tar.gz",
+            "audio-v0.9.1-bin-ubuntu-x64-vulkan.tar.gz", "audio-v0.9.1-bin-ubuntu-x64-vulkan-portable.tar.gz", "audio-v0.9.1-bin-ubuntu-x64-cpu.tar.gz",
             "audio-v0.9.1-bin-macos-arm64-metal.tar.gz", "audio-v0.9.1-bin-macos-x64-metal.tar.gz",
         ].iter().map(|n| serde_json::from_value(serde_json::json!({"name":n,"download_url":"https://example.test/archive","size":1})).unwrap()).collect();
         for backend in ["vulkan", "rocm", "sycl"] {
@@ -1025,7 +1026,10 @@ mod tests {
             )
             .unwrap();
             assert_eq!(b.as_deref(), Some("vulkan"));
-            assert_eq!(a[0].name, "audio-v0.9.1-bin-windows-x64-vulkan.zip");
+            assert_eq!(
+                a[0].name,
+                "audio-v0.9.1-bin-windows-x64-vulkan-portable.zip"
+            );
         }
         let (a, b) = pick_assets(&assets, &["cuda".into()], "windows", "x86_64").unwrap();
         assert_eq!(b.as_deref(), Some("cuda"));
@@ -1043,12 +1047,19 @@ mod tests {
                 Some("metal")
             );
         }
+        let (a, b) = pick_assets(&assets, &["vulkan".into()], "linux", "x86_64").unwrap();
+        assert_eq!(b.as_deref(), Some("vulkan"));
         assert_eq!(
-            pick_assets(&assets, &["vulkan".into()], "linux", "x86_64")
+            a[0].name,
+            "audio-v0.9.1-bin-ubuntu-x64-vulkan-portable.tar.gz"
+        );
+        // Without a portable archive the standard one is still taken.
+        assert_eq!(
+            pick_assets(&assets, &["cpu".into()], "linux", "x86_64")
                 .unwrap()
-                .1
-                .as_deref(),
-            Some("vulkan")
+                .0[0]
+                .name,
+            "audio-v0.9.1-bin-ubuntu-x64-cpu.tar.gz"
         );
         assert_eq!(
             pick_assets(&assets, &["cpu".into()], "windows", "x86_64")
