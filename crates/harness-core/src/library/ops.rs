@@ -224,6 +224,7 @@ pub fn delete_preview(
 /// Deletes a library model's files (every part). Refuses linked models and any file outside
 /// `roots` (the library directories); checks everything before removing anything.
 pub fn delete_files(model: &LocalModel, roots: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
+    let _mutation = crate::models::LibraryMutation::begin();
     if model.source.is_some() || model.origin == ModelOrigin::Linked {
         return Err(err("library.linked_not_deletable").into());
     }
@@ -338,24 +339,50 @@ fn root_of<'a>(path: &Path, roots: &'a [PathBuf]) -> Option<&'a PathBuf> {
 /// files as `<library>/<owner>/<repo>/<path in repo>` (LM Studio uses the same layout, so a
 /// linked LM Studio folder yields one too when it is a library root). `None` elsewhere.
 pub fn repo_of(model: &LocalModel, roots: &[PathBuf]) -> Option<String> {
-    let root = root_of(&model.path, roots)?;
-    let rel = crate::paths::normalize(&model.path);
-    let rel = rel
-        .strip_prefix(crate::paths::normalize(root))
-        .ok()?
-        .to_path_buf();
-    let parts: Vec<String> = rel
-        .components()
-        .map(|c| c.as_os_str().to_string_lossy().to_string())
-        .collect();
-    // A file sits inside `<owner>/<repo>/`; a model folder (mistral.rs) is that folder itself.
-    let min = if model.path.is_dir() { 2 } else { 3 };
-    if parts.len() < min {
-        return None;
+    RepoLookup::new(roots).repo_of(model)
+}
+
+/// Resolve library roots once per listing while retaining is_within's symlink
+/// and missing-path semantics. No filesystem facts survive the listing.
+pub(super) struct RepoLookup<'a> {
+    roots: Vec<(&'a PathBuf, PathBuf)>,
+}
+
+impl<'a> RepoLookup<'a> {
+    pub(super) fn new(roots: &'a [PathBuf]) -> Self {
+        Self {
+            roots: roots
+                .iter()
+                .map(|r| (r, crate::paths::canonicalize_lenient(r)))
+                .collect(),
+        }
     }
-    let repo_id = format!("{}/{}", parts[0], parts[1]);
-    crate::downloader::DownloadManager::validate_repo_id(&repo_id).ok()?;
-    Some(repo_id)
+
+    pub(super) fn repo_of(&self, model: &LocalModel) -> Option<String> {
+        if self.roots.is_empty() {
+            return None;
+        }
+        let path = crate::paths::canonicalize_lenient(&model.path);
+        let (root, _) = self
+            .roots
+            .iter()
+            .filter(|(_, resolved)| path.starts_with(resolved))
+            .max_by_key(|(root, _)| root.as_os_str().len())?;
+        let rel = crate::paths::normalize(&model.path);
+        let rel = rel.strip_prefix(crate::paths::normalize(root)).ok()?;
+        let parts: Vec<String> = rel
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().to_string())
+            .collect();
+        // A file sits inside <owner>/<repo>/; a checkpoint folder is the repo itself.
+        let min = if model.path.is_dir() { 2 } else { 3 };
+        if parts.len() < min {
+            return None;
+        }
+        let repo_id = format!("{}/{}", parts[0], parts[1]);
+        crate::downloader::DownloadManager::validate_repo_id(&repo_id).ok()?;
+        Some(repo_id)
+    }
 }
 
 /// Whether and where the missing parts of a split model can be downloaded again.

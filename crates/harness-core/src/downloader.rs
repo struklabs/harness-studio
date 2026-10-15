@@ -1470,7 +1470,10 @@ impl DownloadManager {
     }
 
     pub fn validate_repo_id(repo_id: &str) -> Result<(), String> {
-        let re = Regex::new(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$").unwrap();
+        static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+        let re = RE.get_or_init(|| {
+            Regex::new(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$").unwrap()
+        });
         if re.is_match(repo_id) && !repo_id.contains("..") {
             Ok(())
         } else {
@@ -2931,6 +2934,7 @@ impl DownloadManager {
                     )
                 })?;
             }
+            let _mutation = crate::models::LibraryMutation::begin();
             tokio::fs::rename(&part_path, &target_path)
                 .await
                 .map_err(|e| {

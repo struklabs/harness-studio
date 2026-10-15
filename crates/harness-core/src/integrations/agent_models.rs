@@ -326,12 +326,7 @@ pub fn list() -> Result<Vec<AgentModel>, String> {
     let checks = ToolChecks::load(&checks_file());
     // Analytics may be off or unreadable: the other signals still count.
     let signals = crate::analytics::agent_signals().unwrap_or_default();
-    let mut models = build(
-        &defs,
-        |p| crate::gguf::read_gguf_metadata(p).ok(),
-        &checks,
-        &signals,
-    );
+    let mut models = build(&defs, crate::models::cached_metadata, &checks, &signals);
     let runs = crate::benchmark::load_history();
     for m in &mut models {
         let def = defs

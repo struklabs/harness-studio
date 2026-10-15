@@ -1,3 +1,8 @@
+pub(crate) mod discovery;
+mod scan_cache;
+pub use scan_cache::invalidate_scan;
+pub(crate) use scan_cache::LibraryMutation;
+
 use crate::config::AppSettings;
 use crate::error_key::err;
 use crate::gguf::{read_gguf_metadata, GgufMetadata};
@@ -191,17 +196,35 @@ pub fn is_decision_model(path: &Path) -> bool {
     cached_metadata(path).is_some_and(|m| m.decision_type.is_some())
 }
 
+#[cfg(test)]
+thread_local! {
+    static METADATA_STATS: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
+}
+
 /// Header parsing is cached by (path, size, mtime) so rescans are cheap.
 pub(crate) fn cached_metadata(path: &Path) -> Option<GgufMetadata> {
+    cached_metadata_for(path, &fs::metadata(path).ok()?)
+}
+
+fn cached_metadata_for(path: &Path, md: &fs::Metadata) -> Option<GgufMetadata> {
     use std::sync::Mutex;
     type Key = (PathBuf, u64, Option<std::time::SystemTime>);
     static CACHE: Mutex<Option<HashMap<Key, GgufMetadata>>> = Mutex::new(None);
 
-    let md = fs::metadata(path).ok()?;
     let key = (path.to_path_buf(), md.len(), md.modified().ok());
     if let Some(hit) = CACHE.lock().unwrap().as_ref().and_then(|c| c.get(&key)) {
+        #[cfg(test)]
+        METADATA_STATS.with(|s| {
+            let (hits, misses) = s.get();
+            s.set((hits + 1, misses));
+        });
         return Some(hit.clone());
     }
+    #[cfg(test)]
+    METADATA_STATS.with(|s| {
+        let (hits, misses) = s.get();
+        s.set((hits, misses + 1));
+    });
     let meta = read_gguf_metadata(path).ok()?;
     CACHE
         .lock()
@@ -409,10 +432,19 @@ fn ggml_bin_traits(filename: &str) -> (crate::domain::ModelKind, String) {
 /// tensors) is [`crate::domain::ModelKind::Image`].
 fn image_aware_kind(path: &Path, metadata: Option<&GgufMetadata>) -> crate::domain::ModelKind {
     use crate::domain::ModelKind;
-    if crate::engine::crispasr::is_model(path) {
+    if metadata.is_none_or(crate::engine::crispasr::supports_metadata)
+        && crate::engine::crispasr::is_model(path)
+    {
         return ModelKind::Asr;
     }
-    if crate::engine::crispasr::is_asr_gguf(path) {
+    if metadata.map_or_else(
+        || crate::engine::crispasr::is_asr_gguf(path),
+        |m| {
+            m.architecture
+                .as_deref()
+                .is_some_and(|a| crate::engine::crispasr::is_asr_arch(a) || a == "cohere_asr")
+        },
+    ) {
         return ModelKind::Unknown;
     }
     let kind = crate::domain::detect_kind(metadata);
@@ -445,6 +477,11 @@ fn image_file_traits(filename: &str) -> (String, String) {
     (stem, precision.unwrap_or(container))
 }
 
+fn split_regex() -> &'static Regex {
+    static REGEX: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"(?i)^(.*?)-(\d{5})-of-(\d{5})\.gguf$").unwrap())
+}
+
 /// (parent dir, base name, total shard count)
 type SplitKey = (PathBuf, String, u32);
 /// (shard index, path, size)
@@ -457,17 +494,15 @@ impl ModelManager {
     /// Scans every configured model directory (primary + extra).
     pub fn scan_models(&self) -> Vec<LocalModel> {
         let settings = AppSettings::load();
-        let mut models = self.scan_directories(&settings.all_models_dirs());
-        models.extend(Self::external_models(&models));
-        models.sort_by(|a, b| a.name.cmp(&b.name));
-        models
+        scan_cache::scan(&settings.all_models_dirs())
     }
 
     /// Models linked from Ollama / LM Studio that aren't already in a library dir.
     fn external_models(known: &[LocalModel]) -> Vec<LocalModel> {
+        let known: std::collections::HashSet<_> = known.iter().map(|m| &m.path).collect();
         crate::importer::load_external()
             .into_iter()
-            .filter(|e| e.path.is_file() && !known.iter().any(|m| m.path == e.path))
+            .filter(|e| e.path.is_file() && !known.contains(&e.path))
             .map(|e| {
                 let metadata = cached_metadata(&e.path);
                 let kind = crate::domain::detect_kind(metadata.as_ref());
@@ -513,8 +548,8 @@ impl ModelManager {
             .collect()
     }
 
-    /// Looks up a model by id in a fresh scan, so callers never act on
-    /// file paths supplied by the frontend.
+    /// Looks up a model by id in the shared library scan, so callers never act on
+    /// file paths supplied by the frontend. Mutations validate paths again before use.
     pub fn find_model(&self, model_id: &str) -> Option<LocalModel> {
         self.scan_models().into_iter().find(|m| m.id == model_id)
     }
@@ -526,25 +561,13 @@ impl ModelManager {
                 let _ = fs::create_dir_all(dir);
                 continue;
             }
-            let mut paths = Vec::new();
-            self.collect_gguf_files(dir, &mut paths);
-            models.extend(self.scan_files(dir, paths));
-            // Text-to-speech folders (Kokoro, Piper) are found by their files, not an extension.
-            models.extend(crate::tts::library_models(std::slice::from_ref(dir)));
-            // So are the speech-recognition ones (Parakeet, SenseVoice...) of sherpa-onnx.
-            models.extend(crate::asr::library_models(std::slice::from_ref(dir)));
-            // Safetensors checkpoints (a repo folder with `config.json`) run on mistral.rs.
-            models.extend(crate::engine::mistralrs_library_models(
-                std::slice::from_ref(dir),
-            ));
-            // Task models (classifiers, embedders, ASR, diffusers...) run on the Python engine.
-            models.extend(crate::engine::python_hf::library_models(
-                std::slice::from_ref(dir),
-            ));
-            // MLX checkpoints (mlx-community...) run on the MLX engine, on Apple Silicon.
-            models.extend(crate::engine::mlx::library_models(std::slice::from_ref(
-                dir,
-            )));
+            let mut tree = discovery::DirectoryTree::collect(dir);
+            models.extend(self.scan_files(dir, std::mem::take(&mut tree.paths)));
+            models.extend(crate::tts::library_models_in(dir, &tree));
+            models.extend(crate::asr::library_models_in(dir, &tree));
+            models.extend(crate::engine::mistralrs::library_models_in(dir, &tree));
+            models.extend(crate::engine::python_hf::library_models_in(dir, &tree));
+            models.extend(crate::engine::mlx::library_models_in(dir, &tree));
         }
         models.sort_by(|a, b| a.name.cmp(&b.name));
         models
@@ -552,7 +575,7 @@ impl ModelManager {
 
     /// Inspects only existing GGUF paths and their split siblings, without changing storage settings.
     pub fn inspect_gguf_paths(&self, paths: &[PathBuf]) -> Vec<LocalModel> {
-        let split_regex = Regex::new(r"(?i)^(.*?)-(\d{5})-of-(\d{5})\.gguf$").unwrap();
+        let split_regex = split_regex();
         let mut groups: HashMap<PathBuf, std::collections::HashSet<PathBuf>> = HashMap::new();
         for path in paths {
             let Ok(md) = path.symlink_metadata() else {
@@ -602,7 +625,7 @@ impl ModelManager {
 
     fn scan_files(&self, dir: &Path, gguf_paths: Vec<PathBuf>) -> Vec<LocalModel> {
         let mut all_models = Vec::new();
-        let split_regex = Regex::new(r"(?i)^(.*?)-(\d{5})-of-(\d{5})\.gguf$").unwrap();
+        let split_regex = split_regex();
         let root_dir_str = dir.to_string_lossy().to_string();
         let mut split_groups: HashMap<SplitKey, Vec<ShardEntry>> = HashMap::new();
         let mut single_files: Vec<PathBuf> = Vec::new();
@@ -663,9 +686,11 @@ impl ModelManager {
                 .and_then(|n| n.to_str())
                 .unwrap_or("")
                 .to_string();
-            let size_bytes = fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
-
-            let metadata = cached_metadata(&path);
+            let file_metadata = fs::metadata(&path).ok();
+            let size_bytes = file_metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+            let metadata = file_metadata
+                .as_ref()
+                .and_then(|md| cached_metadata_for(&path, md));
             let architecture = metadata.as_ref().and_then(|m| m.architecture.clone());
             let context_length = metadata.as_ref().and_then(|m| m.context_length);
             let quantization = metadata
@@ -831,48 +856,9 @@ impl ModelManager {
         all_models
     }
 
+    #[cfg(test)]
     fn collect_gguf_files(&self, dir: &Path, result: &mut Vec<PathBuf>) {
-        const MAX_SCAN_DEPTH: usize = 8;
-        let mut visited = std::collections::HashSet::new();
-        if let Ok(c) = fs::canonicalize(dir) {
-            visited.insert(c);
-        }
-        let mut stack = vec![(dir.to_path_buf(), 0usize)];
-
-        while let Some((current_dir, current_depth)) = stack.pop() {
-            let Ok(entries) = fs::read_dir(&current_dir) else {
-                continue;
-            };
-            for entry in entries.flatten() {
-                let path = entry.path();
-                let Ok(meta) = fs::symlink_metadata(&path) else {
-                    continue;
-                };
-                if meta.file_type().is_symlink() {
-                    // Do not follow directory symlinks/junctions.
-                    // If it is a file symlink pointing to a .gguf, allow collecting it.
-                    if fs::metadata(&path).map(|m| m.is_file()).unwrap_or(false)
-                        && is_model_extension(&path)
-                    {
-                        result.push(path);
-                    }
-                } else if meta.is_dir() {
-                    // Skip .cache directory
-                    if path.file_name().and_then(|n| n.to_str()) == Some(".cache") {
-                        continue;
-                    }
-                    let canon = fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
-                    if !visited.insert(canon) {
-                        continue;
-                    }
-                    if current_depth < MAX_SCAN_DEPTH {
-                        stack.push((path, current_depth + 1));
-                    }
-                } else if is_model_extension(&path) {
-                    result.push(path);
-                }
-            }
-        }
+        result.extend(discovery::DirectoryTree::collect(dir).paths);
     }
 
     pub fn delete_model(&self, model_id: &str) -> Result<(), String> {
@@ -1456,3 +1442,9 @@ mod tests {
         assert_eq!(onnx_kind(&graph), Some(crate::domain::ModelKind::Pipeline));
     }
 }
+
+#[cfg(test)]
+pub(crate) mod scan_bench;
+
+#[cfg(test)]
+mod scan_tests;

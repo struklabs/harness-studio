@@ -193,6 +193,7 @@ impl StorageManager {
     /// 4. Renames `.migrating` to final filename.
     /// 5. Safely deletes old source files only after all shards are completely verified.
     pub fn migrate_model(model: &LocalModel, target_dir_str: &str) -> Result<PathBuf, String> {
+        let _mutation = crate::models::LibraryMutation::begin();
         if model.source.is_some() {
             return Err(err("storage.linked_not_movable").into());
         }

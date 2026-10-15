@@ -211,6 +211,7 @@ pub(crate) async fn install_archive<T>(
         if detect(&unpacked).is_none() {
             return Err(String::from(err(not_a_model_key).with("id", id)));
         }
+        let _mutation = crate::models::LibraryMutation::begin();
         if target.exists() {
             let _ = tokio::fs::remove_dir_all(&target).await;
         }

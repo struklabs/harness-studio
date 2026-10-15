@@ -434,22 +434,47 @@ impl Domain {
     // --- model definitions ---
 
     pub fn definitions(&self) -> Result<Vec<ModelDefinition>, String> {
+        self.definitions_for_models(&[])
+    }
+
+    /// Reuse a library scan to rule out speech-task migrations for known GGUFs.
+    /// Speech candidates and files absent from the scan retain the full checks.
+    pub(crate) fn definitions_for_models(
+        &self,
+        models: &[crate::models::LocalModel],
+    ) -> Result<Vec<ModelDefinition>, String> {
+        let non_speech: std::collections::HashSet<_> = models
+            .iter()
+            .filter(|m| {
+                m.gguf.as_ref().is_some_and(|g| {
+                    !crate::engine::crispasr::supports_metadata(g)
+                        && !matches!(g.architecture.as_deref(), Some("kokoro" | "pocket-tts"))
+                })
+            })
+            .map(|m| m.path.as_path())
+            .collect();
         let _g = domain_lock();
         let mut definitions = self.state()?.defs.definitions;
         // Older definitions also carry the task in the UI before their next save.
         for def in &mut definitions {
-            if def
+            let known_non_speech = def
                 .base
                 .local_path()
-                .is_some_and(crate::engine::crispasr_tts::is_model)
+                .is_some_and(|p| non_speech.contains(p));
+            if !known_non_speech
+                && def
+                    .base
+                    .local_path()
+                    .is_some_and(crate::engine::crispasr_tts::is_model)
             {
                 def.load
                     .insert("task".into(), ParamValue::Text("crispasr_tts".into()));
             }
-            if def
-                .base
-                .local_path()
-                .is_some_and(crate::engine::crispasr::is_model)
+            if !known_non_speech
+                && def
+                    .base
+                    .local_path()
+                    .is_some_and(crate::engine::crispasr::is_model)
             {
                 def.load
                     .insert("task".into(), ParamValue::Text("crispasr".into()));

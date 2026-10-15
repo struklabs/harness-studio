@@ -402,6 +402,21 @@ pub fn to_local_model(dir: &Path, info: &ModelDirInfo, root: &Path) -> crate::mo
     }
 }
 
+pub(crate) fn library_models_in(
+    root: &Path,
+    tree: &crate::models::discovery::DirectoryTree,
+) -> Vec<crate::models::LocalModel> {
+    tree.scan(
+        root,
+        &["config.json"],
+        |dir| inspect(dir).map(|info| (dir.to_path_buf(), info)),
+        |m| m.0.clone(),
+    )
+    .into_iter()
+    .map(|(dir, info)| to_local_model(&dir, &info, root))
+    .collect()
+}
+
 /// Safetensors model folders under `roots` (a few levels deep: `<root>/<owner>/<repo>`).
 pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {
     roots
@@ -437,6 +452,7 @@ pub fn delete_model_dir(dir: &Path, roots: &[PathBuf]) -> Result<(), String> {
 
 /// Removes `dir` (everything in it) when it is strictly inside one of `roots`.
 pub(crate) fn remove_folder_within(dir: &Path, roots: &[PathBuf]) -> Result<(), String> {
+    let _mutation = crate::models::LibraryMutation::begin();
     let inside = roots.iter().any(|r| {
         crate::paths::is_within(dir, r)
             && crate::paths::normalize(dir) != crate::paths::normalize(r)

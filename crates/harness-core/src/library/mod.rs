@@ -10,6 +10,13 @@
 //! * [`ops`]: reveal in folder, delete preview and safe delete, shard repair, the in-use
 //!   check and recording the last use when a server starts.
 
+macro_rules! bench_step {
+    ($label:expr) => {
+        #[cfg(test)]
+        crate::models::scan_bench::step($label);
+    };
+}
+
 pub mod draft;
 pub mod dupes;
 pub mod ops;
@@ -228,7 +235,7 @@ pub fn arrival_time(model: &LocalModel) -> Option<i64> {
 pub fn list(db: Option<&StateDb>, state_error: Option<String>) -> LibraryView {
     let models = crate::models::ModelManager.scan_models();
     let defs = crate::domain::store::Domain::global()
-        .definitions()
+        .definitions_for_models(&models)
         .unwrap_or_default();
     let roots = crate::config::AppSettings::load().all_models_dirs();
     list_from(models, &defs, &roots, db, state_error)
@@ -245,22 +252,47 @@ pub fn list_from(
     let mut states = Vec::new();
     let mut alias_uses = HashMap::new();
     if let Some(db) = db {
-        // Remember when files arrived (only rows without a value change).
-        let arrived: Vec<(String, i64)> = models
-            .iter()
-            .filter_map(|m| Some((state_key(&m.path), arrival_time(m)?)))
-            .collect();
-        if !db.is_read_only() {
-            if let Err(e) = db.note_models_added(&arrived) {
-                state_error.get_or_insert(e.to_string());
-            }
-        }
         match db.model_states() {
             Ok(s) => states = s,
             Err(e) => {
                 state_error.get_or_insert(e.to_string());
             }
         }
+        bench_step!("model_states query");
+        // Existing arrival times are immutable. Avoid both file stats and a write
+        // transaction on a steady-state listing; newly seen files are one batch.
+        if !db.is_read_only() {
+            let noted: std::collections::HashSet<&str> = states
+                .iter()
+                .filter(|s| s.added_at.is_some())
+                .map(|s| s.model_id.as_str())
+                .collect();
+            let arrived: Vec<_> = models
+                .iter()
+                .filter_map(|m| {
+                    let key = state_key(&m.path);
+                    if noted.contains(key.as_str()) {
+                        return None;
+                    }
+                    Some((key, arrival_time(m)?))
+                })
+                .collect();
+            bench_step!("arrival metadata (missing rows only)");
+            if !arrived.is_empty() {
+                match db.note_models_added(&arrived) {
+                    Ok(()) => match db.model_states() {
+                        Ok(s) => states = s,
+                        Err(e) => {
+                            state_error.get_or_insert(e.to_string());
+                        }
+                    },
+                    Err(e) => {
+                        state_error.get_or_insert(e.to_string());
+                    }
+                }
+            }
+        }
+        bench_step!("note_models_added + refresh if new");
         alias_uses = db.latest_alias_uses().unwrap_or_default();
         if db.is_read_only() {
             state_error.get_or_insert_with(|| {
@@ -271,10 +303,12 @@ pub fn list_from(
             });
         }
     }
+    bench_step!("latest_alias_uses query");
     let mut entries = build_entries(models, &states, defs, &alias_uses, roots);
     apply_observations(&mut entries, &|p| {
         crate::capabilities::registry().observation_for(p)
     });
+    bench_step!("capability observation_for loop");
     LibraryView {
         entries,
         state_error,
@@ -313,31 +347,54 @@ pub fn build_entries(
         .iter()
         .map(|s| (norm(Path::new(&s.model_id)), s))
         .collect();
+    bench_step!("state index");
     let param_infos: Vec<ParamInfo> = models.iter().map(params::param_info).collect();
 
-    // Projector pairs (same folder; see `projector_matches`).
-    let projectors: Vec<usize> = (0..models.len())
-        .filter(|&i| models[i].kind == ModelKind::Mmproj)
-        .collect();
-    let mut pairs: Vec<Vec<String>> = vec![Vec::new(); models.len()];
-    for (i, m) in models.iter().enumerate() {
-        if m.kind != ModelKind::Llm {
-            continue;
+    bench_step!("params::param_info loop");
+
+    // Resolve each repository once: repo_of checks containment on disk (including
+    // symlinks). Repeating it for every LLM/projector pair is expensive on Windows.
+    let repo_lookup = ops::RepoLookup::new(roots);
+    let repos: Vec<_> = models.iter().map(|m| repo_lookup.repo_of(m)).collect();
+    let mut by_dir: HashMap<Option<&Path>, Vec<usize>> = HashMap::new();
+    let mut by_repo: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (i, m) in models
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.kind == ModelKind::Mmproj)
+    {
+        by_dir.entry(m.path.parent()).or_default().push(i);
+        if let Some(repo) = repos[i].as_deref() {
+            by_repo.entry(repo).or_default().push(i);
         }
-        let same_dir: Vec<usize> = projectors
-            .iter()
-            .copied()
-            .filter(|&j| models[j].path.parent() == m.path.parent())
-            .collect();
-        for &j in &projectors {
-            if projector_matches(m, &models[j], same_dir.len(), roots) {
+    }
+    let mut pairs: Vec<Vec<String>> = vec![Vec::new(); models.len()];
+    for (i, m) in models
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.kind == ModelKind::Llm)
+    {
+        let same_dir = by_dir
+            .get(&m.path.parent())
+            .map(Vec::as_slice)
+            .unwrap_or_default();
+        let mut candidates = same_dir.to_vec();
+        if let Some(indices) = repos[i].as_deref().and_then(|r| by_repo.get(r)) {
+            candidates.extend(indices);
+        }
+        // Preserve scan order, including when directory and repository both match.
+        candidates.sort_unstable();
+        candidates.dedup();
+        for j in candidates {
+            if projector_matches_in_repo(m, &models[j], same_dir.len(), roots, true) {
                 pairs[i].push(models[j].id.clone());
                 pairs[j].push(m.id.clone());
             }
         }
     }
-
+    bench_step!("projector pairs grouping");
     let draft_for = draft::draft_targets(&models, &param_infos);
+    bench_step!("draft grouping");
     // What each projector adds to the LLMs it belongs to: (vision, audio).
     let projector_caps: HashMap<String, (bool, bool)> = models
         .iter()
@@ -348,16 +405,22 @@ pub fn build_entries(
         })
         .collect();
 
-    models
+    let mut defs_by_path: HashMap<String, Vec<&ModelDefinition>> = HashMap::new();
+    for d in defs {
+        if let Some(path) = d.base.local_path() {
+            defs_by_path.entry(norm(path)).or_default().push(d);
+        }
+    }
+    let entries = models
         .into_iter()
         .enumerate()
         .map(|(i, model)| {
-            let st = state_of.get(&norm(&model.path)).copied();
             let file = norm(&model.path);
-            let my_defs: Vec<&ModelDefinition> = defs
-                .iter()
-                .filter(|d| d.base.local_path().is_some_and(|p| norm(p) == file))
-                .collect();
+            let st = state_of.get(&file).copied();
+            let my_defs = defs_by_path
+                .get(&file)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
             let paired = |f: fn(&(bool, bool)) -> bool| {
                 pairs[i]
                     .iter()
@@ -397,7 +460,7 @@ pub fn build_entries(
                 .as_ref()
                 .filter(|s| !s.missing.is_empty())
                 .map(|_| ops::repair_info(&model, roots));
-            let repo_id = ops::repo_of(&model, roots);
+            let repo_id = repos[i].clone();
             LibraryEntry {
                 repo_id,
                 params: param_infos[i].clone(),
@@ -416,7 +479,9 @@ pub fn build_entries(
                 model,
             }
         })
-        .collect()
+        .collect();
+    bench_step!("build entries (definitions, roots, records)");
+    entries
 }
 
 /// Capabilities of a file; for LLMs `vision` / `audio` come from their projectors.
@@ -534,9 +599,19 @@ pub fn projector_matches(
     projectors_in_dir: usize,
     roots: &[PathBuf],
 ) -> bool {
-    let same_dir = llm.path.parent() == proj.path.parent();
     let repo = ops::repo_of(llm, roots);
     let same_repo = repo.is_some() && repo == ops::repo_of(proj, roots);
+    projector_matches_in_repo(llm, proj, projectors_in_dir, roots, same_repo)
+}
+
+fn projector_matches_in_repo(
+    llm: &LocalModel,
+    proj: &LocalModel,
+    projectors_in_dir: usize,
+    roots: &[PathBuf],
+    same_repo: bool,
+) -> bool {
+    let same_dir = llm.path.parent() == proj.path.parent();
     if !same_dir && !same_repo {
         return false;
     }

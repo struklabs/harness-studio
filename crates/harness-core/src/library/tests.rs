@@ -1573,3 +1573,179 @@ fn audio_mmproj_pairing_and_capability() {
     proj.path = PathBuf::from("/lib/other/ultravox/mmproj-Ultravox-7B-F16.gguf");
     assert!(!projector_matches(&llm, &proj, 2, &[PathBuf::from("/lib")]));
 }
+
+#[test]
+fn listing_only_records_missing_arrivals() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("lib");
+    let first = root.join("first.gguf");
+    write_gguf(&first, 64, 1);
+    let path = dir.path().join("state.db");
+    let db = StateDb::open(&path).unwrap();
+    let roots = vec![root.clone()];
+    // Favorite/use rows without an arrival must still receive one.
+    db.set_model_favorite(&state_key(&first), true).unwrap();
+    let models = crate::models::ModelManager.scan_directories(&roots);
+    let view = list_from(models.clone(), &[], &roots, Some(&db), None);
+    assert!(view.state_error.is_none());
+    let arrival = arrival_time(&models[0]).unwrap();
+    assert_eq!(view.entries[0].added_at, Some(arrival));
+    assert!(view.entries[0].favorite);
+    // A separate writer holds the WAL write lock. A steady-state listing must
+    // remain a reader (even a transaction with zero changed rows would fail).
+    let writer = rusqlite::Connection::open(&path).unwrap();
+    writer.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let view = list_from(models, &[], &roots, Some(&db), None);
+    assert!(view.state_error.is_none(), "{:?}", view.state_error);
+    assert_eq!(view.entries[0].added_at, Some(arrival));
+    writer.execute_batch("ROLLBACK").unwrap();
+    let second = root.join("second.gguf");
+    write_gguf(&second, 64, 2);
+    let models = crate::models::ModelManager.scan_directories(&roots);
+    let expected = arrival_time(models.iter().find(|m| m.path == second).unwrap());
+    let view = list_from(models, &[], &roots, Some(&db), None);
+    assert!(view.state_error.is_none());
+    assert_eq!(
+        db.model_state(&state_key(&first))
+            .unwrap()
+            .unwrap()
+            .added_at,
+        Some(arrival)
+    );
+    assert_eq!(
+        db.model_state(&state_key(&second))
+            .unwrap()
+            .unwrap()
+            .added_at,
+        expected
+    );
+    assert_eq!(db.model_states().unwrap().len(), 2);
+}
+
+#[test]
+fn indexed_pairs_preserve_exhaustive_matching_and_order() {
+    let models = real_models();
+    let roots = vec![PathBuf::from("/lib")];
+    let entries = build_entries(models.clone(), &[], &[], &HashMap::new(), &roots);
+    let mut expected: Vec<Vec<String>> = vec![Vec::new(); models.len()];
+    for (i, llm) in models
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| m.kind == ModelKind::Llm)
+    {
+        let count = models
+            .iter()
+            .filter(|m| m.kind == ModelKind::Mmproj && m.path.parent() == llm.path.parent())
+            .count();
+        for (j, proj) in models
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.kind == ModelKind::Mmproj)
+        {
+            if projector_matches(llm, proj, count, &roots) {
+                expected[i].push(proj.id.clone());
+                expected[j].push(llm.id.clone());
+            }
+        }
+    }
+    for (entry, pairs) in entries.iter().zip(expected) {
+        assert_eq!(entry.pairs, pairs, "{}", entry.model.filename);
+    }
+}
+
+#[test]
+fn indexed_definitions_join_all_normalized_paths_and_aliases() {
+    let model = real_models()
+        .into_iter()
+        .find(|m| m.kind == ModelKind::Llm)
+        .unwrap();
+    let first = ModelDefinition::new(
+        "older",
+        ModelRef::Local {
+            path: model.path.clone(),
+        },
+    );
+    let second = ModelDefinition::new(
+        "NEWER",
+        ModelRef::Local {
+            path: model.path.parent().unwrap().join(".").join(&model.filename),
+        },
+    );
+    let uses = HashMap::from([
+        (
+            "older".into(),
+            AliasUse {
+                preset_id: Some("old-preset".into()),
+                updated_at: 10,
+            },
+        ),
+        (
+            "newer".into(),
+            AliasUse {
+                preset_id: Some("new-preset".into()),
+                updated_at: 20,
+            },
+        ),
+    ]);
+    let entries = build_entries(vec![model], &[], &[first, second], &uses, &[]);
+    assert_eq!(entries[0].preset_used.as_deref(), Some("new-preset"));
+}
+
+#[test]
+fn scanned_definitions_preserve_speech_tasks_and_missing_file_checks() {
+    use crate::domain::store::{DefinitionsFile, Domain, DEFINITIONS_SCHEMA};
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("models");
+    for arch in ["llama", "clip", "parakeet", "kokoro", "pocket-tts"] {
+        crate::models::scan_bench::tiny_gguf_arch(&root.join(format!("{arch}.gguf")), arch);
+    }
+    let models = crate::models::ModelManager.scan_directories(std::slice::from_ref(&root));
+    let mut defs: Vec<_> = models
+        .iter()
+        .enumerate()
+        .map(|(i, m)| {
+            ModelDefinition::new(
+                format!("alias-{i}"),
+                ModelRef::Local {
+                    path: m.path.clone(),
+                },
+            )
+        })
+        .collect();
+    let unscanned = temp.path().join("unscanned.gguf");
+    crate::models::scan_bench::tiny_gguf_arch(&unscanned, "kokoro");
+    defs.push(ModelDefinition::new(
+        "unscanned",
+        ModelRef::Local { path: unscanned },
+    ));
+    defs.push(ModelDefinition::new(
+        "missing",
+        ModelRef::Local {
+            path: temp.path().join("missing.gguf"),
+        },
+    ));
+    crate::store::JsonStore::sensitive(temp.path().join(DEFINITIONS_SCHEMA.file))
+        .save_versioned(
+            &DEFINITIONS_SCHEMA,
+            &DefinitionsFile {
+                definitions: defs,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let domain = Domain::at(temp.path());
+    let expected = domain.definitions().unwrap();
+    assert_eq!(domain.definitions_for_models(&models).unwrap(), expected);
+    let task = |name: &str| {
+        expected
+            .iter()
+            .find(|d| d.alias == name)
+            .unwrap()
+            .load
+            .get("task")
+    };
+    assert_eq!(
+        task("unscanned"),
+        Some(&crate::params::ParamValue::Text("crispasr_tts".into()))
+    );
+}

@@ -353,6 +353,7 @@ pub fn load_external() -> Vec<ExternalModel> {
 }
 
 fn save_external(list: &[ExternalModel]) -> Result<(), String> {
+    let _mutation = crate::models::LibraryMutation::begin();
     crate::store::JsonStore::new(external_file()).save_versioned(&EXTERNAL_SCHEMA, list)
 }
 
@@ -362,6 +363,7 @@ pub fn external_for(path: &Path) -> Option<ExternalModel> {
 
 /// Forgets a linked model. The file itself (owned by Ollama / LM Studio) is untouched.
 pub fn unlink_external(path: &Path) -> Result<(), String> {
+    let _mutation = crate::models::LibraryMutation::begin();
     crate::store::JsonStore::new(external_file()).update_versioned::<Vec<ExternalModel>, _>(
         &EXTERNAL_SCHEMA,
         |list| {
@@ -427,6 +429,7 @@ pub fn scan() -> ImportScan {
 
 /// Hard link when on the same volume (instant, no extra space), else a full copy.
 fn link_or_copy(src: &Path, dst: &Path) -> Result<&'static str, String> {
+    let _mutation = crate::models::LibraryMutation::begin();
     if let Some(dir) = dst.parent() {
         fs::create_dir_all(dir).map_err(|e| {
             String::from(
@@ -468,6 +471,7 @@ fn link_or_copy(src: &Path, dst: &Path) -> Result<&'static str, String> {
 /// Imports the given model paths. Paths must come from a fresh [`scan`] — anything
 /// else is rejected, so the frontend can't make us link/copy arbitrary files.
 pub fn import(paths_to_import: &[PathBuf], mode: ImportMode) -> Vec<ImportResult> {
+    let _mutation = crate::models::LibraryMutation::begin();
     let scanned = scan().candidates;
     let mut external = load_external();
     let mut results = Vec::new();

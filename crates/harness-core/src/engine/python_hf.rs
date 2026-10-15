@@ -622,6 +622,25 @@ fn has_onnx(dir: &Path) -> bool {
     any_onnx(dir) || any_onnx(&dir.join("onnx"))
 }
 
+pub(crate) fn library_models_in(
+    root: &Path,
+    tree: &crate::models::discovery::DirectoryTree,
+) -> Vec<crate::models::LocalModel> {
+    tree.scan(
+        root,
+        &["config.json", "model_index.json"],
+        |dir| {
+            detect(dir)
+                .filter(|_| !has_onnx(dir))
+                .map(|task| (dir.to_path_buf(), task))
+        },
+        |m| m.0.clone(),
+    )
+    .into_iter()
+    .map(|(dir, task)| to_local_model(&dir, task, root))
+    .collect()
+}
+
 /// Model folders under `roots` this engine runs (a few levels deep: `<root>/<owner>/<repo>`).
 pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {
     roots
