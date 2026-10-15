@@ -139,30 +139,38 @@ satırları yeniden çalıştırılmadı.
 NVIDIA RTX 3050 Ti Laptop (4 GB, CUDA 12), Intel Core i7-12700H ve 16 GB RAM üzerinde ikinci bir çalıştırma. Harness Studio'yu (başsız,
 main 623e87c), yönettiği `llama-server` yapısının (b11574, CUDA) aynı dosyalarla doğrudan başlatılmasıyla karşılaştırır. Bu yüzden her
 fark motor farkı değil, ürün tercihidir. Ollama ve LM Studio bu çalıştırmada yoktu. 14B model 4 GB'a sığmadığı için ikinci model
-Qwen3-0.6B Q8_0'dır. Tam tablolar: [benchmarks/2026-10-15-nvidia/summary.md](../benchmarks/2026-10-15-nvidia/summary.md).
+Qwen3-0.6B Q8_0'dır. İlk çalıştırmanın tam tabloları: [benchmarks/2026-10-15-nvidia/summary.md](../benchmarks/2026-10-15-nvidia/summary.md).
+Çalıştırma Harness'ın iki zayıf varsayılanını buldu; ikisi de aynı gün düzeltildi. Aşağıdaki Harness satırları yeniden ölçülen
+değerlerdir; değişenlerde ilk çalıştırma parantez içindedir.
 
 | Test | Harness Studio | llama.cpp (aynı yapı, doğrudan) |
 |---|---|---|
-| 4B çözme, kutudan çıktığı gibi (tok/sn; llama-bench ile kart tavanı 56,7–60,8) | **55,3** | 29,9 |
-| 4B istem işleme, 4k token (tok/sn) | **1963** | 1573 |
-| 0.6B çözme, kutudan çıktığı gibi (tok/sn) | 157,7 | **187,7** |
-| 0.6B istem işleme, 4k token (tok/sn) | 3967 | **9168** |
+| 4B çözme, kutudan çıktığı gibi (tok/sn; llama-bench ile kart tavanı 56,7–60,8) | **56,5** (55,3) | 29,9 |
+| 4B istem işleme, 4k token (tok/sn) | **2049** (1963) | 1573 |
+| 0.6B çözme, kutudan çıktığı gibi (tok/sn) | 183,1 (157,7) | **187,7** |
+| 0.6B istem işleme, 4k token (tok/sn) | 7957 (3967) | **9168** |
 | 4B, eşit ayarlar (32k f16 KV ~7,2 GB ister, 4,1 GB boş) | açıklamayla reddedildi | yüklendi, taştı: 42,5 tok/sn, istem işleme 341 tok/sn, soğuk ajan turu 53 sn |
 | 0.6B, eşit ayarlar (çözme / istem işleme tok/sn) | **186,6 / 8971** (VRAM'de kalmak için bağlam 16k'ya indirildi) | 155,9 / 1443 (32k, taştı) |
 | Araç çağırma, 4B (38 durum) | **38/38** | **38/38** |
-| Araç çağırma, 0.6B, kutudan çıktığı gibi / eşit | **36/38** / 32/38 | 34/38 / **35/38** |
-| Ajan testi, kutudan çıktığı gibi: soğuk / 2. tur / 3. tur TTFT (sn) | **7,0 / 0,36 / 0,13** | bağlam hatası (4k bağlam) |
-| 4 eşzamanlı istek, 4B kutudan çıktığı gibi (toplam tok/sn) | 56,4 (1 yuva) | **75,3** (4 yuva, 4k bağlam) |
+| Araç çağırma, 0.6B, kutudan çıktığı gibi / eşit | 34/38 (36/38) / 32/38 | 34/38 / **35/38** |
+| Ajan testi, kutudan çıktığı gibi: soğuk / 2. tur / 3. tur TTFT (sn) | **6,8 / 0,36 / 0,13** | bağlam hatası (4k bağlam) |
+| 4 eşzamanlı istek, 4B kutudan çıktığı gibi (toplam tok/sn / TTFT sn) | **148 / 0,78** (1 yuvayla 56,4 / 6,9) | 75,3 / 0,67 (4 yuva, 4k bağlam) |
 | 0.6B 65k bağlamda, çözme (tok/sn) | **123,5** | 59,3 |
 | Tek uç noktadan 4B → 0.6B geçişi (sn) | **2,0** | desteklenmiyor (yeniden başlatma 7,6) |
 
 - **Küçük kartta kutudan çıktığı gibi** Harness 4B modelin tamamını GPU'ya koyar ve ayar yapmadan kartın tavanına ulaşır. Varsayılanlarıyla
   düz `llama-server` bu hızın yaklaşık yarısında çözer.
-- **Düz llama.cpp'nin önde olduğu yerler:**
-  - **Kutudan çıktığı gibi küçük modeller:** 0.6B'de Harness'ın varsayılanları (32k bağlam, q8_0 KV, 4 yuva) `llama-server`'ın
-    varsayılanlarından %16 daha yavaş çözer ve istemleri yarısından daha düşük hızla işler.
-  - **4B'de kutudan çıktığı gibi eşzamanlılık:** Harness 4 GB kartta 12k bağlamlı tek yuva açar, bu yüzden dört paralel istek sıraya
-    girer (ortanca TTFT 6,9 sn). `llama-server` 1k'lık dört yuva açar ve dördüne birden yanıt verir; bedeli 4k toplam bağlamdır.
+- **İlk çalıştırmanın bulduğu ve düzeltme:**
+  - **4B'de eşzamanlılık:** Harness 4 GB kartın 12k bağlamı için tek yuva açıyordu, bu yüzden dört paralel istek sıraya giriyordu
+    (ortanca TTFT 6,9 sn). Gateway yüklemeleri artık 8k bağlamdan itibaren ortak havuzda 4 yuva alıyor: toplam 148 tok/sn, ve her istek
+    yine 12k'nın tamamını kullanabiliyor (düz `llama-server` 4 yuvasının her birine 1k verir).
+  - **Küçük modeller:** 0.6B %16 daha yavaş çözüyor ve istemleri yarısından daha düşük hızla işliyordu. Sebep q8_0 önbellek değildi
+    (`llama-bench`'te %6), `--cache-ram 0`'dı: llama.cpp'nin ana bellek istem önbelleği kapalıyken boştaki yuvalar ortak havuzdan hiç
+    silinmiyor ve sonraki her istek onların hücrelerine de bakıyor. Harness CUDA'da bu önbelleği artık açık tutuyor; Vulkan'da kapalı
+    kalıyor, çünkü orada her eşzamanlı istek dalgasını ~3,7 sn bekletiyor.
+- **Düz llama.cpp'nin hâlâ önde olduğu yerler:** varsayılanlarıyla 0.6B istemleri %15 daha hızlı işler (Harness'ın 32k q8_0
+  önbelleğine karşı 15k f16). Ana bellek önbelleği açıkken, bir eşzamanlı istek dalgasından sonraki ilk istek boştaki yuvalar
+  kaydedilirken ~0,7 sn bekler.
 - **0.6B'de araç çağırma** çalıştırmalar ve profiller arasında birkaç durum oynar; durum başına tek çalıştırma bu farkları gürültüden
   ayıramaz.
 
