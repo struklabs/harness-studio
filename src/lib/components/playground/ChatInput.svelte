@@ -12,6 +12,7 @@
   import AudioRecordButton from './AudioRecordButton.svelte';
   import DictationButton from './DictationButton.svelte';
   import { appendTranscript } from './recordingSession';
+  import { toastClearance } from '#lib/toastClearance.js';
   import type { Snippet } from 'svelte';
 
   interface Props {
@@ -121,6 +122,7 @@
 
 <form
   class="flex flex-col gap-1.5"
+  {@attach toastClearance}
   onsubmit={(e) => {
     e.preventDefault();
     if (canSend) onSend();
