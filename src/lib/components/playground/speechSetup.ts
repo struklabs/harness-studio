@@ -1,10 +1,11 @@
 import type { ModelDefinition } from '#lib/types.js';
-import { isSpeechDefinition } from './speechModels';
+import { isSpeechDefinition, isTranscriptionDefinition, type HeaderFile } from './speechModels';
 
 /** Keep the user's Speech selection while it is still available: a whisper definition (alias), an
- *  installed sherpa-onnx recognition model (`sherpa`, folder names) or an mlx-audio one (`engine`, aliases). */
-export function speechModel(current: string, definitions: ModelDefinition[], sherpa: string[] = [], engine: string[] = []): string {
-  const all = [...definitions.filter(isSpeechDefinition).map(d => d.alias), ...sherpa, ...engine];
+ *  installed sherpa-onnx recognition model (`sherpa`, folder names), an mlx-audio one (`engine`, aliases) or a
+ *  llama.cpp chat model that hears (its projector's header in `files`). */
+export function speechModel(current: string, definitions: ModelDefinition[], sherpa: string[] = [], engine: string[] = [], files: HeaderFile[] = []): string {
+  const all = [...definitions.filter(d => isTranscriptionDefinition(d, files)).map(d => d.alias), ...sherpa, ...engine];
   return all.includes(current) ? current : all[0] ?? '';
 }
 

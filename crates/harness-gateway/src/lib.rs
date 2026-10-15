@@ -21,6 +21,7 @@
 //! Auth: [`auth`]. Tool compatibility (Codex/Responses): [`compat`]. Errors: [`errors`].
 
 pub mod audio;
+pub mod audio_llm;
 pub mod audio_process;
 pub mod auth;
 pub mod compat;

@@ -6,6 +6,7 @@
   import { app } from '#lib/stores/app.svelte.js';
   import { domain } from '#lib/stores/domain.svelte.js';
   import { runtimesStore } from '#lib/stores/runtimes.svelte.js';
+  import { library } from '#lib/stores/library.svelte.js';
   import { security } from '#lib/stores/security.svelte.js';
   import { holdReleaseWhile } from '#lib/windowActivity.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -64,15 +65,15 @@
     setup = false;
     needFamily = null;
     checking = true;
-    await Promise.all([domain.refreshDefinitions(), runtimesStore.load(true), asr.load()]);
+    await Promise.all([domain.refreshDefinitions(), runtimesStore.load(true), asr.load(), library.refresh()]);
     if (token !== generation) return;
     checking = false;
-    speech.model = speechModel(speech.model, domain.definitions, asr.names, asr.engineNames);
-    const missing = dictationRequirement(speech.model, runtimesStore.list, app.gatewayRunning, asr.names, domain.definitions, asr.engineNames);
+    speech.model = speechModel(speech.model, domain.definitions, asr.names, asr.engineNames, library.models);
+    const missing = dictationRequirement(speech.model, runtimesStore.list, app.gatewayRunning, asr.names, domain.definitions, asr.engineNames, library.models);
     if (missing) {
       setup = true;
       setupSection = missing === 'gateway' ? 'gateway' : 'runtime';
-      if (missing === 'runtime') needFamily = dictationFamily(speech.model, asr.names, domain.definitions, asr.engineNames);
+      if (missing === 'runtime') needFamily = dictationFamily(speech.model, asr.names, domain.definitions, asr.engineNames, library.models);
       else error = t(missing === 'model' ? 'pg.dictation_need_model' : 'asr.need_gateway');
       return;
     }

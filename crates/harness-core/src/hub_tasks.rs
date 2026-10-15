@@ -323,6 +323,15 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
     {
         pipeline_tag = Some("text-to-image".to_string());
     }
+    // An audio-to-audio GGUF with a projector (LFM2.5-Audio) is a chat model that hears:
+    // llama-server takes its audio in (chat, transcription); its audio out is not served.
+    if pipeline_tag.as_deref() == Some("audio-to-audio")
+        && gguf_file_names(&files)
+            .iter()
+            .any(|f| f.starts_with("mmproj"))
+    {
+        pipeline_tag = Some("audio-text-to-text".to_string());
+    }
     let not_runnable = not_runnable(id, &tags, &files, library.as_deref(), gguf.as_ref());
     let found = if pipeline_tag.is_none()
         && item
@@ -1186,6 +1195,33 @@ mod tests {
         ));
         assert_eq!(gpt2.inferred_task, Some("text-generation"));
         assert_eq!(gpt2.source, Some(TaskSource::Gguf));
+    }
+
+    #[test]
+    fn an_audio_to_audio_gguf_with_a_projector_is_a_chat_model_that_hears() {
+        // LiquidAI/LFM2.5-Audio-1.5B-JP-GGUF (2026-10-16): `audio-to-audio`, model, mmproj,
+        // tokenizer and vocoder GGUFs. llama-server serves its audio input, not its audio out.
+        let item = serde_json::json!({
+            "id": "LiquidAI/LFM2.5-Audio-1.5B-JP-GGUF",
+            "pipeline_tag": "audio-to-audio",
+            "library_name": "llama.cpp",
+            "siblings": [
+                {"rfilename": "LFM2.5-Audio-1.5B-JP-Q4_0.gguf"},
+                {"rfilename": "mmproj-LFM2.5-Audio-1.5B-JP-Q4_0.gguf"},
+                {"rfilename": "tokenizer-LFM2.5-Audio-1.5B-JP-Q4_0.gguf"},
+                {"rfilename": "vocoder-LFM2.5-Audio-1.5B-JP-Q4_0.gguf"}
+            ]
+        });
+        let a = analyze_repo(&item);
+        assert_eq!(a.pipeline_tag.as_deref(), Some("audio-text-to-text"));
+        assert_eq!(a.not_runnable, None);
+        // Without a projector it stays an audio-to-audio model llama-server cannot load.
+        let mut bare = item.clone();
+        bare["siblings"] = serde_json::json!([{"rfilename": "SAM-Audio-Q4_0.gguf"}]);
+        assert_eq!(
+            analyze_repo(&bare).pipeline_tag.as_deref(),
+            Some("audio-to-audio")
+        );
     }
 
     #[test]

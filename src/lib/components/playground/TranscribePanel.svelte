@@ -22,7 +22,7 @@
   import { Progress } from '#lib/components/ui/progress/index.js';
   import { Download } from '@lucide/svelte';
   import { onDestroy, untrack } from 'svelte';
-  import { fetchTranscription, isSpeechDefinition, isOnnxCtcDefinition, crispasrCanTranslate, isCrispasrDefinition, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
+  import { fetchTranscription, isTranscriptionDefinition, isAudioLlmDefinition, audioLlmTranslates, isOnnxCtcDefinition, crispasrCanTranslate, isCrispasrDefinition, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
   import AudioFilePicker from './AudioFilePicker.svelte';
   import { speech } from './speech.svelte';
   import { isSherpaChoice, speechModel } from './speechSetup';
@@ -31,9 +31,10 @@
   import { tts } from './tts.svelte';
   import { library } from '#lib/stores/library.svelte.js';
 
-  /** Speech definitions: the gateway loads the selected model on the first request (JIT). */
+  /** Speech definitions and llama.cpp chat models that hear: the gateway loads the selected model on
+   *  the first request (JIT). */
   let models = $derived(
-    domain.definitions.filter(isSpeechDefinition),
+    domain.definitions.filter(d => isTranscriptionDefinition(d, library.models)),
   );
   /** Installed sherpa-onnx recognition models (Parakeet, SenseVoice...): run per request, no definition. */
   let sherpaModels = $derived(asr.models);
@@ -42,8 +43,11 @@
   /** The library's mlx-audio recognition models (Whisper, Parakeet in MLX's format), by definition alias. */
   let engineModels = $derived(asr.engineModels);
   let engineChosen = $derived(engineModels.find(m => m.name === speech.model) ?? null);
-  /** A model that only transcribes (sherpa-onnx, CTC, Parakeet MLX): translation is Whisper's. */
-  let onlyTranscribes = $derived(sherpaChosen || ctcChosen || (engineChosen !== null && !engineChosen.translates));
+  /** A llama.cpp chat model that hears (LFM2.5-Audio, Qwen3-ASR...): only some of them translate. */
+  let audioLlm = $derived(models.find(d => d.alias === speech.model && isAudioLlmDefinition(d, library.models)) ?? null);
+  /** A model that only transcribes (sherpa-onnx, CTC, Parakeet MLX, LFM2.5-Audio, Qwen3-ASR): translation is
+   *  Whisper's (and some chat models' that hear). */
+  let onlyTranscribes = $derived(sherpaChosen || ctcChosen || (engineChosen !== null && !engineChosen.translates) || (audioLlm !== null && !audioLlmTranslates(audioLlm, library.models)));
   let crispChosen = $derived(models.some(d => d.alias === speech.model && isCrispasrDefinition(d)));
   let crispNoTranslate = $derived(models.some(d => d.alias === speech.model && isCrispasrDefinition(d) && !crispasrCanTranslate(d, library.models)));
   let noModel = $derived(models.length === 0 && sherpaModels.length === 0 && engineModels.length === 0);
@@ -86,7 +90,7 @@
   /** The language sent: the prefilled UI language goes to whisper only; other recognition models
    *  (sherpa-onnx, CrispASR, MLX) keep detecting unless the user types one. */
   let sentLanguage = $derived(
-    ctcChosen ? '' : language === uiLanguage && (sherpaChosen || crispChosen || engineChosen) ? '' : language
+    ctcChosen ? '' : language === uiLanguage && (sherpaChosen || crispChosen || engineChosen || audioLlm) ? '' : language
   );
   let prompt = $state('');
   let file = $state<File | null>(null);
@@ -103,7 +107,7 @@
   $effect(() => holdReleaseWhile('transcribe-audio', () => recState !== 'idle' || !!file || !!result));
 
   $effect(() => {
-    speech.model = speechModel(speech.model, domain.definitions, asr.names, asr.engineNames);
+    speech.model = speechModel(speech.model, domain.definitions, asr.names, asr.engineNames, library.models);
   });
   $effect(() => {
     void domain.refreshDefinitions();
@@ -305,6 +309,12 @@
           <MessageSquarePlus />{t('asr.to_chat')}
         </Button>
       </div>
+      {#if result.truncated}
+        <p class="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
+          <TriangleAlert class="mt-px size-4 shrink-0 text-warning" aria-hidden="true" />
+          <span class="min-w-0 flex-1">{t(result.truncated === 'tokens' ? 'asr.truncated_tokens' : 'asr.truncated')}</span>
+        </p>
+      {/if}
       {#if result.segments?.length}
         <div class="flex flex-col gap-2">
           {#each result.segments as segment}
