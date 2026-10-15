@@ -26,8 +26,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "generate": "node ../generate.mjs --from-snapshot --skip-python",
+    "build": "npm run generate && tsc -p tsconfig.json",
+    "typecheck": "npm run build && tsc -p tsconfig.test.json",
     "test": "npm run build && node --test \"test/*.test.mjs\"",
     "prepack": "npm run build"
   },

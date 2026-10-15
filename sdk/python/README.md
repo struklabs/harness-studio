@@ -8,6 +8,8 @@ Not on PyPI yet. Install it from the repository:
 pip install ./sdk/python        # or: uv pip install ./sdk/python
 ```
 
+The generated part (`harness_studio_api`) is not committed: the build generates it from `sdk/openapi.json`, which needs Node.js and [uv](https://docs.astral.sh/uv/).
+
 ## Use
 
 ```python
@@ -40,4 +42,4 @@ Examples: [`examples/`](examples/).
 
 ## Development
 
-`src/harness_studio_api/` is generated: run `node sdk/generate.mjs` from the repository root, don't edit it. Tests: see [`sdk/README.md`](../README.md#tests).
+`src/harness_studio_api/` is generated from `sdk/openapi.json` and not committed: `uv sync`, a build and the pytest session generate it (`node sdk/generate.mjs --from-snapshot --skip-typescript`). Tests: see [`sdk/README.md`](../README.md#tests).

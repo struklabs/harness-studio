@@ -55,3 +55,7 @@ __pycache__/
 # Benchmark runner output (only summary.md is kept)
 /docs/benchmarks/*/raw/
 /docs/benchmarks/*/summary.json
+
+# Control API SDKs: generated from sdk/openapi.json by sdk/generate.mjs
+/sdk/typescript/src/schema.ts
+/sdk/python/src/harness_studio_api/

@@ -7,7 +7,7 @@ Not on npm yet. Build it from the repository:
 ```bash
 cd sdk/typescript
 npm ci
-npm run build
+npm run build    # generates src/schema.ts from sdk/openapi.json, then compiles
 ```
 
 ## Use
@@ -36,4 +36,4 @@ Examples: [`examples/status.mjs`](examples/status.mjs), [`examples/load-model.mj
 
 ## Development
 
-`src/schema.ts` is generated: run `node sdk/generate.mjs` from the repository root, don't edit it. Tests: see [`sdk/README.md`](../README.md#tests). `npm run typecheck` checks the sources, tests and examples.
+`src/schema.ts` is generated from `sdk/openapi.json` and not committed: `npm run build` (or `npm run generate`) writes it. Tests: see [`sdk/README.md`](../README.md#tests). `npm run typecheck` checks the sources, tests and examples.
