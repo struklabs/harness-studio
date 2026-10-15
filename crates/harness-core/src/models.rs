@@ -1444,7 +1444,7 @@ mod tests {
 }
 
 #[cfg(test)]
-mod scan_bench;
+pub(crate) mod scan_bench;
 
 #[cfg(test)]
 mod scan_tests;

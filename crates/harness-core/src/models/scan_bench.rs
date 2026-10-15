@@ -5,7 +5,7 @@ pub(super) fn tiny_gguf(path: &Path) {
     tiny_gguf_arch(path, "llama");
 }
 
-pub(super) fn tiny_gguf_arch(path: &Path, arch: &str) {
+pub(crate) fn tiny_gguf_arch(path: &Path, arch: &str) {
     fn string(out: &mut Vec<u8>, s: &str) {
         out.extend_from_slice(&(s.len() as u64).to_le_bytes());
         out.extend_from_slice(s.as_bytes());
@@ -32,7 +32,7 @@ pub(super) fn tiny_gguf_arch(path: &Path, arch: &str) {
     fs::write(path, out).unwrap();
 }
 
-fn timed<T>(label: &str, f: impl FnOnce() -> T) -> T {
+pub(crate) fn timed<T>(label: &str, f: impl FnOnce() -> T) -> T {
     let start = Instant::now();
     let result = f();
     eprintln!("{label}: {:.3} ms", start.elapsed().as_secs_f64() * 1000.0);
@@ -160,6 +160,118 @@ fn library_scan_bench() {
                     .into_iter()
                     .find(|m| m.id.ends_with("model-0.gguf"))
             });
+        });
+    }
+}
+
+thread_local! {
+    static STEP: std::cell::Cell<Option<Instant>> = const { std::cell::Cell::new(None) };
+}
+
+pub(crate) fn step(label: &str) {
+    STEP.with(|s| {
+        if let Some(start) = s.get() {
+            eprintln!(
+                "  {label}: {:.3} ms",
+                start.elapsed().as_secs_f64() * 1000.0
+            );
+            s.set(Some(Instant::now()));
+        }
+    });
+}
+
+/// File-backed WAL state, populated definitions, alias history and projector pairs.
+#[test]
+#[ignore]
+fn library_list_bench() {
+    use crate::domain::store::{DefinitionsFile, Domain, DEFINITIONS_SCHEMA};
+    use crate::domain::{ModelDefinition, ModelRef};
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("models");
+    for i in 0..600 {
+        let name = if i % 10 == 9 { "mmproj-model" } else { "model" };
+        tiny_gguf_arch(
+            &root.join(format!(
+                "publisher-{}/repo-{}/{name}-{i}.gguf",
+                i % 20,
+                i / 10
+            )),
+            if i % 10 == 9 { "clip" } else { "llama" },
+        );
+    }
+    let dirs = vec![root];
+    let models = scan_cache::scan(&dirs);
+    let defs: Vec<_> = models
+        .iter()
+        .enumerate()
+        .map(|(i, m)| {
+            let mut d = ModelDefinition::new(
+                format!("alias-{i}"),
+                ModelRef::Local {
+                    path: m.path.clone(),
+                },
+            );
+            d.id = format!("md-{i}");
+            d
+        })
+        .collect();
+    let domain = Domain::at(temp.path());
+    crate::store::JsonStore::sensitive(temp.path().join(DEFINITIONS_SCHEMA.file))
+        .save_versioned(
+            &DEFINITIONS_SCHEMA,
+            &DefinitionsFile {
+                definitions: defs,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let db = crate::state::StateDb::open(&temp.path().join("state.db")).unwrap();
+    db.write(|tx| {
+        for (i, m) in models.iter().enumerate() {
+            tx.execute("INSERT INTO model_state(model_id, favorite, added_at, last_used_at) VALUES (?1, ?2, 123, 456)", rusqlite::params![crate::library::state_key(&m.path), i % 3 == 0])?;
+            for j in 0..4 {
+                tx.execute("INSERT INTO conversations(id, model_alias, preset_id, created_at, updated_at) VALUES (?1, ?2, ?3, 1, ?4)", rusqlite::params![format!("conv-{i}-{j}"), format!("alias-{i}"), "builtin:chat", j + 1])?;
+            }
+        }
+        Ok(())
+    }).unwrap();
+    db.read(|c| {
+        let mode: String = c.query_row("PRAGMA journal_mode", [], |r| r.get(0))?;
+        assert_eq!(mode, "wal");
+        Ok(())
+    })
+    .unwrap();
+    for pass in 1..=2 {
+        eprintln!("600 models, 600 states/definitions, 2400 alias uses: pass {pass}");
+        // Pairing can outlast the shared cache TTL on the baseline. Prime outside
+        // the measured call so both passes explicitly measure a cached scan.
+        scan_cache::scan(&dirs);
+        let list_start = Instant::now();
+        let defs = timed("definitions loading", || {
+            domain.definitions_for_models(&models).unwrap()
+        });
+        timed("settings loading", crate::config::AppSettings::load);
+        let models = timed("cached shared scan", || scan_cache::scan(&dirs));
+        STEP.with(|s| s.set(Some(Instant::now())));
+        let mut view = timed("library::list_from TOTAL", || {
+            crate::library::list_from(models.clone(), &defs, &dirs, Some(&db), None)
+        });
+        STEP.with(|s| s.set(None));
+        let installed = timed(
+            "installed_families",
+            crate::model_registry::installed_families,
+        );
+        timed("resolve_installed loop", || {
+            for e in &mut view.entries {
+                e.record.resolve_installed(&installed);
+            }
+        });
+        eprintln!(
+            "list_library equivalent TOTAL: {:.3} ms",
+            list_start.elapsed().as_secs_f64() * 1000.0
+        );
+        timed("duplicates grouping (separate command)", || {
+            crate::library::dupes::find_duplicates(&models)
         });
     }
 }

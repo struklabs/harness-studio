@@ -153,7 +153,7 @@ pub fn normalize(path: &Path) -> PathBuf {
 /// Canonicalizes the longest existing prefix of `path` and appends the rest, so
 /// paths that don't exist yet compare consistently with canonicalized ones
 /// (e.g. the `\\?\` prefix on Windows).
-fn canonicalize_lenient(path: &Path) -> PathBuf {
+pub(crate) fn canonicalize_lenient(path: &Path) -> PathBuf {
     let abs = if path.is_absolute() {
         normalize(path)
     } else {
