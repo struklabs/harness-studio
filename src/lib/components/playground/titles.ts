@@ -90,10 +90,12 @@ export function fallbackTitle(text: string): string {
   // A one-word label such as "Error:" belongs to its description.
   const colon = plain.indexOf(':');
   if (colon >= 0 && plain.slice(0, colon).trim().split(/\s+/).length > 1) plain = plain.slice(0, colon);
-  const clauses = plain.split(/[,!?;。！？]|(?<!\d)\.(?:\s|$)|\s+[—–]\s+/u).map((c) => c.trim()).filter(Boolean);
+  // Abbreviations ("Örn.", "vs.") do not end a sentence.
+  const clauses = plain.split(/[,!?;。！？]|(?<!\d|(?<![\p{L}\p{N}])(?:vs|etc|vb|vd|örn|bkz|dr|mr|mrs|ms|st))\.(?:\s|$)|\s+[—–]\s+/iu)
+    .map((c) => c.trim()).filter(Boolean);
   // "Merhaba, kısa bir şiir yaz" is about the poem, not the greeting.
   if (clauses.length > 1 && greetings.has(clauses[0].toLocaleLowerCase('tr')) &&
-      /^[^,!]+[,!]/u.test(plain) && clauses[1].split(/\s+/).length >= 3 && !/^world\b/i.test(clauses[1])) {
+      /^[^,!]+[,!]/u.test(plain) && clauses[1].split(/\s+/).length >= 3) {
     clauses.shift();
     clauses[0] = clauses[0].charAt(0).toLocaleUpperCase('tr') + clauses[0].slice(1);
   }
@@ -114,8 +116,10 @@ function titleInOtherLanguage(title: string, language: string): boolean {
   const trWords = words.filter(w => turkishWords.has(w)).length;
   const turkishLetters = hasTurkishLetters(title, trWords > 0);
   const enWords = title.toLowerCase().match(/\p{L}+/gu) ?? [];
+  // Short ASCII titles ("Two times seven") carry no Turkish evidence; two words still allow names ("Kubernetes CrashLoopBackOff").
   if (language === 'tr') return !turkishLetters && !turkishSuffix.test(title) && trWords === 0 &&
-    (enWords.some(w => englishWords.has(w)) || new Set(enWords.filter(w => englishContentWords.has(w))).size >= 2);
+    (enWords.some(w => englishWords.has(w)) || new Set(enWords.filter(w => englishContentWords.has(w))).size >= 2 ||
+      (/^[\x20-\x7e]+$/.test(title) && title.trim().split(/\s+/).length > 2));
   if (language === 'en') return turkishLetters || turkishSuffix.test(title) || words.filter((w) => turkishWords.has(w)).length >= 2;
   return false;
 }

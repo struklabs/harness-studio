@@ -83,7 +83,10 @@ test('fallback clause selection keeps one-word colon labels and skips only subst
   assert.equal(fallbackTitle('Error: cannot find module x'), 'Error: cannot find module x');
   assert.equal(fallbackTitle('Error: cannot find module x in this project'), 'Error: cannot find module x in');
   assert.equal(fallbackTitle('Hello, world program'), 'Hello');
-  assert.equal(fallbackTitle('Hello, world program needs fixing'), 'Hello');
+  assert.equal(fallbackTitle('Hello, world program needs fixing'), 'World program needs fixing');
+  assert.equal(fallbackTitle('Hello, world program in C'), 'World program in C');
+  assert.equal(fallbackTitle('Örn. Başlık x'), 'Örn. Başlık x');
+  assert.equal(fallbackTitle('Use vs. code for this. Then more.'), 'Use vs. code for this');
   assert.equal(fallbackTitle('Hello, explain recursion'), 'Hello');
   assert.equal(fallbackTitle('Hello. can you explain recursion'), 'Hello');
   assert.equal(fallbackTitle('Hello! can you explain recursion'), 'Can you explain recursion');
@@ -184,6 +187,11 @@ test('wrong-language and invalid replies use the first user message with fallbac
   }
   assert.deepEqual(resolveGeneratedTitle('İki katını bulma', turkish, 'en'), { title: 'İki katını bulma', source: 'auto' });
   assert.deepEqual(resolveGeneratedTitle('Two times seven', english, 'tr'), { title: 'Two times seven', source: 'auto' });
+  for (const raw of ['Two times seven', 'Twice seven doubled', 'Number doubling result']) {
+    assert.equal(resolveGeneratedTitle(raw, turkish, 'en').source, 'fallback', raw);
+  }
+  assert.deepEqual(resolveGeneratedTitle('Kubernetes CrashLoopBackOff', turkish, 'en'), { title: 'Kubernetes CrashLoopBackOff', source: 'auto' });
+  assert.deepEqual(resolveGeneratedTitle('İki katı 14', turkish, 'en'), { title: 'İki katı 14', source: 'auto' });
   assert.deepEqual(resolveGeneratedTitle('Rust', turkish, 'tr'), { title: 'Rust', source: 'auto' });
 });
 
