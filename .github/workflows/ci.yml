@@ -1,11 +1,18 @@
 name: CI
 
-# Runs on pull requests (including from forks) and on pushes to main.
-# No secrets are used: pull requests from forks run without access to any secret.
+# Runs on pull requests (including from forks) and on pushes to main, except when a change
+# touches only documentation. No secrets are used: pull requests from forks run without access
+# to any secret.
 on:
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
   workflow_dispatch:
 
 # Least privilege: jobs can only read the repository contents.
