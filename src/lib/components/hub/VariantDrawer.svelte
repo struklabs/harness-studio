@@ -31,7 +31,7 @@
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
-  import { isCompanionVariant, isCtcVariant, isWhisperVariant, recommendCtcVariant, recommendCrispasrVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
+  import { isCompanionVariant, isCtcVariant, isWhisperVariant, pickProjectorVariant, recommendCrispasrVariant, recommendCtcVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
   import { security } from '#lib/stores/security.svelte.js';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
 
@@ -314,6 +314,17 @@
         if (jobs.length > 0) {
           await downloads.refresh();
           toast.success(t('imgb.companions_queued', { count: jobs.length }));
+        }
+      }
+      // A vision repo's main model brings its projector (mmproj), unless it is already local.
+      const projector = pickProjectorVariant(variants, variant);
+      const projectorFile = projector?.shards[0]?.filename;
+      if (projector && projectorFile && !localByFile.has(normPath(projectorFile).toLowerCase())) {
+        try {
+          await downloads.enqueueVariant(id, projector);
+          toast.success(t('hub.projector_queued', { name: projector.name, size: formatBytes(projector.total_size_bytes) }));
+        } catch (e) {
+          console.warn('projector download', e);
         }
       }
     } catch (e) {
