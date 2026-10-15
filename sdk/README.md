@@ -41,7 +41,7 @@ For Python, from `sdk/python`: `uv sync --group test`, then `node ../test-server
 
 ## Publishing
 
-[`.github/workflows/sdk-publish.yml`](../.github/workflows/sdk-publish.yml) publishes `@struklabs/harness-studio-sdk` to npm and `harness-studio-sdk` to PyPI. It runs only by hand (Actions > Publish SDKs, choosing npm, PyPI or both) or for a pushed `sdk-v<version>` tag, which must match the versions in `typescript/package.json` and `python/pyproject.toml`; branch pushes and pull requests never start it. Each job first checks that `openapi.json` is current and runs its package's tests against a real `harness serve`.
+[`.github/workflows/sdk-publish.yml`](../.github/workflows/sdk-publish.yml) publishes `@struklabs/harness-studio-sdk` to npm and `harness-studio-sdk` to PyPI. It runs only by hand from `main` (Actions > Publish SDKs, choosing npm, PyPI or both) or for a pushed `sdk-v<version>` tag, which must match the versions in `typescript/package.json` and `python/pyproject.toml`; branch pushes and pull requests never start it. Each job first checks that `openapi.json` is current and runs its package's tests against a real `harness serve`.
 
-- npm publishes with provenance. The first publish uses the `NPM_TOKEN` repository secret; after a trusted publisher is set up for this workflow on npmjs.com, npm publishes through OIDC and the secret can be removed.
+- npm publishes with provenance. The first publish uses the `NPM_TOKEN` secret of the `npm` environment; after a trusted publisher is set up for this workflow on npmjs.com, npm publishes through OIDC and the secret can be removed.
 - PyPI uses trusted publishing only, from the `pypi` environment; no token is stored.

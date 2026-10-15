@@ -8,9 +8,13 @@ name: Publish SDKs
 # Before publishing, each job checks that sdk/openapi.json matches the Rust code and runs its
 # package's tests against a real `harness serve`.
 #
-#   - npm: the NPM_TOKEN secret (the first publish); once a trusted publisher is set up for this
-#     workflow on npmjs.com, npm publishes through OIDC and the token can be removed.
+#   - npm: the NPM_TOKEN secret of the `npm` environment (the first publish); once a trusted
+#     publisher is set up for this workflow on npmjs.com, npm publishes through OIDC and the
+#     token can be removed.
 #   - PyPI: trusted publishing only (the `pypi` environment); no token is stored.
+#
+# Hardening: both jobs run only from main or an sdk-v* tag (the environments allow only those
+# too), use no caches, and pin every action to a full commit SHA.
 
 on:
   workflow_dispatch:
@@ -33,14 +37,17 @@ concurrency:
 
 jobs:
   npm:
-    if: github.event_name == 'push' || inputs.target != 'pypi'
+    if: >-
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sdk-v')) &&
+      (github.event_name == 'push' || inputs.target != 'pypi')
     name: npm
     runs-on: ubuntu-22.04
+    environment: npm
     permissions:
       contents: read
       id-token: write # npm provenance, later trusted publishing
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -49,20 +56,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libdbus-1-dev pkg-config
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-          cache: npm
-          cache-dependency-path: sdk/typescript/package-lock.json
 
       # Trusted publishing (OIDC) needs npm 11.5.1 or later; Node 22 ships npm 10.
       - name: npm with trusted publishing
         run: npm install -g npm@11.6.2
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # stable branch, 2026-09-12
+        with:
+          toolchain: stable
 
       - name: The tag matches the package version
         if: github.event_name == 'push'
@@ -98,7 +103,9 @@ jobs:
         run: npm publish --provenance --access public
 
   pypi:
-    if: github.event_name == 'push' || inputs.target != 'npm'
+    if: >-
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sdk-v')) &&
+      (github.event_name == 'push' || inputs.target != 'npm')
     name: PyPI
     runs-on: ubuntu-22.04
     environment: pypi
@@ -106,7 +113,7 @@ jobs:
       contents: read
       id-token: write # PyPI trusted publishing
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -115,13 +122,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libdbus-1-dev pkg-config
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # stable branch, 2026-09-12
+        with:
+          toolchain: stable
 
       - name: Install uv
         run: pipx install uv==0.12.20
@@ -155,6 +162,6 @@ jobs:
         run: uv build
 
       - name: Publish (trusted publishing)
-        uses: pypa/gh-action-pypi-publish@v1.13.0
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           packages-dir: sdk/python/dist/
