@@ -231,7 +231,7 @@ Dashboard'un VRAM çubuğunu tüketiciye göre bölmek için her telemetri turun
 
 Sayfası kapatılmış pencerenin tepsiden açılması 0,3-0,5 sn'de görünür, 0,5-0,75 sn'de kullanılabilir oluyordu (yukarıda). Değişiklik:
 
-- İmleç tepsi simgesine gelince (`TrayIconEvent::Enter`/`Move`; Windows ve macOS) ya da simgeye basılınca (`Click` + `Down`, sağ tık dahil) pencere arka planda gizli kuruluyor (`prewarm_main_window`); tıklama yalnız gösteriyor. 20 sn içinde gösterilmezse `release_window` ile aynı yoldan yeniden kapatılıyor; imleç simgede durdukça süre uzuyor. Linux AppIndicator tepsisi simge olayı vermiyor.
+- İmleç tepsi simgesine gelince (`TrayIconEvent::Enter`/`Move`; Windows ve macOS) ya da simgeye basılınca (`Click` + `Down`, sağ tık dahil) pencere arka planda gizli kuruluyor (`prewarm_main_window`); tıklama yalnız gösteriyor. 20 sn içinde gösterilmezse `release_window` ile aynı yoldan yeniden kapatılıyor; imleç simgede durdukça süre uzuyor. Linux StatusNotifierItem tepsisi yalnız tıklamayı bildiriyor; orada pencere simgeye tıklanınca kuruluyor.
 - Kapatılan sayfanın WebView2 tarayıcı süreci daha kapanırken yeniden kurmak (aynı profil) yeni sayfayı yüklemiyordu; artık önce o sürecin çıkması bekleniyor (tıklamada en çok 5 sn; üstüne gelmede beklenmeden bir sonraki olaya erteleniyor).
 - `src/app.html`'de betik beklemeyen açılış ekranı; pencere ve web görünümü temanın arka plan rengiyle kuruluyor.
 

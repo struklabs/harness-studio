@@ -50,5 +50,8 @@ windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Thre
 webkit2gtk = "=2.0.2"
 # Whether a tray host (StatusNotifierWatcher) is on the session bus (same version GTK uses).
 gio = "0.18"
+# Tray through StatusNotifierItem over D-Bus (ksni) instead of libappindicator: left click
+# reaches the app ("Activate"), so it opens the window like on Windows and macOS.
+tray-icon = { version = "0.25", default-features = false, features = ["ksni"] }
 # AppImage relaunch after an update: no descriptor is inherited by the new version (fcntl).
 libc = "0.2"

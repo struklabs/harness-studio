@@ -10,6 +10,8 @@ Release notes with system requirements and known limitations (English and Turkis
 - audio.cpp: CPU arka ucunda iş parçacığı sayısı ayarlanmamışsa işçiler tüm fiziksel çekirdekleri kullanır (audio.cpp aksi halde tek iş parçacığında çalışır; 8 çekirdekli Ryzen'de 11 sn'lik klipte Apollo 97 sn'den 32 sn'ye indi).
 - Linux: the start-at-login entry quotes the app path (an AppImage in a folder with a space now starts), is written under `$XDG_CONFIG_HOME/autostart` when set, and is rewritten at each launch so a moved or renamed AppImage keeps starting.
 - Linux: oturum açılışında başlatma girdisi uygulama yolunu tırnak içine alır (boşluklu klasördeki AppImage artık açılıyor), `$XDG_CONFIG_HOME` ayarlıysa `$XDG_CONFIG_HOME/autostart` altına yazılır ve her açılışta yeniden yazılır; taşınan ya da adı değişen AppImage açılmaya devam eder.
+- Linux: the tray icon is a StatusNotifierItem, so activating it (left click on KDE, double click with GNOME's AppIndicator extension) opens the window; when the tray host starts after Harness (login autostart, extension turned on later), the icon appears once it does.
+- Linux: tepsi simgesi StatusNotifierItem oldu; etkinleştirmek (KDE'de sol tık, GNOME AppIndicator eklentisinde çift tık) pencereyi açar. Tepsi sunucusu Harness'tan sonra gelirse (girişte otomatik başlatma, eklentinin sonradan açılması) simge o an görünür.
 
 - Image generation: GPU memory failures show localized guidance, blocking server names when available, and a Manage Servers action.
 - Görsel üretimi: GPU belleği hataları yerelleştirilmiş yönlendirme, varsa belleği tutan sunucu adları ve Sunucuları Yönet eylemi gösterir.
