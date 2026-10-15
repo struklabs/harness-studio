@@ -77,6 +77,56 @@ jobs:
       - name: Rust tests
         run: cargo test --workspace
 
+  # The TypeScript and Python clients of the Control API: sdk/openapi.json matches the Rust
+  # code (generate.mjs --check); the packages generate their code from it in their build and
+  # test commands and are tested against a real `harness serve`.
+  sdk:
+    name: SDK (TypeScript, Python)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: sdk/typescript/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install uv
+        run: pipx install uv==0.12.20
+
+      - name: Build the harness CLI
+        run: cargo build -p harness-cli
+
+      - name: Install TypeScript SDK dependencies
+        run: npm ci --prefix sdk/typescript
+
+      - name: sdk/openapi.json is up to date
+        run: node sdk/generate.mjs --check
+
+      - name: Type-check TypeScript SDK, tests and examples
+        run: npm run typecheck --prefix sdk/typescript
+
+      - name: TypeScript SDK tests
+        run: node sdk/test-server.mjs -- npm test --prefix sdk/typescript
+
+      - name: Python SDK tests
+        working-directory: sdk/python
+        run: |
+          uv sync --group test
+          node ../test-server.mjs -- uv run --group test pytest
+
   audit:
     name: cargo audit
     runs-on: ubuntu-22.04
