@@ -9,7 +9,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import { selectChatModel } from './playground/modelSelection';
   import { estimatePromptBudget, hasContextPressure } from './playground/contextBudget';
-  import { anchoredScroll, needsOlder, pathStart, previousBatch, settledWhile, tailStart } from './playground/longChat';
+  import { IDLE_HISTORY_BATCH, anchoredScroll, needsOlder, pathStart, previousBatch, settledWhile, tailStart } from './playground/longChat';
   import { definitionFile, definitionsForMode, selectModeModel } from './playground/modelModes';
   import { library } from '#lib/stores/library.svelte.js';
   import { holdReleaseWhile } from '#lib/windowActivity.js';
@@ -1599,14 +1599,14 @@
 
   let mountingOlder = false;
   /** Mounts the next batch of older messages above the view and keeps the same content under the viewport. */
-  async function mountOlder() {
+  async function mountOlder(batch?: number) {
     if (mountingOlder || !listEl || shownStart <= 0) return;
     mountingOlder = true;
     try {
       const el = listEl;
       const top = el.scrollTop;
       const before = el.scrollHeight;
-      winStart = previousBatch(shownStart);
+      winStart = batch ? Math.max(0, shownStart - batch) : previousBatch(shownStart);
       await tick();
       // Chromium's own scroll anchoring may already have compensated; only fix what it left.
       if (Math.abs(el.scrollTop - top) < 1) el.scrollTop = anchoredScroll(top, before, el.scrollHeight);
@@ -1616,6 +1616,18 @@
     // A tall viewport (or short messages) can still show the top: keep going until it is covered.
     if (listEl && needsOlder(shownStart, listEl.scrollTop)) void mountOlder();
   }
+
+  // The rest of the history mounts in small batches while the page is idle, so scrolling up
+  // rarely waits for a batch and the browser's find (Ctrl+F) reaches the whole chat soon after open.
+  $effect(() => {
+    const start = shownStart;
+    const id = conv?.id;
+    if (start <= 0 || streaming || typeof requestIdleCallback !== 'function') return;
+    const handle = requestIdleCallback(() => {
+      if (conv?.id === id && !streaming) void mountOlder(IDLE_HISTORY_BATCH);
+    }, { timeout: 2000 });
+    return () => cancelIdleCallback(handle);
+  });
 
   function scrollToBottom(force = false) {
     if (force) stickToBottom = true;

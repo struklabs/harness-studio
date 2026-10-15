@@ -1,6 +1,8 @@
 // Pure transcript window and bounded render-cache helpers. No UI or browser imports.
 export const TAIL_MESSAGES = 32;
 export const HISTORY_BATCH = 16;
+/** Smaller batches while idle keep each mount well under a long task. */
+export const IDLE_HISTORY_BATCH = 6;
 
 export function tailStart(length: number): number {
   return Math.max(0, length - TAIL_MESSAGES);
