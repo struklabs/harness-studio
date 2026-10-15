@@ -46,6 +46,10 @@ pub struct FullOffload {
     /// floor context; only a full offload is admitted against [`crate::vram::full_offload_headroom`].
     #[serde(skip)]
     pub whole: bool,
+    /// The hybrid fallback keeps fewer layers than the fit advises for the card, because the
+    /// card's free memory (other servers or programs on it) holds no more.
+    #[serde(skip)]
+    pub free_memory_cut: bool,
 }
 
 /// Smallest context at which the default load still prefers a full GPU offload over a bigger
@@ -204,20 +208,54 @@ pub fn full_offload_context_with(
                     cache_type_k,
                     cache_type_v,
                     whole: true,
+                    free_memory_cut: false,
                 });
             }
         }
     }
     let floor = FIT_MIN_CONTEXT.min(context);
     let r = at(floor, None);
+    let advised = r.recommended_gpu_layers;
+    if advised == 0 {
+        return None;
+    }
+    // The fit advises layers for the whole card. With another server (or program) on it, what
+    // is free now may hold fewer: the most layers whose estimate stays within `need_limit`, as
+    // the gateway's admission cuts them. Without this a second server started next to a
+    // running one got every layer: Windows then pages both in and out of VRAM on every switch
+    // (1.3-2 s on an RTX 3050 Ti), and drivers that cannot page fail the load.
+    let at_layers = |n: u32| {
+        let mut c = config.clone();
+        c.context_size = floor;
+        c.gpu_layers = n;
+        fit(&c)
+    };
+    let limited = need_limit.filter(|limit| at_layers(advised).estimate.vram_bytes > *limit);
+    let (layers, r) = match limited {
+        None => (advised, r),
+        Some(limit) => {
+            // Memory grows with the layer count: the largest count within the limit.
+            let (mut lo, mut hi) = (0u32, advised - 1);
+            while lo < hi {
+                let mid = (lo + hi).div_ceil(2);
+                if at_layers(mid).estimate.vram_bytes <= limit {
+                    lo = mid;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            (lo, at_layers(lo))
+        }
+    };
     let (cache_type_k, cache_type_v) = cache_types(&r);
-    (r.recommended_gpu_layers > 0).then_some(FullOffload {
+    Some(FullOffload {
         context: floor,
-        layers: r.recommended_gpu_layers,
+        layers,
         slots: None,
         cache_type_k,
         cache_type_v,
         whole: false,
+        free_memory_cut: limited.is_some(),
     })
 }
 
@@ -352,6 +390,15 @@ pub fn resolve_for_start(
             |c| crate::vram::fit_launch(c, hw),
             os_need_limit(hw, 0),
         );
+    }
+}
+
+/// Server-log line for a load whose layers the card's free memory cut ([`FullOffload::free_memory_cut`]).
+pub fn free_memory_log_line(layers: u32, lang: &str) -> String {
+    if lang == "tr" {
+        format!("[Harness Studio] Ekran kartındaki boş bellek (başka sunucular ya da programlar kullanıyor) yalnız {layers} katmana yetiyor; kalan katmanlar CPU'da. Diğer sunucuyu durdurursanız yeniden başlatınca daha çok katman GPU'ya sığar.")
+    } else {
+        format!("[Harness Studio] The GPU's free memory (other servers or programs use it) holds only {layers} layers; the rest run on the CPU. Stop the other server and restart this one to keep more layers on the GPU.")
     }
 }
 
@@ -685,6 +732,61 @@ mod tests {
         // Room for 12k: nothing to step down to.
         let roomy = crate::vram::full_offload_need_limit_with(3962 * MIB, 4096 * MIB, 0, 0);
         assert!(step_down(&chosen, roomy, fit).is_none());
+    }
+
+    #[test]
+    fn a_second_server_takes_only_the_layers_the_free_memory_holds() {
+        // RTX 3050 Ti 4 GB with another server holding ~3.4 GB: the hybrid fallback took every
+        // layer the card alone would hold, and Windows paged both servers on every switch.
+        const MIB: u64 = 1 << 20;
+        let file = "Qwen3-4B-Instruct-2507-Q4_K_M.gguf";
+        let (card, total) = default_load_within(file, None, 4, true, None);
+        let limit = 1500 * MIB;
+        let (cut, _) = default_load_within(file, None, 4, true, Some(limit));
+        assert!(!cut.whole && cut.free_memory_cut, "{cut:?}");
+        assert_eq!(cut.context, FIT_MIN_CONTEXT);
+        assert!(
+            cut.layers > 0 && cut.layers < card.layers,
+            "{cut:?} vs {card:?}"
+        );
+        // The cut keeps the most layers within the limit.
+        let (file_size, meta) = shape_of(file);
+        let budget = crate::vram::MemoryBudget {
+            vram_bytes: 4 << 30,
+            ram_bytes: 32 << 30,
+            unified: false,
+            shared_igpu: false,
+            igpu_offload_faster: None,
+            cuda: true,
+            rocm: false,
+        };
+        let need = |layers: u32| {
+            let c = crate::process::LaunchConfig {
+                context_size: FIT_MIN_CONTEXT,
+                gpu_layers: layers,
+                launched_by: crate::slots::SlotOrigin::Gateway,
+                ..Default::default()
+            };
+            let mut base = crate::vram::base_input_from_launch(&c);
+            base.model_size_bytes = file_size;
+            crate::vram::fit_launch_with(
+                &c,
+                &base,
+                Some(&meta),
+                &budget,
+                &[],
+                false,
+                crate::hardware::RecommendedBackend::Cuda12,
+            )
+            .estimate
+            .vram_bytes
+        };
+        assert!(need(cut.layers) <= limit && need(cut.layers + 1) > limit);
+        // No room at all: the CPU, not the card's advice.
+        let (none, _) = default_load_within(file, None, 4, true, Some(0));
+        assert_eq!((none.layers, none.free_memory_cut), (0, true));
+        // A roomy card or no usage figure: the fit's advice as before.
+        assert!(!card.free_memory_cut && u64::from(card.layers) > total);
     }
 
     #[test]

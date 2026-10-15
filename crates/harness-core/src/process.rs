@@ -1402,11 +1402,14 @@ impl ProcessManager {
                 .flatten();
                 if let Some((f, chosen)) = choice {
                     launch = chosen;
+                    let lang = crate::config::AppSettings::load().language;
                     if f.context != requested {
-                        let lang = crate::config::AppSettings::load().language;
                         self.push_log(crate::full_offload::full_offload_log_line(
                             f.context, requested, &lang,
                         ));
+                    }
+                    if f.free_memory_cut {
+                        self.push_log(crate::full_offload::free_memory_log_line(f.layers, &lang));
                     }
                 }
             }
