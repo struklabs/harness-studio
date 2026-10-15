@@ -12,7 +12,7 @@ const tr = {
   'failure.invalid_argument': 'Bu model motoru bir başlatma argümanını kabul etmedi: {flag}. Kaldırın ya da model motorunu güncelleyin.',
   'failure.load_timeout': 'Sunucu {seconds} sn içinde hazır olmadı. Büyük modeller için yükleme zaman aşımını artırın.',
   'failure.crashed': '{engine} sunucusu beklenmedik şekilde durdu.',
-  'failure.killed': '{engine} sunucusu dışarıdan sonlandırıldı (SIGKILL): bellek azaldığında sistem ya da başka bir program. Bellek yetmediyse daha küçük bir model ya da niceleme, daha kısa bir bağlam deneyin veya diğer modelleri ve uygulamaları kapatın.',
+  'failure.killed': '{engine} sunucusu dışarıdan sonlandırıldı (SIGKILL): bellek azaldığında sistem tarafından ya da başka bir program tarafından. Bellek yetmediyse daha küçük bir model ya da niceleme, daha kısa bir bağlam deneyin veya diğer modelleri ve uygulamaları kapatın.',
   'failure.killed_by_system': 'Bellek tükendi: sistem {engine} sunucusunu sonlandırdı (SIGKILL). Daha küçük bir model ya da niceleme, daha kısa bir bağlam deneyin veya diğer modelleri ve uygulamaları kapatın.',
   'failure.start_failed': '{engine} sunucusu başlatılamadı.',
   'failure.device_lost': 'Ekran kartı işi durdurdu (sürücü sıfırlandı ya da GPU hatası). Sunucuyu yeniden başlatın; tekrarlarsa daha az GPU katmanı ya da başka bir sürücü sürümü deneyin.',

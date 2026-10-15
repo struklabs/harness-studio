@@ -352,47 +352,90 @@ pub fn note_signal(f: &mut ServerFailure, status: &std::process::ExitStatus) {
 /// out-of-memory failure (`failure.killed_by_system`, with the recovery options and no automatic
 /// restart) when the system's log shows it ended `pid` for memory: on macOS the kernel's
 /// memorystatus (jetsam) line of the last two minutes. Elsewhere, or without such a line, it stays
-/// as it is. Blocking (`log show` takes about 1.5 s); call it off the async runtime.
+/// as it is.
+///
+/// Blocking: `log show` takes about 1.5 s, longer under memory pressure, so it gets
+/// [`JETSAM_LOG_DEADLINE`] and is killed after it (the failure then stays `failure.killed`).
+/// Call it off the async runtime. The kernel's line can also reach the log a moment after the
+/// exit we report: a kill that is not found yet stays `failure.killed` (a false negative, never
+/// a false "memory ran out").
 pub fn confirm_memory_kill(f: &mut ServerFailure, pid: u32) {
     if f.message_key != "failure.killed" {
         return;
     }
     #[cfg(target_os = "macos")]
     {
-        let out = std::process::Command::new("/usr/bin/log")
-            .args([
-                "show",
-                "--last",
-                "2m",
-                "--style",
-                "compact",
-                "--predicate",
-                "sender == \"kernel\" AND eventMessage CONTAINS \"memorystatus: kill\"",
-            ])
-            .stdin(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .output();
-        if let Ok(out) = out {
-            if jetsam_killed(&String::from_utf8_lossy(&out.stdout), pid) {
-                f.kind = FailureKind::OutOfMemory;
-                f.code = f.kind.code();
-                f.message_key = "failure.killed_by_system".into();
-            }
+        let mut cmd = std::process::Command::new("/usr/bin/log");
+        cmd.args([
+            "show",
+            "--last",
+            "2m",
+            "--style",
+            "compact",
+            "--predicate",
+            "sender == \"kernel\" AND eventMessage CONTAINS \"memorystatus: kill\"",
+        ]);
+        if let Some(log) = output_within(cmd, JETSAM_LOG_DEADLINE) {
+            apply_memory_kill(f, &log, pid);
         }
     }
     #[cfg(not(target_os = "macos"))]
     let _ = (f, pid);
 }
 
-/// Whether macOS memorystatus lines (`log show`) say the kernel killed `pid` for memory:
-/// `killing_top_process pid 1755 [python3.12] (vm-pageshortage ...)` or `killing ... [1755]`.
-/// Idle exits of daemons (`idle-exit`) are no memory kills.
+/// How long [`confirm_memory_kill`] waits for `log show`.
+pub const JETSAM_LOG_DEADLINE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// `failure.killed` -> `failure.killed_by_system` (out of memory) when `log` names `pid` in a
+/// jetsam kill ([`jetsam_killed`]); anything else stays as it is.
+fn apply_memory_kill(f: &mut ServerFailure, log: &str, pid: u32) {
+    if f.message_key == "failure.killed" && jetsam_killed(log, pid) {
+        f.kind = FailureKind::OutOfMemory;
+        f.code = f.kind.code();
+        f.message_key = "failure.killed_by_system".into();
+    }
+}
+
+/// The stdout of `cmd`, or `None` when it cannot start or does not finish within `deadline`
+/// (then it is killed). Stdout is read on its own thread, so a full pipe cannot stall the wait.
+#[cfg(unix)]
+fn output_within(mut cmd: std::process::Command, deadline: std::time::Duration) -> Option<String> {
+    use std::io::Read;
+    use std::process::Stdio;
+    let mut child = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let mut stdout = child.stdout.take()?;
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut text = String::new();
+        let _ = stdout.read_to_string(&mut text);
+        let _ = tx.send(text);
+    });
+    match rx.recv_timeout(deadline) {
+        Ok(text) => {
+            let _ = child.wait();
+            Some(text)
+        }
+        Err(_) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            None
+        }
+    }
+}
+
+/// Whether macOS memorystatus lines (`log show`) say the kernel killed `pid` for memory: a
+/// `memorystatus: killing_<reason>` line naming `pid N ` (`killing_top_process pid 1755
+/// [python3.12] (vm-pageshortage ...)`). Idle exits of daemons (`idle-exit`) are no memory kills.
 fn jetsam_killed(log: &str, pid: u32) -> bool {
-    let by_pid = format!("pid {pid} ");
-    let bracketed = format!("[{pid}]");
+    let by_pid = format!(" pid {pid} ");
     log.lines().any(|l| {
-        l.contains("memorystatus: kill")
-            && (l.contains(&by_pid) || l.contains(&bracketed))
+        l.split_once("memorystatus: killing_")
+            .is_some_and(|(_, rest)| rest.contains(&by_pid))
             && !l.contains("idle-exit")
     })
 }
@@ -881,20 +924,64 @@ mod tests {
 
     #[test]
     fn jetsam_lines_name_memory_kills_only() {
-        // Real lines (macOS 27, M1 8 GB) and the bracketed form.
-        let log = "2026-10-15 19:57:39.444 Df kernel[0:671] [com.apple.xnu:memorystatus] memorystatus: killing_idle_process pid 86562 [replayd] (idle-exit 0 2889s rf:high type:daemon) 6992KB - memorystatus_available_pages: 213901\n\
-2026-10-15 19:58:02.101 Df kernel[0:671] [com.apple.xnu:memorystatus] memorystatus: killing_top_process pid 1755 [python3.12] (vm-pageshortage 1) 5123456KB - memorystatus_available_pages: 1203\n\
-2026-10-15 19:58:03.000 Df kernel[0:671] [com.apple.xnu:memorystatus] memorystatus: killing (vm-compressor-space-shortage) python3.12 [1760]";
+        // Real lines (macOS 27, M1 8 GB): an idle exit and the form of a memory kill.
+        let log = "2026-10-15 19:57:39.442 Df kernel[0:671] [com.apple.xnu:memorystatus] memorystatus: killing (idle) replayd [86562] due to idle-exit (9)\n\
+2026-10-15 19:57:39.444 Df kernel[0:671] [com.apple.xnu:memorystatus] memorystatus: killing_idle_process pid 86562 [replayd] (idle-exit 0 2889s rf:high type:daemon) 6992KB - memorystatus_available_pages: 213901\n\
+2026-10-15 19:58:02.101 Df kernel[0:671] [com.apple.xnu:memorystatus] memorystatus: killing_top_process pid 1755 [python3.12] (vm-pageshortage 1) 5123456KB - memorystatus_available_pages: 1203";
         assert!(jetsam_killed(log, 1755));
-        assert!(jetsam_killed(log, 1760));
         assert!(!jetsam_killed(log, 86562), "an idle exit is no memory kill");
         assert!(!jetsam_killed(log, 175), "a pid prefix is another process");
+        assert!(!jetsam_killed(log, 5123456), "a size is no pid");
         assert!(!jetsam_killed("", 1755));
 
-        // Only an unexplained kill is looked up.
-        let mut f = ServerFailure::new(FailureKind::Crashed, FailurePhase::Running);
-        confirm_memory_kill(&mut f, 1);
+        // A kill from outside that the log names becomes out of memory...
+        let killed = || {
+            let mut f = ServerFailure::new(FailureKind::Crashed, FailurePhase::Running)
+                .with("exit", "SIGKILL (9)");
+            f.message_key = "failure.killed".into();
+            f
+        };
+        let mut f = killed();
+        apply_memory_kill(&mut f, log, 1755);
+        assert_eq!(f.kind, FailureKind::OutOfMemory);
+        assert_eq!(f.code, "servers.out_of_memory");
+        assert_eq!(f.message_key, "failure.killed_by_system");
+        assert_eq!(f.params["exit"], "SIGKILL (9)");
+        // ...one it does not name (another program, or the line is not there yet) stays killed.
+        let mut f = killed();
+        apply_memory_kill(&mut f, log, 4242);
         assert_eq!(f.kind, FailureKind::Crashed);
+        assert_eq!(f.message_key, "failure.killed");
+        // Any other failure is never looked at, even when the log names its pid.
+        let mut f = ServerFailure::new(FailureKind::Crashed, FailurePhase::Running);
+        apply_memory_kill(&mut f, log, 1755);
+        assert_eq!(f.kind, FailureKind::Crashed);
+        assert_eq!(f.message_key, "failure.crashed");
+    }
+
+    /// A command that does not finish within the deadline is killed and gives nothing (a slow
+    /// `log show` under memory pressure must not hold up the failure report).
+    #[cfg(unix)]
+    #[test]
+    fn a_slow_log_query_is_cut_at_its_deadline() {
+        let mut slow = std::process::Command::new("sh");
+        slow.args(["-c", "sleep 10"]);
+        let t = std::time::Instant::now();
+        assert_eq!(
+            output_within(slow, std::time::Duration::from_millis(200)),
+            None
+        );
+        assert!(
+            t.elapsed() < std::time::Duration::from_secs(3),
+            "{:?}",
+            t.elapsed()
+        );
+        let mut quick = std::process::Command::new("sh");
+        quick.args(["-c", "echo memorystatus"]);
+        assert_eq!(
+            output_within(quick, std::time::Duration::from_secs(5)).as_deref(),
+            Some("memorystatus\n")
+        );
     }
 
     #[test]
@@ -942,9 +1029,9 @@ mod tests {
             status.code(),
             FailurePhase::Loading,
         );
-        let kind = f.kind;
         note_signal(&mut f, &status);
-        assert_eq!(f.kind, kind);
+        assert_eq!(f.kind, FailureKind::InvalidArgument);
+        assert_ne!(f.message_key, "failure.killed");
 
         let status = std::process::ExitStatus::from_raw(11);
         let mut f = classify(&[], status.code(), FailurePhase::Running);

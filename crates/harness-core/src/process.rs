@@ -2078,14 +2078,15 @@ impl ProcessManager {
                     crate::failure::note_signal(&mut failure, &status);
                     // Killed from outside: did the system end it for memory?
                     if let Some(pid) = pid.filter(|_| failure.message_key == "failure.killed") {
-                        failure = tokio::task::spawn_blocking(move || {
-                            crate::failure::confirm_memory_kill(&mut failure, pid);
-                            failure
+                        let mut checked = failure.clone();
+                        if let Ok(f) = tokio::task::spawn_blocking(move || {
+                            crate::failure::confirm_memory_kill(&mut checked, pid);
+                            checked
                         })
                         .await
-                        .unwrap_or_else(|e| {
-                            ServerFailure::new(FailureKind::Crashed, phase).with("detail", e)
-                        });
+                        {
+                            failure = f;
+                        }
                     }
                     // The ONNX sidecar could not use CUDA (`--cuda-fallback-exit`): DirectML.
                     if !was_running
