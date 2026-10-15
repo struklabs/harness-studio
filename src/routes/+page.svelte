@@ -280,6 +280,20 @@
     const models = await library.refresh();
     const tab: Tab = models.length === 0 ? 'hub' : 'playground';
     currentTab = tab;
+    void focusPageStart();
+  }
+
+  let mainEl = $state<HTMLElement | null>(null);
+
+  /**
+   * Moves focus to the start of the shown page (<main>, named by the page title in the header).
+   * The wizard restores focus to what was focused before it opened, which on first run is
+   * <body>, so a keyboard or screen-reader user would otherwise start from nowhere; from <main>
+   * the next Tab reaches the page's first control.
+   */
+  async function focusPageStart() {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    mainEl?.focus({ preventScroll: true });
   }
 
   function handleSettingsUpdated(updated: AppSettings) {
@@ -355,7 +369,7 @@
 
         <!-- overflow-clip, not hidden: a hidden box is still a scroll container, so focusing or scrolling to
              an element inside a page could scroll the whole shell up and leave a blank band. -->
-        <main class="relative min-h-0 flex-1 overflow-clip">
+        <main bind:this={mainEl} tabindex="-1" aria-labelledby="page-title" class="relative min-h-0 flex-1 overflow-clip outline-none">
           <div class="h-full" hidden={currentTab !== 'dashboard'}>
             <Dashboard
               {settings}
