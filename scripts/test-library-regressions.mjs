@@ -89,6 +89,9 @@ test('library audio subtitles follow the real engine and task', () => {
   assert.equal(libraryKindKey(file('apollo-orig.gguf', 'pipeline', undefined, 'audiocpp'), 'audio.cpp'), 'lib.kind_audio_process');
   assert.equal(libraryKindKey(file('kokoro.onnx', 'tts'), 'sherpa-onnx'), 'lib.kind_tts');
   assert.equal(libraryKindKey(file('ner', 'pipeline'), 'onnxruntime'), 'lib.kind_pipeline');
+  // A native decision model (`<arch>.decision.type` in its GGUF header) is labelled as one.
+  assert.equal(libraryKindKey({ ...file('vllm-d3-edge.gguf', 'llm'), gguf: { decision_type: 'vllm-d3' } }), 'lib.kind_decision');
+  assert.equal(libraryKindKey({ ...file('qwen3.gguf', 'llm'), gguf: {} }), 'lib.kind_llm');
 });
 
 test('image category and counts include both diffusers image tasks', () => {

@@ -115,6 +115,11 @@ pub struct GatewaySettings {
     /// Stateful `/v1/responses` (`store`, `previous_response_id`): on by default, stored in
     /// `state.db` with retention (see [`responses`]).
     pub responses: responses::ResponsesSettings,
+    /// `/v1/systemone` and `/v1/decisions` with a chat model: the gateway asks the model one
+    /// constrained question per decision (GBNF grammar) and reads the probabilities from its
+    /// logprobs. On by default; off = only native decision models answer, as in Ollama and LM
+    /// Studio.
+    pub decision_emulation: bool,
 }
 
 /// What the gateway fulfils itself for one model definition (`GatewaySettings::server_tools`).
@@ -178,6 +183,7 @@ impl Default for GatewaySettings {
             ollama_port: OLLAMA_DEFAULT_PORT,
             ollama_allow_pull: false,
             responses: responses::ResponsesSettings::default(),
+            decision_emulation: true,
         }
     }
 }

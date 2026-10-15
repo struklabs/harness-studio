@@ -83,6 +83,7 @@ export const SETTINGS_SEARCH_KEYS: Record<string, TKey[]> = {
     'gw.max_loaded_hint', 'gw.max_queue', 'gw.max_queue_hint',
     'gw.timeout', 'gw.timeout_hint', 'gw.default_ttl',
     'gw.default_ttl_hint', 'gw.memory_aware', 'gw.memory_aware_hint',
+    'gw.decision_emulation', 'gw.decision_emulation_hint',
     'gw.headroom', 'gw.headroom_hint', 'gw.models_title',
     'gw.models_desc', 'gw.external_hint', 'gw.ignores_title',
     'gw.ignores_desc', 'gw.ignores_model', 'help.ignore_model',

@@ -39,7 +39,7 @@ The local gateway does not ask for a key by default. For tools that insist on on
 | Page | What it does |
 | --- | --- |
 | **Settings > Gateway > Endpoint** | Turn it on or off, **Port**, **Bind address**, **Allow network access**, **Require a token on this computer too**, **Allowed browser origins** (for web apps). |
-| **Settings > Gateway > Routing** | **Max loaded models**, **Queue per model**, **Request timeout (s)**, **Default idle time (s)**, **Memory-aware eviction**, **VRAM headroom (MiB, 0 = automatic)**; below them, each model's state (**Ready**, **Loading**, **Not loaded**) and an **Unload** button. |
+| **Settings > Gateway > Routing** | **Max loaded models**, **Queue per model**, **Request timeout (s)**, **Default idle time (s)**, **Memory-aware eviction**, **VRAM headroom (MiB, 0 = automatic)**, **Chat model emulation for decision endpoints**; below them, each model's state (**Ready**, **Loading**, **Not loaded**) and an **Unload** button. |
 | **Settings > Gateway > Responses** | Whether the OpenAI Responses API keeps responses locally (**Store responses**) and the retention limits. |
 
 The gateway unloads only the models it loaded itself (**Loaded by gateway**) according to idle time and memory rules. It routes to servers you started by hand (**Your server**) but never shuts them down. If you mark a model definition **Pinned (always loaded)**, the gateway loads it when it starts and never unloads it.
@@ -47,6 +47,34 @@ The gateway unloads only the models it loaded itself (**Loaded by gateway**) acc
 If a request is rejected because a model is loading or a queue is full, the Playground shows a message like "{model} cannot be loaded right now: {busy} is serving requests and cannot be unloaded. {wait} try again."; once the requests finish, resend with **Retry** (see [Troubleshooting](10-troubleshooting.md#model-busy-503)).
 
 For detailed routing rules, per-client settings, and limits, read the [integrations reference](../../en/INTEGRATIONS.md).
+
+### Decision Models
+
+A decision model reads a text (the *state*) and answers typed questions with probabilities instead of a written reply: yes or no, one option out of a list, or a level on a scale. The gateway serves two request formats for this, with the same token, browser origin, and automatic loading rules as the other routes:
+
+| Path | Format | Question types | Errors |
+| --- | --- | --- | --- |
+| `/v1/systemone` | Ollama, LM Studio, llama.cpp: `state`, `images`, `questions` as an object keyed by name, `keep_alive` | `noul`, `choice`, `score` | `{"error": "..."}`, like Ollama |
+| `/v1/decisions` | OpenAI, LM Studio: `input`, `questions` as an array; answers in question order | `predicate`, `choice`, `score` | OpenAI's error object |
+
+```bash
+curl http://127.0.0.1:11435/v1/systemone -H "Content-Type: application/json" -d '{
+  "model": "my-model",
+  "state": "Customer message: I was charged twice and nobody has replied.",
+  "questions": {
+    "route": {"type": "choice", "instructions": "Which team should handle this?",
+      "criteria": {"billing": null, "shipping": null, "technical": null}},
+    "angry": {"type": "noul", "instructions": "Is the customer angry?"},
+    "urgency": {"type": "score", "instructions": "How urgent is this?",
+      "criteria": ["can wait", "this week", "today", "right now"]}
+  }
+}'
+```
+
+- A model with decision metadata in its file (labelled **Decision model** in My Models) is answered by llama.cpp itself.
+- Any other chat model answers through emulation: the gateway asks one question at a time, lets the model write only one of the option codes, and reads the probabilities from the model's token probabilities. **These probabilities are not calibrated**: use them to compare the options, not as a measured accuracy. Turn this off with **Settings > Gateway > Routing > Chat model emulation for decision endpoints**; then only decision models answer, as in Ollama and LM Studio, and a chat model gets a 400 error.
+- The `X-Harness-Decision-Mode` response header says which one answered: `native` or `emulated`.
+- Limits: up to 64 questions per request, 2–255 options per choice question (at most 52 with emulation), 2–10 score levels, no streaming. Images are base64 (a data URL, or bare base64 on `/v1/systemone`) and need a model that reads images.
 
 ## The Connections Page
 

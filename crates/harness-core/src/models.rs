@@ -185,6 +185,12 @@ pub struct LocalModel {
     pub task: Option<String>,
 }
 
+/// A native decision model (`<arch>.decision.type` in its GGUF header, see
+/// [`GgufMetadata::decision_type`]).
+pub fn is_decision_model(path: &Path) -> bool {
+    cached_metadata(path).is_some_and(|m| m.decision_type.is_some())
+}
+
 /// Header parsing is cached by (path, size, mtime) so rescans are cheap.
 pub(crate) fn cached_metadata(path: &Path) -> Option<GgufMetadata> {
     use std::sync::Mutex;
