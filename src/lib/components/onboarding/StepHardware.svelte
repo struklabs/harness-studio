@@ -40,8 +40,11 @@
         </Badge>
       </div>
       <div class="flex flex-wrap gap-x-4 gap-y-1 font-num text-xs text-muted-foreground">
-        <!-- An integrated GPU's small "VRAM" is a BIOS carve-out; models use shared RAM. -->
-        {#if discreteGpu.vram_bytes && (discreteGpu.is_discrete || discreteGpu.vram_bytes >= 2 * 1024 ** 3)}
+        <!-- An integrated GPU's small "VRAM" is a BIOS carve-out; models use shared RAM. Apple Silicon
+             has no VRAM: the GPU may use part of the unified memory. -->
+        {#if hardware?.unified_memory_budget_bytes}
+          <span>{t('onboarding.wizard_unified_budget', { size: formatBytes(hardware.unified_memory_budget_bytes, 1) })}</span>
+        {:else if discreteGpu.vram_bytes && (discreteGpu.is_discrete || discreteGpu.vram_bytes >= 2 * 1024 ** 3)}
           <span>{t('onboarding.wizard_vram_label')}: <span class="text-foreground">{formatBytes(discreteGpu.vram_bytes, 1)}</span></span>
         {:else if !discreteGpu.is_discrete}
           <span>{t('onboarding.wizard_vram_label')}: <span class="text-foreground">{t('onboarding.wizard_vram_shared')}</span></span>

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { needsSmallModelWave, pickBest, smallQueries } from '../src/lib/components/onboarding/suggestPlan.ts';
+import { fitReasonKey, needsSmallModelWave, pickBest, smallQueries } from '../src/lib/components/onboarding/suggestPlan.ts';
 import { purposeFooterAction } from '../src/lib/components/onboarding/purposeFooter.ts';
 
 test('purpose footer promotes selected installs and restores navigation during and after installation', () => {
@@ -160,4 +160,13 @@ test('whisper on the CPU (Linux) starts from small; elsewhere from large-v3-turb
   assert.equal(recommendWhisperVariant(variants, ram, true).name, 'ggml-small-q8_0');
   assert.equal(recommendWhisperVariant(variants, 300e6, true).name, 'ggml-base-q8_0');
   assert.ok(whisperOnCpu('linux') && !whisperOnCpu('windows') && !whisperOnCpu('macos') && !whisperOnCpu(undefined));
+});
+
+test('a fit reason calls shared memory a budget, not VRAM', () => {
+  assert.equal(fitReasonKey('full_gpu', false), 'onboarding.sg_reason_vram');
+  assert.equal(fitReasonKey('full_gpu', true), 'onboarding.sg_reason_shared');
+  assert.equal(fitReasonKey('tight', false), 'onboarding.sg_reason_tight');
+  assert.equal(fitReasonKey('tight', true), 'onboarding.sg_reason_tight_shared');
+  assert.equal(fitReasonKey('hybrid', true), 'onboarding.sg_reason_hybrid');
+  assert.equal(fitReasonKey('cpu_heavy', true), 'onboarding.sg_reason_cpu');
 });

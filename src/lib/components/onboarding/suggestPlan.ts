@@ -9,6 +9,15 @@ export const TIER_RANK: Record<FitCategory, number> = { full_gpu: 0, tight: 1, h
 /** Parameter sizes the second wave searches for, smallest machines first. */
 export const SMALL_SIZES = ['1B', '2B', '3B', '4B', '0.6B', '1.7B'];
 
+/** Reason line of a fit tier. Memory the GPU shares with the system (Apple Silicon, an integrated
+ *  GPU) is not called VRAM. */
+export function fitReasonKey(category: FitCategory, shared: boolean) {
+  if (category === 'full_gpu') return shared ? 'onboarding.sg_reason_shared' : 'onboarding.sg_reason_vram';
+  if (category === 'tight') return shared ? 'onboarding.sg_reason_tight_shared' : 'onboarding.sg_reason_tight';
+  if (category === 'hybrid') return 'onboarding.sg_reason_hybrid';
+  return 'onboarding.sg_reason_cpu';
+}
+
 /** Search terms of the small-model wave: `<size>` for chat, `coder-<size>` for code models. */
 export function smallQueries(role: 'chat' | 'code'): string[] {
   return SMALL_SIZES.map((s) => (role === 'code' ? `coder-${s}` : s));

@@ -11,7 +11,7 @@ import type { TKey } from '#lib/i18n.svelte.js';
 import type { FitCategory, HfModelSearchResult, HfModelVariant, HfSearchOptions, RuntimeReleasePick, RuntimeView, SystemHardwareInfo } from '#lib/types.js';
 import { fetchPage } from '../hub/hubData';
 import { quantBits, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from '../hub/recommend';
-import { asrEngine, CHAT_FAMILY_QUERIES, isGeneralChatRepo, mlxWhisperRepo, needsSmallModelWave, pickBest, pickChat, smallQueries } from './suggestPlan';
+import { asrEngine, CHAT_FAMILY_QUERIES, fitReasonKey, isGeneralChatRepo, mlxWhisperRepo, needsSmallModelWave, pickBest, pickChat, smallQueries } from './suggestPlan';
 import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
 
 export type Purpose = 'chat' | 'code' | 'rag' | 'asr';
@@ -99,14 +99,10 @@ const ROLES_OF: Record<Exclude<Purpose, 'asr'>, ListedRole[]> = {
 
 /** Reason line of a fit result: what memory budget the file sits in. */
 function fitReason(category: FitCategory, budget: { vram_bytes: number; shared_igpu?: boolean; unified: boolean }): Reason {
-  const mem = formatBytes(budget.vram_bytes, 0);
-  const shared = budget.unified || !!budget.shared_igpu;
-  if (category === 'full_gpu') {
-    return shared ? { key: 'onboarding.sg_reason_shared', params: { mem } } : { key: 'onboarding.sg_reason_vram', params: { mem } };
-  }
-  if (category === 'tight') return { key: 'onboarding.sg_reason_tight', params: { mem } };
-  if (category === 'hybrid') return { key: 'onboarding.sg_reason_hybrid' };
-  return { key: 'onboarding.sg_reason_cpu' };
+  const key = fitReasonKey(category, budget.unified || !!budget.shared_igpu);
+  return key === 'onboarding.sg_reason_hybrid' || key === 'onboarding.sg_reason_cpu'
+    ? { key }
+    : { key, params: { mem: formatBytes(budget.vram_bytes, 0) } };
 }
 
 interface Candidate {
