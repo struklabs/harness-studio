@@ -178,7 +178,7 @@
         </div>
         <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
           <dt class="text-muted-foreground">{t('onboarding.wizard_sys_path')}</dt>
-          <dd class="truncate font-mono" title={runtimeInfo.systemPath ?? ''}>{runtimeInfo.systemPath}</dd>
+          <dd class="font-mono break-all">{runtimeInfo.systemPath}</dd>
           {#if runtimeInfo.systemVersion}
             <dt class="text-muted-foreground">{t('onboarding.wizard_sys_version')}</dt>
             <dd class="font-num">{runtimeInfo.systemVersion}</dd>
@@ -212,7 +212,7 @@
           <dt class="text-muted-foreground">{t('onboarding.wizard_version')}</dt>
           <dd class="font-num">{runtimeInfo.managedVersion || t('onboarding.wizard_up_to_date')}</dd>
           <dt class="text-muted-foreground">{t('onboarding.wizard_location')}</dt>
-          <dd class="truncate font-mono" title={runtimeInfo.managedPath ?? ''}>{runtimeInfo.managedPath}</dd>
+          <dd class="font-mono break-all">{runtimeInfo.managedPath}</dd>
         </dl>
       {:else}
         <div>

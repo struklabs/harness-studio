@@ -4,7 +4,6 @@
   import type { AppSettings } from '#lib/types.js';
   import { t } from '#lib/i18n.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
-  import { Input } from '#lib/components/ui/input/index.js';
   import { Label } from '#lib/components/ui/label/index.js';
 
   interface Props {
@@ -40,8 +39,9 @@
 <div class="flex flex-col gap-4">
   <div class="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
     <Label for="models-dir-display" class="text-xs text-muted-foreground">{t('onboarding.wizard_models_dir_label')}</Label>
-    <div class="flex min-w-0 items-center gap-2">
-      <Input id="models-dir-display" readonly class="h-8 min-w-0 flex-1 font-mono text-xs" value={modelsDir} title={modelsDir} />
+    <div class="flex min-w-0 items-start gap-2">
+      <!-- The whole path, wrapped: a one-line field cuts off its end, the folder's own name. -->
+      <output id="models-dir-display" class="min-w-0 flex-1 rounded-md border border-input px-2.5 py-1.5 font-mono text-xs break-all">{modelsDir}</output>
       <Button variant="outline" size="sm" onclick={pickFolder} disabled={busy}>
         <FolderOpen /> {t('onboarding.wizard_change_dir')}
       </Button>
