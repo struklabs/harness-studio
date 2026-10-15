@@ -1,0 +1,491 @@
+{
+  "listing": {
+    "id": "nvidia/nemotron-3.5-asr-streaming-0.6b",
+    "pipeline_tag": "automatic-speech-recognition",
+    "library_name": "nemo",
+    "tags": [
+      "nemo",
+      "safetensors",
+      "gguf",
+      "nemotron3_5_asr",
+      "feature-extraction",
+      "transformers",
+      "speech-recognition",
+      "cache-aware ASR",
+      "automatic-speech-recognition",
+      "streaming-asr",
+      "multilingual",
+      "speech",
+      "audio",
+      "FastConformer",
+      "RNNT",
+      "Parakeet",
+      "ASR",
+      "pytorch",
+      "NeMo",
+      "en",
+      "es",
+      "de",
+      "fr",
+      "it",
+      "ar",
+      "ja",
+      "ko",
+      "pt",
+      "ru",
+      "hi",
+      "zh",
+      "vi",
+      "he",
+      "nl",
+      "cs",
+      "da",
+      "pl",
+      "no",
+      "sv",
+      "th",
+      "tr",
+      "bg",
+      "el",
+      "et",
+      "fi",
+      "hr",
+      "hu",
+      "lt",
+      "lv",
+      "ro",
+      "sk",
+      "uk",
+      "mt",
+      "sl",
+      "dataset:nvidia/Granary",
+      "dataset:multilingual_librispeech",
+      "dataset:fleurs",
+      "dataset:mozilla-foundation/common_voice_8_0",
+      "dataset:voxpopuli",
+      "dataset:europarl",
+      "arxiv:2312.17279",
+      "arxiv:2305.05084",
+      "license:other",
+      "model-index",
+      "eval-results",
+      "deploy:sagemaker",
+      "region:us"
+    ],
+    "config": {
+      "architectures": [
+        "Nemotron3_5AsrForRNNT"
+      ],
+      "model_type": "nemotron3_5_asr",
+      "tokenizer_config": {
+        "pad_token": "<pad>",
+        "unk_token": "<unk>"
+      }
+    },
+    "siblings": [
+      {
+        "rfilename": ".gitattributes"
+      },
+      {
+        "rfilename": "README.md"
+      },
+      {
+        "rfilename": "arch_slide10.png"
+      },
+      {
+        "rfilename": "avg_wer_summary.png"
+      },
+      {
+        "rfilename": "bias.md"
+      },
+      {
+        "rfilename": "config.json"
+      },
+      {
+        "rfilename": "explainability.md"
+      },
+      {
+        "rfilename": "fleurs_langid_vs_auto.png"
+      },
+      {
+        "rfilename": "fleurs_wer_vs_chunk_size.png"
+      },
+      {
+        "rfilename": "generation_config.json"
+      },
+      {
+        "rfilename": "latency_vs_parallel.png"
+      },
+      {
+        "rfilename": "model.safetensors"
+      },
+      {
+        "rfilename": "model_architecture.png"
+      },
+      {
+        "rfilename": "model_overview.png"
+      },
+      {
+        "rfilename": "nemotron-3.5-asr-streaming-0.6b.nemo"
+      },
+      {
+        "rfilename": "nemotron-3.5-asr-streaming-0.6b.q8_0.gguf"
+      },
+      {
+        "rfilename": "privacy.md"
+      },
+      {
+        "rfilename": "processor_config.json"
+      },
+      {
+        "rfilename": "safety.md"
+      },
+      {
+        "rfilename": "throughput_vs_chunk.png"
+      },
+      {
+        "rfilename": "tokenizer.json"
+      },
+      {
+        "rfilename": "tokenizer_config.json"
+      }
+    ]
+  },
+  "detail": {
+    "id": "nvidia/nemotron-3.5-asr-streaming-0.6b",
+    "pipeline_tag": "automatic-speech-recognition",
+    "library_name": "nemo",
+    "tags": [
+      "nemo",
+      "safetensors",
+      "gguf",
+      "nemotron3_5_asr",
+      "feature-extraction",
+      "transformers",
+      "speech-recognition",
+      "cache-aware ASR",
+      "automatic-speech-recognition",
+      "streaming-asr",
+      "multilingual",
+      "speech",
+      "audio",
+      "FastConformer",
+      "RNNT",
+      "Parakeet",
+      "ASR",
+      "pytorch",
+      "NeMo",
+      "en",
+      "es",
+      "de",
+      "fr",
+      "it",
+      "ar",
+      "ja",
+      "ko",
+      "pt",
+      "ru",
+      "hi",
+      "zh",
+      "vi",
+      "he",
+      "nl",
+      "cs",
+      "da",
+      "pl",
+      "no",
+      "sv",
+      "th",
+      "tr",
+      "bg",
+      "el",
+      "et",
+      "fi",
+      "hr",
+      "hu",
+      "lt",
+      "lv",
+      "ro",
+      "sk",
+      "uk",
+      "mt",
+      "sl",
+      "dataset:nvidia/Granary",
+      "dataset:multilingual_librispeech",
+      "dataset:fleurs",
+      "dataset:mozilla-foundation/common_voice_8_0",
+      "dataset:voxpopuli",
+      "dataset:europarl",
+      "arxiv:2312.17279",
+      "arxiv:2305.05084",
+      "license:other",
+      "model-index",
+      "eval-results",
+      "deploy:sagemaker",
+      "region:us"
+    ],
+    "config": {
+      "architectures": [
+        "Nemotron3_5AsrForRNNT"
+      ],
+      "model_type": "nemotron3_5_asr",
+      "tokenizer_config": {
+        "pad_token": "<pad>",
+        "unk_token": "<unk>"
+      }
+    },
+    "gguf": {
+      "total": 648268960,
+      "architecture": "asr",
+      "totalFileSize": 742090464
+    },
+    "siblings": [
+      {
+        "rfilename": ".gitattributes"
+      },
+      {
+        "rfilename": "README.md"
+      },
+      {
+        "rfilename": "arch_slide10.png"
+      },
+      {
+        "rfilename": "avg_wer_summary.png"
+      },
+      {
+        "rfilename": "bias.md"
+      },
+      {
+        "rfilename": "config.json"
+      },
+      {
+        "rfilename": "explainability.md"
+      },
+      {
+        "rfilename": "fleurs_langid_vs_auto.png"
+      },
+      {
+        "rfilename": "fleurs_wer_vs_chunk_size.png"
+      },
+      {
+        "rfilename": "generation_config.json"
+      },
+      {
+        "rfilename": "latency_vs_parallel.png"
+      },
+      {
+        "rfilename": "model.safetensors"
+      },
+      {
+        "rfilename": "model_architecture.png"
+      },
+      {
+        "rfilename": "model_overview.png"
+      },
+      {
+        "rfilename": "nemotron-3.5-asr-streaming-0.6b.nemo"
+      },
+      {
+        "rfilename": "nemotron-3.5-asr-streaming-0.6b.q8_0.gguf"
+      },
+      {
+        "rfilename": "privacy.md"
+      },
+      {
+        "rfilename": "processor_config.json"
+      },
+      {
+        "rfilename": "safety.md"
+      },
+      {
+        "rfilename": "throughput_vs_chunk.png"
+      },
+      {
+        "rfilename": "tokenizer.json"
+      },
+      {
+        "rfilename": "tokenizer_config.json"
+      }
+    ]
+  },
+  "tree": [
+    {
+      "path": ".gitattributes",
+      "type": "file",
+      "size": 1647
+    },
+    {
+      "path": "README.md",
+      "type": "file",
+      "size": 54239
+    },
+    {
+      "path": "arch_slide10.png",
+      "type": "file",
+      "size": 87843,
+      "lfs": {
+        "oid": "2be5d8ccfcd8232c6fc57ffacda125221382ef181ec239e1b6fdd78cf0c1c020",
+        "size": 87843,
+        "pointerSize": 130
+      }
+    },
+    {
+      "path": "avg_wer_summary.png",
+      "type": "file",
+      "size": 65515,
+      "lfs": {
+        "oid": "9a5474f81b64e0ce844c5907f073f7fab56a353d21db9196cd11aba22f787060",
+        "size": 65515,
+        "pointerSize": 130
+      }
+    },
+    {
+      "path": "bias.md",
+      "type": "file",
+      "size": 2104
+    },
+    {
+      "path": "config.json",
+      "type": "file",
+      "size": 1376
+    },
+    {
+      "path": "explainability.md",
+      "type": "file",
+      "size": 2388
+    },
+    {
+      "path": "fleurs_langid_vs_auto.png",
+      "type": "file",
+      "size": 83849,
+      "lfs": {
+        "oid": "56c360a710c99cbf70c04006ec1f842b3796b72f5093178d438b2140049b3626",
+        "size": 83849,
+        "pointerSize": 130
+      }
+    },
+    {
+      "path": "fleurs_wer_vs_chunk_size.png",
+      "type": "file",
+      "size": 92234,
+      "lfs": {
+        "oid": "9b340101e45a7ba6268f1b9c90037d9c2cf00c2c1768272bd3bdcaffd9b231ff",
+        "size": 92234,
+        "pointerSize": 130
+      }
+    },
+    {
+      "path": "generation_config.json",
+      "type": "file",
+      "size": 193
+    },
+    {
+      "path": "latency_vs_parallel.png",
+      "type": "file",
+      "size": 139167,
+      "lfs": {
+        "oid": "3e5636204786c68914f69c3f3158b4e698774b6e0dbd9120dbd996947e396638",
+        "size": 139167,
+        "pointerSize": 131
+      }
+    },
+    {
+      "path": "model.safetensors",
+      "type": "file",
+      "size": 2552062944,
+      "lfs": {
+        "oid": "9eebdd6590289cb3030f310858f3df93256600a800a3e8200c5993d5f967e174",
+        "size": 2552062944,
+        "pointerSize": 135
+      }
+    },
+    {
+      "path": "model_architecture.png",
+      "type": "file",
+      "size": 150586,
+      "lfs": {
+        "oid": "3146643d1a7c8dd424adcb221a5dabbda6951da1ef3937f7d15b29e46e5fa272",
+        "size": 150586,
+        "pointerSize": 131
+      }
+    },
+    {
+      "path": "model_overview.png",
+      "type": "file",
+      "size": 114032,
+      "lfs": {
+        "oid": "075554d371b33de450cb7a13fa9886c3689855d4930b37edc1ecb954b01f33c5",
+        "size": 114032,
+        "pointerSize": 131
+      }
+    },
+    {
+      "path": "nemotron-3.5-asr-streaming-0.6b.nemo",
+      "type": "file",
+      "size": 2368284501,
+      "lfs": {
+        "oid": "210214ed94039bf6bfbb9a047c7fa289628db75b103e2bf6381fa78285436a74",
+        "size": 2368284501,
+        "pointerSize": 135
+      }
+    },
+    {
+      "path": "nemotron-3.5-asr-streaming-0.6b.q8_0.gguf",
+      "type": "file",
+      "size": 742090464,
+      "lfs": {
+        "oid": "3fc991d3badad7277c11030a7519832cddaf2057aafed6d4b25147e953a070b1",
+        "size": 742090464,
+        "pointerSize": 134
+      }
+    },
+    {
+      "path": "privacy.md",
+      "type": "file",
+      "size": 2097
+    },
+    {
+      "path": "processor_config.json",
+      "type": "file",
+      "size": 2519
+    },
+    {
+      "path": "safety.md",
+      "type": "file",
+      "size": 737
+    },
+    {
+      "path": "throughput_vs_chunk.png",
+      "type": "file",
+      "size": 69454,
+      "lfs": {
+        "oid": "276b2f4e3dca6f5550f4215c8180ab244bc998401d65b54ce40400d228fee5da",
+        "size": 69454,
+        "pointerSize": 130
+      }
+    },
+    {
+      "path": "tokenizer.json",
+      "type": "file",
+      "size": 752051
+    },
+    {
+      "path": "tokenizer_config.json",
+      "type": "file",
+      "size": 881
+    }
+  ],
+  "config": {
+    "architectures": [
+      "Nemotron3_5AsrForRNNT"
+    ],
+    "model_type": "nemotron3_5_asr"
+  },
+  "processor": {
+    "processor_class": "Nemotron3_5AsrProcessor",
+    "feature_extractor": {
+      "feature_extractor_type": "NemotronAsrStreamingFeatureExtractor",
+      "sampling_rate": 16000
+    }
+  }
+}

@@ -1,0 +1,202 @@
+{
+  "listing": {
+    "id": "lightx2v/Qwen-Image-Edit-2511-Lightning",
+    "pipeline_tag": "image-to-image",
+    "library_name": "diffusers",
+    "tags": [
+      "diffusers",
+      "safetensors",
+      "diffusion-single-file",
+      "comfyui",
+      "distillation",
+      "LoRA",
+      "lora",
+      "Qwen-Image",
+      "Qwen-Image-Edit",
+      "image-to-image",
+      "base_model:Qwen/Qwen-Image-Edit-2511",
+      "base_model:adapter:Qwen/Qwen-Image-Edit-2511",
+      "license:apache-2.0",
+      "region:us"
+    ],
+    "config": {},
+    "siblings": [
+      {
+        "rfilename": ".gitattributes"
+      },
+      {
+        "rfilename": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
+      },
+      {
+        "rfilename": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors"
+      },
+      {
+        "rfilename": "Qwen-Image-Edit-2511-Lightning-8steps-V1.0-bf16.safetensors"
+      },
+      {
+        "rfilename": "Qwen-Image-Edit-2511-Lightning-8steps-V1.0-fp32.safetensors"
+      },
+      {
+        "rfilename": "README.md"
+      },
+      {
+        "rfilename": "qwen_image_edit_2511_fp8_e4m3fn_scaled.safetensors"
+      },
+      {
+        "rfilename": "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_4steps_v1.0.safetensors"
+      },
+      {
+        "rfilename": "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_8steps_v1.0.safetensors"
+      },
+      {
+        "rfilename": "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_comfyui_4steps_v1.0.safetensors"
+      }
+    ]
+  },
+  "detail": {
+    "id": "lightx2v/Qwen-Image-Edit-2511-Lightning",
+    "pipeline_tag": "image-to-image",
+    "library_name": "diffusers",
+    "tags": [
+      "diffusers",
+      "safetensors",
+      "diffusion-single-file",
+      "comfyui",
+      "distillation",
+      "LoRA",
+      "lora",
+      "Qwen-Image",
+      "Qwen-Image-Edit",
+      "image-to-image",
+      "base_model:Qwen/Qwen-Image-Edit-2511",
+      "base_model:adapter:Qwen/Qwen-Image-Edit-2511",
+      "license:apache-2.0",
+      "region:us"
+    ],
+    "config": {},
+    "siblings": [
+      {
+        "rfilename": ".gitattributes"
+      },
+      {
+        "rfilename": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
+      },
+      {
+        "rfilename": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors"
+      },
+      {
+        "rfilename": "Qwen-Image-Edit-2511-Lightning-8steps-V1.0-bf16.safetensors"
+      },
+      {
+        "rfilename": "Qwen-Image-Edit-2511-Lightning-8steps-V1.0-fp32.safetensors"
+      },
+      {
+        "rfilename": "README.md"
+      },
+      {
+        "rfilename": "qwen_image_edit_2511_fp8_e4m3fn_scaled.safetensors"
+      },
+      {
+        "rfilename": "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_4steps_v1.0.safetensors"
+      },
+      {
+        "rfilename": "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_8steps_v1.0.safetensors"
+      },
+      {
+        "rfilename": "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_comfyui_4steps_v1.0.safetensors"
+      }
+    ]
+  },
+  "tree": [
+    {
+      "path": ".gitattributes",
+      "type": "file",
+      "size": 1519
+    },
+    {
+      "path": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+      "type": "file",
+      "size": 849608296,
+      "lfs": {
+        "oid": "22226e8d05d354bb356627d428809f5afd7819399b077238a2b70a82883a904f",
+        "size": 849608296,
+        "pointerSize": 134
+      }
+    },
+    {
+      "path": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors",
+      "type": "file",
+      "size": 1698951104,
+      "lfs": {
+        "oid": "6f03a8cbb49f8dd422d23759b03cb254264c44aa3717d7903349ee42695baf18",
+        "size": 1698951104,
+        "pointerSize": 135
+      }
+    },
+    {
+      "path": "Qwen-Image-Edit-2511-Lightning-8steps-V1.0-bf16.safetensors",
+      "type": "file",
+      "size": 849608296,
+      "lfs": {
+        "oid": "a9e81a58a78f260f67b337a6f615e8fa4cd3bc79847c77b7d61a581b789b1ba8",
+        "size": 849608296,
+        "pointerSize": 134
+      }
+    },
+    {
+      "path": "Qwen-Image-Edit-2511-Lightning-8steps-V1.0-fp32.safetensors",
+      "type": "file",
+      "size": 1698951104,
+      "lfs": {
+        "oid": "e2e24eda6295bf08222638b0b8278628461e86e8e1bc1b10411c7def13451262",
+        "size": 1698951104,
+        "pointerSize": 135
+      }
+    },
+    {
+      "path": "README.md",
+      "type": "file",
+      "size": 2680
+    },
+    {
+      "path": "qwen_image_edit_2511_fp8_e4m3fn_scaled.safetensors",
+      "type": "file",
+      "size": 20487870224,
+      "lfs": {
+        "oid": "26b66b71fdc7cf9f88890284ef8b35b96efd5933a28a953c15483f9276670768",
+        "size": 20487870224,
+        "pointerSize": 136
+      }
+    },
+    {
+      "path": "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_4steps_v1.0.safetensors",
+      "type": "file",
+      "size": 20580040288,
+      "lfs": {
+        "oid": "56f82dcb4fc4dd214b33a62651702e6fba7b90edc6b2b6ee365e7b8363a4418d",
+        "size": 20580040288,
+        "pointerSize": 136
+      }
+    },
+    {
+      "path": "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_8steps_v1.0.safetensors",
+      "type": "file",
+      "size": 20487870224,
+      "lfs": {
+        "oid": "69702a1ea4d8850bb1bc07db1b68f74d1d99c7131d36cfc03d5dc887849e9b9d",
+        "size": 20487870224,
+        "pointerSize": 136
+      }
+    },
+    {
+      "path": "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_comfyui_4steps_v1.0.safetensors",
+      "type": "file",
+      "size": 20447469486,
+      "lfs": {
+        "oid": "16d03fd9bab36b0a588e77db23825629df62ab99fc3e62f3a36887b201dcc36f",
+        "size": 20447469486,
+        "pointerSize": 136
+      }
+    }
+  ]
+}

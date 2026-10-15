@@ -463,6 +463,15 @@ fn merge_runnable_extras(
     }
 }
 
+fn exact_repo_missing(options: &HfSearchOptions, items: &[HfModelSearchResult]) -> bool {
+    options.cursor.is_none()
+        && options.query.trim().split('/').count() == 2
+        && DownloadManager::validate_repo_id(options.query.trim()).is_ok()
+        && !items
+            .iter()
+            .any(|m| m.id.eq_ignore_ascii_case(options.query.trim()))
+}
+
 fn prioritize_exact_repo(items: &mut [HfModelSearchResult], query: &str) {
     let query = query.trim();
     if query.split('/').count() == 2 {
@@ -491,8 +500,11 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     let task = analysis.pipeline_tag.as_deref().or(analysis.inferred_task);
     let ctc_export = ctc && crate::hub_compat::has_ctc_files(&sibling_files(item));
     let refiner = crate::hub_compat::is_sdxl_refiner(&id, &sibling_files(item));
+    let native_speech = crate::hub_compat::native_speech_format(item, &sibling_files(item));
     let format = if refiner {
         crate::hub_compat::ModelFormat::Diffusers
+    } else if let Some(format) = native_speech {
+        format
     } else if ctc_export {
         crate::hub_compat::ModelFormat::Onnx
     } else {
@@ -537,6 +549,10 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         crate::hub_compat::Compatibility::Runnable {
             runtime: crate::engine::CRISPASR.into(),
         }
+    } else if native_speech.is_some() {
+        crate::hub_compat::Compatibility::Runnable {
+            runtime: crate::engine::PYTHON_HF.into(),
+        }
     } else if ctc_export {
         format.compatibility()
     } else if diffusion_adapter {
@@ -567,6 +583,22 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
             )
         })
         .unwrap_or_else(|| crate::hub_compat::hub_compatibility_for(format, task, genai))
+    };
+    // Keep native-folder precedence, but refuse processors whose required package is not
+    // shipped by the Python engine. This precise reason supersedes llama-server's NoGguf.
+    let missing_dependency = matches!(
+        &compatibility,
+        crate::hub_compat::Compatibility::Runnable { runtime }
+            | crate::hub_compat::Compatibility::NeedsRuntime { runtime }
+            if runtime == crate::engine::PYTHON_HF
+    )
+    .then(|| crate::engine::python_hf::missing_dependency(item["config"]["model_type"].as_str()))
+    .flatten();
+    let compatibility = if missing_dependency.is_some() {
+        analysis.not_runnable = Some(crate::hub_tasks::NotRunnable::NeedsLibrosa);
+        crate::hub_compat::Compatibility::Unsupported { format }
+    } else {
+        compatibility
     };
     // A speech repo made for its own package (Qwen3-TTS, VibeVoice streaming...) would show as
     // runnable on the Python engine and fail at load.
@@ -830,6 +862,7 @@ fn companion_variant_from(
 fn audio_cpp_variants(
     repo: &str,
     items: &[serde_json::Value],
+    not_runnable: Option<crate::hub_tasks::NotRunnable>,
 ) -> Result<Vec<HfModelVariant>, String> {
     let mut variants = Vec::new();
     for model in items
@@ -879,10 +912,16 @@ fn audio_cpp_variants(
                 .cmp(&(b.filename != model))
                 .then_with(|| a.filename.cmp(&b.filename))
         });
+        // Refused frontend families expose no downloadable files or voice companions.
+        if not_runnable.is_some() {
+            shards.clear();
+        }
         variants.push(HfModelVariant {
-            not_runnable: (crate::engine::audio_cpp::family_from_package_path(model).is_none()
-                && !(repo == "audio-cpp/SAM-Audio-GGUF" && model.starts_with("sam-audio-")))
-            .then_some(crate::hub_tasks::NotRunnable::AudioCppUnsupported),
+            not_runnable: not_runnable.or_else(|| {
+                (crate::engine::audio_cpp::family_from_package_path(model).is_none()
+                    && !(repo == "audio-cpp/SAM-Audio-GGUF" && model.starts_with("sam-audio-")))
+                .then_some(crate::hub_tasks::NotRunnable::AudioCppUnsupported)
+            }),
             name: model.trim_end_matches(".gguf").into(),
             quantization: crate::gguf::extract_quant_from_filename(model),
             total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
@@ -1433,6 +1472,11 @@ impl DownloadManager {
                 }
             }
         }
+        if exact_repo_missing(options, &page.items) {
+            if let Some(repo) = Self::fetch_exact_repo(options.query.trim(), token).await {
+                page.items.push(repo);
+            }
+        }
         prioritize_exact_repo(&mut page.items, &options.query);
         Ok(page)
     }
@@ -1440,8 +1484,12 @@ impl DownloadManager {
     /// The `ggerganov/whisper.cpp` repo as a listing item; `None` when it cannot be read (the
     /// rest of the listing is still correct).
     async fn fetch_whisper_repo(token: Option<&str>) -> Option<HfModelSearchResult> {
+        Self::fetch_exact_repo(WHISPER_CPP_REPO, token).await
+    }
+
+    async fn fetch_exact_repo(repo: &str, token: Option<&str>) -> Option<HfModelSearchResult> {
         let client = Self::client().ok()?;
-        let url = format!("{}/models/{}", HF_API, WHISPER_CPP_REPO);
+        let url = format!("{HF_API}/models/{repo}");
         let fields: Vec<(&str, &str)> = LISTING_FIELDS.iter().map(|f| ("expand[]", *f)).collect();
         let res = Self::apply_hf_auth(client.get(&url).query(&fields), &url, token)
             .send()
@@ -1965,23 +2013,29 @@ impl DownloadManager {
             .iter()
             .filter_map(|i| i.get("path").and_then(|v| v.as_str()).map(String::from))
             .collect();
-        let audio_repo = repo_id == "audio-cpp/audio.cpp-gguf"
-            || (paths.iter().any(|p| p.ends_with(".gguf")) && {
-                let url = format!("{HF_API}/models/{repo_id}");
-                let info: serde_json::Value =
-                    Self::apply_hf_auth(Self::client()?.get(&url), &url, token)
-                        .send()
-                        .await
-                        .map_err(|e| crate::http_error::transport(&e, &url))?
-                        .error_for_status()
-                        .map_err(|e| crate::http_error::transport(&e, &url))?
-                        .json()
-                        .await
-                        .map_err(|e| crate::http_error::transport(&e, &url))?;
-                crate::hub_compat::is_audio_cpp_repo(&info)
-            });
-        if audio_repo {
-            return audio_cpp_variants(repo_id, &items);
+        let info = if paths.iter().any(|p| p.ends_with(".gguf")) {
+            let url = format!("{HF_API}/models/{repo_id}");
+            Self::apply_hf_auth(Self::client()?.get(&url), &url, token)
+                .send()
+                .await
+                .map_err(|e| crate::http_error::transport(&e, &url))?
+                .error_for_status()
+                .map_err(|e| crate::http_error::transport(&e, &url))?
+                .json::<serde_json::Value>()
+                .await
+                .map_err(|e| crate::http_error::transport(&e, &url))?
+        } else {
+            serde_json::Value::Null
+        };
+        if crate::hub_compat::native_speech_format(&info, &paths).is_some() {
+            return safetensors_variants(repo_id, &items);
+        }
+        if repo_id == "audio-cpp/audio.cpp-gguf" || crate::hub_compat::is_audio_cpp_repo(&info) {
+            return audio_cpp_variants(
+                repo_id,
+                &items,
+                crate::hub_compat::audio_cpp_not_runnable(&info),
+            );
         }
         if crate::hub_compat::is_sdxl_refiner(repo_id, &paths) {
             return diffusers_variants(repo_id, &items);
@@ -2021,6 +2075,14 @@ impl DownloadManager {
                 return Ok(checkpoint);
             }
         }
+        Self::file_variants(repo_id, &items, image_repo)
+    }
+
+    fn file_variants(
+        repo_id: &str,
+        items: &[serde_json::Value],
+        image_repo: bool,
+    ) -> Result<Vec<HfModelVariant>, String> {
         let split_regex = Regex::new(r"(?i)^(.*?)-(\d{5})-of-(\d{5})\.gguf$").unwrap();
 
         let mut single_files = Vec::new();
@@ -2098,7 +2160,9 @@ impl DownloadManager {
                 crate::gguf::extract_quant_from_filename(&shard.filename)
             };
             variants.push(HfModelVariant {
-                not_runnable: None,
+                not_runnable: (image_repo
+                    && crate::image_bundles::is_adapter_file(&shard.filename))
+                .then_some(crate::hub_tasks::NotRunnable::Adapter),
                 name: shard
                     .filename
                     .trim_end_matches(".gguf")
@@ -7529,7 +7593,7 @@ mod audio_cpp_tests {
             .chain(&unsupported)
             .map(|folder| json!({"path":format!("{folder}/model.gguf"),"size":10}))
             .collect();
-        let variants = audio_cpp_variants("audio-cpp/audio.cpp-gguf", &items).unwrap();
+        let variants = audio_cpp_variants("audio-cpp/audio.cpp-gguf", &items, None).unwrap();
         assert_eq!(variants.len(), supported.len() + unsupported.len());
         for v in variants {
             let runnable = supported.contains(&v.name.split('/').next().unwrap());
@@ -7569,7 +7633,7 @@ mod audio_cpp_tests {
         .iter()
         .map(|p| json!({"type":"file", "path":p, "size":10}))
         .collect::<Vec<_>>();
-        let variants = audio_cpp_variants("audio-cpp/audio.cpp-gguf", &items).unwrap();
+        let variants = audio_cpp_variants("audio-cpp/audio.cpp-gguf", &items, None).unwrap();
         assert_eq!(variants.len(), 3);
         for v in &variants {
             let folder = v.shards[0].filename.rsplit_once('/').unwrap().0;
@@ -7701,7 +7765,7 @@ mod false_positive_tests {
         );
         assert_eq!(card_not_runnable(&item, None), listed.not_runnable);
         let variants =
-            audio_cpp_variants("audio-cpp/AuK-Base-and-Flash-GGUF", &files(&paths)).unwrap();
+            audio_cpp_variants("audio-cpp/AuK-Base-and-Flash-GGUF", &files(&paths), None).unwrap();
         assert_eq!(variants.len(), 9);
         assert!(variants.iter().all(|v| v.not_runnable.is_some()));
     }
@@ -7814,3 +7878,7 @@ mod false_positive_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "downloader_g8_tests.rs"]
+mod g8_tests;

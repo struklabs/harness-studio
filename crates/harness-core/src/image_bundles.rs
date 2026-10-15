@@ -289,6 +289,13 @@ pub const BUNDLES: &[Bundle] = &[
         defaults: QWEN_IMAGE_DEFAULTS,
     },
     Bundle {
+        id: "qwen-image-edit-2511",
+        label: "Qwen-Image Edit 2511",
+        file_pattern: r"qwen[-_.]?image[-_.]?edit[-_.]?2511",
+        components: &[QWEN_IMAGE_VAE, QWEN25_VL_7B, QWEN25_VL_7B_MMPROJ],
+        defaults: QWEN_IMAGE_DEFAULTS,
+    },
+    Bundle {
         id: "qwen-image-edit",
         label: "Qwen-Image Edit",
         file_pattern: r"qwen[-_.]?image[-_.]?edit",
@@ -464,7 +471,7 @@ fn patterns() -> &'static [Regex] {
 
 /// The bundle a main file belongs to, by its file name (a path or a bare name).
 pub fn bundle_for(file: &str) -> Option<&'static Bundle> {
-    if crate::hub_compat::is_sdxl_refiner("", &[file.to_string()]) {
+    if is_adapter_file(file) || crate::hub_compat::is_sdxl_refiner("", &[file.to_string()]) {
         return None;
     }
     let name = file.rsplit(['/', '\\']).next().unwrap_or(file);
@@ -501,6 +508,25 @@ pub fn is_image_candidate_file(path: &str) -> bool {
         && (!lower.contains('/') || lower.starts_with("text_encoders/"))
 }
 
+/// Audited full Lightning exports coexist with adapters whose names omit the scaled precision.
+pub fn is_standalone_checkpoint(path: &str) -> bool {
+    let name = path.to_ascii_lowercase();
+    matches!(
+        name.as_str(),
+        "qwen_image_edit_2511_fp8_e4m3fn_scaled.safetensors"
+            | "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_4steps_v1.0.safetensors"
+            | "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_8steps_v1.0.safetensors"
+            | "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_comfyui_4steps_v1.0.safetensors"
+    )
+}
+
+pub fn is_adapter_file(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path).to_ascii_lowercase();
+    name.split(|c: char| !c.is_ascii_alphanumeric())
+        .any(|t| t == "lora")
+        || (name.starts_with("qwen-image-edit-2511-lightning-") && name.ends_with(".safetensors"))
+}
+
 /// Whether a repo's file list is that of an image checkpoint repo rather than a language model
 /// in safetensors (which has a root `config.json` and sharded `model-0000x-of-0000y` files): a
 /// diffusers repo has `model_index.json`, a single-file repo has no `config.json`.
@@ -514,7 +540,8 @@ pub fn repo_has_image_files(paths: &[String]) -> bool {
 /// `component` for a VAE / text encoder / LoRA adapter (it is not a model of its own).
 pub fn variant_quant(file: &str) -> String {
     let name = file.rsplit('/').next().unwrap_or(file).to_ascii_lowercase();
-    if file.to_ascii_lowercase().starts_with("text_encoders/")
+    if is_adapter_file(file)
+        || file.to_ascii_lowercase().starts_with("text_encoders/")
         || ["ae.", "vae", "clip_", "t5xxl", "umt5", "text_encoder"]
             .iter()
             .any(|w| name.starts_with(w))
@@ -643,7 +670,16 @@ pub fn plan_for(file: &str, libraries: &[PathBuf], main: Option<&Path>) -> Optio
                 path: find_component(c, libraries, main).map(|p| p.to_string_lossy().to_string()),
             })
             .collect(),
-        defaults: defaults_load(&bundle.defaults),
+        defaults: {
+            let mut load = defaults_load(&bundle.defaults);
+            if bundle.id == "qwen-image-edit-2511" {
+                load.insert(
+                    "model_args".into(),
+                    ParamValue::Text("qwen_image_zero_cond_t=true".into()),
+                );
+            }
+            load
+        },
     })
 }
 
@@ -795,11 +831,11 @@ mod tests {
         assert_eq!(plan("qwen_image_bf16.safetensors").0, "qwen-image");
         assert_eq!(
             plan("qwen-image-edit-2511-Q4_K_M.gguf").0,
-            "qwen-image-edit"
+            "qwen-image-edit-2511"
         );
         assert_eq!(
             plan("qwen-image-edit-2511-uncensored-Q4_K_M.gguf").0,
-            "qwen-image-edit"
+            "qwen-image-edit-2511"
         );
         let (id, comps) = plan("Qwen-Image-Edit-2509-Q4_K_M.gguf");
         assert_eq!(id, "qwen-image-edit-2509");

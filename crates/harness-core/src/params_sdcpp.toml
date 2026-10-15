@@ -353,3 +353,12 @@ label_key = "sdparam.flow_shift"
 help_key = "sdparam.flow_shift_help"
 min = 0
 max = 100
+
+[[param]]
+id = "model_args"
+flags = ["--model-args"]
+kind = "string"
+group = "components"
+level = "advanced"
+label_key = "sdparam.model_args"
+help_key = "sdparam.model_args_help"

@@ -2,6 +2,8 @@
 // Image tab of the Playground, the image model kind, the Hub's model bundle notes and the backend
 // error keys.
 const tr = {
+  'sdparam.model_args': 'Model Argümanları',
+  'sdparam.model_args_help': 'Modele özel key=value ayarları. Qwen Image Edit 2511 için qwen_image_zero_cond_t=true kullanılır.',
   'img.manage_servers': 'Sunucuları Yönet',
   // ---- Parameter catalog groups and entries (`caps.group.<group>` is the shared group key) ----
   'caps.group.components': 'Model Dosyaları',
@@ -169,6 +171,8 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'sdparam.model_args': 'Model Arguments',
+  'sdparam.model_args_help': 'Model-specific key=value settings. Qwen Image Edit 2511 uses qwen_image_zero_cond_t=true.',
   'img.manage_servers': 'Manage Servers',
   // ---- Parameter catalog groups and entries (`caps.group.<group>` is the shared group key) ----
   'caps.group.components': 'Model Files',

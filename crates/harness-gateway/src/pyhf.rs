@@ -115,7 +115,29 @@ pub async fn post(
                 } else {
                     "tts.worker_failed"
                 };
-                return Err(GatewayError::new(502, "upstream_error", message));
+                let detail = e.message();
+                let mut logs = Vec::new();
+                for (_, pm) in scheduler.registry().all() {
+                    if pm
+                        .launch_config()
+                        .is_some_and(|c| c.definition_id.as_deref() == Some(def.id.as_str()))
+                    {
+                        let (_, lines) = pm.get_run_logs_since(0);
+                        logs.extend(
+                            lines
+                                .into_iter()
+                                .rev()
+                                .take(20)
+                                .collect::<Vec<_>>()
+                                .into_iter()
+                                .rev(),
+                        );
+                        pm.append_log(format!("[audio.cpp error] {detail}"));
+                    }
+                }
+                return Err(GatewayError::new(502, "upstream_error", message).details(
+                    serde_json::json!({"engine":"audio.cpp", "detail":detail, "worker_log":logs}),
+                ));
             }
             return Err(GatewayError::from_sched(&e));
         }
@@ -156,6 +178,9 @@ pub async fn post(
     let upstream = match req.send().await {
         Ok(upstream) => upstream,
         Err(e) => {
+            if audio_cpp {
+                log_audio_cpp_error(state, &lease, &e.to_string());
+            }
             if audio_cpp || crisp_tts {
                 let _ = scheduler.unload(&def.id).await;
             }
@@ -209,6 +234,7 @@ pub async fn post(
             Ok(bytes) => bytes,
             Err(e) => {
                 if audio_cpp {
+                    log_audio_cpp_error(state, &lease, &e.to_string());
                     let _ = scheduler.unload(&def.id).await;
                 }
                 return Err(transport_error(engine, &e, "upstream_error"));
@@ -219,6 +245,9 @@ pub async fn post(
     guard.get().ttft_ms = Some(guard.started.elapsed().as_millis() as u64);
     if !(200..300).contains(&status) {
         let error = upstream_error(engine, status, &body);
+        if audio_cpp {
+            log_audio_cpp_error(state, &lease, &error.body().to_string());
+        }
         if audio_cpp && (status >= 500 || error.code == "espeak_missing") {
             let _ = scheduler.unload(&def.id).await;
         }
@@ -233,13 +262,20 @@ pub async fn post(
     })
 }
 
+fn log_audio_cpp_error(state: &GwState, lease: &Lease, detail: &str) {
+    if let Some(pm) = state.scheduler.registry().get(&lease.server_id) {
+        pm.append_log(format!("[audio.cpp error] {detail}"));
+    }
+}
+
 fn transport_error(engine: &str, error: &reqwest::Error, code: &str) -> GatewayError {
     if engine == "audio.cpp" {
         return GatewayError::new(
             if error.is_timeout() { 504 } else { 502 },
             code,
             "tts.worker_failed",
-        );
+        )
+        .details(serde_json::json!({"engine":engine, "detail":error.to_string()}));
     }
     if error.is_timeout() {
         let message = format!("{engine} did not answer in time.");
@@ -267,10 +303,14 @@ pub fn upstream_error(engine: &str, status: u16, body: &[u8]) -> GatewayError {
                 .collect()
         });
     if engine == "audio.cpp" && detail.to_ascii_lowercase().contains("espeak") {
-        return GatewayError::new(502, "espeak_missing", "tts.espeak_missing");
+        return GatewayError::new(502, "espeak_missing", "tts.espeak_missing").details(
+            serde_json::json!({"engine":engine, "upstream_status":status, "detail":detail}),
+        );
     }
     if engine == "audio.cpp" && status >= 500 {
-        return GatewayError::new(502, "upstream_error", "tts.worker_failed");
+        return GatewayError::new(502, "upstream_error", "tts.worker_failed").details(
+            serde_json::json!({"engine":engine, "upstream_status":status, "detail":detail}),
+        );
     }
     let (status, code) = match status {
         400 | 413 => (status, "invalid_request"),
@@ -315,10 +355,14 @@ mod tests {
             br#"{"error":{"message":"Could not load eSpeak-ng; install the shared library or provide its path"}}"#);
         assert_eq!(e.status, 502);
         assert_eq!(e.message, "tts.espeak_missing");
-        assert_eq!(
-            upstream_error("audio.cpp", 500, b"failed to load").message,
-            "tts.worker_failed"
-        );
+        assert!(e.details.as_ref().unwrap()["detail"]
+            .as_str()
+            .unwrap()
+            .contains("Could not load eSpeak"));
+        let e = upstream_error("audio.cpp", 500, b"failed to load");
+        assert_eq!(e.message, "tts.worker_failed");
+        assert_eq!(e.body()["error"]["harness"]["detail"], "failed to load");
+        assert_eq!(e.body()["error"]["harness"]["upstream_status"], 500);
         assert_eq!(
             upstream_error("audio.cpp", 400, b"invalid voice").status,
             400

@@ -186,6 +186,10 @@ pub enum NotRunnable {
     AudioCppUnsupported,
     CrispasrPocketEnglishOnly,
     AudioCppEspeakMissing,
+    /// The transformers processor requires librosa, absent from the Python engine locks.
+    NeedsLibrosa,
+    /// The GGUF requires the unsupported SEA-G2P text frontend.
+    NeedsSeaG2p,
     /// A LoRA adapter: loads on top of a base model, not on its own.
     Adapter,
     /// An image / video generator or diffusion checkpoint.
@@ -260,7 +264,8 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
             },
             inferred_task: None,
             source: None,
-            not_runnable: (!tts && !process).then_some(NotRunnable::AudioCppUnsupported),
+            not_runnable: crate::hub_compat::audio_cpp_not_runnable(item)
+                .or_else(|| (!tts && !process).then_some(NotRunnable::AudioCppUnsupported)),
             diffusion_adapter: false,
             adapter_base: None,
         };
@@ -449,6 +454,12 @@ fn is_diffusion_adapter(
     }) || lower.iter().any(|t| t == "ip-adapter" || t == "ip_adapter")
         || is_ip_adapter_name(repo_id)
         || files.iter().any(|f| is_ip_adapter_name(f));
+    if files
+        .iter()
+        .any(|f| crate::image_bundles::is_standalone_checkpoint(f))
+    {
+        return false;
+    }
     if !lora || files.iter().any(|f| f.to_lowercase().contains("mmproj")) {
         return false;
     }
@@ -691,16 +702,21 @@ const fn row_alt(
 const ASR_ALTS: &[(&str, Support)] = &[
     (WHISPER_FAMILY, Yes),
     (SHERPA_FAMILY, Yes),
+    (crate::engine::PYTHON_HF, Yes),
     (crate::engine::ONNX_FAMILY, Partial),
 ];
 /// Text-to-speech: Kokoro / Piper through sherpa-onnx.
-const TTS_ALTS: &[(&str, Support)] = &[(crate::engine::AUDIO_CPP, Yes), (SHERPA_FAMILY, Yes)];
+const TTS_ALTS: &[(&str, Support)] = &[
+    (crate::engine::AUDIO_CPP, Yes),
+    (SHERPA_FAMILY, Yes),
+    (crate::engine::PYTHON_HF, Yes),
+];
 /// Encoder task heads (classification, NER, fill-mask, extractive QA) and vision heads
 /// (image classification, detection, segmentation, depth) and audio classification:
 /// harness-onnx on `/hf`.
 const ONNX_ALTS: &[(&str, Support)] = &[(ONNX_FAMILY, Yes)];
 /// Text-to-image and image-to-image (`/v1/images/edits`): stable-diffusion.cpp.
-const T2I_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes)];
+const T2I_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes), (crate::engine::PYTHON_HF, Yes)];
 /// Text / image to video: stable-diffusion.cpp's Wan through `/v1/videos`.
 const VIDEO_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes)];
 
@@ -824,9 +840,13 @@ pub fn task_support(
                 baseline: r.baseline,
                 feature: r.feature.map(str::to_string),
                 runtime_checked: known && (r.feature.is_none() || status.is_some()),
-                runtime_missing: missing,
-                verified,
-                flag: status.and_then(|f| f.flag.clone()),
+                runtime_missing: missing && runtime.is_none(),
+                verified: verified && runtime.is_none(),
+                flag: if runtime.is_none() {
+                    status.and_then(|f| f.flag.clone())
+                } else {
+                    None
+                },
                 runtime,
                 needs_runtime,
             }

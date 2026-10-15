@@ -1,0 +1,88 @@
+{
+  "header": {
+    "general.architecture": "audiocpp",
+    "general.name": "VieNeu-TTS-v3-Turbo-staging",
+    "audiocpp.model_spec.family": "vieneu_v3_turbo"
+  },
+  "listing": {
+    "id": "pnnbao-ump/VieNeu-TTS-v3-Turbo",
+    "pipeline_tag": "text-to-speech",
+    "tags": [
+      "onnx",
+      "safetensors",
+      "gguf",
+      "vieneu_v3_turbo",
+      "voice-cloning",
+      "code-switching",
+      "podcast",
+      "emotion-control",
+      "48khz",
+      "text-to-speech",
+      "vi",
+      "en",
+      "dataset:pnnbao-ump/VieNeu-TTS-10k-ENVI",
+      "license:apache-2.0",
+      "region:us"
+    ],
+    "config": {
+      "model_type": "vieneu_v3_turbo"
+    },
+    "siblings": [
+      {
+        "rfilename": "gguf/vieneu-v3-turbo-bf16.gguf"
+      },
+      {
+        "rfilename": "gguf/vieneu-v3-turbo-q8_0.gguf"
+      }
+    ]
+  },
+  "detail": {
+    "id": "pnnbao-ump/VieNeu-TTS-v3-Turbo",
+    "pipeline_tag": "text-to-speech",
+    "tags": [
+      "onnx",
+      "safetensors",
+      "gguf",
+      "vieneu_v3_turbo",
+      "voice-cloning",
+      "code-switching",
+      "podcast",
+      "emotion-control",
+      "48khz",
+      "text-to-speech",
+      "vi",
+      "en",
+      "dataset:pnnbao-ump/VieNeu-TTS-10k-ENVI",
+      "license:apache-2.0",
+      "region:us"
+    ],
+    "config": {
+      "model_type": "vieneu_v3_turbo"
+    },
+    "gguf": {
+      "total": 145947328,
+      "architecture": "audiocpp",
+      "totalFileSize": 292024704
+    },
+    "siblings": [
+      {
+        "rfilename": "gguf/vieneu-v3-turbo-bf16.gguf"
+      },
+      {
+        "rfilename": "gguf/vieneu-v3-turbo-q8_0.gguf"
+      }
+    ]
+  },
+  "tree": [
+    {
+      "path": "gguf/vieneu-v3-turbo-bf16.gguf",
+      "type": "file",
+      "size": 292024704
+    },
+    {
+      "path": "gguf/vieneu-v3-turbo-q8_0.gguf",
+      "type": "file",
+      "size": 187917664
+    }
+  ]
+}

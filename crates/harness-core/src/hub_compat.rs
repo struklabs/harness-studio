@@ -9,13 +9,68 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Missing frontend requirements read from model metadata, independent of repo layout.
+pub fn audio_cpp_not_runnable(item: &serde_json::Value) -> Option<crate::hub_tasks::NotRunnable> {
+    let family = item["gguf"]["audiocpp.model_spec.family"]
+        .as_str()
+        .or_else(|| item["gguf"]["family"].as_str())
+        // Listings can omit the GGUF header block. The exported model's config
+        // carries the same family; require a GGUF file before using that fallback.
+        .or_else(|| {
+            item["siblings"]
+                .as_array()
+                .filter(|files| {
+                    files.iter().any(|file| {
+                        file["rfilename"]
+                            .as_str()
+                            .is_some_and(|p| p.ends_with(".gguf"))
+                    })
+                })
+                .and_then(|_| item["config"]["model_type"].as_str())
+        });
+    (family == Some("vieneu_v3_turbo")).then_some(crate::hub_tasks::NotRunnable::NeedsSeaG2p)
+}
+
+/// A proven native speech folder takes precedence over an unrelated conversion.
+pub fn native_speech_format(item: &serde_json::Value, files: &[String]) -> Option<ModelFormat> {
+    let task = item["pipeline_tag"].as_str()?;
+    if is_audio_cpp_repo(item)
+        || item["id"].as_str().is_some_and(|id| {
+            crate::engine::crispasr::supports_repo(id, Some(task))
+                || crate::engine::crispasr_tts::supports_repo(id, Some(task))
+        })
+    {
+        return None;
+    }
+    if !matches!(
+        task,
+        "automatic-speech-recognition" | "text-to-speech" | "text-to-audio"
+    ) || item["tags"]
+        .as_array()
+        .is_some_and(|tags| tags.iter().any(|t| t == "custom_code"))
+        || item["config"].get("auto_map").is_some()
+    {
+        return None;
+    }
+    let model_type = item["config"]["model_type"].as_str()?;
+    let has = |name: &str| files.iter().any(|f| f == name);
+    (crate::engine::python_hf::serves_model_type(Some(task), Some(model_type))
+        && has("config.json")
+        && has("model.safetensors")
+        && (has("processor_config.json") || has("preprocessor_config.json"))
+        && has("tokenizer_config.json")
+        && (has("tokenizer.json") || has("vocab.json")))
+    .then_some(ModelFormat::Safetensors)
+}
+
 /// Repo metadata can identify audio.cpp before any GGUF extension fallback.
 pub fn is_audio_cpp_repo(item: &serde_json::Value) -> bool {
     let marker = |s: &str| matches!(s.to_ascii_lowercase().as_str(), "audio.cpp" | "audiocpp");
     matches!(
         item["id"].as_str(),
         Some("audio-cpp/audio.cpp-gguf" | "audio-cpp/SAM-Audio-GGUF")
-    ) || item["library_name"].as_str().is_some_and(marker)
+    ) || audio_cpp_not_runnable(item).is_some()
+        || item["library_name"].as_str().is_some_and(marker)
         || item["cardData"]["library_name"]
             .as_str()
             .is_some_and(marker)
@@ -68,7 +123,9 @@ fn audio_cpp_custom_code(item: &serde_json::Value) -> bool {
 }
 
 pub fn audio_cpp_compatibility(item: &serde_json::Value) -> Compatibility {
-    if audio_cpp_repo_tts(item) || audio_cpp_repo_processing(item) {
+    if audio_cpp_not_runnable(item).is_none()
+        && (audio_cpp_repo_tts(item) || audio_cpp_repo_processing(item))
+    {
         Compatibility::Runnable {
             runtime: crate::engine::AUDIO_CPP.into(),
         }

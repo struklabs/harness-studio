@@ -328,6 +328,9 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
         assert_eq!(response.status(), 502);
         let error: Value = response.json().await.unwrap();
         assert_eq!(error["error"]["message"], "tts.worker_failed");
+        assert_eq!(error["error"]["harness"]["detail"], "synthesis failed");
+        assert_eq!(error["error"]["harness"]["upstream_status"], 500);
+        assert!(pm.get_logs(Some(20)).iter().any(|line| line.contains("synthesis failed")));
         assert_eq!(pm.get_status(), ServerStatus::Stopped);
         common::start_process(&pm, LaunchConfig {
             binary_path: bridge.clone(), model_path: transport.clone(),
@@ -346,6 +349,7 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
             error["error"]["message"],
             "tts.worker_failed"
         );
+        assert!(error["error"]["harness"]["detail"].as_str().is_some_and(|s| !s.is_empty()));
         assert_eq!(pm.get_status(), ServerStatus::Stopped);
         let response = http
             .post(&url)

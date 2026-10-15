@@ -213,7 +213,7 @@ const tr = {
 
   // Tasks (Hugging Face pipeline_tag)
   'hub.tasks_browse': 'Tüm Görevler ({count})',
-  'hub.tasks_note': 'Görevler Hugging Face’in model sınıflandırmasıdır. Etiketsiz depolar (çoğu yeniden kuantlama) etiketlerinden, dosya adlarından ve projektör dosyasından tahmin edilen göreve göre listeye eklenir; kartta “tahmin” yazar. Destek durumu kurulu llama-server’ın yeteneklerinden gelir.',
+  'hub.tasks_note': 'Görevler Hugging Face’in model sınıflandırmasıdır. Etiketsiz depolar (çoğu yeniden kuantlama) etiketlerinden, dosya adlarından ve projektör dosyasından tahmin edilen göreve göre listeye eklenir; kartta “tahmin” yazar. Destek durumu görevi çalıştıran kurulu motorlara göre belirlenir (görseller: stable-diffusion.cpp / Python; konuşma: ilgili ses motorları / Python).',
   'hub.task_runtime_missing': 'Kurulu model motorunda {flag} yok',
   'hub.task_runtime_verified': 'Model motoru bu görevin uç noktasını gerçek bir çalıştırmada doğruladı',
   'hub.task_runtime_missing_banner': '“{task}” için kurulu llama-server’da gereken özellik ({flag}) yok; bu görevdeki modeller bu model motoru ile çalışmaz. Ayarlar > Model Motoru bölümünden daha yeni bir sürüm seçebilirsiniz.',
@@ -229,6 +229,8 @@ const tr = {
   'hub.audio_cpp_incomplete_package': 'AuK için üretici, Qwen koşullandırma modeli, VAE ve yan dosyalar birlikte gerekli; bu paket henüz desteklenmiyor.',
   'hub.sdxl_refiner_folder_required': 'SDXL refiner için tam bir Diffusers klasörü gerekli; tek dosyalı sürümü yerel motorda çalışmaz.',
   'hub.not_runnable_no_gguf': 'Depoda GGUF dosyası yok; llama-server bu depoyu çalıştıramaz.',
+  'hub.not_runnable_needs_librosa': 'Python motorunun içermediği ek bir bağımlılık gerekiyor (librosa).',
+  'hub.not_runnable_needs_sea_g2p': 'SEA-G2P metin ön işleyicisi gerekli; henüz desteklenmiyor.',
   'hub.not_runnable_adapter': 'Bu bir LoRA bağdaştırıcısı: tek başına değil, bir temel modelin üstüne yüklenir.',
   'hub.badge_lora': 'LoRA adaptörü',
   'hub.badge_lora_title': 'LoRA adaptörü, {base} temel modeliyle birlikte yüklenir.',
@@ -510,7 +512,7 @@ const en: Record<keyof typeof tr, string> = {
 
   // Tasks (Hugging Face pipeline_tag)
   'hub.tasks_browse': 'All Tasks ({count})',
-  'hub.tasks_note': 'Tasks are Hugging Face’s model categories. Untagged repositories (many re-quantizations) are added by a task inferred from their tags, file names and projector file; the card says “inferred”. Support comes from the installed llama-server’s capabilities.',
+  'hub.tasks_note': 'Tasks are Hugging Face’s model categories. Untagged repositories (many re-quantizations) are added by a task inferred from their tags, file names and projector file; the card says “inferred”. Support reflects the installed engines that serve each task (images: stable-diffusion.cpp / Python; speech: speech engines / Python).',
   'hub.task_runtime_missing': 'The installed runtime has no {flag}',
   'hub.task_runtime_verified': 'The runtime answered this task’s endpoint in a real run',
   'hub.task_runtime_missing_banner': 'The installed llama-server lacks what “{task}” needs ({flag}); models of this task will not run with this runtime. You can pick a newer build in Settings > Runtime.',
@@ -526,6 +528,8 @@ const en: Record<keyof typeof tr, string> = {
   'hub.audio_cpp_incomplete_package': 'AuK requires the generator, Qwen conditioning, VAE and sidecars together; this package is not yet supported.',
   'hub.sdxl_refiner_folder_required': 'SDXL refiner requires a complete Diffusers folder; the native engine does not support its single-file checkpoint.',
   'hub.not_runnable_no_gguf': 'The repository has no GGUF file; llama-server can’t run it.',
+  'hub.not_runnable_needs_librosa': 'Needs an extra dependency (librosa) that the Python engine does not include.',
+  'hub.not_runnable_needs_sea_g2p': 'Needs the SEA-G2P text frontend, which is not supported yet.',
   'hub.not_runnable_adapter': 'This is a LoRA adapter: it loads on top of a base model, not on its own.',
   'hub.badge_lora': 'LoRA adapter',
   'hub.badge_lora_title': 'LoRA adapter, loaded together with the {base} base model.',

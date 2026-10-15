@@ -131,7 +131,7 @@ pub const TTS_MODEL_TYPES: &[&str] = &[
     "vits",
 ];
 
-/// `model_type`s transformers' speech recognition pipeline loads (CTC and speech seq2seq auto
+/// `model_type`s transformers' speech recognition pipeline loads (CTC, speech seq2seq and transducer auto
 /// mappings in [`TRANSFORMERS_VERSION`]).
 pub const ASR_MODEL_TYPES: &[&str] = &[
     "canary",
@@ -147,7 +147,11 @@ pub const ASR_MODEL_TYPES: &[&str] = &[
     "lasr_ctc",
     "moonshine",
     "moonshine_streaming",
+    "nemotron3_5_asr",
+    "nemotron_asr_streaming",
     "parakeet_ctc",
+    "parakeet_rnnt",
+    "parakeet_tdt",
     "pop2piano",
     "qwen3_asr",
     "seamless_m4t",
@@ -169,6 +173,24 @@ pub const ASR_MODEL_TYPES: &[&str] = &[
     "wavlm",
     "whisper",
 ];
+
+/// Required processor packages absent from all three hash-pinned HF environments.
+/// In transformers 5.19.0, NemotronAsrStreamingFeatureExtractor and
+/// ParakeetFeatureExtractor require librosa to construct their mel filters.
+const EXTRA_DEPENDENCIES: &[(&str, &str)] = &[
+    ("nemotron3_5_asr", "librosa"),
+    ("nemotron_asr_streaming", "librosa"),
+    ("parakeet_ctc", "librosa"),
+    ("parakeet_rnnt", "librosa"),
+    ("parakeet_tdt", "librosa"),
+];
+
+pub fn missing_dependency(model_type: Option<&str>) -> Option<&'static str> {
+    let model_type = model_type?;
+    EXTRA_DEPENDENCIES
+        .iter()
+        .find_map(|(model, package)| (*model == model_type).then_some(*package))
+}
 
 /// Whether the worker's transformers loads a model of `task` with this `config.json`
 /// `model_type`: checked for speech (text to speech, recognition), where many Hub repos are
