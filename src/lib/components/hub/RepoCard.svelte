@@ -89,7 +89,7 @@
   let compat = $derived(engineCompatibility(repo.compatibility, (family) => engineInstall.installed(family)));
   /** A safetensors chat model: not run as it is, but the drawer offers the GGUF conversion. */
   let convertible = $derived(canConvert(repo));
-  /** No Harness runtime runs this format: the card is dimmed, the drawer has no download. */
+  /** No Harness runtime runs this format: the card is marked unavailable, the drawer has no download. */
   let unsupported = $derived((compat.status === 'unsupported' && !convertible) || compat.status === 'unsupported_platform');
 
   function compact(n: number): string {
@@ -109,6 +109,7 @@
     unsupported && 'opacity-60'
   )}
   aria-pressed={selected}
+  data-unavailable={unsupported || undefined}
   aria-label={t('hub.open_repo_aria', { repo: repo.id })}
   onclick={() => onSelect(repo.id)}
 >

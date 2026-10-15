@@ -112,6 +112,7 @@
                   type="button"
                   class={cn(chip, 'h-6 px-2', active ? chipActive : chipIdle, level(task) === 'no' && !active && 'opacity-75')}
                   aria-pressed={active}
+                  data-unavailable={(level(task) === 'no' && !active) || undefined}
                   title={tip(task)}
                   onclick={() => pick(task.id)}
                 >

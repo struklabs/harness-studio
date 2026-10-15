@@ -583,6 +583,16 @@
   }
 }
 
+/* Keep unavailable text at full contrast; an inset dashed outline carries the state instead. */
+[data-theme^="hc-"] [data-unavailable="true"] {
+  opacity: 1;
+  outline: 1px dashed var(--border);
+  outline-offset: -2px;
+}
+[data-theme^="hc-"] [data-unavailable="true"] [data-slot="label"] {
+  opacity: 1;
+}
+
 /*
  * High-contrast themes (and OS "increase contrast"): the focus ring is never hidden, even on
  * controls that normally swap the outline for a soft `ring-ring/50` glow.
