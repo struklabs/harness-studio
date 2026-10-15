@@ -25,6 +25,8 @@ Release notes with system requirements and known limitations (English and Turkis
 - Model Hub: tam depo kimlikleri aramada korunur ve büyük/küçük harften bağımsız olarak ilk sıraya alınır.
 - Model Hub: variant recommendations prefer current files over old, legacy and deprecated folders.
 - Model Hub: varyant önerileri old, legacy ve deprecated klasörleri yerine güncel dosyaları tercih eder.
+- Runtimes: a llama.cpp fork or registry release installs a CUDA 13 build on Windows only with NVIDIA driver 580 or newer (an older driver gets the CUDA 12 build, or the next backend), like the official install; its CUDA runtime companion is the one for the same OS (a release with the same CUDA version for Windows and Ubuntu no longer pulls the Linux archive onto Windows).
+- Model Motorları: llama.cpp çatalı ya da kayıt sürümü Windows'ta CUDA 13 derlemesini yalnız NVIDIA sürücüsü 580 ve üstündeyse kurar (eski sürücü CUDA 12 derlemesini ya da sıradaki backend'i alır), resmî kurulumdaki gibi; CUDA çalışma zamanı eki aynı işletim sisteminin ekidir (aynı CUDA sürümünü Windows ve Ubuntu için yayımlayan bir sürüm Windows'a artık Linux arşivini indirmez).
 
 - Playground: per-chat Thinking levels and optional request budgets, model-aware OpenAI/Ollama translation, and copyable reasoning with saved duration and inline `<think>` handling. Presets remain independent; split view keeps each side's preset.
 - Playground: sohbete özel Düşünme düzeyleri ve isteğe bağlı istek bütçesi, modele göre OpenAI/Ollama çevirisi, kayıtlı süre ve satır içi `<think>` desteğiyle kopyalanabilir düşünme metni. Ön ayarlar bağımsızdır; bölünmüş görünüm her tarafın ön ayarını kullanır.
