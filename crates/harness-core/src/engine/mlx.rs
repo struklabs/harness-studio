@@ -600,6 +600,14 @@ pub fn is_stt_dir(path: &Path) -> bool {
             .any(|t| t == "mlx" || t == "mlx-audio"))
 }
 
+/// Whether `path` is (or sits in) a Spark-TTS folder: its `BiCodec/` codec is next to it. Such a
+/// folder speaks, MLX build or not, so neither a chat engine (its config is a plain Qwen2 one,
+/// also in the original release's `LLM/` subfolder) nor the Python engine claims it.
+pub fn is_spark_dir(path: &Path) -> bool {
+    let has_codec = |d: &Path| d.join("BiCodec").join("config.yaml").is_file();
+    has_codec(path) || path.parent().is_some_and(has_codec)
+}
+
 /// Whether `path` is a folder of the `mlx-audio` engine (text to speech or recognition).
 pub fn is_audio_dir(path: &Path) -> bool {
     is_tts_dir(path) || is_stt_dir(path)
@@ -1696,9 +1704,27 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             m.size_bytes, 2,
             "model.safetensors and BiCodec/model.safetensors"
         );
+        // Without the MLX card or quantization it is not mlx-audio's, but still no chat model:
+        // neither is the original release's `LLM/` subfolder (a plain Qwen2 config).
+        std::fs::write(
+            spark.path().join("README.md"),
+            "---\nlicense: cc-by-nc-sa-4.0\n---\n",
+        )
+        .unwrap();
+        let llm = spark.path().join("LLM");
+        std::fs::create_dir(&llm).unwrap();
+        std::fs::copy(spark.path().join("config.json"), llm.join("config.json")).unwrap();
+        std::fs::write(llm.join("model.safetensors"), "x").unwrap();
+        assert!(!is_tts_dir(spark.path()));
+        for dir in [spark.path(), llm.as_path()] {
+            assert!(is_spark_dir(dir), "{dir:?}");
+            assert!(!super::super::mistralrs::is_model_dir(dir), "{dir:?}");
+            assert_eq!(super::super::python_hf::detect(dir), None, "{dir:?}");
+        }
         // Without its codec a Qwen2 folder is what it says.
         std::fs::remove_dir_all(spark.path().join("BiCodec")).unwrap();
-        assert!(!is_tts_dir(spark.path()));
+        assert!(!is_tts_dir(spark.path()) && !is_spark_dir(spark.path()));
+        assert!(super::super::mistralrs::is_model_dir(spark.path()));
     }
 
     /// The families that load a codec by name (OuteTTS, Orpheus, Dia), as mlx-community ships
@@ -2434,6 +2460,12 @@ whole = Whole()
 speak = w.make_speak(whole, [], 48000, 10, encode, clock, family="voxcpm2")
 print("sentences", speak("One. Two!  Three? Four.", None, 1.0, None), whole.said)
 print("split", w.sentences("Hi there.  Bye。Yes"), w.sentences("   "))
+# A period after a title, an abbreviation, a number (Turkish ordinals) or an initial does not end
+# the sentence; an ellipsis does; a line break always does; a long run is cut at a space.
+print("tr", w.sentences("Dr. Ali geldi. 3. madde önemli, vs. bitti… A. Yılmaz yazdı."))
+print("lines", w.sentences("- süt\n- ekmek\n\n- yumurta"))
+print("quote", w.sentences('He said "Go." Then left.'))
+print("cap", [len(p) for p in w.sentences(" ".join(["kelime"] * 100), 120)])
 "#,
             dir.path().to_string_lossy()
         );
@@ -2462,6 +2494,10 @@ print("split", w.sentences("Hi there.  Bye。Yes"), w.sentences("   "))
             "refused speed: this model speaks at one speed; use speed 1",
             "sentences ('wav of 3 chunks', True) ['One.', 'Two!', 'Three?']",
             "split ['Hi there.', 'Bye。', 'Yes'] ['   ']",
+            "tr ['Dr. Ali geldi.', '3. madde önemli, vs. bitti…', 'A. Yılmaz yazdı.']",
+            "lines ['- süt', '- ekmek', '- yumurta']",
+            "quote ['He said \"Go.\"', 'Then left.']",
+            "cap [118, 118, 118, 118, 118, 104]",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }
