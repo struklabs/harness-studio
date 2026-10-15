@@ -12,7 +12,7 @@ registerHooks({ resolve(specifier, context, next) {
   return next(specifier, context);
 } });
 
-const { ttsRequirement, pickTtsModel, pickTtsVoice, voicesOf, ttsSupportsSpeed, fetchSpeech } = await import('../src/lib/components/playground/tts.ts');
+const { ttsRequirement, ttsRunBlocker, pickTtsModel, pickTtsVoice, voicesOf, ttsSupportsSpeed, fetchSpeech } = await import('../src/lib/components/playground/tts.ts');
 const models = [
   { name: 'pocket-en', family: 'pocket_tts', engine: 'audio.cpp', supports_speed: false, runtime_installed: true, voices: [{ id: 'alba' }, { id: 'anna' }] },
   { name: 'piper', family: 'vits', engine: 'sherpa-onnx', runtime_installed: false, voices: [{ id: '0' }] },
@@ -22,6 +22,18 @@ test('TTS uses the selected model engine, including audio.cpp without sherpa', (
   assert.equal(ttsRequirement(models, 'pocket-en', false), null);
   assert.equal(ttsRequirement(models, 'piper', true), 'sherpa-onnx');
   assert.equal(ttsRequirement([{ ...models[0], runtime_installed: false }], 'pocket-en', true), 'audio.cpp');
+});
+
+test('Speech run blocker explains prerequisites and clears after they are resolved', () => {
+  assert.equal(ttsRunBlocker(false, !!ttsRequirement(models, 'piper', false), true, models.length, 'Hello'), 'runtime');
+  assert.equal(ttsRunBlocker(false, true, false, 0, ''), 'runtime');
+  assert.equal(ttsRunBlocker(false, false, false, 0, ''), 'gateway');
+  assert.equal(ttsRunBlocker(false, false, true, 0, ''), 'model');
+  assert.equal(ttsRunBlocker(false, false, true, 1, ' \n\t'), 'text');
+  assert.equal(ttsRunBlocker(false, false, true, 1, ' Hello '), null);
+  assert.equal(ttsRunBlocker(false, !!ttsRequirement(models, 'pocket-en', false), true, models.length, 'Hello'), null);
+  assert.equal(ttsRunBlocker(true, true, false, 0, ''), 'busy');
+  assert.equal(ttsRunBlocker(true, false, true, 1, 'Hello'), 'busy');
 });
 
 test('audio.cpp aliases and embedding voices survive picker refreshes', () => {
