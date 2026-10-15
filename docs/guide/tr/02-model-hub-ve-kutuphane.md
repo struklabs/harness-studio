@@ -21,6 +21,9 @@ Varsayılan olarak liste yalnızca GGUF depolarını gösterir; bu, llama.cpp'ni
 | ONNX konuşma ve gömme modelleri, ONNX sohbet modelleri | sherpa-onnx veya ONNX Runtime ([Ayarlar](08-ayarlar.md#model-motoru) bölümüne bakın) |
 | Difüzyon görsel modelleri (SD1.5, SDXL, SD-Turbo, SD3.5, FLUX paketleri) | Görsel modülü (stable-diffusion.cpp). Bir modelin ihtiyaç duyduğu ek dosyalar (VAE, metin kodlayıcıları) onunla birlikte indirilir. |
 | Safetensors LLM'ler | GGUF'a dönüştürün ([aşağıya](#safetensors-modellerini-gguf-biçimine-dönüştürme) bakın) veya isteğe bağlı mistral.rs motorunu kullanın |
+| CrispASR / audio.cpp GGUF ses modelleri | CrispASR; deneysel audio.cpp (varsayılan olarak kapalı) |
+| MLX biçimli sohbet, görüntü ve ses | MLX motorları (Apple Silicon, macOS 14+) |
+| Hugging Face görev klasörleri / diffusers paketleri | Python (`python-hf`, CPU/CUDA); diffusers Görsel Üretimi sekmesinde açılır |
 
 Bir kartta **Gerekli: Konuşma modülü (whisper.cpp)** veya **Gerekli: Görsel modülü (stable-diffusion.cpp)** yazıyorsa modeli yine de indirebilirsiniz, ancak çalıştırmadan önce **Kur** düğmesine (listenin üstünde ya da modelin ayrıntılarında) basmanız gerekir.
 

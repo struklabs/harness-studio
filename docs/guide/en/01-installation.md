@@ -6,13 +6,13 @@ Türkçe: [../tr/01-kurulum.md](../tr/01-kurulum.md)
 
 ## Get the Installer
 
-Harness Studio 0.1.0 is distributed as a Windows installer on the project's [GitHub Releases](https://github.com/struklabs/harness-studio/releases) page. To build the app yourself, see the build section of the [main README](../../../README.md); this page covers installing from the ready-made installer.
+Harness Studio 0.1.0 is distributed as platform-specific packages on the project's [GitHub Releases](https://github.com/struklabs/harness-studio/releases) page. To build the app yourself, see the build section of the [main README](../../../README.md); this page covers installing from the ready-made installer.
 
 | System | Package | Status |
 | --- | --- | --- |
 | Windows 10/11 (x64) | NSIS installer (`.exe`) | Available. The installer is not code-signed yet. |
-| Linux | `.deb` / AppImage | Coming soon. Builds exist but have not been verified on real machines yet. |
-| macOS | DMG | Coming soon. Builds exist but have not been verified on real machines yet. |
+| Linux (x64) | `.deb` / AppImage | Preview packages; the release workflow builds both formats. |
+| macOS 13.3+ (Apple Silicon and Intel) | DMG | Available. Official release DMGs are signed and notarized by Apple. |
 
 ### Windows
 
@@ -24,7 +24,7 @@ Uninstalling does not delete your user data. It stays in the data folder describ
 
 ### Updating the App
 
-New versions are installed by downloading the latest installer from GitHub Releases and running it. The **Updates** page in Settings shows the app version and can check for a newer one. The llama.cpp engine is updated separately; you manage that in **Settings > Runtime > Installed Runtime**.
+Use **Settings > Updates > Check for Updates**, then **Install Update** to download, install, and restart. You can also run the latest package from GitHub Releases. The llama.cpp engine updates separately under **Settings > Runtime > Installed Runtime**.
 
 ## First Launch: Five Steps
 
@@ -42,7 +42,7 @@ To run the wizard again later, use the **Open Wizard** button in **Settings > Ru
 
 ## Choosing the Runtime
 
-The runtime is the engine that runs a model file. Chat uses llama.cpp.
+The runtime is the engine that runs a model file. Chat normally uses llama.cpp; optional engines can run other chat formats.
 
 | Option | When to use it |
 | --- | --- |
@@ -51,17 +51,19 @@ The runtime is the engine that runs a model file. Chat uses llama.cpp.
 
 The recommended acceleration depends on your hardware: CUDA for NVIDIA, ROCm/HIP or Vulkan for suitable AMD cards, SYCL or Vulkan for Intel Arc, Metal for Apple Silicon. Without a GPU, the CPU is used. Detecting a graphics card does not guarantee the chosen build can use it. If the installed build cannot see the card, Harness Studio switches to a build that works on any card (for example Vulkan) and tells you on the **Settings > Runtime > Installed Runtime** page.
 
-Other kinds of models use optional engines that you install when you need them, with one click: an **Install** button appears next to the "This model needs the … runtime" note on library cards, in the Model Hub and in Playground errors, and every engine is listed under **Other Runtimes** in **Settings > Runtime > Installed Runtime** (at both interface levels). Extra builds can also be added from **Settings > Runtime > Registry** (an Advanced page):
+Other kinds of models use optional engines that you install when you need them, with one click: an **Install** button appears next to the "This model needs the … runtime" note on library cards, in the Model Hub and in Playground errors, and optional engine families are listed under **Other Runtimes** in **Settings > Runtime > Installed Runtime** (at both interface levels). ONNX Runtime, Lemonade, the conversion environment, and extra builds are managed in **Settings > Runtime > Registry** (an Advanced page):
 
 | Capability | Engine |
 | --- | --- |
-| Speech to text | whisper.cpp (Whisper models), sherpa-onnx (Parakeet, SenseVoice, Omnilingual), and ONNX Runtime (wav2vec2, HuBERT, WavLM CTC) |
-| Text to speech | sherpa-onnx (Kokoro and Piper voices) |
-| Image generation | stable-diffusion.cpp |
+| Speech to text | whisper.cpp; sherpa-onnx (Parakeet, SenseVoice, Omnilingual, Nemotron, Cohere); ONNX CTC; CrispASR; Python; MLX audio |
+| Text to speech | sherpa-onnx (Kokoro, Piper); Python; CrispASR; MLX audio; experimental audio.cpp (off by default) |
+| Image generation | stable-diffusion.cpp; Python (diffusers) |
 | ONNX embeddings, reranking, and chat | ONNX Runtime and ONNX Runtime GenAI (through the bundled `harness-onnx` helper) |
 | Converting safetensors models to GGUF | A small conversion environment, built on first use |
 | AMD Ryzen AI NPU and extra llama.cpp builds | Lemonade (optional) |
 | Safetensors models without conversion | mistral.rs (optional, add your own build) |
+| Hugging Face task models | Python (`python-hf`, CPU or CUDA) |
+| MLX chat, vision, and audio | Optional MLX engines (Apple Silicon, macOS 14+) |
 
 These are covered in [Model Hub and My Models](02-model-hub-and-library.md), [Playground](04-playground.md), and [Settings](08-settings.md).
 
@@ -78,7 +80,7 @@ Application data (settings, the chat database, engines, and logs) is kept in a s
 | --- | --- |
 | Windows | `%APPDATA%\com.harnessstudio.app` |
 | macOS | `~/Library/Application Support/com.harnessstudio.app` |
-| Linux | `$XDG_DATA_HOME/com.harnessstudio.app`, or `~/.local/share/com.harnessstudio.app` if the variable is not set |
+| Linux (x64) | `.deb` / AppImage | Preview packages; the release workflow builds both formats. |
 
 To change the data folder from the command line, see the [CLI reference](../../en/CLI.md). For how credentials are stored, see the [security model](../../en/SECURITY_MODEL.md). To start from scratch, close the app, back up this folder, and delete it; your settings and chats are deleted with it.
 

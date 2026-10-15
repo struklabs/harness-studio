@@ -206,7 +206,7 @@
       const drifted = await checkAliasDrift(names).catch(() => [] as AliasDrift[]);
       // While the gateway runs every tool should use its address (the one port Harness keeps
       // working when it has to move).
-      const gwBase = app.gatewayRunning ? (app.gateway?.status.endpoint?.base_url ?? null) : null;
+      const gwBase = app.gatewayBaseUrl;
       const away = gwBase ? await checkEndpointDrift(gwBase).catch(() => [] as EndpointDrift[]) : [];
       if (alive && sequence === loadSequence) {
         items = list;

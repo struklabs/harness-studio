@@ -6,13 +6,13 @@ English: [../en/01-installation.md](../en/01-installation.md)
 
 ## Kurulum Paketini Edinme
 
-Harness Studio 0.1.0, projenin [GitHub Releases](https://github.com/struklabs/harness-studio/releases) sayfasında Windows kurulum paketi olarak dağıtılır. Uygulamayı kendiniz derlemek isterseniz [ana README](../../../README.tr.md) içindeki derleme bölümüne bakın; bu sayfa hazır kurulum paketiyle kurulumu anlatır.
+Harness Studio 0.1.0, projenin [GitHub Releases](https://github.com/struklabs/harness-studio/releases) sayfasında platforma uygun paketlerle dağıtılır. Uygulamayı kendiniz derlemek isterseniz [ana README](../../../README.tr.md) içindeki derleme bölümüne bakın; bu sayfa hazır kurulum paketiyle kurulumu anlatır.
 
 | Sistem | Paket | Durum |
 | --- | --- | --- |
 | Windows 10/11 (x64) | NSIS kurulum paketi (`.exe`) | Mevcut. Kurulum paketi henüz kod imzalı değil. |
-| Linux | `.deb` / AppImage | Yakında. Paketler üretiliyor ancak henüz gerçek makinelerde doğrulanmadı. |
-| macOS | DMG | Yakında. Paketler üretiliyor ancak henüz gerçek makinelerde doğrulanmadı. |
+| Linux (x64) | `.deb` / AppImage | Önizleme paketleri; sürüm iş akışı iki biçimi de üretir. |
+| macOS 13.3+ (Apple Silicon ve Intel) | DMG | Mevcut. Resmî sürüm DMG paketleri imzalıdır ve Apple noter onaylıdır. |
 
 ### Windows
 
@@ -24,7 +24,7 @@ Kaldırma işlemi kullanıcı verilerinizi silmez; veriler [aşağıda](#model-k
 
 ### Uygulamayı Güncelleme
 
-Yeni sürümler, GitHub Releases'ten en son kurulum paketini indirip çalıştırarak kurulur. Ayarlar'daki **Güncellemeler** sayfası uygulama sürümünü gösterir ve daha yeni bir sürüm olup olmadığını denetleyebilir. llama.cpp motoru ayrıca güncellenir; bunu **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında yönetirsiniz.
+**Ayarlar > Güncellemeler > Güncellemeleri Denetle**, ardından **Güncellemeyi Kur** ile indirin, kurun ve yeniden başlatın. GitHub Releases üzerindeki en son paketi de çalıştırabilirsiniz. llama.cpp motoru **Ayarlar > Model Motoru > Kurulu Model Motoru** altında ayrıca güncellenir.
 
 ## İlk Açılış: Beş Adım
 
@@ -42,7 +42,7 @@ Sihirbazı daha sonra tekrar çalıştırmak için **Ayarlar > Model Motoru > Ku
 
 ## Model Motoru Seçimi
 
-Model motoru, model dosyasını çalıştıran motordur. Sohbet llama.cpp kullanır.
+Model motoru, model dosyasını çalıştıran motordur. Sohbet genellikle llama.cpp kullanır; diğer sohbet biçimleri isteğe bağlı motorlarla çalışabilir.
 
 | Seçenek | Ne zaman kullanılır? |
 | --- | --- |
@@ -51,17 +51,19 @@ Model motoru, model dosyasını çalıştıran motordur. Sohbet llama.cpp kullan
 
 Önerilen hızlandırma donanımınıza bağlıdır: NVIDIA için CUDA, uygun AMD kartlar için ROCm/HIP veya Vulkan, Intel Arc için SYCL veya Vulkan, Apple Silicon için Metal. GPU yoksa CPU kullanılır. Bir ekran kartının algılanması, seçilen derlemenin onu kullanabileceğini garanti etmez. Kurulu derleme kartı göremezse Harness Studio her kartta çalışan bir derlemeye (örneğin Vulkan) geçer ve bunu **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında size bildirir.
 
-Diğer model türleri, ihtiyaç duyduğunuzda kurduğunuz isteğe bağlı motorları kullanır. Bunlar tek tıkla kurulur: Kütüphane kartlarında, Model Hub'da ve Playground hatalarında "Bu model için … motoru gerekli" notunun yanında bir **Kur** düğmesi görünür; tüm motorlar **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasındaki **Diğer Model Motorları** listesinde de vardır (iki arayüz düzeyinde de). Ek derlemeler **Ayarlar > Model Motoru > Registry** sayfasından (Gelişmiş bir sayfa) eklenebilir:
+Diğer model türleri, ihtiyaç duyduğunuzda kurduğunuz isteğe bağlı motorları kullanır. Bunlar tek tıkla kurulur: Kütüphane kartlarında, Model Hub'da ve Playground hatalarında "Bu model için … motoru gerekli" notunun yanında bir **Kur** düğmesi görünür; isteğe bağlı motor aileleri **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasındaki **Diğer Model Motorları** listesinde vardır (iki arayüz düzeyinde de). ONNX Runtime, Lemonade, dönüştürme ortamı ve ek derlemeler **Ayarlar > Model Motoru > Registry** sayfasında (Gelişmiş bir sayfa) yönetilir:
 
 | Yetenek | Motor |
 | --- | --- |
-| Konuşmayı yazıya dökme | whisper.cpp (Whisper modelleri), sherpa-onnx (Parakeet, SenseVoice, Omnilingual) ve ONNX Runtime (wav2vec2, HuBERT, WavLM CTC) |
-| Metni konuşmaya çevirme | sherpa-onnx (Kokoro ve Piper sesleri) |
-| Görsel üretimi | stable-diffusion.cpp |
+| Konuşmayı yazıya dökme | whisper.cpp; sherpa-onnx (Parakeet, SenseVoice, Omnilingual, Nemotron, Cohere); ONNX CTC; CrispASR; Python; MLX ses |
+| Metni konuşmaya çevirme | sherpa-onnx (Kokoro, Piper); Python; CrispASR; MLX ses; deneysel audio.cpp (varsayılan olarak kapalı) |
+| Görsel üretimi | stable-diffusion.cpp; Python (diffusers) |
 | ONNX gömme, yeniden sıralama ve sohbet | ONNX Runtime ve ONNX Runtime GenAI (birlikte gelen `harness-onnx` yardımcısı üzerinden) |
 | Safetensors modellerini GGUF'a dönüştürme | İlk kullanımda kurulan küçük bir dönüştürme ortamı |
 | AMD Ryzen AI NPU ve ek llama.cpp derlemeleri | Lemonade (isteğe bağlı) |
 | Dönüştürmeden Safetensors modelleri | mistral.rs (isteğe bağlı, kendi derlemenizi ekleyin) |
+| Hugging Face görev modelleri | Python (`python-hf`, CPU veya CUDA) |
+| MLX sohbet, görüntü ve ses | İsteğe bağlı MLX motorları (Apple Silicon, macOS 14+) |
 
 Bunlar [Model Hub ve Kütüphanem](02-model-hub-ve-kutuphane.md), [Playground](04-playground.md) ve [Ayarlar](08-ayarlar.md) bölümlerinde anlatılır.
 
@@ -78,7 +80,7 @@ Uygulama verileri (ayarlar, sohbet veritabanı, motorlar ve günlükler) model k
 | --- | --- |
 | Windows | `%APPDATA%\com.harnessstudio.app` |
 | macOS | `~/Library/Application Support/com.harnessstudio.app` |
-| Linux | `$XDG_DATA_HOME/com.harnessstudio.app`; değişken tanımlı değilse `~/.local/share/com.harnessstudio.app` |
+| Linux (x64) | `.deb` / AppImage | Önizleme paketleri; sürüm iş akışı iki biçimi de üretir. |
 
 Veri klasörünü komut satırından değiştirmek için [CLI başvurusuna](../../tr/CLI.md) bakın. Kimlik bilgilerinin nasıl saklandığı için [güvenlik modeline](../../tr/SECURITY_MODEL.md) bakın. Sıfırdan başlamak için uygulamayı kapatın, bu klasörü yedekleyin ve silin; ayarlarınız ve sohbetleriniz de onunla birlikte silinir.
 

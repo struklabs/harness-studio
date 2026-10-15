@@ -6,7 +6,7 @@ English: [../en/04-playground.md](../en/04-playground.md)
 
 ## Ekranın Yapısı
 
-Playground'un üstünde mod sekmeleri (**Playground modu**) bulunur: **Sohbet**, **Embedding**, **Rerank**, **Konuşma** ve **Görsel Üretimi**. **Basit** arayüz düzeyinde **Sohbet**, **Konuşma** ve **Görsel Üretimi** görünür; **Embedding** ve **Rerank** **Gelişmiş** düzeyde açılır. Sohbet modunda solda sohbet listesi (**Sohbetleri göster**), ortada konuşma ve **Mesajınız** alanı, sağda **Oturum Ayarları** paneli (**Ayarları göster**) yer alır. Oturum Ayarları şu sayfalara ayrılır:
+Playground'un üstünde mod sekmeleri (**Playground modu**) bulunur: **Sohbet**, **Embedding**, **Rerank**, **Konuşma**, **Görsel Üretimi** ve **Görevler**. **Basit** arayüz düzeyinde **Sohbet**, **Konuşma** ve **Görsel Üretimi** görünür; **Embedding**, **Rerank** ve **Görevler** **Gelişmiş** düzeyde açılır. Sohbet modunda solda sohbet listesi (**Sohbetleri göster**), ortada konuşma ve **Mesajınız** alanı, sağda **Oturum Ayarları** paneli (**Ayarları göster**) yer alır. Oturum Ayarları şu sayfalara ayrılır:
 
 | Grup | Sayfa | Ne için? |
 | --- | --- | --- |
@@ -133,7 +133,15 @@ Yalnızca WAV kabul edilir: en fazla 32 MiB, 10 dakika ve iki kanal. Bazı model
 
 ## Görsel Üretme
 
-**Görsel Üretimi** sekmesi, stable-diffusion.cpp üzerinden difüzyon modellerinden resim üretir. Model Hub'dan bir görsel modeli indirin (VAE ve metin kodlayıcılar gibi gereken ek dosyalar onunla birlikte gelir) ya da klasörlerinizde zaten bulunan birini kullanın: **Model** listesinde kendiliğinden görünür ve kütüphane kartındaki **Playground'da Aç** bu sekmeyi o model seçili olarak açar. Dosya orada olduğu halde liste boş kalıyorsa gereken ek dosyalardan bazıları eksiktir; sekme bunu belirtir ve istendiğinde **Görsel modülü (stable-diffusion.cpp)** kurun. Ağ geçidini açın, **Model**'i seçin ve bir **Prompt** yazın (isteğe bağlı olarak bir **Olmaması Gerekenler** alanı da doldurulabilir). **Boyut**, **Adım**, **Tohum**, **Adet** ve **CFG Ölçeği** ayarlanabilir; boş alanlarda modelin kendi değerleri kullanılır. **Üret**'e basın: model ilk istekte yüklenir. Resimler **Üretilenler** altında görünür ve yalnızca bu oturum boyunca saklanır; bir tanesini tutmak için **Kaydet**'i kullanın.
+**Görsel Üretimi** sekmesi, stable-diffusion.cpp veya Python motoru (diffusers) üzerinden difüzyon modellerinden resim üretir. Model Hub'dan bir görsel modeli indirin (VAE ve metin kodlayıcılar gibi gereken ek dosyalar onunla birlikte gelir) ya da klasörlerinizde zaten bulunan birini kullanın: **Model** listesinde kendiliğinden görünür ve kütüphane kartındaki **Playground'da Aç** bu sekmeyi o model seçili olarak açar. Dosya orada olduğu halde liste boş kalıyorsa gereken ek dosyalardan bazıları eksiktir; sekme bunu belirtir ve istendiğinde **Görsel modülü (stable-diffusion.cpp)** kurun. Ağ geçidini açın, **Model**'i seçin ve bir **Prompt** yazın (isteğe bağlı olarak bir **Olmaması Gerekenler** alanı da doldurulabilir). **Boyut**, **Adım**, **Tohum**, **Adet** ve **CFG Ölçeği** ayarlanabilir; boş alanlarda modelin kendi değerleri kullanılır. **Üret**'e basın: model ilk istekte yüklenir. Resimler **Üretilenler** altında görünür ve yalnızca bu oturum boyunca saklanır; bir tanesini tutmak için **Kaydet**'i kullanın.
+
+Görselden görsele üretim için isteğe bağlı **Başlangıç Görseli** ekleyin ve **Değişim Oranı** ile ne kadar değişeceğini ayarlayın. Yalnız düzenleme yapan modeller başlangıç görseli gerektirir. Python diffusers modelleri de bu sekmede açılır.
+
+## Görevler (Gelişmiş)
+
+**Görevler** sekmesi ONNX ve Python görev modellerini çalıştırır: modeli seçin, gereken metin, görsel veya ses girdisini verin ve çalıştırın. Sonuçlar etiket, açıklama, kutu, maske veya derinlik haritası olabilir.
+
+Sohbette **Düşünme**, **Model Varsayılanı**, **Kapalı** veya modelin desteklediği düzeylerle o konuşmadaki düşünme davranışını yönetir. Ses kabul eden projektörü bulunan modellere dosya ekleyerek veya mikrofondan kayıt yaparak ses girdisi verebilirsiniz.
 
 Ayrıca [Araçlar başvurusuna](../../tr/TOOLS.md) ve [Özellikler başvurusuna](../../tr/FEATURES.md) bakın.
 

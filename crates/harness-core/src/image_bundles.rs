@@ -350,13 +350,16 @@ pub fn repo_has_image_files(paths: &[String]) -> bool {
 }
 
 /// What a Hub variant of an image repo calls its precision: `FP16`, `BF16`, `FP8`, `FP32`, or
-/// `component` for a VAE / text encoder (it is not a model of its own).
+/// `component` for a VAE / text encoder / LoRA adapter (it is not a model of its own).
 pub fn variant_quant(file: &str) -> String {
     let name = file.rsplit('/').next().unwrap_or(file).to_ascii_lowercase();
     if file.to_ascii_lowercase().starts_with("text_encoders/")
         || ["ae.", "vae", "clip_", "t5xxl", "umt5", "text_encoder"]
             .iter()
             .any(|w| name.starts_with(w))
+        || name
+            .split(|c: char| !c.is_ascii_alphanumeric())
+            .any(|token| token == "lora")
     {
         return "component".to_string();
     }
@@ -709,6 +712,15 @@ mod tests {
         assert_eq!(variant_quant("sd3.5_large_fp8_scaled.safetensors"), "FP8");
         assert_eq!(variant_quant("flux1-dev.safetensors"), "SAFETENSORS");
         assert_eq!(variant_quant("ae.safetensors"), "component");
+        assert_eq!(
+            variant_quant("sd_xl_offset_example-lora_1.0.safetensors"),
+            "component"
+        );
+        assert_eq!(
+            variant_quant("pytorch_lora_weights.safetensors"),
+            "component"
+        );
+        assert_eq!(variant_quant("flora-xl-fp16.safetensors"), "FP16");
         assert_eq!(variant_quant("t5xxl_fp8_e4m3fn.safetensors"), "component");
         assert_eq!(
             variant_quant("text_encoders/clip_g.safetensors"),

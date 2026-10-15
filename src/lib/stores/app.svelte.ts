@@ -15,6 +15,7 @@ import type {
 } from '#lib/types.js';
 import { t } from '#lib/i18n.svelte.js';
 import { assignSlots } from '#lib/serverColor.js';
+import { runningGatewayEndpoint } from '#lib/gateway-url.js';
 
 export const DEFAULT_SERVER_ID = 'default';
 const SELECTED_SERVER_KEY = 'harness_selected_server';
@@ -161,30 +162,36 @@ class AppState {
   /** Gateway (managed endpoint) status; refreshed with the server list (at most every 3 s). */
   gateway = $state<GatewayOverview | null>(null);
   private gatewayAt = 0;
-  gatewayRunning = $derived(!!this.gateway?.status.running && !!this.gateway.status.endpoint);
+  private gatewaySeq = 0;
+  gatewayEndpoint = $derived(runningGatewayEndpoint(this.gateway));
+  gatewayRunning = $derived(this.gatewayEndpoint !== null);
+  gatewayBaseUrl = $derived(this.gatewayEndpoint?.base_url ?? null);
   /**
    * Base URL (`.../v1`) for inference requests of Harness's own clients (Playground,
    * integrations): the managed endpoint while the gateway runs, else the selected server.
    * Server-specific calls (`/health`, `/metrics`, `/tools`) keep using `hostUrl`.
    */
   inferenceUrl = $derived(
-    this.gatewayRunning && this.gateway?.status.endpoint ? this.gateway.status.endpoint.base_url : this.baseUrl,
+    this.gatewayBaseUrl ?? this.baseUrl,
   );
   /** The gateway's root (`http://host:port`) while it runs. */
-  gatewayHostUrl = $derived(this.gatewayRunning ? (this.gateway?.status.endpoint?.host_url ?? null) : null);
+  gatewayHostUrl = $derived(this.gatewayEndpoint?.host_url ?? null);
 
   async refreshGateway(force = false) {
     const now = Date.now();
     if (!force && now - this.gatewayAt < 3000) return;
     this.gatewayAt = now;
+    const seq = ++this.gatewaySeq;
     try {
-      this.gateway = await invoke<GatewayOverview>('get_gateway_status');
+      const gateway = await invoke<GatewayOverview>('get_gateway_status');
+      if (seq === this.gatewaySeq) this.gateway = gateway;
     } catch {
-      // background poll; ignore
+      if (seq === this.gatewaySeq) this.gateway = null;
     }
   }
 
   setGateway(o: GatewayOverview) {
+    this.gatewaySeq++;
     this.gateway = o;
     this.gatewayAt = Date.now();
   }

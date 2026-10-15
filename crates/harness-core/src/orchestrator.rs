@@ -141,7 +141,7 @@ pub async fn launch(
         }
         crate::onnx_runtime::sidecar_binary()?
     } else if engine.family() == crate::engine::PYTHON_HF {
-        // The interpreter of the managed environment (Settings > Installed Runtime > Other Runtimes installs it).
+        // The interpreter of the managed environment (Settings > Runtime > Installed Runtime > Other Runtimes installs it).
         crate::engine::python_hf::binary()?
     } else if engine.family() == crate::engine::MLX {
         crate::engine::mlx::binary()?
