@@ -112,12 +112,15 @@ public static class HarnessConsole {
         )
     };
     script.push_str(&format!("$start.FileName = {}\n$start.Arguments = {}\n$child = [System.Diagnostics.Process]::Start($start)\n$child.WaitForExit()\n$status = $child.ExitCode\n$child.Dispose()\n", quote(&file), quote(&arguments)));
-    script.push_str("} catch { Write-Host $_; $status = 1 } finally {\n");
+    script.push_str("} catch { Write-Host $_; $status = 1; if ($env:HARNESS_LAUNCH_ERROR_LOG) { \"$_\" | Out-File -LiteralPath $env:HARNESS_LAUNCH_ERROR_LOG -Encoding UTF8 } } finally {\n");
     script.push_str(&format!(
         "Remove-Item -LiteralPath {} -Recurse -Force -ErrorAction SilentlyContinue\n",
         quote(&temp_dir.to_string_lossy())
     ));
-    script.push_str("}\nif ($status -ne 0) { Write-Host \"[exit $status]\"; Read-Host 'Enter to close' }\nexit $status\n");
+    // A failed launch keeps its window open so the error can be read. Tests set
+    // `HARNESS_LAUNCH_ERROR_LOG` instead: nobody presses Enter there, so the wait would turn any
+    // failure into a hang; the error goes to that file (the console is not the test's pipe).
+    script.push_str("}\nif ($status -ne 0) { Write-Host \"[exit $status]\"; if (-not $env:HARNESS_LAUNCH_ERROR_LOG) { Read-Host 'Enter to close' } }\nexit $status\n");
     let path = temp_dir.join("launch.ps1");
     // Windows PowerShell 5.1 needs a BOM to decode non-ASCII paths/arguments as UTF-8.
     crate::instance::write_private_file(&path, format!("\u{feff}{script}").as_bytes())?;
@@ -535,25 +538,47 @@ mod tests {
             )
             .unwrap();
             assert!(!format!("{cmd:?}").contains("tok-secret-123456"));
-            let mut child = cmd
+            let error_log = d.path().join(format!("{}-{batch}.err", tool.id()));
+            let child = cmd
                 .env("HS_REMOVE", "inherited")
+                .env("HARNESS_LAUNCH_ERROR_LOG", &error_log)
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
                 .unwrap();
-            let start = std::time::Instant::now();
-            let status = loop {
-                if let Some(status) = child.try_wait().unwrap() {
-                    break status;
+            // Read the pipes while waiting (a full pipe would block the launcher). Without the
+            // pause a failed launch exits at once and reports its error; the deadline only
+            // catches a real hang.
+            let pid = child.id();
+            let (tx, rx) = std::sync::mpsc::channel();
+            std::thread::spawn(move || tx.send(child.wait_with_output()));
+            let output = match rx.recv_timeout(std::time::Duration::from_secs(120)) {
+                Ok(output) => output.unwrap(),
+                Err(_) => {
+                    let _ = std::process::Command::new("taskkill")
+                        .args(["/T", "/F", "/PID", &pid.to_string()])
+                        .output();
+                    let output = rx
+                        .recv_timeout(std::time::Duration::from_secs(10))
+                        .ok()
+                        .and_then(Result::ok);
+                    panic!(
+                        "Windows launcher still running after 120 s for {} (batch {batch}): {:?}",
+                        tool.id(),
+                        output.map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+                    );
                 }
-                if start.elapsed() > std::time::Duration::from_secs(60) {
-                    child.kill().unwrap();
-                    panic!("Windows launcher timed out for {}", tool.id());
-                }
-                std::thread::sleep(std::time::Duration::from_millis(50));
             };
-            assert!(status.success(), "{}", tool.id());
+            assert!(
+                output.status.success(),
+                "{} (batch {batch}): {}\nlauncher error: {}\nstdout: {}\nstderr: {}",
+                tool.id(),
+                output.status,
+                std::fs::read_to_string(&error_log).unwrap_or_default(),
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
             let text = std::fs::read_to_string(result).unwrap();
             let v: serde_json::Value =
                 serde_json::from_str(text.trim_start_matches('\u{feff}')).unwrap();
