@@ -1,9 +1,9 @@
 name: Publish SDKs
 
 # Publishes the Control API clients in sdk/ to npm (@struklabs/harness-studio-sdk) and PyPI
-# (harness-studio-sdk). Runs only by hand (workflow_dispatch) or for an `sdk-v*` tag; branch
-# pushes and pull requests never start it. On a tag, the tag must match both package versions
-# (sdk-v0.1.0 -> 0.1.0 in sdk/typescript/package.json and sdk/python/pyproject.toml).
+# (harness-studio-sdk). Runs only by hand (workflow_dispatch) from main: pushes, tags and pull
+# requests never start it. The published versions are the ones in sdk/typescript/package.json
+# and sdk/python/pyproject.toml.
 #
 # Before publishing, each job checks that sdk/openapi.json matches the Rust code and runs its
 # package's tests against a real `harness serve`.
@@ -13,8 +13,9 @@ name: Publish SDKs
 #     token can be removed.
 #   - PyPI: trusted publishing only (the `pypi` environment); no token is stored.
 #
-# Hardening: both jobs run only from main or an sdk-v* tag (the environments allow only those
-# too), use no caches, and pin every action to a full commit SHA.
+# Hardening: both jobs run only from main (the `npm` and `pypi` environments allow only main
+# too), use no caches, and pin every action to a full commit SHA. Credentials come only from
+# the environment secret or OIDC; nothing is written to the repository or printed.
 
 on:
   workflow_dispatch:
@@ -24,9 +25,6 @@ on:
         type: choice
         options: [both, npm, pypi]
         default: both
-  push:
-    # Tags only: with no `branches` filter, branch pushes do not match.
-    tags: ['sdk-v*']
 
 permissions:
   contents: read
@@ -38,8 +36,7 @@ concurrency:
 jobs:
   npm:
     if: >-
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sdk-v')) &&
-      (github.event_name == 'push' || inputs.target != 'pypi')
+      github.ref == 'refs/heads/main' && inputs.target != 'pypi'
     name: npm
     runs-on: ubuntu-22.04
     environment: npm
@@ -69,17 +66,6 @@ jobs:
         with:
           toolchain: stable
 
-      - name: The tag matches the package version
-        if: github.event_name == 'push'
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          version=$(node -p "require('./sdk/typescript/package.json').version")
-          if [ "$TAG" != "sdk-v$version" ]; then
-            echo "::error::Tag $TAG does not match sdk/typescript/package.json version $version."
-            exit 1
-          fi
-
       - name: Build the harness CLI
         run: cargo build -p harness-cli
 
@@ -104,8 +90,7 @@ jobs:
 
   pypi:
     if: >-
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sdk-v')) &&
-      (github.event_name == 'push' || inputs.target != 'npm')
+      github.ref == 'refs/heads/main' && inputs.target != 'npm'
     name: PyPI
     runs-on: ubuntu-22.04
     environment: pypi
@@ -132,17 +117,6 @@ jobs:
 
       - name: Install uv
         run: pipx install uv==0.12.20
-
-      - name: The tag matches the package version
-        if: github.event_name == 'push'
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          version=$(grep -m1 '^version = ' sdk/python/pyproject.toml | cut -d'"' -f2)
-          if [ "$TAG" != "sdk-v$version" ]; then
-            echo "::error::Tag $TAG does not match sdk/python/pyproject.toml version $version."
-            exit 1
-          fi
 
       - name: Build the harness CLI
         run: cargo build -p harness-cli
