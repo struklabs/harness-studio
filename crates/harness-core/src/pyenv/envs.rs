@@ -304,6 +304,11 @@ pub async fn ensure_in(
         return Ok(());
     }
     let dir = env_dir_in(root, spec.name);
+    // Before anything is downloaded: a data folder too deep for Windows' path limit would
+    // only fail at the end, with a raw traceback.
+    if let Some(len) = long_path_refusal(&dir, windows_long_paths_enabled()) {
+        return Err(path_too_long(len));
+    }
     create_dir(&dir)?;
     let uv = Uv {
         bin: ensure_uv(root, &KEYS, cancel, report).await?,
@@ -343,7 +348,9 @@ pub async fn ensure_in(
             "-r",
         ])
         .arg(&lock_file);
-    run_step(cmd, "packages", &KEYS, cancel, report).await?;
+    run_step(cmd, "packages", &KEYS, cancel, report)
+        .await
+        .map_err(|e| remap_path_failure(e, &dir))?;
     // The wheels are installed; keeping uv's copy of them would double the size.
     let _ = std::fs::remove_dir_all(&uv.cache_dir);
 
@@ -352,7 +359,9 @@ pub async fn ensure_in(
     cmd.current_dir(&dir)
         .args(["-c", spec.verify])
         .envs(python_env(&dir));
-    run_step(cmd, "verify", &KEYS, cancel, report).await?;
+    run_step(cmd, "verify", &KEYS, cancel, report)
+        .await
+        .map_err(|e| remap_path_failure(e, &dir))?;
 
     write_json(
         &dir.join("manifest.json"),
@@ -364,6 +373,82 @@ pub async fn ensure_in(
             installed_at: crate::capabilities::now_secs(),
         },
     )
+}
+
+/// Windows' classic path limit (`MAX_PATH`, counting the terminating NUL).
+const WINDOWS_MAX_PATH: usize = 260;
+
+/// A deep file the packages put in the env (relative to the env folder): the longest path
+/// known to be created by the locks. Used to project the longest path before building.
+const DEEPEST_ENV_FILE: &str = "venv\\Lib\\site-packages\\transformers\\models\\audio_spectrogram_transformer\\configuration_audio_spectrogram_transformer.py";
+
+/// Length (in characters) of the longest known path under the env folder `env_dir`.
+pub fn projected_longest_path_len(env_dir: &Path) -> usize {
+    env_dir.display().to_string().chars().count() + 1 + DEEPEST_ENV_FILE.chars().count()
+}
+
+/// The projected path length when it would not fit (`long_paths` is Windows' `LongPathsEnabled`
+/// policy; `None`: unknown, treated as off). `None` when it fits or long paths are on.
+pub fn long_path_refusal(env_dir: &Path, long_paths: Option<bool>) -> Option<usize> {
+    if long_paths == Some(true) {
+        return None;
+    }
+    let len = projected_longest_path_len(env_dir);
+    (len >= WINDOWS_MAX_PATH).then_some(len)
+}
+
+/// `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled` (read only); `None`
+/// off Windows or when it can't be read. Off Windows no limit applies, so it reports `true`.
+fn windows_long_paths_enabled() -> Option<bool> {
+    #[cfg(not(windows))]
+    {
+        Some(true)
+    }
+    #[cfg(windows)]
+    {
+        use windows::core::HSTRING;
+        use windows::Win32::Foundation::ERROR_SUCCESS;
+        use windows::Win32::System::Registry::{
+            RegGetValueW, HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD,
+        };
+        let sub = HSTRING::from(r"SYSTEM\CurrentControlSet\Control\FileSystem");
+        let name = HSTRING::from("LongPathsEnabled");
+        let mut data = 0u32;
+        let mut size = std::mem::size_of::<u32>() as u32;
+        let r = unsafe {
+            RegGetValueW(
+                HKEY_LOCAL_MACHINE,
+                &sub,
+                &name,
+                RRF_RT_REG_DWORD,
+                None,
+                Some((&mut data as *mut u32).cast()),
+                Some(&mut size),
+            )
+        };
+        (r == ERROR_SUCCESS).then_some(data == 1)
+    }
+}
+
+fn path_too_long(len: usize) -> String {
+    err("pyenv.path_too_long").with("len", len).into()
+}
+
+/// Whether a step's output looks like a file that couldn't be opened for its path length.
+fn is_path_failure_log(log: &str) -> bool {
+    (log.contains("FileNotFoundError") && log.contains("site-packages"))
+        || log.contains("os error 206")
+        || log.contains("filename or extension is too long")
+}
+
+/// Maps a failed build step to the path-too-long error when its output says so (Windows only).
+fn remap_path_failure(error: String, env_dir: &Path) -> String {
+    if cfg!(windows) && is_path_failure_log(&error) {
+        if let Some(len) = long_path_refusal(env_dir, windows_long_paths_enabled()) {
+            return path_too_long(len);
+        }
+    }
+    error
 }
 
 /// Registers the install of `name`. A second install of the same env while one runs (or waits
@@ -517,6 +602,33 @@ pub(crate) mod tests {
         assert!(!env_dir_in(root, SPEC.name).exists());
         // uv and the shared Python are not part of an env.
         assert!(root.exists());
+    }
+
+    #[test]
+    fn a_deep_data_folder_is_refused_unless_long_paths_are_on() {
+        let deep = Path::new(
+            r"C:\Users\u\AppData\Local\Temp\build-cache\C--Users-u-Documents-Projects-Harness-Studio\96f0aa61-2797-41d5-8909-421a066a6cd6\workspace\test-data\bin\pyenv\envs\hf-cpu",
+        );
+        let len = projected_longest_path_len(deep);
+        assert!(len >= 260);
+        assert_eq!(long_path_refusal(deep, Some(false)), Some(len));
+        assert_eq!(long_path_refusal(deep, None), Some(len));
+        assert_eq!(long_path_refusal(deep, Some(true)), None);
+        let short =
+            Path::new(r"C:\Users\u\AppData\Roaming\com.harnessstudio.app\bin\pyenv\envs\hf-cpu");
+        assert!(projected_longest_path_len(short) < 260);
+        assert_eq!(long_path_refusal(short, Some(false)), None);
+    }
+
+    #[test]
+    fn path_failures_are_recognised_in_the_output() {
+        assert!(is_path_failure_log(
+            r"FileNotFoundError: [Errno 2] No such file: 'x\site-packages\y.py'"
+        ));
+        assert!(is_path_failure_log("failed (os error 206)"));
+        assert!(!is_path_failure_log(
+            "ModuleNotFoundError: No module named 'torch'"
+        ));
     }
 
     #[test]
