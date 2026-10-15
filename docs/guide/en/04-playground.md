@@ -6,7 +6,7 @@ Türkçe: [../tr/04-playground.md](../tr/04-playground.md)
 
 ## How the Screen Is Laid Out
 
-At the top of the Playground are the mode tabs (**Playground mode**): **Chat**, **Embedding**, **Rerank**, **Speech**, and **Image Generation**. In the **Simple** interface level you see **Chat**, **Speech**, and **Image Generation**; **Embedding** and **Rerank** appear in **Advanced**. In Chat mode, the chat list is on the left (**Show chats**), the conversation and the **Your message** box are in the middle, and the **Session Settings** panel (**Show settings**) is on the right. Session Settings is split into these pages:
+At the top of the Playground are the mode tabs (**Playground mode**): **Chat**, **Embedding**, **Rerank**, **Speech**, **Image Generation**, and **Tasks**. In the **Simple** interface level you see **Chat**, **Speech**, **Image Generation**, and **Tasks**; **Embedding**, **Rerank**, and **Tasks** appear in **Advanced**. In Chat mode, the chat list is on the left (**Show chats**), the conversation and the **Your message** box are in the middle, and the **Session Settings** panel (**Show settings**) is on the right. Session Settings is split into these pages:
 
 | Group | Page | Purpose |
 | --- | --- | --- |
@@ -133,7 +133,15 @@ Only WAV is accepted: up to 32 MiB, 10 minutes, and two channels. Some models ne
 
 ## Generate Images
 
-The **Image Generation** tab generates pictures from diffusion models through stable-diffusion.cpp. Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it), or use one that is already in your folders: it appears in the **Model** list on its own, and **Open in Playground** on its library card opens this tab with it selected. If the list stays empty although the file is there, some of its extra files are missing; the tab says so and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
+The **Image Generation** tab generates pictures from diffusion models through stable-diffusion.cpp or the Python engine (diffusers). Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it), or use one that is already in your folders: it appears in the **Model** list on its own, and **Open in Playground** on its library card opens this tab with it selected. If the list stays empty although the file is there, some of its extra files are missing; the tab says so and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
+
+For image-to-image, add an optional **Start Image** and set **Strength** (how much it changes). Models that only edit images require a start image. Python diffusers models also open in this tab.
+
+## Tasks (Advanced)
+
+The **Tasks** tab runs ONNX and Python task models: choose a model, provide its text, image, or audio input, and run it. Results can include labels, captions, boxes, masks, or a depth map.
+
+In a chat, **Thinking** controls the selected model’s thinking behavior for that conversation, with **Model Default**, **Off**, or the levels that model supports. Models with an audio-capable projector can accept an attached audio file or a microphone recording as chat input.
 
 See also the [Tools reference](../../en/TOOLS.md) and the [Features reference](../../en/FEATURES.md).
 

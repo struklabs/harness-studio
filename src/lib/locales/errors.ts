@@ -3,7 +3,7 @@
 // error, translated by #lib/errors), `{url}`, `{status}`. The CLI prints the English texts
 // (harness-cli messages.rs compiles this file in): keep each text a single quoted literal.
 const tr = {
-  'tts.crispasr_helper_missing': 'Bu ses modeli için doğrulanmış yardımcı dosya eksik. Dosyayı indirin veya Ayarlar > Kurulu Model Motoru > Diğer Model Motorları > CrispASR Yardımcı Modelleri bölümünü açın.',
+  'tts.crispasr_helper_missing': 'Bu ses modeli için doğrulanmış yardımcı dosya eksik. Dosyayı indirin veya Ayarlar > Model Motoru > Kurulu Model Motoru > Diğer Model Motorları > CrispASR Yardımcı Modelleri bölümünü açın.',
   'tts.espeak_missing': 'audio.cpp için eSpeak-ng kullanılamıyor. eSpeak-ng içeren bir motor kurun veya başka bir ses modeli seçin.',
   'tts.worker_failed': 'Ses motoru başlatılamadı veya yanıt vermedi. Sunucu durduruldu; motoru ve model dosyalarını kontrol edin.',
   'http.connect_failed_local': 'Sunucuya bağlanılamadı ({url}). Sunucu çalışıyor mu? Sunucular sayfasından kontrol edin.',
@@ -98,7 +98,7 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
-  'tts.crispasr_helper_missing': 'A verified helper file for this voice model is missing. Download it or open Settings > Installed Runtime > Other Runtimes > CrispASR Helper Models.',
+  'tts.crispasr_helper_missing': 'A verified helper file for this voice model is missing. Download it or open Settings > Runtime > Installed Runtime > Other Runtimes > CrispASR Helper Models.',
   'tts.espeak_missing': 'eSpeak-ng is unavailable for audio.cpp. Install a runtime with eSpeak-ng or choose another voice model.',
   'tts.worker_failed': 'The speech engine could not start or answer. The server was stopped; check the runtime and model files.',
   'http.connect_failed_local': 'Could not connect to the server ({url}). Is it running? Check it on the Servers page.',

@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Settings > Installed Runtime > Other Engines: the engine families a model can need besides
+  // Settings > Runtime > Installed Runtime > Other Runtimes: the engine families a model can need besides
   // llama.cpp (speech, images, voices, ONNX, Lemonade, mistral.rs, the Python engine), each with its install state
   // and a one-click install button. The same installer as the "needs an engine" hints.
   import { onMount } from 'svelte';

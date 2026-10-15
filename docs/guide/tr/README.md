@@ -25,7 +25,7 @@ Harness Studio, struklabs tarafından geliştirilen açık kaynaklı bir projedi
 
 Beş dakika, adımları tanımak için bir hedeftir. Motor ve model indirmeleri, boyutlarının ve bağlantınızın gerektirdiği kadar sürer.
 
-1. **İndirin ve kurun.** Windows kurulum paketini (`.exe`, NSIS) projenin [GitHub Releases](https://github.com/struklabs/harness-studio/releases) sayfasından alıp çalıştırın. Kurulum paketi henüz kod imzalı değil; bu yüzden Windows SmartScreen ilk seferde uyarı verebilir. Adımlar [Kurulum](01-kurulum.md) sayfasındadır. Linux ve macOS paketleri yakında geliyor.
+1. **İndirin ve kurun.** [GitHub Releases](https://github.com/struklabs/harness-studio/releases) sayfasından Windows `.exe` paketini, Apple Silicon veya Intel için imzalı ve Apple noter onaylı DMG paketini (macOS 13.3+) ya da Linux `.deb` / AppImage önizlemesini edinin. Windows SmartScreen uyarısının adımları [Kurulum](01-kurulum.md) sayfasındadır.
 2. **Kurulum sihirbazını tamamlayın.** **Kurulum sihirbazı** içinde **Donanım**, **Depolama**, **Motor**, **Amaç** ve **Gizlilik** adımlarını izleyin. Yönetilen motor için **En Son Sürümü İndir ve Kur** seçeneğini kullanın. **Amaç** adımında arayüz düzeyinizi de seçersiniz (ilk kullanımda **Basit** önerilir). Sonunda **Kurulumu Bitir** düğmesine basın.
 3. **Bir model indirin.** **Model Hub** içinde bir sohbet modeli arayın ve **Dosyalar ve kuantlar** bölümünü açın. **Donanım uyumu** sütununu okuyup bir dosyanın **İndir** düğmesine basın. **İndirme Kuyruğu** içinde **Tamamlandı** durumunu bekleyin.
 4. **Sunucuyu başlatın.** **Dashboard** içinde indirdiğiniz modeli (varsa bir **Model tanımı** ile birlikte) seçin. Bellek tahminini kontrol edip **Sunucuyu Başlat** düğmesine basın. **Sunucu aktif** durumunu bekleyin.

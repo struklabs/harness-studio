@@ -9,6 +9,15 @@ export function quantBits(q: string): number {
   return m ? parseInt(m[1], 10) : 0;
 }
 
+/** Vision projectors, speculative-decoding drafts, image VAEs / text encoders / LoRAs: never the main model. */
+const COMPANION_QUANTS = new Set(['mmproj', 'component', 'lora']);
+const COMPANION_PATH = /mmproj|projector|(?:^|[/\\_. -])(?:mtp|draft|assistant|eagle\d*|dflash|dspark)(?:[/\\_. -]|$)/i;
+
+/** A companion file (projector, draft model, VAE, text encoder, LoRA) rather than a standalone model. */
+export function isCompanionVariant(v: HfModelVariant): boolean {
+  return COMPANION_QUANTS.has(v.quantization.toLowerCase()) || [v.name, ...v.shards.map((s) => s.filename)].some((path) => COMPANION_PATH.test(path));
+}
+
 const TIERS = ['full_gpu', 'tight', 'hybrid', 'cpu_heavy'] as const;
 
 function currentVariants(variants: HfModelVariant[]): HfModelVariant[] {
@@ -24,7 +33,7 @@ function currentVariants(variants: HfModelVariant[]): HfModelVariant[] {
  * 4-bit-or-better file of the best tier still possible. Null when sizes or fits are unknown.
  */
 export function recommendVariant(variants: HfModelVariant[], fits: Map<string, FitCategory>): HfModelVariant | null {
-  const sized = currentVariants(variants.filter((v) => v.total_size_bytes > 0 && quantBits(v.quantization) <= 8 && fits.has(v.name)));
+  const sized = currentVariants(variants.filter((v) => !isCompanionVariant(v) && v.total_size_bytes > 0 && quantBits(v.quantization) <= 8 && fits.has(v.name)));
   if (sized.length === 0) return null;
   for (const tier of TIERS) {
     const group = sized.filter((v) => fits.get(v.name) === tier);
@@ -123,4 +132,32 @@ export function recommendCrispasrVariant(variants: HfModelVariant[], availableRa
     if (choice) return choice;
   }
   return fits.sort((a, b) => a.total_size_bytes - b.total_size_bytes)[0] ?? null;
+}
+
+/** Projector precision order: F16 first (most widely supported), then BF16, F32, anything else. */
+function projectorRank(v: HfModelVariant): number {
+  const name = `${v.name} ${v.shards[0]?.filename ?? ''}`.toLowerCase();
+  if (/(^|[^a-z0-9])f16/.test(name) || name.includes('fp16')) return 0;
+  if (/bf16/.test(name)) return 1;
+  if (/(^|[^a-z0-9])f32/.test(name) || name.includes('fp32')) return 2;
+  return 3;
+}
+
+/**
+ * The vision projector (mmproj) that goes with a downloaded main GGUF: from the same folder of
+ * the repo as `main`, F16 -> BF16 -> F32 -> any (smallest). Null when `main` is itself a
+ * projector or not a GGUF, or the repo has no projector file.
+ */
+export function pickProjectorVariant(variants: HfModelVariant[], main: HfModelVariant): HfModelVariant | null {
+  const mainFile = main.shards[0]?.filename ?? '';
+  if (main.quantization === 'mmproj' || main.quantization === 'component' || !mainFile.toLowerCase().endsWith('.gguf')) return null;
+  const dirOf = (f: string) => (f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : '').toLowerCase();
+  const projectors = variants.filter((v) => v.quantization === 'mmproj' && v.shards.length > 0 && v.shards[0].filename.toLowerCase().endsWith('.gguf'));
+  const sameDir = projectors.filter((v) => dirOf(v.shards[0].filename) === dirOf(mainFile));
+  const pool = sameDir.length ? sameDir : projectors.filter((v) => dirOf(v.shards[0].filename) === '');
+  if (pool.length === 0) return null;
+  return pool.reduce((a, b) => {
+    const d = projectorRank(b) - projectorRank(a);
+    return d < 0 || (d === 0 && b.total_size_bytes < a.total_size_bytes) ? b : a;
+  });
 }

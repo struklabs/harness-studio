@@ -18,7 +18,8 @@ The **Settings** button in the left menu opens the page. The list on the left is
 | Setting | Path |
 | --- | --- |
 | Engine (llama.cpp) source, version, update, setup wizard | **Runtime > Installed Runtime** |
-| Extra llama.cpp builds and the other engines (speech, image, ONNX, Lemonade, mistral.rs, GGUF conversion) | **Runtime > Registry** |
+| Optional speech, image, Python, MLX, and mistral.rs engines | **Runtime > Installed Runtime > Other Runtimes** |
+| Extra llama.cpp builds, ONNX Runtime, Lemonade, GGUF conversion | **Runtime > Registry** |
 | Ollama-compatible API | **Runtime > Ollama** |
 | Model folders | **Storage > Directories** |
 | Hugging Face account and token | **Storage > Hugging Face Account** |
@@ -48,17 +49,19 @@ The **Settings** button in the left menu opens the page. The list on the left is
 - The **Backend** row shows which build (CUDA, Vulkan, ROCm, Metal, CPU) is installed and recommended for your hardware; if the installed build cannot see your graphics card you can install another one.
 - **Setup wizard > Open Wizard** reruns the first-launch wizard.
 
-**Registry** (an Advanced page) manages additional llama.cpp runtimes such as forks and your own builds (each model definition or server profile can choose its own runtime), plus the optional engines for other kinds of models:
+**Other Runtimes** on **Settings > Runtime > Installed Runtime** manages whisper.cpp, sherpa-onnx, stable-diffusion.cpp, mistral.rs, Python (`python-hf`, CPU/CUDA), MLX (chat, vision, audio; Apple Silicon, macOS 14+), CrispASR, and experimental audio.cpp (off by default; risk confirmation required).
 
-| Card | What it is for |
+**Registry** (an Advanced page) manages additional llama.cpp builds, ONNX Runtime, Lemonade, and the GGUF conversion environment. Each model definition or server profile can choose its own llama.cpp runtime. The engines are split between these pages:
+
+| Card (page) | What it is for |
 | --- | --- |
-| Speech Recognition (whisper.cpp) | `whisper-server`, which turns audio files into text. |
-| Text to Speech (sherpa-onnx) | Kokoro and Piper voice models; sherpa-onnx also runs the Parakeet, SenseVoice, and Omnilingual recognition models. |
-| Image Generation (stable-diffusion.cpp) | `sd-server`, which makes pictures from diffusion models (SD1.x, SDXL, SD3.5, FLUX, Qwen-Image). |
-| ONNX Runtime (embeddings, rerank, chat) | The libraries used by the `harness-onnx` helper to run Hugging Face ONNX embedding, reranking, and chat models without Python. You can install a **DirectML** (Windows: AMD and NVIDIA), **CUDA**, or **CPU** variant; downloads are verified with SHA-256. ONNX chat models (onnxruntime-genai) work on Windows only for now and have no tool calling. |
-| Lemonade (Ryzen AI NPU) | Optional. Runs models on AMD Ryzen AI NPUs (FastFlowLM) and with Lemonade's own ROCm and Vulkan llama.cpp builds; the gateway serves its chat, embedding, rerank, and speech-to-text models. |
-| Safetensors Models (mistral.rs) | Optional. Runs Hugging Face safetensors chat and vision models without converting them to GGUF. You add your own mistral.rs build. |
-| GGUF Conversion Environment | The Python environment used when you convert safetensors models to GGUF; install or delete it here. |
+| Speech Recognition (whisper.cpp) (Installed Runtime > Other Runtimes) | `whisper-server`, which turns audio files into text. |
+| Text to Speech (sherpa-onnx) (Installed Runtime > Other Runtimes) | Kokoro and Piper voice models; sherpa-onnx also runs the Parakeet, SenseVoice, and Omnilingual recognition models. |
+| Image Generation (stable-diffusion.cpp) (Installed Runtime > Other Runtimes) | `sd-server`, which makes pictures from diffusion models (SD1.x, SDXL, SD3.5, FLUX, Qwen-Image). |
+| ONNX Runtime (embeddings, rerank, chat) (Registry) | The libraries used by the `harness-onnx` helper to run Hugging Face ONNX embedding, reranking, and chat models without Python. You can install a **DirectML** (Windows: AMD and NVIDIA), **CUDA**, or **CPU** variant; downloads are verified with SHA-256. ONNX chat models (onnxruntime-genai) work on Windows only for now and have no tool calling. |
+| Lemonade (Ryzen AI NPU) (Registry) | Optional. Runs models on AMD Ryzen AI NPUs (FastFlowLM) and with Lemonade's own ROCm and Vulkan llama.cpp builds; the gateway serves its chat, embedding, rerank, and speech-to-text models. |
+| Safetensors Models (mistral.rs) (Installed Runtime > Other Runtimes) | Optional. Runs Hugging Face safetensors chat and vision models without converting them to GGUF. You add your own mistral.rs build. |
+| GGUF Conversion Environment (Registry) | The Python environment used when you convert safetensors models to GGUF; install or delete it here. |
 
 The **Ollama** page controls how Ollama clients can connect to the gateway as if it were Ollama ([Connections](05-connections-and-gateway.md)).
 

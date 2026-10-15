@@ -59,7 +59,7 @@ The messages below are quoted from the app's English interface. Fields such as `
 | `Stop all running servers before changing the runtime.` | Stop the servers first to change the engine. |
 | `llama-bench not found: {path}. Use the official llama.cpp package.` | A benchmark needs `llama-bench`. The managed official package includes it; if you use a custom package, check that the file is there. |
 
-If a card in Model Hub or My Models says an engine is required (the Speech module, the Image module, ONNX Runtime, sherpa-onnx), install it from **Install** in Model Hub or from **Settings > Runtime > Registry**. If a GGUF conversion fails, the message names the stage and the end of the converter's output; it needs the official managed llama.cpp runtime, enough free disk space, and a repository whose architecture the installed converter supports.
+If a card in Model Hub or My Models says an engine is required (the Speech module, the Image module, sherpa-onnx), install it from **Install** in Model Hub or from **Settings > Runtime > Installed Runtime > Other Runtimes**. ONNX Runtime is on **Settings > Runtime > Registry**. If a GGUF conversion fails, the message names the stage and the end of the converter's output; it needs the official managed llama.cpp runtime, enough free disk space, and a repository whose architecture the installed converter supports.
 
 ### Model Download
 
