@@ -103,6 +103,7 @@ pub(crate) fn save_app_settings(app: tauri::AppHandle, mut settings: AppSettings
     // The tool policy changes only through its own paths (`tools::save_settings`): a settings
     // object from an older frontend that does not know the block must not reset it.
     settings.tools = AppSettings::load().tools;
+    settings.links = AppSettings::load().links;
     settings.audio_cpp_enabled = AppSettings::load().audio_cpp_enabled;
     desktop::update_tray_language(&app, &settings.language);
     settings.save()

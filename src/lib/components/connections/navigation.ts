@@ -1,6 +1,9 @@
 import { Network, Plug, BookOpen, Code, Server, Download, Activity, FlaskConical, Route, Wrench } from '@lucide/svelte';
 import type { SectionGroup } from '../common/sections';
 export const CONNECTION_GROUPS: SectionGroup[] = [
+  { label: 'link.group', pages: [
+    { id: 'harness-link', label: 'link.page', icon: Network },
+  ] },
   { label: 'conn.tab_endpoints', pages: [
     { id: 'endpoints', label: 'conn.nav_endpoint_list', icon: Network },
     { level: 'advanced', id: 'ollama', label: 'conn.nav_ollama', icon: Plug },

@@ -542,6 +542,7 @@ async fn start(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
+    GatewayError::reject_remote(&def)?;
     if !is_image_model(&def) {
         return Err(GatewayError::new(
             400,

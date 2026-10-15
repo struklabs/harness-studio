@@ -508,6 +508,7 @@ fn finish_notes(notes: &mut Vec<String>, outcome: &StreamOutcome) {
 }
 
 pub(crate) async fn serve(a: ServeArgs<'_>) -> Result<Response, GatewayError> {
+    GatewayError::reject_remote(a.def)?;
     let ServeArgs {
         state,
         api,

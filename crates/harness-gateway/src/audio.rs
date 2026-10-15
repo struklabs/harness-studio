@@ -354,6 +354,7 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
+    GatewayError::reject_remote(&def)?;
     let crisp = is_crispasr_model(&def);
     if crisp {
         validate_crispasr_form(&form)?;

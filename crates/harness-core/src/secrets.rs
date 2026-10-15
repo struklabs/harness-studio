@@ -10,6 +10,7 @@ const HF_ACCOUNT: &str = "huggingface_token";
 const HF_OAUTH_ACCOUNT: &str = "huggingface_oauth";
 const API_KEY_PREFIX: &str = "server-api-key:";
 const MCP_PREFIX: &str = "mcp-secret:";
+const LINK_PREFIX: &str = "harness-link:";
 const WEB_SEARCH_PREFIX: &str = "web-search:";
 /// OAuth session of a remote MCP server (`mcp-oauth:<server name>`).
 const MCP_OAUTH_PREFIX: &str = "mcp-oauth:";
@@ -356,6 +357,24 @@ pub fn web_search_key_set(provider: &str, value: Option<&str>) -> Result<(), Str
         None => store().delete(&account),
     }
     .map_err(|e| format!("could not update the web search key in the OS keychain: {e}"))
+}
+
+pub fn link_get(id: &str) -> Result<Option<String>, String> {
+    store()
+        .get(&format!("{LINK_PREFIX}{id}"))
+        .map_err(|_| crate::error_key::err("link.keychain_unavailable").into())
+}
+
+pub fn link_set(id: &str, token: &str) -> Result<(), String> {
+    store()
+        .set(&format!("{LINK_PREFIX}{id}"), token)
+        .map_err(|_| crate::error_key::err("link.keychain_unavailable").into())
+}
+
+pub fn link_delete(id: &str) -> Result<(), String> {
+    store()
+        .delete(&format!("{LINK_PREFIX}{id}"))
+        .map_err(|_| crate::error_key::err("link.keychain_unavailable").into())
 }
 
 #[cfg(test)]

@@ -224,6 +224,7 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
+    GatewayError::reject_remote(&def)?;
     if never_decides(&def) {
         return Err(not_a_decision_model(&def.alias));
     }

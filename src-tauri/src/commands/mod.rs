@@ -59,6 +59,7 @@ include!("analytics.rs");
 include!("benchmark.rs");
 include!("control_api.rs");
 include!("gateway.rs");
+include!("link.rs");
 include!("modelfile.rs");
 include!("conversations.rs");
 include!("compaction.rs");

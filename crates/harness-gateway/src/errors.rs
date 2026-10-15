@@ -62,8 +62,47 @@ impl GatewayError {
         self
     }
 
+    pub fn remote(key: &'static str) -> Self {
+        let unsupported = key == "link.unsupported_endpoint";
+        Self::new(
+            if unsupported { 400 } else { 502 },
+            if unsupported {
+                "link.unsupported_endpoint"
+            } else {
+                "harness_link_unreachable"
+            },
+            match key {
+                "link.unsupported_endpoint" => "This endpoint is unsupported for remote models.",
+                "link.unauthorized" => "The remote Harness token was rejected.",
+                "link.timeout" => "The remote Harness request timed out.",
+                _ => "The remote Harness is unreachable.",
+            },
+        )
+        .details(json!({"error_key": key}))
+    }
+
+    pub fn reject_remote(def: &harness_core::domain::ModelDefinition) -> Result<(), Self> {
+        if harness_core::link::parse_model(&def.id).is_some() {
+            Err(Self::remote("link.unsupported_endpoint"))
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn from_sched(e: &harness_core::gateway::scheduler::SchedError) -> Self {
         use harness_core::gateway::scheduler::SchedError;
+        if let SchedError::LoadFailed { code, message, .. } = e {
+            if code == "link.unsupported_endpoint" {
+                return Self::remote("link.unsupported_endpoint");
+            }
+            if code == "harness_link_unreachable" {
+                return Self::remote(if message.starts_with("link.unauthorized") {
+                    "link.unauthorized"
+                } else {
+                    "link.unreachable"
+                });
+            }
+        }
         let mut details = match e {
             SchedError::ModelNotFound { available, .. }
             | SchedError::ModelRequired { available } => json!({"available_models": available}),

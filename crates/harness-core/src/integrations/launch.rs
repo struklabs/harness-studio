@@ -349,7 +349,7 @@ impl LaunchPlan {
     }
 }
 
-fn redact_text(text: &str, secrets: Vec<&str>) -> String {
+pub(crate) fn redact_text(text: &str, secrets: Vec<&str>) -> String {
     let mut out = text.to_string();
     for s in secrets {
         if s.len() >= 8 {

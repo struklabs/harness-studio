@@ -66,6 +66,7 @@ pub async fn post(
     content_type: &str,
     body: Vec<u8>,
 ) -> Result<Answer, GatewayError> {
+    GatewayError::reject_remote(def)?;
     let audio_cpp = crate::speech::is_audio_cpp_model(def);
     let crisp_tts = crate::speech::is_crispasr_tts(def);
     let engine = if crisp_tts {

@@ -191,6 +191,8 @@ async fn serve(
         serde_json::from_slice(&body).map_err(|e| bad(format!("The body must be JSON ({e}).")))?;
     guard.get().model = req.model.clone();
     if let Ok(def) = state.scheduler.resolve(req.model.as_deref()).await {
+        caller.check_model(&def.alias)?;
+        GatewayError::reject_remote(&def)?;
         if is_crispasr_tts(&def) {
             caller.check_model(&def.alias)?;
             crate::crispasr_tts::body(&def, "POST", "/v1/audio/speech", &body)?;
