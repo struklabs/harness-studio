@@ -78,7 +78,7 @@
         ? await invoke<Link>('link_update', { ...args, id: editing.id, enabled })
         : await invoke<Link>('link_add', { ...args, token });
       editing = result;
-      open = !!linkWarning(result);
+      open = false;
       await load();
     } catch (e) { formError = errorText(e); }
     finally { token = ''; busy = false; }
