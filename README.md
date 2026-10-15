@@ -103,6 +103,7 @@ Everything below works locally. Details are in the [user guide](docs/guide/en/RE
 - **Model Hub:** search Hugging Face with filters, read model cards, see whether a model fits your hardware, and download through a resumable queue that verifies SHA-256 checksums.
 - **Playground:** a chat window with saved conversations, side-by-side model comparison, Markdown and Mermaid diagrams, image input for vision models, documents with local search and citations (RAG), speech to text, read-aloud, and image generation.
 - **Tools in chat:** models can use built-in file, web, and weather tools, with an approval step before anything risky runs.
+- **Harness Link:** use the models of another Harness instance (address and inference token) in the Playground, My Models, and the gateway; see [Harness Link](docs/en/FEATURES.md#harness-link)
 - **Simple and Advanced levels:** Simple shows only what a first-time user needs; Advanced reveals every setting. Switching never loses a setting ([details](docs/en/UI_LEVELS.md)).
 - **Comfortable to use:** English and Turkish interface, light and dark themes, high-contrast and color-blind-friendly options, system tray, and launch at login.
 
@@ -315,7 +316,7 @@ No. There is no telemetry and no account. See [Privacy](#privacy).
 <details>
 <summary><b>How do I use it from my phone or another computer?</b></summary>
 
-In **Settings > Gateway**, enable **Allow network access** and create a named token with the `inference` scope. Keyless network access is not allowed. You must set your firewall yourself. A built-in way to use models from another Harness instance (**Harness Link**) is planned.
+In **Settings > Gateway**, enable **Allow network access** and create a named token with the `inference` scope. Keyless network access is not allowed. You must set your firewall yourself. To use models from another Harness instance, add it under **Connections > Harness Link** (see [Harness Link](docs/en/FEATURES.md#harness-link)).
 </details>
 
 <details>
@@ -349,7 +350,6 @@ The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction
 
 **Planned next**
 - **Server mode:** manage Harness on your own server from a web interface, with passwords or tokens, domain and automatic SSL, a systemd service, and Docker images (CUDA, ROCm, Vulkan, CPU)
-- **Harness Link:** use models from another Harness instance in your library, Playground, and gateway
 - Signed Linux packages beyond the preview
 - Code-signed Windows installer; unattended background app updates
 - Publishing the Control API SDKs to npm and PyPI; decision-model endpoints

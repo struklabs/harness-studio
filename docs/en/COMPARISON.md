@@ -128,7 +128,7 @@ apart from an LM Studio control run.
     gateway.
 - **Missing features in Harness today:**
   - Official TypeScript and Python SDKs (planned)
-  - Decision-model endpoints (`/v1/decisions`, `/v1/systemone`) and remote access to another Harness (Harness Link) (both planned)
+  - Decision-model endpoints (`/v1/decisions`, `/v1/systemone`) (planned). Remote access to another Harness is available as Harness Link
   - An MLX engine and a macOS build verified on real machines
   - Interface languages other than Turkish and English
   - Ollama `push` (by design: Harness has no model registry)

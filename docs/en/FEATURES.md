@@ -175,7 +175,7 @@ According to the `--help` output of llama-server build 11236:
 | Request queue, backpressure (503), cancellation, timeout | ✅ (concurrency equal to the slots, a bounded queue, 503 + `Retry-After`, upstream cancellation on disconnect) | 🟡 | ✅ | On direct ports, llama-server's own slots |
 | Automatic restart on crash / backoff | ✅ (optional, at most 3 attempts, 2→60 s exponential wait, a countdown in the UI) | ? | ✅ | Configuration errors are not restarted |
 | OOM recovery (lower ngl/ctx/ubatch, unload another) | ✅ (ngl/ctx/ubatch, KV quant, `--fit`, MoE→CPU, unload; a real restart in one click) | 🟡 (guardrail) | ✅ (eviction + 1 retry) | Automatic eviction + 1 retry on a gateway JIT load |
-| Remote model access across devices (LM Link: end-to-end encrypted, Tailscale partnership; `lms link`) | ❌ (a local solution with LAN opening + a token, §11) | ✅ | ❌ | Planned: Harness Link (a remote Harness source, HTTPS + token, no account and no VPN); see the ROADMAP |
+| Remote model access across devices (LM Link: end-to-end encrypted, Tailscale partnership; `lms link`) | ❌ (a local solution with LAN opening + a token, §11) | ✅ | ❌ | Harness Link (a remote Harness source: gateway address + inference-scoped token in the keychain, no account and no VPN; chat, completions, responses, embeddings, rerank, messages); see [Harness Link](#harness-link) |
 | Load timeout setting | ✅ (a setting + per model/profile) | ? | ✅ | — |
 | Error classification (OOM, missing DLL, corrupt GGUF, architecture, port) and `harness doctor` | ✅ (stable codes, TR/EN messages, Settings > Diagnostics) | 🟡 | 🟡 | — |
 
@@ -318,7 +318,7 @@ For every persistent integration: a preview (a colored diff), "Test Connection" 
 | Feature | Whose | Why |
 |---|---|---|
 | Web search / web fetch (ollama.com API) | Ollama | A cloud service. If wanted, it is added as an MCP server and does not enter the core |
-| Publishing presets/plugins to the Hub, an account system, `lms login` | LM Studio | Harness has no account or server (cross-device access is through the account-free Harness Link; see the ROADMAP) |
+| Publishing presets/plugins to the Hub, an account system, `lms login` | LM Studio | Harness has no account or server (cross-device access is through the account-free Harness Link; see [Harness Link](#harness-link)) |
 | `push` to a model registry | Ollama | We have no registry of our own; HF is already the source |
 | Bionic (an agent application) | LM Studio | Outside the product scope |
 | A JS/Python plugin runtime | LM Studio | MCP meets the same need through a standard path |
@@ -413,3 +413,15 @@ Companions use the pinned, size- and SHA-256-checked download queue. Pocket's up
 | English fallback | GitHub `cmusphinx/cmudict@74790861f652b15e4ac49015a90074ad62a27690` | `cmudict.dict` | 3618488 | `81917843c7f44ce2b094ac63873c2c7a4cf802040792c455ba3ca406891c3d22` |
 
 The local gold lexicon prevents Misaki's automatic download; a local CMU dictionary also covers its fallback path and `builtin-only` avoids external phonemizer selection. The optional neural G2P path is fixed inside the owned cache; its built-in inflection and fallback rules handle unlisted words. Only English presets are offered initially. Companion licenses: Apache-2.0 (Kokoro and Misaki), CC-BY-4.0 (Pocket), BSD-2-Clause (CMUdict).
+
+## Harness Link
+
+Harness Link uses the models of another Harness Studio instance as if they were local. The remote models appear as `remote:<link>/<model>` in the local gateway, in a **Remote** section of the Playground model picker, and in a read-only **Remote** group in My Models (it lists the model, the link name, and whether the link is online, and offers **Open in Playground**).
+
+**Set up the remote side.** In **Settings > Gateway** on the remote instance, turn on **Allow network access** and create a named token with the `inference` scope. Do not give the token more scopes than it needs; Harness warns when a link's token has an admin scope.
+
+**Add the link.** In **Connections > Harness Link**, choose **Add Remote Harness**, then enter a name, the remote gateway address, and the token. Use **Test Connection** to check it. The token is stored only in the operating system keychain, never in a settings file. The local gateway must be running to use remote models.
+
+**Addresses.** `http` addresses are accepted only for local or private network addresses, and only after you confirm the consent box. For anything else use HTTPS. Until server mode exists, put a reverse proxy such as Caddy in front of the remote gateway to get HTTPS. Links cannot be chained: a remote model cannot itself be a remote model of another link.
+
+**Supported endpoints.** Chat completions, completions, responses, embeddings, rerank, and messages. Image, audio, and video endpoints are not supported for remote models.

@@ -129,7 +129,7 @@ satırları yeniden çalıştırılmadı.
   - llama.cpp en geniş donanım arka uçları kümesine sahip; router kipi artık ayrı bir gateway gerektiren birkaç özelliği karşılıyor.
 - **Harness'ta bugün eksik olanlar:**
   - Resmi TypeScript ve Python SDK'ları (planlı)
-  - Karar modeli uç noktaları (`/v1/decisions`, `/v1/systemone`) ve başka bir Harness'a uzaktan erişim (Harness Link) (ikisi de planlı)
+  - Karar modeli uç noktaları (`/v1/decisions`, `/v1/systemone`) (planlı). Başka bir Harness'a uzaktan erişim Harness Link olarak mevcuttur
   - MLX motoru ve gerçek makinelerde doğrulanmış bir macOS derlemesi
   - Türkçe ve İngilizce dışındaki arayüz dilleri
   - Ollama `push` (bilerek: Harness'ın model kayıt defteri yok)

@@ -27,6 +27,8 @@
   import * as Empty from '#lib/components/ui/empty/index.js';
   import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import SectionLoading from '#lib/components/common/SectionLoading.svelte';
+  import { filterRemoteModels, remoteGroupState, type RemoteModel } from './playground/remoteModels';
+  import { security } from '#lib/stores/security.svelte.js';
   import { Search, Star, LayoutGrid, List, RefreshCw, Copy as CopyIcon, Library as LibraryIcon, Compass, CircleAlert } from '@lucide/svelte';
   import FilterSelect from './hub/FilterSelect.svelte';
   import { listAgentModels, type AgentModel } from './connections/agentModels';
@@ -55,6 +57,8 @@
   let view = $state<LibraryView | null>(null);
   let loading = $state(false);
   let loadError = $state<string | null>(null);
+  let remoteModels = $state<RemoteModel[]>([]);
+  let remoteLinkCount = $state(0);
   let agentModels = $state<AgentModel[]>([]);
   let storageDirs = $state<StorageDirInfo[]>([]);
 
@@ -140,6 +144,28 @@
     void serversSig;
     untrack(() => void domain.refreshStates());
   });
+
+  // Remote group: read-only rows from the link cache, refreshed while the page is open.
+  $effect(() => {
+    let alive = true;
+    async function loadRemote() {
+      try {
+        const [models, links] = await Promise.all([invoke<RemoteModel[]>('link_models'), invoke<unknown[]>('link_list')]);
+        if (alive) { remoteModels = models; remoteLinkCount = links.length; }
+      } catch {
+        // links unavailable: the group stays hidden
+      }
+    }
+    void loadRemote();
+    const timer = setInterval(() => void loadRemote(), 10000);
+    return () => { alive = false; clearInterval(timer); };
+  });
+  let remoteState = $derived(remoteGroupState(remoteLinkCount, app.gatewayRunning));
+  let remoteRows = $derived(filterRemoteModels(remoteModels, query));
+  function openRemote(model: RemoteModel) {
+    app.requestedPlaygroundModel = model.id;
+    app.openPlaygroundTab('chat');
+  }
 
   let refreshToken = 0;
   async function refresh() {
@@ -334,6 +360,29 @@
       </WindowedModels>
     {/if}
   </div>
+  {#if (tab === 'all' || tab === 'llm') && section.active !== 'definitions' && remoteState !== 'hidden'}
+    <section class="max-h-48 shrink-0 overflow-y-auto rounded-lg border border-border" aria-label={t('link.remote')}>
+      <h2 class="px-3 py-1.5 text-xs font-semibold">{t('link.remote')}</h2>
+      {#if remoteState === 'gateway_off'}
+        <div class="flex items-center gap-2 px-3 pb-2">
+          <p class="text-xs text-muted-foreground">{t('link.gateway_off')}</p>
+          <Button variant="outline" size="xs" onclick={() => security.openSettings('gateway')}>{t('gw.ep_open_settings')}</Button>
+        </div>
+      {:else}
+        {#each remoteRows as model (model.id)}
+          <div class="flex items-center justify-between gap-3 border-t border-border px-3 py-1.5">
+            <div class="min-w-0">
+              <p class="truncate font-mono text-xs">{model.model}</p>
+              <p class={cn('truncate text-xs', model.state === 'online' ? 'text-success' : 'text-muted-foreground')}>{model.link} · {t(model.state === 'online' ? 'link.online' : 'link.offline')}</p>
+            </div>
+            <Button variant="outline" size="xs" disabled={model.state !== 'online'} onclick={() => openRemote(model)}>{t('lib.open_in_playground')}</Button>
+          </div>
+        {:else}
+          <p class="border-t border-border px-3 py-1.5 text-xs text-muted-foreground">{t('link.models_empty')}</p>
+        {/each}
+      {/if}
+    </section>
+  {/if}
     </div>
   </main>
 </div>

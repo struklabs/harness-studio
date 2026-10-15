@@ -175,7 +175,7 @@ llama-server build 11236'nın `--help` çıktısına göre:
 | İstek kuyruğu, backpressure (503), iptal, zaman aşımı | ✅ (slot kadar eşzamanlılık, sınırlı kuyruk, 503 + `Retry-After`, kopmada yukarı akış iptali) | 🟡 | ✅ | Doğrudan portlarda llama-server'ın kendi slotları |
 | Çökmede otomatik yeniden başlatma / geri çekilme | ✅ (isteğe bağlı, en çok 3 deneme, 2→60 sn üstel bekleme, arayüzde geri sayım) | ? | ✅ | Ayar hataları yeniden başlatılmaz |
 | OOM kurtarma (ngl/ctx/ubatch düşür, başkasını boşalt) | ✅ (ngl/ctx/ubatch, KV kuantı, `--fit`, MoE→CPU, boşalt; tek tıkla gerçek yeniden başlatma) | 🟡 (guardrail) | ✅ (tahliye + 1 tekrar) | Gateway JIT yüklemesinde otomatik tahliye + 1 tekrar |
-| Cihazlar arası uzak model erişimi (LM Link: uçtan uca şifreli, Tailscale ortaklığı; `lms link`) | ❌ (LAN açma + token ile yerel çözüm, §11) | ✅ | ❌ | Planlı: Harness Link (uzak Harness kaynağı, HTTPS + token, hesapsız ve VPN'siz); bkz. ROADMAP |
+| Cihazlar arası uzak model erişimi (LM Link: uçtan uca şifreli, Tailscale ortaklığı; `lms link`) | ❌ (LAN açma + token ile yerel çözüm, §11) | ✅ | ❌ | Harness Link (uzak Harness kaynağı: gateway adresi + anahtar zincirinde inference kapsamlı token, hesapsız ve VPN'siz; chat, completions, responses, embeddings, rerank, messages); bkz. [Harness Link](#harness-link) |
 | Yükleme zaman aşımı ayarı | ✅ (ayar + model/profil başına) | ? | ✅ | — |
 | Hata sınıflandırma (OOM, eksik DLL, bozuk GGUF, mimari, port) ve `harness doctor` | ✅ (sabit kodlar, TR/EN mesaj, Ayarlar > Tanılama) | 🟡 | 🟡 | — |
 
@@ -321,7 +321,7 @@ zaman damgalı 5 kuşak yedek, dosya elle değiştiyse hash uyarısı. Başvuru:
 | Özellik | Kimde | Neden |
 |---|---|---|
 | Web arama / web fetch (ollama.com API) | Ollama | Bulut hizmeti. İstenirse MCP sunucusu olarak eklenir, çekirdeğe girmez |
-| Hub'a preset/plugin yayınlama, hesap sistemi, `lms login` | LM Studio | Harness hesabı veya sunucusu yok (cihazlar arası erişim hesapsız Harness Link ile) |
+| Hub'a preset/plugin yayınlama, hesap sistemi, `lms login` | LM Studio | Harness hesabı veya sunucusu yok (cihazlar arası erişim hesapsız Harness Link ile; bkz. [Harness Link](#harness-link)) |
 | Model kayıt defterine `push` | Ollama | Kendi kayıt defterimiz yok; HF zaten kaynak |
 | Bionic (ajan uygulaması) | LM Studio | Ürün kapsamı dışı |
 | JS/Python plugin çalışma zamanı | LM Studio | MCP aynı ihtiyacı standart yoldan karşılıyor |
@@ -407,3 +407,15 @@ Kokoro ve Pocket TTS GGUF modelleri (`cstr/kokoro-82m-GGUF`, `cstr/pocket-tts-GG
 Ses dosyaları yalnız sabit sürüm, boyut ve SHA-256 denetimi yapan indirme kuyruğundan gelir; her modelin ses klasörü Harness tarafından yönetilir. İzin listesi rastgele komşu dosyalardan oluşturulmaz. Kokoro hazır sesi başlatma sırasında yerel dosya olarak alır; ağ geçidi `af_heart` adını doğrular ve işçiye ses alanını göndermez. Pocket TTS, `alba` adını yönetilen ses klasöründe çözer. Dosya yolları, satır içi ses, ses yükleme, ses kopyalama, onay alanları ve bilinmeyen JSON alanları reddedilir. Modeli hedefleyen diğer yollar işçi başlamadan 400 döndürür. Metin en çok 4000 karakterdir; üretim süresi 120 saniye, çıktı süresi 120 saniye ve çıktı boyutu 24 MiB ile sınırlıdır. Sabitlenmiş tanımlar da 300 saniye boş kalınca durur.
 
 Kokoro için doğrulanmış ses paketi ve yerel Misaki İngilizce sözlüğü ile CMU yedek sözlüğü gerekir. Telaffuz stratejisi yerleşik kurallarla sınırlandırılır. Pocket TTS için doğrulanmış alba ses vektörü gerekir; kaynak depo erişim onayı ve yapılandırılmış erişim belirteci isteyebilir. Harness koşulları kendiliğinden kabul etmez. Eksik zorunlu dosyalar işçinin başlamasını engeller. İşçi ağdan dosya indirmez; önbelleği veri klasörü altındadır, vekil ayarları kapalı yerel kapıyı gösterir. Dosyaların depo sürümleri, boyutları ve SHA-256 değerleri [İngilizce tablodadır](../en/FEATURES.md#experimental-crispasr-text-to-speech). Kokoro ve Misaki Apache-2.0, Pocket hazır sesi CC-BY-4.0, CMU sözlüğü BSD-2-Clause lisanslıdır.
+
+## Harness Link
+
+Harness Link, başka bir Harness Studio örneğinin modellerini yerel gibi kullanmanızı sağlar. Uzak modeller yerel gateway'de `remote:<bağlantı>/<model>` olarak, Playground model seçicisinin **Uzak** bölümünde ve Kütüphanem'deki salt okunur **Uzak** grubunda görünür (grup modeli, bağlantı adını ve bağlantının çevrimiçi olup olmadığını listeler; **Playground'da Aç** eylemi vardır).
+
+**Uzak tarafı hazırlayın.** Uzak örnekte **Ayarlar > Ağ Geçidi** altında **Ağdan erişime izin ver**'i açın ve `inference` kapsamlı adlandırılmış bir token oluşturun. Token'a gerekenden fazla kapsam vermeyin; bir bağlantının token'ı yönetici kapsamına sahipse Harness uyarır.
+
+**Bağlantıyı ekleyin.** **Bağlantılar > Harness Link** altında **Uzak Harness Ekle**'yi seçin; ad, uzak gateway adresi ve token'ı girin. **Bağlantıyı Test Et** ile doğrulayın. Token yalnızca işletim sisteminin anahtar zincirinde saklanır, hiçbir ayar dosyasına yazılmaz. Uzak modelleri kullanmak için yerel gateway'in çalışıyor olması gerekir.
+
+**Adresler.** `http` adreslerine yalnızca yerel ya da özel ağ adresleri için ve onay kutusunu işaretlediğinizde izin verilir. Diğer her durumda HTTPS kullanın. Sunucu kipi gelene kadar HTTPS için uzak gateway'in önüne Caddy gibi bir ters vekil koyun. Bağlantılar zincirlenemez: uzak bir model, başka bir bağlantının uzak modeli olamaz.
+
+**Desteklenen uç noktalar.** Chat completions, completions, responses, embeddings, rerank ve messages. Görsel, ses ve video uç noktaları uzak modeller için desteklenmez.

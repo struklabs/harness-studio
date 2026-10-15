@@ -103,6 +103,7 @@ Aşağıdakilerin hepsi yerel çalışır. Ayrıntılar [kullanım kılavuzunda]
 - **Model Hub:** Hugging Face'te filtreli arama, model kartları, modelin donanımınıza uyup uymadığı ve SHA-256 sağlama toplamı doğrulayan, devam ettirilebilir indirme kuyruğu.
 - **Playground:** kayıtlı konuşmalar, yan yana model karşılaştırma, Markdown ve Mermaid şemaları, görsel girdisi (vision modelleri), yerel arama ve kaynak göstermeli belge sohbeti (RAG), konuşmadan yazıya, sesli okuma ve görsel üretimi olan bir sohbet penceresi.
 - **Sohbette araçlar:** modeller yerleşik dosya, web ve hava durumu araçlarını kullanabilir; riskli bir şey çalışmadan önce onayınız istenir.
+- **Harness Link:** başka bir Harness örneğinin modellerini (adres ve inference token'ı) Playground'da, Kütüphanem'de ve ağ geçidinde kullanın; bkz. [Harness Link](docs/tr/FEATURES.md#harness-link)
 - **Basit ve Gelişmiş düzeyler:** Basit düzey ilk kez kullanan biri için gereken her şeyi gösterir; Gelişmiş düzey tüm ayarları açar. Düzey değiştirmek hiçbir ayarı kaybettirmez ([ayrıntılar](docs/tr/UI_LEVELS.md)).
 - **Rahat kullanım:** Türkçe ve İngilizce arayüz, açık ve koyu temalar, yüksek karşıtlık ve renk körlüğüne uygun seçenekler, sistem tepsisi ve oturum açılınca başlatma.
 
@@ -315,7 +316,7 @@ Hayır. Telemetri ve hesap yoktur. Bkz. [Gizlilik](#gizlilik).
 <details>
 <summary><b>Telefonumdan veya başka bir bilgisayardan nasıl kullanırım?</b></summary>
 
-**Ayarlar > Ağ Geçidi** altında **Ağdan erişime izin ver**'i açın ve `inference` kapsamlı adlandırılmış bir token oluşturun. Token'sız ağ erişimine izin verilmez. Güvenlik duvarınızı kendiniz ayarlamalısınız. Başka bir Harness örneğinin modellerini kullanmak için yerleşik bir yol (**Harness Link**) planlıdır.
+**Ayarlar > Ağ Geçidi** altında **Ağdan erişime izin ver**'i açın ve `inference` kapsamlı adlandırılmış bir token oluşturun. Token'sız ağ erişimine izin verilmez. Güvenlik duvarınızı kendiniz ayarlamalısınız. Başka bir Harness örneğinin modellerini kullanmak için **Bağlantılar > Harness Link** altında ekleyin ([Harness Link](docs/tr/FEATURES.md#harness-link)).
 </details>
 
 <details>
@@ -349,7 +350,6 @@ Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, y
 
 **Sıradaki planlar**
 - **Sunucu kipi:** Harness'i kendi sunucunuzda web arayüzünden yönetin; parola ya da token oturumları, alan adı ve otomatik SSL, systemd servisi ve Docker imajları (CUDA, ROCm, Vulkan, CPU)
-- **Harness Link:** başka bir Harness örneğinin modellerini kütüphanenizde, Playground'da ve ağ geçidinde kullanın
 - Önizlemenin ötesinde imzalı Linux paketleri
 - Kod imzalı Windows kurulum dosyası; arka planda katılımsız uygulama güncellemesi
 - Control API SDK'larının npm ve PyPI'da yayımlanması; karar modeli uç noktaları

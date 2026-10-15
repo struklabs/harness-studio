@@ -51,3 +51,11 @@ test('remote models bypass local load badges and retain an explicit chat selecti
   assert.equal(selectChatModel(remote, ['local', remote], states, 'local'), remote);
   assert.equal(selectChatModel('idle', ['idle', 'local'], states, 'local'), 'local');
 });
+
+test('library remote group state follows links and the gateway', async () => {
+  const { remoteGroupState } = await import('../src/lib/components/playground/remoteModels.ts');
+  assert.equal(remoteGroupState(0, true), 'hidden');
+  assert.equal(remoteGroupState(0, false), 'hidden');
+  assert.equal(remoteGroupState(2, false), 'gateway_off');
+  assert.equal(remoteGroupState(2, true), 'list');
+});
