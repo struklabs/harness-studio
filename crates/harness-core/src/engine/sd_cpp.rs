@@ -604,6 +604,51 @@ pub fn vram_need(config: &LaunchConfig) -> u64 {
     footprint_bytes(weights_bytes(config))
 }
 
+/// Device memory an sd-server launch cannot do without when sd.cpp places the weights itself
+/// (`--auto-fit`, on by default: compute GPU, then system memory): the compute buffers. Slower
+/// than a model on the card, but it loads (measured on a 4 GB RTX 3050 Ti, sd-server b964:
+/// Z-Image Turbo Q4_0 with its Qwen3-4B text encoder, 5.8 GB of weights, kept 2.4 GB on the
+/// card and generated 512x512 in 57 s). `None` when the launch takes no GPU memory or its
+/// placement is fixed (`--auto-fit off`, `--params-backend`): the full need stays.
+pub fn min_vram_need(config: &LaunchConfig) -> Option<u64> {
+    if !auto_fit(config) {
+        return None;
+    }
+    let need = vram_need(config);
+    (need > 0).then(|| compute_bytes(weights_bytes(config)).min(need))
+}
+
+/// Whether sd.cpp's `--auto-fit` places the weights of a launch (the typed settings or the
+/// extra arguments may turn it off; an explicit `--params-backend` disables it).
+fn auto_fit(config: &LaunchConfig) -> bool {
+    let off = match config.params.get("auto_fit") {
+        Some(ParamValue::Text(t)) => t.trim().eq_ignore_ascii_case("off"),
+        Some(ParamValue::Bool(b)) => !b,
+        _ => false,
+    };
+    if off || text_param(&config.params, "params_backend").is_some() {
+        return false;
+    }
+    let custom = config
+        .custom_args
+        .as_deref()
+        .and_then(|s| crate::process::split_args(s).ok())
+        .unwrap_or_default();
+    let flag = |a: &str| a.split_once('=').map_or(a, |(f, _)| f).to_string();
+    !custom
+        .iter()
+        .enumerate()
+        .any(|(i, a)| match flag(a).as_str() {
+            "--params-backend" => true,
+            "--auto-fit" => a
+                .split_once('=')
+                .map(|(_, v)| v)
+                .or_else(|| custom.get(i + 1).map(String::as_str))
+                .is_some_and(|v| v.eq_ignore_ascii_case("off")),
+            _ => false,
+        })
+}
+
 /// Whether the build at `binary` has a GPU backend (`None`: its backend is not recognised).
 fn build_has_gpu(binary: &Path) -> Option<bool> {
     binary
@@ -1156,6 +1201,38 @@ mod tests {
             ParamValue::Text(dir.path().join("missing").to_string_lossy().to_string()),
         );
         assert_eq!(weights_bytes(&cfg), 1350);
+    }
+
+    /// sd.cpp places the weights itself unless the launch turns `--auto-fit` off or fixes the
+    /// placement with `--params-backend`, in the typed settings or the extra arguments.
+    #[test]
+    fn auto_fit_is_on_unless_the_launch_fixes_the_placement() {
+        assert!(auto_fit(&config()));
+        let with = |id: &str, v: ParamValue| {
+            let mut c = config();
+            c.params.insert(id.into(), v);
+            auto_fit(&c)
+        };
+        assert!(!with("auto_fit", ParamValue::Text("off".into())));
+        assert!(with("auto_fit", ParamValue::Text("on".into())));
+        assert!(!with("auto_fit", ParamValue::Bool(false)));
+        assert!(!with("params_backend", ParamValue::Text("cuda0".into())));
+        let custom = |args: &str| {
+            auto_fit(&LaunchConfig {
+                custom_args: Some(args.into()),
+                ..config()
+            })
+        };
+        assert!(!custom("--auto-fit off"));
+        assert!(!custom("--rng cpu --auto-fit=OFF"));
+        assert!(!custom("--params-backend cpu"));
+        assert!(custom("--auto-fit on --rng cpu"));
+        // Measured (RTX 3050 Ti, 3873 MiB free): Z-Image Turbo Q4_0 + Qwen3-4B + ae, 5.8 GB of
+        // weights, loads with auto-fit; its compute buffers and the reserve fit the card.
+        let weights = 3_311_730_000 + 2_375_910_000 + 160_000_000;
+        let reserve = crate::vram::fixed_footprint_headroom_with(4 << 30, 0, 0);
+        assert!(footprint_bytes(weights) > 3873 << 20);
+        assert!(compute_bytes(weights) + reserve < 3873 << 20);
     }
 
     /// A safetensors file's header tells a checkpoint from a standalone transformer, a VAE and

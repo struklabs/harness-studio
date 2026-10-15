@@ -2048,6 +2048,21 @@ impl Scheduler {
                 None => {}
             }
         }
+        if count.is_none() {
+            // An engine that puts what does not fit in system memory itself (stable-diffusion.cpp's
+            // auto-fit) needs only its compute buffers on the card: slower, but it loads. The
+            // full need was tried first, so idle models still leave for a whole-card load.
+            let candidate = config.clone();
+            let min = blocking(move || crate::engine::non_llama_min_vram_need(&candidate)).await?;
+            if let Some(min) = min {
+                count = eviction_count(
+                    min.saturating_add(load_headroom),
+                    available,
+                    &footprints,
+                    cap,
+                );
+            }
+        }
         let Some(count) = count else {
             let busy: Vec<_> = self
                 .busy_models(&def.id)
