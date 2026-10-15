@@ -104,7 +104,17 @@ async fn run_key(session: &Session, view: &Value) -> CliResult<String> {
             Some(key) => Ok(key.to_string()),
             None => Err(run_key_unavailable(&engine)),
         },
-        Err(_) => Err(run_key_unavailable(&engine)),
+        // Refused (another computer's token) or unknown here (an older Harness without the
+        // route): say how to reach the server instead. Anything else keeps its own cause.
+        Err(e)
+            if matches!(
+                e.params.get("http_status").and_then(Value::as_u64),
+                Some(403 | 404)
+            ) =>
+        {
+            Err(run_key_unavailable(&engine))
+        }
+        Err(e) => Err(e),
     }
 }
 

@@ -569,8 +569,10 @@ pub(crate) fn may_read_server_key(caller: &Caller, loopback: bool) -> bool {
 /// (`api.server_key_local_only`, 403); never cached (`Cache-Control: no-store`).
 #[utoipa::path(get, operation_id = "get_server_api_key", path = "/servers/{id}/api-key", tag = "servers",
     params(("id" = String, Path)),
-    responses((status = 200, body = ServerKeyResponse), (status = 403, body = ErrorBody),
-        (status = 404, body = ErrorBody)))]
+    responses(
+        (status = 200, description = "The key of the server's run (`null`: none, or not running); never cached", body = ServerKeyResponse),
+        (status = 403, description = "`api.server_key_local_only`: not the local session token, or the API is not bound to loopback", body = ErrorBody),
+        (status = 404, description = "Unknown server", body = ErrorBody)))]
 pub async fn api_key(
     State(s): State<AppState>,
     Extension(caller): Extension<Caller>,

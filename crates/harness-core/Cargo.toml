@@ -64,6 +64,9 @@ tempfile = "3"
 harness-onnx = { path = "../harness-onnx", default-features = false }
 
 [features]
+# Test seams for other crates' integration tests (`ProcessManager::simulate_running_for_tests`);
+# only dev-dependencies enable it, so release builds leave them out.
+test-support = []
 # OpenAPI schemas (utoipa::ToSchema) for the types the Control API exposes.
 openapi = ["dep:utoipa"]
 # OpenTelemetry OTLP export of gateway traces, logs and metrics over OTLP/HTTP (protobuf). The

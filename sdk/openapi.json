@@ -5872,7 +5872,7 @@
         ],
         "responses": {
           "200": {
-            "description": "",
+            "description": "The key of the server's run (`null`: none, or not running); never cached",
             "content": {
               "application/json": {
                 "schema": {
@@ -5892,7 +5892,7 @@
             }
           },
           "403": {
-            "description": "",
+            "description": "`api.server_key_local_only`: not the local session token, or the API is not bound to loopback",
             "content": {
               "application/json": {
                 "schema": {
@@ -5902,7 +5902,7 @@
             }
           },
           "404": {
-            "description": "",
+            "description": "Unknown server",
             "content": {
               "application/json": {
                 "schema": {
