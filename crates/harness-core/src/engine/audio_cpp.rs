@@ -410,6 +410,21 @@ pub fn server_config(config: &LaunchConfig) -> Result<serde_json::Value, String>
     )
 }
 
+/// audio.cpp's CPU backend runs on one thread unless told otherwise, which makes separation and
+/// restoration several times slower; with no thread count set, CPU runs use the physical cores.
+fn threads(config: &LaunchConfig) -> Option<u32> {
+    config
+        .threads
+        .filter(|t| *t > 0)
+        .or_else(|| (backend(config) == "cpu").then(cpu_threads))
+}
+
+fn cpu_threads() -> u32 {
+    sysinfo::System::physical_core_count()
+        .or_else(|| std::thread::available_parallelism().ok().map(|n| n.get()))
+        .map_or(1, |n| n.clamp(1, 64) as u32)
+}
+
 pub fn write_config(config: &LaunchConfig, dir: &Path) -> Result<PathBuf, String> {
     let path = dir.join("server.json");
     let body = serde_json::to_vec_pretty(&server_config(config)?).map_err(|e| e.to_string())?;
@@ -608,7 +623,7 @@ impl ServerEngine for AudioCppEngine {
             "--max-loaded-models".into(),
             "1".into(),
         ];
-        if let Some(threads) = config.threads.filter(|t| *t > 0) {
+        if let Some(threads) = threads(config) {
             args.extend(["--threads".into(), threads.to_string()]);
         }
         if let Some(custom) = config
@@ -821,6 +836,25 @@ mod tests {
             .params
             .insert("backend".into(), ParamValue::Text("auto".into()));
         assert_eq!(backend(&config), "cpu");
+    }
+
+    #[test]
+    fn cpu_runs_get_the_physical_cores_unless_threads_are_set() {
+        let mut config = LaunchConfig::default();
+        config
+            .params
+            .insert("backend".into(), ParamValue::Text("cpu".into()));
+        assert_eq!(threads(&config), Some(cpu_threads()));
+        assert!(cpu_threads() >= 1);
+        config.threads = Some(0);
+        assert_eq!(threads(&config), Some(cpu_threads()));
+        config.threads = Some(3);
+        assert_eq!(threads(&config), Some(3));
+        config.threads = None;
+        config
+            .params
+            .insert("backend".into(), ParamValue::Text("vulkan".into()));
+        assert_eq!(threads(&config), None);
     }
 
     fn gguf(path: &Path, family: &str) {

@@ -273,7 +273,7 @@ For every persistent integration: a preview (a colored diff), "Test Connection" 
 
 ## 13. Hardware, Backends, and Engines
 
-- **audio.cpp speech and processing:** managed GitHub-release builds for Windows, Linux, and macOS; Vulkan for AMD/Intel, CUDA with companion runtime libraries for Windows NVIDIA, Metal on macOS, and CPU fallback. TTS families speak through `/v1/audio/speech`; seven audited separation/enhancement GGUF families use `/v1/audio/process`. Playground supports recording, playback, and WAV export. The voice picker reads `embeddings/*.safetensors`; backend, device, threads, and idle unload are catalog settings. Hub package variants preserve the selected model folder and its companions. Other audio.cpp tasks remain unsupported.
+- **audio.cpp speech and processing:** managed GitHub-release builds for Windows, Linux, and macOS; Vulkan for AMD/Intel, CUDA with companion runtime libraries for Windows NVIDIA, Metal on macOS, and CPU fallback. TTS families speak through `/v1/audio/speech`; seven audited separation/enhancement GGUF families use `/v1/audio/process`. Playground supports recording, playback, and WAV export. The voice picker reads `embeddings/*.safetensors`; backend, device, threads, and idle unload are catalog settings; on the CPU backend, an unset thread count means all physical cores. Hub package variants preserve the selected model folder and its companions. Other audio.cpp tasks remain unsupported.
 
 | Feature | Harness | LM Studio | Ollama | Path / note |
 |---|---|---|---|---|

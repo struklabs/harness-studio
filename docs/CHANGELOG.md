@@ -6,6 +6,9 @@ Release notes with system requirements and known limitations (English and Turkis
 
 ## [Unreleased]
 
+- audio.cpp: on the CPU backend, workers use all physical cores when no thread count is set (audio.cpp otherwise runs on one thread; Apollo on an 11 s clip went from 97 s to 32 s on an 8-core Ryzen).
+- audio.cpp: CPU arka ucunda iş parçacığı sayısı ayarlanmamışsa işçiler tüm fiziksel çekirdekleri kullanır (audio.cpp aksi halde tek iş parçacığında çalışır; 8 çekirdekli Ryzen'de 11 sn'lik klipte Apollo 97 sn'den 32 sn'ye indi).
+
 - Image generation: GPU memory failures show localized guidance, blocking server names when available, and a Manage Servers action.
 - Görsel üretimi: GPU belleği hataları yerelleştirilmiş yönlendirme, varsa belleği tutan sunucu adları ve Sunucuları Yönet eylemi gösterir.
 - Playground: the Image tab header model chip follows the image model selection.

@@ -276,7 +276,7 @@ zaman damgalı 5 kuşak yedek, dosya elle değiştiyse hash uyarısı. Başvuru:
 
 ## 13. Donanım, backend ve motorlar
 
-- **audio.cpp konuşma ve ses işleme:** Windows, Linux ve macOS için GitHub sürümlerinden yönetilen motor kurulumu; AMD/Intel için Vulkan, Windows NVIDIA için ek çalışma kitaplıklarıyla CUDA, macOS için Metal ve CPU seçeneği. TTS aileleri `/v1/audio/speech`, denetlenmiş yedi ayrıştırma/iyileştirme GGUF ailesi `/v1/audio/process` kullanır. Playground kayıt, dinleme ve WAV kaydetme sunar. Ses seçicisi `embeddings/*.safetensors` dosyalarını okur; arka uç, aygıt, iş parçacığı ve boşta bırakma süresi katalogdan ayarlanır. Hub paket varyantları seçili model klasörünü ve yardımcı dosyalarını korur. Diğer audio.cpp görevleri kapsam dışıdır.
+- **audio.cpp konuşma ve ses işleme:** Windows, Linux ve macOS için GitHub sürümlerinden yönetilen motor kurulumu; AMD/Intel için Vulkan, Windows NVIDIA için ek çalışma kitaplıklarıyla CUDA, macOS için Metal ve CPU seçeneği. TTS aileleri `/v1/audio/speech`, denetlenmiş yedi ayrıştırma/iyileştirme GGUF ailesi `/v1/audio/process` kullanır. Playground kayıt, dinleme ve WAV kaydetme sunar. Ses seçicisi `embeddings/*.safetensors` dosyalarını okur; arka uç, aygıt, iş parçacığı ve boşta bırakma süresi katalogdan ayarlanır; CPU arka ucunda iş parçacığı ayarlanmamışsa tüm fiziksel çekirdekler kullanılır. Hub paket varyantları seçili model klasörünü ve yardımcı dosyalarını korur. Diğer audio.cpp görevleri kapsam dışıdır.
 
 | Özellik | Harness | LM Studio | Ollama | Yol / not |
 |---|---|---|---|---|
