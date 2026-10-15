@@ -1,5 +1,6 @@
 <script lang="ts">
   import { PURPOSE_TOOLS } from './purposeCapabilities';
+  import { purposeFooterAction } from './purposeFooter';
   import { getToolSettings, setToolSettings, type ToolSettings } from '#lib/tools-client.js';
   import { onMount, onDestroy } from 'svelte';
   import { invoke } from '#lib/ipc.js';
@@ -180,7 +181,15 @@
     }, 0),
   );
   /** Something was installed or queued here and nothing is left to wait for. */
-  const finished = $derived(actionCount === 0 && downloading === 0 && Object.values(outcome).some((o) => o.ok));
+  const installed = $derived(Object.values(outcome).some((o) => o.ok));
+  const finished = $derived(actionCount === 0 && downloading === 0 && installed);
+  export function getFooterAction() {
+    return {
+      action: purposeFooterAction(actionCount, busy, installed || (done && actionCount === 0), downloading),
+      count: actionCount,
+      disabled: busy || loading || actionCount === 0,
+    };
+  }
   /** "Claude Code (3), Codex (2)": how many servers each source has. */
   const mcpSummary = $derived.by(() => {
     const counts = new Map<string, number>();
@@ -223,7 +232,7 @@
     }
   }
 
-  async function install() {
+  export async function install() {
     if (busy || actionCount === 0) return;
     busy = true;
     installError = null;
@@ -269,7 +278,7 @@
       {#each ['simple', 'advanced'] as choice}
         <label class={cn('flex min-w-0 cursor-pointer flex-col gap-1 rounded-md border p-3 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring', level === choice ? 'border-foreground/40 bg-muted' : 'border-border hover:bg-muted/50')}>
           <input type="radio" class="sr-only" name="onboarding-ui-level" value={choice} bind:group={level} disabled={busy} aria-describedby="ui-level-{choice}-description" />
-          <span class="text-sm font-medium">{t(choice === 'simple' ? 'uiLevel.simple' : 'uiLevel.advanced')}{#if choice === 'simple'} <span class="text-xs text-muted-foreground">· {t('uiLevel.recommended')}</span>{/if}</span>
+          <span class="text-sm font-medium">{t(choice === 'simple' ? 'uiLevel.simple' : 'uiLevel.advanced')}{#if choice === 'simple'}<span class="text-xs text-muted-foreground">{' · '}{t('uiLevel.recommended')}</span>{/if}</span>
           <span id="ui-level-{choice}-description" class="text-xs leading-relaxed text-muted-foreground">{t(choice === 'simple' ? 'uiLevel.simple_desc' : 'uiLevel.advanced_desc')}</span>
         </label>
       {/each}
@@ -332,7 +341,7 @@
             <Checkbox
               class="mt-0.5"
               disabled={busy || settled(s)}
-              checked={suggestionSelected(s, off[s.id]) && !settled(s)}
+              checked={suggestionSelected(s, off[s.id]) && (!settled(s) || row?.kind === 'pending')}
               onCheckedChange={(v) => (off[s.id] = !v)}
             />
             <span class="flex min-w-0 flex-1 flex-col gap-1">

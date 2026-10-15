@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { needsSmallModelWave, pickBest, smallQueries } from '../src/lib/components/onboarding/suggestPlan.ts';
+import { purposeFooterAction } from '../src/lib/components/onboarding/purposeFooter.ts';
+
+test('purpose footer promotes selected installs and restores navigation during and after installation', () => {
+  assert.equal(purposeFooterAction(0, false, false, 0), 'skip');
+  assert.equal(purposeFooterAction(1, false, false, 0), 'install');
+  assert.equal(purposeFooterAction(3, false, false, 0), 'install');
+  assert.equal(purposeFooterAction(3, true, false, 0), 'continue');
+  assert.equal(purposeFooterAction(0, false, true, 2), 'continue');
+  assert.equal(purposeFooterAction(0, false, false, 2), 'continue');
+  assert.equal(purposeFooterAction(0, false, true, 0), 'continue');
+  assert.equal(purposeFooterAction(1, false, true, 0), 'continue');
+  // A failed attempt with no successful installs can be retried.
+  assert.equal(purposeFooterAction(1, false, false, 0), 'install');
+});
 
 test('small-model wave runs when nothing fits or only weak tiers do', () => {
   assert.equal(needsSmallModelWave([]), true);
