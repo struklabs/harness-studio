@@ -425,6 +425,6 @@
     {#if presetsOpened}
       <LazyView load={views.presets} />
     {/if}
-    <Toaster theme={toastTheme} position="bottom-right" closeButtonAriaLabel={t('ui.toast_close')} />
+    <Toaster theme={toastTheme} position="top-right" closeButtonAriaLabel={t('ui.toast_close')} />
   </Tooltip.Provider>
 {/if}
