@@ -20,7 +20,7 @@ Harness Studio 0.1.0 is distributed as platform-specific packages on the project
 2. If Windows SmartScreen shows a warning, choose **More info**, then **Run anyway**. The warning appears because the installer is not code-signed yet.
 3. Open Harness Studio from the Start menu.
 
-Uninstalling does not delete your user data. It stays in the data folder described [below](#model-folder-and-data-folder). A leftover entry under `HKCU\Software\harnessstudio` only remembers the install location; it is harmless and can be deleted.
+Uninstalling keeps your data unless you tick **Delete the application data** in the uninstaller. That option deletes the application's data folders, including models stored there; models in an external model folder stay. Without it, your data stays in the folder described [below](#model-folder-and-data-folder). The installer may leave an entry under `HKCU\Software\struklabs\Harness Studio` that only remembers the install location and language; it is harmless and can be deleted (an older `HKCU\Software\harnessstudio` key may come from an earlier version).
 
 ### Updating the App
 
@@ -49,7 +49,7 @@ The runtime is the engine that runs a model file. Chat normally uses llama.cpp; 
 | **Managed (recommended)** | For most people. Harness Studio downloads the official release, verifies it, and keeps it up to date. |
 | **Custom Binary** | You have your own `llama-server`. Enter its location in **llama-server path** and press **Verify**. A custom binary is never updated or rolled back automatically. |
 
-The recommended acceleration depends on your hardware: CUDA for NVIDIA, ROCm/HIP or Vulkan for suitable AMD cards, SYCL or Vulkan for Intel Arc, Metal for Apple Silicon. Without a GPU, the CPU is used. Detecting a graphics card does not guarantee the chosen build can use it. If the installed build cannot see the card, Harness Studio switches to a build that works on any card (for example Vulkan) and tells you on the **Settings > Runtime > Installed Runtime** page.
+The recommended acceleration depends on your hardware: CUDA for NVIDIA, ROCm/HIP or Vulkan for suitable AMD cards, SYCL or Vulkan for Intel Arc, Metal for Apple Silicon. Without a GPU, the CPU is used. Detecting a graphics card does not guarantee the chosen build can use it. If the installed build cannot see the card, the setup wizard tries Vulkan (it needs a compatible GPU and driver) and tells you on the **Settings > Runtime > Installed Runtime** page. Existing installs keep their build; change it on that page. On Windows, ROCm/HIP is recommended only when the HIP SDK libraries can be loaded; otherwise Vulkan is recommended.
 
 Other kinds of models use optional engines that you install when you need them, with one click: an **Install** button appears next to the "This model needs the … runtime" note on library cards, in the Model Hub and in Playground errors, and optional engine families are listed under **Other Runtimes** in **Settings > Runtime > Installed Runtime** (at both interface levels). ONNX Runtime, Lemonade, the conversion environment, and extra builds are managed in **Settings > Runtime > Registry** (an Advanced page):
 
@@ -82,6 +82,6 @@ Application data (settings, the chat database, engines, and logs) is kept in a s
 | macOS | `~/Library/Application Support/com.harnessstudio.app` |
 | Linux (x64) | `.deb` / AppImage | Preview packages; the release workflow builds both formats. |
 
-To change the data folder from the command line, see the [CLI reference](../../en/CLI.md). For how credentials are stored, see the [security model](../../en/SECURITY_MODEL.md). To start from scratch, close the app, back up this folder, and delete it; your settings and chats are deleted with it.
+To change the data folder from the command line, see the [CLI reference](../../en/CLI.md). For how credentials are stored, see the [security model](../../en/SECURITY_MODEL.md). To start from scratch, close the app, back up this folder, and delete it; your settings and chats are deleted with it. For full removal on Windows, first run `harness service uninstall` if you installed the CLI login service, clear stored credentials (Hugging Face token, server API keys) in the app or in Windows Credential Manager (entries containing `com.harnessstudio.app`), then uninstall and delete the retained data and model folders you no longer want.
 
 Next: [Model Hub and My Models](02-model-hub-and-library.md).
