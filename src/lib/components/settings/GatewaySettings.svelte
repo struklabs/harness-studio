@@ -39,7 +39,8 @@
   let overview = $state<GatewayOverview | null>(null);
   let draft = $state<GatewaySettings | null>(null);
   let corsText = $state('');
-  let ttlText = $state('');
+  // A number input binds a number (or undefined when empty), never a string.
+  let ttl = $state<number | null | undefined>(null);
   let busy = $state(false);
   let applyError = $state<string | null>(null);
   let ignoreDef = $state('');
@@ -86,7 +87,7 @@
     if (keepDraft && draft) return;
     draft = structuredClone($state.snapshot(o.settings) as GatewaySettings);
     corsText = o.settings.cors_origins.join('\n');
-    ttlText = o.settings.default_ttl_secs ? String(o.settings.default_ttl_secs) : '';
+    ttl = o.settings.default_ttl_secs ?? null;
   }
 
   async function refresh(keepDraft = false) {
@@ -113,8 +114,7 @@
   }
 
   function ttlValue(): number | null {
-    const n = Number(ttlText.trim());
-    return ttlText.trim() && Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+    return ttl != null && Number.isFinite(ttl) && ttl > 0 ? Math.round(ttl) : null;
   }
 
   function current(): GatewaySettings | null {
@@ -125,7 +125,7 @@
   let dirty = $derived.by(() => {
     if (!overview || !draft) return false;
     void corsText;
-    void ttlText;
+    void ttl;
     const cur = current();
     return JSON.stringify({ ...cur, enabled: false, tool_ignores: {}, server_tools: {}, text_tool_calls: {} }) !==
       JSON.stringify({ ...overview.settings, enabled: false, tool_ignores: {}, server_tools: {}, text_tool_calls: {} });
@@ -348,7 +348,7 @@
         />
       </SettingRow>
       <SettingRow label={t('gw.default_ttl')} hint={t('gw.default_ttl_hint')} for="gw-ttl">
-        <Input id="gw-ttl" type="number" min={1} class="h-8 w-28 text-right font-num" bind:value={ttlText} />
+        <Input id="gw-ttl" type="number" min={1} class="h-8 w-28 text-right font-num" bind:value={ttl} />
       </SettingRow>
       <SettingRow label={t('gw.memory_aware')} note={t('gw.memory_aware_hint')} help={t('gw.memory_aware_help')} for="gw-mem">
         <Switch id="gw-mem" bind:checked={draft.memory_aware} />
