@@ -197,6 +197,7 @@ pub fn base(code: &str) -> Option<&'static str> {
         // Control API only.
         "api.unauthorized" => "The Control API rejected the token (missing, wrong or revoked).",
         "api.insufficient_scope" => "The token lacks the scope this command needs.",
+        "api.server_key_local_only" => "Only this computer's own session can read a server's key.",
         "api.forbidden_host" => "The Control API refused the Host header.",
         "api.forbidden_origin" => "The Control API refused the browser Origin.",
         "api.no_route" => "The Control API has no such endpoint (version mismatch?).",
@@ -228,6 +229,7 @@ pub fn base(code: &str) -> Option<&'static str> {
         "cli.io" => "File error.",
         "cli.service_failed" => "The OS service command failed.",
         "cli.chat_failed" => "The chat request failed.",
+        "cli.server_key_unavailable" => "The server's key for this run is not available here.",
         "cli.download_failed" => "The download failed.",
         "cli.benchmark_failed" => "The benchmark failed.",
         _ => return None,

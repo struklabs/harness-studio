@@ -816,6 +816,14 @@ impl ProcessManager {
         true
     }
 
+    /// Test seam: this instance looks Running with `active`, without a process. Only the Control
+    /// API's integration tests call it (a server key needs a running server).
+    #[doc(hidden)]
+    pub fn simulate_running_for_tests(&self, active: ActiveServerInfo) {
+        *self.active.lock().unwrap() = Some(active);
+        *self.status.lock().unwrap() = ServerStatus::Running;
+    }
+
     /// Config the current (or last) run was started with.
     pub fn launch_config(&self) -> Option<LaunchConfig> {
         self.launch_config.lock().unwrap().clone()

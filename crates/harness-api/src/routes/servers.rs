@@ -3,9 +3,10 @@
 use std::convert::Infallible;
 use std::time::Duration;
 
-use axum::extract::State;
-use axum::http::StatusCode;
+use axum::extract::{Extension, State};
+use axum::http::{header, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use futures_util::Stream;
 use harness_core::capabilities::verify::EffectiveLaunchValues;
@@ -20,8 +21,10 @@ use harness_core::telemetry::{TelemetryHistoryPoint, TelemetrySnapshot};
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
+use crate::auth::Caller;
 use crate::error::{blocking, with_id, ApiError, ApiResult, Body, ErrorBody, OptBody, P, Q};
 use crate::AppState;
+use harness_core::control_api::Principal;
 
 /// A server: a running/known instance, a saved profile, or both (same id).
 #[derive(Serialize, ToSchema)]
@@ -547,6 +550,55 @@ pub async fn metrics(
 }
 
 #[derive(Serialize, ToSchema)]
+pub struct ServerKeyResponse {
+    /// The key requests to the server's own endpoint need: the user's, or the one made for this
+    /// run (a Python worker always has one). `null` when it needs none or is not running.
+    #[schema(example = "<key of this run>")]
+    pub api_key: Option<String>,
+}
+
+/// Only the session token (the desktop app's, or `harness`'s on this computer) reads server keys,
+/// and only while the API listens on loopback: a named token or a network bind could hand them to
+/// another computer.
+pub(crate) fn may_read_server_key(caller: &Caller, loopback: bool) -> bool {
+    matches!(caller.principal, Principal::Session) && loopback
+}
+
+/// The key of a running server's own endpoint, for local clients that talk to it directly
+/// (`harness run` without the gateway). Session token on a loopback API only
+/// (`api.server_key_local_only`, 403); never cached (`Cache-Control: no-store`).
+#[utoipa::path(get, operation_id = "get_server_api_key", path = "/servers/{id}/api-key", tag = "servers",
+    params(("id" = String, Path)),
+    responses((status = 200, body = ServerKeyResponse), (status = 403, body = ErrorBody),
+        (status = 404, body = ErrorBody)))]
+pub async fn api_key(
+    State(s): State<AppState>,
+    Extension(caller): Extension<Caller>,
+    P(id): P<String>,
+) -> ApiResult<Response> {
+    if !may_read_server_key(&caller, s.loopback) {
+        return Err(ApiError::new(
+            StatusCode::FORBIDDEN,
+            "api.server_key_local_only",
+        ));
+    }
+    servers::validate_id(&id)?;
+    let Some(server) = s.ctx.registry.get(&id) else {
+        return Err(ApiError::not_found("server", &id));
+    };
+    let api_key = server
+        .active_server()
+        .and_then(|a| a.api_key)
+        .filter(|k| !k.is_empty());
+    let mut resp = Json(ServerKeyResponse { api_key }).into_response();
+    resp.headers_mut().insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("no-store"),
+    );
+    Ok(resp)
+}
+
+#[derive(Serialize, ToSchema)]
 pub struct EffectiveResponse {
     /// Launch config of the current (or last) run (no API key, no binary path).
     pub config: Option<LaunchConfig>,
@@ -684,4 +736,30 @@ pub async fn logs_stream(
         }
     });
     Ok(Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15))))
+}
+
+#[cfg(test)]
+mod key_tests {
+    use super::*;
+
+    /// The session token reads server keys only while the API is bound to loopback; named
+    /// tokens never do, whatever their scope.
+    #[test]
+    fn server_keys_are_for_the_local_session_only() {
+        let session = Caller {
+            principal: Principal::Session,
+            scopes: vec![harness_core::control_api::Scope::Admin],
+        };
+        let named = Caller {
+            principal: Principal::Named {
+                id: "t".into(),
+                name: "remote".into(),
+            },
+            scopes: vec![harness_core::control_api::Scope::Admin],
+        };
+        assert!(may_read_server_key(&session, true));
+        assert!(!may_read_server_key(&session, false), "network bind");
+        assert!(!may_read_server_key(&named, true));
+        assert!(!may_read_server_key(&named, false));
+    }
 }
