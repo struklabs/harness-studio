@@ -76,7 +76,7 @@ Kurallar:
 - `common/FieldHelp`: her zaman gerekli kısa açıklamada `text` ile bağlamsal metin; çocuk kontrol verildiğinde kontrolün yanında yardım popover'ı ve kalıcı erişilebilir açıklama oluşturur. `id` isteğe bağlıdır.
 - Dashboard `Field` ve Settings `SettingRow` mevcut `hint` açıklamalarını bu ortak mekanizmayla bağlar; yeterli açıklamayı ikinci kez yazmayın. `ui/field` içindeki `Field.Description` da otomatik bağlanır. Özel düzenlerde `aria-describedby` ile mevcut açıklamanın kimliğini kullanın.
 - Açıklamalar TR/EN birlikte yazılır; birim, varsayılan, aralık ve etkiler gerçek uygulama davranışını anlatır. Hata açıklamalarının kimlikleri korunur. Yardım butonları odaklanabilir, dokunma hedefi 28 px; portal katmanları yerleşimi kaydırmaz ve tema token'larını kullanır.
-- `node scripts/check-field-help.mjs --strict` kapsamdaki düzenlenebilir kontrol noktalarını tarar; `--baseline <commit>` karşılaştırma, `--json` envanter verir. Statik referans kontrolü, metin doğruluğu ve canlı erişilebilirlik incelemesinin yerine geçmez. Döngülerde bir kaynak kontrolü bir kez sayılır.
+- Izgara ya da satırda tekrar eden kontroller (kartlar, sayaçlar, filtre düğmeleri) her öğe için değil, grup için tek yardım alır: her öğenin yanındaki yardım simgesi hizayı bozar. Simgeyi öğenin köşesine (Hub kartları) ya da grubun yanına bir kez koyun ve her öğeyi `aria-describedby` ile grubun açıklamasına bağlayın.
 
 ## Arayüz düzeyi ve metin katmanları
 

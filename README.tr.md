@@ -94,7 +94,7 @@ Bunu kendiniz hesaplamak zorunda değilsiniz. Model Hub ve Dashboard her modelin
 
 ## Özellikler
 
-- **audio.cpp ile yerel metinden konuşma:** PocketTTS ve diğer audio.cpp TTS GGUF ailelerini Playground ve `/v1/audio/speech` üzerinden çalıştırın. Motoru Ayarlar > Model Motoru bölümünden kurun, güncelleyin ve kaldırın; platforma göre Vulkan, CUDA, Metal veya CPU derlemesi seçilir. Ses gömmeleri konuşma seçicisinde listelenir ve modeller gateway zamanlayıcısıyla bellekte tutulur.
+- **audio.cpp ile deneysel metinden konuşma:** PocketTTS ve diğer audio.cpp TTS GGUF aileleri Playground ve `/v1/audio/speech` üzerinden çalışır. Motor varsayılan olarak kapalıdır; risk bildirimini onaylayıp **Ayarlar > Model Motoru > Kurulu Model Motoru > Diğer Model Motorları** altında etkinleştirin. Platforma göre Vulkan, CUDA, Metal veya CPU kullanılır. Ses gömmeleri konuşma seçicisinde görünür; işçiler beş dakika boş kalınca durur.
 
 Aşağıdakilerin hepsi yerel çalışır. Ayrıntılar [kullanım kılavuzunda](docs/guide/tr/README.md) ve [FEATURES.md](docs/tr/FEATURES.md) içindedir.
 
@@ -120,7 +120,7 @@ Aşağıdakilerin hepsi yerel çalışır. Ayrıntılar [kullanım kılavuzunda]
 - **llama.cpp üzerinde tam denetim:** bağlam, GPU katmanları, KV önbellek türü, slot sayısı, örnekleme ve daha fazlası; ayrıca SHA-256 doğrulamalı motorlardan oluşan bir çalışma zamanı kaydı ve sunucu başına motor seçimi. [CLI başvurusuna](docs/tr/CLI.md) bakın.
 - **Gözlemlenebilirlik:** karşılaştırmalı testler (benchmark), istek analitiği (P50/P95 gecikme, token, hata, istemci bazında), araç çağrısı teşhisi, aranabilir günlükler, Prometheus `/metrics` ve isteğe bağlı OpenTelemetry dışa aktarımı.
 - **CLI, Control API ve başsız kip:** `harness` komutu, OpenAPI şemalı yetkilendirmeli Control API ve pencere olmadan çalıştıran `harness serve`. Hepsi uygulamayla aynı Rust kodunu kullanır.
-- **Daha fazla motor:** whisper.cpp ve sherpa-onnx (konuşma), stable-diffusion.cpp (görsel), ONNX Runtime (embedding, rerank ve CTC konuşma tanıma), isteğe bağlı Lemonade ve mistral.rs. Safetensors modelleri Hub'dan GGUF'a dönüştürülebilir.
+- **Daha fazla motor:** whisper.cpp, sherpa-onnx, ONNX Runtime, CrispASR, deneysel audio.cpp (varsayılan olarak kapalı), stable-diffusion.cpp, Python (`python-hf`, CPU/CUDA; transformers ve diffusers), MLX (sohbet, görüntü, ses; Apple Silicon, macOS 14+), Lemonade ve mistral.rs. Safetensors modelleri Hub üzerinden GGUF biçimine dönüştürülebilir.
 
 ## Neden Harness Studio? Rakiplerle karşılaştırma
 
@@ -150,7 +150,7 @@ Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işled
 |---|---|---|---|---|
 | Kullanışlı masaüstü uygulaması | ✓ | ✓ | ✓ | ✗ (basit web sayfalı sunucu) |
 | Windows / Linux / macOS | Windows ve macOS; Linux önizleme | ✓ | ✓ | ✓ |
-| Apple MLX motoru | planlı | ✓ | ✓ | ✗ |
+| Apple MLX motoru | ✓ (isteğe bağlı, Apple Silicon, macOS 14+) | ✓ | ✓ | ✗ |
 | Yerleşik istek analitiği (P50/P95, istemci bazında) | ✓ | ✗ | ✗ | ✗ |
 | Prometheus metrikleri ve OpenTelemetry | ✓ | ✗ | ✗ | kısmi (metrik uç noktası) |
 | Diğer araçlar için MCP sunucusu olarak çalışma | ✓ | ✗ | ✗ | ✗ |
@@ -350,7 +350,7 @@ Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, y
 **Sıradaki planlar**
 - **Sunucu kipi:** Harness'i kendi sunucunuzda web arayüzünden yönetin; parola ya da token oturumları, alan adı ve otomatik SSL, systemd servisi ve Docker imajları (CUDA, ROCm, Vulkan, CPU)
 - **Harness Link:** başka bir Harness örneğinin modellerini kütüphanenizde, Playground'da ve ağ geçidinde kullanın
-- Önizlemenin ötesinde imzalı Linux paketleri ve Apple Silicon için MLX motoru
+- Önizlemenin ötesinde imzalı Linux paketleri
 - İmzalı Windows kurulum dosyası; otomatik uygulama güncellemesi
 - Control API için TypeScript ve Python SDK'ları; karar modeli uç noktaları
 

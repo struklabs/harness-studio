@@ -21,6 +21,9 @@ By default the list shows only GGUF repositories, the file format llama.cpp uses
 | ONNX speech and embedding models, ONNX chat models | sherpa-onnx or ONNX Runtime (see [Settings](08-settings.md#runtime)) |
 | Diffusion image models (SD1.5, SDXL, SD-Turbo, SD3.5, FLUX packages) | Image module (stable-diffusion.cpp). The extra files a model needs (VAE, text encoders) are downloaded along with it. |
 | Safetensors LLMs | Convert to GGUF (see [below](#convert-safetensors-models-to-gguf)), or the optional mistral.rs runtime |
+| CrispASR / audio.cpp GGUF speech models | CrispASR; experimental audio.cpp (off by default) |
+| MLX-format chat, vision, and audio | MLX engines (Apple Silicon, macOS 14+) |
+| Hugging Face task folders / diffusers pipelines | Python (`python-hf`, CPU/CUDA); diffusers opens in Image Generation |
 
 If a card says **Required: Speech module (whisper.cpp)** or **Required: Image module (stable-diffusion.cpp)**, you can still download the model, but you need to press **Install** (above the list, or in the model's details) before you can run it.
 
