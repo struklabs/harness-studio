@@ -256,8 +256,8 @@
       {#if busy}
         <Button variant="ghost" size="sm" onclick={cancel}><Square />{t('speak.stop')}</Button>
       {/if}
-      {#if runHint}
-        <div class="flex flex-wrap items-center gap-2" role="status">
+      <div class="flex flex-wrap items-center gap-2" role="status">
+        {#if runHint}
           <span id="tts-run-hint" class="text-xs text-muted-foreground">{runHint}</span>
           {#if runBlocker === 'runtime'}
             <Button variant="outline" size="sm" disabled={tts.installingRuntime} onclick={() => tts.installRuntime(missingFamily ?? 'sherpa-onnx')}>
@@ -265,8 +265,8 @@
               {tts.installingRuntime ? t('speak.installing') : t('speak.install_engine', { family: missingFamily ?? 'sherpa-onnx' })}
             </Button>
           {/if}
-        </div>
-      {/if}
+        {/if}
+      </div>
     </div>
   </section>
 
