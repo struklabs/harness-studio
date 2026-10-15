@@ -4,9 +4,14 @@
 //! the worker it starts.
 //!
 //! ```text
-//! HS_MLX_TTS_MODEL=<an mlx-community Qwen3-TTS folder, e.g. Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit> \
+//! HS_MLX_TTS_MODEL=<an mlx-community text-to-speech folder of a tested family, e.g.
+//!   Qwen3-TTS-12Hz-0.6B-CustomVoice-8bit, chatterbox-turbo-4bit, Soprano-80M-bf16,
+//!   VoxCPM2-4bit, Spark-TTS-0.5B-bf16> \
 //!   cargo test -p harness-gateway --test mlx_audio_e2e -- --ignored --nocapture
 //! ```
+//!
+//! With `HS_MLX_STT_MODEL=<an MLX Whisper folder in the same models folder>` the first answer
+//! is also transcribed back and must say what was asked.
 //!
 //! `HS_MLX_E2E_ROOT=<folder>` keeps the data root (and the environment) between runs; by
 //! default it is a temporary folder (uv, Python and the packages: about 800 MB).
@@ -96,6 +101,16 @@ async fn an_mlx_audio_model_speaks_through_the_gateway() {
     assert!(!harness_core::engine::mlx::is_model_dir(&model));
     assert!(!harness_core::engine::is_mistralrs_dir(&model));
 
+    // Qwen3-TTS has named speakers; the other families speak with one default voice.
+    let voices = harness_core::engine::mlx::tts_voices(&model);
+    let voice = voices.first().cloned();
+    eprintln!("voices: {voices:?}");
+    let stt = std::env::var_os("HS_MLX_STT_MODEL")
+        .map(PathBuf::from)
+        .filter(|p| p.is_dir());
+    if let Some(stt) = &stt {
+        store_definition("mlx-stt-e2e-check", stt);
+    }
     let def = ModelDefinition::new(
         "mlx-tts-e2e",
         ModelRef::Local {
@@ -122,6 +137,23 @@ async fn an_mlx_audio_model_speaks_through_the_gateway() {
     store.save_definition(def).unwrap();
     store.save_definition(limited).unwrap();
 
+    fn store_definition(alias: &str, path: &std::path::Path) {
+        let store = harness_core::domain::store::Domain::global();
+        for old in store.definitions().unwrap() {
+            if old.alias == alias {
+                store.delete_definition(&old.id).unwrap();
+            }
+        }
+        store
+            .save_definition(ModelDefinition::new(
+                alias,
+                ModelRef::Local {
+                    path: path.to_path_buf(),
+                },
+            ))
+            .unwrap();
+    }
+
     let registry = Arc::new(ServerRegistry::default());
     let server = GatewayServer::new();
     let status = server
@@ -144,16 +176,19 @@ async fn an_mlx_audio_model_speaks_through_the_gateway() {
     let base = status.endpoint.unwrap().host_url;
     let http = reqwest::Client::new();
 
-    let speak = |voice: &str, format: &str| {
-        http.post(format!("{base}/v1/audio/speech")).json(&json!({
+    let speak = |voice: Option<&str>, format: &str| {
+        let mut body = json!({
             "model": "mlx-tts-e2e",
             "input": "Harness speaks with MLX audio on this Mac.",
-            "voice": voice,
             "response_format": format
-        }))
+        });
+        if let Some(voice) = voice {
+            body["voice"] = json!(voice);
+        }
+        http.post(format!("{base}/v1/audio/speech")).json(&body)
     };
     let t = Instant::now();
-    let res = speak("ryan", "wav").send().await.unwrap();
+    let res = speak(voice.as_deref(), "wav").send().await.unwrap();
     let code = res.status();
     let kind = res
         .headers()
@@ -168,32 +203,75 @@ async fn an_mlx_audio_model_speaks_through_the_gateway() {
     assert_eq!(code, 200, "{}", String::from_utf8_lossy(&audio));
     assert_eq!(kind.as_deref(), Some("audio/wav"));
     assert!(audio.starts_with(b"RIFF"), "not a WAV");
-    // 16-bit mono at 24 kHz: more than a second of speech.
-    assert!(audio.len() > 48_000, "{} bytes", audio.len());
+    // 16-bit mono at the model's rate: more than a second of speech.
+    let bytes_per_second = 2.0 * u32::from_le_bytes(audio[24..28].try_into().unwrap()) as f64;
+    let seconds = (audio.len() - 44) as f64 / bytes_per_second;
+    eprintln!("{seconds:.2} s of audio at {} Hz", bytes_per_second / 2.0);
+    assert!(seconds > 1.5, "{seconds} s of audio");
 
-    // An OpenAI client's voice name gets the model's default voice; another speaker is refused.
+    if stt.is_some() {
+        const BOUNDARY: &str = "harness-e2e-boundary";
+        let mut body = format!(
+            "--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"speech.wav\"\r\nContent-Type: audio/wav\r\n\r\n"
+        )
+        .into_bytes();
+        body.extend_from_slice(&audio);
+        body.extend_from_slice(
+            format!("\r\n--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\nmlx-stt-e2e-check\r\n--{BOUNDARY}--\r\n").as_bytes(),
+        );
+        let res = http
+            .post(format!("{base}/v1/audio/transcriptions"))
+            .header(
+                "content-type",
+                format!("multipart/form-data; boundary={BOUNDARY}"),
+            )
+            .body(body)
+            .send()
+            .await
+            .unwrap();
+        let code = res.status();
+        let heard = res.text().await.unwrap();
+        eprintln!("heard back: {code} {heard}");
+        assert_eq!(code, 200, "{heard}");
+        let heard = heard.to_lowercase();
+        assert!(
+            heard.contains("harness") && heard.contains("mac"),
+            "{heard}"
+        );
+    }
+
+    // An OpenAI client's voice name gets the model's default voice; another speaker is refused
+    // by a model that has named ones.
     let t = Instant::now();
-    let res = speak("alloy", "wav").send().await.unwrap();
+    let res = speak(Some("alloy"), "wav").send().await.unwrap();
     assert_eq!(res.status(), 200);
     eprintln!("second answer in {:?}", t.elapsed());
-    let res = speak("bob", "wav").send().await.unwrap();
-    let code = res.status();
-    let text = res.text().await.unwrap();
-    eprintln!("unknown voice: {code} {text}");
-    assert_eq!(code, 400, "{text}");
-    assert!(text.contains("serena"), "{text}");
+    if let Some(last) = voices.last() {
+        let res = speak(Some("bob"), "wav").send().await.unwrap();
+        let code = res.status();
+        let text = res.text().await.unwrap();
+        eprintln!("unknown voice: {code} {text}");
+        assert_eq!(code, 400, "{text}");
+        assert!(text.contains(last.as_str()), "{text}");
+    }
 
-    // A short text never runs away: sampling can miss the end token, the frame cap (here the
-    // 75-frame floor, 6 s) stops it. 16-bit mono at 24 kHz: 48 000 bytes a second.
+    // A short text never runs away: sampling can miss the end token, the token cap (here the
+    // floor, 6 s of audio) stops it.
+    let mut short = json!({ "model": "mlx-tts-e2e", "input": "Hello from Harness Studio on a Mac.", "response_format": "wav" });
+    let mut long_request = json!({ "model": "mlx-tts-e2e-limited", "response_format": "wav" });
+    if let Some(voice) = &voice {
+        short["voice"] = json!(voice);
+        long_request["voice"] = json!(voice);
+    }
     for round in 0..5 {
         let res = http
             .post(format!("{base}/v1/audio/speech"))
-            .json(&json!({ "model": "mlx-tts-e2e", "input": "Hello from Harness Studio on a Mac.", "voice": "ryan", "response_format": "wav" }))
+            .json(&short)
             .send()
             .await
             .unwrap();
         assert_eq!(res.status(), 200);
-        let seconds = (res.bytes().await.unwrap().len() - 44) as f64 / 48_000.0;
+        let seconds = (res.bytes().await.unwrap().len() - 44) as f64 / bytes_per_second;
         eprintln!("short text, round {round}: {seconds:.2} s of audio");
         assert!(
             seconds <= 6.5,
@@ -202,11 +280,11 @@ async fn an_mlx_audio_model_speaks_through_the_gateway() {
     }
 
     // A long text under a 5 s time limit: the audio made by then, marked as cut.
-    let long = "Harness Studio runs local models on this computer. ".repeat(12);
+    long_request["input"] = json!("Harness Studio runs local models on this computer. ".repeat(12));
     let t = Instant::now();
     let res = http
         .post(format!("{base}/v1/audio/speech"))
-        .json(&json!({ "model": "mlx-tts-e2e-limited", "input": long, "voice": "ryan", "response_format": "wav" }))
+        .json(&long_request)
         .send()
         .await
         .unwrap();
@@ -220,7 +298,7 @@ async fn an_mlx_audio_model_speaks_through_the_gateway() {
     );
     assert_eq!(code, 200, "{}", String::from_utf8_lossy(&audio));
     assert_eq!(cut.as_ref().map(|v| v.to_str().unwrap()), Some("time"));
-    assert!(audio.starts_with(b"RIFF") && audio.len() > 48_000);
+    assert!(audio.starts_with(b"RIFF") && audio.len() as f64 > bytes_per_second);
 
     // The worker's own port refuses a request without its key.
     let worker = registry
