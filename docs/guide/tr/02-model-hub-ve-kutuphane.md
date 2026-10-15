@@ -13,7 +13,7 @@ English: [../en/02-model-hub-and-library.md](../en/02-model-hub-and-library.md)
 
 Varsayılan olarak liste yalnızca GGUF depolarını gösterir; bu, llama.cpp'nin kullandığı dosya biçimidir. Konuşma modelleri için `whisper` arayın (bu, Whisper ggml `.bin` dosyalarını bulur) veya **Konuşma tanıma (ASR)** görevini seçin.
 
-**GGUF olmayan modelleri de göster** seçeneği bu varsayılanı genişletir. Listelenmek, bir modelin çalışabileceği anlamına gelmez. Desteklenmeyen biçimlerin indirmesi kapalıdır; bu yüzden kartlardaki **Burada çalışmaz** ve **Kısmi destek** notlarına dikkat edin. Bazı biçimler isteğe bağlı motorlar üzerinden desteklenir; kart, bir modelin hangisine ihtiyaç duyduğunu söyler:
+**GGUF olmayan modelleri de göster** seçeneği bu varsayılanı genişletir. Listelenmek, bir modelin çalışabileceği anlamına gelmez. Desteklenmeyen biçimlerin indirmesi kapalıdır; bu yüzden kartlardaki **Burada çalışmaz** ve **Kısmi destek** notlarına dikkat edin. Kart ve ayrıntı paneli, deponun neden çalışamadığını belirtir: desteklenmeyen mimari, CTranslate2 dışa aktarımı, yalnız Apple için bir biçim veya tam modeli gerektiren bir parça gibi. Tanınan `Systran/faster-whisper-*` dışa aktarımlarında **whisper.cpp Sürümünü Aç**, `ggerganov/whisper.cpp` içindeki eşleşen ggml dosyasını açar; CTranslate2 dışa aktarımının kendisi burada çalışmaz. Bazı biçimler isteğe bağlı motorlar üzerinden desteklenir; kart, bir modelin hangisine ihtiyaç duyduğunu söyler:
 
 | Biçim | Neye ihtiyaç duyar? |
 | --- | --- |
@@ -68,7 +68,7 @@ Bazı depolar yalnızca safetensors ağırlıkları içerir. Harness Studio bir 
 
 **Özel URL** ile doğrudan bir bağlantıdan da indirebilirsiniz (yalnızca HTTPS; Harness Studio iç ağlara işaret eden adresleri engeller). Dosya bir GGUF veya Whisper ggml modeli olmalıdır.
 
-Daha önce indirdiğiniz depolarda Hugging Face'te daha yeni bir sürüm varsa **Güncelleme Var** rozeti görünür.
+Daha önce indirdiğiniz depolarda Hugging Face'te daha yeni bir sürüm varsa **Güncelleme Var** rozeti görünür. Varyant panelinde, indirilmiş bir varyant için güncelleme varsa **Güncelle** sunulur; **Yeniden İndir**, **Gelişmiş** düzeyde kullanılabilir.
 
 ## Hugging Face Hesabı: İki Yol
 

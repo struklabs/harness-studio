@@ -13,7 +13,7 @@ Türkçe: [../tr/02-model-hub-ve-kutuphane.md](../tr/02-model-hub-ve-kutuphane.m
 
 By default the list shows only GGUF repositories, the file format llama.cpp uses. For speech models, search for `whisper` (this finds Whisper ggml `.bin` files) or pick the **Speech recognition (ASR)** task.
 
-**Also show non-GGUF models** widens that default. Being listed does not mean a model can run. Downloads of unsupported formats are disabled, so pay attention to the **Won't run here** and **Partial support** notes on cards. Some formats are supported through optional engines; the card tells you which one a model needs:
+**Also show non-GGUF models** widens that default. Being listed does not mean a model can run. Downloads of unsupported formats are disabled, so pay attention to the **Won't run here** and **Partial support** notes on cards. The card and drawer explain the specific reason a repository cannot run, such as an unsupported architecture, a CTranslate2 export, an Apple-only format, or a component that needs the full model. For recognized `Systran/faster-whisper-*` exports, **Open whisper.cpp Build** opens the matching ggml file in `ggerganov/whisper.cpp`; the CTranslate2 export itself cannot run here. Some formats are supported through optional engines; the card tells you which one a model needs:
 
 | Format | What it needs |
 | --- | --- |
@@ -68,7 +68,7 @@ Do not treat a file as complete until **Verifying (SHA-256)** has finished. Veri
 
 You can also download from a direct link with **Custom URL** (HTTPS only; Harness Studio blocks addresses that point to internal networks). The file must be a GGUF or a Whisper ggml model.
 
-Repositories you have already downloaded get an **Update Available** badge when a newer version exists on Hugging Face.
+Repositories you have already downloaded get an **Update Available** badge when a newer version exists on Hugging Face. In the variant drawer, a downloaded variant offers **Update** when an update exists; **Download Again** is available in **Advanced** mode.
 
 ## Hugging Face Account: Two Ways
 

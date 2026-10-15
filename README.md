@@ -90,7 +90,7 @@ These are rough guides for quantized GGUF models. Real needs also grow with the 
 | About 8 GB | Mid-size models, 4B-8B |
 | 16 GB or more, or a GPU with 8 GB+ VRAM | 12B-14B models and above |
 
-You do not have to work this out yourself. The Model Hub and the Dashboard show a hardware-fit hint next to each model (**Fits in VRAM**, **VRAM is tight**, **Partial GPU offload**, **Mostly CPU**, **May run out of memory**). When **Context size** and **GPU layers** are left on **Auto**, Harness Studio picks safe settings for you: on a small graphics card it prefers keeping every layer on the GPU and shrinking the context, and it refuses to load a request that cannot fit instead of running it painfully slowly. If a model still does not fit, a dialog explains what ran out and what to change.
+You do not have to work this out yourself. The Model Hub and the Dashboard show a hardware-fit hint next to each model (**Fits in VRAM**, **VRAM is tight**, **Partial GPU offload**, **Mostly CPU**, **May run out of memory**). When **Context size** and **GPU layers** are left on **Auto**, Harness Studio picks safe settings for you: on a small graphics card it prefers keeping every layer on the GPU and shrinking the context, and it refuses to load a request that cannot fit instead of running it painfully slowly. A second server uses only the layers that currently free GPU memory can hold; the rest run on the CPU. If a model still does not fit, a dialog explains what ran out and what to change.
 
 ## Features
 

@@ -49,7 +49,7 @@ The **Settings** button in the left menu opens the page. The list on the left is
 - The **Backend** row shows which build (CUDA, Vulkan, ROCm, Metal, CPU) is installed and recommended for your hardware; if the installed build cannot see your graphics card you can install another one.
 - **Setup wizard > Open Wizard** reruns the first-launch wizard.
 
-**Other Runtimes** on **Settings > Runtime > Installed Runtime** manages whisper.cpp, sherpa-onnx, stable-diffusion.cpp, mistral.rs, Python (`python-hf`, CPU/CUDA), MLX (chat, vision, audio; Apple Silicon, macOS 14+), CrispASR, and experimental audio.cpp (off by default; risk confirmation required).
+**Other Runtimes** on **Settings > Runtime > Installed Runtime** manages whisper.cpp, sherpa-onnx, stable-diffusion.cpp, mistral.rs, Python (`python-hf`, CPU/CUDA), MLX (chat, vision, audio; Apple Silicon, macOS 14+), CrispASR, and experimental audio.cpp (off by default; risk confirmation required). On Windows, Python environment installation checks the projected package paths before downloading. If the data folder would exceed `MAX_PATH` and Windows long paths are disabled or their status is unknown, installation is refused; choose a shorter data folder or enable Windows long paths.
 
 **Registry** (an Advanced page) manages additional llama.cpp builds, ONNX Runtime, Lemonade, and the GGUF conversion environment. Each model definition or server profile can choose its own llama.cpp runtime. The engines are split between these pages:
 
@@ -58,7 +58,7 @@ The **Settings** button in the left menu opens the page. The list on the left is
 | Speech Recognition (whisper.cpp) (Installed Runtime > Other Runtimes) | `whisper-server`, which turns audio files into text. |
 | Text to Speech (sherpa-onnx) (Installed Runtime > Other Runtimes) | Kokoro and Piper voice models; sherpa-onnx also runs the Parakeet, SenseVoice, and Omnilingual recognition models. |
 | Image Generation (stable-diffusion.cpp) (Installed Runtime > Other Runtimes) | `sd-server`, which makes pictures from diffusion models (SD1.x, SDXL, SD3.5, FLUX, Qwen-Image). |
-| ONNX Runtime (embeddings, rerank, chat) (Registry) | The libraries used by the `harness-onnx` helper to run Hugging Face ONNX embedding, reranking, and chat models without Python. You can install a **DirectML** (Windows: compatible AMD, Intel and NVIDIA GPUs), **CUDA**, or **CPU** variant; downloads are verified with SHA-256. ONNX chat models (onnxruntime-genai) work on Windows only for now and have no tool calling. |
+| ONNX Runtime (embeddings, rerank, chat) (Registry) | The libraries used by the `harness-onnx` helper to run Hugging Face ONNX embedding, reranking, and chat models without Python. You can install a **DirectML** (Windows: compatible AMD, Intel and NVIDIA GPUs), **CUDA**, or **CPU** variant; downloads are verified with SHA-256. Before installation, the card lists the download size and expected disk size separately; afterwards it shows the installed disk size. It refreshes after automatic installs. Missing or resized files are reported as a damaged install; use **Install Again** to repair it. ONNX chat models (onnxruntime-genai) work on Windows only for now and have no tool calling. |
 | Lemonade (Ryzen AI NPU) (Registry) | Optional. Runs models on AMD Ryzen AI NPUs (FastFlowLM) and with Lemonade's own ROCm and Vulkan llama.cpp builds; the gateway serves its chat, embedding, rerank, and speech-to-text models. |
 | Safetensors Models (mistral.rs) (Installed Runtime > Other Runtimes) | Optional. Runs Hugging Face safetensors chat and vision models without converting them to GGUF. You add your own mistral.rs build. |
 | GGUF Conversion Environment (Registry) | The Python environment used when you convert safetensors models to GGUF; install or delete it here. |
@@ -110,15 +110,17 @@ The **API Keys** page shows each server's key status (**Key set** / **No key**) 
 | **Interface level** | **Simple** or **Advanced**; see [Simple and Advanced levels](README.md#simple-and-advanced-interface-levels). It changes only what is visible, never a saved value. |
 | **Interface size** | Scales text, icons, and spacing together. Shortcuts: Ctrl+= to enlarge, Ctrl+- to shrink, Ctrl+0 to reset. |
 | **Colour-blind friendly colours** | Replaces status and chart colors with colors that do not depend on telling red from green. |
-| **Start when you sign in** | Harness Studio starts when the computer starts. It takes effect immediately. |
+| **Start when you sign in** | Harness Studio starts when you sign in to your user account. It takes effect immediately. |
 | **Start minimized** | On an automatic start no window opens and the app waits in the tray. Available only while **Start when you sign in** is on. |
 | **Restore last session** | On launch, the server you last started starts again. |
 | **When closing the window** | **Ask**, **Minimize to Tray**, or **Quit**. On macOS the equivalent of tray is **Keep in the menu bar**. |
 | **Keep the window loaded in the tray** | Whether the page stays in memory while in the tray; explained below. |
 
+On Windows, the app writes its own per-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry with a quoted executable path. Status read errors are reported. If you turned the entry off in Task Manager's **Startup apps**, the setting shows it as off. If an earlier version run as administrator left a machine-wide `HKLM` entry, the app says so: open the app once as administrator and switch this setting off and on once to remove it. On Linux, it writes an XDG autostart entry under an absolute `XDG_CONFIG_HOME` (otherwise `~/.config`), pointing to the AppImage itself when used. After moving or renaming an AppImage, launch it once from the new location to refresh the entry.
+
 ## Updates
 
-The **Updates** page shows the app version and has an **Application** section with **Check for Updates**. When a newer version is published, you can use **Install Update**; the app downloads and installs it, then restarts, and all running servers are stopped. If the check reports that no update source is available, download the newest installer from the project's [GitHub Releases](https://github.com/struklabs/harness-studio/releases) page and run it. The llama.cpp engine is updated separately on **Runtime > Installed Runtime**.
+The **Updates** page shows the app version and has an **Application** section with **Check for Updates**. When a newer version is published, you can use **Install Update**; the app downloads and installs it, then restarts, and all running servers are stopped. On Windows, the download and signature verification finish first, then servers are stopped and cleanup runs before the installer starts. If installation fails after that stop, the error says the servers were stopped; restart the ones you need. A download failure leaves them running. If the check reports that no update source is available, download the newest installer from the project's [GitHub Releases](https://github.com/struklabs/harness-studio/releases) page and run it. The llama.cpp engine is updated separately on **Runtime > Installed Runtime**.
 
 ## Privacy
 

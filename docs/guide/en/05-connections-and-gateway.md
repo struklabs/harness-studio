@@ -42,6 +42,8 @@ The local gateway does not ask for a key by default. For tools that insist on on
 | **Settings > Gateway > Routing** | **Max loaded models**, **Queue per model**, **Request timeout (s)**, **Default idle time (s)**, **Memory-aware eviction**, **VRAM headroom (MiB, 0 = automatic)**, **Chat model emulation for decision endpoints**; below them, each model's state (**Ready**, **Loading**, **Not loaded**) and an **Unload** button. |
 | **Settings > Gateway > Responses** | Whether the OpenAI Responses API keeps responses locally (**Store responses**) and the retention limits. |
 
+**Default idle time (s)** applies to models without their own idle time; empty means never unload for idleness. With a compatible stable-diffusion.cpp build and automatic fitting enabled, the gateway can admit an image model with part of its weights in RAM: the GPU must hold the compute buffers plus headroom, and the remaining weights must fit within 90% of free RAM. An older build, disabled auto-fit, or explicit weight placement requires the full GPU estimate to fit.
+
 The gateway unloads only the models it loaded itself (**Loaded by gateway**) according to idle time and memory rules. It routes to servers you started by hand (**Your server**) but never shuts them down. If you mark a model definition **Pinned (always loaded)**, the gateway loads it when it starts and never unloads it.
 
 If a request is rejected because a model is loading or a queue is full, the Playground shows a message like "{model} cannot be loaded right now: {busy} is serving requests and cannot be unloaded. {wait} try again."; once the requests finish, resend with **Retry** (see [Troubleshooting](10-troubleshooting.md#model-busy-503)).
@@ -109,7 +111,7 @@ A summary for three common clients (details and full environment variables are i
 | Codex | The gateway address through the OpenAI Responses API. Codex speaks only the Responses API; the settings are added as a `harness` provider. |
 | OpenCode | The OpenAI-compatible address (`http://127.0.0.1:11435/v1`). **Configure** writes the `harness` provider and the gateway's chat models into `opencode.json`. |
 
-Use **Test Connection** to try the client's own API format. A passing test does not mean your real agent will call the right tool on every task. Small local models can make tool-calling mistakes; the **Tool-Calling Workbench** lets you try this beforehand. Client-specific limitations and test records are in the [integrations reference](../../en/INTEGRATIONS.md).
+Use **Test Connection** to try the client's own API format. A passing test does not mean your real agent will call the right tool on every task. Small local models can make tool-calling mistakes; the **Tool-Calling Workbench** lets you try this beforehand. After providing a tool result, use **Generate Answer** to request the final response. Client-specific limitations and test records are in the [integrations reference](../../en/INTEGRATIONS.md).
 
 ## Keep API Keys Apart
 
