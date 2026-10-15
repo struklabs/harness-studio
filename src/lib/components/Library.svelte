@@ -31,6 +31,7 @@
   import FilterSelect from './hub/FilterSelect.svelte';
   import { listAgentModels, type AgentModel } from './connections/agentModels';
   import ModelEntry from './library/ModelEntry.svelte';
+  import WindowedModels from './library/WindowedModels.svelte';
   import DeleteModelDialog from './library/DeleteModelDialog.svelte';
   import DuplicatesDialog from './library/DuplicatesDialog.svelte';
   import DefinitionDialog from './dashboard/DefinitionDialog.svelte';
@@ -60,6 +61,7 @@
   let sort = $state<LibrarySort>('name');
   let favoritesOnly = $state(false);
   let layout = $state<'grid' | 'list'>('grid');
+  let modelsViewport = $state<HTMLDivElement>();
 
   let editDef = $state<ModelDefinition | null>(null);
   let deleteId = $state<string | null>(null);
@@ -254,7 +256,7 @@
       </div>
     {:else}<p class="text-sm text-muted-foreground">{t('def.no_definition')}</p>{/each}
   </div>
-  <div hidden={section.active === 'definitions'} class="min-h-0 flex-1 overflow-y-auto" aria-busy={loading}>
+  <div bind:this={modelsViewport} hidden={section.active === 'definitions'} class="min-h-0 flex-1 overflow-y-auto" aria-busy={loading}>
     {#if loadError}
       <div class="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
         <CircleAlert class="size-3.5 shrink-0" /><span class="min-w-0 break-words">{t('lib.load_error', { error: loadError })}</span>
@@ -291,8 +293,8 @@
         </Empty.Content>
       </Empty.Root>
     {:else}
-      <div class={cn('grid gap-2', layout === 'grid' ? 'grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))]' : 'grid-cols-1')}>
-        {#each visible as entry (entry.model.id)}
+      <WindowedModels entries={visible} {layout} viewport={modelsViewport!} resetKey={query}>
+        {#snippet children(entry)}
           <ModelEntry
             {entry}
             {entries}
@@ -306,8 +308,8 @@
             onToggleFavorite={toggleFavorite}
             onChanged={() => void refresh()}
           />
-        {/each}
-      </div>
+        {/snippet}
+      </WindowedModels>
     {/if}
   </div>
     </div>
