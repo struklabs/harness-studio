@@ -150,6 +150,12 @@ pub struct RecoveryInput<'a> {
     /// to the CPU.
     pub free_ram_bytes: Option<u64>,
     pub others: Vec<OtherServer>,
+    /// The machine's automatic KV ladder ([`crate::kv_policy::ladder_for`]); the KV option
+    /// steps down only within it. `None` = the Vulkan/CPU ladder (f16 -> q8_0 -> K q8_0 + V
+    /// q4_0). On CUDA, Metal and ROCm it ends at q8_0 / q8_0: the mixed pair is converted to
+    /// f16 on every token there (27-38 % slower generation on CUDA, plus a conversion buffer
+    /// this estimate does not count), so a smaller context is the way down instead.
+    pub kv_ladder: Option<&'static [crate::kv_policy::KvLevel]>,
 }
 
 /// Bytes per KV element of a cache type.
@@ -319,14 +325,16 @@ pub fn oom_options(input: &RecoveryInput) -> Vec<RecoveryOption> {
                 });
             }
         }
-        // The next rung of the KV precision ladder (`kv_policy`): never 4-bit keys.
+        // The next rung of the machine's KV precision ladder (`kv_policy`): never 4-bit keys.
         use crate::kv_policy::KvLevel;
         let (cur_k, cur_v) = (c.cache_type_k.as_deref(), c.cache_type_v.as_deref());
+        let ladder = input.kv_ladder.unwrap_or(&crate::kv_policy::AUTO_LADDER);
         let next = match KvLevel::of(cur_k, cur_v) {
             KvLevel::Full | KvLevel::KeysOnly => Some(KvLevel::Balanced),
             KvLevel::Balanced => Some(KvLevel::Saver),
             _ => None,
-        };
+        }
+        .filter(|level| ladder.contains(level));
         if let Some((nk, nv)) = next.and_then(KvLevel::types) {
             let before = p.kv_on_gpu_bytes(ctx, p.gpu_layers);
             let ratio = (kv_elem_bytes(Some(nk)) + kv_elem_bytes(Some(nv)))
@@ -631,6 +639,7 @@ mod tests {
                 label: "other".into(),
                 gpu_layers: 99,
             }],
+            kv_ladder: None,
         };
         let opts = oom_options(&input);
         let by = |k: RecoveryKind| opts.iter().find(|o| o.kind == k).unwrap();
@@ -675,6 +684,7 @@ mod tests {
                 free_vram_bytes: Some(15_000 * MIB),
                 free_ram_bytes: None,
                 others: vec![],
+                kv_ladder: None,
             })
         };
         let opts = input(&config);
@@ -718,6 +728,7 @@ mod tests {
                 free_vram_bytes: Some(15_000 * MIB),
                 free_ram_bytes: free_ram,
                 others: vec![],
+                kv_ladder: None,
             })
         };
         let has_ngl =
@@ -743,6 +754,7 @@ mod tests {
             free_vram_bytes: Some(15_000 * MIB),
             free_ram_bytes: None,
             others: vec![],
+            kv_ladder: None,
         });
         assert!(has_ngl(&weights));
     }
@@ -761,6 +773,7 @@ mod tests {
             free_vram_bytes: Some(4 * GIB),
             free_ram_bytes: free_ram,
             others: Vec::new(),
+            kv_ladder: None,
         };
         let ngl = |input: &RecoveryInput| {
             oom_options(input)
@@ -815,6 +828,7 @@ mod tests {
             free_vram_bytes: None,
             free_ram_bytes: None,
             others: vec![],
+            kv_ladder: None,
         };
         let opts = oom_options(&input);
         let ids: Vec<&str> = opts.iter().map(|o| o.id.as_str()).collect();
@@ -857,6 +871,7 @@ mod tests {
             free_vram_bytes: Some(8 * GIB),
             free_ram_bytes: None,
             others: vec![],
+            kv_ladder: None,
         };
         let opts = oom_options(&input);
         let moe = opts
@@ -874,6 +889,14 @@ mod tests {
             .unwrap();
         // q8_0 / q8_0 steps down to 4-bit values only; keys stay 8-bit.
         assert_eq!(kv.params["to"], "q8_0/q4_0");
+        // On CUDA, Metal and ROCm the ladder ends at q8_0 / q8_0: no mixed pair is offered.
+        let on_cuda = RecoveryInput {
+            kv_ladder: Some(&crate::kv_policy::CUDA_LADDER),
+            ..input.clone()
+        };
+        assert!(!oom_options(&on_cuda)
+            .iter()
+            .any(|o| o.kind == RecoveryKind::KvCacheQuant));
         assert_eq!(kv.params["from"], "q8_0");
         assert_eq!(
             kv.overrides["cache_type_k"],
@@ -913,6 +936,7 @@ mod tests {
             free_vram_bytes: None,
             free_ram_bytes: None,
             others: vec![],
+            kv_ladder: None,
         };
         assert!(!oom_options(&input)
             .iter()

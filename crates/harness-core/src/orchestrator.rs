@@ -1317,6 +1317,11 @@ pub async fn recovery_plan(
         let model_bytes = crate::recovery::model_bytes(&config.model_path);
         let runtime = crate::capabilities::registry().cached(&config.binary_path);
         let free = crate::recovery::free_vram_bytes(&config);
+        let budget = crate::vram::budget_for_model(
+            &crate::hardware::detect_hardware(),
+            config.model_path.to_str(),
+        );
+        let fa = !crate::kv_policy::custom_args_disable_flash_attn(config.custom_args.as_deref());
         let input = RecoveryInput {
             config: &config,
             failure: &failure,
@@ -1326,6 +1331,7 @@ pub async fn recovery_plan(
             free_vram_bytes: free,
             free_ram_bytes: crate::recovery::free_ram_bytes(),
             others,
+            kv_ladder: Some(crate::kv_policy::ladder_for(&budget, fa)),
         };
         let options = if failure.is_out_of_memory() {
             crate::recovery::oom_options(&input)
