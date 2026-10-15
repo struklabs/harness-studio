@@ -1200,6 +1200,12 @@ impl ProcessManager {
         msg
     }
 
+    /// Makes the instance look running (no process), for tests of what may stop it.
+    #[cfg(test)]
+    pub(crate) fn mark_running_for_tests(&self) {
+        *self.status.lock().unwrap() = ServerStatus::Running;
+    }
+
     /// Sets the status and publishes it on the event bus.
     fn set_status(&self, status: ServerStatus) {
         *self.status.lock().unwrap() = status.clone();
