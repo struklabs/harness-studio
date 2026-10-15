@@ -585,7 +585,19 @@ pub fn weights_bytes(config: &LaunchConfig) -> u64 {
 /// build has a GPU backend and the launch uses it, else none (a CPU build keeps everything in
 /// system memory, which is not VRAM).
 pub fn vram_need(config: &LaunchConfig) -> u64 {
-    let binary = if config.binary_path.as_os_str().is_empty() {
+    let gpu_build = launch_binary(config)
+        .as_deref()
+        .and_then(build_has_gpu)
+        .unwrap_or(false);
+    if !gpu_build || config.gpu_layers == 0 || cpu_backend(config) {
+        return 0;
+    }
+    footprint_bytes(weights_bytes(config))
+}
+
+/// The sd-server binary a launch runs: its own, else the installed one of its runtime.
+fn launch_binary(config: &LaunchConfig) -> Option<PathBuf> {
+    if config.binary_path.as_os_str().is_empty() {
         crate::runtimes::resolve_family_binary_in(
             &crate::runtimes::RuntimeRegistry::global(),
             SD_CPP,
@@ -594,14 +606,19 @@ pub fn vram_need(config: &LaunchConfig) -> u64 {
         .ok()
     } else {
         Some(config.binary_path.clone())
-    };
-    let gpu_build = binary.as_deref().and_then(build_has_gpu).unwrap_or(false);
-    let cpu_backend = text_param(&config.params, "backend")
-        .is_some_and(|b| b.to_ascii_lowercase().starts_with("cpu"));
-    if !gpu_build || config.gpu_layers == 0 || cpu_backend {
-        return 0;
     }
-    footprint_bytes(weights_bytes(config))
+}
+
+fn cpu_backend(config: &LaunchConfig) -> bool {
+    text_param(&config.params, "backend").is_some_and(|b| b.to_ascii_lowercase().starts_with("cpu"))
+}
+
+/// Whether a launch is known to keep everything in system memory: CPU only (`gpu_layers` 0),
+/// a CPU backend, or a build without a GPU backend. An unrecognised build is not known.
+pub fn runs_on_cpu(config: &LaunchConfig) -> bool {
+    config.gpu_layers == 0
+        || cpu_backend(config)
+        || launch_binary(config).as_deref().and_then(build_has_gpu) == Some(false)
 }
 
 /// Device memory an sd-server launch cannot do without when sd.cpp places the weights itself
@@ -615,7 +632,20 @@ pub fn min_vram_need(config: &LaunchConfig) -> Option<u64> {
         return None;
     }
     let need = vram_need(config);
-    (need > 0).then(|| compute_bytes(weights_bytes(config)).min(need))
+    if need == 0 {
+        return None;
+    }
+    // An older sd-server without `--auto-fit` (or one whose help could not be read) puts the
+    // whole model on the card: the full need stays.
+    let binary = launch_binary(config)?;
+    let caps = crate::capabilities::registry()
+        .get_or_probe_with(&binary, crate::capabilities::sdcpp::probe_binary);
+    supports_auto_fit(&caps).then(|| compute_bytes(weights_bytes(config)).min(need))
+}
+
+/// Whether an sd-server build places the weights itself: its help lists `--auto-fit`.
+fn supports_auto_fit(caps: &crate::capabilities::RuntimeCapabilities) -> bool {
+    caps.help_parsed && caps.has_flag("--auto-fit")
 }
 
 /// Whether sd.cpp's `--auto-fit` places the weights of a launch (the typed settings or the
@@ -1233,6 +1263,43 @@ mod tests {
         let reserve = crate::vram::fixed_footprint_headroom_with(4 << 30, 0, 0);
         assert!(footprint_bytes(weights) > 3873 << 20);
         assert!(compute_bytes(weights) + reserve < 3873 << 20);
+    }
+
+    /// Only an sd-server whose help lists `--auto-fit` places the weights itself; an older build
+    /// or an unreadable help keeps the full need.
+    #[test]
+    fn auto_fit_needs_a_build_that_has_it() {
+        assert!(supports_auto_fit(&caps()));
+        let older = help()
+            .lines()
+            .filter(|l| !l.contains("--auto-fit"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let older = crate::capabilities::sdcpp::from_help(BinaryKey::default(), &older);
+        assert!(older.help_parsed && !supports_auto_fit(&older));
+        let unread = crate::capabilities::sdcpp::from_help(BinaryKey::default(), "");
+        assert!(!supports_auto_fit(&unread));
+    }
+
+    /// A launch is known to run on the CPU when it says so; a GPU launch of an unknown build
+    /// is not.
+    #[test]
+    fn a_launch_on_the_cpu_is_known() {
+        let cpu = LaunchConfig {
+            gpu_layers: 0,
+            ..config()
+        };
+        assert!(runs_on_cpu(&cpu));
+        let mut backend = config();
+        backend
+            .params
+            .insert("backend".into(), ParamValue::Text("cpu".into()));
+        assert!(runs_on_cpu(&backend));
+        let unknown = LaunchConfig {
+            binary_path: "C:/nowhere/sd-server.exe".into(),
+            ..config()
+        };
+        assert!(!runs_on_cpu(&unknown));
     }
 
     /// A safetensors file's header tells a checkpoint from a standalone transformer, a VAE and

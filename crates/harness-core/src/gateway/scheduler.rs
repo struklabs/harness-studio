@@ -1799,7 +1799,7 @@ impl Scheduler {
             alias: def.alias.clone(),
             need_bytes: need.or_else(|| plan.as_ref().and_then(|p| p.estimated_need_bytes)),
             available_bytes: available.or_else(|| plan.as_ref().and_then(|p| p.free_vram_bytes)),
-            blocking: self.blocking_models(&def.id, &evictable),
+            blocking: self.blocking_models(&def.id, &evictable).await,
             after_full_eviction: false,
             tried: Box::default(),
             options: plan
@@ -1811,8 +1811,8 @@ impl Scheduler {
     /// Other loaded models the scheduler may not evict (busy, pinned, or started by the user).
     /// `evictable`: server ids of the models it may evict (`lru_victims`); they are left out,
     /// and so are servers that hold no GPU memory: stopping them frees none.
-    fn blocking_models(&self, except: &str, evictable: &[String]) -> Vec<String> {
-        let loaded = self
+    async fn blocking_models(&self, except: &str, evictable: &[String]) -> Vec<String> {
+        let loaded: Vec<_> = self
             .ctx
             .registry
             .all()
@@ -1825,14 +1825,30 @@ impl Scheduler {
             })
             .filter_map(|(id, pm)| {
                 let c = pm.launch_config()?;
-                if c.definition_id.as_deref() == Some(except) || holds_no_gpu_memory(&c) {
+                if c.definition_id.as_deref() == Some(except) {
                     return None;
                 }
-                let name = c.alias.unwrap_or_else(|| id.clone());
-                Some((id, name))
+                Some((id, c))
             })
             .collect();
-        not_evictable(loaded, evictable)
+        let names: Vec<(String, String)> = loaded
+            .iter()
+            .map(|(id, c)| (id.clone(), c.alias.clone().unwrap_or_else(|| id.clone())))
+            .collect();
+        let all = names.clone();
+        // The engines look at their builds and model files: off the async runtime. A failed
+        // check leaves every server in the list.
+        let on_gpu = blocking(move || {
+            loaded
+                .into_iter()
+                .zip(names)
+                .filter(|((_, c), _)| !holds_no_gpu_memory(c))
+                .map(|(_, named)| named)
+                .collect::<Vec<_>>()
+        })
+        .await
+        .unwrap_or(all);
+        not_evictable(on_gpu, evictable)
     }
 
     /// Frees room for `config` under the limits. Returns the evicted aliases and, when the
@@ -2053,11 +2069,23 @@ impl Scheduler {
             // An engine that puts what does not fit in system memory itself (stable-diffusion.cpp's
             // auto-fit) needs only its compute buffers on the card: slower, but it loads. The
             // full need was tried first, so idle models still leave for a whole-card load.
+            // What the card cannot hold goes to system memory, which must have room for it.
             let candidate = config.clone();
-            let min = blocking(move || crate::engine::non_llama_min_vram_need(&candidate)).await?;
+            let (min, free_ram) = blocking(move || {
+                (
+                    crate::engine::non_llama_min_vram_need(&candidate),
+                    crate::hardware::detect_hardware().available_ram_bytes,
+                )
+            })
+            .await?;
             if let Some(min) = min {
-                count = eviction_count(
-                    min.saturating_add(load_headroom),
+                count = partial_eviction_count(
+                    PartialLoad {
+                        need,
+                        min,
+                        headroom: load_headroom,
+                        free_ram,
+                    },
                     available,
                     &footprints,
                     cap,
@@ -2090,13 +2118,15 @@ impl Scheduler {
                 available_bytes: Some(available),
                 // Only what could not leave: pinned, busy or user-started models. The idle
                 // models were already counted as gone (`footprints`), so they are not listed.
-                blocking: self.blocking_models(
-                    &def.id,
-                    &victims
-                        .iter()
-                        .map(|(_, server, _)| server.clone())
-                        .collect::<Vec<_>>(),
-                ),
+                blocking: self
+                    .blocking_models(
+                        &def.id,
+                        &victims
+                            .iter()
+                            .map(|(_, server, _)| server.clone())
+                            .collect::<Vec<_>>(),
+                    )
+                    .await,
                 after_full_eviction: true,
                 tried: Box::new(tried),
                 options: vec![
@@ -2890,6 +2920,45 @@ fn eviction_count(need: u64, available: u64, footprints: &[u64], cap: u64) -> Op
     None
 }
 
+/// A load that may keep part of its weights in system memory (stable-diffusion.cpp's auto-fit).
+#[derive(Debug, Clone, Copy)]
+struct PartialLoad {
+    /// GPU memory of the whole model.
+    need: u64,
+    /// GPU memory it cannot do without (its compute buffers).
+    min: u64,
+    /// Reserve kept free on the card.
+    headroom: u64,
+    /// Free system memory.
+    free_ram: u64,
+}
+
+/// [`eviction_count`] for a [`PartialLoad`]: the fewest evictions that leave `min` and the
+/// reserve room on the card, provided system memory holds the rest of `need` (with 10% to
+/// spare). `None` when either does not fit.
+fn partial_eviction_count(
+    load: PartialLoad,
+    available: u64,
+    footprints: &[u64],
+    cap: u64,
+) -> Option<usize> {
+    let count = eviction_count(
+        load.min.saturating_add(load.headroom),
+        available,
+        footprints,
+        cap,
+    )?;
+    // The card after those evictions, as `eviction_count` counts it.
+    let card = footprints[..count]
+        .iter()
+        .fold(available.min(cap), |free, f| {
+            free.saturating_add(*f).min(cap)
+        })
+        .saturating_sub(load.headroom);
+    let host = load.need.saturating_sub(card);
+    (host.saturating_mul(10) <= load.free_ram.saturating_mul(9)).then_some(count)
+}
+
 /// [`crate::full_offload::step_down`] with the adaptation to report.
 fn full_offload_step_down(
     config: &crate::process::LaunchConfig,
@@ -3112,14 +3181,14 @@ fn cpu_only(config: &crate::process::LaunchConfig) -> bool {
 }
 
 /// Whether a running server takes no GPU memory: a llama.cpp launch without layers on the
-/// GPU ([`cpu_only`]), or another engine whose launch needs none (a CPU build or backend).
+/// GPU ([`cpu_only`]), or another engine known to run on the CPU (`non_llama_runs_on_cpu`).
 /// Measured on a 4 GB RTX 3050 Ti: a refused image load named a Qwen3-0.6B server running at
 /// `-ngl 0` as the model to stop, which would have freed nothing.
 fn holds_no_gpu_memory(config: &crate::process::LaunchConfig) -> bool {
     if crate::engine::server_for(config).family() == crate::engine::LLAMA_CPP {
         cpu_only(config)
     } else {
-        crate::engine::non_llama_vram_need(config) == 0
+        crate::engine::non_llama_runs_on_cpu(config)
     }
 }
 
@@ -3424,6 +3493,96 @@ mod tests {
         fit.params
             .insert("fit".into(), crate::params::ParamValue::Text("on".into()));
         assert!(!holds_no_gpu_memory(&fit));
+    }
+
+    /// Other engines leave the list only when the launch says they run on the CPU; a family
+    /// without a GPU estimate of its own (a Python pipeline here) stays, since it may be on the
+    /// card.
+    #[test]
+    fn only_a_known_cpu_launch_of_another_engine_holds_no_gpu_memory() {
+        let dir = tempfile::tempdir().unwrap();
+        let onnx = |gpu_layers| crate::process::LaunchConfig {
+            model_path: dir.path().join("encoder.onnx"),
+            gpu_layers,
+            ..Default::default()
+        };
+        assert!(holds_no_gpu_memory(&onnx(0)));
+        assert!(!holds_no_gpu_memory(&onnx(999)));
+        let whisper = |gpu_layers| crate::process::LaunchConfig {
+            model_path: dir.path().join("ggml-base.bin"),
+            binary_path: dir.path().join("nowhere/whisper-server.exe"),
+            gpu_layers,
+            ..Default::default()
+        };
+        assert_eq!(
+            crate::engine::server_for(&whisper(0)).family(),
+            crate::engine::WHISPER_CPP
+        );
+        assert!(holds_no_gpu_memory(&whisper(0)));
+        // An unrecognised build: not known to be on the CPU.
+        assert!(!holds_no_gpu_memory(&whisper(999)));
+        let pipeline = dir.path().join("tiny-sd");
+        std::fs::create_dir(&pipeline).unwrap();
+        std::fs::write(
+            pipeline.join("model_index.json"),
+            r#"{"_class_name": "StableDiffusionPipeline"}"#,
+        )
+        .unwrap();
+        std::fs::create_dir(pipeline.join("unet")).unwrap();
+        std::fs::write(
+            pipeline.join("unet/diffusion_pytorch_model.safetensors"),
+            b"x",
+        )
+        .unwrap();
+        let python = crate::process::LaunchConfig {
+            model_path: pipeline,
+            gpu_layers: 999,
+            ..Default::default()
+        };
+        assert_eq!(
+            crate::engine::server_for(&python).family(),
+            crate::engine::PYTHON_HF
+        );
+        // No GPU estimate of its own (`non_llama_vram_need` is 0), yet it may hold the card.
+        assert_eq!(crate::engine::non_llama_vram_need(&python), 0);
+        assert!(!holds_no_gpu_memory(&python));
+    }
+
+    /// A load that keeps part of its weights in system memory (sd.cpp auto-fit) is admitted with
+    /// its compute buffers on the card only when system memory holds the rest. Measured: Z-Image
+    /// Turbo Q4_0 with Qwen3-4B and its VAE on a 4 GB RTX 3050 Ti, 3873 MiB free.
+    #[test]
+    fn a_partial_load_needs_room_in_system_memory_too() {
+        const MIB: u64 = 1 << 20;
+        let weights = 3_311_730_000 + 2_375_910_000 + 160_000_000u64;
+        let load = |free_ram| PartialLoad {
+            need: crate::engine::sd_footprint_bytes(weights),
+            min: crate::engine::sd_footprint_bytes(weights) - weights,
+            headroom: crate::vram::fixed_footprint_headroom_with(4 << 30, 0, 0),
+            free_ram,
+        };
+        let free = 3873 * MIB;
+        assert!(eviction_count(load(0).need + load(0).headroom, free, &[], u64::MAX).is_none());
+        // 16 GB of free RAM: admitted, nothing evicted.
+        assert_eq!(
+            partial_eviction_count(load(16 << 30), free, &[], u64::MAX),
+            Some(0)
+        );
+        // 3 GB free: the ~4 GB the card cannot hold has nowhere to go.
+        assert_eq!(
+            partial_eviction_count(load(3 << 30), free, &[], u64::MAX),
+            None
+        );
+        // Too little free on the card for the compute buffers: an idle model leaves first.
+        assert_eq!(
+            partial_eviction_count(load(16 << 30), 900 * MIB, &[2000 * MIB], u64::MAX),
+            Some(1)
+        );
+        // Not even with every idle model gone.
+        assert_eq!(
+            partial_eviction_count(load(16 << 30), 900 * MIB, &[], u64::MAX),
+            None
+        );
     }
 
     #[test]
