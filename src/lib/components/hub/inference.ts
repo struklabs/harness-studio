@@ -22,7 +22,14 @@ const NOT_RUNNABLE_KEYS: Record<HfNotRunnable, TKey> = {
   crispasr_pocket_english_only: 'hub.crispasr_pocket_english_only',
   audio_cpp_espeak_missing: 'hub.audio_cpp_espeak_missing',
   audio_cpp_unsupported: 'hub.not_runnable_audio_cpp',
-  not_language_model: 'hub.not_runnable_non_llm'
+  not_language_model: 'hub.not_runnable_non_llm',
+  needs_own_package: 'hub.not_runnable_needs_own_package',
+  unsupported_architecture: 'hub.not_runnable_unsupported_architecture',
+  safetensors_only: 'hub.not_runnable_safetensors_only',
+  ctranslate2_export: 'hub.not_runnable_ctranslate2',
+  apple_only: 'hub.not_runnable_apple_only',
+  pipeline_config_only: 'hub.not_runnable_pipeline_config',
+  component_only: 'hub.not_runnable_component_only'
 };
 
 /** Tooltip key for "Görev: … (tahmin)"; the generic one when the source is unknown. */
@@ -49,4 +56,45 @@ export function formatName(format: HfModelFormat): string {
 
 export function notRunnableKey(reason: HfNotRunnable): TKey {
   return NOT_RUNNABLE_KEYS[reason];
+}
+
+/** Short card labels of the precise refusals; the full sentence stays in the tooltip and drawer. */
+const SHORT_REFUSAL_KEYS: Partial<Record<HfNotRunnable, TKey>> = {
+  needs_own_package: 'hub.refusal_short_needs_own_package',
+  unsupported_architecture: 'hub.refusal_short_unsupported_architecture',
+  safetensors_only: 'hub.refusal_short_safetensors_only',
+  ctranslate2_export: 'hub.refusal_short_ctranslate2_export',
+  apple_only: 'hub.refusal_short_apple_only',
+  pipeline_config_only: 'hub.refusal_short_pipeline_config_only',
+  component_only: 'hub.refusal_short_component_only',
+  vibevoice_layout: 'hub.refusal_short_vibevoice_layout',
+  audio_cpp_incomplete_package: 'hub.refusal_short_audio_cpp_incomplete_package',
+  sdxl_refiner_folder_required: 'hub.refusal_short_sdxl_refiner_folder_required',
+  needs_librosa: 'hub.refusal_short_needs_librosa',
+  needs_sea_g2p: 'hub.refusal_short_needs_sea_g2p'
+};
+
+/** The card's short label for a refusal (the full text when there is none). */
+export function notRunnableShortKey(reason: HfNotRunnable): TKey {
+  return SHORT_REFUSAL_KEYS[reason] ?? NOT_RUNNABLE_KEYS[reason];
+}
+
+const PRECISE_REFUSALS: ReadonlySet<HfNotRunnable> = new Set<HfNotRunnable>([
+  'needs_own_package',
+  'unsupported_architecture',
+  'safetensors_only',
+  'ctranslate2_export',
+  'apple_only',
+  'pipeline_config_only',
+  'component_only',
+  'vibevoice_layout',
+  'audio_cpp_incomplete_package',
+  'sdxl_refiner_folder_required',
+  'needs_librosa',
+  'needs_sea_g2p'
+]);
+
+/** A refusal that already says why (and what to do), so it replaces the generic format line. */
+export function isPreciseRefusal(reason: HfNotRunnable | null | undefined): reason is HfNotRunnable {
+  return !!reason && PRECISE_REFUSALS.has(reason);
 }

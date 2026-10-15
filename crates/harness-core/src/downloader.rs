@@ -654,6 +654,25 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
                 crate::hub_compat::Compatibility::Runnable { .. }
             )
     }));
+    // "No GGUF" is the catch-all; name the precise reason when the listing shows one.
+    let not_runnable = match not_runnable {
+        Some(crate::hub_tasks::NotRunnable::NoGguf) => {
+            let files = sibling_files(item);
+            Some(crate::hub_tasks::refine_no_gguf(
+                &crate::hub_tasks::RefusalFacts {
+                    repo_id: &id,
+                    tags: &tags,
+                    files: &files,
+                    library: item.get("library_name").and_then(|v| v.as_str()),
+                    task,
+                    format,
+                    config: item.get("config"),
+                    apple: cfg!(target_os = "macos"),
+                },
+            ))
+        }
+        other => other,
+    };
     // An untagged genai repo (microsoft/Phi-4-mini-instruct-onnx) is a chat model all the same.
     if genai
         && capabilities.is_empty()
@@ -7882,3 +7901,152 @@ mod false_positive_tests {
 #[cfg(test)]
 #[path = "downloader_g8_tests.rs"]
 mod g8_tests;
+
+#[cfg(test)]
+mod refusal_reason_tests {
+    use super::*;
+    use crate::hub_tasks::NotRunnable;
+
+    fn listed(id: &str) -> HfModelSearchResult {
+        let all: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/data/hf-refusal-repos.json")).unwrap();
+        parse_search_item(&all[id]).unwrap()
+    }
+
+    fn reason(id: &str) -> Option<NotRunnable> {
+        listed(id).not_runnable
+    }
+
+    #[test]
+    fn custom_speech_checkpoints_need_their_own_package() {
+        for id in [
+            "hexgrad/Kokoro-82M",
+            "coqui/XTTS-v2",
+            "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+            "ResembleAI/chatterbox",
+            "SWivid/F5-TTS",
+            "onnx-community/Kokoro-82M-v1.0-ONNX",
+            "myshell-ai/MeloTTS-English",
+            "mistralai/Voxtral-Mini-4B-Realtime-2602",
+        ] {
+            assert_eq!(reason(id), Some(NotRunnable::NeedsOwnPackage), "{id}");
+        }
+    }
+
+    #[test]
+    fn vocoder_and_decoder_components_are_component_only() {
+        for id in [
+            "speechbrain/tts-hifigan-libritts-22050Hz",
+            "black-forest-labs/FLUX.2-small-decoder",
+        ] {
+            assert_eq!(reason(id), Some(NotRunnable::ComponentOnly), "{id}");
+        }
+    }
+
+    #[test]
+    fn pyannote_is_pipeline_config_only() {
+        assert_eq!(
+            reason("pyannote/speaker-diarization-3.1"),
+            Some(NotRunnable::PipelineConfigOnly)
+        );
+    }
+
+    #[test]
+    fn faster_whisper_is_a_ctranslate2_export() {
+        assert_eq!(
+            reason("Systran/faster-whisper-small"),
+            Some(NotRunnable::Ctranslate2Export)
+        );
+    }
+
+    #[test]
+    fn core_ml_and_mlx_repos_are_apple_only_off_macos() {
+        if cfg!(target_os = "macos") {
+            return;
+        }
+        for id in [
+            "argmaxinc/whisperkit-coreml",
+            "mlx-community/parakeet-tdt-0.6b-v3",
+        ] {
+            assert_eq!(reason(id), Some(NotRunnable::AppleOnly), "{id}");
+        }
+    }
+
+    #[test]
+    fn unknown_speech_model_type_is_an_unsupported_architecture() {
+        // A transformers-style speech repo whose model_type no engine serves and that is not
+        // one of the known own-package families.
+        let item = serde_json::json!({
+            "id": "someone/odd-asr",
+            "pipeline_tag": "automatic-speech-recognition",
+            "library_name": "transformers",
+            "tags": ["transformers", "safetensors"],
+            "config": {"model_type": "brand_new_asr", "architectures": ["BrandNewAsr"]},
+            "siblings": [
+                {"rfilename": "config.json"},
+                {"rfilename": "model.safetensors"}
+            ]
+        });
+        let listed = parse_search_item(&item).unwrap();
+        assert_eq!(
+            listed.not_runnable,
+            Some(NotRunnable::UnsupportedArchitecture)
+        );
+    }
+
+    #[test]
+    fn transformers_language_model_with_safetensors_only_is_convertible() {
+        let item = serde_json::json!({
+            "id": "someone/Odd-LM-7B",
+            "pipeline_tag": "text-generation",
+            "library_name": "transformers",
+            "tags": ["transformers", "safetensors", "text-generation"],
+            "config": {"model_type": "oddlm", "architectures": ["OddLMForCausalLM"]},
+            "siblings": [
+                {"rfilename": "config.json"},
+                {"rfilename": "model-00001-of-00002.safetensors"},
+                {"rfilename": "model-00002-of-00002.safetensors"}
+            ]
+        });
+        assert_eq!(
+            parse_search_item(&item).unwrap().not_runnable,
+            Some(NotRunnable::SafetensorsOnly)
+        );
+    }
+
+    #[test]
+    fn plain_gguf_less_language_model_keeps_no_gguf() {
+        // PyTorch pickle weights only: no engine, no conversion hint, nothing more precise.
+        let item = serde_json::json!({
+            "id": "someone/old-lm",
+            "pipeline_tag": "text-generation",
+            "tags": ["pytorch", "text-generation"],
+            "siblings": [
+                {"rfilename": "config.json"},
+                {"rfilename": "pytorch_model.bin"}
+            ]
+        });
+        assert_eq!(
+            parse_search_item(&item).unwrap().not_runnable,
+            Some(NotRunnable::NoGguf)
+        );
+    }
+
+    #[test]
+    fn apple_files_are_not_refused_as_apple_only_on_a_mac() {
+        use crate::hub_tasks::{refine_no_gguf, RefusalFacts};
+        let files = vec!["AudioEncoder.mlmodelc/model.mil".to_string()];
+        let facts = |apple| RefusalFacts {
+            repo_id: "x/whisperkit-coreml",
+            tags: &[],
+            files: &files,
+            library: Some("whisperkit"),
+            task: Some("automatic-speech-recognition"),
+            format: crate::hub_compat::ModelFormat::CoreMl,
+            config: None,
+            apple,
+        };
+        assert_eq!(refine_no_gguf(&facts(false)), NotRunnable::AppleOnly);
+        assert_eq!(refine_no_gguf(&facts(true)), NotRunnable::NoGguf);
+    }
+}
