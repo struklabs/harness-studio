@@ -1,6 +1,6 @@
 // One-click engine installer (whisper.cpp, stable-diffusion.cpp, sherpa-onnx, ONNX Runtime,
 // Lemonade): the Install buttons next to "this model needs an engine" hints and the Other
-// Engines group on Settings > Installed Runtime.
+// Engines group on Settings > Runtime > Installed Runtime.
 const tr = {
   'rt.crispasr_title': 'CrispASR',
   'rt.crispasr_desc': 'Deneysel yerel motor: CrispASR GGUF konuşma tanıma ve Kokoro / Pocket TTS hazır sesleri (v0.8.43).',

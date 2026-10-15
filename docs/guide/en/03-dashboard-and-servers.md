@@ -26,7 +26,7 @@ The server switcher at the top (**Controlled server**) decides which server the 
 
 1. On **Dashboard > Model and Runtime**, pick a local model and, if you have one, a **Model definition**. If the list is empty, use **Go to Model Hub and download a model**.
 2. If there is a runtime warning, [install or verify the runtime](01-installation.md#choosing-the-runtime) first.
-3. Read the suggestions on **Context and Memory** and **GPU**. For everyday chat, 4096 or 8192 tokens of context is the app's starting suggestion; check the model's limit and your free memory. The hardware-fit badge next to the model (**Fits in VRAM**, **VRAM is tight**, **Partial GPU offload**, **Mostly CPU**, **May run out of memory**) shows the estimate.
+3. Read the suggestions on **Context and Memory** and **GPU**. **Auto** uses the GGUF model's training context, capped at 32,768 tokens (32,768 if unknown); memory fitting may reduce it. Check the model's limit and your free memory. The hardware-fit badge next to the model (**Fits in VRAM**, **VRAM is tight**, **Partial GPU offload**, **Mostly CPU**, **May run out of memory**) shows the estimate.
 4. On the **Network** page, check the port. With **Automatic**, Harness Studio picks a free port from 11440 to 11499 on every start. If you type a port, that port is saved.
 5. Press **Start Server**. While it shows **Starting...** the model is being loaded into memory (large models can take minutes; **Cancel** stops it). Wait for **Server active**.
 6. Go to the **Playground** and chat. When you are done, **Stop Server** frees the memory the model uses.

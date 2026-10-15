@@ -462,6 +462,15 @@ fn prioritize_exact_repo(items: &mut [HfModelSearchResult], query: &str) {
     }
 }
 
+/// The details card shows the listing's verdict: "no GGUF file" is llama-server's reason and
+/// does not apply when the listing found another engine (ONNX, Python, mistral.rs) for the repo.
+fn card_not_runnable(
+    info: &serde_json::Value,
+    fallback: Option<crate::hub_tasks::NotRunnable>,
+) -> Option<crate::hub_tasks::NotRunnable> {
+    parse_search_item(info).map_or(fallback, |listed| listed.not_runnable)
+}
+
 fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     let str_field = |k: &str| item.get(k).and_then(|v| v.as_str()).map(String::from);
     let id = str_field("id")?;
@@ -1528,7 +1537,7 @@ impl DownloadManager {
             pipeline_tag: analysis.pipeline_tag,
             inferred_task: analysis.inferred_task.map(String::from),
             inferred_source: analysis.source,
-            not_runnable: analysis.not_runnable,
+            not_runnable: card_not_runnable(&info, analysis.not_runnable),
             adapter_base: analysis.adapter_base,
             downloads: info.get("downloads").and_then(|v| v.as_u64()).unwrap_or(0),
             likes: info.get("likes").and_then(|v| v.as_u64()).unwrap_or(0),
@@ -4504,6 +4513,25 @@ fn recorded_hash(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn card_keeps_listing_verdict_for_non_gguf_engines() {
+        let item = serde_json::json!({"id":"sentence-transformers/all-MiniLM-L6-v2",
+            "pipeline_tag":"sentence-similarity","library_name":"sentence-transformers",
+            "tags":["sentence-transformers","onnx","safetensors"],
+            "siblings":[{"rfilename":"config.json"},{"rfilename":"onnx/model.onnx"},
+                {"rfilename":"model.safetensors"},{"rfilename":"tokenizer.json"}]});
+        let analysis = crate::hub_tasks::analyze_repo(&item);
+        // The raw analysis is llama-server's "no GGUF" verdict, which the card used to show.
+        assert!(analysis.not_runnable.is_some());
+        let listed = parse_search_item(&item).unwrap();
+        assert!(matches!(
+            listed.compatibility,
+            crate::hub_compat::Compatibility::Runnable { .. }
+        ));
+        assert_eq!(listed.not_runnable, None);
+        assert_eq!(card_not_runnable(&item, analysis.not_runnable), None);
+    }
 
     #[test]
     fn crispasr_tts_hub_offers_only_initial_backends() {

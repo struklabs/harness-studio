@@ -22,7 +22,7 @@ pub fn require_enabled() -> Result<(), String> {
         Ok(())
     } else {
         Err(
-            "audio.cpp is experimental and disabled. Enable it in Settings > Installed Runtime > Other Runtimes before use."
+            "audio.cpp is experimental and disabled. Enable it in Settings > Runtime > Installed Runtime > Other Runtimes before use."
                 .into(),
         )
     }

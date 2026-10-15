@@ -26,7 +26,7 @@ Sağ tarafta canlı telemetri (üretim hızı, VRAM ve RAM kullanımı) ve altı
 
 1. **Dashboard > Model ve Model Motoru** sayfasında yerel bir model seçin ve varsa bir **Model tanımı** seçin. Liste boşsa **Model Hub'a git ve model indir** düğmesini kullanın.
 2. Model motoru uyarısı varsa önce [motoru kurun veya doğrulayın](01-kurulum.md#model-motoru-seçimi).
-3. **Bağlam ve Bellek** ile **GPU** sayfalarındaki önerileri okuyun. Günlük sohbet için 4096 veya 8192 token bağlam, uygulamanın başlangıç önerisidir; modelin sınırını ve boş belleğinizi kontrol edin. Modelin yanındaki donanım uyumu rozeti (**VRAM'e sığıyor**, **VRAM sınırda**, **Kısmi GPU yükleme**, **Çoğunlukla CPU**, **Bellek Yetmeyebilir**) tahmini gösterir.
+3. **Bağlam ve Bellek** ile **GPU** sayfalarındaki önerileri okuyun. **Otomatik**, GGUF modelinin eğitim bağlamını en fazla 32.768 token olarak kullanır (bilinmiyorsa 32.768); belleğe sığdırma bunu azaltabilir. Modelin sınırını ve boş belleğinizi kontrol edin. Modelin yanındaki donanım uyumu rozeti (**VRAM'e sığıyor**, **VRAM sınırda**, **Kısmi GPU yükleme**, **Çoğunlukla CPU**, **Bellek Yetmeyebilir**) tahmini gösterir.
 4. **Ağ** sayfasında portu kontrol edin. **Otomatik** seçildiğinde Harness Studio her başlatmada 11440 ile 11499 arasından boş bir port seçer. Kendiniz bir port yazarsanız o port kaydedilir.
 5. **Sunucuyu Başlat** düğmesine basın. **Başlatılıyor...** görünürken model belleğe yüklenir (büyük modellerde dakikalar sürebilir; **İptal Et** ile vazgeçilir). **Sunucu aktif** durumunu bekleyin.
 6. **Playground**'a geçip sohbet edin. İşiniz bitince **Sunucuyu Durdur**, modelin kullandığı belleği boşaltır.

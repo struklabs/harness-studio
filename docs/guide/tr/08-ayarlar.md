@@ -16,8 +16,8 @@ Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve
 | Ayar | Yol |
 | --- | --- |
 | Motor (llama.cpp) kaynağı, sürümü, güncellemesi, kurulum sihirbazı | **Model Motoru > Kurulu Model Motoru** |
-| Whisper, görsel üretimi, seslendirme, ONNX ve Lemonade motorlarını tek tıkla kurma | **Model Motoru > Kurulu Model Motoru** (Diğer Model Motorları) |
-| Ek llama.cpp derlemeleri, GitHub'dan ya da yerel klasörden motor ekleme | **Model Motoru > Registry** |
+| İsteğe bağlı konuşma, görsel, Python, MLX ve mistral.rs motorları | **Model Motoru > Kurulu Model Motoru > Diğer Model Motorları** |
+| Ek llama.cpp derlemeleri, ONNX Runtime, Lemonade, GGUF dönüştürme | **Model Motoru > Registry** |
 | Ollama uyumlu API | **Model Motoru > Ollama** |
 | Model klasörleri | **Depolama > Dizinler** |
 | Hugging Face hesabı ve tokenı | **Depolama > Hugging Face Hesabı** |
@@ -47,7 +47,11 @@ Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve
 - **Backend** satırı hangi derlemenin (CUDA, Vulkan, ROCm, Metal, CPU) kurulu ve donanımınız için önerildiğini gösterir; kurulu derleme ekran kartını göremiyorsa başka derleme kurabilirsiniz.
 - **Kurulum sihirbazı > Sihirbazı Aç** ilk açılış sihirbazını yeniden çalıştırır.
 
-**Registry** çatallar ve kendi derlemeleriniz gibi ek llama.cpp model motorlarını yönetir. **Ollama** sayfası, Ollama istemcilerinin ağ geçidine Ollama'ymış gibi bağlanmasını düzenler ([Bağlantılar](05-baglantilar-ve-ag-gecidi.md)).
+**Diğer Model Motorları**, **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasındadır: whisper.cpp (konuşma tanıma), sherpa-onnx (konuşma tanıma ve seslendirme), stable-diffusion.cpp (görsel üretimi), mistral.rs (safetensors sohbet ve görüntü), Python (`python-hf`, CPU/CUDA; görevler ve diffusers), MLX (sohbet, görüntü ve ses; Apple Silicon, macOS 14+), CrispASR ve deneysel audio.cpp burada yönetilir. audio.cpp varsayılan olarak kapalıdır; etkinleştirmek risk onayı gerektirir.
+
+**Registry** (Gelişmiş düzey), çatallar ve kendi derlemeleriniz gibi ek llama.cpp motorlarını, ONNX Runtime, Lemonade ve GGUF dönüştürme ortamını yönetir. Model tanımı veya sunucu profili kendi llama.cpp motorunu seçebilir. ONNX Runtime için DirectML (Windows), CUDA veya CPU seçilir; ONNX sohbeti şimdilik Windows ile sınırlıdır ve araç çağrısı sunmaz. Lemonade, AMD NPU ve kendi llama.cpp derlemelerini kullanır. GGUF dönüştürme ortamı safetensors dönüşümü içindir.
+
+**Ollama** sayfası, Ollama istemcilerinin ağ geçidine bağlanmasını düzenler ([Bağlantılar](05-baglantilar-ve-ag-gecidi.md)).
 
 ## Depolama
 
@@ -101,7 +105,7 @@ Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve
 
 ## Güncellemeler
 
-**Güncellemeler** sayfası uygulama sürümünü ve güncelleme denetimini içerir. Otomatik uygulama güncellemesi şu an kapalıdır: yeni sürümleri paket olarak elle indirip kurun. Güncelleme denetimi `Güncelleme sunucusu yapılandırılmamış` benzeri bir hata verir veya sonuç vermezse bunun nedeni, güncelleme adresinin bu ön sürümde henüz yapılandırılmamış olmasıdır. Motor (llama.cpp) güncellemesi ayrıdır ve **Model Motoru > Kurulu Model Motoru** sayfasında yönetilir. macOS'ta yeni sürümden sonra mikrofon ve Otomasyon izinlerini yeniden vermeniz gerekebilir.
+**Güncellemeler** sayfası uygulama sürümünü gösterir. **Uygulama** bölümünde **Güncellemeleri Denetle** ile yeni sürüm aranır; **Güncellemeyi Kur** güncellemeyi indirir, kurar ve uygulamayı yeniden başlatır. Çalışan tüm sunucular durdurulur. Güncelleme kaynağına ulaşılamıyorsa [GitHub Releases](https://github.com/struklabs/harness-studio/releases) üzerinden en son paketi indirip çalıştırın. llama.cpp motoru **Model Motoru > Kurulu Model Motoru** sayfasında ayrıca güncellenir.
 
 ## Gizlilik
 
@@ -113,7 +117,7 @@ Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve
 
 ## Tepside sayfa bırakmak
 
-**Pencereyi kapatınca** seçimi **Tepsiye Küçült** ise pencereyi kapatmak uygulamayı kapatmaz: uygulama sistem tepsisinde (macOS'ta menü çubuğunda) çalışmaya devam eder, sunucular ve indirmeler sürer. Tepsi simgesinden pencere yeniden açılır; tamamen kapatmak için simgenin menüsündeki **Çıkış** kullanılır. **Uygulamadan Çık** seçiliyse çalışan sunucular durdurulur. Bu masaüstünde tepsi veya menü çubuğu simgesi yoksa pencereyi kapatmak uygulamadan çıkar.
+**Pencereyi kapatınca** seçimi **Tepsiye Küçült** ise pencereyi kapatmak uygulamayı kapatmaz: uygulama sistem tepsisinde (macOS'ta menü çubuğunda) çalışmaya devam eder, sunucular ve indirmeler sürer. Tepsi simgesinden pencere yeniden açılır; tamamen kapatmak için simgenin menüsündeki **Çıkış** kullanılır. **Uygulamadan Çık** seçiliyse çalışan sunucular durdurulur. Bu masaüstünde tepsi veya menü çubuğu simgesi yoksa pencereyi kapatmak uygulamadan çıkar. Linux'ta buna AppIndicator eklentisi olmayan standart GNOME da girer.
 
 Tepsideyken bellek tasarrufu için pencerenin web sayfası kapatılabilir:
 

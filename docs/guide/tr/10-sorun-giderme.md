@@ -113,13 +113,13 @@ Sunucu başlatma hataları ayrıca sınıflandırılmış açıklama ve **Kurtar
 
 **Mikrofon çalışmıyor; ne yapmalıyım?** Sistem gizlilik ayarlarında Harness Studio'ya mikrofon izni verin ve etkin mikrofonu kontrol edin. macOS'ta güncellemeden sonra izin sıfırlanmış olabilir. Kayıt yerine **Dosya Seç** ile ses dosyası da kullanabilirsiniz. Desteklenen biçimler [Konuşma bölümündedir](04-playground.md#konuşma-ve-mikrofon).
 
-**macOS "uygulama açılamıyor" diyor.** Uygulama noter onaylı değildir; [macOS kurulum adımlarındaki](01-kurulum.md#macos) **Yine de Aç** yolunu izleyin.
+**macOS "uygulama açılamıyor" diyor.** Resmî DMG paketleri imzalı ve Apple noter onaylıdır. Apple Silicon veya Intel için doğru paketi kullandığınızı ve macOS sürümünüzün en az 13.3 olduğunu kontrol edin; gerekirse [GitHub Releases](https://github.com/struklabs/harness-studio/releases) üzerinden yeniden indirin.
 
 **Pencereyi kapatmak modeli durdurur mu?** **Tepsiye Küçült** sunucuları açık bırakır. **Uygulamadan Çık** çalışan sunucuları durdurur. Tepside arayüz bellekte tutulmuyorsa kaydedilmemiş girdiler kaybolabilir; [Ayarlar](08-ayarlar.md#tepside-sayfa-bırakmak) bölümünü okuyun.
 
 **Konuşmalar veya istekler diske kaydediliyor mu?** Sohbet geçmişi yerel olarak saklanır; veritabanı şifreli değildir. Analitik varsayılan olarak yalnız meta veri (zaman, model, token, süre) tutar. Model tanımında içerik kaydı ayrıca açılırsa istem ve yanıtlar düz metin olarak saklanır; [Analitik](07-performans-ve-analitik.md#analitik-ve-istek-günlüğü) bölümünü inceleyin. Uygulama otomatik telemetri veya çökme raporu göndermez.
 
-**Güncelleme denetimi neden sonuç vermiyor?** Otomatik uygulama güncellemesi şu an kapalıdır; yeni sürümleri elle kurun. Motor güncellemesi ayrı çalışır ve **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasındadır.
+**Yeni sürümü nasıl denetlerim?** **Ayarlar > Güncellemeler > Güncellemeleri Denetle** ile denetleyin, ardından **Güncellemeyi Kur** ile indirin, kurun ve yeniden başlatın. Motor güncellemesi **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında ayrıca çalışır.
 
 **Eski sürüme nasıl dönerim?** Harness Studio'yu kapatın ve eski sürümü kurmadan önce veri klasöründeki `config/settings.json.bak-v2` dosyasını `config/settings.json` üzerine kopyalayın. Yeni ayar biçimine geçtikten sonra değiştirdiğiniz ayarlar kaybolur. Ayrıntı [ana README'dedir](../../README.md#configuration-and-data).
 

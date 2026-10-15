@@ -1,5 +1,5 @@
-// Managed Python environments of the optional Python engines (Settings > Installed Runtime >
-// Other Engines): status, install with progress, cancel and remove. The work itself is
+// Managed Python environments of the optional Python engines (Settings > Runtime > Installed Runtime >
+// Other Runtimes): status, install with progress, cancel and remove. The work itself is
 // `harness_core::pyenv::envs`.
 
 /// Every environment this version knows, with the progress of a build running now.
