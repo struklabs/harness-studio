@@ -6,6 +6,7 @@ import { isCompanionVariant, pickProjectorVariant, recommendFloatVariant, recomm
 import { needsPrismFork } from '../src/lib/components/hub/forkQuants.ts';
 import { engineCompatibility } from '../src/lib/components/hub/engineCompatibility.ts';
 import { localVariantFor } from '../src/lib/components/hub/variantFiles.ts';
+
 test('cached engine requirements follow shared installed state after an install anywhere', () => {
   const installed = new Set();
   const isInstalled = (family) => installed.has(family);
