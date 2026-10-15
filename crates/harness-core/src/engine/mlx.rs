@@ -689,7 +689,11 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
     }
     // A Spark-TTS / OuteTTS config is a plain Qwen2 / Qwen3 / Llama one: the folder is named by
     // its speech family.
-    if let Some(family) = tts_type(dir).filter(|t| matches!(t.as_str(), "spark" | "outetts")) {
+    if let Some(family) = is_audio_dir(dir)
+        .then(|| tts_type(dir))
+        .flatten()
+        .filter(|t| matches!(t.as_str(), "spark" | "outetts"))
+    {
         model.architecture = Some(family);
     }
     Some(model)
@@ -1073,7 +1077,10 @@ fn prompt_cache_bytes(need: u64, budget: &crate::vram::MemoryBudget) -> u64 {
 
 /// Longest generation of an audio request (`--max-seconds`) when the user set none: 600 s (about
 /// ten minutes of reading), 30 s under the gateway's request timeout, so the worker answers the
-/// audio made by then before the gateway gives up on the request (a 504 would lose it all).
+/// audio made by then before the gateway gives up on the request (a 504 would lose it all). It
+/// bounds transcriptions of the same worker as well (Whisper / Parakeet: a 504 after it). The
+/// gateway timeout is read when the worker starts: a change in Settings applies from its next
+/// start.
 fn audio_max_seconds(gateway_timeout_secs: u32) -> u32 {
     const DEFAULT: u32 = 600;
     if gateway_timeout_secs == 0 {
@@ -2658,6 +2665,7 @@ chars = types.SimpleNamespace(tokenizer=types.SimpleNamespace(encode=list))
 cjk = "今天天气很好。" * 80
 groups = w.sentence_groups(chars, cjk, 1.0)
 print("cjk", len(groups), "".join(groups) == cjk, max(len(g) for g in groups) <= 187)
+print("mixed", w.sentence_groups(chars, "\u4eca\u5929\u5f88\u597d\u3002Hello there. \u518d\u89c1\u3002\u8c22\u8c22\u3002", 1.0))
 plain = " ".join(["word"] * 400)
 groups = w.sentence_groups(s, plain, 1.0)
 print("unpunctuated", len(groups), " ".join(groups) == plain)
@@ -2710,6 +2718,8 @@ print("drifted", speak("Short one. Two.", None, 1.0, None))
             "streamed pauses ('wav of 5 chunks', None)",
             "one long sentence [(59, 1500)]",
             "cjk 4 True True",
+            // A Latin sentence after a CJK one is spoken apart from it (a space), CJK ones not.
+            "mixed ['今天很好。 Hello there. 再见。谢谢。']",
             "unpunctuated 3 True",
             "drifted (1, 'frames')",
         ] {

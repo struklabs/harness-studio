@@ -405,8 +405,9 @@ def sentence_groups(model, text, speed):
         if run and not fits(tokens + n, speed):
             groups.append(run)
             run, tokens = "", 0
-        # CJK sentences are written without a space between them.
-        joint = "" if run.endswith(("\u3002", "\uff01", "\uff1f")) else " "
+        # CJK sentences are written without a space between them; a Latin one after them gets one.
+        cjk_end = run.endswith(("\u3002", "\uff01", "\uff1f"))
+        joint = "" if cjk_end and not sentence[:1].isascii() else " "
         run = run + joint + sentence if run else sentence
         tokens += n
     return groups + [run] if run else groups

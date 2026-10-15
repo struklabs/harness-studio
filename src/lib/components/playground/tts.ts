@@ -1,6 +1,9 @@
 // Playground text to speech: request helper for the gateway's /v1/audio/speech (a real
 // sherpa-onnx run behind it; nothing is simulated) and the shapes of the Tauri commands.
 import { describeErrorBody } from './sse';
+import { truncationOf, type Truncation } from './speechHeaders';
+
+export { truncationOf, type Truncation };
 
 export interface TtsVoice {
   id: string;
@@ -87,7 +90,7 @@ export interface SpeechResult {
   sampleRate: number | null;
   /** Only part of the audio came back (`x-harness-truncated`): `time` (the server's time limit
    *  stopped it) or `frames` (the model used all the audio it may make for the text). */
-  truncated: 'time' | 'frames' | null;
+  truncated: Truncation;
   ms: number;
 }
 
@@ -97,12 +100,6 @@ export interface SpeechRequest {
   input: string;
   voice: string;
   speed: number;
-}
-
-/** Why a speech answer is partial (`x-harness-truncated`); an unknown reason reads as `time`. */
-export function truncationOf(header: string | null): SpeechResult['truncated'] {
-  if (header === null) return null;
-  return header === 'frames' ? 'frames' : 'time';
 }
 
 /** POST {baseUrl}/audio/speech; answers a WAV (the one format that needs no ffmpeg). */
