@@ -37,7 +37,7 @@ This is the public roadmap of Harness Studio. It shows direction, not promises: 
   - CPU vLLM was evaluated and is deferred (2026-10-14, v0.31.0 on a Ryzen 7 4700U, AVX2). The official CPU wheel runs offline in a network namespace, but the environment is about 3 GB, the first request waits about 2.5 minutes while triton-cpu compiles kernels with the system C compiler (gcc is needed at run time), and a 0.5B model makes about 12 tokens per second, well behind llama.cpp on the same laptop. vLLM targets CUDA instead.
 - **Harness Link.** Add a remote Harness (address and token) and use its models in your library, Playground, and gateway.
 - **Control API SDKs.** TypeScript and Python clients generated from the OpenAPI schema.
-- **MLX engine** for Apple Silicon: chat (mlx-lm), vision chat (mlx-vlm), text to speech (mlx-audio, Qwen3-TTS), and speech recognition (mlx-audio Whisper and Parakeet) are in main and ship in the next release.
+- **MLX engine** for Apple Silicon: chat (mlx-lm), vision chat (mlx-vlm), text to speech (mlx-audio: Qwen3-TTS, Chatterbox Turbo, Soprano, VoxCPM2, Spark-TTS), and speech recognition (mlx-audio Whisper and Parakeet) are in main and ship in the next release.
 - **Auto-update on every platform.** The signed in-app updater ships for Windows in 0.1.0 and for macOS from 0.1.1; Linux packages follow.
 - **Signed Windows installer.** A code-signed Windows installer (the macOS app is already signed and notarized).
 

@@ -544,9 +544,9 @@ pub const MLX_AUDIO_FAMILY: &str = crate::engine::MLX_AUDIO;
 /// The MLX engines' verdict on a Hub repo: an MLX repo (`library_name: mlx` or the `mlx` tag)
 /// with a `config.json` and safetensors at the root (a listing without file names is taken by
 /// its tags), `text-generation` or untagged for `mlx`, `image-text-to-text` for `mlx-vlm`,
-/// `text-to-speech` of a tested architecture (by the repo name: Qwen3-TTS) and
-/// `automatic-speech-recognition` of one (Whisper, Parakeet: [`crate::engine::mlx::is_stt_repo`])
-/// for `mlx-audio`.
+/// `text-to-speech` of a tested architecture (by the repo name: Qwen3-TTS, Chatterbox Turbo,
+/// Soprano, VoxCPM2, Spark-TTS) and `automatic-speech-recognition` of one (Whisper, Parakeet:
+/// [`crate::engine::mlx::is_stt_repo`]) for `mlx-audio`.
 /// Runnable where MLX runs (Apple Silicon; installed or not is settled later by
 /// [`resolve_installed`]); on a Mac whose macOS is too old for the MLX wheels,
 /// [`Compatibility::UnsupportedPlatform`]; `None` elsewhere and for every other repo.
@@ -1584,6 +1584,41 @@ mod tests {
                 runtime: MLX_AUDIO_FAMILY.into()
             })
         );
+        for repo in [
+            "mlx-community/chatterbox-turbo-4bit",
+            "mlx-community/Soprano-80M-bf16",
+            "mlx-community/VoxCPM2-4bit",
+            "mlx-community/Spark-TTS-0.5B-bf16",
+        ] {
+            assert_eq!(
+                mlx_compatibility_on(
+                    repo,
+                    format,
+                    Some("text-to-speech"),
+                    &files,
+                    &[],
+                    true,
+                    false
+                ),
+                Some(Compatibility::Runnable {
+                    runtime: MLX_AUDIO_FAMILY.into()
+                }),
+                "{repo}"
+            );
+            assert_eq!(
+                mlx_compatibility_on(
+                    repo,
+                    format,
+                    Some("text-to-speech"),
+                    &files,
+                    &[],
+                    false,
+                    false
+                ),
+                None,
+                "{repo}"
+            );
+        }
         assert_eq!(
             mlx_compatibility_on(
                 "mlx-community/Kokoro-82M-bf16",

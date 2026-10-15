@@ -118,10 +118,12 @@ fn is_generative_config(cfg: &serde_json::Value) -> bool {
 }
 
 /// Whether `path` is a folder mistral.rs runs: a transformers checkpoint (see
-/// [`is_checkpoint_dir`]) whose weights are not MLX's (the MLX engine runs those, an mlx-audio
-/// Whisper port with a transformers config included).
+/// [`is_checkpoint_dir`]) whose weights are not MLX's (the MLX engine runs those, mlx-audio
+/// speech folders with a transformers config included: Whisper's port, Soprano, Spark-TTS).
 pub fn is_model_dir(path: &Path) -> bool {
-    is_checkpoint_dir(path) && !super::mlx::is_mlx_checkpoint(path) && !super::mlx::is_stt_dir(path)
+    is_checkpoint_dir(path)
+        && !super::mlx::is_mlx_checkpoint(path)
+        && !super::mlx::is_audio_dir(path)
 }
 
 /// A transformers text-generator checkpoint (`config.json` of a text generator) with

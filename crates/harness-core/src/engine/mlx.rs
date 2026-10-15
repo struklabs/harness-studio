@@ -6,7 +6,8 @@
 //!   environment;
 //! * `mlx-vlm`: a vision-language folder (its config has a `vision_config`), served by
 //!   `python/mlx_vlm_worker.py` around mlx-vlm's server from the managed `mlx-vlm` environment;
-//! * `mlx-audio`: a text-to-speech folder of mlx-audio (Qwen3-TTS) or a speech recognition one
+//! * `mlx-audio`: a text-to-speech folder of mlx-audio (Qwen3-TTS, Chatterbox Turbo, Soprano,
+//!   VoxCPM2, Spark-TTS) or a speech recognition one
 //!   (Whisper, Parakeet), served by `python/mlx_audio_worker.py` (Harness's own small server
 //!   around mlx-audio's model, which the `mlx-vlm` environment carries; `--task transcription`
 //!   for recognition).
@@ -63,16 +64,32 @@ const WORKER: &str = include_str!("../../python/mlx_worker.py");
 const VLM_WORKER: &str = include_str!("../../python/mlx_vlm_worker.py");
 const AUDIO_WORKER: &str = include_str!("../../python/mlx_audio_worker.py");
 
-/// mlx-audio text-to-speech architectures (`model_type`) Harness runs: the ones checked end to
-/// end. Others (Kokoro needs misaki and spaCy data fetched at run time) are not offered.
-const TTS_TYPES: &[&str] = &["qwen3_tts"];
+/// mlx-audio text-to-speech architectures (`model_type`, `spark` for Spark-TTS's layout) Harness
+/// runs: the ones checked end to end that load from their own folder. Others fetch parts from
+/// the Hub at run time (Kokoro: misaki, spaCy data and voices; OuteTTS, Dia: a DAC codec;
+/// Orpheus: SNAC; CSM: Mimi and a gated tokenizer), which the offline worker cannot, and are
+/// not offered.
+const TTS_TYPES: &[&str] = &[
+    "qwen3_tts",
+    "chatterbox_turbo",
+    "soprano",
+    "voxcpm2",
+    "spark",
+];
 
 /// mlx-audio speech recognition architectures (`model_type`) Harness runs. A NeMo Parakeet
 /// config has no `model_type` but its `target` class (see [`is_parakeet_config`]).
 const STT_TYPES: &[&str] = &["whisper", "parakeet", "parakeet_tdt"];
 
 /// What the name of a Hub repo of a [`TTS_TYPES`] model contains (the listing has no config).
-const TTS_REPO_NAMES: &[&str] = &["qwen3-tts"];
+/// Plain Chatterbox (`chatterbox-fp16`) and VoxCPM 1.x are other architectures.
+const TTS_REPO_NAMES: &[&str] = &[
+    "qwen3-tts",
+    "chatterbox-turbo",
+    "soprano",
+    "voxcpm2",
+    "spark-tts",
+];
 
 /// What the name of a Hub repo of a [`STT_TYPES`] model contains (a NeMo Parakeet repo has no
 /// `model_type` for its tags to list).
@@ -345,7 +362,7 @@ fn model_type(dir: &Path) -> Option<String> {
 pub fn is_audio_folder(dir: &Path) -> bool {
     card_field(dir, "library_name").is_some_and(|l| l.eq_ignore_ascii_case("mlx-audio"))
         || card_field(dir, "pipeline_tag").is_some_and(|t| AUDIO_TASKS.contains(&t.as_str()))
-        || model_type(dir).is_some_and(|t| AUDIO_TYPES.contains(&t.as_str()))
+        || tts_type(dir).is_some_and(|t| AUDIO_TYPES.contains(&t.as_str()))
 }
 
 /// Whether an MLX folder has a vision tower, `None` when `path` is not an MLX chat folder.
@@ -356,15 +373,31 @@ fn mlx_vision(path: &Path) -> Option<bool> {
         })
 }
 
+/// The mlx-audio text-to-speech architecture of a folder: its `model_type`, or `spark` for
+/// Spark-TTS, whose config is its Qwen2 language model's (its `BiCodec/` codec tells it apart).
+fn tts_type(dir: &Path) -> Option<String> {
+    if dir.join("BiCodec").join("config.yaml").is_file()
+        && dir.join("audio_tokenizer_config.yaml").is_file()
+    {
+        return Some("spark".into());
+    }
+    model_type(dir)
+}
+
 /// Whether `path` is a folder the `mlx-audio` engine runs: an mlx-audio text-to-speech model
-/// of a tested architecture ([`TTS_TYPES`]), with `config.json` and safetensors weights.
+/// of a tested architecture ([`TTS_TYPES`]), with `config.json` and safetensors weights, in
+/// MLX's format (its card says `mlx` / `mlx-audio` as library or tag, or its config has MLX's
+/// quantization).
 pub fn is_tts_dir(path: &Path) -> bool {
     path.is_dir()
         && !super::mistralrs::weight_files(path).is_empty()
-        && model_type(path).is_some_and(|t| TTS_TYPES.contains(&t.as_str()))
+        && tts_type(path).is_some_and(|t| TTS_TYPES.contains(&t.as_str()))
         && (card_field(path, "library_name")
             .is_some_and(|l| l.eq_ignore_ascii_case("mlx-audio") || l.eq_ignore_ascii_case("mlx"))
-            || read_json(&path.join("config.json")).is_some_and(|c| quant_bits(&c).is_some()))
+            || read_json(&path.join("config.json")).is_some_and(|c| quant_bits(&c).is_some())
+            || card_tags(path)
+                .iter()
+                .any(|t| t == "mlx" || t == "mlx-audio"))
 }
 
 /// Whether a config is NeMo's for a Parakeet (RNNT / TDT / CTC) recognizer: no `model_type`, a
@@ -493,17 +526,20 @@ pub fn inspect(dir: &Path) -> Option<super::mistralrs::ModelDirInfo> {
 /// model like the Python engine's, with MLX's bits as its quantization (`4bit`).
 fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> {
     let stt = is_stt_dir(dir);
-    // A recognition config is no text generator's (Whisper's MLX port, NeMo's Parakeet): its
-    // folder is described by its weights and `model_type` alone.
+    // A speech config is often no text generator's (Whisper's MLX port, NeMo's Parakeet,
+    // Chatterbox, VoxCPM2): its folder is described by its weights and `model_type` alone.
     let info = match super::mistralrs::inspect_checkpoint(dir) {
         Some(info) => info,
-        None if stt => audio_dir_info(dir),
+        None if stt || is_tts_dir(dir) => audio_dir_info(dir),
         None => return None,
     };
     let mut model = super::mistralrs::to_local_model(dir, &info, root);
     if is_audio_dir(dir) {
         model.kind = crate::domain::ModelKind::Pipeline;
         model.context_length = None;
+        // Spark-TTS keeps its codec and speaker encoder in subfolders (`BiCodec/`,
+        // `wav2vec2-large-xlsr-53/`), loaded with the model.
+        model.size_bytes = model.size_bytes.max(nested_weight_bytes(dir));
     }
     if stt {
         model.task = Some("automatic-speech-recognition".into());
@@ -514,7 +550,30 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
     Some(model)
 }
 
-/// What the files of a speech recognition folder say: its weights and `model_type`.
+/// Bytes of the safetensors under `dir`, one folder level down included.
+fn nested_weight_bytes(dir: &Path) -> u64 {
+    let size = |d: &Path| -> u64 {
+        std::fs::read_dir(d)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|x| x == "safetensors"))
+            .filter_map(|p| std::fs::metadata(p).ok())
+            .map(|m| m.len())
+            .sum()
+    };
+    let nested: u64 = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+        .map(|e| size(&e.path()))
+        .sum();
+    size(dir) + nested
+}
+
+/// What the files of a speech folder say: its weights and `model_type`.
 fn audio_dir_info(dir: &Path) -> super::mistralrs::ModelDirInfo {
     let weights = super::mistralrs::weight_files(dir);
     super::mistralrs::ModelDirInfo {
@@ -1400,6 +1459,112 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         assert_eq!(flavour_of(tagged.path()), None);
         assert!(is_tts_repo("mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"));
         assert!(!is_tts_repo("mlx-community/Kokoro-82M-bf16"));
+        for repo in [
+            "mlx-community/chatterbox-turbo-4bit",
+            "mlx-community/Soprano-80M-bf16",
+            "mlx-community/VoxCPM2-4bit",
+            "mlx-community/Spark-TTS-0.5B-bf16",
+        ] {
+            assert!(is_tts_repo(repo), "{repo}");
+        }
+        for repo in [
+            "mlx-community/chatterbox-fp16",
+            "mlx-community/VoxCPM1.5",
+            "mlx-community/OuteTTS-1.0-0.6B-4bit",
+            "mlx-community/Dia-1.6B-4bit",
+            "mlx-community/orpheus-3b-0.1-ft-4bit",
+        ] {
+            assert!(!is_tts_repo(repo), "{repo}");
+        }
+    }
+
+    /// The text-to-speech families checked end to end beside Qwen3-TTS, as mlx-community ships
+    /// them (configs trimmed): each is an mlx-audio folder, never a chat model. Spark-TTS's
+    /// config is its Qwen2 language model's: its `BiCodec/` codec makes it a speech folder, also
+    /// when quantized. Families that fetch parts at run time (OuteTTS) are not offered.
+    #[test]
+    fn mlx_audio_runs_the_tested_speech_families() {
+        let card = |library: &str| {
+            format!("---\nlibrary_name: {library}\npipeline_tag: text-to-speech\n---\n")
+        };
+        let chatterbox = folder(&[
+            (
+                "config.json",
+                r#"{"model_type":"chatterbox_turbo","quantization":{"group_size":64,"bits":4}}"#,
+            ),
+            ("model.safetensors", "x"),
+            ("README.md", &card("mlx-audio")),
+        ]);
+        let soprano = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["SopranoForCausalLM"],"model_type":"soprano"}"#,
+            ),
+            ("model.safetensors", "x"),
+            ("README.md", &card("mlx-audio")),
+        ]);
+        let voxcpm = folder(&[
+            (
+                "config.json",
+                r#"{"model_type":"voxcpm2","quantization":{"group_size":64,"bits":4}}"#,
+            ),
+            ("model.safetensors", "x"),
+            ("README.md", &card("mlx-audio")),
+        ]);
+        let spark_files = |quantized: bool| {
+            let config = if quantized {
+                r#"{"architectures":["Qwen2ForCausalLM"],"model_type":"qwen2","quantization":{"group_size":64,"bits":8}}"#
+            } else {
+                r#"{"architectures":["Qwen2ForCausalLM"],"model_type":"qwen2"}"#
+            };
+            folder(&[
+                ("config.json", config),
+                ("model.safetensors", "x"),
+                ("tokenizer.json", "{}"),
+                ("audio_tokenizer_config.yaml", "x: 1"),
+                ("BiCodec/config.yaml", "x: 1"),
+                ("BiCodec/model.safetensors", "x"),
+                ("README.md", "---\nlicense: cc-by-nc-sa-4.0\ntags:\n- text-to-speech\n- mlx\nlibrary_tag: spark-tts\n---\n"),
+            ])
+        };
+        let (spark, spark8) = (spark_files(false), spark_files(true));
+        for dir in [&chatterbox, &soprano, &voxcpm, &spark, &spark8] {
+            let path = dir.path();
+            assert!(is_tts_dir(path), "{path:?}");
+            assert!(
+                !is_stt_dir(path) && !is_model_dir(path) && !is_vlm_dir(path),
+                "{path:?}"
+            );
+            assert!(!super::super::mistralrs::is_model_dir(path), "{path:?}");
+            assert!(super::super::python_hf::detect(path).is_none(), "{path:?}");
+            assert_eq!(flavour_of(path), Some(Flavour::Audio), "{path:?}");
+            assert_eq!(family_of(path), Some(MLX_AUDIO), "{path:?}");
+            let m = to_local_model(path, path.parent().unwrap()).unwrap();
+            assert_eq!(m.kind, crate::domain::ModelKind::Pipeline, "{path:?}");
+        }
+        assert_eq!(tts_type(spark.path()).as_deref(), Some("spark"));
+        // Its codec's weights count in its size.
+        let m = to_local_model(spark.path(), spark.path().parent().unwrap()).unwrap();
+        assert_eq!(
+            m.size_bytes, 2,
+            "model.safetensors and BiCodec/model.safetensors"
+        );
+        // Without its codec a Qwen2 folder is what it says.
+        std::fs::remove_dir_all(spark.path().join("BiCodec")).unwrap();
+        assert!(!is_tts_dir(spark.path()));
+        let outetts = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","quantization":{"group_size":64,"bits":4}}"#,
+            ),
+            ("model.safetensors", "x"),
+            (
+                "README.md",
+                "---\npipeline_tag: text-to-speech\nlibrary_name: outetts\ntags:\n- mlx\n---\n",
+            ),
+        ]);
+        assert!(!is_tts_dir(outetts.path()));
+        assert_eq!(flavour_of(outetts.path()), None);
     }
 
     /// Speech recognition folders in MLX's format (mlx-audio's Whisper port with a transformers
@@ -1976,6 +2141,36 @@ class Plain:
         yield types.SimpleNamespace(audio=[0.0])
 speak = w.make_speak(Plain(), [], 24000, 10, encode, clock)
 print("plain", speak("hi", None, 1.0, None))
+# Other families count their own tokens per second of audio (Spark after its speaker tokens).
+for family in ("chatterbox_turbo", "voxcpm2", "spark"):
+    print("budget", family, w.frame_budget(100, 1.0, *w.TOKEN_RATES[family]))
+class OneSpeed:
+    def __init__(self):
+        self.calls = []
+    def generate(self, text, max_tokens=512, **kw):
+        self.calls.append(dict(kw, max_tokens=max_tokens))
+        yield types.SimpleNamespace(audio=[0.0])
+one = OneSpeed()
+speak = w.make_speak(one, [], 32000, 10, encode, clock, family="soprano")
+print("one speed", speak("one two", None, 1.0, None), one.calls)
+try:
+    speak("one two", None, 1.5, None)
+except w.Refused as e:
+    print("refused speed:", e)
+# A model that cannot stream is called a sentence at a time; the time limit stops it between
+# sentences (each takes 4 s of the 10 here).
+class Whole:
+    def __init__(self):
+        self.said = []
+    def generate(self, text, max_tokens=512, **kw):
+        self.said.append(text)
+        now[0] += 4.0
+        yield types.SimpleNamespace(audio=[0.0])
+now[0] = 0.0
+whole = Whole()
+speak = w.make_speak(whole, [], 48000, 10, encode, clock, family="voxcpm2")
+print("sentences", speak("One. Two!  Three? Four.", None, 1.0, None), whole.said)
+print("split", w.sentences("Hi there.  Bye。Yes"), w.sentences("   "))
 "#,
             dir.path().to_string_lossy()
         );
@@ -1996,6 +2191,13 @@ print("plain", speak("hi", None, 1.0, None))
             "runaway ('wav of 3 chunks', True) [{'voice': 'ryan', 'max_tokens': 75, 'stream': True}] closed True",
             "too slow",
             "plain ('wav of 1 chunks', False)",
+            "budget chatterbox_turbo 1600",
+            "budget voxcpm2 400",
+            "budget spark 3264",
+            "one speed ('wav of 1 chunks', False) [{'max_tokens': 94}]",
+            "refused speed: this model speaks at one speed; use speed 1",
+            "sentences ('wav of 3 chunks', True) ['One.', 'Two!', 'Three?']",
+            "split ['Hi there.', 'Bye。', 'Yes'] ['   ']",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }

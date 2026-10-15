@@ -39,7 +39,7 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
   - CUDA, ROCm, Vulkan ve CPU için Docker imajları.
 - **Harness Link.** Uzak bir Harness'ı (adres ve token) ekleyip modellerini kütüphanenizde, Playground'da ve gateway'de kullanmak.
 - **Control API SDK'ları.** OpenAPI şemasından üretilen TypeScript ve Python istemcileri.
-- Apple Silicon için **MLX motoru**: sohbet (mlx-lm), görsel sohbet (mlx-vlm) metinden konuşma (mlx-audio, Qwen3-TTS) ve konuşma tanıma (mlx-audio Whisper ve Parakeet) main'de, sonraki sürümle gelir.
+- Apple Silicon için **MLX motoru**: sohbet (mlx-lm), görsel sohbet (mlx-vlm) metinden konuşma (mlx-audio: Qwen3-TTS, Chatterbox Turbo, Soprano, VoxCPM2, Spark-TTS) ve konuşma tanıma (mlx-audio Whisper ve Parakeet) main'de, sonraki sürümle gelir.
 - **Her platformda otomatik güncelleme.** İmzalı uygulama içi güncelleyici 0.1.0'da Windows için, 0.1.1'den itibaren macOS için geliyor; Linux paketleri ardından.
 - **İmzalı Windows kurulum paketi.** Kod imzalı Windows kurulum paketi (macOS uygulaması zaten imzalı ve notarize edilmiş).
 

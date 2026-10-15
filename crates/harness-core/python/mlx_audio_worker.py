@@ -33,6 +33,7 @@ names. This worker serves only what Harness needs, itself:
 
 import argparse
 import asyncio
+import concurrent.futures
 import hmac
 import inspect
 import io
@@ -71,12 +72,33 @@ OPENAI_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "on
                  "shimmer", "verse"}
 # Codec frames per second of Qwen3-TTS (its "12Hz" tokenizer runs at 12.5 frames a second).
 FRAME_RATE = 12.5
-# Frames allowed per text token: speech takes about 6 (mlx-audio's own batch cap), so 8 leaves
-# room for slow voices; never fewer than MIN_FRAMES (6 s), never more than MAX_AUDIO_SECONDS.
+# Frames allowed per text token at FRAME_RATE: speech takes about 6 (mlx-audio's own batch
+# cap), so 8 leaves room for slow voices; never less than MIN_SECONDS of audio, never more than
+# MAX_AUDIO_SECONDS.
 FRAMES_PER_TOKEN = 8
-MIN_FRAMES = 75
+MIN_SECONDS = 6
 MAX_AUDIO_SECONDS = 120
+# Tokens a family's `max_tokens` counts per second of audio, and tokens it spends before any
+# audio (Spark's 32 global speaker tokens and their markers). Measured with mlx-audio 0.5.9.
+TOKEN_RATES = {
+    "qwen3_tts": (FRAME_RATE, 0),
+    "chatterbox_turbo": (25.0, 0),
+    "soprano": (15.625, 0),
+    "voxcpm2": (6.25, 0),
+    "spark": (50.0, 64),
+}
 DEFAULT_MAX_SECONDS = 120
+
+
+# The thread that loads the model and runs every request: MLX streams belong to the thread
+# that made them, and a model that makes its own at load (VoxCPM2) aborts the process when it
+# is used from another one.
+MODEL_THREAD = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix="model")
+
+
+def on_model_thread(fn, *args):
+    """`fn(*args)` on MODEL_THREAD, awaited."""
+    return asyncio.get_running_loop().run_in_executor(MODEL_THREAD, fn, *args)
 
 
 class TooSlow(Exception):
@@ -342,11 +364,12 @@ def wav_bytes(samples, rate):
     return out.getvalue()
 
 
-def frame_budget(text_tokens, speed):
-    """Codec frames one request may generate: grows with the text (and with slower speech),
-    with a floor for very short inputs and a hard ceiling."""
-    want = math.ceil(max(1, text_tokens) * FRAMES_PER_TOKEN / max(speed, 0.25))
-    return min(max(MIN_FRAMES, want), int(MAX_AUDIO_SECONDS * FRAME_RATE))
+def frame_budget(text_tokens, speed, rate=FRAME_RATE, lead=0):
+    """Tokens one request may generate for a family making `rate` of them per second of audio
+    (after `lead` ones): grows with the text (and with slower speech), with a floor for very
+    short inputs and a hard ceiling."""
+    want = math.ceil(max(1, text_tokens) * FRAMES_PER_TOKEN / max(speed, 0.25) * rate / FRAME_RATE)
+    return min(max(math.ceil(MIN_SECONDS * rate), want), int(MAX_AUDIO_SECONDS * rate)) + lead
 
 
 def count_tokens(model, text):
@@ -358,38 +381,66 @@ def count_tokens(model, text):
         return len(text) // 2 + 1
 
 
-def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic):
+# Where a text is cut into sentences: after a Latin end mark and its spaces, after a CJK one
+# (written without a space).
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+|(?<=[\u3002\uff01\uff1f])\s*")
+
+
+def sentences(text):
+    """The sentences of `text` (the whole text when it has one), never empty ones."""
+    return [s for s in (p.strip() for p in SENTENCE_END.split(text)) if s] or [text]
+
+
+def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
+               family="qwen3_tts"):
     """`speak(text, voice, speed, language)` -> (WAV bytes, truncated). Generation is capped at
-    `frame_budget` frames and stopped after `max_seconds` (between streamed chunks when the model
-    can stream); `encode(chunks, rate)` makes the WAV of the audio chunks."""
+    `frame_budget` tokens of `family` and stopped after `max_seconds`: between streamed chunks
+    when the model can stream, between sentences (each a call of its own) when it cannot.
+    `encode(chunks, rate)` makes the WAV of the audio chunks. A speed other than 1 is refused by
+    a model that has no `speed`."""
     params = inspect.signature(model.generate).parameters
     takes = lambda name: name in params or any(
         p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
     can_stream = "stream" in params
+    token_rate, lead = TOKEN_RATES.get(family, TOKEN_RATES["qwen3_tts"])
 
     def speak(text, voice, speed, language):
-        kwargs = {"speed": speed}
+        kwargs = {}
+        if "speed" in params:
+            kwargs["speed"] = speed
+        elif speed != 1.0:
+            raise Refused("this model speaks at one speed; use speed 1")
         if voice is not None or voices:
             kwargs["voice"] = voice or voices[0]
         if language is not None:
             kwargs["lang_code"] = language
-        if takes("max_tokens"):
-            kwargs["max_tokens"] = frame_budget(count_tokens(model, text), speed)
         if can_stream:
             kwargs["stream"] = True
+        # A model that cannot stream answers a whole call at once: it is called a sentence at a
+        # time, so the time limit is checked between sentences.
+        pieces = [text] if can_stream else sentences(text)
         deadline = clock() + max_seconds
         parts, truncated = [], False
-        results = model.generate(text, **kwargs)
-        try:
-            for result in results:
-                parts.append(result.audio)
-                if clock() > deadline:
-                    truncated = True
-                    break
-        finally:
-            close = getattr(results, "close", None)
-            if close:
-                close()
+        for n, piece in enumerate(pieces):
+            if n and clock() > deadline:
+                truncated = True
+                break
+            if takes("max_tokens"):
+                kwargs["max_tokens"] = frame_budget(
+                    count_tokens(model, piece), speed, token_rate, lead)
+            results = model.generate(piece, **kwargs)
+            try:
+                for result in results:
+                    parts.append(result.audio)
+                    if clock() > deadline:
+                        truncated = True
+                        break
+            finally:
+                close = getattr(results, "close", None)
+                if close:
+                    close()
+            if truncated:
+                break
         if not parts:
             if truncated or clock() > deadline:
                 raise TooSlow()
@@ -537,7 +588,10 @@ def app_for(speak, alias, voices, max_chars):
             return 400, error(str(e) + ".", "invalid_request_error", "invalid_request"), \
                 b"application/json", []
         try:
-            audio, truncated = await asyncio.to_thread(run, text, voice, speed, language)
+            audio, truncated = await on_model_thread(run, text, voice, speed, language)
+        except Refused as e:
+            return 400, error(str(e) + ".", "invalid_request_error", "invalid_request"), \
+                b"application/json", []
         except TooSlow:
             return 504, error("Speech took longer than the worker's time limit.", "server_error",
                               "speech_timeout"), b"application/json", []
@@ -576,7 +630,7 @@ def transcription_app_for(transcribe, decode, alias):
         except Refused as e:
             return refused(e)
         try:
-            text = await asyncio.to_thread(run, audio, language, task)
+            text = await on_model_thread(run, audio, language, task)
         except Refused as e:
             return refused(e)
         except TooSlow:
@@ -602,6 +656,22 @@ def stt_options(model_dir):
     if not config.get("model_type") and "EncDec" in str(config.get("target", "")):
         return {"model_type": "parakeet"}
     return {}
+
+
+def tts_family(model_dir):
+    """The mlx-audio architecture of a text-to-speech folder: its `model_type`, or `spark` for
+    Spark-TTS, whose config is its Qwen2 language model's (mlx-audio would guess it from the
+    folder's name)."""
+    try:
+        with open(os.path.join(model_dir, "config.json")) as f:
+            config = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if os.path.isfile(os.path.join(model_dir, "BiCodec", "config.yaml")) and \
+            os.path.isfile(os.path.join(model_dir, "audio_tokenizer_config.yaml")):
+        return "spark"
+    kind = config.get("model_type")
+    return kind.lower() if isinstance(kind, str) else None
 
 
 def main(argv=None):
@@ -635,7 +705,7 @@ def main(argv=None):
         from mlx_audio.stt.utils import load_model as load_stt
         from mlx_audio.stt.utils import resample_audio
 
-        model = load_stt(model_dir, **stt_options(model_dir))
+        model = MODEL_THREAD.submit(load_stt, model_dir, **stt_options(model_dir)).result()
 
         def decode(audio):
             return mx.array(decode_capped(audio, args.max_audio_seconds, miniaudio, resample_audio))
@@ -647,14 +717,16 @@ def main(argv=None):
 
     from mlx_audio.tts.utils import load_model
 
-    model = load_model(model_dir)
+    family = tts_family(model_dir)
+    options = {"model_type": "spark"} if family == "spark" else {}
+    model = MODEL_THREAD.submit(load_model, model_dir, **options).result()
     voices = voices_of(model)
     rate = getattr(model, "sample_rate", 24000)
 
     def encode(parts, rate):
-        return wav_bytes(np.concatenate([np.asarray(p) for p in parts]), rate)
+        return wav_bytes(np.concatenate([np.asarray(p).reshape(-1) for p in parts]), rate)
 
-    speak = make_speak(model, voices, rate, args.max_seconds, encode)
+    speak = make_speak(model, voices, rate, args.max_seconds, encode, family=family)
     uvicorn.run(cors(app_for(speak, args.alias, voices, args.max_chars)), host=HOST, port=args.port,
                 log_level="info", access_log=True)
 
