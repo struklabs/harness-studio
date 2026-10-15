@@ -47,23 +47,6 @@ const tr = {
   'onboarding.coach_finish': 'Anladım, Başla',
   'onboarding.coach_next': 'İleri',
 
-  // ConsentModal
-  'onboarding.consent_title': 'Harness Studio’ya Hoş Geldiniz',
-  'onboarding.consent_subtitle':
-    "Harness Studio'yu geliştirmeye yardımcı olmak için anonim kullanım, donanım ve hata teşhis bilgilerini yerel olarak, sanitize edilmiş tanılama raporları halinde saklamamıza izin verir misiniz? Bu raporlar hiçbir yere otomatik olarak gönderilmez; dilerseniz inceleyip elle paylaşabilirsiniz.",
-  'onboarding.consent_allowed_title': 'İzin Verilirse Yerel Olarak Kaydedilenler',
-  'onboarding.consent_item_crash': 'Beklenmedik uygulama çökme yığınları (crash stack trace)',
-  'onboarding.consent_item_llama_errors': "llama.cpp alt sürecinin hata kodları ve sanitize edilmiş hata logları",
-  'onboarding.consent_item_hardware': 'Uyumluluk analizi için temel donanım modeli (GPU üreticisi, RAM miktarı)',
-  'onboarding.consent_forbidden_title': 'Hiçbir Zaman Kaydedilmeyenler',
-  'onboarding.consent_item_prompts': 'Model istemleri (promptlar) ve model yanıtları (sohbet içerikleri)',
-  'onboarding.consent_item_api_body': 'API istek gövdeleri (request body) ve kişisel dosya içerikleri',
-  'onboarding.consent_item_paths': 'Kullanıcı adınızı içeren kişisel dosya yolları (otomatik temizlenir)',
-  'onboarding.consent_item_keys': 'Herhangi bir API anahtarı veya kimlik bilgisi',
-  'onboarding.consent_footer': 'Bu tercihleri daha sonra Ayarlar > Gizlilik bölümünden istediğiniz zaman değiştirebilirsiniz.',
-  'onboarding.consent_decline': 'Şimdilik Reddet',
-  'onboarding.consent_accept': 'İzin Ver ve Başla',
-
   // +page.svelte (init / loading screens)
   'onboarding.init_error_title': 'Harness Studio başlatılamadı',
   'onboarding.retry': 'Tekrar Dene',
@@ -135,7 +118,6 @@ const tr = {
   'onboarding.wizard_cli_path_failed': 'Komut satırı aracı PATH’e eklenemedi: {error}',
   'onboarding.wizard_zero_prompt_title': 'İstem kaydı yok.',
   'onboarding.wizard_zero_prompt_body': 'İstemleriniz, sohbetleriniz ve verileriniz sunucuya gönderilmez, yerel loglara açık yazılmaz.',
-  'onboarding.consent_save_failed': 'Tercih kaydedilemedi: {error}',
   'onboarding.wizard_step_of': 'Adım {current} / {total}',
   'onboarding.wizard_saving': 'Kaydediliyor…',
   'onboarding.wizard_retry': 'Tekrar Dene',
@@ -242,23 +224,6 @@ const en: Record<keyof typeof tr, string> = {
   'onboarding.coach_finish': 'Got It, Start',
   'onboarding.coach_next': 'Next',
 
-  // ConsentModal
-  'onboarding.consent_title': 'Welcome to Harness Studio',
-  'onboarding.consent_subtitle':
-    'Would you like Harness Studio to keep anonymous usage, hardware, and error diagnostic information as sanitized reports stored locally on this device, to help improve the app? These reports are never sent anywhere automatically — you can review and share them manually if you choose.',
-  'onboarding.consent_allowed_title': 'Recorded Locally If You Allow',
-  'onboarding.consent_item_crash': 'Unexpected application crash stack traces',
-  'onboarding.consent_item_llama_errors': 'llama.cpp subprocess error codes and sanitized error logs',
-  'onboarding.consent_item_hardware': 'Basic hardware profile for compatibility analysis (GPU vendor, RAM amount)',
-  'onboarding.consent_forbidden_title': 'Never Recorded',
-  'onboarding.consent_item_prompts': 'Model prompts and model responses (chat content)',
-  'onboarding.consent_item_api_body': 'API request bodies and personal file contents',
-  'onboarding.consent_item_paths': 'Personal file paths containing your username (automatically scrubbed)',
-  'onboarding.consent_item_keys': 'Any API keys or credentials',
-  'onboarding.consent_footer': 'You can change these preferences at any time later in Settings > Privacy.',
-  'onboarding.consent_decline': 'Not Now',
-  'onboarding.consent_accept': 'Allow and Get Started',
-
   // +page.svelte (init / loading screens)
   'onboarding.init_error_title': 'Harness Studio failed to start',
   'onboarding.retry': 'Retry',
@@ -330,7 +295,6 @@ const en: Record<keyof typeof tr, string> = {
   'onboarding.wizard_cli_path_failed': 'Could not add the command-line tool to PATH: {error}',
   'onboarding.wizard_zero_prompt_title': 'No prompt logging.',
   'onboarding.wizard_zero_prompt_body': 'Your prompts, chats and data are never sent to a server or written to local logs in plain form.',
-  'onboarding.consent_save_failed': 'Could not save your choice: {error}',
   'onboarding.wizard_step_of': 'Step {current} of {total}',
   'onboarding.wizard_saving': 'Saving…',
   'onboarding.wizard_retry': 'Try Again',
