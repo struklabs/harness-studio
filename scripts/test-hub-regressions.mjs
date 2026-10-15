@@ -5,7 +5,7 @@ import { parseSearchQuery } from '../src/lib/components/hub/searchParser.ts';
 import { isCompanionVariant, pickProjectorVariant, recommendFloatVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
 import { needsPrismFork } from '../src/lib/components/hub/forkQuants.ts';
 import { engineCompatibility } from '../src/lib/components/hub/engineCompatibility.ts';
-
+import { localVariantFor } from '../src/lib/components/hub/variantFiles.ts';
 test('cached engine requirements follow shared installed state after an install anywhere', () => {
   const installed = new Set();
   const isInstalled = (family) => installed.has(family);
@@ -77,6 +77,32 @@ test('unavailable opacity override is HC-only and retains a non-colour state cue
   assert.match(card, /unsupported && 'opacity-60'/);
   const drawer = readFileSync(new URL('../src/lib/components/hub/VariantDrawer.svelte', import.meta.url), 'utf8');
   assert.match(drawer, /data-unavailable=\{!!variant\.not_runnable \|\| undefined\}/);
+});
+
+test('Whisper variants become local only after their own file is downloaded', () => {
+  const small = { name: 'ggml-small', shards: [{ filename: 'ggml-small.bin' }] };
+  const local = { path: '/library/ggerganov/whisper.cpp/ggml-small.bin' };
+  assert.equal(localVariantFor(small, new Map()), undefined);
+  assert.equal(localVariantFor(small, new Map([['ggml-base.bin', local]])), undefined);
+  assert.equal(localVariantFor(small, new Map([['ggml-small.bin', local]])), local);
+});
+
+test('split variants remain downloadable until every shard is local', () => {
+  const split = { name: 'model', shards: [{ filename: 'Sub/Model-00001.gguf' }, { filename: 'Sub\\Model-00002.gguf' }] };
+  const local = { path: '/library/owner/repo/Sub/Model-00001.gguf' };
+  const files = new Map([['sub/model-00001.gguf', local]]);
+  assert.equal(localVariantFor(split, files), undefined);
+  files.set('sub/model-00002.gguf', local);
+  assert.equal(localVariantFor(split, files), local);
+  files.delete('sub/model-00001.gguf');
+  assert.equal(localVariantFor(split, files), undefined);
+});
+
+test('repo-folder variants are local without individual files; prefilled variants are not', () => {
+  const folder = { path: '/library/owner/repo' };
+  const variant = { name: 'repo', shards: [] };
+  assert.equal(localVariantFor(variant, new Map()), undefined);
+  assert.equal(localVariantFor(variant, new Map(), folder), folder);
 });
 
 test('exact repository IDs retain GGUF and quantization names', () => {
