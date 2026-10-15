@@ -236,12 +236,14 @@ pub fn plan(request: &Value) -> Result<Plan, GatewayError> {
     if let Some(neg) = text(request, "negative_prompt")? {
         obj.insert("negative_prompt".into(), json!(neg));
     }
-    if let Some(seed) = request.get("seed").filter(|s| !s.is_null()) {
-        let seed = seed
+    // Absent = random (-1), not sd-server's fixed 42 (see `images::plan`).
+    let seed = match request.get("seed").filter(|s| !s.is_null()) {
+        Some(seed) => seed
             .as_i64()
-            .ok_or_else(|| bad("seed must be a whole number (-1 = random).").param("seed"))?;
-        obj.insert("seed".into(), json!(seed));
-    }
+            .ok_or_else(|| bad("seed must be a whole number (-1 = random).").param("seed"))?,
+        None => -1,
+    };
+    obj.insert("seed".into(), json!(seed));
     for key in ["image", "input_reference"] {
         if let Some(image) = text(request, key)? {
             obj.insert("init_image".into(), json!(image));
@@ -890,6 +892,11 @@ mod tests {
             (DEFAULT_FRAMES, DEFAULT_FPS, None)
         );
         assert!(p.body.get("width").is_none() && p.body.get("sample_params").is_none());
+        assert_eq!(
+            p.body["seed"],
+            json!(-1),
+            "no seed = random, not sd-server's 42"
+        );
         // `frames` wins over `seconds`; a start frame from either field.
         let p = plan(&json!({"prompt": "x", "frames": 10, "seconds": 4, "fps": 8,
                              "input_reference": "AAAA", "output_format": "webp"}))
