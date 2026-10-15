@@ -133,9 +133,41 @@ apart from an LM Studio control run.
   - Interface languages other than Turkish and English
   - Ollama `push` (by design: Harness has no model registry)
 
+## NVIDIA CUDA, 4 GB laptop card (2026-10-15)
+
+A second run on an NVIDIA RTX 3050 Ti Laptop (4 GB, CUDA 12), Intel Core i7-12700H, 16 GB RAM. It compares Harness Studio (headless,
+main 623e87c) with the same `llama-server` build it manages (b11574, CUDA) started directly, on the same files. Every difference is
+therefore a product choice, not an engine difference. Ollama and LM Studio were not part of this run. A 14B model does not fit 4 GB,
+so the second model is Qwen3-0.6B Q8_0. Full tables: [benchmarks/2026-10-15-nvidia/summary.md](../benchmarks/2026-10-15-nvidia/summary.md).
+
+| Test | Harness Studio | llama.cpp (same build, direct) |
+|---|---|---|
+| 4B decode, out of box (tok/s; card ceiling from llama-bench 56.7–60.8) | **55.3** | 29.9 |
+| 4B prompt processing, 4k tokens (tok/s) | **1963** | 1573 |
+| 0.6B decode, out of box (tok/s) | 157.7 | **187.7** |
+| 0.6B prompt processing, 4k tokens (tok/s) | 3967 | **9168** |
+| 4B, equal settings (32k f16 KV needs ~7.2 GB, 4.1 GB free) | refused with an explanation | loaded, spilled: 42.5 tok/s, prompt processing 341 tok/s, cold agent turn 53 s |
+| 0.6B, equal settings (tok/s decode / prompt processing) | **186.6 / 8971** (context lowered to 16k to stay in VRAM) | 155.9 / 1443 (32k, spilled) |
+| Tool calling, 4B (38 cases) | **38/38** | **38/38** |
+| Tool calling, 0.6B, out of box / equal | **36/38** / 32/38 | 34/38 / **35/38** |
+| Agent test, out of box: cold / turn 2 / turn 3 TTFT (s) | **7.0 / 0.36 / 0.13** | context error (4k context) |
+| 4 concurrent requests, 4B out of box (tok/s total) | 56.4 (1 slot) | **75.3** (4 slots, 4k context) |
+| 0.6B at 65k context, decode (tok/s) | **123.5** | 59.3 |
+| Switch 4B → 0.6B through one endpoint (s) | **2.0** | not supported (restart 7.6) |
+
+- **Out of box on a small card,** Harness puts the whole 4B model on the GPU and reaches the card's ceiling with no tuning. Plain
+  `llama-server` with its defaults decodes at about half that speed.
+- **Where plain llama.cpp leads:**
+  - **Small models out of box:** on the 0.6B, Harness's defaults (32k context, q8_0 KV, 4 slots) decode 16% slower and process prompts
+    at less than half the speed of `llama-server`'s defaults.
+  - **Concurrency on the 4B out of box:** Harness opens one slot with a 12k context on a 4 GB card, so four parallel requests queue
+    (median TTFT 6.9 s). `llama-server` opens four 1k slots and answers all four at once, at the cost of a 4k total context.
+- **Tool calling on the 0.6B** varies by a few cases between runs and profiles; one run per case cannot separate those differences
+  from noise.
+
 ## Limits of this comparison
 
-- One machine and one GPU vendor: AMD with Vulkan on Windows. NVIDIA/CUDA, Linux, and macOS were not part of this run.
+- The main run used one machine and one GPU vendor: AMD with Vulkan on Windows. The NVIDIA/CUDA section above is a smaller run without LM Studio and Ollama. Linux and macOS were not measured.
 - Competitor rows come from the first run. A repeated LM Studio control measurement matched the first run on the 4B (142.7 vs 142.0
   tok/s) but was about 20% faster on the 14B (50.7 vs 42.0). Run-to-run variance on the 14B is about 20%; treat smaller 14B differences as noise.
 - Two models from one family each. Other architectures, vision models, and MoE models were not tested.
