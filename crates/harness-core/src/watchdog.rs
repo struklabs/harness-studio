@@ -59,21 +59,26 @@ unsafe fn register_exit(kq: libc::c_int, pid: libc::pid_t) -> bool {
     libc::kevent(kq, &change, 1, std::ptr::null_mut(), 0, std::ptr::null()) == 0
 }
 
-/// Signals the server's whole process group when it leads one (it does: `command_group` starts
-/// it with `setpgid(0, 0)`), and the server itself in any case.
+/// Signals the server's whole process group when it leads one, and the server itself in any
+/// case.
 #[cfg(target_os = "macos")]
-unsafe fn signal_server(server: libc::pid_t, sig: libc::c_int) {
-    if libc::getpgid(server) == server {
+unsafe fn signal_server(server: libc::pid_t, group: bool, sig: libc::c_int) {
+    if group {
         libc::kill(-server, sig);
     }
     libc::kill(server, sig);
 }
 
+/// SIGTERM, then SIGKILL after 2 s. Whether the server leads its group (it does:
+/// `command_group` starts it with `setpgid(0, 0)`) is decided once, before SIGTERM: a leader
+/// that exits on SIGTERM can no longer be asked (ESRCH), yet a child that ignored it still
+/// needs the group's SIGKILL. The group id cannot be reused while the group has members.
 #[cfg(target_os = "macos")]
 unsafe fn stop_server(server: libc::pid_t) -> ! {
-    signal_server(server, libc::SIGTERM);
+    let group = libc::getpgid(server) == server;
+    signal_server(server, group, libc::SIGTERM);
     libc::sleep(2);
-    signal_server(server, libc::SIGKILL);
+    signal_server(server, group, libc::SIGKILL);
     libc::_exit(0)
 }
 
@@ -130,13 +135,18 @@ mod tests {
     fn the_watchdog_ends_the_servers_group_when_the_parent_dies() {
         // A stand-in for Harness Studio that we can end.
         let mut parent = Command::new("sleep").arg("60").spawn().unwrap();
-        // A "server" that starts a child of its own and writes its pid, as a group leader.
+        // A "server" that starts a child of its own and writes its pid, as a group leader. The
+        // server ends on SIGTERM; its child ignores SIGTERM, so only the group's SIGKILL, sent
+        // after the leader is gone, ends it.
         let dir = tempfile::tempdir().unwrap();
         let pidfile = dir.path().join("child.pid");
         let mut cmd = Command::new("sh");
         cmd.args([
             "-c",
-            &format!("sleep 300 & echo $! > '{}'; wait", pidfile.display()),
+            &format!(
+                "(trap '' TERM; exec sleep 300) & echo $! > '{}'; wait",
+                pidfile.display()
+            ),
         ])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -157,13 +167,26 @@ mod tests {
             assert!(t.elapsed() < Duration::from_secs(5), "no child pid");
             std::thread::sleep(Duration::from_millis(20));
         };
-        // The watchdog is a process of its own group (setsid), outside the server's.
         // SAFETY: plain queries.
         let child_group = unsafe { libc::getpgid(child_pid) };
         assert_eq!(
             child_group, server_pid,
             "the child is in the server's group"
         );
+        // The watchdog is a process of its own group (setsid), outside the server's: the group
+        // holds the server and its child only.
+        let members = Command::new("pgrep")
+            .args(["-g", &server_pid.to_string()])
+            .output()
+            .unwrap();
+        let mut members: Vec<i32> = String::from_utf8_lossy(&members.stdout)
+            .split_whitespace()
+            .filter_map(|p| p.parse().ok())
+            .collect();
+        members.sort();
+        let mut expected = vec![server_pid, child_pid];
+        expected.sort();
+        assert_eq!(members, expected, "the watchdog is in the server's group");
 
         parent.kill().unwrap();
         parent.wait().unwrap();
