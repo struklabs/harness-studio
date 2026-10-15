@@ -136,7 +136,7 @@ try {
       writeFileSync(pySpec, JSON.stringify(pythonSpec(JSON.parse(specText)), null, 2));
       // A warning means a schema or an endpoint was left out of the client: fail instead.
       run(cmd, [...prefix, PYTHON_GENERATOR, 'generate', '--fail-on-warning', '--path', pySpec, '--meta', 'none', '--output-path', out, '--config', join(sdk, 'python', 'generator.yaml')]);
-      run(cmd, [...prefix, RUFF, 'check', '--fix-only', '--quiet', '--select', 'I,F401,UP', '--target-version', 'py310', out]);
+      run(cmd, [...prefix, RUFF, 'check', '--fix-only', '--quiet', '--select', 'I,F401,UP', '--target-version', 'py311', out]);
       run(cmd, [...prefix, RUFF, 'format', '--quiet', '--line-length', '100', out]);
       writeFileSync(join(out, 'py.typed'), ''); // PEP 561: the package ships its types
       const target = join(sdk, 'python', 'src', 'harness_studio_api');
