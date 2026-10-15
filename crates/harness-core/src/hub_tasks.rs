@@ -323,12 +323,17 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
     {
         pipeline_tag = Some("text-to-image".to_string());
     }
-    // An audio-to-audio GGUF with a projector (LFM2.5-Audio) is a chat model that hears:
-    // llama-server takes its audio in (chat, transcription); its audio out is not served.
-    if pipeline_tag.as_deref() == Some("audio-to-audio")
-        && gguf_file_names(&files)
-            .iter()
-            .any(|f| f.starts_with("mmproj"))
+    // An audio-to-audio or speech recognition GGUF with a projector (LFM2.5-Audio, Audar-ASR and
+    // Qwen3-ASR quantizations) is a chat model that hears: llama-server takes its audio in (chat,
+    // transcription); an audio out is not served. The projector is found like `has_projector`
+    // (`mmproj-<name>.gguf` and `<name>.mmproj-Q8_0.gguf` alike); in a repo of these tasks it is
+    // the audio encoder, as no speech model ships a vision one. A projector that is not a GGUF
+    // (`.mmproj`, GLM-ASR-Nano) is not a download variant, so that repo keeps its task. Speech
+    // recognition GGUFs of other engines (CrispASR, transcribe.cpp) have no projector.
+    if matches!(
+        pipeline_tag.as_deref(),
+        Some("audio-to-audio" | "automatic-speech-recognition")
+    ) && gguf_file_names(&files).iter().any(|f| f.contains("mmproj"))
     {
         pipeline_tag = Some("audio-text-to-text".to_string());
     }
@@ -1289,6 +1294,69 @@ mod tests {
         assert_eq!(
             analyze_repo(&bare).pipeline_tag.as_deref(),
             Some("audio-to-audio")
+        );
+    }
+
+    #[test]
+    fn a_speech_recognition_gguf_with_a_projector_runs_on_llama_cpp() {
+        // audarai/Audar-ASR-V1-Turbo (2026-10-16): `automatic-speech-recognition`, model GGUFs
+        // and an mmproj. Before, a GGUF of that task was "no Harness engine".
+        let item = serde_json::json!({
+            "id": "audarai/Audar-ASR-V1-Turbo",
+            "pipeline_tag": "automatic-speech-recognition",
+            "library_name": "transformers",
+            "gguf": {"architecture": "qwen3vl"},
+            "siblings": [
+                {"rfilename": "Audar-ASR-V1-Turbo-Q4_K_M.gguf"},
+                {"rfilename": "mmproj-Audar-ASR-V1-Turbo.gguf"}
+            ]
+        });
+        let a = analyze_repo(&item);
+        assert_eq!(a.pipeline_tag.as_deref(), Some("audio-text-to-text"));
+        assert_eq!(a.not_runnable, None);
+        assert_eq!(
+            crate::hub_compat::hub_compatibility(
+                crate::hub_compat::ModelFormat::Gguf,
+                a.pipeline_tag.as_deref()
+            ),
+            crate::hub_compat::ModelFormat::Gguf.compatibility()
+        );
+        // mradermacher/Qwen3-ASR-1.7B-GGUF: the projector's name ends in `.mmproj-<quant>.gguf`.
+        let suffixed = serde_json::json!({
+            "id": "mradermacher/Qwen3-ASR-1.7B-GGUF",
+            "pipeline_tag": "automatic-speech-recognition",
+            "siblings": [
+                {"rfilename": "Qwen3-ASR-1.7B.Q4_K_M.gguf"},
+                {"rfilename": "Qwen3-ASR-1.7B.mmproj-Q8_0.gguf"}
+            ]
+        });
+        assert_eq!(
+            analyze_repo(&suffixed).pipeline_tag.as_deref(),
+            Some("audio-text-to-text")
+        );
+        // Mungert/GLM-ASR-Nano-2512-GGUF: the projector is a `.mmproj` file, which is not a
+        // download variant; the repo keeps its task.
+        let bare_projector = serde_json::json!({
+            "id": "Mungert/GLM-ASR-Nano-2512-GGUF",
+            "pipeline_tag": "automatic-speech-recognition",
+            "siblings": [
+                {"rfilename": "GLM-ASR-Nano-2512-q4_k_m.gguf"},
+                {"rfilename": "GLM-ASR-Nano-2512-f16.mmproj"}
+            ]
+        });
+        assert_eq!(
+            analyze_repo(&bare_projector).pipeline_tag.as_deref(),
+            Some("automatic-speech-recognition")
+        );
+        // A CrispASR / transcribe.cpp export (no projector) keeps its task.
+        let crisp = serde_json::json!({
+            "id": "cstr/qwen3-asr-0.6b-GGUF",
+            "pipeline_tag": "automatic-speech-recognition",
+            "siblings": [{"rfilename": "qwen3-asr-0.6b-q4_k.gguf"}]
+        });
+        assert_eq!(
+            analyze_repo(&crisp).pipeline_tag.as_deref(),
+            Some("automatic-speech-recognition")
         );
     }
 
