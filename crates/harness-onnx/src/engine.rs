@@ -334,6 +334,11 @@ pub(crate) fn build_session(
         if let Some(n) = threads {
             builder = builder.with_intra_threads(n).map_err(|e| e.to_string())?;
         }
+        if let Some(path) = std::env::var_os("HARNESS_ONNX_PROFILE") {
+            builder = builder
+                .with_profiling(Path::new(&path))
+                .map_err(|e| e.to_string())?;
+        }
         // DirectML needs sequential execution and no memory pattern (ORT's own requirement).
         let name = register_provider(&mut builder, choice, skip_dml);
         if name == "DirectML" {
@@ -366,9 +371,46 @@ pub(crate) fn build_session(
     }
 }
 
+pub(crate) fn finish_profile(session: &SessionLock) {
+    if std::env::var_os("HARNESS_ONNX_PROFILE").is_some() {
+        if let Ok(mut session) = session.lock() {
+            match session.end_profiling() {
+                Ok(path) => println!("harness-onnx: warm-up profile: {path}"),
+                Err(e) => eprintln!("harness-onnx: cannot finish warm-up profile: {e}"),
+            }
+        }
+    }
+}
+
+pub(crate) fn finite_output(name: &str, data: &[f32]) -> Result<(), ApiError> {
+    if data.iter().all(|v| v.is_finite()) {
+        Ok(())
+    } else {
+        Err(ApiError::server(format!(
+            "output {name} contains non-finite values"
+        )))
+    }
+}
+
 /// Loads the model: package files, tokenizer, ONNX session. Runs one warm-up inference so a
-/// graph that loads but cannot run fails here, not on the first request.
+/// graph that loads but cannot run fails here, not on the first request. A GPU provider whose
+/// warm-up fails or yields non-finite values falls back to the CPU.
 pub fn load(opts: &LoadOptions) -> Result<Engine, String> {
+    match load_once(opts) {
+        Err(e)
+            if opts.provider != Provider::Cpu
+                && (e.contains("non-finite values") || e.starts_with("inference failed:")) =>
+        {
+            eprintln!("harness-onnx: warm-up failed: {e} (falling back to the CPU)");
+            let mut cpu = opts.clone();
+            cpu.provider = Provider::Cpu;
+            load_once(&cpu)
+        }
+        result => result,
+    }
+}
+
+fn load_once(opts: &LoadOptions) -> Result<Engine, String> {
     if opts.task == Some(Task::AsrCtc) {
         return Err("CTC models use asr_ctc::load".into());
     }
@@ -396,8 +438,7 @@ pub fn load(opts: &LoadOptions) -> Result<Engine, String> {
         ));
     }
 
-    let mut tokenizer = Tokenizer::from_file(&package.tokenizer_path)
-        .map_err(|e| format!("cannot read {}: {}", package.tokenizer_path.display(), e))?;
+    let mut tokenizer = crate::text_tokenizer::load(&package.tokenizer_path)?;
     let pad_id = tokenizer
         .get_padding()
         .map(|p| p.pad_id)
@@ -478,6 +519,7 @@ pub fn load(opts: &LoadOptions) -> Result<Engine, String> {
                 .map_err(|e| e.message)?;
         }
     }
+    finish_profile(&engine.session);
     Ok(engine)
 }
 
@@ -525,6 +567,21 @@ fn encoded_of(e: &tokenizers::Encoding) -> Encoded {
         words: e.get_word_ids().to_vec(),
         sequence: e.get_sequence_ids(),
     }
+}
+
+/// A byte-level post-processor trims the offsets of a context that was already trimmed when
+/// it was encoded alone (the leading space of a word token is dropped twice, so "London"
+/// answers as "ondon"): the context tokens take the offsets of their stand-alone encoding back.
+fn restore_context_offsets(mut e: Encoded, own: &[(usize, usize)]) -> Encoded {
+    let slots: Vec<usize> = (0..e.ids.len())
+        .filter(|&t| e.sequence[t] == Some(1))
+        .collect();
+    if slots.len() == own.len() {
+        for (slot, offsets) in slots.into_iter().zip(own) {
+            e.offsets[slot] = *offsets;
+        }
+    }
+    e
 }
 
 impl Engine {
@@ -769,9 +826,10 @@ impl Engine {
         std::iter::once(c)
             .chain(rest)
             .map(|chunk| {
+                let own = chunk.get_offsets().to_vec();
                 tokenizer
                     .post_process(q.clone(), Some(chunk), true)
-                    .map(|e| encoded_of(&e))
+                    .map(|e| restore_context_offsets(encoded_of(&e), &own))
                     .map_err(err)
             })
             .collect()
@@ -932,6 +990,7 @@ impl Engine {
                     (s.to_vec(), d.to_vec())
                 }
             });
+            finite_output(&name, &out.last().expect("output just added").1)?;
         }
         Ok(out)
     }
@@ -1049,6 +1108,31 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn non_finite_outputs_are_errors_before_postprocessing() {
+        assert!(finite_output("logits", &[0.0, -1.0, f32::MAX]).is_ok());
+        for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let error = finite_output("pred_boxes", &[0.5, value]).unwrap_err();
+            assert!(error.message.contains("pred_boxes"));
+            assert!(error.message.contains("non-finite"));
+        }
+    }
+
+    #[test]
+    fn context_offsets_come_from_the_stand_alone_encoding() {
+        let e = Encoded {
+            ids: vec![0, 1, 2, 3],
+            type_ids: vec![0; 4],
+            offsets: vec![(0, 0), (0, 5), (39, 44), (0, 0)],
+            special: vec![true, false, false, true],
+            words: vec![None; 4],
+            sequence: vec![None, Some(0), Some(1), None],
+        };
+        let fixed = restore_context_offsets(e, &[(38, 44)]);
+        assert_eq!(fixed.offsets[2], (38, 44));
+        assert_eq!(fixed.offsets[1], (0, 5));
+    }
 
     #[test]
     fn provider_names() {

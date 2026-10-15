@@ -127,7 +127,7 @@ impl Pooling {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ModelPackage {
     pub onnx_path: PathBuf,
-    /// tokenizer.json for text models; vocab.json for CTC packages.
+    /// tokenizer.json or BERT vocab.txt for text models; vocab.json for CTC packages.
     pub tokenizer_path: PathBuf,
     /// Text tokenizer (or CTC vocabulary) and configuration folder.
     pub root: PathBuf,
@@ -191,7 +191,7 @@ impl std::fmt::Display for PackageError {
             PackageError::NotOnnx(p) => write!(f, "{} is not an .onnx file", p.display()),
             PackageError::MissingTokenizer(p) => write!(
                 f,
-                "no tokenizer.json next to {} (or in its parent folder): download the repo's tokenizer files too",
+                "no tokenizer.json or supported BERT vocab.txt next to {} (or in its parent folder): download the repo's tokenizer files too",
                 p.display()
             ),
             PackageError::TextGenerator(p) => write!(
@@ -224,11 +224,18 @@ fn search_dirs(onnx: &Path) -> Vec<PathBuf> {
     dirs
 }
 
-/// The folder that holds `tokenizer.json` for a model file, `None` when there is none.
+/// A complete tokenizer, or a legacy BERT WordPiece vocabulary with its config.
 pub fn find_root(onnx: &Path) -> Option<PathBuf> {
-    search_dirs(onnx)
-        .into_iter()
-        .find(|d| d.join("tokenizer.json").is_file())
+    search_dirs(onnx).into_iter().find(|d| {
+        d.join("tokenizer.json").is_file()
+            || (d.join("vocab.txt").is_file()
+                && read_json(&d.join("config.json")).is_some_and(|c| {
+                    matches!(
+                        c.get("model_type").and_then(Value::as_str),
+                        Some("bert" | "distilbert" | "electra")
+                    )
+                }))
+    })
 }
 
 /// Subfolders that hold a repo's graphs but are not its name.
@@ -379,6 +386,12 @@ pub fn task_from_config(config: &Value) -> Task {
         Task::QuestionAnswering
     } else if has("ForMaskedLM") {
         Task::FillMask
+    } else if heads.contains(&"AutoModel")
+        && labels_from_config(config).first().is_some_and(|l| l == "O")
+        && labels_from_config(config).len() > 1
+    {
+        // Some NER exports lose the head name but retain their outside/entity label map.
+        Task::TokenClassify
     } else {
         Task::Embedding
     }
@@ -483,6 +496,7 @@ impl ModelPackage {
             Some(
                 crate::vision_pkg::VisionTask::ZeroShot
                     | crate::vision_pkg::VisionTask::ZeroShotDetect
+                    | crate::vision_pkg::VisionTask::PromptSegment
                     | crate::vision_pkg::VisionTask::Caption
             )
         ) {
@@ -582,7 +596,11 @@ impl ModelPackage {
             .unwrap_or_else(|| "onnx-model".to_string());
         Ok(ModelPackage {
             onnx_path: onnx_path.to_path_buf(),
-            tokenizer_path: root.join("tokenizer.json"),
+            tokenizer_path: if root.join("tokenizer.json").is_file() {
+                root.join("tokenizer.json")
+            } else {
+                root.join("vocab.txt")
+            },
             root,
             task,
             pooling,
@@ -662,6 +680,52 @@ pub fn graph_uses_any_op<'a>(onnx_path: &Path, ops: &[&'a str]) -> Option<&'a st
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generic_auto_model_with_outside_and_entity_labels_is_ner() {
+        assert_eq!(
+            task_from_config(&json!({
+                "architectures": ["AutoModel"],
+                "model_type": "bert",
+                "id2label": {"0": "O", "1": "PATIENT", "2": "PHONE"}
+            })),
+            Task::TokenClassify
+        );
+        for labels in [json!({"0": "LABEL_0", "1": "LABEL_1"}), json!({"0": "O"})] {
+            assert_eq!(
+                task_from_config(&json!({"architectures": ["AutoModel"], "id2label": labels})),
+                Task::Embedding
+            );
+        }
+        assert_eq!(
+            task_from_config(
+                &json!({"architectures": ["BertModel"], "id2label": {"0": "O", "1": "PATIENT"}})
+            ),
+            Task::Embedding
+        );
+    }
+
+    #[test]
+    fn legacy_wordpiece_packages_require_a_bert_config_and_prefer_tokenizer_json() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::write(root.join("vocab.txt"), "[UNK]\n[CLS]\n[SEP]\n").unwrap();
+        let graph = root.join("model.onnx");
+        assert!(find_root(&graph).is_none());
+        std::fs::write(
+            root.join("config.json"),
+            r#"{"model_type":"bert","architectures":["BertForTokenClassification"]}"#,
+        )
+        .unwrap();
+        let package = ModelPackage::discover(&graph).unwrap();
+        assert_eq!(package.task, Task::TokenClassify);
+        assert_eq!(package.tokenizer_path, root.join("vocab.txt"));
+        std::fs::write(root.join("tokenizer.json"), "{}").unwrap();
+        assert_eq!(
+            ModelPackage::discover(&graph).unwrap().tokenizer_path,
+            root.join("tokenizer.json")
+        );
+    }
 
     #[test]
     fn owl_detectors_are_not_text_encoders() {

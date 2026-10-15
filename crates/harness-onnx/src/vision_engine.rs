@@ -2,7 +2,7 @@
 //! `pixel_values` in (`pixel_mask` too when the graph asks for it), the head's outputs out.
 
 use crate::api::ApiError;
-use crate::engine::{build_session, LoadOptions};
+use crate::engine::{build_session, finish_profile, finite_output, LoadOptions, Provider};
 use crate::vision::{self, VisionJob};
 use crate::vision_pkg::{VisionPackage, VisionTask};
 use ort::session::Session;
@@ -56,6 +56,8 @@ pub struct VisionEngine {
 fn pick_outputs(names: &[&str], task: VisionTask) -> Result<Vec<String>, String> {
     let want: &[&str] = match task {
         VisionTask::Classify | VisionTask::Segment => &["logits"],
+        VisionTask::Foreground => &["output_image"],
+        VisionTask::PromptSegment => &["logits"],
         VisionTask::Detect => &["logits", "pred_boxes"],
         VisionTask::Depth => &["predicted_depth"],
         VisionTask::ZeroShot => &["logits_per_image"],
@@ -127,7 +129,9 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
     for input in session.inputs() {
         let name = input.name().to_string();
         match name.as_str() {
-            "pixel_values" => {
+            "pixel_values" | "input_image"
+                if name == "pixel_values" || package.task == VisionTask::Foreground =>
+            {
                 pixel = Some((
                     name,
                     input.dtype().tensor_type() == Some(TensorElementType::Float16),
@@ -214,7 +218,22 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
         max_new_tokens: Some(2),
         ..VisionJob::default()
     };
-    engine.infer(&warm, &job).map_err(|e| e.message)?;
+    if let Err(e) = engine.infer(&warm, &job) {
+        finish_profile(&engine.session);
+        if engine.provider != "CPU" {
+            eprintln!(
+                "harness-onnx: {} warm-up failed: {} (falling back to the CPU)",
+                engine.provider, e.message
+            );
+            let mut cpu = opts.clone();
+            cpu.provider = Provider::Cpu;
+            let package = engine.package.clone();
+            drop(engine);
+            return load(&cpu, package);
+        }
+        return Err(e.message);
+    }
+    finish_profile(&engine.session);
     Ok(engine)
 }
 
@@ -228,7 +247,17 @@ impl VisionEngine {
         text: Option<TextBatch>,
     ) -> Result<Vec<Output>, ApiError> {
         let err = |e: ort::Error| ApiError::server(format!("tensor: {}", e));
-        let shape = [1usize, 3, h as usize, w as usize];
+        let rows = if self.package.task == VisionTask::PromptSegment {
+            text.as_ref().map_or(1, |t| t.2)
+        } else {
+            1
+        };
+        let pixels = if rows > 1 {
+            pixels.repeat(rows)
+        } else {
+            pixels
+        };
+        let shape = [rows, 3, h as usize, w as usize];
         let input: ort::value::DynTensor = if self.pixel_f16 {
             let half: Vec<half::f16> = pixels.into_iter().map(half::f16::from_f32).collect();
             Tensor::from_array((shape, half)).map_err(err)?.upcast()
@@ -286,6 +315,7 @@ impl VisionEngine {
                     (s.to_vec(), d.to_vec())
                 }
             });
+            finite_output(name, &out.last().expect("output just added").1)?;
         }
         Ok(out)
     }
@@ -324,7 +354,14 @@ impl VisionEngine {
                 let (shape, logits) = &outputs[0];
                 let (_, boxes) = &outputs[1];
                 let k = *shape.last().ok_or_else(|| bad("logits", shape))? as usize;
-                let found = vision::detect(logits, boxes, k, labels, job.threshold, width, height);
+                let mut found = if self.package.focal_detection {
+                    vision::detect_focal(logits, boxes, k, labels, job.threshold, (width, height))
+                } else {
+                    vision::detect(logits, boxes, k, labels, job.threshold, width, height)
+                };
+                if let Some(k) = job.top_k {
+                    found.truncate(k);
+                }
                 Ok(vision::detections_response(&found))
             }
             VisionTask::Segment => {
@@ -341,6 +378,22 @@ impl VisionEngine {
                     height,
                 );
                 vision::segment_response(&classes, labels, width, height)
+            }
+            VisionTask::Foreground | VisionTask::PromptSegment => {
+                let (shape, data) = &outputs[0];
+                let (maps, hh, ww) = match shape.as_slice() {
+                    [n, 1, hh, ww] | [n, hh, ww] => (*n as usize, *hh as usize, *ww as usize),
+                    _ => return Err(bad("mask logits", shape)),
+                };
+                let names = if self.package.task == VisionTask::Foreground {
+                    vec!["foreground".to_string()]
+                } else {
+                    job.candidate_labels.clone()
+                };
+                if maps != names.len() || data.len() != maps * hh * ww {
+                    return Err(bad("mask logits", shape));
+                }
+                vision::binary_masks_response(data, hh, ww, &names, width, height, job.threshold)
             }
             VisionTask::Depth => {
                 let (shape, data) = &outputs[0];
@@ -436,7 +489,7 @@ impl VisionEngine {
         }
         // A detector's queries are the labels themselves (the pipeline puts no sentence around).
         let template = match self.package.task {
-            VisionTask::ZeroShotDetect => "{}",
+            VisionTask::ZeroShotDetect | VisionTask::PromptSegment => "{}",
             _ => job
                 .hypothesis_template
                 .as_deref()

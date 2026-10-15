@@ -209,6 +209,10 @@ async fn hf(State(s): State<Arc<Shared>>, body: axum::body::Bytes) -> Result<Jso
     let job = hf_api::parse(engine.package.task, &request).map_err(Failure)?;
     let answer = blocking(move || {
         Ok(match job {
+            HfJob::Features { texts, single } => {
+                let (vectors, _) = engine.embed(&texts, None)?;
+                hf_api::features_response(&vectors, single)
+            }
             HfJob::Classify {
                 texts,
                 pairs,

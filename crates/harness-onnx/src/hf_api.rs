@@ -20,6 +20,10 @@ pub const MAX_CANDIDATES: usize = 64;
 /// What one request asks of the model.
 #[derive(Debug, Clone, PartialEq)]
 pub enum HfJob {
+    Features {
+        texts: Vec<String>,
+        single: bool,
+    },
     /// Texts, optional pair texts, `top_k` (`None`: every label).
     Classify {
         texts: Vec<String>,
@@ -210,9 +214,10 @@ pub fn parse(task: Task, body: &Value) -> Result<HfJob, ApiError> {
                 top_k: usize_param(&params, "top_k")?.unwrap_or(1),
             })
         }
-        Task::Embedding => Err(ApiError::unavailable(
-            "this model is an embedding model: use /v1/embeddings",
-        )),
+        Task::Embedding => {
+            let (texts, single) = texts_of(inputs)?;
+            Ok(HfJob::Features { texts, single })
+        }
         Task::AsrCtc => Err(ApiError::unavailable(
             "this model is a speech recognition model: use /v1/audio/transcriptions",
         )),
@@ -225,6 +230,15 @@ pub fn label_scores(list: &[LabelScore]) -> Value {
             .map(|l| json!({"label": l.label, "score": l.score}))
             .collect(),
     )
+}
+
+/// Sentence embeddings without the OpenAI response envelope.
+pub fn features_response(vectors: &[Vec<f32>], single: bool) -> Value {
+    if single {
+        vectors.first().map_or(Value::Null, |v| json!(v))
+    } else {
+        json!(vectors)
+    }
 }
 
 /// `text-classification`: one list per text (the Inference API answers a single string with
@@ -428,11 +442,33 @@ mod tests {
         ));
         assert!(parse(Task::QuestionAnswering, &json!({"inputs": "q"})).is_err());
         assert_eq!(
-            parse(Task::Embedding, &json!({"inputs": "x"}))
-                .unwrap_err()
-                .status,
-            501
+            parse(Task::Embedding, &json!({"inputs": "x"})).unwrap(),
+            HfJob::Features {
+                texts: vec!["x".into()],
+                single: true,
+            }
         );
+    }
+
+    #[test]
+    fn sentence_features_preserve_single_and_batch_shapes() {
+        assert_eq!(
+            parse(Task::Embedding, &json!({"inputs": ["one", "two"]})).unwrap(),
+            HfJob::Features {
+                texts: vec!["one".into(), "two".into()],
+                single: false,
+            }
+        );
+        let vectors = vec![vec![0.6, 0.8], vec![0.0, 1.0]];
+        assert_eq!(features_response(&vectors, true), json!(vectors[0]));
+        assert_eq!(features_response(&vectors, false), json!(vectors));
+        for inputs in [
+            json!([]),
+            json!(["one", 2]),
+            json!("data:image/png;base64,AQID"),
+        ] {
+            assert!(parse(Task::Embedding, &json!({"inputs": inputs})).is_err());
+        }
     }
 
     #[test]

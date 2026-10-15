@@ -368,6 +368,45 @@ pub fn detect(
     out
 }
 
+/// RT-DETR: sigmoid over every query/class pair, keeping at most the number of queries.
+pub fn detect_focal(
+    logits: &[f32],
+    boxes: &[f32],
+    classes: usize,
+    labels: &[String],
+    threshold: Option<f32>,
+    size: (u32, u32),
+) -> Vec<Detection> {
+    if classes == 0 {
+        return Vec::new();
+    }
+    let threshold = threshold.unwrap_or(0.5);
+    let (w, h) = (size.0 as f32, size.1 as f32);
+    let mut out = Vec::new();
+    for (index, logit) in logits.iter().enumerate() {
+        let score = sigmoid(*logit);
+        if !score.is_finite() || score < threshold {
+            continue;
+        }
+        let q = index / classes;
+        let Some(b) = boxes.get(q * 4..q * 4 + 4) else {
+            continue;
+        };
+        let px = |v: f32, size: f32| (v * size).round().clamp(0.0, size) as i64;
+        out.push(Detection {
+            score,
+            label: label(labels, index % classes),
+            xmin: px(b[0] - b[2] / 2.0, w),
+            ymin: px(b[1] - b[3] / 2.0, h),
+            xmax: px(b[0] + b[2] / 2.0, w),
+            ymax: px(b[1] + b[3] / 2.0, h),
+        });
+    }
+    out.sort_by(|a, b| b.score.total_cmp(&a.score));
+    out.truncate(logits.len() / classes);
+    out
+}
+
 /// `zero-shot-object-detection` of an OWL-ViT head: `logits` `[patches, queries]` and `boxes`
 /// `[patches, 4]` as normalized `(cx, cy, w, h)` of a `width` × `height` frame. Each patch
 /// keeps its best query; patches scoring at least `threshold` (0.1 by default) after a sigmoid,
@@ -498,6 +537,47 @@ pub fn segment_response(
     Ok(Value::Array(out))
 }
 
+/// Independent foreground masks: sigmoid before bilinear resizing, without an argmax
+/// across prompts. Without a threshold the PNG retains the foreground probability.
+pub fn binary_masks_response(
+    logits: &[f32],
+    h: usize,
+    w: usize,
+    labels: &[String],
+    width: u32,
+    height: u32,
+    threshold: Option<f32>,
+) -> Result<Value, ApiError> {
+    if h == 0 || w == 0 || logits.len() != labels.len() * h * w {
+        return Err(ApiError::server("unexpected binary mask shape"));
+    }
+    let mut out = Vec::with_capacity(labels.len());
+    for (plane, label) in logits.chunks_exact(h * w).zip(labels) {
+        let probabilities: Vec<f32> = plane.iter().map(|v| sigmoid(*v)).collect();
+        let mask = GrayImage::from_fn(width, height, |x, y| {
+            let value = sample(
+                &probabilities,
+                w,
+                h,
+                (x as f32 + 0.5) * w as f32 / width as f32,
+                (y as f32 + 0.5) * h as f32 / height as f32,
+            );
+            image::Luma([match threshold {
+                Some(t) => {
+                    if value >= t {
+                        255
+                    } else {
+                        0
+                    }
+                }
+                None => (value * 255.0).round().clamp(0.0, 255.0) as u8,
+            }])
+        });
+        out.push(json!({"score": null, "label": label, "mask": png_base64(&mask)?}));
+    }
+    Ok(Value::Array(out))
+}
+
 /// `depth-estimation`: `depth` `[h, w]` resized (bilinear) to the image, scaled to 0..255 by
 /// its maximum as the pipeline does, as a base64 PNG; with the raw range.
 pub fn depth_response(
@@ -562,6 +642,53 @@ pub fn task_name(t: VisionTask) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn focal_detection_keeps_the_last_class_and_independent_query_labels() {
+        let labels = vec!["cat".into(), "dog".into()];
+        let boxes = [0.5, 0.5, 0.5, 0.5, 0.1, 0.1, 0.1, 0.1];
+        let detections = super::detect_focal(
+            &[2.0, 3.0, -4.0, -5.0],
+            &boxes,
+            2,
+            &labels,
+            Some(0.5),
+            (100, 80),
+        );
+        assert_eq!(detections.len(), 2);
+        assert_eq!(detections[0].label, "dog");
+        assert_eq!(detections[1].label, "cat");
+        assert!((detections[0].score - super::sigmoid(3.0)).abs() < 1e-6);
+        assert_eq!(
+            (
+                detections[0].xmin,
+                detections[0].ymin,
+                detections[0].xmax,
+                detections[0].ymax
+            ),
+            (25, 20, 75, 60)
+        );
+        assert!(super::detect_focal(&[f32::NAN], &boxes, 1, &labels, None, (100, 80)).is_empty());
+    }
+    #[test]
+    fn binary_masks_are_independent_and_keep_the_image_size() {
+        let labels = vec!["cat".into(), "sofa".into()];
+        let logits = [-8.0, 8.0, 8.0, 8.0];
+        let response =
+            super::binary_masks_response(&logits, 1, 2, &labels, 4, 2, Some(0.5)).unwrap();
+        let mask = |i: usize| {
+            use base64::Engine as _;
+            let data = base64::engine::general_purpose::STANDARD
+                .decode(response[i]["mask"].as_str().unwrap())
+                .unwrap();
+            image::load_from_memory(&data).unwrap().to_luma8()
+        };
+        assert_eq!(mask(0).dimensions(), (4, 2));
+        assert_eq!(mask(0).get_pixel(0, 0).0, [0]);
+        assert_eq!(mask(0).get_pixel(3, 0).0, [255]);
+        assert!(mask(1).pixels().all(|p| p.0 == [255]));
+        assert!(super::binary_masks_response(&logits, 0, 2, &labels, 4, 2, None).is_err());
+        assert!(super::binary_masks_response(&logits[..3], 1, 2, &labels, 4, 2, None).is_err());
+    }
     use super::*;
 
     #[test]
