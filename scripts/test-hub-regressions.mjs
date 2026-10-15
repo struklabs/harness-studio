@@ -109,3 +109,21 @@ test('PrismML fork quant types are detected by label or file name', () => {
   assert.ok(needsPrismFork('sub/Ternary-Bonsai-2-27B-pq2_0.gguf'));
   assert.ok(!needsPrismFork('Q2_0', 'TQ1_0', 'model-Q4_K_M.gguf', null));
 });
+
+test('ChrisCole Qwen edit CPU recommendation excludes split text encoders and VAE', () => {
+  const main = gguf('split/diffusion_models/qwen-image-edit-2511-uncensored-Q4_K_M', 'Q4_K_M', 13_100_000_000);
+  const encoder = gguf('split/text_encoders/Qwen2.5-VL-7B-Instruct-q4_0', 'Q4_0', 4_000_000_000);
+  const projector = gguf('split/text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16', 'mmproj', 1_700_000_000);
+  const vae = { ...gguf('split/vae/qwen_image_vae', 'FP32', 250_000_000), shards: [{ filename: 'split/vae/qwen_image_vae.safetensors' }] };
+  const variants = [encoder, projector, vae, main];
+  assert.equal(recommendVariant(variants, new Map(variants.map(v => [v.name, 'cpu_heavy']))), main);
+  for (const companion of [encoder, projector, vae]) {
+    assert.equal(isCompanionVariant(companion), true);
+    assert.equal(isCompanionVariant({ ...companion, name: 'display-name' }), true);
+    assert.equal(recommendVariant([companion], new Map([[companion.name, 'full_gpu']])), null);
+  }
+  assert.equal(isCompanionVariant(main), false);
+  for (const folder of ['text_encoder', 'vae', 'vision_encoder', 'audio_encoders', 'tokenizer']) {
+    assert.equal(isCompanionVariant(gguf(`nested/${folder}/model-Q4_0`, 'Q4_0', 1)), true);
+  }
+});

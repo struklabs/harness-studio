@@ -13,6 +13,9 @@ const SOURCE_KEYS: Record<HfTaskSource, TKey> = {
 
 const NOT_RUNNABLE_KEYS: Record<HfNotRunnable, TKey> = {
   no_gguf: 'hub.not_runnable_no_gguf',
+  vibevoice_layout: 'hub.vibevoice_layout',
+  audio_cpp_incomplete_package: 'hub.audio_cpp_incomplete_package',
+  sdxl_refiner_folder_required: 'hub.sdxl_refiner_folder_required',
   adapter: 'hub.not_runnable_adapter',
   crispasr_pocket_english_only: 'hub.crispasr_pocket_english_only',
   audio_cpp_espeak_missing: 'hub.audio_cpp_espeak_missing',

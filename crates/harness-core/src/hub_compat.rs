@@ -79,6 +79,39 @@ pub fn audio_cpp_compatibility(item: &serde_json::Value) -> Compatibility {
     }
 }
 
+/// Original VibeVoice checkpoints use incompatible config and weight layouts.
+pub fn unsupported_vibevoice(config: Option<&serde_json::Value>, files: &[String]) -> bool {
+    let Some(config) = config.filter(|c| c["model_type"] == "vibevoice") else {
+        return false;
+    };
+    if config.get("decoder_config").is_some() || config.get("acoustic_tokenizer_config").is_some() {
+        return true;
+    }
+    !(config.get("text_config").is_some() && config.get("audio_config").is_some()
+        || files.iter().any(|f| {
+            matches!(
+                f.as_str(),
+                "tokenizer.json" | "tokenizer.model" | "tokenizer_config.json"
+            )
+        }))
+}
+
+/// AuK needs several GGUF components; the current one-GGUF package builder cannot assemble it.
+pub fn unsupported_auk_package(repo: &str) -> bool {
+    repo.eq_ignore_ascii_case("audio-cpp/AuK-Base-and-Flash-GGUF")
+}
+
+/// SDXL refiner is a different architecture from the native SDXL base model.
+pub fn is_sdxl_refiner(repo: &str, files: &[String]) -> bool {
+    repo.to_ascii_lowercase()
+        .contains("stable-diffusion-xl-refiner")
+        || files.iter().any(|f| {
+            let lower = f.to_ascii_lowercase();
+            let name = lower.rsplit('/').next().unwrap_or(&lower);
+            name.starts_with("sd_xl_refiner_") || name.starts_with("sdxl-refiner")
+        })
+}
+
 /// Runtime family that runs GGUF models.
 pub const LLAMA_FAMILY: &str = "llama.cpp";
 /// Runtime family that runs whisper ggml models.

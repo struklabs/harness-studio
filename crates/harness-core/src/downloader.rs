@@ -416,6 +416,9 @@ fn image_route(item: &serde_json::Value, analysis: &mut crate::hub_tasks::RepoAn
         return false;
     }
     let files = sibling_files(item);
+    if crate::hub_compat::is_sdxl_refiner(item["id"].as_str().unwrap_or_default(), &files) {
+        return false;
+    }
     let loadable = crate::image_bundles::repo_has_image_files(&files)
         || files
             .iter()
@@ -482,7 +485,10 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         .is_some_and(crate::hub_compat::is_ctc_config);
     let task = analysis.pipeline_tag.as_deref().or(analysis.inferred_task);
     let ctc_export = ctc && crate::hub_compat::has_ctc_files(&sibling_files(item));
-    let format = if ctc_export {
+    let refiner = crate::hub_compat::is_sdxl_refiner(&id, &sibling_files(item));
+    let format = if refiner {
+        crate::hub_compat::ModelFormat::Diffusers
+    } else if ctc_export {
         crate::hub_compat::ModelFormat::Onnx
     } else {
         crate::hub_compat::detect_hub_format(
@@ -575,13 +581,33 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         compatibility
     };
     // "No GGUF file" is llama-server's verdict; an ONNX encoder or an image model runs elsewhere.
-    let not_runnable = analysis.not_runnable.filter(|_| {
+    let package_reason = if crate::hub_compat::unsupported_vibevoice(
+        item.get("config"),
+        &sibling_files(item),
+    ) {
+        Some(crate::hub_tasks::NotRunnable::VibevoiceLayout)
+    } else if crate::hub_compat::unsupported_auk_package(&id) {
+        Some(crate::hub_tasks::NotRunnable::AudioCppIncompletePackage)
+    } else if refiner
+        && (!sibling_files(item).iter().any(|f| f == "model_index.json")
+            || !matches!(compatibility, crate::hub_compat::Compatibility::Runnable { runtime: ref r } if r == crate::engine::PYTHON_HF))
+    {
+        Some(crate::hub_tasks::NotRunnable::SdxlRefinerFolderRequired)
+    } else {
+        None
+    };
+    let compatibility = if package_reason.is_some() {
+        crate::hub_compat::Compatibility::Unsupported { format }
+    } else {
+        compatibility
+    };
+    let not_runnable = package_reason.or(analysis.not_runnable.filter(|_| {
         diffusion_adapter
             || !matches!(
                 compatibility,
                 crate::hub_compat::Compatibility::Runnable { .. }
             )
-    });
+    }));
     // An untagged genai repo (microsoft/Phi-4-mini-instruct-onnx) is a chat model all the same.
     if genai
         && capabilities.is_empty()
@@ -1911,6 +1937,9 @@ impl DownloadManager {
             });
         if audio_repo {
             return audio_cpp_variants(repo_id, &items);
+        }
+        if crate::hub_compat::is_sdxl_refiner(repo_id, &paths) {
+            return diffusers_variants(repo_id, &items);
         }
         let image_repo = crate::image_bundles::repo_has_image_files(&paths);
         // A repo without GGUF or ggml files but with an ONNX encoder is served by harness-onnx.
@@ -5253,7 +5282,7 @@ mod tests {
                 "microsoft/VibeVoice-1.5B",
                 "text-to-speech",
                 "vibevoice",
-                true,
+                false,
             ),
             ("facebook/mms-tts-eng", "text-to-speech", "vits", true),
             (
@@ -7434,5 +7463,227 @@ mod audio_cpp_tests {
             }
         );
         assert_eq!(result.pipeline_tag.as_deref(), Some("text-to-speech"));
+    }
+}
+
+#[cfg(test)]
+mod false_positive_tests {
+    use super::*;
+    use crate::hub_compat::{Compatibility, ModelFormat};
+    use crate::hub_tasks::NotRunnable;
+    use serde_json::json;
+
+    fn files(paths: &[&str]) -> Vec<serde_json::Value> {
+        paths
+            .iter()
+            .map(|path| json!({"path": path, "type": "file", "size": 1}))
+            .collect()
+    }
+
+    fn repo(
+        id: &str,
+        task: &str,
+        library: &str,
+        config: serde_json::Value,
+        paths: &[&str],
+    ) -> serde_json::Value {
+        json!({"id": id, "pipeline_tag": task, "library_name": library, "tags": ["safetensors", task],
+            "config": config, "siblings": paths.iter().map(|p| json!({"rfilename": p})).collect::<Vec<_>>()})
+    }
+
+    #[test]
+    fn original_vibevoice_needs_a_converted_transformers_package() {
+        let paths = [
+            "config.json",
+            "model-00001-of-00003.safetensors",
+            "model-00002-of-00003.safetensors",
+            "model-00003-of-00003.safetensors",
+            "model.safetensors.index.json",
+            "preprocessor_config.json",
+        ];
+        let mut item = repo(
+            "microsoft/VibeVoice-1.5B",
+            "text-to-speech",
+            "transformers",
+            json!({"model_type": "vibevoice", "architectures": ["VibeVoiceForConditionalGeneration"]}),
+            &paths,
+        );
+        let listed = parse_search_item(&item).unwrap();
+        assert!(matches!(
+            listed.compatibility,
+            Compatibility::Unsupported { .. }
+        ));
+        assert_eq!(listed.not_runnable, Some(NotRunnable::VibevoiceLayout));
+        assert_eq!(card_not_runnable(&item, None), listed.not_runnable);
+        // The full config cannot be rescued by adding a tokenizer alone.
+        item["config"] = json!({"model_type": "vibevoice", "decoder_config": {"model_type": "qwen2"},
+            "acoustic_tokenizer_config": {"model_type": "vibevoice_acoustic_tokenizer"}});
+        item["siblings"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"rfilename": "tokenizer.json"}));
+        assert!(crate::hub_compat::unsupported_vibevoice(
+            item.get("config"),
+            &sibling_files(&item)
+        ));
+        item["id"] = json!("converted/VibeVoice-1.5B");
+        item["config"] = json!({"model_type": "vibevoice", "text_config": {"model_type": "qwen2"}, "audio_config": {}});
+        assert!(matches!(parse_search_item(&item).unwrap().compatibility,
+            Compatibility::Runnable { runtime } if runtime == crate::engine::PYTHON_HF));
+        // The API's abbreviated config is also sufficient when tokenizer files are present.
+        item["config"] = json!({"model_type": "vibevoice"});
+        assert_eq!(parse_search_item(&item).unwrap().not_runnable, None);
+    }
+
+    #[test]
+    fn auk_listing_agrees_with_its_nine_unsupported_variants() {
+        let paths = [
+            "auk-base-f16.gguf",
+            "auk-base-f32.gguf",
+            "auk-base-q8_0.gguf",
+            "auk-flash-f16.gguf",
+            "auk-flash-f32.gguf",
+            "auk-flash-q8_0.gguf",
+            "auk-vae-f32.gguf",
+            "qwen2.5-omni-3b-bf16.gguf",
+            "qwen2.5-omni-3b-q8_0.gguf",
+            "config/auk-base.yaml",
+            "config/auk-flash.yaml",
+            "tokenizer/tokenizer.json",
+            "tokenizer/tokenizer_config.json",
+        ];
+        let mut item = repo(
+            "audio-cpp/AuK-Base-and-Flash-GGUF",
+            "text-to-speech",
+            "",
+            json!({}),
+            &paths,
+        );
+        item["tags"] = json!(["gguf", "text-to-speech"]);
+        item["gguf"] = json!({"architecture": "audiocpp"});
+        let listed = parse_search_item(&item).unwrap();
+        assert!(matches!(
+            listed.compatibility,
+            Compatibility::Unsupported {
+                format: ModelFormat::Gguf
+            }
+        ));
+        assert_eq!(
+            listed.not_runnable,
+            Some(NotRunnable::AudioCppIncompletePackage)
+        );
+        assert_eq!(card_not_runnable(&item, None), listed.not_runnable);
+        let variants =
+            audio_cpp_variants("audio-cpp/AuK-Base-and-Flash-GGUF", &files(&paths)).unwrap();
+        assert_eq!(variants.len(), 9);
+        assert!(variants.iter().all(|v| v.not_runnable.is_some()));
+    }
+
+    #[test]
+    fn sdxl_refiner_uses_only_its_diffusers_folder() {
+        let paths = [
+            "model_index.json",
+            "sd_xl_refiner_1.0.safetensors",
+            "sd_xl_refiner_1.0_0.9vae.safetensors",
+            "scheduler/scheduler_config.json",
+            "text_encoder_2/config.json",
+            "text_encoder_2/model.fp16.safetensors",
+            "text_encoder_2/model.safetensors",
+            "tokenizer_2/merges.txt",
+            "tokenizer_2/vocab.json",
+            "tokenizer_2/tokenizer_config.json",
+            "unet/config.json",
+            "unet/diffusion_pytorch_model.fp16.safetensors",
+            "unet/diffusion_pytorch_model.safetensors",
+            "vae/config.json",
+            "vae/diffusion_pytorch_model.fp16.safetensors",
+            "vae/diffusion_pytorch_model.safetensors",
+        ];
+        let item = repo(
+            "stabilityai/stable-diffusion-xl-refiner-1.0",
+            "image-to-image",
+            "diffusers",
+            json!({"diffusers": {"_class_name": "StableDiffusionXLImg2ImgPipeline"}}),
+            &paths,
+        );
+        let listed = parse_search_item(&item).unwrap();
+        assert_eq!(
+            listed.compatibility,
+            Compatibility::Runnable {
+                runtime: crate::engine::PYTHON_HF.into()
+            }
+        );
+        assert_eq!(listed.not_runnable, None);
+        assert!(crate::hub_compat::is_sdxl_refiner(
+            &listed.id,
+            &sibling_files(&item)
+        ));
+        let variants = diffusers_variants(&listed.id, &files(&paths)).unwrap();
+        assert_eq!(variants.len(), 1);
+        let shards = &variants[0].shards;
+        assert!(shards.iter().any(|s| s.filename == "model_index.json"));
+        assert!(shards
+            .iter()
+            .any(|s| s.filename == "unet/diffusion_pytorch_model.fp16.safetensors"));
+        assert!(!shards
+            .iter()
+            .any(|s| s.filename.starts_with("sd_xl_refiner")));
+        for path in &paths[1..3] {
+            assert!(crate::image_bundles::bundle_for(path).is_none());
+        }
+        let bare = repo(
+            "owner/refiner",
+            "image-to-image",
+            "diffusers",
+            json!({}),
+            &paths[1..3],
+        );
+        let listed = parse_search_item(&bare).unwrap();
+        assert!(matches!(
+            listed.compatibility,
+            Compatibility::Unsupported { .. }
+        ));
+        assert_eq!(
+            listed.not_runnable,
+            Some(NotRunnable::SdxlRefinerFolderRequired)
+        );
+        assert!(diffusers_variants(&listed.id, &files(&paths[1..3]))
+            .unwrap()
+            .is_empty());
+        let mut unknown = item;
+        unknown["siblings"] = json!([]);
+        assert_eq!(
+            parse_search_item(&unknown).unwrap().not_runnable,
+            Some(NotRunnable::SdxlRefinerFolderRequired)
+        );
+    }
+
+    #[test]
+    fn qwen_edit_2511_projector_resolves_from_the_companion_tree() {
+        let tree = vec![
+            json!({"type": "file", "path": "Qwen2.5-VL-7B-Instruct.mmproj-Q8_0.gguf", "size": 853119712,
+            "lfs": {"size": 853119712, "oid": "2185ca0adf339f96845318c7b666f5d242f86bbace5657a89cb834785d0cea57"}}),
+        ];
+        for path in [
+            "qwen-image-edit-2511-Q4_K_M.gguf",
+            "split/diffusion_models/qwen-image-edit-2511-uncensored-Q4_K_M.gguf",
+        ] {
+            let bundle = crate::image_bundles::bundle_for(path).unwrap();
+            assert_eq!(
+                bundle.components.iter().map(|c| c.role).collect::<Vec<_>>(),
+                ["vae", "llm", "llm_vision"]
+            );
+            let projector = bundle
+                .components
+                .iter()
+                .find(|c| c.role == "llm_vision")
+                .unwrap();
+            assert_eq!(projector.repo, "mradermacher/Qwen2.5-VL-7B-Instruct-GGUF");
+            let variant = companion_variant_from(projector.repo, projector.file, &tree)
+                .unwrap()
+                .unwrap();
+            assert_eq!(variant.total_size_bytes, 853119712);
+            assert_eq!(variant.shards[0].filename, projector.file);
+        }
     }
 }

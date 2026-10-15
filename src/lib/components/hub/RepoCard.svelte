@@ -149,7 +149,7 @@
       </span>
     {:else if compat.status === 'unsupported'}
       <span class="inline-flex items-center gap-1 text-warning">
-        <Ban class="size-3" />{repo.not_runnable === 'audio_cpp_unsupported' ? t('hub.not_runnable_audio_cpp') : speechNeedsConversion(repo) ? t('hub.asr_needs_conversion') : compat.format === 'gguf' ? t('hub.compat_gguf_other_engine') : t('hub.compat_unsupported', { format: formatName(compat.format) })}
+        <Ban class="size-3" />{repo.not_runnable && ['audio_cpp_unsupported', 'vibevoice_layout', 'audio_cpp_incomplete_package', 'sdxl_refiner_folder_required'].includes(repo.not_runnable) ? t(notRunnableKey(repo.not_runnable)) : speechNeedsConversion(repo) ? t('hub.asr_needs_conversion') : compat.format === 'gguf' ? t('hub.compat_gguf_other_engine') : t('hub.compat_unsupported', { format: formatName(compat.format) })}
       </span>
     {:else if compat.status === 'unsupported_platform'}
       {@const msg = onnxUnsupportedText(compat)}

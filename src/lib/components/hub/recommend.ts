@@ -11,7 +11,7 @@ export function quantBits(q: string): number {
 
 /** Vision projectors, speculative-decoding drafts, image VAEs / text encoders / LoRAs: never the main model. */
 const COMPANION_QUANTS = new Set(['mmproj', 'component', 'lora']);
-const COMPANION_PATH = /mmproj|projector|(?:^|[/\\_. -])(?:mtp|draft|assistant|eagle\d*|dflash|dspark)(?:[/\\_. -]|$)/i;
+const COMPANION_PATH = /(?:^|[/\\])(?:text_encoders?|vae|vision_encoders?|audio_encoders?|tokenizers?)[/\\]|mmproj|projector|(?:^|[/\\_. -])(?:mtp|draft|assistant|eagle\d*|dflash|dspark)(?:[/\\_. -]|$)/i;
 
 /** A companion file (projector, draft model, VAE, text encoder, LoRA) rather than a standalone model. */
 export function isCompanionVariant(v: HfModelVariant): boolean {

@@ -292,7 +292,7 @@ pub const BUNDLES: &[Bundle] = &[
         id: "qwen-image-edit",
         label: "Qwen-Image Edit",
         file_pattern: r"qwen[-_.]?image[-_.]?edit",
-        components: &[QWEN_IMAGE_VAE, QWEN25_VL_7B],
+        components: &[QWEN_IMAGE_VAE, QWEN25_VL_7B, QWEN25_VL_7B_MMPROJ],
         defaults: QWEN_IMAGE_DEFAULTS,
     },
     Bundle {
@@ -464,6 +464,9 @@ fn patterns() -> &'static [Regex] {
 
 /// The bundle a main file belongs to, by its file name (a path or a bare name).
 pub fn bundle_for(file: &str) -> Option<&'static Bundle> {
+    if crate::hub_compat::is_sdxl_refiner("", &[file.to_string()]) {
+        return None;
+    }
     let name = file.rsplit(['/', '\\']).next().unwrap_or(file);
     // A VAE / text encoder / LoRA that happens to carry a model name is not a model.
     let lower = name.to_ascii_lowercase();
