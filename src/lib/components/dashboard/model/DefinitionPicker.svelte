@@ -12,7 +12,8 @@
   import { Check, ChevronDown } from '@lucide/svelte';
   import {
     groupModels, flattenGroups, filterRows, rowOffsets, rowWindow, applyMeasurements,
-    scrollToRow, navigationIndex, WINDOW_THRESHOLD, SEARCH_THRESHOLD, type PickerRow,
+    scrollToRow, navigationIndex, selectionIndex, pointerMoved, WINDOW_THRESHOLD, SEARCH_THRESHOLD,
+    type PickerRow, type PointerPosition,
   } from './modelPicker.js';
   import * as Select from '#lib/components/ui/select/index.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
@@ -53,6 +54,8 @@
   let viewportHeight = $state(400);
   let list: HTMLDivElement | undefined = $state();
   let filter: HTMLInputElement | null = $state(null);
+  let filterFocused = $state(false);
+  let lastPointer: PointerPosition | null = null;
   let heights = $state<ReadonlyMap<string, number>>(new Map());
   const uid = $props.id();
   let filtered = $derived(filterRows(rows, query));
@@ -92,6 +95,10 @@
 
   async function move(index: number) {
     active = index;
+    if (index < 0) {
+      filter?.focus({ preventScroll: true });
+      return;
+    }
     scrollTop = scrollToRow(offsets, index, scrollTop, viewportHeight);
     // Update the spacers before setting scrollTop; the old DOM may be a short search result.
     await tick();
@@ -103,6 +110,7 @@
 
   function prepareOpen(next: boolean) {
     scrollReady = false;
+    lastPointer = null;
     if (!next) return;
     query = '';
     active = rows.findIndex((r) => r.value === value);
@@ -145,7 +153,8 @@
     } else if (event.key === 'Enter') {
       event.preventDefault();
       event.stopPropagation();
-      if (active >= 0 && filtered[active]) pick(filtered[active].value);
+      const index = selectionIndex(active, filtered.length, fromFilter);
+      if (index >= 0) pick(filtered[index].value);
     }
   }
 
@@ -234,26 +243,32 @@
       <ChevronDown class="size-4 shrink-0 text-muted-foreground" />
     </Popover.Trigger>
     <Popover.Content align="start" onOpenAutoFocus={opened}
+      onpointermove={(e) => { lastPointer = { clientX: e.clientX, clientY: e.clientY }; }}
+      onpointerdown={(e) => { lastPointer = { clientX: e.clientX, clientY: e.clientY }; }}
       class={[windowed ? 'w-[min(36rem,calc(100vw-2rem))]' : 'w-max', 'min-w-(--bits-popover-anchor-width) max-w-[min(36rem,calc(100vw-2rem))] gap-0 overflow-hidden p-0']}>
       <div class="shrink-0 border-b border-border p-1">
         <Input bind:ref={filter} bind:value={query} oninput={search} onkeydown={(e) => keydown(e, true)}
+            onfocus={() => { filterFocused = true; }} onblur={() => { filterFocused = false; }}
+            role="combobox" aria-expanded={open} aria-autocomplete="list"
+            aria-activedescendant={filterFocused ? activeId : undefined}
             aria-label={t('def.picker_filter')} placeholder={t('def.picker_filter')} aria-controls="{uid}-listbox" />
       </div>
       <div bind:this={list} bind:clientHeight={viewportHeight}
         id="{uid}-listbox" role="listbox" tabindex="0" aria-label={t('def.picker_label')}
-        aria-activedescendant={activeId} onkeydown={(e) => keydown(e)}
+        hidden={filtered.length === 0}
+        aria-activedescendant={filterFocused ? undefined : activeId} onkeydown={(e) => keydown(e)}
         onscroll={() => { if (scrollReady && list) scrollTop = list.scrollTop; }}
         class="max-h-[max(2rem,min(36rem,calc(var(--bits-popover-content-available-height)_-_3rem)))] overflow-y-auto overscroll-contain px-1 outline-none [overflow-anchor:none]">
         <div role="presentation" style:height="{visibleWindow.before}px"></div>
-        {#each filtered.slice(visibleWindow.start, visibleWindow.end) as row, i (row.value)}
+        {#each filtered.slice(visibleWindow.start, visibleWindow.end) as row, i (row.key)}
           {@const index = visibleWindow.start + i}
-          <div use:measure={row.value} role="presentation" class:pt-1={row.file} class:pb-1={row.groupEnd}>
+          <div use:measure={row.key} role="presentation" class:pt-1={row.file} class:pb-1={row.groupEnd}>
           <div id="{uid}-option-{index}" role="option" tabindex="-1"
-            aria-selected={row.value === value} aria-setsize={windowed ? filtered.length : undefined} aria-posinset={windowed ? index + 1 : undefined}
+            aria-selected={row.value === value} aria-setsize={filtered.length} aria-posinset={index + 1}
             data-highlighted={active === index || undefined}
             class="relative flex w-full cursor-default items-center gap-1.5 rounded-md py-1 pr-8 text-sm select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground"
             class:mt-1={row.file} class:pl-5={!row.file} class:pl-1.5={row.file}
-            onkeydown={(e) => keydown(e)} onpointermove={() => { active = index; }} onclick={() => pick(row.value)}>
+            onkeydown={(e) => keydown(e)} onpointermove={(e) => { if (pointerMoved(lastPointer, e)) active = index; }} onclick={() => pick(row.value)}>
             <span class="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap">
               {@render rowLabel(row)}
             </span>
@@ -262,8 +277,8 @@
           </div>
         {/each}
         <div role="presentation" style:height="{visibleWindow.after}px"></div>
-        {#if filtered.length === 0}<p role="status" class="px-3 py-4 text-xs text-muted-foreground">{t('def.picker_no_matches')}</p>{/if}
       </div>
+      <p role="status" class={filtered.length === 0 ? 'px-3 py-4 text-xs text-muted-foreground' : 'sr-only'}>{filtered.length === 0 ? t('def.picker_no_matches') : ''}</p>
     </Popover.Content>
   </Popover.Root>
 {:else}
@@ -273,9 +288,9 @@
     </Select.Trigger>
     <!-- As tall as the window allows (the default cap showed only about five files). -->
     <Select.Content class="max-h-[min(40rem,var(--bits-select-content-available-height))] w-max min-w-(--bits-select-anchor-width) max-w-[min(36rem,calc(100vw-2rem))]">
-    {#each groups as group (group.model.id)}
+    {#each groups as group, groupIndex (groupIndex)}
       <Select.Group>
-      {#each flattenGroups([group]) as row (row.value)}
+      {#each rows.filter((row) => row.groupIndex === groupIndex) as row (row.key)}
       <Select.Item value={row.value} label={row.definition?.alias ?? row.model.name}
         class={row.file ? 'mt-1 w-full *:[span]:last:min-w-0 *:[span]:last:shrink' : 'w-full pl-5 *:[span]:last:min-w-0 *:[span]:last:shrink'}>
         {@render rowLabel(row)}

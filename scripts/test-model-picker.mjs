@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pathKey, groupModels, flattenGroups, filterRows, rowOffsets, rowWindow, applyMeasurements, scrollToRow, navigationIndex, WINDOW_THRESHOLD } from '../src/lib/components/dashboard/model/modelPicker.ts';
+import { pathKey, groupModels, flattenGroups, filterRows, rowOffsets, rowWindow, applyMeasurements, scrollToRow, navigationIndex, selectionIndex, pointerMoved, WINDOW_THRESHOLD } from '../src/lib/components/dashboard/model/modelPicker.ts';
 
 const model = (id, extra = {}) => ({ id: String(id), name: `Model ${id}`, filename: `file-${id}.gguf`, path: `C:/models/${id}.gguf`, shard_paths: [], quantization: 'Q4_K_M', ...extra });
 const def = (id, path, alias = id) => ({ id, alias, base: { kind: 'local', path } });
@@ -20,6 +20,48 @@ test('standalone file, single definition and multiple definitions retain selecti
   const models = [model(0), model(1), model(2), model(3, { kind: 'mmproj' }), model(4, { kind: 'adapter' })];
   const rows = flattenGroups(groupModels(models, [def('only', models[1].path), def('b', models[2].path), def('a', models[2].path)]));
   assert.deepEqual(rows.map((r) => [r.value, r.file]), [['f:0', true], ['d:only', true], ['f:2', true], ['d:a', false], ['d:b', false]]);
+});
+
+test('normalized duplicate library paths render unique keys and each definition value once', () => {
+  const models = [model(0), model(1, { path: 'c:\\MODELS\\0.gguf\\' }), model(2), model(2)];
+  for (const definitions of [
+    [def('only', models[0].path), def('only', models[1].path)],
+    [def('a', models[0].path), def('b', models[1].path), def('a', models[1].path)],
+  ]) {
+    const rows = flattenGroups(groupModels(models, definitions));
+    assert.equal(new Set(rows.map((r) => r.key)).size, rows.length);
+    const definitionRows = rows.filter((r) => r.definition);
+    assert.equal(definitionRows.length, new Set(definitions.map((d) => d.id)).size);
+    for (const d of definitions) {
+      assert.equal(rows.filter((r) => r.value === `d:${d.id}`).length, 1);
+      assert.equal(rows.find((r) => r.value === `d:${d.id}`).definition.id, d.id);
+    }
+    assert.ok(rows.some((r) => r.value === 'f:1'));
+    const offsets = rowOffsets(rows, new Map([[rows.at(-1).key, 90]]));
+    assert.equal(offsets.at(-1) - offsets.at(-2), 90);
+    assert.equal(offsets.at(-2) - offsets.at(-3), 52);
+  }
+});
+
+test('Enter selects the first filtered result only when the filter has no active row', () => {
+  const rows = flattenGroups(groupModels([model(0), model(1), model(2)], []));
+  const filtered = filterRows(rows, 'model 1');
+  assert.equal(filtered[selectionIndex(-1, filtered.length, true)].value, 'f:1');
+  assert.equal(selectionIndex(-1, 0, true), -1);
+  assert.equal(selectionIndex(-1, rows.length, false), -1);
+  assert.equal(selectionIndex(2, rows.length, true), 2);
+  assert.equal(selectionIndex(1, rows.length, false), 1);
+  assert.equal(selectionIndex(3, rows.length, true), -1);
+  assert.equal(navigationIndex('ArrowUp', 0, rowOffsets(rows, new Map()), 400), -1);
+});
+
+test('pointer highlight requires changed coordinates, including after keyboard scrolling', () => {
+  const previous = { clientX: 120, clientY: 240 };
+  assert.equal(pointerMoved(null, previous), false);
+  assert.equal(pointerMoved(previous, { ...previous }), false);
+  assert.equal(pointerMoved(previous, { clientX: 121, clientY: 240 }), true);
+  assert.equal(pointerMoved(previous, { clientX: 120, clientY: 241 }), true);
+  assert.equal(pointerMoved({ clientX: 0, clientY: 0 }, { clientX: 0, clientY: 0 }), false);
 });
 
 test('search covers name, filename, quantization, and single or nested definition aliases', () => {
@@ -52,7 +94,7 @@ test('600+ rows mount only a bounded viewport, with correct spacers at both ends
 
 test('measured heights override estimates and navigation mounts targets throughout the library', () => {
   const rows = largeRows();
-  const offsets = rowOffsets(rows, new Map([[rows[0].value, 72], [rows[1].value, 32]]));
+  const offsets = rowOffsets(rows, new Map([[rows[0].key, 72], [rows[1].key, 32]]));
   assert.deepEqual(offsets.slice(0, 4), [0, 72, 104, 156]);
   let active = -1, top = 0;
   for (const key of ['ArrowDown', 'End', 'Home', ...Array(80).fill('PageDown'), ...Array(80).fill('PageUp')]) {
@@ -66,7 +108,7 @@ test('measured heights override estimates and navigation mounts targets througho
   for (let i = 0; i < rows.length; i++) active = navigationIndex('ArrowDown', active, offsets, 400);
   assert.equal(active, rows.length - 1);
   for (let i = 0; i < rows.length; i++) active = navigationIndex('ArrowUp', active, offsets, 400);
-  assert.equal(active, 0);
+  assert.equal(active, -1);
   assert.equal(navigationIndex('Enter', 0, offsets, 400), null);
   assert.equal(navigationIndex('End', -1, [0], 400), null);
 });
@@ -85,9 +127,9 @@ test('batched measurements preserve the viewport anchor and cache offscreen heig
   const rows = largeRows();
   const heights = new Map();
   const offsets = rowOffsets(rows, heights);
-  const measured = applyMeasurements(rows, offsets, heights, new Map([[rows[0].value, 72], [rows[1].value, 40], [rows[20].value, 80]]), 520);
+  const measured = applyMeasurements(rows, offsets, heights, new Map([[rows[0].key, 72], [rows[1].key, 40], [rows[20].key, 80]]), 520);
   assert.equal(measured.top, 528); // +20 and -12 above the anchor; row 20 is below it.
-  assert.equal(measured.heights.get(rows[20].value), 80);
+  assert.equal(measured.heights.get(rows[20].key), 80);
   assert.equal(heights.size, 0);
   assert.equal(rowOffsets(rows, measured.heights)[10] - offsets[10], measured.top - 520);
 });
