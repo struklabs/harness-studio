@@ -493,6 +493,10 @@ fn cors(origins: &[String]) -> CorsLayer {
         HeaderName::from_static("x-harness-load-ms"),
         HeaderName::from_static("x-harness-compat"),
         HeaderName::from_static("x-harness-error"),
+        // Speech: what the Playground's Speech panel reads.
+        HeaderName::from_static("x-harness-voice"),
+        HeaderName::from_static("x-harness-sample-rate"),
+        HeaderName::from_static("x-harness-truncated"),
         header::RETRY_AFTER,
     ];
     expose.extend(
@@ -912,4 +916,39 @@ async fn not_found(uri: axum::http::Uri) -> Response {
         ),
     )
     .into_response()
+}
+
+#[cfg(test)]
+mod cors_tests {
+    /// The app's own pages (a cross-origin fetch from the webview) can read the headers the
+    /// Playground uses, the speech ones included (`x-harness-truncated` says the audio is partial).
+    #[tokio::test]
+    async fn the_app_reads_the_speech_headers() {
+        let app = axum::Router::new()
+            .route("/", axum::routing::get(|| async { "ok" }))
+            .layer(super::cors(&[]));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let res = reqwest::Client::new()
+            .get(format!("http://{addr}/"))
+            .header("origin", super::APP_ORIGINS[0])
+            .send()
+            .await
+            .unwrap();
+        let exposed = res
+            .headers()
+            .get("access-control-expose-headers")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        for header in [
+            "x-harness-truncated",
+            "x-harness-voice",
+            "x-harness-sample-rate",
+            "x-harness-request-id",
+        ] {
+            assert!(exposed.contains(header), "{header} not in {exposed:?}");
+        }
+    }
 }

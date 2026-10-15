@@ -85,6 +85,9 @@ export interface SpeechResult {
   model: string | null;
   voice: string | null;
   sampleRate: number | null;
+  /** Only part of the audio came back (`x-harness-truncated`): `time` (the server's time limit
+   *  stopped it) or `frames` (the model used all the audio it may make for the text). */
+  truncated: 'time' | 'frames' | null;
   ms: number;
 }
 
@@ -94,6 +97,12 @@ export interface SpeechRequest {
   input: string;
   voice: string;
   speed: number;
+}
+
+/** Why a speech answer is partial (`x-harness-truncated`); an unknown reason reads as `time`. */
+export function truncationOf(header: string | null): SpeechResult['truncated'] {
+  if (header === null) return null;
+  return header === 'frames' ? 'frames' : 'time';
 }
 
 /** POST {baseUrl}/audio/speech; answers a WAV (the one format that needs no ffmpeg). */
@@ -126,6 +135,7 @@ export async function fetchSpeech(
     model: res.headers.get('x-harness-model'),
     voice: res.headers.get('x-harness-voice'),
     sampleRate: Number.isFinite(rate) && rate > 0 ? rate : null,
+    truncated: truncationOf(res.headers.get('x-harness-truncated')),
     ms: performance.now() - started,
   };
 }

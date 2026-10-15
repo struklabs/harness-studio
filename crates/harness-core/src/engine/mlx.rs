@@ -1066,6 +1066,17 @@ fn prompt_cache_bytes(need: u64, budget: &crate::vram::MemoryBudget) -> u64 {
     (budget.vram_bytes.saturating_sub(need) / 2).clamp(256 * MIB, 8192 * MIB)
 }
 
+/// Longest generation of an audio request (`--max-seconds`) when the user set none: 600 s (about
+/// ten minutes of reading), 30 s under the gateway's request timeout, so the worker answers the
+/// audio made by then before the gateway gives up on the request (a 504 would lose it all).
+fn audio_max_seconds(gateway_timeout_secs: u32) -> u32 {
+    const DEFAULT: u32 = 600;
+    if gateway_timeout_secs == 0 {
+        return DEFAULT;
+    }
+    DEFAULT.min(gateway_timeout_secs.saturating_sub(30).max(5))
+}
+
 /// The command line of a launch: the worker script first (the program is the interpreter).
 fn build_args(
     config: &LaunchConfig,
@@ -1122,6 +1133,17 @@ fn build_args(
         let budget = crate::vram::budget(&crate::hardware::detect_hardware());
         args.push("--prompt-cache-bytes".into());
         args.push(prompt_cache_bytes(vram_need(config), &budget).to_string());
+    }
+    if flavour == Flavour::Audio
+        && !args
+            .iter()
+            .any(|a| a.split('=').next() == Some("--max-seconds"))
+    {
+        let gateway = crate::config::AppSettings::load()
+            .gateway
+            .request_timeout_secs;
+        args.push("--max-seconds".into());
+        args.push(audio_max_seconds(gateway).to_string());
     }
     if flavour != Flavour::Audio
         && !args
@@ -1227,6 +1249,37 @@ pub(crate) mod tests {
         assert!(!is_vlm_dir(quantized.path()));
         assert!(!inspect(quantized.path()).unwrap().vision);
         assert!(inspect(plain.path()).is_none());
+    }
+
+    /// An audio worker runs a request for at most 600 s, 30 s under the gateway's timeout (5 s
+    /// at least); a `max_seconds` of the user's wins. Text workers take no such flag.
+    #[test]
+    fn audio_requests_end_before_the_gateway_gives_up() {
+        assert_eq!(audio_max_seconds(0), 600);
+        assert_eq!(audio_max_seconds(600), 570);
+        assert_eq!(audio_max_seconds(3600), 600);
+        assert_eq!(audio_max_seconds(120), 90);
+        assert_eq!(audio_max_seconds(10), 5);
+        let dir = folder(&[("config.json", MLX_CONFIG), ("model.safetensors", "x")]);
+        let config = LaunchConfig {
+            model_path: dir.path().to_path_buf(),
+            ..Default::default()
+        };
+        let count = |args: &[String]| args.iter().filter(|a| *a == "--max-seconds").count();
+        let out = build_args(&config, Path::new("w.py"), Flavour::Audio).unwrap();
+        assert_eq!(count(&out.args), 1, "{:?}", out.args);
+        let mut set = config.clone();
+        set.params
+            .insert("max_seconds".into(), crate::params::ParamValue::Int(42));
+        let out = build_args(&set, Path::new("w.py"), Flavour::Audio).unwrap();
+        assert_eq!(count(&out.args), 1, "{:?}", out.args);
+        assert!(
+            out.args.join(" ").contains("--max-seconds 42"),
+            "{:?}",
+            out.args
+        );
+        let out = build_args(&config, Path::new("w.py"), Flavour::Text).unwrap();
+        assert_eq!(count(&out.args), 0, "{:?}", out.args);
     }
 
     /// The prompt cache is bounded by half of the GPU share the model leaves (256 MiB..8 GiB),
@@ -2167,7 +2220,7 @@ def speak(text, voice, speed, language):
     spoken.append((text, voice, speed, language))
     if text == "slow":
         raise w.TooSlow()
-    return b"RIFFfake", text == "long run"
+    return b"RIFFfake", {{"long run": "time", "drifted": "frames"}}.get(text)
 app = w.app_for(speak, "tts", ["serena", "ryan"], 50)
 async def call(method, path, body=b"", key=True, kind="http"):
     sent, queue = [], [{{"type": "http.request", "body": body, "more_body": False}}]
@@ -2180,8 +2233,9 @@ async def call(method, path, body=b"", key=True, kind="http"):
     if kind == "websocket":
         return sent[0].get("code")
     status = sent[0]["status"]
-    if dict(sent[0]["headers"]).get(b"x-harness-truncated"):
-        status = (status, "truncated")
+    cut = dict(sent[0]["headers"]).get(b"x-harness-truncated")
+    if cut:
+        status = (status, cut.decode())
     return status, b"".join(m.get("body", b"") for m in sent[1:]).decode(errors="replace")
 async def main():
     S = "/v1/audio/speech"
@@ -2203,6 +2257,7 @@ async def main():
         ("empty", ("POST", S, b'{{"input":"  "}}')),
         ("slow", ("POST", S, b'{{"input":"slow"}}')),
         ("cut", ("POST", S, b'{{"input":"long run"}}')),
+        ("drifted", ("POST", S, b'{{"input":"drifted"}}')),
     ]:
         print(name, await call(*args))
     print("ws", await call("GET", S, kind="websocket"))
@@ -2237,9 +2292,10 @@ asyncio.run(main())
             "mp3 (400,",
             "empty (400,",
             "slow (504,",
-            "cut ((200, 'truncated'), 'RIFFfake')",
+            "cut ((200, 'time'), 'RIFFfake')",
+            "drifted ((200, 'frames'), 'RIFFfake')",
             "ws 1008",
-            "spoken [('hello', 'ryan', 1.5, None), ('hello', None, 1.0, None), ('slow', None, 1.0, None), ('long run', None, 1.0, None)]",
+            "spoken [('hello', 'ryan', 1.5, None), ('hello', None, 1.0, None), ('slow', None, 1.0, None), ('long run', None, 1.0, None), ('drifted', None, 1.0, None)]",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }
@@ -2579,13 +2635,34 @@ speak("Short one. Two.", None, 1.0, None)
 print("streamed short", s.calls)
 s.calls.clear()
 story = " ".join("Sentence %d has exactly seven words here." % i for i in range(60))
-speak(story, None, 1.0, None)
+print("streamed pauses", speak(story, None, 1.0, None))
 said = " ".join(t for t, _ in s.calls)
 print("streamed long", len(s.calls), max(m for _, m in s.calls) < w.frame_budget(10**6, 1.0),
       said == story)
 s.calls.clear()
 speak(story, None, 0.5, None)
 print("streamed slow", len(s.calls))
+# A sentence too long for one call at a slow speed (59 tokens; 46 fit at 0.25) is a run of its
+# own with the ceiling as its budget.
+s.calls.clear()
+speak(" ".join(["word"] * 59) + ".", None, 0.25, None)
+print("one long sentence", [(len(t.split()), m) for t, m in s.calls])
+# Runs keep the text as it was: CJK sentences without spaces between them, an unpunctuated text
+# (cut at spaces) with them.
+chars = types.SimpleNamespace(tokenizer=types.SimpleNamespace(encode=list))
+cjk = "今天天气很好。" * 80
+groups = w.sentence_groups(chars, cjk, 1.0)
+print("cjk", len(groups), "".join(groups) == cjk, max(len(g) for g in groups) <= 187)
+plain = " ".join(["word"] * 400)
+groups = w.sentence_groups(s, plain, 1.0)
+print("unpunctuated", len(groups), " ".join(groups) == plain)
+# A call that makes all the audio its budget allows (the sampler kept talking) is "frames".
+class Drifter(Streamer):
+    def generate(self, text, voice=None, speed=1.0, max_tokens=4096, stream=False, **kw):
+        self.calls.append((text, max_tokens))
+        yield types.SimpleNamespace(audio=[0.0] * int(max_tokens / w.FRAME_RATE * 24000))
+speak = w.make_speak(Drifter(), [], 24000, 1000, lambda parts, rate: len(parts), clock)
+print("drifted", speak("Short one. Two.", None, 1.0, None))
 "#,
             dir.path().to_string_lossy()
         );
@@ -2604,15 +2681,15 @@ print("streamed slow", len(s.calls))
             "budget slow 1280",
             "budget cap 1500",
             // 3 tokens -> the floor; stops after the chunk that passed 10 s (4 + 4 + 4).
-            "runaway ('wav of 3 chunks', True) [{'voice': 'ryan', 'max_tokens': 75, 'stream': True}] closed True",
+            "runaway ('wav of 3 chunks', 'time') [{'voice': 'ryan', 'max_tokens': 75, 'stream': True}] closed True",
             "too slow",
-            "plain ('wav of 1 chunks', False)",
+            "plain ('wav of 1 chunks', None)",
             "budget chatterbox_turbo 1600",
             "budget voxcpm2 400",
             "budget spark 3264",
-            "one speed ('wav of 1 chunks', False) [{'max_tokens': 94}]",
+            "one speed ('wav of 1 chunks', None) [{'max_tokens': 94}]",
             "refused speed: this model speaks at one speed; use speed 1",
-            "sentences ('wav of 3 chunks', True) ['One.', 'Two!', 'Three?']",
+            "sentences ('wav of 3 chunks', 'time') ['One.', 'Two!', 'Three?']",
             "split ['Hi there.', 'Bye。', 'Yes'] ['   ']",
             "tr ['Dr. Ali geldi.', '3. madde önemli, vs. bitti…', 'A. Yılmaz yazdı.']",
             "lines ['- süt', '- ekmek', '- yumurta']",
@@ -2624,6 +2701,12 @@ print("streamed slow", len(s.calls))
             "streamed long 3 True True",
             // At half speed a call holds half the text: runs of 13 sentences.
             "streamed slow 5",
+            // Three runs and a pause between each two; none used its whole budget.
+            "streamed pauses ('wav of 5 chunks', None)",
+            "one long sentence [(59, 1500)]",
+            "cjk 4 True True",
+            "unpunctuated 3 True",
+            "drifted (1, 'frames')",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }
