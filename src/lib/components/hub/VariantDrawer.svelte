@@ -27,6 +27,7 @@
   import { clearPageCache } from './hubData';
   import { formatName, notRunnableKey } from './inference';
   import { canConvert, speechNeedsConversion } from './convertible';
+  import { needsPrismFork } from './forkQuants';
   import ConvertPanel from './ConvertPanel.svelte';
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
@@ -102,6 +103,8 @@
 
   /** A safetensors chat model whose mistral.rs runtime is not registered (no managed install). */
   let needsMistralrs = $derived(repo?.compatibility.status === 'needs_runtime' && repo.compatibility.runtime === 'mistral.rs');
+  /** A variant of this repo uses a PrismML-fork quant (PQ2_0 / PTQ1_0): the official llama.cpp can't load it. */
+  let needsPrism = $derived(variants.some((v) => needsPrismFork(v.quantization, ...v.shards.map((s) => s.filename))));
   function openRuntimeSettings() {
     onClose();
     security.openSettings('runtime-registry');
@@ -543,6 +546,16 @@
                 <div class="flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info" role="status">
                   <Info class="size-3.5 shrink-0" />
                   <span class="min-w-0 flex-1">{t('hub.compat_needs_mistralrs_drawer')}</span>
+                  <Button variant="outline" size="xs" class="shrink-0" onclick={openRuntimeSettings}>
+                    {t('hub.compat_open_runtime_settings')}
+                  </Button>
+                </div>
+              {/if}
+
+              {#if needsPrism}
+                <div class="flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info" role="status">
+                  <Info class="size-3.5 shrink-0" />
+                  <span class="min-w-0 flex-1">{t('hub.needs_prism_fork')}</span>
                   <Button variant="outline" size="xs" class="shrink-0" onclick={openRuntimeSettings}>
                     {t('hub.compat_open_runtime_settings')}
                   </Button>

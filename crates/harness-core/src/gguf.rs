@@ -1009,6 +1009,9 @@ pub fn extract_quant_from_filename(filename: &str) -> String {
     let upper = filename.to_uppercase();
     // Longer / more specific names first so e.g. "IQ4_XS" isn't reported as something shorter.
     let quants = [
+        // PrismML fork types (runtimes::quant FORK_TYPES); PTQ1_0 before its substring TQ1_0.
+        "PTQ1_0",
+        "PQ2_0",
         "MXFP4_MOE",
         "MXFP4",
         "UD-Q4_K_XL",
@@ -1090,6 +1093,19 @@ mod tests {
         ] {
             assert_eq!(extract_quant_from_filename(name), quant, "{name}");
         }
+    }
+
+    #[test]
+    fn prismml_fork_quants_are_parsed() {
+        assert_eq!(
+            extract_quant_from_filename("Ternary-Bonsai-2-27B-PQ2_0.gguf"),
+            "PQ2_0"
+        );
+        assert_eq!(
+            extract_quant_from_filename("Ternary-Bonsai-2-27B-PTQ1_0.gguf"),
+            "PTQ1_0"
+        );
+        assert_eq!(extract_quant_from_filename("model-TQ1_0.gguf"), "TQ1_0");
     }
 
     #[test]
