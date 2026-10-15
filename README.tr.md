@@ -75,7 +75,7 @@ Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değ
 | **Modeller için disk** | Modele göre değişir: küçük bir model için yaklaşık 100 MB, büyük biri için 10 GB ve üstü. Klasörü, başka bir sürücü dahil, siz seçersiniz. |
 | **İnternet** | Uygulamayı, motorları ve modelleri indirmek için gerekir. Model diskinizdeyse sohbet için gerekmez. |
 
-Donanımınıza göre otomatik seçilen hızlandırma seçenekleri: **CUDA** (NVIDIA), **ROCm/HIP** (yeni AMD kartlar), **SYCL** (Intel Arc), **Vulkan** (diğer çoğu GPU), **Metal** (Apple Silicon, macOS sürümüyle) ve **CPU**.
+Donanımınıza göre otomatik seçilen hızlandırma seçenekleri: **CUDA** (NVIDIA), **ROCm/HIP** (yeni AMD kartlar; Windows'ta HIP SDK kitaplıklarının yüklenebilir olması gerekir, aksi halde Vulkan önerilir), **SYCL** (Intel Arc), **Vulkan** (diğer çoğu GPU), **Metal** (Apple Silicon, macOS sürümüyle) ve **CPU**.
 
 ### Bilgisayarım ne kadar büyük bir modeli çalıştırır?
 
@@ -285,7 +285,7 @@ v0.1.0 kurulum dosyası henüz dijital olarak imzalı değil; SmartScreen bilinm
 <details>
 <summary><b>Nasıl kaldırırım, dosyalarım nerede?</b></summary>
 
-Windows'ta **Uygulamalar > Yüklü uygulamalar**'ı kullanın. Kaldırmak verilerinizi silmez. Ayarlar, sohbetler, motorlar ve günlükler `%APPDATA%\com.harnessstudio.app` içindedir; modeller sihirbazda seçtiğiniz model klasöründedir (**Ayarlar > Depolama > Dizinler**). Tamamen temizlemek için bu klasörleri kendiniz silin.
+Windows'ta **Uygulamalar > Yüklü uygulamalar**'ı kullanın. Kaldırma, kaldırıcıda **Uygulama verilerini sil** işaretlenmedikçe verilerinizi korur; bu seçenek uygulamanın veri klasörlerini (`%APPDATA%\com.harnessstudio.app` ve `%LOCALAPPDATA%\com.harnessstudio.app`: ayarlar, sohbetler, motorlar, günlükler ve burada duran modeller) siler. Başka bir yerde seçtiğiniz model klasöründeki (**Ayarlar > Depolama > Dizinler**) modeller her iki durumda da kalır. Tam kaldırma için CLI oturum servisini kurduysanız önce `harness service uninstall` çalıştırın, saklanan kimlik bilgilerini (Hugging Face belirteci, sunucu API anahtarları) uygulamadan veya Windows Kimlik Bilgileri Yöneticisi'nden (`com.harnessstudio.app` içeren girdiler) temizleyin. Ardından uygulamayı kaldırın ve istemediğiniz veri ve model klasörlerini silin. Önce ihtiyacınız olanları yedekleyin.
 </details>
 
 <details>
@@ -351,7 +351,7 @@ Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, y
 - **Sunucu kipi:** Harness'i kendi sunucunuzda web arayüzünden yönetin; parola ya da token oturumları, alan adı ve otomatik SSL, systemd servisi ve Docker imajları (CUDA, ROCm, Vulkan, CPU)
 - **Harness Link:** başka bir Harness örneğinin modellerini kütüphanenizde, Playground'da ve ağ geçidinde kullanın
 - Önizlemenin ötesinde imzalı Linux paketleri
-- İmzalı Windows kurulum dosyası; otomatik uygulama güncellemesi
+- Kod imzalı Windows kurulum dosyası; arka planda katılımsız uygulama güncellemesi
 - Control API için TypeScript ve Python SDK'ları; karar modeli uç noktaları
 
 **Daha sonra:** araçlar ve MCP sunucuları için topluluk kayıt defteri, ComfyUI köprüsü, araç yönlendirici ve daha çok üretim sayfası.
@@ -388,7 +388,7 @@ Harness Studio açıkta geliştirilir ve her yardım değerlidir.
 ```sh
 npm ci
 npm run tauri dev      # uygulamayı geliştirme kipinde çalıştır
-npm run tauri build    # kurulum dosyasını derle (Windows'ta NSIS ve MSI)
+npm run tauri build    # kurulum dosyasını derle (Windows'ta NSIS ve MSI; sürümler NSIS kullanır, kaldırmada CLI PATH temizliği yalnız NSIS'te vardır)
 ```
 
 Derleme `harness` CLI'ını ve yardımcı programları da derler. Yalnızca CLI: `cargo build -p harness-cli --release`. Geliştirme denetimleri ve kurallar: [CONTRIBUTING.md](CONTRIBUTING.md).

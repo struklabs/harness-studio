@@ -20,7 +20,7 @@ Harness Studio 0.1.0, projenin [GitHub Releases](https://github.com/struklabs/ha
 2. Windows SmartScreen bir uyarı gösterirse **Ek bilgi**, ardından **Yine de çalıştır** seçeneğine basın. Uyarı, kurulum paketi henüz kod imzalı olmadığı için çıkar.
 3. Harness Studio'yu Başlat menüsünden açın.
 
-Kaldırma işlemi kullanıcı verilerinizi silmez; veriler [aşağıda](#model-klasörü-ve-veri-dizini) anlatılan veri klasöründe kalır. `HKCU\Software\harnessstudio` altında kalan kayıt yalnızca kurulum konumunu hatırlar; zararsızdır ve silinebilir.
+Kaldırma işlemi, kaldırıcıda **Uygulama verilerini sil** işaretlenmedikçe kullanıcı verilerinizi korur. Bu seçenek uygulamanın veri klasörlerini, buradaki modeller dahil, siler; harici bir model klasöründeki modeller kalır. Seçenek işaretlenmezse veriler [aşağıda](#model-klasörü-ve-veri-dizini) anlatılan veri klasöründe kalır. Kurulum, `HKCU\Software\struklabs\Harness Studio` altında yalnızca kurulum konumunu ve dili hatırlayan bir kayıt bırakabilir; zararsızdır ve silinebilir (eski bir `HKCU\Software\harnessstudio` anahtarı önceki bir sürümden kalmış olabilir).
 
 ### Uygulamayı Güncelleme
 
@@ -49,7 +49,7 @@ Model motoru, model dosyasını çalıştıran motordur. Sohbet genellikle llama
 | **Yönetilen (önerilen)** | Çoğu kullanıcı için. Harness Studio resmi sürümü indirir, doğrular ve güncel tutar. |
 | **Özel İkili** | Kendi `llama-server` dosyanız varsa. Konumunu **llama-server yolu** alanına yazıp **Doğrula** düğmesine basın. Özel ikili otomatik olarak güncellenmez veya geri alınmaz. |
 
-Önerilen hızlandırma donanımınıza bağlıdır: NVIDIA için CUDA, uygun AMD kartlar için ROCm/HIP veya Vulkan, Intel Arc için SYCL veya Vulkan, Apple Silicon için Metal. GPU yoksa CPU kullanılır. Bir ekran kartının algılanması, seçilen derlemenin onu kullanabileceğini garanti etmez. Kurulu derleme kartı göremezse Harness Studio her kartta çalışan bir derlemeye (örneğin Vulkan) geçer ve bunu **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında size bildirir.
+Önerilen hızlandırma donanımınıza bağlıdır: NVIDIA için CUDA, uygun AMD kartlar için ROCm/HIP veya Vulkan, Intel Arc için SYCL veya Vulkan, Apple Silicon için Metal. GPU yoksa CPU kullanılır. Bir ekran kartının algılanması, seçilen derlemenin onu kullanabileceğini garanti etmez. Kurulu derleme kartı göremezse kurulum sihirbazı Vulkan'ı dener (uyumlu bir GPU ve sürücü gerekir) ve bunu **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında size bildirir. Mevcut kurulumlar derlemelerini korur; değiştirmek için aynı sayfayı kullanın. Windows'ta ROCm/HIP yalnızca HIP SDK kitaplıkları yüklenebiliyorsa önerilir; aksi halde Vulkan önerilir.
 
 Diğer model türleri, ihtiyaç duyduğunuzda kurduğunuz isteğe bağlı motorları kullanır. Bunlar tek tıkla kurulur: Kütüphane kartlarında, Model Hub'da ve Playground hatalarında "Bu model için … motoru gerekli" notunun yanında bir **Kur** düğmesi görünür; isteğe bağlı motor aileleri **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasındaki **Diğer Model Motorları** listesinde vardır (iki arayüz düzeyinde de). ONNX Runtime, Lemonade, dönüştürme ortamı ve ek derlemeler **Ayarlar > Model Motoru > Registry** sayfasında (Gelişmiş bir sayfa) yönetilir:
 
@@ -82,6 +82,6 @@ Uygulama verileri (ayarlar, sohbet veritabanı, motorlar ve günlükler) model k
 | macOS | `~/Library/Application Support/com.harnessstudio.app` |
 | Linux (x64) | `.deb` / AppImage | Önizleme paketleri; sürüm iş akışı iki biçimi de üretir. |
 
-Veri klasörünü komut satırından değiştirmek için [CLI başvurusuna](../../tr/CLI.md) bakın. Kimlik bilgilerinin nasıl saklandığı için [güvenlik modeline](../../tr/SECURITY_MODEL.md) bakın. Sıfırdan başlamak için uygulamayı kapatın, bu klasörü yedekleyin ve silin; ayarlarınız ve sohbetleriniz de onunla birlikte silinir.
+Veri klasörünü komut satırından değiştirmek için [CLI başvurusuna](../../tr/CLI.md) bakın. Kimlik bilgilerinin nasıl saklandığı için [güvenlik modeline](../../tr/SECURITY_MODEL.md) bakın. Sıfırdan başlamak için uygulamayı kapatın, bu klasörü yedekleyin ve silin; ayarlarınız ve sohbetleriniz de onunla birlikte silinir. Windows'ta tam kaldırma için CLI oturum servisini kurduysanız önce `harness service uninstall` çalıştırın, saklanan kimlik bilgilerini (Hugging Face belirteci, sunucu API anahtarları) uygulamadan veya Windows Kimlik Bilgileri Yöneticisi'nden (`com.harnessstudio.app` içeren girdiler) temizleyin; ardından uygulamayı kaldırıp istemediğiniz veri ve model klasörlerini silin.
 
 Sonraki: [Model Hub ve Kütüphanem](02-model-hub-ve-kutuphane.md).

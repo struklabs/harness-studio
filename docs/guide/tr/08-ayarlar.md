@@ -97,7 +97,7 @@ Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve
 | Dil | Türkçe/İngilizce; değişiklik hemen uygulanır. |
 | **Arayüz boyutu** | Yazı, simge ve boşlukları birlikte ölçekler. Kısayollar: Ctrl+= büyüt, Ctrl+- küçült, Ctrl+0 sıfırla. |
 | **Renk körlüğü dostu renkler** | Durum ve grafik renklerini kırmızı/yeşil ayrımına dayanmayan renklerle değiştirir. |
-| **Oturum açılınca başlat** | Bilgisayar açılınca Harness Studio başlar. Hemen uygulanır. |
+| **Oturum açılınca başlat** | Kullanıcı hesabınızda oturum açtığınızda Harness Studio başlar. Hemen uygulanır. |
 | **Küçültülmüş başlat** | Otomatik açılışta pencere açılmaz, uygulama tepside bekler. Yalnız **Oturum açılınca başlat** açıkken kullanılabilir. |
 | **Son oturumu geri yükle** | Açılışta en son başlattığınız sunucu yeniden başlar. |
 | **Pencereyi kapatınca** | **Sor**, **Tepsiye Küçült** veya **Uygulamadan Çık**. macOS'ta **Menü çubuğunda tut** karşılığı vardır. |

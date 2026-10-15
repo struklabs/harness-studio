@@ -50,7 +50,7 @@ Aşağıdaki alanlar uygulamadaki adlarıyla verilmiştir. Emin değilseniz öne
 | **Bağlam kaydırma yönetimi** (Bağlam ve Bellek) | Bağlam dolunca eski içeriğin otomatik kaydırılıp kaydırılmayacağı. Kaydırma üretimin sürmesini sağlar ama kaydırılan içerik modelin hafızasından çıkar. |
 | **KV önbelleğini GPU'ya taşı** | Kapalıysa önbellek sistem RAM'inde kalır: ekran kartı belleğinden tasarruf edersiniz ama hız düşebilir. |
 | **GPU katmanları** (GPU) | Modelin kaç katmanının ekran kartına yükleneceği. Hepsi kartta olduğunda hız en yüksektir. VRAM yetmezse azaltın; kalan katmanlar CPU'da çalışır, bu daha yavaştır ve daha fazla RAM ister. |
-| **Hedef ekran kartı (GPU)** (GPU) | Birden fazla kartınız varsa hangisinin kullanılacağı. **Otomatik (önerilen)**, en çok belleğe sahip harici kartı seçer; harici kart varken tümleşik GPU seçilemez. |
+| **Hedef ekran kartı (GPU)** (GPU) | Birden fazla kartınız varsa llama.cpp'nin hangisini kullanacağı (diğer motorların kendi denetimleri vardır). **Otomatik (önerilen)**, en çok belleğe sahip harici kartı seçer; harici kart varken tümleşik GPU seçilemez. |
 | **CPU iş parçacığı** (GPU) | CPU hesabı için kullanılan çekirdek sayısı. Boş bırakılırsa (**Oto (önerilen)**) fiziksel çekirdek sayısı kullanılır. |
 | **Flash Attention** (GPU) | Dikkat hesabını hızlandırır ve uzun bağlamların bellek yükünü azaltır. Destek, motora bağlıdır. Değer önbelleği (V) kuantlandığında Harness Studio bunu kendisi açar. |
 | **Mantıksal batch** ve **Mikro batch** (GPU) | Tek seferde işlenen token sayısı. Hesaplama belleği hatasında mikro batch'i küçültmek yardımcı olabilir. |

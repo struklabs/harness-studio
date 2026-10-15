@@ -50,7 +50,7 @@ The fields below use their names in the app. If you are unsure, leave the recomm
 | **Context shift management** (Context and Memory) | Whether old content is shifted out automatically when the context fills up. Shifting keeps generation going, but the shifted content leaves the model's memory. |
 | **Offload KV cache to GPU** | When off, the cache stays in system RAM: you save graphics memory but speed may drop. |
 | **GPU layers** (GPU) | How many of the model's layers are loaded onto the graphics card. Speed is highest when all of them are on the card. If VRAM is not enough, reduce it; the remaining layers run on the CPU, which is slower and needs more RAM. |
-| **Target graphics card (GPU)** (GPU) | Which card is used when you have more than one. **Auto (recommended)** picks the dedicated card with the most memory; an integrated GPU cannot be selected while a discrete card is present. |
+| **Target graphics card (GPU)** (GPU) | Which card llama.cpp uses when you have more than one (other engines have their own controls). **Auto (recommended)** picks the dedicated card with the most memory; an integrated GPU cannot be selected while a discrete card is present. |
 | **CPU threads** (GPU) | The number of cores used for CPU computation. Left empty (**Auto (recommended)**), the physical core count is used. |
 | **Flash Attention** (GPU) | Speeds up attention and reduces the memory cost of long contexts. Support depends on the runtime. Harness Studio turns it on itself when the value cache (V) is quantized. |
 | **Logical batch** and **Micro batch** (GPU) | How many tokens are processed at once. Lowering the micro batch can help with a compute-memory error. |

@@ -75,7 +75,7 @@ These are the requirements of **Harness Studio itself**, not of any model. Figur
 | **Disk for models** | Depends on the model: from about 100 MB for a tiny model to 10 GB or more for a large one. You choose the folder, including another drive. |
 | **Internet** | Needed to download the app, engines, and models. Not needed to chat once a model is on your disk. |
 
-Supported acceleration, chosen automatically for your hardware: **CUDA** (NVIDIA), **ROCm/HIP** (recent AMD cards), **SYCL** (Intel Arc), **Vulkan** (most other GPUs), **Metal** (Apple Silicon, with the macOS build), and **CPU**.
+Supported acceleration, chosen automatically for your hardware: **CUDA** (NVIDIA), **ROCm/HIP** (recent AMD cards; on Windows this needs the HIP SDK libraries to be loadable, otherwise Vulkan is recommended), **SYCL** (Intel Arc), **Vulkan** (most other GPUs), **Metal** (Apple Silicon, with the macOS build), and **CPU**.
 
 ### How big a model can my PC run?
 
@@ -285,7 +285,7 @@ The v0.1.0 installer is not code-signed yet, so SmartScreen warns about unknown 
 <details>
 <summary><b>How do I uninstall it, and where are my files?</b></summary>
 
-Use Windows **Apps > Installed apps**. Uninstalling does not delete your data. Settings, chats, engines, and logs live in `%APPDATA%\com.harnessstudio.app`; models are in the model folder you chose in the wizard (**Settings > Storage > Directories**). Delete those folders yourself for a clean removal.
+Use Windows **Apps > Installed apps**. Uninstalling keeps your data unless you tick **Delete the application data** in the uninstaller; that option deletes the application's data folders (`%APPDATA%\com.harnessstudio.app` and `%LOCALAPPDATA%\com.harnessstudio.app`: settings, chats, engines, logs, and any models stored there). Models in a model folder you chose elsewhere (**Settings > Storage > Directories**) stay either way. For full removal, first run `harness service uninstall` if you installed the CLI login service, and clear stored credentials (Hugging Face token, server API keys) in the app or in Windows Credential Manager (entries containing `com.harnessstudio.app`). Then uninstall and delete the retained data and model folders you no longer want. Back up anything you need first.
 </details>
 
 <details>
@@ -351,7 +351,7 @@ The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction
 - **Server mode:** manage Harness on your own server from a web interface, with passwords or tokens, domain and automatic SSL, a systemd service, and Docker images (CUDA, ROCm, Vulkan, CPU)
 - **Harness Link:** use models from another Harness instance in your library, Playground, and gateway
 - Signed Linux packages beyond the preview
-- Code-signed Windows installer; automatic app updates
+- Code-signed Windows installer; unattended background app updates
 - TypeScript and Python SDKs for the Control API; decision-model endpoints
 
 **Later:** a community registry of tools and MCP servers, a ComfyUI bridge, a tool router, and more creation pages.
@@ -388,7 +388,7 @@ You need **Rust (stable)**, **Node.js 22+**, and the [Tauri prerequisites](https
 ```sh
 npm ci
 npm run tauri dev      # run the app in development mode
-npm run tauri build    # build the installer (NSIS and MSI on Windows)
+npm run tauri build    # build the installer (NSIS and MSI on Windows; releases use NSIS, and the CLI PATH cleanup on uninstall exists only in NSIS)
 ```
 
 The build also compiles the `harness` CLI and helper programs. CLI only: `cargo build -p harness-cli --release`. Development checks and conventions: [CONTRIBUTING.md](CONTRIBUTING.md).
