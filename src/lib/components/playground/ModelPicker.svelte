@@ -36,6 +36,8 @@
   let { currentModel, onUse, onPicked, label, mode = 'chat' }: Props = $props();
 
   let open = $state(false);
+  /** Closed with Escape: focus returns to the trigger (a keyboard user would land on <body>). */
+  let escaped = false;
   let busy = $state<Record<string, boolean>>({});
   /** Definition whose "Load Settings" are open (one at a time). */
   let settingsFor = $state<string | null>(null);
@@ -112,6 +114,7 @@
     if (!open || e.key !== 'Escape') return;
     if (document.querySelector('[role="menu"][data-state="open"]')) return;
     e.preventDefault();
+    escaped = true;
     open = false;
   }
 
@@ -196,9 +199,12 @@
   <Popover.Content
     align="end"
     class="w-[420px] p-0"
+    onEscapeKeydown={() => (escaped = true)}
     onCloseAutoFocus={(e) => {
-      // Do not yank focus back to the trigger: the composer (or whatever the user clicked) keeps it.
-      e.preventDefault();
+      // After a pick the composer takes focus (onPicked) and after a click elsewhere the clicked
+      // element keeps it: do not yank it back to the trigger. After Escape it returns there.
+      if (!escaped) e.preventDefault();
+      escaped = false;
     }}
   >
     <div class="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
