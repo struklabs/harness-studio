@@ -717,7 +717,7 @@
                         {@const hasUpdate = updateFlags[`${repo.id}|${variant.name}`] === true}
                         {@const isRecommended = recommended?.name === variant.name}
                         {@const isFocused = !!focusFile && isTwinFile(variant.shards[0]?.filename ?? variant.name, focusFile)}
-                        <Table.Row class={isFocused ? 'bg-primary/10' : ''} data-focus={isFocused ? 'true' : undefined} {@attach focusRow(isFocused)}>
+                        <Table.Row class={isFocused ? 'bg-primary/10' : ''} data-unavailable={!!variant.not_runnable || undefined} data-focus={isFocused ? 'true' : undefined} {@attach focusRow(isFocused)}>
                           <Table.Cell class="max-w-[220px]">
                             <div class="flex min-w-0 flex-col">
                               <span class="flex items-center gap-1.5">

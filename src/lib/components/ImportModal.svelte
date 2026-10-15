@@ -227,7 +227,7 @@
               </div>
               <ul class="divide-y divide-border overflow-hidden rounded-lg border border-border">
                 {#each g.items as c (`${c.path}:${c.name}`)}
-                  <li class={cn('flex items-center gap-3 px-3 py-2', c.imported && 'opacity-60')}>
+                  <li class={cn('flex items-center gap-3 px-3 py-2', c.imported && 'opacity-60')} data-unavailable={c.imported || undefined}>
                     <Checkbox
                       id="{uid}-c-{c.path}-{c.name}"
                       checked={c.imported || !!selected[c.path]}

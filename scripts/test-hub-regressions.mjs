@@ -1,8 +1,56 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { parseSearchQuery } from '../src/lib/components/hub/searchParser.ts';
 import { isCompanionVariant, pickProjectorVariant, recommendFloatVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
 import { needsPrismFork } from '../src/lib/components/hub/forkQuants.ts';
+
+const themeCss = readFileSync(new URL('../src/app.css', import.meta.url), 'utf8');
+const cssRules = [...themeCss.matchAll(/([^{}]+)\{([^{}]*)\}/g)];
+
+function luminance(hex) {
+  const channels = hex.match(/[a-f\d]{2}/gi).map((channel) => {
+    const value = parseInt(channel, 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+function contrast(foreground, background) {
+  const values = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
+  return (values[0] + 0.05) / (values[1] + 0.05);
+}
+
+test('unavailable HC card titles, owners and refusal labels retain AAA contrast', () => {
+  for (const theme of ['hc-light', 'hc-dark']) {
+    const selector = `[data-theme="${theme}"]`;
+    const tokens = (selector) => Object.fromEntries(
+      [...cssRules.find(([_, header]) => header.trim().endsWith(selector))[2].matchAll(/--([\w-]+):\s*(#[a-f\d]{6});/gi)]
+        .map(([_, name, value]) => [name, value])
+    );
+    const base = tokens(selector);
+    for (const palette of [base, { ...base, ...tokens(`[data-cvd="on"]${selector}`) }]) {
+      for (const foreground of ['foreground', 'muted-foreground', 'warning']) {
+        for (const surface of ['background', 'card', 'muted']) {
+          assert.ok(contrast(palette[foreground], palette[surface]) >= 7, `${theme} ${foreground} on ${surface}`);
+        }
+      }
+    }
+  }
+});
+
+test('unavailable opacity override is HC-only and retains a non-colour state cue', () => {
+  const rule = cssRules.find(([_, selector]) => selector.includes('[data-unavailable="true"]'));
+  assert.ok(rule);
+  assert.match(rule[1], /\[data-theme\^="hc-"\]\s+\[data-unavailable="true"\]\s*$/);
+  assert.match(rule[2], /opacity:\s*1;/);
+  assert.match(rule[2], /outline:\s*1px dashed var\(--border\);/);
+  const card = readFileSync(new URL('../src/lib/components/hub/RepoCard.svelte', import.meta.url), 'utf8');
+  assert.match(card, /data-unavailable=\{unsupported \|\| undefined\}/);
+  assert.match(card, /unsupported && 'opacity-60'/);
+  const drawer = readFileSync(new URL('../src/lib/components/hub/VariantDrawer.svelte', import.meta.url), 'utf8');
+  assert.match(drawer, /data-unavailable=\{!!variant\.not_runnable \|\| undefined\}/);
+});
 
 test('exact repository IDs retain GGUF and quantization names', () => {
   for (const repo of ['unsloth/Qwen3-4B-GGUF', 'owner/model-Q4_K_M', 'OWNER/Model.gguf']) {
