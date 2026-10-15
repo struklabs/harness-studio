@@ -11,7 +11,7 @@ use std::io::Read;
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 use tokio::io::{AsyncWriteExt, BufWriter};
 
@@ -470,6 +470,22 @@ fn exact_repo_missing(options: &HfSearchOptions, items: &[HfModelSearchResult]) 
         && !items
             .iter()
             .any(|m| m.id.eq_ignore_ascii_case(options.query.trim()))
+}
+
+fn merge_search_extras(
+    page: &mut HfSearchPage,
+    extras: Vec<HfModelSearchResult>,
+    whisper: Option<HfModelSearchResult>,
+    sort: Option<&str>,
+) {
+    merge_runnable_extras(&mut page.items, extras, sort);
+    // The whisper.cpp repo has no GGUF (the listing is `filter=gguf`): it is looked up by
+    // name and put first when the search is for speech models.
+    if let Some(repo) = whisper {
+        if !page.items.iter().any(|m| m.id == repo.id) {
+            page.items.insert(0, repo);
+        }
+    }
 }
 
 fn prioritize_exact_repo(items: &mut [HfModelSearchResult], query: &str) {
@@ -1391,10 +1407,15 @@ impl DownloadManager {
     }
 
     fn client() -> Result<reqwest::Client, String> {
-        reqwest::Client::builder()
-            .user_agent(USER_AGENT)
-            .build()
-            .map_err(|e| crate::http_error::transport(&e, "HTTP client"))
+        static CLIENT: OnceLock<Result<reqwest::Client, String>> = OnceLock::new();
+        CLIENT
+            .get_or_init(|| {
+                reqwest::Client::builder()
+                    .user_agent(USER_AGENT)
+                    .build()
+                    .map_err(|e| crate::http_error::transport(&e, "HTTP client"))
+            })
+            .clone()
     }
 
     fn custom_client() -> Result<reqwest::Client, String> {
@@ -1477,20 +1498,26 @@ impl DownloadManager {
         options: &HfSearchOptions,
         token: Option<&str>,
     ) -> Result<HfSearchPage, String> {
-        let mut page = Self::search_gguf_page(options, token).await?;
-        if !options.include_non_gguf.unwrap_or(false) {
-            let extras = Self::runnable_non_gguf(options, token).await;
-            merge_runnable_extras(&mut page.items, extras, options.sort.as_deref());
-        }
-        // The whisper.cpp repo has no GGUF (the listing is `filter=gguf`): it is looked up by
-        // name and put first when the search is for speech models.
-        if !options.include_non_gguf.unwrap_or(false) && wants_whisper_repo(options) {
-            if let Some(repo) = Self::fetch_whisper_repo(token).await {
-                if !page.items.iter().any(|m| m.id == repo.id) {
-                    page.items.insert(0, repo);
+        let include_extras = !options.include_non_gguf.unwrap_or(false);
+        let (page, extras, whisper) = tokio::join!(
+            Self::search_gguf_page(options, token),
+            async {
+                if include_extras {
+                    Self::runnable_non_gguf(options, token).await
+                } else {
+                    Vec::new()
+                }
+            },
+            async {
+                if include_extras && wants_whisper_repo(options) {
+                    Self::fetch_whisper_repo(token).await
+                } else {
+                    None
                 }
             }
-        }
+        );
+        let mut page = page?;
+        merge_search_extras(&mut page, extras, whisper, options.sort.as_deref());
         if exact_repo_missing(options, &page.items) {
             if let Some(repo) = Self::fetch_exact_repo(options.query.trim(), token).await {
                 page.items.push(repo);
@@ -7439,6 +7466,92 @@ mod tests {
         );
         let ids: Vec<&str> = items.iter().map(|m| m.id.as_str()).collect();
         assert_eq!(ids, ["a/gguf-1", "sentence-transformers/x", "a/gguf-2"]);
+    }
+
+    #[test]
+    fn search_extras_merge_before_whisper_and_preserve_listing_ties_and_cursor() {
+        let mk = |id: &str, downloads: u64| {
+            parse_search_item(&serde_json::json!({"id": id, "downloads": downloads})).unwrap()
+        };
+        let mut page = HfSearchPage {
+            items: vec![mk("a/first", 100), mk("a/second", 10)],
+            next_cursor: Some("next-page".into()),
+        };
+        merge_search_extras(
+            &mut page,
+            vec![mk("a/extra", 100), mk("a/first", 999)],
+            Some(mk(WHISPER_CPP_REPO, 0)),
+            None,
+        );
+        let ids: Vec<_> = page.items.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(ids, [WHISPER_CPP_REPO, "a/first", "a/extra", "a/second"]);
+        assert_eq!(page.items[1].downloads, 100);
+        assert_eq!(page.next_cursor.as_deref(), Some("next-page"));
+    }
+
+    #[test]
+    fn search_extras_do_not_replace_or_promote_an_existing_whisper_repo() {
+        let mk = |id: &str, likes: u64| {
+            parse_search_item(&serde_json::json!({"id": id, "likes": likes})).unwrap()
+        };
+        for listed in [false, true] {
+            let mut page = HfSearchPage {
+                items: vec![mk("a/first", 100)],
+                next_cursor: None,
+            };
+            let mut extras = vec![mk("a/extra", 50)];
+            if listed {
+                page.items.push(mk(WHISPER_CPP_REPO, 10));
+            } else {
+                extras.push(mk(WHISPER_CPP_REPO, 10));
+            }
+            merge_search_extras(
+                &mut page,
+                extras,
+                Some(mk(WHISPER_CPP_REPO, 999)),
+                Some("likes"),
+            );
+            let ids: Vec<_> = page.items.iter().map(|m| m.id.as_str()).collect();
+            assert_eq!(ids, ["a/first", "a/extra", WHISPER_CPP_REPO]);
+            assert_eq!(page.items[2].likes, 10);
+        }
+    }
+
+    #[tokio::test]
+    async fn shared_client_reuses_connections_across_calls() {
+        use tokio::io::AsyncReadExt;
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            for _ in 0..2 {
+                let mut request = Vec::new();
+                while !request.ends_with(b"\r\n\r\n") {
+                    request.push(socket.read_u8().await.unwrap());
+                }
+                let request = String::from_utf8(request).unwrap();
+                assert!(request.to_ascii_lowercase().contains(&format!(
+                    "user-agent: {}\r\n",
+                    USER_AGENT.to_ascii_lowercase()
+                )));
+                socket
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nOK")
+                    .await
+                    .unwrap();
+            }
+        });
+        for _ in 0..2 {
+            let response = DownloadManager::client()
+                .unwrap()
+                .get(&url)
+                .timeout(std::time::Duration::from_secs(3))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.text().await.unwrap(), "OK");
+        }
+        server.await.unwrap();
     }
 
     #[test]
