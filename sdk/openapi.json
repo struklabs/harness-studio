@@ -10240,6 +10240,21 @@
           },
           {
             "type": "object",
+            "description": "A managed engine library was installed or removed (an ONNX Runtime build, also the\nautomatic install of a first ONNX launch); install-state views reload on this.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "engines_changed"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
             "description": "A server instance changed status (starting, running, stopped, error...).",
             "required": [
               "server_id",
@@ -20589,6 +20604,7 @@
           "variant",
           "version",
           "download_bytes",
+          "disk_bytes",
           "default"
         ],
         "properties": {
@@ -20604,6 +20620,12 @@
             "description": "Download size of the pinned archives (the real transfer is smaller for ZIPs).",
             "minimum": 0
           },
+          "disk_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size on disk once installed ([`VariantSpec::disk_bytes`]).",
+            "minimum": 0
+          },
           "default": {
             "type": "boolean"
           },
@@ -20616,6 +20638,13 @@
                 "$ref": "#/components/schemas/Installed"
               }
             ]
+          },
+          "damaged": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Files of an install that are missing or changed in size ([`damaged_in`]); the build then\nreads as not installed and is installed again."
           }
         }
       },

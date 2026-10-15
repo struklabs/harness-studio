@@ -81,6 +81,9 @@ pub fn spawn(app: &AppHandle, registry: Arc<ServerRegistry>) {
             if changed.tools {
                 let _ = handle.emit("tools-changed", ());
             }
+            if changed.engines {
+                let _ = handle.emit("engines-changed", ());
+            }
             if changed.definitions {
                 let _ = handle.emit("definitions-changed", ());
             }
@@ -101,6 +104,8 @@ pub fn spawn(app: &AppHandle, registry: Arc<ServerRegistry>) {
 #[derive(Default)]
 struct Changed {
     tools: bool,
+    /// A managed engine library was installed or removed.
+    engines: bool,
     definitions: bool,
     downloads: bool,
     /// A safetensors to GGUF conversion job changed.
@@ -116,6 +121,7 @@ impl Changed {
     fn all() -> Self {
         Self {
             tools: true,
+            engines: true,
             definitions: true,
             downloads: true,
             converts: true,
@@ -127,6 +133,7 @@ impl Changed {
 
     fn any(&self) -> bool {
         self.tools
+            || self.engines
             || self.definitions
             || self.downloads
             || self.converts
@@ -138,6 +145,7 @@ impl Changed {
     fn classify(&mut self, e: &CoreEvent) {
         match e {
             CoreEvent::ToolsChanged => self.tools = true,
+            CoreEvent::EnginesChanged => self.engines = true,
             CoreEvent::DefinitionsChanged => self.definitions = true,
             CoreEvent::Download { .. } | CoreEvent::DownloadRemoved { .. } => self.downloads = true,
             CoreEvent::Convert { .. } | CoreEvent::ConvertRemoved { .. } => self.converts = true,

@@ -3,6 +3,7 @@
   // Hugging Face ONNX models). Downloaded on demand, every file checked against a pinned SHA-256.
   import { invoke } from '#lib/ipc.js';
   import { onDestroy, onMount } from 'svelte';
+  import { listen } from '@tauri-apps/api/event';
   import { toast } from 'svelte-sonner';
   import type { OnnxRuntimeProgress, OnnxRuntimeSupport, OnnxRuntimeVariant } from '#lib/types.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
@@ -41,6 +42,17 @@
     }
   }
   onMount(load);
+
+  // Installs and removals elsewhere (Settings > Installed Runtime, the automatic install of a
+  // first ONNX launch) arrive as `engines-changed`.
+  onMount(() => {
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void listen('engines-changed', () => {
+      if (!disposed) void load();
+    }).then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; }).catch(() => {});
+    return () => { disposed = true; cleanup?.(); };
+  });
 
   async function install(v: string) {
     busy = v;
@@ -109,7 +121,9 @@
                 {#if v.default}<Badge variant="secondary" class="text-xs">{t('ort.default')}</Badge>{/if}
               </span>
               <span class="truncate font-mono text-xs text-muted-foreground" title={v.installed?.dir ?? ''}>
-                {v.installed ? `${t('ort.installed')} · ${fmt(v.installed.size_bytes)} · ${v.installed.dir}` : t('ort.not_installed')}
+                {v.installed
+                  ? `${t('ort.installed')} · ${t('ort.on_disk', { size: fmt(v.installed.size_bytes) })} · ${v.installed.dir}`
+                  : `${t('ort.not_installed')} · ${t('ort.download_size', { size: fmt(v.download_bytes) })} · ${t('ort.on_disk', { size: fmt(v.disk_bytes) })}`}
               </span>
             </div>
             <div class="flex shrink-0 items-center gap-1.5">
@@ -122,11 +136,14 @@
                 </Button>
               {:else}
                 <Button size="sm" disabled={busy !== null} onclick={() => install(v.variant)}>
-                  {busy === v.variant ? t('ort.installing') : t('ort.install', { size: fmt(v.download_bytes) })}
+                  {busy === v.variant ? t('ort.installing') : v.damaged?.length ? t('ort.reinstall') : t('ort.install')}
                 </Button>
               {/if}
             </div>
           </div>
+          {#if !v.installed && v.damaged?.length}
+            <span class="text-xs text-destructive" role="alert">{t('ort.damaged', { list: v.damaged.join(', ') })}</span>
+          {/if}
           {#if busy === v.variant && progress}
             <Progress value={pct} aria-label={progress.current} />
             <span class="font-num text-xs text-muted-foreground">

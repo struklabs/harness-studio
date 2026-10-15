@@ -144,5 +144,5 @@ pub(crate) async fn verify_onnx_runtime(variant: String) -> Result<Vec<String>, 
 pub(crate) async fn remove_onnx_runtime(variant: String) -> Result<(), String> {
     let v = crate::onnx_runtime::OrtVariant::parse(&variant)
         .ok_or_else(|| format!("onnx.unsupported_platform: {variant}"))?;
-    blocking(move || crate::onnx_runtime::remove_in(&crate::onnx_runtime::root(), v)).await?
+    blocking(move || crate::onnx_runtime::remove(v)).await?
 }

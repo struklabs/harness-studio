@@ -66,6 +66,6 @@ pub async fn verify_onnx_runtime(P(id): P<String>) -> ApiResult<Json<OnnxVerifyR
     responses((status = 204), (status = 422, body = ErrorBody)))]
 pub async fn remove_onnx_runtime(P(id): P<String>) -> ApiResult<StatusCode> {
     let v = variant(&id)?;
-    blocking(move || onnx_runtime::remove_in(&onnx_runtime::root(), v)).await??;
+    blocking(move || onnx_runtime::remove(v)).await??;
     Ok(StatusCode::NO_CONTENT)
 }
