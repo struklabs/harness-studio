@@ -2563,6 +2563,29 @@ print("lines", w.sentences("- süt\n- ekmek\n\n- yumurta"))
 print("line ends", [w.sentences(t) for t in ("Madde 3.\nSonraki satır", "Bkz.\nAli", "Saat 10.\nGeldi.", "Hi Dr.\r\nAli")])
 print("quote", w.sentences('He said "Go." Then left.'))
 print("cap", [len(p) for p in w.sentences(" ".join(["kelime"] * 100), 120)])
+# A streaming model speaks a short text in one call, a text longer than one call's frame ceiling
+# (187 tokens at speed 1) in runs of whole sentences that each fit: none of it is dropped.
+class Streamer:
+    tokenizer = types.SimpleNamespace(encode=lambda t: t.split())
+    def __init__(self):
+        self.calls = []
+    def generate(self, text, voice=None, speed=1.0, max_tokens=4096, stream=False, **kw):
+        self.calls.append((text, max_tokens))
+        yield types.SimpleNamespace(audio=[0.0])
+now[0] = 0.0
+s = Streamer()
+speak = w.make_speak(s, [], 24000, 1000, encode, clock)
+speak("Short one. Two.", None, 1.0, None)
+print("streamed short", s.calls)
+s.calls.clear()
+story = " ".join("Sentence %d has exactly seven words here." % i for i in range(60))
+speak(story, None, 1.0, None)
+said = " ".join(t for t, _ in s.calls)
+print("streamed long", len(s.calls), max(m for _, m in s.calls) < w.frame_budget(10**6, 1.0),
+      said == story)
+s.calls.clear()
+speak(story, None, 0.5, None)
+print("streamed slow", len(s.calls))
 "#,
             dir.path().to_string_lossy()
         );
@@ -2596,6 +2619,11 @@ print("cap", [len(p) for p in w.sentences(" ".join(["kelime"] * 100), 120)])
             "line ends [['Madde 3.', 'Sonraki satır'], ['Bkz.', 'Ali'], ['Saat 10.', 'Geldi.'], ['Hi Dr.', 'Ali']]",
             "quote ['He said \"Go.\"', 'Then left.']",
             "cap [118, 118, 118, 118, 118, 104]",
+            "streamed short [('Short one. Two.', 75)]",
+            // 420 tokens: runs of 26 sentences (182 tokens, under 187), all of the text.
+            "streamed long 3 True True",
+            // At half speed a call holds half the text: runs of 13 sentences.
+            "streamed slow 5",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }

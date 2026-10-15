@@ -383,6 +383,27 @@ def frame_budget(text_tokens, speed, rate=FRAME_RATE, lead=0):
     return min(max(math.ceil(MIN_SECONDS * rate), want), int(MAX_AUDIO_SECONDS * rate)) + lead
 
 
+def fits(text_tokens, speed):
+    """Whether one call for this many text tokens stays under the frame ceiling (see
+    `frame_budget`): a longer text in one call is cut at MAX_AUDIO_SECONDS of audio."""
+    return max(1, text_tokens) * FRAMES_PER_TOKEN / max(speed, 0.25) <= MAX_AUDIO_SECONDS * FRAME_RATE
+
+
+def sentence_groups(model, text, speed):
+    """`text` as runs of whole sentences, each short enough to fit one call (`fits`). A
+    streaming model speaks a text that fits in one call; a longer one run by run, so the frame
+    ceiling of a call never drops the rest of the text."""
+    groups, run, tokens = [], "", 0
+    for sentence in sentences(text):
+        n = count_tokens(model, sentence)
+        if run and not fits(tokens + n, speed):
+            groups.append(run)
+            run, tokens = "", 0
+        run = run + " " + sentence if run else sentence
+        tokens += n
+    return groups + [run] if run else groups
+
+
 def count_tokens(model, text):
     """Text tokens of `text` by the model's tokenizer; without one (Dia reads bytes), about one
     per four characters, as a subword tokenizer would count them."""
@@ -470,8 +491,15 @@ def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
         if can_stream:
             kwargs["stream"] = True
         # A model that cannot stream answers a whole call at once: it is called a sentence at a
-        # time, so the time limit is checked between sentences.
-        pieces = [text] if can_stream else sentences(text)
+        # time, so the time limit is checked between sentences. One that streams takes the text
+        # in one call when its audio fits a call's frame ceiling, else in runs of sentences that
+        # do (one call of a long text stopped at MAX_AUDIO_SECONDS and dropped the rest).
+        if not can_stream:
+            pieces = sentences(text)
+        elif fits(count_tokens(model, text), speed):
+            pieces = [text]
+        else:
+            pieces = sentence_groups(model, text, speed)
         deadline = clock() + max_seconds
         parts, truncated = [], False
         for n, piece in enumerate(pieces):
