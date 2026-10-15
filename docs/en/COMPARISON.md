@@ -138,30 +138,37 @@ apart from an LM Studio control run.
 A second run on an NVIDIA RTX 3050 Ti Laptop (4 GB, CUDA 12), Intel Core i7-12700H, 16 GB RAM. It compares Harness Studio (headless,
 main 623e87c) with the same `llama-server` build it manages (b11574, CUDA) started directly, on the same files. Every difference is
 therefore a product choice, not an engine difference. Ollama and LM Studio were not part of this run. A 14B model does not fit 4 GB,
-so the second model is Qwen3-0.6B Q8_0. Full tables: [benchmarks/2026-10-15-nvidia/summary.md](../benchmarks/2026-10-15-nvidia/summary.md).
+so the second model is Qwen3-0.6B Q8_0. Full tables of the first run: [benchmarks/2026-10-15-nvidia/summary.md](../benchmarks/2026-10-15-nvidia/summary.md).
+The run found two weak Harness defaults; both were fixed the same day. The Harness rows below are the re-measured ones, with the first
+run in parentheses where they changed.
 
 | Test | Harness Studio | llama.cpp (same build, direct) |
 |---|---|---|
-| 4B decode, out of box (tok/s; card ceiling from llama-bench 56.7–60.8) | **55.3** | 29.9 |
-| 4B prompt processing, 4k tokens (tok/s) | **1963** | 1573 |
-| 0.6B decode, out of box (tok/s) | 157.7 | **187.7** |
-| 0.6B prompt processing, 4k tokens (tok/s) | 3967 | **9168** |
+| 4B decode, out of box (tok/s; card ceiling from llama-bench 56.7–60.8) | **56.5** (55.3) | 29.9 |
+| 4B prompt processing, 4k tokens (tok/s) | **2049** (1963) | 1573 |
+| 0.6B decode, out of box (tok/s) | 183.1 (157.7) | **187.7** |
+| 0.6B prompt processing, 4k tokens (tok/s) | 7957 (3967) | **9168** |
 | 4B, equal settings (32k f16 KV needs ~7.2 GB, 4.1 GB free) | refused with an explanation | loaded, spilled: 42.5 tok/s, prompt processing 341 tok/s, cold agent turn 53 s |
 | 0.6B, equal settings (tok/s decode / prompt processing) | **186.6 / 8971** (context lowered to 16k to stay in VRAM) | 155.9 / 1443 (32k, spilled) |
 | Tool calling, 4B (38 cases) | **38/38** | **38/38** |
-| Tool calling, 0.6B, out of box / equal | **36/38** / 32/38 | 34/38 / **35/38** |
-| Agent test, out of box: cold / turn 2 / turn 3 TTFT (s) | **7.0 / 0.36 / 0.13** | context error (4k context) |
-| 4 concurrent requests, 4B out of box (tok/s total) | 56.4 (1 slot) | **75.3** (4 slots, 4k context) |
+| Tool calling, 0.6B, out of box / equal | 34/38 (36/38) / 32/38 | 34/38 / **35/38** |
+| Agent test, out of box: cold / turn 2 / turn 3 TTFT (s) | **6.8 / 0.36 / 0.13** | context error (4k context) |
+| 4 concurrent requests, 4B out of box (tok/s total / TTFT s) | **148 / 0.78** (56.4 / 6.9 with 1 slot) | 75.3 / 0.67 (4 slots, 4k context) |
 | 0.6B at 65k context, decode (tok/s) | **123.5** | 59.3 |
 | Switch 4B → 0.6B through one endpoint (s) | **2.0** | not supported (restart 7.6) |
 
 - **Out of box on a small card,** Harness puts the whole 4B model on the GPU and reaches the card's ceiling with no tuning. Plain
   `llama-server` with its defaults decodes at about half that speed.
-- **Where plain llama.cpp leads:**
-  - **Small models out of box:** on the 0.6B, Harness's defaults (32k context, q8_0 KV, 4 slots) decode 16% slower and process prompts
-    at less than half the speed of `llama-server`'s defaults.
-  - **Concurrency on the 4B out of box:** Harness opens one slot with a 12k context on a 4 GB card, so four parallel requests queue
-    (median TTFT 6.9 s). `llama-server` opens four 1k slots and answers all four at once, at the cost of a 4k total context.
+- **What the first run found, and the fix:**
+  - **Concurrency on the 4B:** Harness opened one slot for the 12k context of a 4 GB card, so four parallel requests queued (median
+    TTFT 6.9 s). Gateway loads now get 4 slots in the shared pool from an 8k context up: 148 tok/s in total, and every request can still
+    use the whole 12k (plain `llama-server` gives each of its 4 slots 1k).
+  - **Small models:** the 0.6B decoded 16% slower and processed prompts at less than half the speed. The cause was not the q8_0 cache
+    (6% in `llama-bench`) but `--cache-ram 0`: without llama.cpp's host prompt cache, idle slots are never cleared from the shared pool,
+    and every later request attends over their cells. On CUDA Harness now keeps that cache on; on Vulkan it stays off, because there it
+    stalls every wave of concurrent requests by ~3.7 s.
+- **Where plain llama.cpp still leads:** with its defaults the 0.6B processes prompts 15% faster (a 15k f16 cache against Harness's 32k
+  q8_0 one). With the host cache on, the first request after a wave of concurrent ones waits ~0.7 s while the idle slots are saved.
 - **Tool calling on the 0.6B** varies by a few cases between runs and profiles; one run per case cannot separate those differences
   from noise.
 

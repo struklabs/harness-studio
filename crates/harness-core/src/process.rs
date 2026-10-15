@@ -1433,22 +1433,6 @@ impl ProcessManager {
             }
             let lang = crate::config::AppSettings::load().language;
             self.push_log(plan.advice.log_line(&lang));
-            // llama.cpp b11552 stalls every wave of concurrent requests by ~3.7 s when several
-            // slots share one unified KV pool and the host prompt cache is on (measured:
-            // 4 streams of Qwen3-4B, 172 t/s in total against 400 with `--cache-ram 0`).
-            if crate::slots::runs_unified_pool(plan, &launch)
-                && !cache_ram_is_set(&launch)
-                && runtime_for_params.is_some_and(|r| r.has_flag("--cache-ram"))
-            {
-                launch
-                    .params
-                    .insert("cache_ram".to_string(), crate::params::ParamValue::Int(0));
-                self.push_log(if lang == "tr" {
-                    "[Harness Studio] Ortak bağlamda birden çok eşzamanlı istek: llama.cpp'nin ana bellek istem önbelleği kapatıldı (--cache-ram 0); açıkken her istek dalgası ~3,7 sn takılıyor. Açmak için Önbellek RAM değerini elle girin.".to_string()
-                } else {
-                    "[Harness Studio] Several concurrent requests share one context pool: llama.cpp's host prompt cache is off (--cache-ram 0); with it on every wave of requests stalls for ~3.7 s. Set the cache RAM yourself to turn it back on.".to_string()
-                });
-            }
         }
         // KV cache precision: automatic types when none are set, flash attention for a
         // quantized V cache (see `kv_policy`). Chat runs only; embeddings keep tiny caches.
@@ -1498,6 +1482,35 @@ impl ProcessManager {
                     // passing a DXGI index that might name a different backend device.
                     Err(_) => Some(0),
                 };
+            }
+        }
+        // Several slots in one unified KV pool: the host prompt cache stalls every wave of
+        // concurrent requests on Vulkan, but on CUDA it is what clears idle slots from the pool
+        // (`slots::host_cache_off_for_unified_pool` has the measurements). Judged by the device
+        // the server runs on (`--main-gpu` is the runtime's index by now).
+        if let Some(plan) = &slot_plan {
+            if crate::slots::runs_unified_pool(plan, &launch)
+                && !cache_ram_is_set(&launch)
+                && runtime_for_params.is_some_and(|r| {
+                    r.has_flag("--cache-ram")
+                        && crate::slots::host_cache_off_for_unified_pool(
+                            &crate::slots::served_backends(
+                                r,
+                                launch.main_gpu,
+                                launch.split_mode.as_deref(),
+                            ),
+                        )
+                })
+            {
+                launch
+                    .params
+                    .insert("cache_ram".to_string(), crate::params::ParamValue::Int(0));
+                let lang = crate::config::AppSettings::load().language;
+                self.push_log(if lang == "tr" {
+                    "[Harness Studio] Ortak bağlamda birden çok eşzamanlı istek: llama.cpp'nin ana bellek istem önbelleği kapatıldı (--cache-ram 0); açıkken her istek dalgası ~3,7 sn takılıyor. Açmak için Önbellek RAM değerini elle girin.".to_string()
+                } else {
+                    "[Harness Studio] Several concurrent requests share one context pool: llama.cpp's host prompt cache is off (--cache-ram 0); with it on every wave of requests stalls for ~3.7 s. Set the cache RAM yourself to turn it back on.".to_string()
+                });
             }
         }
         *self.kv_launched.lock().unwrap() = Some(KvLaunched {

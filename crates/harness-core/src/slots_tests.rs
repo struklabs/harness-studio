@@ -135,7 +135,10 @@ fn cheap_slots_are_limited_by_the_shared_context() {
         (32768, SlotOrigin::Agents, 1, "slots.reason.small_context"),
         // The gateway holds requests against the shared pool: four streams at the default 32k.
         (32768, SlotOrigin::Gateway, 4, "slots.reason.shared_pool"),
-        (16384, SlotOrigin::Gateway, 2, "slots.reason.small_context"),
+        // ...and on a small card's 12k pool (a 4 GB card's Qwen3-4B), not one stream after another.
+        (16384, SlotOrigin::Gateway, 4, "slots.reason.shared_pool"),
+        (12288, SlotOrigin::Gateway, 4, "slots.reason.shared_pool"),
+        (4096, SlotOrigin::Gateway, 2, "slots.reason.small_context"),
         (65536, SlotOrigin::Agents, 2, "slots.reason.small_context"),
         (131072, SlotOrigin::Agents, 4, "slots.reason.shared_pool"),
     ] {
@@ -448,4 +451,44 @@ fn unified_pool_detection_follows_what_llama_server_will_run() {
         &plan(4, None, None),
         &config(Some("-np 4 --kv-unified"), None)
     ));
+}
+
+#[test]
+fn host_cache_stays_on_for_unified_pools_on_cuda_only() {
+    let b = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    assert!(!host_cache_off_for_unified_pool(&b(&["CUDA"])));
+    assert!(host_cache_off_for_unified_pool(&b(&["Vulkan"])));
+    assert!(host_cache_off_for_unified_pool(&b(&["ROCm"])));
+    // No device list (a probe without --list-devices): the measured Vulkan behaviour.
+    assert!(host_cache_off_for_unified_pool(&[]));
+    // A split over a CUDA and a Vulkan device keeps the Vulkan behaviour.
+    assert!(host_cache_off_for_unified_pool(&b(&["CUDA", "Vulkan"])));
+}
+
+#[test]
+fn served_backends_follow_the_main_gpu_unless_the_model_is_split() {
+    use crate::capabilities::{parse::Device, RuntimeCapabilities};
+    let device = |id: &str, backend: &str| Device {
+        id: id.into(),
+        backend: backend.into(),
+        name: String::new(),
+        total_mib: None,
+        free_mib: None,
+    };
+    let mut caps = RuntimeCapabilities::default();
+    caps.devices = vec![device("CUDA0", "CUDA"), device("Vulkan0", "Vulkan")];
+    assert_eq!(
+        served_backends(&caps, Some(1), None),
+        vec!["Vulkan".to_string()]
+    );
+    assert_eq!(
+        served_backends(&caps, Some(0), Some("none")),
+        vec!["CUDA".to_string()]
+    );
+    assert_eq!(
+        served_backends(&caps, Some(0), Some("layer")),
+        vec!["CUDA".to_string(), "Vulkan".to_string()]
+    );
+    assert_eq!(served_backends(&caps, None, None).len(), 2);
+    assert_eq!(served_backends(&caps, Some(7), None).len(), 2);
 }
