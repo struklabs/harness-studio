@@ -50,6 +50,8 @@ export interface EngineTtsModel {
   family: 'mlx-audio';
   size_bytes: number;
   voices: string[];
+  /** It speaks at a chosen speed (Qwen3-TTS, Spark-TTS); the others at one. */
+  supports_speed?: boolean;
 }
 
 export interface TtsOverview {
@@ -76,6 +78,7 @@ export function allTtsModels(o: TtsOverview | null): TtsModelInfo[] {
       sample_rate: null,
       size_bytes: m.size_bytes,
       voices: m.voices.map((v, i) => ({ id: v, sid: i, language: '', gender: '' })),
+      supports_speed: m.supports_speed ?? false,
     }),
   );
   return [...o.models, ...engine];

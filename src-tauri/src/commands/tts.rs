@@ -26,6 +26,8 @@ pub(crate) struct EngineTtsModel {
     size_bytes: u64,
     /// Named voices (empty: the model's one default voice).
     voices: Vec<String>,
+    /// It speaks at a chosen speed (Qwen3-TTS, Spark-TTS); the others at one.
+    supports_speed: bool,
 }
 
 /// The library's ready folders `keep` accepts, each with the alias of its definition (made once,
@@ -73,6 +75,7 @@ fn engine_tts_models() -> Vec<EngineTtsModel> {
             family: harness_core::engine::MLX_AUDIO,
             size_bytes: m.size_bytes,
             voices: harness_core::engine::mlx::tts_voices(&m.path),
+            supports_speed: harness_core::engine::mlx::tts_supports_speed(&m.path),
         })
         .collect()
 }

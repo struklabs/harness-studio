@@ -93,7 +93,13 @@ TOKEN_RATES = {
     "outetts": (93.0, 0),
     "orpheus": (84.0, 0),
     "dia": (86.0, 0),
+    # CSM: Mimi frames (12.5 a second); its cap is given as audio length (see `make_speak`).
+    "sesame": (FRAME_RATE, 0),
 }
+# CSM's voices: recorded prompts the model continues, given with --companion
+# mlx-community/csm-1b=folder (`sesame/csm-1b`, where mlx-audio looks for them, is gated).
+CSM_VOICES = ["conversational_a", "conversational_b"]
+CSM_PROMPTS_REPO = "mlx-community/csm-1b"
 # The architecture mlx-audio is told to load for a family whose config does not name it (its
 # guess would come from the folder's name).
 LOAD_TYPES = {"spark": "spark", "outetts": "outetts", "dia": "dia"}
@@ -521,7 +527,11 @@ def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
             if n and can_stream:
                 parts.append([0.0] * int(GROUP_PAUSE_SECONDS * rate))
             budget = None
-            if takes("max_tokens"):
+            if "max_audio_length_ms" in params:
+                # A model capped by audio length (CSM) is given the budget's length.
+                budget = frame_budget(count_tokens(model, piece), speed, token_rate, lead)
+                kwargs["max_audio_length_ms"] = (budget - lead) / token_rate * 1000
+            elif takes("max_tokens"):
                 budget = frame_budget(count_tokens(model, piece), speed, token_rate, lead)
                 kwargs["max_tokens"] = budget
             results = model.generate(piece, **kwargs)
@@ -800,6 +810,35 @@ def tts_family(model_dir):
     return "orpheus" if kind == "llama" else kind
 
 
+def csm_prompts(model, repo=CSM_PROMPTS_REPO):
+    """Points CSM's voice prompts at `repo` (a companion in the offline cache): mlx-audio asks
+    the gated `sesame/csm-1b` for them. A prompt's text is mlx-audio's own (the copy has no
+    `.txt`)."""
+    original = model.default_speaker_prompt
+
+    def prompt(voice, repo_id=None):
+        return original(voice, repo_id=repo)
+
+    model.default_speaker_prompt = prompt
+    return model
+
+
+def wire_weights(mx):
+    """Lets Metal keep up to the GPU's recommended working set wired (resident), as mlx-lm does
+    while it generates: otherwise macOS pages the weights out between requests on a small Mac
+    and each request reloads them (CSM on an M1 8 GB: 5-29 s for one short sentence instead of
+    4-8 s). Returns the limit, or None where there is no such device."""
+    try:
+        info = mx.device_info() if hasattr(mx, "device_info") else mx.metal.device_info()
+        limit = int(info.get("max_recommended_working_set_size") or 0)
+        if limit > 0:
+            mx.set_wired_limit(limit)
+            return limit
+    except Exception:
+        pass
+    return None
+
+
 def companion_cache(companions, root):
     """A Hugging Face cache under `root` that holds only the `owner/repo=folder` companions (each
     a snapshot linked to its library folder), so a loader that asks the Hub for them finds them
@@ -877,9 +916,12 @@ def main(argv=None):
 
         cls.from_pretrained = no_remote_code
 
+    import mlx.core as mx
+
+    wire_weights(mx)
+
     if args.task == "transcription":
         import miniaudio
-        import mlx.core as mx
         from mlx_audio.stt.utils import load_model as load_stt
         from mlx_audio.stt.utils import resample_audio
 
@@ -901,6 +943,9 @@ def main(argv=None):
     options = {"model_type": LOAD_TYPES[family]} if family in LOAD_TYPES else {}
     model = MODEL_THREAD.submit(load_model, model_dir, **options).result()
     voices = voices_of(model)
+    if family == "sesame":
+        csm_prompts(model)
+        voices = list(CSM_VOICES)
     rate = getattr(model, "sample_rate", 24000)
 
     def encode(parts, rate):

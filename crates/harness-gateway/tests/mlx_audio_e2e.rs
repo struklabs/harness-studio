@@ -301,7 +301,10 @@ async fn an_mlx_audio_model_speaks_through_the_gateway() {
     );
     assert_eq!(code, 200, "{}", String::from_utf8_lossy(&audio));
     assert_eq!(cut.as_ref().map(|v| v.to_str().unwrap()), Some("time"));
-    assert!(audio.starts_with(b"RIFF") && audio.len() as f64 > bytes_per_second);
+    // Some audio, however little: a model slower than real time (CSM on an M1 makes about a
+    // third of a second a second, after a few seconds on its voice prompt) has made under a
+    // second of it by then.
+    assert!(audio.starts_with(b"RIFF") && audio.len() as f64 > 44.0 + bytes_per_second / 10.0);
 
     // The worker's own port refuses a request without its key.
     let worker = registry
