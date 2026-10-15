@@ -4,6 +4,17 @@ import { resolveConnectionPage, connectionPageFromUrl } from '../src/lib/compone
 import { filterRemoteModels, isRemoteModel } from '../src/lib/components/playground/remoteModels.ts';
 import { gatewayModelStates } from '../src/lib/components/playground/gatewayModels.ts';
 import { selectChatModel } from '../src/lib/components/playground/modelSelection.ts';
+import { linkWarning } from '../src/lib/components/connections/linkWarning.ts';
+
+test('link row and dialog warnings require an online link with detected scope', () => {
+  const warning = 'admin-scope-warning';
+  assert.equal(linkWarning(null), '');
+  assert.equal(linkWarning({ state: 'online', warning: null }), '');
+  assert.equal(linkWarning({ state: 'online', warning }), warning);
+  for (const state of ['offline', 'unauthorized']) {
+    assert.equal(linkWarning({ state, warning }), '');
+  }
+});
 
 test('remote connections page resolves from saved navigation and deep links', () => {
   assert.equal(resolveConnectionPage('harness-link'), 'harness-link');

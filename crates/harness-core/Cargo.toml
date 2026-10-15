@@ -24,6 +24,7 @@ bytes = "1"
 base64 = "0.22"
 regex = "1.10"
 sha2 = "0.11"
+dirs = "7"
 flate2 = "1"
 tar = "0.4"
 # sherpa-onnx releases are `.tar.bz2`; the pure-Rust libbz2 port needs no C compiler.

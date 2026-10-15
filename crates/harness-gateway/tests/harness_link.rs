@@ -135,6 +135,23 @@ async fn remote_models_proxy_policy_and_failures() {
         "link.inference_scope_warning"
     );
     assert!(link::test(&added.link.id).await.unwrap().warning.is_some());
+    for key in ["link.unauthorized", "link.unreachable"] {
+        link::mark_failed("office", key);
+        let status = link::status("office").unwrap();
+        assert_ne!(status.state, link::State::Online);
+        assert!(status.warning.is_none());
+        assert!(link::test(&added.link.id).await.unwrap().warning.is_some());
+    }
+    remote.status.store(401, Ordering::SeqCst);
+    let failed = link::test(&added.link.id).await.unwrap();
+    assert_eq!(failed.state, link::State::Unauthorized);
+    assert!(failed.warning.is_none());
+    remote.status.store(200, Ordering::SeqCst);
+    assert!(link::test(&added.link.id).await.unwrap().warning.is_some());
+    remote.identity.store(0, Ordering::SeqCst);
+    assert!(link::test(&added.link.id).await.unwrap().warning.is_none());
+    remote.identity.store(1, Ordering::SeqCst);
+    assert!(link::test(&added.link.id).await.unwrap().warning.is_some());
     remote.status.store(302, Ordering::SeqCst);
     let failed = link::test(&added.link.id).await.unwrap();
     assert_eq!(failed.state, link::State::Offline);
@@ -546,6 +563,18 @@ async fn remote_models_proxy_policy_and_failures() {
             .as_deref(),
         Some(TOKEN)
     );
+    let updated = link::update(
+        added.link.id.clone(),
+        updated.link.name,
+        updated.link.base_url,
+        Some("hss_session_secret".into()),
+        true,
+        false,
+    )
+    .await
+    .unwrap();
+    assert_eq!(updated.status.state, link::State::Offline);
+    assert!(updated.status.warning.is_none());
     link::remove(&added.link.id).await.unwrap();
     assert!(link::list().is_empty());
     assert_eq!(

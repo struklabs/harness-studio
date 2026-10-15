@@ -284,6 +284,7 @@ pub fn mark_failed(name: &str, key: &'static str) {
         State::Offline
     };
     c.status.last_error = Some(err(key).into());
+    c.status.warning = None;
 }
 
 async fn discover(link: &RemoteLink) -> Result<(Vec<RemoteModel>, Option<String>), String> {
@@ -568,7 +569,7 @@ async fn update_inner(
             c.status = LinkStatus::default();
         }
         if old_token.as_deref() != Some(token.as_str()) {
-            c.status.warning = scope_warning(&token, &serde_json::Value::Null);
+            c.status.warning = None;
         }
         c.revision += 1;
     }

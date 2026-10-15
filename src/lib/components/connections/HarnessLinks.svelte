@@ -9,6 +9,7 @@
   import { Badge } from '#lib/components/ui/badge/index.js';
   import * as Dialog from '#lib/components/ui/dialog/index.js';
   import { TriangleAlert } from '@lucide/svelte';
+  import { linkWarning } from './linkWarning.js';
 
   interface Link {
     id: string;
@@ -38,7 +39,7 @@
   let formError = $state('');
   let alive = true;
   const http = $derived(address.trim().toLowerCase().startsWith('http:'));
-  const warning = $derived(token ? '' : errorText(editing?.warning ?? ''));
+  const warning = $derived(token ? '' : errorText(linkWarning(editing)));
 
   async function load() {
     try {
@@ -77,7 +78,7 @@
         ? await invoke<Link>('link_update', { ...args, id: editing.id, enabled })
         : await invoke<Link>('link_add', { ...args, token });
       editing = result;
-      open = !!result.warning;
+      open = !!linkWarning(result);
       await load();
     } catch (e) { formError = errorText(e); }
     finally { token = ''; busy = false; }
@@ -122,7 +123,7 @@
       </div>
       <p class="break-all font-mono text-xs text-muted-foreground">{link.base_url}</p>
       {#if link.last_error}<p class="text-xs text-destructive">{errorText(link.last_error)}</p>{/if}
-      {#if link.warning}<p class="flex items-start gap-2 text-xs text-warning" role="status"><TriangleAlert class="size-4 shrink-0" />{errorText(link.warning)}</p>{/if}
+      {#if linkWarning(link)}<p class="flex items-start gap-2 text-xs text-warning" role="status"><TriangleAlert class="size-4 shrink-0" />{errorText(linkWarning(link))}</p>{/if}
       {#if link.last_ok}<p class="text-xs text-muted-foreground">{t('link.last_ok', { time: new Date(link.last_ok * 1000).toLocaleString() })}</p>{/if}
       <div class="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" disabled={busy} onclick={() => test(link)}>{t('link.test')}</Button>
