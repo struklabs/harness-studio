@@ -99,6 +99,21 @@ pub fn validate_wav(audio: &[u8]) -> Result<(u32, u16), String> {
     validate_wav_limit(audio, MAX_BYTES)
 }
 
+/// The localized key for a request error of this module (the English text stays the API
+/// message). Errors without a key of their own carry their text.
+pub fn error_key(message: &str) -> crate::error_key::ErrorKey {
+    use crate::error_key::err;
+    if message.starts_with("Use a complete PCM") || message == "Audio exceeds the byte limit." {
+        err("audio_process.bad_wav")
+    } else if message == "This model requires a 44.1 kHz WAV." {
+        err("audio_process.needs_44k")
+    } else if message.starts_with("SAM Audio accepts at most") {
+        err("audio_process.sam_too_long")
+    } else {
+        err("audio_process.invalid_request").with("message", message)
+    }
+}
+
 pub fn validate_output(audio: &[u8]) -> Result<(u32, u16), String> {
     validate_wav_limit(audio, MAX_OUTPUT_BYTES)
 }
@@ -385,6 +400,28 @@ mod tests {
             assert!(rebuild("m", "universr", fields.as_object().unwrap(), &wav(1)).is_err());
         }
         assert!(rebuild("m", "apollo", &Map::new(), &wav(1)).is_err());
+    }
+
+    #[test]
+    fn request_errors_have_keys() {
+        let key = |m: &str| error_key(m).key();
+        assert_eq!(
+            key(&validate_wav(b"RIFF").unwrap_err()),
+            "audio_process.bad_wav"
+        );
+        assert_eq!(
+            key("Audio exceeds the byte limit."),
+            "audio_process.bad_wav"
+        );
+        assert_eq!(
+            key(&rebuild("m", "apollo", &Map::new(), &wav(1)).unwrap_err()),
+            "audio_process.needs_44k"
+        );
+        assert_eq!(
+            key("SAM Audio accepts at most 400 seconds."),
+            "audio_process.sam_too_long"
+        );
+        assert_eq!(key("Invalid `x`."), "audio_process.invalid_request");
     }
 
     #[test]

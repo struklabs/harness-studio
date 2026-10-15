@@ -13,21 +13,47 @@ use axum::{
 use base64::{engine::general_purpose::STANDARD, Engine};
 use harness_core::{
     engine::{audio_cpp, audio_process as core},
+    error_key::err,
     gateway::record::{ClientInfo, RequestRecord},
     token_policy::GatewayEndpoint,
 };
 use serde_json::{json, Map, Value};
 use std::{path::Path, time::Duration};
 
+/// `details.error_key` lets the Harness window show the error in its own language; the
+/// English message stays for API clients.
+fn keyed(e: GatewayError, key: harness_core::error_key::ErrorKey) -> GatewayError {
+    e.details(json!({"error_key": key.to_string()}))
+}
 fn bad(message: impl Into<String>) -> GatewayError {
-    GatewayError::new(400, "invalid_request", message)
+    let message = message.into();
+    let key = core::error_key(&message);
+    keyed(GatewayError::new(400, "invalid_request", message), key)
 }
 fn upstream() -> GatewayError {
-    GatewayError::new(
-        502,
-        "upstream_error",
-        "audio.cpp returned an invalid or unsafe audio result.",
+    keyed(
+        GatewayError::new(
+            502,
+            "upstream_error",
+            "audio.cpp returned an invalid or unsafe audio result.",
+        ),
+        err("audio_process.invalid_result"),
     )
+}
+/// audio.cpp's own error for a lost GPU (`vk::Queue::submit: ErrorDeviceLost`): the driver
+/// stopped the job, typically an integrated GPU's job timeout.
+fn gpu_lost(body: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(&body[..body.len().min(4096)]).to_ascii_lowercase();
+    text.contains("devicelost") || text.contains("device lost") || text.contains("device_lost")
+}
+/// How long one processing request may take: the gateway's request timeout, raised for long
+/// audio (CPU separation runs well below real time), at most an hour. `None`: no limit.
+fn process_timeout(configured_secs: u32, audio_secs: f64) -> Option<Duration> {
+    if configured_secs == 0 {
+        return None;
+    }
+    let scaled = (120.0 + 90.0 * audio_secs.max(0.0)).min(3600.0) as u64;
+    Some(Duration::from_secs(u64::from(configured_secs).max(scaled)))
 }
 
 pub async fn handle(state: GwState, request: Request) -> Response {
@@ -189,7 +215,7 @@ async fn serve(
             // Launch failures may include local model/configuration paths.
             error.message = "The audio.cpp processing worker could not be acquired.".into();
             error.details = None;
-            error
+            keyed(error, err("audio_process.worker_failed"))
         })?;
     guard.get().server_id = Some(lease.server_id.clone());
     guard.get().queue_wait_ms = lease.queue_wait.as_millis() as u64;
@@ -200,22 +226,51 @@ async fn serve(
         guard.get().evicted = load.evicted.clone();
         guard.get().oom = load.recovered;
     }
-    let timeout = state.scheduler.settings().request_timeout_secs;
+    let timeout = process_timeout(
+        state.scheduler.settings().request_timeout_secs,
+        harness_core::audio::wav_duration_secs(&audio).unwrap_or(0.0),
+    );
     let mut request = state
         .http
         .post(format!("{}/v1/tasks/run", lease.upstream))
         .json(&rebuilt);
-    if timeout > 0 {
-        request = request.timeout(Duration::from_secs(u64::from(timeout)));
+    if let Some(timeout) = timeout {
+        request = request.timeout(timeout);
     }
     let response = request.send().await.map_err(|e| {
-        GatewayError::new(
-            if e.is_timeout() { 504 } else { 502 },
-            "upstream_error",
-            "The audio.cpp server did not answer.",
-        )
+        if e.is_timeout() {
+            let secs = timeout.map_or(0, |t| t.as_secs());
+            keyed(
+                GatewayError::new(
+                    504,
+                    "upstream_timeout",
+                    format!("audio.cpp did not finish within {secs} s."),
+                ),
+                err("audio_process.timeout").with("seconds", secs),
+            )
+        } else {
+            keyed(
+                GatewayError::new(
+                    502,
+                    "upstream_error",
+                    "The audio.cpp server did not answer.",
+                ),
+                err("audio_process.no_answer"),
+            )
+        }
     })?;
     if !response.status().is_success() {
+        let body = response.bytes().await.unwrap_or_default();
+        if gpu_lost(&body) {
+            return Err(keyed(
+                GatewayError::new(
+                    502,
+                    "upstream_error",
+                    "The GPU driver stopped the job; try the CPU backend.",
+                ),
+                err("audio_process.gpu_lost"),
+            ));
+        }
         return Err(upstream());
     }
     // Bound the response while streaming, including dishonest/missing Content-Length.
@@ -377,5 +432,27 @@ mod tests {
         std::fs::write(&path, audio()).unwrap();
         assert!(normalize("m", &json!({"artifacts":[{"id":"enhanced","path":path},{"id":"target","path":"../secret.wav"}]}), Some(&output)).is_err());
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn errors_carry_keys_gpu_loss_and_long_audio_timeout() {
+        let key = |e: &GatewayError| e.body()["error"]["harness"]["error_key"].clone();
+        assert_eq!(key(&upstream()), json!("audio_process.invalid_result"));
+        assert_eq!(
+            key(&bad("This model requires a 44.1 kHz WAV.")),
+            json!("audio_process.needs_44k")
+        );
+        assert!(gpu_lost(
+            br#"{"error":{"message":"vk::Queue::submit: ErrorDeviceLost","type":"server_error"}}"#
+        ));
+        assert!(!gpu_lost(br#"{"error":{"message":"out of memory"}}"#));
+        assert_eq!(process_timeout(0, 30.0), None);
+        assert_eq!(process_timeout(600, 2.0), Some(Duration::from_secs(600)));
+        assert_eq!(process_timeout(600, 11.0), Some(Duration::from_secs(1110)));
+        assert_eq!(process_timeout(600, 600.0), Some(Duration::from_secs(3600)));
+        assert_eq!(
+            process_timeout(7200, 600.0),
+            Some(Duration::from_secs(7200))
+        );
     }
 }

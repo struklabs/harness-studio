@@ -303,10 +303,25 @@ pub fn language(path: &Path) -> Option<String> {
 
 /// `auto` is resolved by Harness; audio.cpp's server requires a concrete backend.
 pub fn backend(config: &LaunchConfig) -> String {
-    backend_in(config, &crate::runtimes::RuntimeRegistry::global())
+    let discrete = crate::hardware::detect_hardware()
+        .gpus
+        .iter()
+        .any(|g| g.is_discrete);
+    backend_in(
+        config,
+        &crate::runtimes::RuntimeRegistry::global(),
+        discrete,
+    )
 }
 
-fn backend_in(config: &LaunchConfig, registry: &crate::runtimes::RuntimeRegistry) -> String {
+/// `auto` without a discrete GPU stays on the CPU: on integrated GPUs (shared memory) audio.cpp's
+/// long Vulkan compute jobs trip the driver's job timeout, and the GPU reset can reach the
+/// desktop (seen on a Ryzen 4700U, amdgpu). Vulkan chosen by hand is kept.
+fn backend_in(
+    config: &LaunchConfig,
+    registry: &crate::runtimes::RuntimeRegistry,
+    discrete_gpu: bool,
+) -> String {
     if let Some(crate::params::ParamValue::Text(value)) = config.params.get("backend") {
         if value != "auto" && !value.is_empty() {
             return value.clone();
@@ -315,6 +330,14 @@ fn backend_in(config: &LaunchConfig, registry: &crate::runtimes::RuntimeRegistry
     if config.gpu_layers == 0 {
         return "cpu".into();
     }
+    let installed = installed_backend(config, registry);
+    if installed == "vulkan" && !discrete_gpu {
+        return "cpu".into();
+    }
+    installed
+}
+
+fn installed_backend(config: &LaunchConfig, registry: &crate::runtimes::RuntimeRegistry) -> String {
     let binary = if config.binary_path.as_os_str().is_empty() {
         crate::runtimes::resolve_family_binary_in(registry, AUDIO_CPP, config.runtime.as_deref())
             .ok()
@@ -787,14 +810,20 @@ mod tests {
                 reg.get("audio").unwrap().effective_backend().as_deref(),
                 Some("vulkan")
             );
-            assert_eq!(backend_in(&config, &reg), "vulkan");
+            assert_eq!(backend_in(&config, &reg, true), "vulkan");
+            assert_eq!(backend_in(&config, &reg, false), "cpu");
         }
         config.gpu_layers = 0;
-        assert_eq!(backend_in(&config, &reg), "cpu");
+        assert_eq!(backend_in(&config, &reg, true), "cpu");
         config
             .params
             .insert("backend".into(), ParamValue::Text("metal".into()));
-        assert_eq!(backend_in(&config, &reg), "metal");
+        assert_eq!(backend_in(&config, &reg, false), "metal");
+        // Vulkan chosen by hand is kept on an integrated GPU.
+        config
+            .params
+            .insert("backend".into(), ParamValue::Text("vulkan".into()));
+        assert_eq!(backend_in(&config, &reg, false), "vulkan");
         entry.backend = None;
         entry.source = RuntimeSource::Local {
             path: dir.path().into(),
