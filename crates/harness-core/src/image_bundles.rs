@@ -974,14 +974,10 @@ mod tests {
                 if !seen.insert((c.repo, c.file)) {
                     continue;
                 }
-                let variants = DownloadManager::get_model_variants(c.repo, None)
+                let variant = DownloadManager::companion_variant(c.repo, c.file, None)
                     .await
-                    .unwrap_or_else(|e| panic!("{}: {e}", c.repo));
-                let found = variants
-                    .iter()
-                    .flat_map(|v| &v.shards)
-                    .find(|s| s.filename == c.file)
-                    .unwrap_or_else(|| panic!("{}/{} is not listed", c.repo, c.file));
+                    .unwrap_or_else(|e| panic!("{}/{}: {e}", c.repo, c.file));
+                let found = &variant.shards[0];
                 eprintln!(
                     "{}/{}: {} bytes (list says {})",
                     c.repo, c.file, found.size_bytes, c.size
