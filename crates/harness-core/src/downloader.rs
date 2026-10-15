@@ -4247,6 +4247,22 @@ fn safetensors_variants(
     if weights.iter().any(|f| !consolidated(f)) {
         weights.retain(|f| !consolidated(f));
     }
+    // One weight set: the default `model*.safetensors` (transformers loads that name, with its
+    // `model.safetensors.index.json`) over a precision copy (`model.fp32-0000x-of-0000y`) or a
+    // second layout (`transformers-0000x-of-0000y`) of the same model. Only root files are
+    // weights here; module folders (`2_Dense/model.safetensors`) are companions and stay.
+    let weight_stem = |f: &F| {
+        let lower = f.path.to_ascii_lowercase();
+        let stem = lower.strip_suffix(".safetensors").unwrap_or(&lower);
+        Regex::new(r"-\d{5}-of-\d{5}$")
+            .map(|re| re.replace(stem, "").into_owned())
+            .unwrap_or_else(|_| stem.to_string())
+    };
+    if weights.iter().any(|f| weight_stem(f) == "model") {
+        weights.retain(|f| weight_stem(f) == "model");
+    } else if weights.iter().any(|f| !weight_stem(f).contains('.')) {
+        weights.retain(|f| !weight_stem(f).contains('.'));
+    }
     // A PyTorch-only repo: its `.bin` files (read with `torch.load(weights_only=True)`).
     if weights.is_empty() {
         weights = files.iter().filter(|f| is_torch_weights(&f.path)).collect();
@@ -5542,6 +5558,63 @@ mod tests {
         ];
         let v = safetensors_variants("a/b", &both).unwrap();
         assert!(!v[0].shards.iter().any(|s| s.filename.ends_with(".bin")));
+        // Alternative weight sets of one model come down once: openai/whisper-large-v3 (fp32
+        // shards beside model.safetensors) and sesame/csm-1b (transformers shards beside it).
+        let whisper = vec![
+            file("config.json", 1272),
+            file("generation_config.json", 3903),
+            file("preprocessor_config.json", 340),
+            file("tokenizer.json", 2_480_617),
+            file("model.safetensors.index.fp32.json", 117_893),
+            lfs("flax_model.msgpack", 6_174_007_324, &oid),
+            lfs("model.fp32-00001-of-00002.safetensors", 4_993_448_880, &oid),
+            lfs("model.fp32-00002-of-00002.safetensors", 1_180_663_192, &oid),
+            lfs("model.safetensors", 3_087_130_976, &oid),
+            lfs("pytorch_model.bin", 3_087_394_553, &oid),
+            lfs("pytorch_model.fp32-00001-of-00002.bin", 4_993_677_094, &oid),
+        ];
+        let v = safetensors_variants("openai/whisper-large-v3", &whisper).unwrap();
+        assert!(v[0]
+            .shards
+            .iter()
+            .any(|s| s.filename == "model.safetensors"));
+        assert!(!v[0].shards.iter().any(|s| s.filename.contains("fp32")));
+        assert!(v[0].total_size_bytes < 3_100_000_000);
+        let csm = vec![
+            file("config.json", 3280),
+            file("chat_template.jinja", 2002),
+            lfs("ckpt.pt", 6_219_618_714, &oid),
+            lfs("model.safetensors", 6_211_186_784, &oid),
+            lfs(
+                "transformers-00001-of-00002.safetensors",
+                4_944_026_784,
+                &oid,
+            ),
+            lfs(
+                "transformers-00002-of-00002.safetensors",
+                2_189_474_180,
+                &oid,
+            ),
+            file("transformers.safetensors.index.json", 59_730),
+            lfs("prompts/conversational_a.wav", 2_646_044, &oid),
+        ];
+        let v = safetensors_variants("sesame/csm-1b", &csm).unwrap();
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            names,
+            ["model.safetensors", "chat_template.jinja", "config.json"]
+        );
+        // A sharded model keeps its shards and drops a precision copy.
+        let sharded = vec![
+            file("config.json", 700),
+            file("model.safetensors.index.json", 900),
+            lfs("model-00001-of-00002.safetensors", 4, &oid),
+            lfs("model-00002-of-00002.safetensors", 4, &oid),
+            lfs("model.fp16.safetensors", 4, &oid),
+        ];
+        let v = safetensors_variants("a/b", &sharded).unwrap();
+        assert_eq!(v[0].shards.len(), 4);
+        assert!(!v[0].shards.iter().any(|s| s.filename.contains("fp16")));
         // sentence-transformers modules come along; ONNX and OpenVINO exports do not.
         let st = vec![
             file("config.json", 700),
@@ -5566,6 +5639,27 @@ mod tests {
                 "config.json",
                 "modules.json",
                 "sentence_bert_config.json",
+            ]
+        );
+        // Pruning a root precision copy leaves module weights in their folders alone.
+        let st_fp16 = vec![
+            file("config.json", 700),
+            file("modules.json", 300),
+            lfs("model.safetensors", 90, &oid),
+            lfs("model.fp16.safetensors", 45, &oid),
+            lfs("2_Dense/model.safetensors", 10, &oid),
+            lfs("3_Dense/model.safetensors", 10, &oid),
+        ];
+        let v = safetensors_variants("sentence-transformers/y", &st_fp16).unwrap();
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "model.safetensors",
+                "2_Dense/model.safetensors",
+                "3_Dense/model.safetensors",
+                "config.json",
+                "modules.json",
             ]
         );
     }
