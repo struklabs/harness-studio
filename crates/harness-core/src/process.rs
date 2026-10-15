@@ -590,6 +590,8 @@ pub struct ProcessManager {
     lifecycle: Arc<tokio::sync::Mutex<()>>,
     /// Launch config of the current (or last) run, with the resolved API key; backend-only.
     launch_config: Arc<Mutex<Option<LaunchConfig>>>,
+    /// Engine family of the current (or last) run, named in its failure messages.
+    engine: Arc<Mutex<&'static str>>,
     /// What the running server actually uses (read from `/props` and the log after start).
     effective: Arc<Mutex<Option<crate::capabilities::verify::EffectiveLaunchValues>>>,
     /// KV cache types the current run was launched with ([`crate::kv_policy::apply`]).
@@ -746,6 +748,7 @@ impl Default for ProcessManager {
             log_file: Arc::new(Mutex::new(None)),
             lifecycle: Arc::new(tokio::sync::Mutex::new(())),
             launch_config: Arc::new(Mutex::new(None)),
+            engine: Arc::new(Mutex::new(crate::engine::LLAMA_CPP)),
             effective: Arc::new(Mutex::new(None)),
             kv_launched: Arc::new(Mutex::new(None)),
             failure: Arc::new(Mutex::new(None)),
@@ -1130,7 +1133,11 @@ impl ProcessManager {
     }
 
     /// Records a classified failure: kept for the UI/API and published as an event.
-    fn record_failure(&self, failure: ServerFailure) {
+    fn record_failure(&self, mut failure: ServerFailure) {
+        // The messages name the engine that failed (mlx, mistral.rs...), not always llama.cpp.
+        if !failure.params.contains_key("engine") {
+            failure = failure.with("engine", *self.engine.lock().unwrap());
+        }
         self.push_log(format!(
             "[Harness Studio Error] {} {}",
             failure.code,
@@ -1258,6 +1265,7 @@ impl ProcessManager {
     /// spawn and the supervisor. A bind-failure retry on a new automatic port comes here
     /// directly, so the server stays "Starting" throughout.
     async fn run_claimed(&self, config: LaunchConfig) -> Result<(), String> {
+        *self.engine.lock().unwrap() = crate::engine::server_for(&config).family();
         self.failure.lock().unwrap().take();
         self.restart.lock().unwrap().ready_at = None;
         self.run_log_start.store(
@@ -1275,6 +1283,7 @@ impl ProcessManager {
             return Err(self.set_error(
                 err("process.binary_not_found")
                     .with("path", config.binary_path.display())
+                    .with("engine", crate::engine::server_for(&config).family())
                     .into(),
             ));
         }
@@ -2084,6 +2093,7 @@ impl ProcessManager {
                     })
                     .with("status", status)
                     .with("code", &failure.code)
+                    .with("engine", engine.family())
                     .into();
                     self.record_failure(failure.clone());
                     self.set_error(msg.clone());
@@ -2129,6 +2139,7 @@ impl ProcessManager {
                         err("process.health_timeout")
                             .num("seconds", load_timeout.as_secs())
                             .with("code", FailureKind::LoadTimeout.code())
+                            .with("engine", engine.family())
                             .into(),
                     )
                     .await;
@@ -3868,6 +3879,38 @@ mod tests {
             );
             mgr.stop().await.unwrap();
         }
+    }
+
+    /// A failure names the engine of its run (its messages say "the mlx server", not always
+    /// llama-server); one that already names an engine keeps it.
+    #[test]
+    fn test_failures_name_their_engine() {
+        let mgr = ProcessManager::new();
+        mgr.record_failure(ServerFailure::new(
+            FailureKind::Crashed,
+            FailurePhase::Running,
+        ));
+        let engine = |m: &ProcessManager| {
+            m.failure
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .params
+                .get("engine")
+                .cloned()
+        };
+        assert_eq!(engine(&mgr).as_deref(), Some(crate::engine::LLAMA_CPP));
+        *mgr.engine.lock().unwrap() = crate::engine::mlx::MLX;
+        mgr.record_failure(ServerFailure::new(
+            FailureKind::Crashed,
+            FailurePhase::Running,
+        ));
+        assert_eq!(engine(&mgr).as_deref(), Some("mlx"));
+        mgr.record_failure(
+            ServerFailure::new(FailureKind::Crashed, FailurePhase::Running).with("engine", "x"),
+        );
+        assert_eq!(engine(&mgr).as_deref(), Some("x"));
     }
 
     #[tokio::test]

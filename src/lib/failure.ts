@@ -4,7 +4,8 @@ import { localizeError } from '#lib/network.js';
 
 /** Localized message of a classified start failure (`failure.<kind>` with its params). */
 export function failureText(f: ServerFailure): string {
-  return t(f.message_key as TKey, f.params);
+  // Failures recorded before the engine was named in them were llama.cpp's.
+  return t(f.message_key as TKey, { engine: 'llama.cpp', ...f.params });
 }
 
 /** What went wrong with a server: its classified failure, else the raw status error. */

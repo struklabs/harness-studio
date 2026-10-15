@@ -238,7 +238,7 @@ pub fn base(code: &str) -> Option<&'static str> {
 /// (`recovery.*`): the GUI's English texts (a test compares them), `{name}` placeholders.
 pub fn template(key: &str) -> Option<&'static str> {
     Some(match key {
-        "failure.out_of_memory" => "Not enough memory: llama-server could not allocate memory for the model (VRAM or RAM).",
+        "failure.out_of_memory" => "Not enough memory: the {engine} server could not allocate memory for the model (VRAM or RAM).",
         "failure.missing_library" => "A library the runtime needs could not be loaded (GPU driver or runtime files missing or incompatible).",
         "failure.corrupt_model" => "The model file is damaged or incomplete (interrupted download?). Download it again.",
         "failure.unsupported_architecture" => "This llama.cpp runtime does not support the model architecture \"{arch}\". Update the runtime.",
@@ -246,8 +246,8 @@ pub fn template(key: &str) -> Option<&'static str> {
         "failure.port_in_use" => "The port is in use by another program. Choose another port.",
         "failure.invalid_argument" => "This runtime rejected a launch argument: {flag}. Remove it or update the runtime.",
         "failure.load_timeout" => "The server was not ready within {seconds} s. Raise the load timeout for large models.",
-        "failure.crashed" => "llama-server stopped unexpectedly.",
-        "failure.start_failed" => "llama-server could not start.",
+        "failure.crashed" => "The {engine} server stopped unexpectedly.",
+        "failure.start_failed" => "The {engine} server could not start.",
         "failure.device_lost" => "The GPU stopped the work (driver reset or GPU error). Start the server again; if it repeats, try fewer GPU layers or another GPU driver version.",
         "failure.draft_load_failed" => "The draft model could not be loaded: {draft}. Usually it does not fit in memory: give the draft fewer GPU layers (-ngld) or turn the draft model off. If the file is missing or damaged, choose another draft.",
         "recovery.enable_fit" => "Let llama-server choose the GPU layers (--fit on)",
