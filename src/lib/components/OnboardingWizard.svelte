@@ -46,6 +46,8 @@
   let runtimeBusy = $state(false);
   let purposeBusy = $state(false);
   let purposeDone = $state(false);
+  let purposeStep = $state<StepPurpose>();
+  const purposeAction = $derived(purposeStep?.getFooterAction());
   /** A download or install runs: leaving the wizard's steps is blocked. */
   const navBlocked = $derived(runtimeBusy || purposeBusy);
   let optCrashReports = $state(untrack(() => settings.privacy.crash_reports ?? true));
@@ -168,7 +170,7 @@
         <StepRuntime bind:busy={runtimeBusy} {hardware} />
       </div>
       <div class:hidden={step !== 4}>
-        <StepPurpose bind:level={selectedLevel} bind:busy={purposeBusy} bind:done={purposeDone} {hardware} ctx={settings.server.default_ctx || 32768} />
+        <StepPurpose bind:this={purposeStep} bind:level={selectedLevel} bind:busy={purposeBusy} bind:done={purposeDone} {hardware} ctx={settings.server.default_ctx || 32768} />
       </div>
       <div class:hidden={step !== 5}>
         <StepPrivacy bind:crashReports={optCrashReports} bind:hardwareInfo={optHardware} />
@@ -191,9 +193,16 @@
           <span></span>
         {/if}
 
-        {#if step < TOTAL}
+        {#if step === 4 && purposeAction?.action === 'install'}
+          <div class="flex items-center gap-2">
+            <Button variant="outline" onclick={() => goTo(step + 1)} disabled={navBlocked}>{t('onboarding.wizard_btn_skip')}</Button>
+            <Button data-autofocus onclick={() => purposeStep?.install()} disabled={purposeAction.disabled}>
+              {t('onboarding.sg_install_btn', { n: purposeAction.count })}
+            </Button>
+          </div>
+        {:else if step < TOTAL}
           <Button data-autofocus onclick={() => goTo(step + 1)} disabled={navBlocked}>
-            {step === 4 && !purposeDone ? t('onboarding.wizard_btn_skip') : t('onboarding.wizard_btn_next')}
+            {step === 4 && purposeAction?.action !== 'continue' ? t('onboarding.wizard_btn_skip') : t('onboarding.wizard_btn_next')}
           </Button>
         {:else}
           <Button data-autofocus onclick={handleFinish} disabled={finishing}>
