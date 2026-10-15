@@ -360,7 +360,9 @@
         minimal={!settings.privacy.onboarding_completed || showWizardManually}
         onOpenCommand={() => (commandOpen = true)}
       />
-      <div class="flex min-h-0 flex-1">
+      <!-- Behind the wizard the app is inert: VoiceOver and Tab reach only the wizard (aria-modal
+           alone does not hide the rest from WebKit's accessibility tree). The title bar stays usable. -->
+      <div class="flex min-h-0 flex-1" inert={!settings.privacy.onboarding_completed || showWizardManually}>
       <Sidebar {currentTab} onTabChange={(tab) => (currentTab = tab)} />
 
       <div class="relative flex min-w-0 flex-1 flex-col overflow-clip rounded-tl-[10px] border-t border-l border-border bg-background">

@@ -125,7 +125,7 @@
 
 <Command.Dialog bind:open filter={paletteFilter} title={t('cmd.open')} description={t('cmd.placeholder')}>
   <Command.Input bind:value={query} placeholder={t('cmd.placeholder')} />
-  <Command.List>
+  <Command.List aria-label={t('cmd.results')}>
     <!-- bits-ui sorts groups by their best match only inside a Viewport. -->
     <CommandPrimitive.Viewport>
     <Command.Empty>{t('cmd.empty')}</Command.Empty>
