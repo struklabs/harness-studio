@@ -12,12 +12,15 @@
 //!
 //! The automatic rule ([`advise`]):
 //! 1. **Pool**: `context / request size` slots at most (1, 2 or 4), request size 8k tokens
-//!    for a server the user starts (chat) and the gateway's JIT loads, 32k for a server
-//!    prepared for an agent tool. The gateway can take the smaller size because its scheduler
+//!    for a server the user starts (chat), 2k for the gateway's JIT loads and 32k for a server
+//!    prepared for an agent tool. The gateway can take the smallest size because its scheduler
 //!    holds each request's estimated tokens against the shared pool (`Scheduler::acquire`,
-//!    token admission): requests that together exceed the pool wait instead of failing. Before
-//!    this, an API client got 1 slot at the default 32k context and four parallel streams ran
-//!    one after the other (comparison benchmark: 53 t/s in total against LM Studio's 157).
+//!    token admission): requests that together exceed the pool wait instead of failing, and in
+//!    the unified pool every request can still use the whole context. Before this, an API
+//!    client got 1 slot at the default 32k context and four parallel streams ran one after the
+//!    other (comparison benchmark: 53 t/s in total against LM Studio's 157); with 8k, the same
+//!    happened on a 4 GB card, where the 4B's context is 12k (RTX 3050 Ti, Qwen3-4B: 54 t/s in
+//!    total and up to 14.5 s to the first token; 148 t/s and 0.8 s with 4 slots).
 //! 2. **Memory**: when one more slot costs more than [`CHEAP_SLOT_BYTES`] (SWA window or
 //!    recurrent state + its checkpoints), a server the user starts gets 1 slot and an agent
 //!    server at most 2, and only while the model still fits fully on the GPU (85%).
@@ -46,8 +49,9 @@ pub const USER_REQUEST_TOKENS: u64 = 8192;
 pub const AGENT_REQUEST_TOKENS: u64 = 32_768;
 /// Tokens a concurrent request of a gateway-loaded server should have. The gateway's token
 /// admission (see the module documentation) keeps requests inside the shared pool, so this is
-/// the same small share as for a chat user, not an agent's 32k.
-pub const GATEWAY_REQUEST_TOKENS: u64 = 8192;
+/// only a share of it, not a limit: a request may still use the whole unified pool, and one
+/// that does not fit next to the others waits. A pool of 8k or more gets 4 slots.
+pub const GATEWAY_REQUEST_TOKENS: u64 = 2048;
 /// Most slots the automatic rule picks (= llama-server's own automatic value).
 pub const AUTO_MAX: u32 = 4;
 
@@ -382,6 +386,22 @@ pub fn runs_unified_pool(plan: &SlotPlan, config: &crate::process::LaunchConfig)
         || (plan.np.is_none()
             && custom_slots(config.custom_args.as_deref()).is_none()
             && plan.advice.slots == AUTO_MAX)
+}
+
+/// Whether a server whose slots share one unified pool turns llama.cpp's host prompt cache off
+/// (`--cache-ram 0`), by the runtime's backends (`RuntimeCapabilities::backends`).
+///
+/// With the cache on, llama-server saves the idle slots to it when a new request starts and
+/// clears them from the pool; without it they stay, and every later request attends over their
+/// cells too. Which costs more depends on the backend:
+/// - **Vulkan** (b11552, RX 7900 GRE): saving stalls every wave of concurrent requests by
+///   ~3.7 s (4 streams of Qwen3-4B: 172 t/s in total against 400 with the cache off): off.
+/// - **CUDA** (b11574, RTX 3050 Ti 4 GB): the save takes ~0.7 s, once, at the first request
+///   after a wave; without it a single stream after concurrent use runs 10-33 % slower
+///   (Qwen3-4B 38-50 t/s against 56), a small model up to 40 % (Qwen3-0.6B 108 against 180):
+///   on. The same holds for any other backend not measured yet.
+pub fn host_cache_off_for_unified_pool(backends: &[String]) -> bool {
+    !backends.iter().any(|b| b.eq_ignore_ascii_case("CUDA"))
 }
 
 /// Pure launch-slot planner. The Dashboard estimate and the process launcher both enter here

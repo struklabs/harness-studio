@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -47,8 +48,12 @@ def eff(info: dict | None, backend: str) -> str:
         return "?"
     if backend.startswith("harness"):
         c, v = info.get("config", {}), info.get("values", {})
+        # The launch line is what ran: Harness turns flash attention on for a quantized V cache
+        # although the definition leaves it automatic.
+        m = re.search(r"(?:--flash-attn|-fa)s+(S+)", info.get("cmdline") or "")
+        fa = m.group(1) if m else ("on" if c.get("flash_attn") else "auto")
         return (f"ctx {v.get('n_ctx', c.get('context_size'))}, ngl {v.get('gpu_layers_offloaded')}/{v.get('gpu_layers_total')}, "
-                f"FA {'on' if c.get('flash_attn') else 'off/auto'}, KV {c.get('cache_type_k') or 'f16'}/{c.get('cache_type_v') or 'f16'}, "
+                f"FA {fa}, KV {c.get('cache_type_k') or 'f16'}/{c.get('cache_type_v') or 'f16'}, "
                 f"slots {v.get('total_slots')}")
     if backend.startswith("lmstudio"):
         ps = (info.get("ps") or [{}])[0]

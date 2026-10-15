@@ -1432,12 +1432,15 @@ impl ProcessManager {
             }
             let lang = crate::config::AppSettings::load().language;
             self.push_log(plan.advice.log_line(&lang));
-            // llama.cpp b11552 stalls every wave of concurrent requests by ~3.7 s when several
-            // slots share one unified KV pool and the host prompt cache is on (measured:
-            // 4 streams of Qwen3-4B, 172 t/s in total against 400 with `--cache-ram 0`).
+            // Several slots in one unified KV pool: the host prompt cache stalls every wave of
+            // concurrent requests on Vulkan, but on CUDA it is what clears idle slots from the
+            // pool (`slots::host_cache_off_for_unified_pool` has the measurements).
             if crate::slots::runs_unified_pool(plan, &launch)
                 && !cache_ram_is_set(&launch)
-                && runtime_for_params.is_some_and(|r| r.has_flag("--cache-ram"))
+                && runtime_for_params.is_some_and(|r| {
+                    r.has_flag("--cache-ram")
+                        && crate::slots::host_cache_off_for_unified_pool(&r.backends())
+                })
             {
                 launch
                     .params
