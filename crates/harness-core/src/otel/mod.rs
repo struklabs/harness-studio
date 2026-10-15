@@ -342,8 +342,17 @@ pub fn validate_settings(incoming: &OtelSettings) -> Result<OtelSettings, String
     Ok(s)
 }
 
-/// The export headers saved in the keychain.
+/// The export headers saved in the keychain. Without saved header names the keychain is not
+/// read: a system with no keychain (Linux without a Secret Service collection, a headless
+/// server) can still export.
 pub fn saved_headers() -> Result<Vec<(String, String)>, String> {
+    if crate::config::AppSettings::load()
+        .otel
+        .header_names
+        .is_empty()
+    {
+        return Ok(Vec::new());
+    }
     match crate::secrets::otel_headers_get()? {
         Some(text) => parse_headers(&text),
         None => Ok(Vec::new()),
@@ -363,7 +372,9 @@ pub fn save_settings(
     if let Some(text) = headers {
         let parsed = parse_headers(text)?;
         if parsed.is_empty() {
-            crate::secrets::otel_headers_delete()?;
+            if !s.header_names.is_empty() {
+                crate::secrets::otel_headers_delete()?;
+            }
         } else {
             crate::secrets::otel_headers_set(&headers_text(&parsed))?;
         }

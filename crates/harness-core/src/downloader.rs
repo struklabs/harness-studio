@@ -528,20 +528,25 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         // A safetensors chat model runs on mistral.rs (when the user registered it).
         // A transformers task model (classifier, NER, ASR...) runs on the Python engine.
         // An MLX chat model runs on the MLX engine (Apple Silicon).
-        crate::hub_compat::mistralrs_compatibility(format, task, &sibling_files(item))
-            .or_else(|| {
-                crate::hub_compat::mlx_compatibility(&id, format, task, &sibling_files(item), &tags)
-            })
-            .or_else(|| {
-                crate::hub_compat::python_hf_compatibility(
-                    format,
-                    item.get("library_name").and_then(|v| v.as_str()),
-                    task,
-                    &tags,
-                    &sibling_files(item),
-                )
-            })
-            .unwrap_or_else(|| crate::hub_compat::hub_compatibility_for(format, task, genai))
+        crate::hub_compat::mistralrs_compatibility(
+            format,
+            task,
+            &sibling_files(item),
+            item.get("config"),
+        )
+        .or_else(|| {
+            crate::hub_compat::mlx_compatibility(&id, format, task, &sibling_files(item), &tags)
+        })
+        .or_else(|| {
+            crate::hub_compat::python_hf_compatibility(
+                format,
+                item.get("library_name").and_then(|v| v.as_str()),
+                task,
+                &tags,
+                &sibling_files(item),
+            )
+        })
+        .unwrap_or_else(|| crate::hub_compat::hub_compatibility_for(format, task, genai))
     };
     // A speech repo made for its own package (Qwen3-TTS, VibeVoice streaming...) would show as
     // runnable on the Python engine and fail at load.
@@ -726,6 +731,58 @@ pub struct HfModelVariant {
     pub total_size_bytes: u64,
     pub is_split: bool,
     pub shards: Vec<HfShardInfo>,
+}
+
+/// The single-file variant of exactly `file` in a repo listing (`items`), or `None` when the
+/// repo has no such file.
+fn companion_variant_from(
+    repo: &str,
+    file: &str,
+    items: &[serde_json::Value],
+) -> Result<Option<HfModelVariant>, String> {
+    let Some(item) = items
+        .iter()
+        .find(|i| i.get("path").and_then(|v| v.as_str()) == Some(file))
+    else {
+        return Ok(None);
+    };
+    let size_bytes = item
+        .get("lfs")
+        .and_then(|l| l.get("size"))
+        .and_then(|v| v.as_u64())
+        .or_else(|| item.get("size").and_then(|v| v.as_u64()))
+        .unwrap_or(0);
+    let sha256 = item
+        .get("lfs")
+        .and_then(|l| l.get("oid"))
+        .and_then(|v| v.as_str())
+        .and_then(valid_sha256);
+    let shard = HfShardInfo {
+        filename: file.to_string(),
+        download_url: DownloadManager::hf_file_url(repo, "resolve", file)?.to_string(),
+        size_bytes,
+        shard_index: 1,
+        total_shards: 1,
+        sha256,
+    };
+    let lower = file.to_ascii_lowercase();
+    let quantization = if lower.ends_with(".gguf") {
+        crate::gguf::extract_quant_from_filename(file)
+    } else {
+        crate::image_bundles::variant_quant(file)
+    };
+    Ok(Some(HfModelVariant {
+        name: file
+            .trim_end_matches(".gguf")
+            .trim_end_matches(".safetensors")
+            .trim_end_matches(".ckpt")
+            .to_string(),
+        not_runnable: None,
+        quantization,
+        total_size_bytes: size_bytes,
+        is_split: false,
+        shards: vec![shard],
+    }))
 }
 
 /// Each audio.cpp GGUF is a model variant with only its own folder's companion
@@ -2077,8 +2134,7 @@ impl DownloadManager {
             .collect();
         let mut ids = Vec::new();
         for c in plan.missing() {
-            let variants = Self::get_model_variants(&c.repo, token).await?;
-            let variant = pick_variant(&variants, Some(&c.file), None)?;
+            let variant = Self::companion_variant(&c.repo, &c.file, token).await?;
             // Already on its way (the bundle was asked for twice).
             if active
                 .iter()
@@ -2089,6 +2145,18 @@ impl DownloadManager {
             ids.push(self.start_variant_download(c.repo.clone(), variant)?);
         }
         Ok(ids)
+    }
+
+    /// The download of one curated bundle companion: exactly `file` of `repo`. Companions often
+    /// live in sub-folders (`split_files/vae/…`, `vae/…`) that the Hub variant list leaves out,
+    /// so the file is looked up in the repo listing itself.
+    pub async fn companion_variant(
+        repo: &str,
+        file: &str,
+        token: Option<&str>,
+    ) -> Result<HfModelVariant, String> {
+        let items = Self::list_repo_files(repo, token).await?;
+        companion_variant_from(repo, file, &items)?.ok_or_else(|| ERR_VARIANT_NOT_FOUND.to_string())
     }
 
     /// [`start_variant_download`] into `target_dir` (a repo folder `<library>/<owner>/<repo>`
@@ -4531,6 +4599,33 @@ mod tests {
         ));
         assert_eq!(listed.not_runnable, None);
         assert_eq!(card_not_runnable(&item, analysis.not_runnable), None);
+    }
+
+    #[test]
+    fn bundle_companion_in_a_subfolder_is_found_by_its_path() {
+        let items = vec![
+            serde_json::json!({"path":"split_files/diffusion_models/flux2_dev_fp8mixed.safetensors","size":1}),
+            serde_json::json!({"path":"split_files/vae/flux2-vae.safetensors","size":134,
+                "lfs":{"size":336213556,"oid":"d64f3a68e1cc4f9f4e29b6e0da38a0204fe9a49f2d4053f0ec1fa1ca02f9c4b5"}}),
+        ];
+        let v = companion_variant_from(
+            "Comfy-Org/flux2-dev",
+            "split_files/vae/flux2-vae.safetensors",
+            &items,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(v.total_size_bytes, 336213556);
+        assert_eq!(
+            v.shards[0].filename,
+            "split_files/vae/flux2-vae.safetensors"
+        );
+        assert!(v.shards[0].sha256.is_some());
+        assert!(
+            companion_variant_from("Comfy-Org/flux2-dev", "vae/missing.safetensors", &items)
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]

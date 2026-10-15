@@ -17,6 +17,11 @@
 //! (`black-forest-labs/FLUX.1-*` answers 401 without a token), `comfyanonymous/flux_text_encoders`
 //! the FLUX text encoders, `Comfy-Org/stable-diffusion-3.5-fp8` the SD3.5 ones; FLUX.2 klein takes
 //! the FLUX.2 autoencoder of `Comfy-Org/flux2-dev` and a Qwen3 GGUF as its `llm` (docs/flux2.md).
+//! FLUX.2 dev takes the same autoencoder with Mistral Small 3.2 as `llm`; Qwen-Image takes its
+//! own VAE (`Comfy-Org/Qwen-Image_ComfyUI`) and Qwen2.5-VL (docs/qwen_image.md,
+//! docs/qwen_image_edit.md), Qwen-Image 2.1 its VAE (`Comfy-Org/Qwen-Image-2.1`) and Qwen3-VL-8B
+//! (docs/qwen_image_2.1.md), Z-Image the FLUX.1 autoencoder and Qwen3-4B-Instruct
+//! (docs/z_image.md), FLUX.1 Kontext the FLUX.1 set (docs/kontext.md).
 
 use crate::params::{ParamValue, ParamValues};
 use regex::Regex;
@@ -95,6 +100,76 @@ const QWEN3_8B: Component = Component {
     repo: "unsloth/Qwen3-8B-GGUF",
     file: "Qwen3-8B-Q4_K_M.gguf",
     size: 5_027_784_512,
+};
+const FLUX2_MISTRAL: Component = Component {
+    role: "llm",
+    repo: "unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF",
+    file: "Mistral-Small-3.2-24B-Instruct-2506-Q4_K_M.gguf",
+    size: 14_333_922_848,
+};
+const QWEN_IMAGE_VAE: Component = Component {
+    role: "vae",
+    repo: "Comfy-Org/Qwen-Image_ComfyUI",
+    file: "split_files/vae/qwen_image_vae.safetensors",
+    size: 253_806_246,
+};
+const QWEN25_VL_7B: Component = Component {
+    role: "llm",
+    repo: "mradermacher/Qwen2.5-VL-7B-Instruct-GGUF",
+    file: "Qwen2.5-VL-7B-Instruct.Q4_K_M.gguf",
+    size: 4_683_072_512,
+};
+/// The vision projector of Qwen2.5-VL; Qwen-Image-Edit 2509 reads the reference image with it.
+const QWEN25_VL_7B_MMPROJ: Component = Component {
+    role: "llm_vision",
+    repo: "mradermacher/Qwen2.5-VL-7B-Instruct-GGUF",
+    file: "Qwen2.5-VL-7B-Instruct.mmproj-Q8_0.gguf",
+    size: 853_119_712,
+};
+const QWEN_IMAGE_21_VAE: Component = Component {
+    role: "vae",
+    repo: "Comfy-Org/Qwen-Image-2.1",
+    file: "vae/qwen_image_2.1_vae_bf16.safetensors",
+    size: 675_509_688,
+};
+const QWEN3_VL_8B: Component = Component {
+    role: "llm",
+    repo: "Qwen/Qwen3-VL-8B-Instruct-GGUF",
+    file: "Qwen3VL-8B-Instruct-Q4_K_M.gguf",
+    size: 5_027_784_800,
+};
+const QWEN3_4B_INSTRUCT: Component = Component {
+    role: "llm",
+    repo: "unsloth/Qwen3-4B-Instruct-2507-GGUF",
+    file: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf",
+    size: 2_497_281_120,
+};
+/// Qwen-Image / Qwen-Image-Edit (docs/qwen_image.md): CFG 2.5, euler.
+const QWEN_IMAGE_DEFAULTS: Defaults = Defaults {
+    width: 1024,
+    height: 1024,
+    steps: 20,
+    cfg_scale: 2.5,
+    sampling_method: Some("euler"),
+    guidance: None,
+};
+/// Qwen-Image 2.1 (docs/qwen_image_2.1.md): CFG 6, euler.
+const QWEN_IMAGE_21_DEFAULTS: Defaults = Defaults {
+    width: 1024,
+    height: 1024,
+    steps: 20,
+    cfg_scale: 6.0,
+    sampling_method: Some("euler"),
+    guidance: None,
+};
+/// Z-Image Turbo: 8 steps without CFG (docs/z_image.md).
+const Z_IMAGE_TURBO_DEFAULTS: Defaults = Defaults {
+    width: 1024,
+    height: 1024,
+    steps: 8,
+    cfg_scale: 1.0,
+    sampling_method: None,
+    guidance: None,
 };
 /// FLUX.2 klein (distilled): 4 steps without CFG; text-to-image and instruction editing.
 const KLEIN_DEFAULTS: Defaults = Defaults {
@@ -176,6 +251,88 @@ pub const BUNDLES: &[Bundle] = &[
         file_pattern: r"flux[-_.]?2[-_.]?klein[-_.]?9b",
         components: &[FLUX2_VAE, QWEN3_8B],
         defaults: KLEIN_DEFAULTS,
+    },
+    Bundle {
+        id: "flux2-dev",
+        label: "FLUX.2 dev",
+        file_pattern: r"flux[-_.]?2[-_.]?dev",
+        components: &[FLUX2_VAE, FLUX2_MISTRAL],
+        defaults: Defaults {
+            steps: 28,
+            cfg_scale: 1.0,
+            ..KLEIN_BASE_DEFAULTS
+        },
+    },
+    Bundle {
+        id: "qwen-image-2.1-turbo",
+        label: "Qwen-Image 2.1 Turbo",
+        file_pattern: r"qwen[-_.]?image[-_.]?2[-_.]?1[-_.](?:\w+[-_.])*?turbo",
+        components: &[QWEN_IMAGE_21_VAE, QWEN3_VL_8B],
+        defaults: Defaults {
+            steps: 8,
+            cfg_scale: 1.0,
+            ..QWEN_IMAGE_21_DEFAULTS
+        },
+    },
+    Bundle {
+        id: "qwen-image-2.1",
+        label: "Qwen-Image 2.1",
+        file_pattern: r"qwen[-_.]?image[-_.]?2[-_.]?1(?:[-_.]|$)",
+        components: &[QWEN_IMAGE_21_VAE, QWEN3_VL_8B],
+        defaults: QWEN_IMAGE_21_DEFAULTS,
+    },
+    Bundle {
+        id: "qwen-image-edit-2509",
+        label: "Qwen-Image Edit 2509",
+        file_pattern: r"qwen[-_.]?image[-_.]?edit[-_.]?2509",
+        components: &[QWEN_IMAGE_VAE, QWEN25_VL_7B, QWEN25_VL_7B_MMPROJ],
+        defaults: QWEN_IMAGE_DEFAULTS,
+    },
+    Bundle {
+        id: "qwen-image-edit",
+        label: "Qwen-Image Edit",
+        file_pattern: r"qwen[-_.]?image[-_.]?edit",
+        components: &[QWEN_IMAGE_VAE, QWEN25_VL_7B],
+        defaults: QWEN_IMAGE_DEFAULTS,
+    },
+    Bundle {
+        id: "qwen-image",
+        label: "Qwen-Image",
+        file_pattern: r"qwen[-_.]?image",
+        components: &[QWEN_IMAGE_VAE, QWEN25_VL_7B],
+        defaults: QWEN_IMAGE_DEFAULTS,
+    },
+    Bundle {
+        id: "z-image-turbo",
+        label: "Z-Image Turbo",
+        file_pattern: r"z[-_.]?image[-_.]?turbo",
+        components: &[FLUX_VAE, QWEN3_4B_INSTRUCT],
+        defaults: Z_IMAGE_TURBO_DEFAULTS,
+    },
+    Bundle {
+        id: "z-image",
+        label: "Z-Image",
+        file_pattern: r"z[-_.]?image",
+        components: &[FLUX_VAE, QWEN3_4B_INSTRUCT],
+        defaults: Defaults {
+            steps: 20,
+            cfg_scale: 5.0,
+            ..Z_IMAGE_TURBO_DEFAULTS
+        },
+    },
+    Bundle {
+        id: "flux-kontext-dev",
+        label: "FLUX.1 Kontext dev",
+        file_pattern: r"flux1?[-_.]?kontext",
+        components: &[FLUX_VAE, FLUX_CLIP_L, FLUX_T5],
+        defaults: Defaults {
+            width: 1024,
+            height: 1024,
+            steps: 20,
+            cfg_scale: 1.0,
+            sampling_method: Some("euler"),
+            guidance: Some(2.5),
+        },
     },
     Bundle {
         id: "wan21-t2v-1.3b",
@@ -319,8 +476,9 @@ pub fn bundle_for(file: &str) -> Option<&'static Bundle> {
         "text_encoder",
     ]
     .iter()
-    .any(|w| lower.starts_with(w) || lower.contains(&format!("_{w}")))
-        || lower == "ae.safetensors"
+    .any(|w| {
+        lower.starts_with(w) || lower.contains(&format!("_{w}")) || lower.contains(&format!("-{w}"))
+    }) || lower == "ae.safetensors"
     {
         return None;
     }
@@ -586,7 +744,7 @@ mod tests {
         assert_eq!(id("wan_2.1_vae.safetensors"), None);
         assert_eq!(id("umt5-xxl-encoder-Q3_K_S.gguf"), None);
         // Not in the list; companions are never mistaken for models.
-        assert_eq!(id("qwen_image-Q4_K_M.gguf"), None);
+        assert_eq!(id("Qwen3-VL-8B-Instruct-Q4_K_M.gguf"), None);
         assert_eq!(id("Qwen3-4B-Q4_K_M.gguf"), None);
         for companion in [
             "ae.safetensors",
@@ -595,6 +753,81 @@ mod tests {
             "vae-flux.safetensors",
         ] {
             assert_eq!(id(companion), None, "{companion}");
+        }
+    }
+
+    #[test]
+    fn qwen_z_image_and_flux2_dev_take_their_documented_companions() {
+        let plan = |f: &str| {
+            let b = bundle_for(f).unwrap_or_else(|| panic!("{f} has no bundle"));
+            (
+                b.id,
+                b.components
+                    .iter()
+                    .map(|c| (c.role, c.repo, c.file))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        // Qwen-Image 2.1 (and its uncensored finetunes) brings its own VAE and Qwen3-VL.
+        for f in [
+            "qwen-image-2.1-Q4_K_M.gguf",
+            "qwen-image-2.1-UC-Q4_K_M.gguf",
+            "qwen_image_2.1_int8_convrot.safetensors",
+        ] {
+            let (id, comps) = plan(f);
+            assert_eq!(id, "qwen-image-2.1", "{f}");
+            assert_eq!(comps[0].1, "Comfy-Org/Qwen-Image-2.1");
+            assert_eq!(comps[1].1, "Qwen/Qwen3-VL-8B-Instruct-GGUF");
+        }
+        for f in [
+            "qwen-image-2.1-turbo-Q8_0.gguf",
+            "Qwen-Image-2.1-Turbo-Uncensored-AD-Q4_K.gguf",
+        ] {
+            assert_eq!(plan(f).0, "qwen-image-2.1-turbo", "{f}");
+        }
+        let turbo = bundle_for("qwen-image-2.1-turbo-Q8_0.gguf").unwrap();
+        assert_eq!((turbo.defaults.steps, turbo.defaults.cfg_scale), (8, 1.0));
+        // The earlier Qwen-Image releases and the edit models use the Qwen2.5-VL set.
+        assert_eq!(plan("qwen-image-2512-Q4_K_M.gguf").0, "qwen-image");
+        assert_eq!(plan("qwen_image_bf16.safetensors").0, "qwen-image");
+        assert_eq!(
+            plan("qwen-image-edit-2511-Q4_K_M.gguf").0,
+            "qwen-image-edit"
+        );
+        assert_eq!(
+            plan("qwen-image-edit-2511-uncensored-Q4_K_M.gguf").0,
+            "qwen-image-edit"
+        );
+        let (id, comps) = plan("Qwen-Image-Edit-2509-Q4_K_M.gguf");
+        assert_eq!(id, "qwen-image-edit-2509");
+        assert_eq!(
+            comps.iter().map(|c| c.0).collect::<Vec<_>>(),
+            ["vae", "llm", "llm_vision"]
+        );
+        // Z-Image: the FLUX.1 autoencoder and Qwen3-4B-Instruct.
+        let (id, comps) = plan("z-image-turbo-Q4_K_M.gguf");
+        assert_eq!(id, "z-image-turbo");
+        assert_eq!(comps[0].1, "ffxvs/vae-flux");
+        assert_eq!(comps[1].2, "Qwen3-4B-Instruct-2507-Q4_K_M.gguf");
+        assert_eq!(plan("z_image_bf16.safetensors").0, "z-image");
+        // FLUX.2 dev and FLUX.1 Kontext do not fall into the neighbouring FLUX bundles.
+        let (id, comps) = plan("flux2-dev-Q4_K_S.gguf");
+        assert_eq!(id, "flux2-dev");
+        assert_eq!(comps[0].1, "Comfy-Org/flux2-dev");
+        assert_eq!(
+            comps[1].1,
+            "unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF"
+        );
+        assert_eq!(plan("flux1-kontext-dev-Q4_K_M.gguf").0, "flux-kontext-dev");
+        assert_eq!(plan("flux1-dev-q4_0.gguf").0, "flux-dev");
+        // Companions and LoRAs that carry a model name are not models.
+        for f in [
+            "qwen_image_vae.safetensors",
+            "qwen_image_2.1_vae_bf16.safetensors",
+            "qwen-image-2.1-uncensored-lora.safetensors",
+            "qwen3vl_8b_bf16.safetensors",
+        ] {
+            assert!(bundle_for(f).is_none(), "{f}");
         }
     }
 
@@ -741,14 +974,10 @@ mod tests {
                 if !seen.insert((c.repo, c.file)) {
                     continue;
                 }
-                let variants = DownloadManager::get_model_variants(c.repo, None)
+                let variant = DownloadManager::companion_variant(c.repo, c.file, None)
                     .await
-                    .unwrap_or_else(|e| panic!("{}: {e}", c.repo));
-                let found = variants
-                    .iter()
-                    .flat_map(|v| &v.shards)
-                    .find(|s| s.filename == c.file)
-                    .unwrap_or_else(|| panic!("{}/{} is not listed", c.repo, c.file));
+                    .unwrap_or_else(|e| panic!("{}/{}: {e}", c.repo, c.file));
+                let found = &variant.shards[0];
                 eprintln!(
                     "{}/{}: {} bytes (list says {})",
                     c.repo, c.file, found.size_bytes, c.size

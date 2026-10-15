@@ -133,3 +133,31 @@ export function recommendCrispasrVariant(variants: HfModelVariant[], availableRa
   }
   return fits.sort((a, b) => a.total_size_bytes - b.total_size_bytes)[0] ?? null;
 }
+
+/** Projector precision order: F16 first (most widely supported), then BF16, F32, anything else. */
+function projectorRank(v: HfModelVariant): number {
+  const name = `${v.name} ${v.shards[0]?.filename ?? ''}`.toLowerCase();
+  if (/(^|[^a-z0-9])f16/.test(name) || name.includes('fp16')) return 0;
+  if (/bf16/.test(name)) return 1;
+  if (/(^|[^a-z0-9])f32/.test(name) || name.includes('fp32')) return 2;
+  return 3;
+}
+
+/**
+ * The vision projector (mmproj) that goes with a downloaded main GGUF: from the same folder of
+ * the repo as `main`, F16 -> BF16 -> F32 -> any (smallest). Null when `main` is itself a
+ * projector or not a GGUF, or the repo has no projector file.
+ */
+export function pickProjectorVariant(variants: HfModelVariant[], main: HfModelVariant): HfModelVariant | null {
+  const mainFile = main.shards[0]?.filename ?? '';
+  if (main.quantization === 'mmproj' || main.quantization === 'component' || !mainFile.toLowerCase().endsWith('.gguf')) return null;
+  const dirOf = (f: string) => (f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : '').toLowerCase();
+  const projectors = variants.filter((v) => v.quantization === 'mmproj' && v.shards.length > 0 && v.shards[0].filename.toLowerCase().endsWith('.gguf'));
+  const sameDir = projectors.filter((v) => dirOf(v.shards[0].filename) === dirOf(mainFile));
+  const pool = sameDir.length ? sameDir : projectors.filter((v) => dirOf(v.shards[0].filename) === '');
+  if (pool.length === 0) return null;
+  return pool.reduce((a, b) => {
+    const d = projectorRank(b) - projectorRank(a);
+    return d < 0 || (d === 0 && b.total_size_bytes < a.total_size_bytes) ? b : a;
+  });
+}
