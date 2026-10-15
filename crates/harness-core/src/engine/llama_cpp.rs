@@ -169,6 +169,25 @@ fn pick_assets(
     assets: &[ReleaseAsset],
     backends: &[String],
 ) -> Option<(Vec<ReleaseAsset>, Option<String>)> {
+    pick_assets_for(assets, backends, cuda13_allowed())
+}
+
+/// Whether CUDA 13 builds can run here: on Windows they need NVIDIA driver 580 or newer, the
+/// rule of the official install path ([`crate::runtime::select_asset_for_driver`]); a known
+/// older or unknown driver gets 12.x only. Elsewhere every CUDA build is a candidate.
+fn cuda13_allowed() -> bool {
+    !cfg!(windows)
+        || crate::hardware::windows_driver_at_least(
+            crate::runtime::windows_nvidia_driver().as_deref(),
+            (580, 0),
+        ) == Some(true)
+}
+
+fn pick_assets_for(
+    assets: &[ReleaseAsset],
+    backends: &[String],
+    cuda13_ok: bool,
+) -> Option<(Vec<ReleaseAsset>, Option<String>)> {
     let arch = regex::escape(arch_token());
     let os = os_tokens()
         .iter()
@@ -203,6 +222,10 @@ fn pick_assets(
                     Some((a, ver))
                 })
                 .collect();
+            // A CUDA 13 build on a driver that cannot run it would load no GPU at all.
+            if token == Some("cuda") && !cuda13_ok {
+                hits.retain(|(_, ver)| ver.first().is_none_or(|major| *major == 12));
+            }
             // Several CUDA versions: the lowest is the most driver-compatible.
             hits.sort_by(|a, b| a.1.cmp(&b.1));
             let Some((main, ver)) = hits.first() else {
@@ -210,21 +233,106 @@ fn pick_assets(
             };
             let mut out = vec![(*main).clone()];
             if token == Some("cuda") && !ver.is_empty() {
-                let v = ver
-                    .iter()
-                    .map(|n| n.to_string())
-                    .collect::<Vec<_>>()
-                    .join(".");
-                let needle = format!("-cuda-{}-{}.", v, arch_token());
-                if let Some(rt) = assets
-                    .iter()
-                    .find(|a| a.name.starts_with("cudart-") && a.name.contains(&needle))
-                {
-                    out.push(rt.clone());
+                // The companion is named after the build: `cudart-llama-bin-<os>-cuda-<ver>-<arch>`
+                // (the OS too: upstream ships the same CUDA version for Windows and Ubuntu).
+                let build = main
+                    .name
+                    .split_once("-bin-")
+                    .map(|(_, rest)| rest)
+                    .and_then(|rest| {
+                        rest.strip_suffix(".zip")
+                            .or_else(|| rest.strip_suffix(".tar.gz"))
+                    });
+                if let Some(build) = build {
+                    let needle = format!("-bin-{build}.");
+                    if let Some(rt) = assets
+                        .iter()
+                        .find(|a| a.name.starts_with("cudart-") && a.name.contains(&needle))
+                    {
+                        out.push(rt.clone());
+                    }
                 }
             }
             return Some((out, Some(backend.clone())));
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn asset(name: &str) -> ReleaseAsset {
+        ReleaseAsset {
+            name: name.into(),
+            download_url: format!("https://example.invalid/{name}"),
+            size: 1,
+            digest: None,
+            integrity: Default::default(),
+        }
+    }
+
+    /// Archive names of this OS and of another one, with this OS's extension.
+    fn names() -> (&'static str, &'static str, &'static str) {
+        if cfg!(windows) {
+            ("win", "ubuntu", ".zip")
+        } else {
+            ("ubuntu", "win", ".tar.gz")
+        }
+    }
+
+    #[test]
+    fn fork_cuda_13_needs_a_driver_that_runs_it() {
+        if cfg!(target_os = "macos") {
+            return; // no CUDA builds
+        }
+        let (os, _, ext) = names();
+        let arch = arch_token();
+        let assets = vec![
+            asset(&format!("llama-f1-bin-{os}-cuda-13.3-{arch}{ext}")),
+            asset(&format!("llama-f1-bin-{os}-vulkan-{arch}{ext}")),
+        ];
+        let backends = ["cuda".to_string(), "vulkan".to_string()];
+        // Old driver: the CUDA 13 build is skipped and the next backend is used.
+        let (a, b) = pick_assets_for(&assets, &backends, false).unwrap();
+        assert_eq!(b.as_deref(), Some("vulkan"));
+        assert!(a[0].name.contains("vulkan"));
+        // Driver 580+: the CUDA 13 build is used.
+        let (a, b) = pick_assets_for(&assets, &backends, true).unwrap();
+        assert_eq!(b.as_deref(), Some("cuda"));
+        assert!(a[0].name.contains("cuda-13.3"));
+        // CUDA 12 stays a candidate on an old driver, and the lowest version wins.
+        let mut both = assets.clone();
+        both.push(asset(&format!("llama-f1-bin-{os}-cuda-12.4-{arch}{ext}")));
+        let (a, _) = pick_assets_for(&both, &backends, false).unwrap();
+        assert!(a[0].name.contains("cuda-12.4"));
+    }
+
+    #[test]
+    fn fork_cudart_matches_the_build_os() {
+        if cfg!(target_os = "macos") {
+            return;
+        }
+        let (os, other, ext) = names();
+        let other_ext = if ext == ".zip" { ".tar.gz" } else { ".zip" };
+        let arch = arch_token();
+        let assets = vec![
+            asset(&format!("llama-f1-bin-{os}-cuda-13.4-{arch}{ext}")),
+            // Same CUDA version for the other OS, listed first.
+            asset(&format!(
+                "cudart-llama-bin-{other}-cuda-13.4-{arch}{other_ext}"
+            )),
+            asset(&format!("cudart-llama-bin-{os}-cuda-13.4-{arch}{ext}")),
+        ];
+        let (a, _) = pick_assets_for(&assets, &["cuda".to_string()], true).unwrap();
+        assert_eq!(a.len(), 2);
+        assert_eq!(
+            a[1].name,
+            format!("cudart-llama-bin-{os}-cuda-13.4-{arch}{ext}")
+        );
+        // No companion for this OS: the build alone.
+        let (a, _) = pick_assets_for(&assets[..2], &["cuda".to_string()], true).unwrap();
+        assert_eq!(a.len(), 1);
+    }
 }

@@ -283,7 +283,7 @@ pub fn select_asset<'a>(
 
 /// NVIDIA driver version (`617.42`) used to filter Windows CUDA builds; cached for a minute
 /// because `select_asset` runs once per release of a listing.
-fn windows_nvidia_driver() -> Option<String> {
+pub(crate) fn windows_nvidia_driver() -> Option<String> {
     static CACHE: Mutex<Option<(std::time::Instant, Option<String>)>> = Mutex::new(None);
     let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((at, v)) = cache.as_ref() {
