@@ -70,6 +70,9 @@
     controller = c;
     busy = true;
     error = '';
+    // The previous audio (and its truncation notice) does not outlive a new request.
+    if (result) URL.revokeObjectURL(result.url);
+    result = null;
     missingHelper = null;
     needFamily = null;
     try {
@@ -79,7 +82,6 @@
         app.inferenceHeaders(),
         c.signal,
       );
-      if (result) URL.revokeObjectURL(result.url);
       result = { url: URL.createObjectURL(info.blob), info };
     } catch (e) {
       if (!c.signal.aborted) {
@@ -297,8 +299,9 @@
         <Button variant="ghost" size="sm" href={result.url} download="speech.wav"><Download />{t('speak.download')}</Button>
       </div>
       {#if result.info.truncated}
-        <p class="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs text-warning" role="status">
-          <TriangleAlert class="size-3.5 shrink-0" />{t(result.info.truncated === 'frames' ? 'speak.truncated_frames' : 'speak.truncated')}
+        <p class="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
+          <TriangleAlert class="mt-px size-4 shrink-0 text-warning" aria-hidden="true" />
+          <span class="min-w-0 flex-1">{t(result.info.truncated === 'frames' ? 'speak.truncated_frames' : 'speak.truncated')}</span>
         </p>
       {/if}
       <!-- svelte-ignore a11y_media_has_caption -->
