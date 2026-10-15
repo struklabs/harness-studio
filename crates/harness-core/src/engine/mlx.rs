@@ -2175,7 +2175,8 @@ print("split", w.sentences("Hi there.  Bye。Yes"), w.sentences("   "))
             dir.path().to_string_lossy()
         );
         let out = std::process::Command::new(python)
-            .args(["-I", "-c", &script])
+            // UTF-8 output: the test prints CJK sentences that a Windows code page cannot encode.
+            .args(["-I", "-X", "utf8", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()
             .unwrap();
