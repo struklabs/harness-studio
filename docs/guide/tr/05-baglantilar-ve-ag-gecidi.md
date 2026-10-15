@@ -42,6 +42,8 @@ Yerel ağ geçidi varsayılan olarak anahtar istemez. Anahtar isteyen araçlar i
 | **Ayarlar > Ağ Geçidi > Yönlendirme** | **En fazla yüklü model**, **Model başına kuyruk**, **İstek zaman aşımı (sn)**, **Varsayılan boşta kalma süresi (sn)**, **Bellek farkındalıklı tahliye**, **VRAM payı (MiB, 0 = otomatik)**, **Karar uç noktalarında sohbet modeli emülasyonu**; altında her modelin durumu (**Hazır**, **Yükleniyor**, **Yüklü değil**) ve **Boşalt** düğmesi. |
 | **Ayarlar > Ağ Geçidi > Responses** | OpenAI Responses API'nin yanıtları yerelde saklayıp saklamaması (**Yanıtları sakla**) ve saklama sınırları. |
 
+**Varsayılan boşta kalma süresi (sn)**, kendi boşta kalma süresi olmayan modellere uygulanır; boş bırakılırsa boşta kalma nedeniyle boşaltılmazlar. Uyumlu bir stable-diffusion.cpp derlemesi ve otomatik sığdırma açıkken ağ geçidi, ağırlıkların bir kısmını RAM’de tutan görsel modelini kabul edebilir: GPU, hesaplama tamponları ve bellek payını alabilmeli; kalan ağırlıklar boş RAM’in %90’ına sığmalıdır. Eski derleme, kapalı otomatik sığdırma veya açıkça belirlenmiş ağırlık yerleşimi, tam GPU tahmininin sığmasını gerektirir.
+
 Ağ geçidi yalnızca kendi yüklediği modelleri (**Gateway yükledi**) boşta kalma süresine ve bellek kurallarına göre boşaltır. Sizin elle başlattığınız sunuculara (**Sizin sunucunuz**) yönlendirir ama onları hiçbir zaman kapatmaz. Bir model tanımında **Sabit (hep yüklü)** işaretlenirse ağ geçidi başlarken o model yüklenir ve asla boşaltılmaz.
 
 Bir model yüklenirken ya da kuyruk doluyken istek reddedilirse Playground'da "{model} şu an yüklenemedi: {busy} istek işliyor ve kapatılamıyor. {wait} tekrar deneyin." gibi bir uyarı çıkar; istekler bitince **Tekrar Dene** ile yeniden gönderin ([Sorun Giderme](10-sorun-giderme.md#model-meşgul-503)).
@@ -109,7 +111,7 @@ Sık kullanılan üç istemci için özet (ayrıntılar ve tam ortam değişkenl
 | Codex | OpenAI Responses API üzerinden ağ geçidi adresi. Codex yalnızca Responses API konuşur; ayarlar bir `harness` sağlayıcısı olarak eklenir. |
 | OpenCode | OpenAI uyumlu adres (`http://127.0.0.1:11435/v1`). **Yapılandır**, `opencode.json` içine `harness` sağlayıcısını ve ağ geçidindeki sohbet modellerini yazar. |
 
-**Bağlantıyı Test Et** ile istemcinin kendi API biçiminde deneme yapın. Başarılı bir test, gerçek ajanınızın her görevde doğru aracı çağıracağı anlamına gelmez. Küçük yerel modeller araç çağrısında hata yapabilir; **Araç Çağırma Tezgâhı** bunu önceden denemenizi sağlar. İstemciye özgü sınırlamalar ve test kayıtları [entegrasyonlar başvurusundadır](../../tr/INTEGRATIONS.md).
+**Bağlantıyı Test Et** ile istemcinin kendi API biçiminde deneme yapın. Başarılı bir test, gerçek ajanınızın her görevde doğru aracı çağıracağı anlamına gelmez. Küçük yerel modeller araç çağrısında hata yapabilir; **Araç Çağırma Tezgâhı** bunu önceden denemenizi sağlar. Araç sonucunu girdikten sonra son yanıtı istemek için **Yanıtı Üret** düğmesini kullanın. İstemciye özgü sınırlamalar ve test kayıtları [entegrasyonlar başvurusundadır](../../tr/INTEGRATIONS.md).
 
 ## API Anahtarlarını Birbirinden Ayır
 

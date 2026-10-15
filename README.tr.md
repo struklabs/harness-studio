@@ -90,7 +90,7 @@ Aşağıdakiler nicemlenmiş GGUF modeller için kaba yol göstericilerdir. Ger�
 | Yaklaşık 8 GB | Orta boy modeller, 4B-8B |
 | 16 GB ve üstü veya 8 GB+ VRAM'li GPU | 12B-14B ve daha büyük modeller |
 
-Bunu kendiniz hesaplamak zorunda değilsiniz. Model Hub ve Dashboard her modelin yanında bir donanım uyumu ipucu gösterir (**VRAM'e sığıyor**, **VRAM sınırda**, **Kısmi GPU aktarımı**, **Çoğunlukla CPU**, **Bellek yetmeyebilir**). **Bağlam boyutu** ve **GPU katmanları** **Otomatik**'te bırakıldığında Harness Studio güvenli ayarları sizin için seçer: küçük bir ekran kartında tüm katmanları GPU'da tutup bağlamı küçültmeyi tercih eder; sığmayacak bir isteği çok yavaş çalıştırmak yerine yüklemeyi reddeder. Yine de sığmazsa bir pencere neyin yetmediğini ve neyi değiştirmeniz gerektiğini anlatır.
+Bunu kendiniz hesaplamak zorunda değilsiniz. Model Hub ve Dashboard her modelin yanında bir donanım uyumu ipucu gösterir (**VRAM'e sığıyor**, **VRAM sınırda**, **Kısmi GPU aktarımı**, **Çoğunlukla CPU**, **Bellek yetmeyebilir**). **Bağlam boyutu** ve **GPU katmanları** **Otomatik**'te bırakıldığında Harness Studio güvenli ayarları sizin için seçer: küçük bir ekran kartında tüm katmanları GPU'da tutup bağlamı küçültmeyi tercih eder; sığmayacak bir isteği çok yavaş çalıştırmak yerine yüklemeyi reddeder. İkinci bir sunucu, yalnızca o anda boş GPU belleğinin alabileceği kadar katman kullanır; kalanı CPU'da çalışır. Yine de sığmazsa bir pencere neyin yetmediğini ve neyi değiştirmeniz gerektiğini anlatır.
 
 ## Özellikler
 
