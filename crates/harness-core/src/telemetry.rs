@@ -361,6 +361,8 @@ pub struct SystemProbe {
     vram: Vec<crate::gpu::VramMonitor>,
     shared: Option<crate::gpu::SharedProbe>,
     shared_opened: bool,
+    /// A sample has completed (later ones only refresh what is open).
+    warm: bool,
 }
 
 impl SystemProbe {
@@ -374,6 +376,7 @@ impl SystemProbe {
                 .collect(),
             shared: None,
             shared_opened: false,
+            warm: false,
         }
     }
 
@@ -449,18 +452,24 @@ impl SystemProbe {
                 snapshot.gpus.push(gpu);
             }
         }
+        self.warm = true;
         snapshot
     }
 }
 
-/// Samples system memory on a blocking thread. `None` when it took longer than 800 ms or a
-/// previous sample still holds the probe (the caller keeps the last value).
+/// Samples system memory on a blocking thread. `None` when it took longer than 800 ms (the first
+/// sample of a probe: 5 s) or a previous sample still holds the probe (the caller keeps the last
+/// value).
 async fn sample_system(
     probe: Arc<std::sync::Mutex<SystemProbe>>,
     targets: Option<Vec<ServerProc>>,
 ) -> Option<TelemetrySnapshot> {
+    // The first sample reads the whole process table into a new `System` and opens the OS GPU
+    // counters: ~0.3 s when idle, over 1.2 s on a loaded machine. Cut off at 800 ms, its finished
+    // result was dropped and the view showed 0 B until a later sample.
+    let cold = probe.try_lock().is_ok_and(|p| !p.warm);
     tokio::time::timeout(
-        Duration::from_millis(800),
+        Duration::from_millis(if cold { 5000 } else { 800 }),
         tokio::task::spawn_blocking(move || {
             probe.try_lock().ok().map(|mut p| {
                 if let Some(targets) = targets {
@@ -1492,6 +1501,14 @@ llamacpp:spec_decode_num_draft_tokens_total 0
         let b = snap.ram_breakdown.expect("breakdown");
         assert!(b.harness_bytes > 0, "this test process has a working set");
         assert!(b.servers.is_empty());
+    }
+
+    #[test]
+    fn only_the_first_sample_of_a_probe_is_cold() {
+        let mut probe = SystemProbe::new(Vec::new());
+        assert!(!probe.warm);
+        probe.sample();
+        assert!(probe.warm);
     }
 
     #[tokio::test]
