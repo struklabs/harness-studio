@@ -4,7 +4,7 @@ Clients of the Harness Studio [Control API](../docs/guide/en/09-cli-api-mcp.md),
 
 | Package | Folder | Built on |
 | --- | --- | --- |
-| `harness-studio-sdk` (npm) | [`typescript/`](typescript/README.md) | [openapi-typescript](https://openapi-ts.dev) types + [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) |
+| `@struklabs/harness-studio-sdk` (npm) | [`typescript/`](typescript/README.md) | [openapi-typescript](https://openapi-ts.dev) types + [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) |
 | `harness-studio-sdk` (PyPI) | [`python/`](python/README.md) | [openapi-python-client](https://github.com/openapi-generators/openapi-python-client) (httpx, attrs) |
 
 Neither is published yet: build them from this folder (Node.js is needed for both, uv for Python).
@@ -41,4 +41,7 @@ For Python, from `sdk/python`: `uv sync --group test`, then `node ../test-server
 
 ## Publishing
 
-Not done by this repository yet. [`.github/workflows/sdk-publish.yml`](../.github/workflows/sdk-publish.yml) is a draft that only runs by hand and only when the repository variable `SDK_PUBLISH_ENABLED` is `true`, the `NPM_TOKEN` secret is set, and a PyPI trusted publisher exists. The package names and the first version are the maintainers' decision.
+[`.github/workflows/sdk-publish.yml`](../.github/workflows/sdk-publish.yml) publishes `@struklabs/harness-studio-sdk` to npm and `harness-studio-sdk` to PyPI. It runs only by hand from `main` (Actions > Publish SDKs, choosing npm, PyPI or both) or for a pushed `sdk-v<version>` tag, which must match the versions in `typescript/package.json` and `python/pyproject.toml`; branch pushes and pull requests never start it. Each job first checks that `openapi.json` is current and runs its package's tests against a real `harness serve`.
+
+- npm publishes with provenance. The first publish uses the `NPM_TOKEN` secret of the `npm` environment; after a trusted publisher is set up for this workflow on npmjs.com, npm publishes through OIDC and the secret can be removed.
+- PyPI uses trusted publishing only, from the `pypi` environment; no token is stored.

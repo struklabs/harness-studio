@@ -1,0 +1,167 @@
+name: Publish SDKs
+
+# Publishes the Control API clients in sdk/ to npm (@struklabs/harness-studio-sdk) and PyPI
+# (harness-studio-sdk). Runs only by hand (workflow_dispatch) or for an `sdk-v*` tag; branch
+# pushes and pull requests never start it. On a tag, the tag must match both package versions
+# (sdk-v0.1.0 -> 0.1.0 in sdk/typescript/package.json and sdk/python/pyproject.toml).
+#
+# Before publishing, each job checks that sdk/openapi.json matches the Rust code and runs its
+# package's tests against a real `harness serve`.
+#
+#   - npm: the NPM_TOKEN secret of the `npm` environment (the first publish); once a trusted
+#     publisher is set up for this workflow on npmjs.com, npm publishes through OIDC and the
+#     token can be removed.
+#   - PyPI: trusted publishing only (the `pypi` environment); no token is stored.
+#
+# Hardening: both jobs run only from main or an sdk-v* tag (the environments allow only those
+# too), use no caches, and pin every action to a full commit SHA.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'What to publish'
+        type: choice
+        options: [both, npm, pypi]
+        default: both
+  push:
+    # Tags only: with no `branches` filter, branch pushes do not match.
+    tags: ['sdk-v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-publish
+  cancel-in-progress: false
+
+jobs:
+  npm:
+    if: >-
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sdk-v')) &&
+      (github.event_name == 'push' || inputs.target != 'pypi')
+    name: npm
+    runs-on: ubuntu-22.04
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # npm provenance, later trusted publishing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing (OIDC) needs npm 11.5.1 or later; Node 22 ships npm 10.
+      - name: npm with trusted publishing
+        run: npm install -g npm@11.6.2
+
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # stable branch, 2026-09-12
+        with:
+          toolchain: stable
+
+      - name: The tag matches the package version
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(node -p "require('./sdk/typescript/package.json').version")
+          if [ "$TAG" != "sdk-v$version" ]; then
+            echo "::error::Tag $TAG does not match sdk/typescript/package.json version $version."
+            exit 1
+          fi
+
+      - name: Build the harness CLI
+        run: cargo build -p harness-cli
+
+      - name: Install dependencies
+        run: npm ci --prefix sdk/typescript
+
+      - name: sdk/openapi.json is up to date
+        run: node sdk/generate.mjs --check
+
+      - name: Type-check
+        run: npm run typecheck --prefix sdk/typescript
+
+      - name: Tests
+        run: node sdk/test-server.mjs -- npm test --prefix sdk/typescript
+
+      # `prepack` builds again (generates src/schema.ts from sdk/openapi.json, then compiles).
+      - name: Publish
+        working-directory: sdk/typescript
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
+
+  pypi:
+    if: >-
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/sdk-v')) &&
+      (github.event_name == 'push' || inputs.target != 'npm')
+    name: PyPI
+    runs-on: ubuntu-22.04
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write # PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # stable branch, 2026-09-12
+        with:
+          toolchain: stable
+
+      - name: Install uv
+        run: pipx install uv==0.12.20
+
+      - name: The tag matches the package version
+        if: github.event_name == 'push'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(grep -m1 '^version = ' sdk/python/pyproject.toml | cut -d'"' -f2)
+          if [ "$TAG" != "sdk-v$version" ]; then
+            echo "::error::Tag $TAG does not match sdk/python/pyproject.toml version $version."
+            exit 1
+          fi
+
+      - name: Build the harness CLI
+        run: cargo build -p harness-cli
+
+      - name: sdk/openapi.json is up to date
+        run: node sdk/generate.mjs --check
+
+      - name: Tests
+        working-directory: sdk/python
+        run: |
+          uv sync --group test
+          node ../test-server.mjs -- uv run --group test pytest
+
+      # The hatch build hook generates harness_studio_api from sdk/openapi.json.
+      - name: Build
+        working-directory: sdk/python
+        run: uv build
+
+      - name: Publish (trusted publishing)
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: sdk/python/dist/
