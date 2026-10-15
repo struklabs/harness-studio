@@ -105,6 +105,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Oluştur > Otomatik Araçlar: çalıştırma sayaçları ve kuyruk filtre düğmeleri her düğmenin yanında ayrı bir yardım (?) yerine grup başına tek yardım kullanır; sayaç ızgarası ve filtre satırı hizalı kalır.
 - Create tool generators use this instance's running gateway address, follow port changes, and offer gateway settings without sending requests while it is off.
 - Oluştur araç üreticileri bu örneğin çalışan ağ geçidi adresini kullanır, port değişikliklerini izler ve ağ geçidi kapalıyken istek göndermeden ayarları açmayı sunar.
+- Model Hub: the details card of a repo that runs on another engine (ONNX embeddings such as all-MiniLM-L6-v2 and bge, Python, mistral.rs) no longer says "Not runnable: no GGUF file"; it shows the same verdict as the list.
+- Model Hub: başka bir motorda çalışan deponun (all-MiniLM-L6-v2 ve bge gibi ONNX gömme modelleri, Python, mistral.rs) ayrıntı kartı artık "Çalışmaz: GGUF dosyası yok" demiyor; listedeki kararın aynısını gösteriyor.
 - Model Hub: each card's help button (?) sits inside the card's top-right corner instead of beside it, so the grid columns stay aligned.
 - Python engine: a model that fails to load stops its worker at once with the reason, instead of waiting for the 300 s load timeout. SpeechT5 and FastSpeech2 are no longer offered for text-to-speech (their pipeline downloads a vocoder at load, which the offline worker cannot), and root SentencePiece files such as `spm_char.model` are downloaded.
 - Library: CrispASR and audio.cpp speech models show their real engine; audio.cpp processing models show their audio task.
