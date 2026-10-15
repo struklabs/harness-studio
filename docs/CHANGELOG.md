@@ -106,6 +106,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Model Hub: tüm depo indirmesi tek bir ağırlık takımı tutar (varsayılan `model.safetensors`); aynı modelin fp32 veya alternatif düzen kopyaları artık eklenmez (whisper-large-v3, csm-1b).
 - Model Hub: repos with PrismML-fork quants (PQ2_0 / PTQ1_0, e.g. Ternary Bonsai) show a note in the variant drawer that the PrismML llama.cpp build is needed, with a button to Settings > Registry. They stay runnable.
 - Model Hub: PrismML fork kuantlarına (PQ2_0 / PTQ1_0, örneğin Ternary Bonsai) sahip depolarda varyant çekmecesi PrismML llama.cpp derlemesinin gerektiğini söyleyen bir not ve Ayarlar > Registry düğmesi gösterir. Depolar çalıştırılabilir kalır.
+- Model Hub: repos with PrismML-fork quants (PQ2_0 / PTQ1_0, e.g. Ternary Bonsai) show a note in the variant drawer that the PrismML llama.cpp build is needed, with a button to Settings > Runtime > Registry. They stay runnable.
+- Model Hub: PrismML fork kuantlarına (PQ2_0 / PTQ1_0, örneğin Ternary Bonsai) sahip depolarda varyant çekmecesi PrismML llama.cpp derlemesinin gerektiğini söyleyen bir not ve Ayarlar > Model Motoru > Registry düğmesi gösterir. Depolar çalıştırılabilir kalır.
 - Model Hub: PrismML-fork quants (PQ2_0 / PTQ1_0) are now parsed from file names instead of showing as unknown.
 - Model Hub: PrismML fork kuantları (PQ2_0 / PTQ1_0) artık dosya adından okunuyor, "bilinmiyor" görünmüyor.
 - Model Hub: IP-Adapter repos (h94/IP-Adapter, h94/IP-Adapter-FaceID) are marked as adapters that don't run here, like LoRAs.
