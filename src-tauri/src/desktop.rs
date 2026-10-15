@@ -196,26 +196,33 @@ fn tray_host_present() -> bool {
     .is_some_and(|(owned,)| owned)
 }
 
-/// Linux: the StatusNotifierItem tray (ksni) registers only if a watcher is on the bus when it
-/// is created. When none was (started at login before the shell's tray extension, or the
-/// extension turned on later), the tray is created as soon as a watcher appears. Called on the
-/// main thread, whose GLib loop runs the callback.
-#[cfg(target_os = "linux")]
-pub fn setup_tray_when_host_appears(app: &AppHandle) {
-    let app = app.clone();
-    let _watch = gio::bus_watch_name(
-        gio::BusType::Session,
-        "org.kde.StatusNotifierWatcher",
-        gio::BusNameWatcherFlags::NONE,
-        move |_, _, _| {
-            if !TRAY_READY.load(Ordering::Relaxed) {
-                if let Err(e) = setup_tray(&app) {
-                    eprintln!("[Harness Studio] Tray unavailable: {}", e);
+/// Creates the tray. On Linux the StatusNotifierItem tray (ksni) registers only if a watcher is on
+/// the bus when it is created, and a failed attempt still registers on its own once one appears
+/// (an icon the app has no handle to). So without a watcher (started at login before the shell's
+/// tray extension, or the extension turned on later) the tray is created when one appears. The
+/// callback runs on the main thread's GLib loop.
+pub fn setup_tray_now_or_later(app: &AppHandle) {
+    #[cfg(target_os = "linux")]
+    if !tray_host_present() {
+        let app = app.clone();
+        let _watch = gio::bus_watch_name(
+            gio::BusType::Session,
+            "org.kde.StatusNotifierWatcher",
+            gio::BusNameWatcherFlags::NONE,
+            move |_, _, _| {
+                if !TRAY_READY.load(Ordering::Relaxed) {
+                    if let Err(e) = setup_tray(&app) {
+                        eprintln!("[Harness Studio] Tray unavailable: {}", e);
+                    }
                 }
-            }
-        },
-        |_, _| {},
-    );
+            },
+            |_, _| {},
+        );
+        return;
+    }
+    if let Err(e) = setup_tray(app) {
+        eprintln!("[Harness Studio] Tray unavailable: {}", e);
+    }
 }
 
 #[cfg(not(target_os = "linux"))]
