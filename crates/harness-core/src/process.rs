@@ -1194,10 +1194,17 @@ impl ProcessManager {
             .store(0, std::sync::atomic::Ordering::SeqCst);
         self.dml_retried
             .store(false, std::sync::atomic::Ordering::SeqCst);
-        self.start_run(config).await
+        self.start_run(config, None).await
     }
 
-    async fn start_run(&self, mut config: LaunchConfig) -> Result<(), String> {
+    /// Starts a run. `restart_of` is the generation of the failed run an automatic restart
+    /// replaces: under the lifecycle lock such a start goes ahead only while that run is still the
+    /// current one and still in Error, so a stop (or a start by hand) that came first wins.
+    async fn start_run(
+        &self,
+        mut config: LaunchConfig,
+        restart_of: Option<u64>,
+    ) -> Result<(), String> {
         if crate::engine::server_for(&config).family() == crate::engine::AUDIO_CPP {
             crate::engine::audio_cpp::require_enabled()?;
             config.host = "127.0.0.1".into();
@@ -1208,6 +1215,11 @@ impl ProcessManager {
         // 1. Atomically claim the "Starting" state so two concurrent starts can't both proceed.
         {
             let mut status = self.status.lock().unwrap();
+            if restart_of
+                .is_some_and(|g| !self.is_current(g) || !matches!(*status, ServerStatus::Error(_)))
+            {
+                return Ok(()); // stopped or started by hand while the restart waited
+            }
             if matches!(
                 *status,
                 ServerStatus::Starting | ServerStatus::Running | ServerStatus::Stopping
@@ -2304,7 +2316,7 @@ impl ProcessManager {
                 "[Harness Studio] Otomatik yeniden başlatma (deneme {}/{}).",
                 state.attempt, state.max_attempts
             ));
-            let _ = this.start_run(config).await;
+            let _ = this.start_run(config, Some(generation)).await;
         });
     }
 
@@ -3722,6 +3734,50 @@ mod tests {
 
         assert_eq!(mgr.get_status(), ServerStatus::Stopped);
         assert!(!mgr.has_child());
+    }
+
+    /// An automatic restart that waited for the lifecycle lock while the user stopped the server
+    /// does not start it again; one whose run is still current and failed does go ahead.
+    #[tokio::test]
+    async fn test_restart_yields_to_a_stop_that_came_first() {
+        let mgr = Arc::new(ProcessManager::new());
+        *mgr.status.lock().unwrap() = ServerStatus::Error("crashed".to_string());
+        let failed = mgr.generation.load(std::sync::atomic::Ordering::SeqCst);
+        let config = || LaunchConfig {
+            binary_path: PathBuf::from("does-not-exist/llama-server"),
+            model_path: PathBuf::from("m.gguf"),
+            ..Default::default()
+        };
+
+        // The user's stop queues for the lock before the restart's timer fires (the lock is fair:
+        // whoever waits first gets it first).
+        let busy = mgr.lifecycle.lock().await;
+        let stop = {
+            let mgr = Arc::clone(&mgr);
+            tokio::spawn(async move { mgr.stop().await })
+        };
+        tokio::task::yield_now().await;
+        let restart = {
+            let mgr = Arc::clone(&mgr);
+            let config = config();
+            tokio::spawn(async move { mgr.start_run(config, Some(failed)).await })
+        };
+        tokio::task::yield_now().await;
+        drop(busy);
+        stop.await.unwrap().unwrap();
+        restart.await.unwrap().unwrap();
+        assert_eq!(mgr.get_status(), ServerStatus::Stopped);
+        assert_eq!(mgr.start_count(), 0);
+
+        // Without the stop, the restart goes ahead (and fails here: no runtime).
+        *mgr.status.lock().unwrap() = ServerStatus::Error("crashed".to_string());
+        let failed = mgr.generation.load(std::sync::atomic::Ordering::SeqCst);
+        let _ = mgr.start_run(config(), Some(failed)).await;
+        assert_ne!(
+            mgr.get_status(),
+            ServerStatus::Error("crashed".to_string()),
+            "the restart did not run"
+        );
     }
 
     #[tokio::test]
