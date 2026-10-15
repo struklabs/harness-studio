@@ -43,6 +43,8 @@
   let settingsFor = $state<string | null>(null);
   $effect(() => {
     if (!open) settingsFor = null;
+    // A fresh open: an Escape a nested menu handled earlier must not decide this close.
+    else escaped = false;
   });
 
   const ORDER: Record<DefinitionRunState, number> = { running: 0, loading: 1, idle: 2, missing: 3 };
