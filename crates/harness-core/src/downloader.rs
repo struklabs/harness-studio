@@ -1010,6 +1010,36 @@ fn hashes_v1_to_v2(doc: serde_json::Value) -> Result<serde_json::Value, String> 
     Ok(crate::store::wrap_legacy(doc, "hashes"))
 }
 
+/// Bytes a resume would keep for one file: a complete target counts in full, otherwise the
+/// `.part` length (the same offset `fetch_to_part` resumes from; an oversized part is reset).
+fn resumable_bytes(item: &DownloadItem, target_dir: &Path, cache: &Path) -> u64 {
+    let len = |path: &Path| std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    if item.size > 0 && len(&target_dir.join(&item.filename)) == item.size {
+        return item.size;
+    }
+    let part = len(&cache.join(part_name(&item.url, &item.filename)));
+    if item.size > 0 && part > item.size {
+        0
+    } else {
+        part
+    }
+}
+
+/// A job restored as paused shows what is already on disk instead of 0 B.
+fn restore_part_progress(jobs: &mut [Job], cache: &Path) {
+    for job in jobs
+        .iter_mut()
+        .filter(|j| j.progress.status == DownloadStatus::Paused)
+    {
+        let on_disk: u64 = job
+            .items
+            .iter()
+            .map(|item| resumable_bytes(item, &job.target_dir, cache))
+            .sum();
+        job.progress.downloaded_bytes = on_disk.max(job.progress.downloaded_bytes);
+    }
+}
+
 fn queue_file() -> PathBuf {
     paths::config_dir().join("downloads.json")
 }
@@ -1053,6 +1083,7 @@ impl DownloadManager {
                 job.progress.status = DownloadStatus::Paused;
             }
         }
+        restore_part_progress(&mut jobs, &Self::cache_dir());
         let max_id = jobs.iter().map(|j| j.progress.id).max().unwrap_or(0);
         self.next_id.store(max_id + 1, Ordering::SeqCst);
         *self.jobs.lock().unwrap() = jobs;
@@ -7320,6 +7351,45 @@ mod tests {
 #[cfg(test)]
 mod audio_cpp_tests {
     use super::*;
+
+    #[tokio::test]
+    async fn restored_paused_job_shows_part_file_progress() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = dir.path().join(".cache");
+        fs::create_dir_all(&cache).unwrap();
+        let item = |name: &str, size: u64, index: u32| DownloadItem {
+            url: format!("https://example.test/{name}"),
+            filename: name.to_string(),
+            size,
+            shard_index: index,
+            sha256: None,
+            custom_url: false,
+        };
+        let items = vec![item("a.gguf", 100, 1), item("b.gguf", 100, 2)];
+        // Shard 1 finished, shard 2 has a 40-byte partial.
+        fs::write(dir.path().join("a.gguf"), vec![0u8; 100]).unwrap();
+        fs::write(
+            cache.join(part_name(&items[1].url, &items[1].filename)),
+            vec![0u8; 40],
+        )
+        .unwrap();
+        let job = |status: &str| -> Job {
+            serde_json::from_value(serde_json::json!({
+                "progress": {
+                    "id": 1, "repo_id": "r/m", "variant_name": "v",
+                    "total_bytes": 200, "downloaded_bytes": 0, "current_shard_name": "",
+                    "current_shard_index": 0, "total_shards": 2, "speed_bytes_per_sec": 0,
+                    "status": status
+                },
+                "items": items, "target_dir": dir.path()
+            }))
+            .unwrap()
+        };
+        let mut jobs = vec![job("Paused"), job("Completed")];
+        restore_part_progress(&mut jobs, &cache);
+        assert_eq!(jobs[0].progress.downloaded_bytes, 140);
+        assert_eq!(jobs[1].progress.downloaded_bytes, 0);
+    }
 
     #[tokio::test]
     async fn cached_piper_package_progress_counts_companions() {

@@ -108,6 +108,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Linux, AMD APU'lar: GPU belleği yalnız BIOS ayırmasını (ör. 467/512 MB), tamamen GPU'ya yüklü bir llama-server'ı da yaklaşık 15 MB gösteriyordu; APU'da GPU tamponları GTT'de durur. Tümleşik AMD GPU'larda Dashboard toplamı ve süreç dökümü artık VRAM ile GTT'yi birlikte sayıyor (`mem_info_gtt_*` ve fdinfo `drm-resident-gtt`). Ayrık kartlar değişmedi.
 - Gateway: when other programs hold every port of 11440-11499, loading a model answers "no free port for its server in 11440-11499" (localized in the app) instead of the raw key `servers.no_free_port` under a stale code of an earlier run such as `servers.crashed`.
 - Ağ geçidi: 11440-11499 aralığındaki portların hepsini başka programlar tutarken model yüklemesi, önceki bir çalışmadan kalan `servers.crashed` gibi bir kodla ham `servers.no_free_port` anahtarı yerine "bu aralıkta boş port yok" diyor (uygulamada Türkçe).
+- Downloader: after a restart, paused downloads show the bytes already on disk (partial file and finished shards) instead of 0 B.
+- İndirici: yeniden başlatmadan sonra duraklatılmış indirmeler 0 B yerine diskteki bayt miktarını (kısmi dosya ve biten parçalar) gösterir.
 - Model Hub: the recommended variant is never a vision projector, a draft / MTP / assistant model, an image VAE or text encoder, or a LoRA adapter; the simplified drawer no longer falls back to one of them.
 - Model Hub: önerilen varyant artık görüntü projektörü, taslak / MTP / asistan modeli, görüntü VAE'si veya metin kodlayıcısı ya da LoRA bağdaştırıcısı olmaz; basit çekmece de bunlara geri düşmez.
 - Model Hub: safetensors repos whose architecture mistral.rs does not serve (GPT-2, GPT-NeoX, draft models) are no longer listed as runnable on mistral.rs.
