@@ -48,6 +48,8 @@ const tr = {
   'mcp.import_state_locked': 'MCP içe aktarma durumu kilitlendi.',
   'desktop.autostart_failed': 'Oturum açılışında başlatma ayarlanamadı: {error}',
   'desktop.autostart_status_failed': 'Oturum açılışında başlatma durumu okunamadı: {error}',
+  'desktop.autostart_machine_entry':
+    'Yönetici olarak çalıştırılan eski bir sürümün tüm kullanıcılar için yazdığı başlangıç kaydı (HKLM Run) uygulamayı oturum açılışında başlatıyor. Kaldırmak için uygulamayı bir kez yönetici olarak açın ve bu ayarı bir kez açıp kapatın.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -98,6 +100,8 @@ const en: Record<keyof typeof tr, string> = {
   'mcp.import_state_locked': 'The MCP import state is locked.',
   'desktop.autostart_failed': 'Could not set up launch at login: {error}',
   'desktop.autostart_status_failed': 'Could not read the launch at login status: {error}',
+  'desktop.autostart_machine_entry':
+    'A machine-wide startup entry (HKLM Run) written by an earlier version run as administrator starts the app at login. To remove it, open the app once as administrator and switch this setting on and off once.',
 };
 
 export default { tr, en };

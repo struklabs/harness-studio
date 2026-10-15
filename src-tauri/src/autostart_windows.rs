@@ -36,7 +36,7 @@ fn status(user_value: bool, user_approved: bool, machine_ours: bool) -> Result<b
     if user_value {
         Ok(user_approved)
     } else if machine_ours {
-        Err("A machine-wide startup entry (HKLM Run) from an elevated run keeps the app starting at login. Remove it with administrator rights.".into())
+        Err(harness_core::error_key::err("desktop.autostart_machine_entry").into())
     } else {
         Ok(false)
     }
@@ -89,16 +89,25 @@ fn remove_machine_entry(name: &str, exe: &str) {
     }
 }
 
-/// `Err` when the registry cannot be read: the caller shows it instead of "off".
+/// `Err` (a keyed message) when the registry cannot be read or a machine-wide entry keeps it on:
+/// the caller shows it instead of "off".
 pub fn is_enabled(name: &str) -> Result<bool, String> {
-    let exe = exe()?;
-    let user = read_run(false, name)?;
-    let approved = if user.is_some() {
-        user_approved(name)?
-    } else {
-        true
+    let read = || -> Result<(bool, bool, bool), String> {
+        let exe = exe()?;
+        let user = read_run(false, name)?;
+        let approved = if user.is_some() {
+            user_approved(name)?
+        } else {
+            true
+        };
+        Ok((user.is_some(), approved, machine_ours(name, &exe)?))
     };
-    status(user.is_some(), approved, machine_ours(name, &exe)?)
+    let (user, approved, machine) = read().map_err(|e| {
+        String::from(
+            harness_core::error_key::err("desktop.autostart_status_failed").with("error", e),
+        )
+    })?;
+    status(user, approved, machine)
 }
 
 pub fn enable(name: &str) -> Result<(), String> {

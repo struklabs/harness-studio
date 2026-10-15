@@ -31,9 +31,7 @@ pub(crate) fn get_launch_at_login(app: tauri::AppHandle) -> Result<bool, String>
     }
     #[cfg(windows)]
     {
-        Ok(crate::autostart_windows::is_enabled(&app.package_info().name).map_err(|e| {
-            harness_core::error_key::err("desktop.autostart_status_failed").with("error", e)
-        })?)
+        crate::autostart_windows::is_enabled(&app.package_info().name)
     }
     #[cfg(not(any(windows, target_os = "linux")))]
     {
@@ -68,9 +66,7 @@ pub(crate) fn set_launch_at_login(app: tauri::AppHandle, enabled: bool) -> Resul
             crate::autostart_windows::disable(&name)
         };
         result.map_err(|e| harness_core::error_key::err("desktop.autostart_failed").with("error", e))?;
-        Ok(crate::autostart_windows::is_enabled(&name).map_err(|e| {
-            harness_core::error_key::err("desktop.autostart_status_failed").with("error", e)
-        })?)
+        crate::autostart_windows::is_enabled(&name)
     }
     #[cfg(not(any(windows, target_os = "linux")))]
     set_launch_at_login_plugin(app, enabled)
