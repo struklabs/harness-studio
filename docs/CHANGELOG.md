@@ -6,6 +6,87 @@ Release notes with system requirements and known limitations (English and Turkis
 
 ## [Unreleased]
 
+- CI checks that the SDK OpenAPI snapshot is current and tests the TypeScript and Python clients against a running server.
+- CI, SDK OpenAPI anlık görüntüsünün güncel olduğunu denetler ve TypeScript ile Python istemcilerini çalışan bir sunucuya karşı test eder.
+- The TypeScript SDK's npm name is `@struklabs/harness-studio-sdk`; a manually triggered workflow (workflow_dispatch, from main) publishes the SDKs after the snapshot check and tests: npm with provenance, PyPI only through trusted publishing once it is set up.
+- TypeScript SDK'nın npm adı artık `@struklabs/harness-studio-sdk`. Elle tetiklenen bir iş akışı (workflow_dispatch, main'den), anlık görüntü denetimi ve testlerden sonra SDK'ları yayımlar: npm'e provenance ile, PyPI'a ise trusted publishing kurulduktan sonra yalnız onunla.
+- The Python SDK requires Python 3.11 or later (the generated client uses `typing.Self`).
+- Python SDK artık Python 3.11 veya üstünü gerektirir (üretilen istemci `typing.Self` kullanıyor).
+- Windows: launch at login now reads the startup approval from its status byte, so an entry disabled in Task Manager is no longer shown as on.
+- Windows: oturum açılışında başlatma, başlangıç onayını durum baytından okuyor; Görev Yöneticisi'nde kapatılan kayıt artık açık görünmüyor.
+- Playground > Speech: a disabled Speak button now says why (engine missing, gateway off, no voice model, no text), with the engine install right next to it.
+- Playground > Konuşma: devre dışı Seslendir düğmesi artık nedenini yanında söylüyor (motor eksik, gateway kapalı, ses modeli yok, metin yok); motor kurulumu da hemen yanında.
+- Model Hub: the whisper.cpp version of a CTranslate2 Whisper model shows its file name in Simple mode. A downloaded variant offers Update when an update exists and Download Again in Advanced mode, instead of a plain Download.
+- Model Hub: CTranslate2 Whisper modelinin whisper.cpp sürümü Basit modda dosya adıyla görünüyor. İndirilmiş varyant düz İndir yerine güncelleme varsa Güncelle, Gelişmiş modda Yeniden İndir sunuyor.
+- Dashboard: memory meters show used and total with the same precision ("2.0 / 15.9 GB").
+- Pano: bellek göstergeleri kullanılan ve toplam değeri aynı hassasiyetle gösteriyor ("2,0 / 15,9 GB").
+- Model Hub: after an engine install, wherever it was started, the "needs the engine" banners and the cards' Required chips disappear at once.
+- Model Hub: motor nereden kurulursa kurulsun, "motor gerekli" uyarıları ve kartlardaki Gerekli etiketleri hemen kayboluyor.
+- Setup wizard: on the goals step, Install Selected is the primary button and Skip is secondary; a model being downloaded stays checked, and two goal titles use Title Case.
+- Kurulum sihirbazı: amaç adımında birincil düğme Seçilenleri Kur, Atla ikincil; indirilen model işaretli kalıyor ve iki amaç başlığı büyük harfle yazılıyor.
+- High contrast themes: unavailable models, rows and servers keep full text contrast (AAA) and are marked with a dashed outline instead of being dimmed.
+- Yüksek kontrast temaları: kullanılamayan model, satır ve sunucular soluklaştırılmıyor; metin tam kontrastta (AAA) kalıyor ve durum kesik çizgili çerçeveyle gösteriliyor.
+- Toasts no longer cover the Playground message box and its Send button; they appear just above it.
+- Bildirimler artık Playground mesaj kutusunu ve Gönder düğmesini kapatmıyor; hemen üstünde görünüyor.
+- Download, install, resource and memory estimate lines show used and total sizes with the same precision.
+- İndirme, kurulum, kaynak ve bellek tahmini satırları kullanılan ve toplam boyutu aynı hassasiyetle gösteriyor.
+- Documentation: the user guide, README, FEATURES and ARCHITECTURE match the behaviour merged on 15.10 (Hub refusals and whisper.cpp builds, wizard buttons, start at sign-in, updater, ONNX Runtime sizes, random seeds, memory fitting).
+- Dokümantasyon: kullanım kılavuzu, README, FEATURES ve ARCHITECTURE 15.10'da birleşen davranışla uyumlu (Hub ret nedenleri ve whisper.cpp sürümleri, sihirbaz düğmeleri, oturum açılınca başlatma, güncelleyici, ONNX Runtime boyutları, rastgele tohum, bellek sığdırma).
+- Sliders (GPU layers, LoRA scale) have accessible names for screen readers.
+- Kaydırıcılar (GPU katmanları, LoRA ölçeği) ekran okuyucular için erişilebilir ada sahip.
+- Screen readers tell repeated buttons apart: Harness MCP client actions name their client, and each "Show All Settings" names its parameter group.
+- Ekran okuyucular tekrar eden düğmeleri ayırt eder: Harness MCP istemci düğmeleri istemcinin adını, her "Tüm Ayarları Göster" düğmesi parametre grubunun adını taşır.
+- Closing the Playground model picker with Escape returns focus to its button.
+- Playground model seçicisi Escape ile kapatılınca odak düğmesine döner.
+- MLX audio engine (Apple Silicon): text to speech with OuteTTS, Orpheus and Dia. Their audio codec (DAC or SNAC) downloads together with the model, and its size is shown in the download total; the engine still runs offline.
+- MLX ses motoru (Apple Silicon): OuteTTS, Orpheus ve Dia ile seslendirme. Gerekli ses kodeği (DAC veya SNAC) modelle birlikte iniyor ve boyutu indirme toplamında gösteriliyor; motor yine çevrimdışı çalışıyor.
+- Model Hub: searches return about a third faster; independent Hugging Face requests run in parallel and reuse one connection.
+- Model Hub: aramalar yaklaşık üçte bir daha hızlı dönüyor; birbirinden bağımsız Hugging Face istekleri paralel çalışıyor ve tek bağlantıyı yeniden kullanıyor.
+- MLX text to speech: sentences are no longer cut after Turkish abbreviations and ordinals ("Dr.", "vs.", "3."); lists and long texts without punctuation are split at line breaks and at a length cap, so the time limit applies to them too. A Spark-TTS folder is no longer listed as a chat model.
+- MLX seslendirme: cümleler artık Türkçe kısaltma ve sıra sayılarından ("Dr.", "vs.", "3.") sonra bölünmüyor; noktalamasız listeler ve uzun metinler satır sonlarında ve bir uzunluk sınırında bölünüyor, böylece süre sınırı onlara da uygulanıyor. Spark-TTS klasörü artık sohbet modeli olarak listelenmiyor.
+- Starting a server again after a stop that timed out now ends the old process first, instead of leaving it running unseen with its memory and port.
+- Zaman aşımına uğrayan bir durdurmanın ardından sunucu yeniden başlatılırken eski süreç önce sonlandırılıyor; artık belleği ve portuyla görünmeden çalışmaya devam etmiyor.
+- With automatic restart on, stopping a crashed server while its restart was due could start it again; the stop now wins.
+- Otomatik yeniden başlatma açıkken, yeniden başlatma zamanı gelmiş çökmüş bir sunucuyu durdurmak onu yeniden başlatabiliyordu; artık durdurma geçerli oluyor.
+- Automatic chat titles now follow the conversation's language, also on small models; when the model replies in another language or with a bare answer, the title comes from your first message.
+- Otomatik sohbet başlıkları artık küçük modellerde de sohbetin dilinde; model başka dilde ya da yalnızca bir cevapla dönerse başlık ilk mesajınızdan oluşturuluyor.
+- A server that crashes is now announced on every page, with a button to its details; failure messages name the engine that ran (mlx, mistral.rs...) instead of always "llama-server".
+- Çöken sunucu artık her sayfada, ayrıntılarına giden bir düğmeyle bildiriliyor; hata metinleri her zaman "llama-server" demek yerine çalışan motorun adını (mlx, mistral.rs...) söylüyor.
+- My Models stays fast with hundreds of models: only the visible cards are rendered, and clearing the search no longer freezes the page. Keyboard navigation, screen reader counts and scroll position are kept.
+- Kütüphanem yüzlerce modelde de hızlı: yalnızca görünen kartlar çiziliyor, aramayı temizlemek sayfayı dondurmuyor. Klavye gezinmesi, ekran okuyucu sayıları ve kaydırma konumu korunuyor.
+- After the setup wizard, keyboard focus starts at the opened page instead of nowhere.
+- Kurulum sihirbazından sonra klavye odağı boşlukta değil, açılan sayfanın başında başlar.
+- In narrow windows and at high display scales, page section menus collapse to a drawer so content keeps more room.
+- Dar pencerelerde ve yüksek ekran ölçeğinde sayfa bölüm menüleri çekmeceye dönüşür, içeriğe daha çok yer kalır.
+- The Dashboard model picker stays fast with hundreds of models and has a filter field; arrow keys, Home/End and Page Up/Down reach every model.
+- Dashboard'daki model seçici yüzlerce modelde de hızlı ve bir filtre alanı var; ok tuşları, Home/End ve Page Up/Down her modele ulaşıyor.
+- A server ended from outside (SIGKILL) now says so and points to low memory as the likely cause; on macOS, when the system's log confirms it ended the server for memory, it is shown as an out-of-memory failure with the recovery options and is not restarted automatically. A Python worker's MemoryError counts as out of memory.
+- Dışarıdan sonlandırılan (SIGKILL) sunucu artık bunu söylüyor ve olası nedenin bellek azlığı olduğunu belirtiyor; macOS'ta sistem günlüğü sunucunun bellek yüzünden sonlandırıldığını doğrularsa bellek hatası olarak, kurtarma seçenekleriyle gösteriliyor ve otomatik yeniden başlatılmıyor. Python çalışanının MemoryError'u bellek hatası sayılıyor.
+- My Models opens about four times faster with large libraries: one directory scan is shared by the whole page and the listing no longer re-reads every file.
+- Kütüphanem büyük kütüphanelerde yaklaşık dört kat daha hızlı açılıyor: sayfanın tamamı tek bir dizin taramasını paylaşıyor ve liste her dosyayı yeniden okumuyor.
+- Automatic chat titles: titles in Turkish chats are only replaced when they are clearly English, abbreviations such as "örn." or "Prof. Dr." no longer cut the fallback title, and a greeting before a request is skipped.
+- Otomatik sohbet başlıkları: Türkçe sohbette başlık yalnızca açıkça İngilizceyse değiştiriliyor, "örn." ya da "Prof. Dr." gibi kısaltmalar yedek başlığı kesmiyor ve isteğin önündeki selamlama atlanıyor.
+- `harness run` and `harness chat` work with MLX and Hugging Face models when the gateway is off (they failed with HTTP 401); the key such a server needs is read from this computer's own instance only and never stored.
+- `harness run` ve `harness chat`, ağ geçidi kapalıyken de MLX ve Hugging Face modelleriyle çalışıyor (HTTP 401 ile başarısız oluyordu); bu sunucuların gerektirdiği anahtar yalnızca bu bilgisayardaki kendi örnekten okunuyor ve hiçbir yere kaydedilmiyor.
+- Model picker: Enter in the filter picks the first match, ArrowUp from the first row returns to the filter, and screen readers get the full combobox pattern.
+- Model seçici: filtrede Enter ilk eşleşmeyi seçiyor, ilk satırda ArrowUp filtreye dönüyor ve ekran okuyucular tam combobox kalıbını alıyor.
+- macOS: when Harness Studio crashes, the processes a model server started are now ended with it, not only the server itself.
+- macOS: Harness Studio çöktüğünde artık yalnız model sunucusu değil, onun başlattığı süreçler de birlikte sonlandırılıyor.
+- Library scanning stays responsive during long imports and copies less data per lookup.
+- Kütüphane taraması uzun içe aktarmalar sırasında da yanıt veriyor ve her aramada daha az veri kopyalıyor.
+- macOS: an MLX model too large for the GPU share of unified memory is no longer started (it used to push the Mac into heavy swapping); the message gives the numbers and suggests a smaller model or quantization.
+- macOS: birleşik belleğin GPU payına sığmayan MLX modeli artık başlatılmıyor (Mac'i ağır takas kullanımına sokuyordu); mesaj gereken ve kullanılabilir belleği gösterip daha küçük bir model ya da niceleme öneriyor.
+- The library lists Spark-TTS and OuteTTS MLX folders again when they have no config.json, and shows their architecture correctly instead of "parakeet".
+- Kütüphane, config.json'u olmayan Spark-TTS ve OuteTTS MLX klasörlerini yeniden listeliyor ve mimarilerini "parakeet" yerine doğru gösteriyor.
+- Accessibility: the command palette is announced with its title, headings follow a consistent order, labelled status icons and groups have proper roles, and wide code blocks can be scrolled with the keyboard.
+- Erişilebilirlik: komut paleti başlığıyla duyuruluyor, başlıklar tutarlı bir sırada, etiketli durum simgeleri ve gruplar doğru rollere sahip ve geniş kod blokları klavyeyle kaydırılabiliyor.
+- MLX: long chats no longer exhaust memory; the prompt cache now has a size limit based on the memory the model leaves (it grew by a full conversation's cache per turn with Qwen3 and similar templates).
+- MLX: uzun sohbetler artık belleği tüketmiyor; istem önbelleğinin, modelden kalan belleğe göre bir boyut sınırı var (Qwen3 ve benzeri şablonlarda her turda bütün konuşmanın önbelleği kadar büyüyordu).
+- The main window appears about a third of a second sooner on Windows: the CPU sampler for the Performance view is now created on first use.
+- Ana pencere Windows'ta yaklaşık üçte bir saniye daha erken açılıyor: Performans görünümünün CPU örnekleyicisi artık ilk kullanımda oluşturuluyor.
+- Faster startup: repeated boot requests are shared and the Dashboard model page loads its data only when shown.
+- Daha hızlı açılış: açılıştaki tekrarlı istekler paylaşılıyor, Pano model sayfası verisini yalnızca gösterildiğinde yüklüyor.
+
 - audio.cpp: on the CPU backend, workers use all physical cores when no thread count is set (audio.cpp otherwise runs on one thread; Apollo on an 11 s clip went from 97 s to 32 s on an 8-core Ryzen).
 - audio.cpp: CPU arka ucunda iş parçacığı sayısı ayarlanmamışsa işçiler tüm fiziksel çekirdekleri kullanır (audio.cpp aksi halde tek iş parçacığında çalışır; 8 çekirdekli Ryzen'de 11 sn'lik klipte Apollo 97 sn'den 32 sn'ye indi).
 - Linux: the start-at-login entry quotes the app path (an AppImage in a folder with a space now starts), is written under `$XDG_CONFIG_HOME/autostart` when set, and is rewritten at each launch so a moved or renamed AppImage keeps starting.
