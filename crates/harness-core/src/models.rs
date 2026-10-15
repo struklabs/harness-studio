@@ -494,7 +494,7 @@ impl ModelManager {
     /// Scans every configured model directory (primary + extra).
     pub fn scan_models(&self) -> Vec<LocalModel> {
         let settings = AppSettings::load();
-        scan_cache::scan(&settings.all_models_dirs())
+        scan_cache::scan(&settings.all_models_dirs()).to_vec()
     }
 
     /// Models linked from Ollama / LM Studio that aren't already in a library dir.
@@ -551,7 +551,11 @@ impl ModelManager {
     /// Looks up a model by id in the shared library scan, so callers never act on
     /// file paths supplied by the frontend. Mutations validate paths again before use.
     pub fn find_model(&self, model_id: &str) -> Option<LocalModel> {
-        self.scan_models().into_iter().find(|m| m.id == model_id)
+        let settings = AppSettings::load();
+        scan_cache::scan(&settings.all_models_dirs())
+            .iter()
+            .find(|m| m.id == model_id)
+            .cloned()
     }
 
     pub fn scan_directories(&self, dirs: &[PathBuf]) -> Vec<LocalModel> {

@@ -138,7 +138,8 @@ fn library_scan_bench() {
         timed("TOTAL page backend (sequential)", || {
             timed("list_library equivalent", || {
                 let models = scan_cache::scan(&dirs);
-                let mut view = crate::library::list_from(models, &[], &dirs, Some(&db), None);
+                let mut view =
+                    crate::library::list_from(models.to_vec(), &[], &dirs, Some(&db), None);
                 let installed = crate::model_registry::installed_families();
                 for entry in &mut view.entries {
                     entry.record.resolve_installed(&installed);
@@ -157,8 +158,9 @@ fn library_scan_bench() {
             timed("scan_local_models equivalent", || scan_cache::scan(&dirs));
             timed("find_model equivalent", || {
                 scan_cache::scan(&dirs)
-                    .into_iter()
+                    .iter()
                     .find(|m| m.id.ends_with("model-0.gguf"))
+                    .cloned()
             });
         });
     }
@@ -254,7 +256,7 @@ fn library_list_bench() {
         let models = timed("cached shared scan", || scan_cache::scan(&dirs));
         STEP.with(|s| s.set(Some(Instant::now())));
         let mut view = timed("library::list_from TOTAL", || {
-            crate::library::list_from(models.clone(), &defs, &dirs, Some(&db), None)
+            crate::library::list_from(models.to_vec(), &defs, &dirs, Some(&db), None)
         });
         STEP.with(|s| s.set(None));
         let installed = timed(

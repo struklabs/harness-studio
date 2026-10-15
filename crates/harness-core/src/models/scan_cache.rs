@@ -1,7 +1,7 @@
 use super::*;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
-    Mutex,
+    Arc, Mutex,
 };
 use std::time::{Duration, Instant};
 
@@ -9,7 +9,7 @@ struct Snapshot {
     dirs: Vec<PathBuf>,
     generation: u64,
     completed: Instant,
-    models: Vec<LocalModel>,
+    models: Arc<Vec<LocalModel>>,
 }
 
 /// The lock is held through discovery: concurrent page commands join one scan.
@@ -25,12 +25,17 @@ impl ScanCache {
         self.generation.fetch_add(1, Ordering::SeqCst);
     }
 
+    /// Rescans at most `MAX_RESCANS` times when a mutation lands during discovery. After
+    /// that the newest result is returned without being published, so a long-running
+    /// import cannot keep waiters on the lock; the next call simply scans again.
     pub fn get(
         &self,
         dirs: &[PathBuf],
         mut scan: impl FnMut() -> Vec<LocalModel>,
-    ) -> Vec<LocalModel> {
+    ) -> Arc<Vec<LocalModel>> {
+        const MAX_RESCANS: u32 = 2;
         let mut cache = self.snapshot.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rescans = 0;
         loop {
             let generation = self.generation.load(Ordering::SeqCst);
             if let Some(hit) = cache.as_ref().filter(|s| {
@@ -40,9 +45,13 @@ impl ScanCache {
             }) {
                 return hit.models.clone();
             }
-            let models = scan();
+            let models = Arc::new(scan());
             // A completed mutation during discovery must not publish an older result.
             if self.generation.load(Ordering::SeqCst) != generation {
+                if rescans >= MAX_RESCANS {
+                    return models;
+                }
+                rescans += 1;
                 continue;
             }
             *cache = Some(Snapshot {
@@ -58,7 +67,7 @@ impl ScanCache {
 
 static CACHE: std::sync::LazyLock<ScanCache> = std::sync::LazyLock::new(ScanCache::default);
 
-pub(super) fn scan(dirs: &[PathBuf]) -> Vec<LocalModel> {
+pub(super) fn scan(dirs: &[PathBuf]) -> Arc<Vec<LocalModel>> {
     CACHE.get(dirs, || {
         let mut models = ModelManager.scan_directories(dirs);
         models.extend(ModelManager::external_models(&models));
@@ -144,5 +153,46 @@ mod tests {
             Vec::new()
         });
         assert_eq!(calls, 5, "directory list is part of the key");
+    }
+
+    #[test]
+    fn continuous_invalidation_is_bounded_and_unpublished() {
+        let cache = ScanCache::default();
+        let mut scans = 0;
+        let models = cache.get(&[], || {
+            scans += 1;
+            cache.invalidate();
+            Vec::new()
+        });
+        assert!(models.is_empty());
+        assert_eq!(scans, 3, "one scan plus two retries");
+        assert!(
+            cache.snapshot.lock().unwrap().is_none(),
+            "nothing published"
+        );
+        let mut after = 0;
+        cache.get(&[], || {
+            after += 1;
+            Vec::new()
+        });
+        assert_eq!(after, 1);
+        assert!(cache.snapshot.lock().unwrap().is_some());
+    }
+
+    #[test]
+    fn panicking_scan_does_not_poison_the_cache() {
+        let cache = ScanCache::default();
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            cache.get(&[], || panic!("scan failed"));
+        }));
+        assert!(result.is_err());
+        assert!(cache.snapshot.lock().is_err(), "the mutex was poisoned");
+        let mut calls = 0;
+        cache.get(&[], || {
+            calls += 1;
+            Vec::new()
+        });
+        assert_eq!(calls, 1, "next get recovers and scans");
+        cache.get(&[], || panic!("should reuse snapshot"));
     }
 }

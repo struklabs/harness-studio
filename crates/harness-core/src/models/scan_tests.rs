@@ -182,3 +182,67 @@ fn metadata_cache_hits_and_checks_size_and_mtime() {
     assert!(cached_metadata(&path).is_some());
     METADATA_STATS.with(|s| assert_eq!(s.get(), (1, 3)));
 }
+
+#[cfg(unix)]
+fn try_symlink(src: &Path, dst: &Path) -> bool {
+    std::os::unix::fs::symlink(src, dst).is_ok()
+}
+
+#[cfg(windows)]
+fn try_symlink(src: &Path, dst: &Path) -> bool {
+    if src.is_dir() {
+        std::os::windows::fs::symlink_dir(src, dst).is_ok()
+    } else {
+        std::os::windows::fs::symlink_file(src, dst).is_ok()
+    }
+}
+
+#[test]
+fn symlinked_file_and_directory_loop_are_scanned_safely() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("models");
+    let outside = temp.path().join("outside");
+    tiny_gguf(&root.join("owner/repo/real.gguf"));
+    tiny_gguf(&outside.join("linked.gguf"));
+    let file_link = try_symlink(&outside.join("linked.gguf"), &root.join("owner/link.gguf"));
+    // A directory link pointing back at the root must not loop forever.
+    let dir_link = try_symlink(&root, &root.join("owner/loop"));
+    if !file_link && !dir_link {
+        eprintln!("skipped: symlinks are not permitted here");
+        return;
+    }
+    let roots = vec![root];
+    let models = scan_cache::scan(&roots);
+    assert!(models.iter().any(|m| m.path.ends_with("real.gguf")));
+    let again = scan_cache::scan(&roots);
+    assert_eq!(models.len(), again.len());
+    assert_eq!(
+        models
+            .iter()
+            .filter(|m| m.path.ends_with("real.gguf"))
+            .count(),
+        1,
+        "a link back to the root must not duplicate models"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn unreadable_directory_is_skipped() {
+    use std::os::unix::fs::PermissionsExt;
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("models");
+    tiny_gguf(&root.join("owner/ok/a.gguf"));
+    tiny_gguf(&root.join("owner/locked/b.gguf"));
+    let locked = root.join("owner/locked");
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+    let readable = fs::read_dir(&locked).is_ok(); // root ignores permissions
+    let models = ModelManager.scan_directories(std::slice::from_ref(&root));
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+    if readable {
+        eprintln!("skipped: directory cannot be made unreadable");
+        return;
+    }
+    assert!(models.iter().any(|m| m.path.ends_with("a.gguf")));
+    assert!(!models.iter().any(|m| m.path.ends_with("b.gguf")));
+}

@@ -3478,6 +3478,7 @@ async fn existing_target_is_complete(
 }
 
 async fn preserve_corrupt_file(path: &Path) -> Result<PathBuf, String> {
+    let _mutation = crate::models::LibraryMutation::begin();
     let file_name = path
         .file_name()
         .and_then(|name| name.to_str())
