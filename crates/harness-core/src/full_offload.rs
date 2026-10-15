@@ -395,10 +395,11 @@ pub fn resolve_for_start(
 
 /// Server-log line for a load whose layers the card's free memory cut ([`FullOffload::free_memory_cut`]).
 pub fn free_memory_log_line(layers: u32, lang: &str) -> String {
-    if lang == "tr" {
-        format!("[Harness Studio] Ekran kartındaki boş bellek (başka sunucular ya da programlar kullanıyor) yalnız {layers} katmana yetiyor; kalan katmanlar CPU'da. Diğer sunucuyu durdurursanız yeniden başlatınca daha çok katman GPU'ya sığar.")
-    } else {
-        format!("[Harness Studio] The GPU's free memory (other servers or programs use it) holds only {layers} layers; the rest run on the CPU. Stop the other server and restart this one to keep more layers on the GPU.")
+    match (layers, lang == "tr") {
+        (0, true) => "[Harness Studio] Ekran kartındaki boş bellek (başka sunucular ya da programlar kullanıyor) hiçbir katmana yetmiyor; model CPU'da çalışıyor. Diğer sunucuyu durdurursanız yeniden başlatınca katmanlar GPU'ya taşınır.".to_string(),
+        (0, false) => "[Harness Studio] The GPU's free memory (other servers or programs use it) holds no layer; the model runs on the CPU. Stop the other server and restart this one to move layers to the GPU.".to_string(),
+        (n, true) => format!("[Harness Studio] Ekran kartındaki boş bellek (başka sunucular ya da programlar kullanıyor) yalnız {n} katmana yetiyor; kalan katmanlar CPU'da. Diğer sunucuyu durdurursanız yeniden başlatınca daha çok katman GPU'ya sığar."),
+        (n, false) => format!("[Harness Studio] The GPU's free memory (other servers or programs use it) holds only {n} layers; the rest run on the CPU. Stop the other server and restart this one to keep more layers on the GPU."),
     }
 }
 

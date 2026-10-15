@@ -1624,7 +1624,8 @@ impl ProcessManager {
                 self.push_log(line);
             }
         }
-        if is_llama && config.gpu_layers > 0 {
+        // The launch's layers: the full-offload rule may have moved all of them to the CPU.
+        if is_llama && launch.gpu_layers > 0 {
             if let Some(target) = config.main_gpu.or_else(crate::gpu::primary_gpu_index) {
                 self.push_log(format!(
                     "[Harness Studio] Target GPU: adapter index {} → --main-gpu {} (split-mode: {})",
