@@ -687,6 +687,11 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
     if let Some(bits) = read_json(&dir.join("config.json")).and_then(|c| quant_bits(&c)) {
         model.quantization = format!("{bits}bit");
     }
+    // A Spark-TTS / OuteTTS config is a plain Qwen2 / Qwen3 / Llama one: the folder is named by
+    // its speech family.
+    if let Some(family) = tts_type(dir).filter(|t| matches!(t.as_str(), "spark" | "outetts")) {
+        model.architecture = Some(family);
+    }
     Some(model)
 }
 
