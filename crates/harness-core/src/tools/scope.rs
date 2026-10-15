@@ -22,15 +22,20 @@ pub struct Workspace {
 pub fn plain_path(p: &Path) -> PathBuf {
     #[cfg(windows)]
     {
-        let s = p.to_string_lossy();
-        if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
-            return PathBuf::from(format!(r"\\{rest}"));
-        }
-        if let Some(rest) = s.strip_prefix(r"\\?\") {
-            return PathBuf::from(rest);
+        if let Some(plain) = strip_verbatim(&p.to_string_lossy()) {
+            return PathBuf::from(plain);
         }
     }
     p.to_path_buf()
+}
+
+/// `\\?\C:\x` becomes `C:\x`, `\\?\UNC\server\share\x` becomes `\\server\share\x`; `None`
+/// without the verbatim prefix.
+pub fn strip_verbatim(s: &str) -> Option<String> {
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        return Some(format!(r"\\{rest}"));
+    }
+    s.strip_prefix(r"\\?\").map(str::to_string)
 }
 
 fn outside(raw: &str) -> ToolError {
@@ -219,6 +224,17 @@ pub(crate) fn link_dir(link: &Path, target: &Path) -> bool {
 mod tests {
     use super::link_dir;
     use super::*;
+
+    #[test]
+    fn strip_verbatim_handles_drive_and_unc() {
+        assert_eq!(strip_verbatim(r"\\?\C:\x\y").as_deref(), Some(r"C:\x\y"));
+        assert_eq!(
+            strip_verbatim(r"\\?\UNC\server\share\h.exe").as_deref(),
+            Some(r"\\server\share\h.exe")
+        );
+        assert_eq!(strip_verbatim(r"C:\x"), None);
+        assert_eq!(strip_verbatim(r"\\server\share"), None);
+    }
 
     fn ws() -> (tempfile::TempDir, Workspace) {
         let dir = tempfile::tempdir().unwrap();

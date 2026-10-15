@@ -4,7 +4,7 @@
 //! [`crate::devices`]; this module is the OS view, available before any runtime exists.
 
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use sysinfo::System;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -515,10 +515,25 @@ fn detect_driver_compatibility(gpus: &[GpuInfo]) -> DriverCompatibility {
     }
 }
 
+/// `<SystemRoot>\System32` (Windows may be installed outside `C:\Windows`).
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn system32_dir() -> PathBuf {
+    system32_of(std::env::var_os("SystemRoot"))
+}
+
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn system32_of(system_root: Option<std::ffi::OsString>) -> PathBuf {
+    system_root
+        .filter(|r| !r.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+        .join("System32")
+}
+
 /// `(cuda, rocm, wsl)` of this OS.
 #[cfg(target_os = "windows")]
 fn platform_drivers(has_nvidia: bool, has_amd: bool) -> (bool, bool, bool) {
-    let cuda = has_nvidia && Path::new(r"C:\Windows\System32\nvcuda.dll").exists();
+    let cuda = has_nvidia && system32_dir().join("nvcuda.dll").exists();
     // The official Windows ROCm build does not bundle hipblas.dll: it needs the AMD HIP SDK.
     let hip = has_amd
         && hip_sdk_present(
@@ -618,7 +633,7 @@ fn ldconfig_cache() -> String {
 fn check_vulkan_available() -> bool {
     #[cfg(target_os = "windows")]
     {
-        Path::new(r"C:\Windows\System32\vulkan-1.dll").exists()
+        system32_dir().join("vulkan-1.dll").exists()
     }
     #[cfg(target_os = "linux")]
     {
@@ -675,6 +690,17 @@ fn macos_sysctl_budget() -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn system32_follows_system_root() {
+        assert_eq!(
+            system32_of(Some(r"D:\Win".into())),
+            PathBuf::from(r"D:\Win").join("System32")
+        );
+        let default = PathBuf::from(r"C:\Windows").join("System32");
+        assert_eq!(system32_of(None), default);
+        assert_eq!(system32_of(Some("".into())), default);
+    }
 
     #[test]
     fn windows_cuda12_real_driver_versions() {

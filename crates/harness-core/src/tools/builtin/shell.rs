@@ -79,6 +79,12 @@ fn pump(mut pipe: impl Read + Send + 'static, sink: Arc<Mutex<Sink>>, cap: usize
     }
 }
 
+/// `cmd.exe` (the Windows shell) cannot have a UNC current directory: it would fall back to
+/// another directory without saying so.
+fn cmd_cannot_run_in(cwd: &std::path::Path) -> bool {
+    cfg!(windows) && cwd.to_string_lossy().starts_with(r"\\")
+}
+
 /// Runs `command` in `cwd`. Blocks; polls `cancel`.
 pub fn run_shell(
     command: &str,
@@ -87,8 +93,18 @@ pub fn run_shell(
     max_output: usize,
     cancel: &CancelToken,
 ) -> Result<Outcome, ToolError> {
+    let cwd = plain_path(cwd);
+    if cmd_cannot_run_in(&cwd) {
+        return Err(ToolError::new(
+            ToolErrorCode::Io,
+            format!(
+                "the shell tool cannot run in a network (UNC) directory ({}): cmd.exe does not keep UNC working directories. Map the share to a drive letter first.",
+                cwd.display()
+            ),
+        ));
+    }
     let mut cmd = shell_command(command);
-    cmd.current_dir(plain_path(cwd))
+    cmd.current_dir(&cwd)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -237,6 +253,13 @@ pub fn exec_shell_command(a: &Value, ctx: &ToolCtx) -> Result<ToolOutput, ToolEr
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unc_cwd_is_refused_on_windows_only() {
+        let unc = std::path::Path::new(r"\\server\share\dir");
+        assert_eq!(super::cmd_cannot_run_in(unc), cfg!(windows));
+        assert!(!super::cmd_cannot_run_in(std::path::Path::new(r"C:\work")));
+    }
+
     use super::super::test_support::{run_in, tree};
     use crate::tools::registry::{RunLimits, ToolCtx, ToolRegistry};
     use crate::tools::{ToolErrorCode, ToolInvocation, ToolOrigin, Workspace};

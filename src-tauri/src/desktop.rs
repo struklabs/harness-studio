@@ -1087,10 +1087,12 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
             let action = AppSettings::load().startup.close_action();
             match action {
                 CloseAction::Tray if tray_available() => hide_window_to_tray(window),
-                CloseAction::Ask
-                    if tray_available() && !CLOSE_PROMPT_OPEN.swap(true, Ordering::SeqCst) =>
-                {
-                    if window.emit("close-requested", ()).is_err() {
+                CloseAction::Ask if tray_available() => {
+                    // A repeated Close while the question is open only brings the window
+                    // back; it must never turn into a Quit.
+                    if CLOSE_PROMPT_OPEN.swap(true, Ordering::SeqCst) {
+                        let _ = window.set_focus();
+                    } else if window.emit("close-requested", ()).is_err() {
                         CLOSE_PROMPT_OPEN.store(false, Ordering::SeqCst);
                         tauri::async_runtime::spawn(quit(window.app_handle().clone()));
                     }

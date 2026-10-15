@@ -75,28 +75,37 @@ pub struct PortableDefinition {
     pub preset: Option<toml::Value>,
 }
 
-/// `/`-separated, case-insensitive on Windows.
-fn norm(p: &Path) -> String {
+/// `/`-separated components of `p` (no trailing separator).
+fn components(p: &Path) -> Vec<String> {
     let s = p.to_string_lossy().replace('\\', "/");
-    let s = s.trim_end_matches('/').to_string();
+    let s = s.trim_end_matches('/');
+    if s.is_empty() {
+        return Vec::new();
+    }
+    s.split('/').map(str::to_string).collect()
+}
+
+/// Component equality: case-insensitive on Windows.
+fn same_component(a: &str, b: &str) -> bool {
     if cfg!(windows) {
-        s.to_lowercase()
+        a.to_lowercase() == b.to_lowercase()
     } else {
-        s
+        a == b
     }
 }
 
-/// `path` relative to the first models directory containing it (with `/`), else as is.
+/// `path` relative to the first models directory containing it (with `/`), else as is. The
+/// relative part is cut at component boundaries of the original string: case folding can change
+/// byte lengths (Turkish capital dotted I), so a folded offset must never index the original.
 pub fn portable_path(path: &Path, models_dirs: &[PathBuf]) -> String {
-    let full = path.to_string_lossy().replace('\\', "/");
-    let key = norm(path);
+    let parts = components(path);
     for dir in models_dirs {
-        let d = norm(dir);
-        if d.is_empty() {
+        let dparts = components(dir);
+        if dparts.is_empty() || parts.len() <= dparts.len() {
             continue;
         }
-        if key.len() > d.len() + 1 && key.starts_with(&d) && key.as_bytes()[d.len()] == b'/' {
-            return full[d.len() + 1..].to_string();
+        if dparts.iter().zip(&parts).all(|(d, p)| same_component(d, p)) {
+            return parts[dparts.len()..].join("/");
         }
     }
     path.to_string_lossy().to_string()
@@ -388,4 +397,39 @@ pub fn file_name(alias: &str) -> String {
         .map(|c| if c == ':' { '-' } else { c })
         .collect();
     format!("{}{}", safe, EXTENSION)
+}
+
+#[cfg(test)]
+mod portable_path_tests {
+    use super::*;
+
+    #[test]
+    fn relative_to_models_dir_by_components() {
+        let dirs = [PathBuf::from("C:/models")];
+        assert_eq!(
+            portable_path(Path::new(r"C:\models\org\repo\m.gguf"), &dirs),
+            "org/repo/m.gguf"
+        );
+        // A sibling sharing a prefix and the directory itself are not inside.
+        assert_eq!(
+            portable_path(Path::new("C:/models2/a.gguf"), &dirs),
+            "C:/models2/a.gguf"
+        );
+        assert_eq!(portable_path(Path::new("C:/models"), &dirs), "C:/models");
+    }
+
+    #[test]
+    fn multibyte_paths_do_not_truncate_or_panic() {
+        // Lowercasing U+0130 yields a longer string, so folded offsets used to cut the original.
+        let dirs = [PathBuf::from("C:/Kullan\u{131}c\u{131}/\u{130}stanbul")];
+        let p = Path::new("C:/Kullan\u{131}c\u{131}/\u{130}stanbul/\u{e7}ok/model.gguf");
+        assert_eq!(portable_path(p, &dirs), "\u{e7}ok/model.gguf");
+        let p = Path::new("C:/Kullan\u{131}c\u{131}/\u{130}stanbul/model.gguf");
+        assert_eq!(portable_path(p, &dirs), "model.gguf");
+        let q = Path::new("C:/Kullan\u{131}c\u{131}/\u{c7}ay/m.gguf");
+        assert_eq!(
+            portable_path(q, &dirs),
+            "C:/Kullan\u{131}c\u{131}/\u{c7}ay/m.gguf"
+        );
+    }
 }
