@@ -236,7 +236,7 @@ pub async fn pull_model(
     let companions = s
         .ctx
         .downloads
-        .pull_companions(&main_file, token.as_deref())
+        .pull_companions(&main_file, Some(req.repo.trim()), token.as_deref())
         .await?;
     Ok((
         StatusCode::ACCEPTED,

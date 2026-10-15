@@ -120,17 +120,23 @@
     !!repo?.capabilities?.includes('image_generation') &&
       !(repo.format === 'diffusers' && 'runtime' in repo.compatibility && repo.compatibility.runtime === 'python-hf')
   );
-  /** What the first main model file of an image repo needs besides itself (the curated bundle). */
+  /** An mlx-audio speech repo: its family may load a codec (OuteTTS, Orpheus, Dia), a companion. */
+  let isCodecRepo = $derived(
+    !!repo && 'runtime' in repo.compatibility && repo.compatibility.runtime === 'mlx-audio'
+  );
+  /** What the first main model file of an image repo needs besides itself (the curated bundle),
+   *  or an mlx-audio repo's codec. */
   let bundlePlan = $state<ImageBundlePlan | null>(null);
   let bundleToken = 0;
   $effect(() => {
     const file = isImageRepo ? variants.find((v) => v.quantization !== 'component')?.shards[0]?.filename : undefined;
+    const codecRepo = isCodecRepo ? repoId : null;
     const my = ++bundleToken;
-    if (!file) {
+    if (!file && !codecRepo) {
       bundlePlan = null;
       return;
     }
-    invoke<ImageBundlePlan | null>('get_image_bundle_plan', { file })
+    invoke<ImageBundlePlan | null>('get_image_bundle_plan', { file: file ?? '', repo: codecRepo })
       .then((plan) => {
         if (my === bundleToken) bundlePlan = plan;
       })
@@ -147,6 +153,7 @@
     clip_g: 'imgb.role_clip_g',
     t5xxl: 'imgb.role_t5xxl',
     llm: 'imgb.role_llm',
+    codec: 'imgb.role_codec',
   };
 
   /** Fit per variant, keyed by variant name (filled below). */
@@ -324,6 +331,19 @@
         if (jobs.length > 0) {
           await downloads.refresh();
           toast.success(t('imgb.companions_queued', { count: jobs.length }));
+        }
+      }
+      // An mlx-audio speech model brings the codec its family loads (once for all its models).
+      // Without it the model does not start, so a failure is said (the model stays queued).
+      if (isCodecRepo && bundleMissing.length > 0) {
+        try {
+          const jobs = await invoke<number[]>('download_image_companions', { file: '', repo: id });
+          if (jobs.length > 0) {
+            await downloads.refresh();
+            toast.success(t('imgb.codec_queued', { count: jobs.length }));
+          }
+        } catch (e) {
+          toast.error(t('imgb.codec_failed', { error: String(e) }));
         }
       }
       // A vision repo's main model brings its projector (mmproj), unless it is already local.
@@ -596,16 +616,16 @@
                   <EngineNeeded family={neededFamily} hint={false} />
                 </div>
               {/if}
-              {#if isImageRepo && bundlePlan && bundlePlan.components.length > 0}
+              {#if (isImageRepo || isCodecRepo) && bundlePlan && bundlePlan.components.length > 0}
                 <div class="flex flex-col gap-1 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs" role="note">
                   <span class="font-medium text-foreground">{t('imgb.title', { name: bundlePlan.label })}</span>
                   <span class="text-muted-foreground">
                     {bundleMissing.length > 0
-                      ? t('imgb.missing', { size: formatBytes(bundleBytes) })
+                      ? t(isCodecRepo ? 'imgb.missing_codec' : 'imgb.missing', { size: formatBytes(bundleBytes) })
                       : t('imgb.complete')}
                   </span>
                   <ul class="flex flex-col gap-0.5">
-                    {#each bundlePlan.components as c (c.role)}
+                    {#each bundlePlan.components as c (`${c.repo}/${c.file}`)}
                       <li class="flex items-center justify-between gap-2">
                         <span class="min-w-0 truncate">{t(COMPONENT_LABEL[c.role] ?? 'imgb.role_other')} <span class="font-mono text-muted-foreground" title={`${c.repo}/${c.file}`}>{c.file.split('/').pop()}</span></span>
                         <span class="shrink-0 font-num {c.path ? 'text-success' : 'text-muted-foreground'}">

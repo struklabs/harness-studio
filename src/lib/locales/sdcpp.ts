@@ -154,6 +154,10 @@ const tr = {
   'imgb.role_t5xxl': 'T5-XXL',
   'imgb.role_llm': 'Metin Modeli',
   'imgb.role_other': 'Ek Dosya',
+  'imgb.role_codec': 'Ses Codec\'i',
+  'imgb.missing_codec': 'Bu ses modeli bir ses codec\'iyle çalışır. Modeli indirdiğinizde eksik codec ({size}) de indirilir; aynı codec\'i kullanan modeller onu paylaşır.',
+  'imgb.codec_queued': '{count} codec dosyası indirmeye eklendi.',
+  'imgb.codec_failed': 'Model indirmeye eklendi ama codec eklenemedi: {error}. Codec olmadan model başlamaz; indirmeyi yeniden deneyin.',
   'imgb.companions_queued': '{count} ek dosya (VAE, metin kodlayıcı) indirmeye eklendi.',
 
   // ---- Settings ----
@@ -323,6 +327,10 @@ const en: Record<keyof typeof tr, string> = {
   'imgb.role_t5xxl': 'T5-XXL',
   'imgb.role_llm': 'Text Model',
   'imgb.role_other': 'Extra File',
+  'imgb.role_codec': 'Audio Codec',
+  'imgb.missing_codec': 'This speech model runs with an audio codec. When you download the model, the missing codec ({size}) is downloaded too; models that use the same codec share it.',
+  'imgb.codec_queued': '{count} codec file(s) added to the downloads.',
+  'imgb.codec_failed': 'The model was queued, but its codec could not be: {error}. The model does not start without it; try the download again.',
   'imgb.companions_queued': '{count} extra file(s) (VAE, text encoder) added to the downloads.',
 
   // ---- Settings ----
