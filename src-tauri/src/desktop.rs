@@ -772,7 +772,7 @@ pub fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
             } => show_main_window(tray.app_handle()),
             // The pointer on the icon, or a press (left: click, right: the menu's "Show"): a
             // released window starts loading now. Windows and macOS report hover; the Linux
-            // AppIndicator tray reports no icon events (only the menu works there).
+            // StatusNotifierItem tray (ksni) reports only the click (`Up`), handled above.
             TrayIconEvent::Enter { .. }
             | TrayIconEvent::Move { .. }
             | TrayIconEvent::Click {

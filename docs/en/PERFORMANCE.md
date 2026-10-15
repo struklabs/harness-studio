@@ -231,7 +231,7 @@ To split the Dashboard's VRAM bar by consumer, the GPU memory dedicated per proc
 
 Opening a window whose page had been closed from the tray was visible in 0.3-0.5 s and usable in 0.5-0.75 s (above). The change:
 
-- When the cursor reaches the tray icon (`TrayIconEvent::Enter`/`Move`; Windows and macOS) or the icon is pressed (`Click` + `Down`, including right-click), the window is built hidden in the background (`prewarm_main_window`); a click only shows it. If it is not shown within 20 s, it is closed again the same way as `release_window`; the time is extended while the cursor stays on the icon. The Linux AppIndicator tray gives no icon event.
+- When the cursor reaches the tray icon (`TrayIconEvent::Enter`/`Move`; Windows and macOS) or the icon is pressed (`Click` + `Down`, including right-click), the window is built hidden in the background (`prewarm_main_window`); a click only shows it. If it is not shown within 20 s, it is closed again the same way as `release_window`; the time is extended while the cursor stays on the icon. The Linux StatusNotifierItem tray reports only the click, so there the window is built when the icon is clicked.
 - Rebuilding while the WebView2 browser process of the closed page was still shutting down (same profile) did not load the new page; now the exit of that process is awaited first (at most 5 s on a click; on hover it is deferred to the next event without waiting).
 - A launch screen in `src/app.html` that waits for no script; the window and web view are built with the theme's background color.
 
