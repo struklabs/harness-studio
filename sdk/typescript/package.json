@@ -1,5 +1,5 @@
 {
-  "name": "harness-studio-sdk",
+  "name": "@struklabs/harness-studio-sdk",
   "version": "0.1.0",
   "description": "TypeScript client for the Harness Studio Control API (generated from its OpenAPI document).",
   "license": "MIT",
@@ -24,6 +24,9 @@
   ],
   "engines": {
     "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "generate": "node ../generate.mjs --from-snapshot --skip-python",
