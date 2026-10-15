@@ -73,7 +73,7 @@
   // Finished, off-the-end messages skip layout/paint while off-screen (the streaming and last ones
   // stay fully rendered so auto-scroll and approvals measure real sizes).
   let skipOffscreen = $derived(!message.streaming && !isLast && !editing);
-  let placeholderStyle = $derived(skipOffscreen ? `content-visibility:auto;contain-intrinsic-size:auto ${estimateMessageHeight(message.content.length)}px` : undefined);
+  let placeholderStyle = $derived(skipOffscreen ? `--offscreen-height:${estimateMessageHeight(message.content.length)}px` : undefined);
   /** Rendered-markdown cache id: finished messages only, so streaming prefixes never fill the cache. */
   let cacheId = $derived(message.streaming ? undefined : (message.variantId ?? message.id));
   let draft = $state('');
@@ -205,8 +205,9 @@
 {/snippet}
 
 <article
-  class={cn('group/msg flex min-w-0 flex-col gap-1', isAssistant ? 'items-stretch' : 'items-end')}
+  class={cn('group/msg flex min-w-0 flex-col gap-1', isAssistant ? 'items-stretch' : 'items-end', skipOffscreen && 'offscreen-skip')}
   aria-busy={message.streaming ? 'true' : 'false'}
+  tabindex="-1"
   style={placeholderStyle}
 >
   <span class="sr-only">{isAssistant ? t('pg.role_assistant') : t('pg.role_user')}</span>

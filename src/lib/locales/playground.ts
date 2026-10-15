@@ -47,6 +47,7 @@ const tr = {
 
   // Messages
   'pg.messages_label': 'Sohbet mesajları',
+  'pg.load_older': 'Eski Mesajları Yükle',
   'pg.role_user': 'Siz',
   'pg.role_assistant': 'Model',
   'pg.thinking_control': 'Düşünme',
@@ -349,6 +350,7 @@ const en: Record<keyof typeof tr, string> = {
 
   // Messages
   'pg.messages_label': 'Chat messages',
+  'pg.load_older': 'Load Older Messages',
   'pg.role_user': 'You',
   'pg.role_assistant': 'Model',
   'pg.thinking_control': 'Thinking',

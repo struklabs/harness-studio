@@ -34,15 +34,29 @@ export function estimateMessageHeight(contentLength: number): number {
  * computation's own dependencies are not read meanwhile, so per-token changes of the streaming
  * message do not re-run work over the whole transcript. The first call always computes.
  */
-export function settledWhile<T>(hold: () => boolean, compute: () => T): () => T {
+export function settledWhile<T>(hold: () => boolean, compute: () => T, key?: () => unknown): () => T {
   let last: T;
+  let lastKey: unknown;
   let has = false;
   return () => {
-    if (has && hold()) return last;
+    // `key` (read even while held) forces a recompute, e.g. when a message is added mid-stream.
+    const k = key?.();
+    if (has && hold() && k === lastKey) return last;
     last = compute();
+    lastKey = k;
     has = true;
     return last;
   };
+}
+
+/** Runs `fn` when the page is idle; WKWebView and WebKitGTK have no requestIdleCallback, so a short timeout stands in. */
+export function whenIdle(fn: () => void, timeout = 2000): () => void {
+  if (typeof requestIdleCallback === 'function') {
+    const handle = requestIdleCallback(fn, { timeout });
+    return () => cancelIdleCallback(handle);
+  }
+  const handle = setTimeout(fn, 200);
+  return () => clearTimeout(handle);
 }
 
 export function anchoredScroll(top: number, before: number, after: number): number {

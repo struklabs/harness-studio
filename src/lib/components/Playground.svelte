@@ -9,7 +9,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import { selectChatModel } from './playground/modelSelection';
   import { estimatePromptBudget, hasContextPressure } from './playground/contextBudget';
-  import { IDLE_HISTORY_BATCH, anchoredScroll, needsOlder, pathStart, previousBatch, settledWhile, tailStart } from './playground/longChat';
+  import { IDLE_HISTORY_BATCH, anchoredScroll, needsOlder, pathStart, previousBatch, settledWhile, tailStart, whenIdle } from './playground/longChat';
   import { definitionFile, definitionsForMode, selectModeModel } from './playground/modelModes';
   import { library } from '#lib/stores/library.svelte.js';
   import { holdReleaseWhile } from '#lib/windowActivity.js';
@@ -1250,7 +1250,9 @@
   // Picture data stays out of the estimate and the token-count request (megabytes of base64);
   // each picture is counted as a fixed cost instead (`IMAGE_TOKEN_ESTIMATE`).
   // Held while a reply streams: each token would otherwise rebuild the whole history.
-  let historyWithImages = $derived.by(settledWhile(() => streaming, () => buildApiMessages(messages, settings)));
+  let historyWithImages = $derived.by(
+    settledWhile(() => streaming, () => buildApiMessages(messages, settings), () => messages.length),
+  );
   let countHistory = $derived(withoutImages(historyWithImages));
   let imageEstimate = $derived((countImageParts(historyWithImages) + pendingImages.length) * IMAGE_TOKEN_ESTIMATE);
   let countTools = $derived(wireToolDefs());
@@ -1598,10 +1600,13 @@
   }
 
   let mountingOlder = false;
+  /** True while older messages are being added above: the log's live region stays quiet so they are not read out. */
+  let olderBusy = $state(false);
   /** Mounts the next batch of older messages above the view and keeps the same content under the viewport. */
   async function mountOlder(batch?: number) {
     if (mountingOlder || !listEl || shownStart <= 0) return;
     mountingOlder = true;
+    olderBusy = true;
     try {
       const el = listEl;
       const top = el.scrollTop;
@@ -1612,6 +1617,7 @@
       if (Math.abs(el.scrollTop - top) < 1) el.scrollTop = anchoredScroll(top, before, el.scrollHeight);
     } finally {
       mountingOlder = false;
+      requestAnimationFrame(() => (olderBusy = false));
     }
     // A tall viewport (or short messages) can still show the top: keep going until it is covered.
     if (listEl && needsOlder(shownStart, listEl.scrollTop)) void mountOlder();
@@ -1622,12 +1628,18 @@
   $effect(() => {
     const start = shownStart;
     const id = conv?.id;
-    if (start <= 0 || streaming || typeof requestIdleCallback !== 'function') return;
-    const handle = requestIdleCallback(() => {
+    if (start <= 0 || streaming) return;
+    return whenIdle(() => {
       if (conv?.id === id && !streaming) void mountOlder(IDLE_HISTORY_BATCH);
-    }, { timeout: 2000 });
-    return () => cancelIdleCallback(handle);
+    });
   });
+
+  /** Keyboard / screen reader path to older history: one batch per press, focus stays at the top. */
+  async function loadOlderFromButton() {
+    await mountOlder();
+    await tick();
+    if (shownStart <= 0) listEl?.querySelector<HTMLElement>('article')?.focus();
+  }
 
   /** The running follow-the-end loop of scrollToBottom; a new call restarts its frame count. */
   let bottomSettle: { frames: number } | null = null;
@@ -3071,10 +3083,16 @@
         bind:this={listEl}
         onscroll={onListScroll}
         role="log"
-        aria-live="polite"
+        aria-live={olderBusy ? 'off' : 'polite'}
+        aria-busy={olderBusy}
         aria-label={t('pg.messages_label')}
       >
         <div class="mx-auto flex min-h-full w-full max-w-[760px] flex-col gap-6 px-4 py-6">
+          {#if !openingConv && shownStart > 0}
+            <Button variant="ghost" size="sm" class="self-center text-muted-foreground" onclick={loadOlderFromButton}>
+              {t('pg.load_older')}
+            </Button>
+          {/if}
           {#if openingConv}
             <SectionLoading
               shape="rows"

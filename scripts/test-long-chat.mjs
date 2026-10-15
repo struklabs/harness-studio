@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   TAIL_MESSAGES, HISTORY_BATCH, tailStart, previousBatch, pathStart, anchoredScroll, needsOlder,
-  estimateMessageHeight, settledWhile, renderCacheKey, RenderCache,
+  estimateMessageHeight, settledWhile, renderCacheKey, RenderCache, whenIdle,
 } from '../src/lib/components/playground/longChat.ts';
 
 test('the tail window shows the last messages and walks back in batches', () => {
@@ -62,4 +62,24 @@ test('render cache keys never collide and the cache stays bounded', () => {
   tiny.set('a', 'v', 20); tiny.set('b', 'v', 20); tiny.set('c', 'v', 20);
   assert.equal(tiny.get('a'), undefined);
   assert.equal(tiny.get('c'), 'v');
+});
+
+test('a held computation still recomputes when its key changes', () => {
+  let streaming = true, length = 1, reads = 0;
+  const get = settledWhile(() => streaming, () => ++reads, () => length);
+  assert.equal(get(), 1);
+  assert.equal(get(), 1);
+  length = 2;
+  assert.equal(get(), 2);
+  assert.equal(get(), 2);
+});
+
+test('whenIdle falls back to a timer without requestIdleCallback and can be cancelled', async () => {
+  assert.equal(typeof globalThis.requestIdleCallback, 'undefined');
+  let ran = 0;
+  whenIdle(() => ran++);
+  const cancel = whenIdle(() => ran++);
+  cancel();
+  await new Promise((r) => setTimeout(r, 260));
+  assert.equal(ran, 1);
 });
