@@ -320,7 +320,10 @@ fn spec_for(
         .map_err(|e| CliError::general("cli.io", format!("Own path unknown: {}", e)))?;
     let exe = exe
         .canonicalize()
-        .map(|p| PathBuf::from(p.to_string_lossy().trim_start_matches(r"\\?\")))
+        .map(|p| {
+            harness_core::tools::scope::strip_verbatim(&p.to_string_lossy())
+                .map_or(p, PathBuf::from)
+        })
         .unwrap_or(exe);
     // Task Scheduler opens a console window for a console program; the launcher has none.
     let exe = match platform {
