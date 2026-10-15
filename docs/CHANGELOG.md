@@ -6,6 +6,17 @@ Release notes with system requirements and known limitations (English and Turkis
 
 ## [Unreleased]
 
+- Image generation: GPU memory failures show localized guidance, blocking server names when available, and a Manage Servers action.
+- Görsel üretimi: GPU belleği hataları yerelleştirilmiş yönlendirme, varsa belleği tutan sunucu adları ve Sunucuları Yönet eylemi gösterir.
+- Playground: the Image tab header model chip follows the image model selection.
+- Oyun Alanı: Görsel sekmesinin başlığındaki model etiketi seçili görsel modelini izler.
+- Model Hub: engine installation failures appear below the banner with expandable, scrollable output.
+- Model Hub: motor kurulumu hataları banner altında genişletilebilir ve kaydırılabilir çıktıyla gösterilir.
+- Model Hub: exact repository IDs are preserved in search and ranked first regardless of letter case.
+- Model Hub: tam depo kimlikleri aramada korunur ve büyük/küçük harften bağımsız olarak ilk sıraya alınır.
+- Model Hub: variant recommendations prefer current files over old, legacy and deprecated folders.
+- Model Hub: varyant önerileri old, legacy ve deprecated klasörleri yerine güncel dosyaları tercih eder.
+
 - Playground: per-chat Thinking levels and optional request budgets, model-aware OpenAI/Ollama translation, and copyable reasoning with saved duration and inline `<think>` handling. Presets remain independent; split view keeps each side's preset.
 - Oyun Alanı: sohbete özel Düşünme düzeyleri ve isteğe bağlı istek bütçesi, modele göre OpenAI/Ollama çevirisi, kayıtlı süre ve satır içi `<think>` desteğiyle kopyalanabilir düşünme metni. Ön ayarlar bağımsızdır; bölünmüş görünüm her tarafın ön ayarını kullanır.
 
@@ -27,6 +38,16 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Model Hub: diffusers text-to-image pipelines (`segmind/tiny-sd` and other repos with `model_index.json` and component folders) run on the Python engine. They are listed as "Python, diffusers", or as needing the Python engine with a one-click install, and download as one folder: `model_index.json` and its components with one set of weights (fp16 safetensors when every component has them, else safetensors, PyTorch `.bin` only where a component has nothing else), without other variants, Flax, ONNX or root checkpoints. Repos with a single-file checkpoint stay with stable-diffusion.cpp. `.bin` weights load only through `torch.load(weights_only=True)` (the worker refuses them with a torch older than 2.6, and without them diffusers is told to use safetensors only); the card says so. The worker loads an fp16 download with `variant="fp16"`.
 - Python engine image generation (diffusers): image-to-image and inpainting on the same text-to-image model through `/v1/images/edits` (OpenAI's multipart form or JSON; an OpenAI mask's transparent areas are repainted), with `strength`. Requests can pick the sampler (`euler`, `euler_a`, `heun`, `dpm2`, `dpm++2m`, `ddim`, `pndm`, `lms`, `unipc`, `lcm`, with `scheduler: karras` where it applies) and use the gateway's `steps` / `cfg_scale`. Two new model settings: **Largest image** (megapixels per request, 1 on the CPU and 4 on a GPU by default) and **Low memory** (sliced attention and VAE, on for the CPU by default). These models now open in the Playground Image tab, start image included.
 - Managed audio.cpp native text-to-speech engine: platform-aware release installation, resident model servers on loopback, gateway `/v1/audio/speech`, and Playground voice selection from companion embeddings. Audio.cpp GGUF metadata is kept out of llama.cpp routing; Hub package variants retain each model folder's companions. Non-TTS audio.cpp families are detected but not supported yet.
+- CrispASR TTS downloads now queue verified voices and dictionaries; missing helpers have localized errors and a download action.
+- CrispASR TTS indirmeleri artık doğrulanmış sesleri ve sözlükleri sıraya alır; eksik yardımcı dosyalar için yerelleştirilmiş hata ve indirme düğmesi sunulur.
+- Pocket TTS language restrictions now name CrispASR and its English-only voice support.
+- Pocket TTS dil kısıtlamaları artık CrispASR motorunu ve yalnız İngilizce ses desteğini belirtir.
+- Settings describe CrispASR recognition and Kokoro / Pocket speech generation in both languages.
+- Ayarlar her iki dilde CrispASR konuşma tanıma ve Kokoro / Pocket ses üretimini açıklar.
+- Windows Hub variants requiring unavailable eSpeak-ng are blocked; failed speech workers stop and report localized errors.
+- Windows Hub listesinde eSpeak-ng bulunmadığında ilgili modeller engellenir; başarısız ses işçileri durdurulur ve yerelleştirilmiş hata gösterilir.
+- Mixed audio.cpp family repositories no longer recommend one large variant across unrelated families.
+- Birden fazla audio.cpp ailesi içeren depolarda farklı aileler arasından tek bir büyük model önerilmez.
 - Experimental CrispASR TTS: Kokoro af_heart and Pocket TTS alba presets in Hub, library and Playground. Verified companion downloads, owned voice/cache folders, speech-only routing, strict JSON/voice validation and bounded generation; cloning remains disabled.
 - Deneysel CrispASR metinden konuşma: Hub, kütüphane ve Oyun Alanı listelerinde Kokoro af_heart ve Pocket TTS alba hazır sesleri. Doğrulanmış yardımcı dosyalar, yönetilen ses/önbellek klasörleri, yalnız konuşma yolu, sıkı JSON/ses doğrulaması ve sınırlı üretim; ses kopyalama kapalıdır.
 - Managed CrispASR v0.8.43 (MIT) for CrispASR-format ASR GGUF models, with Hub variants, library detection, Playground Speech > Transcribe and `harness transcribe`. Each run uses a fresh environment-only key and loopback binding; the gateway rebuilds multipart with a strict field/route allowlist. Whisper, sherpa-onnx and ONNX CTC keep their engines. transcribe.cpp exports are unsupported except Canary 180M Flash. Translation runs as a transcription request with `translate=true` and is offered only for architectures that translate (Canary, Cohere, Voxtral, Granite Speech); other models get a 400. The worker never downloads anything: language detection and punctuation helper models (pinned revision, SHA-256) come through the verified downloader and Settings > Installed Runtime > Other Runtimes > CrispASR Helper Models, each launch passes `--cache-dir` under the data folder, and the worker's proxy variables point at a closed port. Downloading or removing a helper restarts an idle gateway worker on its next request so it picks up the change.
@@ -59,10 +80,31 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed
+- Downloader: GGUF magic is checked only for `.gguf` files; companion files download with consistent file counters and byte progress.
+- İndirici: GGUF sihirli baytları yalnız `.gguf` dosyalarında denetlenir; yardımcı dosyalar tutarlı dosya sayacı ve bayt ilerlemesiyle indirilir.
+- Model Hub: the results heading follows the active search while its listing loads.
+- Model Hub: sonuç başlığı, liste yüklenirken etkin aramayı izler.
+- Settings > Updates: release dates use the interface language's date format.
+- Ayarlar > Güncellemeler: sürüm tarihleri arayüz dilinin tarih biçiminde gösterilir.
+- Library: the delete dialog can stop all servers using a file before enabling deletion.
+- Kütüphane: silme iletişim kutusu, silmeyi etkinleştirmeden önce dosyayı kullanan tüm sunucuları durdurabilir.
+- ONNX engine on NVIDIA (Windows): when the CUDA provider cannot be created or the model cannot be loaded on it (a missing or broken cuDNN, an unsupported GPU), the server no longer falls back to the CPU silently. harness-onnx exits with code 86 and Harness restarts the model once on DirectML, saying so in the server log.
+- Header: at a 1280 px wide window the generation speed badge (t/s) was drawn under the Stop button. The hardware label now gives way first.
+- Başlık: 1280 px genişliğindeki pencerede üretim hızı rozeti (t/s) Durdur düğmesinin altına çiziliyordu. Artık önce donanım etiketi daralıyor.
 - audio.cpp: the standard release archives are built for the release runner's AVX-512 CPU, so the managed install crashed with SIGILL (exit 132, shown as "The audio.cpp server did not answer") on CPUs without AVX-512, such as AMD Zen 2/3 and most consumer Intel. The portable archives are now preferred on Linux and Windows; they choose the CPU code at run time. Reinstall audio.cpp to get the portable build.
 - audio.cpp: standart sürüm arşivleri derleme makinesinin AVX-512 işlemcisine göre derlendiği için yönetilen kurulum AVX-512 olmayan işlemcilerde (AMD Zen 2/3, çoğu masaüstü Intel) SIGILL ile çöküyordu (çıkış 132, "The audio.cpp server did not answer"). Linux ve Windows'ta artık işlemci kodunu çalışırken seçen taşınabilir (portable) arşivler tercih ediliyor. Taşınabilir sürüm için audio.cpp'yi yeniden kurun.
 - Model Hub: each card's help button (?) sits inside the card's top-right corner instead of beside it, so the grid columns stay aligned.
 - Python engine: a model that fails to load stops its worker at once with the reason, instead of waiting for the 300 s load timeout. SpeechT5 and FastSpeech2 are no longer offered for text-to-speech (their pipeline downloads a vocoder at load, which the offline worker cannot), and root SentencePiece files such as `spm_char.model` are downloaded.
+- Library: CrispASR and audio.cpp speech models show their real engine; audio.cpp processing models show their audio task.
+- Kütüphane: CrispASR ve audio.cpp seslendirme modelleri gerçek motorunu, audio.cpp işleme modelleri ses görevini gösterir.
+- Library: Image Generation includes Python diffusers text-to-image and image-to-image folders.
+- Kütüphane: Görsel Üretimi, Python diffusers metinden görsele ve görselden görsele klasörlerini içerir.
+- Hub: completed downloads of every model kind refresh the Library and Playground model lists, including speech models.
+- Hub: her model türünün tamamlanan indirmesi, ses modelleri dahil Kütüphane ve Oyun Alanı model listelerini yeniler.
+- Library: opening a diffusers image model in Playground selects that model.
+- Kütüphane: diffusers görsel modeli Oyun Alanı’nda açıldığında o model seçilir.
+- Model sizes switch to GB at 1000 MB in the Hub and Library, keeping locale decimal separators.
+- Hub ve Kütüphane’de model boyutları 1000 MB’den itibaren GB olarak, dilin ondalık ayracı korunarak gösterilir.
 - Dashboard and the Playground load settings showed llama.cpp settings (`-c`, `-ngl`, KV cache, flash attention) for models other engines run, and the ONNX accelerator could not be chosen anywhere. The form now follows the model's engine: ONNX, whisper.cpp, sd.cpp, python-hf, MLX and the other engines show their own settings from their catalogs (ONNX: Accelerator auto/cpu/directml/cuda, batch size, pooling...), the engine field names the engine that runs the model, and the llama.cpp web UI button is hidden for them.
 - Python engine (G8 scan on CUDA):
   - **Speech recognition:** audio at another rate than the model's (a 44.1 kHz WAV for wav2vec2 / Whisper) failed with "torchaudio is required to resample". The worker now resamples it with SciPy, which is in the locks.

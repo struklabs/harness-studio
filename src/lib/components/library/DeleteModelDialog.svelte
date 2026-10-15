@@ -47,6 +47,25 @@
   let blocked = $derived(!!preview && preview.running_on.length > 0);
   let baseDefs = $derived(preview?.definitions.filter((d) => d.role === 'base') ?? []);
 
+  async function stopServers() {
+    if (!preview || busy) return;
+    busy = true;
+    error = null;
+    try {
+      const results = await Promise.allSettled(
+        preview.running_on.map((serverId) => invoke('stop_server', { serverId })),
+      );
+      preview = await invoke<DeletePreview>('get_model_delete_preview', { modelId });
+      await app.refreshServer();
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure?.status === 'rejected') error = localizeError(failure.reason);
+    } catch (e) {
+      error = localizeError(e);
+    } finally {
+      busy = false;
+    }
+  }
+
   async function confirm() {
     if (!preview) return;
     busy = true;
@@ -135,6 +154,9 @@
     {/if}
     <Dialog.Footer>
       <Button variant="outline" onclick={onClose} disabled={busy}>{blocked ? t('def.close') : t('ip.cancel')}</Button>
+      {#if blocked}
+        <Button onclick={stopServers} disabled={busy}>{t('lib.stop_server')}</Button>
+      {/if}
       {#if preview && !blocked}
         <Button variant="destructive" onclick={confirm} disabled={busy}>
           {preview.linked ? t('lib.unlink') : t('lib.delete_confirm', { count: preview.files.length })}

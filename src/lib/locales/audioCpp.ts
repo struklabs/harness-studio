@@ -1,4 +1,7 @@
 const tr = {
+  'hub.crispasr_pocket_english_only': 'CrispASR yalnız İngilizce Pocket TTS sesini destekler.',
+  'hub.audio_cpp_espeak_missing': 'Bu audio.cpp ailesi eSpeak-ng gerektirir. Windows motorunda eSpeak-ng kullanılamıyor.',
+  'speak.download_helper': 'Eksik Yardımcı Dosyayı İndir',
   'audio_cpp.experimental': 'Deneysel audio.cpp Model Motoru',
   'audio_cpp.switch_hint': 'Metinden konuşma ve ses işleme için audio.cpp sunucusunu kullanılabilir yapar. Varsayılan kapalı.',
   'audio_cpp.needs_engine': 'Deneysel audio.cpp motorunu Ayarlar > Kurulu Model Motoru > Diğer Model Motorları bölümünden etkinleştirin.',
@@ -50,6 +53,9 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'hub.crispasr_pocket_english_only': 'CrispASR supports only the English Pocket TTS voice.',
+  'hub.audio_cpp_espeak_missing': 'This audio.cpp family requires eSpeak-ng, which is unavailable in the Windows runtime.',
+  'speak.download_helper': 'Download Missing Helper',
   'audio_cpp.experimental': 'Experimental audio.cpp Engine',
   'audio_cpp.switch_hint': 'Makes the audio.cpp server available for text to speech and audio processing. Off by default.',
   'audio_cpp.needs_engine': 'Enable the experimental audio.cpp engine in Settings > Installed Runtime > Other Runtimes.',

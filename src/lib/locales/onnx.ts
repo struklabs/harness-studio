@@ -4,7 +4,7 @@ const tr = {
   'oparam.threads': 'İş parçacığı',
   'oparam.threads_help': 'Hesaplamada kullanılacak CPU iş parçacığı sayısı (boş = otomatik).',
   'oparam.provider': 'Hızlandırıcı',
-  'oparam.provider_help': 'Modelin çalışacağı yürütme sağlayıcısı: auto (sohbet modellerinde klasörün kendi hedefi; diğerlerinde Ayarlar\'dan kurulan CUDA yapısı, yoksa DirectML, yoksa CPU), cpu, directml (Windows, AMD ve NVIDIA) veya cuda (CUDA yapısı kurulu değilse DirectML\'de çalışır). Sağlayıcı oluşturulamazsa CPU\'ya düşülür.',
+  'oparam.provider_help': 'Modelin çalışacağı yürütme sağlayıcısı: auto (sohbet modellerinde klasörün kendi hedefi; diğerlerinde Ayarlar\'dan kurulan CUDA yapısı, yoksa DirectML, yoksa CPU), cpu, directml (Windows, AMD ve NVIDIA) veya cuda (CUDA yapısı kurulu değilse DirectML\'de çalışır). CUDA kullanılamazsa model DirectML ile yeniden başlatılır; diğer sağlayıcılar oluşturulamazsa CPU\'ya düşülür.',
   'oparam.task': 'Görev',
   'oparam.task_help': 'Model klasörünün görevini zorlar: embedding, rerank ya da asr_ctc (CTC konuşma tanıma). Boş = config.json\'dan okunur.',
   'oparam.batch_size': 'Küme boyu',
@@ -46,6 +46,7 @@ const tr = {
   'process.onnx_loopback_only': 'harness-onnx kendi kimlik doğrulaması olmadığı için yalnızca 127.0.0.1 / localhost\'ta dinler ({host}). Dışarıya gateway üzerinden açın.',
   'downloads.not_a_model_file': 'İndirilen dosya bir model dosyası değil (bir web sayfası olabilir).',
   'lib.kind_pipeline': 'Görev modeli (ONNX)',
+  'lib.kind_audio_process': 'Ses işleme (audio.cpp)',
   'lib.kind_pipeline_python': 'Görev modeli (Python)',
   'lib.kind_image_python': 'Görsel üretimi (Python, diffusers)',
 };
@@ -54,7 +55,7 @@ const en: Record<keyof typeof tr, string> = {
   'oparam.threads': 'Threads',
   'oparam.threads_help': 'CPU threads used for the computation (empty = automatic).',
   'oparam.provider': 'Accelerator',
-  'oparam.provider_help': 'Execution provider: auto (the target a chat model folder names; otherwise the CUDA build installed from Settings, else DirectML, else CPU), cpu, directml (Windows, AMD and NVIDIA) or cuda (runs on DirectML while the CUDA build is not installed). If the provider cannot be created the CPU is used.',
+  'oparam.provider_help': 'Execution provider: auto (the target a chat model folder names; otherwise the CUDA build installed from Settings, else DirectML, else CPU), cpu, directml (Windows, AMD and NVIDIA) or cuda (runs on DirectML while the CUDA build is not installed). If CUDA cannot be used the model restarts on DirectML; if another provider cannot be created the CPU is used.',
   'oparam.task': 'Task',
   'oparam.task_help': 'Forces the task of the model folder: embedding, rerank or asr_ctc (CTC speech recognition). Empty = read from config.json.',
   'oparam.batch_size': 'Batch size',
@@ -96,6 +97,7 @@ const en: Record<keyof typeof tr, string> = {
   'process.onnx_loopback_only': 'harness-onnx has no authentication of its own, so it only listens on 127.0.0.1 / localhost ({host}). Expose it through the gateway.',
   'downloads.not_a_model_file': 'The downloaded file is not a model file (it may be a web page).',
   'lib.kind_pipeline': 'Task model (ONNX)',
+  'lib.kind_audio_process': 'Audio processing (audio.cpp)',
   'lib.kind_pipeline_python': 'Task model (Python)',
   'lib.kind_image_python': 'Image generation (Python, diffusers)',
 };

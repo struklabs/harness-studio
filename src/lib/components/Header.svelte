@@ -136,8 +136,9 @@
         </Kbd.Group>
       </button>
 
+      <!-- The hardware label gives way first; the speed badge never shrinks under the Stop button. -->
       <div class="flex min-w-0 items-center justify-end gap-2.5 overflow-hidden" data-tauri-drag-region>
-        <div class="hidden min-w-0 items-center gap-1.5 text-xs text-muted-foreground xl:flex" title={t('hw.detected')} data-tauri-drag-region="deep">
+        <div class="hidden min-w-0 shrink-100 items-center gap-1.5 text-xs text-muted-foreground xl:flex" title={t('hw.detected')} data-tauri-drag-region="deep">
           <Cpu class="size-3.5 shrink-0" />
           <span class="truncate">{gpu}</span>
           {#if backend}
@@ -149,7 +150,7 @@
         <div class="flex min-w-0 items-center gap-2 text-xs" role="status" aria-live="polite">
           <ServerPicker global />
           {#if kind === 'running'}
-            <span class="hidden items-center gap-1.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-primary xl:flex" title={t('header.gen_speed')}>
+            <span class="hidden shrink-0 items-center gap-1.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-primary xl:flex" title={t('header.gen_speed')}>
               <Sparkline values={app.tpsHistory} width={40} height={14} />
               <span class="font-num text-xs">{tps.toFixed(1)}</span>
               <span class="text-xs opacity-70">{t('header.tps_unit')}</span>

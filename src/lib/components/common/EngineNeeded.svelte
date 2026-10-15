@@ -16,11 +16,12 @@
     family: string;
     /** Show the "needs {runtime}" sentence in front of the button. */
     hint?: boolean;
+    hintText?: string;
     size?: 'xs' | 'sm';
     class?: string;
     onInstalled?: () => void;
   }
-  let { family, hint = true, size = 'xs', class: className, onInstalled }: Props = $props();
+  let { family, hint = true, hintText, size = 'xs', class: className, onInstalled }: Props = $props();
 
   let done = $state(false);
   let st = $derived(engineInstall.state(family));
@@ -40,7 +41,7 @@
       <span>{t('audio_cpp.needs_engine')}</span>
       <Button type="button" variant="outline" {size} onclick={() => security.openSettings('runtime-installed')}>{t('audio_cpp.experimental')}</Button>
     {:else}
-    {#if hint}<span>{t('lib.runtime_needs_hint', { runtime: family })}</span>{/if}
+    {#if hint}<span class="min-w-0 flex-1">{hintText ?? t('lib.runtime_needs_hint', { runtime: family })}</span>{/if}
     {#if manual}
       <span class="text-muted-foreground">{t('eng.manual', { runtime: family })}</span>
     {:else}
@@ -50,9 +51,12 @@
       </Button>
     {/if}
     {#if st.problem === 'unverified'}
-      <span class="text-warning" role="alert">{t('eng.unverified', { runtime: family })}</span>
+      <span class="min-w-0 basis-full text-warning" role="alert">{t('eng.unverified', { runtime: family })}</span>
     {:else if st.problem === 'failed' && st.error}
-      <span class="text-destructive [overflow-wrap:anywhere]" role="alert">{t('eng.failed', { runtime: family, error: st.error })}</span>
+      <details class="min-w-0 basis-full text-destructive" role="alert">
+        <summary class="cursor-pointer [overflow-wrap:anywhere]">{t('eng.failed_summary', { runtime: family })}</summary>
+        <pre class="mt-2 max-h-60 overflow-auto whitespace-pre-wrap [overflow-wrap:anywhere]">{st.error}</pre>
+      </details>
     {/if}
     {#if uiLevel.advanced && (manual || st.problem === 'unverified')}
       <Button type="button" variant="link" {size} class="h-auto p-0" onclick={() => security.openSettings('runtime-registry')}>

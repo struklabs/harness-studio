@@ -66,6 +66,7 @@ pub(crate) use mistralrs::{
 pub use mlx::{MlxEngine, MLX, MLX_AUDIO, MLX_VLM};
 pub use onnx::{
     provider_of as onnx_provider_of, vram_need as onnx_vram_need, OnnxEngine, ONNX_FAMILY,
+    PROVIDER_PARAM as ONNX_PROVIDER_PARAM,
 };
 pub use python_hf::{PythonHfEngine, PYTHON_HF};
 pub use sd_cpp::{

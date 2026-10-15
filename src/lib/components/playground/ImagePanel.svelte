@@ -5,6 +5,7 @@
   import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { localizeError } from '#lib/network.js';
+  import { errorCode } from '#lib/errors.js';
   import type { GatewayOverview } from '#lib/types.js';
   import { app } from '#lib/stores/app.svelte.js';
   import { domain } from '#lib/stores/domain.svelte.js';
@@ -44,6 +45,7 @@
   let incomplete = $derived(filesNeedingDefinition(library.models, domain.definitions, ['image']));
   let busy = $state(false);
   let error = $state('');
+  let memoryBlocked = $state(false);
   /** Engine family the failed run was missing; shown with its install button. */
   let needFamily = $state<string | null>(null);
   let lastMs = $state<number | null>(null);
@@ -92,6 +94,7 @@
     controller = c;
     busy = true;
     error = '';
+    memoryBlocked = false;
     needFamily = null;
     try {
       const { images, ms } = await fetchImages(app.inferenceUrl, form.model, form, app.inferenceHeaders(), c.signal);
@@ -109,6 +112,7 @@
       if (!c.signal.aborted && e instanceof ImageOutOfMemory) {
         error = t('img.err_out_of_memory', { need: e.needMb, available: e.availableMb });
       } else if (!c.signal.aborted) {
+        memoryBlocked = errorCode(e)?.startsWith('gateway.gpu_memory_') ?? false;
         const msg = e instanceof Error ? e.message : String(e);
         // The gateway passes the load failure through as raw keys; say what is missing instead.
         needFamily = familyFromError(msg);
@@ -296,6 +300,9 @@
   {:else if error}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
       {error}
+      {#if memoryBlocked}
+        <Button variant="outline" size="sm" class="mt-2 flex" onclick={() => (app.requestedTab = 'servers')}>{t('img.manage_servers')}</Button>
+      {/if}
     </div>
   {/if}
 

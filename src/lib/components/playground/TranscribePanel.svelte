@@ -21,7 +21,7 @@
   import { AudioLines, Compass, Copy, LoaderCircle, MessageSquarePlus, Power, TriangleAlert } from '@lucide/svelte';
   import { Progress } from '#lib/components/ui/progress/index.js';
   import { Download } from '@lucide/svelte';
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, untrack } from 'svelte';
   import { fetchTranscription, isSpeechDefinition, isOnnxCtcDefinition, crispasrCanTranslate, isCrispasrDefinition, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
   import AudioFilePicker from './AudioFilePicker.svelte';
   import { speech } from './speech.svelte';
@@ -54,9 +54,12 @@
   );
   const more = (list: string, count: number) => t('sasr.languages_more', { list, count });
 
-  onMount(() => {
-    void asr.load();
-    void library.refresh();
+  $effect(() => {
+    void library.version;
+    untrack(() => {
+      void asr.load();
+      void library.refresh();
+    });
   });
   // sherpa-onnx models only transcribe; translation to English is a Whisper task.
   $effect(() => {

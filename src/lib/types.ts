@@ -1019,7 +1019,7 @@ export interface CustomBinaryValidation {
 export type HfTaskSource = 'tags' | 'name' | 'files' | 'library' | 'gguf';
 
 /** `harness_core::hub_tasks::NotRunnable`. */
-export type HfNotRunnable = 'no_gguf' | 'adapter' | 'not_language_model' | 'audio_cpp_unsupported';
+export type HfNotRunnable = 'no_gguf' | 'adapter' | 'not_language_model' | 'audio_cpp_unsupported' | 'crispasr_pocket_english_only' | 'audio_cpp_espeak_missing';
 
 /** `harness_core::model_registry::Capability`. */
 export type ModelCapability = 'chat' | 'vision' | 'audio' | 'embedding' | 'rerank' | 'asr' | 'tts' | 'image_generation';
@@ -1180,7 +1180,7 @@ export interface HfShardInfo {
 
 export interface HfModelVariant {
   name: string;
-  not_runnable?: string | null;
+  not_runnable?: HfNotRunnable | null;
   quantization: string;
   total_size_bytes: number;
   is_split: boolean;

@@ -1,6 +1,7 @@
 // Playground Image tab: request helper for the gateway's /v1/images/generations and, with a start
 // image, /v1/images/edits (sd-server or a Python engine diffusers worker behind it; nothing is simulated).
 import { describeErrorBody } from './sse';
+import { BackendError } from '#lib/errors.js';
 
 /** Largest side the gateway accepts (`images::SIDE_RANGE`). */
 export const MAX_SIDE = 4096;
@@ -129,7 +130,12 @@ export async function fetchImages(
   });
   const text = await res.text();
   const ms = performance.now() - started;
-  if (!res.ok) throw outOfMemory(text) ?? new Error(`HTTP ${res.status}: ${describeErrorBody(text) || res.statusText}`);
+  if (!res.ok) {
+    let key: unknown;
+    try { key = JSON.parse(text)?.error?.harness?.error_key; } catch { /* plain text */ }
+    if (typeof key === 'string') throw new BackendError(key);
+    throw outOfMemory(text) ?? new Error(`HTTP ${res.status}: ${describeErrorBody(text) || res.statusText}`);
+  }
   const json = JSON.parse(text) as { data?: { b64_json?: string }[]; output_format?: string };
   const format = typeof json.output_format === 'string' ? json.output_format : 'png';
   const images = (json.data ?? []).flatMap((d) => (typeof d.b64_json === 'string' ? [{ data: d.b64_json, format }] : []));

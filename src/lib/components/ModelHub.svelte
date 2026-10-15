@@ -67,7 +67,7 @@
   let smartSearchNotice = $state<string | null>(null);
   /** Query + filters the shown list was fetched with (for "load more"). */
   let listOptions: HfSearchOptions | null = null;
-  /** Search text the shown cards were fetched with: the heading names it, not the half-typed field. */
+  /** Active search text: the heading follows the request, not the half-typed field. */
   let shownQuery = $state(prefs.query);
   let searchToken = 0;
 
@@ -148,6 +148,7 @@
   /** Fetch the first page of the list for the current query + filters + sort. */
   async function runList() {
     const my = ++searchToken;
+    shownQuery = searchQuery.trim();
     isSearching = true;
     searchError = null;
     moreError = null;
@@ -171,13 +172,11 @@
       const page = await fetchPage(options);
       if (my !== searchToken) return;
       results = page.items;
-      shownQuery = searchQuery;
       nextCursor = page.next_cursor;
       scroller?.scrollTo({ top: 0 });
     } catch (e) {
       if (my === searchToken) {
         results = [];
-        shownQuery = searchQuery;
         nextCursor = null;
         searchError = String(e);
       }
@@ -403,10 +402,9 @@
         </Empty.Root>
       {:else}
         {#each neededFamilies as family (family)}
-          <div class="mb-2 flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-1.5 text-xs text-info" role="status">
-            <Info class="size-3.5 shrink-0" />
-            <span class="min-w-0 flex-1">{t('eng.list_banner', { runtime: family })}</span>
-            <EngineNeeded {family} hint={false} onInstalled={enginesInstalled} />
+          <div class="mb-2 flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-1.5 text-xs text-info" role="status">
+            <Info class="mt-1 size-3.5 shrink-0" />
+            <EngineNeeded {family} hintText={t('eng.list_banner', { runtime: family })} class="flex-1" onInstalled={enginesInstalled} />
           </div>
         {/each}
         <div
