@@ -218,7 +218,7 @@
               {#if target.configured}
                 <Badge variant="outline" class="border-success/40 text-success">{t('hmcp.configured')}</Badge>
               {/if}
-              <a class="inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground" href={target.docs_url} target="_blank" rel="noreferrer">
+              <a class="inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground" href={target.docs_url} target="_blank" rel="noreferrer" aria-label={`${t('hmcp.docs')}: ${target.name}`}>
                 {t('hmcp.docs')}<ExternalLink class="size-3" />
               </a>
             </div>
@@ -228,11 +228,11 @@
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
             {#if target.configured}
-              <Button variant="ghost" size="sm" onclick={() => remove(target)} disabled={busy !== null}>
+              <Button variant="ghost" size="sm" onclick={() => remove(target)} disabled={busy !== null} aria-label={`${busy === target.id ? t('hmcp.removing') : t('hmcp.remove')}: ${target.name}`}>
                 <Trash2 />{busy === target.id ? t('hmcp.removing') : t('hmcp.remove')}
               </Button>
             {/if}
-            <Button size="sm" variant={target.configured ? 'outline' : 'default'} onclick={() => openPreview(target)} disabled={busy !== null || !ready || !!target.error}>
+            <Button size="sm" variant={target.configured ? 'outline' : 'default'} onclick={() => openPreview(target)} disabled={busy !== null || !ready || !!target.error} aria-label={`${target.configured ? t('hmcp.update') : t('hmcp.add')}: ${target.name}`}>
               {target.configured ? t('hmcp.update') : t('hmcp.add')}
             </Button>
           </div>
@@ -247,7 +247,7 @@
           <div class="flex min-w-0 items-center gap-1.5">
             <span class="shrink-0 text-xs text-muted-foreground">{t('hmcp.manual_title')}:</span>
             <code class="min-w-0 flex-1 truncate font-mono text-xs" title={manual}>{manual}</code>
-            <CopyButton text={manual} ariaLabel={t('hmcp.manual_title')} variant="ghost" size="icon-sm" />
+            <CopyButton text={manual} ariaLabel={`${t('hmcp.manual_title')}: ${target.name}`} variant="ghost" size="icon-sm" />
           </div>
         {/if}
       </li>
