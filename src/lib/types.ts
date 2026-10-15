@@ -762,6 +762,8 @@ export interface AppUpdateInfo {
   version: string;
   notes: string | null;
   date: string | null;
+  /** Installed by a package (Linux .deb): updated from the releases page, not in place. */
+  manual: boolean;
 }
 
 /** `get_app_update_progress`. */
