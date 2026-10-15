@@ -2,6 +2,7 @@
 
     <env python> mlx_audio_worker.py --model <dir> --port <port> [--alias <name>]
         [--task speech|transcription] [--max-chars N] [--max-seconds N] [--max-audio-seconds N]
+        [--companion owner/repo=folder ...]
 
 mlx-audio's own server is large (realtime websockets, transcription, voice lists fetched from
 the Hub, reference audio read from a path the request names) and loads whatever a request
@@ -21,7 +22,9 @@ names. This worker serves only what Harness needs, itself:
   offered and the audio to transcribe comes in the body (decoded in memory), so a request
   never names a file.
 * It listens on 127.0.0.1 only; remote code is never trusted; Hugging Face Hub access is off;
-  proxy variables are cleared.
+  proxy variables are cleared. A codec the model's loader asks the Hub for by name (OuteTTS,
+  Orpheus, Dia) is given with --companion owner/repo=folder (a library folder Harness
+  downloaded with the model) and found in a cache of links to those folders only.
 * A request cannot run away: generation is capped at a number of codec frames that grows with
   the text (see `frame_budget`; sampling can miss the end token and keep talking), and it stops
   after --max-seconds of wall-clock time. Audio made by then is answered with
@@ -86,7 +89,13 @@ TOKEN_RATES = {
     "soprano": (15.625, 0),
     "voxcpm2": (6.25, 0),
     "spark": (50.0, 64),
+    "outetts": (93.0, 0),
+    "orpheus": (84.0, 0),
+    "dia": (86.0, 0),
 }
+# The architecture mlx-audio is told to load for a family whose config does not name it (its
+# guess would come from the folder's name).
+LOAD_TYPES = {"spark": "spark", "outetts": "outetts", "dia": "dia"}
 DEFAULT_MAX_SECONDS = 120
 
 
@@ -114,6 +123,8 @@ def parser():
     p.add_argument("--max-seconds", type=float, default=DEFAULT_MAX_SECONDS)
     p.add_argument("--task", choices=("speech", "transcription"), default="speech")
     p.add_argument("--max-audio-seconds", type=float, default=DEFAULT_MAX_AUDIO_SECONDS)
+    # A Hub repo the model's loader asks for (its codec) and the library folder that holds it.
+    p.add_argument("--companion", action="append", default=[], metavar="OWNER/REPO=DIR")
     return p
 
 
@@ -373,12 +384,13 @@ def frame_budget(text_tokens, speed, rate=FRAME_RATE, lead=0):
 
 
 def count_tokens(model, text):
-    """Text tokens of `text` by the model's tokenizer; about one per two characters without one."""
+    """Text tokens of `text` by the model's tokenizer; without one (Dia reads bytes), about one
+    per four characters, as a subword tokenizer would count them."""
     tokenizer = getattr(model, "tokenizer", None)
     try:
         return len(tokenizer.encode(text))
     except Exception:
-        return len(text) // 2 + 1
+        return len(text) // 4 + 1
 
 
 # Where a text is cut into sentences: after a Latin end mark and its spaces, after a CJK one
@@ -658,10 +670,28 @@ def stt_options(model_dir):
     return {}
 
 
+def card_library(model_dir):
+    """`library_name` of the model card's front matter, lower case; None without one."""
+    try:
+        with open(os.path.join(model_dir, "README.md"), encoding="utf-8") as f:
+            lines = f.read().splitlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+    if not lines or lines[0].strip() != "---":
+        return None
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if line.startswith("library_name:"):
+            return line.split(":", 1)[1].strip().strip("'\"").lower() or None
+    return None
+
+
 def tts_family(model_dir):
-    """The mlx-audio architecture of a text-to-speech folder: its `model_type`, or `spark` for
-    Spark-TTS, whose config is its Qwen2 language model's (mlx-audio would guess it from the
-    folder's name)."""
+    """The mlx-audio architecture of a text-to-speech folder: its `model_type`, or the family
+    whose config does not say it: `spark` (Spark-TTS: a Qwen2 config and a `BiCodec/` codec),
+    `outetts` (a Qwen3 / Llama config, `library_name: outetts`), `orpheus` (a Llama config) and
+    `dia` (an encoder-decoder config with a codebook delay pattern)."""
     try:
         with open(os.path.join(model_dir, "config.json")) as f:
             config = json.load(f)
@@ -670,8 +700,55 @@ def tts_family(model_dir):
     if os.path.isfile(os.path.join(model_dir, "BiCodec", "config.yaml")) and \
             os.path.isfile(os.path.join(model_dir, "audio_tokenizer_config.yaml")):
         return "spark"
+    if card_library(model_dir) == "outetts":
+        return "outetts"
+    if isinstance(config.get("data"), dict) and "delay_pattern" in config["data"] and \
+            isinstance(config.get("model"), dict) and "decoder" in config["model"]:
+        return "dia"
     kind = config.get("model_type")
-    return kind.lower() if isinstance(kind, str) else None
+    kind = kind.lower() if isinstance(kind, str) else None
+    return "orpheus" if kind == "llama" else kind
+
+
+def companion_cache(companions, root):
+    """A Hugging Face cache under `root` that holds only the `owner/repo=folder` companions (each
+    a snapshot linked to its library folder), so a loader that asks the Hub for them finds them
+    offline. Anything else it asks for is not there. Returns the cache folder."""
+    cache = os.path.join(root, "hub")
+    os.makedirs(cache, exist_ok=True)
+    for item in companions:
+        repo, sep, folder = item.partition("=")
+        owner, slash, name = repo.partition("/")
+        if not (sep and slash and LABEL.match(owner) and LABEL.match(name)):
+            raise ValueError("a companion is owner/repo=folder")
+        folder = os.path.realpath(folder)
+        if not os.path.isdir(folder):
+            raise ValueError("a companion folder is missing")
+        entry = os.path.join(cache, "models--%s--%s" % (owner, name))
+        os.makedirs(os.path.join(entry, "refs"), exist_ok=True)
+        os.makedirs(os.path.join(entry, "snapshots"), exist_ok=True)
+        with open(os.path.join(entry, "refs", "main"), "w") as f:
+            f.write("harness")
+        link = os.path.join(entry, "snapshots", "harness")
+        if not os.path.islink(link):
+            os.symlink(folder, link)
+    return cache
+
+
+def own_tokenizer(load_config, model_dir):
+    """`load_config` that points a config without `tokenizer_name` at the folder's own tokenizer:
+    mlx-audio's OuteTTS and Orpheus would fetch a tokenizer from the Hub by default (OuteTTS a
+    Llama one, also for its Qwen3 model) while the folder has the right one."""
+    has = any(os.path.isfile(os.path.join(model_dir, f))
+              for f in ("tokenizer.json", "tokenizer_config.json"))
+
+    def load(path, *a, **kw):
+        config = load_config(path, *a, **kw)
+        if has and isinstance(config, dict):
+            config.setdefault("tokenizer_name", model_dir)
+        return config
+
+    return load
 
 
 def main(argv=None):
@@ -681,6 +758,17 @@ def main(argv=None):
     model_dir = os.path.realpath(args.model)
     if not os.path.isdir(model_dir):
         sys.exit("mlx_audio_worker: the model must be a local folder")
+    # Before huggingface_hub is imported: it reads its cache folder once.
+    import atexit
+    import shutil
+    import tempfile
+    root = tempfile.mkdtemp(prefix="harness-mlx-audio-")
+    # Removes the links, never what they point at.
+    atexit.register(shutil.rmtree, root, True)
+    try:
+        os.environ["HF_HUB_CACHE"] = companion_cache(args.companion, root)
+    except (OSError, ValueError) as e:
+        sys.exit("mlx_audio_worker: %s" % e)
 
     import numpy as np
     import transformers
@@ -715,10 +803,12 @@ def main(argv=None):
         uvicorn.run(cors(app), host=HOST, port=args.port, log_level="info", access_log=True)
         return
 
+    import mlx_audio.utils
     from mlx_audio.tts.utils import load_model
 
+    mlx_audio.utils.load_config = own_tokenizer(mlx_audio.utils.load_config, model_dir)
     family = tts_family(model_dir)
-    options = {"model_type": "spark"} if family == "spark" else {}
+    options = {"model_type": LOAD_TYPES[family]} if family in LOAD_TYPES else {}
     model = MODEL_THREAD.submit(load_model, model_dir, **options).result()
     voices = voices_of(model)
     rate = getattr(model, "sample_rate", 24000)

@@ -8,26 +8,32 @@ pub(crate) fn download_hf_variant(
     download_mgr.start_variant_download(repo_id, variant)
 }
 
-/// Queues the VAE / text encoder files a known image model (FLUX, SD3.5) needs next to its main
-/// file and does not have yet. `file` is the main file's name; returns the download job ids.
+/// Queues the companion files a model needs and does not have yet: the VAE / text encoders of
+/// a known image model (FLUX, SD3.5) by its main file's name `file`, or the codec of an
+/// mlx-audio text-to-speech repo `repo` (OuteTTS, Orpheus, Dia). Returns the download job ids.
 #[tauri::command]
 pub(crate) async fn download_image_companions(
     download_mgr: State<'_, Arc<DownloadManager>>,
     file: String,
+    repo: Option<String>,
 ) -> Result<Vec<u64>, String> {
     let token = harness_core::hf_auth::current_token().await;
-    download_mgr.pull_companions(&file, token.as_deref()).await
+    download_mgr
+        .pull_companions(&file, repo.as_deref(), token.as_deref())
+        .await
 }
 
-/// What a main image model file needs (the curated bundle: companions, where they come from,
-/// which are on disk) or `None` when Harness has no recipe for it.
+/// What a model needs besides itself (the curated bundle of an image model's main file, or an
+/// mlx-audio repo's codec: companions, where they come from, which are on disk) or `None` when
+/// Harness has no recipe for it.
 #[tauri::command]
 pub(crate) async fn get_image_bundle_plan(
     file: String,
+    repo: Option<String>,
 ) -> Result<Option<harness_core::image_bundles::BundlePlan>, String> {
     blocking(move || {
         let libraries = AppSettings::load().all_models_dirs();
-        harness_core::image_bundles::plan_for(&file, &libraries, None)
+        harness_core::downloader::companion_plan(&file, repo.as_deref(), &libraries)
     })
     .await
 }

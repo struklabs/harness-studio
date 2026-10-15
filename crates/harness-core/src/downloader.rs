@@ -876,6 +876,17 @@ fn companion_variant_from(
     }))
 }
 
+/// What a model needs besides itself: the curated image bundle of its main file, or the codec
+/// of an mlx-audio text-to-speech repo.
+pub fn companion_plan(
+    main_file: &str,
+    repo: Option<&str>,
+    libraries: &[PathBuf],
+) -> Option<crate::image_bundles::BundlePlan> {
+    crate::image_bundles::plan_for(main_file, libraries, None)
+        .or_else(|| repo.and_then(|r| crate::engine::mlx::codec_plan_for_repo(r, libraries)))
+}
+
 /// Each audio.cpp GGUF is a model variant with only its own folder's companion
 /// files. In the package repo, unrelated families and languages stay separate.
 fn audio_cpp_variants(
@@ -2263,17 +2274,20 @@ impl DownloadManager {
         Ok((id, variant))
     }
 
-    /// Queues the companions (VAE, text encoders) of a known image model whose file is
-    /// `main_file` and that are not on disk yet: one download job per file, from the repos the
-    /// curated bundle names ([`crate::image_bundles`]). A model that is not in the list, or has
-    /// all its companions, queues nothing. Returns the job ids.
+    /// Queues the companions of a model that are not on disk yet: the VAE and text encoders of
+    /// a known image model whose file is `main_file` ([`crate::image_bundles`]), or the codec of
+    /// an mlx-audio text-to-speech repo `repo` ([`crate::engine::mlx::codec_plan_for_repo`]).
+    /// One download job per file, from the repos the curated list names; a codec several models
+    /// use is downloaded once. A model that is not in the lists, or has all its companions,
+    /// queues nothing. Returns the job ids.
     pub async fn pull_companions(
         &self,
         main_file: &str,
+        repo: Option<&str>,
         token: Option<&str>,
     ) -> Result<Vec<u64>, String> {
         let libraries = AppSettings::load().all_models_dirs();
-        let Some(plan) = crate::image_bundles::plan_for(main_file, &libraries, None) else {
+        let Some(plan) = companion_plan(main_file, repo, &libraries) else {
             return Ok(Vec::new());
         };
         let active: Vec<(String, String)> = self

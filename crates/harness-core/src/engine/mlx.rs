@@ -64,31 +64,125 @@ const WORKER: &str = include_str!("../../python/mlx_worker.py");
 const VLM_WORKER: &str = include_str!("../../python/mlx_vlm_worker.py");
 const AUDIO_WORKER: &str = include_str!("../../python/mlx_audio_worker.py");
 
-/// mlx-audio text-to-speech architectures (`model_type`, `spark` for Spark-TTS's layout) Harness
-/// runs: the ones checked end to end that load from their own folder. Others fetch parts from
-/// the Hub at run time (Kokoro: misaki, spaCy data and voices; OuteTTS, Dia: a DAC codec;
-/// Orpheus: SNAC; CSM: Mimi and a gated tokenizer), which the offline worker cannot, and are
-/// not offered.
+/// mlx-audio text-to-speech architectures Harness runs (see [`tts_type`]): the ones checked end
+/// to end. OuteTTS, Orpheus and Dia load a codec from the Hub by name: it is a companion
+/// download ([`codecs_of`]) that the worker finds offline. Kokoro (misaki, spaCy data and voices
+/// fetched at run time) and CSM (Mimi, a gated tokenizer, voice prompts) are not offered.
 const TTS_TYPES: &[&str] = &[
     "qwen3_tts",
     "chatterbox_turbo",
     "soprano",
     "voxcpm2",
     "spark",
+    "outetts",
+    "orpheus",
+    "dia",
 ];
+
+/// A codec repo an mlx-audio family's loader asks the Hub for by name, with its files and
+/// sizes (as the repo lists them). Downloaded once into `<library>/<owner>/<repo>` and shared
+/// by every model of the families that use it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Codec {
+    pub repo: &'static str,
+    pub files: &'static [(&'static str, u64)],
+}
+
+const DAC_24K: Codec = Codec {
+    repo: "mlx-community/dac-speech-24khz-1.5kbps",
+    files: &[("config.json", 391), ("model.safetensors", 295_669_897)],
+};
+const SNAC_24K: Codec = Codec {
+    repo: "mlx-community/snac_24khz",
+    files: &[("config.json", 300), ("model.safetensors", 79_404_951)],
+};
+const DAC_44K: Codec = Codec {
+    repo: "mlx-community/descript-audio-codec-44khz",
+    files: &[("config.json", 219), ("model.safetensors", 306_644_869)],
+};
+
+/// The codecs a text-to-speech family loads (mlx-audio 0.5.9: OuteTTS `DacInterface`, Orpheus
+/// `SNAC.from_pretrained`, Dia `DAC.from_pretrained`).
+pub fn codecs_of(family: &str) -> &'static [Codec] {
+    match family {
+        "outetts" => &[DAC_24K],
+        "orpheus" => &[SNAC_24K],
+        "dia" => &[DAC_44K],
+        _ => &[],
+    }
+}
+
+/// The library folder of a codec: `<library>/<owner>/<repo>` with all its files, in the first
+/// library that has it.
+pub fn codec_dir(codec: &Codec, libraries: &[PathBuf]) -> Option<PathBuf> {
+    libraries
+        .iter()
+        .map(|root| root.join(codec.repo))
+        .find(|dir| codec.files.iter().all(|(f, _)| dir.join(f).is_file()))
+}
+
+/// The codecs a text-to-speech folder needs, each with its library folder (`None` when it is
+/// not downloaded).
+pub fn codec_dirs(dir: &Path, libraries: &[PathBuf]) -> Vec<(Codec, Option<PathBuf>)> {
+    tts_type(dir)
+        .map(|t| codecs_of(&t))
+        .unwrap_or_default()
+        .iter()
+        .map(|c| (*c, codec_dir(c, libraries)))
+        .collect()
+}
+
+/// What a Hub repo of a text-to-speech family needs besides itself, as the image bundles' plan
+/// ([`crate::image_bundles::BundlePlan`], role `codec`, one component per file); `None` for a
+/// repo whose family loads nothing else.
+pub fn codec_plan_for_repo(
+    repo: &str,
+    libraries: &[PathBuf],
+) -> Option<crate::image_bundles::BundlePlan> {
+    let family = tts_repo_family(repo)?;
+    let codecs = codecs_of(family);
+    if codecs.is_empty() {
+        return None;
+    }
+    let components = codecs
+        .iter()
+        .flat_map(|c| {
+            let dir = codec_dir(c, libraries);
+            c.files
+                .iter()
+                .map(move |(file, size)| crate::image_bundles::ComponentPlan {
+                    role: "codec".into(),
+                    repo: c.repo.into(),
+                    file: (*file).into(),
+                    size: *size,
+                    path: dir
+                        .as_ref()
+                        .map(|d| d.join(file).to_string_lossy().to_string()),
+                })
+        })
+        .collect();
+    Some(crate::image_bundles::BundlePlan {
+        bundle_id: format!("mlx-audio:{family}"),
+        label: repo.rsplit('/').next().unwrap_or(repo).to_string(),
+        components,
+        defaults: Default::default(),
+    })
+}
 
 /// mlx-audio speech recognition architectures (`model_type`) Harness runs. A NeMo Parakeet
 /// config has no `model_type` but its `target` class (see [`is_parakeet_config`]).
 const STT_TYPES: &[&str] = &["whisper", "parakeet", "parakeet_tdt"];
 
-/// What the name of a Hub repo of a [`TTS_TYPES`] model contains (the listing has no config).
-/// Plain Chatterbox (`chatterbox-fp16`) and VoxCPM 1.x are other architectures.
-const TTS_REPO_NAMES: &[&str] = &[
-    "qwen3-tts",
-    "chatterbox-turbo",
-    "soprano",
-    "voxcpm2",
-    "spark-tts",
+/// What the name of a Hub repo of a [`TTS_TYPES`] model contains (the listing has no config),
+/// and its family. Plain Chatterbox (`chatterbox-fp16`) and VoxCPM 1.x are other architectures.
+const TTS_REPO_NAMES: &[(&str, &str)] = &[
+    ("qwen3-tts", "qwen3_tts"),
+    ("chatterbox-turbo", "chatterbox_turbo"),
+    ("soprano", "soprano"),
+    ("voxcpm2", "voxcpm2"),
+    ("spark-tts", "spark"),
+    ("outetts", "outetts"),
+    ("orpheus", "orpheus"),
 ];
 
 /// What the name of a Hub repo of a [`STT_TYPES`] model contains (a NeMo Parakeet repo has no
@@ -115,10 +209,20 @@ pub fn is_audio_repo(tags: &[String]) -> bool {
     })
 }
 
+/// The text-to-speech family of a Hub repo by its name: [`TTS_REPO_NAMES`], or `dia` for a name
+/// that starts with `dia-` (Nari Labs' Dia; "dia" alone is part of too many words).
+pub fn tts_repo_family(id: &str) -> Option<&'static str> {
+    let name = id.rsplit('/').next().unwrap_or(id).to_ascii_lowercase();
+    TTS_REPO_NAMES
+        .iter()
+        .find(|(n, _)| name.contains(n))
+        .map(|(_, f)| *f)
+        .or_else(|| name.starts_with("dia-").then_some("dia"))
+}
+
 /// Whether a Hub repo id names a text-to-speech model of a tested architecture.
 pub fn is_tts_repo(id: &str) -> bool {
-    let id = id.to_ascii_lowercase();
-    TTS_REPO_NAMES.iter().any(|n| id.contains(n))
+    tts_repo_family(id).is_some()
 }
 
 /// `model_type`s of mlx-audio's speech models (recognition and synthesis): such a folder is
@@ -373,15 +477,31 @@ fn mlx_vision(path: &Path) -> Option<bool> {
         })
 }
 
-/// The mlx-audio text-to-speech architecture of a folder: its `model_type`, or `spark` for
-/// Spark-TTS, whose config is its Qwen2 language model's (its `BiCodec/` codec tells it apart).
+/// The mlx-audio text-to-speech architecture of a folder: its `model_type`, or the family whose
+/// config does not say it (the worker's `tts_family` tells them apart the same way):
+/// * `spark`: Spark-TTS, a Qwen2 config and a `BiCodec/` codec;
+/// * `outetts`: a Qwen3 / Llama config whose card says `library_name: outetts`;
+/// * `dia`: an encoder-decoder config with a codebook delay pattern;
+/// * `orpheus`: a Llama config whose card says `pipeline_tag: text-to-speech` (any other Llama
+///   folder is a chat model).
 fn tts_type(dir: &Path) -> Option<String> {
     if dir.join("BiCodec").join("config.yaml").is_file()
         && dir.join("audio_tokenizer_config.yaml").is_file()
     {
         return Some("spark".into());
     }
-    model_type(dir)
+    if card_field(dir, "library_name").is_some_and(|l| l.eq_ignore_ascii_case("outetts")) {
+        return Some("outetts".into());
+    }
+    let cfg = read_json(&dir.join("config.json"))?;
+    if cfg.pointer("/data/delay_pattern").is_some() && cfg.pointer("/model/decoder").is_some() {
+        return Some("dia".into());
+    }
+    let kind = cfg.get("model_type")?.as_str()?.to_ascii_lowercase();
+    if kind == "llama" && card_field(dir, "pipeline_tag").is_some_and(|t| t == "text-to-speech") {
+        return Some("orpheus".into());
+    }
+    Some(kind)
 }
 
 /// Whether `path` is a folder the `mlx-audio` engine runs: an mlx-audio text-to-speech model
@@ -878,6 +998,18 @@ impl ServerEngine for MlxEngine {
     }
 }
 
+/// `--companion owner/repo=folder` for each codec a text-to-speech folder's family loads, found
+/// in `libraries`; a codec that is not downloaded fails the launch with its repo named.
+fn companion_args(model: &Path, libraries: &[PathBuf]) -> Result<Vec<String>, String> {
+    let mut args = Vec::new();
+    for (codec, dir) in codec_dirs(model, libraries) {
+        let dir = dir.ok_or_else(|| err("mlx.codec_missing").with("repo", codec.repo))?;
+        args.push("--companion".into());
+        args.push(format!("{}={}", codec.repo, dir.to_string_lossy()));
+    }
+    Ok(args)
+}
+
 /// The command line of a launch: the worker script first (the program is the interpreter).
 fn build_args(
     config: &LaunchConfig,
@@ -898,6 +1030,11 @@ fn build_args(
     if flavour == Flavour::Audio && is_stt_dir(&config.model_path) {
         args.push("--task".into());
         args.push("transcription".into());
+    }
+    let needs_codec = tts_type(&config.model_path).is_some_and(|t| !codecs_of(&t).is_empty());
+    if flavour == Flavour::Audio && needs_codec {
+        let libraries = crate::config::AppSettings::load().all_models_dirs();
+        args.extend(companion_args(&config.model_path, &libraries)?);
     }
     let ctx = RenderContext {
         host: config.host.clone(),
@@ -1470,9 +1607,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         for repo in [
             "mlx-community/chatterbox-fp16",
             "mlx-community/VoxCPM1.5",
-            "mlx-community/OuteTTS-1.0-0.6B-4bit",
-            "mlx-community/Dia-1.6B-4bit",
-            "mlx-community/orpheus-3b-0.1-ft-4bit",
+            "mlx-community/csm-1b",
         ] {
             assert!(!is_tts_repo(repo), "{repo}");
         }
@@ -1481,7 +1616,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
     /// The text-to-speech families checked end to end beside Qwen3-TTS, as mlx-community ships
     /// them (configs trimmed): each is an mlx-audio folder, never a chat model. Spark-TTS's
     /// config is its Qwen2 language model's: its `BiCodec/` codec makes it a speech folder, also
-    /// when quantized. Families that fetch parts at run time (OuteTTS) are not offered.
+    /// when quantized.
     #[test]
     fn mlx_audio_runs_the_tested_speech_families() {
         let card = |library: &str| {
@@ -1552,19 +1687,123 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         // Without its codec a Qwen2 folder is what it says.
         std::fs::remove_dir_all(spark.path().join("BiCodec")).unwrap();
         assert!(!is_tts_dir(spark.path()));
+    }
+
+    /// The families that load a codec by name (OuteTTS, Orpheus, Dia), as mlx-community ships
+    /// them (configs trimmed): mlx-audio folders whose launch names the codec's library folder,
+    /// and a launch without the codec says which one is missing. A Llama chat folder stays a
+    /// chat model; the Hub plan lists the codec's files with their sizes, found once for all
+    /// the models that share it.
+    #[test]
+    fn codec_families_launch_with_their_codec() {
         let outetts = folder(&[
+            ("config.json", r#"{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","quantization":{"group_size":64,"bits":4}}"#),
+            ("model.safetensors", "x"),
+            ("tokenizer.json", "{}"),
+            ("README.md", "---\nlicense: apache-2.0\npipeline_tag: text-to-speech\nlibrary_name: outetts\ntags:\n- mlx\n---\n"),
+        ]);
+        let orpheus = folder(&[
+            ("config.json", r#"{"architectures":["LlamaForCausalLM"],"model_type":"llama","quantization":{"group_size":64,"bits":4}}"#),
+            ("model.safetensors", "x"),
+            ("tokenizer.json", "{}"),
+            ("README.md", "---\nlibrary_name: mlx\npipeline_tag: text-to-speech\nbase_model: canopylabs/orpheus-3b-0.1-ft\ntags:\n- mlx\n---\n"),
+        ]);
+        let dia = folder(&[
+            ("config.json", r#"{"data":{"channels":9,"delay_pattern":[0,8,9]},"model":{"encoder":{},"decoder":{}},"quantization":{"group_size":64,"bits":4}}"#),
+            ("model.safetensors", "x"),
+            ("README.md", "---\nbase_model:\n- nari-labs/Dia-1.6B\npipeline_tag: text-to-speech\nlibrary_name: mlx\n---\n"),
+        ]);
+        let llama_chat = folder(&[
             (
                 "config.json",
-                r#"{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","quantization":{"group_size":64,"bits":4}}"#,
+                r#"{"architectures":["LlamaForCausalLM"],"model_type":"llama","quantization":{"group_size":64,"bits":4}}"#,
             ),
             ("model.safetensors", "x"),
+            ("tokenizer.json", "{}"),
             (
                 "README.md",
-                "---\npipeline_tag: text-to-speech\nlibrary_name: outetts\ntags:\n- mlx\n---\n",
+                "---\nlibrary_name: mlx\npipeline_tag: text-generation\n---\n",
             ),
         ]);
-        assert!(!is_tts_dir(outetts.path()));
-        assert_eq!(flavour_of(outetts.path()), None);
+        assert!(is_model_dir(llama_chat.path()) && !is_tts_dir(llama_chat.path()));
+        let library = tempfile::tempdir().unwrap();
+        let libraries = vec![library.path().to_path_buf()];
+        for (dir, family, codec) in [
+            (
+                &outetts,
+                "outetts",
+                "mlx-community/dac-speech-24khz-1.5kbps",
+            ),
+            (&orpheus, "orpheus", "mlx-community/snac_24khz"),
+            (&dia, "dia", "mlx-community/descript-audio-codec-44khz"),
+        ] {
+            let path = dir.path();
+            assert_eq!(tts_type(path).as_deref(), Some(family));
+            assert!(is_tts_dir(path), "{family}");
+            assert!(
+                !is_model_dir(path) && !super::super::mistralrs::is_model_dir(path),
+                "{family}"
+            );
+            assert_eq!(flavour_of(path), Some(Flavour::Audio), "{family}");
+            let e = companion_args(path, &libraries).unwrap_err();
+            assert!(e.contains("mlx.codec_missing") && e.contains(codec), "{e}");
+            // The codec downloaded into the library (`<library>/<owner>/<repo>`).
+            let folder = library.path().join(codec);
+            std::fs::create_dir_all(&folder).unwrap();
+            std::fs::write(folder.join("config.json"), "{}").unwrap();
+            assert!(companion_args(path, &libraries).is_err(), "weights missing");
+            std::fs::write(folder.join("model.safetensors"), "x").unwrap();
+            assert_eq!(
+                companion_args(path, &libraries).unwrap(),
+                [
+                    "--companion".to_string(),
+                    format!("{codec}={}", folder.to_string_lossy())
+                ]
+            );
+        }
+        // Families that load nothing else launch without a companion.
+        let soprano = folder(&[
+            ("config.json", r#"{"model_type":"soprano"}"#),
+            ("model.safetensors", "x"),
+            ("README.md", "---\nlibrary_name: mlx-audio\n---\n"),
+        ]);
+        assert!(companion_args(soprano.path(), &[]).unwrap().is_empty());
+
+        // The Hub: families by repo name, and the codec as a plan of files with sizes.
+        assert_eq!(
+            tts_repo_family("mlx-community/OuteTTS-1.0-0.6B-4bit"),
+            Some("outetts")
+        );
+        assert_eq!(
+            tts_repo_family("mlx-community/Llama-OuteTTS-1.0-1B-4bit"),
+            Some("outetts")
+        );
+        assert_eq!(
+            tts_repo_family("mlx-community/orpheus-3b-0.1-ft-4bit"),
+            Some("orpheus")
+        );
+        assert_eq!(tts_repo_family("mlx-community/Dia-1.6B-4bit"), Some("dia"));
+        assert_eq!(tts_repo_family("mlx-community/multimedia-model"), None);
+        assert_eq!(tts_repo_family("mlx-community/csm-1b"), None);
+        let empty = tempfile::tempdir().unwrap();
+        let plan =
+            codec_plan_for_repo("mlx-community/Dia-1.6B-4bit", &[empty.path().to_path_buf()])
+                .unwrap();
+        assert_eq!(plan.bundle_id, "mlx-audio:dia");
+        assert_eq!(plan.missing().len(), 2);
+        assert_eq!(
+            plan.components.iter().map(|c| c.size).sum::<u64>(),
+            219 + 306_644_869
+        );
+        assert!(plan
+            .components
+            .iter()
+            .all(|c| c.role == "codec" && c.repo == "mlx-community/descript-audio-codec-44khz"));
+        // Downloaded for one model, it is there for every model of the family.
+        let plan = codec_plan_for_repo("mlx-community/orpheus-3b-0.1-ft-bf16", &libraries).unwrap();
+        assert!(plan.complete(), "{plan:?}");
+        assert!(codec_plan_for_repo("mlx-community/Soprano-80M-bf16", &libraries).is_none());
+        assert!(codec_plan_for_repo("mlx-community/whisper-tiny-asr-fp16", &libraries).is_none());
     }
 
     /// Speech recognition folders in MLX's format (mlx-audio's Whisper port with a transformers
@@ -2202,6 +2441,111 @@ print("split", w.sentences("Hi there.  Bye。Yes"), w.sentences("   "))
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }
+    }
+
+    /// The worker tells the speech families apart like [`tts_type`], finds a codec only in the
+    /// cache of `--companion` links it makes (a malformed or missing companion is refused), and
+    /// points a config without `tokenizer_name` at the folder's own tokenizer.
+    #[test]
+    fn the_audio_worker_finds_codecs_offline_and_its_own_tokenizer() {
+        // The links need no privilege on Unix; the worker runs on macOS only.
+        if !cfg!(unix) {
+            return;
+        }
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let model = |name: &str, files: &[(&str, &str)]| {
+            let path = dir.path().join(name);
+            for (file, body) in files {
+                std::fs::create_dir_all(path.join(file).parent().unwrap()).unwrap();
+                std::fs::write(path.join(file), body).unwrap();
+            }
+        };
+        model(
+            "outetts",
+            &[
+                ("config.json", r#"{"model_type":"qwen3"}"#),
+                ("tokenizer.json", "{}"),
+                ("README.md", "---\nlibrary_name: outetts\n---\n"),
+            ],
+        );
+        model("orpheus", &[("config.json", r#"{"model_type":"llama"}"#)]);
+        model(
+            "dia",
+            &[(
+                "config.json",
+                r#"{"data":{"delay_pattern":[0]},"model":{"decoder":{}}}"#,
+            )],
+        );
+        model(
+            "spark",
+            &[
+                ("config.json", r#"{"model_type":"qwen2"}"#),
+                ("BiCodec/config.yaml", "x"),
+                ("audio_tokenizer_config.yaml", "x"),
+            ],
+        );
+        model("soprano", &[("config.json", r#"{"model_type":"soprano"}"#)]);
+        model(
+            "codec",
+            &[("config.json", "{}"), ("model.safetensors", "x")],
+        );
+        let script = format!(
+            r#"
+import os, sys, tempfile; sys.path.insert(0, {root:?}); import mlx_audio_worker as w
+root = {root:?}
+for name in ("outetts", "orpheus", "dia", "spark", "soprano"):
+    print("family", name, w.tts_family(os.path.join(root, name)))
+cache = w.companion_cache(["mlx-community/snac_24khz=" + os.path.join(root, "codec")], tempfile.mkdtemp())
+os.environ["HF_HUB_CACHE"] = cache
+snap = os.path.join(cache, "models--mlx-community--snac_24khz", "snapshots", "harness")
+print("linked", os.path.realpath(snap) == os.path.realpath(os.path.join(root, "codec")),
+      open(os.path.join(cache, "models--mlx-community--snac_24khz", "refs", "main")).read())
+print("only", sorted(os.listdir(cache)))
+for bad in ("snac_24khz=" + root, "a/../b=" + root, "x/y=" + os.path.join(root, "missing"), "x/y"):
+    try:
+        w.companion_cache([bad], tempfile.mkdtemp())
+        print("accepted", bad)
+    except ValueError as e:
+        print("refused:", e)
+load = w.own_tokenizer(lambda path: {{"model_type": "qwen3"}}, os.path.join(root, "outetts"))
+print("own", load("x")["tokenizer_name"] == os.path.join(root, "outetts"))
+kept = w.own_tokenizer(lambda path: {{"tokenizer_name": "given"}}, os.path.join(root, "outetts"))
+print("kept", kept("x")["tokenizer_name"])
+none = w.own_tokenizer(lambda path: {{}}, os.path.join(root, "orpheus"))
+print("none", "tokenizer_name" in none("x"))
+"#,
+            root = dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "family outetts outetts",
+            "family orpheus orpheus",
+            "family dia dia",
+            "family spark spark",
+            "family soprano soprano",
+            "linked True harness",
+            "only ['models--mlx-community--snac_24khz']",
+            "refused: a companion is owner/repo=folder",
+            "refused: a companion folder is missing",
+            "own True",
+            "kept given",
+            "none False",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+        assert_eq!(text.matches("refused:").count(), 4, "{text}");
     }
 
     /// The transcription app: the key, its one route, a multipart body of known fields only, a
