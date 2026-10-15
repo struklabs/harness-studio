@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseSearchQuery } from '../src/lib/components/hub/searchParser.ts';
 import { isCompanionVariant, pickProjectorVariant, recommendFloatVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
+import { needsPrismFork } from '../src/lib/components/hub/forkQuants.ts';
 
 test('exact repository IDs retain GGUF and quantization names', () => {
   for (const repo of ['unsloth/Qwen3-4B-GGUF', 'owner/model-Q4_K_M', 'OWNER/Model.gguf']) {
@@ -100,4 +101,11 @@ test('an unlabelled GGUF does not beat a known quant; unlabelled-only keeps work
   const fits = new Map([[unlabelled.name, 'full_gpu'], [q8.name, 'full_gpu']]);
   assert.equal(recommendVariant([unlabelled, q8], fits), q8);
   assert.equal(recommendVariant([unlabelled], fits), unlabelled);
+});
+
+test('PrismML fork quant types are detected by label or file name', () => {
+  assert.ok(needsPrismFork('PQ2_0'));
+  assert.ok(needsPrismFork(undefined, 'Ternary-Bonsai-2-27B-PTQ1_0.gguf'));
+  assert.ok(needsPrismFork('sub/Ternary-Bonsai-2-27B-pq2_0.gguf'));
+  assert.ok(!needsPrismFork('Q2_0', 'TQ1_0', 'model-Q4_K_M.gguf', null));
 });

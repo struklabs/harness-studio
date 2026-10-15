@@ -411,7 +411,13 @@ fn strong_diffusion_evidence(
             .is_some_and(|s| s != TaskSource::Name)
 }
 
-/// A LoRA adapter for a diffusion model (diffusers or ComfyUI): it loads on top of a base
+/// Whether a name (repo or file, any case) is an IP-Adapter's (`ip-adapter-faceid_sd15.bin`).
+fn is_ip_adapter_name(name: &str) -> bool {
+    let n = name.rsplit('/').next().unwrap_or(name).to_ascii_lowercase();
+    n.starts_with("ip-adapter") || n.starts_with("ip_adapter") || n.contains("-ip-adapter")
+}
+
+/// A LoRA or IP-Adapter for a diffusion model (diffusers or ComfyUI): it loads on top of a base
 /// checkpoint, so alone it runs nowhere.
 fn is_diffusion_adapter(
     repo_id: &str,
@@ -423,7 +429,9 @@ fn is_diffusion_adapter(
     let lower: Vec<String> = tags.iter().map(|t| t.to_lowercase()).collect();
     let lora = lower.iter().any(|t| {
         t == "lora" || t == "template:diffusion-lora" || t.starts_with("base_model:adapter:")
-    });
+    }) || lower.iter().any(|t| t == "ip-adapter" || t == "ip_adapter")
+        || is_ip_adapter_name(repo_id)
+        || files.iter().any(|f| is_ip_adapter_name(f));
     if !lora || files.iter().any(|f| f.to_lowercase().contains("mmproj")) {
         return false;
     }
@@ -1206,6 +1214,39 @@ mod tests {
                 Some(NotRunnable::Adapter),
                 "{id}"
             );
+        }
+        // IP-Adapter layouts (h94/IP-Adapter-FaceID, h94/IP-Adapter): no `lora` tag at all.
+        for (id, files) in [
+            (
+                "h94/IP-Adapter-FaceID",
+                vec![
+                    "ip-adapter-faceid_sd15.bin",
+                    "ip-adapter-faceid_sd15_lora.safetensors",
+                ],
+            ),
+            (
+                "h94/IP-Adapter",
+                vec![
+                    "models/image_encoder/model.safetensors",
+                    "models/ip-adapter_sd15.bin",
+                    "sdxl_models/ip-adapter_sdxl.safetensors",
+                ],
+            ),
+        ] {
+            let siblings: Vec<_> = files
+                .iter()
+                .map(|f| serde_json::json!({ "rfilename": f }))
+                .collect();
+            let item = serde_json::json!({
+                "id": id,
+                "pipeline_tag": "text-to-image",
+                "library_name": "diffusers",
+                "tags": ["diffusers", "text-to-image", "stable-diffusion"],
+                "siblings": siblings,
+            });
+            let a = analyze_repo(&item);
+            assert_eq!(a.not_runnable, Some(NotRunnable::Adapter), "{id}");
+            assert!(a.diffusion_adapter, "{id}");
         }
         // A plain diffusion checkpoint is not an adapter.
         let ckpt = serde_json::json!({

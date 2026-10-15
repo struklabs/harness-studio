@@ -1,5 +1,7 @@
 // Model Hub: search, filters, model card, variants, download queue, custom URL modal.
 const tr = {
+  'hub.needs_prism_fork':
+    'Bu modelin PQ2_0 / PTQ1_0 kuant türlerini yalnızca PrismML’in llama.cpp fork’u yükleyebilir. İndirebilirsiniz ama çalıştırmak için Ayarlar > Model Motoru > Registry sayfasından PrismML deposunu eklemeniz gerekir.',
   'hub.hidden_filters_active': '{count} gelişmiş filtre etkin.',
   'hub.task_runtime_missing_simple': '“{task}” modelleri kurulu model motoruyla çalışmaz. Model motorunu güncelleyin.',
   'hub.download_option': 'İndirme Seçeneği',
@@ -289,6 +291,8 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'hub.needs_prism_fork':
+    'Only PrismML’s llama.cpp fork can load this model’s PQ2_0 / PTQ1_0 quant types. You can download it, but to run it add the PrismML repository in Settings > Runtime > Registry.',
   'hub.hidden_filters_active': '{count} advanced filters are active.',
   'hub.task_runtime_missing_simple': 'Models for “{task}” cannot run with the installed runtime. Update the runtime.',
   'hub.download_option': 'Download Option',

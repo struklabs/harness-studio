@@ -104,6 +104,14 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Model Hub: yalnızca kayan nokta dosyası (FP16/BF16/FP32 safetensors) olan bir depo artık en büyük FP32 ya da etiketsiz dosya yerine sığan FP16/BF16 dosyasını önerir; hassasiyeti çözülemeyen dosya bilinen bir nicemlemeyi artık geçemez.
 - Model Hub: a whole-repo download keeps one weight set (the default `model.safetensors`), no longer adding fp32 or alternative-layout copies of the same model (whisper-large-v3, csm-1b).
 - Model Hub: tüm depo indirmesi tek bir ağırlık takımı tutar (varsayılan `model.safetensors`); aynı modelin fp32 veya alternatif düzen kopyaları artık eklenmez (whisper-large-v3, csm-1b).
+- Model Hub: repos with PrismML-fork quants (PQ2_0 / PTQ1_0, e.g. Ternary Bonsai) show a note in the variant drawer that the PrismML llama.cpp build is needed, with a button to Settings > Registry. They stay runnable.
+- Model Hub: PrismML fork kuantlarına (PQ2_0 / PTQ1_0, örneğin Ternary Bonsai) sahip depolarda varyant çekmecesi PrismML llama.cpp derlemesinin gerektiğini söyleyen bir not ve Ayarlar > Registry düğmesi gösterir. Depolar çalıştırılabilir kalır.
+- Model Hub: repos with PrismML-fork quants (PQ2_0 / PTQ1_0, e.g. Ternary Bonsai) show a note in the variant drawer that the PrismML llama.cpp build is needed, with a button to Settings > Runtime > Registry. They stay runnable.
+- Model Hub: PrismML fork kuantlarına (PQ2_0 / PTQ1_0, örneğin Ternary Bonsai) sahip depolarda varyant çekmecesi PrismML llama.cpp derlemesinin gerektiğini söyleyen bir not ve Ayarlar > Model Motoru > Registry düğmesi gösterir. Depolar çalıştırılabilir kalır.
+- Model Hub: PrismML-fork quants (PQ2_0 / PTQ1_0) are now parsed from file names instead of showing as unknown.
+- Model Hub: PrismML fork kuantları (PQ2_0 / PTQ1_0) artık dosya adından okunuyor, "bilinmiyor" görünmüyor.
+- Model Hub: IP-Adapter repos (h94/IP-Adapter, h94/IP-Adapter-FaceID) are marked as adapters that don't run here, like LoRAs.
+- Model Hub: IP-Adapter depoları (h94/IP-Adapter, h94/IP-Adapter-FaceID) LoRA gibi burada çalışmayan adaptör olarak işaretlenir.
 - Downloader: GGUF magic is checked only for `.gguf` files; companion files download with consistent file counters and byte progress.
 - İndirici: GGUF sihirli baytları yalnız `.gguf` dosyalarında denetlenir; yardımcı dosyalar tutarlı dosya sayacı ve bayt ilerlemesiyle indirilir.
 - Model Hub: the results heading follows the active search while its listing loads.
