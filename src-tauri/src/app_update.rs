@@ -1,9 +1,11 @@
-//! Self-update of Harness Studio via the Tauri updater (signed `latest.json`
-//! published by the release workflow).
+//! Self-update of Harness Studio via the Tauri updater (`latest.json` published by the release
+//! workflow; the updater verifies the signature of the package it lists after downloading it).
 
 use harness_core::error_key::err;
 use serde::Serialize;
+use std::future::Future;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tauri::AppHandle;
 use tauri_plugin_updater::UpdaterExt;
 
@@ -117,25 +119,52 @@ impl AppUpdateState {
 
         *self.progress.lock().unwrap() = Some(AppUpdateProgress::default());
         let progress = self.progress.clone();
-        let result = update
-            .download_and_install(
-                move |chunk, total| {
-                    if let Some(p) = progress.lock().unwrap().as_mut() {
-                        p.downloaded += chunk as u64;
-                        p.total = total;
+        let finished = self.progress.clone();
+        let result = download_stop_install(
+            async {
+                // Downloads and verifies the signature; nothing is stopped if this fails.
+                let bytes = update
+                    .download(
+                        move |chunk, total| {
+                            if let Some(p) = progress.lock().unwrap().as_mut() {
+                                p.downloaded += chunk as u64;
+                                p.total = total;
+                            }
+                        },
+                        || {},
+                    )
+                    .await;
+                if bytes.is_ok() {
+                    if let Some(p) = finished.lock().unwrap().as_mut() {
+                        p.finished = true;
                     }
-                },
-                || {},
-            )
-            .await;
+                }
+                bytes
+            },
+            // The installer is started with ShellExecute and the updater then exits the process
+            // inside `install`, so the exit handler (`RunEvent::Exit`) never runs on Windows:
+            // what it would do has to happen before.
+            async {
+                registry.stop_all().await;
+                let _ = tokio::time::timeout(STOP_BEFORE_INSTALL, async {
+                    crate::stop_lemonade_and_mcp().await;
+                    // Requests still waiting for their telemetry sample are written now.
+                    let _ = tokio::task::spawn_blocking(|| {
+                        crate::analytics::flush(Duration::from_secs(3))
+                    })
+                    .await;
+                })
+                .await;
+            },
+            |bytes| update.install(bytes),
+            cfg!(windows),
+        )
+        .await;
         if let Err(e) = result {
             *self.progress.lock().unwrap() = None;
             return Err(err("update.install_failed").with("error", e).into());
         }
-        if let Some(p) = self.progress.lock().unwrap().as_mut() {
-            p.finished = true;
-        }
-        registry.stop_all().await;
+        // Not reached on Windows: the updater exits the process after starting the installer.
         // AppImage: the new version is started once this one has exited, with the environment the
         // old AppRun set up removed (see `relaunch_appimage_after_exit`).
         #[cfg(target_os = "linux")]
@@ -146,6 +175,32 @@ impl AppUpdateState {
         }
         app.restart();
     }
+}
+
+/// Upper bound for the cleanup after the server stop (which has its own 7 s deadline), so a hung
+/// child cannot block the update.
+const STOP_BEFORE_INSTALL: Duration = Duration::from_secs(8);
+
+/// Orders an update: `download` (which verifies) first; when it fails nothing is stopped. With
+/// `stop_first` the servers are stopped before `install` (Windows: the updater exits the process
+/// inside `install`); otherwise after a successful install (macOS, Linux: the app restarts or
+/// exits afterwards and its exit handler cleans up too). A failed install returns the error and
+/// leaves the app running; with `stop_first` its servers are already stopped and the user can
+/// start them again.
+async fn download_stop_install<B, E>(
+    download: impl Future<Output = Result<B, E>>,
+    stop: impl Future<Output = ()>,
+    install: impl FnOnce(B) -> Result<(), E>,
+    stop_first: bool,
+) -> Result<(), E> {
+    let bytes = download.await?;
+    if stop_first {
+        stop.await;
+        return install(bytes);
+    }
+    install(bytes)?;
+    stop.await;
+    Ok(())
 }
 
 /// Starts the updated AppImage after the app has exited, if an update asked for it. Called from
@@ -297,6 +352,75 @@ mod appimage {
                 (!kept.is_empty()).then(|| (k, OsString::from_vec(kept.join(&b':'))))
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod order_tests {
+    use super::download_stop_install;
+    use std::cell::RefCell;
+
+    async fn run(
+        stop_first: bool,
+        download_ok: bool,
+        install_ok: bool,
+    ) -> (Result<(), &'static str>, Vec<&'static str>) {
+        let log = RefCell::new(Vec::new());
+        let result = download_stop_install(
+            async {
+                log.borrow_mut().push("download");
+                if download_ok {
+                    Ok(1)
+                } else {
+                    Err("download")
+                }
+            },
+            async { log.borrow_mut().push("stop") },
+            |_| {
+                log.borrow_mut().push("install");
+                if install_ok {
+                    Ok(())
+                } else {
+                    Err("install")
+                }
+            },
+            stop_first,
+        )
+        .await;
+        (result, log.into_inner())
+    }
+
+    #[tokio::test]
+    async fn windows_order_stops_between_download_and_install() {
+        let (r, log) = run(true, true, true).await;
+        assert_eq!(r, Ok(()));
+        assert_eq!(log, ["download", "stop", "install"]);
+    }
+
+    #[tokio::test]
+    async fn other_platforms_stop_after_install() {
+        let (r, log) = run(false, true, true).await;
+        assert_eq!(r, Ok(()));
+        assert_eq!(log, ["download", "install", "stop"]);
+    }
+
+    #[tokio::test]
+    async fn failed_download_stops_nothing() {
+        for stop_first in [true, false] {
+            let (r, log) = run(stop_first, false, true).await;
+            assert_eq!(r, Err("download"));
+            assert_eq!(log, ["download"]);
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_install_returns_the_error() {
+        let (r, log) = run(true, true, false).await;
+        assert_eq!(r, Err("install"));
+        assert_eq!(log, ["download", "stop", "install"]);
+        let (r, log) = run(false, true, false).await;
+        assert_eq!(r, Err("install"));
+        assert_eq!(log, ["download", "install"]);
     }
 }
 

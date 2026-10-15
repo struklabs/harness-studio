@@ -60,6 +60,23 @@ fn install_panic_hook() {
     }));
 }
 
+/// MCP servers started by the app's own client end with the app (stdin closes, then the process
+/// tree is killed).
+async fn stop_mcp() {
+    tools::ToolService::shared()
+        .mcp()
+        .shutdown(std::time::Duration::from_secs(2))
+        .await;
+    mcp::remove_all_runtime_configs();
+}
+
+/// The part of the exit cleanup that runs before an installer replaces the process (see
+/// `app_update`): Lemonade and the MCP servers.
+pub(crate) async fn stop_lemonade_and_mcp() {
+    let _ = tokio::task::spawn_blocking(harness_core::lemonade::shutdown_now).await;
+    stop_mcp().await;
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let registry = Arc::new(ServerRegistry::default());
@@ -719,14 +736,7 @@ pub fn run() {
                 // Spans and metrics still queued are sent now (bounded by the export timeout).
                 tauri::async_runtime::block_on(harness_core::otel::shutdown());
                 tauri::async_runtime::block_on(exit_api.stop());
-                // MCP servers started by Harness's own client end with the app (stdin closes,
-                // then the process tree is killed).
-                tauri::async_runtime::block_on(
-                    tools::ToolService::shared()
-                        .mcp()
-                        .shutdown(std::time::Duration::from_secs(2)),
-                );
-                mcp::remove_all_runtime_configs();
+                tauri::async_runtime::block_on(stop_mcp());
                 if let Some(state) = app.try_state::<InstanceState>() {
                     if let Some(lock) = &state.lock {
                         lock.release();
