@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { PerfDetails, TelemetrySnapshot } from '#lib/types.js';
   import { t } from '#lib/i18n.svelte.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText } from '#lib/format.js';
   import StatRow from './StatRow.svelte';
   import { fmtPercent } from './perfFormat';
 
@@ -16,7 +16,7 @@
 
   const bytes = (v: number | null | undefined) => (v ? formatBytes(v, 1) : null);
   const used = (u: number | undefined, total: number | undefined) =>
-    u && total ? `${formatBytes(u, 1)} / ${formatBytes(total, 1)}` : null;
+    u && total ? formatBytesPairText(u, total) : null;
   const cpu = (v: number | null | undefined) => (v == null ? null : fmtPercent(v, 1));
 
   let vram = $derived(used(snapshot?.vram_used_bytes, snapshot?.vram_total_bytes));

@@ -75,7 +75,7 @@ registerHooks({
 });
 const { libraryKindKey } = await import('../src/lib/libraryDefinitions.ts');
 const { inTab, tabCounts } = await import('../src/lib/components/library/filters.ts');
-const { formatBytes, formatBytesPair } = await import('../src/lib/format.ts');
+const { formatBytes, formatBytesPair, formatBytesPairText } = await import('../src/lib/format.ts');
 const { library } = await import('../src/lib/stores/library.svelte.ts');
 const { downloads, modelOfJob, openInPlayground } = await import('../src/lib/stores/downloads.svelte.ts');
 const file = (name, kind, task, architecture) => ({ id: name, name, filename: name, path: `C:/Models/${name}`, kind, task, architecture, is_ready: true });
@@ -118,10 +118,26 @@ test('memory pairs keep matching precision and locale separators', () => {
       state.language = language;
       assert.deepEqual(formatBytesPair(2 * GiB, 15.9 * GiB), { used: `2${separator}0`, rest: ` / 15${separator}9 GB` });
       assert.deepEqual(formatBytesPair(512 * 1024 ** 2, 2 * GiB), { used: `512${separator}0 MB`, rest: ` / 2${separator}0 GB` });
-      assert.deepEqual(formatBytesPair(0, 16 * GiB), { used: `0${separator}0 B`, rest: ` / 16${separator}0 GB` });
+      assert.deepEqual(formatBytesPair(0, 16 * GiB), { used: `0 B`, rest: ` / 16${separator}0 GB` });
       assert.deepEqual(formatBytesPair(16 * GiB, 32 * GiB), { used: `16${separator}0`, rest: ` / 32${separator}0 GB` });
       assert.deepEqual(formatBytesPair(2 * GiB, 15.9 * GiB, 2), { used: `2${separator}00`, rest: ` / 15${separator}90 GB` });
       assert.equal(formatBytes(2 * GiB, 1), '2 GB');
+    }
+  } finally {
+    state.language = 'tr-TR';
+  }
+});
+
+test('byte pair text shares precision, units and locale with split pairs', () => {
+  const GiB = 1024 ** 3;
+  try {
+    for (const [language, separator] of [['tr-TR', ','], ['en-US', '.']]) {
+      state.language = language;
+      assert.equal(formatBytesPairText(2 * GiB, 15.9 * GiB), `2${separator}0 / 15${separator}9 GB`);
+      assert.equal(formatBytesPairText(512 * 1024 ** 2, 2 * GiB), `512${separator}0 MB / 2${separator}0 GB`);
+      assert.equal(formatBytesPairText(0, 0), `0 / 0 B`);
+      assert.equal(formatBytesPairText(0, 16 * GiB), `0 B / 16${separator}0 GB`);
+      assert.equal(formatBytesPairText(2 * GiB, 15.9 * GiB, 2), `2${separator}00 / 15${separator}90 GB`);
     }
   } finally {
     state.language = 'tr-TR';
