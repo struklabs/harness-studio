@@ -48,6 +48,8 @@ Release notes with system requirements and known limitations (English and Turkis
 Planned work is tracked in the [roadmap](en/ROADMAP.md).
 
 ### Added
+- MLX audio engine (Apple Silicon): text to speech with Chatterbox Turbo, Soprano, VoxCPM2 and Spark-TTS besides Qwen3-TTS; the Hub marks their mlx-community repos "Speaks with MLX". Long texts now stop at the time limit on models that cannot stream.
+- MLX ses motoru (Apple Silicon): Qwen3-TTS'in yanında Chatterbox Turbo, Soprano, VoxCPM2 ve Spark-TTS ile seslendirme; Hub bu ailelerin mlx-community depolarını "MLX ile konuşur" diye işaretler. Akış yapamayan modellerde uzun metinler artık süre sınırında durur.
 - Documentation: corrected platform packages, runtime locations, context defaults, tool/task counts, MLX speech recognition, and Playground controls; aligned English and Turkish guides and locale navigation paths.
 - Belgeler: platform paketleri, motor konumları, bağlam varsayılanları, araç/görev sayıları, MLX konuşma tanıma ve Playground denetimleri düzeltildi; İngilizce ve Türkçe kılavuzlar ile yerelleştirilmiş yollar eşitlendi.
 - MLX audio: Whisper and Parakeet speech recognition on Apple Silicon (macOS 14+) through `/v1/audio/transcriptions`; Hub marks supported MLX repositories as running with mlx-audio.
@@ -97,6 +99,18 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Speech recognition with Hugging Face CTC models (wav2vec2, HuBERT, WavLM, Data2Vec Audio, UniSpeech) exported to ONNX, for example `Xenova/wav2vec2-base-960h`. Model Hub recognizes them and offers the FP32 and quantized exports. They run in the ONNX sidecar (DirectML, CUDA or CPU) behind the gateway's `/v1/audio/transcriptions`, in Playground > Speech, in chat dictation and in `harness transcribe`. Long recordings are split into 20-second pieces with overlap, and segment times break at words or pauses. Source-only speech repositories show "Needs Conversion".
 
 ### Changed
+- Model Hub: CTranslate2 Whisper exports (faster-whisper) now point to the matching whisper.cpp build, with an Open whisper.cpp Build button that preselects the right file.
+- Model Hub: CTranslate2 Whisper çıktıları (faster-whisper) artık eşleşen whisper.cpp sürümünü gösterir; whisper.cpp Sürümünü Aç düğmesi doğru dosyayı seçili getirir.
+- Documentation: Windows uninstall data retention (Delete the application data option), registry key, full-removal steps (CLI login service, Credential Manager), HIP/Vulkan fallback, DirectML on Intel, sign-in autostart wording, and NSIS/MSI notes corrected in the READMEs, guides, and locale strings.
+- Dokümantasyon: Windows kaldırma veri koruması (Uygulama verilerini sil seçeneği), kayıt defteri anahtarı, tam kaldırma adımları (CLI oturum servisi, Kimlik Bilgileri Yöneticisi), HIP/Vulkan yedeği, Intel'de DirectML, oturum açınca başlatma ifadesi ve NSIS/MSI notları README'lerde, kılavuzlarda ve yerel metinlerde düzeltildi.
+- App update (Windows): running servers, Lemonade, MCP servers and pending analytics are now stopped cleanly after the update is downloaded and verified and before the installer starts; previously the updater exited the app first and only the Job Object ended them.
+- Uygulama güncellemesi (Windows): çalışan sunucular, Lemonade, MCP sunucuları ve bekleyen analitik verileri, güncelleme indirilip doğrulandıktan sonra ve kurucu başlamadan önce temiz biçimde durdurulur; önceden güncelleyici uygulamayı önce kapatıyor, yalnızca Job Object bunları sonlandırıyordu.
+- Labels: the download queue's resume button reads "Devam Et" (Title Case) in Turkish; the tool workbench help names the real "Generate Answer" button.
+- Etiketler: indirme kuyruğundaki devam düğmesi "Devam Et" olarak yazılır; araç çalışma alanı yardımı gerçek "Yanıtı Üret" düğmesini anar.
+- Model Hub: repositories no engine can run now show a precise reason (own package, unsupported architecture, safetensors only, CTranslate2 export, Apple only, pipeline config only, component only) instead of a generic "no GGUF file".
+- Model Hub: hiçbir motorun çalıştıramadığı depolar artık genel "GGUF dosyası yok" yerine kesin bir neden gösterir (kendi paketi, desteklenmeyen mimari, yalnızca safetensors, CTranslate2 dışa aktarımı, yalnızca Apple, yalnızca boru hattı ayarı, yalnızca parça).
+- Model Hub: cards show a short refusal label (for example "Needs Its Own Package"); the full reason stays in the tooltip and the drawer.
+- Model Hub: kartlar kısa bir ret etiketi gösterir (ör. "Kendi Paketi Gerekli"); tam gerekçe ipucunda ve çekmecede kalır.
 - Gateway loads on small cards and CUDA: a model the gateway loads gets 4 concurrent requests whenever its context is 8k or more (it was context / 8k, so a 4 GB card's Qwen3-4B at 12k ran 4 streams one after another: 54 t/s in total, up to 14.5 s to the first token; now 148 t/s and 0.8 s); the gateway still holds requests that do not fit the shared pool, and each request can still use the whole context. On CUDA a unified pool keeps llama.cpp's host prompt cache on (it clears idle slots; without it a single stream after concurrent use ran 10-40 % slower, the 0.6B 157.7 against 183 t/s); other backends keep `--cache-ram 0`.
 - Playground: with tools on, a new conversation on a model a local Harness server has loaded sends its fixed prefix (system prompt, tool guidance, tool definitions; about 2.2k tokens) once ahead with one output token, so llama-server's prompt cache holds it and the first message processes only the user's text (Qwen3-4B on a CPU: first token 61 s → 0.5 s). Only to loopback servers, once per conversation; the first message waits for a warm-up still in flight and is never slower. Tool definitions are listed in a fixed order (built-ins first, then by name), so the prefix does not change with registration order. The warm-up is not counted in the Dashboard, Analytics or traces: the gateway drops the record of a one-token, non-streamed request marked `x-harness-purpose: warmup`, and only for Harness's own client token.
 - Speech to text on Linux (whisper.cpp ships a CPU-only build there): onboarding and the Hub variant drawer recommend whisper `small` before `large-v3-turbo` (an 11 s clip: 4.2 s instead of 18.9 s with the language given). The Playground Speech tab starts with the interface language as the audio language, so whisper skips language detection (it doubles the time on a CPU: 7.3 s vs 4.2 s with `small`); clearing it detects the language.
@@ -104,6 +118,66 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed
+- Settings shows each ONNX Runtime build's download size and size on disk as two named figures; the CUDA build no longer appears as ~2.1, 1.8 and 2.5 GB in three places. The engine card shows ONNX Runtime as installed after the first ONNX model installs it automatically. A damaged ONNX Runtime install (files missing or changed in size) is named, with an Install Again button, instead of reading as not installed.
+- Ayarlar her ONNX Runtime yapısının indirme boyutunu ve disk boyutunu iki ayrı, adlandırılmış değer olarak gösterir; CUDA yapısı artık üç yerde ~2,1, 1,8 ve 2,5 GB olarak görünmez. İlk ONNX modeli ONNX Runtime'ı otomatik kurduktan sonra motor kartı onu kurulu gösterir. Bozuk ONNX Runtime kurulumu (eksik ya da boyutu değişmiş dosyalar) "kurulu değil" sayılmak yerine dosya adlarıyla ve Yeniden Kur düğmesiyle gösterilir.
+- Dashboard: the first memory reading after start is no longer shown as 0 B on a busy machine.
+- Dashboard: yoğun bir makinede başlangıçtan sonraki ilk bellek okuması artık 0 B görünmez.
+- Windows: the start-at-login entry quotes the app path (the default install folder has a space), is always written for the current user (never all users, even when the app runs elevated), and an earlier unquoted entry is rewritten at launch. A start-at-login status that cannot be read is shown as an error in Settings instead of as off.
+- Windows: oturum açılışında başlatma girdisi uygulama yolunu tırnak içine alır (varsayılan kurulum klasöründe boşluk var), yönetici olarak çalışsa bile her zaman yalnız geçerli kullanıcı için yazılır (tüm kullanıcılar için asla) ve önceki tırnaksız girdi açılışta yeniden yazılır. Okunamayan oturum açılışı durumu Ayarlar'da kapalı yerine hata olarak gösterilir.
+- Closing the window again while the "Close Harness Studio?" question is open now only brings the window forward instead of quitting the app.
+- "Harness Studio kapatılsın mı?" sorusu açıkken pencereyi yeniden kapatmak artık uygulamadan çıkmaz, yalnızca pencereyi öne getirir.
+- Model paths with non-ASCII characters (for example Turkish İ and ı) are no longer truncated when saved as portable paths; the relative part is now cut by path components.
+- ASCII olmayan karakterler içeren model yolları (örneğin Türkçe İ ve ı) taşınabilir yol olarak kaydedilirken artık kesilmez; göreli kısım yol bileşenlerine göre ayrılır.
+- Installing the background service from a network (UNC) executable path now keeps the correct `\server\share\...` path.
+- Arka plan hizmeti ağ (UNC) üzerindeki bir çalıştırılabilir dosyadan kurulurken doğru `\server\share\...` yolu korunur.
+- NVIDIA CUDA and Vulkan driver detection on Windows now uses the real system directory instead of a fixed `C:\Windows`.
+- Windows'ta NVIDIA CUDA ve Vulkan sürücü algılaması artık sabit `C:\Windows` yerine gerçek sistem dizinini kullanır.
+- The built-in shell tool now reports a clear error for a network (UNC) working directory instead of running in a different directory.
+- Yerleşik kabuk aracı, ağ (UNC) çalışma dizininde farklı bir dizinde çalışmak yerine açık bir hata bildirir.
+- Python engines: on Windows a data folder whose path would exceed MAX_PATH (long paths off) is refused before any download with a clear message instead of a traceback at the verify step.
+- Python motorları: Windows'ta yolu MAX_PATH'i aşacak veri klasörü (uzun yol desteği kapalıyken) indirmeden önce, doğrulama adımında çıkan hata yerine açık bir iletiyle reddedilir.
+- Model Hub: original VibeVoice packages without the Transformers layout show a conversion requirement.
+- Model Hub: Transformers düzeni olmayan özgün VibeVoice paketleri dönüştürme gereksinimini gösterir.
+- Model Hub: AuK listings report the unsupported multi-GGUF package instead of advertising runnable variants.
+- Model Hub: AuK listeleri çalışabilir varyantlar göstermek yerine desteklenmeyen çoklu GGUF paketini açıklar.
+- Model Hub: SDXL refiner uses its Diffusers folder; native single-file refiner checkpoints are unsupported.
+- Model Hub: SDXL refiner Diffusers klasörünü kullanır; yerel tek dosyalı refiner modelleri desteklenmez.
+- Image generation: Qwen Image Edit 2511 bundles include the required vision projector.
+- Görsel üretimi: Qwen Image Edit 2511 paketleri gerekli görüntü projektörünü içerir.
+- Model Hub: text encoder and VAE folders are excluded from main model recommendations.
+- Model Hub: metin kodlayıcı ve VAE klasörleri ana model önerilerinden çıkarılır.
+- Settings > Gateway: typing a default idle time no longer crashes the window; the value is saved.
+- Ayarlar > Ağ Geçidi: varsayılan boşta kalma süresi yazınca pencere çökmüyor; değer kaydediliyor.
+- Starting a second server while another one holds GPU memory: when no context keeps the whole model on the GPU, it takes only the layers the free memory holds (the rest on the CPU) and says so in its log. Before, it took every layer the empty card would hold; Windows then paged both servers on every switch (1.3-2 s on a 4 GB card) and drivers that cannot page failed the load.
+- Başka bir sunucu GPU belleğini tutarken ikinci sunucu başlatma: hiçbir bağlam modelin tamamını GPU'da tutamıyorsa yalnız boş belleğin aldığı kadar katman GPU'ya gider (kalanı CPU'da) ve log bunu söyler. Önce boş kartın alacağı kadar katman alıyordu; Windows her geçişte iki sunucuyu da sayfalıyordu (4 GB kartta 1,3-2 sn), sayfalayamayan sürücülerde yükleme başarısız oluyordu.
+- Model Hub: VieNeu v3 Turbo is listed as not runnable because it needs the SEA-G2P text frontend, which is not supported yet.
+- Model Hub: VieNeu v3 Turbo, henüz desteklenmeyen SEA-G2P metin ön işleyicisi gerektiği için çalıştırılamaz olarak listelenir.
+- Speech: audio.cpp worker errors include the actual runtime error in server logs and response details.
+- Konuşma: audio.cpp işçi hataları, sunucu günlüklerinde ve yanıt ayrıntılarında gerçek çalışma zamanı hatasını içerir.
+- Model Hub: native Nemotron ASR folders take precedence over unsupported GGUF conversions and show a precise refusal because the Python engine does not include the required librosa dependency (also applies to Parakeet processors).
+- Model Hub: yerel Nemotron ASR klasörleri desteklenmeyen GGUF dönüşümlerinden önce seçilir ve Python motorunda gerekli librosa bağımlılığı bulunmadığından kesin bir çalıştırılamama nedeni gösterilir (Parakeet işlemcileri için de geçerlidir).
+- Model Hub: full Lightning image checkpoints are offered separately from LoRAs, with complete Qwen Edit 2511 companions and settings.
+- Model Hub: tam Lightning görsel ağırlıkları LoRA dosyalarından ayrı sunulur; Qwen Edit 2511 yardımcı dosyaları ve ayarları tamamlanır.
+- Model Hub: exact repository searches include non-GGUF repositories alongside existing results.
+- Model Hub: tam depo aramaları mevcut sonuçların yanında GGUF dışındaki depoları da gösterir.
+- Model Hub: task support includes installed Python image and speech engines and refreshes when returning to the Hub.
+- Model Hub: görev desteği kurulu Python görsel ve konuşma motorlarını kapsar ve Hub'a dönüşte yenilenir.
+- Image and video generation: a request without a seed (the Playground's "Random" seed, OpenAI clients) gets a random one. sd-server used its fixed default 42, so the same prompt always gave the same image.
+- Görsel ve video üretimi: tohumsuz istek (Playground'da "Rastgele" tohum, OpenAI istemcileri) rastgele tohum alıyor. sd-server sabit varsayılanı 42'yi kullanıyordu; aynı istem hep aynı görseli veriyordu.
+- Windows: Python engine environments (python-hf, conversion) install on machines where uv cannot follow its own Python link under %APPDATA% (seen on Windows 11 25H2); the venv is made from the unpacked Python directly. Before, the install failed every time with "Missing expected target directory for Python minor version link".
+- Windows: Python motor ortamları (python-hf, dönüştürme), uv'nin %APPDATA% altındaki kendi Python bağlantısını izleyemediği makinelerde de kuruluyor (Windows 11 25H2'de görüldü); sanal ortam açılmış Python'dan doğrudan kuruluyor. Önce kurulum her seferinde "Missing expected target directory for Python minor version link" ile düşüyordu.
+- On a GPU smaller than an image model (Z-Image Turbo with its text encoder on a 4 GB card), the gateway no longer refuses the generation. stable-diffusion.cpp keeps what does not fit in system memory, so the model loads and runs more slowly.
+- Görsel modelden küçük bir GPU'da (4 GB kartta metin kodlayıcısıyla Z-Image Turbo) ağ geçidi üretimi artık reddetmiyor. stable-diffusion.cpp sığmayanı sistem belleğinde tutuyor; model yükleniyor ve daha yavaş çalışıyor.
+- When the GPU memory is short, the gateway no longer tells you to stop a server that runs on the CPU and frees no GPU memory.
+- GPU belleği yetmediğinde ağ geçidi artık CPU'da çalışan ve GPU belleği boşaltmayacak bir sunucuyu durdurmanızı önermiyor.
+- The Hub's fit column for image models (stable-diffusion.cpp) now counts the VAE and text encoder the model loads with and follows the file size. A model larger than the GPU shows "Partial offload" instead of a misleading "Fits in VRAM".
+- Hub'ın donanım uyumu sütunu görsel modellerde (stable-diffusion.cpp) artık modelle yüklenen VAE ve metin kodlayıcıyı sayıyor ve dosya boyutuyla tutarlı. GPU'dan büyük model yanıltıcı "VRAM'e sığıyor" yerine "Kısmi aktarım" gösteriyor.
+- An image model larger than the GPU is loaded with part of its weights in system memory only when that memory is free and the installed stable-diffusion.cpp build supports it. A GPU-memory error no longer names servers known to run on the CPU, and still names those whose GPU use is unknown.
+- GPU'dan büyük bir görsel model, ağırlıklarının bir kısmı sistem belleğinde olacak şekilde yalnız o bellek boşsa ve kurulu stable-diffusion.cpp derlemesi bunu destekliyorsa yükleniyor. GPU belleği hatası artık CPU'da çalıştığı bilinen sunucuları göstermiyor; GPU kullanımı bilinmeyenleri göstermeye devam ediyor.
+- The Hub no longer shows "Partial offload" for an image model too large for the GPU when the installed stable-diffusion.cpp build cannot keep weights in system memory. The fit column no longer flickers back to an estimate that leaves out the model's VAE and text encoder.
+- Kurulu stable-diffusion.cpp derlemesi ağırlıkları sistem belleğinde tutamıyorsa Hub, GPU'ya sığmayan görsel model için artık "Kısmi aktarım" göstermiyor. Uyum sütunu da modelin VAE ve metin kodlayıcısını saymayan eski bir tahmine geri dönmüyor.
+- Updates: when the installer cannot start after the running servers were stopped, the error says so and asks to start them again.
+- Güncellemeler: çalışan sunucular durdurulduktan sonra yükleyici başlatılamazsa hata bunu belirtir ve sunucuların yeniden başlatılmasını ister.
 - Linux updater: a .deb install was offered "Install Update" like the AppImage. The updater then downloaded the AppImage and rejected it, or asked for pkexec/sudo dpkg. A .deb install now says it cannot update itself and opens the releases page instead. An AppImage updated after a login start no longer comes back hidden in the tray (`--minimized` is not passed to the new version).
 - Linux güncelleyici: .deb kurulumuna AppImage gibi "Güncellemeyi Kur" sunuluyordu; güncelleyici AppImage'ı indirip reddediyor ya da pkexec/sudo dpkg istiyordu. .deb kurulumu artık kendini güncelleyemeyeceğini söylüyor ve sürümler sayfasını açıyor. Oturum açılışında başlamış bir AppImage güncellemeden sonra tepside gizli açılmıyor (`--minimized` yeni sürüme geçirilmiyor).
 - Linux, AMD APUs: GPU memory showed only the BIOS carve-out (for example 467/512 MB), and a fully offloaded llama-server about 15 MB, because an APU's GPU buffers live in GTT. On integrated AMD GPUs the Dashboard total and the per-process breakdown now count VRAM plus GTT (from `mem_info_gtt_*` and the fdinfo `drm-resident-gtt`). Discrete cards are unchanged.
