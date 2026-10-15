@@ -2,6 +2,7 @@ import { normalizeTranscriptionText } from './transcriptionText';
 // Playground Speech tab: request helper for the gateway's /v1/audio/transcriptions and
 // /v1/audio/translations (a real whisper-server behind it; nothing is simulated).
 import { describeErrorBody } from './sse';
+import { truncationOf, type Truncation } from './speechHeaders';
 
 export type AudioTask = 'transcriptions' | 'translations';
 export type AudioFormat = 'json' | 'text' | 'srt' | 'vtt' | 'verbose_json';
@@ -15,6 +16,8 @@ export interface TranscribeResult {
   duration: number | null;
   ms: number;
   segments?: { start: number; end: number; text: string }[];
+  /** Only part of the audio was transcribed (`x-harness-truncated`). */
+  truncated: Truncation;
 }
 
 export { isSpeechFile, isSpeechDefinition, isOnnxCtcDefinition, isCrispasrDefinition, crispasrCanTranslate, isTranscriptionDefinition, isAudioLlmDefinition, audioLlmTranslates } from './speechModels';
@@ -47,11 +50,12 @@ export async function fetchTranscription(
   const res = await fetch(`${baseUrl}/audio/${task}`, { method: 'POST', headers, body: form, signal });
   const body = await res.text();
   const ms = performance.now() - started;
+  const truncated = truncationOf(res.headers.get('x-harness-truncated'));
   if (!res.ok) throw new Error(`HTTP ${res.status}: ${describeErrorBody(body) || res.statusText}`);
   if (opts.format === 'srt' || opts.format === 'vtt') {
-    return { text: body, format: opts.format, language: null, duration: null, ms };
+    return { text: body, format: opts.format, language: null, duration: null, ms, truncated };
   }
-  if (opts.format === 'text') return { text: tidySegments(body), format: opts.format, language: null, duration: null, ms };
+  if (opts.format === 'text') return { text: tidySegments(body), format: opts.format, language: null, duration: null, ms, truncated };
   const json = JSON.parse(body) as { text?: unknown; language?: unknown; duration?: unknown; segments?: unknown };
   return {
     text: typeof json.text === 'string' ? tidySegments(json.text) : '',
@@ -59,6 +63,7 @@ export async function fetchTranscription(
     language: typeof json.language === 'string' ? json.language : null,
     duration: typeof json.duration === 'number' ? json.duration : null,
     ms,
+    truncated,
     segments: Array.isArray(json.segments) ? json.segments.filter((s): s is { start: number; end: number; text: string } =>
       s && typeof s.start === 'number' && typeof s.end === 'number' && typeof s.text === 'string') : [],
   };

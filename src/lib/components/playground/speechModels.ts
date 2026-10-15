@@ -38,9 +38,12 @@ const samePath = (a: string, b: string) => normalPath(a) === normalPath(b);
  *  `mmproj` has an audio encoder. Mirrors `asr::llm::projector_of`; the gateway transcribes with it. */
 export function audioLlmProjector(d: ModelDefinition, files: HeaderFile[] = []): string | null {
   const mmproj = d.mmproj;
-  if (!mmproj) return null;
+  // Like the gateway: a local GGUF model with a projector file.
+  if (!mmproj || d.base.kind !== 'local' || !d.base.path.toLowerCase().endsWith('.gguf')) return null;
   const gguf = files.find(f => samePath(f.path, mmproj))?.gguf;
-  return gguf?.has_audio_encoder ? gguf.audio_projector || 'audio' : null;
+  const projector = gguf?.has_audio_encoder ? gguf.audio_projector || 'audio' : null;
+  // A speaker encoder (Qwen3-TTS's `qwen3tts_spkenc`) reads a voice sample, it does not hear speech.
+  return projector && !projector.endsWith('_spkenc') ? projector : null;
 }
 
 export function isAudioLlmDefinition(d: ModelDefinition, files: HeaderFile[] = []): boolean {

@@ -309,6 +309,12 @@
           <MessageSquarePlus />{t('asr.to_chat')}
         </Button>
       </div>
+      {#if result.truncated}
+        <p class="flex items-start gap-2 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
+          <TriangleAlert class="mt-px size-4 shrink-0 text-warning" aria-hidden="true" />
+          <span class="min-w-0 flex-1">{t(result.truncated === 'tokens' ? 'asr.truncated_tokens' : 'asr.truncated')}</span>
+        </p>
+      {/if}
       {#if result.segments?.length}
         <div class="flex flex-col gap-2">
           {#each result.segments as segment}

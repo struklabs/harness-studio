@@ -171,6 +171,14 @@ fn multipart_body(filename: &str, audio: &[u8], fields: &[(&str, String)]) -> (S
 }
 
 /// Whether a definition serves speech recognition (its file is a whisper ggml model).
+/// The `temperature` field as a number from 0 to 1 (`NaN` and infinities are not).
+fn temperature_of(t: &str) -> Option<f64> {
+    t.trim()
+        .parse::<f64>()
+        .ok()
+        .filter(|t| t.is_finite() && (0.0..=1.0).contains(t))
+}
+
 pub fn is_speech_model(def: &ModelDefinition) -> bool {
     use harness_core::domain::ModelRef;
     use harness_core::engine::ModelFormat;
@@ -306,11 +314,12 @@ async fn run(
                 })?,
         ),
     };
-    if let Some(t) = form.temperature.as_deref() {
-        if t.parse::<f64>().map_or(true, |t| !(0.0..=1.0).contains(&t)) {
-            return Err(bad("temperature must be a number between 0 and 1.").param("temperature"));
-        }
-    }
+    let temperature = match form.temperature.as_deref() {
+        None => None,
+        Some(t) => Some(temperature_of(t).ok_or_else(|| {
+            bad("temperature must be a number between 0 and 1.").param("temperature")
+        })?),
+    };
 
     let scheduler = state.scheduler.clone();
     let settings = scheduler.settings();
@@ -394,7 +403,7 @@ async fn run(
                 audio: bytes,
                 language: form.language.as_deref(),
                 prompt: form.prompt.as_deref(),
-                temperature: form.temperature.as_deref().and_then(|t| t.parse().ok()),
+                temperature,
                 format,
             },
             guard,
@@ -824,6 +833,18 @@ fn shape(format: &str, bytes: &[u8]) -> (&'static str, Vec<u8>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn temperature_is_a_finite_number_from_0_to_1() {
+        assert_eq!(temperature_of("0"), Some(0.0));
+        assert_eq!(temperature_of(" 0.4 "), Some(0.4));
+        assert_eq!(temperature_of("1"), Some(1.0));
+        for bad in [
+            "NaN", "nan", "inf", "-inf", "infinity", "1.01", "-0.1", "", "warm",
+        ] {
+            assert_eq!(temperature_of(bad), None, "{bad}");
+        }
+    }
 
     #[test]
     fn answers_are_shaped_like_openais() {

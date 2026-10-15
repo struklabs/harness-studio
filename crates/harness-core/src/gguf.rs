@@ -1281,6 +1281,52 @@ mod tests {
     }
 
     #[test]
+    fn the_audio_projector_type_is_recorded_for_audio_encoders_only() {
+        // (keys, expected audio_projector): `clip.projector_type` of an audio kind wins over
+        // `clip.audio.projector_type`; a vision projector type is not an audio one.
+        type Keys<'a> = &'a [(&'a str, &'a str)];
+        let cases: [(Keys, Option<&str>); 5] = [
+            (&[("clip.projector_type", "lfm2a")], Some("lfm2a")),
+            (
+                &[("clip.audio.projector_type", "qwen3asr")],
+                Some("qwen3asr"),
+            ),
+            (
+                &[
+                    ("clip.audio.projector_type", "whisper"),
+                    ("clip.projector_type", "ultravox"),
+                ],
+                Some("ultravox"),
+            ),
+            (
+                &[
+                    ("clip.projector_type", "qwen2vl_merger"),
+                    ("clip.audio.projector_type", "qwen25o"),
+                ],
+                Some("qwen25o"),
+            ),
+            (&[("clip.projector_type", "gemma3")], None),
+        ];
+        for (keys, expected) in cases {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("mmproj.gguf");
+            let mut f = File::create(&path).unwrap();
+            f.write_all(b"GGUF").unwrap();
+            f.write_all(&3u32.to_le_bytes()).unwrap();
+            f.write_all(&0u64.to_le_bytes()).unwrap();
+            f.write_all(&(keys.len() as u64 + 1).to_le_bytes()).unwrap();
+            write_kv_str(&mut f, "general.architecture", "clip");
+            for (key, value) in keys {
+                write_kv_str(&mut f, key, value);
+            }
+            drop(f);
+            let meta = read_gguf_metadata(&path).unwrap();
+            assert_eq!(meta.audio_projector.as_deref(), expected, "{keys:?}");
+            assert_eq!(meta.has_audio_encoder, expected.is_some(), "{keys:?}");
+        }
+    }
+
+    #[test]
     fn test_gguf_header_parser() {
         let dir = tempfile::tempdir().unwrap();
         let gguf_file = dir.path().join("test_model.gguf");

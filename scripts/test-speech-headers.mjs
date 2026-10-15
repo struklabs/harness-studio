@@ -10,3 +10,7 @@ test('x-harness-truncated reads as a reason; none is a whole answer', () => {
   assert.equal(truncationOf('something-new'), 'time');
   assert.equal(truncationOf(''), 'time');
 });
+
+test('a transcription cut at its token limit reads as tokens', () => {
+  assert.equal(truncationOf('tokens'), 'tokens');
+});
