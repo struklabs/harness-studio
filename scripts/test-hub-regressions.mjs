@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseSearchQuery } from '../src/lib/components/hub/searchParser.ts';
-import { isCompanionVariant, pickProjectorVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
+import { isCompanionVariant, pickProjectorVariant, recommendFloatVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
 
 test('exact repository IDs retain GGUF and quantization names', () => {
   for (const repo of ['unsloth/Qwen3-4B-GGUF', 'owner/model-Q4_K_M', 'OWNER/Model.gguf']) {
@@ -72,4 +72,32 @@ test('a main GGUF variant brings the best matching projector', () => {
   const sub = v('sub/m-Q4_K_M.gguf', 'Q4_K_M');
   const subProj = v('sub/mmproj-F32.gguf', 'mmproj');
   assert.equal(pickProjectorVariant([sub, f16, subProj], sub), subProj);
+});
+
+const prec = (name, quantization, size) => ({ name, quantization, total_size_bytes: size, shards: [{ filename: `${name}.safetensors` }] });
+
+test('float-only repos recommend FP16 over FP32 and never an unparsed precision', () => {
+  const unknown = prec('sd_xl_turbo_1.0', 'SAFETENSORS', 13_880_000_000);
+  const fp16 = prec('sd_xl_turbo_1.0_fp16', 'FP16', 6_940_000_000);
+  const fp32 = prec('sd_xl_base_fp32', 'FP32', 13_880_000_000);
+  const bf16 = prec('x_bf16', 'BF16', 6_940_000_000);
+  const all = (vs, c) => new Map(vs.map((v) => [v.name, c]));
+  // Unparsed precision no longer wins in recommendVariant when a known one exists.
+  assert.equal(recommendVariant([unknown, fp16], all([unknown, fp16], 'full_gpu')), null);
+  assert.equal(recommendFloatVariant([unknown, fp16], all([unknown, fp16], 'full_gpu')), fp16);
+  assert.equal(recommendFloatVariant([fp32, fp16], all([fp32, fp16], 'full_gpu')), fp16);
+  assert.equal(recommendFloatVariant([fp32, bf16], all([fp32, bf16], 'tight')), bf16);
+  // FP16 fits only partially while FP32 fits nothing better: still FP16.
+  assert.equal(recommendFloatVariant([fp32, fp16], new Map([[fp32.name, 'hybrid'], [fp16.name, 'hybrid']])), fp16);
+  // A tier that fits beats a float that does not.
+  assert.equal(recommendFloatVariant([fp32, fp16], new Map([[fp32.name, 'full_gpu'], [fp16.name, 'hybrid']])), fp32);
+  assert.equal(recommendFloatVariant([unknown], all([unknown], 'full_gpu')), null);
+});
+
+test('an unlabelled GGUF does not beat a known quant; unlabelled-only keeps working', () => {
+  const unlabelled = { name: 'M', quantization: 'Unknown', total_size_bytes: 3_560_000_000, shards: [{ filename: 'M.gguf' }] };
+  const q8 = { name: 'M-Q8_0', quantization: 'Q8_0', total_size_bytes: 1_890_000_000, shards: [{ filename: 'M-Q8_0.gguf' }] };
+  const fits = new Map([[unlabelled.name, 'full_gpu'], [q8.name, 'full_gpu']]);
+  assert.equal(recommendVariant([unlabelled, q8], fits), q8);
+  assert.equal(recommendVariant([unlabelled], fits), unlabelled);
 });
