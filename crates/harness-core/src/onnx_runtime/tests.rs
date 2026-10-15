@@ -494,3 +494,15 @@ async fn real_install_of_the_default_build() {
     // A second call is a no-op.
     assert_eq!(install_in(tmp.path(), variant).await.unwrap(), done);
 }
+
+#[tokio::test]
+async fn removing_a_build_publishes_engines_changed() {
+    let mut rx = crate::events::subscribe();
+    // Nothing is installed under the test data root; removal still succeeds and tells views.
+    remove(OrtVariant::Cpu).unwrap();
+    loop {
+        if let crate::events::CoreEvent::EnginesChanged = rx.recv().await.unwrap() {
+            break;
+        }
+    }
+}

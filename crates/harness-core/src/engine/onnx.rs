@@ -210,11 +210,7 @@ impl ServerEngine for OnnxEngine {
             let damaged = crate::onnx_runtime::damaged(crate::onnx_runtime::OrtVariant::Cuda);
             out.skipped.push(crate::params::SkippedParam {
                 id: PROVIDER_PARAM.into(),
-                reason: if damaged.is_empty() {
-                    format!("cuda_runtime_missing:{to}")
-                } else {
-                    format!("cuda_runtime_damaged:{to}:{}", damaged.join(","))
-                },
+                reason: cuda_fallback_reason(to, &damaged),
             });
         }
         Ok(out)
@@ -412,10 +408,30 @@ pub fn vram_need(config: &LaunchConfig) -> u64 {
     size + compute_bytes(size)
 }
 
+/// Why the CUDA provider fell back to `to`: the CUDA build is not installed, or its install is
+/// damaged (`damaged` lists the missing or resized files).
+fn cuda_fallback_reason(to: impl std::fmt::Display, damaged: &[String]) -> String {
+    if damaged.is_empty() {
+        format!("cuda_runtime_missing:{to}")
+    } else {
+        format!("cuda_runtime_damaged:{to}:{}", damaged.join(","))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::params::ParamValue;
+
+    #[test]
+    fn a_cuda_fallback_names_damaged_files() {
+        assert_eq!(cuda_fallback_reason("dml", &[]), "cuda_runtime_missing:dml");
+        let damaged = vec!["cudnn64_9.dll".to_string(), "cublas64_12.dll".to_string()];
+        assert_eq!(
+            cuda_fallback_reason("dml", &damaged),
+            "cuda_runtime_damaged:dml:cudnn64_9.dll,cublas64_12.dll"
+        );
+    }
 
     fn config() -> LaunchConfig {
         LaunchConfig {
