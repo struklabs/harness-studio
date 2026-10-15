@@ -1402,11 +1402,14 @@ impl ProcessManager {
                 .flatten();
                 if let Some((f, chosen)) = choice {
                     launch = chosen;
+                    let lang = crate::config::AppSettings::load().language;
                     if f.context != requested {
-                        let lang = crate::config::AppSettings::load().language;
                         self.push_log(crate::full_offload::full_offload_log_line(
                             f.context, requested, &lang,
                         ));
+                    }
+                    if f.free_memory_cut {
+                        self.push_log(crate::full_offload::free_memory_log_line(f.layers, &lang));
                     }
                 }
             }
@@ -1634,7 +1637,8 @@ impl ProcessManager {
                 self.push_log(line);
             }
         }
-        if is_llama && config.gpu_layers > 0 {
+        // The launch's layers: the full-offload rule may have moved all of them to the CPU.
+        if is_llama && launch.gpu_layers > 0 {
             if let Some(target) = config.main_gpu.or_else(crate::gpu::primary_gpu_index) {
                 self.push_log(format!(
                     "[Harness Studio] Target GPU: adapter index {} → --main-gpu {} (split-mode: {})",
