@@ -451,6 +451,20 @@ const OWN_PACKAGE_NAME_TOKENS: &[&str] = &[
     "xtts",
 ];
 
+/// Whether a repo-name word is one of `words` or one of them with a version after it
+/// (`cosyvoice3`, `voxcpm2`, `xttsv2`).
+fn has_family_token(tokens: &[String], words: &[&str]) -> bool {
+    tokens.iter().any(|t| {
+        words.iter().any(|w| {
+            t.strip_prefix(w).is_some_and(|rest| {
+                let digits = rest.strip_prefix('v').unwrap_or(rest);
+                rest.is_empty()
+                    || (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+            })
+        })
+    })
+}
+
 /// `model_type`s of speech repos that need their own package (not in transformers).
 const OWN_PACKAGE_MODEL_TYPES: &[&str] = &[
     "higgs_multimodal_qwen3",
@@ -534,7 +548,7 @@ pub fn refine_no_gguf(f: &RefusalFacts) -> NotRunnable {
         && !has_ext(".onnx");
     if library.is_some_and(|l| OWN_PACKAGE_LIBRARIES.contains(&l))
         || model_type.is_some_and(|m| OWN_PACKAGE_MODEL_TYPES.contains(&m))
-        || (speech && (has_token(OWN_PACKAGE_NAME_TOKENS) || pickle_only))
+        || (speech && (has_family_token(&tokens, OWN_PACKAGE_NAME_TOKENS) || pickle_only))
     {
         return NotRunnable::NeedsOwnPackage;
     }
@@ -1195,6 +1209,60 @@ mod tests {
         ));
         assert_eq!(gpt2.inferred_task, Some("text-generation"));
         assert_eq!(gpt2.source, Some(TaskSource::Gguf));
+    }
+
+    #[test]
+    fn a_versioned_name_of_an_own_package_family_needs_that_package() {
+        // FunAudioLLM/Fun-CosyVoice3-0.5B-2512 (2026-10-16): text-to-speech, no library name,
+        // `.pt` checkpoints next to ONNX parts and a safetensors LLM. Its name word is
+        // `cosyvoice3`, which the refusal used to miss ("no GGUF" instead of its own package).
+        let files: Vec<String> = [
+            "CosyVoice-BlankEN/config.json",
+            "CosyVoice-BlankEN/model.safetensors",
+            "campplus.onnx",
+            "config.json",
+            "cosyvoice3.yaml",
+            "flow.decoder.estimator.fp32.onnx",
+            "flow.pt",
+            "hift.pt",
+            "llm.pt",
+            "speech_tokenizer_v3.onnx",
+        ]
+        .map(String::from)
+        .to_vec();
+        let facts = |repo_id| RefusalFacts {
+            repo_id,
+            tags: &[],
+            files: &files,
+            library: None,
+            task: Some("text-to-speech"),
+            format: crate::hub_compat::ModelFormat::Safetensors,
+            config: None,
+            apple: false,
+        };
+        assert_eq!(
+            refine_no_gguf(&facts("FunAudioLLM/Fun-CosyVoice3-0.5B-2512")),
+            NotRunnable::NeedsOwnPackage
+        );
+        let tokens = |id| name_tokens(id);
+        for id in [
+            "a/CosyVoice2-0.5B",
+            "a/VoxCPM2",
+            "a/XTTS-v2",
+            "a/xttsv2",
+            "a/F5-TTS",
+        ] {
+            assert!(
+                has_family_token(&tokens(id), OWN_PACKAGE_NAME_TOKENS),
+                "{id}"
+            );
+        }
+        for id in ["a/cosyvoicex", "a/f5x", "a/kokorov", "a/parlerish"] {
+            assert!(
+                !has_family_token(&tokens(id), OWN_PACKAGE_NAME_TOKENS),
+                "{id}"
+            );
+        }
     }
 
     #[test]
