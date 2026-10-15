@@ -73,6 +73,8 @@
 
   let showCustomModal = $state(false);
   let selectedRepo = $state<HfModelSearchResult | null>(null);
+  /** File of the opened repo to preselect in its drawer (set when jumping from a CTranslate2 repo to its ggml twin). */
+  let focusFile = $state<string | null>(null);
   // A navigation requested from outside (a toast action) must not leave the modal drawer open.
   let lastCloseTick = app.overlayCloseTick;
   $effect(() => {
@@ -80,6 +82,7 @@
     if (tick === lastCloseTick) return;
     lastCloseTick = tick;
     selectedRepo = null;
+    focusFile = null;
     showCustomModal = false;
   });
   let scroller = $state<HTMLElement | null>(null);
@@ -141,6 +144,31 @@
       void runList();
     });
   });
+
+  // Another view (the drawer of a CTranslate2 repo) asks for a specific repo with a file preselected.
+  $effect(() => {
+    const req = app.requestedHubRepo;
+    if (!req) return;
+    untrack(() => {
+      app.requestedHubRepo = null;
+      void openRequestedRepo(req.id, req.file ?? null);
+    });
+  });
+
+  async function openRequestedRepo(id: string, file: string | null) {
+    try {
+      const page = await fetchPage({ query: id, include_non_gguf: true, limit: 20 });
+      const hit = page.items.find((r) => r.id.toLowerCase() === id.toLowerCase());
+      if (hit) {
+        focusFile = file;
+        selectedRepo = hit;
+        return;
+      }
+    } catch {
+      // Falls back to a plain search below.
+    }
+    app.requestedHubSearch = id;
+  }
 
   // The Hub always shows the list (an empty query lists by sort + filters): fetch it on open (served from the cache when fresh).
   void runList();
@@ -420,7 +448,10 @@
               layout={viewMode}
               selected={selectedRepo?.id === repo.id}
               quantFilter={selectedQuantFilter}
-              onSelect={() => (selectedRepo = repo)}
+              onSelect={() => {
+                focusFile = null;
+                selectedRepo = repo;
+              }}
             />
           {/each}
         </div>
@@ -456,7 +487,15 @@
   {hardware}
   quantFilter={selectedQuantFilter}
   sizeFilter={selectedSizeFilter}
-  onClose={() => (selectedRepo = null)}
+  {focusFile}
+  onOpenRepo={(id, file) => {
+    focusFile = null;
+    app.requestedHubRepo = { id, file };
+  }}
+  onClose={() => {
+    selectedRepo = null;
+    focusFile = null;
+  }}
   onClearFilters={clearVariantFilters}
 />
 

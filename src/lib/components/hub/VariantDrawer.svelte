@@ -32,6 +32,7 @@
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
+  import { ggmlTwinFor, isTwinFile } from './ct2Twin';
   import { isCompanionVariant, isCtcVariant, isWhisperVariant, pickProjectorVariant, recommendCrispasrVariant, recommendCtcVariant, recommendFloatVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
   import { security } from '#lib/stores/security.svelte.js';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
@@ -42,11 +43,15 @@
     hardware: SystemHardwareInfo | null;
     quantFilter: string;
     sizeFilter: string;
+    /** File of this repo to preselect and highlight (the ggml twin the user was sent to). */
+    focusFile?: string | null;
+    /** Opens another repo of the Hub, optionally with a file preselected. */
+    onOpenRepo?: (id: string, file?: string) => void;
     onClose: () => void;
     onClearFilters: () => void;
   }
 
-  let { repo, hardware, quantFilter, sizeFilter, onClose, onClearFilters }: Props = $props();
+  let { repo, hardware, quantFilter, sizeFilter, focusFile = null, onOpenRepo, onClose, onClearFilters }: Props = $props();
 
   let tab = $state<'files' | 'card'>('files');
   let isLoadingVariants = $state(false);
@@ -83,6 +88,8 @@
   let artifactUpdateMsg = $state<string | null>(null);
 
   let repoId = $derived(repo?.id ?? null);
+  /** A CTranslate2 export whose ggml build the whisper.cpp engine runs. */
+  let ggmlTwin = $derived(repo?.compatibility.status === 'unsupported' || repo?.format === 'ctranslate2' ? ggmlTwinFor(repo?.id) : null);
 
   let unsupportedFormat = $derived(repo?.compatibility.status === 'unsupported' ? repo.compatibility.format : null);
   /** Its runtime has no build for this OS / architecture (ONNX on an Intel Mac): no download either. */
@@ -448,9 +455,17 @@
   });
   let visibleVariants = $derived.by(() => {
     if (uiLevel.advanced || showAllFiles) return filteredVariants;
+    const focused = focusFile ? filteredVariants.find((v) => isTwinFile(v.shards[0]?.filename ?? v.name, focusFile)) : undefined;
+    if (focused) return [focused];
     const choice = filteredVariants.find((v) => v.name === recommended?.name) ?? filteredVariants.find((v) => !isCompanionVariant(v)) ?? filteredVariants[0];
     return choice ? [choice] : [];
   });
+  /** Scrolls the preselected row into view once it is rendered. */
+  function focusRow(focused: boolean) {
+    return (el: HTMLElement) => {
+      if (focused) el.scrollIntoView({ block: 'center' });
+    };
+  }
   let filtersActive = $derived(quantFilter !== 'ALL' || sizeFilter !== 'ALL');
 </script>
 
@@ -641,8 +656,14 @@
               {:else if unsupportedFormat}
                 <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
                   <Ban class="mt-px size-3.5 shrink-0 text-warning" />
-                  <span class="min-w-0 flex-1">{repo.not_runnable === 'audio_cpp_unsupported' ? t('hub.not_runnable_audio_cpp') : isPreciseRefusal(repo.not_runnable) ? t(notRunnableKey(repo.not_runnable)) : speechNeedsConversion(repo) ? t('hub.asr_needs_conversion_drawer') : unsupportedFormat === 'gguf' ? t('hub.compat_gguf_other_engine_drawer') : t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
+                  <span class="min-w-0 flex-1">{ggmlTwin ? t('hub.ct2_use_ggml') : repo.not_runnable === 'audio_cpp_unsupported' ? t('hub.not_runnable_audio_cpp') : isPreciseRefusal(repo.not_runnable) ? t(notRunnableKey(repo.not_runnable)) : speechNeedsConversion(repo) ? t('hub.asr_needs_conversion_drawer') : unsupportedFormat === 'gguf' ? t('hub.compat_gguf_other_engine_drawer') : t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
                 </div>
+                {#if ggmlTwin}
+                  <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+                    <span class="flex min-w-0 items-center gap-1.5 text-muted-foreground"><Play class="size-3.5 shrink-0 text-success" />{t('hub.ct2_runs_with', { file: ggmlTwin.file })}</span>
+                    <Button variant="outline" size="xs" onclick={() => onOpenRepo?.(ggmlTwin.repo, ggmlTwin.file)}>{t('hub.ct2_open_ggml')}</Button>
+                  </div>
+                {/if}
               {:else if platformBlocked}
                 {@const msg = onnxUnsupportedText(platformBlocked)}
                 <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
@@ -691,7 +712,8 @@
                         {@const isRunningNow = !!local && library.isRunning(local)}
                         {@const hasUpdate = updateFlags[`${repo.id}|${variant.name}`] === true}
                         {@const isRecommended = recommended?.name === variant.name}
-                        <Table.Row>
+                        {@const isFocused = !!focusFile && isTwinFile(variant.shards[0]?.filename ?? variant.name, focusFile)}
+                        <Table.Row class={isFocused ? 'bg-primary/10' : ''} data-focus={isFocused ? 'true' : undefined} {@attach focusRow(isFocused)}>
                           <Table.Cell class="max-w-[220px]">
                             <div class="flex min-w-0 flex-col">
                               <span class="flex items-center gap-1.5">

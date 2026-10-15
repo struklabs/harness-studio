@@ -70,6 +70,8 @@ class AppState {
   requestedTab = $state<string | null>(null);
   /** Search the Model Hub should run when it is shown (consumed by the Hub, which resets it to null). */
   requestedHubSearch = $state<string | null>(null);
+  /** Repo (and file in it) the Model Hub should open in its drawer when shown (consumed by the Hub, then null). */
+  requestedHubRepo = $state<{ id: string; file?: string } | null>(null);
   /** Playground tab another component wants shown (consumed by the Playground, then null). */
   requestedPlaygroundTab = $state<'chat' | 'embedding' | 'rerank' | 'transcription' | 'image' | 'pipeline' | null>(null);
   /** Alias to select in the tab `requestedPlaygroundTab` opens (Embedding / Rerank; consumed with it, then null). */
