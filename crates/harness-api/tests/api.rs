@@ -638,6 +638,70 @@ async fn openapi_document_is_valid_and_lists_every_route() {
     api.server.stop().await;
 }
 
+/// What the SDK generators need: one unique `operationId` per operation (they become method
+/// names), and the auth errors on every operation behind the guard.
+#[test]
+fn openapi_operations_have_unique_ids_and_auth_errors() {
+    let doc: serde_json::Value =
+        serde_json::from_str(&harness_api::openapi_document().to_json().unwrap()).unwrap();
+    let mut ids = std::collections::HashSet::new();
+    for (path, item) in doc["paths"].as_object().unwrap() {
+        for (method, op) in item.as_object().unwrap() {
+            let id = op["operationId"].as_str().unwrap_or_default();
+            assert!(!id.is_empty(), "{method} {path}: no operationId");
+            assert!(
+                ids.insert(id.to_string()),
+                "{method} {path}: duplicate {id}"
+            );
+            // A path parameter is one of the path's `{name}`s: a query struct without
+            // `#[into_params(parameter_in = Query)]` would land in the path.
+            let params = op["parameters"].as_array().cloned().unwrap_or_default();
+            for p in &params {
+                let name = p["name"].as_str().unwrap();
+                if p["in"] == "path" {
+                    assert!(
+                        path.contains(&format!("{{{name}}}")),
+                        "{method} {path}: `{name}` is not a path parameter"
+                    );
+                }
+            }
+            for seg in path.split('/').filter(|s| s.starts_with('{')) {
+                let name = seg.trim_matches(['{', '}']);
+                assert!(
+                    params
+                        .iter()
+                        .any(|p| p["in"] == "path" && p["name"] == name),
+                    "{method} {path}: `{name}` undeclared"
+                );
+            }
+            if path.ends_with("/health") {
+                continue;
+            }
+            for code in ["401", "403"] {
+                assert!(
+                    op["responses"].get(code).is_some(),
+                    "{method} {path}: no {code}"
+                );
+            }
+        }
+    }
+}
+
+/// `sdk/openapi.json` is the document the TypeScript and Python clients are generated from.
+/// After an API change: `node sdk/generate.mjs`.
+#[test]
+fn sdk_openapi_snapshot_is_current() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../sdk/openapi.json");
+    let snapshot: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let doc: serde_json::Value =
+        serde_json::from_str(&harness_api::openapi_document().to_json().unwrap()).unwrap();
+    assert!(
+        snapshot == doc,
+        "sdk/openapi.json is out of date: run `node sdk/generate.mjs`"
+    );
+}
+
 /// The analytics routes answer from the real (possibly empty) `analytics.db` with the read
 /// scope; `/metrics` is the Prometheus text format.
 #[tokio::test]

@@ -257,6 +257,7 @@ pub fn export_definition(
 
 /// What an import found (nothing is saved yet).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct DefinitionImport {
     /// The definition as it would be saved (`id` empty).
     pub definition: ModelDefinition,

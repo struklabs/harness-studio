@@ -88,6 +88,7 @@ pub async fn preview_release(Q(q): Q<ReleaseParams>) -> ApiResult<Json<ReleasePi
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ReleaseParams {
     /// Runtime family whose release naming picks the archive (default: `llama.cpp`).
     pub family: Option<String>,
@@ -121,6 +122,7 @@ pub async fn verify_runtime(
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct RemoveParams {
     /// Remove even when definitions/profiles still choose it.
     #[serde(default)]
@@ -143,6 +145,7 @@ pub async fn remove_runtime(
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct AdviceParams {
     /// Model file path, library model id, or definition alias.
     pub model: String,

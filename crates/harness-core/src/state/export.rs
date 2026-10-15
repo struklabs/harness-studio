@@ -17,6 +17,7 @@ pub const EXPORT_SCHEMA: &str = "harness.conversation.v1";
 const MAX_IMPORT_MESSAGES: usize = 200_000;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ConversationExport {
     pub schema: String,
     #[serde(default)]
@@ -34,6 +35,7 @@ pub struct ConversationExport {
 /// user indexes it with an embedding model. Duplicating or forking a conversation copies the
 /// vectors as well (the `embedding` fields never reach a file).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(default)]
 pub struct ExportedDocument {
     pub id: String,
@@ -55,6 +57,7 @@ pub struct ExportedDocument {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(default)]
 pub struct ExportedChunk {
     pub text: String,
@@ -67,6 +70,7 @@ pub struct ExportedChunk {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(default)]
 pub struct ExportedConversation {
     pub id: String,
@@ -88,6 +92,7 @@ pub struct ExportedConversation {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ExportedMessage {
     pub id: String,
     #[serde(default)]
@@ -105,6 +110,7 @@ pub struct ExportedMessage {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(default)]
 pub struct ExportedVariant {
     pub id: String,
@@ -125,6 +131,8 @@ pub struct ExportedVariant {
 
 /// Attachment metadata (the file itself is not part of the database or the export).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = MessageAttachment))]
 #[serde(default)]
 pub struct Attachment {
     pub id: String,

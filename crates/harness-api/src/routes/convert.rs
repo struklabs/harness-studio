@@ -13,6 +13,7 @@ use utoipa::{IntoParams, ToSchema};
 use crate::error::{blocking, ApiError, ApiResult, Body, ErrorBody, P, Q};
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct PlanQuery {
     /// Hugging Face repo (`owner/name`).
     pub repo: String,
@@ -20,7 +21,7 @@ pub struct PlanQuery {
 
 /// What converting a repo would take: whether the converter handles its architecture, the
 /// files to download, the size of each result type and the disk the run needs.
-#[utoipa::path(get, path = "/convert/plan", tag = "models", params(PlanQuery),
+#[utoipa::path(get, operation_id = "plan_conversion", path = "/convert/plan", tag = "models", params(PlanQuery),
     responses((status = 200, body = ConvertPlan), (status = 403, body = ErrorBody),
         (status = 422, body = ErrorBody)))]
 pub async fn plan(Q(q): Q<PlanQuery>) -> ApiResult<Json<ConvertPlan>> {
@@ -40,7 +41,7 @@ pub struct ConvertRequest {
 }
 
 /// Queues a conversion (download, convert, quantize, place in the library).
-#[utoipa::path(post, path = "/convert", tag = "models", request_body = ConvertRequest,
+#[utoipa::path(post, operation_id = "start_conversion", path = "/convert", tag = "models", request_body = ConvertRequest,
     responses((status = 202, body = ConvertJob), (status = 403, body = ErrorBody),
         (status = 409, body = ErrorBody), (status = 422, body = ErrorBody)))]
 pub async fn start(Body(req): Body<ConvertRequest>) -> ApiResult<(StatusCode, Json<ConvertJob>)> {
@@ -48,13 +49,13 @@ pub async fn start(Body(req): Body<ConvertRequest>) -> ApiResult<(StatusCode, Js
     Ok((StatusCode::ACCEPTED, Json(job)))
 }
 
-#[utoipa::path(get, path = "/convert", tag = "models",
+#[utoipa::path(get, operation_id = "list_conversions", path = "/convert", tag = "models",
     responses((status = 200, body = Vec<ConvertJob>)))]
 pub async fn list() -> Json<Vec<ConvertJob>> {
     Json(convert::jobs())
 }
 
-#[utoipa::path(get, path = "/convert/{id}", tag = "models", params(("id" = u64, Path)),
+#[utoipa::path(get, operation_id = "get_conversion", path = "/convert/{id}", tag = "models", params(("id" = u64, Path)),
     responses((status = 200, body = ConvertJob), (status = 404, body = ErrorBody)))]
 pub async fn get_one(P(id): P<u64>) -> ApiResult<Json<ConvertJob>> {
     convert::job(id)
@@ -63,7 +64,7 @@ pub async fn get_one(P(id): P<u64>) -> ApiResult<Json<ConvertJob>> {
 }
 
 /// Stops a job; a running one is killed, its partial files are kept for a retry.
-#[utoipa::path(post, path = "/convert/{id}/cancel", tag = "models", params(("id" = u64, Path)),
+#[utoipa::path(post, operation_id = "cancel_conversion", path = "/convert/{id}/cancel", tag = "models", params(("id" = u64, Path)),
     responses((status = 204), (status = 404, body = ErrorBody)))]
 pub async fn cancel(P(id): P<u64>) -> ApiResult<StatusCode> {
     convert::cancel(id).map_err(|_| ApiError::not_found("convert", &id.to_string()))?;
@@ -71,7 +72,7 @@ pub async fn cancel(P(id): P<u64>) -> ApiResult<StatusCode> {
 }
 
 /// Removes a finished job and the partial files it kept.
-#[utoipa::path(delete, path = "/convert/{id}", tag = "models", params(("id" = u64, Path)),
+#[utoipa::path(delete, operation_id = "delete_conversion", path = "/convert/{id}", tag = "models", params(("id" = u64, Path)),
     responses((status = 204), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)))]
 pub async fn remove(P(id): P<u64>) -> ApiResult<StatusCode> {
     if convert::job(id).is_none() {
@@ -84,7 +85,7 @@ pub async fn remove(P(id): P<u64>) -> ApiResult<StatusCode> {
 }
 
 /// The conversion environment: installed or not, its size and the build in progress.
-#[utoipa::path(get, path = "/convert/env", tag = "models",
+#[utoipa::path(get, operation_id = "get_convert_env", path = "/convert/env", tag = "models",
     responses((status = 200, body = EnvStatus)))]
 pub async fn env_status() -> ApiResult<Json<EnvStatus>> {
     Ok(Json(blocking(convert::env::status).await?))
@@ -92,14 +93,14 @@ pub async fn env_status() -> ApiResult<Json<EnvStatus>> {
 
 /// Builds the conversion environment for the managed runtime's llama.cpp tag (uv, Python and
 /// the converter's packages, about 700 MB). Returns when it is complete.
-#[utoipa::path(post, path = "/convert/env", tag = "models",
+#[utoipa::path(post, operation_id = "install_convert_env", path = "/convert/env", tag = "models",
     responses((status = 201, body = EnvStatus), (status = 422, body = ErrorBody)))]
 pub async fn env_install() -> ApiResult<(StatusCode, Json<EnvStatus>)> {
     Ok((StatusCode::CREATED, Json(convert::install_env().await?)))
 }
 
 /// Deletes the conversion environment (it is built again on the next conversion).
-#[utoipa::path(delete, path = "/convert/env", tag = "models",
+#[utoipa::path(delete, operation_id = "remove_convert_env", path = "/convert/env", tag = "models",
     responses((status = 204), (status = 409, body = ErrorBody)))]
 pub async fn env_remove() -> ApiResult<StatusCode> {
     blocking(convert::remove_env).await??;

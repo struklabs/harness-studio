@@ -159,7 +159,7 @@ The others win some rows too: Ollama processed long prompts faster, and at 65k c
 | OpenAPI schema for its management API | ✓ | ✗ | ✓ | ✗ |
 | High-contrast and color-blind-friendly themes | ✓ | ✗ | ✗ | — |
 | Interface languages | partial (English, Turkish) | ✓ (30+) | not verified | — |
-| Official JS and Python SDKs | planned | ✓ | ✓ | ✗ |
+| Official JS and Python SDKs | partial (in the repo, not yet on npm/PyPI) | ✓ | ✓ | ✗ |
 
 ### How it relates to other tools
 
@@ -352,7 +352,7 @@ The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction
 - **Harness Link:** use models from another Harness instance in your library, Playground, and gateway
 - Signed Linux packages beyond the preview
 - Code-signed Windows installer; unattended background app updates
-- TypeScript and Python SDKs for the Control API; decision-model endpoints
+- Publishing the Control API SDKs to npm and PyPI; decision-model endpoints
 
 **Later:** a community registry of tools and MCP servers, a ComfyUI bridge, a tool router, and more creation pages.
 

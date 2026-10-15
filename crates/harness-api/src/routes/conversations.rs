@@ -7,13 +7,13 @@ use std::collections::HashMap;
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use harness_core::compaction::{self, CompactRequest, Endpoint, Strategy, TriggerKind};
+use harness_core::compaction::{self, CompactRequest, Endpoint, Marker, Strategy, TriggerKind};
 use harness_core::error_key::err;
 use harness_core::state::{
-    ConversationExport, ConversationSummary, ListQuery, MarkdownLabels, RagDocument,
+    ConversationExport, ConversationSummary, ConversationView, ListQuery, MarkdownLabels,
+    RagDocument,
 };
-use serde::Deserialize;
-use serde_json::{json, Value};
+use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::error::{blocking, ApiError, ApiResult, Body, ErrorBody, OptBody, P, Q};
@@ -24,6 +24,7 @@ fn db() -> ApiResult<std::sync::Arc<harness_core::state::StateDb>> {
 }
 
 #[derive(Deserialize, IntoParams, Default)]
+#[into_params(parameter_in = Query)]
 #[serde(default)]
 pub struct ListParams {
     /// Only conversations in this folder.
@@ -41,7 +42,7 @@ pub struct ListParams {
 
 /// Conversations, newest first (title, folder, model, timestamps; with `query` also the
 /// matching text fragment).
-#[utoipa::path(get, path = "/conversations", tag = "conversations",
+#[utoipa::path(get, operation_id = "list_conversations", path = "/conversations", tag = "conversations",
     params(ListParams),
     responses((status = 200, body = Vec<ConversationSummary>), (status = 403, body = ErrorBody)))]
 pub async fn list(Q(q): Q<ListParams>) -> ApiResult<Json<Vec<ConversationSummary>>> {
@@ -64,20 +65,21 @@ pub async fn list(Q(q): Q<ListParams>) -> ApiResult<Json<Vec<ConversationSummary
 /// One conversation: its settings and the messages of the current path (root to leaf), each
 /// with the shown variant (content, reasoning, tool calls, stats). A compaction marker is a
 /// `system` message whose variant `meta.compaction` describes it.
-#[utoipa::path(get, path = "/conversations/{id}", tag = "conversations",
+#[utoipa::path(get, operation_id = "get_conversation", path = "/conversations/{id}", tag = "conversations",
     params(("id" = String, Path, description = "Conversation id")),
     responses(
-        (status = 200, description = "`{conversation, messages[]}`", body = Object),
+        (status = 200, body = ConversationView),
         (status = 404, body = ErrorBody)))]
-pub async fn get_one(P(id): P<String>) -> ApiResult<Json<Value>> {
+pub async fn get_one(P(id): P<String>) -> ApiResult<Json<ConversationView>> {
     let db = db()?;
     let view = blocking(move || db.get_conversation(&id))
         .await?
         .map_err(|e| ApiError::core(e.to_string()))?;
-    Ok(Json(serde_json::to_value(view).unwrap_or(Value::Null)))
+    Ok(Json(view))
 }
 
 #[derive(Deserialize, IntoParams, Default)]
+#[into_params(parameter_in = Query)]
 #[serde(default)]
 pub struct ExportParams {
     /// `json` (default): the whole message tree with every variant (`harness.conversation.v1`,
@@ -86,10 +88,11 @@ pub struct ExportParams {
 }
 
 /// Exports a conversation as JSON (`harness.conversation.v1`) or Markdown.
-#[utoipa::path(get, path = "/conversations/{id}/export", tag = "conversations",
+#[utoipa::path(get, operation_id = "export_conversation", path = "/conversations/{id}/export", tag = "conversations",
     params(("id" = String, Path, description = "Conversation id"), ExportParams),
     responses(
-        (status = 200, description = "`harness.conversation.v1` JSON, or `text/markdown`", body = Object),
+        (status = 200, description = "`harness.conversation.v1` JSON, or Markdown with `format=markdown`",
+            content((ConversationExport = "application/json"), (String = "text/markdown"))),
         (status = 400, body = ErrorBody), (status = 404, body = ErrorBody)))]
 pub async fn export(P(id): P<String>, Q(q): Q<ExportParams>) -> ApiResult<Response> {
     let db = db()?;
@@ -116,7 +119,7 @@ pub async fn export(P(id): P<String>, Q(q): Q<ExportParams>) -> ApiResult<Respon
 
 /// The documents attached to a conversation (name, kind, size, pages, chunks, index state,
 /// mode). Metadata only: the text never leaves through the API.
-#[utoipa::path(get, path = "/conversations/{id}/documents", tag = "conversations",
+#[utoipa::path(get, operation_id = "list_conversation_documents", path = "/conversations/{id}/documents", tag = "conversations",
     params(("id" = String, Path, description = "Conversation id")),
     responses((status = 200, body = Vec<RagDocument>), (status = 404, body = ErrorBody)))]
 pub async fn documents(P(id): P<String>) -> ApiResult<Json<Vec<RagDocument>>> {
@@ -149,23 +152,35 @@ pub struct CompactBody {
     pub instruction: Option<String>,
 }
 
+/// Result of a compaction.
+#[derive(Serialize, ToSchema)]
+pub struct CompactResponse {
+    pub conversation_id: String,
+    /// Id of the marker message (undo it with `PUT .../compactions/{marker_id}`).
+    pub marker_id: String,
+    /// What was compacted: the token counts before and after, the turns kept.
+    pub marker: Marker,
+    /// Summarization requests made (chunks).
+    pub requests: u32,
+}
+
 /// Compacts the conversation's current path: the older turns are replaced, in requests, by a
 /// summary the model writes; the newest turns stay. Appends a marker message (nothing is
 /// deleted; `PUT .../compactions/{message_id}` undoes it). The summary request goes through
 /// the gateway (`harness serve --gateway` or the app's gateway), so it queues like any other
 /// request. One compaction per conversation at a time (409 `compaction.busy`).
-#[utoipa::path(post, path = "/conversations/{id}/compact", tag = "conversations",
+#[utoipa::path(post, operation_id = "compact_conversation", path = "/conversations/{id}/compact", tag = "conversations",
     params(("id" = String, Path, description = "Conversation id")),
     request_body(content = CompactBody, description = "All fields optional"),
     responses(
-        (status = 200, description = "`{marker_id, marker, requests}`: the marker holds the token counts before and after", body = Object),
+        (status = 200, body = CompactResponse),
         (status = 404, body = ErrorBody), (status = 409, body = ErrorBody),
         (status = 422, body = ErrorBody)))]
 pub async fn compact(
     axum::extract::State(state): axum::extract::State<AppState>,
     P(id): P<String>,
     OptBody(body): OptBody<CompactBody>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<CompactResponse>> {
     let body = body.unwrap_or_default();
     let db = db()?;
     let key = id.clone();
@@ -245,20 +260,28 @@ pub async fn compact(
     let out = compaction::compact(&db, &request, &flag).await;
     jobs.finish(&id, &flag);
     let out = out.map_err(ApiError::core)?;
-    Ok(Json(json!({
-        "conversation_id": id,
-        "marker_id": out.marker_id,
-        "marker": out.marker,
-        "requests": out.requests,
-    })))
+    Ok(Json(CompactResponse {
+        conversation_id: id,
+        marker_id: out.marker_id,
+        marker: out.marker,
+        requests: out.requests,
+    }))
+}
+
+#[derive(Serialize, ToSchema)]
+pub struct CancelCompactResponse {
+    /// `false` when no compaction was running.
+    pub cancelled: bool,
 }
 
 /// Stops a running compaction of the conversation.
-#[utoipa::path(post, path = "/conversations/{id}/compact/cancel", tag = "conversations",
+#[utoipa::path(post, operation_id = "cancel_compaction", path = "/conversations/{id}/compact/cancel", tag = "conversations",
     params(("id" = String, Path, description = "Conversation id")),
-    responses((status = 200, description = "`{cancelled}`: false when none was running", body = Object)))]
-pub async fn cancel_compact(P(id): P<String>) -> Json<Value> {
-    Json(json!({"cancelled": compaction::jobs().cancel(&id)}))
+    responses((status = 200, body = CancelCompactResponse)))]
+pub async fn cancel_compact(P(id): P<String>) -> Json<CancelCompactResponse> {
+    Json(CancelCompactResponse {
+        cancelled: compaction::jobs().cancel(&id),
+    })
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -268,18 +291,25 @@ pub struct UndoBody {
     pub undone: bool,
 }
 
+#[derive(Serialize, ToSchema)]
+pub struct UndoResponse {
+    pub conversation_id: String,
+    pub message_id: String,
+    pub undone: bool,
+}
+
 /// Undoes or re-applies a compaction marker of the conversation.
-#[utoipa::path(put, path = "/conversations/{id}/compactions/{message_id}", tag = "conversations",
+#[utoipa::path(put, operation_id = "set_compaction_undone", path = "/conversations/{id}/compactions/{message_id}", tag = "conversations",
     params(("id" = String, Path, description = "Conversation id"),
            ("message_id" = String, Path, description = "Marker message id (`marker_id`)")),
     request_body = UndoBody,
     responses(
-        (status = 200, description = "`{conversation_id, message_id, undone}`", body = Object),
+        (status = 200, body = UndoResponse),
         (status = 404, body = ErrorBody)))]
 pub async fn set_undone(
     P((id, message_id)): P<(String, String)>,
     Body(body): Body<UndoBody>,
-) -> ApiResult<Json<Value>> {
+) -> ApiResult<Json<UndoResponse>> {
     let db = db()?;
     let (conv, mid) = (id.clone(), message_id.clone());
     let undone = body.undone;
@@ -294,7 +324,9 @@ pub async fn set_undone(
     .await?
     .map_err(ApiError::core)?
     .map_err(|_| ApiError::not_found("compaction", &message_id))?;
-    Ok(Json(
-        json!({"conversation_id": id, "message_id": message_id, "undone": undone}),
-    ))
+    Ok(Json(UndoResponse {
+        conversation_id: id,
+        message_id,
+        undone,
+    }))
 }

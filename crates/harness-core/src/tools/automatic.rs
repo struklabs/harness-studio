@@ -12,6 +12,7 @@ use crate::compaction::Endpoint;
 use crate::error_key::err;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct InventoryTool {
     pub name: String,
     pub description: String,

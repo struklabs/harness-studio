@@ -16,20 +16,21 @@ use utoipa::{IntoParams, ToSchema};
 use crate::error::{blocking, ApiResult, Body, ErrorBody, OptBody, P, Q};
 
 /// State of the engine: installed builds, whether it runs, the NPU, backends and downloads.
-#[utoipa::path(get, path = "/lemonade", tag = "lemonade",
+#[utoipa::path(get, operation_id = "get_lemonade_status", path = "/lemonade", tag = "lemonade",
     responses((status = 200, body = LemonadeStatus), (status = 401, body = ErrorBody)))]
 pub async fn lemonade_status() -> ApiResult<Json<LemonadeStatus>> {
     Ok(Json(blocking(lemonade::status).await?))
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ReleaseParams {
     /// Release tag (default: the newest stable release).
     pub tag: Option<String>,
 }
 
 /// The archive an install would download (name, size, URL, SHA-256), without downloading.
-#[utoipa::path(get, path = "/lemonade/release", tag = "lemonade", params(ReleaseParams),
+#[utoipa::path(get, operation_id = "get_lemonade_release", path = "/lemonade/release", tag = "lemonade", params(ReleaseParams),
     responses((status = 200, body = ReleasePick), (status = 404, body = ErrorBody),
         (status = 422, body = ErrorBody)))]
 pub async fn lemonade_release(Q(q): Q<ReleaseParams>) -> ApiResult<Json<ReleasePick>> {
@@ -61,7 +62,7 @@ pub async fn lemonade_remove(P(id): P<String>) -> ApiResult<StatusCode> {
 
 /// Saves the settings (the llama.cpp backend, the pinned build); a running `lemond` is stopped
 /// and starts again with them on its next use.
-#[utoipa::path(put, path = "/lemonade/settings", tag = "lemonade",
+#[utoipa::path(put, operation_id = "put_lemonade_settings", path = "/lemonade/settings", tag = "lemonade",
     request_body = LemonadeSettings,
     responses((status = 200, body = LemonadeSettings), (status = 422, body = ErrorBody)))]
 pub async fn lemonade_settings(
@@ -88,13 +89,14 @@ pub async fn lemonade_stop() -> ApiResult<Json<LemonadeStatus>> {
 }
 
 /// The last lines of `lemond`'s output.
-#[utoipa::path(get, path = "/lemonade/logs", tag = "lemonade", params(LogParams),
+#[utoipa::path(get, operation_id = "get_lemonade_logs", path = "/lemonade/logs", tag = "lemonade", params(LogParams),
     responses((status = 200, body = Vec<String>)))]
 pub async fn lemonade_logs(Q(q): Q<LogParams>) -> Json<Vec<String>> {
     Json(lemonade::log_tail(q.lines.unwrap_or(100).min(200)))
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct LogParams {
     pub lines: Option<usize>,
 }
@@ -102,14 +104,14 @@ pub struct LogParams {
 /// Lemonade's model registry with the downloaded flag: current when `lemond` runs
 /// (`live: true`), the last snapshot otherwise. NPU models (FastFlowLM) appear once a backend
 /// for them is available on this machine.
-#[utoipa::path(get, path = "/lemonade/models", tag = "lemonade",
+#[utoipa::path(get, operation_id = "list_lemonade_models", path = "/lemonade/models", tag = "lemonade",
     responses((status = 200, body = ModelList), (status = 422, body = ErrorBody)))]
 pub async fn lemonade_models() -> ApiResult<Json<ModelList>> {
     Ok(Json(lemonade::list_models().await?))
 }
 
 /// Progress of the running model pull or backend install (`null` when idle).
-#[utoipa::path(get, path = "/lemonade/progress", tag = "lemonade",
+#[utoipa::path(get, operation_id = "get_lemonade_progress", path = "/lemonade/progress", tag = "lemonade",
     responses((status = 200, body = Option<PullProgress>)))]
 pub async fn lemonade_progress() -> Json<Option<PullProgress>> {
     Json(lemonade::pull_progress())
@@ -123,7 +125,7 @@ pub struct ModelRequest {
 
 /// Downloads a model into Lemonade (starts `lemond` if needed); returns when it is done.
 /// Progress: `GET /lemonade/progress`.
-#[utoipa::path(post, path = "/lemonade/models/pull", tag = "lemonade",
+#[utoipa::path(post, operation_id = "pull_lemonade_model", path = "/lemonade/models/pull", tag = "lemonade",
     request_body = ModelRequest,
     responses((status = 204), (status = 409, body = ErrorBody), (status = 422, body = ErrorBody)))]
 pub async fn lemonade_pull(Body(req): Body<ModelRequest>) -> ApiResult<StatusCode> {
@@ -132,7 +134,7 @@ pub async fn lemonade_pull(Body(req): Body<ModelRequest>) -> ApiResult<StatusCod
 }
 
 /// Deletes a downloaded model from Lemonade.
-#[utoipa::path(post, path = "/lemonade/models/delete", tag = "lemonade",
+#[utoipa::path(post, operation_id = "delete_lemonade_model", path = "/lemonade/models/delete", tag = "lemonade",
     request_body = ModelRequest,
     responses((status = 204), (status = 422, body = ErrorBody)))]
 pub async fn lemonade_delete(Body(req): Body<ModelRequest>) -> ApiResult<StatusCode> {

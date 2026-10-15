@@ -18,7 +18,7 @@ pub struct GatewayView {
 }
 
 /// Gateway status, settings and the models it serves (JIT/TTL/queue state).
-#[utoipa::path(get, path = "/gateway", tag = "system",
+#[utoipa::path(get, operation_id = "get_gateway", path = "/gateway", tag = "system",
     responses((status = 200, body = GatewayView), (status = 401, body = ErrorBody)))]
 pub async fn gateway() -> ApiResult<Json<GatewayView>> {
     let status = harness_core::gateway::status();

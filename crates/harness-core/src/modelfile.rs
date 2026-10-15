@@ -157,6 +157,8 @@ fn unquote(s: &str) -> &str {
 
 /// One value the import sets, for the preview.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = ModelfileMapped))]
 pub struct Mapped {
     /// What the Modelfile said (`PARAMETER num_ctx 8192`).
     pub source: String,
@@ -168,6 +170,8 @@ pub struct Mapped {
 /// Something that could not be carried over. `code` is stable (the UI translates it);
 /// `detail` is the instruction / parameter / value concerned.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = ModelfileWarning))]
 pub struct Warning {
     pub code: String,
     pub line: Option<usize>,
@@ -176,6 +180,7 @@ pub struct Warning {
 
 /// What a Modelfile import found (nothing is saved yet).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ModelfileImport {
     /// Save it with `Domain::import_definition`.
     pub import: DefinitionImport,

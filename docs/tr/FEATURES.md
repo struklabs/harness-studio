@@ -220,7 +220,7 @@ llama-server build 11236'nın `--help` çıktısına göre:
 | Uzak instance (`--host`) | ✅ (`HARNESS_HOST` + `HARNESS_TOKEN`, isimli token kapsamları) | ✅ | ✅ (`OLLAMA_HOST`) | — |
 | Kendi MCP sunucusu (ajanlar Harness'ı araç olarak kullanır) | ✅ (`harness mcp` stdio + Control API `/mcp`, 20 araç (16 varsayılan kapsamda; 4 konuşma aracı `conversations` kapsamını gerektirir), token kapsamları; [MCP.md](MCP.md)) | ❌ | ❌ | Farklılaştırıcı |
 | `launch <araç>` (araçla doğru ortamla başlat) | ✅ (`harness launch`) | ❌ | ✅ | **L** |
-| Resmi SDK'lar (JS / Python) ve eklenti geliştirme (`lms dev`, Hub'a `lms push`/`clone`) | ❌ (OpenAPI şeması + MCP; SDK yok) | ✅ | ✅ (Python / JS istemci kitaplıkları) | Control API SDK'ları planlı (bkz. ROADMAP); eklenti çalışma zamanı ve Hub yayınlama bilerek kapsam dışı (§14) |
+| Resmi SDK'lar (JS / Python) ve eklenti geliştirme (`lms dev`, Hub'a `lms push`/`clone`) | 🟡 (Control API'nin TypeScript ve Python istemcileri [`sdk/`](../../sdk/README.md) altında, OpenAPI şemasından üretilir; henüz npm / PyPI'da yok) | ✅ | ✅ (Python / JS istemci kitaplıkları) | Eklenti çalışma zamanı ve Hub yayınlama bilerek kapsam dışı (§14) |
 | Shell completion | ✅ (`harness completion <kabuk>`) | ? | ❌ | — |
 
 ## 10. Entegrasyonlar

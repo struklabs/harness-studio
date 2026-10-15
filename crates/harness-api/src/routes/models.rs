@@ -63,6 +63,7 @@ pub async fn get_model(P(id): P<String>) -> ApiResult<Json<LibraryEntry>> {
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct FitQuery {
     /// `-c`; 0 or absent = the default context of the settings.
     pub context_size: Option<u32>,
@@ -81,7 +82,7 @@ pub struct FitQuery {
 /// Memory estimate of a local model on this machine (`harness_core::vram`, the estimate the
 /// GUI and the CLI use): weights, KV cache (sliding-window aware), compute buffer, projector,
 /// corrected with measured loads of the same file.
-#[utoipa::path(get, path = "/models/{id}/fit", tag = "models",
+#[utoipa::path(get, operation_id = "get_model_fit", path = "/models/{id}/fit", tag = "models",
     params(("id" = String, Path, description = "Model id (the launch path), percent-encoded"), FitQuery),
     responses((status = 200, body = harness_core::vram::FitResult), (status = 404, body = ErrorBody)))]
 pub async fn model_fit(
@@ -130,7 +131,7 @@ pub async fn model_fit(
 /// with on this machine: the choice the launch itself makes, so `harness show` and the
 /// Dashboard's form display what Start does. `null` when the rule does not apply (not a chat
 /// model).
-#[utoipa::path(get, path = "/models/{id}/automatic", tag = "models",
+#[utoipa::path(get, operation_id = "get_model_automatic", path = "/models/{id}/automatic", tag = "models",
     params(("id" = String, Path, description = "Model id (the launch path), percent-encoded")),
     responses((status = 200, body = Option<harness_core::full_offload::AutomaticLaunch>),
         (status = 404, body = ErrorBody)))]
@@ -160,6 +161,7 @@ pub async fn model_automatic(
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct DeleteModelQuery {
     /// Also delete the model definitions based on this file.
     #[serde(default)]
@@ -298,6 +300,7 @@ pub async fn resume_download(
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct RemoveDownloadQuery {
     /// Also delete the partial files.
     #[serde(default)]

@@ -159,7 +159,7 @@ Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işled
 | Yönetim API'si için OpenAPI şeması | ✓ | ✗ | ✓ | ✗ |
 | Yüksek karşıtlık ve renk körlüğüne uygun temalar | ✓ | ✗ | ✗ | — |
 | Arayüz dilleri | kısmi (Türkçe, İngilizce) | ✓ (30+) | doğrulanmadı | — |
-| Resmî JS ve Python SDK'ları | planlı | ✓ | ✓ | ✗ |
+| Resmî JS ve Python SDK'ları | kısmen (depoda; henüz npm/PyPI'da yok) | ✓ | ✓ | ✗ |
 
 ### Diğer araçlarla ilişkisi
 
@@ -352,7 +352,7 @@ Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, y
 - **Harness Link:** başka bir Harness örneğinin modellerini kütüphanenizde, Playground'da ve ağ geçidinde kullanın
 - Önizlemenin ötesinde imzalı Linux paketleri
 - Kod imzalı Windows kurulum dosyası; arka planda katılımsız uygulama güncellemesi
-- Control API için TypeScript ve Python SDK'ları; karar modeli uç noktaları
+- Control API SDK'larının npm ve PyPI'da yayımlanması; karar modeli uç noktaları
 
 **Daha sonra:** araçlar ve MCP sunucuları için topluluk kayıt defteri, ComfyUI köprüsü, araç yönlendirici ve daha çok üretim sayfası.
 

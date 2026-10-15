@@ -225,9 +225,58 @@ fn api_routes() -> OpenApiRouter<AppState> {
 }
 
 fn split() -> (Router<AppState>, utoipa::openapi::OpenApi) {
-    OpenApiRouter::with_openapi(ApiDoc::openapi())
+    let (router, mut doc) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .nest(BASE_PATH, api_routes())
-        .split_for_parts()
+        .split_for_parts();
+    auth_responses(&mut doc);
+    (router, doc)
+}
+
+/// Every operation behind the auth guard can answer 401 (no or unknown token) and 403 (the
+/// token lacks the scope, or a browser origin / host that is not allowed): documented once
+/// here instead of on each handler. `/health` (`security(())`) is public.
+fn auth_responses(doc: &mut utoipa::openapi::OpenApi) {
+    use utoipa::openapi::{ContentBuilder, Ref, RefOr, ResponseBuilder};
+    let error = |description: &str| {
+        RefOr::T(
+            ResponseBuilder::new()
+                .description(description)
+                .content(
+                    "application/json",
+                    ContentBuilder::new()
+                        .schema(Some(Ref::from_schema_name("ErrorBody")))
+                        .build(),
+                )
+                .build(),
+        )
+    };
+    for item in doc.paths.paths.values_mut() {
+        for op in [
+            &mut item.get,
+            &mut item.put,
+            &mut item.post,
+            &mut item.delete,
+            &mut item.patch,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let public = op
+                .security
+                .as_ref()
+                .is_some_and(|s| s.iter().all(|r| r == &Default::default()));
+            if public {
+                continue;
+            }
+            let responses = &mut op.responses.responses;
+            responses.entry("401".into()).or_insert_with(|| {
+                error("No token, or an unknown or revoked one (`api.unauthorized`)")
+            });
+            responses.entry("403".into()).or_insert_with(|| {
+                error("The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)")
+            });
+        }
+    }
 }
 
 /// The OpenAPI document (paths under `/api/harness/v1`).

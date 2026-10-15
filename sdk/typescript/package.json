@@ -1,0 +1,43 @@
+{
+  "name": "harness-studio-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript client for the Harness Studio Control API (generated from its OpenAPI document).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/struklabs/harness-studio.git",
+    "directory": "sdk/typescript"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "generate": "node ../generate.mjs --from-snapshot --skip-python",
+    "build": "npm run generate && tsc -p tsconfig.json",
+    "typecheck": "npm run build && tsc -p tsconfig.test.json",
+    "test": "npm run build && node --test \"test/*.test.mjs\"",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

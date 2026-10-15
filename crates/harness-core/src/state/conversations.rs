@@ -47,6 +47,7 @@ pub struct ConversationSummary {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Conversation {
     pub id: String,
     pub title: String,
@@ -93,6 +94,8 @@ pub struct VariantInput {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = MessageVariant))]
 pub struct Variant {
     pub id: String,
     pub message_id: String,
@@ -111,6 +114,7 @@ pub struct Variant {
 
 /// A message on the current path, with its shown variant and navigation info.
 #[derive(Debug, Clone, Serialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct PathMessage {
     pub id: String,
     pub parent_id: Option<String>,
@@ -136,6 +140,7 @@ pub struct PathMessage {
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ConversationView {
     pub conversation: Conversation,
     /// Root → current leaf.

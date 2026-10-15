@@ -23,6 +23,22 @@ Yönetim istekleri bir tokenla korunur. Yerel `/health` ve şema erişimi için 
 
 **CLI** sayfasında (**Ayarlar > Geliştirici > CLI**) **Terminalde Kullan** komut satırı aracını gösterir, **PATH'e Ekle** ise `harness` komutunu bir terminalden kullanılabilir yapar; ardından yeni bir terminal açın. CLI çıktısı İngilizcedir.
 
+## API'yi Koddan Kullan
+
+Depoda Control API için hazır istemciler var: [`sdk/`](../../../sdk/README.md) altında bir TypeScript paketi ve bir Python paketi. OpenAPI şemasından üretildikleri için her uç noktanın, parametrenin ve yanıtın türü vardır. Henüz npm veya PyPI'da değiller; depo klasöründen kurun.
+
+İkisi de çalışan Harness Studio'yu kendisi bulur: uygulama ya da `harness serve`, adresini veri klasöründeki `instance.json` dosyasına yazar; oturum anahtarı da yanındaki `api-token` dosyasındadır. Başka bir bilgisayar için adresi ve adlandırılmış bir anahtarı kendiniz verin.
+
+```python
+from harness_studio import connect, unwrap
+from harness_studio_api.api.system import get_status
+
+status = unwrap(get_status.sync_detailed(client=connect()))
+print(status.version)
+```
+
+Hata yanıtı bir istisnaya dönüşür (Python'da `HarnessError`, TypeScript'te `HarnessApiError`). İstisna, uygulamanın gösterdiği `code` değerini taşır; örneğin anahtarın yetkisi yetmediğinde `api.insufficient_scope`.
+
 ## MCP'nin İki Yönü
 
 Harness Studio bir **MCP sunucusu** olduğunda başka ajanlar yönetim araçlarını çağırır. `harness mcp` yerel komut yoludur; Control API ayrıca bir HTTP MCP uç noktası da sunar. Kurulum ve kapsamlar için [MCP başvurusunu](../../tr/MCP.md) izleyin. Ayrıca **Bağlantılar > Araçlar ve İstemciler > Harness MCP'yi Ekle** sayfasından bir istemciye ekleyebilirsiniz.

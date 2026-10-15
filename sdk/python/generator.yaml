@@ -1,0 +1,6 @@
+# openapi-python-client settings (see sdk/generate.mjs).
+project_name_override: harness-studio-api
+package_name_override: harness_studio_api
+# Formatting runs from generate.mjs with a pinned ruff.
+post_hooks: []
+literal_enums: true
