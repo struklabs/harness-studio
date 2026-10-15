@@ -39,7 +39,7 @@ Yerel ağ geçidi varsayılan olarak anahtar istemez. Anahtar isteyen araçlar i
 | Sayfa | Ne yapar? |
 | --- | --- |
 | **Ayarlar > Ağ Geçidi > Uç Nokta** | Açma/kapama, **Port**, **Bağlanma adresi**, **Ağdan erişime izin ver**, **Bu bilgisayarda da token iste**, **İzinli tarayıcı origin'leri** (web uygulamaları için). |
-| **Ayarlar > Ağ Geçidi > Yönlendirme** | **En fazla yüklü model**, **Model başına kuyruk**, **İstek zaman aşımı (sn)**, **Varsayılan boşta kalma süresi (sn)**, **Bellek farkındalıklı tahliye**, **VRAM payı (MiB, 0 = otomatik)**; altında her modelin durumu (**Hazır**, **Yükleniyor**, **Yüklü değil**) ve **Boşalt** düğmesi. |
+| **Ayarlar > Ağ Geçidi > Yönlendirme** | **En fazla yüklü model**, **Model başına kuyruk**, **İstek zaman aşımı (sn)**, **Varsayılan boşta kalma süresi (sn)**, **Bellek farkındalıklı tahliye**, **VRAM payı (MiB, 0 = otomatik)**, **Karar uç noktalarında sohbet modeli emülasyonu**; altında her modelin durumu (**Hazır**, **Yükleniyor**, **Yüklü değil**) ve **Boşalt** düğmesi. |
 | **Ayarlar > Ağ Geçidi > Responses** | OpenAI Responses API'nin yanıtları yerelde saklayıp saklamaması (**Yanıtları sakla**) ve saklama sınırları. |
 
 Ağ geçidi yalnızca kendi yüklediği modelleri (**Gateway yükledi**) boşta kalma süresine ve bellek kurallarına göre boşaltır. Sizin elle başlattığınız sunuculara (**Sizin sunucunuz**) yönlendirir ama onları hiçbir zaman kapatmaz. Bir model tanımında **Sabit (hep yüklü)** işaretlenirse ağ geçidi başlarken o model yüklenir ve asla boşaltılmaz.
@@ -47,6 +47,34 @@ Ağ geçidi yalnızca kendi yüklediği modelleri (**Gateway yükledi**) boşta 
 Bir model yüklenirken ya da kuyruk doluyken istek reddedilirse Playground'da "{model} şu an yüklenemedi: {busy} istek işliyor ve kapatılamıyor. {wait} tekrar deneyin." gibi bir uyarı çıkar; istekler bitince **Tekrar Dene** ile yeniden gönderin ([Sorun Giderme](10-sorun-giderme.md#model-meşgul-503)).
 
 Ayrıntılı yönlendirme kuralları, istemci başına ayarlar ve sınırlar için [entegrasyonlar başvurusunu](../../tr/INTEGRATIONS.md) okuyun.
+
+### Karar Modelleri
+
+Karar modeli bir metni (*durum*, `state`) okur ve türü belli sorulara yazılı bir yanıt yerine olasılıklarla cevap verir: evet ya da hayır, bir listeden tek seçenek veya bir ölçekte bir düzey. Ağ geçidi bunun için iki istek biçimi sunar; token, tarayıcı origin'i ve otomatik yükleme kuralları diğer uçlarla aynıdır:
+
+| Yol | Biçim | Soru türleri | Hatalar |
+| --- | --- | --- | --- |
+| `/v1/systemone` | Ollama, LM Studio, llama.cpp: `state`, `images`, adla anahtarlanmış nesne olarak `questions`, `keep_alive` | `noul`, `choice`, `score` | Ollama gibi `{"error": "..."}` |
+| `/v1/decisions` | OpenAI, LM Studio: `input`, dizi olarak `questions`; yanıtlar soru sırasıyla | `predicate`, `choice`, `score` | OpenAI'nin hata nesnesi |
+
+```bash
+curl http://127.0.0.1:11435/v1/systemone -H "Content-Type: application/json" -d '{
+  "model": "my-model",
+  "state": "Customer message: I was charged twice and nobody has replied.",
+  "questions": {
+    "route": {"type": "choice", "instructions": "Which team should handle this?",
+      "criteria": {"billing": null, "shipping": null, "technical": null}},
+    "angry": {"type": "noul", "instructions": "Is the customer angry?"},
+    "urgency": {"type": "score", "instructions": "How urgent is this?",
+      "criteria": ["can wait", "this week", "today", "right now"]}
+  }
+}'
+```
+
+- Dosyasında karar meta verisi olan bir model (Modellerim'de **Karar modeli** etiketiyle görünür) doğrudan llama.cpp tarafından yanıtlanır.
+- Diğer sohbet modelleri emülasyonla yanıt verir: ağ geçidi soruları tek tek sorar, modelin yalnızca seçenek kodlarından birini yazmasına izin verir ve olasılıkları modelin token olasılıklarından okur. **Bu olasılıklar kalibre değildir**: seçenekleri birbiriyle karşılaştırmak için kullanın, ölçülmüş bir doğruluk gibi değil. **Ayarlar > Ağ Geçidi > Yönlendirme > Karar uç noktalarında sohbet modeli emülasyonu** ile kapatabilirsiniz; o zaman Ollama ve LM Studio'daki gibi yalnızca karar modelleri yanıt verir, sohbet modeli 400 hatası alır.
+- `X-Harness-Decision-Mode` yanıt başlığı hangisinin yanıtladığını söyler: `native` ya da `emulated`.
+- Sınırlar: istek başına en fazla 64 soru, seçim sorusu başına 2–255 seçenek (emülasyonda en fazla 52), 2–10 puan düzeyi, akış yok. Görseller base64'tür (data URL, `/v1/systemone`'da düz base64 de olur) ve görsel okuyabilen bir model gerektirir.
 
 ## Bağlantılar Sayfası
 

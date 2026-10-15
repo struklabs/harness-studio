@@ -326,7 +326,7 @@ async fn handle(state: GwState, kind: Kind, headers: HeaderMap, body: Bytes) -> 
     resp
 }
 
-fn record_lease(guard: &mut RecordGuard, lease: &Lease) {
+pub(crate) fn record_lease(guard: &mut RecordGuard, lease: &Lease) {
     let r = guard.get();
     r.server_id = Some(lease.server_id.clone());
     r.queue_wait_ms = lease.queue_wait.as_millis() as u64;

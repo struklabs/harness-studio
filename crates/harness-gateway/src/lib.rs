@@ -10,6 +10,8 @@
 //!   `/v1/rerank`, `/v1/messages`, `/v1/messages/count_tokens` ([`proxy`])
 //! * Stateful Responses: `store` / `previous_response_id` on `POST /v1/responses`, and
 //!   `GET`/`DELETE /v1/responses/{id}`, `GET /v1/responses/{id}/input_items` ([`responses`])
+//! * Decisions: `POST /v1/systemone` (Ollama / LM Studio) and `/v1/decisions` (OpenAI / LM
+//!   Studio) ([`decisions`])
 //! * Ollama-compatible `/api/*` ([`ollama`]; also on the Ollama port 11434 when turned on)
 //! * `GET /health` (no token)
 //! * `GET /metrics`: unified Prometheus exposition (gateway counters and histograms per
@@ -23,6 +25,7 @@ pub mod audio_process;
 pub mod auth;
 pub mod compat;
 pub mod crispasr_tts;
+pub mod decisions;
 pub mod errors;
 pub mod hf;
 pub mod images;
@@ -743,6 +746,18 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
                     audio_process::handle(s, request)
                 },
             ),
+        )
+        .route(
+            "/v1/systemone",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
+                decisions::handle(s, decisions::Flavor::SystemOne, h, b)
+            }),
+        )
+        .route(
+            "/v1/decisions",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
+                decisions::handle(s, decisions::Flavor::Decisions, h, b)
+            }),
         )
         .route("/v1/messages", inference!(Api::Messages))
         .route("/v1/messages/count_tokens", inference!(Api::CountTokens))

@@ -353,6 +353,9 @@
       <SettingRow label={t('gw.memory_aware')} note={t('gw.memory_aware_hint')} help={t('gw.memory_aware_help')} for="gw-mem">
         <Switch id="gw-mem" bind:checked={draft.memory_aware} />
       </SettingRow>
+      <SettingRow label={t('gw.decision_emulation')} note={t('gw.decision_emulation_hint')} for="gw-decisions">
+        <Switch id="gw-decisions" bind:checked={draft.decision_emulation} />
+      </SettingRow>
       <SettingRow label={t('gw.headroom')} hint={t('gw.headroom_hint')} for="gw-headroom">
         <NumberField
           id="gw-headroom"

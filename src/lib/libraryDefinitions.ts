@@ -4,7 +4,11 @@ import type { LocalModel, ModelDefinition, ModelKind } from './types';
 import type { TKey } from './i18n.svelte';
 
 /** Library subtitle from the detected runtime, with file-kind fallbacks for older records. */
-export function libraryKindKey(file: Pick<LocalModel, 'kind' | 'path' | 'architecture' | 'task'>, runtime?: string | null): TKey {
+export function libraryKindKey(
+  file: Pick<LocalModel, 'kind' | 'path' | 'architecture' | 'task'> & { gguf?: LocalModel['gguf'] },
+  runtime?: string | null
+): TKey {
+  if (file.kind === 'llm' && file.gguf?.decision_type) return 'lib.kind_decision';
   if (runtime === 'audio.cpp' || file.architecture === 'audiocpp')
     return file.kind === 'tts' ? 'lib.kind_tts_audiocpp' : 'lib.kind_audio_process';
   if (file.kind === 'tts' && (runtime === 'crispasr' || /\.gguf$/i.test(file.path))) return 'lib.kind_tts_crispasr';

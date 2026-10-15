@@ -64,6 +64,8 @@ const tr = {
   'gw.memory_aware': 'Bellek farkındalıklı tahliye',
   'gw.memory_aware_hint': 'Yeni model boş VRAM\'e sığmıyorsa en uzun süredir boşta olan modeller boşaltılır.',
   'gw.headroom': 'VRAM payı (MiB, 0 = otomatik)',
+  'gw.decision_emulation': 'Karar uç noktalarında sohbet modeli emülasyonu',
+  'gw.decision_emulation_hint': '/v1/systemone ve /v1/decisions, karar modeli olmayan sohbet modelleriyle de yanıt verir: her soru için tek bir sınırlı token üretilir ve olasılıklar logprobs’tan okunur. Bu olasılıklar kalibre değildir. Kapalıyken yalnızca karar modelleri yanıt verir (Ollama ve LM Studio gibi).',
   'gw.headroom_hint': 'Tahminin üstünde boş bırakılacak bellek. 0 = otomatik: en az 1 GB ya da kart belleğinin %8’i (hangisi büyükse). Bir değer girerseniz aynen kullanılır.',
 
   'gw.models_title': 'Modeller',
@@ -200,6 +202,8 @@ const en: Record<keyof typeof tr, string> = {
   'gw.memory_aware': 'Memory-aware eviction',
   'gw.memory_aware_hint': 'If the next model does not fit in free VRAM, the models idle the longest are unloaded.',
   'gw.headroom': 'VRAM headroom (MiB, 0 = automatic)',
+  'gw.decision_emulation': 'Chat model emulation for decision endpoints',
+  'gw.decision_emulation_hint': '/v1/systemone and /v1/decisions also answer with chat models that are not decision models: one constrained token per question, probabilities read from its logprobs. These probabilities are not calibrated. Off, only decision models answer (like Ollama and LM Studio).',
   'gw.headroom_hint': 'Memory kept free on top of the estimate. 0 = automatic: at least 1 GB or 8% of the card, whichever is larger. A value you enter is used as given.',
 
   'gw.models_title': 'Models',

@@ -416,6 +416,8 @@ export interface GatewaySettings {
   ollama_port: number;
   /** `/api/pull` may download Hugging Face references; off by default. */
   ollama_allow_pull: boolean;
+  /** `/v1/systemone` and `/v1/decisions` answer with chat models too (grammar + logprobs); on by default. */
+  decision_emulation: boolean;
   /** Stateful `/v1/responses` (`store`, `previous_response_id`). */
   responses: ResponsesStoreSettings;
 }
@@ -901,6 +903,8 @@ export interface GgufMetadata {
   has_vision_encoder?: boolean;
   has_audio_encoder?: boolean;
   has_classifier_labels?: boolean;
+  /** `<arch>.decision.type`: a native decision model (`/v1/systemone`, `/v1/decisions`). */
+  decision_type?: string;
   /** `general.size_label` ("4B", "32x2.4B"; display only). */
   size_label?: string | null;
   basename?: string | null;

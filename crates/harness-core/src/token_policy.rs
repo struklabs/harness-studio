@@ -101,7 +101,11 @@ impl GatewayEndpoint {
     pub fn of_path(path: &str) -> Option<Self> {
         let p = path.trim_end_matches('/');
         Some(match p {
-            "/v1/chat/completions" | "/v1/completions" | "/v1/responses" => Self::Chat,
+            "/v1/chat/completions"
+            | "/v1/completions"
+            | "/v1/responses"
+            | "/v1/systemone"
+            | "/v1/decisions" => Self::Chat,
             "/v1/embeddings" => Self::Embeddings,
             "/v1/rerank" => Self::Rerank,
             "/v1/audio/transcriptions" | "/v1/audio/translations" | "/v1/audio/speech" => {

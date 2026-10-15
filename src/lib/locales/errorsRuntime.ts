@@ -2,6 +2,8 @@
 // Texts are single quoted literals (the CLI compiles the English half in); {name} = parameter.
 const tr = {
   'gateway.gpu_memory_full': 'GPU belleği dolu. Belleği boşaltmak için çalışan sunucuları durdurup yeniden deneyin.',
+  'gateway.decision_model_required': '"{model}" bir karar modeli değil. Bir karar modeli kullanın ya da gateway ayarlarında karar uç noktaları için sohbet modeli emülasyonunu açın.',
+  'gateway.decision_emulation_choices': 'Sohbet modeli emülasyonu bir soruda en fazla {max} seçeneği destekler. Daha fazlası için bir karar modeli kullanın.',
   'gateway.gpu_memory_blocked': 'GPU belleği dolu. Belleği boşaltmak için çalışan sunucuları ({servers}) durdurup yeniden deneyin.',
   'audio_process.bad_wav': 'Eksiksiz bir PCM veya float WAV kullanın; en fazla 32 MiB ve 10 dakika.',
   'audio_process.needs_44k': 'Bu model 44,1 kHz WAV gerektirir.',
@@ -172,6 +174,8 @@ const tr = {
 
 const en: Record<keyof typeof tr, string> = {
   'gateway.gpu_memory_full': 'GPU memory is full. Stop running servers to free memory, then try again.',
+  'gateway.decision_model_required': '"{model}" is not a decision model. Use a decision model, or turn on chat model emulation for decision endpoints in the gateway settings.',
+  'gateway.decision_emulation_choices': 'Chat model emulation supports up to {max} options per question. Use a decision model for more.',
   'gateway.gpu_memory_blocked': 'GPU memory is full. Stop running servers ({servers}) to free memory, then try again.',
   'audio_process.bad_wav': 'Use a complete PCM or float WAV, at most 32 MiB and 10 minutes.',
   'audio_process.needs_44k': 'This model requires a 44.1 kHz WAV.',

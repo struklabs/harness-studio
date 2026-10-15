@@ -138,6 +138,11 @@ pub struct GgufMetadata {
     /// A `<arch>.classifier.output_labels` key exists (classification heads, e.g. rerankers).
     #[serde(default)]
     pub has_classifier_labels: bool,
+    /// `<arch>.decision.type` (`vllm-d3`, `decision2`...): a native decision model, served
+    /// through llama-server's `/v1/systemone` (llama.cpp lists it with the `decisions` output
+    /// modality).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision_type: Option<String>,
     /// A sequence-classification head (`cls.output.weight` / `cls.weight` tensors), which is
     /// how BERT/XLM-R rerankers such as bge-reranker-v2-m3 are stored (no `pooling_type` key).
     #[serde(default)]
@@ -446,6 +451,12 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
             k if k.starts_with("clip.audio.") => {
                 audio_hint = true;
                 skip_value(&mut reader, val_type)?;
+            }
+            k if val_type == GgufType::String
+                && k.strip_suffix(".decision.type")
+                    .is_some_and(|arch| !arch.is_empty() && !arch.contains('.')) =>
+            {
+                meta.decision_type = Some(read_string(&mut reader)?).filter(|t| !t.is_empty())
             }
             k if k.ends_with(".classifier.output_labels") => {
                 meta.has_classifier_labels = true;
@@ -1341,5 +1352,43 @@ mod tests {
         let meta = read_gguf_metadata(Path::new(&p)).unwrap();
         println!("{:?} in {:?}", meta, t.elapsed());
         assert!(meta.block_count.is_some());
+    }
+    /// Native decision models carry `<arch>.decision.type` (keys of ggml-org/vllm-d3-edge-GGUF
+    /// and vllm-sr/Decision-2.0 conversions); a key with a longer prefix is not it.
+    #[test]
+    fn decision_type_is_read_from_the_architecture_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = |name: &str, kvs: &[(&str, &str)]| {
+            let path = dir.path().join(name);
+            let mut f = File::create(&path).unwrap();
+            f.write_all(b"GGUF").unwrap();
+            f.write_all(&3u32.to_le_bytes()).unwrap();
+            f.write_all(&0u64.to_le_bytes()).unwrap();
+            f.write_all(&(kvs.len() as u64).to_le_bytes()).unwrap();
+            for (k, v) in kvs {
+                write_kv_str(&mut f, k, v);
+            }
+            path
+        };
+        let edge = file(
+            "edge.gguf",
+            &[
+                ("general.architecture", "qwen35"),
+                ("general.type", "model"),
+                ("qwen35.decision.type", "vllm-d3"),
+            ],
+        );
+        assert_eq!(
+            read_gguf_metadata(&edge).unwrap().decision_type.as_deref(),
+            Some("vllm-d3")
+        );
+        let chat = file(
+            "chat.gguf",
+            &[
+                ("general.architecture", "qwen3"),
+                ("clip.vision.decision.type", "x"),
+            ],
+        );
+        assert_eq!(read_gguf_metadata(&chat).unwrap().decision_type, None);
     }
 }

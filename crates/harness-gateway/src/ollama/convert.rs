@@ -321,7 +321,7 @@ fn apply_think(think: Option<&Value>, out: &mut Map<String, Value>) -> Result<()
 }
 
 /// MIME type of a base64 image from its first bytes (llama-server decodes the data itself).
-fn image_mime(b64: &str) -> &'static str {
+pub(crate) fn image_mime(b64: &str) -> &'static str {
     let head = b64.get(..16).unwrap_or(b64);
     if head.starts_with("iVBOR") {
         "image/png"
