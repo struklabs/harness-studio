@@ -28,7 +28,8 @@ names. This worker serves only what Harness needs, itself:
 * A request cannot run away: generation is capped at a number of codec frames that grows with
   the text (see `frame_budget`; sampling can miss the end token and keep talking), and it stops
   after --max-seconds of wall-clock time. Audio made by then is answered with
-  "x-harness-truncated: time"; nothing made by then is a 504. A transcription takes a body of
+  "x-harness-truncated: time"; nothing made by then is a 504. A call that made all the audio its
+  frame budget allows is answered with "x-harness-truncated: frames" (its end may be missing). A transcription takes a body of
   at most MAX_AUDIO_BODY bytes and audio of at most --max-audio-seconds (checked against the
   container's header, and decoding stops at the limit whatever it says), and stops with a 504
   after --max-seconds (checked between decoded windows / chunks).
@@ -96,7 +97,7 @@ TOKEN_RATES = {
 # The architecture mlx-audio is told to load for a family whose config does not name it (its
 # guess would come from the folder's name).
 LOAD_TYPES = {"spark": "spark", "outetts": "outetts", "dia": "dia"}
-DEFAULT_MAX_SECONDS = 120
+DEFAULT_MAX_SECONDS = 600
 
 
 # The thread that loads the model and runs every request: MLX streams belong to the thread
@@ -389,6 +390,11 @@ def fits(text_tokens, speed):
     return max(1, text_tokens) * FRAMES_PER_TOKEN / max(speed, 0.25) <= MAX_AUDIO_SECONDS * FRAME_RATE
 
 
+# Silence between two runs of a long text: the runs are separate calls, and joining their audio
+# end to start can click.
+GROUP_PAUSE_SECONDS = 0.2
+
+
 def sentence_groups(model, text, speed):
     """`text` as runs of whole sentences, each short enough to fit one call (`fits`). A
     streaming model speaks a text that fits in one call; a longer one run by run, so the frame
@@ -399,7 +405,9 @@ def sentence_groups(model, text, speed):
         if run and not fits(tokens + n, speed):
             groups.append(run)
             run, tokens = "", 0
-        run = run + " " + sentence if run else sentence
+        # CJK sentences are written without a space between them.
+        joint = "" if run.endswith(("\u3002", "\uff01", "\uff1f")) else " "
+        run = run + joint + sentence if run else sentence
         tokens += n
     return groups + [run] if run else groups
 
@@ -470,6 +478,9 @@ def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
     """`speak(text, voice, speed, language)` -> (WAV bytes, truncated). Generation is capped at
     `frame_budget` tokens of `family` and stopped after `max_seconds`: between streamed chunks
     when the model can stream, between sentences (each a call of its own) when it cannot.
+    `truncated` is None, "time" (the time limit stopped it) or "frames" (a call made all the
+    audio its budget allows: the sampler missed the end token and kept talking, or the text was
+    longer than one call can say, so its end may be missing or garbled).
     `encode(chunks, rate)` makes the WAV of the audio chunks. A speed other than 1 is refused by
     a model that has no `speed`."""
     params = inspect.signature(model.generate).parameters
@@ -501,20 +512,25 @@ def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
         else:
             pieces = sentence_groups(model, text, speed)
         deadline = clock() + max_seconds
-        parts, truncated = [], False
+        parts, truncated, at_budget = [], None, False
         for n, piece in enumerate(pieces):
             if n and clock() > deadline:
-                truncated = True
+                truncated = "time"
                 break
+            if n and can_stream:
+                parts.append([0.0] * int(GROUP_PAUSE_SECONDS * rate))
+            budget = None
             if takes("max_tokens"):
-                kwargs["max_tokens"] = frame_budget(
-                    count_tokens(model, piece), speed, token_rate, lead)
+                budget = frame_budget(count_tokens(model, piece), speed, token_rate, lead)
+                kwargs["max_tokens"] = budget
             results = model.generate(piece, **kwargs)
+            samples = 0
             try:
                 for result in results:
                     parts.append(result.audio)
+                    samples += len(result.audio)
                     if clock() > deadline:
-                        truncated = True
+                        truncated = "time"
                         break
             finally:
                 close = getattr(results, "close", None)
@@ -522,11 +538,14 @@ def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
                     close()
             if truncated:
                 break
+            # The audio of a call that used its whole budget (within one frame).
+            if budget is not None and samples >= (budget - lead - 1) / token_rate * rate:
+                at_budget = True
         if not parts:
             if truncated or clock() > deadline:
                 raise TooSlow()
             raise RuntimeError("no audio")
-        return encode(parts, rate), truncated
+        return encode(parts, rate), truncated or ("frames" if at_budget else None)
 
     return speak
 
@@ -679,7 +698,8 @@ def app_for(speak, alias, voices, max_chars):
         except Exception as e:  # the model's own failure, without the folder's path
             return 500, error("Speech failed: %s" % type(e).__name__, "server_error",
                               "speech_failed"), b"application/json", []
-        return 200, audio, b"audio/wav", [(b"x-harness-truncated", b"time")] if truncated else []
+        return 200, audio, b"audio/wav", \
+            [(b"x-harness-truncated", truncated.encode())] if truncated else []
 
     entry = {"id": alias or "default_model", "object": "model", "owned_by": "harness",
              "voices": voices}

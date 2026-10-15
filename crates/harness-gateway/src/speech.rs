@@ -543,8 +543,8 @@ async fn python_speak(
     let mut builder = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, format.content_type());
-    if answer.truncated {
-        builder = builder.header("x-harness-truncated", "time");
+    if let Some(reason) = &answer.truncated {
+        builder = builder.header("x-harness-truncated", reason.as_str());
     }
     crate::pyhf::lease_headers(builder, def, &answer.lease)
         .body(axum::body::Body::from(audio))

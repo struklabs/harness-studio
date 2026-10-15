@@ -25,7 +25,7 @@ const tr = {
   'mlxparam.max_chars': 'En uzun metin',
   'mlxparam.max_chars_help': 'Bir istekte seslendirilecek en çok karakter sayısı (boş = 4096).',
   'mlxparam.max_seconds': 'En uzun üretim süresi (sn)',
-  'mlxparam.max_seconds_help': 'Bir istek en çok bu kadar sürer. Seslendirmede süre dolunca o ana kadar üretilen ses döner; konuşma tanımada istek zaman aşımıyla biter (boş = 120).',
+  'mlxparam.max_seconds_help': 'Bir istek en çok bu kadar sürer. Seslendirmede süre dolunca o ana kadar üretilen ses döner; konuşma tanımada istek zaman aşımıyla biter (boş = 600; ağ geçidinin istek zaman aşımından 30 sn kısa tutulur).',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -53,7 +53,7 @@ const en: Record<keyof typeof tr, string> = {
   'mlxparam.max_chars': 'Longest text',
   'mlxparam.max_chars_help': 'How many characters one request may have spoken (empty = 4096).',
   'mlxparam.max_seconds': 'Longest generation (s)',
-  'mlxparam.max_seconds_help': 'One request runs for at most this long. Speech returns the audio made so far when the time is up; a transcription ends with a timeout (empty = 120).',
+  'mlxparam.max_seconds_help': 'One request runs for at most this long. Speech returns the audio made so far when the time is up; a transcription ends with a timeout (empty = 600, kept 30 s under the gateway\'s request timeout).',
 };
 
 export default { tr, en };

@@ -296,6 +296,11 @@
         {/if}
         <Button variant="ghost" size="sm" href={result.url} download="speech.wav"><Download />{t('speak.download')}</Button>
       </div>
+      {#if result.info.truncated}
+        <p class="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-1.5 text-xs text-warning" role="status">
+          <TriangleAlert class="size-3.5 shrink-0" />{t(result.info.truncated === 'frames' ? 'speak.truncated_frames' : 'speak.truncated')}
+        </p>
+      {/if}
       <!-- svelte-ignore a11y_media_has_caption -->
       <audio controls autoplay src={result.url} class="w-full" aria-label={t('speak.result_title')}></audio>
     </section>

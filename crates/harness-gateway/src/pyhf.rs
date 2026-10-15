@@ -52,9 +52,9 @@ pub struct Answer {
     pub content_type: String,
     pub body: Bytes,
     pub lease: Lease,
-    /// The worker stopped at its time limit and answered the audio made by then
-    /// (`x-harness-truncated`).
-    pub truncated: bool,
+    /// The worker answered part of the audio (`x-harness-truncated`): `time` (its time limit
+    /// stopped it) or `frames` (a call used its whole frame budget).
+    pub truncated: Option<String>,
 }
 
 /// Leases the definition's server (loading it when needed) and posts `body` to `path` on it.
@@ -194,7 +194,13 @@ pub async fn post(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("application/octet-stream")
         .to_string();
-    let truncated = upstream.headers().contains_key("x-harness-truncated");
+    let truncated = upstream
+        .headers()
+        .get("x-harness-truncated")
+        .map(|v| match v.to_str() {
+            Ok("frames") => "frames".to_string(),
+            _ => "time".to_string(),
+        });
     let body = if crisp_tts {
         // Bounded buffering even when an upstream sends no Content-Length.
         let mut upstream = upstream;
