@@ -134,7 +134,7 @@
             {copiedIndex === i ? t('pg.code_copied') : t('pg.copy_code')}
           </Button>
         </div>
-        <pre use:scrollFocusable class="m-0 overflow-x-auto p-3 font-mono text-xs leading-relaxed text-foreground"><code>{seg.value}</code></pre>
+        <pre use:scrollFocusable={t('pg.code_block_aria')} class="m-0 overflow-x-auto p-3 focus-visible:outline-offset-[-2px] font-mono text-xs leading-relaxed text-foreground"><code>{seg.value}</code></pre>
       </div>
     {/if}
   {/each}

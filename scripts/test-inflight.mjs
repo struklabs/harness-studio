@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createInflight, inflightKey } from '../src/lib/inflight.ts';
+import { createInflight, inflightKey, isDefinitionWrite } from '../src/lib/inflight.ts';
 
 test('concurrent callers with one key share a single run', async () => {
   const shared = createInflight();
@@ -36,4 +36,11 @@ test('keys separate commands, arguments and epochs', () => {
   assert.notEqual(inflightKey('scan'), inflightKey('scan', { a: 1 }));
   assert.notEqual(inflightKey('scan', undefined, 1), inflightKey('scan', undefined, 2));
   assert.equal(inflightKey('f', { id: 'x' }), inflightKey('f', { id: 'x' }));
+});
+
+test('definition writes are recognised, reads are not', () => {
+  assert.equal(isDefinitionWrite('save_definition_form'), true);
+  assert.equal(isDefinitionWrite('delete_model_definition'), true);
+  assert.equal(isDefinitionWrite('get_definition_form'), false);
+  assert.equal(isDefinitionWrite('list_model_definitions'), false);
 });

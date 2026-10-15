@@ -1,6 +1,6 @@
 import { invoke as tauriInvoke, type InvokeArgs, type InvokeOptions } from '@tauri-apps/api/core';
 import { BackendError } from '#lib/errors.js';
-import { createInflight, inflightKey } from '#lib/inflight.js';
+import { createInflight, inflightKey, isDefinitionWrite } from '#lib/inflight.js';
 
 /**
  * Tauri's `invoke`, but a string rejection (a backend error key) becomes a `BackendError`
@@ -8,9 +8,20 @@ import { createInflight, inflightKey } from '#lib/inflight.js';
  * `@tauri-apps/api/core` (Tauri's internals object is read-only, so it can't be patched globally).
  */
 export function invoke<T>(cmd: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T> {
-  return tauriInvoke<T>(cmd, args, options).catch((e: unknown) => {
+  const call = tauriInvoke<T>(cmd, args, options).catch((e: unknown) => {
     throw typeof e === 'string' ? new BackendError(e) : e;
   });
+  if (!isDefinitionWrite(cmd)) return call;
+  // Bumped on start and on settle, so a read during or after the write never joins an older one.
+  definitionWrites++;
+  return call.finally(() => definitionWrites++);
+}
+
+let definitionWrites = 0;
+
+/** Epoch for shared definition reads (`get_definition_form`): changes whenever a definition is written. */
+export function definitionsEpoch(): number {
+  return definitionWrites;
 }
 
 const sharedInflight = createInflight();

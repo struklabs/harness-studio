@@ -3,7 +3,7 @@
   // type, flash attention and parallel slots of one definition for this load (or save them to
   // the definition), with the memory estimate of the launch the load would start. A model
   // another engine runs (ONNX, whisper.cpp, sd.cpp, python-hf...) shows that engine's settings.
-  import { invoke, invokeShared } from '#lib/ipc.js';
+  import { definitionsEpoch, invoke, invokeShared } from '#lib/ipc.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
   import { capsStore } from '#lib/stores/caps.svelte.js';
@@ -47,7 +47,7 @@
     engine = 'llama.cpp';
     engineCatalog = null;
     (async () => {
-      const config = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id });
+      const config = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id }, definitionsEpoch());
       const modelPath = config?.model_path;
       if (!modelPath) return;
       const family = (await invoke<string | null>('get_model_engine', { modelPath })) ?? 'llama.cpp';
