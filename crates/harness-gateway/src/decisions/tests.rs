@@ -534,6 +534,14 @@ fn emulation_reads_probabilities_after_the_grammar() {
     let p = emulate::probabilities(&raw, &codes).unwrap();
     assert!(close(p.iter().sum::<f64>(), 1.0));
     assert!(p[2] > p[0] && p[0] > p[1]);
+    // Raw logprobs that miss a code say nothing about it (they are taken before the grammar):
+    // no answer rather than a confident wrong one.
+    let partial = json!({"choices": [{"logprobs": {"content": [{"token": "C", "logprob": -0.27,
+        "top_logprobs": [
+            {"token": "C", "logprob": -0.27},
+            {"token": "A", "logprob": -1.47},
+            {"token": "Answer", "logprob": -5.86}]}]}}]});
+    assert!(emulate::probabilities(&partial, &codes).is_none());
     // No logprobs (a server without them): no answer.
     assert!(emulate::probabilities(&json!({"choices": [{"message": {}}]}), &codes).is_none());
 }

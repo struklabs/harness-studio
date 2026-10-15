@@ -18,7 +18,7 @@ pub mod emulate;
 pub mod native;
 pub mod schema;
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::http::{HeaderMap, HeaderValue};
 use axum::response::{IntoResponse, Response};
@@ -152,7 +152,10 @@ fn never_decides(def: &ModelDefinition) -> bool {
         || crate::images::is_image_model(def)
 }
 
-/// Text of the whole request, for the token admission estimate.
+/// Text of the whole request, for the token admission estimate. This is the KV-pool demand of
+/// both modes: emulation asks its questions one after the other on the same lease, so at most
+/// one copy of the state is in the pool at a time (and the prompt cache reuses it). The tokens
+/// each emulated question really used are charged to the caller's rate limit afterwards.
 fn demand(req: &DecisionRequest) -> Option<harness_core::gateway::admission::Demand> {
     let mut text = emulate::text(&req.state);
     for q in &req.questions {
@@ -225,10 +228,15 @@ async fn run(
         return Err(not_a_decision_model(&def.alias));
     }
     let settings = state.scheduler.settings();
-    let native = def
-        .base
-        .local_path()
-        .is_some_and(harness_core::models::is_decision_model);
+    // The GGUF header is read (and cached) off the async worker.
+    let native = match def.base.local_path().map(|p| p.to_path_buf()) {
+        Some(path) => {
+            tokio::task::spawn_blocking(move || harness_core::models::is_decision_model(&path))
+                .await
+                .unwrap_or(false)
+        }
+        None => false,
+    };
     // Emulation off: llama-server decides; its 501 for a chat model is mapped below.
     let mode = if native || !settings.decision_emulation {
         Mode::Native
@@ -244,9 +252,9 @@ async fn run(
                         400,
                         "invalid_request",
                         format!(
-                            "\"{}\" is not a decision model: chat model emulation supports up to {} options per question.",
-                            def.alias,
-                            emulate::MAX_CHOICES
+                            "too many options for emulation (max {}): \"{}\" is not a decision model, and chat model emulation codes each option as one character",
+                            emulate::MAX_CHOICES,
+                            def.alias
                         ),
                     )
                     .param(match flavor {
@@ -291,20 +299,28 @@ async fn run(
         .get()
         .compat
         .push(format!("decision_mode={}", mode.as_str()));
-    let timeout = match settings.request_timeout_secs {
+    // One deadline for the whole request: emulation asks one question after the other.
+    let deadline = match settings.request_timeout_secs {
         0 => None,
-        n => Some(Duration::from_secs(u64::from(n))),
+        n => Some((Instant::now() + Duration::from_secs(u64::from(n)), n)),
     };
-    let outcome = match mode {
-        Mode::Native => decide_native(state, &def, &lease, &req, timeout).await?,
-        Mode::Emulated => decide_emulated(state, &def, &lease, &req, timeout).await?,
+    let mut outcome = Outcome::default();
+    let decided = match mode {
+        Mode::Native => decide_native(state, &def, &lease, &req, deadline, &mut outcome).await,
+        Mode::Emulated => decide_emulated(state, &def, &lease, &req, deadline, &mut outcome).await,
     };
+    // The tokens the upstream already used count against the caller's rate limit even when a
+    // later question fails (emulation sends the state once per question).
+    {
+        let r = guard.get();
+        r.usage.prompt_tokens = Some(outcome.input_tokens);
+        r.usage.completion_tokens = Some(outcome.output_tokens);
+    }
+    decided?;
     let elapsed = guard.started.elapsed().as_millis() as u64;
     {
         let r = guard.get();
         r.status = 200;
-        r.usage.prompt_tokens = Some(outcome.input_tokens);
-        r.usage.completion_tokens = Some(outcome.output_tokens);
         r.ttft_ms = Some(elapsed);
     }
     let out = match flavor {
@@ -344,13 +360,24 @@ async fn run(
     Ok(resp)
 }
 
-/// One upstream JSON call: status and parsed body (the raw bytes when they are not JSON).
+/// The request's deadline and its length in seconds (`request_timeout_secs`; `None` = no limit).
+type Deadline = Option<(Instant, u32)>;
+
+fn timed_out(secs: u32) -> GatewayError {
+    GatewayError::new(
+        504,
+        "upstream_timeout",
+        format!("the model server did not answer within {secs} s"),
+    )
+}
+
+/// One upstream JSON call within the request's deadline: status and body.
 async fn post(
     state: &GwState,
     lease: &Lease,
     path: &str,
     body: Bytes,
-    timeout: Option<Duration>,
+    deadline: Deadline,
 ) -> Result<(u16, Bytes), GatewayError> {
     let mut req = state
         .http
@@ -365,14 +392,15 @@ async fn post(
         let status = resp.status().as_u16();
         Ok::<_, reqwest::Error>((status, resp.bytes().await?))
     };
-    match timeout {
-        Some(t) => tokio::time::timeout(t, call).await.map_err(|_| {
-            GatewayError::new(
-                504,
-                "upstream_timeout",
-                format!("the model server did not answer within {} s", t.as_secs()),
-            )
-        })?,
+    match deadline {
+        Some((at, secs)) => {
+            if Instant::now() >= at {
+                return Err(timed_out(secs));
+            }
+            tokio::time::timeout_at(at.into(), call)
+                .await
+                .map_err(|_| timed_out(secs))?
+        }
         None => call.await,
     }
     .map_err(|e| GatewayError::new(502, "upstream_unreachable", format!("model server: {e}")))
@@ -391,8 +419,9 @@ async fn decide_native(
     def: &ModelDefinition,
     lease: &Lease,
     req: &DecisionRequest,
-    timeout: Option<Duration>,
-) -> Result<Outcome, GatewayError> {
+    deadline: Deadline,
+    outcome: &mut Outcome,
+) -> Result<(), GatewayError> {
     let mut parts = Vec::new();
     let mut ask = Vec::new();
     for (i, q) in req.questions.iter().enumerate() {
@@ -401,11 +430,10 @@ async fn decide_native(
             None => ask.push(i),
         }
     }
-    let mut outcome = Outcome::default();
     if !ask.is_empty() {
         let body = serde_json::to_vec(&native::request(req, &ask)).unwrap_or_default();
         let (status, bytes) =
-            post(state, lease, "/v1/systemone", Bytes::from(body), timeout).await?;
+            post(state, lease, "/v1/systemone", Bytes::from(body), deadline).await?;
         if status != 200 {
             return Err(upstream_error(status, &bytes, &def.alias));
         }
@@ -417,7 +445,7 @@ async fn decide_native(
         outcome.add_usage(input, output);
     }
     outcome.answers = native::merge(parts, req.questions.len());
-    Ok(outcome)
+    Ok(())
 }
 
 async fn decide_emulated(
@@ -425,9 +453,9 @@ async fn decide_emulated(
     def: &ModelDefinition,
     lease: &Lease,
     req: &DecisionRequest,
-    timeout: Option<Duration>,
-) -> Result<Outcome, GatewayError> {
-    let mut outcome = Outcome::default();
+    deadline: Deadline,
+    outcome: &mut Outcome,
+) -> Result<(), GatewayError> {
     for q in &req.questions {
         if let Some(a) = local_answer(q) {
             outcome.answers.push(a);
@@ -443,7 +471,7 @@ async fn decide_emulated(
             serde_json::to_vec(&v).unwrap_or_default()
         });
         let body = crate::proxy::upstream_body(def, Bytes::from(bytes));
-        let (status, resp) = post(state, lease, "/v1/chat/completions", body, timeout).await?;
+        let (status, resp) = post(state, lease, "/v1/chat/completions", body, deadline).await?;
         if status != 200 {
             let message = crate::ollama::convert::upstream_error_message(&resp);
             return Err(if status == 400 {
@@ -454,6 +482,8 @@ async fn decide_emulated(
         }
         let value: Value = serde_json::from_slice(&resp)
             .map_err(|e| GatewayError::new(500, "decision_failed", e.to_string()))?;
+        let usage = |k: &str| value["usage"][k].as_u64().unwrap_or(0);
+        outcome.add_usage(usage("prompt_tokens"), usage("completion_tokens"));
         let codes = emulate::codes(&q.kind);
         let p = emulate::probabilities(&value, &codes).ok_or_else(|| {
             GatewayError::new(
@@ -466,10 +496,8 @@ async fn decide_emulated(
             )
         })?;
         outcome.answers.push(emulate::answer(&q.kind, p));
-        let usage = |k: &str| value["usage"][k].as_u64().unwrap_or(0);
-        outcome.add_usage(usage("prompt_tokens"), usage("completion_tokens"));
     }
-    Ok(outcome)
+    Ok(())
 }
 
 #[cfg(test)]

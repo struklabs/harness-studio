@@ -122,6 +122,8 @@ pub fn request(model: &str, state: &Value, images: &[String], q: &Question) -> V
 
 /// The probability of each code from a Chat Completions response: `top_probs` (llama-server's
 /// `post_sampling_probs`, after the grammar), else `top_logprobs`; normalized over the codes.
+/// `top_logprobs` come from the whole vocabulary before the grammar, so a code missing from them
+/// is not known to be unlikely: they are used only when every code is listed.
 pub fn probabilities(resp: &Value, codes: &[String]) -> Option<Vec<f64>> {
     let first = resp["choices"][0]["logprobs"]["content"].get(0)?;
     let mut p = vec![0.0; codes.len()];
@@ -137,10 +139,17 @@ pub fn probabilities(resp: &Value, codes: &[String]) -> Option<Vec<f64>> {
             }
         }
     } else if let Some(list) = first["top_logprobs"].as_array() {
+        let mut seen = vec![false; codes.len()];
         for e in list {
             if let (Some(t), Some(v)) = (e["token"].as_str(), e["logprob"].as_f64()) {
+                if let Some(i) = codes.iter().position(|c| c == t.trim()) {
+                    seen[i] = true;
+                }
                 add(t, v.exp());
             }
+        }
+        if !seen.iter().all(|s| *s) {
+            return None;
         }
     }
     normalize(p)

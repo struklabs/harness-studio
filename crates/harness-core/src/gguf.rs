@@ -456,7 +456,7 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
                 && k.strip_suffix(".decision.type")
                     .is_some_and(|arch| !arch.is_empty() && !arch.contains('.')) =>
             {
-                meta.decision_type = read_string(&mut reader).ok().filter(|t| !t.is_empty())
+                meta.decision_type = Some(read_string(&mut reader)?).filter(|t| !t.is_empty())
             }
             k if k.ends_with(".classifier.output_labels") => {
                 meta.has_classifier_labels = true;
