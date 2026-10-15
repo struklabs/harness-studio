@@ -106,7 +106,8 @@ fn join(parts: &[&OsStr]) -> OsString {
     out
 }
 
-#[cfg(test)]
+// Mount paths are Unix paths: on Windows `/tmp/...` is not absolute, so `changes` leaves it alone.
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
