@@ -164,7 +164,7 @@
 <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
   <section class="min-w-0">
     <h2 class="text-sm font-semibold">{t('create.queue')}</h2><p class="mt-1 text-xs text-muted-foreground">{t('create.queue_hint')}</p>
-    <div class="mt-3 flex flex-wrap items-center gap-2" aria-label={t('create.filter_help')}>
+    <div class="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label={t('create.filter_help')}>
       {#each filters as selected}
         <Button variant={filter === selected ? 'default' : 'outline'} size="sm" data-queue-filter={selected} aria-describedby={filterHelpId} aria-pressed={filter === selected} onclick={() => chooseFilter(selected)}>{filterLabel(selected)} <span class="font-num inline-block w-[3ch] text-right">{run?.queue.filter(q => accepts(q.status, q.draft, selected)).length ?? 0}</span></Button>
       {/each}

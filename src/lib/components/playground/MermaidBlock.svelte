@@ -11,6 +11,7 @@
   import { diagramBackground, renderMermaid } from './mermaid';
   import { svgToPng } from './diagramPng';
   import { convApi } from './conversations';
+  import { scrollFocusable } from '#lib/actions/scrollFocusable.js';
 
   interface Props {
     code: string;
@@ -167,6 +168,6 @@
         <span class="block font-mono text-muted-foreground [overflow-wrap:anywhere]">{error}</span>
       </p>
     {/if}
-    <pre class="m-0 overflow-x-auto p-3 font-mono text-xs leading-relaxed text-foreground"><code>{code}</code></pre>
+    <pre use:scrollFocusable class="m-0 overflow-x-auto p-3 font-mono text-xs leading-relaxed text-foreground"><code>{code}</code></pre>
   {/if}
 </div>
