@@ -80,6 +80,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed
+- Linux, AMD APUs: GPU memory showed only the BIOS carve-out (for example 467/512 MB), and a fully offloaded llama-server about 15 MB, because an APU's GPU buffers live in GTT. On integrated AMD GPUs the Dashboard total and the per-process breakdown now count VRAM plus GTT (from `mem_info_gtt_*` and the fdinfo `drm-resident-gtt`). Discrete cards are unchanged.
+- Linux, AMD APU'lar: GPU belleği yalnız BIOS ayırmasını (ör. 467/512 MB), tamamen GPU'ya yüklü bir llama-server'ı da yaklaşık 15 MB gösteriyordu; APU'da GPU tamponları GTT'de durur. Tümleşik AMD GPU'larda Dashboard toplamı ve süreç dökümü artık VRAM ile GTT'yi birlikte sayıyor (`mem_info_gtt_*` ve fdinfo `drm-resident-gtt`). Ayrık kartlar değişmedi.
 - Downloader: GGUF magic is checked only for `.gguf` files; companion files download with consistent file counters and byte progress.
 - İndirici: GGUF sihirli baytları yalnız `.gguf` dosyalarında denetlenir; yardımcı dosyalar tutarlı dosya sayacı ve bayt ilerlemesiyle indirilir.
 - Model Hub: the results heading follows the active search while its listing loads.
