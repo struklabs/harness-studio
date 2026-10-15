@@ -179,7 +179,14 @@ def main(argv=None):
 
     def run(host, port, model_provider, server_class=server.ThreadingHTTPServer, handler_class=None):
         group = server.mx.distributed.init()
-        prompt_cache = server.LRUPromptCache(model_provider.cli_args.prompt_cache_size)
+        # mlx-lm's own `run` gives the cache no byte limit, so `--prompt-cache-bytes` only trims
+        # it while requests are batched. Bounded here, it holds on every path: a chat whose
+        # template rewrites earlier turns (Qwen3 drops their thinking) leaves one entry per turn.
+        limit = getattr(model_provider.cli_args, "prompt_cache_bytes", None)
+        prompt_cache = server.LRUPromptCache(
+            model_provider.cli_args.prompt_cache_size,
+            **({"max_bytes": limit} if limit else {}),
+        )
         generator = server.ResponseGenerator(model_provider, prompt_cache)
         if group.rank() == 0:
             server._run_http_server(HOST, port, generator, server_class, Handler)

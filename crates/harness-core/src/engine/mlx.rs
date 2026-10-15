@@ -1053,6 +1053,19 @@ fn companion_args(model: &Path, libraries: &[PathBuf]) -> Result<Vec<String>, St
     Ok(args)
 }
 
+/// Upper bound of mlx-lm's prompt cache (`--prompt-cache-bytes`), which otherwise only counts
+/// entries (10). A chat whose template rewrites earlier turns (Qwen3 drops their thinking) leaves
+/// one entry per turn, each the size of the whole conversation's KV: measured on an M1 8 GB,
+/// Qwen3-0.6B held 8 entries and 4.35 GB at 4k tokens and ran out of Metal memory. Half of the
+/// GPU share that the model leaves, between 256 MiB and 8 GiB; 2 GiB when the budget is unknown.
+fn prompt_cache_bytes(need: u64, budget: &crate::vram::MemoryBudget) -> u64 {
+    const MIB: u64 = 1 << 20;
+    if !budget.unified || budget.vram_bytes == 0 {
+        return 2048 * MIB;
+    }
+    (budget.vram_bytes.saturating_sub(need) / 2).clamp(256 * MIB, 8192 * MIB)
+}
+
 /// The command line of a launch: the worker script first (the program is the interpreter).
 fn build_args(
     config: &LaunchConfig,
@@ -1100,6 +1113,15 @@ fn build_args(
             return Err(err("params.protected_flag").with("flag", bad).into());
         }
         args.extend(custom);
+    }
+    if flavour == Flavour::Text
+        && !args
+            .iter()
+            .any(|a| a.split('=').next() == Some("--prompt-cache-bytes"))
+    {
+        let budget = crate::vram::budget(&crate::hardware::detect_hardware());
+        args.push("--prompt-cache-bytes".into());
+        args.push(prompt_cache_bytes(vram_need(config), &budget).to_string());
     }
     if flavour != Flavour::Audio
         && !args
@@ -1205,6 +1227,54 @@ pub(crate) mod tests {
         assert!(!is_vlm_dir(quantized.path()));
         assert!(!inspect(quantized.path()).unwrap().vision);
         assert!(inspect(plain.path()).is_none());
+    }
+
+    /// The prompt cache is bounded by half of the GPU share the model leaves (256 MiB..8 GiB),
+    /// for text models only, and a `--prompt-cache-bytes` of the user's wins.
+    #[test]
+    fn the_prompt_cache_is_bounded_by_the_memory_left() {
+        const MIB: u64 = 1 << 20;
+        let m1_8gb = crate::vram::MemoryBudget {
+            vram_bytes: 5461 * MIB,
+            unified: true,
+            ..Default::default()
+        };
+        // Qwen3-0.6B-4bit: ~700 MiB needed, ~2.3 GiB for the cache.
+        assert_eq!(prompt_cache_bytes(701 * MIB, &m1_8gb), 2380 * MIB);
+        assert_eq!(prompt_cache_bytes(5400 * MIB, &m1_8gb), 256 * MIB);
+        let big = crate::vram::MemoryBudget {
+            vram_bytes: 98_304 * MIB,
+            ..m1_8gb
+        };
+        assert_eq!(prompt_cache_bytes(4096 * MIB, &big), 8192 * MIB);
+        let unknown = crate::vram::MemoryBudget {
+            vram_bytes: 0,
+            ..m1_8gb
+        };
+        assert_eq!(prompt_cache_bytes(701 * MIB, &unknown), 2048 * MIB);
+
+        let dir = folder(&[("config.json", MLX_CONFIG), ("model.safetensors", "x")]);
+        let config = LaunchConfig {
+            model_path: dir.path().to_path_buf(),
+            ..Default::default()
+        };
+        let count = |out: &BuildOutput| {
+            out.args
+                .iter()
+                .filter(|a| a.starts_with("--prompt-cache-bytes"))
+                .count()
+        };
+        let out = build_args(&config, Path::new("w.py"), Flavour::Text).unwrap();
+        assert_eq!(count(&out), 1, "{:?}", out.args);
+        for flavour in [Flavour::Vision, Flavour::Audio] {
+            let out = build_args(&config, Path::new("w.py"), flavour).unwrap();
+            assert_eq!(count(&out), 0, "{flavour:?}: {:?}", out.args);
+        }
+        let mut custom = config.clone();
+        custom.custom_args = Some("--prompt-cache-bytes=1GB".into());
+        let out = build_args(&custom, Path::new("w.py"), Flavour::Text).unwrap();
+        assert_eq!(count(&out), 1, "{:?}", out.args);
+        assert!(out.args.contains(&"--prompt-cache-bytes=1GB".to_string()));
     }
 
     #[test]
@@ -2328,9 +2398,10 @@ class ModelProvider:
         self.cli_args = cli_args
     def load(self, *a):
         pass
+CACHES = []
 class LRUPromptCache:
-    def __init__(self, size):
-        pass
+    def __init__(self, size, max_bytes=1 << 63):
+        CACHES.append((size, max_bytes))
 class ResponseGenerator:
     def __init__(self, *a):
         pass
@@ -2339,7 +2410,7 @@ mx = types.SimpleNamespace(distributed=types.SimpleNamespace(
 def _run_http_server(host, port, generator, server_class, handler):
     HANDLER.append(handler)
 def main():
-    run(None, 0, ModelProvider(types.SimpleNamespace(prompt_cache_size=1)))
+    run(None, 0, ModelProvider(types.SimpleNamespace(prompt_cache_size=1, prompt_cache_bytes=12345)))
 "#,
         )
         .unwrap();
@@ -2349,6 +2420,8 @@ import sys, threading, http.client; sys.path.insert(0, {:?})
 import mlx_worker as w
 from mlx_lm import server
 w.main(["--model", "m", "--port", "0"])
+# The prompt cache gets its byte limit on every path (mlx-lm's own run gives it none).
+assert server.CACHES == [(1, 12345)], server.CACHES
 httpd = server.ThreadingHTTPServer(("127.0.0.1", 0), server.HANDLER[0])
 threading.Thread(target=httpd.serve_forever, daemon=True).start()
 def call(method, path, origin=None, key=True, upgrade=False):
