@@ -36,9 +36,9 @@ pub(crate) fn get_launch_at_login(app: tauri::AppHandle) -> Result<bool, String>
     #[cfg(not(any(windows, target_os = "linux")))]
     {
         use tauri_plugin_autostart::ManagerExt;
-        app.autolaunch().is_enabled().map_err(|e| {
+        Ok(app.autolaunch().is_enabled().map_err(|e| {
             harness_core::error_key::err("desktop.autostart_status_failed").with("error", e)
-        })
+        })?)
     }
 }
 
