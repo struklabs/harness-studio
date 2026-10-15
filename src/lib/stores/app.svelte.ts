@@ -14,6 +14,8 @@ import type {
   TelemetrySnapshot,
 } from '#lib/types.js';
 import { t } from '#lib/i18n.svelte.js';
+import { toast } from 'svelte-sonner';
+import { serverErrorText } from '#lib/failure.js';
 import { assignSlots } from '#lib/serverColor.js';
 import { runningGatewayEndpoint } from '#lib/gateway-url.js';
 
@@ -217,8 +219,40 @@ class AppState {
     }
   }
 
+  /** Status of each server at the last list, to tell a crash from a start that failed. */
+  private lastStatus = new Map<string, ServerSummary['status']>();
+
+  /**
+   * A server that was running and is now in Error crashed: say so wherever the user is (the
+   * Dashboard shows the details), with a way there. A start that failed is shown where it was
+   * started, so only Running -> Error is announced.
+   */
+  private announceCrashes(list: ServerSummary[]) {
+    for (const s of list) {
+      const before = this.lastStatus.get(s.id);
+      const isError = typeof s.status === 'object' && s.status !== null && 'Error' in s.status;
+      if (before === 'Running' && isError) {
+        // One toast per server: a crash loop (automatic restarts) updates it instead of stacking.
+        const server = s.id === DEFAULT_SERVER_ID ? t('srv.default_label') : this.serverLabel(s.id);
+        toast.error(t('dash.server_crashed', { server }), {
+          id: `crash-${s.id}`,
+          description: serverErrorText(s) ?? undefined,
+          action: {
+            label: t('dash.server_crashed_open'),
+            onClick: () => {
+              this.selectServer(s.id);
+              this.openTab('dashboard');
+            },
+          },
+        });
+      }
+    }
+    this.lastStatus = new Map(list.map((s) => [s.id, s.status]));
+  }
+
   /** Takes a server list (fetched, or pushed with `servers-changed`). */
   private async applyServers(list: ServerSummary[]) {
+    this.announceCrashes(list);
     const json = JSON.stringify(list);
     if (json !== this.serversJson) {
       this.serversJson = json;

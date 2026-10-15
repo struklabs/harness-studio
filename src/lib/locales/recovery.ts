@@ -3,7 +3,7 @@
 // compares them), so keep `{placeholders}` identical in both languages.
 const tr = {
   // Classified failures (harness_core::failure)
-  'failure.out_of_memory': 'Bellek yetersiz: llama-server model için yer ayıramadı (VRAM ya da RAM).',
+  'failure.out_of_memory': 'Bellek yetersiz: {engine} sunucusu model için yer ayıramadı (VRAM ya da RAM).',
   'failure.missing_library': 'Model motorunun ihtiyaç duyduğu bir kütüphane yüklenemedi (GPU sürücüsü ya da model motoru dosyaları eksik veya uyumsuz).',
   'failure.corrupt_model': 'Model dosyası bozuk ya da eksik (yarım kalmış indirme?). Dosyayı yeniden indirin.',
   'failure.unsupported_architecture': 'Bu llama.cpp model motoru "{arch}" model mimarisini desteklemiyor. Model motorunu güncelleyin.',
@@ -11,8 +11,8 @@ const tr = {
   'failure.port_in_use': 'Port başka bir program tarafından kullanılıyor. Başka bir port seçin.',
   'failure.invalid_argument': 'Bu model motoru bir başlatma argümanını kabul etmedi: {flag}. Kaldırın ya da model motorunu güncelleyin.',
   'failure.load_timeout': 'Sunucu {seconds} sn içinde hazır olmadı. Büyük modeller için yükleme zaman aşımını artırın.',
-  'failure.crashed': 'llama-server beklenmedik şekilde durdu.',
-  'failure.start_failed': 'llama-server başlatılamadı.',
+  'failure.crashed': '{engine} sunucusu beklenmedik şekilde durdu.',
+  'failure.start_failed': '{engine} sunucusu başlatılamadı.',
   'failure.device_lost': 'Ekran kartı işi durdurdu (sürücü sıfırlandı ya da GPU hatası). Sunucuyu yeniden başlatın; tekrarlarsa daha az GPU katmanı ya da başka bir sürücü sürümü deneyin.',
   'failure.draft_load_failed': 'Taslak model yüklenemedi: {draft}. Genellikle belleğe sığmadığı içindir: taslağın GPU katmanını (-ngld) düşürün ya da taslak modeli kapatın. Dosya yoksa ya da bozuksa başka bir taslak seçin.',
   'failure.exit_code': 'Çıkış kodu {exit}',
@@ -121,7 +121,7 @@ const tr = {
 } as const;
 
 const en: Record<keyof typeof tr, string> = {
-  'failure.out_of_memory': 'Not enough memory: llama-server could not allocate memory for the model (VRAM or RAM).',
+  'failure.out_of_memory': 'Not enough memory: the {engine} server could not allocate memory for the model (VRAM or RAM).',
   'failure.missing_library': 'A library the runtime needs could not be loaded (GPU driver or runtime files missing or incompatible).',
   'failure.corrupt_model': 'The model file is damaged or incomplete (interrupted download?). Download it again.',
   'failure.unsupported_architecture': 'This llama.cpp runtime does not support the model architecture "{arch}". Update the runtime.',
@@ -129,8 +129,8 @@ const en: Record<keyof typeof tr, string> = {
   'failure.port_in_use': 'The port is in use by another program. Choose another port.',
   'failure.invalid_argument': 'This runtime rejected a launch argument: {flag}. Remove it or update the runtime.',
   'failure.load_timeout': 'The server was not ready within {seconds} s. Raise the load timeout for large models.',
-  'failure.crashed': 'llama-server stopped unexpectedly.',
-  'failure.start_failed': 'llama-server could not start.',
+  'failure.crashed': 'The {engine} server stopped unexpectedly.',
+  'failure.start_failed': 'The {engine} server could not start.',
   'failure.device_lost': 'The GPU stopped the work (driver reset or GPU error). Start the server again; if it repeats, try fewer GPU layers or another GPU driver version.',
   'failure.draft_load_failed': 'The draft model could not be loaded: {draft}. Usually it does not fit in memory: give the draft fewer GPU layers (-ngld) or turn the draft model off. If the file is missing or damaged, choose another draft.',
   'failure.exit_code': 'Exit code {exit}',
