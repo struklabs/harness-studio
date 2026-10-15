@@ -9,6 +9,15 @@ export function quantBits(q: string): number {
   return m ? parseInt(m[1], 10) : 0;
 }
 
+/** Vision projectors, speculative-decoding drafts, image VAEs / text encoders / LoRAs: never the main model. */
+const COMPANION_QUANTS = new Set(['mmproj', 'component', 'lora']);
+const COMPANION_PATH = /mmproj|projector|(?:^|[/\\_. -])(?:mtp|draft|assistant|eagle\d*|dflash|dspark)(?:[/\\_. -]|$)/i;
+
+/** A companion file (projector, draft model, VAE, text encoder, LoRA) rather than a standalone model. */
+export function isCompanionVariant(v: HfModelVariant): boolean {
+  return COMPANION_QUANTS.has(v.quantization.toLowerCase()) || [v.name, ...v.shards.map((s) => s.filename)].some((path) => COMPANION_PATH.test(path));
+}
+
 const TIERS = ['full_gpu', 'tight', 'hybrid', 'cpu_heavy'] as const;
 
 function currentVariants(variants: HfModelVariant[]): HfModelVariant[] {
@@ -24,7 +33,7 @@ function currentVariants(variants: HfModelVariant[]): HfModelVariant[] {
  * 4-bit-or-better file of the best tier still possible. Null when sizes or fits are unknown.
  */
 export function recommendVariant(variants: HfModelVariant[], fits: Map<string, FitCategory>): HfModelVariant | null {
-  const sized = currentVariants(variants.filter((v) => v.total_size_bytes > 0 && quantBits(v.quantization) <= 8 && fits.has(v.name)));
+  const sized = currentVariants(variants.filter((v) => !isCompanionVariant(v) && v.total_size_bytes > 0 && quantBits(v.quantization) <= 8 && fits.has(v.name)));
   if (sized.length === 0) return null;
   for (const tier of TIERS) {
     const group = sized.filter((v) => fits.get(v.name) === tier);

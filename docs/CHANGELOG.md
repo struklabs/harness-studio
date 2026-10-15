@@ -86,6 +86,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed
+- Model Hub: the recommended variant is never a vision projector, a draft / MTP / assistant model, an image VAE or text encoder, or a LoRA adapter; the simplified drawer no longer falls back to one of them.
+- Model Hub: önerilen varyant artık görüntü projektörü, taslak / MTP / asistan modeli, görüntü VAE'si veya metin kodlayıcısı ya da LoRA bağdaştırıcısı olmaz; basit çekmece de bunlara geri düşmez.
 - Downloader: GGUF magic is checked only for `.gguf` files; companion files download with consistent file counters and byte progress.
 - İndirici: GGUF sihirli baytları yalnız `.gguf` dosyalarında denetlenir; yardımcı dosyalar tutarlı dosya sayacı ve bayt ilerlemesiyle indirilir.
 - Model Hub: the results heading follows the active search while its listing loads.

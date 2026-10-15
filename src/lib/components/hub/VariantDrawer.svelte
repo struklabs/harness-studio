@@ -31,7 +31,7 @@
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
-  import { isCtcVariant, isWhisperVariant, recommendCtcVariant, recommendCrispasrVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
+  import { isCompanionVariant, isCtcVariant, isWhisperVariant, recommendCtcVariant, recommendCrispasrVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
   import { security } from '#lib/stores/security.svelte.js';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
 
@@ -418,7 +418,7 @@
   });
   let visibleVariants = $derived.by(() => {
     if (uiLevel.advanced || showAllFiles) return filteredVariants;
-    const choice = filteredVariants.find((v) => v.name === recommended?.name) ?? filteredVariants[0];
+    const choice = filteredVariants.find((v) => v.name === recommended?.name) ?? filteredVariants.find((v) => !isCompanionVariant(v)) ?? filteredVariants[0];
     return choice ? [choice] : [];
   });
   let filtersActive = $derived(quantFilter !== 'ALL' || sizeFilter !== 'ALL');
