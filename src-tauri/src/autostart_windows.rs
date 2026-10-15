@@ -62,13 +62,16 @@ fn read_run(machine: bool, name: &str) -> Result<Option<String>, String> {
     }
 }
 
+fn approved_value(value: &[u8]) -> bool {
+    value.first().is_none_or(|status| status & 1 == 0)
+}
+
 fn user_approved(name: &str) -> Result<bool, String> {
     match CURRENT_USER
         .open(APPROVED_KEY)
         .and_then(|k| k.get_value(name))
     {
-        // Task Manager's "Disable" writes a timestamp into the last eight bytes.
-        Ok(v) => Ok(v.len() < 8 || v.iter().rev().take(8).all(|b| *b == 0)),
+        Ok(v) => Ok(approved_value(&v)),
         Err(e) if not_found(e.code().0) => Ok(true),
         Err(e) => Err(e.message()),
     }
@@ -161,6 +164,21 @@ mod tests {
     use super::*;
 
     const EXE: &str = r"C:\Users\Ada\AppData\Local\Harness Studio\harness-studio.exe";
+
+    #[test]
+    fn approval_uses_the_status_byte_regardless_of_timestamp() {
+        for (value, expected) in [
+            ([0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], true),
+            ([0x06, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], true),
+            ([0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], false),
+            ([0x03, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8], false),
+            ([0x07, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8], false),
+            ([0x02, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8], true),
+        ] {
+            assert_eq!(approved_value(&value), expected, "{value:?}");
+        }
+        assert!(approved_value(&[]));
+    }
 
     #[test]
     fn run_value_quotes_the_path_before_the_argument() {
