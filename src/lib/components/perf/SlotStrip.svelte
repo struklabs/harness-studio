@@ -11,7 +11,7 @@
 </script>
 
 {#if slots.length > 0}
-  <div class="flex flex-wrap gap-2" aria-label={t('perf.section_slots')}>
+  <div class="flex flex-wrap gap-2" role="group" aria-label={t('perf.section_slots')}>
     {#each slots as slot (slot.id)}
       <div
         class="flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs {slot.busy

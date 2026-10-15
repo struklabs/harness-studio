@@ -245,7 +245,7 @@
     {/if}
   </div>
   {#if quants.length > 0 && uiLevel.advanced}
-    <div class="flex min-w-0 flex-wrap items-center gap-1 font-mono text-xs" aria-label={t('hub.quant_label')}>
+    <div class="flex min-w-0 flex-wrap items-center gap-1 font-mono text-xs" role="group" aria-label={t('hub.quant_label')}>
       {#each quants.slice(0, 4) as q (q)}
         <span
           class={cn(
