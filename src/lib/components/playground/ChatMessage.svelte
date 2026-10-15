@@ -18,6 +18,7 @@
   import type { ChatMessage } from './types';
   import { AlertCircle, ChevronLeft, ChevronRight, Check, Copy, GitBranch, LoaderCircle, RotateCcw, Pencil, Percent, Square, Volume2 } from '@lucide/svelte';
   import { readAloud } from './tts.svelte';
+  import { estimateMessageHeight } from './longChat';
 
   interface Props {
     message: ChatMessage;
@@ -69,6 +70,12 @@
   }: Props = $props();
 
   let editing = $state(false);
+  // Finished, off-the-end messages skip layout/paint while off-screen (the streaming and last ones
+  // stay fully rendered so auto-scroll and approvals measure real sizes).
+  let skipOffscreen = $derived(!message.streaming && !isLast && !editing);
+  let placeholderStyle = $derived(skipOffscreen ? `--offscreen-height:${estimateMessageHeight(message.content.length)}px` : undefined);
+  /** Rendered-markdown cache id: finished messages only, so streaming prefixes never fill the cache. */
+  let cacheId = $derived(message.streaming ? undefined : (message.variantId ?? message.id));
   let draft = $state('');
 
   function startEdit() {
@@ -198,8 +205,10 @@
 {/snippet}
 
 <article
-  class={cn('group/msg flex min-w-0 flex-col gap-1', isAssistant ? 'items-stretch' : 'items-end')}
+  class={cn('group/msg flex min-w-0 flex-col gap-1', isAssistant ? 'items-stretch' : 'items-end', skipOffscreen && 'offscreen-skip')}
   aria-busy={message.streaming ? 'true' : 'false'}
+  tabindex="-1"
+  style={placeholderStyle}
 >
   <span class="sr-only">{isAssistant ? t('pg.role_assistant') : t('pg.role_user')}</span>
 
@@ -230,7 +239,7 @@
           </Collapsible.Root>
         {/if}
         {#if round.content}
-          <MessageContent text={roundParts.content} />
+          <MessageContent text={roundParts.content} cacheId={cacheId && `${cacheId}:r${i}`} />
         {/if}
         {#if round.toolCalls?.length}
           <div class="flex flex-col gap-2">
@@ -274,7 +283,7 @@
       {#if thinkingParts.content === message.content && message.content && showProbs && tokenLogprobs?.length && !message.streaming}
         <LogprobView tokens={tokenLogprobs} />
       {:else if thinkingParts.content}
-        <MessageContent text={isAssistant ? thinkingParts.content : message.content} />
+        <MessageContent text={isAssistant ? thinkingParts.content : message.content} {cacheId} />
       {:else if message.streaming && !thinkingParts.reasoning && !hasToolCalls}
         <SectionLoading shape="inline" label={t('pg.waiting')} phases={[t('pg.waiting'), t('sl.reply_2')]} />
       {/if}

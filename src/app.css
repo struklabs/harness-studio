@@ -789,3 +789,17 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
+
+/*
+ * Chat messages away from the end skip layout and paint while offscreen (long chats). Paint
+ * containment clips overflow, so a message being hovered or holding focus renders normally:
+ * focus rings and anything drawn past its edge stay visible.
+ */
+.offscreen-skip {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--offscreen-height);
+}
+.offscreen-skip:hover,
+.offscreen-skip:focus-within {
+  content-visibility: visible;
+}

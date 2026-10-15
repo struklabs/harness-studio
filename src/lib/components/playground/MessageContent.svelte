@@ -1,3 +1,11 @@
+<script module lang="ts">
+  import { RenderCache } from './longChat';
+
+  type CachedSegment = { kind: 'text'; html: string } | { kind: 'code'; lang: string; value: string; closed: boolean };
+  /** Parsed + sanitized segments of finished messages, shared by every mounted message. */
+  const parsed = new RenderCache<CachedSegment[]>();
+</script>
+
 <script lang="ts">
   // Renderer for model output. Fenced ``` blocks are split out first and become <pre><code>
   // with a copy button (an unterminated fence mid-stream renders as code); ```mermaid blocks
@@ -12,12 +20,15 @@
   import { renderChatMarkdown } from './markdown';
   import MermaidBlock from './MermaidBlock.svelte';
   import { scrollFocusable } from '#lib/actions/scrollFocusable.js';
+  import { renderCacheKey } from './longChat';
 
   interface Props {
     text: string;
+    /** Finished message (variant) id: its parsed result is cached for remounts. Omit while streaming. */
+    cacheId?: string;
   }
 
-  let { text }: Props = $props();
+  let { text, cacheId }: Props = $props();
 
   type Segment = { kind: 'text'; html: string } | { kind: 'code'; lang: string; value: string; closed: boolean };
 
@@ -40,6 +51,15 @@
   }
 
   function parse(src: string): Segment[] {
+    const key = cacheId ? renderCacheKey(cacheId, src) : null;
+    const hit = key ? parsed.get(key) : undefined;
+    if (hit) return hit;
+    const out = parseUncached(src);
+    if (key) parsed.set(key, out, out.reduce((n, g) => n + (g.kind === 'text' ? g.html.length : g.value.length), 0));
+    return out;
+  }
+
+  function parseUncached(src: string): Segment[] {
     const segments: Segment[] = [];
     const pushText = (value: string) => {
       const seg = textSegment(value);

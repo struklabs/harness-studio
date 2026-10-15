@@ -9,6 +9,7 @@
   import { onMount, tick, untrack } from 'svelte';
   import { selectChatModel } from './playground/modelSelection';
   import { estimatePromptBudget, hasContextPressure } from './playground/contextBudget';
+  import { IDLE_HISTORY_BATCH, anchoredScroll, needsOlder, pathStart, previousBatch, settledWhile, tailStart, whenIdle } from './playground/longChat';
   import { definitionFile, definitionsForMode, selectModeModel } from './playground/modelModes';
   import { library } from '#lib/stores/library.svelte.js';
   import { holdReleaseWhile } from '#lib/windowActivity.js';
@@ -189,6 +190,10 @@
   // ---- Conversation (state.db) ----
   let conv = $state<Conversation | null>(null);
   let messages = $state<Msg[]>([]);
+  /** Index of the first mounted message: a long chat opens with its tail only; older ones mount on scroll. */
+  let winStart = $state(0);
+  let shownStart = $derived(Math.min(winStart, Math.max(0, messages.length - 1)));
+  let shownMessages = $derived(shownStart > 0 ? messages.slice(shownStart) : messages);
   let settings = $state<PgSettings>({ ...DEFAULT_SETTINGS });
   let settingsLoaded = $state(false);
   /** Bumped whenever the sidebar list may have changed. */
@@ -479,9 +484,14 @@
 
   function applyView(view: ConversationView, restoreSettings: boolean) {
     workspaceVersion++;
+    const prevConvId = conv?.id;
     conv = view.conversation;
     const list = viewMessages(view);
     for (const m of list) if (m.variantId) savedVariants.add(m.variantId);
+    // Same chat (branch switch): keep the first mounted message; a freshly opened chat starts at its tail.
+    winStart = prevConvId !== undefined && view.conversation.id === prevConvId
+      ? pathStart(list.map((m) => m.id), untrack(() => messages[shownStart])?.id)
+      : tailStart(list.length);
     messages = list;
     if (restoreSettings) {
       const restored = settingsFromConversation(view.conversation, $state.snapshot(settings) as PgSettings);
@@ -576,6 +586,7 @@
     await stopAndWait();
     conv = null;
     messages = [];
+    winStart = 0;
     input = '';
     pendingImages = [];
     pendingAudio = [];
@@ -1238,7 +1249,10 @@
   // History/tools are rebuilt only when they change; serialization runs after debounce.
   // Picture data stays out of the estimate and the token-count request (megabytes of base64);
   // each picture is counted as a fixed cost instead (`IMAGE_TOKEN_ESTIMATE`).
-  let historyWithImages = $derived(buildApiMessages(messages, settings));
+  // Held while a reply streams: each token would otherwise rebuild the whole history.
+  let historyWithImages = $derived.by(
+    settledWhile(() => streaming, () => buildApiMessages(messages, settings), () => messages.length),
+  );
   let countHistory = $derived(withoutImages(historyWithImages));
   let imageEstimate = $derived((countImageParts(historyWithImages) + pendingImages.length) * IMAGE_TOKEN_ESTIMATE);
   let countTools = $derived(wireToolDefs());
@@ -1582,16 +1596,99 @@
   function onListScroll() {
     if (!listEl) return;
     stickToBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 48;
+    if (needsOlder(shownStart, listEl.scrollTop)) void mountOlder();
   }
 
+  let mountingOlder = false;
+  /** True while older messages are being added above: the log's live region stays quiet so they are not read out. */
+  let olderBusy = $state(false);
+  /** Mounts the next batch of older messages above the view and keeps the same content under the viewport. */
+  async function mountOlder(batch?: number) {
+    if (mountingOlder || !listEl || shownStart <= 0) return;
+    mountingOlder = true;
+    olderBusy = true;
+    try {
+      const el = listEl;
+      const top = el.scrollTop;
+      const before = el.scrollHeight;
+      winStart = batch ? Math.max(0, shownStart - batch) : previousBatch(shownStart);
+      await tick();
+      // Chromium's own scroll anchoring may already have compensated; only fix what it left.
+      if (Math.abs(el.scrollTop - top) < 1) el.scrollTop = anchoredScroll(top, before, el.scrollHeight);
+    } finally {
+      mountingOlder = false;
+      requestAnimationFrame(() => (olderBusy = false));
+    }
+    // A tall viewport (or short messages) can still show the top: keep going until it is covered.
+    if (listEl && needsOlder(shownStart, listEl.scrollTop)) void mountOlder();
+  }
+
+  // The rest of the history mounts in small batches while the page is idle, so scrolling up
+  // rarely waits for a batch and the browser's find (Ctrl+F) reaches the whole chat soon after open.
+  $effect(() => {
+    const start = shownStart;
+    const id = conv?.id;
+    if (start <= 0 || streaming) return;
+    return whenIdle(() => {
+      if (conv?.id === id && !streaming) void mountOlder(IDLE_HISTORY_BATCH);
+    });
+  });
+
+  /** Keyboard / screen reader path to older history: one batch per press, focus stays at the top. */
+  let olderButton = $state<HTMLButtonElement | null>(null);
+  // When the last batch mounts (by the button or while idle) the button goes away: hand its focus
+  // to the first message instead of dropping it to the page. Runs before the DOM update removes it.
+  $effect.pre(() => {
+    if (shownStart > 0 || !olderButton || document.activeElement !== olderButton) return;
+    void tick().then(() => listEl?.querySelector<HTMLElement>('article')?.focus());
+  });
+
+  /** The running follow-the-end loop of scrollToBottom; a new call restarts its frame count. */
+  let bottomSettle: { frames: number } | null = null;
   function scrollToBottom(force = false) {
     if (force) stickToBottom = true;
     if (scrollQueued) return;
     scrollQueued = true;
     requestAnimationFrame(() => {
       scrollQueued = false;
-      if (listEl && stickToBottom) listEl.scrollTop = listEl.scrollHeight;
+      if (listEl && stickToBottom) {
+        listEl.scrollTop = listEl.scrollHeight;
+        // Messages rendered for the first time (content-visibility) can turn out taller than
+        // their estimate and push the end down: follow it for a few frames.
+        // The growth itself fires scroll events that clear stickToBottom, so only a user input stops this.
+        if (bottomSettle) bottomSettle.frames = 0;
+        else followEnd(listEl);
+      }
+      // A short tail that does not scroll never fires a scroll event: fill upwards from here.
+      if (listEl && listEl.scrollHeight - listEl.clientHeight < 600 && needsOlder(shownStart, listEl.scrollTop)) void mountOlder();
     });
+  }
+
+  /** Keeps the list at its end for a few frames while newly rendered messages settle their height. */
+  function followEnd(el: HTMLDivElement) {
+    const state = { frames: 0 };
+    bottomSettle = state;
+    let userMoved = false;
+    const stop = () => (userMoved = true);
+    const opts = { once: true, passive: true } as const;
+    el.addEventListener('wheel', stop, opts);
+    el.addEventListener('pointerdown', stop, opts);
+    el.addEventListener('keydown', stop, opts);
+    const settle = () => {
+      if (userMoved || el !== listEl || ++state.frames > 8) {
+        bottomSettle = null;
+        el.removeEventListener('wheel', stop);
+        el.removeEventListener('pointerdown', stop);
+        el.removeEventListener('keydown', stop);
+        return;
+      }
+      if (el.scrollHeight - el.scrollTop - el.clientHeight > 1) {
+        el.scrollTop = el.scrollHeight;
+        stickToBottom = true;
+      }
+      requestAnimationFrame(settle);
+    };
+    requestAnimationFrame(settle);
   }
 
   // ---- Composer ----
@@ -2988,10 +3085,16 @@
         bind:this={listEl}
         onscroll={onListScroll}
         role="log"
-        aria-live="polite"
+        aria-live={olderBusy ? 'off' : 'polite'}
+        aria-busy={olderBusy}
         aria-label={t('pg.messages_label')}
       >
         <div class="mx-auto flex min-h-full w-full max-w-[760px] flex-col gap-6 px-4 py-6">
+          {#if !openingConv && shownStart > 0}
+            <Button bind:ref={olderButton} variant="ghost" size="sm" class="self-center text-muted-foreground" onclick={() => mountOlder()}>
+              {t('pg.load_older')}
+            </Button>
+          {/if}
           {#if openingConv}
             <SectionLoading
               shape="rows"
@@ -3022,7 +3125,8 @@
               </div>
             </div>
           {/if}
-          {#each openingConv ? [] : messages as message, i (message.id)}
+          {#each openingConv ? [] : shownMessages as message, k (message.id)}
+            {@const i = shownStart + k}
             {#if message.role === 'compaction'}
               <CompactionDivider
                 {message}
