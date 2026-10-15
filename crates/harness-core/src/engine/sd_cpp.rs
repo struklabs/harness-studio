@@ -522,10 +522,15 @@ impl ServerEngine for SdCppEngine {
         let total = weights + compute;
         // sd.cpp's auto-fit (on by default) keeps on the card what fits and the rest of the
         // weights in system memory; the compute buffers stay on the card (see `min_vram_need`).
-        let host_weights = if gpu {
+        // Only when it fits whole does the build not matter; else an sd-server without
+        // `--auto-fit` puts the whole model on the card (and would be refused).
+        let partial = gpu && total > budget.vram_bytes && installed_supports_auto_fit();
+        let host_weights = if !gpu {
+            weights
+        } else if partial {
             total.saturating_sub(budget.vram_bytes).min(weights)
         } else {
-            weights
+            0
         };
         let gpu_weights = if gpu { weights - host_weights } else { 0 };
         let estimate = MemoryEstimate {
@@ -539,18 +544,7 @@ impl ServerEngine for SdCppEngine {
             exact: false,
             ..Default::default()
         };
-        let category = match (gpu, total) {
-            (true, t) if t * 10 <= budget.vram_bytes * 9 => FitCategory::FullGpu,
-            (true, t) if t <= budget.vram_bytes => FitCategory::Tight,
-            (true, _)
-                if compute * 10 <= budget.vram_bytes * 9
-                    && host_weights * 10 <= budget.ram_bytes * 9 =>
-            {
-                FitCategory::Hybrid
-            }
-            (false, t) if t * 10 <= budget.ram_bytes * 9 => FitCategory::CpuHeavy,
-            _ => FitCategory::OomRisk,
-        };
+        let category = fit_category(gpu, total, compute, host_weights, partial, budget);
         let pct = |n: u64, d: u64| (n * 100).checked_div(d).unwrap_or(0) as u32;
         FitResult {
             category,
@@ -565,6 +559,48 @@ impl ServerEngine for SdCppEngine {
             slots: None,
             kv: None,
         }
+    }
+}
+
+/// Fit of an sd-server load: whole on the card, tight, partly in system memory (`partial`: the
+/// build's auto-fit keeps `host_weights` there, the compute buffers on the card), on the CPU, or
+/// out of memory.
+fn fit_category(
+    gpu: bool,
+    total: u64,
+    compute: u64,
+    host_weights: u64,
+    partial: bool,
+    budget: &MemoryBudget,
+) -> FitCategory {
+    match (gpu, total) {
+        (true, t) if t * 10 <= budget.vram_bytes * 9 => FitCategory::FullGpu,
+        (true, t) if t <= budget.vram_bytes => FitCategory::Tight,
+        (true, _)
+            if partial
+                && compute * 10 <= budget.vram_bytes * 9
+                && host_weights * 10 <= budget.ram_bytes * 9 =>
+        {
+            FitCategory::Hybrid
+        }
+        (false, t) if t * 10 <= budget.ram_bytes * 9 => FitCategory::CpuHeavy,
+        _ => FitCategory::OomRisk,
+    }
+}
+
+/// Whether the installed stable-diffusion.cpp build places weights itself (`--auto-fit`). With
+/// none installed, the one Harness installs does. Probes the binary once (blocking).
+pub fn installed_supports_auto_fit() -> bool {
+    match crate::runtimes::resolve_family_binary_in(
+        &crate::runtimes::RuntimeRegistry::global(),
+        SD_CPP,
+        None,
+    ) {
+        Ok(binary) => supports_auto_fit(
+            &crate::capabilities::registry()
+                .get_or_probe_with(&binary, crate::capabilities::sdcpp::probe_binary),
+        ),
+        Err(_) => true,
     }
 }
 
@@ -1205,6 +1241,16 @@ mod tests {
         assert_eq!(r.category, FitCategory::Hybrid);
         assert_eq!(r.estimate.vram_bytes, 8 << 30);
         assert_eq!(r.estimate.ram_bytes, 7 << 30);
+        // An installed sd-server without `--auto-fit` loads the whole model on the card: no
+        // partial offload to promise.
+        assert_eq!(
+            fit_category(true, 15 << 30, 3 << 30, 7 << 30, false, &budget),
+            FitCategory::OomRisk
+        );
+        assert_eq!(
+            fit_category(true, 15 << 30, 3 << 30, 7 << 30, true, &budget),
+            FitCategory::Hybrid
+        );
         // Nor in system memory: out of memory.
         let huge = FitInput {
             model_size_bytes: 24 << 30,
