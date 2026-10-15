@@ -246,3 +246,41 @@ fn unreadable_directory_is_skipped() {
     assert!(models.iter().any(|m| m.path.ends_with("a.gguf")));
     assert!(!models.iter().any(|m| m.path.ends_with("b.gguf")));
 }
+
+/// MLX speech folders without `config.json` are found by the shared scan as by their own:
+/// Spark-TTS is told by `BiCodec/` and `audio_tokenizer_config.yaml`, OuteTTS by its card.
+#[test]
+fn mlx_speech_folders_without_a_config_are_listed() {
+    if !cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        return;
+    }
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let card = b"---\nlibrary_name: mlx-audio\ntags:\n- mlx\n- text-to-speech\n---\n";
+    write(root, "spark/Spark-TTS-0.5B-bf16/BiCodec/config.yaml", b"x");
+    write(
+        root,
+        "spark/Spark-TTS-0.5B-bf16/audio_tokenizer_config.yaml",
+        b"x",
+    );
+    write(root, "spark/Spark-TTS-0.5B-bf16/model.safetensors", b"x");
+    write(root, "spark/Spark-TTS-0.5B-bf16/README.md", card);
+    write(root, "oute/OuteTTS-1.0-0.6B-4bit/model.safetensors", b"x");
+    write(
+        root,
+        "oute/OuteTTS-1.0-0.6B-4bit/README.md",
+        b"---\nlibrary_name: outetts\ntags:\n- mlx\n---\n",
+    );
+    let roots = [root.to_path_buf()];
+    let legacy = crate::engine::mlx::library_models(&roots);
+    assert_eq!(legacy.len(), 2, "{legacy:?}");
+    let mut archs: Vec<_> = legacy.iter().map(|m| m.architecture.clone()).collect();
+    archs.sort();
+    assert_eq!(archs, [Some("outetts".into()), Some("spark".into())]);
+    let tree = discovery::DirectoryTree::collect(root);
+    let current = crate::engine::mlx::library_models_in(root, &tree);
+    assert_eq!(
+        serde_json::to_value(current).unwrap(),
+        serde_json::to_value(legacy).unwrap()
+    );
+}
