@@ -4,6 +4,11 @@ pub(crate) fn link_list() -> Vec<harness_core::link::LinkView> {
 }
 
 #[tauri::command]
+pub(crate) fn link_models() -> Vec<harness_core::link::ModelView> {
+    harness_core::link::models()
+}
+
+#[tauri::command]
 pub(crate) async fn link_add(
     name: String,
     base_url: String,

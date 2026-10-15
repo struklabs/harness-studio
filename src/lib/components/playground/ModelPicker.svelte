@@ -10,6 +10,9 @@
   import { savedPortText } from '../servers/utils';
   import { definitionsForMode } from './modelModes';
   import { library } from '#lib/stores/library.svelte.js';
+  import { security } from '#lib/stores/security.svelte.js';
+  import { filterRemoteModels, isRemoteModel, type RemoteModel } from './remoteModels';
+  import { Input } from '#lib/components/ui/input/index.js';
   import type { ServeMode } from '#lib/types.js';
   import { cn } from '#lib/utils.js';
   import { localizeError } from '#lib/network.js';
@@ -36,6 +39,24 @@
   let { currentModel, onUse, onPicked, label, mode = 'chat' }: Props = $props();
 
   let open = $state(false);
+  let query = $state('');
+  let remoteModels = $state<RemoteModel[]>([]);
+  let remoteError = $state('');
+  let remoteRows = $derived(filterRemoteModels(remoteModels, query));
+  let selectedRemote = $derived(remoteModels.find((m) => m.id === currentModel));
+  $effect(() => {
+    if (!open || mode !== 'chat') return;
+    let alive = true;
+    async function refresh() {
+      try {
+        const models = await invoke<RemoteModel[]>('link_models');
+        if (alive) { remoteModels = models; remoteError = ''; }
+      } catch (e) { if (alive) remoteError = localizeError(e); }
+    }
+    void refresh();
+    const timer = setInterval(() => void refresh(), 10000);
+    return () => { alive = false; clearInterval(timer); };
+  });
   /** Closed with Escape: focus returns to the trigger (a keyboard user would land on <body>). */
   let escaped = false;
   let busy = $state<Record<string, boolean>>({});
@@ -63,6 +84,7 @@
 
   let rows = $derived(
     definitionsForMode(domain.definitions, mode, library.models)
+      .filter((d) => query.trim().toLowerCase().split(/\s+/).every((word) => `${d.alias} ${definitionFile(d) ?? ''}`.toLowerCase().includes(word)))
       .map((d) => ({ def: d, st: domain.state(d.id) }))
       .sort(
         (a, b) =>
@@ -193,7 +215,7 @@
     <Boxes class="size-3.5 shrink-0" />
     <span class="min-w-0 truncate font-mono text-xs">{label ?? current?.alias ?? (currentModel || t('pgm.none'))}</span>
     <span
-      class={cn('size-1.5 shrink-0 rounded-full', app.isRunning ? 'bg-success' : app.isBusy ? 'bg-warning' : 'bg-muted-foreground/40')}
+      class={cn('size-1.5 shrink-0 rounded-full', isRemoteModel(currentModel) ? app.gatewayRunning && selectedRemote?.state === 'online' ? 'bg-success' : 'bg-muted-foreground/40' : app.isRunning ? 'bg-success' : app.isBusy ? 'bg-warning' : 'bg-muted-foreground/40')}
       aria-hidden="true"
     ></span>
     <ChevronDown class="size-3.5 shrink-0 opacity-60" />
@@ -218,7 +240,36 @@
         </Button>
       </span>
     </div>
+    <div class="border-b border-border p-2">
+      <Input bind:value={query} aria-label={t('link.model_filter')} placeholder={t('link.model_filter')} />
+    </div>
     <div class="max-h-96 overflow-y-auto p-1">
+      {#if mode === 'chat'}
+        <div class="border-b border-border pb-1 mb-1">
+          <h3 class="px-2 py-1.5 text-xs font-semibold">{t('link.remote')}</h3>
+          {#if !app.gatewayRunning}
+            <p class="px-2 py-1 text-xs text-muted-foreground">{t('link.gateway_off')}</p>
+            <Button variant="outline" size="xs" class="m-2" onclick={() => { open = false; security.openSettings('gateway'); }}>{t('gw.ep_open_settings')}</Button>
+          {:else}
+            {#if remoteError}<p class="px-2 py-1 text-xs text-destructive" role="alert">{remoteError}</p>{/if}
+            {#each remoteRows as model (model.id)}
+              <div title={model.state !== 'online' ? t('link.unreachable') : model.id}>
+                <button
+                  type="button"
+                  class={cn('flex w-full flex-col rounded-md px-2 py-1.5 text-left hover:bg-muted/60 disabled:opacity-50 disabled:cursor-not-allowed', currentModel === model.id && 'bg-muted/60')}
+                  disabled={model.state !== 'online'}
+                  onclick={() => { if (app.gatewayRunning && model.state === 'online') use(app.selectedServerId, model.id); }}
+                >
+                  <span class="w-full truncate font-mono text-xs">{model.model}</span>
+                  <span class={cn('text-xs', model.state === 'online' ? 'text-success' : 'text-muted-foreground')}>{model.link} · {t(model.state === 'online' ? 'link.online' : 'link.offline')}</span>
+                </button>
+              </div>
+            {:else}
+              <p class="px-2 py-1 text-xs text-muted-foreground">{t('link.models_empty')}</p>
+            {/each}
+          {/if}
+        </div>
+      {/if}
       {#if rows.length === 0}
         <p class="px-3 py-4 text-xs text-muted-foreground">{t('pgm.empty')}</p>
       {/if}

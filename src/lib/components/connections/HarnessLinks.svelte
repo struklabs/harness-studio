@@ -8,6 +8,7 @@
   import { Input } from '#lib/components/ui/input/index.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
   import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import { TriangleAlert } from '@lucide/svelte';
 
   interface Link {
     id: string;
@@ -37,12 +38,16 @@
   let formError = $state('');
   let alive = true;
   const http = $derived(address.trim().toLowerCase().startsWith('http:'));
-  const warning = $derived(token ? (token.startsWith('hss_') ? t('link.inference_scope_warning') : '') : errorText(editing?.warning ?? ''));
+  const warning = $derived(token ? '' : errorText(editing?.warning ?? ''));
 
   async function load() {
     try {
       const result = await invoke<Link[]>('link_list');
-      if (alive) { links = result; error = ''; }
+      if (alive) {
+        links = result;
+        if (editing) editing = result.find((item) => item.id === editing?.id) ?? editing;
+        error = '';
+      }
     } catch (e) { if (alive) error = errorText(e); }
   }
 
@@ -117,7 +122,7 @@
       </div>
       <p class="break-all font-mono text-xs text-muted-foreground">{link.base_url}</p>
       {#if link.last_error}<p class="text-xs text-destructive">{errorText(link.last_error)}</p>{/if}
-      {#if link.warning}<p class="text-xs text-muted-foreground" role="status">{errorText(link.warning)}</p>{/if}
+      {#if link.warning}<p class="flex items-start gap-2 text-xs text-warning" role="status"><TriangleAlert class="size-4 shrink-0" />{errorText(link.warning)}</p>{/if}
       {#if link.last_ok}<p class="text-xs text-muted-foreground">{t('link.last_ok', { time: new Date(link.last_ok * 1000).toLocaleString() })}</p>{/if}
       <div class="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" disabled={busy} onclick={() => test(link)}>{t('link.test')}</Button>
@@ -132,7 +137,7 @@
   <Dialog.Content class="sm:max-w-lg">
     <Dialog.Header>
       <Dialog.Title>{t(editing ? 'link.edit' : 'link.add')}</Dialog.Title>
-      <Dialog.Description>{t('link.description')}</Dialog.Description>
+      <Dialog.Description>{t(editing ? 'link.edit_description' : 'link.description')}</Dialog.Description>
     </Dialog.Header>
     <form class="flex flex-col gap-4" onsubmit={(event) => { event.preventDefault(); void save(); }}>
       <label class="flex flex-col gap-1 text-sm">{t('link.name')}<Input bind:value={name} required maxlength={64} disabled={busy} /></label>
@@ -140,10 +145,15 @@
       <label class="flex flex-col gap-1 text-sm">{t('link.address')}<Input type="url" bind:value={address} required disabled={busy} placeholder="https://harness.example.com" /></label>
       <label class="flex flex-col gap-1 text-sm">{t('link.token')}<Input type="password" bind:value={token} autocomplete="new-password" required={!editing} disabled={busy} /></label>
       {#if editing}<p class="text-xs text-muted-foreground">{t('link.token_hint')}</p>{/if}
-      {#if http}<label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={allowHttp} disabled={busy} />{t('link.allow_http')}</label>{/if}
+      {#if http}
+        <div class="flex flex-col gap-1">
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={allowHttp} disabled={busy} aria-describedby={!allowHttp ? 'link-http-hint' : undefined} />{t('link.allow_http')}</label>
+          {#if !allowHttp}<p id="link-http-hint" class="text-xs text-muted-foreground">{t('link.http_hint')}</p>{/if}
+        </div>
+      {/if}
       {#if editing}<label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={enabled} disabled={busy} />{t('link.enabled')}</label>{/if}
       {#if formError}<p class="text-sm text-destructive" role="alert">{formError}</p>{/if}
-      {#if warning}<p class="text-sm text-muted-foreground" role="status">{warning}</p>{/if}
+      {#if warning}<p class="flex items-start gap-2 text-sm text-warning" role="status"><TriangleAlert class="size-4 shrink-0" />{warning}</p>{/if}
       <Dialog.Footer>
         {#if editing}<Button type="button" variant="outline" disabled={busy} onclick={() => test(editing!)}>{t('link.test')}</Button>{/if}
         <Button type="button" variant="outline" disabled={busy} onclick={() => { open = false; token = ''; }}>{t('link.cancel')}</Button>

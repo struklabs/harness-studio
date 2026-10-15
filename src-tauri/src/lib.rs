@@ -510,6 +510,7 @@ pub fn run() {
             test_otel_export,
             get_gateway_status,
             link_list,
+            link_models,
             link_add,
             link_update,
             link_remove,

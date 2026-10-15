@@ -53,6 +53,7 @@
   import ConversationSidebar from './playground/ConversationSidebar.svelte';
   import ModelPicker from './playground/ModelPicker.svelte';
   import { gatewayModelStates, type GatewayModelEntry, type ModelLoadState } from './playground/gatewayModels';
+  import { isRemoteModel, type RemoteModel } from './playground/remoteModels';
   import EmbeddingPanel from './playground/EmbeddingPanel.svelte';
   import RerankPanel from './playground/RerankPanel.svelte';
   import PipelinePanel from './playground/PipelinePanel.svelte';
@@ -261,7 +262,7 @@
     return def ? definitionFile(def, library.models)?.task : undefined;
   });
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
-  let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (!app.gatewayRunning && serveMode === 'chat')));
+  let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isRemoteModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
   let pickerModel = $derived(pgTab === 'chat' ? settings.model : pgTab === 'image' ? imageSession.model : modeModels[pgTab]);
   $effect(() => {
     void library.version;
@@ -663,6 +664,7 @@
 
   /** Switches the conversation (or the open tab's model) to `alias` on `serverId`. */
   function useModel(serverId: string, alias: string) {
+    if (app.gatewayRunning && isRemoteModel(alias) && !models.includes(alias)) models = [...models, alias];
     app.selectServer(serverId);
     if (pgTab !== 'chat') {
       modeModels[pgTab] = alias;
@@ -909,7 +911,11 @@
       const ids: string[] = list
         .map((m) => m?.id)
         .filter((id: unknown): id is string => typeof id === 'string' && id.length > 0);
-      modelStates = viaGateway ? gatewayModelStates(list) : {};
+      if (viaGateway) {
+        const remote = await invoke<RemoteModel[]>('link_models');
+        for (const model of remote) if (!ids.includes(model.id)) ids.push(model.id);
+      }
+      modelStates = viaGateway ? gatewayModelStates(list, (id) => domain.state(id)?.state) : {};
       const activeFallback =
         !viaGateway && app.activeServer?.model_path ? [extractModelName(app.activeServer.model_path)] : [];
       models = ids.length > 0 ? ids : activeFallback;

@@ -52,6 +52,36 @@ pub struct LinkView {
     pub status: LinkStatus,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ModelView {
+    pub id: String,
+    pub model: String,
+    pub link: String,
+    pub state: State,
+}
+
+pub fn models() -> Vec<ModelView> {
+    let links = AppSettings::load().links;
+    let cached = cache().lock().unwrap();
+    links
+        .into_iter()
+        .filter(|l| l.enabled)
+        .flat_map(|l| {
+            cached.get(&l.id).map_or_else(Vec::new, |c| {
+                c.models
+                    .iter()
+                    .map(|m| ModelView {
+                        id: model_id(&l.name, &m.id),
+                        model: m.id.clone(),
+                        link: l.name.clone(),
+                        state: c.status.state,
+                    })
+                    .collect::<Vec<_>>()
+            })
+        })
+        .collect()
+}
+
 #[derive(Clone, Default)]
 struct Cached {
     status: LinkStatus,
@@ -332,9 +362,6 @@ pub async fn refresh(link: &RemoteLink) -> LinkStatus {
         .or_default()
         .revision;
     let result = discover(link).await;
-    let local_warning = token(link)
-        .ok()
-        .and_then(|token| scope_warning(&token, &serde_json::Value::Null));
     // An edit/removal while discovery was in flight must not restore stale state.
     if !AppSettings::load().links.contains(link) {
         return LinkStatus::default();
@@ -343,9 +370,6 @@ pub async fn refresh(link: &RemoteLink) -> LinkStatus {
     let c = cached.entry(link.id.clone()).or_default();
     if c.revision != revision {
         return c.status.clone();
-    }
-    if local_warning.is_some() {
-        c.status.warning = local_warning;
     }
     match result {
         Ok((models, warning)) => {
@@ -362,6 +386,7 @@ pub async fn refresh(link: &RemoteLink) -> LinkStatus {
             c.models = models;
         }
         Err(error) => {
+            c.status.warning = None;
             c.status.state =
                 if crate::error_key::parse(&error).is_some_and(|(k, _)| k == "link.unauthorized") {
                     State::Unauthorized

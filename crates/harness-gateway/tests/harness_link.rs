@@ -118,6 +118,12 @@ async fn remote_models_proxy_policy_and_failures() {
     .unwrap();
     assert_eq!(added.status.state, link::State::Online);
     assert_eq!(added.status.model_count, 1);
+    let models = link::models();
+    assert_eq!(models.len(), 1);
+    assert_eq!(models[0].id, MODEL);
+    assert_eq!(models[0].model, "org/model");
+    assert_eq!(models[0].link, "office");
+    assert_eq!(models[0].state, link::State::Online);
     assert!(added.status.warning.is_none());
     remote.identity.store(1, Ordering::SeqCst);
     let tested = link::test(&added.link.id).await.unwrap();
@@ -128,6 +134,16 @@ async fn remote_models_proxy_policy_and_failures() {
             .0,
         "link.inference_scope_warning"
     );
+    assert!(link::test(&added.link.id).await.unwrap().warning.is_some());
+    remote.status.store(302, Ordering::SeqCst);
+    let failed = link::test(&added.link.id).await.unwrap();
+    assert_eq!(failed.state, link::State::Offline);
+    assert!(failed.warning.is_none());
+    let models = link::models();
+    assert_eq!(models[0].id, MODEL);
+    assert_eq!(models[0].state, link::State::Offline);
+    remote.status.store(200, Ordering::SeqCst);
+    assert!(link::test(&added.link.id).await.unwrap().warning.is_some());
     remote.identity.store(2, Ordering::SeqCst);
     assert!(link::test(&added.link.id).await.unwrap().warning.is_none());
     assert!(!serde_json::to_string(&link::list())
@@ -477,6 +493,7 @@ async fn remote_models_proxy_policy_and_failures() {
     assert_eq!(offline.state, link::State::Offline);
     assert_eq!(offline.model_count, 1);
     assert!(offline.last_ok.is_some());
+    assert!(offline.warning.is_none());
     let listing: Value = http
         .get(format!("{base}/v1/models"))
         .bearer_auth(&session)
