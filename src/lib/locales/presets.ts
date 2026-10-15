@@ -18,6 +18,8 @@ const tr = {
   'ip.note_deterministic': 'Aynı girdide daha tutarlı sonuçlar için önerilir.',
   // Dashboard: definition selector and menu
   'def.picker_label': 'Model tanımı',
+  'def.picker_filter': 'Modelleri filtrele…',
+  'def.picker_no_matches': 'Eşleşen model yok.',
   'def.no_definition': 'Tanım yok',
   'def.file_only_item': 'Yalnız dosya (tanımsız)',
   'def.kind_llm': 'LLM',
@@ -326,6 +328,8 @@ const en: Record<keyof typeof tr, string> = {
   'ip.note_creative': 'Increases reply variety for creative writing.',
   'ip.note_deterministic': 'Recommended for more consistent results with the same input.',
   'def.picker_label': 'Model definition',
+  'def.picker_filter': 'Filter models…',
+  'def.picker_no_matches': 'No matching models.',
   'def.no_definition': 'No definition',
   'def.file_only_item': 'File only (no definition)',
   'def.kind_llm': 'LLM',
