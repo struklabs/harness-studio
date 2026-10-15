@@ -144,6 +144,7 @@ pub fn base(code: &str) -> Option<&'static str> {
         "downloads.variant_ambiguous" => "Several files match: {files}. Name the file (CLI: --file <path>).",
         "definitions.alias_not_found" => "No model definition has this alias.",
         "servers.already_active" => "The server is already running or starting.",
+        "servers.previous_still_running" => "The previous server process could not be stopped and is still running. Try again in a few seconds; if it persists, restart the app.",
         "servers.definition_required" => "Name a model definition to start.",
         "servers.profile_definition_mismatch" => "This profile serves another model definition.",
         "runtime.backend_no_device" => "This build detected no compatible GPU (the card may be unsupported, or the driver or CUDA/ROCm/oneAPI may be missing or incompatible). The current runtime is unchanged; you can install the Vulkan build.",

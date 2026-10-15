@@ -121,6 +121,7 @@ pub fn http_status(code: &str) -> u16 {
         "models.in_use"
         | "benchmark.already_running"
         | "servers.already_active"
+        | "servers.previous_still_running"
         | "servers.port_in_use"
         | "servers.port_in_use_by"
         | "servers.port_in_use_at"

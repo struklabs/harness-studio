@@ -1229,6 +1229,28 @@ impl ProcessManager {
             *status = ServerStatus::Starting;
         }
         self.publish_status(ServerStatus::Starting);
+        // A stop that ran out of time kept its process (status Error, child still tracked). End it
+        // before a new one takes its place: overwriting the handle would leave it running,
+        // untracked, with its memory and port. (Starting, Running and Stopping were refused above,
+        // so a child here is always such a leftover.)
+        if self.has_child() {
+            self.push_log(
+                "[Harness Studio] The previous process is still running; stopping it first."
+                    .to_string(),
+            );
+            if let Err(error) = self
+                .terminate_child_until(Instant::now() + Duration::from_secs(7))
+                .await
+            {
+                self.push_log(format!("[Harness Studio Error] {}", error));
+                return Err(self.set_error(err("servers.previous_still_running").into()));
+            }
+            // What a clean stop would have cleared.
+            self.active.lock().unwrap().take();
+            self.audio_run.lock().unwrap().take();
+            self.stop_relay();
+            crate::mcp::remove_runtime_config(&self.id);
+        }
         self.run_claimed(config).await
     }
 
@@ -3778,6 +3800,74 @@ mod tests {
             ServerStatus::Error("crashed".to_string()),
             "the restart did not run"
         );
+    }
+
+    /// A stop that timed out leaves its process tracked with an Error status; the next start ends
+    /// that process before anything else instead of overwriting (and losing) its handle.
+    #[tokio::test]
+    async fn test_start_ends_the_process_a_timed_out_stop_left() {
+        let mgr = ProcessManager::new();
+        *mgr.child.lock().unwrap() = Some(long_running_child());
+        *mgr.status.lock().unwrap() = ServerStatus::Error("process.stop_timeout".to_string());
+        *mgr.active.lock().unwrap() = Some(ActiveServerInfo {
+            connect_host: "127.0.0.1".to_string(),
+            bind_host: "127.0.0.1".to_string(),
+            port: 1,
+            api_key: None,
+            api_key_set: false,
+            api_key_required: false,
+            model_path: PathBuf::from("model.gguf"),
+            router_mode: false,
+            exposure_acknowledged: false,
+            cors_origins: None,
+            serve_mode: Default::default(),
+            engine_family: String::new(),
+        });
+
+        // The runtime is missing, so the start itself fails after the leftover is gone.
+        let config = LaunchConfig {
+            binary_path: PathBuf::from("does-not-exist/llama-server"),
+            model_path: PathBuf::from("m.gguf"),
+            ..Default::default()
+        };
+        let _ = mgr.start(config).await;
+
+        assert!(!mgr.has_child(), "the leftover process was not ended");
+        assert!(
+            mgr.active.lock().unwrap().is_none(),
+            "its run info was kept"
+        );
+        assert!(matches!(mgr.get_status(), ServerStatus::Error(_)));
+    }
+
+    /// A start sent to a running (or starting) server is refused and leaves its process alone.
+    #[tokio::test]
+    async fn test_start_never_ends_a_running_server() {
+        for status in [ServerStatus::Running, ServerStatus::Starting] {
+            let mgr = ProcessManager::new();
+            *mgr.child.lock().unwrap() = Some(long_running_child());
+            *mgr.status.lock().unwrap() = status.clone();
+            let config = LaunchConfig {
+                binary_path: PathBuf::from("does-not-exist/llama-server"),
+                model_path: PathBuf::from("m.gguf"),
+                ..Default::default()
+            };
+            let e = mgr.start(config).await.unwrap_err();
+            assert!(e.starts_with("servers.already_active"), "{e}");
+            assert_eq!(mgr.get_status(), status);
+            let alive = mgr
+                .child
+                .lock()
+                .unwrap()
+                .as_mut()
+                .map(|c| matches!(c.try_wait(), Ok(None)));
+            assert_eq!(
+                alive,
+                Some(true),
+                "{status:?}: the running process was ended"
+            );
+            mgr.stop().await.unwrap();
+        }
     }
 
     #[tokio::test]
