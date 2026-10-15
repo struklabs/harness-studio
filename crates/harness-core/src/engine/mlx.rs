@@ -132,13 +132,25 @@ pub fn codec_dirs(dir: &Path, libraries: &[PathBuf]) -> Vec<(Codec, Option<PathB
         .collect()
 }
 
+/// Whether a Hub repo id names an MLX build: published by `mlx-community`, or "mlx" in its name.
+/// The original releases of the same families (`nari-labs/Dia-1.6B`, Orpheus GGUF builds) run on
+/// other engines and need no MLX codec.
+pub fn is_mlx_repo_id(id: &str) -> bool {
+    let (owner, name) = id.split_once('/').unwrap_or(("", id));
+    owner.eq_ignore_ascii_case("mlx-community") || name.to_ascii_lowercase().contains("mlx")
+}
+
 /// What a Hub repo of a text-to-speech family needs besides itself, as the image bundles' plan
 /// ([`crate::image_bundles::BundlePlan`], role `codec`, one component per file); `None` for a
-/// repo whose family loads nothing else.
+/// repo whose family loads nothing else, and for a repo that is no MLX build
+/// ([`is_mlx_repo_id`]): only the MLX engine loads these codecs.
 pub fn codec_plan_for_repo(
     repo: &str,
     libraries: &[PathBuf],
 ) -> Option<crate::image_bundles::BundlePlan> {
+    if !is_mlx_repo_id(repo) {
+        return None;
+    }
     let family = tts_repo_family(repo)?;
     let codecs = codecs_of(family);
     if codecs.is_empty() {
@@ -1786,9 +1798,21 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         assert_eq!(tts_repo_family("mlx-community/multimedia-model"), None);
         assert_eq!(tts_repo_family("mlx-community/csm-1b"), None);
         let empty = tempfile::tempdir().unwrap();
-        let plan =
-            codec_plan_for_repo("mlx-community/Dia-1.6B-4bit", &[empty.path().to_path_buf()])
-                .unwrap();
+        let libs = [empty.path().to_path_buf()];
+        // Only MLX builds pull a codec: the original Dia, a GGUF Orpheus and an OuteTTS release
+        // run elsewhere.
+        for repo in [
+            "nari-labs/Dia-1.6B",
+            "unsloth/orpheus-3b-0.1-ft-GGUF",
+            "canopylabs/orpheus-3b-0.1-ft",
+            "OuteAI/OuteTTS-1.0-0.6B",
+        ] {
+            assert!(!is_mlx_repo_id(repo), "{repo}");
+            assert!(codec_plan_for_repo(repo, &libs).is_none(), "{repo}");
+        }
+        assert!(is_mlx_repo_id("someone/orpheus-3b-mlx-4bit"));
+        assert!(codec_plan_for_repo("someone/orpheus-3b-mlx-4bit", &libs).is_some());
+        let plan = codec_plan_for_repo("mlx-community/Dia-1.6B-4bit", &libs).unwrap();
         assert_eq!(plan.bundle_id, "mlx-audio:dia");
         assert_eq!(plan.missing().len(), 2);
         assert_eq!(

@@ -332,11 +332,16 @@
         }
       }
       // An mlx-audio speech model brings the codec its family loads (once for all its models).
+      // Without it the model does not start, so a failure is said (the model stays queued).
       if (isCodecRepo && bundleMissing.length > 0) {
-        const jobs = await invoke<number[]>('download_image_companions', { file: '', repo: id });
-        if (jobs.length > 0) {
-          await downloads.refresh();
-          toast.success(t('imgb.codec_queued', { count: jobs.length }));
+        try {
+          const jobs = await invoke<number[]>('download_image_companions', { file: '', repo: id });
+          if (jobs.length > 0) {
+            await downloads.refresh();
+            toast.success(t('imgb.codec_queued', { count: jobs.length }));
+          }
+        } catch (e) {
+          toast.error(t('imgb.codec_failed', { error: String(e) }));
         }
       }
       // A vision repo's main model brings its projector (mmproj), unless it is already local.
