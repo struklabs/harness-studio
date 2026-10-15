@@ -194,6 +194,22 @@ pub enum NotRunnable {
     Adapter,
     /// An image / video generator or diffusion checkpoint.
     NotLanguageModel,
+    /// A custom checkpoint made for its own Python package (Kokoro, XTTS, F5-TTS, Chatterbox,
+    /// Qwen3-TTS...): no Harness engine loads it.
+    NeedsOwnPackage,
+    /// The `config.json` `model_type` is one no Harness engine serves.
+    UnsupportedArchitecture,
+    /// A transformers language model published as safetensors only: it runs after a GGUF
+    /// conversion.
+    SafetensorsOnly,
+    /// A CTranslate2 export (faster-whisper): no Harness engine opens it.
+    Ctranslate2Export,
+    /// Core ML / MLX files: they only run on Apple hardware.
+    AppleOnly,
+    /// A pipeline / diarization configuration (pyannote) without a model to run.
+    PipelineConfigOnly,
+    /// A VAE, decoder, encoder or vocoder published without the pipeline it belongs to.
+    ComponentOnly,
 }
 
 /// Everything the Hub shows about a repo's task beyond the listing's own fields.
@@ -375,6 +391,163 @@ fn not_runnable(
         return Some(NotRunnable::NotLanguageModel);
     }
     None
+}
+
+/// What [`refine_no_gguf`] looks at: facts the listing already carries.
+pub struct RefusalFacts<'a> {
+    pub repo_id: &'a str,
+    pub tags: &'a [String],
+    pub files: &'a [String],
+    pub library: Option<&'a str>,
+    pub task: Option<&'a str>,
+    pub format: crate::hub_compat::ModelFormat,
+    /// The repo's `config.json` as the Hub returns it (`model_type`, `architectures`).
+    pub config: Option<&'a serde_json::Value>,
+    /// Whether Core ML / MLX repos can run on this machine.
+    pub apple: bool,
+}
+
+/// `library_name`s of packages that load their own checkpoints; Harness runs none of them.
+const OWN_PACKAGE_LIBRARIES: &[&str] = &[
+    "chatterbox",
+    "coqui",
+    "cosyvoice",
+    "espnet",
+    "f5-tts",
+    "fairseq",
+    "kokoro",
+    "melotts",
+    "moshi",
+    "nemo",
+    "omnivoice",
+    "paddlespeech",
+    "parler-tts",
+    "qwen-tts",
+    "speechbrain",
+    "styletts2",
+    "tts",
+    "vllm",
+    "voxcpm",
+];
+
+/// Repo-name words of speech models that come with their own package.
+const OWN_PACKAGE_NAME_TOKENS: &[&str] = &[
+    "chatterbox",
+    "cosyvoice",
+    "f5",
+    "kokoro",
+    "melotts",
+    "parler",
+    "voxcpm",
+    "xtts",
+];
+
+/// `model_type`s of speech repos that need their own package (not in transformers).
+const OWN_PACKAGE_MODEL_TYPES: &[&str] = &[
+    "higgs_multimodal_qwen3",
+    "moss_tts_delay",
+    "omnivoice",
+    "parler_tts",
+    "qwen3_tts",
+    "style_text_to_speech_2",
+    "tts",
+    "vibevoice_streaming",
+];
+
+const SPEECH_TASKS: &[&str] = &[
+    "text-to-speech",
+    "text-to-audio",
+    "automatic-speech-recognition",
+    "audio-to-audio",
+];
+
+/// Narrows the "no GGUF file" refusal to the precise reason when the listing shows one. It is
+/// only called for a repo no engine runs; anything it does not recognise stays
+/// [`NotRunnable::NoGguf`]. Checked in a fixed order: pipeline config, Apple files, CTranslate2,
+/// component, own package, unsupported architecture, safetensors-only language model.
+pub fn refine_no_gguf(f: &RefusalFacts) -> NotRunnable {
+    use crate::hub_compat::ModelFormat;
+    let library = f.library.map(str::to_ascii_lowercase);
+    let library = library.as_deref();
+    let has_tag = |wanted: &str| f.tags.iter().any(|t| t.eq_ignore_ascii_case(wanted));
+    let lower_files: Vec<String> = f.files.iter().map(|p| p.to_ascii_lowercase()).collect();
+    let base = |p: &str| p.rsplit('/').next().unwrap_or(p).to_string();
+    let has_ext = |ext: &str| lower_files.iter().any(|p| base(p).ends_with(ext));
+    let has_file = |names: &[&str]| {
+        lower_files
+            .iter()
+            .any(|p| names.contains(&base(p).as_str()))
+    };
+    let tokens = name_tokens(f.repo_id);
+    let has_token = |words: &[&str]| tokens.iter().any(|t| words.contains(&t.as_str()));
+    let model_type = f
+        .config
+        .and_then(|c| c.get("model_type"))
+        .and_then(|v| v.as_str())
+        .filter(|m| !m.is_empty());
+    let speech = f.task.is_some_and(|t| SPEECH_TASKS.contains(&t));
+
+    if library == Some("pyannote-audio") || has_tag("pyannote-audio") || has_tag("pyannote") {
+        return NotRunnable::PipelineConfigOnly;
+    }
+    if !f.apple {
+        let apple_files = lower_files.iter().any(|p| {
+            p.split('/')
+                .any(|seg| seg.ends_with(".mlmodelc") || seg.ends_with(".mlpackage"))
+                || p.ends_with(".mlmodel")
+        });
+        if apple_files
+            || matches!(f.format, ModelFormat::Mlx | ModelFormat::CoreMl)
+            || matches!(library, Some("whisperkit" | "coreml" | "mlx" | "mlx-audio"))
+        {
+            return NotRunnable::AppleOnly;
+        }
+    }
+    let ct2_files = has_file(&["model.bin"])
+        && has_file(&["vocabulary.json", "vocabulary.txt", "shared_vocabulary.txt"])
+        && !has_ext(".safetensors");
+    if f.format == ModelFormat::Ctranslate2 || library == Some("ctranslate2") || ct2_files {
+        return NotRunnable::Ctranslate2Export;
+    }
+    let diffusers = library == Some("diffusers") || has_tag("diffusers");
+    let no_pipeline = !has_file(&["model_index.json"]);
+    if (diffusers
+        && no_pipeline
+        && has_ext(".safetensors")
+        && has_token(&["vae", "decoder", "encoder", "unet"]))
+        || has_token(&["vocoder", "hifigan", "bigvgan"])
+        || has_tag("vocoder")
+    {
+        return NotRunnable::ComponentOnly;
+    }
+    let pickle_only = (has_ext(".pt") || has_ext(".pth") || has_ext(".ckpt"))
+        && !has_ext(".safetensors")
+        && !has_ext(".onnx");
+    if library.is_some_and(|l| OWN_PACKAGE_LIBRARIES.contains(&l))
+        || model_type.is_some_and(|m| OWN_PACKAGE_MODEL_TYPES.contains(&m))
+        || (speech && (has_token(OWN_PACKAGE_NAME_TOKENS) || pickle_only))
+    {
+        return NotRunnable::NeedsOwnPackage;
+    }
+    if speech
+        && model_type.is_some()
+        && !crate::engine::python_hf::serves_model_type(f.task, model_type)
+    {
+        return NotRunnable::UnsupportedArchitecture;
+    }
+    let has_architectures = f
+        .config
+        .and_then(|c| c.get("architectures"))
+        .and_then(|a| a.as_array())
+        .is_some_and(|a| !a.is_empty());
+    if f.format == ModelFormat::Safetensors
+        && has_architectures
+        && f.task
+            .is_some_and(|t| crate::hub_compat::is_llama_task(Some(t)))
+    {
+        return NotRunnable::SafetensorsOnly;
+    }
+    NotRunnable::NoGguf
 }
 
 /// Declared tasks that a diffusion repo can carry by mistake.

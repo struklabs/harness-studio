@@ -1,0 +1,942 @@
+{
+ "hexgrad/Kokoro-82M": {
+  "id": "hexgrad/Kokoro-82M",
+  "tags": [
+   "text-to-speech",
+   "en",
+   "arxiv:2306.07691",
+   "arxiv:2203.02395",
+   "base_model:yl4579/StyleTTS2-LJSpeech",
+   "base_model:finetune:yl4579/StyleTTS2-LJSpeech",
+   "doi:10.57967/hf/4329",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "DONATE.md"
+   },
+   {
+    "rfilename": "EVAL.md"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "SAMPLES.md"
+   },
+   {
+    "rfilename": "VOICES.md"
+   },
+   {
+    "rfilename": "config.json"
+   },
+   {
+    "rfilename": "eval/ArtificialAnalysis-2025-02-26.jpeg"
+   },
+   {
+    "rfilename": "eval/TTS_Arena-2025-02-26.jpeg"
+   },
+   {
+    "rfilename": "eval/TTS_Spaces_Arena-2025-02-26.jpeg"
+   },
+   {
+    "rfilename": "kokoro-v1_0.pth"
+   },
+   {
+    "rfilename": "samples/HEARME.wav"
+   }
+  ]
+ },
+ "coqui/XTTS-v2": {
+  "id": "coqui/XTTS-v2",
+  "tags": [
+   "coqui",
+   "text-to-speech",
+   "license:other",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "library_name": "coqui",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "LICENSE.txt"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "config.json"
+   },
+   {
+    "rfilename": "dvae.pth"
+   },
+   {
+    "rfilename": "hash.md5"
+   },
+   {
+    "rfilename": "mel_stats.pth"
+   },
+   {
+    "rfilename": "model.pth"
+   },
+   {
+    "rfilename": "samples/de_sample.wav"
+   },
+   {
+    "rfilename": "samples/en_sample.wav"
+   },
+   {
+    "rfilename": "samples/es_sample.wav"
+   },
+   {
+    "rfilename": "samples/fr_sample.wav"
+   },
+   {
+    "rfilename": "samples/ja-sample.wav"
+   },
+   {
+    "rfilename": "samples/pt_sample.wav"
+   },
+   {
+    "rfilename": "samples/tr_sample.wav"
+   },
+   {
+    "rfilename": "samples/zh-cn-sample.wav"
+   },
+   {
+    "rfilename": "speakers_xtts.pth"
+   },
+   {
+    "rfilename": "vocab.json"
+   }
+  ]
+ },
+ "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice": {
+  "id": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
+  "tags": [
+   "safetensors",
+   "qwen3_tts",
+   "text-to-speech",
+   "arxiv:2601.15621",
+   "license:apache-2.0",
+   "deploy:sagemaker",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "config": {
+   "architectures": [
+    "Qwen3TTSForConditionalGeneration"
+   ],
+   "model_type": "qwen3_tts",
+   "tokenizer_config": {
+    "bos_token": null,
+    "eos_token": "<|im_end|>",
+    "pad_token": "<|endoftext|>",
+    "unk_token": null
+   }
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "config.json"
+   },
+   {
+    "rfilename": "generation_config.json"
+   },
+   {
+    "rfilename": "merges.txt"
+   },
+   {
+    "rfilename": "model.safetensors"
+   },
+   {
+    "rfilename": "preprocessor_config.json"
+   },
+   {
+    "rfilename": "speech_tokenizer/config.json"
+   },
+   {
+    "rfilename": "speech_tokenizer/configuration.json"
+   },
+   {
+    "rfilename": "speech_tokenizer/model.safetensors"
+   },
+   {
+    "rfilename": "speech_tokenizer/preprocessor_config.json"
+   },
+   {
+    "rfilename": "tokenizer_config.json"
+   },
+   {
+    "rfilename": "vocab.json"
+   }
+  ]
+ },
+ "ResembleAI/chatterbox": {
+  "id": "ResembleAI/chatterbox",
+  "tags": [
+   "chatterbox",
+   "text-to-speech",
+   "speech",
+   "speech-generation",
+   "voice-cloning",
+   "multilingual-tts",
+   "ar",
+   "da",
+   "de",
+   "el",
+   "en",
+   "es",
+   "fi",
+   "fr",
+   "he",
+   "hi",
+   "it",
+   "ja",
+   "ko",
+   "ms",
+   "nl",
+   "no",
+   "pl",
+   "pt",
+   "ru",
+   "sv",
+   "sw",
+   "tr",
+   "zh",
+   "license:mit",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "library_name": "chatterbox",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "Cangjie5_TC.json"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "conds.pt"
+   },
+   {
+    "rfilename": "grapheme_mtl_merged_expanded_v1.json"
+   },
+   {
+    "rfilename": "mtl_tokenizer.json"
+   },
+   {
+    "rfilename": "s3gen.pt"
+   },
+   {
+    "rfilename": "s3gen.safetensors"
+   },
+   {
+    "rfilename": "s3gen_v3.pt"
+   },
+   {
+    "rfilename": "s3gen_v3.safetensors"
+   },
+   {
+    "rfilename": "t3_23lang.safetensors"
+   },
+   {
+    "rfilename": "t3_cfg.pt"
+   },
+   {
+    "rfilename": "t3_cfg.safetensors"
+   },
+   {
+    "rfilename": "t3_mtl23ls_v2.safetensors"
+   },
+   {
+    "rfilename": "t3_mtl23ls_v3.safetensors"
+   },
+   {
+    "rfilename": "tokenizer.json"
+   },
+   {
+    "rfilename": "ve.pt"
+   },
+   {
+    "rfilename": "ve.safetensors"
+   }
+  ]
+ },
+ "SWivid/F5-TTS": {
+  "id": "SWivid/F5-TTS",
+  "tags": [
+   "f5-tts",
+   "text-to-speech",
+   "dataset:amphion/Emilia-Dataset",
+   "arxiv:2410.06885",
+   "license:cc-by-nc-4.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "library_name": "f5-tts",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "F5TTS_Base/model_1200000.pt"
+   },
+   {
+    "rfilename": "F5TTS_Base/model_1200000.safetensors"
+   },
+   {
+    "rfilename": "F5TTS_Base/vocab.txt"
+   },
+   {
+    "rfilename": "F5TTS_Base_bigvgan/model_1250000.pt"
+   },
+   {
+    "rfilename": "F5TTS_v1_Base/model_1250000.safetensors"
+   },
+   {
+    "rfilename": "F5TTS_v1_Base/vocab.txt"
+   },
+   {
+    "rfilename": "F5TTS_v1_Base_no_zero_init/model_1250000.safetensors"
+   },
+   {
+    "rfilename": "README.md"
+   }
+  ]
+ },
+ "onnx-community/Kokoro-82M-v1.0-ONNX": {
+  "id": "onnx-community/Kokoro-82M-v1.0-ONNX",
+  "tags": [
+   "transformers.js",
+   "onnx",
+   "style_text_to_speech_2",
+   "text-to-speech",
+   "en",
+   "base_model:hexgrad/Kokoro-82M",
+   "base_model:quantized:hexgrad/Kokoro-82M",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "library_name": "transformers.js",
+  "config": {
+   "model_type": "style_text_to_speech_2",
+   "tokenizer_config": {
+    "pad_token": "$",
+    "unk_token": "$"
+   }
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "config.json"
+   },
+   {
+    "rfilename": "onnx/model.onnx"
+   },
+   {
+    "rfilename": "onnx/model_fp16.onnx"
+   },
+   {
+    "rfilename": "onnx/model_q4.onnx"
+   },
+   {
+    "rfilename": "onnx/model_q4f16.onnx"
+   },
+   {
+    "rfilename": "onnx/model_q8f16.onnx"
+   },
+   {
+    "rfilename": "onnx/model_quantized.onnx"
+   },
+   {
+    "rfilename": "onnx/model_uint8.onnx"
+   },
+   {
+    "rfilename": "onnx/model_uint8f16.onnx"
+   },
+   {
+    "rfilename": "tokenizer.json"
+   }
+  ]
+ },
+ "myshell-ai/MeloTTS-English": {
+  "id": "myshell-ai/MeloTTS-English",
+  "tags": [
+   "transformers",
+   "text-to-speech",
+   "ko",
+   "license:mit",
+   "endpoints_compatible",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "library_name": "transformers",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "checkpoint.pth"
+   },
+   {
+    "rfilename": "config.json"
+   }
+  ]
+ },
+ "speechbrain/tts-hifigan-libritts-22050Hz": {
+  "id": "speechbrain/tts-hifigan-libritts-22050Hz",
+  "tags": [
+   "speechbrain",
+   "Vocoder",
+   "HiFIGAN",
+   "text-to-speech",
+   "TTS",
+   "speech-synthesis",
+   "en",
+   "dataset:LibriTTS",
+   "arxiv:2010.05646",
+   "license:apache-2.0",
+   "region:us"
+  ],
+  "pipeline_tag": "text-to-speech",
+  "library_name": "speechbrain",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "example_22kHz.wav"
+   },
+   {
+    "rfilename": "generator.ckpt"
+   },
+   {
+    "rfilename": "hyperparams.yaml"
+   }
+  ]
+ },
+ "mistralai/Voxtral-Mini-4B-Realtime-2602": {
+  "id": "mistralai/Voxtral-Mini-4B-Realtime-2602",
+  "tags": [
+   "vllm",
+   "safetensors",
+   "voxtral_realtime",
+   "mistral-common",
+   "automatic-speech-recognition",
+   "en",
+   "fr",
+   "es",
+   "de",
+   "ru",
+   "zh",
+   "ja",
+   "it",
+   "pt",
+   "nl",
+   "ar",
+   "hi",
+   "ko",
+   "arxiv:2602.11298",
+   "base_model:mistralai/Ministral-3-3B-Base-2512",
+   "base_model:finetune:mistralai/Ministral-3-3B-Base-2512",
+   "license:apache-2.0",
+   "eval-results",
+   "region:us",
+   "deploy:sagemaker"
+  ],
+  "pipeline_tag": "automatic-speech-recognition",
+  "library_name": "vllm",
+  "config": {
+   "architectures": [
+    "VoxtralRealtimeForConditionalGeneration"
+   ],
+   "model_type": "voxtral_realtime"
+  },
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "config.json"
+   },
+   {
+    "rfilename": "consolidated.safetensors"
+   },
+   {
+    "rfilename": "generation_config.json"
+   },
+   {
+    "rfilename": "model.safetensors"
+   },
+   {
+    "rfilename": "params.json"
+   },
+   {
+    "rfilename": "processor_config.json"
+   },
+   {
+    "rfilename": "tekken.json"
+   }
+  ]
+ },
+ "argmaxinc/whisperkit-coreml": {
+  "id": "argmaxinc/whisperkit-coreml",
+  "tags": [
+   "whisperkit",
+   "coreml",
+   "whisper",
+   "asr",
+   "quantized",
+   "automatic-speech-recognition",
+   "license:mit",
+   "region:us"
+  ],
+  "pipeline_tag": "automatic-speech-recognition",
+  "library_name": "whisperkit",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": ".gitignore"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "config.json"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/analytics/coremldata.bin"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/coremldata.bin"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/metadata.json"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/model.mil"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/model.mlmodel"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/weights/weight.bin"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/MelSpectrogram.mlmodelc/analytics/coremldata.bin"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/MelSpectrogram.mlmodelc/coremldata.bin"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/analytics/coremldata.bin"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/coremldata.bin"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/metadata.json"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/model.mil"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/model.mlmodel"
+   },
+   {
+    "rfilename": "distil-whisper_distil-large-v3/AudioEncoder.mlmodelc/weights/weight.bin"
+   }
+  ]
+ },
+ "pyannote/speaker-diarization-3.1": {
+  "id": "pyannote/speaker-diarization-3.1",
+  "tags": [
+   "pyannote-audio",
+   "pyannote",
+   "pyannote-audio-pipeline",
+   "audio",
+   "voice",
+   "speech",
+   "speaker",
+   "speaker-diarization",
+   "speaker-change-detection",
+   "voice-activity-detection",
+   "overlapped-speech-detection",
+   "automatic-speech-recognition",
+   "arxiv:2111.14448",
+   "arxiv:2012.01477",
+   "license:mit",
+   "endpoints_compatible",
+   "region:us"
+  ],
+  "pipeline_tag": "automatic-speech-recognition",
+  "library_name": "pyannote-audio",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": ".github/workflows/sync_to_hub.yaml"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "config.yaml"
+   },
+   {
+    "rfilename": "handler.py"
+   },
+   {
+    "rfilename": "reproducible_research/AISHELL.SpeakerDiarization.Benchmark.test.eval"
+   },
+   {
+    "rfilename": "reproducible_research/AISHELL.SpeakerDiarization.Benchmark.test.rttm"
+   },
+   {
+    "rfilename": "reproducible_research/AMI-SDM.SpeakerDiarization.Benchmark.test.eval"
+   },
+   {
+    "rfilename": "reproducible_research/AMI-SDM.SpeakerDiarization.Benchmark.test.rttm"
+   },
+   {
+    "rfilename": "reproducible_research/AMI.SpeakerDiarization.Benchmark.test.eval"
+   },
+   {
+    "rfilename": "reproducible_research/AMI.SpeakerDiarization.Benchmark.test.rttm"
+   },
+   {
+    "rfilename": "reproducible_research/AVA-AVD.SpeakerDiarization.Benchmark.test.eval"
+   },
+   {
+    "rfilename": "reproducible_research/AVA-AVD.SpeakerDiarization.Benchmark.test.rttm"
+   },
+   {
+    "rfilename": "reproducible_research/AliMeeting.SpeakerDiarization.Benchmark.test.eval"
+   },
+   {
+    "rfilename": "reproducible_research/AliMeeting.SpeakerDiarization.Benchmark.test.rttm"
+   },
+   {
+    "rfilename": "reproducible_research/DIHARD.SpeakerDiarization.Benchmark.test.eval"
+   },
+   {
+    "rfilename": "reproducible_research/DIHARD.SpeakerDiarization.Benchmark.test.rttm"
+   },
+   {
+    "rfilename": "reproducible_research/MSDWILD.SpeakerDiarization.Benchmark.test.eval"
+   },
+   {
+    "rfilename": "reproducible_research/MSDWILD.SpeakerDiarization.Benchmark.test.rttm"
+   },
+   {
+    "rfilename": "reproducible_research/REPERE.SpeakerDiarization.Benchmark.test.eval"
+   },
+   {
+    "rfilename": "reproducible_research/REPERE.SpeakerDiarization.Benchmark.test.rttm"
+   },
+   {
+    "rfilename": "reproducible_research/VoxConverse.SpeakerDiarization.Benchmark.test.eval"
+   },
+   {
+    "rfilename": "reproducible_research/VoxConverse.SpeakerDiarization.Benchmark.test.rttm"
+   },
+   {
+    "rfilename": "requirements.txt"
+   }
+  ]
+ },
+ "Systran/faster-whisper-small": {
+  "id": "Systran/faster-whisper-small",
+  "tags": [
+   "ctranslate2",
+   "audio",
+   "automatic-speech-recognition",
+   "en",
+   "zh",
+   "de",
+   "es",
+   "ru",
+   "ko",
+   "fr",
+   "ja",
+   "pt",
+   "tr",
+   "pl",
+   "ca",
+   "nl",
+   "ar",
+   "sv",
+   "it",
+   "id",
+   "hi",
+   "fi",
+   "vi",
+   "he",
+   "uk",
+   "el",
+   "ms",
+   "cs",
+   "ro",
+   "da",
+   "hu",
+   "ta",
+   "no",
+   "th",
+   "ur",
+   "hr",
+   "bg",
+   "lt",
+   "la",
+   "mi",
+   "ml",
+   "cy",
+   "sk",
+   "te",
+   "fa",
+   "lv",
+   "bn",
+   "sr",
+   "az",
+   "sl",
+   "kn",
+   "et",
+   "mk",
+   "br",
+   "eu",
+   "is",
+   "hy",
+   "ne",
+   "mn",
+   "bs",
+   "kk",
+   "sq",
+   "sw",
+   "gl",
+   "mr",
+   "pa",
+   "si",
+   "km",
+   "sn",
+   "yo",
+   "so",
+   "af",
+   "oc",
+   "ka",
+   "be",
+   "tg",
+   "sd",
+   "gu",
+   "am",
+   "yi",
+   "lo",
+   "uz",
+   "fo",
+   "ht",
+   "ps",
+   "tk",
+   "nn",
+   "mt",
+   "sa",
+   "lb",
+   "my",
+   "bo",
+   "tl",
+   "mg",
+   "as",
+   "tt",
+   "haw",
+   "ln",
+   "ha",
+   "ba",
+   "jw",
+   "su",
+   "license:mit",
+   "region:us"
+  ],
+  "pipeline_tag": "automatic-speech-recognition",
+  "library_name": "ctranslate2",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "config.json"
+   },
+   {
+    "rfilename": "model.bin"
+   },
+   {
+    "rfilename": "tokenizer.json"
+   },
+   {
+    "rfilename": "vocabulary.txt"
+   }
+  ]
+ },
+ "mlx-community/parakeet-tdt-0.6b-v3": {
+  "id": "mlx-community/parakeet-tdt-0.6b-v3",
+  "tags": [
+   "mlx",
+   "safetensors",
+   "automatic-speech-recognition",
+   "speech",
+   "audio",
+   "FastConformer",
+   "Conformer",
+   "Parakeet",
+   "en",
+   "es",
+   "fr",
+   "de",
+   "bg",
+   "hr",
+   "cs",
+   "da",
+   "nl",
+   "et",
+   "fi",
+   "el",
+   "hu",
+   "it",
+   "lv",
+   "lt",
+   "mt",
+   "pl",
+   "pt",
+   "ro",
+   "sk",
+   "sl",
+   "sv",
+   "ru",
+   "uk",
+   "base_model:nvidia/parakeet-tdt-0.6b-v3",
+   "base_model:finetune:nvidia/parakeet-tdt-0.6b-v3",
+   "license:cc-by-4.0",
+   "region:us"
+  ],
+  "pipeline_tag": "automatic-speech-recognition",
+  "library_name": "mlx",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "config.json"
+   },
+   {
+    "rfilename": "model.safetensors"
+   },
+   {
+    "rfilename": "tokenizer.model"
+   },
+   {
+    "rfilename": "tokenizer.vocab"
+   },
+   {
+    "rfilename": "vocab.txt"
+   }
+  ]
+ },
+ "black-forest-labs/FLUX.2-small-decoder": {
+  "id": "black-forest-labs/FLUX.2-small-decoder",
+  "tags": [
+   "diffusers",
+   "safetensors",
+   "text-to-image",
+   "image-editing",
+   "flux",
+   "diffusion-single-file",
+   "image-to-image",
+   "en",
+   "license:apache-2.0",
+   "region:us",
+   "deploy:sagemaker"
+  ],
+  "pipeline_tag": "image-to-image",
+  "library_name": "diffusers",
+  "config": {},
+  "siblings": [
+   {
+    "rfilename": ".gitattributes"
+   },
+   {
+    "rfilename": "README.md"
+   },
+   {
+    "rfilename": "compare_full_decoder.png"
+   },
+   {
+    "rfilename": "compare_small_decoder.png"
+   },
+   {
+    "rfilename": "comparison_panel.jpeg"
+   },
+   {
+    "rfilename": "config.json"
+   },
+   {
+    "rfilename": "diffusion_pytorch_model.safetensors"
+   },
+   {
+    "rfilename": "editing.jpg"
+   },
+   {
+    "rfilename": "full_encoder_small_decoder.safetensors"
+   },
+   {
+    "rfilename": "small_decoder.safetensors"
+   }
+  ]
+ }
+}

@@ -12,7 +12,7 @@
   import UpdateBadge from './UpdateBadge.svelte';
   import { showUpdateBadge } from '#lib/downloadFollowUp.js';
   import { isDecisionRepo, taskInfo } from './tasks';
-  import { formatName, notRunnableKey, taskSourceKey } from './inference';
+  import { formatName, isPreciseRefusal, notRunnableKey, notRunnableShortKey, taskSourceKey } from './inference';
   import { taskSupportStore } from './taskSupport.svelte';
   import { canConvert, speechNeedsConversion } from './convertible';
   import { CircleCheck, Download, Heart, Lock, Play, Ban, Info, Repeat } from '@lucide/svelte';
@@ -151,8 +151,8 @@
         <Repeat class="size-3" />{t('cvt.card_chip')}
       </span>
     {:else if compat.status === 'unsupported'}
-      <span class="inline-flex items-center gap-1 text-warning">
-        <Ban class="size-3" />{repo.not_runnable && ['audio_cpp_unsupported', 'vibevoice_layout', 'audio_cpp_incomplete_package', 'sdxl_refiner_folder_required', 'needs_librosa', 'needs_sea_g2p'].includes(repo.not_runnable) ? t(notRunnableKey(repo.not_runnable)) : speechNeedsConversion(repo) ? t('hub.asr_needs_conversion') : compat.format === 'gguf' ? t('hub.compat_gguf_other_engine') : t('hub.compat_unsupported', { format: formatName(compat.format) })}
+      <span class="inline-flex items-center gap-1 text-warning" title={repo.not_runnable ? t(notRunnableKey(repo.not_runnable)) : undefined}>
+        <Ban class="size-3" />{repo.not_runnable === 'audio_cpp_unsupported' ? t('hub.not_runnable_audio_cpp') : isPreciseRefusal(repo.not_runnable) ? t(notRunnableShortKey(repo.not_runnable)) : speechNeedsConversion(repo) ? t('hub.asr_needs_conversion') : compat.format === 'gguf' ? t('hub.compat_gguf_other_engine') : t('hub.compat_unsupported', { format: formatName(compat.format) })}
       </span>
     {:else if compat.status === 'unsupported_platform'}
       {@const msg = onnxUnsupportedText(compat)}
