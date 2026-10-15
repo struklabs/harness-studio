@@ -296,16 +296,22 @@ pub async fn launch_profile(
     gate: &OperationGate,
     profile_id: &str,
 ) -> Result<(), String> {
+    let config = resolve_profile(profile_id).await?;
+    check_mlx_fit(&config).await?;
+    launch(registry, runtime_mgr, gate, profile_id.to_string(), config).await
+}
+
+/// The effective launch of a saved profile (no transient layer).
+async fn resolve_profile(profile_id: &str) -> Result<LaunchConfig, String> {
     let id = profile_id.to_string();
-    let config = blocking(move || {
+    blocking(move || {
         crate::domain::store::Domain::global().resolve_profile(
             &crate::domain::launch::LaunchDefaults::load(),
             &id,
             &Default::default(),
         )
     })
-    .await??;
-    launch(registry, runtime_mgr, gate, profile_id.to_string(), config).await
+    .await?
 }
 
 /// Starts a launch form (Dashboard): its definition with the form's differences as a
@@ -328,6 +334,7 @@ pub async fn launch_form(
         }
     })
     .await??;
+    check_mlx_fit(&resolved).await?;
     launch(registry, runtime_mgr, gate, id, resolved).await
 }
 
@@ -420,18 +427,21 @@ pub async fn run_load_plan(
     plan: LoadPlan,
 ) -> Result<String, String> {
     let id = plan.server_id().to_string();
-    if let LoadPlan::Config { config, .. } = &plan {
-        check_unified_fit(config).await?;
-    }
-    stop_if_active(registry, &id).await?;
-    match plan {
+    // Everything that can refuse the load comes before the instance is stopped: a refused
+    // load leaves what runs there running.
+    let config = match plan {
         LoadPlan::Profile(profile_id) => {
-            launch_profile(registry, runtime_mgr, gate, &profile_id).await?
+            let config = resolve_profile(&profile_id).await?;
+            check_mlx_fit(&config).await?;
+            config
         }
-        LoadPlan::Config { server_id, config } => {
-            launch(registry, runtime_mgr, gate, server_id, *config).await?
+        LoadPlan::Config { config, .. } => {
+            check_unified_fit(&config).await?;
+            *config
         }
-    }
+    };
+    stop_if_active(registry, &id).await?;
+    launch(registry, runtime_mgr, gate, id.clone(), config).await?;
     Ok(id)
 }
 
@@ -440,6 +450,7 @@ pub async fn run_load_plan(
 /// load often reports ready and only runs out of memory on the first request. Elsewhere and
 /// for CPU-only, router, whisper or `--fit` loads: nothing to check.
 async fn check_unified_fit(config: &LaunchConfig) -> Result<(), String> {
+    check_mlx_fit(config).await?;
     if !cfg!(target_os = "macos")
         || config.gpu_layers == 0
         || config.router_mode
@@ -458,6 +469,53 @@ async fn check_unified_fit(config: &LaunchConfig) -> Result<(), String> {
         return Err(err("servers.insufficient_memory")
             .num("need_mib", fit.estimate.vram_bytes.div_ceil(MIB))
             .num("budget_mib", fit.budget.vram_bytes / MIB)
+            .into());
+    }
+    Ok(())
+}
+
+/// Whether an engine family runs on MLX (Apple Silicon, unified memory).
+fn is_mlx_family(family: &str) -> bool {
+    [
+        crate::engine::mlx::MLX,
+        crate::engine::mlx::MLX_VLM,
+        crate::engine::mlx::MLX_AUDIO,
+    ]
+    .contains(&family)
+}
+
+/// macOS: refuses an MLX load (chat, vision, speech) whose weights cannot fit in the GPU share
+/// of the unified memory ([`crate::engine::mlx::vram_need`]: weights + 20% + 300 MiB), before
+/// anything is stopped or spawned. MLX maps the weights lazily and then pushes the whole system
+/// into swap: on an M1 8 GB a 6.7 GB model brought memory pressure to critical in about 10 s.
+/// Every start path checks it (load, Dashboard, profiles, auto-start, retry); other engines
+/// pass. `vram_need` counts the folder's own weights only, not nested ones (Spark-TTS's
+/// `BiCodec/`): it can only under-estimate, so it never refuses a load that fits.
+async fn check_mlx_fit(config: &LaunchConfig) -> Result<(), String> {
+    if !cfg!(target_os = "macos")
+        || !is_mlx_family(crate::engine::server_for(config).family())
+        || !config.model_path.exists()
+    {
+        return Ok(());
+    }
+    let config = config.clone();
+    let (need, budget) = blocking(move || {
+        (
+            crate::engine::mlx::vram_need(&config),
+            crate::vram::budget(&crate::hardware::detect_hardware()),
+        )
+    })
+    .await?;
+    mlx_fit_verdict(need, &budget)
+}
+
+/// The verdict of [`check_mlx_fit`] for an estimate and a memory budget.
+fn mlx_fit_verdict(need: u64, budget: &crate::vram::MemoryBudget) -> Result<(), String> {
+    const MIB: u64 = 1024 * 1024;
+    if budget.unified && budget.vram_bytes > 0 && need > budget.vram_bytes {
+        return Err(err("servers.mlx_insufficient_memory")
+            .num("need_mib", need.div_ceil(MIB))
+            .num("budget_mib", budget.vram_bytes / MIB)
             .into());
     }
     Ok(())
@@ -625,7 +683,10 @@ pub async fn restore_servers(
     .unwrap_or_default();
     for (id, config) in jobs {
         let result = match config {
-            Ok(config) => launch(&registry, &runtime_mgr, &gate, id.clone(), config).await,
+            Ok(config) => match check_mlx_fit(&config).await {
+                Ok(()) => launch(&registry, &runtime_mgr, &gate, id.clone(), config).await,
+                Err(e) => Err(e),
+            },
             Err(e) => Err(e),
         };
         if let Err(e) = result {
@@ -1382,6 +1443,7 @@ pub async fn retry_with_overrides(
         .launch_config()
         .ok_or_else(|| ERR_NOTHING_TO_START.to_string())?;
     crate::domain::launch::apply_layer(&mut config, &overrides)?;
+    check_mlx_fit(&config).await?;
     for id in unload.iter().filter(|id| id.as_str() != server_id) {
         stop_if_active(registry, id).await?;
     }
@@ -1415,6 +1477,56 @@ fn save_overrides(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A load plan that is refused (here: a profile that cannot be resolved) leaves the server
+    /// running on its instance: nothing is stopped before every check has passed.
+    #[tokio::test]
+    async fn a_refused_load_plan_stops_nothing() {
+        let registry = ServerRegistry::default();
+        let pm = registry.get_or_create("busy-instance");
+        pm.mark_running_for_tests();
+        let e = run_load_plan(
+            &registry,
+            &RuntimeManager::default(),
+            &OperationGate::default(),
+            LoadPlan::Profile("busy-instance".into()),
+        )
+        .await
+        .unwrap_err();
+        assert!(!e.is_empty());
+        assert_eq!(pm.get_status(), ServerStatus::Running);
+    }
+
+    /// An MLX model whose weights (+20% + 300 MiB) exceed the GPU share of unified memory is
+    /// refused with the numbers; one that fits, a non-unified machine and an unknown budget pass.
+    #[test]
+    fn mlx_loads_that_cannot_fit_unified_memory_are_refused() {
+        const GIB: u64 = 1 << 30;
+        let m1_8gb = crate::vram::MemoryBudget {
+            vram_bytes: 5_726_623_744, // recommendedMaxWorkingSetSize of an M1 8 GB
+            ram_bytes: 8 * GIB,
+            unified: true,
+            ..Default::default()
+        };
+        // Qwen3-8B-6bit: 6.2 GiB of weights (measured: memory pressure critical in ~10 s).
+        let need = 6_200_000_000u64 + 6_200_000_000 / 5 + (300 << 20);
+        let e = mlx_fit_verdict(need, &m1_8gb).unwrap_err();
+        assert!(e.starts_with("servers.mlx_insufficient_memory"), "{e}");
+        assert!(e.contains("\"budget_mib\":5461"), "{e}");
+        // Qwen3-4B-4bit: 2.1 GiB fits.
+        assert!(mlx_fit_verdict(2_100_000_000 + 420_000_000 + (300 << 20), &m1_8gb).is_ok());
+        let discrete = crate::vram::MemoryBudget {
+            unified: false,
+            ..m1_8gb
+        };
+        assert!(mlx_fit_verdict(need, &discrete).is_ok());
+        let unknown = crate::vram::MemoryBudget {
+            vram_bytes: 0,
+            ..m1_8gb
+        };
+        assert!(mlx_fit_verdict(need, &unknown).is_ok());
+        assert!(is_mlx_family("mlx-audio") && !is_mlx_family("llama.cpp"));
+    }
 
     #[tokio::test]
     async fn sampler_rests_without_servers_or_watchers() {
