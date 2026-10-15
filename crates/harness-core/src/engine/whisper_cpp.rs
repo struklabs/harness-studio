@@ -306,7 +306,22 @@ pub fn footprint_bytes(model_size_bytes: u64) -> u64 {
 /// everything in system memory, which is not VRAM). The binary is the one the launch runs
 /// (`config.binary_path`, else the runtime the launch resolves to).
 pub fn vram_need(config: &LaunchConfig) -> u64 {
-    let binary = if config.binary_path.as_os_str().is_empty() {
+    let gpu_build = launch_binary(config)
+        .as_deref()
+        .and_then(build_has_gpu)
+        .unwrap_or(false);
+    if !gpu_build || config.gpu_layers == 0 {
+        return 0;
+    }
+    let size = std::fs::metadata(&config.model_path)
+        .map(|m| m.len())
+        .unwrap_or(0);
+    footprint_bytes(size)
+}
+
+/// The whisper-server binary a launch runs: its own, else the installed one of its runtime.
+fn launch_binary(config: &LaunchConfig) -> Option<std::path::PathBuf> {
+    if config.binary_path.as_os_str().is_empty() {
         crate::runtimes::resolve_family_binary_in(
             &crate::runtimes::RuntimeRegistry::global(),
             WHISPER_CPP,
@@ -315,15 +330,14 @@ pub fn vram_need(config: &LaunchConfig) -> u64 {
         .ok()
     } else {
         Some(config.binary_path.clone())
-    };
-    let gpu_build = binary.as_deref().and_then(build_has_gpu).unwrap_or(false);
-    if !gpu_build || config.gpu_layers == 0 {
-        return 0;
     }
-    let size = std::fs::metadata(&config.model_path)
-        .map(|m| m.len())
-        .unwrap_or(0);
-    footprint_bytes(size)
+}
+
+/// Whether a launch is known to keep everything in system memory: CPU only (`gpu_layers` 0) or
+/// a build without a GPU backend. An unrecognised build is not known.
+pub fn runs_on_cpu(config: &LaunchConfig) -> bool {
+    config.gpu_layers == 0
+        || launch_binary(config).as_deref().and_then(build_has_gpu) == Some(false)
 }
 
 /// Whether the build at `binary` has a GPU backend (`None`: its backend is not recognised).

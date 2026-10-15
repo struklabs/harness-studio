@@ -492,6 +492,20 @@ pub fn non_llama_vram_need(config: &LaunchConfig) -> u64 {
     }
 }
 
+/// Whether a non-llama.cpp launch is known to take no GPU memory: a CPU build, backend or
+/// provider the launch names. A zero [`non_llama_vram_need`] does not say so: the families
+/// without an estimate of their own (Python, MLX, mistral.rs, the whisper-style fallback) report
+/// none although they may run on the GPU.
+pub fn non_llama_runs_on_cpu(config: &LaunchConfig) -> bool {
+    match server_for(config).family() {
+        SD_CPP => sd_cpp::runs_on_cpu(config),
+        WHISPER_CPP => whisper_cpp::runs_on_cpu(config),
+        ONNX_FAMILY => onnx::provider_of(config) == "cpu",
+        AUDIO_CPP => audio_cpp::backend(config) == "cpu",
+        _ => false,
+    }
+}
+
 /// The least GPU memory a non-llama.cpp launch can load with when the engine places what does
 /// not fit in system memory itself (stable-diffusion.cpp's auto-fit); `None`: it needs
 /// [`non_llama_vram_need`] on the card.
