@@ -32,6 +32,7 @@
   import ModelCard from './ModelCard.svelte';
   import PublisherAvatar from './PublisherAvatar.svelte';
   import { ggmlTwinFor, isTwinFile } from './ct2Twin';
+  import { localVariantFor } from './variantFiles';
   import { isCompanionVariant, isCtcVariant, isWhisperVariant, pickProjectorVariant, recommendCrispasrVariant, recommendCtcVariant, recommendFloatVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
   import { security } from '#lib/stores/security.svelte.js';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
@@ -193,16 +194,17 @@
     const map = new Map<string, LocalModel>();
     if (!repoId) return map;
     for (const m of library.forRepo(repoId)) {
-      const rel = repoRelative(m, repoId);
-      if (rel) map.set(rel, m);
+      for (const path of [m.path, ...m.shard_paths]) {
+        const rel = repoRelative({ ...m, path }, repoId);
+        if (rel) map.set(rel, m);
+      }
     }
     return map;
   });
   /** The repo downloaded as a whole folder (MLX, Python engine): its one variant is that folder. */
   let localFolder = $derived(repoId ? library.forRepo(repoId).find((m) => isRepoFolder(m, repoId)) : undefined);
   function localFor(v: HfModelVariant): LocalModel | undefined {
-    const file = v.shards[0]?.filename;
-    return (file ? localByFile.get(normPath(file).toLowerCase()) : undefined) ?? (variants.length === 1 ? localFolder : undefined);
+    return localVariantFor(v, localByFile, variants.length === 1 ? localFolder : undefined);
   }
   function quantLabel(v: HfModelVariant): string {
     const local = localFor(v);
@@ -715,7 +717,7 @@
                           <Table.Cell class="max-w-[220px]">
                             <div class="flex min-w-0 flex-col">
                               <span class="flex items-center gap-1.5">
-                                {#if uiLevel.advanced || showAllFiles}<span class="font-mono text-sm font-medium" title={t('hub.quant_badge_title')}>{quantLabel(variant)}</span>{:else}<span class="text-sm font-medium">{t('hub.download_option')}</span>{/if}
+                                {#if uiLevel.advanced || showAllFiles}<span class="font-mono text-sm font-medium" title={t('hub.quant_badge_title')}>{quantLabel(variant)}</span>{:else if isFocused}<span class="min-w-0 truncate text-sm font-medium" title={variant.name}>{variant.name}</span>{:else}<span class="text-sm font-medium">{t('hub.download_option')}</span>{/if}
                                 {#if variant.is_split && (uiLevel.advanced || showAllFiles)}
                                   <Badge variant="outline" class="text-xs" title={t('hub.split_desc', { count: variant.shards.length })}>
                                     {t('hub.split_set', { count: variant.shards.length })}
@@ -801,23 +803,25 @@
                                     <Tooltip.Content class="max-w-64">{t('hub.check_update_title')}</Tooltip.Content>
                                   </Tooltip.Root>
                                 </AdvancedOnly>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  class="min-w-24 font-num"
-                                  onclick={() => requestDownload(variant)}
-                                  disabled={pending || adding || isLoadingVariants}
-                                >
-                                  {#if adding}
-                                    <LoaderCircle class="animate-spin" />
-                                  {:else if job && job.status === 'Queued'}
-                                    {t('hub.variant_queued')}
-                                  {:else if job && pending}
-                                    {progressPercent(job).toFixed(0)}%
-                                  {:else}
-                                    <Download />{t('hub.download_short')}
-                                  {/if}
-                                </Button>
+                                {#if !local || hasUpdate || uiLevel.advanced || pending || adding}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    class="min-w-24 font-num"
+                                    onclick={() => requestDownload(variant)}
+                                    disabled={pending || adding || isLoadingVariants}
+                                  >
+                                    {#if adding}
+                                      <LoaderCircle class="animate-spin" />
+                                    {:else if job && job.status === 'Queued'}
+                                      {t('hub.variant_queued')}
+                                    {:else if job && pending}
+                                      {progressPercent(job).toFixed(0)}%
+                                    {:else}
+                                      <Download />{t(!local ? 'hub.download_short' : hasUpdate ? 'hub.update_short' : 'hub.redownload_short')}
+                                    {/if}
+                                  </Button>
+                                {/if}
                               </div>
                             {/if}
                           </Table.Cell>
