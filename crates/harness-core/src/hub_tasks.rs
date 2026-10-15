@@ -179,6 +179,9 @@ pub enum TaskSource {
 pub enum NotRunnable {
     /// The repo lists files but none is a `.gguf`.
     NoGguf,
+    VibevoiceLayout,
+    AudioCppIncompletePackage,
+    SdxlRefinerFolderRequired,
     /// audio.cpp family outside the supported TTS surface.
     AudioCppUnsupported,
     CrispasrPocketEnglishOnly,

@@ -1025,7 +1025,7 @@ export interface CustomBinaryValidation {
 export type HfTaskSource = 'tags' | 'name' | 'files' | 'library' | 'gguf';
 
 /** `harness_core::hub_tasks::NotRunnable`. */
-export type HfNotRunnable = 'no_gguf' | 'adapter' | 'not_language_model' | 'audio_cpp_unsupported' | 'crispasr_pocket_english_only' | 'audio_cpp_espeak_missing';
+export type HfNotRunnable = 'vibevoice_layout' | 'audio_cpp_incomplete_package' | 'sdxl_refiner_folder_required' | 'no_gguf' | 'adapter' | 'not_language_model' | 'audio_cpp_unsupported' | 'crispasr_pocket_english_only' | 'audio_cpp_espeak_missing';
 
 /** `harness_core::model_registry::Capability`. */
 export type ModelCapability = 'chat' | 'vision' | 'audio' | 'embedding' | 'rerank' | 'asr' | 'tts' | 'image_generation';
