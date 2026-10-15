@@ -1,6 +1,8 @@
 pub mod app_update;
 #[cfg(target_os = "linux")]
 mod autostart_linux;
+#[cfg(windows)]
+mod autostart_windows;
 pub mod desktop;
 pub mod push;
 #[cfg(all(windows, debug_assertions, feature = "qa-cdp"))]
@@ -270,6 +272,8 @@ pub fn run() {
             desktop::migrate_launch_agent(app.handle());
             #[cfg(target_os = "linux")]
             autostart_linux::refresh();
+            #[cfg(windows)]
+            autostart_windows::migrate(&app.package_info().name);
             desktop::set_app_menu(app.handle(), &AppSettings::load().language);
             desktop::setup_tray_now_or_later(app.handle());
             // The window starts hidden (tauri.conf.json) to avoid a flash when

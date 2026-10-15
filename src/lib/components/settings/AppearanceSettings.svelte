@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, untrack } from 'svelte';
   import { invoke } from '#lib/ipc.js';
+  import { localizeError } from '#lib/network.js';
   import { toast } from 'svelte-sonner';
   import type { AppSettings, CloseAction } from '#lib/types.js';
   import { applyTheme, baseMode, schemeOf, themeFromSettings, type ThemeId } from '#lib/theme.js';
@@ -158,8 +159,12 @@
     try {
       const v = await invoke<boolean>('get_launch_at_login');
       if (!destroyed) launchAtLogin = v;
-    } catch {
-      if (!destroyed) launchAtLogin = false;
+    } catch (e) {
+      // Not "off": the state is unknown. The toggle stays off and the reason is shown.
+      if (!destroyed) {
+        launchAtLogin = false;
+        launchError = localizeError(e);
+      }
     }
   }
 
@@ -170,7 +175,7 @@
     try {
       launchAtLogin = await invoke<boolean>('set_launch_at_login', { enabled });
     } catch (e) {
-      launchError = t('settings.launch_at_login_failed', { error: String(e) });
+      launchError = t('settings.launch_at_login_failed', { error: localizeError(e) });
       await loadLaunchAtLogin();
     } finally {
       launchBusy = false;

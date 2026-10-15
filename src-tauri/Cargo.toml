@@ -43,6 +43,8 @@ tauri-plugin-updater = "2"
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.39"
 windows-core = "0.62"
+# The Run-key entry for "start at login" (same version the autostart plugin uses).
+windows-registry = "0.6"
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
 
 # Microphone for the Speech tab: WebKitGTK ships with media streams off (same version wry uses).

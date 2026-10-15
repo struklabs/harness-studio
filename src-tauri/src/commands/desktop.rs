@@ -21,16 +21,24 @@ pub(crate) fn get_app_update_progress(state: State<'_, AppUpdateState>) -> Optio
 }
 
 #[tauri::command]
-pub(crate) fn get_launch_at_login(app: tauri::AppHandle) -> bool {
+pub(crate) fn get_launch_at_login(app: tauri::AppHandle) -> Result<bool, String> {
+    // Linux and Windows write their own entries (see `autostart_linux` / `autostart_windows`).
+    // A read error is returned, not shown as "off".
     #[cfg(target_os = "linux")]
     {
         let _ = app;
-        crate::autostart_linux::is_enabled()
+        Ok(crate::autostart_linux::is_enabled())
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(windows)]
+    {
+        crate::autostart_windows::is_enabled(&app.package_info().name)
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         use tauri_plugin_autostart::ManagerExt;
-        app.autolaunch().is_enabled().unwrap_or(false)
+        Ok(app.autolaunch().is_enabled().map_err(|e| {
+            harness_core::error_key::err("desktop.autostart_status_failed").with("error", e)
+        })?)
     }
 }
 
@@ -48,11 +56,23 @@ pub(crate) fn set_launch_at_login(app: tauri::AppHandle, enabled: bool) -> Resul
         result.map_err(|e| harness_core::error_key::err("desktop.autostart_failed").with("error", e))?;
         Ok(crate::autostart_linux::is_enabled())
     }
-    #[cfg(not(target_os = "linux"))]
+    // Windows writes its own Run value (quoted path, current user only).
+    #[cfg(windows)]
+    {
+        let name = app.package_info().name.clone();
+        let result = if enabled {
+            crate::autostart_windows::enable(&name)
+        } else {
+            crate::autostart_windows::disable(&name)
+        };
+        result.map_err(|e| harness_core::error_key::err("desktop.autostart_failed").with("error", e))?;
+        crate::autostart_windows::is_enabled(&name)
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     set_launch_at_login_plugin(app, enabled)
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn set_launch_at_login_plugin(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
     use tauri_plugin_autostart::ManagerExt;
     let autolaunch = app.autolaunch();
