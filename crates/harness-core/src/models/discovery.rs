@@ -67,17 +67,14 @@ impl DirectoryTree {
         let mut seen = HashSet::new();
         let mut stack = vec![(root.to_path_buf(), 0usize)];
         while let Some((dir, depth)) = stack.pop() {
-            // Windows path lookups are case insensitive, so the prefilter must be too.
+            // Case insensitive everywhere: Windows and macOS (APFS by default) find `README.md`
+            // as `readme.md`, and a broader prefilter only lets the detector decide.
             // If enumeration failed, let the original detector try its known paths.
             let candidate = self.names.get(&dir).is_none_or(|names| {
                 names.iter().any(|name| {
-                    required_any.iter().any(|required| {
-                        if cfg!(windows) {
-                            name.eq_ignore_ascii_case(required)
-                        } else {
-                            name == required
-                        }
-                    })
+                    required_any
+                        .iter()
+                        .any(|required| name.eq_ignore_ascii_case(required))
                 })
             });
             if depth > 0 && candidate {

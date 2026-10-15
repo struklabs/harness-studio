@@ -271,12 +271,46 @@ fn mlx_speech_folders_without_a_config_are_listed() {
         "oute/OuteTTS-1.0-0.6B-4bit/README.md",
         b"---\nlibrary_name: outetts\ntags:\n- mlx\n---\n",
     );
+    // The published Spark build has a plain Qwen2 config: still named Spark.
+    write(root, "spark/Spark-TTS-qwen2/BiCodec/config.yaml", b"x");
+    write(
+        root,
+        "spark/Spark-TTS-qwen2/audio_tokenizer_config.yaml",
+        b"x",
+    );
+    write(root, "spark/Spark-TTS-qwen2/model.safetensors", b"x");
+    write(root, "spark/Spark-TTS-qwen2/README.md", card);
+    write(
+        root,
+        "spark/Spark-TTS-qwen2/config.json",
+        br#"{"architectures":["Qwen2ForCausalLM"],"model_type":"qwen2"}"#,
+    );
+    // A card in lower case: found where the file system ignores case (macOS by default).
+    write(root, "oute/lower-card/model.safetensors", b"x");
+    write(
+        root,
+        "oute/lower-card/readme.md",
+        b"---\nlibrary_name: outetts\ntags:\n- mlx\n---\n",
+    );
+    let ignores_case = root.join("oute/lower-card/README.md").is_file();
+    // A card without a model is no model.
+    write(root, "notes/just-a-card/README.md", card);
     let roots = [root.to_path_buf()];
     let legacy = crate::engine::mlx::library_models(&roots);
-    assert_eq!(legacy.len(), 2, "{legacy:?}");
-    let mut archs: Vec<_> = legacy.iter().map(|m| m.architecture.clone()).collect();
+    let mut archs: Vec<_> = legacy
+        .iter()
+        .map(|m| (m.name.clone(), m.architecture.clone().unwrap_or_default()))
+        .collect();
     archs.sort();
-    assert_eq!(archs, [Some("outetts".into()), Some("spark".into())]);
+    let mut expected = vec![
+        ("OuteTTS-1.0-0.6B-4bit".to_string(), "outetts".to_string()),
+        ("Spark-TTS-0.5B-bf16".into(), "spark".into()),
+        ("Spark-TTS-qwen2".into(), "spark".into()),
+    ];
+    if ignores_case {
+        expected.push(("lower-card".into(), "outetts".into()));
+    }
+    assert_eq!(archs, expected);
     let tree = discovery::DirectoryTree::collect(root);
     let current = crate::engine::mlx::library_models_in(root, &tree);
     assert_eq!(
