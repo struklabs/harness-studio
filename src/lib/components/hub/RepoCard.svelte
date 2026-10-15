@@ -72,7 +72,8 @@
   /** A decision model's pipeline_tag (text-classification...) does not say how Harness runs it. */
   let decision = $derived(isDecisionRepo(repo));
   let task = $derived(taskInfo(decision ? 'decision-model' : (repo.pipeline_tag ?? repo.inferred_task)));
-  let inferred = $derived(!repo.pipeline_tag && !!repo.inferred_task);
+  // A decision repo's task comes from its tag, not from an inference.
+  let inferred = $derived(!decision && !repo.pipeline_tag && !!repo.inferred_task);
   let support = $derived(taskSupportStore.support(task?.id));
   /** Family that would run the task but is not installed (e.g. stable-diffusion.cpp for images). */
   let taskNeeds = $derived(
