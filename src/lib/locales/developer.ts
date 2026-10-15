@@ -21,6 +21,7 @@ const tr = {
   'downloads.variant_ambiguous': 'Birden çok dosya eşleşiyor: {files}. Dosyayı belirtin (CLI: --file <yol>).',
   'definitions.alias_not_found': 'Bu adla (alias) bir model tanımı yok.',
   'servers.already_active': 'Sunucu zaten çalışıyor veya başlıyor.',
+  'servers.previous_still_running': 'Önceki sunucu süreci durdurulamadı ve hâlâ çalışıyor. Birkaç saniye sonra yeniden deneyin; sürmezse uygulamayı yeniden başlatın.',
   'servers.definition_required': 'Başlatılacak bir model tanımı belirtin.',
   'servers.profile_definition_mismatch': 'Bu profil başka bir model tanımını sunuyor.',
 
@@ -217,6 +218,7 @@ const en: Record<keyof typeof tr, string> = {
   'downloads.variant_ambiguous': 'Several files match: {files}. Name the file (CLI: --file <path>).',
   'definitions.alias_not_found': 'No model definition has this alias.',
   'servers.already_active': 'The server is already running or starting.',
+  'servers.previous_still_running': 'The previous server process could not be stopped and is still running. Try again in a few seconds; if it persists, restart the app.',
   'servers.definition_required': 'Name a model definition to start.',
   'servers.profile_definition_mismatch': 'This profile serves another model definition.',
 

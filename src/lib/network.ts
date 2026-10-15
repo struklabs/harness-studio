@@ -28,6 +28,7 @@ export const ERROR_KEYS = [
   'downloads.variant_ambiguous',
   'definitions.alias_not_found',
   'servers.already_active',
+  'servers.previous_still_running',
   'servers.definition_required',
   'servers.profile_definition_mismatch',
   'runtime.backend_no_device',
