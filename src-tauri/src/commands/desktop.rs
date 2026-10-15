@@ -22,12 +22,38 @@ pub(crate) fn get_app_update_progress(state: State<'_, AppUpdateState>) -> Optio
 
 #[tauri::command]
 pub(crate) fn get_launch_at_login(app: tauri::AppHandle) -> bool {
-    use tauri_plugin_autostart::ManagerExt;
-    app.autolaunch().is_enabled().unwrap_or(false)
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app;
+        crate::autostart_linux::is_enabled()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        app.autolaunch().is_enabled().unwrap_or(false)
+    }
 }
 
 #[tauri::command]
 pub(crate) fn set_launch_at_login(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
+    // Linux writes its own entry (quoted path, `$XDG_CONFIG_HOME`, kept current at startup).
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app;
+        let result = if enabled {
+            crate::autostart_linux::enable()
+        } else {
+            crate::autostart_linux::disable()
+        };
+        result.map_err(|e| harness_core::error_key::err("desktop.autostart_failed").with("error", e))?;
+        Ok(crate::autostart_linux::is_enabled())
+    }
+    #[cfg(not(target_os = "linux"))]
+    set_launch_at_login_plugin(app, enabled)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn set_launch_at_login_plugin(app: tauri::AppHandle, enabled: bool) -> Result<bool, String> {
     use tauri_plugin_autostart::ManagerExt;
     let autolaunch = app.autolaunch();
     // The login entry names this executable; a translocated copy is gone after a restart.
