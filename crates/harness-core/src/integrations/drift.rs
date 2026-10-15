@@ -673,7 +673,7 @@ pub struct PortFollow {
 /// the gateway listened on) for `current_base`. A config with a stored apply request is written
 /// again with it (only the address changes, the tool's default model stays) while its files are
 /// still as Harness wrote them; any other is changed in place: only the port of the address
-/// Harness wrote, with a backup, so a model the user picked afterwards stays. Configs with an
+/// this data directory recorded and still owns, with a backup, so a model the user picked afterwards stays. Configs with an
 /// API key (at apply time or added since) and configs pointing at anything else (a server's own
 /// port) are left for the user ("Düzelt").
 pub(crate) fn follow_gateway_port_in(
@@ -773,7 +773,8 @@ fn set_stored_base(roots: &Roots, id: &str, base_url: &str) {
 }
 
 /// Moves the earlier gateway ports in the config of `spec` to `current`, unless the config
-/// holds a key. `true` when a file was changed.
+/// holds a key or the entry no longer matches this data directory's ledger.
+/// `true` when a file was changed.
 fn rewrite_in_place(roots: &Roots, spec: &Spec, current: u16, gateway_ports: &[u16]) -> bool {
     let stale: Vec<UrlSlot> = url_slots(spec.id, roots)
         .into_iter()
@@ -1064,44 +1065,16 @@ mod tests {
     }
 
     #[test]
-    fn an_old_gateway_port_in_a_file_without_a_request_is_rewritten_in_place() {
+    fn an_unrecorded_gateway_entry_is_left_for_explicit_connect() {
         let dir = tempfile::tempdir().unwrap();
         let r = roots(dir.path());
         let path = old_opencode(dir.path(), &gw(11435), "harness-local");
-
-        let d = endpoint_drift_in(&r, &gw(11436), &[11435, 11436]);
-        assert_eq!(d.len(), 1, "{d:?}");
-        assert_eq!(d[0].id, "opencode");
-        assert_eq!(d[0].configured, gw(11435));
-
+        let before = std::fs::read(&path).unwrap();
         let done = follow_gateway_port_in(&r, &gw(11436), &[11435, 11436]);
-        assert_eq!(done.moved, ["opencode"]);
-        assert!(done.pending.is_empty(), "{done:?}");
-        let text = std::fs::read_to_string(&path).unwrap();
-        assert!(
-            text.contains(r#""baseURL": "http://127.0.0.1:11436/v1", "apiKey""#),
-            "{text}"
-        );
-        // The user's own provider on the same port, the comment and the model stay.
-        assert!(
-            text.contains(r#""mine": { "options": { "baseURL": "http://127.0.0.1:11435/v1" } }"#),
-            "{text}"
-        );
-        assert!(text.contains("// my settings"), "{text}");
-        assert!(text.contains(r#""model": "harness/qwen3-4b""#), "{text}");
-        // One backup of the file as it was.
-        let backups = keyed::backups_of(&path);
-        assert_eq!(backups.len(), 1, "{backups:?}");
-        assert!(std::fs::read_to_string(&backups[0])
-            .unwrap()
-            .contains(r#""baseURL": "http://127.0.0.1:11435/v1", "apiKey""#));
-        // Nothing left to do, and a second pass changes nothing.
-        assert!(endpoint_drift_in(&r, &gw(11436), &[11435, 11436]).is_empty());
-        assert_eq!(
-            follow_gateway_port_in(&r, &gw(11436), &[11435, 11436]),
-            PortFollow::default()
-        );
-        assert_eq!(keyed::backups_of(&path).len(), 1);
+        assert!(done.moved.is_empty());
+        assert_eq!(done.pending, ["opencode"]);
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(keyed::backups_of(&path).is_empty());
     }
 
     #[test]
@@ -1118,17 +1091,16 @@ mod tests {
     }
 
     #[test]
-    fn the_gateway_back_on_its_default_port_brings_the_configs_back() {
+    fn the_owning_gateway_back_on_its_default_port_brings_the_configs_back() {
         let dir = tempfile::tempdir().unwrap();
         let r = roots(dir.path());
-        let path = old_opencode(dir.path(), &gw(11436), "harness-local");
+        let mut req = request("qwen3-4b", &[]);
+        req.base_url = gw(11436);
+        apply_in(&r, "opencode", &req).unwrap();
         let done = follow_gateway_port_in(&r, &gw(11435), &[11435, 11436]);
         assert_eq!(done.moved, ["opencode"]);
-        let text = std::fs::read_to_string(&path).unwrap();
-        assert!(
-            text.contains(r#""baseURL": "http://127.0.0.1:11435/v1", "apiKey""#),
-            "{text}"
-        );
+        let path = crate::integrations::opencode_config_path(dir.path());
+        assert!(std::fs::read_to_string(path).unwrap().contains(":11435/v1"));
     }
 
     #[test]
@@ -1166,7 +1138,7 @@ mod tests {
     }
 
     #[test]
-    fn codex_toml_without_a_request_is_rewritten() {
+    fn unrecorded_toml_is_not_rewritten() {
         let dir = tempfile::tempdir().unwrap();
         let r = roots(dir.path());
         let codex = dir.path().join(".codex");
@@ -1178,13 +1150,50 @@ mod tests {
         )
         .unwrap();
         let done = follow_gateway_port_in(&r, &gw(11436), &[11435, 11436]);
-        assert_eq!(done.moved, ["codex"]);
+        assert!(done.moved.is_empty());
         let text = std::fs::read_to_string(codex.join("config.toml")).unwrap();
         assert!(
-            text.contains("base_url = \"http://127.0.0.1:11436/v1\""),
+            text.contains("base_url = \"http://127.0.0.1:11435/v1\""),
             "{text}"
         );
         assert!(text.starts_with("# mine\nmodel = \"gpt\""), "{text}");
+    }
+
+    #[test]
+    fn separate_data_directories_require_explicit_takeover() {
+        let dir = tempfile::tempdir().unwrap();
+        let owner = roots(dir.path());
+        let mut isolated = roots(dir.path());
+        isolated.ledger = Some(dir.path().join("isolated/config/integrations.json"));
+        let path = crate::integrations::opencode_config_path(dir.path());
+        let history = [11435, 11462, 11463];
+        let mut req = request("qwen3-4b", &[]);
+        req.base_url = gw(11435);
+        apply_in(&owner, "opencode", &req).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        assert!(follow_gateway_port_in(&isolated, &gw(11462), &history)
+            .moved
+            .is_empty());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(keyed::backups_of(&path).is_empty());
+
+        assert_eq!(
+            follow_gateway_port_in(&owner, &gw(11463), &history).moved,
+            ["opencode"]
+        );
+        req.base_url = gw(11462);
+        apply_in(&isolated, "opencode", &req).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        let backups = keyed::backups_of(&path);
+        assert!(follow_gateway_port_in(&owner, &gw(11435), &history)
+            .moved
+            .is_empty());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert_eq!(keyed::backups_of(&path), backups);
+        assert_eq!(
+            follow_gateway_port_in(&isolated, &gw(11463), &history).moved,
+            ["opencode"]
+        );
     }
 
     #[test]

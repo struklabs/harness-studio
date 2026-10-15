@@ -541,13 +541,23 @@ fn scrub_backup_tokens(id: &str, path: &Path) -> usize {
 /// Moves the HTTP `harness` entries Harness wrote for an earlier Control API port (`ports`:
 /// every port it listened on) to `current`. Only the port of a loopback address changes; the
 /// token and everything else in the file stay. Stdio entries, remote addresses and ports the
-/// Control API never used are left alone. Returns the names of the tools that were rewritten.
+/// Control API never used are left alone. Entries must still match this data directory's ledger.
+/// Returns the names of the tools that were rewritten.
 pub fn follow_api_port_in(r: &McpRoots, current: u16, ports: &[u16]) -> Vec<String> {
     let mut moved = Vec::new();
     for t in &TARGETS {
         let Ok((path, _)) = paths(r, t.id) else {
             continue;
         };
+        if !keyed::owns_key(
+            &ledger_id(t.id),
+            &path,
+            format_of(t.id),
+            &entry_path(t.id),
+            r.ledger.as_deref(),
+        ) {
+            continue;
+        }
         let Ok(Some(entry)) = current_entry(t.id, &path) else {
             continue;
         };
@@ -941,6 +951,46 @@ mod tests {
         assert!(follow_api_port_in(&r, 11501, &[11501]).is_empty());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
         assert!(keyed::backups_of(&path).is_empty());
+    }
+
+    #[test]
+    fn separate_data_directories_cannot_follow_each_others_mcp_entries() {
+        let dir = tempfile::tempdir().unwrap();
+        let owner = roots(dir.path());
+        let mut isolated = roots(dir.path());
+        isolated.ledger = Some(dir.path().join("isolated/config/integrations.json"));
+        let at = |port| McpTransport::Http {
+            url: format!("http://127.0.0.1:{port}/api/harness/v1/mcp"),
+            token: Some("test-token".into()),
+        };
+        for target in &TARGETS {
+            apply_in(&owner, target.id, &at(11501)).unwrap();
+        }
+        let snapshots: Vec<_> = TARGETS
+            .iter()
+            .map(|t| {
+                let (path, _) = paths(&owner, t.id).unwrap();
+                let bytes = std::fs::read(&path).unwrap();
+                (path, bytes)
+            })
+            .collect();
+        assert!(follow_api_port_in(&isolated, 11502, &[11501, 11502]).is_empty());
+        for (path, bytes) in &snapshots {
+            assert_eq!(std::fs::read(path).unwrap(), *bytes);
+            assert!(keyed::backups_of(path).is_empty());
+        }
+        assert_eq!(
+            follow_api_port_in(&owner, 11502, &[11501]).len(),
+            TARGETS.len()
+        );
+        for target in &TARGETS {
+            apply_in(&isolated, target.id, &at(11503)).unwrap();
+        }
+        assert!(follow_api_port_in(&owner, 11501, &[11502, 11503]).is_empty());
+        assert_eq!(
+            follow_api_port_in(&isolated, 11504, &[11503]).len(),
+            TARGETS.len()
+        );
     }
 
     #[test]

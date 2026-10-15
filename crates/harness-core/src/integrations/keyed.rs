@@ -9,7 +9,8 @@
 //!   stay. YAML is re-serialized (comments are lost; the result says so and a backup is kept).
 //! * **A ledger** (`<data>/config/integrations.json`): per integration and file, the keys Harness
 //!   set (a SHA-256 of the value written, the value that was there before, which parent objects
-//!   Harness created) and a SHA-256 of the file as written.
+//!   Harness created) and a SHA-256 of the file as written. Its location scopes ownership to
+//!   the data directory; automatic edits require the recorded entry to still match.
 //! * **Rollback** removes or restores only those keys, and only while they still hold what
 //!   Harness wrote; a key the user changed afterwards is left alone and reported. Without a
 //!   ledger entry (configs written by older versions) only keys that identify Harness by name
@@ -893,6 +894,7 @@ pub fn render(id: &str, plan: &FilePlan, ledger: &Ledger) -> Result<Rendered, St
                     edits.first().map(|e| e.path.as_slice()).unwrap_or(&[]),
                 ),
             };
+            let original = doc.value();
             let mut keys = Vec::new();
             for edit in edits {
                 let snapshot = doc.value();
@@ -910,7 +912,9 @@ pub fn render(id: &str, plan: &FilePlan, ledger: &Ledger) -> Result<Rendered, St
                     }
                     _ => (current.clone(), first_missing(&snapshot, &edit.path)),
                 };
-                doc.set(&edit.path, &edit.value, &path)?;
+                if current.as_ref() != Some(&written_value(edit)) {
+                    doc.set(&edit.path, &edit.value, &path)?;
+                }
                 keys.push(AppliedKey {
                     path: edit.path.clone(),
                     value_sha: value_sha(&written_value(edit)),
@@ -932,7 +936,11 @@ pub fn render(id: &str, plan: &FilePlan, ledger: &Ledger) -> Result<Rendered, St
                     }
                 }
             }
-            let after = doc.text()?;
+            let after = if doc.value() == original {
+                before.clone().unwrap_or(doc.text()?)
+            } else {
+                doc.text()?
+            };
             Ok(Rendered {
                 path,
                 comments_lost: *format == Format::Yaml
@@ -986,7 +994,21 @@ pub fn backups_of(path: &Path) -> Vec<PathBuf> {
                 .is_some_and(|n| n.starts_with(&prefix) && n.ends_with(".bak"))
         })
         .collect();
-    list.sort();
+    list.sort_by_key(|p| {
+        let name = p.file_name().unwrap().to_string_lossy();
+        let tail = name.strip_prefix(&prefix).unwrap().trim_end_matches(".bak");
+        let mut parts = tail.split('-');
+        let stamp = format!(
+            "{}-{}",
+            parts.next().unwrap_or(""),
+            parts.next().unwrap_or("")
+        );
+        let generation = parts
+            .next()
+            .and_then(|s| s.parse::<u64>().ok())
+            .unwrap_or(1);
+        (stamp, generation)
+    });
     list
 }
 
@@ -1015,7 +1037,23 @@ fn backup_at(
         .ok_or_else(|| err("integrations.invalid_config_path").with("path", path.display()))?;
     let base = format!("{}{}", prefix, stamp(at));
     let mut target = dir.join(format!("{}.bak", base));
-    let mut n = 2;
+    let mut n = backups_of(path)
+        .iter()
+        .filter_map(|p| {
+            p.file_name()?
+                .to_str()?
+                .strip_prefix(&format!("{base}-"))?
+                .strip_suffix(".bak")?
+                .parse::<u64>()
+                .ok()
+        })
+        .max()
+        .unwrap_or(1)
+        + 1;
+    if n > 2 {
+        target = dir.join(format!("{}-{}.bak", base, n));
+        n += 1;
+    }
     while target.exists() {
         target = dir.join(format!("{}-{}.bak", base, n));
         n += 1;
@@ -1112,6 +1150,35 @@ pub fn apply(
     Ok(out)
 }
 
+/// Whether this data directory last wrote the entry containing `key_path` and it still matches.
+/// Names and port history alone cannot distinguish two installations sharing a client config.
+pub fn owns_key(
+    id: &str,
+    path: &Path,
+    format: Format,
+    key_path: &[Seg],
+    ledger_path: Option<&Path>,
+) -> bool {
+    let ledger = Ledger::load(ledger_path);
+    let Some(file) = ledger.file(id, path) else {
+        return false;
+    };
+    let Ok(Some(text)) = read_text(path) else {
+        return false;
+    };
+    if file.whole {
+        return sha256_hex(text.as_bytes()) == file.sha256;
+    }
+    let Ok(doc) = Doc::parse(format, &text, path) else {
+        return false;
+    };
+    let value = doc.value();
+    file.keys.iter().any(|key| {
+        key_path.starts_with(&key.path)
+            && get_in(&value, &key.path).is_some_and(|v| value_sha(v) == key.value_sha)
+    })
+}
+
 /// Sets one key of an existing config in place (the address' port when the gateway moved) and
 /// keeps the ledger in step: the hash of every recorded key above `key_path` follows the edit
 /// while that key was still as Harness wrote it (so undo still takes it out after the user
@@ -1125,9 +1192,15 @@ pub fn retarget(
     value: &Value,
     ledger_path: Option<&Path>,
 ) -> Result<Option<PathBuf>, String> {
+    if !owns_key(id, path, format, key_path, ledger_path) {
+        return Ok(None);
+    }
     let text = read_text(path)?.ok_or_else(|| super::unparseable_msg(path))?;
     let mut doc = Doc::parse(format, &text, path)?;
     let before = doc.value();
+    if get_in(&before, key_path) == Some(value) {
+        return Ok(None);
+    }
     doc.set(key_path, value, path)?;
     let after = doc.text()?;
     if after == text {
@@ -1618,6 +1691,56 @@ mod tests {
         let v: Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
         assert_eq!(v, json!({"provider": {"other": {}}, "model": "x/y"}));
         assert!(revert("t", &markers, Some(&ledger)).is_err());
+    }
+
+    #[test]
+    fn repeated_writes_prune_backups_and_noops_preserve_bytes() {
+        let d = tempdir().unwrap();
+        let file = d.path().join("settings.json");
+        let ledger = d.path().join("ledger.json");
+        let at = chrono::DateTime::parse_from_rfc3339("2026-10-08T17:00:49+03:00").unwrap();
+        for i in 0..20 {
+            std::fs::write(&file, i.to_string()).unwrap();
+            let latest = backup_at(&file, at).unwrap().unwrap();
+            assert_eq!(std::fs::read_to_string(latest).unwrap(), i.to_string());
+            assert!(backups_of(&file).len() <= BACKUP_GENERATIONS);
+        }
+        let values: Vec<_> = backups_of(&file)
+            .iter()
+            .map(|p| {
+                std::fs::read_to_string(p)
+                    .unwrap()
+                    .parse::<usize>()
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(values, (15..20).collect::<Vec<_>>());
+
+        std::fs::write(&file, "{ \"value\": 42 }").unwrap();
+        let plan = FilePlan::Keys {
+            path: file.clone(),
+            format: Format::Json,
+            edits: vec![Edit::set(keys(&["value"]), serde_json::json!(42))],
+            new_doc: None,
+        };
+        let before = std::fs::read(&file).unwrap();
+        let backups = backups_of(&file);
+        let out = apply("test", &[plan], Some(&ledger)).unwrap();
+        assert!(out.written.is_empty() && out.backups.is_empty());
+        assert_eq!(std::fs::read(&file).unwrap(), before);
+        assert_eq!(backups_of(&file), backups);
+        assert!(retarget(
+            "test",
+            &file,
+            Format::Json,
+            &keys(&["value"]),
+            &serde_json::json!(42),
+            Some(&ledger)
+        )
+        .unwrap()
+        .is_none());
+        assert_eq!(std::fs::read(&file).unwrap(), before);
+        assert_eq!(backups_of(&file), backups);
     }
 
     #[test]
