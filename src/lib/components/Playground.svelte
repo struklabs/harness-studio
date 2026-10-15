@@ -127,7 +127,6 @@
     type ToolsState,
   } from './playground/types';
   import {
-    cleanGeneratedTitle,
     convApi,
     fallbackTitle,
     settingsFromConversation,
@@ -137,6 +136,7 @@
     type Conversation,
     type ConversationView,
   } from './playground/conversations';
+  import { buildTitleMessages, resolveGeneratedTitle } from './playground/titles';
   import { isTurnEnd as turnEndAt, regeneratePlan, turnRoot, variantNavOf, variantTarget } from './playground/branching';
   import { ToolCallAccumulator } from '#lib/mcp-client.js';
   import { coreToolAsServerTool, getMcpStatus, listCoreTools, type ToolLimits } from '#lib/tools-client.js';
@@ -2446,12 +2446,9 @@
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 30000);
     try {
-      const prompt =
-        'Write a short title (at most 6 words) for the conversation below. Use the language of the user message. ' +
-        'Reply with the title only: no quotes, no trailing punctuation.\n\n' +
-        `User: ${firstUser.content.slice(0, 2000)}\n\nAssistant: ${firstAnswer.content.slice(0, 1000)}`;
+      const uiLanguage = locale();
       const body: Record<string, unknown> = {
-        messages: [{ role: 'user', content: prompt }],
+        messages: buildTitleMessages(firstUser.content, firstAnswer.content, uiLanguage),
         stream: false,
         max_tokens: 32,
         temperature: 0.3,
@@ -2469,13 +2466,13 @@
       });
       if (!res.ok) return;
       const data = await res.json();
-      const title = cleanGeneratedTitle(String(data?.choices?.[0]?.message?.content ?? ''));
+      const { title, source } = resolveGeneratedTitle(String(data?.choices?.[0]?.message?.content ?? ''), firstUser.content, uiLanguage);
       if (!title) return;
-      const changed = await queue(() => convApi.setTitle(convId, title, 'auto', 'fallback'));
+      const changed = await queue(() => convApi.setTitle(convId, title, source, 'fallback'));
       if (changed) {
         if (conv?.id === convId) {
           conv.title = title;
-          conv.title_source = 'auto';
+          conv.title_source = source;
         }
         listKey++;
       }
