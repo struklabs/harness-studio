@@ -141,6 +141,16 @@ export function ttsRequirement(models: TtsModelInfo[], name: string, sherpaReady
   return (model?.runtime_installed ?? sherpaReady) ? null : (model?.engine ?? 'sherpa-onnx');
 }
 
+/** First prerequisite to resolve before the Speech panel can run. */
+export function ttsRunBlocker(busy: boolean, runtimeMissing: boolean, gatewayRunning: boolean, modelCount: number, text: string): 'busy' | 'runtime' | 'gateway' | 'model' | 'text' | null {
+  if (busy) return 'busy';
+  if (runtimeMissing) return 'runtime';
+  if (!gatewayRunning) return 'gateway';
+  if (modelCount === 0) return 'model';
+  if (!text.trim()) return 'text';
+  return null;
+}
+
 /** The installed model's own voice ids, including audio.cpp embedding stems. */
 export function voicesOf(models: TtsModelInfo[], name: string): TtsVoice[] {
   return models.find((m) => m.name === name)?.voices ?? [];

@@ -18,7 +18,7 @@
   import { Download, LoaderCircle, Power, Square, Volume2, TriangleAlert } from '@lucide/svelte';
   import { onDestroy, untrack } from 'svelte';
   import { library } from '#lib/stores/library.svelte.js';
-  import { fetchSpeech, pickTtsModel, pickTtsVoice, voicesOf, ttsRequirement, ttsSupportsSpeed, type SpeechResult } from './tts';
+  import { fetchSpeech, pickTtsModel, pickTtsVoice, voicesOf, ttsRequirement, ttsRunBlocker, ttsSupportsSpeed, type SpeechResult } from './tts';
   import { readAloud, tts } from './tts.svelte';
   import { MAX_SPEECH_CHARS } from './ttsText';
 
@@ -50,7 +50,14 @@
   let voices = $derived(voicesOf(tts.models, tts.model));
   let missingFamily = $derived(tts.overview ? ttsRequirement(tts.models, tts.model, tts.overview.runtime_installed) : null);
   let runtimeMissing = $derived(!!missingFamily);
-  let canRun = $derived(!busy && app.gatewayRunning && !runtimeMissing && tts.models.length > 0 && text.trim().length > 0);
+  let runBlocker = $derived(ttsRunBlocker(busy, runtimeMissing, app.gatewayRunning, tts.models.length, text));
+  let canRun = $derived(runBlocker === null);
+  let runHint = $derived(
+    runBlocker === 'runtime' ? t('speak.run_need_runtime', { family: missingFamily ?? 'sherpa-onnx' })
+      : runBlocker === 'gateway' ? t('speak.run_need_gateway')
+      : runBlocker === 'model' ? t('speak.run_need_model')
+      : runBlocker === 'text' ? t('speak.run_need_text') : '',
+  );
   let progressPct = $derived(
     tts.modelProgress && tts.modelProgress.total_bytes > 0 ? (tts.modelProgress.downloaded_bytes / tts.modelProgress.total_bytes) * 100 : 0,
   );
@@ -241,14 +248,25 @@
       />
       <span class="font-num self-end text-xs text-muted-foreground">{t('speak.chars', { count: text.length, max: MAX_SPEECH_CHARS })}</span>
     </div>
-    <div class="flex items-center gap-3">
-      <Button size="sm" onclick={run} disabled={!canRun}>
+    <div class="flex flex-wrap items-center gap-3">
+      <Button size="sm" onclick={run} disabled={!canRun} aria-describedby={runHint ? 'tts-run-hint' : undefined}>
         {#if busy}<LoaderCircle class="animate-spin" />{:else}<Volume2 />{/if}
         {busy ? t('speak.running') : t('speak.run')}
       </Button>
       {#if busy}
         <Button variant="ghost" size="sm" onclick={cancel}><Square />{t('speak.stop')}</Button>
       {/if}
+      <div class="flex flex-wrap items-center gap-2" role="status">
+        {#if runHint}
+          <span id="tts-run-hint" class="text-xs text-muted-foreground">{runHint}</span>
+          {#if runBlocker === 'runtime'}
+            <Button variant="outline" size="sm" disabled={tts.installingRuntime} onclick={() => tts.installRuntime(missingFamily ?? 'sherpa-onnx')}>
+              {#if tts.installingRuntime}<LoaderCircle class="animate-spin" />{:else}<Download />{/if}
+              {tts.installingRuntime ? t('speak.installing') : t('speak.install_engine', { family: missingFamily ?? 'sherpa-onnx' })}
+            </Button>
+          {/if}
+        {/if}
+      </div>
     </div>
   </section>
 
