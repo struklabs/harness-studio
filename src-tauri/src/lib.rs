@@ -1,4 +1,6 @@
 pub mod app_update;
+#[cfg(target_os = "linux")]
+mod autostart_linux;
 pub mod desktop;
 pub mod push;
 #[cfg(all(windows, debug_assertions, feature = "qa-cdp"))]
@@ -249,6 +251,8 @@ pub fn run() {
 
             #[cfg(target_os = "macos")]
             desktop::migrate_launch_agent(app.handle());
+            #[cfg(target_os = "linux")]
+            autostart_linux::refresh();
             desktop::set_app_menu(app.handle(), &AppSettings::load().language);
             if let Err(e) = desktop::setup_tray(app.handle()) {
                 eprintln!("[Harness Studio] Tray unavailable: {}", e);
