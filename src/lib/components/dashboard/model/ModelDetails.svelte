@@ -19,14 +19,17 @@
     onOpenMigration: () => void;
     /** Removes a linked (Ollama / LM Studio) model from the list; rejects with the backend error. */
     onUnlink: (modelId: string) => Promise<void>;
+    /** The model page was shown (or is showing): the registry record is only read then. */
+    active?: boolean;
   }
 
-  let { model, fitResult, recommendedNgl, gpuLayers, onApplyRecommendedNgl, onOpenMigration, onUnlink }: Props = $props();
+  let { model, fitResult, recommendedNgl, gpuLayers, onApplyRecommendedNgl, onOpenMigration, onUnlink, active = true }: Props = $props();
 
   // Capabilities come from the model registry record (the same one Kütüphanem shows), not from the
   // file name. Until the record has arrived nothing is claimed.
   let entry = $state<LibraryEntry | null>(null);
   $effect(() => {
+    if (!active) return;
     const id = model.id;
     void library.version;
     let stale = false;

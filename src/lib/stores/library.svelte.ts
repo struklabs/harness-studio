@@ -1,4 +1,4 @@
-import { invoke } from '#lib/ipc.js';
+import { invoke, invokeShared } from '#lib/ipc.js';
 import type { LocalModel } from '#lib/types.js';
 import { app } from '#lib/stores/app.svelte.js';
 
@@ -57,7 +57,7 @@ class LibraryState {
   private async scanCurrent(): Promise<LocalModel[]> {
     for (;;) {
       const version = this.version;
-      const list = await invoke<LocalModel[]>('scan_local_models');
+      const list = await invokeShared<LocalModel[]>('scan_local_models', undefined, version);
       // A download may finish while a scan is reading the old directory contents.
       if (version !== this.version) continue;
       this.models = list;

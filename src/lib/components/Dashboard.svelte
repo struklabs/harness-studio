@@ -8,7 +8,7 @@
   import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
   import type { HardwareFitResult, LocalModel, ServerStatus, AppSettings, ModelPreset, StorageDirInfo, SystemHardwareInfo, LaunchConfig, ServerProfile, ModelDefinition, DefinitionImport, ModelfileImport, RecoveryOption } from '#lib/types.js';
   import { onMount, untrack } from 'svelte';
-  import { invoke } from '#lib/ipc.js';
+  import { invoke, invokeShared } from '#lib/ipc.js';
   import { estimateLaunchFit, toHardwareFit, vramSpillRisk } from '#lib/fit.js';
   import { t } from '#lib/i18n.svelte.js';
   import { localizeError } from '#lib/network.js';
@@ -419,6 +419,12 @@
     return routerMode || models.some((m) => m.id === selectedModelId);
   }
 
+  // The model page's own reads (registry record, runtime advice, metadata) wait until it was shown.
+  let modelPageSeen = $state(false);
+  $effect(() => {
+    if (section.active === 'model') modelPageSeen = true;
+  });
+
   // Directory changes can start scans back to back: only the newest one may set the list.
   let scanSeq = 0;
   async function refreshModels() {
@@ -426,8 +432,8 @@
     isScanning = true;
     try {
       const [res, dirs, definitions] = await Promise.all([
-        invoke<LocalModel[]>('scan_local_models'),
-        invoke<StorageDirInfo[]>('get_storage_directories'),
+        invokeShared<LocalModel[]>('scan_local_models', undefined, library.version),
+        invokeShared<StorageDirInfo[]>('get_storage_directories'),
         domain.refreshDefinitions(),
       ]);
       seenDefinitionPaths = definitions.flatMap((d) => d.base.kind === 'local' ? [d.base.path] : []).sort().join('\n');
@@ -676,7 +682,7 @@
     const token = ++selectToken;
     let cfg: LaunchConfig;
     try {
-      cfg = await invoke<LaunchConfig>('get_definition_form', { definitionId: id });
+      cfg = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id });
     } catch (e) {
       toast.error(String(e));
       return;
@@ -709,7 +715,7 @@
     const serverBound = savedLaunch !== null || !!app.selectedServer?.active;
     if (!serverBound || selectedDefinitionId !== id) return selectDefinition(id);
     try {
-      const cfg = await invoke<LaunchConfig>('get_definition_form', { definitionId: id });
+      const cfg = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id });
       if (selectedDefinitionId !== id) return;
       const model = models.find((m) => samePath(m.path, cfg.model_path));
       const fresh = paramsFromPreset(cfg, model, settings);
@@ -748,7 +754,7 @@
       return;
     }
     try {
-      const cfg = await invoke<LaunchConfig>('get_definition_form', { definitionId: id });
+      const cfg = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id });
       if (selectedDefinitionId !== id) return;
       const model = models.find((m) => samePath(m.path, cfg.model_path));
       baseline = modelPart(paramsFromPreset(cfg, model, settings));
@@ -1356,6 +1362,7 @@
 </div>
 <div hidden={section.active !== 'model'} class="flex flex-col gap-3">
       <ModelSelector
+        active={modelPageSeen}
         models={launchableModels}
         {selectedModelId}
         {selectedModel}
@@ -1383,8 +1390,8 @@
       <!-- Hand edits below (not the model picker above) count as a draft worth keeping. -->
       <div class="contents" oninput={markEdited} onchange={markEdited} onclick={markEdited} role="presentation">
 <div hidden={section.active !== 'model'} class="flex flex-col gap-3">
-      <RuntimePicker bind:runtime={params.runtime} modelPath={routerMode ? null : (selectedModel?.path ?? null)} engine={capsStore.engine} />
-      <MetadataFixNotice modelPath={routerMode ? null : (selectedModel?.path ?? null)} bind:params onApply={() => (userEdited = true)} />
+      <RuntimePicker active={modelPageSeen} bind:runtime={params.runtime} modelPath={routerMode ? null : (selectedModel?.path ?? null)} engine={capsStore.engine} />
+      <MetadataFixNotice active={modelPageSeen} modelPath={routerMode ? null : (selectedModel?.path ?? null)} bind:params onApply={() => (userEdited = true)} />
       {#if serverStatus === 'Running' && app.selectedServer?.active?.router_mode}
         <RouterModels serverId={app.selectedServerId} />
       {/if}

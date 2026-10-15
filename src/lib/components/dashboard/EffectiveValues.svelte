@@ -1,7 +1,7 @@
 <script lang="ts">
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
-  import { invoke } from '#lib/ipc.js';
+  import { invoke, invokeShared } from '#lib/ipc.js';
   import type { EffectiveLaunchValues, ServerStatus } from '#lib/types.js';
   import { locale, t } from '#lib/i18n.svelte.js';
   import { windowActive } from '#lib/windowActivity.js';
@@ -41,7 +41,7 @@
         return;
       }
       try {
-        const v = await invoke<EffectiveLaunchValues | null>('get_effective_launch_values', { serverId: id });
+        const v = await invokeShared<EffectiveLaunchValues | null>('get_effective_launch_values', { serverId: id });
         if (cancelled) return;
         if (v) {
           values = v;

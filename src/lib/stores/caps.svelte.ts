@@ -1,4 +1,4 @@
-import { invoke } from '#lib/ipc.js';
+import { invoke, invokeShared } from '#lib/ipc.js';
 import type { FeatureStatus, FlagInfo, ParamCatalog, ParamSpec, RuntimeCapabilities } from '#lib/types.js';
 
 /**
@@ -59,7 +59,7 @@ class CapsState {
     this.loading = true;
     try {
       const [caps, catalog] = await Promise.all([
-        invoke<RuntimeCapabilities>('get_runtime_capabilities', { serverId, runtimeId }),
+        invokeShared<RuntimeCapabilities>('get_runtime_capabilities', { serverId, runtimeId }),
         this.llamaCatalog ? Promise.resolve(this.llamaCatalog) : invoke<ParamCatalog>('get_param_catalog'),
       ]);
       if (this.loadedFor !== key) return;
@@ -119,7 +119,7 @@ class CapsState {
   async loadFeatures(serverId: string, modelPath: string | null, hasMmproj: boolean) {
     const token = ++this.featureToken;
     try {
-      const list = await invoke<FeatureStatus[]>('get_feature_status', {
+      const list = await invokeShared<FeatureStatus[]>('get_feature_status', {
         serverId,
         modelPath,
         hasMmproj,
