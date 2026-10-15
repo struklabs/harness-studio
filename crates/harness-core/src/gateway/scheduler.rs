@@ -1809,7 +1809,8 @@ impl Scheduler {
     }
 
     /// Other loaded models the scheduler may not evict (busy, pinned, or started by the user).
-    /// `evictable`: server ids of the models it may evict (`lru_victims`); they are left out.
+    /// `evictable`: server ids of the models it may evict (`lru_victims`); they are left out,
+    /// and so are servers that hold no GPU memory: stopping them frees none.
     fn blocking_models(&self, except: &str, evictable: &[String]) -> Vec<String> {
         let loaded = self
             .ctx
@@ -1824,7 +1825,7 @@ impl Scheduler {
             })
             .filter_map(|(id, pm)| {
                 let c = pm.launch_config()?;
-                if c.definition_id.as_deref() == Some(except) {
+                if c.definition_id.as_deref() == Some(except) || holds_no_gpu_memory(&c) {
                     return None;
                 }
                 let name = c.alias.unwrap_or_else(|| id.clone());
@@ -3110,6 +3111,18 @@ fn cpu_only(config: &crate::process::LaunchConfig) -> bool {
         && crate::engine::server_for(config).family() == crate::engine::LLAMA_CPP
 }
 
+/// Whether a running server takes no GPU memory: a llama.cpp launch without layers on the
+/// GPU ([`cpu_only`]), or another engine whose launch needs none (a CPU build or backend).
+/// Measured on a 4 GB RTX 3050 Ti: a refused image load named a Qwen3-0.6B server running at
+/// `-ngl 0` as the model to stop, which would have freed nothing.
+fn holds_no_gpu_memory(config: &crate::process::LaunchConfig) -> bool {
+    if crate::engine::server_for(config).family() == crate::engine::LLAMA_CPP {
+        cpu_only(config)
+    } else {
+        crate::engine::non_llama_vram_need(config) == 0
+    }
+}
+
 /// A split footprint cannot be attributed to one adapter; keep the previous behavior.
 fn footprint_gpu(config: &crate::process::LaunchConfig) -> Option<u32> {
     if crate::capabilities::verify::custom_args_set_gpu_layers(config.custom_args.as_deref())
@@ -3393,6 +3406,24 @@ mod tests {
             eviction_count(3512 * M, 2460 * M, &[3000 * M], 5461 * M),
             Some(1)
         );
+    }
+
+    /// A server without layers on the GPU frees nothing when it stops: it is never named as the
+    /// model to stop for memory.
+    #[test]
+    fn a_server_on_the_cpu_holds_no_gpu_memory() {
+        let llama = |gpu_layers| crate::process::LaunchConfig {
+            model_path: "C:/m/Qwen3-0.6B-Q8_0.gguf".into(),
+            gpu_layers,
+            ..Default::default()
+        };
+        assert!(holds_no_gpu_memory(&llama(0)));
+        assert!(!holds_no_gpu_memory(&llama(29)));
+        // `--fit on` chooses the layers itself: it may hold GPU memory.
+        let mut fit = llama(0);
+        fit.params
+            .insert("fit".into(), crate::params::ParamValue::Text("on".into()));
+        assert!(!holds_no_gpu_memory(&fit));
     }
 
     #[test]
