@@ -233,7 +233,8 @@ class AppState {
       const isError = typeof s.status === 'object' && s.status !== null && 'Error' in s.status;
       if (before === 'Running' && isError) {
         // One toast per server: a crash loop (automatic restarts) updates it instead of stacking.
-        toast.error(t('dash.server_crashed', { server: s.id }), {
+        const server = s.id === DEFAULT_SERVER_ID ? t('srv.default_label') : this.serverLabel(s.id);
+        toast.error(t('dash.server_crashed', { server }), {
           id: `crash-${s.id}`,
           description: serverErrorText(s) ?? undefined,
           action: {

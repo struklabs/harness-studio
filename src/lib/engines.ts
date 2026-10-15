@@ -113,7 +113,24 @@ export function workerRoutes(family: string | null | undefined): DirectRoute[] |
   }
 }
 
-/** Display name of an engine family (its id, except for CrispASR). */
+/** Display names of engine families (`harness_core::engine::display_name` has the same). */
+const ENGINE_LABELS: Record<string, string> = {
+  'llama.cpp': 'llama.cpp',
+  mlx: 'MLX',
+  'mlx-vlm': 'MLX-VLM',
+  'mlx-audio': 'MLX Audio',
+  'python-hf': 'Python (HF)',
+  'audio.cpp': 'audio.cpp',
+  crispasr: 'CrispASR',
+  'mistral.rs': 'mistral.rs',
+  'whisper.cpp': 'whisper.cpp',
+  'stable-diffusion.cpp': 'sd.cpp',
+  onnxruntime: 'ONNX Runtime',
+  'sherpa-onnx': 'sherpa-onnx',
+  lemonade: 'Lemonade',
+};
+
+/** Display name of an engine family (an unknown one as it is). */
 export function engineLabel(family: string): string {
-  return family === 'crispasr' ? 'CrispASR' : family;
+  return ENGINE_LABELS[family] ?? family;
 }

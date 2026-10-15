@@ -1136,7 +1136,10 @@ impl ProcessManager {
     fn record_failure(&self, mut failure: ServerFailure) {
         // The messages name the engine that failed (mlx, mistral.rs...), not always llama.cpp.
         if !failure.params.contains_key("engine") {
-            failure = failure.with("engine", *self.engine.lock().unwrap());
+            failure = failure.with(
+                "engine",
+                crate::engine::display_name(*self.engine.lock().unwrap()),
+            );
         }
         self.push_log(format!(
             "[Harness Studio Error] {} {}",
@@ -1283,7 +1286,10 @@ impl ProcessManager {
             return Err(self.set_error(
                 err("process.binary_not_found")
                     .with("path", config.binary_path.display())
-                    .with("engine", crate::engine::server_for(&config).family())
+                    .with(
+                        "engine",
+                        crate::engine::display_name(crate::engine::server_for(&config).family()),
+                    )
                     .into(),
             ));
         }
@@ -2093,7 +2099,7 @@ impl ProcessManager {
                     })
                     .with("status", status)
                     .with("code", &failure.code)
-                    .with("engine", engine.family())
+                    .with("engine", crate::engine::display_name(engine.family()))
                     .into();
                     self.record_failure(failure.clone());
                     self.set_error(msg.clone());
@@ -2139,7 +2145,7 @@ impl ProcessManager {
                         err("process.health_timeout")
                             .num("seconds", load_timeout.as_secs())
                             .with("code", FailureKind::LoadTimeout.code())
-                            .with("engine", engine.family())
+                            .with("engine", crate::engine::display_name(engine.family()))
                             .into(),
                     )
                     .await;
@@ -3900,13 +3906,19 @@ mod tests {
                 .get("engine")
                 .cloned()
         };
-        assert_eq!(engine(&mgr).as_deref(), Some(crate::engine::LLAMA_CPP));
+        assert_eq!(engine(&mgr).as_deref(), Some("llama.cpp"));
         *mgr.engine.lock().unwrap() = crate::engine::mlx::MLX;
         mgr.record_failure(ServerFailure::new(
             FailureKind::Crashed,
             FailurePhase::Running,
         ));
-        assert_eq!(engine(&mgr).as_deref(), Some("mlx"));
+        assert_eq!(engine(&mgr).as_deref(), Some("MLX"));
+        *mgr.engine.lock().unwrap() = crate::engine::PYTHON_HF;
+        mgr.record_failure(ServerFailure::new(
+            FailureKind::Crashed,
+            FailurePhase::Running,
+        ));
+        assert_eq!(engine(&mgr).as_deref(), Some("Python (HF)"));
         mgr.record_failure(
             ServerFailure::new(FailureKind::Crashed, FailurePhase::Running).with("engine", "x"),
         );

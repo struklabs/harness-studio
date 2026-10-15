@@ -87,6 +87,27 @@ pub use whisper_cpp::{
 /// Family id of llama.cpp builds (official, system, GitHub forks such as PrismML).
 pub const LLAMA_CPP: &str = "llama.cpp";
 
+/// Display name of an engine family in messages ("MLX", "Python (HF)"); an unknown family is
+/// shown as it is. The GUI's `engineLabel` uses the same names.
+pub fn display_name(family: &str) -> &str {
+    match family {
+        LLAMA_CPP => "llama.cpp",
+        "mlx" => "MLX",
+        "mlx-vlm" => "MLX-VLM",
+        "mlx-audio" => "MLX Audio",
+        "python-hf" => "Python (HF)",
+        "audio.cpp" => "audio.cpp",
+        "crispasr" => "CrispASR",
+        "mistral.rs" => "mistral.rs",
+        "whisper.cpp" => "whisper.cpp",
+        "stable-diffusion.cpp" => "sd.cpp",
+        "onnxruntime" => "ONNX Runtime",
+        "sherpa-onnx" => "sherpa-onnx",
+        "lemonade" => "Lemonade",
+        other => other,
+    }
+}
+
 /// Family of runtimes recorded before families existed (`runtimes.json`, manifests).
 pub fn default_family() -> String {
     LLAMA_CPP.to_string()
