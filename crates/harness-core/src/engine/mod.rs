@@ -73,8 +73,8 @@ pub use sd_cpp::{
     component_files as sd_component_files, detect_main_role as sd_detect_main_role,
     footprint_bytes as sd_footprint_bytes, installed_build_has_gpu as sd_installed_build_has_gpu,
     is_image_arch, is_image_gguf, is_image_launch, is_image_path, is_image_safetensors,
-    main_role as sd_main_role, vram_need as sd_vram_need, weights_bytes as sd_weights_bytes,
-    MainRole, SdCppEngine, COMPONENTS as SD_COMPONENTS, SD_CPP,
+    main_role as sd_main_role, min_vram_need as sd_min_vram_need, vram_need as sd_vram_need,
+    weights_bytes as sd_weights_bytes, MainRole, SdCppEngine, COMPONENTS as SD_COMPONENTS, SD_CPP,
 };
 pub use sherpa_onnx::{SherpaOnnxEngine, SHERPA_ONNX, SHERPA_ONNX_REPO};
 pub(crate) use whisper_cpp::gpu_fallback_note as whisper_gpu_fallback_note;
@@ -489,6 +489,16 @@ pub fn non_llama_vram_need(config: &LaunchConfig) -> u64 {
         PYTHON_HF => python_hf::vram_need(config),
         MLX | MLX_VLM | MLX_AUDIO => mlx::vram_need(config),
         _ => whisper_vram_need(config),
+    }
+}
+
+/// The least GPU memory a non-llama.cpp launch can load with when the engine places what does
+/// not fit in system memory itself (stable-diffusion.cpp's auto-fit); `None`: it needs
+/// [`non_llama_vram_need`] on the card.
+pub fn non_llama_min_vram_need(config: &LaunchConfig) -> Option<u64> {
+    match server_for(config).family() {
+        SD_CPP => sd_min_vram_need(config),
+        _ => None,
     }
 }
 
