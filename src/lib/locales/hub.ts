@@ -200,6 +200,8 @@ const tr = {
   'hub.col_fit': 'Donanım uyumu',
   'hub.col_actions': 'İşlemler',
   'hub.download_short': 'İndir',
+  'hub.update_short': 'Güncelle',
+  'hub.redownload_short': 'Yeniden İndir',
   'hub.no_results_hint': 'Farklı bir ad deneyin ya da filtreleri gevşetin.',
   // Discovery (landing without a query) and filter-only lists
   'hub.discover_scope': 'GGUF depoları listelenir (llama.cpp); konuşma tanıma modelleri için "whisper" arayın ya da Konuşma tanıma (ASR) görevini seçin.',
@@ -521,6 +523,8 @@ const en: Record<keyof typeof tr, string> = {
   'hub.col_fit': 'Hardware fit',
   'hub.col_actions': 'Actions',
   'hub.download_short': 'Download',
+  'hub.update_short': 'Update',
+  'hub.redownload_short': 'Download Again',
   'hub.no_results_hint': 'Try a different name or loosen the filters.',
   // Discovery (landing without a query) and filter-only lists
   'hub.discover_scope': 'GGUF repositories are listed (llama.cpp); for speech recognition models search for "whisper" or pick the Speech recognition (ASR) task.',

@@ -717,7 +717,7 @@
                           <Table.Cell class="max-w-[220px]">
                             <div class="flex min-w-0 flex-col">
                               <span class="flex items-center gap-1.5">
-                                {#if uiLevel.advanced || showAllFiles}<span class="font-mono text-sm font-medium" title={t('hub.quant_badge_title')}>{quantLabel(variant)}</span>{:else if isFocused}<span class="truncate text-sm font-medium" title={variant.name}>{variant.name}</span>{:else}<span class="text-sm font-medium">{t('hub.download_option')}</span>{/if}
+                                {#if uiLevel.advanced || showAllFiles}<span class="font-mono text-sm font-medium" title={t('hub.quant_badge_title')}>{quantLabel(variant)}</span>{:else if isFocused}<span class="min-w-0 truncate text-sm font-medium" title={variant.name}>{variant.name}</span>{:else}<span class="text-sm font-medium">{t('hub.download_option')}</span>{/if}
                                 {#if variant.is_split && (uiLevel.advanced || showAllFiles)}
                                   <Badge variant="outline" class="text-xs" title={t('hub.split_desc', { count: variant.shards.length })}>
                                     {t('hub.split_set', { count: variant.shards.length })}
@@ -803,7 +803,7 @@
                                     <Tooltip.Content class="max-w-64">{t('hub.check_update_title')}</Tooltip.Content>
                                   </Tooltip.Root>
                                 </AdvancedOnly>
-                                {#if !local}
+                                {#if !local || hasUpdate || uiLevel.advanced || pending || adding}
                                   <Button
                                     variant="outline"
                                     size="sm"
@@ -818,7 +818,7 @@
                                     {:else if job && pending}
                                       {progressPercent(job).toFixed(0)}%
                                     {:else}
-                                      <Download />{t('hub.download_short')}
+                                      <Download />{t(!local ? 'hub.download_short' : hasUpdate ? 'hub.update_short' : 'hub.redownload_short')}
                                     {/if}
                                   </Button>
                                 {/if}

@@ -105,6 +105,14 @@ test('repo-folder variants are local without individual files; prefilled variant
   assert.equal(localVariantFor(variant, new Map(), folder), folder);
 });
 
+test('a downloaded file wins over the repo folder', () => {
+  const folder = { path: '/library/owner/repo' };
+  const file = { path: '/library/owner/repo/model.gguf' };
+  const variant = { name: 'model', shards: [{ filename: 'model.gguf' }] };
+  assert.equal(localVariantFor(variant, new Map([['model.gguf', file]]), folder), file);
+  assert.equal(localVariantFor(variant, new Map(), folder), folder);
+});
+
 test('exact repository IDs retain GGUF and quantization names', () => {
   for (const repo of ['unsloth/Qwen3-4B-GGUF', 'owner/model-Q4_K_M', 'OWNER/Model.gguf']) {
     assert.deepEqual(parseSearchQuery(` ${repo} `), { cleanedQuery: repo, detectedQuant: null });
