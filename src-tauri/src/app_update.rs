@@ -160,9 +160,15 @@ impl AppUpdateState {
             cfg!(windows),
         )
         .await;
-        if let Err(e) = result {
+        if let Err(failure) = result {
             *self.progress.lock().unwrap() = None;
-            return Err(err("update.install_failed").with("error", e).into());
+            // After the stop the message says so: the servers do not come back by themselves.
+            let key = if failure.servers_stopped {
+                "update.install_failed_servers_stopped"
+            } else {
+                "update.install_failed"
+            };
+            return Err(err(key).with("error", failure.error).into());
         }
         // Not reached on Windows: the updater exits the process after starting the installer.
         // AppImage: the new version is started once this one has exited, with the environment the
@@ -185,22 +191,33 @@ const STOP_BEFORE_INSTALL: Duration = Duration::from_secs(8);
 /// `stop_first` the servers are stopped before `install` (Windows: the updater exits the process
 /// inside `install`); otherwise after a successful install (macOS, Linux: the app restarts or
 /// exits afterwards and its exit handler cleans up too). A failed install returns the error and
-/// leaves the app running; with `stop_first` its servers are already stopped and the user can
-/// start them again.
+/// leaves the app running; with `stop_first` its servers are already stopped
+/// (`servers_stopped`) and the user can start them again.
 async fn download_stop_install<B, E>(
     download: impl Future<Output = Result<B, E>>,
     stop: impl Future<Output = ()>,
     install: impl FnOnce(B) -> Result<(), E>,
     stop_first: bool,
-) -> Result<(), E> {
-    let bytes = download.await?;
+) -> Result<(), UpdateFailure<E>> {
+    let failed = |error, servers_stopped| UpdateFailure {
+        error,
+        servers_stopped,
+    };
+    let bytes = download.await.map_err(|e| failed(e, false))?;
     if stop_first {
         stop.await;
-        return install(bytes);
+        return install(bytes).map_err(|e| failed(e, true));
     }
-    install(bytes)?;
+    install(bytes).map_err(|e| failed(e, false))?;
     stop.await;
     Ok(())
+}
+
+/// A failed update and whether the servers had already been stopped for it.
+#[derive(Debug, PartialEq)]
+struct UpdateFailure<E> {
+    error: E,
+    servers_stopped: bool,
 }
 
 /// Starts the updated AppImage after the app has exited, if an update asked for it. Called from
@@ -357,14 +374,14 @@ mod appimage {
 
 #[cfg(test)]
 mod order_tests {
-    use super::download_stop_install;
+    use super::{download_stop_install, UpdateFailure};
     use std::cell::RefCell;
 
     async fn run(
         stop_first: bool,
         download_ok: bool,
         install_ok: bool,
-    ) -> (Result<(), &'static str>, Vec<&'static str>) {
+    ) -> (Result<(), UpdateFailure<&'static str>>, Vec<&'static str>) {
         let log = RefCell::new(Vec::new());
         let result = download_stop_install(
             async {
@@ -390,6 +407,13 @@ mod order_tests {
         (result, log.into_inner())
     }
 
+    fn failure(error: &'static str, servers_stopped: bool) -> UpdateFailure<&'static str> {
+        UpdateFailure {
+            error,
+            servers_stopped,
+        }
+    }
+
     #[tokio::test]
     async fn windows_order_stops_between_download_and_install() {
         let (r, log) = run(true, true, true).await;
@@ -408,18 +432,18 @@ mod order_tests {
     async fn failed_download_stops_nothing() {
         for stop_first in [true, false] {
             let (r, log) = run(stop_first, false, true).await;
-            assert_eq!(r, Err("download"));
+            assert_eq!(r, Err(failure("download", false)));
             assert_eq!(log, ["download"]);
         }
     }
 
     #[tokio::test]
-    async fn failed_install_returns_the_error() {
+    async fn failed_install_returns_the_error_and_whether_servers_stopped() {
         let (r, log) = run(true, true, false).await;
-        assert_eq!(r, Err("install"));
+        assert_eq!(r, Err(failure("install", true)));
         assert_eq!(log, ["download", "stop", "install"]);
         let (r, log) = run(false, true, false).await;
-        assert_eq!(r, Err("install"));
+        assert_eq!(r, Err(failure("install", false)));
         assert_eq!(log, ["download", "install"]);
     }
 }
