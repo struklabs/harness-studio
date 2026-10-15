@@ -408,7 +408,7 @@
         {/if}
         <span class="min-w-0 truncate text-sm font-medium" title={m.name}>{m.name}</span>
         {#if running.length > 0}
-          <span class="size-1.5 shrink-0 rounded-full bg-success" aria-label={t('lib.running')}></span>
+          <span class="size-1.5 shrink-0 rounded-full bg-success" role="img" aria-label={t('lib.running')}></span>
         {/if}
         {#if showUpdateBadge(library.updates, entry.repo_id, true)}
           <UpdateBadge class="shrink-0 text-xs" />

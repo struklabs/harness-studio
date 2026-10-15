@@ -28,15 +28,16 @@
 </script>
 
 <Dialog.Root bind:open {...restProps}>
-	<Dialog.Header class="sr-only">
-		<Dialog.Title>{title}</Dialog.Title>
-		<Dialog.Description>{description}</Dialog.Description>
-	</Dialog.Header>
 	<Dialog.Content
 		class={cn("rounded-xl! top-1/3 translate-y-0 overflow-hidden p-0", className)}
 		{showCloseButton}
 		{portalProps}
 	>
+		<!-- Inside the content so the dialog is labelled by them and nothing renders while closed. -->
+		<Dialog.Header class="sr-only">
+			<Dialog.Title>{title}</Dialog.Title>
+			<Dialog.Description>{description}</Dialog.Description>
+		</Dialog.Header>
 		<Command {...restProps} bind:value bind:ref {children} />
 	</Dialog.Content>
 </Dialog.Root>

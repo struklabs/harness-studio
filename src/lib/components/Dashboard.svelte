@@ -1325,7 +1325,7 @@
         <div class="flex items-center justify-between gap-2">
           <!-- Run state is shown once, globally, in the title bar's server indicator. -->
           <div class="flex min-w-0 items-baseline gap-2">
-            <h3 class="text-sm font-semibold text-foreground">{t('ui.dash_server')}</h3>
+            <h2 class="text-sm font-semibold text-foreground">{t('ui.dash_server')}</h2>
             <span class="truncate text-xs text-muted-foreground" title={savedStateTip}>
               {#if savedLaunch && !formDraft}
                 {t('ui.dash_saved')} · <span class="font-num">{savedPortText(savedLaunch, t('dash.port_auto'))}</span>
@@ -1469,7 +1469,7 @@
 
 <!-- Right: live telemetry and terminal -->
 {#snippet telemetry()}
-  <div class={cn('flex min-w-0 flex-1 flex-col overflow-hidden', stacked ? 'min-h-[720px]' : 'h-full min-h-0')} aria-label={t('dash.aria_telemetry')}>
+  <div class={cn('flex min-w-0 flex-1 flex-col overflow-hidden', stacked ? 'min-h-[720px]' : 'h-full min-h-0')} role="region" aria-label={t('dash.aria_telemetry')}>
     <!-- The empty state only repeats "Start" when the controls (with their own button) are hidden. -->
     {#if uiLevel.advanced}
       <VerticalSplit id="dash-telemetry" label={t('pane.dash_split')}>

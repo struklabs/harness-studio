@@ -11,6 +11,7 @@
   import { Check, Copy } from '@lucide/svelte';
   import { renderChatMarkdown } from './markdown';
   import MermaidBlock from './MermaidBlock.svelte';
+  import { scrollFocusable } from '#lib/actions/scrollFocusable.js';
 
   interface Props {
     text: string;
@@ -133,7 +134,7 @@
             {copiedIndex === i ? t('pg.code_copied') : t('pg.copy_code')}
           </Button>
         </div>
-        <pre class="m-0 overflow-x-auto p-3 font-mono text-xs leading-relaxed text-foreground"><code>{seg.value}</code></pre>
+        <pre use:scrollFocusable class="m-0 overflow-x-auto p-3 font-mono text-xs leading-relaxed text-foreground"><code>{seg.value}</code></pre>
       </div>
     {/if}
   {/each}

@@ -530,7 +530,7 @@
 {/snippet}
 
 {#snippet sectionTitle(label: string)}
-  <h3 class="px-2 pt-3 pb-1 text-xs font-medium text-muted-foreground">{label}</h3>
+  <h2 class="px-2 pt-3 pb-1 text-xs font-medium text-muted-foreground">{label}</h2>
 {/snippet}
 
 <nav class={cn('flex h-full min-h-0 flex-col bg-card', drag && 'select-none')} aria-label={t('pg.conv_sidebar')}>

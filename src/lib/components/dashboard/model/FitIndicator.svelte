@@ -77,7 +77,7 @@
 </script>
 
 <!-- Flat (no box inside the controls card): the verdict first; numbers and where they come from on demand. -->
-<div class="flex flex-col gap-1.5" aria-label={t('dash.fit_aria')}>
+<div class="flex flex-col gap-1.5" role="group" aria-label={t('dash.fit_aria')}>
   <div class="flex items-center justify-between gap-2">
     <Tooltip.Root>
       <Tooltip.Trigger class="flex min-w-0 items-center gap-1.5 rounded text-left focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none">

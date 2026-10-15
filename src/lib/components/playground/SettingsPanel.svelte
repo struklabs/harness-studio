@@ -404,7 +404,7 @@
                         <Tooltip.Root>
                           <Tooltip.Trigger>
                             {#snippet child({ props })}
-                              <span {...props} class="shrink-0 text-warning" aria-label={t('pg.tool_needs_approval')}>
+                              <span {...props} class="shrink-0 text-warning" role="img" aria-label={t('pg.tool_needs_approval')}>
                                 <ShieldAlert class="size-3.5" />
                               </span>
                             {/snippet}
