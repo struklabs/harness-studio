@@ -141,6 +141,9 @@ pub struct AppliedKey {
     pub path: Vec<Seg>,
     /// SHA-256 of the value Harness wrote (values can be secrets; they are not stored).
     pub value_sha: String,
+    /// URL fields written inside this key, independent of the surrounding settings.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub urls: Vec<UrlHash>,
     /// What was there before the first apply (`None` = absent).
     #[serde(default)]
     pub prior: Option<Value>,
@@ -149,6 +152,59 @@ pub struct AppliedKey {
     pub created_from: Option<usize>,
     #[serde(default)]
     pub marker: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UrlHash {
+    pub path: Vec<Seg>,
+    pub value_sha: String,
+}
+
+/// Address fields in a value, using stable selectors for named array entries.
+pub fn url_values(path: &[Seg], value: &Value) -> Vec<(Vec<Seg>, Value)> {
+    let mut out = Vec::new();
+    match value {
+        Value::String(s) if s.starts_with("http://") || s.starts_with("https://") => {
+            if path.last().is_some_and(|s| {
+                matches!(s, Seg::Key(k) if
+                matches!(k.replace('_', "").to_ascii_lowercase().as_str(),
+                    "url" | "baseurl" | "apibase" | "apiurl" | "anthropicbaseurl"))
+            }) {
+                out.push((path.to_vec(), value.clone()));
+            }
+        }
+        Value::Object(m) => {
+            for (k, v) in m {
+                let mut next = path.to_vec();
+                next.push(Seg::key(k));
+                out.extend(url_values(&next, v));
+            }
+        }
+        Value::Array(a) => {
+            for v in a {
+                if let Some((field, name)) = ["id", "title", "name"]
+                    .iter()
+                    .find_map(|field| v.get(*field)?.as_str().map(|name| (*field, name)))
+                {
+                    let mut next = path.to_vec();
+                    next.push(Seg::item(field, name));
+                    out.extend(url_values(&next, v));
+                }
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
+fn url_hashes(path: &[Seg], value: &Value) -> Vec<UrlHash> {
+    url_values(path, value)
+        .into_iter()
+        .map(|(path, v)| UrlHash {
+            path,
+            value_sha: value_sha(&v),
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -918,6 +974,7 @@ pub fn render(id: &str, plan: &FilePlan, ledger: &Ledger) -> Result<Rendered, St
                 keys.push(AppliedKey {
                     path: edit.path.clone(),
                     value_sha: value_sha(&written_value(edit)),
+                    urls: url_hashes(&edit.path, &written_value(edit)),
                     prior,
                     created_from,
                     marker: edit.marker,
@@ -989,9 +1046,20 @@ pub fn backups_of(path: &Path) -> Vec<PathBuf> {
         .flatten()
         .map(|e| e.path())
         .filter(|p| {
-            p.file_name()
-                .map(|n| n.to_string_lossy())
-                .is_some_and(|n| n.starts_with(&prefix) && n.ends_with(".bak"))
+            p.file_name().map(|n| n.to_string_lossy()).is_some_and(|n| {
+                let Some(tail) = n.strip_prefix(&prefix).and_then(|s| s.strip_suffix(".bak"))
+                else {
+                    return false;
+                };
+                let parts: Vec<_> = tail.split('-').collect();
+                (parts.len() == 2 || parts.len() == 3)
+                    && parts[0].len() == 8
+                    && parts[1].len() == 6
+                    && parts
+                        .iter()
+                        .all(|s| !s.is_empty() && s.bytes().all(|c| c.is_ascii_digit()))
+                    && p.is_file()
+            })
         })
         .collect();
     list.sort_by_key(|p| {
@@ -1174,9 +1242,69 @@ pub fn owns_key(
     };
     let value = doc.value();
     file.keys.iter().any(|key| {
-        key_path.starts_with(&key.path)
+        if let Some(url) = key.urls.iter().find(|u| u.path == key_path) {
+            return get_in(&value, key_path).is_some_and(|v| value_sha(v) == url.value_sha);
+        }
+        key.urls.is_empty()
+            && key_path.starts_with(&key.path)
             && get_in(&value, &key.path).is_some_and(|v| value_sha(v) == key.value_sha)
     })
+}
+
+/// Adopts only an exact current address, without writing the client file. An unrecorded
+/// address on an old port stays pending Fix; adoption alone must never move it.
+pub fn adopt_url(
+    id: &str,
+    path: &Path,
+    format: Format,
+    key_path: &[Seg],
+    expected: &Value,
+    ledger_path: Option<&Path>,
+) -> Result<(), String> {
+    let mut ledger = Ledger::load(ledger_path);
+    if ledger
+        .file(id, path)
+        .is_some_and(|f| f.whole || f.keys.iter().any(|k| key_path.starts_with(&k.path)))
+    {
+        return Ok(());
+    }
+    let Some(text) = read_text(path)? else {
+        return Ok(());
+    };
+    let doc = Doc::parse(format, &text, path)?;
+    if get_in(&doc.value(), key_path) != Some(expected) {
+        return Ok(());
+    }
+    let key = AppliedKey {
+        path: key_path.to_vec(),
+        value_sha: value_sha(expected),
+        urls: url_hashes(key_path, expected),
+        prior: Some(expected.clone()),
+        created_from: None,
+        marker: false,
+    };
+    if ledger.entry(id).is_none() {
+        ledger.put(LedgerEntry {
+            id: id.to_string(),
+            applied_at: 0,
+            files: Vec::new(),
+            request: None,
+        });
+    }
+    let entry = ledger.entries.iter_mut().find(|e| e.id == id).unwrap();
+    let name = path.to_string_lossy().to_string();
+    if let Some(file) = entry.files.iter_mut().find(|f| f.path == name) {
+        file.keys.push(key);
+    } else {
+        entry.files.push(LedgerFile {
+            path: name,
+            sha256: sha256_hex(text.as_bytes()),
+            created: false,
+            whole: false,
+            keys: vec![key],
+        });
+    }
+    ledger.save(ledger_path)
 }
 
 /// Sets one key of an existing config in place (the address' port when the gateway moved) and
@@ -1220,6 +1348,9 @@ pub fn retarget(
     };
     let now = doc.value();
     for k in f.keys.iter_mut().filter(|k| key_path.starts_with(&k.path)) {
+        for url in k.urls.iter_mut().filter(|u| u.path == key_path) {
+            url.value_sha = value_sha(value);
+        }
         if get_in(&before, &k.path).is_some_and(|v| value_sha(v) == k.value_sha) {
             if let Some(v) = get_in(&now, &k.path) {
                 k.value_sha = value_sha(v);
@@ -1271,6 +1402,7 @@ pub fn revert(
                     .map(|path| AppliedKey {
                         path: path.clone(),
                         value_sha: String::new(),
+                        urls: Vec::new(),
                         prior: None,
                         created_from: None,
                         marker: true,
@@ -1337,6 +1469,9 @@ pub fn revert(
                 continue;
             }
             found_any = true;
+            if k.prior.as_ref() == Some(&cur) {
+                continue;
+            }
             changed = true;
             match &k.prior {
                 Some(prior) => doc.set(&k.path, prior, &path)?,
@@ -1694,11 +1829,220 @@ mod tests {
     }
 
     #[test]
+    fn url_ownership_survives_other_block_edits_in_every_format() {
+        for (format, ext) in [
+            (Format::Json, "json"),
+            (Format::Toml, "toml"),
+            (Format::Yaml, "yaml"),
+        ] {
+            let d = tempdir().unwrap();
+            let path = d.path().join(format!("settings.{ext}"));
+            let ledger = d.path().join("ledger.json");
+            for field in ["baseURL", "base_url", "apiBase", "api_url", "url"] {
+                let plan = FilePlan::Keys {
+                    path: path.clone(),
+                    format,
+                    edits: vec![Edit::marker(
+                        keys(&["provider"]),
+                        serde_json::json!({
+                            field: "http://127.0.0.1:12001/v1", "models": {}, "apiKey": "placeholder"
+                        }),
+                    )],
+                    new_doc: None,
+                };
+                apply("t", &[plan], Some(&ledger)).unwrap();
+                let mut doc =
+                    Doc::parse(format, &read_text(&path).unwrap().unwrap(), &path).unwrap();
+                doc.set(
+                    &keys(&["provider", "apiKey"]),
+                    &serde_json::json!("user-key"),
+                    &path,
+                )
+                .unwrap();
+                doc.set(
+                    &keys(&["provider", "models"]),
+                    &serde_json::json!({"extra": {"name": "Extra"}}),
+                    &path,
+                )
+                .unwrap();
+                std::fs::write(&path, doc.text().unwrap()).unwrap();
+                let url = keys(&["provider", field]);
+                assert!(owns_key("t", &path, format, &url, Some(&ledger)));
+                retarget(
+                    "t",
+                    &path,
+                    format,
+                    &url,
+                    &serde_json::json!("http://127.0.0.1:12002/v1"),
+                    Some(&ledger),
+                )
+                .unwrap();
+                assert!(owns_key("t", &path, format, &url, Some(&ledger)));
+                let text = read_text(&path).unwrap().unwrap();
+                assert!(text.contains("user-key") && text.contains("Extra"));
+                std::fs::write(&path, text.replace(":12002", ":12003")).unwrap();
+                assert!(!owns_key("t", &path, format, &url, Some(&ledger)));
+            }
+        }
+    }
+
+    #[test]
+    fn legacy_url_ownership_requires_the_original_block_hash() {
+        let d = tempdir().unwrap();
+        let path = d.path().join("settings.json");
+        let ledger_path = d.path().join("ledger.json");
+        let plan = FilePlan::Keys {
+            path: path.clone(),
+            format: Format::Json,
+            edits: vec![Edit::marker(
+                keys(&["provider"]),
+                serde_json::json!({
+                    "baseURL": "http://127.0.0.1:12001/v1", "apiKey": "placeholder"
+                }),
+            )],
+            new_doc: None,
+        };
+        apply("t", &[plan], Some(&ledger_path)).unwrap();
+        let mut ledger = serde_json::to_value(Ledger::load(Some(&ledger_path))).unwrap();
+        ledger["entries"][0]["files"][0]["keys"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("urls");
+        std::fs::write(&ledger_path, serde_json::to_string(&ledger).unwrap()).unwrap();
+        let url = keys(&["provider", "baseURL"]);
+        assert!(owns_key("t", &path, Format::Json, &url, Some(&ledger_path)));
+        let text = std::fs::read_to_string(&path)
+            .unwrap()
+            .replace("placeholder", "user-key");
+        std::fs::write(&path, &text).unwrap();
+        assert!(!owns_key(
+            "t",
+            &path,
+            Format::Json,
+            &url,
+            Some(&ledger_path)
+        ));
+        assert!(retarget(
+            "t",
+            &path,
+            Format::Json,
+            &url,
+            &serde_json::json!("http://127.0.0.1:12002/v1"),
+            Some(&ledger_path)
+        )
+        .unwrap()
+        .is_none());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+    }
+
+    #[test]
+    fn named_array_url_hashes_ignore_other_fields_and_new_entries() {
+        let d = tempdir().unwrap();
+        let path = d.path().join("settings.json");
+        let ledger = d.path().join("ledger.json");
+        let entry = vec![Seg::key("models"), Seg::item("title", "Harness")];
+        let plan = FilePlan::Keys {
+            path: path.clone(),
+            format: Format::Json,
+            edits: vec![Edit::marker(
+                entry.clone(),
+                serde_json::json!({
+                    "apiBase": "http://127.0.0.1:12001/v1", "apiKey": "placeholder"
+                }),
+            )],
+            new_doc: None,
+        };
+        apply("t", &[plan], Some(&ledger)).unwrap();
+        let mut doc = Doc::parse(Format::Json, &read_text(&path).unwrap().unwrap(), &path).unwrap();
+        let mut key = entry.clone();
+        key.push(Seg::key("apiKey"));
+        doc.set(&key, &serde_json::json!("user-key"), &path)
+            .unwrap();
+        std::fs::write(&path, doc.text().unwrap()).unwrap();
+        let mut url = entry;
+        url.push(Seg::key("apiBase"));
+        assert!(owns_key("t", &path, Format::Json, &url, Some(&ledger)));
+        assert!(retarget(
+            "t",
+            &path,
+            Format::Json,
+            &url,
+            &serde_json::json!("http://127.0.0.1:12002/v1"),
+            Some(&ledger)
+        )
+        .unwrap()
+        .is_some());
+        assert!(std::fs::read_to_string(&path).unwrap().contains("user-key"));
+        assert!(!owns_key(
+            "t",
+            &path,
+            Format::Json,
+            &[
+                Seg::key("models"),
+                Seg::item("title", "User"),
+                Seg::key("apiBase")
+            ],
+            Some(&ledger)
+        ));
+    }
+
+    #[test]
+    fn noop_takeover_disconnect_preserves_the_existing_file() {
+        let d = tempdir().unwrap();
+        let path = d.path().join("settings.json");
+        let owner = d.path().join("owner.json");
+        let isolated = d.path().join("isolated.json");
+        let plan = FilePlan::Keys {
+            path: path.clone(),
+            format: Format::Json,
+            edits: vec![Edit::marker(
+                keys(&["provider"]),
+                serde_json::json!({"url": "http://127.0.0.1:12001/v1"}),
+            )],
+            new_doc: None,
+        };
+        apply("t", std::slice::from_ref(&plan), Some(&owner)).unwrap();
+        let before = std::fs::read(&path).unwrap();
+        let backups = backups_of(&path);
+        assert!(apply("t", &[plan], Some(&isolated))
+            .unwrap()
+            .written
+            .is_empty());
+        let markers = vec![(path.clone(), Format::Json, vec![keys(&["provider"])])];
+        let out = revert("t", &markers, Some(&isolated)).unwrap();
+        assert!(out.written.is_empty() && out.deleted.is_empty() && out.backups.is_empty());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert_eq!(backups_of(&path), backups);
+        assert!(Ledger::load(Some(&isolated)).entry("t").is_none());
+        assert!(owns_key(
+            "t",
+            &path,
+            Format::Json,
+            &keys(&["provider", "url"]),
+            Some(&owner)
+        ));
+    }
+
+    #[test]
     fn repeated_writes_prune_backups_and_noops_preserve_bytes() {
         let d = tempdir().unwrap();
         let file = d.path().join("settings.json");
         let ledger = d.path().join("ledger.json");
         let at = chrono::DateTime::parse_from_rfc3339("2026-10-08T17:00:49+03:00").unwrap();
+        let user_backup = d.path().join("settings.json.harness-old.bak");
+        std::fs::write(&user_backup, "mine").unwrap();
+        for name in [
+            "20261008-170049-extra",
+            "2026108-170049",
+            "20261008-170049-",
+            "20261008-170049-2-3",
+        ] {
+            std::fs::write(
+                d.path().join(format!("settings.json.harness-{name}.bak")),
+                "mine",
+            )
+            .unwrap();
+        }
         for i in 0..20 {
             std::fs::write(&file, i.to_string()).unwrap();
             let latest = backup_at(&file, at).unwrap().unwrap();
@@ -1715,6 +2059,7 @@ mod tests {
             })
             .collect();
         assert_eq!(values, (15..20).collect::<Vec<_>>());
+        assert_eq!(std::fs::read_to_string(user_backup).unwrap(), "mine");
 
         std::fs::write(&file, "{ \"value\": 42 }").unwrap();
         let plan = FilePlan::Keys {

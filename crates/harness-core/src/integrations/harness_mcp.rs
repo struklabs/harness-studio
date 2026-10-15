@@ -549,21 +549,27 @@ pub fn follow_api_port_in(r: &McpRoots, current: u16, ports: &[u16]) -> Vec<Stri
         let Ok((path, _)) = paths(r, t.id) else {
             continue;
         };
-        if !keyed::owns_key(
-            &ledger_id(t.id),
-            &path,
-            format_of(t.id),
-            &entry_path(t.id),
-            r.ledger.as_deref(),
-        ) {
-            continue;
-        }
         let Ok(Some(entry)) = current_entry(t.id, &path) else {
             continue;
         };
         let Some(url) = entry.get("url").and_then(Value::as_str) else {
             continue;
         };
+        let mut url_path = entry_path(t.id);
+        url_path.push(keyed::Seg::key("url"));
+        let expected = Value::String(format!("http://127.0.0.1:{current}/api/harness/v1/mcp"));
+        if keyed::adopt_url(
+            &ledger_id(t.id),
+            &path,
+            format_of(t.id),
+            &url_path,
+            &expected,
+            r.ledger.as_deref(),
+        )
+        .is_err()
+        {
+            continue;
+        }
         let stale = super::drift::address(url)
             .is_some_and(|(loopback, _, p)| loopback && p != current && ports.contains(&p));
         let Some(new_url) = stale
@@ -572,24 +578,17 @@ pub fn follow_api_port_in(r: &McpRoots, current: u16, ports: &[u16]) -> Vec<Stri
         else {
             continue;
         };
-        // Claude Code, Cursor and OpenCode keep the header under `headers`, Codex under
-        // `http_headers`.
-        let token = ["headers", "http_headers"]
-            .iter()
-            .filter_map(|k| entry.get(*k))
-            .filter_map(|h| h.get("Authorization").and_then(Value::as_str))
-            .find_map(|a| a.strip_prefix("Bearer "))
-            .map(str::to_string);
-        let transport = McpTransport::Http {
-            url: new_url,
-            token,
-        };
-        match apply_in(r, t.id, &transport) {
-            Ok(_) => moved.push(t.name.to_string()),
-            Err(e) => eprintln!(
-                "[Harness Studio] Harness MCP ({}) yeni Control API adresine taşınamadı: {}",
-                t.name, e
-            ),
+        match keyed::retarget(
+            &ledger_id(t.id),
+            &path,
+            format_of(t.id),
+            &url_path,
+            &Value::String(new_url),
+            r.ledger.as_deref(),
+        ) {
+            Ok(Some(_)) => moved.push(t.name.to_string()),
+            Ok(None) => {}
+            Err(e) => eprintln!("[Harness Studio] Harness MCP ({}): {}", t.name, e),
         }
     }
     moved
@@ -951,6 +950,85 @@ mod tests {
         assert!(follow_api_port_in(&r, 11501, &[11501]).is_empty());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
         assert!(keyed::backups_of(&path).is_empty());
+    }
+
+    #[test]
+    fn noop_connect_from_another_directory_disconnects_without_an_orphan() {
+        let dir = tempfile::tempdir().unwrap();
+        let owner = roots(dir.path());
+        let mut isolated = roots(dir.path());
+        isolated.ledger = Some(dir.path().join("isolated.json"));
+        for target in &TARGETS {
+            let transport = McpTransport::Http {
+                url: "http://127.0.0.1:12001/api/harness/v1/mcp".into(),
+                token: None,
+            };
+            apply_in(&owner, target.id, &transport).unwrap();
+            let (path, _) = paths(&owner, target.id).unwrap();
+            let before = std::fs::read(&path).unwrap();
+            apply_in(&isolated, target.id, &transport).unwrap();
+            assert_eq!(std::fs::read(&path).unwrap(), before);
+            assert!(keyed::backups_of(&path).is_empty());
+            remove_in(&isolated, target.id).unwrap();
+            assert!(current_entry(target.id, &path).unwrap().is_none());
+            assert!(keyed::Ledger::load(isolated.ledger.as_deref())
+                .entry(&ledger_id(target.id))
+                .is_none());
+        }
+    }
+
+    #[test]
+    fn current_api_urls_are_adopted_and_later_edits_survive_port_follow() {
+        let dir = tempfile::tempdir().unwrap();
+        let r = roots(dir.path());
+        let mut unrecorded = roots(dir.path());
+        unrecorded.ledger = Some(dir.path().join("unrecorded.json"));
+        for target in &TARGETS {
+            apply_in(
+                &r,
+                target.id,
+                &McpTransport::Http {
+                    url: "http://127.0.0.1:12001/api/harness/v1/mcp".into(),
+                    token: Some("original".into()),
+                },
+            )
+            .unwrap();
+            let (path, _) = paths(&r, target.id).unwrap();
+            let before = std::fs::read(&path).unwrap();
+            assert!(follow_api_port_in(&unrecorded, 12001, &[12001]).is_empty());
+            assert_eq!(std::fs::read(&path).unwrap(), before);
+            assert!(keyed::backups_of(&path).is_empty());
+            let mut edited = String::from_utf8(before)
+                .unwrap()
+                .replace("original", "user-token");
+            if target.id != "codex" {
+                edited = edited.replacen("{", "{\n  \"userSetting\": true,", 1);
+            }
+            std::fs::write(&path, &edited).unwrap();
+            let mut url_path = entry_path(target.id);
+            url_path.push(keyed::Seg::key("url"));
+            assert!(keyed::owns_key(
+                &ledger_id(target.id),
+                &path,
+                format_of(target.id),
+                &url_path,
+                unrecorded.ledger.as_deref()
+            ));
+        }
+        assert_eq!(
+            follow_api_port_in(&unrecorded, 12002, &[12001, 12002]).len(),
+            TARGETS.len()
+        );
+        for target in &TARGETS {
+            let (path, _) = paths(&r, target.id).unwrap();
+            let backups = keyed::backups_of(&path);
+            assert_eq!(backups.len(), 1);
+            let before = std::fs::read_to_string(&backups[0]).unwrap();
+            assert_eq!(
+                std::fs::read_to_string(&path).unwrap(),
+                before.replace(":12001/", ":12002/")
+            );
+        }
     }
 
     #[test]

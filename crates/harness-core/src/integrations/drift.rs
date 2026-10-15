@@ -328,8 +328,7 @@ struct UrlSlot {
     /// Key path of the value that holds the address(es).
     keys: Vec<Seg>,
     value: Value,
-    /// The config holds an API key or token (not Harness's placeholder): it is not rewritten on
-    /// its own.
+    /// A real credential prevents reapplying a stored request; owned URLs can still move.
     secret: bool,
 }
 
@@ -669,18 +668,40 @@ pub struct PortFollow {
     pub pending: Vec<String>,
 }
 
-/// Rewrites the configs Harness wrote for an earlier gateway port (`gateway_ports`: every port
-/// the gateway listened on) for `current_base`. A config with a stored apply request is written
-/// again with it (only the address changes, the tool's default model stays) while its files are
-/// still as Harness wrote them; any other is changed in place: only the port of the address
-/// this data directory recorded and still owns, with a backup, so a model the user picked afterwards stays. Configs with an
-/// API key (at apply time or added since) and configs pointing at anything else (a server's own
-/// port) are left for the user ("Düzelt").
+/// Follows earlier gateway ports recorded by this data directory.
+/// Untouched configs can use their stored apply request. Edited configs move only an owned
+/// URL field, preserving the user's other settings and keeping a backup. Unowned addresses
+/// and server ports stay pending Fix.
 pub(crate) fn follow_gateway_port_in(
     roots: &Roots,
     current_base: &str,
     gateway_ports: &[u16],
 ) -> PortFollow {
+    for spec in managed(roots) {
+        let expected = if matches!(spec.id, "goose" | "vscode-copilot") {
+            format!("{}/chat/completions", current_base.trim_end_matches('/'))
+        } else if spec.id == "claude-code" {
+            super::ApplyRequest {
+                base_url: current_base.to_string(),
+                ..Default::default()
+            }
+            .host_url()
+        } else {
+            current_base.to_string()
+        };
+        for slot in url_slots(spec.id, roots) {
+            for (keys, _) in keyed::url_values(&slot.keys, &slot.value) {
+                let _ = keyed::adopt_url(
+                    spec.id,
+                    &slot.path,
+                    slot.format,
+                    &keys,
+                    &Value::String(expected.clone()),
+                    roots.ledger(),
+                );
+            }
+        }
+    }
     let mut moved = Vec::new();
     for drift in endpoint_drift_in(roots, current_base, gateway_ports) {
         let Some((spec, stored)) = stored_requests(roots)
@@ -721,6 +742,9 @@ pub(crate) fn follow_gateway_port_in(
         for spec in managed(roots) {
             if rewrite_in_place(roots, &spec, current, gateway_ports) {
                 moved.push(spec.id.to_string());
+                if on_port(roots, spec.id, current, gateway_ports) {
+                    set_stored_base(roots, spec.id, current_base);
+                }
             }
         }
     }
@@ -773,7 +797,7 @@ fn set_stored_base(roots: &Roots, id: &str, base_url: &str) {
 }
 
 /// Moves the earlier gateway ports in the config of `spec` to `current`, unless the config
-/// holds a key or the entry no longer matches this data directory's ledger.
+/// has an address that no longer matches this data directory's ledger.
 /// `true` when a file was changed.
 fn rewrite_in_place(roots: &Roots, spec: &Spec, current: u16, gateway_ports: &[u16]) -> bool {
     let stale: Vec<UrlSlot> = url_slots(spec.id, roots)
@@ -784,26 +808,24 @@ fn rewrite_in_place(roots: &Roots, spec: &Spec, current: u16, gateway_ports: &[u
                 .any(|u| is_old_gateway_url(u, current, gateway_ports))
         })
         .collect();
-    if stale.is_empty() || stale.iter().any(|s| s.secret) {
+    if stale.is_empty() {
         return false;
     }
     let mut changed = false;
     for slot in stale {
-        let value = move_urls(&slot.value, current, gateway_ports);
-        match keyed::retarget(
-            spec.id,
-            &slot.path,
-            slot.format,
-            &slot.keys,
-            &value,
-            roots.ledger(),
-        ) {
-            Ok(saved) => changed |= saved.is_some(),
-            Err(e) => eprintln!(
-                "[Harness Studio] {} yeni gateway adresine taşınamadı: {}",
-                spec.meta().name,
-                e
-            ),
+        for (keys, url) in keyed::url_values(&slot.keys, &slot.value) {
+            let value = move_urls(&url, current, gateway_ports);
+            match keyed::retarget(
+                spec.id,
+                &slot.path,
+                slot.format,
+                &keys,
+                &value,
+                roots.ledger(),
+            ) {
+                Ok(saved) => changed |= saved.is_some(),
+                Err(e) => eprintln!("[Harness Studio] {}: {}", spec.meta().name, e),
+            }
         }
     }
     changed
@@ -912,7 +934,7 @@ mod tests {
         let mut direct = request("qwen3-4b", &[]);
         direct.base_url = "http://localhost:11440/v1".into();
         apply_in(&r, "claude-code", &direct).unwrap();
-        // Codex with a key: never rewritten on its own.
+        // Owned entries keep their credentials when the address moves.
         let mut keyed = request("qwen3-4b", &[]);
         keyed.base_url = gw(11435);
         keyed.api_key = Some("secret".into());
@@ -935,8 +957,8 @@ mod tests {
         ids.sort();
         assert_eq!(ids, ["claude-code", "codex", "opencode"]);
         let done = follow_gateway_port_in(&r, &gw(11437), &[11435, 11437]);
-        assert_eq!(done.moved, ["opencode"]);
-        assert_eq!(done.pending, ["claude-code", "codex"]);
+        assert_eq!(done.moved, ["opencode", "codex"]);
+        assert_eq!(done.pending, ["claude-code"]);
         let text =
             std::fs::read_to_string(crate::integrations::opencode_config_path(dir.path())).unwrap();
         assert!(text.contains("127.0.0.1:11437/v1"), "{text}");
@@ -946,7 +968,7 @@ mod tests {
             .map(|d| d.id)
             .collect();
         left.sort();
-        assert_eq!(left, ["claude-code", "codex"]);
+        assert_eq!(left, ["claude-code"]);
     }
 
     #[test]
@@ -1062,6 +1084,70 @@ mod tests {
         )
         .unwrap();
         path
+    }
+
+    #[test]
+    fn owned_hand_edited_provider_moves_only_its_url() {
+        let dir = tempfile::tempdir().unwrap();
+        let r = roots(dir.path());
+        let mut req = request("qwen3-4b", &[]);
+        req.base_url = gw(11435);
+        apply_in(&r, "opencode", &req).unwrap();
+        let path = old_opencode(dir.path(), &gw(11435), "user-key");
+        let before = std::fs::read_to_string(&path).unwrap().replace(
+            "\"models\": { ",
+            "\"models\": { \"user-model\": { \"name\": \"Mine\" }, ",
+        );
+        std::fs::write(&path, &before).unwrap();
+        let done = follow_gateway_port_in(&r, &gw(11436), &[11435, 11436]);
+        assert_eq!(done.moved, ["opencode"]);
+        assert!(done.pending.is_empty(), "{done:?}");
+        let expected = before.replace(
+            &format!("\"baseURL\": \"{}\", \"apiKey\"", gw(11435)),
+            &format!("\"baseURL\": \"{}\", \"apiKey\"", gw(11436)),
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), expected);
+        let backups = keyed::backups_of(&path);
+        assert_eq!(backups.len(), 1);
+        assert_eq!(std::fs::read_to_string(&backups[0]).unwrap(), before);
+        assert_eq!(
+            follow_gateway_port_in(&r, &gw(11436), &[11435, 11436]),
+            PortFollow::default()
+        );
+        assert_eq!(keyed::backups_of(&path), backups);
+    }
+
+    #[test]
+    fn only_exact_current_gateway_urls_are_adopted_without_a_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let r = roots(dir.path());
+        let path = old_opencode(dir.path(), &gw(11435), "user-key");
+        let before = std::fs::read(&path).unwrap();
+        assert_eq!(
+            follow_gateway_port_in(&r, &gw(11435), &[11435]),
+            PortFollow::default()
+        );
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(keyed::backups_of(&path).is_empty());
+        assert!(keyed::owns_key(
+            "opencode",
+            &path,
+            Format::Json,
+            &keyed::keys(&["provider", "harness", "options", "baseURL"]),
+            r.ledger()
+        ));
+        let mut isolated = r.clone();
+        isolated.ledger = Some(dir.path().join("isolated.json"));
+        assert!(
+            follow_gateway_port_in(&isolated, &gw(11436), &[11435, 11436])
+                .moved
+                .is_empty()
+        );
+        assert!(!isolated.ledger.unwrap().exists());
+        assert_eq!(
+            follow_gateway_port_in(&r, &gw(11436), &[11435, 11436]).moved,
+            ["opencode"]
+        );
     }
 
     #[test]
