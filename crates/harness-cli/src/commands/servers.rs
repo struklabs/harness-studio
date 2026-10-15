@@ -423,10 +423,20 @@ fn option_label(o: &Value) -> String {
 
 fn recovery_rows(plan: &Value) -> String {
     let failure = &plan["failure"];
-    let mut lines = vec![crate::messages::render(
-        failure["code"].as_str().unwrap_or("servers.start_failed"),
-        failure["params"].as_object().unwrap_or(&Default::default()),
-    )];
+    let params = failure["params"].as_object().cloned().unwrap_or_default();
+    // The failure's own message when this CLI knows it (`failure.killed` says more than the
+    // kind's), else the text of its code.
+    let text = failure["message_key"]
+        .as_str()
+        .and_then(crate::messages::template)
+        .map(|t| crate::messages::fill(t, &params))
+        .unwrap_or_else(|| {
+            crate::messages::render(
+                failure["code"].as_str().unwrap_or("servers.start_failed"),
+                &params,
+            )
+        });
+    let mut lines = vec![text];
     if let Some(stage) = failure["params"]["stage"].as_str() {
         lines.push(format!("did not fit: {}", stage.replace('_', " ")));
     }

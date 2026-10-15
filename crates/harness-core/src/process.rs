@@ -2060,7 +2060,7 @@ impl ProcessManager {
                     if !self.is_current(generation) {
                         return;
                     }
-                    self.child.lock().unwrap().take();
+                    let pid = self.child.lock().unwrap().take().map(|c| c.id());
                     self.active.lock().unwrap().take();
                     self.audio_run.lock().unwrap().take();
                     self.stop_relay();
@@ -2076,6 +2076,17 @@ impl ProcessManager {
                     let mut failure =
                         crate::failure::classify(&self.run_lines(), status.code(), phase);
                     crate::failure::note_signal(&mut failure, &status);
+                    // Killed from outside: did the system end it for memory?
+                    if let Some(pid) = pid.filter(|_| failure.message_key == "failure.killed") {
+                        failure = tokio::task::spawn_blocking(move || {
+                            crate::failure::confirm_memory_kill(&mut failure, pid);
+                            failure
+                        })
+                        .await
+                        .unwrap_or_else(|e| {
+                            ServerFailure::new(FailureKind::Crashed, phase).with("detail", e)
+                        });
+                    }
                     // The ONNX sidecar could not use CUDA (`--cuda-fallback-exit`): DirectML.
                     if !was_running
                         && status.code() == Some(harness_onnx::cli::EXIT_CUDA_UNUSABLE)
@@ -2281,6 +2292,9 @@ impl ProcessManager {
                 | FailureKind::PortInUse
                 | FailureKind::DeviceLost
                 | FailureKind::DraftLoadFailed
+                // Loading the same model again would run out of memory again (and on macOS
+                // push the whole system into swap); the user picks a recovery option instead.
+                | FailureKind::OutOfMemory
         ) {
             return;
         }

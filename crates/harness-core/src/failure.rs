@@ -170,6 +170,8 @@ const OOM_MARKERS: &[&str] = &[
     "std::bad_alloc",
     "bad_alloc",
     "kiogpucommandbuffercallbackerroroutofmemory",
+    // A Python worker (MLX, Hugging Face) that could not allocate.
+    "memoryerror",
 ];
 
 /// Case-insensitive markers of a lost or faulted GPU. The CUDA texts are `cudaGetErrorString`
@@ -324,6 +326,16 @@ pub fn note_signal(f: &mut ServerFailure, status: &std::process::ExitStatus) {
         };
         let text = signal_text(sig);
         f.params.insert("exit".into(), text);
+        // A SIGKILL that left no explanation in the log came from outside (our own stop never
+        // reaches the classification): the system when memory ran low (macOS jetsam, the Linux
+        // OOM killer), or another program. Its own message says both;
+        // [`confirm_memory_kill`] makes it a memory failure when the system's log says so.
+        if sig == libc_signal::KILL
+            && matches!(f.kind, FailureKind::Crashed | FailureKind::StartFailed)
+        {
+            f.message_key = "failure.killed".into();
+            return;
+        }
         let access = sig == libc_signal::SEGV || sig == libc_signal::BUS;
         if access
             && !f.params.contains_key("signal")
@@ -334,6 +346,55 @@ pub fn note_signal(f: &mut ServerFailure, status: &std::process::ExitStatus) {
     }
     #[cfg(not(unix))]
     let _ = (f, status);
+}
+
+/// A run that [`note_signal`] found killed from outside (`failure.killed`) becomes an
+/// out-of-memory failure (`failure.killed_by_system`, with the recovery options and no automatic
+/// restart) when the system's log shows it ended `pid` for memory: on macOS the kernel's
+/// memorystatus (jetsam) line of the last two minutes. Elsewhere, or without such a line, it stays
+/// as it is. Blocking (`log show` takes about 1.5 s); call it off the async runtime.
+pub fn confirm_memory_kill(f: &mut ServerFailure, pid: u32) {
+    if f.message_key != "failure.killed" {
+        return;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let out = std::process::Command::new("/usr/bin/log")
+            .args([
+                "show",
+                "--last",
+                "2m",
+                "--style",
+                "compact",
+                "--predicate",
+                "sender == \"kernel\" AND eventMessage CONTAINS \"memorystatus: kill\"",
+            ])
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .output();
+        if let Ok(out) = out {
+            if jetsam_killed(&String::from_utf8_lossy(&out.stdout), pid) {
+                f.kind = FailureKind::OutOfMemory;
+                f.code = f.kind.code();
+                f.message_key = "failure.killed_by_system".into();
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (f, pid);
+}
+
+/// Whether macOS memorystatus lines (`log show`) say the kernel killed `pid` for memory:
+/// `killing_top_process pid 1755 [python3.12] (vm-pageshortage ...)` or `killing ... [1755]`.
+/// Idle exits of daemons (`idle-exit`) are no memory kills.
+fn jetsam_killed(log: &str, pid: u32) -> bool {
+    let by_pid = format!("pid {pid} ");
+    let bracketed = format!("[{pid}]");
+    log.lines().any(|l| {
+        l.contains("memorystatus: kill")
+            && (l.contains(&by_pid) || l.contains(&bracketed))
+            && !l.contains("idle-exit")
+    })
 }
 
 /// Signal numbers [`note_signal`] names, from libc (SIGBUS is 10 on macOS, 7 on Linux).
@@ -818,6 +879,33 @@ mod tests {
         assert_eq!(f.code, "servers.start_failed");
     }
 
+    #[test]
+    fn jetsam_lines_name_memory_kills_only() {
+        // Real lines (macOS 27, M1 8 GB) and the bracketed form.
+        let log = "2026-10-15 19:57:39.444 Df kernel[0:671] [com.apple.xnu:memorystatus] memorystatus: killing_idle_process pid 86562 [replayd] (idle-exit 0 2889s rf:high type:daemon) 6992KB - memorystatus_available_pages: 213901\n\
+2026-10-15 19:58:02.101 Df kernel[0:671] [com.apple.xnu:memorystatus] memorystatus: killing_top_process pid 1755 [python3.12] (vm-pageshortage 1) 5123456KB - memorystatus_available_pages: 1203\n\
+2026-10-15 19:58:03.000 Df kernel[0:671] [com.apple.xnu:memorystatus] memorystatus: killing (vm-compressor-space-shortage) python3.12 [1760]";
+        assert!(jetsam_killed(log, 1755));
+        assert!(jetsam_killed(log, 1760));
+        assert!(!jetsam_killed(log, 86562), "an idle exit is no memory kill");
+        assert!(!jetsam_killed(log, 175), "a pid prefix is another process");
+        assert!(!jetsam_killed("", 1755));
+
+        // Only an unexplained kill is looked up.
+        let mut f = ServerFailure::new(FailureKind::Crashed, FailurePhase::Running);
+        confirm_memory_kill(&mut f, 1);
+        assert_eq!(f.kind, FailureKind::Crashed);
+    }
+
+    #[test]
+    fn a_python_memory_error_is_out_of_memory() {
+        let log = lines("Traceback (most recent call last):\n  File \"mlx_worker.py\", line 9, in main\nMemoryError");
+        for phase in [FailurePhase::Loading, FailurePhase::Running] {
+            let f = classify(&log, Some(1), phase);
+            assert_eq!(f.kind, FailureKind::OutOfMemory, "{f:?}");
+        }
+    }
+
     #[cfg(unix)]
     #[test]
     fn unix_signal_fills_exit_and_keeps_kind() {
@@ -833,12 +921,30 @@ mod tests {
         assert_eq!(f.params["exit"], "SIGABRT (6)");
         assert!(!f.params.contains_key("signal"));
 
+        // An unexplained SIGKILL came from outside: its own message, the kind unchanged until
+        // the system's log confirms a memory kill.
+        for (phase, kind) in [
+            (FailurePhase::Running, FailureKind::Crashed),
+            (FailurePhase::Loading, FailureKind::StartFailed),
+        ] {
+            let status = std::process::ExitStatus::from_raw(9);
+            let mut f = classify(&[], status.code(), phase);
+            note_signal(&mut f, &status);
+            assert_eq!(f.kind, kind);
+            assert_eq!(f.message_key, "failure.killed");
+            assert_eq!(f.params["exit"], "SIGKILL (9)");
+            assert!(!f.params.contains_key("signal"));
+        }
+        // One the log explains keeps its own kind.
         let status = std::process::ExitStatus::from_raw(9);
-        let mut f = classify(&[], status.code(), FailurePhase::Running);
+        let mut f = classify(
+            &lines("error: invalid argument: --foo"),
+            status.code(),
+            FailurePhase::Loading,
+        );
+        let kind = f.kind;
         note_signal(&mut f, &status);
-        assert_eq!(f.kind, FailureKind::Crashed);
-        assert_eq!(f.params["exit"], "SIGKILL (9)");
-        assert!(!f.params.contains_key("signal"));
+        assert_eq!(f.kind, kind);
 
         let status = std::process::ExitStatus::from_raw(11);
         let mut f = classify(&[], status.code(), FailurePhase::Running);

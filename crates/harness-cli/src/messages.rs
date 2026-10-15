@@ -238,6 +238,8 @@ pub fn base(code: &str) -> Option<&'static str> {
 /// (`recovery.*`): the GUI's English texts (a test compares them), `{name}` placeholders.
 pub fn template(key: &str) -> Option<&'static str> {
     Some(match key {
+        "failure.killed" => "The {engine} server was ended from outside (SIGKILL): by the system when memory ran low, or by another program. If memory ran out, try a smaller model or quantization or a shorter context, or close other models and apps.",
+        "failure.killed_by_system" => "Memory ran out: the system ended the {engine} server (SIGKILL). Try a smaller model or quantization or a shorter context, or close other models and apps.",
         "failure.out_of_memory" => "Not enough memory: the {engine} server could not allocate memory for the model (VRAM or RAM).",
         "failure.missing_library" => "A library the runtime needs could not be loaded (GPU driver or runtime files missing or incompatible).",
         "failure.corrupt_model" => "The model file is damaged or incomplete (interrupted download?). Download it again.",
