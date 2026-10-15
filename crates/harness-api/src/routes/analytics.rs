@@ -13,6 +13,7 @@ use utoipa::IntoParams;
 use crate::error::{blocking, ApiError, ApiResult, ErrorBody, P, Q};
 
 #[derive(Deserialize, IntoParams, Default)]
+#[into_params(parameter_in = Query)]
 #[serde(default)]
 pub struct SummaryQuery {
     /// `24h`, `7d`, `30d`, `90d` or `all` (default `7d`); ignored when `from_ms` is given.
@@ -42,7 +43,7 @@ pub fn range_start(range: Option<&str>, now_ms: u64) -> Result<Option<u64>, ApiE
 /// Per-model statistics (runs, tokens, average t/s, P50/P95 TTFT and latency, VRAM,
 /// error and OOM rates, busy time, last use), client distribution, daily series and the
 /// latest benchmark of each model. Covers gateway traffic only.
-#[utoipa::path(get, path = "/analytics/summary", tag = "analytics",
+#[utoipa::path(get, operation_id = "get_analytics_summary", path = "/analytics/summary", tag = "analytics",
     params(SummaryQuery),
     responses((status = 200, body = AnalyticsSummary), (status = 400, body = ErrorBody)))]
 pub async fn summary(Q(q): Q<SummaryQuery>) -> ApiResult<Json<AnalyticsSummary>> {
@@ -59,7 +60,7 @@ pub async fn summary(Q(q): Q<SummaryQuery>) -> ApiResult<Json<AnalyticsSummary>>
 }
 
 /// Recent gateway requests, newest first (metadata only). Page with `before_ms`.
-#[utoipa::path(get, path = "/analytics/requests", tag = "analytics",
+#[utoipa::path(get, operation_id = "list_requests", path = "/analytics/requests", tag = "analytics",
     params(RequestQuery),
     responses((status = 200, body = RequestPage)))]
 pub async fn requests(Q(q): Q<RequestQuery>) -> ApiResult<Json<RequestPage>> {
@@ -71,7 +72,7 @@ pub async fn requests(Q(q): Q<RequestQuery>) -> ApiResult<Json<RequestPage>> {
 
 /// One request: all recorded fields, its timeline (load → queue → prompt → generation) and
 /// captured content when its definition captures content.
-#[utoipa::path(get, path = "/analytics/requests/{id}", tag = "analytics",
+#[utoipa::path(get, operation_id = "get_request", path = "/analytics/requests/{id}", tag = "analytics",
     params(("id" = String, Path, description = "Gateway request id (`X-Harness-Request-Id`)")),
     responses((status = 200, body = RequestDetail), (status = 404, body = ErrorBody)))]
 pub async fn request(P(id): P<String>) -> ApiResult<Json<RequestDetail>> {
@@ -88,7 +89,7 @@ pub async fn request(P(id): P<String>) -> ApiResult<Json<RequestDetail>> {
 /// Queue history of the last 7 days per model definition: how many requests waited for a
 /// free slot or for room in the shared KV pool, and, where slots keep making requests wait,
 /// `suggested_slots` for the next load (the model's "Concurrent requests" setting).
-#[utoipa::path(get, path = "/analytics/queue-hints", tag = "analytics",
+#[utoipa::path(get, operation_id = "get_queue_hints", path = "/analytics/queue-hints", tag = "analytics",
     responses((status = 200, body = Vec<QueueHint>)))]
 pub async fn queue_hints() -> ApiResult<Json<Vec<QueueHint>>> {
     let hints = blocking(analytics::queue_hints)
@@ -100,7 +101,7 @@ pub async fn queue_hints() -> ApiResult<Json<Vec<QueueHint>>> {
 /// Unified Prometheus exposition: gateway counters and per-model histograms, scheduler
 /// gauges, analytics recorder counters, system memory and every llama-server's own
 /// `llamacpp:*` metrics (label `server`).
-#[utoipa::path(get, path = "/metrics", tag = "analytics",
+#[utoipa::path(get, operation_id = "get_prometheus_metrics", path = "/metrics", tag = "analytics",
     responses((status = 200, content_type = "text/plain", body = String)))]
 pub async fn metrics() -> Response {
     (

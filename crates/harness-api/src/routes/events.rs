@@ -11,6 +11,7 @@ use tokio::sync::broadcast::error::RecvError;
 use utoipa::IntoParams;
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct EventsQuery {
     /// Comma-separated event types to receive (`server_status,download,download_removed,
     /// benchmark_progress,benchmark_finished`); omitted = all.
@@ -20,7 +21,7 @@ pub struct EventsQuery {
 /// Server status changes, download progress (at most ~2 per second per job) and benchmark
 /// progress, as they happen. Each SSE `event:` is the type, `data:` the JSON event. A client
 /// that falls behind gets an `event: lagged` with the number of skipped events.
-#[utoipa::path(get, path = "/events", tag = "events", params(EventsQuery),
+#[utoipa::path(get, operation_id = "stream_events", path = "/events", tag = "events", params(EventsQuery),
     responses((status = 200, content_type = "text/event-stream", body = CoreEvent)))]
 pub async fn events(
     crate::error::Q(q): crate::error::Q<EventsQuery>,

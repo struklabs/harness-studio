@@ -39,6 +39,7 @@ pub struct ToolCallRow {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema, utoipa::IntoParams))]
+#[cfg_attr(feature = "openapi", into_params(parameter_in = Query))]
 pub struct ToolCallQuery {
     pub tool: Option<String>,
     pub client: Option<String>,

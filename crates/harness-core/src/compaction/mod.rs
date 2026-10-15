@@ -68,6 +68,8 @@ pub const AUTO_MIN_PERCENT: u64 = 10;
 
 /// How the summary is produced.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = CompactionStrategy))]
 #[serde(rename_all = "snake_case")]
 pub enum Strategy {
     /// One short free-form paragraph ("summarize this conversation"); the baseline.
@@ -94,6 +96,8 @@ impl Strategy {
 
 /// What started a compaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = CompactionTrigger))]
 #[serde(rename_all = "snake_case")]
 pub enum TriggerKind {
     #[default]
@@ -144,6 +148,8 @@ pub fn should_compact(used: u64, incoming: u64, n_ctx: u64, threshold: Threshold
 
 /// The compaction marker stored in `meta.compaction` of the marker message's variant.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = CompactionMarker))]
 pub struct Marker {
     pub version: u32,
     /// Last message the summary covers; the request continues after it.

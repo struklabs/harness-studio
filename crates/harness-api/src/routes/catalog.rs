@@ -4,8 +4,8 @@ use axum::http::StatusCode;
 use axum::Json;
 use harness_core::domain::store::Domain;
 use harness_core::domain::{InferencePreset, ModelDefinition};
-use harness_core::modelfile::{ModelfileImport, ModelfileRequest};
-use serde::Deserialize;
+use harness_core::modelfile::{ModelfileImport, ModelfileRequest, Warning};
+use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
 use crate::error::{blocking, with_id, ApiError, ApiResult, Body, ErrorBody, OptBody, P};
@@ -135,7 +135,7 @@ fn taken_aliases(domain: &Domain) -> Result<Vec<String>, String> {
 /// Reads an Ollama Modelfile and returns what importing it would create (definition, preset,
 /// mapped values, warnings). Nothing is saved.
 #[utoipa::path(post, path = "/modelfile/preview", tag = "definitions", request_body = ModelfileRequest,
-    responses((status = 200, body = serde_json::Value), (status = 422, body = ErrorBody)))]
+    responses((status = 200, body = ModelfileImport), (status = 422, body = ErrorBody)))]
 pub async fn modelfile_preview(
     Body(req): Body<ModelfileRequest>,
 ) -> ApiResult<Json<ModelfileImport>> {
@@ -143,13 +143,21 @@ pub async fn modelfile_preview(
     Ok(Json(preview))
 }
 
+/// A saved Modelfile import.
+#[derive(Serialize, ToSchema)]
+pub struct ModelfileImported {
+    pub definition: ModelDefinition,
+    /// What could not be carried over.
+    pub warnings: Vec<Warning>,
+}
+
 /// Imports a Modelfile: creates the model definition (alias from the request, else derived
 /// from `FROM`) and its inference preset. Returns the saved definition and the warnings.
 #[utoipa::path(post, path = "/modelfile/import", tag = "definitions", request_body = ModelfileRequest,
-    responses((status = 201, body = serde_json::Value), (status = 422, body = ErrorBody)))]
+    responses((status = 201, body = ModelfileImported), (status = 422, body = ErrorBody)))]
 pub async fn modelfile_import(
     Body(req): Body<ModelfileRequest>,
-) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
+) -> ApiResult<(StatusCode, Json<ModelfileImported>)> {
     let (def, warnings) = blocking(move || {
         let domain = Domain::global();
         let wanted = req.alias.clone();
@@ -161,7 +169,10 @@ pub async fn modelfile_import(
     .await??;
     Ok((
         StatusCode::CREATED,
-        Json(serde_json::json!({ "definition": def, "warnings": warnings })),
+        Json(ModelfileImported {
+            definition: def,
+            warnings,
+        }),
     ))
 }
 

@@ -25,7 +25,7 @@ pub struct Health {
     pub version: String,
 }
 
-#[utoipa::path(get, path = "/health", tag = "system", security(()),
+#[utoipa::path(get, operation_id = "get_health", path = "/health", tag = "system", security(()),
     responses((status = 200, body = Health)))]
 pub async fn health(State(s): State<AppState>) -> Json<Health> {
     Json(Health {
@@ -169,7 +169,7 @@ async fn runtime_summary(s: &AppState) -> ApiResult<RuntimeSummary> {
     .await
 }
 
-#[utoipa::path(get, path = "/status", tag = "system",
+#[utoipa::path(get, operation_id = "get_status", path = "/status", tag = "system",
     responses((status = 200, body = StatusResponse), (status = 401, body = ErrorBody)))]
 pub async fn status(State(s): State<AppState>) -> ApiResult<Json<StatusResponse>> {
     let runtime = runtime_summary(&s).await?;
@@ -211,13 +211,14 @@ pub async fn status(State(s): State<AppState>) -> ApiResult<Json<StatusResponse>
     }))
 }
 
-#[utoipa::path(get, path = "/hardware", tag = "system",
+#[utoipa::path(get, operation_id = "get_hardware", path = "/hardware", tag = "system",
     responses((status = 200, body = SystemHardwareInfo), (status = 401, body = ErrorBody)))]
 pub async fn hardware() -> ApiResult<Json<SystemHardwareInfo>> {
     Ok(Json(blocking(detect_hardware).await?))
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct DevicesQuery {
     /// Probe again even when a report younger than 20 s exists.
     #[serde(default)]
@@ -237,7 +238,7 @@ pub struct HardwareDevicesResponse {
 /// GPU devices as the active runtime reports them (`llama-server --list-devices`: backend,
 /// total and free memory; free corrected with the OS usage), plus a main-GPU / tensor-split
 /// suggestion when there are several GPUs.
-#[utoipa::path(get, path = "/hardware/devices", tag = "system", params(DevicesQuery),
+#[utoipa::path(get, operation_id = "list_hardware_devices", path = "/hardware/devices", tag = "system", params(DevicesQuery),
     responses((status = 200, body = HardwareDevicesResponse),
         (status = 409, body = ErrorBody)))]
 pub async fn hardware_devices(
@@ -287,13 +288,14 @@ pub async fn hardware_devices(
     Ok(Json(report))
 }
 
-#[utoipa::path(get, path = "/runtime", tag = "system",
+#[utoipa::path(get, operation_id = "get_active_runtime", path = "/runtime", tag = "system",
     responses((status = 200, body = RuntimeSummary), (status = 401, body = ErrorBody)))]
 pub async fn runtime(State(s): State<AppState>) -> ApiResult<Json<RuntimeSummary>> {
     Ok(Json(runtime_summary(&s).await?))
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct RuntimeFlagsQuery {
     /// A server whose runtime to read (default: the default server's).
     pub server_id: Option<String>,
@@ -305,7 +307,7 @@ pub struct RuntimeFlagsQuery {
 /// Every flag of a runtime's `--help`, read through the runtime's engine (its family's
 /// parameter catalog marks the flags a catalog parameter covers). Without parameters: the
 /// runtime the default server uses, else the official one.
-#[utoipa::path(get, path = "/runtime/flags", tag = "system", params(RuntimeFlagsQuery),
+#[utoipa::path(get, operation_id = "get_runtime_flags", path = "/runtime/flags", tag = "system", params(RuntimeFlagsQuery),
     responses((status = 200, body = Vec<RuntimeFlag>), (status = 409, body = ErrorBody)))]
 pub async fn runtime_flags(
     State(s): State<AppState>,
@@ -335,7 +337,7 @@ pub async fn runtime_flags(
 }
 
 /// Public while the API listens on loopback; needs `read` on a network bind.
-#[utoipa::path(get, path = "/openapi.json", tag = "system",
+#[utoipa::path(get, operation_id = "get_openapi", path = "/openapi.json", tag = "system",
     responses((status = 200, description = "OpenAPI 3.1 document", content_type = "application/json")))]
 pub async fn openapi_json() -> impl IntoResponse {
     static DOC: OnceLock<String> = OnceLock::new();
@@ -350,7 +352,7 @@ pub async fn openapi_json() -> impl IntoResponse {
 /// Asks a headless owner (`harness serve`) to exit cleanly: it stops its llama-servers and
 /// the API, then releases the data directory. The GUI does not accept it (409
 /// `api.shutdown_unsupported`).
-#[utoipa::path(post, path = "/shutdown", tag = "system",
+#[utoipa::path(post, operation_id = "shutdown_app", path = "/shutdown", tag = "system",
     responses((status = 202), (status = 403, body = ErrorBody), (status = 409, body = ErrorBody)))]
 pub async fn shutdown(State(s): State<AppState>) -> ApiResult<axum::http::StatusCode> {
     let hook = s
@@ -363,7 +365,7 @@ pub async fn shutdown(State(s): State<AppState>) -> ApiResult<axum::http::Status
 
 /// Settings > Runtime's managed llama.cpp build: installed and previous version, the backend
 /// updates keep, and what "roll back" restores.
-#[utoipa::path(get, path = "/runtime/managed", tag = "system",
+#[utoipa::path(get, operation_id = "get_managed_runtime", path = "/runtime/managed", tag = "system",
     responses((status = 200, body = ManagedRuntimeStatus), (status = 401, body = ErrorBody)))]
 pub async fn managed_runtime(State(s): State<AppState>) -> ApiResult<Json<ManagedRuntimeStatus>> {
     let runtime = s.ctx.runtime.clone();

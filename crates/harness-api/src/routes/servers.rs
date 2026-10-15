@@ -236,7 +236,7 @@ pub async fn start_server(
 /// The last failure of a server and, after an out-of-memory failure, the ways to retry
 /// (lower `-ngl`/context/`-ub`, KV cache quantization, `--fit`, MoE experts on the CPU, stop
 /// another server), each with concrete values. `servers.no_failure` (409) when it has none.
-#[utoipa::path(get, path = "/servers/{id}/recovery", tag = "servers",
+#[utoipa::path(get, operation_id = "get_server_recovery", path = "/servers/{id}/recovery", tag = "servers",
     params(("id" = String, Path)),
     responses((status = 200, body = RecoveryPlan), (status = 404, body = ErrorBody),
         (status = 409, body = ErrorBody)))]
@@ -271,7 +271,7 @@ pub struct RetryRequest {
 
 /// Starts a stopped or failed server again: its last launch with the given overrides (for
 /// this start only unless `save`). A real start; poll `GET /servers/{id}` for the result.
-#[utoipa::path(post, path = "/servers/{id}/retry", tag = "servers",
+#[utoipa::path(post, operation_id = "retry_server", path = "/servers/{id}/retry", tag = "servers",
     params(("id" = String, Path)), request_body = RetryRequest,
     responses((status = 202, body = ServerView), (status = 404, body = ErrorBody),
         (status = 409, body = ErrorBody), (status = 422, body = ErrorBody)))]
@@ -335,7 +335,7 @@ pub struct ExposureAckRequest {
 
 /// "Open anyway" for a network bind without an API key (admin only; same record as the GUI's
 /// confirmation). Never allowed while built-in tools / MCP are on.
-#[utoipa::path(post, path = "/servers/{id}/exposure-ack", tag = "servers",
+#[utoipa::path(post, operation_id = "acknowledge_server_exposure", path = "/servers/{id}/exposure-ack", tag = "servers",
     params(("id" = String, Path)), request_body = ExposureAckRequest,
     responses((status = 204), (status = 403, body = ErrorBody)))]
 pub async fn acknowledge_exposure(
@@ -364,7 +364,7 @@ pub struct LoadResponse {
 
 /// Loads a definition: on an instance (restarted if it runs something else), on a profile
 /// serving it, or on a new instance.
-#[utoipa::path(post, path = "/load", tag = "servers", request_body = LoadRequest,
+#[utoipa::path(post, operation_id = "load_model", path = "/load", tag = "servers", request_body = LoadRequest,
     responses((status = 202, body = LoadResponse), (status = 404, body = ErrorBody),
         (status = 409, body = ErrorBody)))]
 pub async fn load(
@@ -410,7 +410,7 @@ pub struct UnloadResponse {
     pub stopped: Vec<String>,
 }
 
-#[utoipa::path(post, path = "/unload", tag = "servers", request_body = UnloadRequest,
+#[utoipa::path(post, operation_id = "unload_model", path = "/unload", tag = "servers", request_body = UnloadRequest,
     responses((status = 200, body = UnloadResponse), (status = 404, body = ErrorBody)))]
 pub async fn unload(
     State(s): State<AppState>,
@@ -452,7 +452,7 @@ pub struct RouterModelsResponse {
 
 /// The models of a router server (llama-server `--models-dir`) and whether each is loaded.
 /// 409 when the server is not running or not in router mode.
-#[utoipa::path(get, path = "/servers/{id}/router/models", tag = "servers",
+#[utoipa::path(get, operation_id = "list_router_models", path = "/servers/{id}/router/models", tag = "servers",
     params(("id" = String, Path)),
     responses((status = 200, body = RouterModelsResponse), (status = 404, body = ErrorBody),
         (status = 409, body = ErrorBody)))]
@@ -478,7 +478,7 @@ pub struct RouterModelRequest {
 
 /// Loads one model of a router server (it stays loaded until unloaded or evicted by
 /// `--models-max`).
-#[utoipa::path(post, path = "/servers/{id}/router/models/load", tag = "servers",
+#[utoipa::path(post, operation_id = "router_load_model", path = "/servers/{id}/router/models/load", tag = "servers",
     params(("id" = String, Path)), request_body = RouterModelRequest,
     responses((status = 200, body = harness_core::router::RouterModel),
         (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)))]
@@ -495,7 +495,7 @@ pub async fn router_load(
 }
 
 /// Unloads one model of a router server.
-#[utoipa::path(post, path = "/servers/{id}/router/models/unload", tag = "servers",
+#[utoipa::path(post, operation_id = "router_unload_model", path = "/servers/{id}/router/models/unload", tag = "servers",
     params(("id" = String, Path)), request_body = RouterModelRequest,
     responses((status = 200, body = harness_core::router::RouterModel),
         (status = 404, body = ErrorBody), (status = 409, body = ErrorBody)))]
@@ -509,6 +509,7 @@ pub async fn router_unload(
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct MetricsQuery {
     /// Also return up to this many history points (1 Hz, newest last).
     pub history: Option<usize>,
@@ -521,7 +522,7 @@ pub struct MetricsResponse {
 }
 
 /// Live telemetry (sampled once a second from `/metrics` and `/slots`).
-#[utoipa::path(get, path = "/servers/{id}/metrics", tag = "servers",
+#[utoipa::path(get, operation_id = "get_server_metrics", path = "/servers/{id}/metrics", tag = "servers",
     params(("id" = String, Path), MetricsQuery),
     responses((status = 200, body = MetricsResponse), (status = 404, body = ErrorBody)))]
 pub async fn metrics(
@@ -553,7 +554,7 @@ pub struct EffectiveResponse {
     pub values: Option<EffectiveLaunchValues>,
 }
 
-#[utoipa::path(get, path = "/servers/{id}/effective", tag = "servers",
+#[utoipa::path(get, operation_id = "get_effective_server_config", path = "/servers/{id}/effective", tag = "servers",
     params(("id" = String, Path)),
     responses((status = 200, body = EffectiveResponse), (status = 404, body = ErrorBody)))]
 pub async fn effective(
@@ -585,7 +586,7 @@ pub struct LoraSetRequest {
 
 /// LoRA adapters a running server loaded (`GET /lora-adapters` of llama-server), with their
 /// current scales. `lora.server_not_running` (409) unless the server runs.
-#[utoipa::path(get, path = "/servers/{id}/lora", tag = "servers",
+#[utoipa::path(get, operation_id = "list_server_loras", path = "/servers/{id}/lora", tag = "servers",
     params(("id" = String, Path)),
     responses((status = 200, body = LoraResponse), (status = 409, body = ErrorBody),
         (status = 422, body = ErrorBody)))]
@@ -601,7 +602,7 @@ pub async fn lora_list(
 
 /// Sets the scales of a running server's LoRA adapters without a restart (scale 0 turns an
 /// adapter off). Returns the adapters as the server reports them afterwards.
-#[utoipa::path(post, path = "/servers/{id}/lora", tag = "servers",
+#[utoipa::path(post, operation_id = "set_server_loras", path = "/servers/{id}/lora", tag = "servers",
     params(("id" = String, Path)), request_body = LoraSetRequest,
     responses((status = 200, body = LoraResponse), (status = 404, body = ErrorBody),
         (status = 409, body = ErrorBody), (status = 422, body = ErrorBody)))]
@@ -617,6 +618,7 @@ pub async fn lora_set(
 }
 
 #[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct LogsQuery {
     /// Sequence number to continue from (`next` of the previous call); omitted = the buffer.
     pub since: Option<u64>,
@@ -632,7 +634,7 @@ pub struct LogsResponse {
 }
 
 /// Live log of the current run (ring buffer of the last 1000 lines).
-#[utoipa::path(get, path = "/servers/{id}/logs", tag = "servers",
+#[utoipa::path(get, operation_id = "get_server_logs", path = "/servers/{id}/logs", tag = "servers",
     params(("id" = String, Path), LogsQuery),
     responses((status = 200, body = LogsResponse), (status = 404, body = ErrorBody)))]
 pub async fn logs(
@@ -655,7 +657,7 @@ pub async fn logs(
 
 /// New log lines as server-sent events (`event: log`, data = `LogsResponse`), from `since`
 /// (default: lines arriving from now on).
-#[utoipa::path(get, path = "/servers/{id}/logs/stream", tag = "events",
+#[utoipa::path(get, operation_id = "stream_server_logs", path = "/servers/{id}/logs/stream", tag = "events",
     params(("id" = String, Path), LogsQuery),
     responses((status = 200, content_type = "text/event-stream", body = LogsResponse),
         (status = 404, body = ErrorBody)))]

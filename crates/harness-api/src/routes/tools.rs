@@ -47,6 +47,7 @@ pub async fn list_tools(Q(q): Q<ListToolsQuery>) -> ApiResult<Json<ToolListing>>
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ListToolsQuery {
     /// Do not start or reconnect MCP servers first (the MCP tools already connected are still
     /// listed). `harness mcp` lists this way: if Harness consumed its own `harness mcp`, a
@@ -56,6 +57,7 @@ pub struct ListToolsQuery {
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct McpStatusQuery {
     /// Try again servers that failed to start (they are left alone for a minute otherwise).
     #[serde(default)]
@@ -65,7 +67,7 @@ pub struct McpStatusQuery {
 /// Harness's own MCP client: each configured server (`mcp_servers.json`) with its state
 /// (`idle`, `connected`, `failed` + `error`, `disabled`), transport, negotiated MCP version and
 /// the number of tools it registered. Servers are started on the first call.
-#[utoipa::path(get, path = "/tools/mcp", tag = "tools", params(McpStatusQuery),
+#[utoipa::path(get, operation_id = "get_mcp_status", path = "/tools/mcp", tag = "tools", params(McpStatusQuery),
     responses((status = 200, body = Vec<McpServerStatus>)))]
 pub async fn mcp_status(Q(q): Q<McpStatusQuery>) -> ApiResult<Json<Vec<McpServerStatus>>> {
     let service = ToolService::shared();
@@ -85,7 +87,7 @@ fn mcp_server_status(service: &ToolService, server: &str) -> ApiResult<McpServer
 
 /// The resources and resource templates of an MCP server (`resources/list`,
 /// `resources/templates/list`). Needs `tools`.
-#[utoipa::path(get, path = "/tools/mcp/{server}/resources", tag = "tools",
+#[utoipa::path(get, operation_id = "list_mcp_resources", path = "/tools/mcp/{server}/resources", tag = "tools",
     params(("server" = String, Path, description = "Server name in `mcp_servers.json`")),
     responses((status = 200, body = ResourceList), (status = 404, body = ErrorBody),
         (status = 422, body = ErrorBody)))]
@@ -96,6 +98,7 @@ pub async fn mcp_resources(P(server): P<String>) -> ApiResult<Json<ResourceList>
 }
 
 #[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct ResourceQuery {
     /// The resource's URI (from the list, or a filled-in template).
     pub uri: String,
@@ -107,7 +110,7 @@ pub struct ResourceRead {
 }
 
 /// Reads one resource of an MCP server (`resources/read`). Needs `tools`.
-#[utoipa::path(get, path = "/tools/mcp/{server}/resource", tag = "tools",
+#[utoipa::path(get, operation_id = "read_mcp_resource", path = "/tools/mcp/{server}/resource", tag = "tools",
     params(("server" = String, Path, description = "Server name in `mcp_servers.json`"), ResourceQuery),
     responses((status = 200, body = ResourceRead), (status = 404, body = ErrorBody),
         (status = 422, body = ErrorBody)))]
@@ -124,7 +127,7 @@ pub async fn mcp_resource(
 /// Authorizes a remote MCP server (OAuth, MCP authorization spec): opens the system browser of
 /// the machine Harness runs on and waits up to five minutes for the user to approve. The new
 /// token is stored in the OS keychain and the server is connected with it. Needs `admin`.
-#[utoipa::path(post, path = "/tools/mcp/{server}/authorize", tag = "tools",
+#[utoipa::path(post, operation_id = "authorize_mcp_server", path = "/tools/mcp/{server}/authorize", tag = "tools",
     params(("server" = String, Path, description = "Server name in `mcp_servers.json`")),
     responses((status = 200, body = McpServerStatus), (status = 404, body = ErrorBody),
         (status = 422, body = ErrorBody)))]
@@ -143,7 +146,7 @@ pub async fn mcp_authorize(P(server): P<String>) -> ApiResult<Json<McpServerStat
 }
 
 /// Forgets the OAuth sign-in of an MCP server and ends its connection. Needs `admin`.
-#[utoipa::path(post, path = "/tools/mcp/{server}/logout", tag = "tools",
+#[utoipa::path(post, operation_id = "logout_mcp_server", path = "/tools/mcp/{server}/logout", tag = "tools",
     params(("server" = String, Path, description = "Server name in `mcp_servers.json`")),
     responses((status = 200, body = McpServerStatus), (status = 404, body = ErrorBody)))]
 pub async fn mcp_logout(P(server): P<String>) -> ApiResult<Json<McpServerStatus>> {
@@ -306,7 +309,7 @@ pub async fn run_tool(
 
 /// The tool log, newest first: every call from every client (also the refused ones), with the
 /// arguments (long texts shortened), duration, outcome and network target. Needs `admin`.
-#[utoipa::path(get, path = "/tools/log", tag = "tools", params(ToolCallQuery),
+#[utoipa::path(get, operation_id = "list_tool_calls", path = "/tools/log", tag = "tools", params(ToolCallQuery),
     responses((status = 200, body = Vec<ToolCallRow>)))]
 pub async fn tool_log(Q(q): Q<ToolCallQuery>) -> ApiResult<Json<Vec<ToolCallRow>>> {
     let rows = blocking(move || -> Result<Vec<ToolCallRow>, String> {
@@ -335,28 +338,26 @@ pub struct AutoActionRequest {
     pub id: Option<String>,
     pub order: Option<Vec<String>>,
 }
-#[utoipa::path(get, path = "/tools/inventory", tag = "tools", responses((status = 200, body = Value)))]
-pub async fn inventory() -> ApiResult<Json<Value>> {
+/// Every tool the automatic generator sees (built-in, installed, MCP), with its category.
+#[utoipa::path(get, operation_id = "get_tool_inventory", path = "/tools/inventory", tag = "tools", responses((status = 200, body = Vec<harness_core::tools::automatic::InventoryTool>)))]
+pub async fn inventory() -> ApiResult<Json<Vec<harness_core::tools::automatic::InventoryTool>>> {
     let service = ToolService::shared();
     service
         .sync_mcp_bounded(false, Duration::from_secs(8))
         .await;
-    Ok(Json(
-        serde_json::to_value(tools::automatic::inventory(
-            service,
-            &tools::installed::tools_root(),
-        ))
-        .map_err(|e| ApiError::core(e.to_string()))?,
-    ))
+    Ok(Json(tools::automatic::inventory(
+        service,
+        &tools::installed::tools_root(),
+    )))
 }
-#[utoipa::path(get, path = "/tools/automatic", tag = "tools", responses((status = 200, body = Value)))]
+#[utoipa::path(get, operation_id = "get_tool_generation", path = "/tools/automatic", tag = "tools", responses((status = 200, description = "The automatic tool generator's run state (its queue, drafts, usage and log). The GUI's working format: not a stable contract", body = Object)))]
 pub async fn auto_state() -> ApiResult<Json<Value>> {
     Ok(Json(
         serde_json::to_value(tools::automatic::AutoGenerator::shared()?.snapshot())
             .map_err(|e| ApiError::core(e.to_string()))?,
     ))
 }
-#[utoipa::path(post, path = "/tools/automatic/start", tag = "tools", request_body = AutoStartRequest, responses((status = 200, body = Value)))]
+#[utoipa::path(post, operation_id = "start_tool_generation", path = "/tools/automatic/start", tag = "tools", request_body = AutoStartRequest, responses((status = 200, description = "The automatic tool generator's run state (its queue, drafts, usage and log). The GUI's working format: not a stable contract", body = Object)))]
 pub async fn auto_start(Body(req): Body<AutoStartRequest>) -> ApiResult<Json<Value>> {
     let s = tools::automatic::AutoGenerator::shared()?.launch(
         req.endpoint,
@@ -368,7 +369,7 @@ pub async fn auto_start(Body(req): Body<AutoStartRequest>) -> ApiResult<Json<Val
         serde_json::to_value(s).map_err(|e| ApiError::core(e.to_string()))?,
     ))
 }
-#[utoipa::path(post, path = "/tools/automatic/action", tag = "tools", request_body = AutoActionRequest, responses((status = 200, body = Value)))]
+#[utoipa::path(post, operation_id = "tool_generation_action", path = "/tools/automatic/action", tag = "tools", request_body = AutoActionRequest, responses((status = 200, description = "The automatic tool generator's run state (its queue, drafts, usage and log). The GUI's working format: not a stable contract", body = Object)))]
 pub async fn auto_action(Body(req): Body<AutoActionRequest>) -> ApiResult<Json<Value>> {
     let worker = tools::automatic::AutoGenerator::shared()?;
     let s = match req.action.as_str() {
