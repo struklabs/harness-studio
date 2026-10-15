@@ -12727,6 +12727,13 @@
           "has_audio_encoder": {
             "type": "boolean"
           },
+          "audio_projector": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Projector type of the audio encoder (`clip.projector_type` of an audio projector, else\n`clip.audio.projector_type`): `lfm2a`, `qwen3asr`, `voxtral`, `ultravox`... It picks the\ntranscription prompt of a chat model that hears (`crate::asr::llm`)."
+          },
           "has_classifier_labels": {
             "type": "boolean",
             "description": "A `<arch>.classifier.output_labels` key exists (classification heads, e.g. rerankers)."

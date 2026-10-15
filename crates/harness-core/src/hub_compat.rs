@@ -1106,8 +1106,9 @@ mod tests {
 
     /// GGUF repos of the Hub's most downloaded speech and audio models (2026-10-13), with their
     /// `pipeline_tag`: containers for audio.cpp, transcribe.cpp, NeMo and other engines that
-    /// llama-server does not load. They were listed as runnable on llama.cpp.
-    const AUDIO_GGUF_REPOS: [(&str, &str); 19] = [
+    /// llama-server does not load. They were listed as runnable on llama.cpp. (LFM2.5-Audio's
+    /// `audio-to-audio` GGUF has a projector: `hub_tasks::analyze_repo` reads it as audio chat.)
+    const AUDIO_GGUF_REPOS: [(&str, &str); 18] = [
         ("audio-cpp/audio.cpp-gguf", "text-to-speech"),
         ("pnnbao-ump/VieNeu-TTS-v3-Turbo", "text-to-speech"),
         ("ampixa/sanoTTS", "text-to-speech"),
@@ -1133,7 +1134,6 @@ mod tests {
             "automatic-speech-recognition",
         ),
         ("audio-cpp/SAM-Audio-GGUF", "audio-to-audio"),
-        ("LiquidAI/LFM2.5-Audio-1.5B-JP-GGUF", "audio-to-audio"),
         ("chenmozhijin/BSRoformer-GGUF", "audio-to-audio"),
         ("cstr/qwen3-tts-tokenizer-12hz-GGUF", "audio-to-audio"),
         ("audio-cpp/RE-USE-GGUF", "audio-to-audio"),

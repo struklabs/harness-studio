@@ -135,6 +135,11 @@ pub struct GgufMetadata {
     pub has_vision_encoder: bool,
     #[serde(default)]
     pub has_audio_encoder: bool,
+    /// Projector type of the audio encoder (`clip.projector_type` of an audio projector, else
+    /// `clip.audio.projector_type`): `lfm2a`, `qwen3asr`, `voxtral`, `ultravox`... It picks the
+    /// transcription prompt of a chat model that hears (`crate::asr::llm`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio_projector: Option<String>,
     /// A `<arch>.classifier.output_labels` key exists (classification heads, e.g. rerankers).
     #[serde(default)]
     pub has_classifier_labels: bool,
@@ -393,6 +398,7 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
 
     let mut audio_flag = None;
     let mut audio_hint = false;
+    let mut audio_projector: Option<String> = None;
     for _ in 0..kv_count {
         let Ok(key) = read_string(&mut reader) else {
             kv_complete = false;
@@ -443,10 +449,19 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
             }
             "clip.projector_type" if val_type == GgufType::String => {
                 let kind = read_string(&mut reader)?;
-                audio_hint |= matches!(
+                let audio = matches!(
                     kind.as_str(),
                     "ultravox" | "voxtral" | "qwen2a" | "qwen25o" | "lfm2a" | "qwen3a" | "qwen3asr"
                 );
+                audio_hint |= audio;
+                if audio {
+                    audio_projector = Some(kind);
+                }
+            }
+            "clip.audio.projector_type" if val_type == GgufType::String => {
+                audio_hint = true;
+                let kind = read_string(&mut reader)?;
+                audio_projector.get_or_insert(kind);
             }
             k if k.starts_with("clip.audio.") => {
                 audio_hint = true;
@@ -623,6 +638,7 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
     meta.is_mmproj =
         general_type.as_deref() == Some("mmproj") || meta.architecture.as_deref() == Some("clip");
     meta.has_audio_encoder = audio_flag.unwrap_or(audio_hint);
+    meta.audio_projector = audio_projector.filter(|_| meta.has_audio_encoder);
     meta.general_type = general_type;
     if has_tokenizer {
         meta.tokenizer = Some(tok);

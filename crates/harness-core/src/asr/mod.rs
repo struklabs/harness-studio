@@ -25,6 +25,7 @@
 pub mod catalog;
 pub mod crispasr;
 pub mod diarize;
+pub mod llm;
 pub mod onnx;
 pub mod run;
 

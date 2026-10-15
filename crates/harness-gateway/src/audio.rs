@@ -382,6 +382,25 @@ async fn run(
         ))
         .param("response_format"));
     }
+    // A llama.cpp chat model whose projector hears (LFM2.5-Audio, Qwen3-ASR...): the audio
+    // goes to its llama-server as chat completions.
+    if let Some(projector) = harness_core::asr::llm::projector_of(&def) {
+        return crate::audio_llm::transcribe(
+            state,
+            crate::audio_llm::Request {
+                task,
+                def: &def,
+                projector: &projector,
+                audio: bytes,
+                language: form.language.as_deref(),
+                prompt: form.prompt.as_deref(),
+                temperature: form.temperature.as_deref().and_then(|t| t.parse().ok()),
+                format,
+            },
+            guard,
+        )
+        .await;
+    }
     // A speech recognition model of the Python engine or of mlx-audio answers OpenAI's request
     // itself (after the audio is in a container it reads, below).
     let python = crate::pyhf::task_of(&def)
