@@ -1629,16 +1629,52 @@
     return () => cancelIdleCallback(handle);
   });
 
+  /** The running follow-the-end loop of scrollToBottom; a new call restarts its frame count. */
+  let bottomSettle: { frames: number } | null = null;
   function scrollToBottom(force = false) {
     if (force) stickToBottom = true;
     if (scrollQueued) return;
     scrollQueued = true;
     requestAnimationFrame(() => {
       scrollQueued = false;
-      if (listEl && stickToBottom) listEl.scrollTop = listEl.scrollHeight;
+      if (listEl && stickToBottom) {
+        listEl.scrollTop = listEl.scrollHeight;
+        // Messages rendered for the first time (content-visibility) can turn out taller than
+        // their estimate and push the end down: follow it for a few frames.
+        // The growth itself fires scroll events that clear stickToBottom, so only a user input stops this.
+        if (bottomSettle) bottomSettle.frames = 0;
+        else followEnd(listEl);
+      }
       // A short tail that does not scroll never fires a scroll event: fill upwards from here.
       if (listEl && listEl.scrollHeight - listEl.clientHeight < 600 && needsOlder(shownStart, listEl.scrollTop)) void mountOlder();
     });
+  }
+
+  /** Keeps the list at its end for a few frames while newly rendered messages settle their height. */
+  function followEnd(el: HTMLDivElement) {
+    const state = { frames: 0 };
+    bottomSettle = state;
+    let userMoved = false;
+    const stop = () => (userMoved = true);
+    const opts = { once: true, passive: true } as const;
+    el.addEventListener('wheel', stop, opts);
+    el.addEventListener('pointerdown', stop, opts);
+    el.addEventListener('keydown', stop, opts);
+    const settle = () => {
+      if (userMoved || el !== listEl || ++state.frames > 8) {
+        bottomSettle = null;
+        el.removeEventListener('wheel', stop);
+        el.removeEventListener('pointerdown', stop);
+        el.removeEventListener('keydown', stop);
+        return;
+      }
+      if (el.scrollHeight - el.scrollTop - el.clientHeight > 1) {
+        el.scrollTop = el.scrollHeight;
+        stickToBottom = true;
+      }
+      requestAnimationFrame(settle);
+    };
+    requestAnimationFrame(settle);
   }
 
   // ---- Composer ----
