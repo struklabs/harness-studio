@@ -366,6 +366,7 @@ pub fn is_out_of_memory(code: &str, params: &Map<String, Value>) -> bool {
     code == "cli.out_of_memory"
         || code == "servers.out_of_memory"
         || code == "servers.insufficient_memory"
+        || code == "servers.mlx_insufficient_memory"
         || code == "process.gpu_out_of_memory"
         || params
             .values()
@@ -639,6 +640,7 @@ mod tests {
     fn memory_refusals_exit_as_out_of_memory() {
         let none = Map::new();
         assert!(is_out_of_memory("servers.insufficient_memory", &none));
+        assert!(is_out_of_memory("servers.mlx_insufficient_memory", &none));
         assert!(is_out_of_memory("process.gpu_out_of_memory", &none));
         assert!(!is_out_of_memory("servers.port_in_use", &none));
     }

@@ -305,6 +305,7 @@ pub async fn launch_profile(
         )
     })
     .await??;
+    check_mlx_fit(&config).await?;
     launch(registry, runtime_mgr, gate, profile_id.to_string(), config).await
 }
 
@@ -328,6 +329,7 @@ pub async fn launch_form(
         }
     })
     .await??;
+    check_mlx_fit(&resolved).await?;
     launch(registry, runtime_mgr, gate, id, resolved).await
 }
 
@@ -440,6 +442,7 @@ pub async fn run_load_plan(
 /// load often reports ready and only runs out of memory on the first request. Elsewhere and
 /// for CPU-only, router, whisper or `--fit` loads: nothing to check.
 async fn check_unified_fit(config: &LaunchConfig) -> Result<(), String> {
+    check_mlx_fit(config).await?;
     if !cfg!(target_os = "macos")
         || config.gpu_layers == 0
         || config.router_mode
@@ -458,6 +461,51 @@ async fn check_unified_fit(config: &LaunchConfig) -> Result<(), String> {
         return Err(err("servers.insufficient_memory")
             .num("need_mib", fit.estimate.vram_bytes.div_ceil(MIB))
             .num("budget_mib", fit.budget.vram_bytes / MIB)
+            .into());
+    }
+    Ok(())
+}
+
+/// Whether an engine family runs on MLX (Apple Silicon, unified memory).
+fn is_mlx_family(family: &str) -> bool {
+    [
+        crate::engine::mlx::MLX,
+        crate::engine::mlx::MLX_VLM,
+        crate::engine::mlx::MLX_AUDIO,
+    ]
+    .contains(&family)
+}
+
+/// macOS: refuses an MLX load (chat, vision, speech) whose weights cannot fit in the GPU share
+/// of the unified memory ([`crate::engine::mlx::vram_need`]: weights + 20% + 300 MiB), before
+/// anything is stopped or spawned. MLX maps the weights lazily and then pushes the whole system
+/// into swap: on an M1 8 GB a 6.7 GB model brought memory pressure to critical in about 10 s.
+/// Every start path checks it (load, Dashboard, profiles); other engines pass.
+async fn check_mlx_fit(config: &LaunchConfig) -> Result<(), String> {
+    if !cfg!(target_os = "macos")
+        || !is_mlx_family(crate::engine::server_for(config).family())
+        || !config.model_path.exists()
+    {
+        return Ok(());
+    }
+    let config = config.clone();
+    let (need, budget) = blocking(move || {
+        (
+            crate::engine::mlx::vram_need(&config),
+            crate::vram::budget(&crate::hardware::detect_hardware()),
+        )
+    })
+    .await?;
+    mlx_fit_verdict(need, &budget)
+}
+
+/// The verdict of [`check_mlx_fit`] for an estimate and a memory budget.
+fn mlx_fit_verdict(need: u64, budget: &crate::vram::MemoryBudget) -> Result<(), String> {
+    const MIB: u64 = 1024 * 1024;
+    if budget.unified && budget.vram_bytes > 0 && need > budget.vram_bytes {
+        return Err(err("servers.mlx_insufficient_memory")
+            .num("need_mib", need.div_ceil(MIB))
+            .num("budget_mib", budget.vram_bytes / MIB)
             .into());
     }
     Ok(())
@@ -1415,6 +1463,37 @@ fn save_overrides(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An MLX model whose weights (+20% + 300 MiB) exceed the GPU share of unified memory is
+    /// refused with the numbers; one that fits, a non-unified machine and an unknown budget pass.
+    #[test]
+    fn mlx_loads_that_cannot_fit_unified_memory_are_refused() {
+        const GIB: u64 = 1 << 30;
+        let m1_8gb = crate::vram::MemoryBudget {
+            vram_bytes: 5_726_623_744, // recommendedMaxWorkingSetSize of an M1 8 GB
+            ram_bytes: 8 * GIB,
+            unified: true,
+            ..Default::default()
+        };
+        // Qwen3-8B-6bit: 6.2 GiB of weights (measured: memory pressure critical in ~10 s).
+        let need = 6_200_000_000u64 + 6_200_000_000 / 5 + (300 << 20);
+        let e = mlx_fit_verdict(need, &m1_8gb).unwrap_err();
+        assert!(e.starts_with("servers.mlx_insufficient_memory"), "{e}");
+        assert!(e.contains("\"budget_mib\":5461"), "{e}");
+        // Qwen3-4B-4bit: 2.1 GiB fits.
+        assert!(mlx_fit_verdict(2_100_000_000 + 420_000_000 + (300 << 20), &m1_8gb).is_ok());
+        let discrete = crate::vram::MemoryBudget {
+            unified: false,
+            ..m1_8gb
+        };
+        assert!(mlx_fit_verdict(need, &discrete).is_ok());
+        let unknown = crate::vram::MemoryBudget {
+            vram_bytes: 0,
+            ..m1_8gb
+        };
+        assert!(mlx_fit_verdict(need, &unknown).is_ok());
+        assert!(is_mlx_family("mlx-audio") && !is_mlx_family("llama.cpp"));
+    }
 
     #[tokio::test]
     async fn sampler_rests_without_servers_or_watchers() {
