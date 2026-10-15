@@ -12158,6 +12158,11 @@
                 "keep_links": 2
               }
             }
+          },
+          "decision_emulation": {
+            "type": "boolean",
+            "description": "`/v1/systemone` and `/v1/decisions` with a chat model: the gateway asks the model one\nconstrained question per decision (GBNF grammar) and reads the probabilities from its\nlogprobs. On by default; off = only native decision models answer, as in Ollama and LM\nStudio.",
+            "default": true
           }
         }
       },
@@ -12649,6 +12654,13 @@
           "has_classifier_labels": {
             "type": "boolean",
             "description": "A `<arch>.classifier.output_labels` key exists (classification heads, e.g. rerankers)."
+          },
+          "decision_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`<arch>.decision.type` (`vllm-d3`, `decision2`...): a native decision model, served\nthrough llama-server's `/v1/systemone` (llama.cpp lists it with the `decisions` output\nmodality)."
           },
           "has_cls_head": {
             "type": "boolean",
