@@ -75,7 +75,7 @@ registerHooks({
 });
 const { libraryKindKey } = await import('../src/lib/libraryDefinitions.ts');
 const { inTab, tabCounts } = await import('../src/lib/components/library/filters.ts');
-const { formatBytes } = await import('../src/lib/format.ts');
+const { formatBytes, formatBytesPair } = await import('../src/lib/format.ts');
 const { library } = await import('../src/lib/stores/library.svelte.ts');
 const { downloads, modelOfJob, openInPlayground } = await import('../src/lib/stores/downloads.svelte.ts');
 const file = (name, kind, task, architecture) => ({ id: name, name, filename: name, path: `C:/Models/${name}`, kind, task, architecture, is_ready: true });
@@ -109,6 +109,23 @@ test('shared size formatter promotes 1000 MB, keeping locale decimals', () => {
   assert.equal(formatBytes(1024 ** 3), '1 GB');
   assert.equal(formatBytes(null), '0 B');
   state.language = 'tr-TR';
+});
+
+test('memory pairs keep matching precision and locale separators', () => {
+  const GiB = 1024 ** 3;
+  try {
+    for (const [language, separator] of [['tr-TR', ','], ['en-US', '.']]) {
+      state.language = language;
+      assert.deepEqual(formatBytesPair(2 * GiB, 15.9 * GiB), { used: `2${separator}0`, rest: ` / 15${separator}9 GB` });
+      assert.deepEqual(formatBytesPair(512 * 1024 ** 2, 2 * GiB), { used: `512${separator}0 MB`, rest: ` / 2${separator}0 GB` });
+      assert.deepEqual(formatBytesPair(0, 16 * GiB), { used: `0${separator}0 B`, rest: ` / 16${separator}0 GB` });
+      assert.deepEqual(formatBytesPair(16 * GiB, 32 * GiB), { used: `16${separator}0`, rest: ` / 32${separator}0 GB` });
+      assert.deepEqual(formatBytesPair(2 * GiB, 15.9 * GiB, 2), { used: `2${separator}00`, rest: ` / 15${separator}90 GB` });
+      assert.equal(formatBytes(2 * GiB, 1), '2 GB');
+    }
+  } finally {
+    state.language = 'tr-TR';
+  }
 });
 
 test('a changed library rescans rather than reusing pre-completion directory contents', async () => {
