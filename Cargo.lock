@@ -2295,6 +2295,7 @@ name = "harness-studio"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "gio",
  "harness-api",
  "harness-core",
  "harness-gateway",

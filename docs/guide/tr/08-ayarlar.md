@@ -113,7 +113,7 @@ Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve
 
 ## Tepside sayfa bırakmak
 
-**Pencereyi kapatınca** seçimi **Tepsiye Küçült** ise pencereyi kapatmak uygulamayı kapatmaz: uygulama sistem tepsisinde (macOS'ta menü çubuğunda) çalışmaya devam eder, sunucular ve indirmeler sürer. Tepsi simgesinden pencere yeniden açılır; tamamen kapatmak için simgenin menüsündeki **Çıkış** kullanılır. **Uygulamadan Çık** seçiliyse çalışan sunucular durdurulur. Bu masaüstünde tepsi veya menü çubuğu simgesi yoksa pencereyi kapatmak uygulamadan çıkar.
+**Pencereyi kapatınca** seçimi **Tepsiye Küçült** ise pencereyi kapatmak uygulamayı kapatmaz: uygulama sistem tepsisinde (macOS'ta menü çubuğunda) çalışmaya devam eder, sunucular ve indirmeler sürer. Tepsi simgesinden pencere yeniden açılır; tamamen kapatmak için simgenin menüsündeki **Çıkış** kullanılır. **Uygulamadan Çık** seçiliyse çalışan sunucular durdurulur. Bu masaüstünde tepsi veya menü çubuğu simgesi yoksa pencereyi kapatmak uygulamadan çıkar. Linux'ta buna AppIndicator eklentisi olmayan standart GNOME da girer.
 
 Tepsideyken bellek tasarrufu için pencerenin web sayfası kapatılabilir:
 

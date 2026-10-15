@@ -93,6 +93,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Başlık: 1280 px genişliğindeki pencerede üretim hızı rozeti (t/s) Durdur düğmesinin altına çiziliyordu. Artık önce donanım etiketi daralıyor.
 - Linux: drop-down lists were drawn as GTK's light grey buttons, ignoring the theme. They now take the theme's background and border with a matching arrow.
 - Linux: açılır listeler temayı yok sayıp GTK'nin açık gri düğmesiyle çiziliyordu. Artık temanın arka planını ve kenarlığını, uyumlu bir okla kullanıyor.
+- Linux: on a desktop without a tray host (stock GNOME without the AppIndicator extension) the tray icon was created but never shown, and closing the window could hide it with no way back. The tray now counts only while a StatusNotifierWatcher is on the session bus; without one, closing quits.
+- Linux: tepsi sunucusu olmayan masaüstünde (AppIndicator eklentisi olmayan standart GNOME) tepsi simgesi oluşturuluyor ama hiç görünmüyordu ve pencereyi kapatmak onu geri getirilemez biçimde gizleyebiliyordu. Tepsi artık yalnız oturum veri yolunda bir StatusNotifierWatcher varken sayılıyor; yoksa kapatmak uygulamadan çıkar.
 - Model Hub: each card's help button (?) sits inside the card's top-right corner instead of beside it, so the grid columns stay aligned.
 - Python engine: a model that fails to load stops its worker at once with the reason, instead of waiting for the 300 s load timeout. SpeechT5 and FastSpeech2 are no longer offered for text-to-speech (their pipeline downloads a vocoder at load, which the offline worker cannot), and root SentencePiece files such as `spm_char.model` are downloaded.
 - Library: CrispASR and audio.cpp speech models show their real engine; audio.cpp processing models show their audio task.
