@@ -119,7 +119,7 @@
       class="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,auto)] items-center gap-3 pr-2 pl-4"
       data-tauri-drag-region
     >
-      <h1 class="min-w-0 truncate text-sm font-semibold tracking-tight text-foreground max-lg:sr-only" data-tauri-drag-region>{pageTitle}</h1>
+      <h1 id="page-title" class="min-w-0 truncate text-sm font-semibold tracking-tight text-foreground max-lg:sr-only" data-tauri-drag-region>{pageTitle}</h1>
 
       <button
         type="button"
