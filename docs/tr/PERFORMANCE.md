@@ -224,7 +224,7 @@ Dashboard'un VRAM çubuğunu tüketiciye göre bölmek için her telemetri turun
 
 **Sınırlar.**
 - Linux (`/proc/<pid>/fdinfo`) yolu birim testli ama test makinesinde ölçülmedi; maliyeti ağaçtaki süreçlerin açık dosya sayısıyla büyür (yalnız DRM satırı olan dosyalar ayrıştırılır).
-- macOS ve Linux'ta NVIDIA'da süreç başına sayaç kullanılmıyor (`nvidia-smi` tur başına süreç başlatırdı), çubuk bölünmüyor.
+- Linux'ta NVIDIA'da süreç başına bölme, süreç içinde `libnvidia-ml.so.1`'den yüklenen NVML'den gelir (donanımda doğrulanmadı); yalnız NVML yüklenemezse çubuk bölünmez (`nvidia-smi` tur başına süreç başlatırdı). macOS'ta çubuk bölünmez.
 - Yalnız izlenen (birincil) ekran kartı; Windows'ta yalnız `Dedicated Usage`.
 
 ### Tepsiden geri getirme: önceden kurma ve açılış ekranı
@@ -525,7 +525,7 @@ Her biri tek başına sığan iki istek birlikte havuzu aşınca llama-server ik
 
 # KV önbelleği hassasiyeti
 
-**Politika güncellemesi:** CUDA, Metal ve ROCm’da otomatik ve elle Tasarruf basamağı eşit q4_0/q4_0; Vulkan’ın ölçülmüş q8_0/q4_0 basamağı korunur. Ayrıntı backend bölümlerinde.
+**Politika güncellemesi:** CUDA, Metal ve ROCm’da otomatik merdiven yalnız eşit çiftlerden oluşur ve q8_0/q8_0’da biter: q4_0/q4_0, CUDA’da (b11342) Qwen3-0.6B’nin 8k ve 32k çıktısını bozdu ve bir Qwen3-4B araç çağrısını karıştırdı; q8_0/q8_0 sığmazsa ağ geçidi bunun yerine bağlamı küçültür. q4_0/q4_0 bu backend’lerde elle seçilen Tasarruf olarak kalır. Vulkan’ın ölçülmüş q8_0/q4_0 basamağı korunur. Ayrıntı backend bölümlerinde.
 
 Soru: konuşma hafızası (KV önbelleği, `--cache-type-k/-v`) hangi türde saklanmalı, ne zaman düşürülmeli? Hedef: kaliteyi bozmadan en az kaynak. Uygulanan politika: [ARCHITECTURE.md §5.4c](ARCHITECTURE.md#54c-kv-önbelleği-hassasiyeti-kv_policyrs). Tüm sayılar bu makinede (Windows 11, RX 7900 GRE 16 GB, 32 GB RAM) yönetilen runtime'ın kopyasıyla ölçüldü: llama.cpp **b11312** (0c1e57098) Vulkan, `-dev Vulkan0` (iGPU dışarıda), `-ngl 99 -fa on`. Bu build K/V nicemlenince Hadamard döndürmesini (PR #21038) kendiliğinden açıyor (logda `attn_rot_k = 1`).
 
@@ -536,7 +536,7 @@ Soru: konuşma hafızası (KV önbelleği, `--cache-type-k/-v`) hangi türde sak
 - **K, V'den hassas:** [PR #7412](https://github.com/ggml-org/llama.cpp/pull/7412) PPL farkları: q8_0/q8_0 +0,005; f16/q4_0 (yalnız V) +0,022; q4_0/q4_0 +0,21. Yazar K'nin çok daha hassas olduğunu belirtiyor. [Tartışma #5932](https://github.com/ggml-org/llama.cpp/discussions/5932): Qwen2 q4_0'da bozuluyor, K q8_0 + V q4_0 bunu düzeltiyor. Ollama'ya KV nicemlemeyi ekleyen yazarın ölçümü: q8_0 +0,002-0,05, q4_0 +0,2-0,25 PPL ([smcleod.net](https://smcleod.net/2024/12/bringing-k/v-context-quantisation-to-ollama/)).
 - **Döndürme:** [PR #21038](https://github.com/ggml-org/llama.cpp/pull/21038) (2026-04) nicemlemede Q/K/V'yi döndürerek düşük bitli KV kaybını büyük ölçüde azaltıyor (gpt-oss-20b AIME25'te q4_0 KV ile %2 → %21,7). Bu PR'dan önceki ölçümler bugünkü kaybı abartıyor.
 - **Backend:**
-  - CUDA varsayılan derlemesinde FA çekirdeği yalnız eşleşen çiftler için var (`q4_0-q4_0;q8_0-q8_0;f16-f16;bf16-bf16`). Karışık çift (q8_0/q4_0) `GGML_CUDA_FA_QUANTS=all` olmadan FA'yı **CPU'da** çalıştırıyor ([docs/build.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md), [#28633](https://github.com/ggml-org/llama.cpp/issues/28633)).
+  - CUDA varsayılan derlemesinde FA çekirdeği yalnız eşleşen çiftler için var (`q4_0-q4_0;q8_0-q8_0;f16-f16;bf16-bf16`). `GGML_CUDA_FA_QUANTS=all` olmadan karışık çift (q8_0/q4_0) her token'da GPU'da f16'ya çevriliyor (CPU'ya düşmüyor; üretim ölçümde %27-38 yavaş, bkz. [CUDA bölümü](#cuda)) ([docs/build.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md), [#28633](https://github.com/ggml-org/llama.cpp/issues/28633)).
   - ROCm'da da karışık çiftler yavaş yola düşüyor ([#22411](https://github.com/ggml-org/llama.cpp/discussions/22411)).
   - Vulkan'da aşağıdaki ölçüme göre karışık çift GPU'da kalıyor; hızı eşleşen çiftlerle aynı sınıfta.
 - **Model sınıfları:**
@@ -674,7 +674,7 @@ Süreç belleği (`-c 33792`, MiB):
 3. **İkinci basamak K q8_0 + V q4_0 ("Tasarruf"), q4_0 / q4_0 değil.**
    - Aynı modellerde KLD 3,5-8,5 kat düşük: Qwen3 0,0028 / 0,0236; Qwen2.5 0,0013 / 0,0071; gpt-oss 0,083 / 0,299.
    - İkisinin bellek farkı f16'nın %13'ü kadar.
-   - Karışık çift Vulkan'da hızlı. CUDA varsayılan derlemesinde karışık çiftler her token'da f16'ya çevrilip %27-38 yavaşlıyor ([CUDA bölümü](#cuda)): CUDA'da otomatik merdiven yalnız eşit çiftlerden oluşuyor (f16 → q8_0/q8_0 → q4_0/q4_0). Metal'de karışık çiftler istemi de %87-90 yavaşlatıyor ([Metal bölümü](#metal)); Metal'de de merdiven aynı.
+   - Karışık çift Vulkan'da hızlı. CUDA varsayılan derlemesinde karışık çiftler her token'da f16'ya çevrilip %27-38 yavaşlıyor ([CUDA bölümü](#cuda)): CUDA'da otomatik merdiven yalnız eşit çiftlerden oluşuyor (f16 → q8_0/q8_0, sonra daha küçük bağlam; q4_0/q4_0 yalnız elle seçilince). Metal'de karışık çiftler istemi de %87-90 yavaşlatıyor ([Metal bölümü](#metal)); Metal'de de merdiven aynı.
 4. **K q8_0 + V f16 (K-only), FA varken kullanılmıyor.**
    - KLD q8_0 / q8_0 ile aynı (0,00075 / 0,00071; gpt-oss 0,046 / 0,046).
    - Tasarrufu yarısı kadar (%23 / %47) ve gpt-oss'ta daha yavaş.
@@ -719,17 +719,17 @@ ROCm yoğun modellerde istem işlemede %35-36 hızlı, üretimde %10-11 yavaş; 
 Sonuçlar:
 - ROCm'da **istem işleme** her KV basamağında f16'nın en fazla %5 gerisinde (`kv_policy::prompt_slowdown_pct` ROCm için 5).
 - ROCm'da **üretim**, karışık çiftlerde (q8_0/f16, q8_0/q4_0) uzun bağlamda yavaş yola düşüyor: 16k'da −%20 ile −%33. Eşleşen çiftler (q8_0/q8_0, q4_0/q4_0) f16 hızında. Bu, upstream'in karışık çift notlarıyla uyumlu ([#22411](https://github.com/ggml-org/llama.cpp/discussions/22411)); Vulkan'da etkisi yok.
-- **Karar: eşit çift.** ROCm otomatik merdiveni artık CUDA/Metal ile aynı: f16/f16 → q8_0/q8_0 → q4_0/q4_0. Dashboard’daki Tasarruf seçimi de bu üç backend’de q4_0/q4_0’dır (KV yaklaşık %28); K’da daha düşük hassasiyet uzun bağlam doğruluğunu azaltabilir. ROCm Compact istem yavaşlama tahmini en fazla %5; elle karışık çiftte üretim için %20-33 uyarısı var. Açık K/V ayarları korunur. Vulkan’da f16/f16 → q8_0/q8_0 → q8_0/q4_0 değişmedi; flash attention kapalıysa tüm backend’lerde yalnız q8_0/f16 basamağı kullanılabilir. Yeni GPU ölçümü yapılmadı.
+- **Karar: eşit çift.** ROCm otomatik merdiveni artık CUDA/Metal ile aynı: f16/f16 → q8_0/q8_0, sonra daha küçük bağlam (q4_0/q4_0 sonradan otomatik merdivenden çıkarıldı, bkz. [CUDA bölümü](#cuda)). Dashboard’daki Tasarruf seçimi de bu üç backend’de q4_0/q4_0’dır (KV yaklaşık %28); K’da daha düşük hassasiyet uzun bağlam doğruluğunu azaltabilir. ROCm Compact istem yavaşlama tahmini en fazla %5; elle karışık çiftte üretim için %20-33 uyarısı var. Açık K/V ayarları korunur. Vulkan’da f16/f16 → q8_0/q8_0 → q8_0/q4_0 değişmedi; flash attention kapalıysa tüm backend’lerde yalnız q8_0/f16 basamağı kullanılabilir. Yeni GPU ölçümü yapılmadı.
 - CUDA ve Metal de ölçüldü (aşağıda).
 
 
 ## CUDA
 
-Soru: varsayılan CUDA build'inde KV politikası (karışık K/V çiftleri) nasıl davranıyor? Roadmap'te "karışık çift FA'yı CPU'ya düşürebilir" varsayımı vardı.
+Soru: varsayılan CUDA build'inde KV politikası (karışık K/V çiftleri) nasıl davranıyor? Daha önceki bir varsayım "karışık çift FA'yı CPU'ya düşürebilir" idi.
 
 **Ortam:** NVIDIA GeForce RTX 3050 Ti Laptop GPU 4 GB (cc 8.6) + Intel Iris Xe iGPU (Optimus; dGPU ekran sürmüyor, boşta 12 MiB), sürücü 616.92, CUDA 13.4, Windows. llama.cpp **b11327**, resmi `llama-b11327-bin-win-cuda-13.4-x64.zip` + cudart zip'i (`cudart64_13`, `cublas64_13`, `cublasLt64_13` yalnız cudart zip'inden). Model Qwen3-4B-Instruct-2507-Q4_K_M (2,32 GiB). Komut: `llama-bench -fa 1 -ngl 99 -p 512 -n 128 -d 0,8192,16384 -r 3`.
 
-> **Sürücü notu:** 616.92 Studio sürücüsü bu Optimus laptopta GPU boştayken TDR ile çöktü (nvlddmkm Event ID 153, `LKD_0x141_Tdr:6_IMAGE_nvlddmkm.sys_Ampere`, ekran kararması ve bir kez sistem kilitlenmesi). Ölçümler bu sürücüyle sorunsuz tamamlandı; çökmeler llama.cpp yükünden bağımsız. Sürücü 581.29'a geri alınırsa sonuçlar o sürümle tekrarlanacak.
+> **Sürücü notu:** 616.92 Studio sürücüsü bu Optimus laptopta GPU boştayken TDR ile çöktü (nvlddmkm Event ID 153, `LKD_0x141_Tdr:6_IMAGE_nvlddmkm.sys_Ampere`, ekran kararması ve bir kez sistem kilitlenmesi). Ölçümler bu sürücüyle sorunsuz tamamlandı; çökmeler llama.cpp yükünden bağımsız. Sonuçlar daha eski bir sürücü sürümüyle tekrarlanmadı.
 
 **KV türü** (pp512 / tg128, t/sn):
 
@@ -751,10 +751,10 @@ Soru: varsayılan CUDA build'inde KV politikası (karışık K/V çiftleri) nas�
 - **İstem işleme etkilenmiyor** (derinlik 8192'de f16'dan en fazla %6 geri: 1441-1488 / 1534). **Üretim** karışık çiftlerde derinlikte %27-38 yavaş (d=8192: q8_0/f16 32,5 ve q8_0/q4_0 28,2 t/sn, f16 44,3; d=16384: q8_0/q4_0 18,5, q8_0/q8_0 29,9). Eşit çiftler d=8192'de f16'nın ~%10 gerisinde (39,5-39,8 / 44,3 t/sn) ve f16'nın taştığı 16k'da tek hızlı yol (29,7-29,9 t/sn).
 
 **Sonuç ve uygulama:**
-- CUDA'da "Otomatik" merdiveni yalnız eşit çiftler: f16/f16 → q8_0/q8_0 → q4_0/q4_0 (`kv_policy::CUDA_LADDER`; yeni basamak `KvLevel::Compact`). ROCm da aynı eşit çift merdivenine geçti; Vulkan değişmedi. Karışık çift yalnız kullanıcı açıkça seçerse kullanılıyor; bellek tahmini bu durumda dönüştürme arabelleğini ekliyor (`kv_policy::cuda_convert_buffer_bytes`: bir katmanın nicemli taraflarının f16 boyutu; Qwen3-4B 16k'da q8_0/q4_0 için 64 MiB, q8_0/f16 için 32 MiB).
+- CUDA'da "Otomatik" merdiveni yalnız eşit çiftler: f16/f16 → q8_0/q8_0 (`kv_policy::CUDA_LADDER`); q8_0/q8_0 sığmazsa bağlam küçültülür. q4_0/q4_0 (`KvLevel::Compact`) hiçbir zaman otomatik seçilmez: b11342'de Qwen3-0.6B'nin 8k ve 32k çıktısını bozdu (f16 ve q8_0/q8_0 doğru yanıtladı) ve bir Qwen3-4B araç çağrısını karıştırdı; elle Tasarruf seçimi olarak kalır. ROCm da aynı eşit çift merdivenine geçti; Vulkan değişmedi. Karışık çift yalnız kullanıcı açıkça seçerse kullanılıyor; bellek tahmini bu durumda dönüştürme arabelleğini ekliyor (`kv_policy::cuda_convert_buffer_bytes`: bir katmanın nicemli taraflarının f16 boyutu; Qwen3-4B 16k'da q8_0/q4_0 için 64 MiB, q8_0/f16 için 32 MiB).
 - Sunucu günlüğündeki yukarıdaki satır tanınıyor (`capabilities::verify::kv_fa_fallback`): sunucu günlüğüne çalıştırma başına bir kez yerelleştirilmiş uyarı düşüyor ("Eşit bir çift kullanın"), Dashboard'ın "Etkin Değerler" şeridinde "Yavaş KV çifti" gösteriliyor.
 - `prompt_slowdown_pct` CUDA için: q8_0/f16 %3, q8_0/q8_0 %6, q8_0/q4_0 %6, q4_0/q4_0 %5 (d=8192, en kötü).
-- Bellek tahmini bu karta uyuyor: q8_0 16k için 3847 MiB (ölçülen kullanım 3813), q4_0 32k için 3935 MiB (3905); f16 16k 4927 MiB ve q8_0 32k 5087 MiB tahmin ediliyor, yani 4 GB'ı aşan iki durum önceden görülüyor (`cuda_4gb_card_avoids_the_overflowing_combinations`). Otomatik seçim bütçenin %90'ını (3686 MiB) aşmamaya çalıştığı için 16k'da q8_0 (3847 MiB) yerine q4_0/q4_0 seçiyor; ölçüm q8_0'ın 16k'da da f16 hızında çalıştığını gösteriyor, yani bu kart için temkinli. İsteyen "Dengeli"yi elle seçebilir.
+- Bellek tahmini bu karta uyuyor: q8_0 16k için 3847 MiB (ölçülen kullanım 3813), q4_0 32k için 3935 MiB (3905); f16 16k 4927 MiB ve q8_0 32k 5087 MiB tahmin ediliyor, yani 4 GB'ı aşan iki durum önceden görülüyor (`cuda_4gb_card_avoids_the_overflowing_combinations`). Otomatik seçim bütçenin %90'ını (3686 MiB) aşmamaya çalıştığı için o zamanki merdivenle 16k'da q8_0 (3847 MiB) yerine q4_0/q4_0 seçiyordu (bugün q8_0/q8_0'da kalıp bağlamı kısaltıyor); ölçüm q8_0'ın 16k'da da f16 hızında çalıştığını gösteriyor, yani bu kart için temkinli. İsteyen "Dengeli"yi elle seçebilir.
 
 ## Metal
 
@@ -779,7 +779,7 @@ Ek: f16/f16 d=8192'de pp512 44,84 ± 3,08, tg128 6,50 ± 0,12 (r=2).
 - **Eşit çiftler hızlı:** q8_0/q8_0 ve q4_0/q4_0 istem işlemede f16'dan hızlı (daha az bellek okuması), üretimde %10-22 geride.
 
 **Sonuç ve uygulama:**
-- Metal'de (Apple Silicon: birleşik bellek bütçesi, tümleşik GPU payı değil) "Otomatik" merdiveni CUDA ile aynı: f16/f16 → q8_0/q8_0 → q4_0/q4_0 (`kv_policy::CUDA_LADDER`). Intel/AMD tümleşik GPU'lar (Vulkan, paylaşılan RAM) eski merdivende kalıyor.
+- Metal'de (Apple Silicon: birleşik bellek bütçesi, tümleşik GPU payı değil) "Otomatik" merdiveni CUDA ile aynı: f16/f16 → q8_0/q8_0, sonra daha küçük bağlam (`kv_policy::CUDA_LADDER`). Intel/AMD tümleşik GPU'lar (Vulkan, paylaşılan RAM) eski merdivende kalıyor.
 - `prompt_slowdown_pct` Metal için: q8_0/f16 %87, q8_0/q8_0 %0, q8_0/q4_0 %90, q4_0/q4_0 %0; üretim kaybı `METAL_MIXED_GENERATION_SLOWDOWN_PCT` (57, 60). Dashboard Tasarruf seçimi CUDA/Metal/ROCm için q4_0/q4_0 oldu; 4 bit ipucu anahtar hassasiyeti kaybını açıklar.
 - Sınır: tek makine (M1, 8 GB), tek model, tek tekrar, 4k derinlik. Daha büyük Apple Silicon'larda (M2/M3/M4 Pro/Max) mutlak sayılar farklı olur; karışık çiftin yavaş yola düşmesi build'in çekirdek desteğine bağlı olduğu için yön aynı beklenir.
 
@@ -849,7 +849,7 @@ Aynı makine, sürücü 616.92 (Studio), uygulamanın kurduğu yönetilen runtim
 | 37/37 (Otomatik KV) | q4_0/q4_0 | 3225 | 106 | 57,6 (tek istek) | – |
 
 - Tam yükleme kartın %96'sını (3801 / 3962 MiB, DXGI) kullanıyor ama paylaşılan belleğe taşmıyor: paylaşılan kullanım -ngl 33'tekiyle aynı (106 MB). Hız istek başına %56 yüksek.
-- Öneri `vram::recommend_gpu_layers` ile kartın **%90**'ında kesiliyordu (CUDA'nın `--list-devices` "free" değeri, 3295 MiB, öneriye girmiyor; yalnız cihaz listesinde ve gateway bellek kontrolünde). Ölçüm kaydı çalışıyor (`vram_measurements`, varsayılan günlük düzeyinde yalnız süreç toplamı) ve öneriyi düzeltiyor: Otomatik KV'de tam yükleme ölçülünce öneri 33 → 37 (q4_0/q4_0 seçerek). Elle q8_0'da ölçülmüş 3801 MiB yine %90'ı aştığı için öneri 36'da kalıyordu.
+- Öneri `vram::recommend_gpu_layers` ile kartın **%90**'ında kesiliyordu (CUDA'nın `--list-devices` "free" değeri, 3295 MiB, öneriye girmiyor; yalnız cihaz listesinde ve gateway bellek kontrolünde). Ölçüm kaydı çalışıyor (`vram_measurements`, varsayılan günlük düzeyinde yalnız süreç toplamı) ve öneriyi düzeltiyor: Otomatik KV'de tam yükleme ölçülünce öneri 33 → 37 (o zamanki merdivenle q4_0/q4_0 seçerek). Elle q8_0'da ölçülmüş 3801 MiB yine %90'ı aştığı için öneri 36'da kalıyordu.
 - **Değişiklik:** aynı model, bağlam ve KV tipleriyle tam GPU'da alınmış bir ölçüm varsa, onunla düzeltilmiş tam yükleme %97'ye kadar kabul (`vram::measured_full_offload`; slot sayısı farklı olabilir). Formda q8_0, 16k, -ngl 33 iken artık "Önerilen -ngl: 37". Ölçüm yoksa ya da %97'yi aşıyorsa eski kural; körlemesine yükseltme yok (WDDM sessizce paylaşılan belleğe taşar).
 
 ## Spekülatif çözümleme (taslak model), CUDA
@@ -925,7 +925,7 @@ RTX 3050 Ti Laptop 4 GB, sürücü 617.42, Windows 11, whisper.cpp b5454 CUDA 12
 
 ## NVIDIA GPU seçimi ve VRAM telemetrisi
 
-RTX 3050 Ti Laptop 4 GB (WDDM, sürücü 617.42) + Intel Iris Xe (Optimus), Windows 11. Uygulamanın kendi indirdiği llama.cpp b11445 (win-cuda-13.4 + cudart, win-vulkan), ayrık veri klasörü. Tüm sunucular uygulamadan başlatıldı, f16 KV, FA açık, `-np 1`; hız `/completion` 128 token.
+RTX 3050 Ti Laptop 4 GB (WDDM, sürücü 617.42) + Intel Iris Xe (Optimus), Windows 11. Uygulamanın kendi indirdiği llama.cpp b11445 (win-cuda-13.4 + cudart, win-vulkan; o zamanki seçiciyle, bugün ikisi de varsa 12.4 derlemesi seçilir), ayrık veri klasörü. Tüm sunucular uygulamadan başlatıldı, f16 KV, FA açık, `-np 1`; hız `/completion` 128 token.
 
 **Cihaz listesi.** CUDA: yalnız `CUDA0` RTX (Iris Xe görünmüyor). Vulkan: `Vulkan0` Iris Xe (7,9 GB paylaşılan), `Vulkan1` RTX. Otomatik seçim iki model motorunda da RTX, `--main-gpu 0` (ayrık cihazlar arasındaki sıra; DXGI 1 → 0). Iris Xe: CUDA'da seçenek devre dışı, elle seçimde "Seçilen GPU bu model motorunda kullanılamıyor: Intel(R) Iris(R) Xe Graphics (adaptör 0)"; Vulkan'da da aynı (ayrık GPU varken llama.cpp iGPU'yu yüklemiyor).
 

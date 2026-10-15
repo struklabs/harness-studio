@@ -23,7 +23,7 @@ Bu, Harness Studio'nun herkese açık yol haritasıdır. Söz değil yön göste
   - Model Hub uyumluluk işaretleri bir depoyu hangi motorun çalıştırdığını söyler; yerelde hiçbir motorun çalıştıramadığı biçimleri (AWQ, FP8, NVFP4 checkpoint'leri) indirmeden önce reddeder.
 - **Platform doğrulaması.** 0.1.0 ile Windows kurulum paketi (NSIS), imzalı ve Apple onaylı (notarize) macOS DMG'leri ve önizleme olarak bir Linux `.deb` paketi gelir. GStreamer medya eklentilerini içeren ve otomatik güncellenen Linux AppImage main'de, sonraki sürümle gelir. Linux'u daha çok makinede (AMD, NVIDIA, Intel) ve dağıtımda doğrulayıp önizleme etiketini kaldırmak.
 - **İlk çalıştırma cilası.** Her platformda boş veri klasörleriyle uçtan uca ilk çalıştırma akışı (sihirbaz, model bulma, indirme, başlatma, sohbet).
-- **Daha fazla donanımda ölçüm.** Karşılaştırma paketini (`bench/compare/`) NVIDIA/CUDA ve Linux üzerinde çalıştırmak, diğer araçları aynı oturumda yeniden ölçmek.
+- **Daha fazla donanımda ölçüm.** Karşılaştırma paketini (`bench/compare/`) Linux üzerinde çalıştırmak, diğer araçları aynı oturumda yeniden ölçmek. Windows'ta NVIDIA/CUDA tamamlandı: RTX 3050 Ti'de Harness ile doğrudan llama.cpp ([docs/benchmarks/2026-10-15-nvidia](../benchmarks/2026-10-15-nvidia/summary.md)).
 - **Erişilebilirlik denetimleri.** Küçük pencereler, yüksek arayüz ölçeği ve Windows zorunlu renkler kipi.
 - **Linux masaüstü ayrıntıları.** WebKitGTK'de yerel `<select>` görünümü, tepsi simgesi tıklama davranışı ve gerçek donanımda GPU bellek raporlama (NVML, fdinfo).
 

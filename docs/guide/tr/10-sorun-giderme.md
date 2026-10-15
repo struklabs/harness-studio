@@ -53,7 +53,7 @@ Aşağıdaki mesajlar uygulamanın Türkçe hata çevirilerinden alınmıştır.
 | `llama-server bulunamadı: {path}` | Seçilen dosya yok. Yönetilen motoru kurun veya özel ikilinin yolunu düzeltip **Doğrula** seçin. |
 | `Sistemde geçerli bir llama-server ikili dosyası bulunamadı.` | Sisteme kurulu motor aranırken bulunamadı. Yönetilen motoru kurun. |
 | `Özel llama-server yolu ayarlanmamış veya geçerli değil.` | **Özel İkili** seçili ama yol boş/yanlış. Yolu girin veya **Yönetilen (önerilen)** seçeneğine dönün. |
-| `Runtime'ın ihtiyaç duyduğu bir kütüphane yüklenemedi (GPU sürücüsü ya da runtime dosyaları eksik veya uyumsuz).` | Sürücü eksik/eski veya derleme donanıma uymuyor. **Sağlık** denetimini çalıştırın; önerilen derlemeyi ve güncel sürücüyü kullanın (örneğin CUDA için yeterince yeni NVIDIA sürücüsü, yoksa Vulkan derlemesi). |
+| `Runtime'ın ihtiyaç duyduğu bir kütüphane yüklenemedi (GPU sürücüsü ya da runtime dosyaları eksik veya uyumsuz).` | Sürücü eksik/eski veya derleme donanıma uymuyor. **Sağlık** denetimini çalıştırın; önerilen derlemeyi ve güncel sürücüyü kullanın. Windows'ta CUDA 12 derlemeleri NVIDIA sürücüsü 528.33 ya da yenisini, CUDA 13 derlemeleri 580 ya da yenisini ister; daha eski sürücüde Harness Vulkan derlemesini önerir. |
 | `Aşama 1 doğrulaması başarısız: binary çalıştırılamadı (...). Eksik DLL veya mimari uyumsuzluğu olabilir.` | İndirilen motor çalıştırılamadı. Başka bir derleme (Vulkan veya CPU) kurmayı deneyin. |
 | `Runtime değiştirilmeden önce çalışan tüm sunucuları durdurun.` | Motoru değiştirmek için önce sunucuları durdurun. |
 | `llama-bench bulunamadı: {path}. Resmi llama.cpp paketini kullanın.` | Benchmark için `llama-bench` gerekir. Yönetilen resmi paket onu içerir; özel paketinizde bu dosyanın bulunduğunu kontrol edin. |
