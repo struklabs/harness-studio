@@ -26,6 +26,8 @@ export function groupModels(models: LocalModel[], definitions: ModelDefinition[]
 }
 
 export interface PickerRow {
+  key: string;
+  groupIndex: number;
   value: string;
   model: LocalModel;
   definition: ModelDefinition | null;
@@ -35,10 +37,20 @@ export interface PickerRow {
 }
 
 export function flattenGroups(groups: ReturnType<typeof groupModels>): PickerRow[] {
-  return groups.flatMap(({ model, defs }) => {
+  const seen = new Set<string>();
+  return groups.flatMap(({ model, defs: candidates }, groupIndex) => {
+    // A definition can match several library entries (or repeated definition records).
+    const defs = candidates.filter((d) => {
+      const value = `d:${d.id}`;
+      if (seen.has(value)) return false;
+      seen.add(value);
+      return true;
+    });
     const only = defs.length === 1 ? defs[0] : null;
     const fileSearch = [model.name, model.filename, model.quantization].join(' ');
     const row = (definition: ModelDefinition | null, file: boolean, groupEnd: boolean): PickerRow => ({
+      key: JSON.stringify([groupIndex, model.id, definition ? `d:${definition.id}` : `f:${model.id}`]),
+      groupIndex,
       value: definition ? `d:${definition.id}` : `f:${model.id}`,
       model, definition, file, groupEnd,
       search: `${fileSearch} ${definition?.alias ?? ''}`.toLocaleLowerCase(),
@@ -55,7 +67,7 @@ export function filterRows(rows: PickerRow[], query: string): PickerRow[] {
 /** Prefix offsets use measured heights where available, estimates elsewhere. */
 export function rowOffsets(rows: PickerRow[], heights: ReadonlyMap<string, number>): number[] {
   const offsets = [0];
-  for (const row of rows) offsets.push(offsets[offsets.length - 1] + (heights.get(row.value) ?? ((row.file ? 48 : 24) + (row.groupEnd ? 4 : 0))));
+  for (const row of rows) offsets.push(offsets[offsets.length - 1] + (heights.get(row.key) ?? ((row.file ? 48 : 24) + (row.groupEnd ? 4 : 0))));
   return offsets;
 }
 
@@ -65,7 +77,7 @@ export function applyMeasurements(rows: PickerRow[], offsets: number[], heights:
   let delta = 0;
   for (const [value, height] of measurements) {
     next.set(value, height);
-    const index = rows.findIndex((r) => r.value === value);
+    const index = rows.findIndex((r) => r.key === value);
     if (index >= 0 && offsets[index + 1] <= top) delta += height - (offsets[index + 1] - offsets[index]);
   }
   return { heights: next, top: top + delta };
@@ -101,8 +113,21 @@ export function navigationIndex(key: string, current: number, offsets: number[],
   if (key === 'Home') return 0;
   if (key === 'End') return last;
   if (key === 'ArrowDown') return Math.min(last, current + 1);
-  if (key === 'ArrowUp') return Math.max(0, current - 1);
+  if (key === 'ArrowUp') return Math.max(-1, current - 1);
   if (key === 'PageDown') return Math.min(last, Math.max(current + 1, indexAt(offsets, offsets[Math.max(0, current)] + height)));
   if (key === 'PageUp') return Math.max(0, Math.min(current - 1, indexAt(offsets, offsets[Math.max(0, current)] - height)));
   return null;
+}
+
+/** Enter in the filter picks the first result until a row has been activated. */
+export function selectionIndex(current: number, count: number, fromFilter: boolean): number {
+  const index = fromFilter && current < 0 ? 0 : current;
+  return index >= 0 && index < count ? index : -1;
+}
+
+export interface PointerPosition { clientX: number; clientY: number }
+
+/** Scroll-induced pointer events can target a new row without any mouse movement. */
+export function pointerMoved(previous: PointerPosition | null, next: PointerPosition): boolean {
+  return previous !== null && (previous.clientX !== next.clientX || previous.clientY !== next.clientY);
 }
