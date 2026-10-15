@@ -1,6 +1,6 @@
 # harness-studio-sdk (Python)
 
-Client of the [Harness Studio](https://github.com/struklabs/harness-studio) Control API for Python 3.10+, generated from the API's OpenAPI document with [openapi-python-client](https://github.com/openapi-generators/openapi-python-client) (httpx and attrs; sync and asyncio).
+Client of the [Harness Studio](https://github.com/struklabs/harness-studio) Control API for Python 3.11+, generated from the API's OpenAPI document with [openapi-python-client](https://github.com/openapi-generators/openapi-python-client) (httpx and attrs; sync and asyncio).
 
 Not on PyPI yet. Install it from the repository:
 
