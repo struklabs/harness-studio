@@ -10,6 +10,8 @@
       (function () {
         try {
           var d = document.documentElement;
+          // WebKitGTK: native <select> styling is replaced in app.css.
+          if (/Linux/i.test(navigator.userAgent) && !/Android/i.test(navigator.userAgent)) d.setAttribute('data-os', 'linux');
           var mq = function (q) { return !!(window.matchMedia && window.matchMedia(q).matches); };
           var schemes = { dark: 'dark', light: 'light', oled: 'dark', night: 'dark', 'hc-dark': 'dark', 'hc-light': 'light' };
           var t = localStorage.getItem('harness_theme');
