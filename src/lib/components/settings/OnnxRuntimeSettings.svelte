@@ -2,6 +2,7 @@
   // Settings > Runtime > ONNX Runtime: the libraries harness-onnx loads (ONNX Runtime and, on Windows, GenAI: chat, embeddings / rerank for
   // Hugging Face ONNX models). Downloaded on demand, every file checked against a pinned SHA-256.
   import { invoke } from '#lib/ipc.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { onDestroy, onMount } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import { toast } from 'svelte-sonner';
@@ -67,6 +68,7 @@
       await invoke('install_onnx_runtime', { variant: v });
       toast.success(t('ort.installed_ok', { variant: v }));
       await load();
+      await engineInstall.refreshAvailability();
     } catch (e) {
       toast.error(localizeError(e));
     } finally {

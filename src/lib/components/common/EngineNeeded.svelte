@@ -23,19 +23,17 @@
   }
   let { family, hint = true, hintText, size = 'xs', class: className, onInstalled }: Props = $props();
 
-  let done = $state(false);
   let st = $derived(engineInstall.state(family));
   let manual = $derived(!engineInstall.canInstall(family));
 
   async function install() {
     if (await engineInstall.install(family)) {
-      done = true;
       onInstalled?.();
     }
   }
 </script>
 
-{#if !done}
+{#if !engineInstall.installed(family) || (family === 'audio.cpp' && !app.settings?.audio_cpp_enabled)}
   <span class={cn('inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1', className)}>
     {#if family === 'audio.cpp' && !app.settings?.audio_cpp_enabled}
       <span>{t('audio_cpp.needs_engine')}</span>

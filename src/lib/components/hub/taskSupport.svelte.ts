@@ -32,6 +32,7 @@ class TaskSupportStore {
 
   /** Reads the table (once; `force` after a runtime change). */
   load(force = false): Promise<void> {
+    if (this.loading && force) return this.loading.then(() => this.load(true));
     if (this.loaded && !force) return Promise.resolve();
     this.loading ??= invoke<RuntimeTaskSupport[]>('get_task_support', { runtimeId: null })
       .then((list) => {

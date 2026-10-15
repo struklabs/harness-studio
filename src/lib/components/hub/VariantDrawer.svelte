@@ -24,7 +24,6 @@
   import { Skeleton } from '#lib/components/ui/skeleton/index.js';
   import { cn } from '#lib/utils.js';
   import { isPending, progressPercent } from './downloadQueue.svelte';
-  import { clearPageCache } from './hubData';
   import { formatName, isPreciseRefusal, notRunnableKey } from './inference';
   import { canConvert, speechNeedsConversion } from './convertible';
   import { needsPrismFork } from './forkQuants';
@@ -96,17 +95,12 @@
   let platformBlocked = $derived(repo?.compatibility.status === 'unsupported_platform' ? repo.compatibility : null);
   /** A safetensors chat model: instead of the unsupported notice the drawer offers the conversion. */
   let convertible = $derived(canConvert(repo));
-  /** The repo needs an engine family (whisper.cpp, stable-diffusion.cpp, sherpa-onnx…) that was not installed from this drawer yet. */
-  let installedHere = $state<string[]>([]);
+  /** The repo needs an engine family that is not installed yet. */
   let neededFamily = $derived(
-    repo?.compatibility.status === 'needs_runtime' && repo.compatibility.runtime !== 'mistral.rs' && !installedHere.includes(repo.compatibility.runtime)
+    repo?.compatibility.status === 'needs_runtime' && repo.compatibility.runtime !== 'mistral.rs' && !engineInstall.installed(repo.compatibility.runtime)
       ? repo.compatibility.runtime
       : null
   );
-  function engineInstalled(family: string) {
-    installedHere = [...installedHere, family];
-    clearPageCache();
-  }
 
   /** A safetensors chat model whose mistral.rs runtime is not registered (no managed install). */
   let needsMistralrs = $derived(repo?.compatibility.status === 'needs_runtime' && repo.compatibility.runtime === 'mistral.rs');
@@ -597,7 +591,7 @@
                 <div class="flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info" role="status">
                   <Info class="size-3.5 shrink-0" />
                   <span class="min-w-0 flex-1">{t('eng.drawer_note', { runtime: neededFamily })}</span>
-                  <EngineNeeded family={neededFamily} hint={false} onInstalled={() => engineInstalled(neededFamily)} />
+                  <EngineNeeded family={neededFamily} hint={false} />
                 </div>
               {/if}
               {#if isImageRepo && bundlePlan && bundlePlan.components.length > 0}

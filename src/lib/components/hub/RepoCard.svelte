@@ -14,6 +14,7 @@
   import { isDecisionRepo, taskInfo } from './tasks';
   import { formatName, isPreciseRefusal, notRunnableKey, notRunnableShortKey, taskSourceKey } from './inference';
   import { taskSupportStore } from './taskSupport.svelte';
+  import { engineCompatibility } from './engineCompatibility';
   import { canConvert, speechNeedsConversion } from './convertible';
   import { CircleCheck, Download, Heart, Lock, Play, Ban, Info, Repeat } from '@lucide/svelte';
 
@@ -85,7 +86,7 @@
   /** Runtimes that run a repo of a task whose usual family is another one (CrispASR GGUFs, MLX
    *  speech): their verdict stands and the task's "needs whisper.cpp" hint does not apply. */
   const OWN_RUNTIMES = ['audio.cpp', 'crispasr', 'mlx', 'mlx-vlm', 'mlx-audio'];
-  let compat = $derived(repo.compatibility);
+  let compat = $derived(engineCompatibility(repo.compatibility, (family) => engineInstall.installed(family)));
   /** A safetensors chat model: not run as it is, but the drawer offers the GGUF conversion. */
   let convertible = $derived(canConvert(repo));
   /** No Harness runtime runs this format: the card is dimmed, the drawer has no download. */

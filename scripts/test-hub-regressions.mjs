@@ -3,6 +3,33 @@ import assert from 'node:assert/strict';
 import { parseSearchQuery } from '../src/lib/components/hub/searchParser.ts';
 import { isCompanionVariant, pickProjectorVariant, recommendFloatVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
 import { needsPrismFork } from '../src/lib/components/hub/forkQuants.ts';
+import { engineCompatibility } from '../src/lib/components/hub/engineCompatibility.ts';
+
+test('cached engine requirements follow shared installed state after an install anywhere', () => {
+  const installed = new Set();
+  const isInstalled = (family) => installed.has(family);
+  for (const family of ['whisper.cpp', 'stable-diffusion.cpp', 'sherpa-onnx', 'python-hf', 'onnxruntime', 'lemonade', 'mlx-audio']) {
+    const cached = { status: 'needs_runtime', runtime: family };
+    assert.equal(engineCompatibility(cached, isInstalled), cached);
+    installed.add(family);
+    assert.deepEqual(engineCompatibility(cached, isInstalled), { status: 'runnable', runtime: family });
+    assert.equal(cached.status, 'needs_runtime');
+    installed.delete(family);
+    assert.equal(engineCompatibility(cached, isInstalled), cached);
+  }
+});
+
+test('engine availability preserves platform and format refusals and unrelated requirements', () => {
+  for (const compat of [
+    { status: 'unsupported_platform', runtime: 'onnxruntime', os: 'macos', arch: 'x86_64' },
+    { status: 'unsupported', format: 'ctranslate2' },
+    { status: 'runnable', runtime: 'llama.cpp' },
+  ]) {
+    assert.equal(engineCompatibility(compat, () => true), compat);
+  }
+  const missing = { status: 'needs_runtime', runtime: 'sherpa-onnx' };
+  assert.equal(engineCompatibility(missing, (family) => family === 'whisper.cpp'), missing);
+});
 
 test('exact repository IDs retain GGUF and quantization names', () => {
   for (const repo of ['unsloth/Qwen3-4B-GGUF', 'owner/model-Q4_K_M', 'OWNER/Model.gguf']) {
