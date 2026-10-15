@@ -42,7 +42,13 @@
   /** Local drafts with the same tokenizer that are much smaller (`library::draft`). */
   let suggestedDrafts = $state<DraftSuggestion[]>([]);
   let otherDrafts = $derived(draftCandidates.filter((m) => !suggestedDrafts.some((s) => s.path === m.path)));
+  // The drafts are only read once this page was opened.
+  let pageSeen = $state(false);
   $effect(() => {
+    if (page === 'other') pageSeen = true;
+  });
+  $effect(() => {
+    if (!pageSeen) return;
     const path = selectedPath;
     suggestedDrafts = [];
     if (!path) return;

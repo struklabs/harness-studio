@@ -23,6 +23,8 @@
     modelPath: string | null;
     /** Compact variant for the definition dialog (no advice banner). */
     compact?: boolean;
+    /** False while the page showing this picker was never opened: the advice read waits. */
+    active?: boolean;
     hint?: string;
     /**
      * Engine family that runs the model (`llama.cpp` by default). Another engine picks its own
@@ -31,7 +33,7 @@
     engine?: string;
   }
 
-  let { runtime = $bindable(), modelPath, compact = false, hint, engine = 'llama.cpp' }: Props = $props();
+  let { runtime = $bindable(), modelPath, compact = false, hint, engine = 'llama.cpp', active = true }: Props = $props();
   let otherEngine = $derived(engine !== 'llama.cpp');
   /** The registered build of that engine, when it has one (whisper.cpp, sd.cpp, sherpa-onnx...). */
   let engineBuild = $derived(runtimesStore.list.find((r) => r.entry?.family === engine));
@@ -50,6 +52,7 @@
   $effect(() => {
     const path = modelPath;
     const current = runtime || null;
+    if (!active) return;
     if (compact || !path || otherEngine) {
       advice = null;
       return;

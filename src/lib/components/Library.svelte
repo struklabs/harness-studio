@@ -13,7 +13,7 @@
   import { localizeError } from '#lib/network.js';
   // My Models (Kütüphanem): local model files by kind with their definitions, run state, user
   // state (favorite, last used, arrival) and file actions. Separate from the Model Hub.
-  import { invoke } from '#lib/ipc.js';
+  import { invoke, invokeShared } from '#lib/ipc.js';
   import { onMount, untrack } from 'svelte';
   import { toast } from 'svelte-sonner';
   import type { FitInput, LibraryEntry, LibraryView, ModelDefinition, StorageDirInfo } from '#lib/types.js';
@@ -148,7 +148,7 @@
     try {
       const [v, dirs, agents] = await Promise.all([
         invoke<LibraryView>('list_library'),
-        invoke<StorageDirInfo[]>('get_storage_directories').catch(() => storageDirs),
+        invokeShared<StorageDirInfo[]>('get_storage_directories').catch(() => storageDirs),
         listAgentModels().catch(() => []),
       ]);
       if (token !== refreshToken) return;

@@ -44,6 +44,8 @@
     onSelectDefinition: (id: string) => void;
     /** Definition menu: new / duplicate / edit / rename / export / import / delete. */
     onDefinitionAction: (action: DefinitionAction) => void;
+    /** The model page was shown (or is showing); until then its detail reads are deferred. */
+    active?: boolean;
   }
 
   let {
@@ -68,6 +70,7 @@
     selectedDefinitionId,
     onSelectDefinition,
     onDefinitionAction,
+    active = true,
   }: Props = $props();
 
   const uid = $props.id();
@@ -183,6 +186,7 @@
         {onApplyRecommendedNgl}
         {onOpenMigration}
         {onUnlink}
+        {active}
       />
     {/if}
   {/if}

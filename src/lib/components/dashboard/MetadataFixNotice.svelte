@@ -7,9 +7,10 @@
   import type { LaunchParamsForm } from './params';
   import { applyMetadataOverride, metadataOverrideApplied } from './metadataOverrides';
 
-  let { modelPath, params = $bindable(), onApply }: { modelPath: string | null; params: LaunchParamsForm; onApply: () => void } = $props();
+  let { modelPath, params = $bindable(), onApply, active = true }: { modelPath: string | null; params: LaunchParamsForm; onApply: () => void; active?: boolean } = $props();
   let fix = $state<string | null>(null);
   $effect(() => {
+    if (!active) return;
     const path = modelPath;
     fix = null;
     if (!path) return;
