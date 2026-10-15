@@ -388,8 +388,23 @@ pub fn runs_unified_pool(plan: &SlotPlan, config: &crate::process::LaunchConfig)
             && plan.advice.slots == AUTO_MAX)
 }
 
+/// Backends of the devices a llama-server runs on: the `--main-gpu` device (the runtime's index)
+/// when the model is not split, else every device of the runtime. Without a device list (a probe
+/// that could not list them) the list is empty.
+pub fn served_backends(
+    caps: &crate::capabilities::RuntimeCapabilities,
+    main_gpu: Option<u32>,
+    split_mode: Option<&str>,
+) -> Vec<String> {
+    let single = split_mode.is_none_or(|m| m.trim().eq_ignore_ascii_case("none"));
+    match main_gpu.and_then(|i| caps.devices.get(i as usize)) {
+        Some(device) if single => vec![device.backend.clone()],
+        _ => caps.backends(),
+    }
+}
+
 /// Whether a server whose slots share one unified pool turns llama.cpp's host prompt cache off
-/// (`--cache-ram 0`), by the runtime's backends (`RuntimeCapabilities::backends`).
+/// (`--cache-ram 0`), by the backends of the devices it runs on ([`served_backends`]).
 ///
 /// With the cache on, llama-server saves the idle slots to it when a new request starts and
 /// clears them from the pool; without it they stay, and every later request attends over their
@@ -399,9 +414,12 @@ pub fn runs_unified_pool(plan: &SlotPlan, config: &crate::process::LaunchConfig)
 /// - **CUDA** (b11574, RTX 3050 Ti 4 GB): the save takes ~0.7 s, once, at the first request
 ///   after a wave; without it a single stream after concurrent use runs 10-33 % slower
 ///   (Qwen3-4B 38-50 t/s against 56), a small model up to 40 % (Qwen3-0.6B 108 against 180):
-///   on. The same holds for any other backend not measured yet.
+///   on.
+///
+/// Other backends keep the cache off until measured. A model split over devices of different
+/// backends keeps it off as well (only an all-CUDA set turns it on).
 pub fn host_cache_off_for_unified_pool(backends: &[String]) -> bool {
-    !backends.iter().any(|b| b.eq_ignore_ascii_case("CUDA"))
+    backends.is_empty() || !backends.iter().all(|b| b.eq_ignore_ascii_case("CUDA"))
 }
 
 /// Pure launch-slot planner. The Dashboard estimate and the process launcher both enter here

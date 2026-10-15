@@ -461,4 +461,34 @@ fn host_cache_stays_on_for_unified_pools_on_cuda_only() {
     assert!(host_cache_off_for_unified_pool(&b(&["ROCm"])));
     // No device list (a probe without --list-devices): the measured Vulkan behaviour.
     assert!(host_cache_off_for_unified_pool(&[]));
+    // A split over a CUDA and a Vulkan device keeps the Vulkan behaviour.
+    assert!(host_cache_off_for_unified_pool(&b(&["CUDA", "Vulkan"])));
+}
+
+#[test]
+fn served_backends_follow_the_main_gpu_unless_the_model_is_split() {
+    use crate::capabilities::{parse::Device, RuntimeCapabilities};
+    let device = |id: &str, backend: &str| Device {
+        id: id.into(),
+        backend: backend.into(),
+        name: String::new(),
+        total_mib: None,
+        free_mib: None,
+    };
+    let mut caps = RuntimeCapabilities::default();
+    caps.devices = vec![device("CUDA0", "CUDA"), device("Vulkan0", "Vulkan")];
+    assert_eq!(
+        served_backends(&caps, Some(1), None),
+        vec!["Vulkan".to_string()]
+    );
+    assert_eq!(
+        served_backends(&caps, Some(0), Some("none")),
+        vec!["CUDA".to_string()]
+    );
+    assert_eq!(
+        served_backends(&caps, Some(0), Some("layer")),
+        vec!["CUDA".to_string(), "Vulkan".to_string()]
+    );
+    assert_eq!(served_backends(&caps, None, None).len(), 2);
+    assert_eq!(served_backends(&caps, Some(7), None).len(), 2);
 }
