@@ -629,7 +629,7 @@
               {:else if unsupportedFormat}
                 <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
                   <Ban class="mt-px size-3.5 shrink-0 text-warning" />
-                  <span class="min-w-0 flex-1">{repo.not_runnable && ['audio_cpp_unsupported', 'vibevoice_layout', 'audio_cpp_incomplete_package', 'sdxl_refiner_folder_required'].includes(repo.not_runnable) ? t(notRunnableKey(repo.not_runnable)) : speechNeedsConversion(repo) ? t('hub.asr_needs_conversion_drawer') : unsupportedFormat === 'gguf' ? t('hub.compat_gguf_other_engine_drawer') : t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
+                  <span class="min-w-0 flex-1">{repo.not_runnable && ['audio_cpp_unsupported', 'vibevoice_layout', 'audio_cpp_incomplete_package', 'sdxl_refiner_folder_required', 'needs_librosa', 'needs_sea_g2p'].includes(repo.not_runnable) ? t(notRunnableKey(repo.not_runnable)) : speechNeedsConversion(repo) ? t('hub.asr_needs_conversion_drawer') : unsupportedFormat === 'gguf' ? t('hub.compat_gguf_other_engine_drawer') : t('hub.compat_unsupported_drawer', { format: formatName(unsupportedFormat) })}</span>
                 </div>
               {:else if platformBlocked}
                 {@const msg = onnxUnsupportedText(platformBlocked)}

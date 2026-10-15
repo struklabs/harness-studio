@@ -16,6 +16,8 @@ const NOT_RUNNABLE_KEYS: Record<HfNotRunnable, TKey> = {
   vibevoice_layout: 'hub.vibevoice_layout',
   audio_cpp_incomplete_package: 'hub.audio_cpp_incomplete_package',
   sdxl_refiner_folder_required: 'hub.sdxl_refiner_folder_required',
+  needs_sea_g2p: 'hub.not_runnable_needs_sea_g2p',
+  needs_librosa: 'hub.not_runnable_needs_librosa',
   adapter: 'hub.not_runnable_adapter',
   crispasr_pocket_english_only: 'hub.crispasr_pocket_english_only',
   audio_cpp_espeak_missing: 'hub.audio_cpp_espeak_missing',

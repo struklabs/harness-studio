@@ -107,7 +107,7 @@
   let task = $derived(taskInfo(pipelineTag));
   let taskLevel = $derived(taskSupportStore.support(pipelineTag));
   let taskInfoRuntime = $derived(taskSupportStore.info(pipelineTag));
-  onMount(() => void taskSupportStore.load());
+  onMount(() => void taskSupportStore.load(true));
 
   function currentFilters() {
     return {
@@ -275,6 +275,7 @@
 
   function enginesInstalled() {
     clearPageCache();
+    void taskSupportStore.load(true);
     void runList();
   }
 
