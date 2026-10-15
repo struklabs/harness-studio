@@ -191,7 +191,7 @@ pub fn is_crispasr_model(def: &ModelDefinition) -> bool {
 }
 
 fn language_required() -> GatewayError {
-    bad("Choose a language or download the language detection model (Settings > Installed Runtime > Other Runtimes > CrispASR Helper Models). / Bir dil seçin veya dil algılama modelini indirin (Ayarlar > Kurulu Model Motoru > Diğer Model Motorları > CrispASR Yardımcı Modelleri).")
+    bad("Choose a language or download the language detection model (Settings > Runtime > Installed Runtime > Other Runtimes > CrispASR Helper Models). / Bir dil seçin veya dil algılama modelini indirin (Ayarlar > Model Motoru > Kurulu Model Motoru > Diğer Model Motorları > CrispASR Yardımcı Modelleri).")
         .param("language")
 }
 

@@ -122,7 +122,7 @@ fn default_language() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AppSettings {
-    /// Experimental unauthenticated local TTS server. Explicit opt-in in Settings > Installed Runtime > Other Runtimes.
+    /// Experimental unauthenticated local TTS server. Explicit opt-in in Settings > Runtime > Installed Runtime > Other Runtimes.
     pub audio_cpp_enabled: bool,
     /// None preserves the full interface for existing installations.
     #[serde(default)]
