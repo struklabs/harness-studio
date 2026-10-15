@@ -9,7 +9,8 @@
 //! them as plain fields and can be cancelled, so this module
 //!
 //! * reads OpenAI's fields (`prompt`, `n`, `size`, `response_format`, `output_format`) and
-//!   Harness's extras (`negative_prompt`, `steps`, `cfg_scale`, `seed`, `sampler`, `scheduler`),
+//!   Harness's extras (`negative_prompt`, `steps`, `cfg_scale`, `seed` (absent = random, not
+//!   sd-server's fixed 42), `sampler`, `scheduler`),
 //! * starts a job, polls it until it is done and cancels it when the client goes away, and
 //! * answers `{"created": ..., "data": [{"b64_json": ...}]}` (`response_format: "url"` gives a
 //!   `data:` URL: Harness keeps no files to link to).
@@ -187,12 +188,16 @@ pub fn plan(request: &Value) -> Result<Plan, GatewayError> {
     if let Some(neg) = text(request, "negative_prompt")? {
         obj.insert("negative_prompt".into(), json!(neg));
     }
-    if let Some(seed) = request.get("seed").filter(|s| !s.is_null()) {
-        let seed = seed
+    // Without a seed sd-server uses a fixed 42, so the same prompt and settings always gave the
+    // same image. OpenAI's API has no seed: absent means random (-1, which the Python worker
+    // reads the same way).
+    let seed = match request.get("seed").filter(|s| !s.is_null()) {
+        Some(seed) => seed
             .as_i64()
-            .ok_or_else(|| bad("seed must be a whole number (-1 = random).").param("seed"))?;
-        obj.insert("seed".into(), json!(seed));
-    }
+            .ok_or_else(|| bad("seed must be a whole number (-1 = random).").param("seed"))?,
+        None => -1,
+    };
+    obj.insert("seed".into(), json!(seed));
     let mut sample = serde_json::Map::new();
     if let Some(steps) = number(request, "steps")? {
         if !(1.0..=500.0).contains(&steps) || steps.fract() != 0.0 {
@@ -1008,7 +1013,7 @@ mod tests {
         let p = plan(&json!({"prompt": "a cat"})).unwrap();
         assert_eq!(
             p.body,
-            json!({"prompt": "a cat", "batch_count": 1, "output_format": "png"})
+            json!({"prompt": "a cat", "batch_count": 1, "output_format": "png", "seed": -1})
         );
         // OpenAI's "auto" is the same thing.
         assert!(plan(&json!({"prompt": "a cat", "size": "auto"}))
@@ -1156,11 +1161,11 @@ mod tests {
                 "cfg_scale": 6.5, "sampler": "euler_a", "scheduler": "karras", "size": "640x480"
             })
         );
-        // Only what was asked for goes on.
+        // Only what was asked for goes on, plus the random seed (the worker reads -1 as random).
         let p = plan_edit(json!({"prompt": "x", "image": b})).unwrap();
         assert_eq!(
             python_edit_body(&p.body),
-            json!({"prompt": "x", "n": 1, "image": b, "size": "64x64"})
+            json!({"prompt": "x", "n": 1, "seed": -1, "image": b, "size": "64x64"})
         );
     }
 
