@@ -607,7 +607,7 @@ pub(crate) mod tests {
     #[test]
     fn a_deep_data_folder_is_refused_unless_long_paths_are_on() {
         let deep = Path::new(
-            r"C:\Users\u\AppData\Local\Temp\claude\C--Users-u-Documents-Projeler-Harness-Studio\96f0aa61-2797-41d5-8909-421a066a6cd6\scratchpad\zimg-data\bin\pyenv\envs\hf-cpu",
+            r"C:\Users\u\AppData\Local\Temp\build-cache\C--Users-u-Documents-Projects-Harness-Studio\96f0aa61-2797-41d5-8909-421a066a6cd6\workspace\test-data\bin\pyenv\envs\hf-cpu",
         );
         let len = projected_longest_path_len(deep);
         assert!(len >= 260);
