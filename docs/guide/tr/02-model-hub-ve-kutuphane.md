@@ -59,7 +59,7 @@ Bazı depolar yalnızca safetensors ağırlıkları içerir. Harness Studio bir 
 | İşlem | Ne yapar? |
 | --- | --- |
 | **Durdur** | İndirmeyi duraklatır ve inen kısmı korur. |
-| **Devam et** | Duraklatılmış bir indirmeyi sürdürür. |
+| **Devam Et** | Duraklatılmış bir indirmeyi sürdürür. |
 | **Öne al** | Bekleyen bir indirmeye öncelik verir. |
 | **Kaldır** | İşi listeden kaldırır; **Yarım kalan veriyi de sil** ayrı bir seçimdir. |
 | **Tamamlananları Temizle** | Tamamlanan işleri kuyruk görünümünden temizler. |

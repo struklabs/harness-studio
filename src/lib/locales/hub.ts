@@ -28,7 +28,7 @@ const tr = {
   'hub.queue_prioritize': 'Öne al',
   'hub.queue_pause': 'Durdur',
   'hub.queue_pause_title': 'İndirmeyi durdurur; inen kısım korunur ve daha sonra devam ettirilebilir.',
-  'hub.queue_resume': 'Devam et',
+  'hub.queue_resume': 'Devam Et',
   'hub.queue_remove': 'Kaldır',
   'hub.queue_remove_confirm': 'Bu indirme listeden kaldırılsın mı?',
   'hub.queue_delete_partial': 'Yarım kalan veriyi de sil',
