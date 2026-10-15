@@ -114,6 +114,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Model Hub: PrismML fork kuantları (PQ2_0 / PTQ1_0) artık dosya adından okunuyor, "bilinmiyor" görünmüyor.
 - Model Hub: IP-Adapter repos (h94/IP-Adapter, h94/IP-Adapter-FaceID) are marked as adapters that don't run here, like LoRAs.
 - Model Hub: IP-Adapter depoları (h94/IP-Adapter, h94/IP-Adapter-FaceID) LoRA gibi burada çalışmayan adaptör olarak işaretlenir.
+- Linux AppImage: programs Harness starts (model engines, Python, uv, terminals, agent CLIs, shell commands) inherited the AppImage's `LD_LIBRARY_PATH`, `PATH`, GTK, GStreamer and GDK paths and could load its bundled Ubuntu 22.04 libraries instead of their own. They now get the environment without the AppImage mount; the user's own entries are kept.
+- Linux AppImage: Harness'ın başlattığı programlar (model motorları, Python, uv, terminaller, ajan CLI'ları, kabuk komutları) AppImage'ın `LD_LIBRARY_PATH`, `PATH`, GTK, GStreamer ve GDK yollarını devralıyor ve kendi kitaplıkları yerine paketteki Ubuntu 22.04 kitaplıklarını yükleyebiliyordu. Artık AppImage bağlama noktası çıkarılmış ortamla başlıyorlar; kullanıcının kendi girdileri korunuyor.
 - Downloader: GGUF magic is checked only for `.gguf` files; companion files download with consistent file counters and byte progress.
 - İndirici: GGUF sihirli baytları yalnız `.gguf` dosyalarında denetlenir; yardımcı dosyalar tutarlı dosya sayacı ve bayt ilerlemesiyle indirilir.
 - Model Hub: the results heading follows the active search while its listing loads.

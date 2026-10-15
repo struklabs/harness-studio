@@ -172,6 +172,7 @@ impl LaunchConfig {
 pub fn quiet_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
     let mut cmd = Command::new(program);
     cmd.stdin(Stdio::null());
+    crate::appimage::foreign_std(&mut cmd);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -1669,6 +1670,7 @@ impl ProcessManager {
         } else {
             None
         };
+        let bridged = bridge.is_some() && !isolated;
         let mut cmd = if isolated {
             #[cfg(unix)]
             {
@@ -1703,6 +1705,11 @@ impl ProcessManager {
         } else {
             Command::new(&config.binary_path)
         };
+        // The bridge is this executable (it needs the AppImage's libraries) and cleans the
+        // environment for the server it starts.
+        if !bridged {
+            crate::appimage::foreign_std(&mut cmd);
+        }
         if let Some(env) = worker_key.as_deref().and_then(|key| engine.worker_env(key)) {
             // Models are local: no proxy is ever needed, and an inherited one is a way out.
             for var in PROXY_ENV_VARS.iter().chain(&TORCH_LOAD_ENV_VARS) {

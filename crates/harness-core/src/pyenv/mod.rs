@@ -419,6 +419,7 @@ pub struct Uv {
 impl Uv {
     pub fn command(&self) -> tokio::process::Command {
         let mut cmd = tokio::process::Command::new(&self.bin);
+        crate::appimage::foreign_tokio(&mut cmd);
         cmd.current_dir(&self.cwd)
             .env("UV_PYTHON_INSTALL_DIR", &self.python_dir)
             .env("UV_CACHE_DIR", &self.cache_dir)
@@ -482,6 +483,7 @@ pub async fn run_step(
 /// `Python 3.12.13` of an interpreter (empty when it does not start).
 pub async fn python_version(python: &Path) -> String {
     let mut cmd = tokio::process::Command::new(python);
+    crate::appimage::foreign_tokio(&mut cmd);
     cmd.arg("--version").kill_on_drop(true);
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000);

@@ -675,9 +675,11 @@ pub fn search_path() -> Option<OsString> {
     augmented_path().or_else(|| std::env::var_os("PATH"))
 }
 
-/// Gives a child the [`augmented_path`] (no-op when there is none). Call before setting the
-/// child's own env, so an explicit `PATH` there still wins.
+/// Gives a child the [`augmented_path`] (no-op when there is none) and, in an AppImage, the
+/// environment without the mount ([`crate::appimage`]). Call before setting the child's own
+/// env, so an explicit `PATH` there still wins.
 pub fn apply_augmented_path(cmd: &mut std::process::Command) {
+    crate::appimage::foreign_std(cmd);
     if let Some(path) = augmented_path() {
         cmd.env("PATH", path);
     }

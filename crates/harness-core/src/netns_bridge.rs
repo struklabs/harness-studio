@@ -94,6 +94,7 @@ mod linux {
             UnixListener::bind(&socket).map_err(|e| format!("bind {}: {e}", socket.display()))?;
         let mut cmd = Command::new(program);
         cmd.args(rest);
+        crate::appimage::foreign_std(&mut cmd);
         // SAFETY: only async-signal-safe libc calls between fork and exec.
         unsafe {
             cmd.pre_exec(die_with_parent);
