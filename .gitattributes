@@ -2,3 +2,8 @@
 *.png binary
 *.ico binary
 *.icns binary
+
+# Generated (sdk/generate.mjs) and lock files: collapsed in GitHub diffs.
+sdk/openapi.json linguist-generated=true
+sdk/typescript/package-lock.json linguist-generated=true
+sdk/python/uv.lock linguist-generated=true
