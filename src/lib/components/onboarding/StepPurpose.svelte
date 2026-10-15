@@ -5,7 +5,7 @@
   import { invoke } from '#lib/ipc.js';
   import { Check, Info, LoaderCircle, MessageSquare, Code, FileSearch, Mic, ShieldAlert, TriangleAlert } from '@lucide/svelte';
   import type { Component } from 'svelte';
-  import type { RuntimeDownloadProgress, RuntimeEntry, SystemHardwareInfo } from '#lib/types.js';
+  import type { DownloadProgress, RuntimeDownloadProgress, RuntimeEntry, SystemHardwareInfo } from '#lib/types.js';
   import { formatBytes } from '#lib/format.js';
   import { localizeError } from '#lib/network.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
@@ -13,7 +13,7 @@
   import { library, normPath, repoRelative } from '#lib/stores/library.svelte.js';
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { runtimesStore } from '#lib/stores/runtimes.svelte.js';
-  import { isPending } from '#lib/components/hub/downloadQueue.svelte.js';
+  import { isPending, progressPercent, statusError } from '#lib/components/hub/downloadQueue.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
   import { Checkbox } from '#lib/components/ui/checkbox/index.js';
@@ -110,10 +110,8 @@
     if (!destroyed) results[p] = r;
   }
 
-  /** Already downloaded or in the queue: nothing to install. */
-  function haveModel(s: ModelSuggestion): boolean {
-    const job = downloads.jobFor(s.repoId, s.variant.name);
-    if (job && (isPending(job.status) || job.status === 'Completed')) return true;
+  /** The model's file is in the library. */
+  function onDisk(s: ModelSuggestion): boolean {
     // A folder model (MLX) is listed under the folder itself: `<library>/<owner>/<repo>`.
     const folder = `/${s.repoId.toLowerCase()}`;
     if (library.models.some((m) => normPath(m.path).endsWith(folder))) return true;
@@ -124,18 +122,65 @@
     });
   }
 
+  type ModelRow =
+    | { kind: 'have' }
+    | { kind: 'pending'; job: DownloadProgress }
+    | { kind: 'done' }
+    | { kind: 'failed'; text: string };
+
+  /** Where a suggested model stands: already there, downloading, downloaded here, or its download failed. */
+  function modelRow(s: ModelSuggestion): ModelRow | null {
+    const job = downloads.jobFor(s.repoId, s.variant.name);
+    const ours = !!outcome[s.id]?.ok;
+    if (job && isPending(job.status)) return { kind: 'pending', job };
+    if (job?.status === 'Completed' || onDisk(s)) return ours ? { kind: 'done' } : { kind: 'have' };
+    const error = job && ours ? statusError(job.status) : null;
+    return error ? { kind: 'failed', text: error } : null;
+  }
+
+  /** Nothing to install: already there, downloading or downloaded (a failed download can be retried). */
+  function settled(s: Suggestion): boolean {
+    if (s.kind !== 'model') return !!outcome[s.id]?.ok;
+    const row = modelRow(s);
+    return !!row && row.kind !== 'failed';
+  }
+
+  function rowText(row: ModelRow): string {
+    if (row.kind === 'have') return t('onboarding.sg_have');
+    if (row.kind === 'done') return t('onboarding.sg_state_downloaded');
+    if (row.kind === 'failed') return row.text;
+    const job = row.job;
+    if (job.status === 'Queued') return t('onboarding.sg_dl_queued');
+    if (job.status === 'Verifying') return t('onboarding.sg_dl_verifying');
+    return t('onboarding.sg_dl_progress', {
+      pct: Math.round(progressPercent(job)),
+      done: formatBytes(job.downloaded_bytes, 1),
+      total: formatBytes(job.total_bytes, 1),
+    });
+  }
+
   const shown = $derived(PURPOSES.filter((p) => picked[p]));
   const chosen = $derived(
     shown.flatMap((p) => {
       const r = results[p];
       if (!r || r === 'loading') return [];
-      return r.suggestions.filter((s) => suggestionSelected(s, off[s.id]) && !outcome[s.id]?.ok && !(s.kind === 'model' && haveModel(s)));
+      return r.suggestions.filter((s) => suggestionSelected(s, off[s.id]) && !settled(s));
     }),
   );
   const chosenMcp = $derived(mcpFound.filter((s) => mcpOn[s.key] && !outcome[s.key]?.ok));
   const totalBytes = $derived(chosen.reduce((n, s) => n + s.sizeBytes, 0));
   const actionCount = $derived(chosen.length + chosenMcp.length);
   const loading = $derived(shown.some((p) => results[p] === 'loading'));
+  /** Models of the shown purposes whose download is queued or running. */
+  const downloading = $derived(
+    shown.reduce((n, p) => {
+      const r = results[p];
+      if (!r || r === 'loading') return n;
+      return n + r.suggestions.filter((s) => s.kind === 'model' && modelRow(s)?.kind === 'pending').length;
+    }, 0),
+  );
+  /** Something was installed or queued here and nothing is left to wait for. */
+  const finished = $derived(actionCount === 0 && downloading === 0 && Object.values(outcome).some((o) => o.ok));
   /** "Claude Code (3), Codex (2)": how many servers each source has. */
   const mcpSummary = $derived.by(() => {
     const counts = new Map<string, number>();
@@ -276,18 +321,18 @@
         </div>
       {:else}
         {#each r.suggestions as s (s.id)}
-          {@const have = s.kind === 'model' && haveModel(s)}
+          {@const row = s.kind === 'model' ? modelRow(s) : null}
           {@const out = outcome[s.id]}
           <label
             class={cn(
               'flex min-w-0 cursor-pointer items-start gap-2.5 rounded-lg border border-border bg-card p-3',
-              (have || out?.ok) && 'cursor-default opacity-80',
+              settled(s) && 'cursor-default opacity-80',
             )}
           >
             <Checkbox
               class="mt-0.5"
-              disabled={busy || have || out?.ok}
-              checked={suggestionSelected(s, off[s.id]) && !have && !out?.ok}
+              disabled={busy || settled(s)}
+              checked={suggestionSelected(s, off[s.id]) && !settled(s)}
               onCheckedChange={(v) => (off[s.id] = !v)}
             />
             <span class="flex min-w-0 flex-1 flex-col gap-1">
@@ -307,8 +352,16 @@
               {#if s.kind === 'model' && s.toolEvidence}
                 <span class={cn('text-xs', ['limited', 'unknown'].includes(s.toolEvidence) ? 'text-warning' : 'text-success')} data-code-tool-evidence={s.toolEvidence}>{t(`onboarding.sg_tools_evidence_${s.toolEvidence}`)}</span>
               {/if}
-              {#if have}
-                <span class="flex items-center gap-1 text-xs text-success"><Check class="size-3" /> {t('onboarding.sg_have')}</span>
+              {#if row?.kind === 'pending'}
+                <span class="flex flex-col gap-1" role="status" data-download-state={row.job.status}>
+                  <span class="flex items-center gap-1 text-xs text-muted-foreground"><LoaderCircle class="size-3 animate-spin" /> <span class="font-num">{rowText(row)}</span></span>
+                  {#if row.job.status === 'Downloading'}<Progress value={progressPercent(row.job)} aria-label={t('onboarding.sg_dl_aria', { name: row.job.variant_name })} class="h-1" />{/if}
+                </span>
+              {:else if row}
+                <span class={cn('flex items-start gap-1 text-xs break-words', row.kind === 'failed' ? 'text-destructive' : 'text-success')} role={row.kind === 'failed' ? 'alert' : 'status'}>
+                  {#if row.kind === 'failed'}<TriangleAlert class="mt-0.5 size-3 shrink-0" />{:else}<Check class="mt-0.5 size-3 shrink-0" />{/if}
+                  <span>{rowText(row)}</span>
+                </span>
               {:else if out}
                 <span class={cn('flex items-start gap-1 text-xs break-words', out.ok ? 'text-success' : 'text-destructive')} role={out.ok ? 'status' : 'alert'}>
                   {#if out.ok}<Check class="mt-0.5 size-3 shrink-0" />{:else}<TriangleAlert class="mt-0.5 size-3 shrink-0" />{/if}
@@ -385,15 +438,20 @@
   {#if shown.length > 0 || mcpFound.length > 0}
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
       <Button onclick={install} disabled={busy || loading || actionCount === 0}>
-        {#if busy}<LoaderCircle class="animate-spin" /> {t('onboarding.sg_installing')}{:else}{t('onboarding.sg_install_btn', { n: actionCount })}{/if}
+        {#if busy}<LoaderCircle class="animate-spin" /> {t('onboarding.sg_installing')}
+        {:else if actionCount === 0 && downloading > 0}<LoaderCircle class="animate-spin" /> {t('onboarding.sg_install_downloading', { n: downloading })}
+        {:else if finished}<Check /> {t('onboarding.sg_install_done')}
+        {:else}{t('onboarding.sg_install_btn', { n: actionCount })}{/if}
       </Button>
       {#if totalBytes > 0}
         <span class="font-num text-xs text-muted-foreground">{t('onboarding.sg_total', { size: formatBytes(totalBytes, 1) })}</span>
       {/if}
     </div>
   {/if}
-  {#if done}
+  {#if downloading > 0}
     <p class="text-xs text-muted-foreground" role="status">{t('onboarding.sg_queued_note')}</p>
+  {:else if finished}
+    <p class="text-xs text-success" role="status">{t('onboarding.sg_done_note')}</p>
   {/if}
   <p class="text-xs text-muted-foreground">{t('onboarding.sg_later_note')}</p>
 </div>
