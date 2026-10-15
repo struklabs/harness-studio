@@ -8,7 +8,7 @@
   import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
   import type { HardwareFitResult, LocalModel, ServerStatus, AppSettings, ModelPreset, StorageDirInfo, SystemHardwareInfo, LaunchConfig, ServerProfile, ModelDefinition, DefinitionImport, ModelfileImport, RecoveryOption } from '#lib/types.js';
   import { onMount, untrack } from 'svelte';
-  import { invoke, invokeShared } from '#lib/ipc.js';
+  import { definitionsEpoch, invoke, invokeShared } from '#lib/ipc.js';
   import { estimateLaunchFit, toHardwareFit, vramSpillRisk } from '#lib/fit.js';
   import { t } from '#lib/i18n.svelte.js';
   import { localizeError } from '#lib/network.js';
@@ -433,7 +433,7 @@
     try {
       const [res, dirs, definitions] = await Promise.all([
         invokeShared<LocalModel[]>('scan_local_models', undefined, library.version),
-        invokeShared<StorageDirInfo[]>('get_storage_directories'),
+        invokeShared<StorageDirInfo[]>('get_storage_directories', undefined, library.version),
         domain.refreshDefinitions(),
       ]);
       seenDefinitionPaths = definitions.flatMap((d) => d.base.kind === 'local' ? [d.base.path] : []).sort().join('\n');
@@ -682,7 +682,7 @@
     const token = ++selectToken;
     let cfg: LaunchConfig;
     try {
-      cfg = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id });
+      cfg = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id }, definitionsEpoch());
     } catch (e) {
       toast.error(String(e));
       return;
@@ -715,7 +715,7 @@
     const serverBound = savedLaunch !== null || !!app.selectedServer?.active;
     if (!serverBound || selectedDefinitionId !== id) return selectDefinition(id);
     try {
-      const cfg = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id });
+      const cfg = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id }, definitionsEpoch());
       if (selectedDefinitionId !== id) return;
       const model = models.find((m) => samePath(m.path, cfg.model_path));
       const fresh = paramsFromPreset(cfg, model, settings);
@@ -754,7 +754,7 @@
       return;
     }
     try {
-      const cfg = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id });
+      const cfg = await invokeShared<LaunchConfig>('get_definition_form', { definitionId: id }, definitionsEpoch());
       if (selectedDefinitionId !== id) return;
       const model = models.find((m) => samePath(m.path, cfg.model_path));
       baseline = modelPart(paramsFromPreset(cfg, model, settings));

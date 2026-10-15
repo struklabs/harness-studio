@@ -237,6 +237,7 @@ const tr = {
   'pg.cancel': 'Vazgeç',
   'pg.delete': 'Sil',
   'pg.open_link_failed': 'Bağlantı açılamadı: {error}',
+  'pg.code_block_aria': 'Kod Bloğu',
   'pg.auto_title': 'Otomatik başlık',
   'pg.auto_title_hint': 'İlk yanıttan sonra modelden kısa bir sohbet başlığı ister (küçük, ayrı bir istek). Kapalıyken başlık ilk mesajdan alınır.',
 
@@ -540,6 +541,7 @@ const en: Record<keyof typeof tr, string> = {
   'pg.cancel': 'Cancel',
   'pg.delete': 'Delete',
   'pg.open_link_failed': 'Could not open link: {error}',
+  'pg.code_block_aria': 'Code Block',
   'pg.auto_title': 'Automatic title',
   'pg.auto_title_hint': 'After the first answer, asks the model for a short chat title (a small, separate request). When off, the title comes from the first message.',
 

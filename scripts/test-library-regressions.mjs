@@ -26,7 +26,7 @@ state.domain = {
   async refreshDefinitions() { state.calls.push('definitions'); },
 };
 const mocks = {
-  ipc: 'export const invoke = (...args) => globalThis.__libraryRegression.invoke(...args); export const invokeShared = invoke;',
+  ipc: 'export const invoke = (...args) => globalThis.__libraryRegression.invoke(...args); export const invokeShared = invoke; export const definitionsEpoch = () => 0;',
   app: 'export const app = globalThis.__libraryRegression.app; export const DEFAULT_SERVER_ID = "default";',
   i18n: 'export const t = key => key; export const locale = () => globalThis.__libraryRegression.language;',
   toast: 'export const toast = { success() {}, error() {} }; export const ACTION_TOAST_DURATION = 1;',

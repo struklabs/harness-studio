@@ -168,6 +168,6 @@
         <span class="block font-mono text-muted-foreground [overflow-wrap:anywhere]">{error}</span>
       </p>
     {/if}
-    <pre use:scrollFocusable class="m-0 overflow-x-auto p-3 font-mono text-xs leading-relaxed text-foreground"><code>{code}</code></pre>
+    <pre use:scrollFocusable={t('pg.code_block_aria')} class="m-0 overflow-x-auto p-3 focus-visible:outline-offset-[-2px] font-mono text-xs leading-relaxed text-foreground"><code>{code}</code></pre>
   {/if}
 </div>
