@@ -7,7 +7,7 @@ const tr = {
   'link.models_empty': 'Eşleşen uzak model yok.',
   'link.page': "Uzak Harness'lar",
   'link.description': 'Uzak gateway adresini ve inference kapsamlı token’ını ekleyin. Token yalnızca sistem anahtar zincirinde saklanır.',
-  'link.gateway_off': "Uzak modelleri kullanmak için gateway'i açın",
+  'link.gateway_off': "Uzak modelleri kullanmak için gateway'i açın.",
   'link.add': 'Uzak Harness Ekle',
   'link.test': 'Bağlantıyı Test Et',
   'link.edit': 'Düzenle',
@@ -19,6 +19,7 @@ const tr = {
   'link.address': 'Adres',
   'link.token': 'Token',
   'link.token_hint': 'Kayıtlı token’ı korumak için boş bırakın.',
+  'link.token_readdress_hint': "Adres değişirse token'ı yeniden girin.",
   'link.allow_http': 'Şifrelenmemiş Bağlantıya İzin Ver',
   'link.enabled': 'Etkin',
   'link.disabled': 'Devre Dışı',
@@ -32,7 +33,7 @@ const tr = {
   'link.unreachable': 'Uzak Harness’a ulaşılamıyor.',
   'link.unauthorized': 'Uzak Harness token’ı reddedildi. Inference kapsamını ve model izinlerini kontrol edin.',
   'link.timeout': 'Uzak Harness bağlantısı zaman aşımına uğradı.',
-  'link.certificate_invalid': 'Sertifika doğrulanamadı',
+  'link.certificate_invalid': 'Sertifika doğrulanamadı.',
   'link.chained_not_allowed': 'Uzak Harness istekleri başka bir uzak Harness’a zincirlenemez.',
   'link.inference_scope_warning': 'Bu token tam yetkili (admin). Inference kapsamlı bir token kullanın.',
   'link.tls_failed': 'Uzak Harness TLS bağlantısı kurulamadı.',
@@ -44,6 +45,8 @@ const tr = {
   'link.invalid_url': 'Kimlik bilgisi, sorgu veya parça içermeyen bir HTTP ya da HTTPS adresi girin.',
   'link.not_found': 'Uzak Harness bağlantısı bulunamadı.',
   'link.keychain_unavailable': 'Sistem anahtar zincirine erişilemedi. Token kaydedilmedi.',
+  'link.token_required_for_new_address': "Adres değiştiği için token'ı yeniden girin.",
+  'link.removed_token_left': 'Bağlantı kaldırıldı ancak sistem anahtar zincirine erişilemediği için kayıtlı token silinemedi.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -67,6 +70,7 @@ const en: Record<keyof typeof tr, string> = {
   'link.address': 'Address',
   'link.token': 'Token',
   'link.token_hint': 'Leave blank to keep the saved token.',
+  'link.token_readdress_hint': 'Re-enter the token if you change the address.',
   'link.allow_http': 'Allow Unencrypted Connection',
   'link.enabled': 'Enabled',
   'link.disabled': 'Disabled',
@@ -80,7 +84,7 @@ const en: Record<keyof typeof tr, string> = {
   'link.unreachable': 'The remote Harness is unreachable.',
   'link.unauthorized': 'The remote Harness token was rejected. Check its inference scope and model permissions.',
   'link.timeout': 'The remote Harness connection timed out.',
-  'link.certificate_invalid': 'Certificate could not be verified',
+  'link.certificate_invalid': 'Certificate could not be verified.',
   'link.chained_not_allowed': 'Remote Harness requests cannot be chained to another remote Harness.',
   'link.inference_scope_warning': 'This token has full (admin) access. Use a token with the inference scope.',
   'link.tls_failed': 'The remote Harness TLS connection failed.',
@@ -92,6 +96,8 @@ const en: Record<keyof typeof tr, string> = {
   'link.invalid_url': 'Enter an HTTP or HTTPS address without credentials, query or fragment.',
   'link.not_found': 'The remote Harness connection was not found.',
   'link.keychain_unavailable': 'The system keychain is unavailable. The token was not saved.',
+  'link.token_required_for_new_address': 'Re-enter the token because the address changed.',
+  'link.removed_token_left': 'The connection was removed, but the saved token could not be deleted because the system keychain is unavailable.',
 };
 
 export default { tr, en };

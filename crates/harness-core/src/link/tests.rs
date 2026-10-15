@@ -154,3 +154,58 @@ fn secrets_are_redacted() {
     secrets::link_delete("unit-link").unwrap();
     assert_eq!(secrets::link_get("unit-link").unwrap(), None);
 }
+
+#[test]
+fn http_links_require_every_resolved_address_to_be_private() {
+    let addr = |s: &str| s.parse::<SocketAddr>().unwrap();
+    assert!(all_private(&[addr("127.0.0.1:80"), addr("[::1]:80")]));
+    assert!(all_private(&[addr("192.168.1.2:80")]));
+    // A name that now answers with a public address (DNS rebinding) is refused.
+    assert!(!all_private(&[addr("8.8.8.8:80")]));
+    assert!(!all_private(&[addr("192.168.1.2:80"), addr("8.8.8.8:80")]));
+    assert!(!all_private(&[]));
+}
+
+#[test]
+fn token_must_be_re_entered_when_the_origin_changes() {
+    assert!(same_origin("https://a.example", "https://a.example/prefix"));
+    assert!(same_origin("http://a.example:80", "http://a.example"));
+    for other in [
+        "http://a.example",
+        "https://b.example",
+        "https://a.example:8443",
+    ] {
+        assert!(!same_origin("https://a.example", other), "{other}");
+    }
+}
+
+#[tokio::test]
+async fn pinned_client_connects_only_to_the_checked_address() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0u8; 1024];
+            let _ = socket.read(&mut buffer).await;
+            let _ = socket
+                .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok")
+                .await;
+        }
+    });
+    let base = format!("http://pinned.invalid:{}", addr.port());
+    // The name does not exist in DNS; only the pin can make it reachable.
+    let pinned = build_client(&base, &[addr], 5).unwrap();
+    let body = pinned
+        .get(&base)
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert_eq!(body, "ok");
+    let unpinned = build_client(&base, &[], 5).unwrap();
+    assert!(unpinned.get(&base).send().await.is_err());
+}

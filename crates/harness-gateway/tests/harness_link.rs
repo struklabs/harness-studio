@@ -545,6 +545,17 @@ async fn remote_models_proxy_policy_and_failures() {
     .await
     .unwrap_err();
     assert_eq!(duplicate, "link.name_taken");
+    let moved = link::update(
+        added.link.id.clone(),
+        "office".into(),
+        format!("http://localhost:{}", address.port()),
+        None,
+        true,
+        true,
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(moved, "link.token_required_for_new_address");
     let updated = link::update(
         added.link.id.clone(),
         "office-renamed".into(),
@@ -575,7 +586,7 @@ async fn remote_models_proxy_policy_and_failures() {
     .unwrap();
     assert_eq!(updated.status.state, link::State::Offline);
     assert!(updated.status.warning.is_none());
-    link::remove(&added.link.id).await.unwrap();
+    assert_eq!(link::remove(&added.link.id).await.unwrap(), None);
     assert!(link::list().is_empty());
     assert_eq!(
         harness_core::secrets::link_get(&added.link.id).unwrap(),

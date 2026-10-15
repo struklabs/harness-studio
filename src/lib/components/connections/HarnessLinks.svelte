@@ -40,6 +40,13 @@
   let alive = true;
   const http = $derived(address.trim().toLowerCase().startsWith('http:'));
   const warning = $derived(token ? '' : errorText(linkWarning(editing)));
+  const addressChanged = $derived.by(() => {
+    if (!editing) return false;
+    try { return new URL(address.trim()).origin !== new URL(editing.base_url).origin; }
+    catch { return false; }
+  });
+  const needsToken = $derived(!editing || addressChanged);
+  let notice = $state('');
 
   async function load() {
     try {
@@ -98,8 +105,13 @@
 
   async function remove() {
     if (!removing) return;
+    notice = '';
     busy = true;
-    try { await invoke('link_remove', { id: removing.id }); removing = null; await load(); }
+    try {
+      notice = (await invoke<string | null>('link_remove', { id: removing.id })) ?? '';
+      removing = null;
+      await load();
+    }
     catch (e) { error = errorText(e); }
     finally { busy = false; }
   }
@@ -112,6 +124,7 @@
   {/if}
   <div><Button onclick={() => edit(null)} disabled={busy}>{t('link.add')}</Button></div>
   {#if error}<p class="text-sm text-destructive" role="alert">{error}</p>{/if}
+  {#if notice}<p class="flex items-start gap-2 text-sm text-warning" role="status"><TriangleAlert class="size-4 shrink-0" />{errorText(notice)}</p>{/if}
   {#if links.length === 0}<p class="text-sm text-muted-foreground">{t('link.empty')}</p>{/if}
   {#each links as link (link.id)}
     <article class="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
@@ -144,8 +157,8 @@
       <label class="flex flex-col gap-1 text-sm">{t('link.name')}<Input bind:value={name} required maxlength={64} disabled={busy} /></label>
       <p class="text-xs text-muted-foreground">{t('link.name_hint')}</p>
       <label class="flex flex-col gap-1 text-sm">{t('link.address')}<Input type="url" bind:value={address} required disabled={busy} placeholder="https://harness.example.com" /></label>
-      <label class="flex flex-col gap-1 text-sm">{t('link.token')}<Input type="password" bind:value={token} autocomplete="new-password" required={!editing} disabled={busy} /></label>
-      {#if editing}<p class="text-xs text-muted-foreground">{t('link.token_hint')}</p>{/if}
+      <label class="flex flex-col gap-1 text-sm">{t('link.token')}<Input type="password" bind:value={token} autocomplete="new-password" required={needsToken} disabled={busy} /></label>
+      {#if editing}<p class="text-xs text-muted-foreground">{t('link.token_hint')} {t('link.token_readdress_hint')}</p>{/if}
       {#if http}
         <div class="flex flex-col gap-1">
           <label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={allowHttp} disabled={busy} aria-describedby={!allowHttp ? 'link-http-hint' : undefined} />{t('link.allow_http')}</label>
@@ -158,7 +171,7 @@
       <Dialog.Footer>
         {#if editing}<Button type="button" variant="outline" disabled={busy} onclick={() => test(editing!)}>{t('link.test')}</Button>{/if}
         <Button type="button" variant="outline" disabled={busy} onclick={() => { open = false; token = ''; }}>{t('link.cancel')}</Button>
-        <Button type="submit" disabled={busy || (http && !allowHttp)}>{t('link.save')}</Button>
+        <Button type="submit" disabled={busy || (http && !allowHttp) || (needsToken && !token)}>{t('link.save')}</Button>
       </Dialog.Footer>
     </form>
   </Dialog.Content>

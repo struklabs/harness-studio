@@ -606,8 +606,8 @@ async fn run(
             None => body,
         },
     );
-    let http = if remote.is_some() {
-        harness_core::link::client(settings.request_timeout_secs)
+    let http = if let Some((name, _)) = remote {
+        harness_core::link::client_for(name, settings.request_timeout_secs)
             .map_err(|_| GatewayError::remote("link.unreachable"))?
     } else {
         state.http.clone()
@@ -637,7 +637,7 @@ async fn run(
     let upstream = match timeout {
         Some(t) => tokio::time::timeout(t, send).await.map_err(|_| {
             if let Some((name, _)) = remote {
-                harness_core::link::mark_failed(name, "link.timeout");
+                harness_core::link::request_refresh(name);
                 GatewayError::remote("link.timeout")
             } else {
                 GatewayError::new(
@@ -662,7 +662,7 @@ async fn run(
                 Some("link.dns_failed") => "link.dns_failed",
                 _ => "link.unreachable",
             };
-            harness_core::link::mark_failed(name, key);
+            harness_core::link::request_refresh(name);
             GatewayError::remote(key)
         } else {
             GatewayError::new(502, "upstream_unreachable", format!("llama-server: {}", e))
@@ -671,15 +671,17 @@ async fn run(
 
     let status = upstream.status().as_u16();
     if let Some((name, _)) = remote {
-        if !(200..300).contains(&status) {
+        // Client errors (unknown model, context too long, 429 ...) are the caller's to see;
+        // only a rejected token or an unusable remote becomes a link failure.
+        if !(200..300).contains(&status) && !(400..500).contains(&status)
+            || matches!(status, 401 | 403)
+        {
             let key = if matches!(status, 401 | 403) {
                 "link.unauthorized"
             } else {
                 "link.unreachable"
             };
-            if matches!(status, 401 | 403 | 500..=599) {
-                harness_core::link::mark_failed(name, key);
-            }
+            harness_core::link::request_refresh(name);
             return Err(GatewayError::remote(key));
         }
     }
@@ -705,6 +707,11 @@ async fn run(
             "x-harness-queue-ms",
             lease.queue_wait.as_millis().to_string(),
         );
+    if remote.is_some() {
+        if let Some(retry) = upstream.headers().get(header::RETRY_AFTER) {
+            builder = builder.header(header::RETRY_AFTER, retry.clone());
+        }
+    }
     if sse {
         builder = builder
             .header(header::CACHE_CONTROL, "no-cache")
@@ -984,7 +991,7 @@ impl Stream for Relay {
                         .as_ref()
                         .filter(|l| harness_core::link::parse_model(&l.definition_id).is_some())
                     {
-                        harness_core::link::mark_failed(&lease.server_id, "link.timeout");
+                        harness_core::link::request_refresh(&lease.server_id);
                         "Remote Harness stream stalled"
                     } else {
                         "llama-server stream stalled"
@@ -1069,12 +1076,7 @@ impl Stream for Relay {
                         .as_ref()
                         .filter(|l| harness_core::link::parse_model(&l.definition_id).is_some())
                     {
-                        let key = if e.is_timeout() {
-                            "link.timeout"
-                        } else {
-                            "link.unreachable"
-                        };
-                        harness_core::link::mark_failed(&lease.server_id, key);
+                        harness_core::link::request_refresh(&lease.server_id);
                         std::io::Error::other(harness_core::link::transport_error(
                             e,
                             lease.api_key.as_deref().unwrap_or_default(),

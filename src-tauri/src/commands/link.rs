@@ -31,7 +31,7 @@ pub(crate) async fn link_update(
 }
 
 #[tauri::command]
-pub(crate) async fn link_remove(id: String) -> Result<(), String> {
+pub(crate) async fn link_remove(id: String) -> Result<Option<String>, String> {
     harness_core::link::remove(&id).await
 }
 
