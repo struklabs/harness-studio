@@ -389,13 +389,7 @@ export function settingsFromConversation(c: Conversation, current: PgSettings): 
   return restored;
 }
 
-/** Provisional title from the first user message. */
-export function fallbackTitle(text: string): string {
-  const line = text.split(/\s+/).join(' ').trim();
-  return line.length > 60 ? `${line.slice(0, 57).trimEnd()}…` : line;
-}
-
-export { cleanGeneratedTitle } from './titles';
+export { cleanGeneratedTitle, fallbackTitle } from './titles';
 
 export { turnRoot } from './branching';
 
