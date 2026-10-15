@@ -3,6 +3,8 @@
   import { invoke } from '#lib/ipc.js';
   import { errorCode, errorText } from '#lib/errors.js';
   import { getVersion } from '@tauri-apps/api/app';
+  import { openUrl } from '@tauri-apps/plugin-opener';
+  import { toast } from 'svelte-sonner';
   import { Check, TriangleAlert } from '@lucide/svelte';
   import type { AppUpdateInfo, AppUpdateProgress } from '#lib/types.js';
   import { formatBytes } from '#lib/format.js';
@@ -14,6 +16,10 @@
   import SettingRow from './SettingRow.svelte';
 
   const fmt = (b: number) => formatBytes(b, 1);
+  const RELEASES_URL = 'https://github.com/struklabs/harness-studio/releases/latest';
+  function openReleases() {
+    openUrl(RELEASES_URL).catch((e) => toast.error(t('hub.open_link_failed', { error: String(e) })));
+  }
 
   function updateDate(value: string): string {
     const normalized = value.replace(
@@ -125,6 +131,9 @@
                   <span class="text-xs text-muted-foreground">{t('settings.app_update_date', { date: updateDate(appUpdate.date) })}</span>
                 {/if}
               </div>
+              {#if appUpdate.manual}
+                <p class="text-xs text-muted-foreground">{t('settings.app_update_manual')}</p>
+              {/if}
               {#if appUpdate.notes}
                 <Collapsible.Root open>
                   <Collapsible.Trigger class="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline">
@@ -166,7 +175,9 @@
       <Button variant="outline" size="sm" onclick={checkUpdate} disabled={checking || installing}>
         {checking ? t('settings.app_checking') : t('settings.app_check_updates')}
       </Button>
-      {#if appUpdate && !installing}
+      {#if appUpdate?.manual}
+        <Button size="sm" onclick={openReleases}>{t('settings.app_open_releases')}</Button>
+      {:else if appUpdate && !installing}
         {#if confirmInstall}
           <Button size="sm" onclick={installUpdate}>{t('settings.app_install_confirm_yes')}</Button>
           <Button variant="ghost" size="sm" onclick={() => (confirmInstall = false)}>{t('settings.cancel')}</Button>

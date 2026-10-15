@@ -80,6 +80,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Playground: with a model under 5B parameters, tools are offered with short descriptions (first sentence; names, parameters and required fields unchanged). Qwen3-0.6B picked the right tool in 49 of 60 test prompts instead of 36, with about 440 fewer prompt tokens; Qwen3-4B stayed at 60 of 60.
 
 ### Fixed
+- Linux updater: a .deb install was offered "Install Update" like the AppImage. The updater then downloaded the AppImage and rejected it, or asked for pkexec/sudo dpkg. A .deb install now says it cannot update itself and opens the releases page instead. An AppImage updated after a login start no longer comes back hidden in the tray (`--minimized` is not passed to the new version).
+- Linux güncelleyici: .deb kurulumuna AppImage gibi "Güncellemeyi Kur" sunuluyordu; güncelleyici AppImage'ı indirip reddediyor ya da pkexec/sudo dpkg istiyordu. .deb kurulumu artık kendini güncelleyemeyeceğini söylüyor ve sürümler sayfasını açıyor. Oturum açılışında başlamış bir AppImage güncellemeden sonra tepside gizli açılmıyor (`--minimized` yeni sürüme geçirilmiyor).
 - Downloader: GGUF magic is checked only for `.gguf` files; companion files download with consistent file counters and byte progress.
 - İndirici: GGUF sihirli baytları yalnız `.gguf` dosyalarında denetlenir; yardımcı dosyalar tutarlı dosya sayacı ve bayt ilerlemesiyle indirilir.
 - Model Hub: the results heading follows the active search while its listing loads.

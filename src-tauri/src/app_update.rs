@@ -13,6 +13,22 @@ pub struct AppUpdateInfo {
     pub version: String,
     pub notes: Option<String>,
     pub date: Option<String>,
+    /// Installed by a package (Linux `.deb`), not updatable in place: the new version comes from
+    /// the releases page. The updater would otherwise download the AppImage entry and reject
+    /// it, or ask for `pkexec`/`sudo dpkg -i`.
+    pub manual: bool,
+}
+
+/// Only the AppImage updates itself on Linux.
+fn manual_install() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        !appimage::running_from_appimage()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -74,6 +90,7 @@ impl AppUpdateState {
             version: u.version.clone(),
             notes: u.body.clone(),
             date: u.date.map(|d| d.to_string()),
+            manual: manual_install(),
         }))
     }
 
@@ -86,6 +103,9 @@ impl AppUpdateState {
     ) -> Result<(), String> {
         if !endpoint_configured(app) {
             return Err(not_configured());
+        }
+        if manual_install() {
+            return Err(err("update.manual_install").into());
         }
         let update = app
             .updater()
@@ -209,7 +229,13 @@ mod appimage {
             .unwrap_or_else(|| PathBuf::from("/"));
         close_descriptors_on_exec();
         let result = std::process::Command::new(&appimage)
-            .args(std::env::args_os().skip(1))
+            // A login start's `--minimized` would bring the updated version back only as a
+            // tray icon after the user asked for the update.
+            .args(
+                std::env::args_os()
+                    .skip(1)
+                    .filter(|a| a != crate::desktop::MINIMIZED_ARG),
+            )
             .env_clear()
             .envs(clean_env(std::env::vars_os(), &appdir))
             .current_dir(cwd)
