@@ -4,6 +4,7 @@
   // build, start / stop, the NPU detection, the backends and Lemonade's model registry with
   // download and delete. Downloaded models are served by the gateway under their Lemonade names.
   import { invoke } from '#lib/ipc.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { onDestroy, onMount } from 'svelte';
   import { toast } from 'svelte-sonner';
   import type {
@@ -117,6 +118,7 @@
     if (entry) {
       toast.success(t('lem.installed_ok', { name: entry.name }));
       latest = null;
+      await engineInstall.refreshAvailability();
     }
   }
 
@@ -131,6 +133,7 @@
     if (entry) {
       toast.success(t('lem.installed_ok', { name: entry.name }));
       latest = null;
+      await engineInstall.refreshAvailability();
     }
   }
 

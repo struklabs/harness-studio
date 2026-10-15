@@ -1,6 +1,8 @@
 <script lang="ts">
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { onMount, untrack } from 'svelte';
+  import { listen } from '@tauri-apps/api/event';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import type { HfModelSearchResult, HfSearchOptions, HfSortKey, SystemHardwareInfo } from '#lib/types.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { downloads } from '#lib/stores/downloads.svelte.js';
@@ -20,7 +22,8 @@
   import TaskPicker from './hub/TaskPicker.svelte';
   import VariantDrawer from './hub/VariantDrawer.svelte';
   import { parseSearchQuery } from './hub/searchParser';
-  import { clearPageCache, fetchPage, loadPrefs, savePrefs } from './hub/hubData';
+  import { fetchPage, loadPrefs, savePrefs } from './hub/hubData';
+  import { engineCompatibility } from './hub/engineCompatibility';
   import EngineNeeded from './common/EngineNeeded.svelte';
   import { taskInfo } from './hub/tasks';
   import { taskSupportStore } from './hub/taskSupport.svelte';
@@ -111,6 +114,15 @@
   let taskLevel = $derived(taskSupportStore.support(pipelineTag));
   let taskInfoRuntime = $derived(taskSupportStore.info(pipelineTag));
   onMount(() => void taskSupportStore.load(true));
+  onMount(() => {
+    void engineInstall.refresh();
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void listen('engines-changed', () => {
+      if (!disposed) void engineInstall.refreshAvailability();
+    }).then((unlisten) => { if (disposed) unlisten(); else cleanup = unlisten; }).catch(() => {});
+    return () => { disposed = true; cleanup?.(); };
+  });
 
   function currentFilters() {
     return {
@@ -298,14 +310,11 @@
 
   /** Engine families the shown models need and that are not installed yet (mistral.rs has no managed download and is shown on its own). */
   let neededFamilies = $derived(
-    [...new Set(results.flatMap((r) => (r.compatibility.status === 'needs_runtime' && r.compatibility.runtime !== 'mistral.rs' ? [r.compatibility.runtime] : [])))]
+    [...new Set(results.flatMap((r) => {
+      const compat = engineCompatibility(r.compatibility, (family) => engineInstall.installed(family));
+      return compat.status === 'needs_runtime' && compat.runtime !== 'mistral.rs' ? [compat.runtime] : [];
+    }))]
   );
-
-  function enginesInstalled() {
-    clearPageCache();
-    void taskSupportStore.load(true);
-    void runList();
-  }
 
   let listTitle = $derived(shownQuery.trim() ? t('hub.list_title_search', { query: shownQuery.trim() }) : t(LIST_TITLES[sortKey]));
 </script>
@@ -433,7 +442,7 @@
         {#each neededFamilies as family (family)}
           <div class="mb-2 flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-1.5 text-xs text-info" role="status">
             <Info class="mt-1 size-3.5 shrink-0" />
-            <EngineNeeded {family} hintText={t('eng.list_banner', { runtime: family })} class="flex-1" onInstalled={enginesInstalled} />
+            <EngineNeeded {family} hintText={t('eng.list_banner', { runtime: family })} class="flex-1" />
           </div>
         {/each}
         <div

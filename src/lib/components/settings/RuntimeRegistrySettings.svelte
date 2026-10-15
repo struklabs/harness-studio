@@ -23,6 +23,7 @@
   import { localizeError } from '#lib/network.js';
   import { runtimeInstallErrorText } from '#lib/runtimeBackend.js';
   import { runtimesStore, runtimeBuildLabel } from '#lib/stores/runtimes.svelte.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Input } from '#lib/components/ui/input/index.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
@@ -169,7 +170,7 @@
       toast.success(t('rt.added', { name: entry.name }));
       pick = null;
       ghName = '';
-      await runtimesStore.load(true);
+      await engineInstall.refreshAvailability();
     } catch (e) {
       ghError = runtimeInstallErrorText(e);
     } finally {
@@ -245,7 +246,7 @@
       folder = '';
       localName = '';
       copy = false;
-      await runtimesStore.load(true);
+      await engineInstall.refreshAvailability();
     } catch (e) {
       localError = localizeError(e);
     } finally {
