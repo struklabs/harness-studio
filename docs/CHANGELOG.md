@@ -97,6 +97,8 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - Linux: tepsi sunucusu olmayan masaüstünde (AppIndicator eklentisi olmayan standart GNOME) tepsi simgesi oluşturuluyor ama hiç görünmüyordu ve pencereyi kapatmak onu geri getirilemez biçimde gizleyebiliyordu. Tepsi artık yalnız oturum veri yolunda bir StatusNotifierWatcher varken sayılıyor; yoksa kapatmak uygulamadan çıkar.
 - Create > Auto Tools: the run counters and the queue filter buttons share one help (?) per group instead of one beside every button, so the counter grid and the filter row stay aligned.
 - Oluştur > Otomatik Araçlar: çalıştırma sayaçları ve kuyruk filtre düğmeleri her düğmenin yanında ayrı bir yardım (?) yerine grup başına tek yardım kullanır; sayaç ızgarası ve filtre satırı hizalı kalır.
+- Create tool generators use this instance's running gateway address, follow port changes, and offer gateway settings without sending requests while it is off.
+- Oluştur araç üreticileri bu örneğin çalışan ağ geçidi adresini kullanır, port değişikliklerini izler ve ağ geçidi kapalıyken istek göndermeden ayarları açmayı sunar.
 - Model Hub: each card's help button (?) sits inside the card's top-right corner instead of beside it, so the grid columns stay aligned.
 - Python engine: a model that fails to load stops its worker at once with the reason, instead of waiting for the 300 s load timeout. SpeechT5 and FastSpeech2 are no longer offered for text-to-speech (their pipeline downloads a vocoder at load, which the offline worker cannot), and root SentencePiece files such as `spm_char.model` are downloaded.
 - Library: CrispASR and audio.cpp speech models show their real engine; audio.cpp processing models show their audio task.
