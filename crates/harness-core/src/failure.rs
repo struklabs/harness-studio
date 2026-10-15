@@ -388,6 +388,7 @@ pub const JETSAM_LOG_DEADLINE: std::time::Duration = std::time::Duration::from_s
 
 /// `failure.killed` -> `failure.killed_by_system` (out of memory) when `log` names `pid` in a
 /// jetsam kill ([`jetsam_killed`]); anything else stays as it is.
+#[cfg(any(target_os = "macos", test))]
 fn apply_memory_kill(f: &mut ServerFailure, log: &str, pid: u32) {
     if f.message_key == "failure.killed" && jetsam_killed(log, pid) {
         f.kind = FailureKind::OutOfMemory;
@@ -399,6 +400,7 @@ fn apply_memory_kill(f: &mut ServerFailure, log: &str, pid: u32) {
 /// The stdout of `cmd`, or `None` when it cannot start or does not finish within `deadline`
 /// (then it is killed). Stdout is read on its own thread, so a full pipe cannot stall the wait.
 #[cfg(unix)]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn output_within(mut cmd: std::process::Command, deadline: std::time::Duration) -> Option<String> {
     use std::io::Read;
     use std::process::Stdio;
@@ -431,6 +433,7 @@ fn output_within(mut cmd: std::process::Command, deadline: std::time::Duration) 
 /// Whether macOS memorystatus lines (`log show`) say the kernel killed `pid` for memory: a
 /// `memorystatus: killing_<reason>` line naming `pid N ` (`killing_top_process pid 1755
 /// [python3.12] (vm-pageshortage ...)`). Idle exits of daemons (`idle-exit`) are no memory kills.
+#[cfg(any(target_os = "macos", test))]
 fn jetsam_killed(log: &str, pid: u32) -> bool {
     let by_pid = format!(" pid {pid} ");
     log.lines().any(|l| {
