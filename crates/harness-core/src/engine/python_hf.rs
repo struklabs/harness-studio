@@ -473,8 +473,9 @@ pub fn asks_for_code(dir: &Path) -> bool {
 /// `config.json`. `None` for anything else: no weights, remote code (`auto_map`), a component
 /// of a diffusers pipeline, or a text generator (mistral.rs runs those).
 pub fn detect(dir: &Path) -> Option<String> {
-    // An MLX speech folder (Whisper's MLX port has a transformers config) is mlx-audio's.
-    if !dir.is_dir() || super::mlx::is_audio_dir(dir) {
+    // An MLX speech folder (Whisper's MLX port has a transformers config) is mlx-audio's; a
+    // Spark-TTS folder speaks too, though its config is a Qwen2 one.
+    if !dir.is_dir() || super::mlx::is_audio_dir(dir) || super::mlx::is_spark_dir(dir) {
         return None;
     }
     if dir

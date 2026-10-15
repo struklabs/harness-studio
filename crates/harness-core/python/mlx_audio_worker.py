@@ -393,14 +393,55 @@ def count_tokens(model, text):
         return len(text) // 4 + 1
 
 
-# Where a text is cut into sentences: after a Latin end mark and its spaces, after a CJK one
-# (written without a space).
-SENTENCE_END = re.compile(r"(?<=[.!?])\s+|(?<=[\u3002\uff01\uff1f])\s*")
+# Where a text is cut into sentences: after a Latin end mark (., !, ?, \u2026; closing quotes and
+# brackets stay with it) and its spaces, after a CJK one (written without a space), and at a line
+# break (lists and lines without end marks).
+SENTENCE_END = re.compile(
+    r"[.!?\u2026]+[\"'\u201d\u2019)\]]*(?:\s+|$)|[\u3002\uff01\uff1f]\s*|\s*\n\s*")
+# Words a single period does not end (titles and common abbreviations, Turkish and English):
+# "Dr. Ali", "vs. bitti".
+ABBREVIATIONS = frozenset(
+    "dr prof do\u00e7 doc yrd av sn bkz bk vs vb \u00f6rn \u00f6r mr mrs ms st no nr mah cad sok apt tel"
+    " etc vol fig".split())
+# The longest piece generated in one call: longer runs (no end mark) are cut at the last space.
+MAX_SENTENCE_CHARS = 300
 
 
-def sentences(text):
-    """The sentences of `text` (the whole text when it has one), never empty ones."""
-    return [s for s in (p.strip() for p in SENTENCE_END.split(text)) if s] or [text]
+def ends_sentence(text, at):
+    """Whether the single period at `at` ends a sentence: not after an abbreviation, a number
+    (Turkish ordinals: "3. madde") or a one-letter initial ("A. Y\u0131lmaz")."""
+    word = re.search(r"(\w+)$", text[:at])
+    if not word:
+        return True
+    w = word.group(1)
+    return not (w.lower() in ABBREVIATIONS or w.isdigit() or (len(w) == 1 and w.isalpha()))
+
+
+def capped(piece, limit):
+    """`piece` cut into runs of at most `limit` characters, at the last space before it."""
+    out = []
+    while len(piece) > limit:
+        cut = piece.rfind(" ", 0, limit + 1)
+        cut = cut if cut > 0 else limit
+        out.append(piece[:cut].strip())
+        piece = piece[cut:].strip()
+    return out + [piece] if piece else out
+
+
+def sentences(text, limit=MAX_SENTENCE_CHARS):
+    """The sentences of `text` (the whole text when it has one), never empty ones, none longer
+    than `limit` characters."""
+    parts, start = [], 0
+    for m in SENTENCE_END.finditer(text):
+        mark = m.group()
+        # A period that ends no sentence ("Dr.") is skipped, unless a line break follows it.
+        if (mark.startswith(".") and not mark.startswith("..") and "\n" not in mark
+                and not ends_sentence(text, m.start())):
+            continue
+        parts.append(text[start:m.end()])
+        start = m.end()
+    parts.append(text[start:])
+    return [s for p in parts for s in capped(p.strip(), limit) if s] or [text]
 
 
 def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
