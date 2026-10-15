@@ -344,7 +344,7 @@ Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, y
 **Üzerinde çalışılıyor**
 - Linux derlemelerinin daha çok donanımda (AMD, NVIDIA, Intel) ve dağıtımda doğrulanması
 - Her platformda ilk açılış deneyiminin cilalanması
-- Daha çok donanımda karşılaştırmalı testler (NVIDIA/CUDA, Linux)
+- Linux'ta karşılaştırmalı testler (Windows'ta NVIDIA/CUDA tamamlandı)
 - Küçük pencere ve yüksek arayüz ölçeği için erişilebilirlik denetimleri
 
 **Sıradaki planlar**

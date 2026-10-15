@@ -344,7 +344,7 @@ The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction
 **In progress**
 - Verifying the Linux builds on more hardware (AMD, NVIDIA, Intel) and distributions
 - First-run polish on every platform
-- Benchmarks on more hardware (NVIDIA/CUDA, Linux)
+- Benchmarks on Linux (NVIDIA/CUDA on Windows is done)
 - Accessibility checks for small windows and high interface scale
 
 **Planned next**

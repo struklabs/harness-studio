@@ -21,7 +21,7 @@ This is the public roadmap of Harness Studio. It shows direction, not promises: 
   - Model Hub compatibility marks that name the engine that runs a repository, and refuse formats nothing local can run (AWQ, FP8, NVFP4 checkpoints) before downloading.
 - **Platform verification.** 0.1.0 ships the Windows installer (NSIS), signed and notarized macOS DMGs, and a Linux `.deb` package as a preview. A Linux AppImage with the GStreamer media plugins and automatic updates is in main and ships in the next release. Verify Linux on more machines (AMD, NVIDIA, Intel) and distributions, then drop the preview label.
 - **First-run polish.** An end-to-end first-run flow (wizard, find a model, download, start, chat) on empty data folders on every platform.
-- **Benchmarks on more hardware.** Run the comparison suite (`bench/compare/`) on NVIDIA/CUDA and on Linux, and re-measure the other tools in the same session.
+- **Benchmarks on more hardware.** Run the comparison suite (`bench/compare/`) on Linux, and re-measure the other tools in the same session. NVIDIA/CUDA on Windows is done: Harness against plain llama.cpp on an RTX 3050 Ti ([docs/benchmarks/2026-10-15-nvidia](../benchmarks/2026-10-15-nvidia/summary.md)).
 - **Accessibility checks.** Small windows, high interface scale, and Windows forced-colors mode.
 - **Linux desktop details.** Native `<select>` styling in WebKitGTK, tray icon click behavior, and GPU memory reporting (NVML, fdinfo) on real hardware.
 

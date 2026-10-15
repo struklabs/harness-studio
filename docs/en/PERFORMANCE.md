@@ -224,7 +224,7 @@ To split the Dashboard's VRAM bar by consumer, the GPU memory dedicated per proc
 
 **Limits.**
 - The Linux (`/proc/<pid>/fdinfo`) path has unit tests but was not measured on the test machine; its cost grows with the number of open files of the processes in the tree (only files that have a DRM line are parsed).
-- On macOS and on Linux with NVIDIA the per-process counter is not used (`nvidia-smi` would start a process every round), and the bar is not split.
+- On Linux with NVIDIA the per-process split comes from NVML, loaded in-process from `libnvidia-ml.so.1` (not yet verified on hardware); only when NVML cannot load does the bar stay unsplit (`nvidia-smi` would start a process every round). On macOS the bar is not split.
 - Only the monitored (primary) graphics card; on Windows only `Dedicated Usage`.
 
 ### Restore from the Tray: Pre-Building and the Launch Screen
@@ -525,7 +525,7 @@ When two requests that each fit alone together exceed the pool, llama-server dro
 
 # KV Cache Precision
 
-**Policy update:** on CUDA, Metal and ROCm, the Saving step, both automatic and manual, is the matched q4_0/q4_0; Vulkan's measured q8_0/q4_0 step is kept. Details are in the backend sections.
+**Policy update:** on CUDA, Metal and ROCm the automatic ladder has matched pairs only and stops at q8_0/q8_0: q4_0/q4_0 broke Qwen3-0.6B at 8k and 32k on CUDA (b11342) and garbled a Qwen3-4B tool call, so when q8_0/q8_0 does not fit the gateway shrinks the context instead. q4_0/q4_0 remains the manual Saving choice on these backends. Vulkan's measured q8_0/q4_0 step is kept. Details are in the backend sections.
 
 The question: in which type should conversation memory (the KV cache, `--cache-type-k/-v`) be stored, and when should it be lowered? The goal: the fewest resources without degrading quality. The policy applied: [ARCHITECTURE.md §5.4c](ARCHITECTURE.md#54c-kv-cache-precision-kv_policyrs). All numbers were measured on the test machine (Windows 11, RX 7900 GRE 16 GB, 32 GB RAM) with a copy of the managed runtime: llama.cpp **b11312** (0c1e57098) Vulkan, `-dev Vulkan0` (iGPU excluded), `-ngl 99 -fa on`. This build turns on Hadamard rotation (PR #21038) by itself when K/V is quantized (`attn_rot_k = 1` in the log).
 
@@ -536,7 +536,7 @@ The question: in which type should conversation memory (the KV cache, `--cache-t
 - **K is more sensitive than V:** PPL differences in [PR #7412](https://github.com/ggml-org/llama.cpp/pull/7412): q8_0/q8_0 +0.005; f16/q4_0 (V only) +0.022; q4_0/q4_0 +0.21. The author notes that K is much more sensitive. [Discussion #5932](https://github.com/ggml-org/llama.cpp/discussions/5932): Qwen2 degrades with q4_0, and K q8_0 + V q4_0 fixes it. The measurement of the author who added KV quantization to Ollama: q8_0 +0.002-0.05, q4_0 +0.2-0.25 PPL ([smcleod.net](https://smcleod.net/2024/12/bringing-k/v-context-quantisation-to-ollama/)).
 - **Rotation:** [PR #21038](https://github.com/ggml-org/llama.cpp/pull/21038) (April 2026) rotates Q/K/V during quantization and largely reduces the loss of low-bit KV (gpt-oss-20b on AIME25 goes from 2% to 21.7% with q4_0 KV). Measurements from before this PR overstate today's loss.
 - **Backend:**
-  - In the default CUDA build, the FA kernel exists only for matched pairs (`q4_0-q4_0;q8_0-q8_0;f16-f16;bf16-bf16`). A mixed pair (q8_0/q4_0) runs FA **on the CPU** without `GGML_CUDA_FA_QUANTS=all` ([docs/build.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md), [#28633](https://github.com/ggml-org/llama.cpp/issues/28633)).
+  - In the default CUDA build, the FA kernel exists only for matched pairs (`q4_0-q4_0;q8_0-q8_0;f16-f16;bf16-bf16`). Without `GGML_CUDA_FA_QUANTS=all`, a mixed pair (q8_0/q4_0) is converted to f16 on the GPU on every token (it does not fall back to the CPU; generation measured 27-38% slower, see the [CUDA section](#cuda)) ([docs/build.md](https://github.com/ggml-org/llama.cpp/blob/master/docs/build.md), [#28633](https://github.com/ggml-org/llama.cpp/issues/28633)).
   - On ROCm too, mixed pairs fall onto a slow path ([#22411](https://github.com/ggml-org/llama.cpp/discussions/22411)).
   - On Vulkan, according to the measurement below, a mixed pair stays on the GPU; its speed is in the same class as matched pairs.
 - **Model classes:**
@@ -674,7 +674,7 @@ Private memory tracks GPU memory because the AMD Vulkan driver writes VRAM to co
 3. **The second step is K q8_0 + V q4_0 ("Saving"), not q4_0 / q4_0.**
    - On the same models KLD is 3.5-8.5x lower: Qwen3 0.0028 / 0.0236; Qwen2.5 0.0013 / 0.0071; gpt-oss 0.083 / 0.299.
    - The memory difference between the two is about 13% of f16.
-   - A mixed pair is fast on Vulkan. On the default CUDA build, mixed pairs are converted to f16 on every token and become 27-38% slower ([CUDA section](#cuda)): on CUDA the automatic ladder consists only of matched pairs (f16 -> q8_0/q8_0 -> q4_0/q4_0). On Metal, mixed pairs also slow the prompt by 87-90% ([Metal section](#metal)); the ladder is the same on Metal.
+   - A mixed pair is fast on Vulkan. On the default CUDA build, mixed pairs are converted to f16 on every token and become 27-38% slower ([CUDA section](#cuda)): on CUDA the automatic ladder consists only of matched pairs (f16 -> q8_0/q8_0, then a smaller context; q4_0/q4_0 only when chosen by hand). On Metal, mixed pairs also slow the prompt by 87-90% ([Metal section](#metal)); the ladder is the same on Metal.
 4. **K q8_0 + V f16 (K-only) is not used when FA is available.**
    - KLD is the same as q8_0 / q8_0 (0.00075 / 0.00071; gpt-oss 0.046 / 0.046).
    - It saves half as much (23% / 47%) and is slower on gpt-oss.
@@ -719,7 +719,7 @@ On dense models ROCm is 35-36% faster in prompt processing and 10-11% slower in 
 Results:
 - On ROCm, **prompt processing** is at most 5% behind f16 at every KV step (`kv_policy::prompt_slowdown_pct` is 5 for ROCm).
 - On ROCm, **generation** with mixed pairs (q8_0/f16, q8_0/q4_0) falls onto a slow path at long context: -20% to -33% at 16k. Matched pairs (q8_0/q8_0, q4_0/q4_0) are at f16 speed. This is consistent with upstream's notes on mixed pairs ([#22411](https://github.com/ggml-org/llama.cpp/discussions/22411)); there is no effect on Vulkan.
-- **Decision: matched pair.** The ROCm automatic ladder is now the same as CUDA/Metal: f16/f16 -> q8_0/q8_0 -> q4_0/q4_0. The Saving choice on the Dashboard is also q4_0/q4_0 on these three backends (KV about 28%); lower precision on K can reduce long-context accuracy. ROCm's Compact prompt slowdown estimate is at most 5%; for a manually chosen mixed pair there is a warning of 20-33% for generation. Explicit K/V settings are preserved. On Vulkan, f16/f16 -> q8_0/q8_0 -> q8_0/q4_0 is unchanged; if flash attention is off, only the q8_0/f16 step can be used on all backends. No new GPU measurement was made.
+- **Decision: matched pair.** The ROCm automatic ladder is now the same as CUDA/Metal: f16/f16 -> q8_0/q8_0, then a smaller context (q4_0/q4_0 was later taken out of the automatic ladder, see the [CUDA section](#cuda)). The Saving choice on the Dashboard is also q4_0/q4_0 on these three backends (KV about 28%); lower precision on K can reduce long-context accuracy. ROCm's Compact prompt slowdown estimate is at most 5%; for a manually chosen mixed pair there is a warning of 20-33% for generation. Explicit K/V settings are preserved. On Vulkan, f16/f16 -> q8_0/q8_0 -> q8_0/q4_0 is unchanged; if flash attention is off, only the q8_0/f16 step can be used on all backends. No new GPU measurement was made.
 - CUDA and Metal were measured too (below).
 
 
@@ -751,10 +751,10 @@ The question: how does the KV policy (mixed K/V pairs) behave on the default CUD
 - **Prompt processing is not affected** (at depth 8192 at most 6% behind f16: 1441-1488 / 1534). **Generation** with mixed pairs is 27-38% slower at depth (d=8192: q8_0/f16 32.5 and q8_0/q4_0 28.2 t/s, f16 44.3; d=16384: q8_0/q4_0 18.5, q8_0/q8_0 29.9). Matched pairs are ~10% behind f16 at d=8192 (39.5-39.8 / 44.3 t/s) and are the only fast path at 16k, where f16 overflows (29.7-29.9 t/s).
 
 **Result and implementation:**
-- On CUDA the "Auto" ladder is matched pairs only: f16/f16 -> q8_0/q8_0 -> q4_0/q4_0 (`kv_policy::CUDA_LADDER`; the new step `KvLevel::Compact`). ROCm has also moved to the same matched-pair ladder; Vulkan is unchanged. A mixed pair is used only if the user explicitly chooses it; the memory estimate adds the conversion buffer in that case (`kv_policy::cuda_convert_buffer_bytes`: the f16 size of the quantized sides of one layer; for Qwen3-4B at 16k, 64 MiB for q8_0/q4_0 and 32 MiB for q8_0/f16).
+- On CUDA the "Auto" ladder is matched pairs only: f16/f16 -> q8_0/q8_0 (`kv_policy::CUDA_LADDER`); when q8_0/q8_0 does not fit, the context is reduced. q4_0/q4_0 (`KvLevel::Compact`) is never chosen automatically: on b11342 it broke Qwen3-0.6B's output at 8k and 32k (f16 and q8_0/q8_0 answered correctly) and garbled a Qwen3-4B tool call; it stays available as the manual Saving choice. ROCm has also moved to the same matched-pair ladder; Vulkan is unchanged. A mixed pair is used only if the user explicitly chooses it; the memory estimate adds the conversion buffer in that case (`kv_policy::cuda_convert_buffer_bytes`: the f16 size of the quantized sides of one layer; for Qwen3-4B at 16k, 64 MiB for q8_0/q4_0 and 32 MiB for q8_0/f16).
 - The line above in the server log is recognized (`capabilities::verify::kv_fa_fallback`): a localized warning is dropped into the server log once per run ("Use a matched pair"), and the Dashboard's "Effective Values" strip shows "Slow KV pair".
 - `prompt_slowdown_pct` for CUDA: q8_0/f16 3%, q8_0/q8_0 6%, q8_0/q4_0 6%, q4_0/q4_0 5% (d=8192, worst case).
-- The memory estimate fits this card: 3847 MiB for q8_0 16k (measured usage 3813), 3935 MiB for q4_0 32k (3905); f16 16k is estimated at 4927 MiB and q8_0 32k at 5087 MiB, so the two cases that exceed 4 GB are foreseen in advance (`cuda_4gb_card_avoids_the_overflowing_combinations`). Because the automatic choice tries not to exceed 90% of the budget (3686 MiB), it picks q4_0/q4_0 at 16k instead of q8_0 (3847 MiB); the measurement shows q8_0 also runs at f16 speed at 16k, so this is conservative for this card. Anyone can choose "Balanced" manually.
+- The memory estimate fits this card: 3847 MiB for q8_0 16k (measured usage 3813), 3935 MiB for q4_0 32k (3905); f16 16k is estimated at 4927 MiB and q8_0 32k at 5087 MiB, so the two cases that exceed 4 GB are foreseen in advance (`cuda_4gb_card_avoids_the_overflowing_combinations`). Because the automatic choice tries not to exceed 90% of the budget (3686 MiB), it picked q4_0/q4_0 at 16k instead of q8_0 (3847 MiB) with the ladder of that time (today it keeps q8_0/q8_0 and shortens the context); the measurement shows q8_0 also runs at f16 speed at 16k, so this is conservative for this card. Anyone can choose "Balanced" manually.
 
 ## Metal
 
@@ -779,7 +779,7 @@ Extra: f16/f16 at d=8192, pp512 44.84 ± 3.08, tg128 6.50 ± 0.12 (r=2).
 - **Matched pairs are fast:** q8_0/q8_0 and q4_0/q4_0 are faster than f16 in prompt processing (fewer memory reads) and 10-22% behind in generation.
 
 **Result and implementation:**
-- On Metal (Apple Silicon: a unified memory budget, not the integrated GPU share), the "Auto" ladder is the same as CUDA's: f16/f16 -> q8_0/q8_0 -> q4_0/q4_0 (`kv_policy::CUDA_LADDER`). Intel/AMD integrated GPUs (Vulkan, shared RAM) stay on the old ladder.
+- On Metal (Apple Silicon: a unified memory budget, not the integrated GPU share), the "Auto" ladder is the same as CUDA's: f16/f16 -> q8_0/q8_0, then a smaller context (`kv_policy::CUDA_LADDER`). Intel/AMD integrated GPUs (Vulkan, shared RAM) stay on the old ladder.
 - `prompt_slowdown_pct` for Metal: q8_0/f16 87%, q8_0/q8_0 0%, q8_0/q4_0 90%, q4_0/q4_0 0%; the generation loss is `METAL_MIXED_GENERATION_SLOWDOWN_PCT` (57, 60). The Dashboard Saving choice became q4_0/q4_0 for CUDA/Metal/ROCm; the 4-bit tooltip explains the key precision loss.
 - Limit: a single machine (M1, 8 GB), a single model, a single repeat, 4k depth. On larger Apple Silicon (M2/M3/M4 Pro/Max) the absolute numbers will differ; since a mixed pair falling onto a slow path depends on the build's kernel support, the direction is expected to be the same.
 
@@ -849,7 +849,7 @@ The same machine, driver 616.92 (Studio), the managed runtime the application in
 | 37/37 (Auto KV) | q4_0/q4_0 | 3225 | 106 | 57.6 (single request) | – |
 
 - The full load uses 96% of the card (3801 / 3962 MiB, DXGI) but does not overflow into shared memory: shared use is the same as at -ngl 33 (106 MB). Speed is 56% higher per request.
-- The recommendation was being cut at the card's **90%** with `vram::recommend_gpu_layers` (CUDA's `--list-devices` "free" value, 3295 MiB, does not enter the recommendation; only the device list and the gateway memory check). The measurement record works (`vram_measurements`, at the default log level only the process total) and corrects the recommendation: when a full load was measured with Auto KV, the recommendation went 33 -> 37 (by choosing q4_0/q4_0). The 3801 MiB measured manually with q8_0 still exceeds 90%, so the recommendation stayed at 36.
+- The recommendation was being cut at the card's **90%** with `vram::recommend_gpu_layers` (CUDA's `--list-devices` "free" value, 3295 MiB, does not enter the recommendation; only the device list and the gateway memory check). The measurement record works (`vram_measurements`, at the default log level only the process total) and corrects the recommendation: when a full load was measured with Auto KV, the recommendation went 33 -> 37 (by choosing q4_0/q4_0, with the ladder of that time). The 3801 MiB measured manually with q8_0 still exceeds 90%, so the recommendation stayed at 36.
 - **Change:** if there is a measurement taken at full GPU with the same model, context and KV types, the full load corrected with it is accepted up to 97% (`vram::measured_full_offload`; the slot count may differ). In the form, with q8_0, 16k, -ngl 33, it now says "Recommended -ngl: 37". If there is no measurement or it exceeds 97%, the old rule applies; there is no blind raising (WDDM silently overflows into shared memory).
 
 ## Speculative Decoding (Draft Model), CUDA
@@ -926,7 +926,7 @@ RTX 3050 Ti Laptop 4 GB, driver 617.42, Windows 11, whisper.cpp b5454 CUDA 12.4 
 
 ## NVIDIA GPU Selection and VRAM Telemetry
 
-RTX 3050 Ti Laptop 4 GB (WDDM, driver 617.42) + Intel Iris Xe (Optimus), Windows 11. llama.cpp b11445 downloaded by the application itself (win-cuda-13.4 + cudart, win-vulkan), a separate data folder, driven by a Node test script. All servers were launched from the application, f16 KV, FA on, `-np 1`; speed is `/completion` 128 tokens.
+RTX 3050 Ti Laptop 4 GB (WDDM, driver 617.42) + Intel Iris Xe (Optimus), Windows 11. llama.cpp b11445 downloaded by the application itself (win-cuda-13.4 + cudart, win-vulkan; with the selector of that time, today the 12.4 build wins when both exist), a separate data folder, driven by a Node test script. All servers were launched from the application, f16 KV, FA on, `-np 1`; speed is `/completion` 128 tokens.
 
 **Device list.** CUDA: only `CUDA0` RTX (Iris Xe is not visible). Vulkan: `Vulkan0` Iris Xe (7.9 GB shared), `Vulkan1` RTX. Automatic selection picks the RTX on both runtimes, `--main-gpu 0` (the order among discrete devices; DXGI 1 -> 0). Iris Xe: on CUDA the option is disabled, and on manual selection "The selected GPU can't be used with this runtime: Intel(R) Iris(R) Xe Graphics (adapter 0)"; the same on Vulkan (llama.cpp does not load the iGPU when a discrete GPU exists).
 
