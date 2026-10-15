@@ -100,6 +100,13 @@ impl GatewayError {
             }
             _ => None,
         };
+        // A keyed load error (`servers.no_free_port`...) goes to the UI as its key, so it is shown
+        // localized instead of as the English message.
+        if let SchedError::LoadFailed { message, .. } = e {
+            if blockers.is_none() && harness_core::error_key::parse(message).is_some() {
+                details["error_key"] = json!(message);
+            }
+        }
         if let Some(blockers) = blockers {
             use harness_core::error_key::err;
             let key = if blockers.is_empty() {
@@ -224,6 +231,22 @@ mod tests {
             assert_eq!(key, "gateway.gpu_memory_blocked");
             assert_eq!(params["servers"], "chat");
         }
+        // Every port of the automatic range taken: a readable message and the key for the UI.
+        let error = SchedError::LoadFailed {
+            alias: "chat".into(),
+            code: "servers.no_free_port".into(),
+            message: "servers.no_free_port".into(),
+        };
+        let body = GatewayError::from_sched(&error).body();
+        assert_eq!(
+            body["error"]["harness"]["error_key"],
+            "servers.no_free_port"
+        );
+        let message = body["error"]["message"].as_str().unwrap();
+        assert!(
+            message.contains("no free port") && message.contains("11440-11499"),
+            "{message}"
+        );
         let error = SchedError::LoadFailed {
             alias: "image".into(),
             code: "servers.out_of_memory".into(),

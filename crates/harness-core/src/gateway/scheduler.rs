@@ -233,6 +233,16 @@ impl SchedError {
                     format!("; tried to fit it: {}", tried.join("; "))
                 }
             ),
+            SchedError::LoadFailed { alias, code, .. }
+                if code == crate::orchestrator::ERR_NO_FREE_PORT =>
+            {
+                format!(
+                    "Loading \"{}\" failed: no free port for its server in {}-{}; other programs hold them all.",
+                    alias,
+                    crate::ports::AUTO_RANGE.start(),
+                    crate::ports::AUTO_RANGE.end()
+                )
+            }
             SchedError::LoadFailed {
                 alias,
                 code,
@@ -1663,13 +1673,17 @@ impl Scheduler {
                     }
                     other => SchedError::LoadFailed {
                         alias: def.alias.clone(),
-                        code: other.map(|f| f.code).unwrap_or_else(|| {
-                            if e.starts_with(crate::orchestrator::ERR_PORT_IN_USE) {
-                                crate::orchestrator::ERR_PORT_IN_USE.to_string()
-                            } else {
-                                "servers.start_failed".to_string()
-                            }
-                        }),
+                        // A port error is raised before the server starts: its own code, not
+                        // the last failure of an earlier run of this server.
+                        code: [
+                            crate::orchestrator::ERR_PORT_IN_USE,
+                            crate::orchestrator::ERR_NO_FREE_PORT,
+                        ]
+                        .into_iter()
+                        .find(|k| e.starts_with(k))
+                        .map(String::from)
+                        .or_else(|| other.map(|f| f.code))
+                        .unwrap_or_else(|| "servers.start_failed".to_string()),
                         message: e,
                     },
                 });

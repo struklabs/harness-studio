@@ -2,6 +2,7 @@ import { t } from '#lib/i18n.svelte.js';
 import { contextExceededError, gatewayBusyError, gatewayMemoryError, type GatewayBusy } from '#lib/gateway-error.js';
 import { formatBytes } from '#lib/format.js';
 import { describeErrorBody } from '#lib/components/playground/sse.js';
+import { errorText } from '#lib/errors.js';
 
 /** Localized sentence for a busy-model 503: which model is blocked, by whom, and when to retry. */
 export function busyText(busy: GatewayBusy): string {
@@ -36,5 +37,16 @@ export function describeError(body: string): string {
   if (busy) return busyText(busy);
   const exceeded = contextExceededError(body);
   if (exceeded) return t('pg.context_exceeded', exceeded);
-  return memoryText(body) ?? describeErrorBody(body);
+  return memoryText(body) ?? keyedText(body) ?? describeErrorBody(body);
+}
+
+/** A gateway error that carries a backend error key (`error.harness.error_key`), localized. */
+function keyedText(body: string): string | null {
+  let key: unknown;
+  try {
+    key = JSON.parse(body)?.error?.harness?.error_key;
+  } catch {
+    return null;
+  }
+  return typeof key === 'string' ? errorText(key) : null;
 }

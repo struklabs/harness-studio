@@ -79,7 +79,7 @@ async fn settle_port(
             }
         })
         .await?
-        .ok_or_else(|| String::from(err("servers.no_free_port")))?;
+        .ok_or_else(|| String::from(err(ERR_NO_FREE_PORT)))?;
         return Ok(());
     }
     if let Some(other) = registry.port_conflict(id, config.port) {
@@ -1144,6 +1144,8 @@ pub const ERR_ALREADY_ACTIVE: &str = "servers.already_active";
 /// this key: `servers.port_in_use_by {port, program, pid}` (the program holding it is known),
 /// `servers.port_in_use_at {port}`, `servers.port_in_use_server {port, server}`.
 pub const ERR_PORT_IN_USE: &str = "servers.port_in_use";
+/// Every port of [`crate::ports::AUTO_RANGE`] is taken (other programs hold them).
+pub const ERR_NO_FREE_PORT: &str = "servers.no_free_port";
 /// A custom `--alias` another running server already serves: `servers.alias_in_use: <alias>`.
 pub const ERR_ALIAS_IN_USE: &str = "servers.alias_in_use";
 /// The server has no failure to recover from (it never failed, or it runs).
