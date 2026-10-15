@@ -66,3 +66,17 @@ export function anchoredOffset(previous: readonly WindowRow[], previousIds: read
   const target = next.find(r => r.start <= index && index < r.end);
   return target ? Math.max(0, target.offset + scrollTop - row.offset) : scrollTop;
 }
+
+/** Width changes within the same column count retain useful measurements. */
+export function invalidateHeights(previousColumns: number, columns: number, previousLayout: string | undefined, layout: string): boolean {
+  return previousColumns !== columns || previousLayout !== layout;
+}
+
+export function meanHeight(heights: ReadonlyMap<string, number>, fallback = 220): number {
+  const measured = [...heights.values()].filter(h => Number.isFinite(h) && h > 0);
+  return measured.length ? measured.reduce((sum, h) => sum + h, 0) / measured.length : fallback;
+}
+
+export function needsAnchorCorrection(current: number, target: number): boolean {
+  return Math.abs(target - current) > 0.5;
+}

@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { flushSync, onMount, tick, untrack, type Snippet } from 'svelte';
+  import { flushSync, tick, untrack, type Snippet } from 'svelte';
   import type { LibraryEntry } from '#lib/types.js';
-  import { anchoredOffset, columnCount, groupRows, renderedRows, type WindowRow } from './windowing';
+  import { anchoredOffset, columnCount, groupRows, renderedRows, invalidateHeights, meanHeight, needsAnchorCorrection, type WindowRow } from './windowing';
 
-  let { entries, layout, viewport, resetKey, children }: {
+  let { entries, layout, viewport, resetKey, pinnedIds = [], children }: {
     entries: LibraryEntry[];
     layout: 'grid' | 'list';
-    viewport: HTMLDivElement;
+    viewport: HTMLDivElement | undefined;
+    pinnedIds?: string[];
     resetKey: string;
     children: Snippet<[LibraryEntry]>;
   } = $props();
@@ -22,7 +23,8 @@
   const heights = new Map<string, number>();
   const nodes = new Map<string, HTMLElement>();
   let previousIds: string[] = [];
-  let previousWidth = 0;
+  let previousColumns = 0;
+  const estimates = new Map<'grid' | 'list', number>();
   let previousLayout: 'grid' | 'list' | undefined;
   let previousResetKey: string | undefined;
   let generation = 0;
@@ -32,7 +34,14 @@
 
   let virtual = $derived(entries.length >= 60);
   let columns = $derived(columnCount(width, layout, gap));
-  let mounted = $derived(renderedRows(rows, scrollTop, viewportHeight, entries.findIndex(e => e.model.id === focusedId)));
+  let mounted = $derived.by(() => {
+    const result = renderedRows(rows, scrollTop, viewportHeight, entries.findIndex(e => e.model.id === focusedId));
+    for (const id of pinnedIds) {
+      const index = entries.findIndex(e => e.model.id === id);
+      if (index >= 0) result.add(Math.floor(index / columns));
+    }
+    return result;
+  });
   let items = $derived(entries.flatMap((entry, index) => {
     const row = Math.floor(index / columns);
     return !virtual || mounted.has(row) ? [{ entry, index, row }] : [];
@@ -42,28 +51,30 @@
 
   $effect.pre(() => {
     const ids = entries.map(e => e.model.id);
-    const currentWidth = width;
     const currentLayout = layout;
     const count = columns;
     const spacing = gap;
     const search = resetKey;
     void revision;
     untrack(() => {
-      // Width/layout-specific measurements must not leak into differently wrapped cards.
-      if (currentWidth !== previousWidth || currentLayout !== previousLayout) heights.clear();
-      const next = groupRows(ids, count, heights, 220, spacing);
+      if (invalidateHeights(previousColumns, count, previousLayout, currentLayout)) heights.clear();
+      // Retain the last measured mean for each layout while new columns are measured.
+      if (heights.size) estimates.set(currentLayout, meanHeight(heights));
+      const next = groupRows(ids, count, heights, estimates.get(currentLayout) ?? 220, spacing);
       const top = scrollTop;
       const target = previousResetKey !== search ? 0 : anchoredOffset(rows, previousIds, next, ids, top);
       rows = next;
       scrollTop = target;
       previousIds = ids;
-      previousWidth = currentWidth;
+      previousColumns = count;
       previousLayout = currentLayout;
       previousResetKey = search;
       const token = ++generation;
       void tick().then(() => {
         if (token !== generation || !viewport || viewport.clientHeight === 0) return;
-        viewport.scrollTop = target;
+        // Apply only the correction, preserving scroll movement since this measurement.
+        const corrected = viewport.scrollTop + target - top;
+        if (needsAnchorCorrection(viewport.scrollTop, corrected)) viewport.scrollTop = corrected;
         scrollTop = viewport.scrollTop;
         measure();
       });
@@ -94,18 +105,20 @@
     return { destroy() { observer?.unobserve(node); nodes.delete(id); } };
   }
 
-  onMount(() => {
+  $effect(() => {
+    const element = viewport;
+    if (!element || !grid) return;
     observer = new ResizeObserver(measureNow);
     for (const node of nodes.values()) observer.observe(node);
     let hidden = false;
     const size = new ResizeObserver(() => {
       // A hidden, still-mounted page reports zero. Retain its geometry and scroll window.
-      if (!viewport.clientHeight || !grid.clientWidth) {
+      if (!viewport || !viewport.clientHeight || !grid.clientWidth) {
         hidden = true;
         return;
       }
       if (hidden) {
-        viewport.scrollTop = scrollTop;
+        if (needsAnchorCorrection(viewport.scrollTop, scrollTop)) viewport.scrollTop = scrollTop;
         hidden = false;
       }
       width = grid.getBoundingClientRect().width;
@@ -113,9 +126,9 @@
       gap = parseFloat(getComputedStyle(grid).rowGap) || 8;
       measure();
     });
-    size.observe(viewport);
+    size.observe(element);
     size.observe(grid);
-    const scroll = () => { if (viewport.clientHeight) scrollTop = viewport.scrollTop; };
+    const scroll = () => { if (viewport?.clientHeight) scrollTop = viewport.scrollTop; };
     const focus = (event: FocusEvent) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
@@ -125,7 +138,7 @@
     };
     const keydown = (event: KeyboardEvent) => {
       const target = event.target;
-      if (event.key !== 'Tab' || !virtual || !viewport.clientHeight || !(target instanceof Element) || grid.contains(target) || target.closest(portalSelector)) return;
+      if (event.key !== 'Tab' || !virtual || !viewport?.clientHeight || !(target instanceof Element) || grid.contains(target) || target.closest(portalSelector)) return;
       const position = target.compareDocumentPosition(grid);
       const entering = event.shiftKey
         ? position & Node.DOCUMENT_POSITION_PRECEDING
@@ -135,7 +148,7 @@
         flushSync(() => { focusedId = entries[event.shiftKey ? entries.length - 1 : 0].model.id; });
       }
     };
-    viewport.addEventListener('scroll', scroll, { passive: true });
+    element.addEventListener('scroll', scroll, { passive: true });
     document.addEventListener('focusin', focus);
     document.addEventListener('keydown', keydown, true);
     return () => {
@@ -143,7 +156,7 @@
       cancelAnimationFrame(frame);
       observer?.disconnect();
       size.disconnect();
-      viewport.removeEventListener('scroll', scroll);
+      element.removeEventListener('scroll', scroll);
       document.removeEventListener('focusin', focus);
       document.removeEventListener('keydown', keydown, true);
     };
@@ -155,7 +168,7 @@
   role="list"
   class="grid gap-2"
   style:overflow-anchor={virtual ? 'none' : undefined}
-  style:grid-template-columns={layout === 'grid' ? 'repeat(auto-fill,minmax(min(100%,340px),1fr))' : 'minmax(0,1fr)'}
+  style:grid-template-columns={virtual ? `repeat(${columns}, minmax(0, 1fr))` : layout === 'grid' ? 'repeat(auto-fill,minmax(min(100%,340px),1fr))' : 'minmax(0,1fr)'}
   style:grid-template-rows={tracks}
 >
   {#each items as { entry, index, row } (entry.model.id)}
