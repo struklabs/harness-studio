@@ -143,13 +143,30 @@ pub fn local_capabilities(caps: &ModelCaps) -> Vec<Capability> {
     .collect()
 }
 
+// GGUF headers are already attached to scanned files. Negative speech checks need no
+// filesystem lookup (the positive cases still use the engine's exact acceptance rules).
+fn could_be_crisp_asr(model: &LocalModel) -> bool {
+    model
+        .gguf
+        .as_ref()
+        .is_none_or(crate::engine::crispasr::supports_metadata)
+}
+
+fn could_be_crisp_tts(model: &LocalModel) -> bool {
+    model.gguf.as_ref().is_none_or(|g| {
+        g.architecture
+            .as_deref()
+            .is_some_and(crate::engine::crispasr_tts::is_tts_arch)
+    })
+}
+
 /// Format of a scanned file: the library lists GGUF files, whisper ggml `.bin` files (the
 /// scan told them apart by the ggml magic: [`ModelKind::Asr`]), text-to-speech folders
 /// (ONNX, [`ModelKind::Tts`]), speech-recognition folders of sherpa-onnx (ONNX,
 /// [`ModelKind::Asr`] with a `.onnx` file, see [`is_sherpa_asr`]) and ONNX encoders.
 pub fn local_format(model: &LocalModel) -> ModelFormat {
     if model.architecture.as_deref() == Some("audiocpp")
-        || crate::engine::crispasr_tts::is_model(&model.path)
+        || (could_be_crisp_tts(model) && crate::engine::crispasr_tts::is_model(&model.path))
     {
         return ModelFormat::Gguf;
     }
@@ -167,7 +184,9 @@ pub fn local_format(model: &LocalModel) -> ModelFormat {
         ModelKind::Asr if crate::engine::crispasr::is_asr_gguf(&model.path) => ModelFormat::Gguf,
         ModelKind::Asr => ModelFormat::WhisperGgml,
         ModelKind::Tts => ModelFormat::Onnx,
-        _ if crate::engine::mlx::is_any_model_dir(&model.path) => ModelFormat::Mlx,
+        _ if model.gguf.is_none() && crate::engine::mlx::is_any_model_dir(&model.path) => {
+            ModelFormat::Mlx
+        }
         _ if crate::engine::ModelFormat::of(&model.path) == crate::engine::ModelFormat::Onnx => {
             ModelFormat::Onnx
         }
@@ -212,8 +231,8 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             }),
         };
     }
-    if crate::engine::crispasr::is_model(&model.path)
-        || crate::engine::crispasr_tts::is_model(&model.path)
+    if (could_be_crisp_asr(model) && crate::engine::crispasr::is_model(&model.path))
+        || (could_be_crisp_tts(model) && crate::engine::crispasr_tts::is_model(&model.path))
     {
         return ModelRecord {
             capabilities: if crate::engine::crispasr_tts::is_model(&model.path) {
@@ -228,7 +247,14 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             }),
         };
     }
-    if crate::engine::crispasr_tts::is_tts_gguf(&model.path) {
+    if model.gguf.as_ref().map_or_else(
+        || crate::engine::crispasr_tts::is_tts_gguf(&model.path),
+        |g| {
+            g.architecture
+                .as_deref()
+                .is_some_and(crate::engine::crispasr_tts::is_tts_arch)
+        },
+    ) {
         return ModelRecord {
             capabilities: vec![Capability::Tts],
             format: ModelFormat::Gguf,
@@ -264,7 +290,7 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             }),
         };
     }
-    if crate::engine::python_hf::is_model_dir(Path::new(&model.path)) {
+    if model.gguf.is_none() && crate::engine::python_hf::is_model_dir(Path::new(&model.path)) {
         // A Hugging Face task or diffusers folder: the Python engine runs it (the format alone
         // would say GGUF, so llama.cpp).
         let dir = Path::new(&model.path);

@@ -729,6 +729,24 @@ fn audio_dir_info(dir: &Path) -> super::mistralrs::ModelDirInfo {
     }
 }
 
+pub(crate) fn library_models_in(
+    root: &Path,
+    tree: &crate::models::discovery::DirectoryTree,
+) -> Vec<crate::models::LocalModel> {
+    if !cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        return Vec::new();
+    }
+    tree.scan(
+        root,
+        &["config.json"],
+        |dir| is_any_model_dir(dir).then(|| dir.to_path_buf()),
+        |dir| dir.clone(),
+    )
+    .into_iter()
+    .filter_map(|dir| to_local_model(&dir, root))
+    .collect()
+}
+
 /// MLX model folders under `roots` (a few levels deep: `<root>/<owner>/<repo>`). Only where
 /// MLX runs: elsewhere they are not listed (mistral.rs can't run them either).
 pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {

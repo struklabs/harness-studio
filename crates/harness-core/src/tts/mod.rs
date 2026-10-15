@@ -639,6 +639,18 @@ pub fn to_local_model(model: &TtsModel, root: &Path) -> crate::models::LocalMode
     }
 }
 
+pub(crate) fn library_models_in(
+    root: &Path,
+    tree: &crate::models::discovery::DirectoryTree,
+) -> Vec<crate::models::LocalModel> {
+    let mut models = tree.scan(root, &["tokens.txt"], detect, |m| m.id.clone());
+    models.sort_by(|a, b| a.name.cmp(&b.name));
+    models
+        .into_iter()
+        .map(|m| to_local_model(&m, root))
+        .collect()
+}
+
 /// Models of the library roots as library files (`models::ModelManager` adds them to its scan).
 pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {
     roots
@@ -655,6 +667,7 @@ pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {
 /// Removes a model folder (everything in it, including `espeak-ng-data`); refuses anything
 /// that is not a model folder inside one of `roots`.
 pub fn delete_model_dir(model_file: &Path, roots: &[PathBuf]) -> Result<(), String> {
+    let _mutation = crate::models::LibraryMutation::begin();
     let dir = model_file.parent().ok_or_else(|| {
         String::from(err("tts.model_not_found").with("model", model_file.display()))
     })?;

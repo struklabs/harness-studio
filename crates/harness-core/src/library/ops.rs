@@ -224,6 +224,7 @@ pub fn delete_preview(
 /// Deletes a library model's files (every part). Refuses linked models and any file outside
 /// `roots` (the library directories); checks everything before removing anything.
 pub fn delete_files(model: &LocalModel, roots: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
+    let _mutation = crate::models::LibraryMutation::begin();
     if model.source.is_some() || model.origin == ModelOrigin::Linked {
         return Err(err("library.linked_not_deletable").into());
     }

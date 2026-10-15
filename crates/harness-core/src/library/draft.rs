@@ -108,13 +108,27 @@ pub fn is_draft_candidate(
 
 /// For every model, the ids of the bigger local LLMs it can draft for.
 pub fn draft_targets(models: &[LocalModel], params: &[ParamInfo]) -> Vec<Vec<String>> {
+    // A model without tokenizer facts cannot participate on either side. Avoid comparing
+    // every ordinary/metadata-only file with the whole library just to reject it again.
+    let eligible: Vec<_> = models
+        .iter()
+        .zip(params)
+        .filter(|(m, _)| {
+            m.kind == ModelKind::Llm && m.gguf.as_ref().is_some_and(|g| g.tokenizer.is_some())
+        })
+        .collect();
     models
         .iter()
         .zip(params)
         .map(|(draft, dp)| {
-            models
+            if !draft.is_ready
+                || draft.kind != ModelKind::Llm
+                || !draft.gguf.as_ref().is_some_and(|g| g.tokenizer.is_some())
+            {
+                return Vec::new();
+            }
+            eligible
                 .iter()
-                .zip(params)
                 .filter(|(target, tp)| is_draft_candidate(target, tp, draft, dp))
                 .map(|(target, _)| target.id.clone())
                 .collect()

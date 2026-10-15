@@ -54,14 +54,12 @@ pub use job::{JobCommand, JobEngine, JobEvent, JobOutcome, JobProgress};
 pub use lemonade::LemonadeEngine;
 pub use llama_bench::{LlamaBenchEngine, LLAMA_BENCH};
 pub use llama_cpp::LlamaCppEngine;
+pub(crate) use mistralrs::delete_model_dir as mistralrs_delete_model_dir;
 pub use mistralrs::{
     concurrency as mistralrs_concurrency, inspect as mistralrs_inspect,
     is_library_model as is_mistralrs_library_model, is_model_dir as is_mistralrs_dir,
     trained_context as mistralrs_trained_context, upstream_body as mistralrs_upstream_body,
     MistralRsEngine, ModelDirInfo as MistralRsDirInfo, MISTRALRS,
-};
-pub(crate) use mistralrs::{
-    delete_model_dir as mistralrs_delete_model_dir, library_models as mistralrs_library_models,
 };
 pub use mlx::{MlxEngine, MLX, MLX_AUDIO, MLX_VLM};
 pub use onnx::{

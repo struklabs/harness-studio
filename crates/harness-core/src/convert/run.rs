@@ -285,6 +285,7 @@ async fn execute(id: u64, plan: &ConvertPlan, cancel: &Cancel) -> Result<Done, S
     check_cancel(cancel)?;
 
     // --- 5. into the library ---------------------------------------------------------------
+    let _mutation = crate::models::LibraryMutation::begin();
     set_stage(id, ConvertStage::Finalizing, "");
     let models = models_dir();
     let target = target_dir_in(&models, repo);

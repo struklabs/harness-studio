@@ -434,6 +434,7 @@ impl AppSettings {
         cached.hf_token = Self::load().hf_token;
         cached.hf_token_set = cached.hf_token.is_some();
         *CACHE.lock().unwrap() = Some(cached);
+        crate::models::invalidate_scan();
         Ok(())
     }
 
