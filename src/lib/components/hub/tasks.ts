@@ -1,4 +1,5 @@
-// Hugging Face tasks (`pipeline_tag`) offered in the Model Hub, grouped like huggingface.co/models.
+// Hugging Face tasks (`pipeline_tag`) offered in the Model Hub, grouped like huggingface.co/models,
+// plus `decision-model` (a Hugging Face tag, see `harness_core::hub_tasks::DECISION_TASK`).
 // How far Harness Studio runs each one is not kept here: the backend derives it from the installed
 // llama-server's capability registry (`get_task_support`, `harness_core::hub_tasks`), see
 // `taskSupport.svelte.ts`. `harness-core` checks that both lists name the same tasks.
@@ -43,6 +44,8 @@ export const TASKS: HubTask[] = [
   { id: 'text-classification', hf: 'Text Classification', key: 'hub.task_text_classification', group: 'nlp' },
   { id: 'token-classification', hf: 'Token Classification', key: 'hub.task_token_classification', group: 'nlp' },
   { id: 'zero-shot-classification', hf: 'Zero-Shot Classification', key: 'hub.task_zero_shot_classification', group: 'nlp' },
+  // Not a pipeline_tag: decision models carry the `decision-model` tag; the backend filters by it.
+  { id: 'decision-model', hf: 'Decision model', key: 'hub.task_decision_model', group: 'nlp' },
   { id: 'fill-mask', hf: 'Fill-Mask', key: 'hub.task_fill_mask', group: 'nlp' },
   { id: 'table-question-answering', hf: 'Table Question Answering', key: 'hub.task_table_question_answering', group: 'nlp' },
   // Audio: chat audio needs a projector; transcription also uses whisper.cpp or sherpa-onnx.
@@ -65,6 +68,11 @@ export const TASKS: HubTask[] = [
   { id: 'image-feature-extraction', hf: 'Image Feature Extraction', key: 'hub.task_image_feature_extraction', group: 'cv' },
   { id: 'zero-shot-object-detection', hf: 'Zero-Shot Object Detection', key: 'hub.task_zero_shot_object_detection', group: 'cv' },
 ];
+
+/** A GGUF repo tagged as a decision model: llama-server serves it whatever its pipeline_tag says. */
+export function isDecisionRepo(repo: { format?: string; tags?: string[] }): boolean {
+  return repo.format === 'gguf' && (repo.tags ?? []).some((t) => t.toLowerCase() === 'decision-model');
+}
 
 /** Always-visible task chips (the ones that run today). */
 export const QUICK_TASKS = ['text-generation', 'image-text-to-text', 'feature-extraction', 'text-ranking'];

@@ -320,8 +320,13 @@ pub fn search_params(options: &HfSearchOptions) -> Vec<(&'static str, String)> {
     for field in LISTING_FIELDS {
         params.push(("expand[]", (*field).to_string()));
     }
-    if let Some(tag) = options.pipeline_tag.as_deref().filter(|v| simple_token(v)) {
-        params.push(("pipeline_tag", tag.to_string()));
+    match options.pipeline_tag.as_deref().filter(|v| simple_token(v)) {
+        // Decision models are found by their tag, not a `pipeline_tag`.
+        Some(crate::hub_tasks::DECISION_TASK) => {
+            params.push(("filter", crate::hub_tasks::DECISION_TASK.to_string()))
+        }
+        Some(tag) => params.push(("pipeline_tag", tag.to_string())),
+        None => {}
     }
     if let Some(license) = options.license.as_deref().filter(|v| simple_token(v)) {
         params.push(("filter", format!("license:{}", license)));
@@ -499,6 +504,15 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         analysis.source = Some(crate::hub_tasks::TaskSource::Tags);
     }
     let task = task.or(mlx_stt);
+    // A GGUF decision model runs on llama-server whatever its `pipeline_tag` says
+    // (text-classification, zero-shot-classification...).
+    let task = if format == crate::hub_compat::ModelFormat::Gguf
+        && crate::hub_tasks::is_decision_repo(&tags)
+    {
+        Some(crate::hub_tasks::DECISION_TASK)
+    } else {
+        task
+    };
     let mut capabilities = crate::model_registry::hub_capabilities(task, format);
     let adapter = analysis.not_runnable == Some(crate::hub_tasks::NotRunnable::Adapter);
     // A diffusion LoRA adapter generates nothing on its own and no runtime loads it; an LLM
@@ -5962,6 +5976,49 @@ mod tests {
         assert_eq!(get("pipeline_tag"), ["feature-extraction"]);
         assert_eq!(get("author"), ["Qwen"]);
         assert_eq!(get("cursor"), ["eyJhIjoxfQ=="]);
+    }
+
+    /// Decision models are listed by their `decision-model` tag (HF has no such
+    /// `pipeline_tag`): `filter=gguf&filter=decision-model`.
+    #[test]
+    fn decision_models_are_listed_by_their_tag() {
+        let opts = HfSearchOptions {
+            pipeline_tag: Some(crate::hub_tasks::DECISION_TASK.into()),
+            ..Default::default()
+        };
+        let p = search_params(&opts);
+        let get = |k: &str| {
+            p.iter()
+                .filter(|(n, _)| *n == k)
+                .map(|(_, v)| v.as_str())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(get("filter"), ["gguf", "decision-model"]);
+        assert!(get("pipeline_tag").is_empty(), "{p:?}");
+    }
+
+    /// A GGUF decision model runs on llama-server whatever its `pipeline_tag` says (listing items
+    /// of ggml-org/Kev-4B-GGUF and ggml-org/Bespoke-Nimble-9B-v3-GGUF); the same tags without the
+    /// decision tag stay another engine's.
+    #[test]
+    fn decision_gguf_repos_are_runnable_whatever_their_pipeline_tag() {
+        for task in ["text-classification", "zero-shot-classification"] {
+            let item = |tags: serde_json::Value| {
+                serde_json::json!({"id": "ggml-org/Kev-4B-GGUF", "pipeline_tag": task, "tags": tags,
+                    "siblings": [{"rfilename": "Kev-4B-Q8_0.gguf"}]})
+            };
+            let repo =
+                parse_search_item(&item(serde_json::json!(["gguf", "decision-model"]))).unwrap();
+            assert_eq!(
+                repo.compatibility,
+                crate::hub_compat::ModelFormat::Gguf.compatibility()
+            );
+            let plain = parse_search_item(&item(serde_json::json!(["gguf"]))).unwrap();
+            assert!(matches!(
+                plain.compatibility,
+                crate::hub_compat::Compatibility::Unsupported { .. }
+            ));
+        }
     }
 
     #[test]

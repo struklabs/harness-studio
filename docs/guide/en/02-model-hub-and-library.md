@@ -8,7 +8,7 @@ Türkçe: [../tr/02-model-hub-ve-kutuphane.md](../tr/02-model-hub-ve-kutuphane.m
 
 1. Open **Model Hub** from the left menu.
 2. Type a model name into **Search models** and press **Search**. You can also browse without typing anything: with an empty search, the list follows the filters and the **Sort** order (**Trending**, **Most downloaded**, **Most liked**, **Recently updated**, **Newest**).
-3. Under **Filters**, use **Task**, **License**, **Author**, and **Sort**. Choose **Text generation (LLM)** for chat, or **Speech recognition (ASR)** for speech to text. The task list follows Hugging Face's own categories, and each task is marked with whether it can run in Harness Studio.
+3. Under **Filters**, use **Task**, **License**, **Author**, and **Sort**. Choose **Text generation (LLM)** for chat, or **Speech recognition (ASR)** for speech to text. The task list follows Hugging Face's own categories, and each task is marked with whether it can run in Harness Studio. **Decision model** lists the repositories Hugging Face tags as decision models (models that answer yes/no, choice, and score questions with probabilities); their cards carry a **Decision model** label.
 4. Narrow the results with **Tag**, **Quant**, and **Size**. If nothing matches, press **Reset Filters** and try again.
 
 By default the list shows only GGUF repositories, the file format llama.cpp uses. For speech models, search for `whisper` (this finds Whisper ggml `.bin` files) or pick the **Speech recognition (ASR)** task.

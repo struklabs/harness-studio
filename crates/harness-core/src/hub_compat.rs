@@ -416,19 +416,21 @@ pub fn hub_compatibility(format: ModelFormat, task: Option<&str>) -> Compatibili
 }
 
 /// Whether llama-server serves a GGUF repo of `task` in Harness: chat (with or without vision),
-/// embeddings and reranking, or an untagged repo (the file decides). GGUF is also the container
+/// embeddings, reranking and decision models, or an untagged repo (the file decides). GGUF is
+/// also the container
 /// of text-to-speech, speech-recognition and audio models for other engines (audio.cpp,
 /// transcribe.cpp, CrispASR...) that llama-server cannot load; image GGUFs take the
 /// stable-diffusion.cpp route before this.
 pub fn is_llama_task(task: Option<&str>) -> bool {
     use crate::model_registry::Capability;
     task.is_none_or(|t| {
-        crate::model_registry::task_capabilities(t).iter().any(|c| {
-            matches!(
-                c,
-                Capability::Chat | Capability::Embedding | Capability::Rerank
-            )
-        })
+        t == crate::hub_tasks::DECISION_TASK
+            || crate::model_registry::task_capabilities(t).iter().any(|c| {
+                matches!(
+                    c,
+                    Capability::Chat | Capability::Embedding | Capability::Rerank
+                )
+            })
     })
 }
 

@@ -8,7 +8,7 @@ English: [../en/02-model-hub-and-library.md](../en/02-model-hub-and-library.md)
 
 1. Sol menüden **Model Hub** sayfasını açın.
 2. **Model ara** alanına bir model adı yazıp **Ara** düğmesine basın. Hiçbir şey yazmadan da göz atabilirsiniz: arama boşken liste filtreleri ve **Sırala** düzenini (**Trend olan**, **En çok indirilen**, **En çok beğenilen**, **Son güncellenen**, **En yeni**) izler.
-3. **Filtreler** altında **Görev**, **Lisans**, **Yazar** ve **Sırala** seçeneklerini kullanın. Sohbet için **Metin üretimi (LLM)**, konuşmayı yazıya dökmek için **Konuşma tanıma (ASR)** seçin. Görev listesi Hugging Face'in kendi kategorilerini izler ve her görevin Harness Studio'da çalışıp çalışamayacağı işaretlenir.
+3. **Filtreler** altında **Görev**, **Lisans**, **Yazar** ve **Sırala** seçeneklerini kullanın. Sohbet için **Metin üretimi (LLM)**, konuşmayı yazıya dökmek için **Konuşma tanıma (ASR)** seçin. Görev listesi Hugging Face'in kendi kategorilerini izler ve her görevin Harness Studio'da çalışıp çalışamayacağı işaretlenir. **Karar modeli**, Hugging Face'in karar modeli olarak etiketlediği depoları (evet/hayır, seçim ve puan sorularını olasılıklarla yanıtlayan modeller) listeler; kartlarında **Karar modeli** etiketi bulunur.
 4. Sonuçları **Etiket**, **Kuant** ve **Boyut** ile daraltın. Hiçbir şey eşleşmezse **Filtreleri Sıfırla** düğmesine basıp yeniden deneyin.
 
 Varsayılan olarak liste yalnızca GGUF depolarını gösterir; bu, llama.cpp'nin kullandığı dosya biçimidir. Konuşma modelleri için `whisper` arayın (bu, Whisper ggml `.bin` dosyalarını bulur) veya **Konuşma tanıma (ASR)** görevini seçin.

@@ -32,7 +32,20 @@ pub const INFERABLE: &[&str] = &[
     "image-text-to-text",
 ];
 
-/// Every `pipeline_tag` the Hub picker offers (kept in step with `hub/tasks.ts` by a test).
+/// The Hub's "decision model" task. Not a Hugging Face `pipeline_tag`: decision models carry the
+/// `decision-model` tag (their `pipeline_tag` is text-classification, image-text-to-text,
+/// text-generation or none), so the listing filters by that tag ([`crate::downloader::search_params`])
+/// and a GGUF repo with it is served by llama-server's `/v1/systemone` whatever its
+/// `pipeline_tag` says.
+pub const DECISION_TASK: &str = "decision-model";
+
+/// A repo tagged as a decision model ([`DECISION_TASK`]).
+pub fn is_decision_repo(tags: &[String]) -> bool {
+    tags.iter().any(|t| t.eq_ignore_ascii_case(DECISION_TASK))
+}
+
+/// Every task the Hub picker offers: Hugging Face `pipeline_tag`s and [`DECISION_TASK`] (kept in
+/// step with `hub/tasks.ts` by a test).
 pub const KNOWN_TASKS: &[&str] = &[
     "image-text-to-text",
     "audio-text-to-text",
@@ -69,6 +82,7 @@ pub const KNOWN_TASKS: &[&str] = &[
     "zero-shot-image-classification",
     "image-feature-extraction",
     "zero-shot-object-detection",
+    DECISION_TASK,
 ];
 
 /// Lower-case alphanumeric words of a repo name (`Qwen3-VL-8B_Instruct` -> qwen3, vl, 8b, ...).
@@ -734,6 +748,9 @@ const TABLE: &[Row] = &[
     row_alt("zero-shot-image-classification", No, None, ONNX_ALTS),
     row_alt("image-feature-extraction", No, None, ONNX_ALTS),
     row_alt("zero-shot-object-detection", No, None, ONNX_ALTS),
+    // Native decision models on llama-server's /v1/systemone (the gateway also answers
+    // /v1/decisions with them).
+    row(DECISION_TASK, Yes, None),
 ];
 
 /// One task's support on the installed runtime.
