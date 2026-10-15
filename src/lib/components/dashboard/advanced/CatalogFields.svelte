@@ -24,6 +24,14 @@
   let { params = $bindable(), group, exclude = [] }: Props = $props();
 
   const uid = $props.id();
+  /** Display name of the group: llama.cpp groups (caps.group.*), other engines (dash.egroup_*), else its id. */
+  let groupName = $derived.by(() => {
+    for (const key of [`caps.group.${group}`, `dash.egroup_${group}`] as TKey[]) {
+      const text = t(key);
+      if (text !== key) return text;
+    }
+    return group;
+  });
   let showAll = $state(false);
 
   let all = $derived(capsStore.groupSpecs(group).filter((s) => !exclude.includes(s.id)));
@@ -162,7 +170,15 @@
 
     <AdvancedOnly>
       {#if advancedCount > 0}
-        <Button variant="link" size="xs" class="h-auto self-start px-0 text-xs" onclick={() => (showAll = !showAll)}>
+        <!-- Several groups sit on one page: the name says which group the button opens. -->
+        <Button
+          variant="link"
+          size="xs"
+          class="h-auto self-start px-0 text-xs"
+          aria-expanded={showAll}
+          aria-label={`${showAll ? t('caps.hide_advanced') : t('caps.show_advanced')}: ${groupName}`}
+          onclick={() => (showAll = !showAll)}
+        >
           {showAll ? t('caps.hide_advanced') : t('caps.show_advanced')}
         </Button>
       {/if}
