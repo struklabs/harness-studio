@@ -33,6 +33,8 @@ pub mod pooling;
 /// Text encoder-decoders (T5, BART, Marian): package discovery and requests.
 pub mod seq2seq_pkg;
 pub mod tasks;
+#[cfg(feature = "engine")]
+mod text_tokenizer;
 pub mod vision_pkg;
 
 #[cfg(feature = "engine")]

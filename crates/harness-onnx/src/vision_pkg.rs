@@ -23,6 +23,10 @@ pub enum VisionTask {
     Detect,
     /// `*ForSemanticSegmentation` (SegFormer, BEiT, MobileViT, DPT...): a mask per label.
     Segment,
+    /// A foreground logit map (BiRefNet).
+    Foreground,
+    /// One binary logit map per text prompt (CLIPSeg).
+    PromptSegment,
     /// `*ForDepthEstimation` (DPT, Depth Anything, GLPN, ZoeDepth): a depth map.
     Depth,
     /// A dual encoder (`CLIPModel`, `SiglipModel`) exported as one graph: the image scored
@@ -72,7 +76,9 @@ impl VisionTask {
         match self {
             VisionTask::Classify => "image-classification",
             VisionTask::Detect => "object-detection",
-            VisionTask::Segment => "image-segmentation",
+            VisionTask::Segment | VisionTask::Foreground | VisionTask::PromptSegment => {
+                "image-segmentation"
+            }
             VisionTask::Depth => "depth-estimation",
             VisionTask::ZeroShot => "zero-shot-image-classification",
             VisionTask::ZeroShotDetect => "zero-shot-object-detection",
@@ -163,6 +169,8 @@ pub struct VisionPackage {
     pub labels: Vec<String>,
     /// Labels are independent (`problem_type: multi_label_classification`): sigmoid.
     pub multi_label: bool,
+    /// RT-DETR's focal-loss head has independent class scores and no background column.
+    pub focal_detection: bool,
     /// Feature extraction: the model's pooled output is its first (CLS) hidden state, so
     /// `pool` works on an export without `pooler_output` (DINOv2).
     pub cls_pool: bool,
@@ -198,6 +206,26 @@ pub fn task_from_config(config: &Value) -> Option<VisionTask> {
         .map(|a| a.iter().filter_map(Value::as_str).collect())
         .unwrap_or_default();
     let has = |suffix: &str| heads.iter().any(|n| n.ends_with(suffix));
+    if config.get("model_type").and_then(Value::as_str) == Some("birefnet") {
+        return Some(VisionTask::Foreground);
+    }
+    if heads.contains(&"CLIPSegForImageSegmentation") {
+        return Some(VisionTask::PromptSegment);
+    }
+    // timm exports describe the classifier without a transformers architecture name.
+    if heads.is_empty()
+        && config.get("architecture").and_then(Value::as_str).is_some()
+        && config
+            .get("num_classes")
+            .and_then(Value::as_u64)
+            .is_some_and(|n| n > 0)
+        && config
+            .get("input_size")
+            .and_then(Value::as_array)
+            .is_some_and(|s| s.len() == 3)
+    {
+        return Some(VisionTask::Classify);
+    }
     if heads
         .iter()
         .any(|n| matches!(*n, "OwlViTForObjectDetection" | "Owlv2ForObjectDetection"))
@@ -346,7 +374,10 @@ impl VisionPackage {
         } else {
             None
         };
-        let text = if matches!(task, VisionTask::ZeroShot | VisionTask::ZeroShotDetect) {
+        let text = if matches!(
+            task,
+            VisionTask::ZeroShot | VisionTask::ZeroShotDetect | VisionTask::PromptSegment
+        ) {
             // transformers.js also ships the two towers alone (`text_model`, `vision_model`);
             // only the joint graph scores an image against labels.
             let stem = onnx_path
@@ -385,6 +416,13 @@ impl VisionPackage {
             labels: labels_from_config(&config),
             multi_label: config.get("problem_type").and_then(Value::as_str)
                 == Some("multi_label_classification"),
+            focal_detection: matches!(
+                config.get("model_type").and_then(Value::as_str),
+                Some("rt_detr" | "rt_detr_v2")
+            ) && config
+                .get("use_focal_loss")
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
             cls_pool: matches!(
                 config.get("model_type").and_then(Value::as_str),
                 Some("dinov2" | "dinov2_with_registers")
@@ -476,6 +514,42 @@ mod tests {
     use super::*;
     use serde_json::json;
     use std::fs;
+
+    #[test]
+    fn independent_mask_heads_are_not_semantic_classifiers() {
+        assert_eq!(
+            task_from_config(&json!({"model_type": "birefnet"})),
+            Some(VisionTask::Foreground)
+        );
+        assert_eq!(
+            task_from_config(&json!({"architectures": ["CLIPSegForImageSegmentation"]})),
+            Some(VisionTask::PromptSegment)
+        );
+        assert_eq!(VisionTask::Foreground.pipeline_task(), "image-segmentation");
+        assert_eq!(
+            VisionTask::PromptSegment.pipeline_task(),
+            "image-segmentation"
+        );
+    }
+
+    #[test]
+    fn timm_classifier_without_architectures_is_a_vision_model() {
+        let config = json!({
+            "architecture": "mobilenetv3_small_100",
+            "model_type": "mobilenet_v3",
+            "num_classes": 1000,
+            "input_size": [3, 224, 224],
+            "id2label": {"0": "tench"}
+        });
+        assert_eq!(task_from_config(&config), Some(VisionTask::Classify));
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("config.json"), config.to_string()).unwrap();
+        fs::write(dir.path().join("preprocessor_config.json"), "{}").unwrap();
+        let package = VisionPackage::discover(&dir.path().join("model.onnx")).unwrap();
+        assert_eq!(package.labels, ["tench"]);
+        assert_eq!(package.task, VisionTask::Classify);
+        assert_eq!(task_from_config(&json!({"architecture": "encoder"})), None);
+    }
 
     #[test]
     fn owl_queries_pad_to_16_and_score_with_a_sigmoid() {

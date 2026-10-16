@@ -3763,8 +3763,9 @@ fn is_model_file_name(path: &str) -> bool {
 /// Small files of an ONNX encoder repo that the engine reads next to the graph: the tokenizer
 /// and the Hugging Face / sentence-transformers configs (`1_Pooling/config.json`...). Weights
 /// of modules the engine cannot run (`2_Dense`) are not among them.
-const ONNX_COMPANIONS: [&str; 10] = [
+const ONNX_COMPANIONS: [&str; 11] = [
     "tokenizer.json",
+    "vocab.txt",
     "config.json",
     // Vision models: resize, crop and normalization of the image processor.
     "preprocessor_config.json",
@@ -3848,10 +3849,12 @@ fn onnx_variants(
         crate::hub_compat::has_ctc_files(&files.iter().map(|f| f.path.clone()).collect::<Vec<_>>());
     // An encoder reads its tokenizer, a vision model its image processor; a bare graph
     // (or one for another runtime) has neither.
-    if !files
-        .iter()
-        .any(|f| f.path == "tokenizer.json" || f.path == "preprocessor_config.json")
-    {
+    if !files.iter().any(|f| {
+        matches!(
+            f.path.as_str(),
+            "tokenizer.json" | "vocab.txt" | "preprocessor_config.json"
+        )
+    }) {
         return Ok(Vec::new());
     }
     let shard = |f: &F, index: u32, total: u32| -> Result<HfShardInfo, String> {
@@ -7153,6 +7156,31 @@ mod tests {
         .unwrap();
         assert_eq!(other.len(), 1);
         assert_eq!(other[0].shards[0].filename, "onnx/encoder_model.onnx");
+    }
+
+    #[test]
+    fn onnx_wordpiece_variant_keeps_the_legacy_vocabulary() {
+        let file = |path: &str| serde_json::json!({"type": "file", "path": path, "size": 10});
+        let variants = onnx_variants(
+            "acme/bert-ner",
+            &[
+                file("config.json"),
+                file("vocab.txt"),
+                file("tokenizer_config.json"),
+                file("special_tokens_map.json"),
+                file("onnx/model.onnx"),
+            ],
+        )
+        .unwrap();
+        assert_eq!(variants.len(), 1);
+        let names: Vec<&str> = variants[0]
+            .shards
+            .iter()
+            .map(|s| s.filename.as_str())
+            .collect();
+        assert!(names.contains(&"vocab.txt"));
+        assert!(names.contains(&"tokenizer_config.json"));
+        assert!(names.contains(&"special_tokens_map.json"));
     }
 
     #[test]
