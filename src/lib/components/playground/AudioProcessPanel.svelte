@@ -13,7 +13,7 @@
   import { runtimesStore } from '#lib/stores/runtimes.svelte.js';
   import { describeErrorBody } from '#lib/components/playground/sse.js';
   import { BackendError } from '#lib/errors.js';
-
+  import { toast } from 'svelte-sonner';
   import DiarizationResultView from './DiarizationResult.svelte';
   import type { DiarizationResult } from './diarization.js';
 
@@ -99,7 +99,7 @@
   }
   async function copyJson() {
     if (!diarization) return;
-    try { await navigator.clipboard.writeText(JSON.stringify(diarization, null, 2)); }
+    try { await navigator.clipboard.writeText(JSON.stringify(diarization, null, 2)); toast.success(t('process.json_copied')); }
     catch (e) { error = localizeError(e); }
   }
   async function downloadJson() {

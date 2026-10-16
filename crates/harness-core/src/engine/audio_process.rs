@@ -469,7 +469,11 @@ pub fn diarization_result(model: &str, value: &Value, duration_secs: f64) -> Opt
         .get("sample_rate")
         .map_or(Some(f64::from(DIARIZATION_RATE)), Value::as_f64)
         .filter(|r| r.is_finite() && *r >= 1000.)?;
-    let list = value.get("speaker_turns")?.as_array()?;
+    // audio.cpp answers with the timing alone, and no `speaker_turns`, when it finds no speech.
+    let list: &[Value] = match value.get("speaker_turns") {
+        None if value.get("timing").is_some_and(Value::is_object) => &[],
+        turns => turns?.as_array()?,
+    };
     if list.len() > MAX_TURNS {
         return None;
     }
@@ -830,6 +834,10 @@ mod tests {
         let silent = diarization_result("m", &json!({"speaker_turns": []}), 1.0).unwrap();
         assert_eq!(silent["speakers"], 0);
         assert_eq!(silent["segments"], json!([]));
+        // audio.cpp leaves the list out when there is no speech; a non-list is still malformed.
+        let silent = diarization_result("m", &json!({"timing": {"wall_ms": 1.0}}), 1.0).unwrap();
+        assert_eq!(silent["speakers"], 0);
+        assert!(diarization_result("m", &json!({"speaker_turns": 3}), 1.0).is_none());
     }
 
     #[test]

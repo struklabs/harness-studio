@@ -19,6 +19,7 @@
     <Button variant="outline" size="sm" onclick={onCopy}>{t('process.copy_json')}</Button>
     <Button variant="outline" size="sm" onclick={onDownload}>{t('process.download_json')}</Button>
   </div>
+  {#if lanes.length}
   <h4 class="text-sm font-medium">{t('process.timeline')}</h4>
   <div class="flex flex-col gap-2" role="group" aria-label={t('process.timeline')}>
     {#each lanes as lane, index (lane.id)}
@@ -33,8 +34,12 @@
         </div>
       </div>
     {/each}
-    <div class="flex justify-between pl-[108px] font-num text-xs text-muted-foreground"><span>{segmentTime(0)}</span><span>{segmentTime(result.duration)}</span></div>
+    <div class="flex gap-3" aria-hidden="true">
+      <span class="w-24 shrink-0"></span>
+      <div class="flex min-w-0 flex-1 justify-between font-num text-xs text-muted-foreground"><span>{segmentTime(0)}</span><span>{segmentTime(result.duration)}</span></div>
+    </div>
   </div>
+  {/if}
   {#if !result.segments.length}
     <p class="text-sm text-muted-foreground">{t('process.no_segments')}</p>
   {:else}
