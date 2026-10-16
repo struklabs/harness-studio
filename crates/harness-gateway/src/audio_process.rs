@@ -237,10 +237,12 @@ async fn serve(
         Ok(def) => def,
         Err(e) => return Err(disabled.unwrap_or_else(|| GatewayError::from_sched(&e))),
     };
-    let separator = def
-        .base
-        .local_path()
-        .is_some_and(harness_core::engine::mlx::is_sts_dir)
+    // mlx-audio runs on Apple Silicon only: elsewhere every request takes audio.cpp's path.
+    let separator = cfg!(all(target_os = "macos", target_arch = "aarch64"))
+        && def
+            .base
+            .local_path()
+            .is_some_and(harness_core::engine::mlx::is_sts_dir)
         && !def.base.local_path().is_some_and(audio_cpp::is_model);
     if !separator {
         if let Some(e) = disabled {

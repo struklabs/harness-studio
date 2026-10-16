@@ -215,7 +215,7 @@ pub(crate) async fn get_audio_process_overview() -> Result<AudioProcessOverview,
         harness_core::library_definitions::ensure(&library, &[harness_core::domain::ModelKind::Pipeline])?;
         let models = harness_core::domain::store::Domain::global().definitions()?.into_iter().filter_map(|def| {
             let path = def.base.local_path()?;
-            if !audio_cpp::is_model(path) && harness_core::engine::mlx::is_sts_dir(path) {
+            if cfg!(all(target_os = "macos", target_arch = "aarch64")) && !audio_cpp::is_model(path) && harness_core::engine::mlx::is_sts_dir(path) {
                 // An mlx-audio separator takes the WAV alone.
                 return Some(AudioProcessModel { name: def.alias, family: "mel_band_roformer".into(), engine: harness_core::engine::MLX_AUDIO, options: Vec::new() });
             }
