@@ -223,7 +223,13 @@ fn lightning_full_checkpoints_and_adapters_are_classified_separately() {
         let file = &v.shards[0].filename;
         if crate::image_bundles::is_standalone_checkpoint(file) {
             assert!(v.total_size_bytes > 20_000_000_000);
-            assert_eq!(v.not_runnable, None);
+            // stable-diffusion.cpp rejects the per-channel scale layout of three exports; the
+            // ComfyUI export loads (measured on Windows AMD / Vulkan).
+            assert_eq!(
+                v.not_runnable,
+                crate::image_bundles::is_unloadable_scaled_fp8(file)
+                    .then_some(NotRunnable::UnsupportedWeightLayout)
+            );
             let plan = crate::image_bundles::plan_for(file, &[], None).unwrap();
             assert_eq!(plan.bundle_id, "qwen-image-edit-2511");
             assert_eq!(
@@ -247,7 +253,7 @@ fn lightning_full_checkpoints_and_adapters_are_classified_separately() {
     }
     assert_eq!(
         variants.iter().filter(|v| v.not_runnable.is_none()).count(),
-        4
+        1
     );
     let mut adapters = item.clone();
     adapters["siblings"].as_array_mut().unwrap().retain(|s| {

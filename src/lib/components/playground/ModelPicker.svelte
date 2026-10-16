@@ -261,7 +261,7 @@
                   onclick={() => { if (app.gatewayRunning && model.state === 'online') use(app.selectedServerId, model.id); }}
                 >
                   <span class="w-full truncate font-mono text-xs">{model.model}</span>
-                  <span class={cn('text-xs', model.state === 'online' ? 'text-success' : 'text-muted-foreground')}>{model.link} · {t(model.state === 'online' ? 'link.online' : 'link.offline')}</span>
+                  <span class={cn('text-xs', model.state === 'online' ? 'text-success' : 'text-muted-foreground')}>{model.link} · {t(model.state === 'online' ? 'link.online' : model.state === 'unauthorized' ? 'link.token_rejected' : 'link.offline')}</span>
                 </button>
               </div>
             {:else}

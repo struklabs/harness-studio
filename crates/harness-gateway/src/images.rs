@@ -860,7 +860,7 @@ async fn run(
     let model = text(&request, "model")?.map(str::to_string);
     guard.get().model = model.clone();
     guard.admitted(caller.admit(state)?);
-    let plan = match kind {
+    let mut plan = match kind {
         Kind::Generations => plan(&request)?,
         Kind::Edits => plan_edit(request)?,
     };
@@ -905,6 +905,10 @@ async fn run(
             ),
         )
         .param("model"));
+    }
+
+    if kind == Kind::Edits {
+        apply_reference_edit_strength(&def, &mut plan.body);
     }
 
     let lease = match scheduler.acquire_tokens(&def, None).await {
@@ -1070,6 +1074,30 @@ async fn run(
     builder
         .body(axum::body::Body::from(out.to_string()))
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
+}
+
+/// An instruction-editing model (FLUX.1 Kontext, FLUX.2, Qwen-Image-Edit) reads the picture as
+/// a reference and draws the result from noise. The init image the edit route also sends would,
+/// at sd.cpp's default strength of 0.75, keep most of the original: Kontext then answers with
+/// the picture it was given. So such a model without an explicit `strength` (and without a mask,
+/// which is an inpainting) edits at full strength.
+fn apply_reference_edit_strength(def: &ModelDefinition, body: &mut Value) {
+    use harness_core::domain::ModelRef;
+    let ModelRef::Local { path } = &def.base else {
+        return;
+    };
+    let Some(file) = path.file_name().map(|n| n.to_string_lossy()) else {
+        return;
+    };
+    let Some(obj) = body.as_object_mut() else {
+        return;
+    };
+    if harness_core::image_bundles::is_reference_edit_file(&file)
+        && !obj.contains_key("strength")
+        && !obj.contains_key("mask_image")
+    {
+        obj.insert("strength".into(), json!(1.0));
+    }
 }
 
 /// Why a Python engine model of `task` cannot serve `kind`: only diffusers pipelines draw, and
@@ -1249,6 +1277,41 @@ mod tests {
         assert_eq!(image_size(&webp(b"VP8X", &vp8x)), Some((640, 480)));
         assert_eq!(image_size(b"GIF89a"), None);
         assert_eq!(image_size(&[0xFF, 0xD8, 0x00]), None);
+    }
+
+    #[test]
+    fn reference_edit_models_edit_at_full_strength_unless_told_otherwise() {
+        use harness_core::domain::ModelRef;
+        let def = |file: &str| {
+            ModelDefinition::new(
+                "m",
+                ModelRef::Local {
+                    path: std::path::PathBuf::from(file),
+                },
+            )
+        };
+        let strength = |file: &str, mut body: Value| {
+            apply_reference_edit_strength(&def(file), &mut body);
+            body.get("strength").cloned()
+        };
+        for file in [
+            "C:/m/flux1-kontext-dev-Q4_K_M.gguf",
+            "C:/m/flux-2-klein-4b-Q4_K_M.gguf",
+            "C:/m/qwen-image-edit-2511-Q4_K_M.gguf",
+        ] {
+            assert_eq!(strength(file, json!({"init_image": "a"})), Some(json!(1.0)));
+            assert_eq!(
+                strength(file, json!({"init_image": "a", "strength": 0.4})),
+                Some(json!(0.4))
+            );
+            assert_eq!(
+                strength(file, json!({"init_image": "a", "mask_image": "b"})),
+                None
+            );
+        }
+        // A plain img2img model keeps sd.cpp's own default.
+        assert_eq!(strength("C:/m/sd_turbo.safetensors", json!({})), None);
+        assert_eq!(strength("C:/m/flux1-dev-Q4_0.gguf", json!({})), None);
     }
 
     #[test]

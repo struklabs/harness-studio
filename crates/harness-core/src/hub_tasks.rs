@@ -182,6 +182,9 @@ pub enum NotRunnable {
     VibevoiceLayout,
     AudioCppIncompletePackage,
     SdxlRefinerFolderRequired,
+    /// A scaled fp8 checkpoint whose per-channel scale tensors stable-diffusion.cpp rejects when it
+    /// loads the file.
+    UnsupportedWeightLayout,
     /// audio.cpp family outside the supported TTS surface.
     AudioCppUnsupported,
     CrispasrPocketEnglishOnly,

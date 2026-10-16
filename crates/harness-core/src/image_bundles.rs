@@ -520,6 +520,19 @@ pub fn is_standalone_checkpoint(path: &str) -> bool {
     )
 }
 
+/// Full Lightning / scaled fp8 exports of Qwen-Image-Edit 2511 whose `weight_scale` tensors have
+/// the diffusers layout `[N, 1]`: stable-diffusion.cpp stops at load time ("wrong shape in model
+/// metadata"). The ComfyUI export of the same weights (`scale_weight`, scalar) loads.
+pub fn is_unloadable_scaled_fp8(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path).to_ascii_lowercase();
+    matches!(
+        name.as_str(),
+        "qwen_image_edit_2511_fp8_e4m3fn_scaled.safetensors"
+            | "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_4steps_v1.0.safetensors"
+            | "qwen_image_edit_2511_fp8_e4m3fn_scaled_lightning_8steps_v1.0.safetensors"
+    )
+}
+
 pub fn is_adapter_file(path: &str) -> bool {
     let name = path.rsplit('/').next().unwrap_or(path).to_ascii_lowercase();
     name.split(|c: char| !c.is_ascii_alphanumeric())
@@ -640,6 +653,13 @@ pub fn find_component(
     libraries: &[PathBuf],
     main: Option<&Path>,
 ) -> Option<PathBuf> {
+    // A repo that ships its own vision projector (next to the main file or in the sibling
+    // `text_encoders/` folder) is used with it, rather than the curated one.
+    if c.role == "llm_vision" {
+        if let Some(own) = main.and_then(|p| own_projector(p, libraries)) {
+            return Some(own);
+        }
+    }
     for root in libraries {
         let p = root.join(c.repo).join(c.file);
         if p.is_file() {
@@ -650,6 +670,146 @@ pub fn find_component(
     main.and_then(Path::parent)
         .map(|dir| dir.join(name))
         .filter(|p| p.is_file())
+}
+
+/// Whether a main file is an instruction-editing model: it reads the picture(s) as references
+/// and draws the edit from noise (FLUX.1 Kontext, FLUX.2 klein / dev, Qwen-Image-Edit).
+pub fn is_reference_edit_file(file: &str) -> bool {
+    bundle_for(file).is_some_and(|b| {
+        b.id.starts_with("flux2-")
+            || b.id.starts_with("qwen-image-edit")
+            || b.id == "flux-kontext-dev"
+    })
+}
+
+/// Whether a repo file is a vision projector (`mmproj`) GGUF.
+pub fn is_projector_file(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.ends_with(".gguf") && lower.contains("mmproj")
+}
+
+/// How much a projector precision is preferred (lower is better): full precision first.
+pub fn projector_rank(path: &str) -> u8 {
+    let lower = path.to_ascii_lowercase();
+    if lower.contains("f16") && !lower.contains("bf16") {
+        0
+    } else if lower.contains("bf16") {
+        1
+    } else if lower.contains("q8_0") {
+        2
+    } else {
+        3
+    }
+}
+
+/// Select a compatible repo projector using the same layout and family rules for downloads
+/// and disk discovery. Paths must use forward slashes and be relative to the same root.
+pub fn select_own_projector<'a>(
+    main: &str,
+    candidates: impl IntoIterator<Item = &'a str>,
+) -> Option<&'a str> {
+    let curated = bundle_for(main)?
+        .components
+        .iter()
+        .find(|c| c.role == "llm_vision")?;
+    // Drop the parameter count (7B) and suffixes, retaining the architecture family.
+    let family = curated
+        .file
+        .rsplit('/')
+        .next()?
+        .split(['-', '_'])
+        .take_while(|part| {
+            !part.ends_with(['B', 'b'])
+                || !part[..part.len() - 1].chars().all(|c| c.is_ascii_digit())
+        })
+        .collect::<String>();
+    let normalize = |s: &str| {
+        s.chars()
+            .filter(char::is_ascii_alphanumeric)
+            .flat_map(char::to_lowercase)
+            .collect::<String>()
+    };
+    let family = normalize(&family);
+    let dirs = projector_dirs(Path::new(main))?;
+    candidates
+        .into_iter()
+        .filter(|p| {
+            let name = p.rsplit('/').next().unwrap_or(p);
+            let normalized_name = normalize(name);
+            is_projector_file(name)
+                && normalized_name.match_indices(&family).any(|(start, _)| {
+                    // Locate the last matched ASCII character in the original name:
+                    // normalization removes separators, but the boundary must not.
+                    name.char_indices()
+                        .filter(|(_, c)| c.is_ascii_alphanumeric())
+                        .nth(start + family.len() - 1)
+                        .is_some_and(|(end, c)| {
+                            name[end + c.len_utf8()..]
+                                .chars()
+                                .next()
+                                .is_none_or(|c| !c.is_alphanumeric())
+                        })
+                })
+                && Path::new(p)
+                    .parent()
+                    .is_some_and(|d| dirs.iter().any(|allowed| d == allowed))
+        })
+        .min_by_key(|p| (projector_rank(p), p.to_ascii_lowercase()))
+}
+
+fn projector_dirs(main: &Path) -> Option<[PathBuf; 3]> {
+    let dir = main.parent()?;
+    let parent = dir.parent().unwrap_or_else(|| Path::new(""));
+    Some([
+        dir.to_path_buf(),
+        parent.join("text_encoders"),
+        parent.join("text_encoder"),
+    ])
+}
+
+/// Find the repo's compatible projector beside the main file or in sibling text encoder folders.
+pub fn own_projector(main: &Path, libraries: &[PathBuf]) -> Option<PathBuf> {
+    let dir = main.parent()?;
+    let repo_root = libraries.iter().find_map(|library| {
+        let relative = main.strip_prefix(library).ok()?;
+        let mut parts = relative.components();
+        let root = library
+            .join(parts.next()?.as_os_str())
+            .join(parts.next()?.as_os_str());
+        parts.next()?; // A repo root must still contain a file path.
+        Some(root)
+    });
+    let root = repo_root.as_deref().unwrap_or_else(|| {
+        if dir.file_name().is_some_and(|n| n == "diffusion_models") {
+            dir.parent().unwrap_or(dir)
+        } else {
+            dir
+        }
+    });
+    let relative = main.strip_prefix(root).ok()?;
+    let dirs = projector_dirs(relative)?;
+    let candidates: Vec<String> = dirs
+        .into_iter()
+        .flat_map(|d| {
+            std::fs::read_dir(root.join(d))
+                .into_iter()
+                .flatten()
+                .flatten()
+        })
+        .map(|e| e.path())
+        .filter(|p| p.is_file())
+        .filter_map(|p| {
+            p.strip_prefix(root)
+                .ok()
+                .map(|p| p.to_string_lossy().replace('\\', "/"))
+        })
+        .collect();
+    let main = main
+        .strip_prefix(root)
+        .ok()?
+        .to_string_lossy()
+        .replace('\\', "/");
+    select_own_projector(&main, candidates.iter().map(String::as_str)).map(|p| root.join(p))
 }
 
 /// The plan of a main file, or a bundle by id and a bare name: `libraries` are the model
@@ -719,6 +879,18 @@ pub fn definition_load(
 pub fn concerns_image_models(file: &str) -> bool {
     is_image_candidate_file(file)
         || (file.to_ascii_lowercase().ends_with(".gguf") && bundle_for(file).is_some())
+        || is_bundle_companion(file)
+        || is_projector_file(file)
+}
+
+/// Whether `file` is one of the curated companions of a bundle (a text encoder or projector GGUF
+/// is the last file a model waits for, and has no image-model name of its own).
+pub fn is_bundle_companion(file: &str) -> bool {
+    let lower = file.replace('\\', "/").to_ascii_lowercase();
+    BUNDLES.iter().flat_map(|b| b.components).any(|c| {
+        let want = format!("{}/{}", c.repo, c.file).to_ascii_lowercase();
+        lower == want || lower.ends_with(&format!("/{want}"))
+    })
 }
 
 /// [`ensure_definitions`] over a fresh scan of the library (after a download finished).
@@ -951,6 +1123,118 @@ mod tests {
         assert!(plan_for("flux1-schnell-Q8_0.gguf", &[], Some(&main2))
             .unwrap()
             .complete());
+    }
+
+    #[test]
+    fn every_qwen_edit_bundle_carries_a_vision_projector() {
+        for f in [
+            "qwen-image-edit-Q4_K_M.gguf",
+            "qwen-image-edit-2509-Q4_K_M.gguf",
+            "qwen-image-edit-2511-Q4_K_M.gguf",
+            "split/diffusion_models/qwen-image-edit-2511-uncensored-Q6_K.gguf",
+        ] {
+            let b = bundle_for(f).unwrap();
+            assert!(b.components.iter().any(|c| c.role == "llm_vision"), "{f}");
+        }
+    }
+
+    #[test]
+    fn companions_require_the_repo_and_entire_relative_path() {
+        let c = FLUX2_VAE;
+        assert!(is_bundle_companion(&format!("{}/{}", c.repo, c.file)));
+        assert!(!is_bundle_companion(c.file));
+        assert!(!is_bundle_companion(&format!("other/repo/{}", c.file)));
+        assert!(!is_bundle_companion(&format!(
+            "{}/elsewhere/{}",
+            c.repo, c.file
+        )));
+    }
+
+    #[test]
+    fn own_projector_checks_the_basename_in_an_mmproj_directory() {
+        let main = "mmproj/qwen-image-edit-2511-Q4_K_M.gguf";
+        let encoder = "mmproj/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf";
+        let projector = "mmproj/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf";
+
+        assert_eq!(select_own_projector(main, [encoder]), None);
+        assert_eq!(
+            select_own_projector(main, [encoder, projector]),
+            Some(projector)
+        );
+    }
+
+    #[test]
+    fn own_projector_requires_a_family_token_boundary() {
+        let main = "diffusion_models/qwen-image-edit-2511-Q4_K_M.gguf";
+        let projector = "text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf";
+        for incompatible in [
+            "text_encoders/Qwen2.5-VL2-mmproj-f16.gguf",
+            "text_encoders/Qwen2.5-VLNext-mmproj-f16.gguf",
+        ] {
+            assert_eq!(select_own_projector(main, [incompatible]), None);
+            assert_eq!(
+                select_own_projector(main, [incompatible, projector]),
+                Some(projector)
+            );
+        }
+        assert_eq!(select_own_projector(main, [projector]), Some(projector));
+    }
+
+    #[test]
+    fn a_repos_own_projector_wins_over_the_curated_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let lib = dir.path().to_path_buf();
+        let root = lib.join("o/qwen-image-edit-uncensored-GGUF/split");
+        std::fs::create_dir_all(root.join("diffusion_models")).unwrap();
+        std::fs::create_dir_all(root.join("text_encoders")).unwrap();
+        let main = root.join("diffusion_models/qwen-image-edit-2511-uncensored-Q4_K_M.gguf");
+        std::fs::write(&main, b"gguf").unwrap();
+        let libs = vec![lib.clone()];
+        let projector = |p: &ComponentPlan| p.role == "llm_vision";
+        let plan = plan_for(
+            &main.file_name().unwrap().to_string_lossy(),
+            &libs,
+            Some(&main),
+        )
+        .unwrap();
+        assert!(plan
+            .components
+            .iter()
+            .find(|c| projector(c))
+            .unwrap()
+            .path
+            .is_none());
+        let own = root.join("text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf");
+        std::fs::write(&own, b"x").unwrap();
+        std::fs::write(
+            root.join("text_encoders/Qwen2.5-VL-7B-Instruct-q4_0.gguf"),
+            b"x",
+        )
+        .unwrap();
+        let plan = plan_for(
+            &main.file_name().unwrap().to_string_lossy(),
+            &libs,
+            Some(&main),
+        )
+        .unwrap();
+        let found = plan.components.iter().find(|c| projector(c)).unwrap();
+        assert_eq!(found.path.as_deref().map(Path::new), Some(own.as_path()));
+        // The text encoder is never taken for a projector.
+        assert!(is_projector_file("a/b-mmproj-f16.gguf"));
+        assert!(!is_projector_file("a/Qwen2.5-VL-7B-Instruct-q4_0.gguf"));
+    }
+
+    #[test]
+    fn the_last_companion_to_arrive_completes_the_model() {
+        // A text encoder or projector GGUF has no image-model name but finishes a bundle.
+        for c in [QWEN3_4B, QWEN25_VL_7B_MMPROJ, FLUX2_VAE] {
+            let f = format!("{}/{}", c.repo, c.file);
+            assert!(concerns_image_models(&f), "{f}");
+        }
+        assert!(concerns_image_models(
+            "split/text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf"
+        ));
+        assert!(!concerns_image_models("Llama-3.2-1B-Q4_K_M.gguf"));
     }
 
     #[test]

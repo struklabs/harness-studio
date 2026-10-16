@@ -65,6 +65,36 @@ pub fn ensure_in(
                     crate::params::ParamValue::Text("asr_ctc".into()),
                 );
                 domain.save_definition(def)?;
+                continue;
+            }
+            // A repo's own vision projector that arrived after the definition was made
+            // replaces the curated one.
+            let current = def.load.get("llm_vision").and_then(|v| match v {
+                crate::params::ParamValue::Text(t) => Some(t.as_str()),
+                _ => None,
+            });
+            let curated = crate::image_bundles::bundle_for(&model.filename)
+                .and_then(|b| b.components.iter().find(|c| c.role == "llm_vision"));
+            let may_update = current.is_none_or(str::is_empty)
+                || curated.is_some_and(|c| {
+                    current.is_some_and(|p| {
+                        libraries
+                            .iter()
+                            .any(|l| std::path::Path::new(p) == l.join(c.repo).join(c.file))
+                            || model.path.parent().is_some_and(|d| {
+                                std::path::Path::new(p)
+                                    == d.join(c.file.rsplit('/').next().unwrap_or(c.file))
+                            })
+                    })
+                });
+            if model.kind == ModelKind::Image && may_update {
+                if let Some(own) = crate::image_bundles::own_projector(&model.path, libraries) {
+                    let own = crate::params::ParamValue::Text(own.to_string_lossy().to_string());
+                    if def.load.get("llm_vision") != Some(&own) {
+                        def.load.insert("llm_vision".into(), own);
+                        domain.save_definition(def)?;
+                    }
+                }
             }
             continue;
         }
@@ -215,6 +245,67 @@ mod tests {
         let record = crate::model_registry::local_record(&model, &caps);
         assert_eq!(record.runtime.as_deref(), Some(crate::engine::ONNX_FAMILY));
         assert_eq!(record.format, crate::hub_compat::ModelFormat::Onnx);
+    }
+
+    #[test]
+    fn a_repos_own_projector_replaces_the_curated_one_when_it_arrives() {
+        let cfg = tempfile::tempdir().unwrap();
+        let lib = tempfile::tempdir().unwrap();
+        let domain = Domain::at(cfg.path());
+        let name = "qwen-image-edit-2511-uncensored-Q4_K_M.gguf";
+        // The curated companions are in the library already.
+        let plan = crate::image_bundles::plan_for(name, &[], None).unwrap();
+        for c in &plan.components {
+            let p = lib.path().join(&c.repo).join(&c.file);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, b"x").unwrap();
+        }
+        let split = lib.path().join("o/uncensored/split");
+        std::fs::create_dir_all(split.join("diffusion_models")).unwrap();
+        std::fs::create_dir_all(split.join("text_encoders")).unwrap();
+        let main = file(
+            &split.join("diffusion_models"),
+            name,
+            ModelKind::Image,
+            true,
+        );
+        let libs = [lib.path().to_path_buf()];
+        let made = ensure_in(&domain, &libs, std::slice::from_ref(&main), &KINDS).unwrap();
+        assert_eq!(made.len(), 1);
+        let projector = |d: &Domain| match d.definitions().unwrap()[0].load.get("llm_vision") {
+            Some(crate::params::ParamValue::Text(t)) => t.replace('\\', "/"),
+            other => panic!("{other:?}"),
+        };
+        assert!(projector(&domain).ends_with("Qwen2.5-VL-7B-Instruct.mmproj-Q8_0.gguf"));
+        // The repo's own projector is downloaded afterwards.
+        let own = split.join("text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf");
+        std::fs::write(&own, b"x").unwrap();
+        assert!(
+            ensure_in(&domain, &libs, std::slice::from_ref(&main), &KINDS)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            projector(&domain).ends_with("text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf")
+        );
+        // A later scan preserves a user-selected projector, even when the repo has its own.
+        let mut def = domain.definitions().unwrap().remove(0);
+        def.load.insert(
+            "llm_vision".into(),
+            crate::params::ParamValue::Text("custom/vision.gguf".into()),
+        );
+        domain.save_definition(def).unwrap();
+        ensure_in(&domain, &libs, std::slice::from_ref(&main), &KINDS).unwrap();
+        assert_eq!(projector(&domain), "custom/vision.gguf");
+        // Empty values can still be filled automatically.
+        let mut def = domain.definitions().unwrap().remove(0);
+        def.load.insert(
+            "llm_vision".into(),
+            crate::params::ParamValue::Text(String::new()),
+        );
+        domain.save_definition(def).unwrap();
+        ensure_in(&domain, &libs, std::slice::from_ref(&main), &KINDS).unwrap();
+        assert_eq!(projector(&domain), own.to_string_lossy().replace('\\', "/"));
     }
 
     #[test]

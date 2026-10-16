@@ -190,11 +190,16 @@ fn read_json(path: &Path) -> Option<Value> {
 
 /// The folder that holds `preprocessor_config.json` for a model file (the file's folder or
 /// its parent, as in `onnx/model.onnx`).
+/// A timm repo has no such file: its `config.json` carries a `pretrained_cfg` block instead.
 pub fn find_root(onnx: &Path) -> Option<PathBuf> {
     onnx.ancestors()
         .skip(1)
         .take(2)
-        .find(|d| d.join("preprocessor_config.json").is_file())
+        .find(|d| {
+            d.join("preprocessor_config.json").is_file()
+                || read_json(&d.join("config.json"))
+                    .is_some_and(|c| c.get("pretrained_cfg").is_some_and(Value::is_object))
+        })
         .map(Path::to_path_buf)
 }
 
@@ -221,6 +226,11 @@ pub fn task_from_config(config: &Value) -> Option<VisionTask> {
             .is_some_and(|n| n > 0)
         && config
             .get("input_size")
+            .or_else(|| {
+                config
+                    .get("pretrained_cfg")
+                    .and_then(|c| c.get("input_size"))
+            })
             .and_then(Value::as_array)
             .is_some_and(|s| s.len() == 3)
     {
@@ -353,6 +363,65 @@ pub fn parse_preprocess(v: &Value) -> Preprocess {
     }
 }
 
+/// The preprocessing of a timm `pretrained_cfg` (the block of timm's `config.json`), as
+/// timm's own eval transform does it: resize to `input_size / crop_pct`, center crop to
+/// `input_size`, normalize with `mean` / `std`. Missing fields take timm's defaults
+/// (224 px, crop 0.875, bicubic, ImageNet statistics). `crop_mode: squash` resizes straight
+/// to `input_size`.
+pub fn parse_timm_preprocess(cfg: &Value) -> Preprocess {
+    let (height, width) = match cfg.get("input_size").and_then(Value::as_array) {
+        Some(a) if a.len() == 3 => (
+            u32_of(a.get(1)).unwrap_or(224),
+            u32_of(a.get(2)).unwrap_or(224),
+        ),
+        _ => (224, 224),
+    };
+    let crop_pct = cfg
+        .get("crop_pct")
+        .and_then(Value::as_f64)
+        .filter(|p| *p > 0.0)
+        .unwrap_or(0.875);
+    let scaled = |n: u32| ((f64::from(n) / crop_pct).floor() as u32).max(1);
+    let squash = cfg.get("crop_mode").and_then(Value::as_str) == Some("squash");
+    let (resize, crop) = if squash {
+        (Size::Exact { width, height }, None)
+    } else if height == width {
+        (
+            Size::ShortestEdge {
+                short: scaled(height),
+                long: None,
+            },
+            Some((width, height)),
+        )
+    } else {
+        (
+            Size::Exact {
+                width: scaled(width),
+                height: scaled(height),
+            },
+            Some((width, height)),
+        )
+    };
+    // Our resize implementation has nearest, bilinear and bicubic kernels only.
+    // Approximate box/hamming with bilinear and lanczos with bicubic.
+    let resample = match cfg.get("interpolation").and_then(Value::as_str) {
+        Some("nearest") => Resample::Nearest,
+        Some("bilinear" | "box" | "hamming") => Resample::Bilinear,
+        _ => Resample::Bicubic,
+    };
+    Preprocess {
+        resize: Some(resize),
+        resample,
+        crop,
+        rescale: Some(1.0 / 255.0),
+        mean: triple(cfg.get("mean"), [0.485, 0.456, 0.406]),
+        std: triple(cfg.get("std"), [0.229, 0.224, 0.225]),
+        normalize: true,
+        bgr: false,
+        pad_square: false,
+    }
+}
+
 impl VisionPackage {
     /// Reads the repo around `onnx_path`; `None` when it is not a vision model this engine
     /// serves.
@@ -366,8 +435,10 @@ impl VisionPackage {
         let root = find_root(onnx_path)?;
         let config = read_json(&root.join("config.json"))?;
         let task = task_from_config(&config)?;
-        let processor = read_json(&root.join("preprocessor_config.json"))?;
-        let preprocess = parse_preprocess(&processor);
+        let preprocess = match read_json(&root.join("preprocessor_config.json")) {
+            Some(processor) => parse_preprocess(&processor),
+            None => parse_timm_preprocess(config.get("pretrained_cfg")?),
+        };
         // A captioner is found by its encoder graph; the decoder graphs belong to it.
         let caption = if task == VisionTask::Caption {
             Some(caption_side(&root, onnx_path)?)
@@ -529,6 +600,101 @@ mod tests {
         assert_eq!(
             VisionTask::PromptSegment.pipeline_task(),
             "image-segmentation"
+        );
+    }
+
+    /// The `config.json` of timm/mobilenetv3_small_100.lamb_in1k (labels shortened).
+    const TIMM_CONFIG: &str = r#"{
+        "architecture": "mobilenetv3_small_100",
+        "num_classes": 1000,
+        "num_features": 1024,
+        "global_pool": "avg",
+        "pretrained_cfg": {
+            "tag": "lamb_in1k",
+            "custom_load": false,
+            "input_size": [3, 224, 224],
+            "fixed_input_size": false,
+            "interpolation": "bicubic",
+            "crop_pct": 0.875,
+            "crop_mode": "center",
+            "mean": [0.485, 0.456, 0.406],
+            "std": [0.229, 0.224, 0.225],
+            "num_classes": 1000,
+            "pool_size": [7, 7],
+            "first_conv": "conv_stem",
+            "classifier": "classifier"
+        },
+        "label_names": ["tench", "goldfish"]
+    }"#;
+
+    #[test]
+    fn timm_pretrained_cfg_replaces_a_missing_preprocessor_config() {
+        let config: Value = serde_json::from_str(TIMM_CONFIG).unwrap();
+        assert_eq!(task_from_config(&config), Some(VisionTask::Classify));
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("config.json"), TIMM_CONFIG).unwrap();
+        fs::create_dir(dir.path().join("onnx")).unwrap();
+        let package = VisionPackage::discover(&dir.path().join("onnx").join("model.onnx")).unwrap();
+        assert_eq!(package.task, VisionTask::Classify);
+        assert_eq!(package.labels, ["tench", "goldfish"]);
+        let p = &package.preprocess;
+        // floor(224 / 0.875) = 256, then a 224 center crop.
+        assert_eq!(
+            p.resize,
+            Some(Size::ShortestEdge {
+                short: 256,
+                long: None
+            })
+        );
+        assert_eq!(p.crop, Some((224, 224)));
+        assert_eq!(p.resample, Resample::Bicubic);
+        assert_eq!(p.mean, [0.485, 0.456, 0.406]);
+        assert_eq!(p.std, [0.229, 0.224, 0.225]);
+        assert!(p.normalize);
+        assert_eq!(p.rescale, Some(1.0 / 255.0));
+        // A repo without either file is no vision model.
+        let empty = tempfile::tempdir().unwrap();
+        fs::write(empty.path().join("config.json"), "{}").unwrap();
+        assert!(VisionPackage::discover(&empty.path().join("model.onnx")).is_none());
+    }
+
+    #[test]
+    fn timm_cfg_variants_and_defaults() {
+        let squash = parse_timm_preprocess(&json!({
+            "input_size": [3, 288, 288], "crop_pct": 1.0, "crop_mode": "squash",
+            "interpolation": "bilinear", "mean": [0.5, 0.5, 0.5], "std": [0.5, 0.5, 0.5]
+        }));
+        assert_eq!(
+            squash.resize,
+            Some(Size::Exact {
+                width: 288,
+                height: 288
+            })
+        );
+        assert_eq!(squash.crop, None);
+        assert_eq!(squash.resample, Resample::Bilinear);
+        assert_eq!(squash.mean, [0.5; 3]);
+        let wide = parse_timm_preprocess(&json!({"input_size": [3, 200, 400], "crop_pct": 0.5}));
+        assert_eq!(
+            wide.resize,
+            Some(Size::Exact {
+                width: 800,
+                height: 400
+            })
+        );
+        assert_eq!(wide.crop, Some((400, 200)));
+        let defaults = parse_timm_preprocess(&json!({}));
+        assert_eq!(
+            defaults.resize,
+            Some(Size::ShortestEdge {
+                short: 256,
+                long: None
+            })
+        );
+        assert_eq!(defaults.mean, [0.485, 0.456, 0.406]);
+        assert_eq!(
+            parse_timm_preprocess(&json!({"interpolation": "nearest"})).resample,
+            Resample::Nearest
         );
     }
 

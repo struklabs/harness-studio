@@ -16,6 +16,7 @@ const NOT_RUNNABLE_KEYS: Record<HfNotRunnable, TKey> = {
   vibevoice_layout: 'hub.vibevoice_layout',
   audio_cpp_incomplete_package: 'hub.audio_cpp_incomplete_package',
   sdxl_refiner_folder_required: 'hub.sdxl_refiner_folder_required',
+  unsupported_weight_layout: 'hub.unsupported_weight_layout',
   needs_sea_g2p: 'hub.not_runnable_needs_sea_g2p',
   needs_librosa: 'hub.not_runnable_needs_librosa',
   adapter: 'hub.not_runnable_adapter',
@@ -70,6 +71,7 @@ const SHORT_REFUSAL_KEYS: Partial<Record<HfNotRunnable, TKey>> = {
   vibevoice_layout: 'hub.refusal_short_vibevoice_layout',
   audio_cpp_incomplete_package: 'hub.refusal_short_audio_cpp_incomplete_package',
   sdxl_refiner_folder_required: 'hub.refusal_short_sdxl_refiner_folder_required',
+  unsupported_weight_layout: 'hub.refusal_short_unsupported_weight_layout',
   needs_librosa: 'hub.refusal_short_needs_librosa',
   needs_sea_g2p: 'hub.refusal_short_needs_sea_g2p'
 };
@@ -90,6 +92,7 @@ const PRECISE_REFUSALS: ReadonlySet<HfNotRunnable> = new Set<HfNotRunnable>([
   'vibevoice_layout',
   'audio_cpp_incomplete_package',
   'sdxl_refiner_folder_required',
+  'unsupported_weight_layout',
   'needs_librosa',
   'needs_sea_g2p'
 ]);

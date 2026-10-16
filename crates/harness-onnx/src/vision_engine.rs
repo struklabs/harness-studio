@@ -2,7 +2,10 @@
 //! `pixel_values` in (`pixel_mask` too when the graph asks for it), the head's outputs out.
 
 use crate::api::ApiError;
-use crate::engine::{build_session, finish_profile, finite_output, LoadOptions, Provider};
+use crate::engine::{
+    build_session_with, finish_profile, finite_output, with_cpu_retry, CpuFallback, LoadOptions,
+    Provider,
+};
 use crate::vision::{self, VisionJob};
 use crate::vision_pkg::{VisionPackage, VisionTask};
 use ort::session::Session;
@@ -35,6 +38,8 @@ type TextBatch = (Vec<i64>, Vec<i64>, usize, usize);
 
 pub struct VisionEngine {
     session: Mutex<Session>,
+    /// Answers a request the GPU session turned into non-finite values.
+    cpu: CpuFallback,
     pub package: VisionPackage,
     pixel_input: String,
     /// The graph takes half-precision pixels (`model_fp16.onnx`).
@@ -119,7 +124,17 @@ fn open_detection_fits(logits: usize, boxes: usize, queries: usize) -> bool {
 
 /// Loads a vision model and runs one warm-up image through it.
 pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, String> {
-    let (session, provider) = build_session(&package.onnx_path, opts.provider, opts.threads)?;
+    load_once(opts, package, true)
+}
+
+/// `profile`: the first attempt only; the CPU retry of a failed GPU warm-up is not profiled.
+fn load_once(
+    opts: &LoadOptions,
+    package: VisionPackage,
+    profile: bool,
+) -> Result<VisionEngine, String> {
+    let (session, provider) =
+        build_session_with(&package.onnx_path, opts.provider, opts.threads, profile)?;
     let mut pixel = None;
     let mut mask_input = None;
     let mut ids_input = None;
@@ -202,6 +217,7 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
         None => None,
     };
     let engine = VisionEngine {
+        cpu: CpuFallback::new(package.onnx_path.clone(), opts.threads),
         session: Mutex::new(session),
         package,
         pixel_input,
@@ -218,8 +234,11 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
         max_new_tokens: Some(2),
         ..VisionJob::default()
     };
-    if let Err(e) = engine.infer(&warm, &job) {
+    let warmed = engine.infer(&warm, &job);
+    if profile {
         finish_profile(&engine.session);
+    }
+    if let Err(e) = warmed {
         if engine.provider != "CPU" {
             eprintln!(
                 "harness-onnx: {} warm-up failed: {} (falling back to the CPU)",
@@ -229,11 +248,11 @@ pub fn load(opts: &LoadOptions, package: VisionPackage) -> Result<VisionEngine, 
             cpu.provider = Provider::Cpu;
             let package = engine.package.clone();
             drop(engine);
-            return load(&cpu, package);
+            return load_once(&cpu, package, false);
         }
         return Err(e.message);
     }
-    finish_profile(&engine.session);
+    engine.cpu.arm();
     Ok(engine)
 }
 
@@ -258,42 +277,59 @@ impl VisionEngine {
             pixels
         };
         let shape = [rows, 3, h as usize, w as usize];
-        let input: ort::value::DynTensor = if self.pixel_f16 {
-            let half: Vec<half::f16> = pixels.into_iter().map(half::f16::from_f32).collect();
-            Tensor::from_array((shape, half)).map_err(err)?.upcast()
-        } else {
-            Tensor::from_array((shape, pixels)).map_err(err)?.upcast()
-        };
-        let mut feeds: Vec<(String, ort::value::DynTensor)> =
-            vec![(self.pixel_input.clone(), input)];
-        if let Some((name, fixed)) = &self.mask_input {
-            let (mh, mw) = fixed.unwrap_or((h as usize, w as usize));
-            let ones = vec![1i64; mh * mw];
-            feeds.push((
-                name.clone(),
-                Tensor::from_array(([1usize, mh, mw], ones))
+        let feeds = || -> Result<Vec<(String, ort::value::DynTensor)>, ApiError> {
+            let input: ort::value::DynTensor = if self.pixel_f16 {
+                let half: Vec<half::f16> = pixels.iter().map(|v| half::f16::from_f32(*v)).collect();
+                Tensor::from_array((shape, half)).map_err(err)?.upcast()
+            } else {
+                Tensor::from_array((shape, pixels.clone()))
                     .map_err(err)?
-                    .upcast(),
-            ));
-        }
-        if let (Some(inputs), Some((ids, mask, rows, len))) = (&self.text, text) {
-            feeds.push((
-                inputs.ids.clone(),
-                Tensor::from_array(([rows, len], ids))
-                    .map_err(err)?
-                    .upcast(),
-            ));
-            if let Some(name) = &inputs.mask {
+                    .upcast()
+            };
+            let mut feeds: Vec<(String, ort::value::DynTensor)> =
+                vec![(self.pixel_input.clone(), input)];
+            if let Some((name, fixed)) = &self.mask_input {
+                let (mh, mw) = fixed.unwrap_or((h as usize, w as usize));
+                let ones = vec![1i64; mh * mw];
                 feeds.push((
                     name.clone(),
-                    Tensor::from_array(([rows, len], mask))
+                    Tensor::from_array(([1usize, mh, mw], ones))
                         .map_err(err)?
                         .upcast(),
                 ));
             }
-        }
-        let mut session = self
-            .session
+            if let (Some(inputs), Some((ids, mask, rows, len))) = (&self.text, &text) {
+                feeds.push((
+                    inputs.ids.clone(),
+                    Tensor::from_array(([*rows, *len], ids.clone()))
+                        .map_err(err)?
+                        .upcast(),
+                ));
+                if let Some(name) = &inputs.mask {
+                    feeds.push((
+                        name.clone(),
+                        Tensor::from_array(([*rows, *len], mask.clone()))
+                            .map_err(err)?
+                            .upcast(),
+                    ));
+                }
+            }
+            Ok(feeds)
+        };
+        with_cpu_retry(
+            self.cpu.skip(&self.provider),
+            || self.exec(&self.session, feeds()?),
+            || self.exec(self.cpu.get()?, feeds()?),
+        )
+    }
+
+    /// Runs `feeds` on `session` and reads the task's outputs; non-finite values are an error.
+    fn exec(
+        &self,
+        session: &Mutex<Session>,
+        feeds: Vec<(String, ort::value::DynTensor)>,
+    ) -> Result<Vec<Output>, ApiError> {
+        let mut session = session
             .lock()
             .map_err(|_| ApiError::server("the model session is poisoned"))?;
         let outputs = session

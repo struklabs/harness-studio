@@ -336,7 +336,16 @@ pub fn parse_pooling_config(v: &Value) -> Option<PoolingConfig> {
 /// Label names of `id2label`, ordered by id (empty when the config has none).
 pub fn labels_from_config(config: &Value) -> Vec<String> {
     let Some(map) = config.get("id2label").and_then(Value::as_object) else {
-        return Vec::new();
+        // timm lists the names in order under `label_names`.
+        return config
+            .get("label_names")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
     };
     let mut pairs: Vec<(usize, String)> = map
         .iter()
