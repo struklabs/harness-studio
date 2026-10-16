@@ -209,8 +209,11 @@ pub(crate) fn request_id() -> String {
 
 /// The body a request sends upstream: a mistral.rs server gets `"model": "default"` (it serves
 /// the one model it was started with and does not know the Harness alias); every other server
-/// gets the body as it is.
+/// gets the body as it is. Remote definitions use the remote model id.
 pub(crate) fn upstream_body(def: &harness_core::domain::ModelDefinition, body: Bytes) -> Bytes {
+    if let Some(rewritten) = harness_core::link::rewrite_model(&def.id, &body) {
+        return Bytes::from(rewritten);
+    }
     if !def
         .base
         .local_path()
@@ -276,7 +279,12 @@ fn is_warmup(
 /// Handles one inference request.
 pub async fn handle(state: GwState, api: Api, headers: HeaderMap, body: Bytes) -> Response {
     // `background: true` on `/v1/responses` answers at once and runs the request in a task.
-    if api == Api::Responses {
+    let remote = api == Api::Responses
+        && serde_json::from_slice::<Peek>(&body)
+            .ok()
+            .and_then(|p| p.model)
+            .is_some_and(|m| harness_core::link::parse_model(&m).is_some());
+    if api == Api::Responses && !remote {
         if let Some(resp) = crate::responses::start_background(&state, &headers, &body).await {
             return resp;
         }
@@ -316,7 +324,8 @@ pub(crate) async fn handle_with(
     let mut resp = match result {
         Ok(resp) => resp,
         Err(err) => {
-            let err = err.anthropic(anthropic);
+            let openai = err.code == "link.chained_not_allowed";
+            let err = err.anthropic(anthropic && !openai);
             guard.finish(err.status, Some(&err.code));
             err.into_response()
         }
@@ -379,7 +388,11 @@ async fn run(
     let mut compaction_note = None;
     let client_body = body.clone();
     let mut body = body;
-    if api == Api::Responses {
+    if api == Api::Responses
+        && !model
+            .as_deref()
+            .is_some_and(|m| harness_core::link::parse_model(m).is_some())
+    {
         let prep = crate::responses::prepare(&caller, &settings, &body, response_id).await?;
         if let Some(b) = prep.body {
             body = b;
@@ -401,14 +414,23 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
-    if crate::speech::is_audio_cpp_model(&def) || crate::speech::is_crispasr_tts(&def) {
+    let remote = harness_core::link::parse_model(&def.id);
+    if remote.is_some() && headers.contains_key("x-harness-link-hop") {
+        return Err(GatewayError::remote("link.chained_not_allowed"));
+    }
+    if remote.is_some() && matches!(api, Api::Hf | Api::CountTokens) {
+        return Err(GatewayError::remote("link.unsupported_endpoint"));
+    }
+    if remote.is_none()
+        && (crate::speech::is_audio_cpp_model(&def) || crate::speech::is_crispasr_tts(&def))
+    {
         return Err(GatewayError::new(
             400,
             "invalid_request",
             "audio.cpp only accepts POST /v1/audio/speech through the gateway.",
         ));
     }
-    if crate::audio::is_speech_model(&def) {
+    if remote.is_none() && crate::audio::is_speech_model(&def) {
         return Err(GatewayError::new(
             400,
             "model_is_speech",
@@ -420,7 +442,7 @@ async fn run(
         )
         .param("model"));
     }
-    if crate::images::is_image_model(&def) {
+    if remote.is_none() && crate::images::is_image_model(&def) {
         return Err(GatewayError::new(
             400,
             "model_is_image",
@@ -450,6 +472,9 @@ async fn run(
     drop(client_body);
     // Server-side tools (T1c): for a model the user enabled them for, the gateway runs the
     // tool loop itself instead of rejecting hosted tools.
+    if remote.is_some() && settings.server_tools_of(&def.id).is_some() {
+        return Err(GatewayError::remote("link.unsupported_endpoint"));
+    }
     if let Some(cfg) = settings.server_tools_of(&def.id) {
         let planned = crate::server_tools::plan(api, &body, cfg, settings.ignored_tools(&def.id))
             .map_err(|e| match e {
@@ -483,7 +508,9 @@ async fn run(
             .await;
         }
     }
-    let mut prepared =
+    let mut prepared = if remote.is_some() {
+        compat::Prepared::default()
+    } else {
         compat::prepare(api, &body, settings.ignored_tools(&def.id)).map_err(|u| {
             GatewayError::new(400, "unsupported_tool_type", u.message())
                 .param(u.param.clone())
@@ -491,7 +518,8 @@ async fn run(
                     "tool_type": u.tool_type, "tool_name": u.tool_name, "reason": u.reason,
                     "model": def.alias,
                 }))
-        })?;
+        })?
+    };
     guard.get().compat = prepared.notes();
     if !prepared.ignored.is_empty() {
         eprintln!(
@@ -533,7 +561,7 @@ async fn run(
             }
         }
     }
-    if matches!(api, Api::Chat | Api::Responses) {
+    if remote.is_none() && matches!(api, Api::Chat | Api::Responses) {
         if let Some(mapped) = crate::reasoning::translate(
             prepared.body.as_deref().unwrap_or(&body),
             lease.reasoning_control,
@@ -543,7 +571,7 @@ async fn run(
     }
     // Tool-call diagnosis: the round is read from the request that goes upstream (after the
     // compat changes, so the names match what the model answers with).
-    if matches!(api, Api::Chat | Api::Messages | Api::Responses) {
+    if remote.is_none() && matches!(api, Api::Chat | Api::Messages | Api::Responses) {
         guard.tool = ToolRound::start(
             prepared.body.as_deref().unwrap_or(&body),
             lease.template_tools,
@@ -554,21 +582,23 @@ async fn run(
         n => Some(Duration::from_secs(u64::from(n))),
     };
     let compat_header = prepared.header();
-    let recovery_names = if api == Api::Chat && settings.recover_text_tools(&def.id) {
-        text_tool_calls::offered(prepared.body.as_deref().unwrap_or(&body))
-    } else {
-        Vec::new()
-    };
-    let loop_names = if api == Api::Chat {
+    let recovery_names =
+        if remote.is_none() && api == Api::Chat && settings.recover_text_tools(&def.id) {
+            text_tool_calls::offered(prepared.body.as_deref().unwrap_or(&body))
+        } else {
+            Vec::new()
+        };
+    let loop_names = if remote.is_none() && api == Api::Chat {
         text_tool_calls::offered(prepared.body.as_deref().unwrap_or(&body))
     } else {
         vec![]
     };
     let names = std::mem::take(&mut prepared.names);
-    let renames_model = def
-        .base
-        .local_path()
-        .is_some_and(harness_core::engine::is_mistralrs_dir);
+    let renames_model = remote.is_none()
+        && def
+            .base
+            .local_path()
+            .is_some_and(harness_core::engine::is_mistralrs_dir);
     let body = upstream_body(
         &def,
         match prepared.body.take() {
@@ -576,8 +606,13 @@ async fn run(
             None => body,
         },
     );
-    let mut req = state
-        .http
+    let http = if let Some((name, _)) = remote {
+        harness_core::link::client_for(name, settings.request_timeout_secs)
+            .map_err(|_| GatewayError::remote("link.unreachable"))?
+    } else {
+        state.http.clone()
+    };
+    let mut req = http
         .post(format!("{}{}", lease.upstream, api.upstream_path()))
         .header(header::CONTENT_TYPE, "application/json")
         .body(body);
@@ -586,7 +621,10 @@ async fn run(
             req = req.header(name, v.clone());
         }
     }
-    if let Some(context) = &guard.trace_context {
+    if remote.is_some() {
+        req = req.header("x-harness-link-hop", "1");
+    }
+    if let Some(context) = &guard.trace_context.as_ref().filter(|_| remote.is_none()) {
         req = req.header("traceparent", context.traceparent());
         if let Some(state) = context.tracestate() {
             req = req.header("tracestate", state);
@@ -598,17 +636,55 @@ async fn run(
     let send = req.send();
     let upstream = match timeout {
         Some(t) => tokio::time::timeout(t, send).await.map_err(|_| {
-            GatewayError::new(
-                504,
-                "upstream_timeout",
-                format!("llama-server did not answer within {} s.", t.as_secs()),
-            )
+            if let Some((name, _)) = remote {
+                harness_core::link::request_refresh(name);
+                GatewayError::remote("link.timeout")
+            } else {
+                GatewayError::new(
+                    504,
+                    "upstream_timeout",
+                    format!("llama-server did not answer within {} s.", t.as_secs()),
+                )
+            }
         })?,
         None => send.await,
     }
-    .map_err(|e| GatewayError::new(502, "upstream_unreachable", format!("llama-server: {}", e)))?;
+    .map_err(|e| {
+        if let Some((name, _)) = remote {
+            let error = harness_core::link::transport_error(
+                e,
+                lease.api_key.as_deref().unwrap_or_default(),
+            );
+            let key = match harness_core::error_key::parse(&error).map(|(k, _)| k) {
+                Some("link.timeout") => "link.timeout",
+                Some("link.tls_failed") => "link.tls_failed",
+                Some("link.certificate_invalid") => "link.certificate_invalid",
+                Some("link.dns_failed") => "link.dns_failed",
+                _ => "link.unreachable",
+            };
+            harness_core::link::request_refresh(name);
+            GatewayError::remote(key)
+        } else {
+            GatewayError::new(502, "upstream_unreachable", format!("llama-server: {}", e))
+        }
+    })?;
 
     let status = upstream.status().as_u16();
+    if let Some((name, _)) = remote {
+        // Client errors (unknown model, context too long, 429 ...) are the caller's to see;
+        // only a rejected token or an unusable remote becomes a link failure.
+        if !(200..300).contains(&status) && !(400..500).contains(&status)
+            || matches!(status, 401 | 403)
+        {
+            let key = if matches!(status, 401 | 403) {
+                "link.unauthorized"
+            } else {
+                "link.unreachable"
+            };
+            harness_core::link::request_refresh(name);
+            return Err(GatewayError::remote(key));
+        }
+    }
     let content_type = upstream
         .headers()
         .get(header::CONTENT_TYPE)
@@ -631,6 +707,11 @@ async fn run(
             "x-harness-queue-ms",
             lease.queue_wait.as_millis().to_string(),
         );
+    if remote.is_some() {
+        if let Some(retry) = upstream.headers().get(header::RETRY_AFTER) {
+            builder = builder.header(header::RETRY_AFTER, retry.clone());
+        }
+    }
     if sse {
         builder = builder
             .header(header::CACHE_CONTROL, "no-cache")
@@ -750,7 +831,7 @@ async fn run(
     }
 
     let relay = Relay {
-        loop_guard: (api == Api::Chat && status == 200 && sse)
+        loop_guard: (remote.is_none() && api == Api::Chat && status == 200 && sse)
             .then(|| crate::tool_loop_guard::Guard::new(loop_names.len())),
         inner: Box::pin(upstream.bytes_stream()),
         recovery,
@@ -905,10 +986,20 @@ impl Stream for Relay {
             }
             if let Some((_, sleep)) = this.idle.as_mut() {
                 if sleep.as_mut().poll(cx).is_ready() {
+                    let message = if let Some(lease) = this
+                        .lease
+                        .as_ref()
+                        .filter(|l| harness_core::link::parse_model(&l.definition_id).is_some())
+                    {
+                        harness_core::link::request_refresh(&lease.server_id);
+                        "Remote Harness stream stalled"
+                    } else {
+                        "llama-server stream stalled"
+                    };
                     this.end(Some("upstream_idle_timeout"));
                     return Poll::Ready(Some(Err(std::io::Error::new(
                         std::io::ErrorKind::TimedOut,
-                        "llama-server stream stalled",
+                        message,
                     ))));
                 }
             }
@@ -980,8 +1071,21 @@ impl Stream for Relay {
                     Poll::Ready(Some(Ok(Frame::data(out))))
                 }
                 Poll::Ready(Some(Err(e))) => {
+                    let error = if let Some(lease) = this
+                        .lease
+                        .as_ref()
+                        .filter(|l| harness_core::link::parse_model(&l.definition_id).is_some())
+                    {
+                        harness_core::link::request_refresh(&lease.server_id);
+                        std::io::Error::other(harness_core::link::transport_error(
+                            e,
+                            lease.api_key.as_deref().unwrap_or_default(),
+                        ))
+                    } else {
+                        std::io::Error::other(e.without_url())
+                    };
                     this.end(Some("upstream_error"));
-                    Poll::Ready(Some(Err(std::io::Error::other(e))))
+                    Poll::Ready(Some(Err(error)))
                 }
                 Poll::Ready(None) => {
                     let recovered_rest = this
@@ -1065,8 +1169,10 @@ pub async fn models(state: GwState, headers: HeaderMap) -> Response {
                 .filter(|d| caller.allows_model(&d.alias))
                 .map(|d| {
                     let mut o = model_object(d, None);
-                    o["harness"]["state"] =
-                        serde_json::json!(harness_core::gateway::scheduler::SlotState::Ready);
+                    if harness_core::link::parse_model(&d.id).is_none() {
+                        o["harness"]["state"] =
+                            serde_json::json!(harness_core::gateway::scheduler::SlotState::Ready);
+                    }
                     o
                 }),
         );
@@ -1100,7 +1206,7 @@ fn model_object(
     d: &harness_core::domain::ModelDefinition,
     slot: Option<&harness_core::gateway::scheduler::ModelSlot>,
 ) -> serde_json::Value {
-    serde_json::json!({
+    let mut object = serde_json::json!({
         "id": d.alias,
         "object": "model",
         "created": d.created_at,
@@ -1111,7 +1217,23 @@ fn model_object(
             "pinned": d.pinned,
             "ttl_seconds": d.ttl_seconds,
         }
-    })
+    });
+    if let Some((name, _)) = harness_core::link::parse_model(&d.id) {
+        let status = harness_core::link::status(name).unwrap_or_default();
+        object["owned_by"] = serde_json::json!("harness-link");
+        object["harness"]["state"] =
+            serde_json::json!(if status.state == harness_core::link::State::Online {
+                "ready"
+            } else {
+                "offline"
+            });
+        object["harness"]["remote"] = serde_json::json!({"link": name, "state": status.state});
+        if let Some((definition_id, upstream_state)) = harness_core::link::model_metadata(&d.id) {
+            object["harness"]["remote"]["definition_id"] = serde_json::json!(definition_id);
+            object["harness"]["remote"]["model_state"] = serde_json::json!(upstream_state);
+        }
+    }
+    object
 }
 
 #[cfg(test)]

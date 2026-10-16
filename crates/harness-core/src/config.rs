@@ -174,6 +174,7 @@ pub struct AppSettings {
     pub control_api: crate::control_api::ControlApiSettings,
     /// Gateway: one managed endpoint for every model (off by default; see `gateway`).
     pub gateway: crate::gateway::GatewaySettings,
+    pub links: Vec<crate::link::RemoteLink>,
     /// Request analytics (`analytics.db`; see `analytics`).
     pub analytics: crate::analytics::AnalyticsSettings,
     /// OpenTelemetry (OTLP) export of gateway traces and metrics (off by default; see `otel`).
@@ -267,6 +268,7 @@ impl Default for AppSettings {
             network: crate::network::NetworkSettings::default(),
             control_api: crate::control_api::ControlApiSettings::default(),
             gateway: crate::gateway::GatewaySettings::default(),
+            links: Vec::new(),
             analytics: crate::analytics::AnalyticsSettings::default(),
             otel: crate::otel::OtelSettings::default(),
             tools: crate::tools::ToolSettings::default(),

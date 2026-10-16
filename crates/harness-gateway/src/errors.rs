@@ -62,8 +62,56 @@ impl GatewayError {
         self
     }
 
+    pub fn remote(key: &'static str) -> Self {
+        let unsupported = matches!(
+            key,
+            "link.unsupported_endpoint" | "link.chained_not_allowed"
+        );
+        Self::new(
+            if unsupported { 400 } else { 502 },
+            if unsupported {
+                key
+            } else {
+                "harness_link_unreachable"
+            },
+            match key {
+                "link.unsupported_endpoint" => "This endpoint is unsupported for remote models.",
+                "link.chained_not_allowed" => {
+                    "Remote Harness requests cannot be chained to another remote Harness."
+                }
+                "link.certificate_invalid" => "Certificate could not be verified",
+                "link.unauthorized" => "The remote Harness token was rejected.",
+                "link.timeout" => "The remote Harness request timed out.",
+                _ => "The remote Harness is unreachable.",
+            },
+        )
+        .details(json!({"error_key": key}))
+    }
+
+    pub fn reject_remote(def: &harness_core::domain::ModelDefinition) -> Result<(), Self> {
+        if harness_core::link::parse_model(&def.id).is_some() {
+            Err(Self::remote("link.unsupported_endpoint"))
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn from_sched(e: &harness_core::gateway::scheduler::SchedError) -> Self {
         use harness_core::gateway::scheduler::SchedError;
+        if let SchedError::LoadFailed { code, message, .. } = e {
+            if code == "link.unsupported_endpoint" {
+                return Self::remote("link.unsupported_endpoint");
+            }
+            if code == "harness_link_unreachable" {
+                return Self::remote(if message.starts_with("link.unauthorized") {
+                    "link.unauthorized"
+                } else if message.starts_with("link.certificate_invalid") {
+                    "link.certificate_invalid"
+                } else {
+                    "link.unreachable"
+                });
+            }
+        }
         let mut details = match e {
             SchedError::ModelNotFound { available, .. }
             | SchedError::ModelRequired { available } => json!({"available_models": available}),
@@ -204,6 +252,25 @@ impl IntoResponse for GatewayError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remote_certificate_failures_keep_their_key_and_message() {
+        let expected = GatewayError::remote("link.certificate_invalid").body();
+        let error = harness_core::gateway::scheduler::SchedError::LoadFailed {
+            alias: "remote:office/model".into(),
+            code: "harness_link_unreachable".into(),
+            message: "link.certificate_invalid".into(),
+        };
+        assert_eq!(GatewayError::from_sched(&error).body(), expected);
+        assert_eq!(
+            expected["error"]["message"],
+            "Certificate could not be verified"
+        );
+        assert_eq!(
+            expected["error"]["harness"]["error_key"],
+            "link.certificate_invalid"
+        );
+    }
 
     #[test]
     fn memory_failures_carry_localizable_keys_and_blockers() {

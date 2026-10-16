@@ -10,6 +10,7 @@ const HF_ACCOUNT: &str = "huggingface_token";
 const HF_OAUTH_ACCOUNT: &str = "huggingface_oauth";
 const API_KEY_PREFIX: &str = "server-api-key:";
 const MCP_PREFIX: &str = "mcp-secret:";
+const LINK_PREFIX: &str = "harness-link:";
 const WEB_SEARCH_PREFIX: &str = "web-search:";
 /// OAuth session of a remote MCP server (`mcp-oauth:<server name>`).
 const MCP_OAUTH_PREFIX: &str = "mcp-oauth:";
@@ -358,9 +359,88 @@ pub fn web_search_key_set(provider: &str, value: Option<&str>) -> Result<(), Str
     .map_err(|e| format!("could not update the web search key in the OS keychain: {e}"))
 }
 
+fn link_account_for(
+    data_dir: &std::path::Path,
+    default_dir: Option<&std::path::Path>,
+    id: &str,
+) -> String {
+    use sha2::{Digest, Sha256};
+    let canonical = crate::paths::canonicalize_lenient(data_dir);
+    // Preserve installed tokens only for the real app's default data directory.
+    if default_dir.is_some_and(|dir| crate::paths::canonicalize_lenient(dir) == canonical) {
+        return format!("{LINK_PREFIX}{id}");
+    }
+    let digest = Sha256::digest(canonical.as_os_str().as_encoded_bytes());
+    let hash: String = digest.iter().take(12).map(|b| format!("{b:02x}")).collect();
+    format!("{LINK_PREFIX}{hash}:{id}")
+}
+
+fn link_account(id: &str) -> String {
+    let default_dir = dirs::data_dir().map(|dir| dir.join(SERVICE));
+    link_account_for(&crate::paths::data_root(), default_dir.as_deref(), id)
+}
+
+pub fn link_get(id: &str) -> Result<Option<String>, String> {
+    store()
+        .get(&link_account(id))
+        .map_err(|_| crate::error_key::err("link.keychain_unavailable").into())
+}
+
+pub fn link_set(id: &str, token: &str) -> Result<(), String> {
+    store()
+        .set(&link_account(id), token)
+        .map_err(|_| crate::error_key::err("link.keychain_unavailable").into())
+}
+
+pub fn link_delete(id: &str) -> Result<(), String> {
+    store()
+        .delete(&link_account(id))
+        .map_err(|_| crate::error_key::err("link.keychain_unavailable").into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn link_tokens_are_isolated_by_canonical_data_dir() {
+        let root = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        let default_dir = root.path().join("default");
+        let other_dir = root.path().join("rc");
+        let isolated_dir = root.path().join("isolated");
+        std::fs::create_dir_all(&default_dir).unwrap();
+        std::fs::create_dir_all(&other_dir).unwrap();
+        let account = |dir: &std::path::Path| link_account_for(dir, Some(&default_dir), "same-id");
+        let default = account(&default_dir);
+        let other = account(&other_dir);
+        let isolated = account(&isolated_dir);
+        assert_eq!(default, "harness-link:same-id");
+        assert_ne!(default, other);
+        assert_ne!(other, isolated);
+        assert_eq!(other, account(&other_dir.join(".")));
+        assert_eq!(other, account(&root.path().join("default/../rc")));
+        let store = MemoryStore::default();
+        store.set(&default, "default-token").unwrap();
+        assert_eq!(store.get(&other).unwrap(), None);
+        store.set(&other, "rc-token").unwrap();
+        assert_eq!(store.get(&isolated).unwrap(), None);
+        store.set(&isolated, "isolated-token").unwrap();
+        assert_eq!(
+            store.get(&default).unwrap().as_deref(),
+            Some("default-token")
+        );
+        assert_eq!(store.get(&other).unwrap().as_deref(), Some("rc-token"));
+        store.delete(&other).unwrap();
+        assert_eq!(store.get(&other).unwrap(), None);
+        assert_eq!(
+            store.get(&isolated).unwrap().as_deref(),
+            Some("isolated-token")
+        );
+        assert_eq!(
+            store.get(&default).unwrap().as_deref(),
+            Some("default-token")
+        );
+    }
 
     #[test]
     fn adopt_sets_clears_and_keeps() {

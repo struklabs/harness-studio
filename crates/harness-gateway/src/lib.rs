@@ -110,6 +110,7 @@ struct Running {
     shutdown: oneshot::Sender<()>,
     task: tokio::task::JoinHandle<()>,
     maintenance: tokio::task::JoinHandle<()>,
+    links: tokio::task::JoinHandle<()>,
     /// The listener on the Ollama port, when bound.
     ollama: Option<(oneshot::Sender<()>, tokio::task::JoinHandle<()>)>,
 }
@@ -385,6 +386,7 @@ impl GatewayServer {
                 .await;
         });
         let maintenance = tokio::spawn(scheduler.clone().maintenance_loop());
+        let links = tokio::spawn(harness_core::link::refresh_loop());
         tokio::spawn(scheduler.clone().warm_pinned());
         gateway::set_running(
             &addr.ip().to_string(),
@@ -425,6 +427,7 @@ impl GatewayServer {
             shutdown: tx,
             task,
             maintenance,
+            links,
             ollama,
         });
         Ok(gateway::status())
@@ -437,6 +440,7 @@ impl GatewayServer {
             return;
         };
         running.maintenance.abort();
+        running.links.abort();
         if let Some((stop, mut task)) = running.ollama {
             let _ = stop.send(());
             if tokio::time::timeout(std::time::Duration::from_secs(2), &mut task)
@@ -607,6 +611,20 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
     Router::new()
         .merge(ollama::routes())
         .route("/health", get(health))
+        .route(
+            "/v1/harness/whoami",
+            get(|State(s): State<GwState>, h: HeaderMap| async move {
+                match auth::whoami(&s, &h) {
+                    Ok(caller) => axum::Json(serde_json::json!({
+                        "token_name": caller.token_name,
+                        "scopes": caller.scopes,
+                        "harness_version": env!("CARGO_PKG_VERSION"),
+                    }))
+                    .into_response(),
+                    Err(error) => error.into_response(),
+                }
+            }),
+        )
         .route(
             "/metrics",
             get(|State(s): State<GwState>, h: HeaderMap| metrics(s, h)),
@@ -842,6 +860,7 @@ async fn guard_tts_routes(
     {
         return next.run(request).await;
     }
+    let path = path.to_string();
     let (parts, body) = request.into_parts();
     let bytes = match axum::body::to_bytes(body, BODY_LIMIT).await {
         Ok(bytes) => bytes,
@@ -859,6 +878,32 @@ async fn guard_tts_routes(
         .and_then(|v| v.get("model").and_then(|m| m.as_str()).map(String::from))
     {
         if let Ok(def) = state.scheduler.resolve(Some(&model)).await {
+            if harness_core::link::parse_model(&def.id).is_some()
+                && !matches!(
+                    path.as_str(),
+                    "/v1/chat/completions"
+                        | "/v1/completions"
+                        | "/v1/responses"
+                        | "/v1/embeddings"
+                        | "/v1/rerank"
+                        | "/v1/messages"
+                )
+            {
+                let caller = match auth::check(
+                    &state,
+                    &parts.headers,
+                    false,
+                    harness_core::token_policy::GatewayEndpoint::of_path(&path)
+                        .unwrap_or(harness_core::token_policy::GatewayEndpoint::Chat),
+                ) {
+                    Ok(caller) => caller,
+                    Err(e) => return e.into_response(),
+                };
+                if let Err(e) = caller.check_model(&def.alias) {
+                    return e.into_response();
+                }
+                return errors::GatewayError::remote("link.unsupported_endpoint").into_response();
+            }
             if speech::is_crispasr_tts(&def) {
                 if let Err(e) = auth::check(
                     &state,

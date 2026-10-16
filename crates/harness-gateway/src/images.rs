@@ -748,6 +748,7 @@ async fn run(
         r.definition_id = Some(def.id.clone());
     }
     caller.check_model(&def.alias)?;
+    GatewayError::reject_remote(&def)?;
     // A diffusers pipeline of the Python engine answers OpenAI's request itself.
     if let Some(task) = crate::pyhf::task_of(&def) {
         if let Some(e) = python_task_error(&def.alias, &task, kind) {

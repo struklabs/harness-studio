@@ -195,6 +195,7 @@ async fn serve(
         .await
         .map_err(|e| GatewayError::from_sched(&e))?;
     caller.check_model(&def.alias)?;
+    GatewayError::reject_remote(&def)?;
     let family = def
         .base
         .local_path()

@@ -206,7 +206,10 @@ pub async fn resolve(state: &GwState, name: &str) -> Result<ModelDefinition, Gat
         NameRef::Alias(candidates) => {
             for c in &candidates {
                 match state.scheduler.resolve(Some(c)).await {
-                    Ok(d) => return Ok(d),
+                    Ok(d) => {
+                        GatewayError::reject_remote(&d)?;
+                        return Ok(d);
+                    }
                     Err(SchedError::ModelNotFound { .. }) => continue,
                     Err(e) => return Err(GatewayError::from_sched(&e)),
                 }

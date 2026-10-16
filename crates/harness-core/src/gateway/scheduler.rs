@@ -758,6 +758,7 @@ impl Scheduler {
                 external.extend(self.router_externals(&defs).await);
                 // Models of the Lemonade engine (downloaded in its registry), by their name.
                 external.extend(lemonade_definitions(&defs).await);
+                external.extend(crate::link::definitions());
                 if let Some(d) = external
                     .iter()
                     .find(|d| d.alias.eq_ignore_ascii_case(model))
@@ -818,6 +819,7 @@ impl Scheduler {
         let mut external = external_models(&defs, &self.server_views());
         external.extend(self.router_externals(&defs).await);
         external.extend(lemonade_definitions(&defs).await);
+        external.extend(crate::link::definitions());
         Ok(external)
     }
 
@@ -975,6 +977,16 @@ impl Scheduler {
         keep_alive: Option<KeepAlive>,
         route: Route,
     ) -> Result<Lease, SchedError> {
+        if crate::link::parse_model(&def.id).is_some() {
+            if route != Route::General {
+                return Err(SchedError::LoadFailed {
+                    alias: def.alias.clone(),
+                    code: "link.unsupported_endpoint".into(),
+                    message: "link.unsupported_endpoint".into(),
+                });
+            }
+            return self.acquire_remote(def).await;
+        }
         if def
             .base
             .local_path()
@@ -1116,6 +1128,42 @@ impl Scheduler {
             reserved_tokens: want,
             _permit: permit,
             _tokens: budget,
+        })
+    }
+
+    async fn acquire_remote(self: &Arc<Self>, def: &ModelDefinition) -> Result<Lease, SchedError> {
+        let (upstream, key, name) =
+            crate::link::endpoint(&def.id).map_err(|message| SchedError::LoadFailed {
+                alias: def.alias.clone(),
+                code: "harness_link_unreachable".into(),
+                message,
+            })?;
+        let entry = self.entry(def);
+        let permit = Arc::new(Semaphore::new(1))
+            .acquire_owned()
+            .await
+            .map_err(|e| SchedError::Internal(e.to_string()))?;
+        entry.state().in_flight += 1;
+        Ok(Lease {
+            definition_id: def.id.clone(),
+            alias: def.alias.clone(),
+            server_id: name,
+            upstream,
+            api_key: Some(key),
+            queue_wait: Duration::ZERO,
+            load: None,
+            ctx_size: None,
+            template_tools: None,
+            reasoning_control: Default::default(),
+            backend: None,
+            entry,
+            started: Instant::now(),
+            slots: 0,
+            waited: None,
+            reserved_tokens: 0,
+            _activity: None,
+            _permit: permit,
+            _tokens: None,
         })
     }
 

@@ -44,6 +44,7 @@ pub mod kv_policy;
 pub mod lemonade;
 pub mod library;
 pub mod library_definitions;
+pub mod link;
 pub mod lora_live;
 pub mod mcp;
 pub mod model_registry;

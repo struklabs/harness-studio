@@ -18,6 +18,7 @@
   import { activeCompaction } from './compaction.svelte';
   import type { ChatMessage as Msg } from './types';
   import type { ModelLoadState } from './gatewayModels';
+  import { isRemoteModel } from './remoteModels';
   import {
     SIDES,
     chatServers,
@@ -114,6 +115,7 @@
   }
 
   function stateLabel(alias: string): string {
+    if (isRemoteModel(alias)) return t('link.remote');
     const st = modelStates[alias];
     return st === 'loaded' ? t('pgs.state_loaded') : st === 'loading' ? t('pgs.state_loading') : t('pgs.state_jit');
   }
