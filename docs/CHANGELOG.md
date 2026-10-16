@@ -6,6 +6,48 @@ Release notes with system requirements and known limitations (English and Turkis
 
 ## [Unreleased]
 
+- Long chats open instantly: recent messages show first and older ones load in the background without moving the view.
+- Uzun sohbetler anında açılıyor: son mesajlar önce görünüyor, eskiler görünümü kaydırmadan arka planda yükleniyor.
+- Scrollable code blocks are announced as "Code Block" and show a full focus ring.
+- Kaydırılabilir kod blokları "Kod Bloğu" olarak duyuruluyor ve tam odak halkası gösteriyor.
+- MLX text-to-speech: a long text is no longer silently cut at two minutes of audio; it is spoken in full within the time limit, and when the limit stops it the answer says so (x-harness-truncated: time).
+- MLX metinden sese: uzun metin artık iki dakikalık seste sessizce kesilmiyor; süre sınırı içinde tamamı konuşuluyor, sınır durdurursa yanıt bunu bildiriyor (x-harness-truncated: time).
+- MLX text-to-speech reads up to about ten minutes of text (the time limit is 600 s, kept under the gateway's timeout), pauses briefly between the parts of a long text, and the Speech panel says when the audio was cut (at the time limit, or because the model ran to its length limit).
+- MLX metinden sese yaklaşık on dakikalık metni okuyabiliyor (süre sınırı 600 sn, ağ geçidi zaman aşımının altında tutuluyor), uzun metnin parçaları arasında kısa bir duraklama yapıyor ve Konuşma paneli sesin kesildiğini bildiriyor (süre sınırında ya da model uzunluk sınırına ulaştığında).
+- Library: MLX OuteTTS folders whose model card is named in lower case are listed on macOS, and Spark-TTS folders show "spark" as their architecture instead of "qwen2".
+- Kütüphane: model kartı küçük harfle adlandırılmış MLX OuteTTS klasörleri macOS'ta listeleniyor; Spark-TTS klasörlerinin mimarisi "qwen2" yerine "spark" görünüyor.
+- A second Harness instance with its own data folder no longer rewrites client configs (OpenCode, editors, MCP clients) that another instance set up; fewer leftover backup files.
+- Kendi veri klasörüyle çalışan ikinci bir Harness örneği, başka örneğin kurduğu istemci yapılandırmalarını (OpenCode, editörler, MCP istemcileri) artık değiştirmiyor; daha az yedek dosyası birikiyor.
+- Speech panel: a new request clears the previous audio and its "cut" notice; MLX text-to-speech keeps a space between a CJK sentence and a following Latin one.
+- Konuşma paneli: yeni istek önceki sesi ve "kesildi" uyarısını temizliyor; MLX metinden sese, CJK cümlesiyle ardından gelen Latin cümle arasında boşluk bırakıyor.
+- MLX text to speech: CSM (mlx-community/csm-1b-fp16) speaks on Apple Silicon with its two voices; its Mimi codec, text tokenizer and voice prompts download with it from pinned, checksum-verified commits (all MLX codecs are now pinned). CSM output is not watermarked. MLX voice models keep their weights in memory, so requests on small Macs no longer slow down unpredictably, and the Speech panel shows the speed slider only for models that support it.
+- MLX metinden sese: CSM (mlx-community/csm-1b-fp16) Apple Silicon'da iki sesiyle konuşuyor; Mimi codec'i, metin tokenizer'ı ve ses örnekleri modelle birlikte, sabitlenmiş ve sağlama toplamı denetlenen commit'lerden iniyor (bütün MLX codec'leri artık sabitlenmiş). CSM çıktısı filigranlı değil. MLX ses modelleri ağırlıklarını bellekte tutuyor, küçük Mac'lerde istekler artık öngörülemez biçimde yavaşlamıyor; Konuşma paneli hız kaydırıcısını yalnız hızı destekleyen modellerde gösteriyor.
+- Transcription with llama.cpp models that hear (LFM2.5-Audio, Qwen3-ASR, Voxtral...) on `/v1/audio/transcriptions` and in Transcribe; LFM2.5-Audio shows as partially supported in the Hub.
+- Duyan llama.cpp modelleriyle (LFM2.5-Audio, Qwen3-ASR, Voxtral...) `/v1/audio/transcriptions` ve Yazıya Çevir'de yazıya çevirme; Hub'da LFM2.5-Audio kısmi destekli görünüyor.
+- First-run wizard on macOS: Apple Silicon memory is shown as unified memory instead of VRAM; the models folder and engine paths are shown in full; the storage and engine texts no longer say every model is GGUF.
+- macOS'ta ilk çalıştırma sihirbazı: Apple Silicon belleği VRAM yerine birleşik bellek olarak gösteriliyor; model klasörü ve motor yolları tam görünüyor; depolama ve motor metinleri artık her modeli GGUF saymıyor.
+- Harness Link: add a remote Harness (address + inference token) under Connections and use its models in the Playground and through your local gateway; tokens stay in the system keychain.
+- Harness Link: Bağlantılar'dan uzak bir Harness (adres + inference token) ekleyip modellerini Playground'da ve yerel gateway üzerinden kullanın; token'lar sistem anahtar zincirinde kalır.
+- Hub: speech recognition GGUF repos with a GGUF projector (Audar-ASR and Qwen3-ASR quantizations) show as runnable on llama.cpp instead of unsupported.
+- Hub: GGUF projektörlü konuşma tanıma GGUF depoları (Audar-ASR ve Qwen3-ASR nicemlemeleri) desteklenmiyor görünmek yerine llama.cpp ile çalışır görünüyor.
+- Hub: CosyVoice3, VoxCPM2 and other versioned speech repos say they need their own package instead of "no GGUF file".
+- Hub: CosyVoice3, VoxCPM2 ve sürümlü adlı diğer konuşma depoları "GGUF dosyası yok" yerine kendi paketini gerektirdiğini söylüyor.
+- Hugging Face ONNX path: timm classifiers, BiRefNet and CLIPSeg segmentation, RT-DETR, legacy BERT `vocab.txt` repos, generic-head NER and sentence embeddings (`/v1/hf` feature extraction) now run; question-answering spans on RoBERTa-style tokenizers are no longer clipped; a GPU warm-up with an error or non-finite output falls back to CPU.
+- Hugging Face ONNX yolu: timm sınıflandırıcıları, BiRefNet ve CLIPSeg segmentasyonu, RT-DETR, eski BERT `vocab.txt` depoları, genel başlıklı NER ve cümle gömmeleri (`/v1/hf` özellik çıkarımı) artık çalışıyor; RoBERTa tarzı belirteçleyicilerde soru-cevap aralıkları artık kırpılmıyor; hata ya da sonlu olmayan çıktı veren GPU ısınması CPU'ya düşüyor.
+- Accessibility on macOS: VoiceOver can use the ⌘K command palette after the first-run wizard, no longer reaches the app behind the open wizard, and announces the window as "Harness Studio".
+- macOS'ta erişilebilirlik: VoiceOver ilk çalıştırma sihirbazından sonra ⌘K komut paletini kullanabiliyor, açık sihirbazın arkasındaki uygulamaya artık ulaşmıyor ve pencereyi "Harness Studio" olarak okuyor.
+- My Models lists models from your Harness Link connections in a read-only Remote group with Open in Playground; the docs describe Harness Link setup.
+- Kütüphanem, Harness Link bağlantılarınızdaki modelleri salt okunur bir Uzak grubunda Playground'da Aç ile listeliyor; belgeler Harness Link kurulumunu anlatıyor.
+- Text to speech on Apple Silicon: Qwen3-TTS models (Base, CustomVoice, VoiceDesign) download their speech codec and speak, and Chatterbox Turbo downloads its default voice; the 8-bit CSM build that cannot run is no longer offered.
+- Apple Silicon'da metinden konuşma: Qwen3-TTS modelleri (Base, CustomVoice, VoiceDesign) konuşma codec'lerini indirip konuşuyor, Chatterbox Turbo varsayılan sesini indiriyor; çalışmayan 8-bit CSM sürümü artık sunulmuyor.
+- Audio processing and diarization: Model Hub and `/v1/audio/process` now run RE-USE (speech restoration), HTDemucs and HTDemucs 6-stem (stem separation), and Nemotron 3 Diarization and Sortformer (speaker turns); built-in diarization finds the right number of speakers more often and gives every transcript segment one speaker; `harness pull` no longer rejects repositories with a `LICENSE.html`; a GPU out-of-memory is reported as such after idle audio models are unloaded and the request retried.
+- Ses işleme ve konuşmacı ayırma: Model Hub ve `/v1/audio/process` artık RE-USE (konuşma onarımı), HTDemucs ve HTDemucs 6-stem (kanal ayırma) ile Nemotron 3 Diarization ve Sortformer (konuşmacı turları) modellerini çalıştırıyor; yerleşik konuşmacı ayırma konuşmacı sayısını daha sık doğru buluyor ve her döküm bölümüne tek konuşmacı veriyor; `harness pull` `LICENSE.html` içeren depoları artık reddetmiyor; GPU belleği yetmediğinde boştaki ses modelleri kapatılıp istek yeniden deneniyor ve hata açıkça bildiriliyor.
+- Speech recognition on Apple Silicon: mlx-community's older MLX Whisper conversions (large-v3, turbo, medium, small, base, their 4/8-bit builds) are offered and transcribe; their processor is downloaded with them.
+- Apple Silicon'da konuşma tanıma: mlx-community'nin eski MLX Whisper dönüşümleri (large-v3, turbo, medium, small, base ve 4/8-bit sürümleri) artık sunuluyor ve yazıya döküyor; işlemcileri modelle birlikte iniyor.
+- Vocal separation on Apple Silicon: mlx-community's Mel-Band-RoFormer models split audio into vocals and instrumental through `/v1/audio/process` and Playground, next to audio.cpp's models.
+- Apple Silicon'da vokal ayırma: mlx-community'nin Mel-Band-RoFormer modelleri, sesi `/v1/audio/process` ve Playground üzerinden audio.cpp modellerinin yanında vokal ve enstrümantal olarak ayırıyor.
+- The TypeScript SDK `@struklabs/harness-studio-sdk` 0.1.0 is published on npm with provenance; publishing uses npm Trusted Publishing (OIDC, no token).
+- TypeScript SDK `@struklabs/harness-studio-sdk` 0.1.0 npm'de provenance ile yayımlandı; yayımlama npm Trusted Publishing (OIDC, token yok) ile yapılıyor.
 - CI checks that the SDK OpenAPI snapshot is current and tests the TypeScript and Python clients against a running server.
 - CI, SDK OpenAPI anlık görüntüsünün güncel olduğunu denetler ve TypeScript ile Python istemcilerini çalışan bir sunucuya karşı test eder.
 - The TypeScript SDK's npm name is `@struklabs/harness-studio-sdk`; a manually triggered workflow (workflow_dispatch, from main) publishes the SDKs after the snapshot check and tests: npm with provenance, PyPI only through trusted publishing once it is set up.
