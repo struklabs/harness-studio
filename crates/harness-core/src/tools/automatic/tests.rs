@@ -159,6 +159,54 @@ fn persisted_queue_round_trip_and_actions() {
     assert!(restored.approve("aa", ToolService::shared()).is_err());
 }
 
+#[test]
+fn clear_logs_persists_without_changing_run_and_accepts_new_activity() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("run.json");
+    let root = dir.path().join("tools");
+    let worker = AutoGenerator::open(path.clone(), root.clone()).unwrap();
+    worker
+        .change(|s| {
+            s.status = RunStatus::Running;
+            s.queue = vec![item("pending"), item("finished")];
+            s.queue[1].status = ItemStatus::Installed;
+            s.inventory = vec![known("existing", "An existing tool")];
+            s.usage = generator::TokenUsage {
+                prompt_tokens: 123,
+                completion_tokens: 45,
+                estimated: true,
+            };
+            AutoGenerator::log(s, "build", "old activity");
+            Ok(())
+        })
+        .unwrap();
+    worker.active.store(true, Ordering::SeqCst);
+    let mut expected = worker.snapshot();
+    expected.logs.clear();
+    assert_eq!(worker.clear_logs().unwrap(), expected);
+    assert_eq!(worker.snapshot(), expected);
+    let persisted: RunState = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(persisted, expected);
+    assert!(worker.active.load(Ordering::SeqCst));
+    assert!(!worker.cancel.load(Ordering::SeqCst));
+    let mut recovered = expected.clone();
+    recovered.recover();
+    assert_eq!(
+        AutoGenerator::open(path.clone(), root).unwrap().snapshot(),
+        recovered
+    );
+    assert_eq!(worker.clear_logs().unwrap(), expected);
+    worker
+        .change(|s| {
+            AutoGenerator::log(s, "build", "new activity");
+            Ok(())
+        })
+        .unwrap();
+    let persisted: RunState = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    assert_eq!(persisted.logs.len(), 1);
+    assert_eq!(persisted.logs[0].message, "new activity");
+}
+
 async fn model_server(replies: Vec<String>) -> (Endpoint, tokio::task::JoinHandle<()>) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
