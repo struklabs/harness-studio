@@ -734,8 +734,22 @@ pub fn select_own_projector<'a>(
     candidates
         .into_iter()
         .filter(|p| {
-            is_projector_file(p)
-                && normalize(p.rsplit('/').next().unwrap_or(p)).contains(&family)
+            let name = p.rsplit('/').next().unwrap_or(p);
+            let normalized_name = normalize(name);
+            is_projector_file(name)
+                && normalized_name.match_indices(&family).any(|(start, _)| {
+                    // Locate the last matched ASCII character in the original name:
+                    // normalization removes separators, but the boundary must not.
+                    name.char_indices()
+                        .filter(|(_, c)| c.is_ascii_alphanumeric())
+                        .nth(start + family.len() - 1)
+                        .is_some_and(|(end, c)| {
+                            name[end + c.len_utf8()..]
+                                .chars()
+                                .next()
+                                .is_none_or(|c| !c.is_alphanumeric())
+                        })
+                })
                 && Path::new(p)
                     .parent()
                     .is_some_and(|d| dirs.iter().any(|allowed| d == allowed))
@@ -1134,6 +1148,36 @@ mod tests {
             "{}/elsewhere/{}",
             c.repo, c.file
         )));
+    }
+
+    #[test]
+    fn own_projector_checks_the_basename_in_an_mmproj_directory() {
+        let main = "mmproj/qwen-image-edit-2511-Q4_K_M.gguf";
+        let encoder = "mmproj/Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf";
+        let projector = "mmproj/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf";
+
+        assert_eq!(select_own_projector(main, [encoder]), None);
+        assert_eq!(
+            select_own_projector(main, [encoder, projector]),
+            Some(projector)
+        );
+    }
+
+    #[test]
+    fn own_projector_requires_a_family_token_boundary() {
+        let main = "diffusion_models/qwen-image-edit-2511-Q4_K_M.gguf";
+        let projector = "text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf";
+        for incompatible in [
+            "text_encoders/Qwen2.5-VL2-mmproj-f16.gguf",
+            "text_encoders/Qwen2.5-VLNext-mmproj-f16.gguf",
+        ] {
+            assert_eq!(select_own_projector(main, [incompatible]), None);
+            assert_eq!(
+                select_own_projector(main, [incompatible, projector]),
+                Some(projector)
+            );
+        }
+        assert_eq!(select_own_projector(main, [projector]), Some(projector));
     }
 
     #[test]
