@@ -709,7 +709,7 @@ pub fn mlx_compatibility_on(
         None | Some("text-generation") if crate::engine::mlx::is_audio_repo(tags) => return None,
         None | Some("text-generation") => MLX_FAMILY,
         Some("image-text-to-text") => MLX_VLM_FAMILY,
-        Some("text-to-speech") if crate::engine::mlx::is_tts_repo(repo) => MLX_AUDIO_FAMILY,
+        Some("text-to-speech") if crate::engine::mlx::is_tts_repo(repo, tags) => MLX_AUDIO_FAMILY,
         Some("automatic-speech-recognition")
             if crate::engine::mlx::is_stt_repo(repo, tags)
                 && crate::engine::mlx::stt_repo_files_ok(repo, tags, files) =>
@@ -1708,6 +1708,58 @@ mod tests {
                 None,
                 "{repo}"
             );
+        }
+        // The Hub tags a CSM repo with its config's `model_type`: csm-1b-8bit says `sam`, which
+        // mlx-audio does not load as CSM, so only the `sesame` builds are offered.
+        let tagged = |t: &str| {
+            vec![
+                "mlx".to_string(),
+                t.to_string(),
+                "text-to-speech".to_string(),
+            ]
+        };
+        // The Hub's own tags of the three mlx-community builds (2026-10-16).
+        let real = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let csm_tags = real(&[
+            "mlx",
+            "safetensors",
+            "sesame",
+            "text-to-speech",
+            "en",
+            "base_model:sesame/csm-1b",
+            "base_model:finetune:sesame/csm-1b",
+            "license:apache-2.0",
+            "region:us",
+        ]);
+        let csm_8bit_tags = real(&[
+            "mlx",
+            "safetensors",
+            "sam",
+            "model_hub_mixin",
+            "pytorch_model_hub_mixin",
+            "text-to-speech",
+            "en",
+            "license:apache-2.0",
+            "8-bit",
+            "region:us",
+        ]);
+        for (repo, tags, offered) in [
+            ("mlx-community/csm-1b-fp16", tagged("sesame"), true),
+            ("mlx-community/csm-1b-8bit", tagged("sam"), false),
+            ("mlx-community/csm-1b", csm_tags.clone(), true),
+            ("mlx-community/csm-1b-fp16", csm_tags, true),
+            ("mlx-community/csm-1b-8bit", csm_8bit_tags, false),
+        ] {
+            let compat = mlx_compatibility_on(
+                repo,
+                format,
+                Some("text-to-speech"),
+                &files,
+                &tags,
+                true,
+                false,
+            );
+            assert_eq!(compat.is_some(), offered, "{repo}: {compat:?}");
         }
         assert_eq!(
             mlx_compatibility_on(

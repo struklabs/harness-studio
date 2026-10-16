@@ -74,6 +74,9 @@ CHUNK_SECONDS = 120.0
 # OpenAI's voice names: a client written for OpenAI sends one; the model's default voice speaks.
 OPENAI_VOICES = {"alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage",
                  "shimmer", "verse"}
+# The voice a Qwen3-TTS VoiceDesign model speaks with: it has no preset voices and refuses to
+# speak without a description of one.
+DESIGNED_VOICE = "A clear, natural adult voice speaking at a calm, moderate pace."
 # Codec frames per second of Qwen3-TTS (its "12Hz" tokenizer runs at 12.5 frames a second).
 FRAME_RATE = 12.5
 # Frames allowed per text token at FRAME_RATE: speech takes about 6 (mlx-audio's own batch
@@ -98,6 +101,7 @@ TOKEN_RATES = {
 }
 # CSM's voices: recorded prompts the model continues, given with --companion
 # mlx-community/csm-1b=folder (`sesame/csm-1b`, where mlx-audio looks for them, is gated).
+# The same list as engine/mlx.rs `CSM_VOICES` (its test `csm_voices_match_the_worker` reads this).
 CSM_VOICES = ["conversational_a", "conversational_b"]
 CSM_PROMPTS_REPO = "mlx-community/csm-1b"
 # The architecture mlx-audio is told to load for a family whose config does not name it (its
@@ -481,7 +485,7 @@ def sentences(text, limit=MAX_SENTENCE_CHARS):
 
 
 def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
-               family="qwen3_tts"):
+               family="qwen3_tts", instruct=None):
     """`speak(text, voice, speed, language)` -> (WAV bytes, truncated). Generation is capped at
     `frame_budget` tokens of `family` and stopped after `max_seconds`: between streamed chunks
     when the model can stream, between sentences (each a call of its own) when it cannot.
@@ -489,7 +493,7 @@ def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
     audio its budget allows: the sampler missed the end token and kept talking, or the text was
     longer than one call can say, so its end may be missing or garbled).
     `encode(chunks, rate)` makes the WAV of the audio chunks. A speed other than 1 is refused by
-    a model that has no `speed`."""
+    a model that has no `speed`. `instruct` (a voice description) goes to every call."""
     params = inspect.signature(model.generate).parameters
     takes = lambda name: name in params or any(
         p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
@@ -506,6 +510,8 @@ def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
             kwargs["voice"] = voice or voices[0]
         if language is not None:
             kwargs["lang_code"] = language
+        if instruct is not None:
+            kwargs["instruct"] = instruct
         if can_stream:
             kwargs["stream"] = True
         # A model that cannot stream answers a whole call at once: it is called a sentence at a
@@ -827,7 +833,8 @@ def wire_weights(mx):
     """Lets Metal keep up to the GPU's recommended working set wired (resident), as mlx-lm does
     while it generates: otherwise macOS pages the weights out between requests on a small Mac
     and each request reloads them (CSM on an M1 8 GB: 5-29 s for one short sentence instead of
-    4-8 s). Returns the limit, or None where there is no such device."""
+    4-8 s). The limit is the process's own: macOS releases it when the worker exits. Returns the
+    limit, or None where there is no such device."""
     try:
         info = mx.device_info() if hasattr(mx, "device_info") else mx.metal.device_info()
         limit = int(info.get("max_recommended_working_set_size") or 0)
@@ -951,7 +958,9 @@ def main(argv=None):
     def encode(parts, rate):
         return wav_bytes(np.concatenate([np.asarray(p).reshape(-1) for p in parts]), rate)
 
-    speak = make_speak(model, voices, rate, args.max_seconds, encode, family=family)
+    designed = getattr(getattr(model, "config", None), "tts_model_type", None) == "voice_design"
+    speak = make_speak(model, voices, rate, args.max_seconds, encode, family=family,
+                       instruct=DESIGNED_VOICE if designed else None)
     uvicorn.run(cors(app_for(speak, args.alias, voices, args.max_chars)), host=HOST, port=args.port,
                 log_level="info", access_log=True)
 

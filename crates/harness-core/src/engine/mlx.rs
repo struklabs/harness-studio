@@ -87,6 +87,10 @@ const TTS_TYPES: &[&str] = &[
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Codec {
     pub repo: &'static str,
+    /// Its folder under a library. The repo's own path, except for a repo that is a model too
+    /// (`unsloth/Llama-3.2-1B`, `mlx-community/csm-1b`): deleting that model must not take the
+    /// files another model loads.
+    pub folder: &'static str,
     /// The commit the files are taken from: an upstream change cannot swap them.
     pub rev: &'static str,
     /// `(file, size, sha256)`; each download is checked against both.
@@ -95,6 +99,7 @@ pub struct Codec {
 
 const DAC_24K: Codec = Codec {
     repo: "mlx-community/dac-speech-24khz-1.5kbps",
+    folder: "mlx-community/dac-speech-24khz-1.5kbps",
     rev: "d8dd32d0124c3c3d06b905980346994c3fd56de1",
     files: &[
         (
@@ -111,6 +116,7 @@ const DAC_24K: Codec = Codec {
 };
 const SNAC_24K: Codec = Codec {
     repo: "mlx-community/snac_24khz",
+    folder: "mlx-community/snac_24khz",
     rev: "556af1cd3b1c5f2d294f6aa9bb886245d7b716ac",
     files: &[
         (
@@ -127,6 +133,7 @@ const SNAC_24K: Codec = Codec {
 };
 const DAC_44K: Codec = Codec {
     repo: "mlx-community/descript-audio-codec-44khz",
+    folder: "mlx-community/descript-audio-codec-44khz",
     rev: "91dff27c81edbb0992be17ac51d2c7d515411a32",
     files: &[
         (
@@ -144,6 +151,7 @@ const DAC_44K: Codec = Codec {
 /// Kyutai's Mimi codec of CSM: the one tokenizer file of the Moshi repo (not its 15 GB model).
 const MIMI: Codec = Codec {
     repo: "kyutai/moshiko-pytorch-bf16",
+    folder: "kyutai/moshiko-pytorch-bf16",
     rev: "2bfc9ae6e89079a5cc7ed2a68436010d91a3d289",
     files: &[(
         "tokenizer-e351c8d8-checkpoint125.safetensors",
@@ -155,6 +163,7 @@ const MIMI: Codec = Codec {
 /// is gated); the tokenizer files only.
 const LLAMA32_TOKENIZER: Codec = Codec {
     repo: "unsloth/Llama-3.2-1B",
+    folder: "unsloth/Llama-3.2-1B-tokenizer",
     rev: "9535bd9b1d1dea6acafbdc4813b728796aeb28da",
     files: &[
         (
@@ -183,6 +192,7 @@ const LLAMA32_TOKENIZER: Codec = Codec {
 /// ungated copy of the ones in `sesame/csm-1b` (gated); mlx-audio has their texts.
 const CSM_PROMPTS: Codec = Codec {
     repo: "mlx-community/csm-1b",
+    folder: "mlx-community/csm-1b-voice-prompts",
     rev: "5bf5ec118cf45fecc7b51198fd9f1a20a5aab65a",
     files: &[
         (
@@ -198,11 +208,16 @@ const CSM_PROMPTS: Codec = Codec {
     ],
 };
 
-/// The voices of a CSM folder: its [`CSM_PROMPTS`].
+/// The voices of a CSM folder: its [`CSM_PROMPTS`]. The worker lists them too (`CSM_VOICES` in
+/// `mlx_audio_worker.py`); `csm_voices_match_the_worker` keeps the two the same.
 pub const CSM_VOICES: &[&str] = &["conversational_a", "conversational_b"];
 
-/// The pinned download of a codec file ([`codecs_of`]), `None` for other files.
-pub fn pinned_codec_file(repo: &str, file: &str) -> Option<crate::downloader::PinnedFile<'static>> {
+/// The pinned download of a codec file ([`codecs_of`]) and the codec's library folder
+/// ([`Codec::folder`]), `None` for other files.
+pub fn pinned_codec_file(
+    repo: &str,
+    file: &str,
+) -> Option<(crate::downloader::PinnedFile<'static>, &'static str)> {
     [
         DAC_24K,
         SNAC_24K,
@@ -215,12 +230,15 @@ pub fn pinned_codec_file(repo: &str, file: &str) -> Option<crate::downloader::Pi
     .filter(|c| c.repo == repo)
     .flat_map(|c| c.files.iter().map(move |f| (c, f)))
     .find(|(_, (name, _, _))| *name == file)
-    .map(|(c, (name, size, sha256))| crate::downloader::PinnedFile {
-        repo: c.repo,
-        rev: c.rev,
-        filename: name,
-        size: *size,
-        sha256,
+    .map(|(c, (name, size, sha256))| {
+        let file = crate::downloader::PinnedFile {
+            repo: c.repo,
+            rev: c.rev,
+            filename: name,
+            size: *size,
+            sha256,
+        };
+        (file, c.folder)
     })
 }
 
@@ -237,12 +255,12 @@ pub fn codecs_of(family: &str) -> &'static [Codec] {
     }
 }
 
-/// The library folder of a codec: `<library>/<owner>/<repo>` with all its files, in the first
-/// library that has it.
+/// The library folder of a codec: `<library>/<folder>` with all its files, in the first library
+/// that has it.
 pub fn codec_dir(codec: &Codec, libraries: &[PathBuf]) -> Option<PathBuf> {
     libraries
         .iter()
-        .map(|root| root.join(codec.repo))
+        .map(|root| root.join(codec.folder))
         .find(|dir| codec.files.iter().all(|(f, _, _)| dir.join(f).is_file()))
 }
 
@@ -358,9 +376,23 @@ pub fn tts_repo_family(id: &str) -> Option<&'static str> {
         .or_else(|| name.starts_with("dia-").then_some("dia"))
 }
 
-/// Whether a Hub repo id names a text-to-speech model of a tested architecture.
-pub fn is_tts_repo(id: &str) -> bool {
-    tts_repo_family(id).is_some()
+/// `model_type`s a family's Hub repos must list among their tags (the Hub copies a config's
+/// `model_type` there) when they list any: a name alone can mislead. `mlx-community/csm-1b-8bit`
+/// is a CSM config whose `model_type` is `sam`, and mlx-audio picks the model by `model_type`.
+const TTS_REQUIRED_TYPE_TAGS: &[(&str, &[&str])] = &[("sesame", &["sesame", "csm"])];
+
+/// Whether a Hub repo names a text-to-speech model of a tested architecture: its name
+/// ([`tts_repo_family`]), and for a family in [`TTS_REQUIRED_TYPE_TAGS`] its `model_type` tag.
+pub fn is_tts_repo(id: &str, tags: &[String]) -> bool {
+    let Some(family) = tts_repo_family(id) else {
+        return false;
+    };
+    match TTS_REQUIRED_TYPE_TAGS.iter().find(|(f, _)| *f == family) {
+        Some((_, types)) if !tags.is_empty() => tags
+            .iter()
+            .any(|t| types.contains(&t.to_ascii_lowercase().as_str())),
+        _ => true,
+    }
 }
 
 /// `model_type`s of mlx-audio's speech models (recognition and synthesis): such a folder is
@@ -1882,6 +1914,32 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         let m = to_local_model(tts.path(), tts.path().parent().unwrap()).unwrap();
         assert_eq!(m.kind, crate::domain::ModelKind::Pipeline);
         assert_eq!(m.quantization, "8bit");
+        // Deleting the model takes its codec folder with it, and nothing beside it.
+        let library = tempfile::tempdir().unwrap();
+        let model = library
+            .path()
+            .join("mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit");
+        let other = library.path().join("mlx-community/other");
+        for (dir, name) in [
+            (&model, "config.json"),
+            (&model, "model.safetensors"),
+            (&model, "README.md"),
+            (&model, "speech_tokenizer/config.json"),
+            (&model, "speech_tokenizer/model.safetensors"),
+            (&other, "config.json"),
+        ] {
+            let path = dir.join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let body = match name {
+                "config.json" => TTS_CONFIG,
+                "README.md" => TTS_CARD,
+                _ => "x",
+            };
+            std::fs::write(path, body).unwrap();
+        }
+        delete_model_dir(&model, &[library.path().to_path_buf()]).unwrap();
+        assert!(!model.exists() && !model.join("speech_tokenizer").exists());
+        assert!(other.join("config.json").is_file());
 
         // A whisper conversion (an MLX card, a transformers-like config) is a speech model:
         // not a chat model; mlx-audio recognizes with it (see the next test).
@@ -1913,8 +1971,11 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             ("README.md", "---\npipeline_tag: text-to-speech\n---\n"),
         ]);
         assert_eq!(flavour_of(tagged.path()), None);
-        assert!(is_tts_repo("mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16"));
-        assert!(!is_tts_repo("mlx-community/Kokoro-82M-bf16"));
+        assert!(is_tts_repo(
+            "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16",
+            &[]
+        ));
+        assert!(!is_tts_repo("mlx-community/Kokoro-82M-bf16", &[]));
         for repo in [
             "mlx-community/chatterbox-turbo-4bit",
             "mlx-community/Soprano-80M-bf16",
@@ -1922,10 +1983,10 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             "mlx-community/Spark-TTS-0.5B-bf16",
             "mlx-community/csm-1b-fp16",
         ] {
-            assert!(is_tts_repo(repo), "{repo}");
+            assert!(is_tts_repo(repo, &[]), "{repo}");
         }
         for repo in ["mlx-community/chatterbox-fp16", "mlx-community/VoxCPM1.5"] {
-            assert!(!is_tts_repo(repo), "{repo}");
+            assert!(!is_tts_repo(repo, &[]), "{repo}");
         }
     }
 
@@ -2120,6 +2181,23 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         assert_eq!(tts_repo_family("mlx-community/multimedia-model"), None);
         assert_eq!(tts_repo_family("mlx-community/csm-1b"), Some("sesame"));
         assert_eq!(tts_repo_family("mlx-community/csm-1b-fp16"), Some("sesame"));
+        // The Hub's tags carry `model_type`: csm-1b-8bit's config says `sam`, which mlx-audio does
+        // not load as CSM. Without tags (an old listing) the name decides.
+        let tags = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(is_tts_repo(
+            "mlx-community/csm-1b-fp16",
+            &tags(&["mlx", "sesame", "text-to-speech"])
+        ));
+        assert!(!is_tts_repo(
+            "mlx-community/csm-1b-8bit",
+            &tags(&["mlx", "sam", "text-to-speech"])
+        ));
+        assert!(is_tts_repo("mlx-community/csm-1b", &[]));
+        // Other families keep going by name: Orpheus is tagged `llama`, its config's model_type.
+        assert!(is_tts_repo(
+            "mlx-community/orpheus-3b-0.1-ft-4bit",
+            &tags(&["mlx", "llama", "4-bit"])
+        ));
         let empty = tempfile::tempdir().unwrap();
         let libs = [empty.path().to_path_buf()];
         // Only MLX builds pull a codec: the original Dia, a GGUF Orpheus and an OuteTTS release
@@ -2198,7 +2276,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         let total: u64 = plan.components.iter().map(|c| c.size).sum();
         assert!(total < 420_000_000, "{total}");
         for c in &plan.components {
-            let pin = pinned_codec_file(&c.repo, &c.file).expect("pinned");
+            let (pin, _) = pinned_codec_file(&c.repo, &c.file).expect("pinned");
             assert_eq!((pin.size, pin.filename), (c.size, c.file.as_str()));
             assert!(pin.rev.len() == 40 && pin.rev.chars().all(|c| c.is_ascii_hexdigit()));
             assert!(pin.sha256.len() == 64 && pin.sha256.chars().all(|c| c.is_ascii_hexdigit()));
@@ -2217,9 +2295,31 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         assert!(pinned_codec_file("kyutai/moshiko-pytorch-bf16", "model.safetensors").is_none());
         assert!(pinned_codec_file("mlx-community/csm-1b", "model.safetensors").is_none());
 
-        // Downloaded into the library, they are the worker's companions.
+        // The tokenizer and the prompts come from repos that are models too: they get folders of
+        // their own, so deleting such a model (`harness rm mlx-community/csm-1b`) keeps them.
+        let folder_of = |repo: &str, file: &str| pinned_codec_file(repo, file).unwrap().1;
+        assert_eq!(
+            folder_of("mlx-community/csm-1b", "prompts/conversational_a.wav"),
+            "mlx-community/csm-1b-voice-prompts"
+        );
+        assert_eq!(
+            folder_of("unsloth/Llama-3.2-1B", "tokenizer.json"),
+            "unsloth/Llama-3.2-1B-tokenizer"
+        );
+        // A CSM model in the repo's own folder is not where its prompts are looked for.
         for c in &plan.components {
             let file = library.path().join(&c.repo).join(&c.file);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, "x").unwrap();
+        }
+        assert!(companion_args(path, &libraries).is_err());
+
+        // Downloaded into their folders, they are the worker's companions.
+        for c in &plan.components {
+            let file = library
+                .path()
+                .join(folder_of(&c.repo, &c.file))
+                .join(&c.file);
             std::fs::create_dir_all(file.parent().unwrap()).unwrap();
             std::fs::write(file, "x").unwrap();
         }
@@ -2229,10 +2329,33 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             3,
             "{args:?}"
         );
+        let prompts = library.path().join("mlx-community/csm-1b-voice-prompts");
         assert!(
-            args.iter().any(|a| a.starts_with("mlx-community/csm-1b=")),
+            args.contains(&format!(
+                "mlx-community/csm-1b={}",
+                prompts.to_string_lossy()
+            )),
             "{args:?}"
         );
+    }
+
+    /// The worker's `CSM_VOICES` (what it accepts) and Rust's (what the panel lists) are one list,
+    /// and each voice is a pinned prompt file.
+    #[test]
+    fn csm_voices_match_the_worker() {
+        let line = AUDIO_WORKER
+            .lines()
+            .find(|l| l.starts_with("CSM_VOICES = "))
+            .expect("CSM_VOICES in the worker");
+        let worker: Vec<&str> = line.split('"').skip(1).step_by(2).collect();
+        assert_eq!(worker, CSM_VOICES);
+        for v in CSM_VOICES {
+            let file = format!("prompts/{v}.wav");
+            assert!(
+                pinned_codec_file("mlx-community/csm-1b", &file).is_some(),
+                "{file}"
+            );
+        }
     }
 
     /// Speech recognition folders in MLX's format (mlx-audio's Whisper port with a transformers
@@ -2831,6 +2954,11 @@ try:
     speak("one two", None, 1.5, None)
 except w.Refused as e:
     print("refused speed:", e)
+# A VoiceDesign model is given the voice description with every call.
+one = OneSpeed()
+speak = w.make_speak(one, [], 24000, 10, encode, clock, instruct=w.DESIGNED_VOICE)
+speak("one two", None, 1.0, None)
+print("designed", one.calls[0]["instruct"] == w.DESIGNED_VOICE)
 # A model that cannot stream is called a sentence at a time; the time limit stops it between
 # sentences (each takes 4 s of the 10 here).
 class Whole:
@@ -2945,6 +3073,7 @@ print("wired", w.wire_weights(metal), wired, w.wire_weights(types.SimpleNamespac
             "budget spark 3264",
             "one speed ('wav of 1 chunks', None) [{'max_tokens': 94}]",
             "refused speed: this model speaks at one speed; use speed 1",
+            "designed True",
             "sentences ('wav of 3 chunks', 'time') ['One.', 'Two!', 'Three?']",
             "split ['Hi there.', 'Bye。', 'Yes'] ['   ']",
             "tr ['Dr. Ali geldi.', '3. madde önemli, vs. bitti…', 'A. Yılmaz yazdı.']",
