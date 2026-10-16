@@ -4459,6 +4459,7 @@ fn safetensors_variants(
     let is_safetensors = |f: &F| root(f) && f.path.to_ascii_lowercase().ends_with(".safetensors");
     let consolidated = |f: &F| f.path.to_ascii_lowercase().starts_with("consolidated");
     let mut weights: Vec<&F> = files.iter().filter(|f| is_safetensors(f)).collect();
+    let all_root_safetensors = weights.clone();
     if weights.iter().any(|f| !consolidated(f)) {
         weights.retain(|f| !consolidated(f));
     }
@@ -4487,9 +4488,23 @@ fn safetensors_variants(
         return Ok(Vec::new());
     }
     weights.sort_by(|a, b| a.path.cmp(&b.path));
+    // A root tensor file that is no copy of the weights stays: Chatterbox Turbo's
+    // `conds.safetensors` (its default voice) sits beside `model.safetensors`.
+    let weight_set_name = |f: &F| {
+        let stem = weight_stem(f);
+        ["model", "transformers", "consolidated", "pytorch_model"]
+            .iter()
+            .any(|p| stem.starts_with(p))
+    };
     let mut companions: Vec<&F> = files
         .iter()
         .filter(|f| !is_weights(f) && is_safetensors_repo_file(&f.path))
+        .chain(
+            all_root_safetensors
+                .iter()
+                .copied()
+                .filter(|f| !weights.iter().any(|w| w.path == f.path) && !weight_set_name(f)),
+        )
         .collect();
     companions.sort_by(|a, b| a.path.cmp(&b.path));
     let parts: Vec<&F> = weights.into_iter().chain(companions).collect();
@@ -5819,6 +5834,19 @@ mod tests {
             names,
             ["model.safetensors", "chat_template.jinja", "config.json"]
         );
+        // A tensor file beside the weights that is no copy of them comes along (Chatterbox
+        // Turbo's default voice, `conds.safetensors`).
+        let chatterbox = vec![
+            file("config.json", 2565),
+            file("model.safetensors.index.json", 252_012),
+            lfs("model.safetensors", 414_992_166, &oid),
+            lfs("conds.safetensors", 164_884, &oid),
+            file("tokenizer_config.json", 3878),
+        ];
+        let v = safetensors_variants("mlx-community/chatterbox-turbo-4bit", &chatterbox).unwrap();
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert!(names.contains(&"conds.safetensors"), "{names:?}");
+        assert!(names.contains(&"model.safetensors"), "{names:?}");
         // A sharded model keeps its shards and drops a precision copy.
         let sharded = vec![
             file("config.json", 700),
