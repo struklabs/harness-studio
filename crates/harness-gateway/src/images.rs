@@ -25,6 +25,11 @@
 //! Qwen-Image-Edit read), `mask` is OpenAI's (transparent = edit, turned into sd.cpp's white = repaint) or already a
 //! grayscale one, and without
 //! `size` the first image's size is the canvas.
+//!
+//! On Apple Silicon, a definition whose folder is a FLUX.2 [klein] model in mflux's format goes to
+//! the mflux worker instead ([`mflux_body`]): the same OpenAI fields, within the limits mflux
+//! has (steps, images per request, sides a multiple of 16, edit images); without `size` the
+//! worker picks the largest that fits the Mac's memory (an edit keeps its image's shape).
 
 use std::time::{Duration, Instant};
 
@@ -423,6 +428,128 @@ pub fn plan_edit(mut request: Value) -> Result<Plan, GatewayError> {
     Ok(p)
 }
 
+/// Whether a definition is an mflux image model (Apple Silicon only: elsewhere such a folder is
+/// nobody's).
+pub fn is_mflux_model(def: &ModelDefinition) -> bool {
+    cfg!(all(target_os = "macos", target_arch = "aarch64"))
+        && def
+            .base
+            .local_path()
+            .is_some_and(harness_core::engine::mlx::is_mflux_dir)
+}
+
+/// Most denoising steps an mflux request may ask for (a distilled klein makes 4, a base one
+/// about 28).
+pub const MFLUX_MAX_STEPS: u64 = 50;
+/// Most images one mflux request may ask for (`n`): each takes from tens of seconds to minutes.
+pub const MFLUX_MAX_IMAGES: u64 = 4;
+/// Most images one mflux edit may send (each is a reference the model attends to).
+pub const MFLUX_MAX_EDIT_IMAGES: usize = 4;
+/// Largest side of an mflux image.
+pub const MFLUX_MAX_SIDE: u64 = 2048;
+
+/// The mflux worker's body of a checked request (`plan`'s `img_gen` body; `size` only when the
+/// request set one): what mflux has no use for (a negative prompt, a sampler, a mask,
+/// classifier-free guidance) and values beyond its limits are refused here.
+pub fn mflux_body(img_gen: &Value, size: Option<&str>) -> Result<Value, GatewayError> {
+    let unsupported = |field: &str, why: &str| {
+        bad(format!("{field} is not available for this model ({why}).")).param(field)
+    };
+    let sample = img_gen.get("sample_params");
+    if img_gen.get("negative_prompt").is_some() {
+        return Err(unsupported(
+            "negative_prompt",
+            "FLUX.2 [klein] has no negative prompt",
+        ));
+    }
+    if img_gen.get("mask_image").is_some() {
+        return Err(unsupported(
+            "mask",
+            "mflux edits the whole image by the prompt",
+        ));
+    }
+    if sample.and_then(|s| s.get("sample_method")).is_some() {
+        return Err(unsupported("sampler", "mflux has its own"));
+    }
+    if sample.and_then(|s| s.get("scheduler")).is_some() {
+        return Err(unsupported("scheduler", "mflux has its own"));
+    }
+    if sample
+        .and_then(|s| s.pointer("/guidance/txt_cfg"))
+        .is_some()
+    {
+        return Err(unsupported("cfg_scale", "use guidance"));
+    }
+    let mut out = serde_json::Map::new();
+    out.insert("prompt".into(), img_gen["prompt"].clone());
+    let n = img_gen
+        .get("batch_count")
+        .and_then(Value::as_u64)
+        .unwrap_or(1);
+    if n > MFLUX_MAX_IMAGES {
+        return Err(bad(format!(
+            "n must be from 1 to {MFLUX_MAX_IMAGES} for this model."
+        ))
+        .param("n"));
+    }
+    out.insert("n".into(), json!(n));
+    if let Some(seed) = img_gen
+        .get("seed")
+        .and_then(Value::as_i64)
+        .filter(|s| *s >= 0)
+    {
+        if seed > i64::from(u32::MAX) {
+            return Err(bad(format!(
+                "seed must be from 0 to {} (-1 = random).",
+                u32::MAX
+            ))
+            .param("seed"));
+        }
+        out.insert("seed".into(), json!(seed));
+    }
+    if let Some(steps) = sample
+        .and_then(|s| s.get("sample_steps"))
+        .and_then(Value::as_u64)
+    {
+        if steps > MFLUX_MAX_STEPS {
+            return Err(bad(format!(
+                "steps must be from 1 to {MFLUX_MAX_STEPS} for this model."
+            ))
+            .param("steps"));
+        }
+        out.insert("steps".into(), json!(steps));
+    }
+    if let Some(g) = sample.and_then(|s| s.pointer("/guidance/distilled_guidance")) {
+        if !g.as_f64().is_some_and(|g| (0.0..=20.0).contains(&g)) {
+            return Err(bad("guidance must be between 0 and 20.").param("guidance"));
+        }
+        out.insert("guidance".into(), g.clone());
+    }
+    if let Some(size) = size.filter(|s| *s != "auto") {
+        let (w, h) = parse_size(size)?;
+        if u64::from(w.max(h)) > MFLUX_MAX_SIDE || !w.is_multiple_of(16) || !h.is_multiple_of(16) {
+            return Err(bad(format!(
+                "size `{size}` is not available for this model: both sides up to {MFLUX_MAX_SIDE} and a multiple of 16, like 512x512."
+            ))
+            .param("size"));
+        }
+        out.insert("size".into(), json!(format!("{w}x{h}")));
+    }
+    if let Some(images) = img_gen.get("ref_images").and_then(Value::as_array) {
+        if images.len() > MFLUX_MAX_EDIT_IMAGES {
+            return Err(bad(format!(
+                "An edit takes at most {MFLUX_MAX_EDIT_IMAGES} images with this model."
+            ))
+            .param("image"));
+        }
+        out.insert("image".into(), Value::Array(images.clone()));
+        if let Some(strength) = img_gen.get("strength") {
+            out.insert("strength".into(), strength.clone());
+        }
+    }
+    Ok(Value::Object(out))
+}
+
 /// Fields of an edit form that are numbers (a form sends everything as text).
 const NUMBER_FIELDS: [&str; 6] = ["n", "steps", "cfg_scale", "guidance", "seed", "strength"];
 
@@ -588,8 +715,8 @@ fn python_edit_body(img_gen: &Value) -> Value {
 }
 
 /// An images request on a Python engine model (a diffusers pipeline): a generation's OpenAI body
-/// goes to the worker as it is, an edit as `python_edit_body`; its PNGs come back as `b64_json`
-/// or `data:` URLs like sd-server's.
+/// goes to the worker as it is, an edit as `python_edit_body` (an mflux model's as
+/// `mflux_body`); its PNGs come back as `b64_json` or `data:` URLs like sd-server's.
 async fn python_generate(
     state: &GwState,
     def: &ModelDefinition,
@@ -728,6 +855,8 @@ async fn run(
     let request = read_request(kind, headers, body).await?;
     // The OpenAI body a Python engine model gets as it is (generations only).
     let raw_request = (kind == Kind::Generations).then(|| request.clone());
+    // The size the request asked for (an mflux edit without one keeps its image's shape).
+    let asked_size = text(&request, "size")?.map(str::to_string);
     let model = text(&request, "model")?.map(str::to_string);
     guard.get().model = model.clone();
     guard.admitted(caller.admit(state)?);
@@ -749,6 +878,11 @@ async fn run(
     }
     caller.check_model(&def.alias)?;
     GatewayError::reject_remote(&def)?;
+    // An mflux worker answers its own body.
+    if is_mflux_model(&def) {
+        let body = mflux_body(&plan.body, asked_size.as_deref())?;
+        return python_generate(state, &def, kind, body, &plan, guard).await;
+    }
     // A diffusers pipeline of the Python engine answers OpenAI's request itself.
     if let Some(task) = crate::pyhf::task_of(&def) {
         if let Some(e) = python_task_error(&def.alias, &task, kind) {
@@ -1342,5 +1476,87 @@ Content-Type: image/png"#,
         assert_eq!(v["data"][0]["b64_json"], "AAA");
         let v = shape(&images, "jpeg", true, 5);
         assert_eq!(v["data"][0]["url"], "data:image/jpeg;base64,AAA");
+    }
+
+    #[test]
+    fn an_mflux_request_keeps_what_mflux_takes() {
+        let gen = plan(&json!({"prompt": "a fox", "n": 2, "steps": 8, "seed": 3,
+                               "guidance": 1.5, "size": "768x512"}))
+        .unwrap();
+        assert_eq!(
+            mflux_body(&gen.body, Some("768x512")).unwrap(),
+            json!({"prompt": "a fox", "n": 2, "seed": 3, "steps": 8, "guidance": 1.5,
+                   "size": "768x512"})
+        );
+        // No seed: random (the worker picks one); no size: the worker picks the largest that fits.
+        let bare = plan(&json!({"prompt": "a fox"})).unwrap();
+        assert_eq!(
+            mflux_body(&bare.body, None).unwrap(),
+            json!({"prompt": "a fox", "n": 1})
+        );
+        assert_eq!(
+            mflux_body(&bare.body, Some("auto")).unwrap(),
+            json!({"prompt": "a fox", "n": 1})
+        );
+
+        // An edit: every image goes as a reference, without a size the image's own shape.
+        let image = B64.encode(png(600, 400));
+        let edit = plan_edit(
+            json!({"prompt": "add a hat", "image": [image.clone(), image.clone()],
+                                    "strength": 0.6}),
+        )
+        .unwrap();
+        assert_eq!(
+            mflux_body(&edit.body, None).unwrap(),
+            json!({"prompt": "add a hat", "n": 1, "image": [image.clone(), image.clone()],
+                   "strength": 0.6})
+        );
+
+        let refused = |request: Value, size: Option<&str>| {
+            let p = plan(&request).unwrap();
+            mflux_body(&p.body, size).unwrap_err()
+        };
+        for (request, size, field) in [
+            (
+                json!({"prompt": "x", "negative_prompt": "y"}),
+                None,
+                "negative_prompt",
+            ),
+            (json!({"prompt": "x", "cfg_scale": 3.5}), None, "cfg_scale"),
+            (json!({"prompt": "x", "sampler": "euler"}), None, "sampler"),
+            (
+                json!({"prompt": "x", "scheduler": "karras"}),
+                None,
+                "scheduler",
+            ),
+            (json!({"prompt": "x", "steps": 51}), None, "steps"),
+            (json!({"prompt": "x", "n": 5}), None, "n"),
+            (json!({"prompt": "x", "guidance": 30}), None, "guidance"),
+            (json!({"prompt": "x", "seed": 4294967296u64}), None, "seed"),
+            (
+                json!({"prompt": "x", "size": "520x520"}),
+                Some("520x520"),
+                "size",
+            ),
+            (
+                json!({"prompt": "x", "size": "4096x4096"}),
+                Some("4096x4096"),
+                "size",
+            ),
+        ] {
+            let e = refused(request.clone(), size);
+            assert_eq!(e.status, 400, "{request}");
+            assert_eq!(e.param.as_deref(), Some(field), "{request}: {}", e.message);
+        }
+        let masked = plan_edit(json!({"prompt": "x", "image": image.clone(), "mask": B64.encode(alpha_png(&[0, 255]))})).unwrap();
+        assert_eq!(
+            mflux_body(&masked.body, None).unwrap_err().param.as_deref(),
+            Some("mask")
+        );
+        let five = plan_edit(json!({"prompt": "x", "image": vec![image; 5]})).unwrap();
+        assert_eq!(
+            mflux_body(&five.body, None).unwrap_err().param.as_deref(),
+            Some("image")
+        );
     }
 }

@@ -759,6 +759,92 @@ pub fn mlx_compatibility_on(
     })
 }
 
+/// Runtime family of the MLX image engine (mflux, Apple Silicon).
+pub const MFLUX_FAMILY: &str = crate::engine::MFLUX;
+
+/// The mflux engine's verdict on a Hub repo: a FLUX.2 [klein] conversion in mflux's saved format
+/// (its tags name a base model of [`crate::engine::mlx::MFLUX_MODELS`] as `base_model:...`, and
+/// its files are [`is_mflux_layout`]) of an image task. Runnable on Apple Silicon (installed or not is
+/// settled later), [`Compatibility::UnsupportedPlatform`] on a macOS too old for the wheels,
+/// `None` elsewhere and for every other repo.
+pub fn mflux_compatibility(
+    task: Option<&str>,
+    files: &[String],
+    tags: &[String],
+) -> Option<Compatibility> {
+    mflux_compatibility_on(
+        task,
+        files,
+        tags,
+        cfg!(all(target_os = "macos", target_arch = "aarch64")),
+        crate::pyenv::envs::spec(crate::engine::mlx::MFLUX_ENV)
+            .and_then(crate::pyenv::envs::platform_refusal)
+            .is_some(),
+    )
+}
+
+/// The FLUX.2 [klein] base model a repo's tags name (`base_model:black-forest-labs/FLUX.2-klein-4B`,
+/// also `base_model:quantized:...` / `base_model:finetune:...`), as mflux's model name.
+pub fn mflux_base_of(tags: &[String]) -> Option<&'static str> {
+    tags.iter().find_map(|t| {
+        let rest = t.strip_prefix("base_model:")?;
+        let repo = rest.rsplit_once(':').map_or(rest, |(_, repo)| repo);
+        crate::engine::mlx::mflux_model_for_base(repo)
+    })
+}
+
+/// Whether a repo's files are mflux's saved layout: `transformer/`, `text_encoder/` and `vae/`
+/// each with numbered safetensors shards (`0.safetensors`) and `model.safetensors.index.json`,
+/// `tokenizer/tokenizer.json`, and no `model_index.json` (a diffusers pipeline's).
+pub fn is_mflux_layout(files: &[String]) -> bool {
+    let shard = |part: &str| {
+        files.iter().any(|f| {
+            f.strip_prefix(part)
+                .and_then(|r| r.strip_prefix('/'))
+                .and_then(|r| r.strip_suffix(".safetensors"))
+                .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+        })
+    };
+    !files.iter().any(|f| f == "model_index.json")
+        && files.iter().any(|f| f == "tokenizer/tokenizer.json")
+        && crate::engine::mlx::MFLUX_PARTS.iter().all(|part| {
+            shard(part)
+                && files
+                    .iter()
+                    .any(|f| *f == format!("{part}/model.safetensors.index.json"))
+        })
+}
+
+/// [`mflux_compatibility`] with the platform facts given.
+pub fn mflux_compatibility_on(
+    task: Option<&str>,
+    files: &[String],
+    tags: &[String],
+    apple_silicon: bool,
+    os_too_old: bool,
+) -> Option<Compatibility> {
+    if !apple_silicon
+        || !matches!(task, Some("text-to-image" | "image-to-image") | None)
+        || mflux_base_of(tags).is_none()
+    {
+        return None;
+    }
+    if !is_mflux_layout(files) {
+        return None;
+    }
+    Some(if os_too_old {
+        Compatibility::UnsupportedPlatform {
+            runtime: MFLUX_FAMILY.to_string(),
+            os: std::env::consts::OS.to_string(),
+            arch: std::env::consts::ARCH.to_string(),
+        }
+    } else {
+        Compatibility::Runnable {
+            runtime: MFLUX_FAMILY.to_string(),
+        }
+    })
+}
+
 /// Runtime family of the Python engine (transformers / sentence-transformers task models).
 pub const PYTHON_HF_FAMILY: &str = crate::engine::PYTHON_HF;
 
@@ -2077,5 +2163,108 @@ mod audio_cpp_tests {
                 Some(crate::hub_tasks::NotRunnable::AudioCppUnsupported)
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod mflux_tests {
+    use super::*;
+
+    fn s(items: &[&str]) -> Vec<String> {
+        items.iter().map(|x| x.to_string()).collect()
+    }
+    /// `mflux-community/flux2-klein-4b-mflux-q4`'s files and tags (also the layout of
+    /// `mlx-community/FLUX.2-Klein-4B-4bit`).
+    fn q4_files() -> Vec<String> {
+        s(&[
+            ".gitattributes",
+            "README.md",
+            "text_encoder/0.safetensors",
+            "text_encoder/1.safetensors",
+            "text_encoder/model.safetensors.index.json",
+            "tokenizer/chat_template.jinja",
+            "tokenizer/tokenizer.json",
+            "tokenizer/tokenizer_config.json",
+            "transformer/0.safetensors",
+            "transformer/1.safetensors",
+            "transformer/model.safetensors.index.json",
+            "vae/0.safetensors",
+            "vae/model.safetensors.index.json",
+        ])
+    }
+
+    #[test]
+    fn mflux_klein_repos_run_on_apple_silicon_only() {
+        let tags = s(&[
+            "mflux",
+            "safetensors",
+            "mlx",
+            "image-to-image",
+            "flux2",
+            "base_model:black-forest-labs/FLUX.2-klein-4B",
+            "base_model:quantized:black-forest-labs/FLUX.2-klein-4B",
+            "license:apache-2.0",
+        ]);
+        let runnable = Some(Compatibility::Runnable {
+            runtime: MFLUX_FAMILY.into(),
+        });
+        let on = |task, files: &[String], tags: &[String]| {
+            mflux_compatibility_on(task, files, tags, true, false)
+        };
+        assert_eq!(on(Some("image-to-image"), &q4_files(), &tags), runnable);
+        assert_eq!(on(Some("text-to-image"), &q4_files(), &tags), runnable);
+        assert_eq!(mflux_base_of(&tags), Some("flux2-klein-4b"));
+        // mlx-community's: `diffusion-single-file`, `base_model:finetune:...`.
+        let community = s(&[
+            "diffusion-single-file",
+            "safetensors",
+            "base_model:black-forest-labs/FLUX.2-klein-4B",
+            "base_model:finetune:black-forest-labs/FLUX.2-klein-4B",
+        ]);
+        assert_eq!(
+            on(Some("image-to-image"), &q4_files(), &community),
+            runnable
+        );
+        // The 9B (BFL's non-commercial license) runs too; the card shows its license.
+        let nine = s(&[
+            "base_model:quantized:black-forest-labs/FLUX.2-klein-9B",
+            "license:other",
+        ]);
+        assert_eq!(on(Some("image-to-image"), &q4_files(), &nine), runnable);
+        // Elsewhere, on an old macOS, for another base model, task or layout: not mflux's.
+        assert_eq!(
+            mflux_compatibility_on(Some("image-to-image"), &q4_files(), &tags, false, false),
+            None
+        );
+        assert_eq!(
+            mflux_compatibility_on(Some("image-to-image"), &q4_files(), &tags, true, true),
+            Some(Compatibility::UnsupportedPlatform {
+                runtime: MFLUX_FAMILY.into(),
+                os: std::env::consts::OS.into(),
+                arch: std::env::consts::ARCH.into(),
+            })
+        );
+        let qwen = s(&["base_model:quantized:Qwen/Qwen-Image-Edit-2511"]);
+        assert_eq!(on(Some("image-to-image"), &q4_files(), &qwen), None);
+        let kontext = s(&["base_model:quantized:black-forest-labs/FLUX.1-Kontext-dev"]);
+        assert_eq!(on(Some("image-to-image"), &q4_files(), &kontext), None);
+        assert_eq!(on(Some("text-generation"), &q4_files(), &tags), None);
+        // BFL's own diffusers repo: `model_index.json` and diffusers' weight names.
+        let diffusers = s(&[
+            "model_index.json",
+            "transformer/diffusion_pytorch_model.safetensors",
+            "transformer/config.json",
+            "vae/diffusion_pytorch_model.safetensors",
+            "text_encoder/model-00001-of-00002.safetensors",
+            "tokenizer/tokenizer.json",
+        ]);
+        assert!(!is_mflux_layout(&diffusers));
+        assert_eq!(on(Some("image-to-image"), &diffusers, &tags), None);
+        let mut no_vae = q4_files();
+        no_vae.retain(|f| !f.starts_with("vae/"));
+        assert!(!is_mflux_layout(&no_vae));
+        assert!(is_mflux_layout(&q4_files()));
+        // A listing without files is not taken on its tags alone.
+        assert_eq!(on(Some("image-to-image"), &[], &tags), None);
     }
 }

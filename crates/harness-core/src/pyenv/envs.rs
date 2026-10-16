@@ -108,9 +108,22 @@ pub const MLX_VLM: EnvSpec = EnvSpec {
     gpu_build_of: None,
 };
 
+/// The `mflux` engine's environment: mflux (FLUX.2 [klein] image generation and editing on MLX)
+/// and the worker's HTTP server. Its own environment because mflux pins its own MLX and brings
+/// PyTorch and transformers along. `python/mflux.in` says how the lock is compiled.
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+pub const MFLUX: EnvSpec = EnvSpec {
+    name: "mflux",
+    lock: include_str!("../../python/mflux.lock"),
+    verify: "import mlx.core, mflux.models.flux2.variants, uvicorn, PIL",
+    estimated_size_bytes: 1_100 * 1024 * 1024,
+    min_macos: Some(14),
+    gpu_build_of: None,
+};
+
 /// The environments engines can ask for.
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-pub const ENVS: &[EnvSpec] = &[HF_CPU, MLX, MLX_VLM];
+pub const ENVS: &[EnvSpec] = &[HF_CPU, MLX, MLX_VLM, MFLUX];
 #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
 pub const ENVS: &[EnvSpec] = &[HF_CPU, HF_CUDA];
 #[cfg(not(any(
@@ -684,6 +697,30 @@ pub(crate) mod tests {
             assert!(pinned.iter().any(|l| l.starts_with(pkg)), "{pkg}");
         }
         assert!(!pinned.iter().any(|l| l.starts_with("torch==")));
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn mflux_lock_pins_every_wheel_for_macos_14() {
+        assert_eq!(spec("mflux").unwrap().name, "mflux");
+        assert_eq!(MFLUX.min_macos, Some(14));
+        let pinned: Vec<&str> = MFLUX
+            .lock
+            .lines()
+            .filter(|l| l.contains("==") && !l.trim_start().starts_with('#'))
+            .collect();
+        for line in &pinned {
+            assert!(line.trim_end().ends_with('\\'), "no hashes after {line}");
+        }
+        for pkg in [
+            "mflux==0.22.0",
+            "mlx==",
+            "mlx-metal==",
+            "uvicorn==",
+            "pillow==",
+        ] {
+            assert!(pinned.iter().any(|l| l.starts_with(pkg)), "{pkg}");
+        }
     }
 
     #[test]

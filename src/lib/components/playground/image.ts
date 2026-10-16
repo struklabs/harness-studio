@@ -30,7 +30,7 @@ export interface ImageResult {
   format: string;
 }
 
-export { DIFFUSERS_IMAGE_TASKS, imageModel, isImageDefinition, needsStartImage, takesStrength } from './imageModels';
+export { DIFFUSERS_IMAGE_TASKS, imageModel, isImageDefinition, isMflux, needsStartImage, takesStrength } from './imageModels';
 
 /** `512x768` -> [512, 768]; null when it is not a size the gateway takes (multiple of 8, 64..4096). */
 export function parseSize(size: string): [number, number] | null {

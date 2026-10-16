@@ -574,6 +574,11 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     } else if diffusion_adapter {
         // sd.cpp LoRA usage is not wired in Harness.
         crate::hub_compat::Compatibility::Unsupported { format }
+    } else if let Some(mflux) =
+        crate::hub_compat::mflux_compatibility(task, &sibling_files(item), &tags)
+    {
+        // A FLUX.2 [klein] conversion in mflux's format (Apple Silicon).
+        mflux
     } else if image {
         crate::model_registry::hub_compatibility(format, &capabilities)
     } else {
@@ -2131,6 +2136,10 @@ impl DownloadManager {
         }
         if crate::hub_compat::is_sdxl_refiner(repo_id, &paths) {
             return diffusers_variants(repo_id, &items);
+        }
+        // A FLUX.2 [klein] conversion in mflux's format: its folders, kept as they are.
+        if crate::hub_compat::is_mflux_layout(&paths) {
+            return mflux_variants(repo_id, &items);
         }
         let image_repo = crate::image_bundles::repo_has_image_files(&paths);
         // A repo without GGUF or ggml files but with an ONNX encoder is served by harness-onnx.
@@ -4574,6 +4583,68 @@ fn safetensors_variants(
     }])
 }
 
+/// The variant of a repo in mflux's saved layout ([`crate::hub_compat::is_mflux_layout`]): one
+/// download of the model card (the mflux engine reads its `base_model`) and every file of
+/// `transformer/`, `text_encoder/`, `vae/` and `tokenizer/`, in the repo layout. Nothing else
+/// (nested folders, other root files) is fetched.
+fn mflux_variants(
+    repo_id: &str,
+    items: &[serde_json::Value],
+) -> Result<Vec<HfModelVariant>, String> {
+    let mut files: Vec<(String, u64, Option<String>)> = items
+        .iter()
+        .filter_map(|item| {
+            let path = item.get("path").and_then(|v| v.as_str())?;
+            let wanted = path == "README.md"
+                || path.split_once('/').is_some_and(|(dir, name)| {
+                    (crate::engine::mlx::MFLUX_PARTS.contains(&dir) || dir == "tokenizer")
+                        && !name.is_empty()
+                        && !name.contains(['/', '\\'])
+                        && !name.starts_with('.')
+                });
+            if !wanted {
+                return None;
+            }
+            let size = item
+                .get("lfs")
+                .and_then(|l| l.get("size"))
+                .and_then(|v| v.as_u64())
+                .or_else(|| item.get("size").and_then(|v| v.as_u64()))
+                .unwrap_or(0);
+            let sha256 = item
+                .get("lfs")
+                .and_then(|l| l.get("oid"))
+                .and_then(|v| v.as_str())
+                .and_then(valid_sha256);
+            Some((path.to_string(), size, sha256))
+        })
+        .collect();
+    files.sort();
+    let total = files.len() as u32;
+    let shards = files
+        .into_iter()
+        .enumerate()
+        .map(|(i, (path, size, sha256))| {
+            Ok(HfShardInfo {
+                download_url: DownloadManager::hf_file_url(repo_id, "resolve", &path)?.to_string(),
+                filename: path,
+                size_bytes: size,
+                shard_index: i as u32 + 1,
+                total_shards: total,
+                sha256,
+            })
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(vec![HfModelVariant {
+        not_runnable: None,
+        name: repo_id.rsplit('/').next().unwrap_or(repo_id).to_string(),
+        quantization: "SAFETENSORS".to_string(),
+        total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
+        is_split: false,
+        shards,
+    }])
+}
+
 /// Checks the container magic of a finished download: `GGUF`, or for a whisper ggml `.bin`
 /// the ggml magic. A wrong file (an HTML error page...) is deleted.
 fn verify_model_magic(path: &Path, filename: &str) -> Result<(), String> {
@@ -4872,6 +4943,60 @@ fn recorded_hash(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_mflux_repo_downloads_its_folders_and_card() {
+        let file =
+            |p: &str, size: u64| serde_json::json!({"type": "file", "path": p, "size": size});
+        let lfs = |p: &str, size: u64| serde_json::json!({"type": "file", "path": p, "size": 100, "lfs": {"size": size, "oid": "a".repeat(64)}});
+        let items = vec![
+            file(".gitattributes", 1),
+            file(".DS_Store", 1),
+            file("README.md", 2),
+            lfs("text_encoder/0.safetensors", 2000),
+            file("text_encoder/model.safetensors.index.json", 3),
+            file("tokenizer/tokenizer.json", 4),
+            file("tokenizer/chat_template.jinja", 5),
+            lfs("transformer/0.safetensors", 1000),
+            file("transformer/model.safetensors.index.json", 6),
+            file("transformer/extra/x.json", 7),
+            lfs("vae/0.safetensors", 300),
+            file("vae/model.safetensors.index.json", 8),
+            file("vae/.hidden", 9),
+            file("assets/sample.png", 10),
+        ];
+        let paths: Vec<String> = items
+            .iter()
+            .map(|i| i["path"].as_str().unwrap().to_string())
+            .collect();
+        assert!(crate::hub_compat::is_mflux_layout(&paths));
+        let v = mflux_variants("mflux-community/flux2-klein-4b-mflux-q4", &items).unwrap();
+        assert_eq!(v.len(), 1);
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "README.md",
+                "text_encoder/0.safetensors",
+                "text_encoder/model.safetensors.index.json",
+                "tokenizer/chat_template.jinja",
+                "tokenizer/tokenizer.json",
+                "transformer/0.safetensors",
+                "transformer/model.safetensors.index.json",
+                "vae/0.safetensors",
+                "vae/model.safetensors.index.json",
+            ]
+        );
+        assert_eq!(
+            v[0].total_size_bytes,
+            2 + 2000 + 3 + 5 + 4 + 1000 + 6 + 300 + 8
+        );
+        assert_eq!(
+            v[0].shards[1].sha256.as_deref(),
+            Some("a".repeat(64).as_str())
+        );
+        assert!(!v[0].is_split);
+    }
 
     #[test]
     fn card_keeps_listing_verdict_for_non_gguf_engines() {

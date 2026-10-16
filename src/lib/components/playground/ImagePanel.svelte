@@ -26,6 +26,7 @@
     ImageOutOfMemory,
     imageModel,
     isImageDefinition,
+    isMflux,
     needsStartImage,
     takesStrength,
     parseSize,
@@ -65,6 +66,8 @@
   let strengthError = $derived(!!form.init && strengthShown && !strengthOk(form.strength));
   /** InstructPix2Pix, Qwen-Image-Edit...: they edit a start image and draw nothing from text alone. */
   let editsOnly = $derived(needsStartImage(form.model, domain.definitions, library.models));
+  /** mflux (FLUX.2 [klein]): no negative prompt or CFG; an empty size is the largest that fits. */
+  let mflux = $derived(isMflux(form.model, domain.definitions, library.models));
   let canRun = $derived(
     !busy && app.gatewayRunning && !!form.model && form.prompt.trim() !== '' && !sizeError && !strengthError && (!editsOnly || !!form.init),
   );
@@ -97,7 +100,8 @@
     memoryBlocked = false;
     needFamily = null;
     try {
-      const { images, ms } = await fetchImages(app.inferenceUrl, form.model, form, app.inferenceHeaders(), c.signal);
+      const params = mflux ? { ...form, negative: '', cfgScale: '' } : form;
+      const { images, ms } = await fetchImages(app.inferenceUrl, form.model, params, app.inferenceHeaders(), c.signal);
       lastMs = ms;
       addToGallery(
         images.map((image) => ({
@@ -224,10 +228,12 @@
         }}
       />
     </div>
-    <div class="flex flex-col gap-1.5">
-      <Label for="img-negative" class="text-sm font-semibold text-foreground">{t('img.negative_label')}</Label>
-      <Input id="img-negative" bind:value={form.negative} placeholder={t('img.negative_placeholder')} disabled={busy} />
-    </div>
+    {#if !mflux}
+      <div class="flex flex-col gap-1.5">
+        <Label for="img-negative" class="text-sm font-semibold text-foreground">{t('img.negative_label')}</Label>
+        <Input id="img-negative" bind:value={form.negative} placeholder={t('img.negative_placeholder')} disabled={busy} />
+      </div>
+    {/if}
     <div class="flex flex-col gap-1.5">
       <span class="text-sm font-semibold text-foreground">{t('img.init_label')}</span>
       <input bind:this={fileInput} type="file" accept={START_IMAGE_TYPES.join(',')} class="hidden" onchange={pickStartImage} />
@@ -250,7 +256,7 @@
     </div>
     <div class="grid gap-3 sm:grid-cols-4">
       <Field label={t('img.size_label')} id="img-size" note={sizeError ? t('img.size_invalid') : t('img.size_note')}>
-        <Input id="img-size" bind:value={form.size} list="img-sizes" placeholder={form.init ? t('img.init_size') : t('img.model_size')} disabled={busy} aria-invalid={sizeError} />
+        <Input id="img-size" bind:value={form.size} list="img-sizes" placeholder={form.init ? t('img.init_size') : t(mflux ? 'img.mflux_size' : 'img.model_size')} disabled={busy} aria-invalid={sizeError} />
         <datalist id="img-sizes">
           {#each SIZE_PRESETS as s (s)}<option value={s}></option>{/each}
         </datalist>
@@ -267,13 +273,15 @@
         </select>
       </Field>
     </div>
-    <AdvancedOnly>
-      <div class="grid gap-3 sm:grid-cols-4">
-        <Field label={t('img.cfg_label')} id="img-cfg" note={t('img.cfg_note')}>
-          <Input id="img-cfg" bind:value={form.cfgScale} inputmode="decimal" placeholder={t('img.model_default')} disabled={busy} />
-        </Field>
-      </div>
-    </AdvancedOnly>
+    {#if !mflux}
+      <AdvancedOnly>
+        <div class="grid gap-3 sm:grid-cols-4">
+          <Field label={t('img.cfg_label')} id="img-cfg" note={t('img.cfg_note')}>
+            <Input id="img-cfg" bind:value={form.cfgScale} inputmode="decimal" placeholder={t('img.model_default')} disabled={busy} />
+          </Field>
+        </div>
+      </AdvancedOnly>
+    {/if}
     <div class="flex items-center gap-3">
       {#if busy}
         <Button size="sm" variant="destructive" onclick={stop}>

@@ -32,6 +32,8 @@ export const ENGINES: readonly EngineSpec[] = [
   { family: 'mlx-vlm', method: 'pyenv', env: 'mlx-vlm', descKey: 'eng.desc_mlx_vlm' },
   // Text to speech with mlx-audio: it runs in the mlx-vlm environment (one install for both).
   { family: 'mlx-audio', method: 'pyenv', env: 'mlx-vlm', descKey: 'eng.desc_mlx_audio' },
+  // FLUX.2 [klein] image generation and editing with mflux (its own environment).
+  { family: 'mflux', method: 'pyenv', env: 'mflux', descKey: 'eng.desc_mflux' },
 ];
 
 /**
@@ -80,7 +82,7 @@ export function onnxUnsupportedText(p: { os: string; arch: string; runtime?: str
   key: 'ort.unsupported_intel_mac' | 'ort.unsupported_platform' | 'mlx.unsupported_macos';
   params: { platform: string };
 } {
-  if (p.runtime === 'mlx' || p.runtime === 'mlx-vlm' || p.runtime === 'mlx-audio') return { key: 'mlx.unsupported_macos', params: { platform: `${p.os}/${p.arch}` } };
+  if (p.runtime === 'mlx' || p.runtime === 'mlx-vlm' || p.runtime === 'mlx-audio' || p.runtime === 'mflux') return { key: 'mlx.unsupported_macos', params: { platform: `${p.os}/${p.arch}` } };
   const intelMac = p.os === 'macos' && p.arch === 'x86_64';
   return { key: intelMac ? 'ort.unsupported_intel_mac' : 'ort.unsupported_platform', params: { platform: `${p.os}/${p.arch}` } };
 }
@@ -119,6 +121,7 @@ const ENGINE_LABELS: Record<string, string> = {
   mlx: 'MLX',
   'mlx-vlm': 'MLX-VLM',
   'mlx-audio': 'MLX Audio',
+  mflux: 'mflux',
   'python-hf': 'Python (HF)',
   'audio.cpp': 'audio.cpp',
   crispasr: 'CrispASR',

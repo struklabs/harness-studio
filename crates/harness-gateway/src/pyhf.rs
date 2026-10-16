@@ -26,9 +26,12 @@ pub fn task_of(def: &ModelDefinition) -> Option<String> {
         .and_then(harness_core::engine::python_hf::detect)
 }
 
-/// What error messages call the worker of `def`: mlx-audio for its speech folders, else the
-/// Python engine.
+/// What error messages call the worker of `def`: mflux for its image folders, mlx-audio for its
+/// speech folders, else the Python engine.
 pub fn engine_name(def: &ModelDefinition) -> &'static str {
+    if crate::images::is_mflux_model(def) {
+        return "mflux";
+    }
     if def
         .base
         .local_path()
