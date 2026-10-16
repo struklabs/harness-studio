@@ -98,6 +98,7 @@ TOKEN_RATES = {
 }
 # CSM's voices: recorded prompts the model continues, given with --companion
 # mlx-community/csm-1b=folder (`sesame/csm-1b`, where mlx-audio looks for them, is gated).
+# The same list as engine/mlx.rs `CSM_VOICES` (its test `csm_voices_match_the_worker` reads this).
 CSM_VOICES = ["conversational_a", "conversational_b"]
 CSM_PROMPTS_REPO = "mlx-community/csm-1b"
 # The architecture mlx-audio is told to load for a family whose config does not name it (its
@@ -827,7 +828,8 @@ def wire_weights(mx):
     """Lets Metal keep up to the GPU's recommended working set wired (resident), as mlx-lm does
     while it generates: otherwise macOS pages the weights out between requests on a small Mac
     and each request reloads them (CSM on an M1 8 GB: 5-29 s for one short sentence instead of
-    4-8 s). Returns the limit, or None where there is no such device."""
+    4-8 s). The limit is the process's own: macOS releases it when the worker exits. Returns the
+    limit, or None where there is no such device."""
     try:
         info = mx.device_info() if hasattr(mx, "device_info") else mx.metal.device_info()
         limit = int(info.get("max_recommended_working_set_size") or 0)

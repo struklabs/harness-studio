@@ -709,7 +709,7 @@ pub fn mlx_compatibility_on(
         None | Some("text-generation") if crate::engine::mlx::is_audio_repo(tags) => return None,
         None | Some("text-generation") => MLX_FAMILY,
         Some("image-text-to-text") => MLX_VLM_FAMILY,
-        Some("text-to-speech") if crate::engine::mlx::is_tts_repo(repo) => MLX_AUDIO_FAMILY,
+        Some("text-to-speech") if crate::engine::mlx::is_tts_repo(repo, tags) => MLX_AUDIO_FAMILY,
         Some("automatic-speech-recognition")
             if crate::engine::mlx::is_stt_repo(repo, tags)
                 && crate::engine::mlx::stt_repo_files_ok(repo, tags, files) =>
@@ -1708,6 +1708,30 @@ mod tests {
                 None,
                 "{repo}"
             );
+        }
+        // The Hub tags a CSM repo with its config's `model_type`: csm-1b-8bit says `sam`, which
+        // mlx-audio does not load as CSM, so only the `sesame` builds are offered.
+        let tagged = |t: &str| {
+            vec![
+                "mlx".to_string(),
+                t.to_string(),
+                "text-to-speech".to_string(),
+            ]
+        };
+        for (repo, tags, offered) in [
+            ("mlx-community/csm-1b-fp16", tagged("sesame"), true),
+            ("mlx-community/csm-1b-8bit", tagged("sam"), false),
+        ] {
+            let compat = mlx_compatibility_on(
+                repo,
+                format,
+                Some("text-to-speech"),
+                &files,
+                &tags,
+                true,
+                false,
+            );
+            assert_eq!(compat.is_some(), offered, "{repo}: {compat:?}");
         }
         assert_eq!(
             mlx_compatibility_on(
