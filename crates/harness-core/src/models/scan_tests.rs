@@ -7,6 +7,97 @@ fn write(root: &Path, rel: &str, data: &[u8]) {
     fs::write(path, data).unwrap();
 }
 
+fn image_weights(root: &Path, rel: &str, tensor: &str) {
+    let header = serde_json::to_vec(&serde_json::json!({
+        tensor: {"dtype": "F16", "shape": [1], "data_offsets": [0, 2]}
+    }))
+    .unwrap();
+    let mut bytes = (header.len() as u64).to_le_bytes().to_vec();
+    bytes.extend(header);
+    bytes.extend([0u8; 2]);
+    write(root, rel, &bytes);
+}
+
+#[test]
+fn diffusers_pipeline_is_one_model_without_component_files_or_packages() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path();
+    let pipeline = root.join("owner/pipeline");
+    write(
+        &pipeline,
+        "model_index.json",
+        br#"{"_class_name":"StableDiffusionPipeline"}"#,
+    );
+    for (rel, tensor) in [
+        (
+            "unet/diffusion_pytorch_model.fp16.safetensors",
+            "down_blocks.0.resnets.0.conv1.weight",
+        ),
+        (
+            "transformer/diffusion_pytorch_model.safetensors",
+            "double_blocks.0.img_attn.qkv.weight",
+        ),
+        (
+            "vae/diffusion_pytorch_model.safetensors",
+            "decoder.conv_in.weight",
+        ),
+        (
+            "text_encoder/model.safetensors",
+            "text_model.embeddings.token_embedding.weight",
+        ),
+        (
+            "unet/nested/deeper/weights.safetensors",
+            "down_blocks.0.resnets.0.conv1.weight",
+        ),
+        (
+            "weights.safetensors",
+            "down_blocks.0.resnets.0.conv1.weight",
+        ),
+    ] {
+        image_weights(&pipeline, rel, tensor);
+    }
+    // A nested package that another folder detector could otherwise recognize.
+    write(
+        &pipeline,
+        "nested/classifier/config.json",
+        br#"{"architectures":["BertForSequenceClassification"]}"#,
+    );
+    write(&pipeline, "nested/classifier/model.safetensors", b"x");
+
+    let roots = [root.to_path_buf()];
+    let models = ModelManager.scan_directories(&roots);
+    assert_eq!(models.len(), 1, "{models:#?}");
+    assert_eq!(models[0].path, pipeline);
+    assert_eq!(models[0].task.as_deref(), Some("text-to-image"));
+    // Ancestors outside the configured root still own their component files.
+    assert!(ModelManager
+        .scan_directories(&[pipeline.join("unet")])
+        .is_empty());
+
+    image_weights(
+        root,
+        "standalone.safetensors",
+        "down_blocks.0.resnets.0.conv1.weight",
+    );
+    let models = ModelManager.scan_directories(&roots);
+    assert_eq!(models.len(), 2, "{models:#?}");
+    assert!(models.iter().any(|m| m.path == pipeline));
+    assert!(models
+        .iter()
+        .any(|m| m.path == root.join("standalone.safetensors")));
+}
+
+#[test]
+fn unet_without_pipeline_index_remains_a_standalone_model() {
+    let temp = tempfile::tempdir().unwrap();
+    let rel = "folder/unet/diffusion_pytorch_model.fp16.safetensors";
+    image_weights(temp.path(), rel, "down_blocks.0.resnets.0.conv1.weight");
+    let models = ModelManager.scan_directories(&[temp.path().to_path_buf()]);
+    assert_eq!(models.len(), 1);
+    assert_eq!(models[0].path, temp.path().join(rel));
+    assert_eq!(models[0].kind, crate::domain::ModelKind::Image);
+}
+
 // Original file-walk algorithm, retained only as a reference for discovery parity.
 fn legacy_files(root: &Path) -> Vec<PathBuf> {
     let mut result = Vec::new();
