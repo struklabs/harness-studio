@@ -387,6 +387,8 @@ The audited v0.9.1 server returns a base64 WAV in `audio`, or `{id,audio,...}` e
 
 Playground > Speech includes **Process Audio**: choose a model, upload WAV or record, adjust family options, run, play each output, and save through the native WAV dialog. Recordings use 44.1 kHz for RoFormer/Apollo. The disabled panel links to the existing engine setting. Hub shows the experimental requirement without claiming other engines' audio repos.
 
+The **Process Audio** panel now lists Nemotron 3 Diarization and Sortformer models, with speaker options, a speaker timeline, timed segments and confidence when available, speaker count, and JSON copy/download. Sortformer is limited to 60 seconds.
+
 Not included: `mossformer2` and `tf_gridnet` have no model specs/implementation in the supplied v0.9.1 tree. `builtin_audio_utils` RNNoise (`rnnoise10Gb_15.safetensors`) and DeepFilterNet2 (`deepfilternet2.safetensors`, 48 kHz input/output) have repository asset weights but no single HF package in their model spec; a safe Hub install/identity path is not implemented. SpeechBrain pickle `.ckpt`, custom-code repositories, standalone vocoders and other built-in utilities remain excluded.
 
 ### Vocal Separation with mlx-audio (Apple Silicon)

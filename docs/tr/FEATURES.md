@@ -390,6 +390,8 @@ v0.9.1 sunucusu base64 WAV’ı `audio` alanında veya `{id,audio,...}` biçimin
 
 Playground > Konuşma içindeki **Sesi İşle** paneli model seçme, WAV yükleme veya kayıt, aile seçenekleri, çalıştırma, her çıktıyı dinleme ve yerel WAV kaydetme iletişim kutusunu sunar. RoFormer/Apollo kayıtları 44,1 kHz alınır. Motor kapalıysa mevcut ayara götüren **Motoru Etkinleştir** düğmesi görünür. Hub diğer motorların ses depolarını sahiplenmeden deneysel gereksinimi gösterir.
 
+**Sesi İşle** paneli artık Nemotron 3 Diarization ve Sortformer modellerini; konuşmacı seçenekleri, konuşmacı zaman çizelgesi, zamanlı bölümler ve varsa güven değerleri, konuşmacı sayısı ve JSON kopyalama/indirme ile sunar. Sortformer en fazla 60 saniyelik ses kabul eder.
+
 Dışarıda kalanlar: sağlanan v0.9.1 ağacında `mossformer2` ve `tf_gridnet` model tanımı/uygulaması yoktur. `builtin_audio_utils` RNNoise (`rnnoise10Gb_15.safetensors`) ve DeepFilterNet2 (`deepfilternet2.safetensors`; 48 kHz girdi/çıktı) depo varlığı olarak bulunur ancak model tanımları tek bir HF paketi belirtmez; güvenli Hub kurulum/kimlik yolu eklenmemiştir. SpeechBrain pickle `.ckpt`, özel kod isteyen depolar, bağımsız vocoder modelleri ve diğer yerleşik araçlar kapsam dışıdır.
 
 ### mlx-audio ile Vokal Ayırma (Apple Silicon)

@@ -14,7 +14,10 @@
   import { describeErrorBody } from '#lib/components/playground/sse.js';
   import { BackendError } from '#lib/errors.js';
 
-  type OptionName = 'audio_chunk_duration_sec' | 'audio_chunk_overlap_sec' | 'edge_pad_duration_sec' | 'num_inference_steps' | 'guidance_scale' | 'ddim_eta' | 'seed' | 'input_sample_rate' | 'sampler_mode';
+  import DiarizationResultView from './DiarizationResult.svelte';
+  import type { DiarizationResult } from './diarization.js';
+
+  type OptionName = 'speaker_threshold' | 'speaker_min_frames' | 'speaker_pad_frames' | 'audio_chunk_duration_sec' | 'audio_chunk_overlap_sec' | 'edge_pad_duration_sec' | 'num_inference_steps' | 'guidance_scale' | 'ddim_eta' | 'seed' | 'input_sample_rate' | 'sampler_mode';
   interface OptionSpec { name: OptionName; min: number; max: number; default: number; integer: boolean; choices: string[] }
   interface Model { name: string; family: string; engine: 'audio.cpp' | 'mlx-audio'; options: OptionSpec[] }
   interface Output { name: 'enhanced' | 'vocals' | 'instrumental' | 'target' | 'residual'; audio_base64: string; mime: string; url: string }
@@ -23,6 +26,7 @@
   let file = $state<File | null>(null);
   let prompt = $state('');
   let options = $state<Record<string, number | string>>({});
+  let diarization = $state<DiarizationResult | null>(null);
   let outputs = $state<Output[]>([]);
   let busy = $state(false);
   let recState = $state<'idle' | 'starting' | 'recording'>('idle');
@@ -55,9 +59,10 @@
     void runtimesStore.list;
     untrack(() => void load());
   });
-  function clear() { for (const output of outputs) URL.revokeObjectURL(output.url); outputs = []; }
+  function clear() { for (const output of outputs) URL.revokeObjectURL(output.url); outputs = []; diarization = null; }
   onDestroy(() => { controller?.abort(); clear(); });
-  $effect(() => { void model; options = {}; prompt = ''; });
+  $effect(() => { void model; options = {}; prompt = ''; untrack(() => { clear(); error = ''; }); });
+  $effect(() => { void file; untrack(() => { clear(); error = ''; }); });
   async function run() {
     if (!file || !chosen || busy || recState !== 'idle') return;
     error = '';
@@ -80,13 +85,27 @@
         if (typeof key === 'string') throw new BackendError(key);
         throw new Error(describeErrorBody(text) || `HTTP ${response.status}`);
       }
-      const result: { outputs: Omit<Output, 'url'>[] } = await response.json();
+      const result: DiarizationResult | { task?: string; outputs: Omit<Output, 'url'>[] } = await response.json();
+      if (result.task === 'diarization') {
+        diarization = result as DiarizationResult;
+        return;
+      }
       outputs = result.outputs.map(o => {
         const bytes = Uint8Array.from(atob(o.audio_base64), c => c.charCodeAt(0));
         return { ...o, url: URL.createObjectURL(new Blob([bytes], { type: o.mime })) };
       });
     } catch (e) { if (!c.signal.aborted) error = localizeError(e); }
     finally { if (controller === c) { controller = null; busy = false; } }
+  }
+  async function copyJson() {
+    if (!diarization) return;
+    try { await navigator.clipboard.writeText(JSON.stringify(diarization, null, 2)); }
+    catch (e) { error = localizeError(e); }
+  }
+  async function downloadJson() {
+    if (!diarization) return;
+    try { await invoke('save_audio_process_json', { data: diarization }); }
+    catch (e) { error = localizeError(e); }
   }
   async function save(output: Output) {
     try { await invoke('save_processed_audio', { data: output.audio_base64, fileName: output.name }); }
@@ -115,6 +134,7 @@
     </div>
     <p class="text-xs text-muted-foreground">{t('process.limits')}</p>
     {#if chosen && ['apollo', 'bs_roformer', 'mel_band_roformer'].includes(chosen.family)}<p class="text-xs text-muted-foreground">{t('process.rate')}</p>{/if}
+    {#if chosen?.family === 'sortformer_diar'}<p class="text-xs text-muted-foreground" role="note">{t('process.sortformer_limit')}</p>{/if}
     {#if chosen?.family === 'sam_audio'}
       <label class="flex flex-col gap-1 text-sm" for="process-prompt">{t('process.prompt')}<input id="process-prompt" class={controlClass} bind:value={prompt} maxlength="1024" disabled={busy} /></label>
       <p class="text-xs text-muted-foreground">{t('process.sam_hint')}</p>
@@ -130,6 +150,7 @@
     </div>
     {#if !app.gatewayRunning}<p class="text-sm text-muted-foreground">{t('process.need_gateway')}</p>{/if}
     <div class="flex gap-2"><Button disabled={busy || recState !== 'idle' || !file || !chosen || !app.gatewayRunning || (chosen.family === 'sam_audio' && !prompt.trim())} onclick={run}>{t(busy ? 'process.running' : 'process.run')}</Button>{#if busy}<Button variant="outline" onclick={() => controller?.abort()}>{t('process.cancel')}</Button>{/if}<Button variant="ghost" disabled={busy} onclick={() => void load()}>{t('process.refresh')}</Button></div>
+    {#if diarization}<DiarizationResultView result={diarization} onCopy={() => void copyJson()} onDownload={() => void downloadJson()} />{/if}
     {#each outputs as output}<div class="flex flex-wrap items-center gap-3 rounded-md border p-3"><span class="w-32 shrink-0 text-sm">{t(`process.output.${output.name}`)}</span><audio class="min-w-0 flex-1" controls src={output.url} aria-label={t(`process.output.${output.name}`)}></audio><Button variant="outline" size="sm" onclick={() => void save(output)}>{t('process.save')}</Button></div>{/each}
   {/if}
   {#if error}<p class="text-sm text-destructive" role="alert">{error}</p>{/if}

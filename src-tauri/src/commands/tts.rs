@@ -210,7 +210,7 @@ pub(crate) struct AudioProcessOverview {
 #[tauri::command]
 pub(crate) async fn get_audio_process_overview() -> Result<AudioProcessOverview, String> {
     blocking(|| -> Result<AudioProcessOverview, String> {
-        use harness_core::engine::{audio_cpp, audio_process, AUDIO_CPP};
+        use harness_core::engine::{audio_cpp, AUDIO_CPP};
         let library = harness_core::models::ModelManager.scan_models();
         harness_core::library_definitions::ensure(&library, &[harness_core::domain::ModelKind::Pipeline])?;
         let models = harness_core::domain::store::Domain::global().definitions()?.into_iter().filter_map(|def| {
@@ -220,8 +220,7 @@ pub(crate) async fn get_audio_process_overview() -> Result<AudioProcessOverview,
                 return Some(AudioProcessModel { name: def.alias, family: "mel_band_roformer".into(), engine: harness_core::engine::MLX_AUDIO, options: Vec::new() });
             }
             let family = audio_cpp::metadata(path)?.audiocpp_family?;
-            audio_cpp::processing_task(&family).filter(|_| !audio_cpp::is_diarization(&family))?;
-            Some(AudioProcessModel { name: def.alias, options: audio_process::options(&family), family, engine: AUDIO_CPP })
+            process_picker_model(def.alias, family)
         }).collect();
         Ok(AudioProcessOverview { models, runtime_installed: harness_core::runtimes::resolve_family_binary_in(&harness_core::runtimes::RuntimeRegistry::global(), AUDIO_CPP, None).is_ok() })
     }).await?
@@ -240,4 +239,51 @@ pub(crate) async fn save_processed_audio(app: tauri::AppHandle, data: String, fi
     let out = path.clone();
     blocking(move || std::fs::write(&out, bytes)).await?.map_err(|e| String::from(harness_core::error_key::err("fs.write_failed").with("path", path.display()).with("error", e)))?;
     Ok(Some(path.to_string_lossy().into_owned()))
+}
+
+// Keep the picker on the same family allowlist as the processing endpoint.
+fn process_picker_model(name: String, family: String) -> Option<AudioProcessModel> {
+    use harness_core::engine::{audio_cpp, audio_process, AUDIO_CPP};
+    audio_cpp::processing_task(&family)?;
+    Some(AudioProcessModel {
+        name,
+        options: audio_process::options(&family),
+        family,
+        engine: AUDIO_CPP,
+    })
+}
+
+#[tauri::command]
+pub(crate) async fn save_audio_process_json(
+    app: tauri::AppHandle,
+    data: serde_json::Value,
+) -> Result<Option<String>, String> {
+    save_text_dialog(
+        &app,
+        "diarization.json".into(),
+        ("JSON", &["json"]),
+        format!("{data:#}"),
+    )
+    .await
+}
+
+#[cfg(test)]
+mod audio_process_picker_tests {
+    use super::process_picker_model;
+
+    #[test]
+    fn processing_picker_includes_diarization_with_only_speaker_options() {
+        for family in ["nemotron_3_diar", "sortformer_diar"] {
+            let model = process_picker_model("speakers".into(), family.into()).unwrap();
+            assert_eq!(model.engine, "audio.cpp");
+            assert_eq!(
+                model.options.iter().map(|o| o.name).collect::<Vec<_>>(),
+                ["speaker_threshold", "speaker_min_frames", "speaker_pad_frames"]
+            );
+            assert_eq!(model.options[0].default, 0.5);
+            assert_eq!((model.options[0].min, model.options[0].max), (0., 1.));
+        }
+        assert!(process_picker_model("speech".into(), "pocket_tts".into()).is_none());
+        assert!(process_picker_model("separator".into(), "apollo".into()).is_some());
+    }
 }
