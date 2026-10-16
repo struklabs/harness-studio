@@ -134,4 +134,69 @@ mod tests {
             &[2, 6, 3]
         );
     }
+
+    fn wordpiece(vocab: &[&str], config: &str) -> (tempfile::TempDir, Tokenizer) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vocab.txt");
+        let mut text = String::from("[PAD]\n[UNK]\n[CLS]\n[SEP]\n[MASK]\n");
+        for t in vocab {
+            text.push_str(t);
+            text.push('\n');
+        }
+        std::fs::write(&path, text).unwrap();
+        std::fs::write(dir.path().join("tokenizer_config.json"), config).unwrap();
+        let tokenizer = load(&path).unwrap();
+        (dir, tokenizer)
+    }
+
+    fn tokens(tokenizer: &Tokenizer, text: &str) -> Vec<String> {
+        tokenizer
+            .encode(text, true)
+            .unwrap()
+            .get_tokens()
+            .iter()
+            .map(|t| t.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn wordpiece_accents_follow_strip_accents_and_lowercase() {
+        let vocab = ["cafe", "Cafe", "caf\u{e9}", "Caf\u{e9}"];
+        // Lowercase on and strip_accents unset: the accents go with the case.
+        let (_d, t) = wordpiece(&vocab, r#"{"do_lower_case": true}"#);
+        assert_eq!(tokens(&t, "Caf\u{e9}"), ["[CLS]", "cafe", "[SEP]"]);
+        // Lowercase off and strip_accents unset: both are kept.
+        let (_d, t) = wordpiece(&vocab, r#"{"do_lower_case": false}"#);
+        assert_eq!(tokens(&t, "Caf\u{e9}"), ["[CLS]", "Caf\u{e9}", "[SEP]"]);
+        assert_eq!(tokens(&t, "Cafe"), ["[CLS]", "Cafe", "[SEP]"]);
+        // An explicit strip_accents wins over the case flag, both ways.
+        let (_d, t) = wordpiece(&vocab, r#"{"do_lower_case": false, "strip_accents": true}"#);
+        assert_eq!(tokens(&t, "Caf\u{e9}"), ["[CLS]", "Cafe", "[SEP]"]);
+        let (_d, t) = wordpiece(&vocab, r#"{"do_lower_case": true, "strip_accents": false}"#);
+        assert_eq!(tokens(&t, "Caf\u{e9}"), ["[CLS]", "caf\u{e9}", "[SEP]"]);
+    }
+
+    #[test]
+    fn wordpiece_unknown_and_overlong_words_are_unk() {
+        let (_d, t) = wordpiece(&["play", "a", "##a", "##ing"], r#"{"do_lower_case": true}"#);
+        // A piece the vocabulary lacks makes the whole word [UNK].
+        assert_eq!(tokens(&t, "zzz"), ["[CLS]", "[UNK]", "[SEP]"]);
+        assert_eq!(tokens(&t, "playx"), ["[CLS]", "[UNK]", "[SEP]"]);
+        assert_eq!(tokens(&t, "playing"), ["[CLS]", "play", "##ing", "[SEP]"]);
+        assert_eq!(
+            tokens(&t, "playing zzz play"),
+            ["[CLS]", "play", "##ing", "[UNK]", "play", "[SEP]"]
+        );
+        // max_input_chars_per_word is 100: 100 characters still split, 101 are [UNK].
+        let split = tokens(&t, &"a".repeat(100));
+        assert_eq!(split.len(), 102);
+        assert_eq!(split[1], "a");
+        assert_eq!(split[2], "##a");
+        assert_eq!(tokens(&t, &"a".repeat(101)), ["[CLS]", "[UNK]", "[SEP]"]);
+        // The overlong word does not swallow its neighbours.
+        assert_eq!(
+            tokens(&t, &format!("play {} play", "a".repeat(101))),
+            ["[CLS]", "play", "[UNK]", "play", "[SEP]"]
+        );
+    }
 }
