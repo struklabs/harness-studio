@@ -245,6 +245,16 @@ fn is_model_extension(path: &Path) -> bool {
     })
 }
 
+/// Weights and nested packages inside a Diffusers pipeline belong to the pipeline, even
+/// when a component subdirectory is itself configured as a library root.
+pub(crate) fn is_diffusers_component(path: &Path) -> bool {
+    path.parent().is_some_and(|parent| {
+        parent
+            .ancestors()
+            .any(|dir| dir.join("model_index.json").is_file())
+    })
+}
+
 fn onnx_task_kind(task: harness_onnx::package::Task) -> crate::domain::ModelKind {
     match task {
         harness_onnx::package::Task::Embedding => crate::domain::ModelKind::Embedding,
@@ -502,7 +512,9 @@ impl ModelManager {
         let known: std::collections::HashSet<_> = known.iter().map(|m| &m.path).collect();
         crate::importer::load_external()
             .into_iter()
-            .filter(|e| e.path.is_file() && !known.contains(&e.path))
+            .filter(|e| {
+                e.path.is_file() && !known.contains(&e.path) && !is_diffusers_component(&e.path)
+            })
             .map(|e| {
                 let metadata = cached_metadata(&e.path);
                 let kind = crate::domain::detect_kind(metadata.as_ref());
@@ -573,6 +585,7 @@ impl ModelManager {
             models.extend(crate::engine::python_hf::library_models_in(dir, &tree));
             models.extend(crate::engine::mlx::library_models_in(dir, &tree));
         }
+        models.retain(|m| !is_diffusers_component(&m.path));
         models.sort_by(|a, b| a.name.cmp(&b.name));
         models
     }

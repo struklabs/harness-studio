@@ -39,10 +39,13 @@ pub fn ensure_in(
     models: &[LocalModel],
     kinds: &[ModelKind],
 ) -> Result<Vec<String>, String> {
+    remove_stale_diffusers_definitions(domain, libraries)?;
     let mut created = Vec::new();
     for model in models
         .iter()
         .filter(|m| m.is_ready && KINDS.contains(&m.kind) && kinds.contains(&m.kind))
+        // Also guard callers with a stale scan, including download-completion syncs.
+        .filter(|m| !crate::models::is_diffusers_component(&m.path))
         // sherpa-onnx recognition models are ASR too, but run per request without a definition.
         .filter(|m| {
             m.kind != ModelKind::Tts
@@ -102,9 +105,109 @@ pub fn ensure_in(
     Ok(created)
 }
 
+/// Older scans saved components without provenance (`auto_created` is false even for
+/// library definitions). Only remove an exact default-shaped record; any customization
+/// or profile reference makes it user-owned. Do not depend on the now-filtered scan.
+fn remove_stale_diffusers_definitions(
+    domain: &Domain,
+    libraries: &[PathBuf],
+) -> Result<(), String> {
+    let defs = domain.definitions()?;
+    let profiles = domain.profiles()?;
+    for def in &defs {
+        let Some(path) = def.base.local_path() else {
+            continue;
+        };
+        if !path.is_file()
+            || !crate::models::is_diffusers_component(path)
+            || def.created_at != def.updated_at
+            || profiles
+                .iter()
+                .any(|p| p.definition_id.as_deref() == Some(&def.id))
+        {
+            continue;
+        }
+        let Some(stem) = path.file_stem() else {
+            continue;
+        };
+        let alias = unique_alias(
+            &stem.to_string_lossy(),
+            defs.iter()
+                .filter(|other| other.id != def.id)
+                .map(|other| other.alias.as_str()),
+        );
+        let mut expected = ModelDefinition::new(alias, def.base.clone());
+        if expected.load.is_empty() {
+            let Some(load) = crate::image_bundles::definition_load(path, libraries, true) else {
+                continue;
+            };
+            expected.load = load;
+        }
+        expected.id.clone_from(&def.id);
+        expected.created_at = def.created_at;
+        expected.updated_at = def.updated_at;
+        if *def == expected {
+            domain.delete_definition(&def.id)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_diffusers_defaults_are_removed_but_user_and_folder_definitions_survive() {
+        let cfg = tempfile::tempdir().unwrap();
+        let lib = tempfile::tempdir().unwrap();
+        let domain = Domain::at(cfg.path());
+        let pipeline = lib.path().join("pipeline");
+        std::fs::create_dir_all(pipeline.join("unet")).unwrap();
+        let component = file(
+            &pipeline.join("unet"),
+            "diffusion_pytorch_model.fp16.safetensors",
+            ModelKind::Image,
+            true,
+        );
+        let libraries = [lib.path().to_path_buf()];
+        // Reproduce the old scanner before the pipeline marker is present. Library
+        // definitions deliberately have auto_created=false, so that flag cannot help.
+        ensure_in(&domain, &libraries, &[component], &KINDS).unwrap();
+        let stale = domain.definitions().unwrap().remove(0);
+        assert!(!stale.auto_created);
+        assert_eq!(stale.alias, "diffusion_pytorch_model.fp16");
+        let user = domain
+            .save_definition(ModelDefinition::new("my-unet", stale.base.clone()))
+            .unwrap();
+        // Every configurable field participates in the comparison, even with the
+        // generated alias. Timestamps can be identical for edits within one second.
+        let customized = file(&pipeline, "unet/edited.ckpt", ModelKind::Image, true);
+        let mut edited = ModelDefinition::new(
+            "edited",
+            ModelRef::Local {
+                path: customized.path,
+            },
+        );
+        edited.description = "My settings".into();
+        let edited = domain.save_definition(edited).unwrap();
+        std::fs::write(pipeline.join("model_index.json"), "{}").unwrap();
+        let folder = domain
+            .save_definition(ModelDefinition::new(
+                "pipeline",
+                ModelRef::Local { path: pipeline },
+            ))
+            .unwrap();
+
+        // Cleanup also runs with an empty scan and a non-image kind selection.
+        assert!(ensure_in(&domain, &libraries, &[], &[ModelKind::Asr])
+            .unwrap()
+            .is_empty());
+        assert_eq!(domain.definitions().unwrap(), vec![user, edited, folder]);
+        assert!(ensure_in(&domain, &libraries, &[], &KINDS)
+            .unwrap()
+            .is_empty());
+    }
 
     fn file(dir: &std::path::Path, name: &str, kind: ModelKind, ready: bool) -> LocalModel {
         let path = dir.join(name);
@@ -131,6 +234,53 @@ mod tests {
             origin: Default::default(),
             task: None,
         }
+    }
+
+    #[test]
+    fn diffusers_components_from_a_stale_scan_get_no_definitions() {
+        let cfg = tempfile::tempdir().unwrap();
+        let lib = tempfile::tempdir().unwrap();
+        let domain = Domain::at(cfg.path());
+        let pipeline = lib.path().join("pipeline");
+        std::fs::create_dir_all(pipeline.join("unet/nested")).unwrap();
+        std::fs::create_dir_all(pipeline.join("transformer")).unwrap();
+        std::fs::create_dir_all(pipeline.join("vae")).unwrap();
+        std::fs::create_dir_all(pipeline.join("text_encoder")).unwrap();
+        let mut stale = Vec::new();
+        for name in [
+            "weights.ckpt",
+            "unet/diffusion_pytorch_model.fp16.safetensors",
+            "unet/nested/weights.ckpt",
+            "transformer/diffusion_pytorch_model.safetensors",
+            "vae/diffusion_pytorch_model.safetensors",
+            "text_encoder/model.safetensors",
+        ] {
+            stale.push(file(&pipeline, name, ModelKind::Image, true));
+        }
+        std::fs::write(
+            pipeline.join("model_index.json"),
+            r#"{"_class_name":"StableDiffusionPipeline"}"#,
+        )
+        .unwrap();
+        let standalone = file(lib.path(), "standalone.ckpt", ModelKind::Image, true);
+        let libraries = [lib.path().to_path_buf()];
+        let mut models = crate::models::ModelManager.scan_directories(&libraries);
+        models.extend(stale);
+        // Both Library and Hub completion sync through this entry point. A stale scan must
+        // not register component definitions, even when the files still exist.
+        let made = ensure_in(&domain, &libraries, &models, &KINDS).unwrap();
+        assert_eq!(made.len(), 2);
+        let defs = domain.definitions().unwrap();
+        assert_eq!(defs.len(), 2);
+        assert!(defs
+            .iter()
+            .any(|d| d.base.local_path() == Some(pipeline.as_path())));
+        assert!(defs
+            .iter()
+            .any(|d| d.base.local_path() == Some(standalone.path.as_path())));
+        assert!(ensure_in(&domain, &libraries, &models, &KINDS)
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
