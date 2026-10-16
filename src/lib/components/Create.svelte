@@ -21,7 +21,6 @@
     if (!CREATE_PAGES.some(p => p.id === id)) return;
     active = id;
     try { localStorage.setItem('harness_create_page', id); } catch { /* unavailable */ }
-    if (panes.createNav.floating) panes.createNav.close();
   }
   function fromUrl() { const match = location.hash.match(/^#create\/(generator|auto|mine)$/); if (match) select(match[1]); }
   onMount(() => {

@@ -33,7 +33,7 @@
           aria-label={railed ? t(s.label) : undefined}
           title={t(s.label)}
           data-section={s.id}
-          onclick={() => { onSelect(s.id); if (pane.floating) pane.close(); }}
+          onclick={() => onSelect(s.id)}
         >
           <Icon class="size-4 shrink-0" />
           {#if !railed}<span class="min-w-0 truncate">{t(s.label)}</span>{/if}

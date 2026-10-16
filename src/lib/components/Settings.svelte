@@ -61,7 +61,6 @@
 
   function select(id: string) {
     section.select(settingsPage(id));
-    if (navPane.floating) navPane.close();
   }
   $effect(() => {
     visited[activeRoot] = true;
