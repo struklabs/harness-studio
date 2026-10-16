@@ -1,6 +1,7 @@
 // Backend error keys (harness_core::error_key) of downloads, model library, imports, GGUF and Modelfile.
 // Texts are single quoted literals (the CLI compiles the English half in); {name} = parameter.
 const tr = {
+  'downloads.interrupted': 'Bağlantı indirme sırasında kesildi ({file}). `harness pull` komutunu yeniden çalıştırarak kaldığınız yerden devam edebilirsiniz. {error}',
   'downloads.cancelled': 'İndirme kullanıcı tarafından durduruldu.',
   'downloads.not_found': 'İndirme bulunamadı (#{id}).',
   'downloads.not_resumable': 'Bu indirme devam ettirilemez.',
@@ -16,7 +17,7 @@ const tr = {
   'downloads.connection_failed': 'Bağlantı hatası ({file}): {error}',
   'downloads.bad_range_response': 'Sunucu geçersiz aralık yanıtı döndürdü ({file}).',
   'downloads.receive_failed': 'Veri alınırken hata ({file}): {error}',
-  'downloads.incomplete': 'Eksik indirme ({file}): {downloaded} / {total} bayt. Tekrar denerseniz kaldığı yerden devam eder.',
+  'downloads.incomplete': 'Bağlantı dosya tamamlanmadan kapandı ({file}): {downloaded} / {total} bayt. `harness pull` komutunu yeniden çalıştırarak kaldığınız yerden devam edebilirsiniz.',
   'downloads.http_failed': 'İndirme başarısız: HTTP {status}',
   'downloads.http_gated': 'İndirme başarısız: HTTP {status}. Bu model erişim onayı (gated) veya geçerli bir Hugging Face token’ı gerektiriyor olabilir.',
   'downloads.not_gguf': 'İndirilen dosya geçerli bir GGUF değil (sihirli baytlar uyuşmuyor).',
@@ -101,6 +102,7 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'downloads.interrupted': 'The connection dropped while downloading {file}. Re-run `harness pull` to resume where it stopped. {error}',
   'downloads.cancelled': 'The download was stopped by the user.',
   'downloads.not_found': 'Download not found (#{id}).',
   'downloads.not_resumable': 'This download cannot be resumed.',
@@ -116,7 +118,7 @@ const en: Record<keyof typeof tr, string> = {
   'downloads.connection_failed': 'Connection error ({file}): {error}',
   'downloads.bad_range_response': 'The server returned an invalid range response ({file}).',
   'downloads.receive_failed': 'Error while receiving data ({file}): {error}',
-  'downloads.incomplete': 'Incomplete download ({file}): {downloaded} / {total} bytes. Retrying resumes where it stopped.',
+  'downloads.incomplete': 'The connection closed before {file} finished downloading: {downloaded} / {total} bytes. Re-run `harness pull` to resume where it stopped.',
   'downloads.http_failed': 'Download failed: HTTP {status}',
   'downloads.http_gated': 'Download failed: HTTP {status}. This model may need access approval (gated) or a valid Hugging Face token.',
   'downloads.not_gguf': 'The downloaded file is not a valid GGUF (magic bytes do not match).',

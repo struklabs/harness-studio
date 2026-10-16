@@ -3258,7 +3258,24 @@ impl DownloadManager {
                 }
                 return Err(CANCELLED.to_string());
             }
-            let chunk = chunk_res.map_err(|e| crate::http_error::transport(&e, &item.url))?;
+            let chunk = match chunk_res {
+                Ok(chunk) => chunk,
+                Err(error) => {
+                    // BufWriter drops buffered bytes on error. Keep every received byte
+                    // on disk so the next pull can resume with Range/If-Range.
+                    file.flush().await.map_err(|e| {
+                        String::from(
+                            err("fs.write_failed")
+                                .with("path", part_path.display())
+                                .with("error", e),
+                        )
+                    })?;
+                    return Err(err("downloads.interrupted")
+                        .with("file", &item.filename)
+                        .with("error", crate::http_error::transport(&error, &item.url))
+                        .into());
+                }
+            };
             file.write_all(&chunk).await.map_err(|e| {
                 String::from(
                     err("fs.write_failed")
@@ -3289,11 +3306,11 @@ impl DownloadManager {
             )
         })?;
 
-        if item.size > 0 && downloaded != item.size {
+        if total_for_item > 0 && downloaded != total_for_item {
             return Err(err("downloads.incomplete")
                 .with("file", &item.filename)
                 .num("downloaded", downloaded)
-                .num("total", item.size)
+                .num("total", total_for_item)
                 .into());
         }
         Ok(downloaded)
@@ -5034,6 +5051,99 @@ fn recorded_hash(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn interrupted_download_fails_without_final_file_and_resumes() {
+        use axum::{body::Body, http::Response, routing::get, Router};
+        use futures_util::stream;
+
+        const BODY: &[u8] = b"GGUF local download fixture bytes";
+        const PREFIX: usize = 12;
+        // Test both metadata-known and HTTP-only sizes, plus a clean stream EOF
+        // whose Content-Range still advertises missing bytes.
+        for (size, clean_eof) in [(BODY.len() as u64, false), (0, false), (0, true)] {
+            let app = Router::new().route(
+                "/model.gguf",
+                get(move |headers: axum::http::HeaderMap| async move {
+                    if let Some(range) = headers.get("range") {
+                        assert_eq!(range, "bytes=12-");
+                        assert_eq!(headers.get("if-range").unwrap(), "\"fixture-v1\"");
+                        return Response::builder()
+                            .status(206)
+                            .header(
+                                "content-range",
+                                format!("bytes {PREFIX}-{}/{}", BODY.len() - 1, BODY.len()),
+                            )
+                            .header("etag", "\"fixture-v1\"")
+                            .body(Body::from(&BODY[PREFIX..]))
+                            .unwrap();
+                    }
+                    let body = stream::unfold(false, |sent| async move {
+                        if sent {
+                            // Let hyper send headers and the prefix before closing.
+                            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                            None
+                        } else {
+                            Some((Ok::<_, std::io::Error>(&BODY[..PREFIX]), true))
+                        }
+                    });
+                    let mut response = Response::builder().header("etag", "\"fixture-v1\"").header(
+                        "content-length",
+                        if clean_eof { PREFIX } else { BODY.len() },
+                    );
+                    if clean_eof {
+                        response = response.status(206).header(
+                            "content-range",
+                            format!("bytes 0-{}/{}", PREFIX - 1, BODY.len()),
+                        );
+                    }
+                    response.body(Body::from_stream(body)).unwrap()
+                }),
+            );
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let url = format!("http://{}/model.gguf", listener.local_addr().unwrap());
+            let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+            let item = DownloadItem {
+                url,
+                filename: "model.gguf".into(),
+                size,
+                shard_index: 1,
+                sha256: Some(crate::hex::lower(&Sha256::digest(BODY))),
+                custom_url: false,
+            };
+            let dir = tempfile::tempdir().unwrap();
+            let manager = DownloadManager::default();
+            let job = JobCtx {
+                id: 1,
+                cancel: Arc::new(AtomicBool::new(false)),
+            };
+            let failure = manager
+                .run_job(&job, std::slice::from_ref(&item), dir.path(), None)
+                .await
+                .unwrap_err();
+            let (key, params) = crate::error_key::parse(&failure).unwrap();
+            assert_eq!(
+                key,
+                if clean_eof {
+                    "downloads.incomplete"
+                } else {
+                    "downloads.interrupted"
+                }
+            );
+            assert_eq!(params["file"], "model.gguf");
+            assert!(!dir.path().join("model.gguf").exists());
+            let part = DownloadManager::cache_dir().join(part_name(&item.url, &item.filename));
+            assert_eq!(fs::read(&part).unwrap(), &BODY[..PREFIX]);
+            manager
+                .run_job(&job, &[item], dir.path(), None)
+                .await
+                .unwrap();
+            assert_eq!(fs::read(dir.path().join("model.gguf")).unwrap(), BODY);
+            assert!(!part.exists());
+            server.abort();
+            let _ = server.await;
+        }
+    }
 
     #[test]
     fn an_mflux_repo_downloads_its_folders_and_card() {

@@ -363,12 +363,7 @@ pub async fn pull(
             DownloadStatus::Completed => break p,
             DownloadStatus::Error(msg) => {
                 out.progress_done();
-                return Err(CliError::new(
-                    Exit::General,
-                    "cli.download_failed",
-                    format!("Download failed: {}", crate::messages::core_text(msg)),
-                )
-                .with("job_id", job));
+                return Err(CliError::core(msg).with("job_id", job));
             }
             DownloadStatus::Paused | DownloadStatus::Idle => {
                 out.progress_done();
@@ -407,12 +402,7 @@ pub async fn pull(
                 DownloadStatus::Completed => break,
                 DownloadStatus::Error(msg) => {
                     out.progress_done();
-                    return Err(CliError::new(
-                        Exit::General,
-                        "cli.download_failed",
-                        format!("Download failed: {}", crate::messages::core_text(msg)),
-                    )
-                    .with("job_id", *id));
+                    return Err(CliError::core(msg).with("job_id", *id));
                 }
                 DownloadStatus::Paused | DownloadStatus::Idle => {
                     out.progress_done();

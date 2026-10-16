@@ -78,6 +78,7 @@ otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", 
 otel-grpc = ["otel", "opentelemetry-otlp/grpc-tonic", "opentelemetry-otlp/tls-ring", "opentelemetry-otlp/tls-roots"]
 
 [dev-dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 # The OTLP/gRPC test (`tests/otel_grpc.rs`, feature `otel-grpc`) runs a real gRPC receiver
 # built from the official OTLP service definitions.
 opentelemetry-proto = { version = "0.33", default-features = false, features = ["gen-tonic", "trace", "metrics", "logs"] }

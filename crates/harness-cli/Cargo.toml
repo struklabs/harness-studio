@@ -43,4 +43,5 @@ otel-grpc = ["harness-core/otel-grpc", "harness-api/otel-grpc", "harness-gateway
 command-group = "5.0"
 
 [dev-dependencies]
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio"] }
 tempfile = "3"
