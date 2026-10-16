@@ -346,6 +346,15 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
     {
         pipeline_tag = Some("audio-text-to-text".to_string());
     }
+    // A GGUF whose header names a speaking architecture (Qwen3-TTS) is text to speech for
+    // `llama-tts`, whether or not the repo declares a task.
+    if gguf
+        .as_ref()
+        .and_then(|g| g.architecture.as_deref())
+        .is_some_and(crate::tts::llama::is_tts_architecture)
+    {
+        pipeline_tag = Some("text-to-speech".to_string());
+    }
     let not_runnable =
         not_runnable(id, &tags, &files, library.as_deref(), gguf.as_ref()).or_else(|| {
             (matches!(
@@ -353,6 +362,8 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
                 Some("text-to-speech" | "text-to-audio" | "automatic-speech-recognition")
             ) && !gguf_file_names(&files).is_empty()
                 && !crate::hub_compat::is_audio_cpp_repo(item)
+                && !crate::engine::transcribe_cpp::is_hub_repo(item)
+                && !crate::tts::llama::is_hub_repo(item)
                 && !crate::engine::crispasr::supports_repo(id, pipeline_tag.as_deref())
                 && !crate::engine::crispasr_tts::supports_repo(id, pipeline_tag.as_deref()))
             .then_some(NotRunnable::ForeignSpeechGguf)
@@ -1508,6 +1519,30 @@ mod tests {
         let mut table: Vec<String> = KNOWN_TASKS.iter().map(|s| s.to_string()).collect();
         table.sort();
         assert_eq!(ids, table);
+    }
+
+    #[test]
+    fn own_speech_engines_are_not_foreign_speech_ggufs() {
+        for item in [
+            serde_json::json!({
+                "id": "handy-computer/parakeet-tdt-0.6b-v3-GGUF",
+                "library_name": "transcribe.cpp",
+                "pipeline_tag": "automatic-speech-recognition",
+                "gguf": {"architecture": "parakeet"},
+                "siblings": [{"rfilename": "parakeet-f16.gguf"}]
+            }),
+            serde_json::json!({
+                "id": "ggml-org/Qwen3-TTS-GGUF",
+                "pipeline_tag": "text-to-speech",
+                "gguf": {"architecture": "qwen3tts"},
+                "siblings": [
+                    {"rfilename": "Qwen3-TTS-Q8_0.gguf"},
+                    {"rfilename": "mmproj-Qwen3-TTS-f16.gguf"}
+                ]
+            }),
+        ] {
+            assert_eq!(analyze_repo(&item).not_runnable, None, "{}", item["id"]);
+        }
     }
 
     #[test]

@@ -558,6 +558,12 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     let genai = crate::hub_compat::is_genai_repo(&tags, &sibling_files(item));
     let compatibility = if crate::hub_compat::is_audio_cpp_repo(item) {
         crate::hub_compat::audio_cpp_compatibility(item)
+    } else if format == crate::hub_compat::ModelFormat::Gguf && crate::tts::llama::is_hub_repo(item)
+    {
+        // Qwen3-TTS GGUF: the runtime's `llama-tts` speaks with it.
+        crate::hub_compat::Compatibility::Runnable {
+            runtime: crate::hub_compat::LLAMA_FAMILY.into(),
+        }
     } else if format == crate::hub_compat::ModelFormat::Gguf
         && crate::engine::transcribe_cpp::is_hub_repo(item)
     {
@@ -5223,6 +5229,24 @@ mod tests {
         ));
         assert_eq!(listed.not_runnable, None);
         assert_eq!(card_not_runnable(&item, analysis.not_runnable), None);
+    }
+
+    #[test]
+    fn qwen3_tts_gguf_speaks_with_llama_cpp() {
+        let item = serde_json::json!({"id":"ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF",
+            "tags":["gguf","endpoints_compatible","region:us"],
+            "gguf":{"architecture":"qwen3tts","total":1733157888},
+            "siblings":[{"rfilename":"Qwen3-TTS-12Hz-1.7B-Base-Q4_K_M.gguf"},
+                {"rfilename":"mmproj-Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf"}]});
+        let listed = parse_search_item(&item).unwrap();
+        assert_eq!(listed.pipeline_tag.as_deref(), Some("text-to-speech"));
+        assert_eq!(
+            listed.compatibility,
+            crate::hub_compat::Compatibility::Runnable {
+                runtime: "llama.cpp".into()
+            }
+        );
+        assert_eq!(listed.not_runnable, None);
     }
 
     #[test]

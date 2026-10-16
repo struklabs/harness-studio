@@ -680,6 +680,12 @@ impl Scheduler {
         &self.ctx.registry
     }
 
+    /// The runtime manager the scheduler launches servers with (tools next to `llama-server`,
+    /// such as `llama-tts`, come from the same runtime).
+    pub fn runtime(&self) -> &Arc<RuntimeManager> {
+        &self.ctx.runtime
+    }
+
     /// Model definitions (re-read at most once a second).
     pub async fn definitions(&self) -> Result<Vec<ModelDefinition>, SchedError> {
         if let Some((at, defs)) = self.defs.lock().unwrap().as_ref() {

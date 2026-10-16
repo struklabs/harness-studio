@@ -14,6 +14,7 @@
 //! the last argument, see [`run::text_argument`] for the Windows code page problem.
 
 pub mod catalog;
+pub mod llama;
 pub mod run;
 
 use std::path::{Path, PathBuf};

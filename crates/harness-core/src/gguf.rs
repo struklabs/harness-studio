@@ -148,6 +148,10 @@ pub struct GgufMetadata {
     /// `stt.capability.translate` of such an export.
     #[serde(default)]
     pub stt_translate: bool,
+    /// `clip.gen.audio.projector_type` of a projector that makes audio (`qwen3tts_gen`): the
+    /// model speaks through `llama-tts` (`crate::tts::llama`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gen_audio_projector: Option<String>,
     /// A `<arch>.classifier.output_labels` key exists (classification heads, e.g. rerankers).
     #[serde(default)]
     pub has_classifier_labels: bool,
@@ -471,6 +475,9 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
                 if audio {
                     audio_projector = Some(kind);
                 }
+            }
+            "clip.gen.audio.projector_type" if val_type == GgufType::String => {
+                meta.gen_audio_projector = Some(read_string(&mut reader)?);
             }
             "clip.audio.projector_type" if val_type == GgufType::String => {
                 audio_hint = true;
