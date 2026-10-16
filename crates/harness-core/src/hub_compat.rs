@@ -1718,9 +1718,37 @@ mod tests {
                 "text-to-speech".to_string(),
             ]
         };
+        // The Hub's own tags of the three mlx-community builds (2026-10-16).
+        let real = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let csm_tags = real(&[
+            "mlx",
+            "safetensors",
+            "sesame",
+            "text-to-speech",
+            "en",
+            "base_model:sesame/csm-1b",
+            "base_model:finetune:sesame/csm-1b",
+            "license:apache-2.0",
+            "region:us",
+        ]);
+        let csm_8bit_tags = real(&[
+            "mlx",
+            "safetensors",
+            "sam",
+            "model_hub_mixin",
+            "pytorch_model_hub_mixin",
+            "text-to-speech",
+            "en",
+            "license:apache-2.0",
+            "8-bit",
+            "region:us",
+        ]);
         for (repo, tags, offered) in [
             ("mlx-community/csm-1b-fp16", tagged("sesame"), true),
             ("mlx-community/csm-1b-8bit", tagged("sam"), false),
+            ("mlx-community/csm-1b", csm_tags.clone(), true),
+            ("mlx-community/csm-1b-fp16", csm_tags, true),
+            ("mlx-community/csm-1b-8bit", csm_8bit_tags, false),
         ] {
             let compat = mlx_compatibility_on(
                 repo,

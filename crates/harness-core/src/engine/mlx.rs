@@ -1914,6 +1914,32 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         let m = to_local_model(tts.path(), tts.path().parent().unwrap()).unwrap();
         assert_eq!(m.kind, crate::domain::ModelKind::Pipeline);
         assert_eq!(m.quantization, "8bit");
+        // Deleting the model takes its codec folder with it, and nothing beside it.
+        let library = tempfile::tempdir().unwrap();
+        let model = library
+            .path()
+            .join("mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit");
+        let other = library.path().join("mlx-community/other");
+        for (dir, name) in [
+            (&model, "config.json"),
+            (&model, "model.safetensors"),
+            (&model, "README.md"),
+            (&model, "speech_tokenizer/config.json"),
+            (&model, "speech_tokenizer/model.safetensors"),
+            (&other, "config.json"),
+        ] {
+            let path = dir.join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let body = match name {
+                "config.json" => TTS_CONFIG,
+                "README.md" => TTS_CARD,
+                _ => "x",
+            };
+            std::fs::write(path, body).unwrap();
+        }
+        delete_model_dir(&model, &[library.path().to_path_buf()]).unwrap();
+        assert!(!model.exists() && !model.join("speech_tokenizer").exists());
+        assert!(other.join("config.json").is_file());
 
         // A whisper conversion (an MLX card, a transformers-like config) is a speech model:
         // not a chat model; mlx-audio recognizes with it (see the next test).

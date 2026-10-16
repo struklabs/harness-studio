@@ -4194,6 +4194,10 @@ const PYTHON_COMPANIONS: [&str; 13] = [
     "spm.model",
 ];
 
+/// Root tensor files a family loads beside its weights: Chatterbox Turbo's default voice
+/// (`conds.safetensors`). Other root tensor files are not downloaded.
+const ROOT_TENSOR_COMPANIONS: [&str; 1] = ["conds.safetensors"];
+
 /// Sub-model folders a checkpoint loads from beside its root weights: Qwen3-TTS's
 /// `speech_tokenizer/` (its audio codec; mlx-audio refuses to speak without it).
 const SUBMODEL_DIRS: [&str; 1] = ["speech_tokenizer"];
@@ -4465,7 +4469,6 @@ fn safetensors_variants(
     let is_safetensors = |f: &F| root(f) && f.path.to_ascii_lowercase().ends_with(".safetensors");
     let consolidated = |f: &F| f.path.to_ascii_lowercase().starts_with("consolidated");
     let mut weights: Vec<&F> = files.iter().filter(|f| is_safetensors(f)).collect();
-    let all_root_safetensors = weights.clone();
     if weights.iter().any(|f| !consolidated(f)) {
         weights.retain(|f| !consolidated(f));
     }
@@ -4494,23 +4497,16 @@ fn safetensors_variants(
         return Ok(Vec::new());
     }
     weights.sort_by(|a, b| a.path.cmp(&b.path));
-    // A root tensor file that is no copy of the weights stays: Chatterbox Turbo's
-    // `conds.safetensors` (its default voice) sits beside `model.safetensors`.
-    let weight_set_name = |f: &F| {
-        let stem = weight_stem(f);
-        ["model", "transformers", "consolidated", "pytorch_model"]
-            .iter()
-            .any(|p| stem.starts_with(p))
+    // A root tensor file a family loads beside its weights ([`ROOT_TENSOR_COMPANIONS`]); any
+    // other root tensor file (a VAE, EMA or precision copy) stays on the Hub.
+    let tensor_companion = |f: &F| {
+        root(f)
+            && ROOT_TENSOR_COMPANIONS.contains(&f.path.to_ascii_lowercase().as_str())
+            && !weights.iter().any(|w| w.path == f.path)
     };
     let mut companions: Vec<&F> = files
         .iter()
-        .filter(|f| !is_weights(f) && is_safetensors_repo_file(&f.path))
-        .chain(
-            all_root_safetensors
-                .iter()
-                .copied()
-                .filter(|f| !weights.iter().any(|w| w.path == f.path) && !weight_set_name(f)),
-        )
+        .filter(|f| (!is_weights(f) && is_safetensors_repo_file(&f.path)) || tensor_companion(f))
         .collect();
     companions.sort_by(|a, b| a.path.cmp(&b.path));
     let parts: Vec<&F> = weights.into_iter().chain(companions).collect();
@@ -5853,6 +5849,25 @@ mod tests {
         let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
         assert!(names.contains(&"conds.safetensors"), "{names:?}");
         assert!(names.contains(&"model.safetensors"), "{names:?}");
+        // Any other root tensor file stays on the Hub: a VAE, EMA weights, a precision copy of
+        // `weights.safetensors`.
+        let others = vec![
+            file("config.json", 700),
+            lfs("weights.safetensors", 400, &oid),
+            lfs("weights.fp16.safetensors", 200, &oid),
+        ];
+        let v = safetensors_variants("a/b", &others).unwrap();
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(names, ["weights.safetensors", "config.json"]);
+        let model_and_others = vec![
+            file("config.json", 700),
+            lfs("model.safetensors", 400, &oid),
+            lfs("vae.safetensors", 100, &oid),
+            lfs("ema.safetensors", 400, &oid),
+        ];
+        let v = safetensors_variants("a/b", &model_and_others).unwrap();
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(names, ["model.safetensors", "config.json"]);
         // A sharded model keeps its shards and drops a precision copy.
         let sharded = vec![
             file("config.json", 700),
@@ -5900,6 +5915,9 @@ mod tests {
             lfs("speech_tokenizer/model.safetensors", 680, &oid),
             file("speech_tokenizer/preprocessor_config.json", 234),
             file("other/model.safetensors", 1),
+            file("speech_tokenizer/sub/x.json", 1),
+            file("speech_tokenizer/../x.json", 1),
+            file("speech_tokenizer\\sub\\x.json", 1),
         ];
         let v =
             safetensors_variants("mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit", &qwen_tts).unwrap();
