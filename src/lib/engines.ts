@@ -15,7 +15,7 @@ export interface EngineSpec {
   /** Managed Python environment of `pyenv` families (its CPU build when it has a GPU one). */
   env?: string;
   /** Locale key of the one-line description shown on the Installed Runtime page. */
-  descKey: 'eng.desc_audio_cpp' | 'eng.desc_crispasr' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio';
+  descKey: 'eng.desc_audio_cpp' | 'eng.desc_crispasr' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio' | 'eng.desc_mflux';
 }
 
 export const ENGINES: readonly EngineSpec[] = [
@@ -32,6 +32,8 @@ export const ENGINES: readonly EngineSpec[] = [
   { family: 'mlx-vlm', method: 'pyenv', env: 'mlx-vlm', descKey: 'eng.desc_mlx_vlm' },
   // Text to speech with mlx-audio: it runs in the mlx-vlm environment (one install for both).
   { family: 'mlx-audio', method: 'pyenv', env: 'mlx-vlm', descKey: 'eng.desc_mlx_audio' },
+  // FLUX.2 [klein] image generation and editing with mflux (its own environment).
+  { family: 'mflux', method: 'pyenv', env: 'mflux', descKey: 'eng.desc_mflux' },
 ];
 
 /**
@@ -80,7 +82,7 @@ export function onnxUnsupportedText(p: { os: string; arch: string; runtime?: str
   key: 'ort.unsupported_intel_mac' | 'ort.unsupported_platform' | 'mlx.unsupported_macos';
   params: { platform: string };
 } {
-  if (p.runtime === 'mlx' || p.runtime === 'mlx-vlm' || p.runtime === 'mlx-audio') return { key: 'mlx.unsupported_macos', params: { platform: `${p.os}/${p.arch}` } };
+  if (p.runtime === 'mlx' || p.runtime === 'mlx-vlm' || p.runtime === 'mlx-audio' || p.runtime === 'mflux') return { key: 'mlx.unsupported_macos', params: { platform: `${p.os}/${p.arch}` } };
   const intelMac = p.os === 'macos' && p.arch === 'x86_64';
   return { key: intelMac ? 'ort.unsupported_intel_mac' : 'ort.unsupported_platform', params: { platform: `${p.os}/${p.arch}` } };
 }
@@ -88,7 +90,7 @@ export function onnxUnsupportedText(p: { os: string; arch: string; runtime?: str
 /** One route a server serves directly (`path` under `/v1`, or under the host when `root`). */
 export interface DirectRoute {
   method: 'GET' | 'POST' | 'GET · POST';
-  labelKey: 'conn.ep_base_url_label' | 'conn.ep_models_label' | 'conn.ep_chat_label' | 'conn.ep_completions_label' | 'conn.ep_speech_label';
+  labelKey: 'conn.ep_base_url_label' | 'conn.ep_models_label' | 'conn.ep_chat_label' | 'conn.ep_completions_label' | 'conn.ep_speech_label' | 'conn.ep_images_label' | 'conn.ep_image_edits_label';
   path: string;
 }
 
@@ -108,6 +110,8 @@ export function workerRoutes(family: string | null | undefined): DirectRoute[] |
       return [...base, { method: 'POST', labelKey: 'conn.ep_chat_label', path: '/chat/completions' }];
     case 'mlx-audio':
       return [...base, { method: 'POST', labelKey: 'conn.ep_speech_label', path: '/audio/speech' }];
+    case 'mflux':
+      return [...base, { method: 'POST', labelKey: 'conn.ep_images_label', path: '/images/generations' }, { method: 'POST', labelKey: 'conn.ep_image_edits_label', path: '/images/edits' }];
     default:
       return null;
   }
@@ -119,6 +123,7 @@ const ENGINE_LABELS: Record<string, string> = {
   mlx: 'MLX',
   'mlx-vlm': 'MLX-VLM',
   'mlx-audio': 'MLX Audio',
+  mflux: 'mflux',
   'python-hf': 'Python (HF)',
   'audio.cpp': 'audio.cpp',
   crispasr: 'CrispASR',

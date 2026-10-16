@@ -405,17 +405,44 @@ On the Hub, an MLX `audio-to-audio` repo whose tags name `mel_band_roformer` is 
 The worker is `mlx_audio_worker.py --task separate`. It listens on 127.0.0.1 and requires a key. For each request it:
 1. Resamples the input to 44.1 kHz stereo; mono input is copied to both channels.
 2. Separates the audio in the model's 8-second windows with 50% overlap, blending the windows by overlap-add.
-3. Refuses audio over 300 seconds. Two stereo stems of that length stay under the gateway's 128 MiB output limit.
+3. Refuses audio over 300 seconds, by the length the WAV's header declares, before decoding; a WAV without samples is refused too (400). Two stereo stems of that length stay under the gateway's 128 MiB output limit.
 
 The gateway's request timeout is checked between windows and ends a long job with a 504.
 
-Models that audio.cpp runs keep their route unchanged. With audio.cpp off, only these separators are served.
+Models that audio.cpp runs keep their route unchanged. With audio.cpp off, only these separators are served: when none is defined, a request is refused before its body is read, as before.
 
 Playground > Speech > Process Audio lists both engines' models, each labelled with its engine.
 
 Measured on an M1 8 GB:
 - 4.5 s of speech took 1.5 to 4.3 s;
 - 21.6 s took 12 s, including the model load.
+
+### Image Generation with mflux (Apple Silicon)
+
+On Apple Silicon (macOS 14+), FLUX.2 [klein] models in mflux's format draw from text and edit images with the mflux runtime (family `mflux`, its own managed environment, about 1.1 GB). Examples:
+- `mlx-community/FLUX.2-Klein-4B-3bit` (3.6 GB);
+- `mlx-community/FLUX.2-Klein-4B-4bit` and `mflux-community/flux2-klein-4b-mflux-q4` (4.6 GB).
+
+The 4B models are Apache-2.0. The 9B ones (`flux2-klein-9b*`, `flux-2-klein-base-9b*`) use Black Forest Labs' non-commercial license: the Hub shows each repo's license, and the chip's tooltip and the runtime's description say so. Qwen-Image-Edit and FLUX.1 Kontext conversions in mflux's format are not offered.
+
+The Hub marks a repo "Draws with mflux" when its tags name a FLUX.2 [klein] base model and its files are mflux's layout (`transformer/`, `text_encoder/`, `vae/` with numbered shards and an index, `tokenizer/`). The download takes the card and those four folders. The library lists the folder as an image model, and Playground > Image shows it.
+
+`POST /v1/images/generations` and `POST /v1/images/edits` serve these models with OpenAI's fields:
+- `prompt`, `n` (1–4), `size` (both sides 64–2048 and a multiple of 16), `seed`, `steps` (1–50), `guidance` (0–20), `response_format`; an edit also takes `image` (1–4 images, used as references) and `strength`.
+- There is no negative prompt, mask, sampler, scheduler or `cfg_scale`; such a field gets a 400 that names it.
+- Without a size, a generation gets the largest of 1024, 768, 512, 384 and 256 square that fits this Mac's memory, and an edit keeps its first image's shape.
+- Steps default to 4 for the distilled models and 28 for the base ones.
+
+Before each image the worker estimates its memory (the weights, plus what grows with the image) and refuses a size that does not fit, naming the largest that does. The estimate was fitted on an M1 8 GB with the 3-bit 4B; there, 512×512 is the largest that fits.
+
+Generation stops between denoising steps when the worker's time limit passes (504; 30 s under the gateway's request timeout, at most 600 s) or when the client goes away. The Playground's Stop button does that.
+
+The worker runs Python only from the hash-pinned environment, loads only the folder it was started with, works offline, listens on 127.0.0.1 and asks for each run's key.
+
+Measured on an M1 8 GB with `FLUX.2-Klein-4B-3bit`:
+- 512×512, 4 steps: 43 s (peak 5.7 GB);
+- an edit of a 512×512 image at 512×512: 68 s (peak 5.8 GB);
+- 256×256, 2 steps through the gateway: 22 s with the model load.
 
 ## Experimental CrispASR Speech Recognition
 

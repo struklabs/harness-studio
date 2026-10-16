@@ -6,6 +6,9 @@
 //!   environment;
 //! * `mlx-vlm`: a vision-language folder (its config has a `vision_config`), served by
 //!   `python/mlx_vlm_worker.py` around mlx-vlm's server from the managed `mlx-vlm` environment;
+//! * `mflux`: a FLUX.2 [klein] folder in mflux's saved format (`mflux-community/...`), served by
+//!   `python/mflux_worker.py` (text to image and image editing) from the managed `mflux`
+//!   environment;
 //! * `mlx-audio`: a text-to-speech folder of mlx-audio (Qwen3-TTS, Chatterbox Turbo, Soprano,
 //!   VoxCPM2, Spark-TTS) or a speech recognition one
 //!   (Whisper, Parakeet), served by `python/mlx_audio_worker.py` (Harness's own small server
@@ -46,6 +49,12 @@ use crate::vram::{
 /// Family id of the MLX engine.
 pub const MLX: &str = "mlx";
 
+/// Family id of the MLX image engine (mflux).
+pub const MFLUX: &str = "mflux";
+
+/// The managed environment the image worker runs in (`crate::pyenv::envs::MFLUX`).
+pub const MFLUX_ENV: &str = "mflux";
+
 /// Family id of the MLX vision engine (mlx-vlm).
 pub const MLX_VLM: &str = "mlx-vlm";
 
@@ -63,6 +72,28 @@ pub const VLM_ENV: &str = "mlx-vlm";
 const WORKER: &str = include_str!("../../python/mlx_worker.py");
 const VLM_WORKER: &str = include_str!("../../python/mlx_vlm_worker.py");
 const AUDIO_WORKER: &str = include_str!("../../python/mlx_audio_worker.py");
+const IMAGE_WORKER: &str = include_str!("../../python/mflux_worker.py");
+
+/// The FLUX.2 [klein] models the image engine runs: the base model a conversion's card names
+/// (lower case) and mflux's name for it (`ModelConfig.from_name`). The worker has the same table
+/// (`MODELS` in `python/mflux_worker.py`).
+pub const MFLUX_MODELS: &[(&str, &str)] = &[
+    ("black-forest-labs/flux.2-klein-4b", "flux2-klein-4b"),
+    (
+        "black-forest-labs/flux.2-klein-base-4b",
+        "flux2-klein-base-4b",
+    ),
+    ("black-forest-labs/flux.2-klein-9b", "flux2-klein-9b"),
+    ("black-forest-labs/flux.2-klein-9b-kv", "flux2-klein-9b-kv"),
+    (
+        "black-forest-labs/flux.2-klein-base-9b",
+        "flux2-klein-base-9b",
+    ),
+];
+
+/// The weight folders of an mflux folder, each safetensors shards with their index; the
+/// tokenizer is in `tokenizer/`.
+pub const MFLUX_PARTS: &[&str] = &["transformer", "text_encoder", "vae"];
 
 /// mlx-audio text-to-speech architectures Harness runs (see [`tts_type`]): the ones checked end
 /// to end. OuteTTS, Orpheus, Dia and CSM (`sesame`) load a codec (and CSM its text tokenizer and
@@ -370,12 +401,14 @@ fn whisper_processor_for_vocab(n_vocab: u64) -> Option<Codec> {
 /// multilingual one. `None` for any other name: a fine-tune (`kotoba-whisper-v2.0`) may have
 /// another vocabulary, so it is not guessed.
 fn whisper_processor_for_repo(id: &str) -> Option<Codec> {
+    static SIZE_NAME: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(
+            r"(^|[-_])whisper-(tiny|base|small|medium|large-v3-turbo|large-v3|large-v2|large|turbo)(\.en)?([-_]|$)",
+        )
+        .expect("a valid pattern")
+    });
     let name = id.rsplit('/').next().unwrap_or(id).to_ascii_lowercase();
-    let re = regex::Regex::new(
-        r"(^|[-_])whisper-(tiny|base|small|medium|large-v3-turbo|large-v3|large-v2|large|turbo)(\.en)?([-_]|$)",
-    )
-    .ok()?;
-    let caps = re.captures(&name)?;
+    let caps = SIZE_NAME.captures(&name)?;
     let size = caps.get(2)?.as_str();
     Some(if size.starts_with("large-v3") || size == "turbo" {
         WHISPER_LARGE_V3_PROCESSOR
@@ -718,6 +751,8 @@ pub enum Flavour {
     Vision,
     /// `mlx-audio`: text to speech or speech recognition.
     Audio,
+    /// `mflux`: text to image and image editing.
+    Image,
 }
 
 /// An MLX engine: the text one (`mlx`), the vision one (`mlx-vlm`) or the audio one
@@ -740,11 +775,16 @@ impl MlxEngine {
     pub const AUDIO: MlxEngine = MlxEngine {
         flavour: Flavour::Audio,
     };
+    /// `mflux`.
+    pub const IMAGE: MlxEngine = MlxEngine {
+        flavour: Flavour::Image,
+    };
 
     fn env(&self) -> &'static str {
         match self.flavour {
             Flavour::Text => ENV,
             Flavour::Vision | Flavour::Audio => VLM_ENV,
+            Flavour::Image => MFLUX_ENV,
         }
     }
 
@@ -754,6 +794,7 @@ impl MlxEngine {
             Flavour::Text => is_model_dir(path),
             Flavour::Vision => is_vlm_dir(path),
             Flavour::Audio => is_audio_dir(path),
+            Flavour::Image => is_mflux_dir(path),
         }
     }
 }
@@ -764,6 +805,7 @@ pub fn catalog(flavour: Flavour) -> &'static ParamCatalog {
     static TEXT: OnceLock<ParamCatalog> = OnceLock::new();
     static VISION: OnceLock<ParamCatalog> = OnceLock::new();
     static AUDIO: OnceLock<ParamCatalog> = OnceLock::new();
+    static IMAGE: OnceLock<ParamCatalog> = OnceLock::new();
     let parse = |text: &str| -> ParamCatalog {
         toml::from_str(text).expect("the MLX catalogs are valid (unit tested)")
     };
@@ -771,6 +813,7 @@ pub fn catalog(flavour: Flavour) -> &'static ParamCatalog {
         Flavour::Text => TEXT.get_or_init(|| parse(include_str!("../params_mlx.toml"))),
         Flavour::Vision => VISION.get_or_init(|| parse(include_str!("../params_mlx_vlm.toml"))),
         Flavour::Audio => AUDIO.get_or_init(|| parse(include_str!("../params_mlx_audio.toml"))),
+        Flavour::Image => IMAGE.get_or_init(|| parse(include_str!("../params_mflux.toml"))),
     }
 }
 
@@ -780,10 +823,12 @@ fn documented_caps(flavour: Flavour) -> &'static RuntimeCapabilities {
     static TEXT: OnceLock<RuntimeCapabilities> = OnceLock::new();
     static VISION: OnceLock<RuntimeCapabilities> = OnceLock::new();
     static AUDIO: OnceLock<RuntimeCapabilities> = OnceLock::new();
+    static IMAGE: OnceLock<RuntimeCapabilities> = OnceLock::new();
     let cell = match flavour {
         Flavour::Text => &TEXT,
         Flavour::Vision => &VISION,
         Flavour::Audio => &AUDIO,
+        Flavour::Image => &IMAGE,
     };
     cell.get_or_init(|| {
         let help: String = catalog(flavour)
@@ -831,6 +876,12 @@ fn card_field(dir: &Path, key: &str) -> Option<String> {
 
 /// The `tags:` list of the model card's front matter (`- mlx` lines), lower case.
 fn card_tags(dir: &Path) -> Vec<String> {
+    card_list(dir, "tags")
+}
+
+/// A list field of the model card's front matter, lower case: its `- item` lines, or the one
+/// value of `key: value`.
+fn card_list(dir: &Path, key: &str) -> Vec<String> {
     let Ok(text) = std::fs::read_to_string(dir.join("README.md")) else {
         return Vec::new();
     };
@@ -838,24 +889,31 @@ fn card_tags(dir: &Path) -> Vec<String> {
     if lines.next().map(str::trim) != Some("---") {
         return Vec::new();
     }
-    let mut tags = Vec::new();
-    let mut in_tags = false;
+    let unquote = |v: &str| {
+        v.trim()
+            .trim_matches(|c| c == '"' || c == '\'')
+            .to_ascii_lowercase()
+    };
+    let prefix = format!("{key}:");
+    let mut items = Vec::new();
+    let mut in_list = false;
     for line in lines {
         let line = line.trim_end();
         if line.trim() == "---" {
             break;
         }
-        if let Some(item) = line.trim_start().strip_prefix("- ").filter(|_| in_tags) {
-            tags.push(
-                item.trim()
-                    .trim_matches(|c| c == '"' || c == '\'')
-                    .to_ascii_lowercase(),
-            );
+        if let Some(item) = line.trim_start().strip_prefix("- ").filter(|_| in_list) {
+            items.push(unquote(item));
+        } else if let Some(value) = line.strip_prefix(&prefix) {
+            in_list = value.trim().is_empty();
+            if !in_list {
+                items.push(unquote(value));
+            }
         } else {
-            in_tags = line == "tags:";
+            in_list = false;
         }
     }
-    tags
+    items
 }
 
 /// Bits per weight of MLX's quantization (`"quantization": {"group_size": 64, "bits": 4}`).
@@ -1105,7 +1163,74 @@ pub fn is_vlm_dir(path: &Path) -> bool {
 
 /// Whether `path` is an MLX folder of any MLX engine.
 pub fn is_any_model_dir(path: &Path) -> bool {
-    mlx_vision(path).is_some() || is_audio_dir(path)
+    mlx_vision(path).is_some() || is_audio_dir(path) || is_mflux_dir(path)
+}
+
+/// mflux's name of a FLUX.2 [klein] base model repo (`black-forest-labs/FLUX.2-klein-4B` ->
+/// `flux2-klein-4b`), `None` for any other repo.
+pub fn mflux_model_for_base(base: &str) -> Option<&'static str> {
+    let base = base.trim().to_ascii_lowercase();
+    MFLUX_MODELS
+        .iter()
+        .find(|(repo, _)| *repo == base)
+        .map(|(_, name)| *name)
+}
+
+/// The mflux model of a folder: the first `base_model` of its card that [`MFLUX_MODELS`] knows.
+pub fn mflux_model(dir: &Path) -> Option<&'static str> {
+    card_list(dir, "base_model")
+        .iter()
+        .find_map(|b| mflux_model_for_base(b))
+}
+
+/// The safetensors of an mflux folder's weight folders ([`MFLUX_PARTS`]).
+pub fn mflux_weight_files(dir: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = MFLUX_PARTS
+        .iter()
+        .flat_map(|part| {
+            std::fs::read_dir(dir.join(part))
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.is_file() && p.extension().is_some_and(|x| x == "safetensors"))
+        })
+        .collect();
+    files.sort();
+    files
+}
+
+/// The quantization mflux saved a folder with (`quantization_level` in the metadata of its
+/// transformer's index), `None` for anything else (a diffusers folder has no such metadata).
+fn mflux_quantization(dir: &Path) -> Option<String> {
+    let index = read_json(&dir.join("transformer").join("model.safetensors.index.json"))?;
+    let meta = index.get("metadata")?;
+    meta.get("mflux_version")?;
+    Some(match meta.get("quantization_level") {
+        Some(serde_json::Value::String(q)) => q.clone(),
+        Some(serde_json::Value::Number(q)) => q.to_string(),
+        _ => String::new(),
+    })
+}
+
+/// Whether `path` is a folder the `mflux` engine runs: a FLUX.2 [klein] model ([`mflux_model`])
+/// saved by mflux (`transformer/`, `text_encoder/` and `vae/` with an index each, mflux's
+/// metadata in the transformer's, and `tokenizer/`), not a diffusers pipeline.
+pub fn is_mflux_dir(path: &Path) -> bool {
+    path.is_dir()
+        && !path.join("model_index.json").exists()
+        && mflux_model(path).is_some()
+        && mflux_quantization(path).is_some()
+        && path.join("tokenizer").join("tokenizer.json").is_file()
+        && MFLUX_PARTS.iter().all(|part| {
+            let dir = path.join(part);
+            dir.join("model.safetensors.index.json").is_file()
+                && std::fs::read_dir(&dir)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .any(|e| e.path().extension().is_some_and(|x| x == "safetensors"))
+        })
 }
 
 /// The flavour that runs an MLX folder, `None` for other paths.
@@ -1113,6 +1238,7 @@ pub fn flavour_of(path: &Path) -> Option<Flavour> {
     match mlx_vision(path) {
         Some(true) => Some(Flavour::Vision),
         Some(false) => Some(Flavour::Text),
+        None if is_mflux_dir(path) => Some(Flavour::Image),
         None => is_audio_dir(path).then_some(Flavour::Audio),
     }
 }
@@ -1127,6 +1253,9 @@ pub fn inspect(dir: &Path) -> Option<super::mistralrs::ModelDirInfo> {
 /// The library's view of an MLX folder: a chat model like mistral.rs's, or (speech) a pipeline
 /// model like the Python engine's, with MLX's bits as its quantization (`4bit`).
 fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> {
+    if is_mflux_dir(dir) {
+        return Some(mflux_local_model(dir, root));
+    }
     let stt = is_stt_dir(dir);
     // A speech config is often no text generator's (Whisper's MLX port, NeMo's Parakeet,
     // Chatterbox, VoxCPM2): its folder is described by its weights and `model_type` alone.
@@ -1161,6 +1290,32 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
         model.architecture = Some(family);
     }
     Some(model)
+}
+
+/// The library's view of an mflux folder: a text-to-image pipeline model (it edits images too)
+/// with mflux's bits as its quantization (`4bit`).
+fn mflux_local_model(dir: &Path, root: &Path) -> crate::models::LocalModel {
+    let weights = mflux_weight_files(dir);
+    let info = super::mistralrs::ModelDirInfo {
+        weights_bytes: weights
+            .iter()
+            .filter_map(|p| std::fs::metadata(p).ok())
+            .map(|m| m.len())
+            .sum(),
+        weights,
+        architecture: mflux_model(dir).map(str::to_string),
+        complete: true,
+        ..Default::default()
+    };
+    let mut model = super::mistralrs::to_local_model(dir, &info, root);
+    model.kind = crate::domain::ModelKind::Pipeline;
+    model.context_length = None;
+    model.task = Some("text-to-image".into());
+    model.quantization = match mflux_quantization(dir).as_deref() {
+        Some(q) if !q.is_empty() && q.chars().all(|c| c.is_ascii_digit()) => format!("{q}bit"),
+        _ => String::new(),
+    };
+    model
 }
 
 /// Bytes of the safetensors under `dir`, one folder level down included.
@@ -1263,6 +1418,7 @@ pub fn family_of(path: &Path) -> Option<&'static str> {
         Flavour::Text => MLX,
         Flavour::Vision => MLX_VLM,
         Flavour::Audio => MLX_AUDIO,
+        Flavour::Image => MFLUX,
     })
 }
 
@@ -1275,6 +1431,7 @@ pub fn worker_script(flavour: Flavour) -> Result<PathBuf, String> {
         Flavour::Text => (ENV, "mlx_worker.py", WORKER),
         Flavour::Vision => (VLM_ENV, "mlx_vlm_worker.py", VLM_WORKER),
         Flavour::Audio => (VLM_ENV, "mlx_audio_worker.py", AUDIO_WORKER),
+        Flavour::Image => (MFLUX_ENV, "mflux_worker.py", IMAGE_WORKER),
     };
     let dir = crate::pyenv::envs::env_dir_in(&crate::pyenv::envs::root(), env);
     let path = dir.join(name);
@@ -1310,6 +1467,11 @@ pub fn audio_binary() -> Result<PathBuf, String> {
     MlxEngine::AUDIO.binary()
 }
 
+/// [`binary`] of the image engine (the `mflux` environment).
+pub fn mflux_binary() -> Result<PathBuf, String> {
+    MlxEngine::IMAGE.binary()
+}
+
 impl MlxEngine {
     /// The interpreter of this flavour's environment (see [`binary`]).
     pub fn binary(&self) -> Result<PathBuf, String> {
@@ -1331,9 +1493,20 @@ impl MlxEngine {
     }
 }
 
-/// Unified memory a launch takes: the weights and a margin for the KV cache and MLX itself.
+/// The weights a launch of `dir` loads: an mflux folder's parts, else the folder's own
+/// safetensors (or mlx-examples' npz).
+fn launch_weight_files(dir: &Path) -> Vec<PathBuf> {
+    if is_mflux_dir(dir) {
+        mflux_weight_files(dir)
+    } else {
+        audio_weight_files(dir)
+    }
+}
+
+/// Unified memory a launch takes: the weights and a margin for the KV cache and MLX itself. An
+/// image's own share (it grows with the size asked for) is checked by the worker per request.
 pub fn vram_need(config: &LaunchConfig) -> u64 {
-    let weights: u64 = audio_weight_files(&config.model_path)
+    let weights: u64 = launch_weight_files(&config.model_path)
         .iter()
         .filter_map(|p| std::fs::metadata(p).ok())
         .map(|m| m.len())
@@ -1347,6 +1520,7 @@ impl Engine for MlxEngine {
             Flavour::Text => MLX,
             Flavour::Vision => MLX_VLM,
             Flavour::Audio => MLX_AUDIO,
+            Flavour::Image => MFLUX,
         }
     }
 
@@ -1476,7 +1650,7 @@ impl ServerEngine for MlxEngine {
                 .model_path
                 .as_deref()
                 .map(|p| {
-                    audio_weight_files(Path::new(p))
+                    launch_weight_files(Path::new(p))
                         .iter()
                         .filter_map(|f| std::fs::metadata(f).ok())
                         .map(|m| m.len())
@@ -1542,7 +1716,8 @@ fn prompt_cache_bytes(need: u64, budget: &crate::vram::MemoryBudget) -> u64 {
 /// Longest generation of an audio request (`--max-seconds`) when the user set none: 600 s (about
 /// ten minutes of reading), 30 s under the gateway's request timeout, so the worker answers the
 /// audio made by then before the gateway gives up on the request (a 504 would lose it all). It
-/// bounds transcriptions of the same worker as well (Whisper / Parakeet: a 504 after it). The
+/// bounds transcriptions of the same worker as well (Whisper / Parakeet: a 504 after it), and
+/// an image request of the mflux worker (checked between denoising steps: a 504). The
 /// gateway timeout is read when the worker starts: a change in Settings applies from its next
 /// start.
 fn audio_max_seconds(gateway_timeout_secs: u32) -> u32 {
@@ -1612,7 +1787,7 @@ fn build_args(
         args.push("--prompt-cache-bytes".into());
         args.push(prompt_cache_bytes(vram_need(config), &budget).to_string());
     }
-    if flavour == Flavour::Audio
+    if matches!(flavour, Flavour::Audio | Flavour::Image)
         && !args
             .iter()
             .any(|a| a.split('=').next() == Some("--max-seconds"))
@@ -1623,7 +1798,7 @@ fn build_args(
         args.push("--max-seconds".into());
         args.push(audio_max_seconds(gateway).to_string());
     }
-    if flavour != Flavour::Audio
+    if matches!(flavour, Flavour::Text | Flavour::Vision)
         && !args
             .iter()
             .any(|a| a.split('=').next() == Some("--max-tokens"))
@@ -1659,7 +1834,12 @@ pub(crate) mod tests {
 
     #[test]
     fn catalog_parses() {
-        for flavour in [Flavour::Text, Flavour::Vision, Flavour::Audio] {
+        for flavour in [
+            Flavour::Text,
+            Flavour::Vision,
+            Flavour::Audio,
+            Flavour::Image,
+        ] {
             assert!(!catalog(flavour).params.is_empty());
         }
     }
@@ -2570,6 +2750,20 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
                 "openai/whisper-tiny.en",
             ),
             ("mlx-community/whisper-tiny", "openai/whisper-small"),
+            ("mlx-community/whisper-base-mlx", "openai/whisper-small"),
+            (
+                "mlx-community/whisper-small-mlx-8bit",
+                "openai/whisper-small",
+            ),
+            ("mlx-community/whisper-large-mlx", "openai/whisper-small"),
+            (
+                "mlx-community/whisper-large-v3-turbo-4bit",
+                "openai/whisper-large-v3",
+            ),
+            (
+                "mlx-community/whisper-tiny.en-8bit",
+                "openai/whisper-tiny.en",
+            ),
         ] {
             assert_eq!(
                 whisper_processor_for_repo(repo).map(|c| c.repo),
@@ -3973,6 +4167,46 @@ print("bad", req({{"request": {{"audio_base64": "!!"}}}}))
 print("short", w.windows(100, 352800, 2))
 print("long", w.windows(10, 4, 2))
 print("exact", w.windows(8, 4, 2))
+
+# The WAV's header is checked before anything is decoded.
+import types
+class Mini:
+    SampleFormat = types.SimpleNamespace(FLOAT32="f32")
+    def __init__(self, rate, frames):
+        self.info = types.SimpleNamespace(sample_rate=rate, num_frames=frames)
+        self.decoded = 0
+    def wav_get_info(self, audio):
+        return self.info
+    def decode(self, audio, **kw):
+        self.decoded += 1
+        raise RuntimeError("decoded")
+wav = b"RIFF\x00\x00\x00\x00WAVEfmt "
+for name, audio, mini in [("long header", wav, Mini(44100, 44100 * 301)), ("no frames", wav, Mini(44100, 0)),
+                          ("not wav", b"fLaC" + b"\x00" * 8, Mini(44100, 10)), ("broken", wav, Mini(44100, 10))]:
+    try:
+        w.decode_stereo(audio, 44100, 300, mini, None)
+    except w.Refused as e:
+        print(name, "refused:", e, "decoded", mini.decoded)
+
+# The stems come back as `vocals` and `instrumental`, each one WAV.
+import asyncio, base64
+async def call(app, body):
+    sent, msgs = [], [{{"type": "http.request", "body": body, "more_body": False}}]
+    async def receive():
+        return msgs.pop(0)
+    async def send(m):
+        sent.append(m)
+    await app({{"type": "http", "method": "POST", "path": w.PROCESS_PATH, "headers": [(b"authorization", b"Bearer k")]}}, receive, send)
+    return sent[0]["status"], json.loads(sent[1]["body"])
+def decode(audio):
+    if audio == b"empty":
+        raise w.Refused("the audio has no samples")
+    return "mix"
+app = w.separation_app_for(lambda mix: (mix + ":v", mix + ":i"), decode, lambda stem: stem.encode(), "sep")
+status, body = asyncio.run(call(app, json.dumps({{"model": "sep", "request": {{"audio_base64": "UklGRg=="}}}}).encode()))
+print("stems", status, [(o["id"], base64.b64decode(o["audio"])) for o in body["named_audio_outputs"]])
+status, body = asyncio.run(call(app, json.dumps({{"request": {{"audio_base64": base64.b64encode(b"empty").decode()}}}}).encode()))
+print("empty", status, body["error"]["message"])
 "#,
             dir.path().to_string_lossy()
         );
@@ -3993,6 +4227,81 @@ print("exact", w.windows(8, 4, 2))
             "short [(0, 100)]",
             "long [(0, 4), (2, 6), (4, 8), (6, 10)]",
             "exact [(0, 4), (2, 6), (4, 8)]",
+            "long header refused: the audio is longer than 300 seconds decoded 0",
+            "no frames refused: the audio has no samples decoded 0",
+            "not wav refused: the audio must be WAV decoded 0",
+            "broken refused: the audio could not be decoded decoded 1",
+            "stems 200 [('vocals', b'mix:v'), ('instrumental', b'mix:i')]",
+            "empty 400 the audio has no samples.",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+    }
+
+    /// A Python with NumPy for the worker checks that need it: the system Python when it has
+    /// NumPy, else `HS_TEST_PYTHON` (an environment's interpreter); `None` skips them.
+    fn python_with_numpy() -> Option<String> {
+        let has = |python: &str| {
+            std::process::Command::new(python)
+                .args(["-I", "-c", "import numpy"])
+                .output()
+                .is_ok_and(|o| o.status.success())
+        };
+        system_python()
+            .map(str::to_string)
+            .filter(|p| has(p))
+            .or_else(|| std::env::var("HS_TEST_PYTHON").ok().filter(|p| has(p)))
+    }
+
+    /// Separation blends overlapping windows back into the whole length (a model that halves
+    /// its input gives half the mix as vocals and the other half as instrumental, ends
+    /// included) and stops between windows once its time is up.
+    #[test]
+    fn the_audio_worker_blends_separation_windows() {
+        let Some(python) = python_with_numpy() else {
+            eprintln!("no Python with NumPy, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let script = format!(
+            r#"
+import sys; sys.path.insert(0, {:?}); import mlx_audio_worker as w
+import numpy as np
+mix = np.stack([np.linspace(-1, 1, 10, dtype=np.float32), np.linspace(1, -1, 10, dtype=np.float32)])
+seen = []
+def run(piece):
+    seen.append(piece.shape)
+    return piece * 0.5
+vocals, instrumental = w.make_separate(None, 60, 4, 2, run=run)(mix)
+print("shapes", vocals.shape, instrumental.shape, seen)
+print("halves", bool(np.allclose(vocals, mix / 2, atol=1e-6)), bool(np.allclose(instrumental, mix / 2, atol=1e-6)))
+now = [0.0]
+def slow(piece):
+    now[0] += 10
+    return piece
+try:
+    w.make_separate(None, 15, 4, 2, clock=lambda: now[0], run=slow)(mix)
+except w.TooSlow:
+    print("too slow after", now[0])
+wav = w.wav_bytes_channels(np.stack([mix[0], mix[1]]), 44100)
+print("wav", wav[:4], wav[8:12], int.from_bytes(wav[22:24], "little"), int.from_bytes(wav[24:28], "little"), len(wav) - 44)
+"#,
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(&python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "shapes (2, 10) (2, 10) [(1, 2, 4), (1, 2, 4), (1, 2, 4), (1, 2, 4)]",
+            "halves True True",
+            "too slow after 20.0",
+            "wav b'RIFF' b'WAVE' 2 44100 40",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }
@@ -4108,5 +4417,320 @@ print("resampled", resampled)
         assert!(AUDIO_WORKER.contains("HOST = \"127.0.0.1\""));
         assert!(AUDIO_WORKER.contains("kw[\"trust_remote_code\"] = False"));
         assert!(AUDIO_WORKER.contains("HF_HUB_OFFLINE"));
+    }
+
+    /// `mlx-community/FLUX.2-Klein-4B-3bit`'s layout (weights shortened): the card names the base
+    /// model as a list, the transformer's index has mflux's metadata.
+    fn mflux_folder(card: &str, extra: &[(&str, &str)]) -> tempfile::TempDir {
+        const INDEX: &str =
+            r#"{"metadata":{"quantization_level":"3","mflux_version":"0.17.5"},"weight_map":{}}"#;
+        let mut files = vec![
+            ("README.md", card),
+            ("tokenizer/tokenizer.json", "{}"),
+            ("tokenizer/tokenizer_config.json", "{}"),
+            ("transformer/0.safetensors", "transformer"),
+            ("transformer/model.safetensors.index.json", INDEX),
+            ("text_encoder/0.safetensors", "text"),
+            ("text_encoder/model.safetensors.index.json", INDEX),
+            ("vae/0.safetensors", "vae"),
+            ("vae/model.safetensors.index.json", INDEX),
+        ];
+        files.extend_from_slice(extra);
+        folder(&files)
+    }
+    const KLEIN_CARD: &str = "---\nlicense: apache-2.0\npipeline_tag: image-to-image\ntags:\n- flux\n- diffusion-single-file\nbase_model:\n- black-forest-labs/FLUX.2-klein-4B\n---\n\n3-bit\n";
+
+    #[test]
+    fn mflux_klein_folders_are_the_image_engines() {
+        let klein = mflux_folder(KLEIN_CARD, &[]);
+        let dir = klein.path();
+        assert!(is_mflux_dir(dir));
+        assert_eq!(mflux_model(dir), Some("flux2-klein-4b"));
+        assert_eq!(flavour_of(dir), Some(Flavour::Image));
+        assert_eq!(family_of(dir), Some(MFLUX));
+        assert!(is_any_model_dir(dir) && MlxEngine::IMAGE.runs(dir));
+        assert!(!is_model_dir(dir) && !is_vlm_dir(dir) && !is_audio_dir(dir));
+        assert!(!MlxEngine::TEXT.runs(dir) && !MlxEngine::AUDIO.runs(dir));
+        // The parts' weights, not the tokenizer.
+        assert_eq!(mflux_weight_files(dir).len(), 3);
+        let m = to_local_model(dir, dir.parent().unwrap()).unwrap();
+        assert_eq!(m.kind, crate::domain::ModelKind::Pipeline);
+        assert_eq!(m.task.as_deref(), Some("text-to-image"));
+        assert_eq!(m.quantization, "3bit");
+        assert_eq!(m.architecture.as_deref(), Some("flux2-klein-4b"));
+        assert_eq!(
+            m.size_bytes,
+            ("transformer".len() + "text".len() + "vae".len()) as u64
+        );
+
+        // mflux-community's card: `base_model: <repo>` on one line.
+        let community = mflux_folder(
+            "---\nlicense: other\nbase_model: black-forest-labs/FLUX.2-klein-9B\nlibrary_name: mflux\n---\n",
+            &[],
+        );
+        assert_eq!(mflux_model(community.path()), Some("flux2-klein-9b"));
+        assert!(is_mflux_dir(community.path()));
+
+        // Not mflux's: another base model (Qwen-Image-Edit in mflux's format), a diffusers
+        // pipeline, a part missing, no mflux metadata, no tokenizer.
+        let qwen = mflux_folder("---\nbase_model: Qwen/Qwen-Image-Edit-2511\n---\n", &[]);
+        assert!(!is_mflux_dir(qwen.path()));
+        let diffusers = mflux_folder(KLEIN_CARD, &[("model_index.json", "{}")]);
+        assert!(!is_mflux_dir(diffusers.path()));
+        let no_vae = mflux_folder(KLEIN_CARD, &[]);
+        std::fs::remove_dir_all(no_vae.path().join("vae")).unwrap();
+        assert!(!is_mflux_dir(no_vae.path()));
+        let no_meta = mflux_folder(KLEIN_CARD, &[]);
+        std::fs::write(
+            no_meta
+                .path()
+                .join("transformer/model.safetensors.index.json"),
+            r#"{"metadata":{"total_size":1},"weight_map":{}}"#,
+        )
+        .unwrap();
+        assert!(!is_mflux_dir(no_meta.path()));
+        let no_tokenizer = mflux_folder(KLEIN_CARD, &[]);
+        std::fs::remove_dir_all(no_tokenizer.path().join("tokenizer")).unwrap();
+        assert!(!is_mflux_dir(no_tokenizer.path()));
+        assert!(!is_mflux_dir(&dir.join("README.md")));
+    }
+
+    #[test]
+    fn mflux_launches_get_a_time_limit_and_no_token_limit() {
+        let klein = mflux_folder(KLEIN_CARD, &[]);
+        let config = LaunchConfig {
+            model_path: klein.path().to_path_buf(),
+            host: "127.0.0.1".into(),
+            port: 18080,
+            ..Default::default()
+        };
+        let args = build_args(&config, Path::new("mflux_worker.py"), Flavour::Image)
+            .unwrap()
+            .args;
+        assert_eq!(args[0], "mflux_worker.py");
+        assert!(args.windows(2).any(|w| w[0] == "--max-seconds"), "{args:?}");
+        assert!(
+            !args.iter().any(|a| a == "--max-tokens" || a == "--task"),
+            "{args:?}"
+        );
+        // Its weights are counted from the parts.
+        assert_eq!(
+            vram_need(&config),
+            ("transformer".len() + "text".len() + "vae".len()) as u64 * 6 / 5 + (300 << 20)
+        );
+        assert!(MlxEngine::IMAGE
+            .build_launch(
+                &LaunchConfig {
+                    host: "0.0.0.0".into(),
+                    ..config.clone()
+                },
+                &Default::default(),
+                None
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn mflux_base_models_match_the_workers() {
+        for (base, name) in MFLUX_MODELS {
+            assert!(
+                IMAGE_WORKER.contains(&format!("\"{base}\": \"{name}\"")),
+                "{base}"
+            );
+            assert_eq!(
+                mflux_model_for_base(&base.to_ascii_uppercase()),
+                Some(*name)
+            );
+        }
+        assert_eq!(
+            mflux_model_for_base("black-forest-labs/FLUX.1-Kontext-dev"),
+            None
+        );
+        assert!(IMAGE_WORKER.contains("HOST = \"127.0.0.1\""));
+        assert!(IMAGE_WORKER.contains("HF_HUB_OFFLINE"));
+    }
+
+    /// The image worker's checks, without MLX: requests, image headers, the memory estimate and
+    /// the size it picks, the time limit and the client leaving, and the HTTP app.
+    #[test]
+    fn the_image_worker_checks_requests_memory_and_time() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mflux_worker.py"), IMAGE_WORKER).unwrap();
+        let script = format!(
+            r#"
+import asyncio, base64, json, os, struct, sys, threading, types, zlib
+sys.path.insert(0, {:?}); import mflux_worker as w
+
+def png(width, height):
+    return b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", width, height) + b"\x08\x02\x00\x00\x00"
+
+def jpeg(width, height):
+    return b"\xff\xd8\xff\xe0" + struct.pack(">H", 16) + b"JFIF\x00" + b"\x00" * 9 + b"\xff\xc0" + struct.pack(">HBHH", 17, 8, height, width) + b"\x03" + b"\x00" * 9
+
+def webp(width, height):
+    return b"RIFF" + b"\x00" * 4 + b"WEBPVP8X" + b"\x00" * 8 + (width - 1).to_bytes(3, "little") + (height - 1).to_bytes(3, "little")
+
+print("sizes", w.image_size(png(640, 480)), w.image_size(jpeg(320, 200)), w.image_size(webp(512, 768)), w.image_size(b"GIF89a"))
+
+def check(raw, edit=False):
+    try:
+        r = w.image_request(json.dumps(raw).encode(), edit)
+        return {{k: v for k, v in r.items() if k != "images"}} | {{"images": [s for _, s in r["images"]]}}
+    except w.Refused as e:
+        return "refused: " + str(e)
+
+b64 = lambda b: base64.b64encode(b).decode()
+print("plain", check({{"prompt": " a fox "}}))
+print("full", check({{"model": "m", "prompt": "x", "n": 4, "seed": 9, "steps": 50, "size": "768x512", "guidance": 1.5}}))
+print("auto", check({{"prompt": "x", "size": "auto", "seed": -1}})["size"])
+for name, raw in [("steps", {{"prompt": "x", "steps": 51}}), ("n", {{"prompt": "x", "n": 5}}),
+                  ("size16", {{"prompt": "x", "size": "520x520"}}), ("big", {{"prompt": "x", "size": "4096x4096"}}),
+                  ("negative", {{"prompt": "x", "negative_prompt": "y"}}), ("empty", {{"prompt": " "}}),
+                  ("bool", {{"prompt": "x", "steps": True}}), ("image on generation", {{"prompt": "x", "image": "a"}})]:
+    print(name, check(raw))
+print("edit", check({{"prompt": "x", "image": [b64(png(600, 400)), "data:image/jpeg;base64," + b64(jpeg(64, 64))], "strength": 0.5}}, True))
+print("edit none", check({{"prompt": "x"}}, True))
+print("edit five", check({{"prompt": "x", "image": [b64(png(64, 64))] * 5}}, True))
+print("edit huge", check({{"prompt": "x", "image": b64(png(5000, 64))}}, True))
+print("edit gif", check({{"prompt": "x", "image": b64(b"GIF89a" + b"\x00" * 20)}}, True))
+print("edit base64", check({{"prompt": "x", "image": "not base64!"}}, True))
+
+# Fitted on an M1 8 GB: 3.4 GB of weights, 5.71 GB at 512x512.
+GB = 1e9
+weights, budget = int(3.43 * GB), int(6.44 * GB)
+print("need 512", round(w.memory_need(weights, 512, 512) / GB, 1), "need 256", round(w.memory_need(weights, 256, 256) / GB, 1),
+      "edit 512", round(w.memory_need(weights, 512, 512, [(512, 512)]) / GB, 1),
+      "9b more", w.memory_need(weights, 512, 512, name="flux2-klein-9b") > w.memory_need(weights, 512, 512))
+print("budget", w.memory_budget({{"max_recommended_working_set_size": 5726633984, "memory_size": 8589934592}}))
+print("fit", w.fit_size(weights, budget, "flux2-klein-4b"), w.fit_size(weights, budget, "flux2-klein-4b", [(600, 400)], (600, 400)),
+      w.fit_size(weights, 10 ** 12, "flux2-klein-4b"), w.fit_size(10 ** 12, budget, "flux2-klein-4b"))
+try:
+    w.check_fits(weights, budget, "flux2-klein-4b", 1024, 1024)
+except w.Refused as e:
+    print("too big:", e)
+
+# Generation: the size it picks, seeds, default steps, the time limit and the client leaving.
+now = [0.0]
+clock = lambda: now[0]
+calls, folders = [], []
+class Image:
+    def save(self, buf, format):
+        buf.write(b"PNG")
+def render(models, req, seed, size, paths):
+    calls.append((seed, size, req["steps"], [os.path.basename(p) for p in paths]))
+    folders.extend(os.path.dirname(p) for p in paths)
+    for _ in range(req["steps"]):
+        models.stop.call_in_loop(0, None)
+        now[0] += 10
+    return Image()
+models = types.SimpleNamespace(stop=None)
+gone = threading.Event()
+gen = w.make_generate(models, weights, budget, "flux2-klein-4b", 100, render, clock)
+req = w.image_request(json.dumps({{"prompt": "x", "n": 2, "seed": 4294967295}}).encode(), False)
+print("drawn", gen(req, False, gone), calls, models.stop)
+calls.clear()
+req = w.image_request(json.dumps({{"prompt": "x", "image": b64(png(600, 400)), "steps": 1, "seed": 1}}).encode(), True)
+print("edited", gen(req, True, gone), calls, all(not os.path.exists(f) for f in folders))
+calls.clear()
+base = w.make_generate(models, weights, budget, "flux2-klein-base-4b", 100, render, clock, base_steps=True)
+try:
+    base(w.image_request(b'{{"prompt": "x", "size": "256x256"}}', False), False, gone)
+except w.TooSlow:
+    print("base too slow after", len(calls), "image(s) of", calls[0][2], "steps at", now[0])
+gone.set()
+try:
+    gen(w.image_request(b'{{"prompt": "x", "size": "256x256"}}', False), False, gone)
+except w.Gone:
+    print("gone")
+try:
+    gen(w.image_request(b'{{"prompt": "x", "size": "1024x1024"}}', False), False, threading.Event())
+except w.Refused as e:
+    print("refused before drawing:", str(e)[:40])
+
+# HTTP: the key, a refusal, an answer, and a client that leaves.
+async def call(app, path, body, headers=None, leave=False):
+    sent, msgs = [], [{{"type": "http.request", "body": body, "more_body": False}}]
+    async def receive():
+        if msgs:
+            return msgs.pop(0)
+        if leave:
+            return {{"type": "http.disconnect"}}
+        await asyncio.sleep(3600)
+    async def send(m):
+        sent.append(m)
+    hs = [(b"authorization", b"Bearer k")] if headers is None else headers
+    await app({{"type": "http", "method": "POST" if body else "GET", "path": path, "headers": hs}}, receive, send)
+    if not sent:
+        return "nothing"
+    return sent[0]["status"], json.loads(sent[1]["body"])
+async def run_now(req, edit, gone):
+    if req["prompt"] == "slow":
+        await asyncio.sleep(0.05)
+        if gone.is_set():
+            raise w.Gone()
+    return [b"PNG"]
+app = w.app_for(None, "klein", run=run_now, clock=lambda: 7)
+async def main():
+    print("health", await call(app, "/health", b"", headers=[]))
+    print("no key", (await call(app, "/v1/images/generations", b'{{"prompt": "x"}}', headers=[]))[0])
+    print("models", await call(app, "/v1/models", b""))
+    print("bad", await call(app, "/v1/images/generations", b'{{"prompt": "x", "steps": 0}}'))
+    print("ok", await call(app, "/v1/images/generations", b'{{"prompt": "x"}}'))
+    print("left", await call(app, "/v1/images/edits", json.dumps({{"prompt": "slow", "image": b64(png(64, 64))}}).encode(), leave=True))
+    print("other", (await call(app, "/v1/chat/completions", b"{{}}"))[0])
+asyncio.run(main())
+"#,
+            dir.path().to_string_lossy(),
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "sizes (640, 480) (320, 200) (512, 768) None",
+            "plain {'prompt': 'a fox', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': None, 'images': []}",
+            "full {'prompt': 'x', 'n': 4, 'seed': 9, 'steps': 50, 'size': (768, 512), 'guidance': 1.5, 'strength': None, 'images': []}",
+            "auto None",
+            "steps refused: steps must be a whole number from 1 to 50",
+            "n refused: n must be a whole number from 1 to 4",
+            "size16 refused: size 520x520 is out of range",
+            "big refused: size 4096x4096 is out of range",
+            "negative refused: unsupported field(s) for this model: negative_prompt",
+            "empty refused: prompt is required",
+            "bool refused: steps must be a whole number",
+            "image on generation refused: unsupported field(s) for this model: image",
+            "edit {'prompt': 'x', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': 0.5, 'images': [(600, 400), (64, 64)]}",
+            "edit none refused: image (the picture to edit) is required",
+            "edit five refused: an edit takes at most 4 images",
+            "edit huge refused: image 1 is 5000x64; an edit takes at most 4096 pixels a side",
+            "edit gif refused: image 1 is not a PNG, JPEG or WebP",
+            "edit base64 refused: image 1 is not valid base64",
+            "need 512 5.7 need 256 4.7 edit 512 5.8 9b more True",
+            "budget 6442450944",
+            "fit (512, 512) (592, 400) (1024, 1024) None",
+            "too big: an image of 1024x1024 needs about 16.2 GB and this Mac has about 6.4 GB for it; the largest that fits is 512x512",
+            "drawn [b'PNG', b'PNG'] [(4294967295, (512, 512), 4, []), (0, (512, 512), 4, [])] None",
+            "edited [b'PNG'] [(1, (592, 400), 1, ['image-0.img'])] True",
+            "base too slow after 1 image(s) of 28 steps at",
+            "gone",
+            "refused before drawing: an image of 1024x1024 needs about 16.2",
+            "health (200, {'status': 'ok'})",
+            "no key 401",
+            "models (200, {'object': 'list', 'data': [{'id': 'klein', 'object': 'model', 'owned_by': 'harness'}]})",
+            "bad (400, {'error': {'message': 'steps must be a whole number from 1 to 50.'",
+            "ok (200, {'created': 7, 'data': [{'b64_json': 'UE5H'}]})",
+            "left nothing",
+            "other 404",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
     }
 }

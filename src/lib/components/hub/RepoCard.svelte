@@ -41,6 +41,7 @@
     mlx: { label: 'hub.compat_mlx', title: 'hub.compat_mlx_title', needs: 'hub.compat_needs_mlx', needsTitle: 'hub.compat_needs_mlx_title' },
     'mlx-vlm': { label: 'hub.compat_mlx_vlm', title: 'hub.compat_mlx_vlm_title', needs: 'hub.compat_needs_mlx_vlm', needsTitle: 'hub.compat_needs_mlx_vlm_title' },
     'mlx-audio': { label: 'hub.compat_mlx_audio', title: 'hub.compat_mlx_audio_title', needs: 'hub.compat_needs_mlx_audio', needsTitle: 'hub.compat_needs_mlx_audio_title' },
+    mflux: { label: 'hub.compat_mflux', title: 'hub.compat_mflux_title', needs: 'hub.compat_needs_mflux', needsTitle: 'hub.compat_needs_mflux_title' },
   };
   /** mlx-audio runs speech recognition too: its chip then says it transcribes. */
   const MLX_STT_CHIP = { label: 'hub.compat_mlx_audio_stt', title: 'hub.compat_mlx_audio_stt_title', needs: 'hub.compat_needs_mlx_audio', needsTitle: 'hub.compat_needs_mlx_audio_title' } as const;
@@ -85,7 +86,7 @@
   );
   /** Runtimes that run a repo of a task whose usual family is another one (CrispASR GGUFs, MLX
    *  speech): their verdict stands and the task's "needs whisper.cpp" hint does not apply. */
-  const OWN_RUNTIMES = ['audio.cpp', 'crispasr', 'mlx', 'mlx-vlm', 'mlx-audio'];
+  const OWN_RUNTIMES = ['audio.cpp', 'crispasr', 'mlx', 'mlx-vlm', 'mlx-audio', 'mflux'];
   let compat = $derived(engineCompatibility(repo.compatibility, (family) => engineInstall.installed(family)));
   /** A safetensors chat model: not run as it is, but the drawer offers the GGUF conversion. */
   let convertible = $derived(canConvert(repo));

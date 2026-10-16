@@ -1,4 +1,4 @@
-// The MLX engines (mlx, mlx-vlm, mlx-audio): parameter catalog labels (params_mlx.toml) and the backend error keys of
+// The MLX engines (mlx, mlx-vlm, mlx-audio, mflux): parameter catalog labels (params_mlx.toml) and the backend error keys of
 // its launches.
 const tr = {
   'mlxparam.max_tokens': 'En çok yanıt uzunluğu',
@@ -26,6 +26,12 @@ const tr = {
   'mlxparam.max_chars_help': 'Bir istekte seslendirilecek en çok karakter sayısı (boş = 4096).',
   'mlxparam.max_seconds': 'En uzun üretim süresi (sn)',
   'mlxparam.max_seconds_help': 'Bir istek en çok bu kadar sürer. Seslendirmede süre dolunca o ana kadar üretilen ses döner; konuşma tanımada istek zaman aşımıyla biter (boş = 600; ağ geçidinin istek zaman aşımından 30 sn kısa tutulur).',
+  'mfluxparam.max_seconds_help': 'Bir görsel isteği en çok bu kadar sürer; süre dolunca istek zaman aşımıyla biter (boş = 600; ağ geçidinin istek zaman aşımından 30 sn kısa tutulur).',
+  'hub.compat_mflux': 'mflux ile çizer',
+  'hub.compat_mflux_title': 'Bu FLUX.2 [klein] modeli mflux biçiminde; Apple Silicon’da mflux motoruyla çalışır: ağ geçidinin /v1/images/generations ve /v1/images/edits uç noktaları onunla çizer ve düzenler. Modelin lisansına bakın: 9B sürümleri ticari olmayan kullanım içindir.',
+  'hub.compat_needs_mflux': 'Gerekli: mflux motoru',
+  'hub.compat_needs_mflux_title': 'Bu model mflux motoruyla çalışır; motor henüz kurulu değil. Depoyu açıp kurabilirsiniz (macOS 14+, yaklaşık 1,1 GB).',
+  'lib.kind_image_mflux': 'Görsel (mflux)',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -54,6 +60,12 @@ const en: Record<keyof typeof tr, string> = {
   'mlxparam.max_chars_help': 'How many characters one request may have spoken (empty = 4096).',
   'mlxparam.max_seconds': 'Longest generation (s)',
   'mlxparam.max_seconds_help': 'One request runs for at most this long. Speech returns the audio made so far when the time is up; a transcription ends with a timeout (empty = 600, kept 30 s under the gateway\'s request timeout).',
+  'mfluxparam.max_seconds_help': 'One image request runs for at most this long, then ends with a timeout (empty = 600, kept 30 s under the gateway\'s request timeout).',
+  'hub.compat_mflux': 'Draws with mflux',
+  'hub.compat_mflux_title': 'This FLUX.2 [klein] model is in mflux’s format and runs on the mflux runtime on Apple Silicon: the gateway’s /v1/images/generations and /v1/images/edits draw and edit with it. Check the model’s license: the 9B versions are for non-commercial use.',
+  'hub.compat_needs_mflux': 'Required: mflux runtime',
+  'hub.compat_needs_mflux_title': 'This model runs on the mflux runtime, which isn’t installed yet. Open the repository to install it (macOS 14+, about 1.1 GB).',
+  'lib.kind_image_mflux': 'Image (mflux)',
 };
 
 export default { tr, en };

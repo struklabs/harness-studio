@@ -1170,6 +1170,27 @@ mlx-community'deki mlx-audio modelleriyle metinden konuşma sağlar (Qwen3-TTS: 
   - `harness-gateway/tests/mlx_audio_e2e.rs` (`#[ignore]`, `HS_MLX_TTS_MODEL`) sırayla kütüphaneyi, adı verilmiş bir sesle ağ geçidinden WAV'ı, bir OpenAI ses adını ve bilinmeyen bir sesi dener; sonuncusu modelin seslerini listeleyen bir 400 döner.
 
 
+### 14.12. MLX görsel motoru (mflux, Apple Silicon)
+
+mflux ile FLUX.2 [klein] metinden görsel ve görsel düzenleme; aile `mflux`, `MlxEngine`'in görsel türü (`MlxEngine::IMAGE`, `engine/mlx.rs`). Yalnız Apple Silicon, macOS 14 veya üstü.
+
+- **Çalışma ortamı:** kendi yönetilen ortamı `mflux` (`pyenv::envs::MFLUX`); mflux kendi MLX sürümünü sabitler ve PyTorch ile transformers getirir (yaklaşık 1,1 GB). `python/mflux.in` `mflux==0.22.0` (MIT) ve `uvicorn`'u sabitler; `python/mflux.lock` öteki MLX kilitleri gibi derlenir (`MACOSX_DEPLOYMENT_TARGET=14.0`, `aarch64-apple-darwin`, hash'ler).
+- **Model:** `mlx::is_mflux_dir`:
+  - mflux'un kayıt biçiminde bir klasör: `transformer/`, `text_encoder/` ve `vae/` safetensors ve `model.safetensors.index.json` ile, transformer dizininde mflux meta verisi (`mflux_version`), `tokenizer/tokenizer.json`;
+  - `model_index.json` yok (diffusers boru hattında olur);
+  - kartının `base_model`'ı `mlx::MFLUX_MODELS`'tan biri (FLUX.2 [klein] 4B / 9B / 9B-KV / base 4B / base 9B).
+
+  Kütüphane onu `text-to-image` görevli bir `Pipeline` modeli olarak listeler (düzenleme de yapar); nicemlemesi mflux'un bit sayısıdır.
+- **Worker:** `python/mflux_worker.py`, Harness'in ASGI korumasıyla (anahtar, kökenler, 127.0.0.1, `HF_HUB_OFFLINE`, vekil yok) `GET /health`, `GET /v1/models`, `POST /v1/images/generations` ve `POST /v1/images/edits` (JSON) sunar.
+  - mflux'un düzenleme boru hattını bir kez yükler ve metinden görsel boru hattına aynı modülleri verir: iki rota için ağırlıkların tek kopyası.
+  - Her alanı ve aralığını denetler: adım 1–50, n 1–4, kenarlar 64–2048 ve 16'nın katı, en çok 4 düzenleme görseli; her biri kenarı en çok 4096 piksel ve 16 MB, başlığından okunur. Düzenleme görselleri istekten sonra silinen özel bir geçici klasöre yazılır.
+  - `memory_need` bir görselin tepe belleğini tahmin eder: ağırlıklar × 1,31, görselin belirteçleriyle büyüyen terimler (doğrusal ve VAE'nin karesel terimi) ve başvuru belirteçleri; 9B transformer'ın terimleri × 1,6. M1 8 GB'ta ölçülerek kuruldu (FLUX.2-klein-4B 3-bit: 256 / 512 / 768 karede 4,67 / 5,71 / 8,83 GB, 512 düzenlemede 5,78 GB). Bütçe Metal'in önerdiği çalışma kümesidir; belleğin dörtte üçü daha büyükse o. Bütçeyi aşan boyut, sığan en büyük kareyi söyleyen bir 400'dür; boyut verilmezse worker seçer.
+  - Döngü içi bir geri çağrı, `--max-seconds` dolunca (504) ya da istemci bağlantıyı kesince (yanıt verilmez) üretimi gürültü giderme adımları arasında durdurur.
+- **Başlatma:** `<env python> mflux_worker.py --model <klasör> --port <port> [--alias <takma ad>] --max-seconds N` (katalog `params_mflux.toml`). Varsayılan 600 sn'dir ve ağ geçidinin istek zaman aşımından 30 sn kısa tutulur. Yükleme anındaki bellek denetimi (`check_mlx_fit`) parçaların ağırlıklarını sayar; görselin kendi payı her istekte denetlenir.
+- **Ağ geçidi:** `images::is_mflux_model` böyle bir tanımı (yalnız Apple Silicon'da) `images::mflux_body` ile worker'a yönlendirir. OpenAI alanlarını korur; negatif istemi, maskeyi, örnekleyiciyi, zamanlayıcıyı ya da `cfg_scale`'i ve mflux'un sınırlarını aşan değerleri 400 ile reddeder. Yanıt Python motorununki gibi biçimlenir (`python_generate`). İstemci ayrılırsa üst istek de düşer; worker bunu bağlantı kesilmesi olarak görür.
+- **Hub:** `hub_compat::mflux_compatibility`, etiketleri böyle bir temel modeli adlandıran (`base_model:...`, ayrıca `base_model:quantized:` / `finetune:`) ve dosyaları mflux düzeninde olan (`is_mflux_layout`) bir görsel deposuna Apple Silicon'da `Runnable{mflux}` verir (eski macOS'ta `UnsupportedPlatform`). İndirme (`downloader::mflux_variants`) kartı ve dört klasörü alır. Qwen-Image-Edit ve FLUX.1 Kontext dönüşümleri dışarıda kalır.
+- **Testler:** klasör tanıma ve olumsuz örnekleri, argüman satırı ve tahmin, temel model tablosunun worker'ınkiyle eşleşmesi, worker'ın MLX olmadan denetimleri (istekler, görsel başlıkları, bellek tahmini ve boyut seçimi, zaman sınırı, istemcinin ayrılması, HTTP), Hub kararları ve indirme planı, ağ geçidi gövdesi. `harness-gateway/tests/mflux_e2e.rs` (`#[ignore]`, `HS_MFLUX_MODEL`) ortamı kurar, kütüphaneye klasörü buldurur, ağ geçidi üzerinden çizer ve düzenler, 400'leri ve bellek reddini denetler, uzun bir istekten ayrılır (sonraki istek sunulur) ve 5 sn sınırına takılır (504).
+
 ### Deneysel audio.cpp TTS
 
 audio.cpp **deneyseldir ve varsayılan olarak kapalıdır**. Risk bildirimini onayladıktan sonra Ayarlar > Model Motoru > Kurulu Model Motoru > Diğer Model Motorları bölümünden etkinleştirin. Yerel sunucusunda kimlik doğrulama veya Host/Origin denetimi yoktur; sunucu dosya yollarını kabul eder (`voice_ref`, JSON `audio` ve `/v1/tasks/*`). Açıkken bu bilgisayarda çalışan bir web sayfası sunucuya doğrudan istek gönderebilir ve dosya yolu verebilir. Yalnızca yerel adrese bağlanmak bu riski ortadan kaldırmaz.

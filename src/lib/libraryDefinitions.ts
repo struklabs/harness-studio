@@ -12,6 +12,7 @@ export function libraryKindKey(
   if (runtime === 'audio.cpp' || file.architecture === 'audiocpp')
     return file.kind === 'tts' ? 'lib.kind_tts_audiocpp' : 'lib.kind_audio_process';
   if (file.kind === 'tts' && (runtime === 'crispasr' || /\.gguf$/i.test(file.path))) return 'lib.kind_tts_crispasr';
+  if (runtime === 'mflux') return 'lib.kind_image_mflux';
   if (runtime === 'mlx-audio')
     return file.task === 'automatic-speech-recognition' ? 'lib.kind_asr_mlx' : 'lib.kind_tts_mlx';
   if (file.kind === 'asr') return speechKindKey(file);

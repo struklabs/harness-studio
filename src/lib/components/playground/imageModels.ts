@@ -38,6 +38,16 @@ export function takesStrength(alias: string, definitions: ModelDefinition[], fil
   return !f || (f.architecture ?? '').includes('Img2Img');
 }
 
+/** Whether the model `alias` is an mflux FLUX.2 [klein] folder (Apple Silicon; the library names
+ * its model `flux2-klein-*`): it takes no negative prompt and no classifier-free guidance, and
+ * without a size it draws the largest that fits the Mac's memory. */
+export function isMflux(alias: string, definitions: ModelDefinition[], files: LocalModel[] = []): boolean {
+  const d = definitions.find((x) => x.alias === alias);
+  if (!d) return false;
+  const path = norm(definitionPath(d));
+  return files.some((f) => f.kind === 'pipeline' && (f.architecture ?? '').startsWith('flux2-klein') && norm(f.path) === path);
+}
+
 /** Keep the user's selection while it is still available. */
 export function imageModel(current: string, definitions: ModelDefinition[], files: LocalModel[] = []): string {
   const models = definitions.filter((d) => isImageDefinition(d, files));

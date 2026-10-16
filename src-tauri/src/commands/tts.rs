@@ -205,6 +205,8 @@ pub(crate) struct AudioProcessModel {
 pub(crate) struct AudioProcessOverview {
     models: Vec<AudioProcessModel>,
     runtime_installed: bool,
+    /// Apple Silicon: mlx-audio's separators can be served too.
+    mlx_separation: bool,
 }
 
 #[tauri::command]
@@ -223,7 +225,7 @@ pub(crate) async fn get_audio_process_overview() -> Result<AudioProcessOverview,
             audio_cpp::processing_task(&family).filter(|_| !audio_cpp::is_diarization(&family))?;
             Some(AudioProcessModel { name: def.alias, options: audio_process::options(&family), family, engine: AUDIO_CPP })
         }).collect();
-        Ok(AudioProcessOverview { models, runtime_installed: harness_core::runtimes::resolve_family_binary_in(&harness_core::runtimes::RuntimeRegistry::global(), AUDIO_CPP, None).is_ok() })
+        Ok(AudioProcessOverview { models, runtime_installed: harness_core::runtimes::resolve_family_binary_in(&harness_core::runtimes::RuntimeRegistry::global(), AUDIO_CPP, None).is_ok(), mlx_separation: cfg!(all(target_os = "macos", target_arch = "aarch64")) })
     }).await?
 }
 
