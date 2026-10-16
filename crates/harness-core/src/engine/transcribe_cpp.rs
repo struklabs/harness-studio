@@ -200,10 +200,17 @@ pub const SAMPLE_RATE: u32 = 16_000;
 /// goes through ffmpeg first, and without ffmpeg it is refused (`stt.needs_ffmpeg`).
 pub async fn prepare_audio(audio: Vec<u8>) -> Result<(Vec<u8>, f64), String> {
     use crate::asr::run::{pcm16_mono, resample_16k, wav_of};
-    fn to_16k(wav: &[u8]) -> Option<(Vec<u8>, f64)> {
-        let (rate, data) = pcm16_mono(wav)?;
-        if rate == 0 {
-            return None;
+    fn to_16k(wav: &[u8]) -> Result<Option<(Vec<u8>, f64)>, String> {
+        let Some((rate, data)) = pcm16_mono(wav) else {
+            return Ok(None);
+        };
+        if !(1_000..=384_000).contains(&rate) {
+            return Err("Invalid WAV sample rate: expected 1000–384000 Hz.".into());
+        }
+        // Bound the decoded duration (and thus the resampled allocation) before copying PCM.
+        let projected_samples = data.len() as f64 / 2.0 * f64::from(SAMPLE_RATE) / f64::from(rate);
+        if projected_samples > crate::asr::llm::MAX_AUDIO_SECS * f64::from(SAMPLE_RATE) {
+            return Err("Audio exceeds the maximum duration of 2 hours.".into());
         }
         let pcm = if rate == SAMPLE_RATE {
             data.to_vec()
@@ -211,9 +218,9 @@ pub async fn prepare_audio(audio: Vec<u8>) -> Result<(Vec<u8>, f64), String> {
             resample_16k(rate, data)
         };
         let secs = pcm.len() as f64 / 2.0 / f64::from(SAMPLE_RATE);
-        Some((wav_of(SAMPLE_RATE, &[&pcm]), secs))
+        Ok(Some((wav_of(SAMPLE_RATE, &[&pcm]), secs)))
     }
-    if let Some(ready) = to_16k(&audio) {
+    if let Some(ready) = to_16k(&audio)? {
         return Ok(ready);
     }
     if crate::audio::ffmpeg_path().is_none() {
@@ -222,7 +229,7 @@ pub async fn prepare_audio(audio: Vec<u8>) -> Result<(Vec<u8>, f64), String> {
             .into());
     }
     let converted = crate::audio::to_wav(audio).await?;
-    to_16k(&converted).ok_or_else(|| {
+    to_16k(&converted)?.ok_or_else(|| {
         String::from(err("audio.convert_failed").with("error", "not a 16-bit mono WAV"))
     })
 }
@@ -599,6 +606,41 @@ pub(crate) mod tests {
         assert_eq!((t.segments.len(), t.segments[0].end), (1, 3.0));
         assert_eq!(t.language, None);
         assert!(transcript_of(b"{}", "m", 1.0, 0).is_none());
+    }
+
+    #[tokio::test]
+    async fn audio_rejects_invalid_sample_rates_before_resampling() {
+        let pcm = vec![0; 1024 * 1024];
+        for rate in [0, 1, 999, 384_001] {
+            let wav = crate::asr::run::wav_of(rate, &[&pcm]);
+            assert_eq!(
+                prepare_audio(wav).await.unwrap_err(),
+                "Invalid WAV sample rate: expected 1000–384000 Hz.",
+                "rate {rate}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn audio_rejects_excessive_projected_duration_before_resampling() {
+        // Just over two hours at an accepted rate: resampling would allocate over 219 MiB.
+        let pcm = vec![0; (crate::asr::llm::MAX_AUDIO_SECS as usize * 1_000 + 1) * 2];
+        let wav = crate::asr::run::wav_of(1_000, &[&pcm]);
+        assert_eq!(
+            prepare_audio(wav).await.unwrap_err(),
+            "Audio exceeds the maximum duration of 2 hours."
+        );
+    }
+
+    #[tokio::test]
+    async fn audio_accepts_sample_rate_boundaries() {
+        for rate in [1_000, SAMPLE_RATE, 384_000] {
+            let wav = crate::asr::run::wav_of(rate, &[&vec![0; rate as usize * 2]]);
+            let (wav, secs) = prepare_audio(wav).await.unwrap();
+            let (out_rate, pcm) = crate::asr::run::pcm16_mono(&wav).unwrap();
+            assert_eq!((out_rate, pcm.len()), (SAMPLE_RATE, 32_000));
+            assert_eq!(secs, 1.0);
+        }
     }
 
     #[test]
