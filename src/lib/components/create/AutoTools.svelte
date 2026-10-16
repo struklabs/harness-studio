@@ -228,7 +228,10 @@
     </ol>
   </section>
   <section class="min-w-0 xl:sticky xl:top-0">
-    <h2 class="mb-3 text-sm font-semibold">{t('create.log')}</h2>
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <h2 class="text-sm font-semibold">{t('create.log')}</h2>
+      <Button variant="outline" size="sm" disabled={busy || !run?.logs.length} onclick={() => act('clear_logs')}>{t('create.clear_log')}</Button>
+    </div>
     <div bind:this={terminal} class="h-80 overflow-auto rounded-lg border border-border bg-muted/30 p-3 font-mono font-num text-xs leading-relaxed" role="log" aria-live="off">
       {#each run?.logs ?? [] as entry, i}<p class="break-words"><span class="text-muted-foreground">{new Date(entry.at).toLocaleTimeString()} </span><span class="text-primary">[{entry.stage}] </span>{entry.message}</p>{/each}{#if running}<p class="text-primary"><span class="cursor" aria-hidden="true">&#9608;</span></p>{/if}
       {#if !run?.logs.length}<p class="text-muted-foreground">{t('create.log_empty')}</p>{/if}

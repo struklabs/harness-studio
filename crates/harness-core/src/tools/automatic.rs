@@ -578,6 +578,13 @@ impl AutoGenerator {
     pub fn reorder(&self, ids: &[String]) -> Result<RunState, String> {
         self.change(|s| s.reorder(ids))
     }
+    /// Clear activity without interrupting generation or changing its accumulated results.
+    pub fn clear_logs(&self) -> Result<RunState, String> {
+        self.change(|s| {
+            s.logs.clear();
+            Ok(())
+        })
+    }
     pub fn remove(&self, id: &str) -> Result<RunState, String> {
         self.change(|s| {
             let at = s

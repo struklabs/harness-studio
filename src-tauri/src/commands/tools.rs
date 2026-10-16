@@ -567,6 +567,7 @@ pub(crate) async fn auto_tools_start(app: tauri::AppHandle, endpoint: harness_co
 pub(crate) fn auto_tools_action(action: String, id: Option<String>, order: Option<Vec<String>>) -> Result<crate::tools::automatic::RunState, String> {
     let worker = crate::tools::automatic::AutoGenerator::shared()?;
     match action.as_str() {
+        "clear_logs" => worker.clear_logs(),
         "pause" => worker.interrupt(false),
         "stop" => worker.interrupt(true),
         "reorder" => worker.reorder(&order.ok_or("Missing queue order")?),
