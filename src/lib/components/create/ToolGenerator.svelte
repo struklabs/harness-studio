@@ -64,6 +64,8 @@
   const fmt = (n: number) => Math.round(n).toLocaleString(locale());
   const range = (e: GeneratorEstimate) => e.high >= 10_000 ? `≈ ${(e.low / 1000).toLocaleString(locale(), {maximumFractionDigits:1})}–${(e.high / 1000).toLocaleString(locale(), {maximumFractionDigits:1})} ${t('create.token_thousand')} token` : `≈ ${fmt(e.low)}–${fmt(e.high)} token`;
   let hosts = $state('');
+  let networkMode = $state<'none' | 'any' | 'listed'>('any');
+  const networkScope = () => networkMode === 'any' ? ['*'] : networkMode === 'listed' ? lines(hosts) : [];
   let readDirs = $state('');
   let writeDirs = $state('');
   let draft = $state<ToolDraft | null>(null);
@@ -95,7 +97,7 @@
   let canStart = $derived(!!endpoint && description.trim().length > 0 && !limitReached);
   $effect(() => {
     const selected = endpoint;
-    const request = { description, network: lines(hosts), fs_read: lines(readDirs), fs_write: lines(writeDirs) };
+    const request = { description, network: networkScope(), fs_read: lines(readDirs), fs_write: lines(writeDirs) };
     let cancelled = false;
     // Keep the previous estimate (dimmed) until the new one arrives: the row is right-aligned,
     // so dropping it moved the start button under the cursor (S41).
@@ -156,7 +158,7 @@
     try {
       draft = await generateTool({
         description: description.trim(),
-        network: lines(hosts),
+        network: networkScope(),
         fs_read: lines(readDirs),
         fs_write: lines(writeDirs),
         endpoint,
@@ -230,7 +232,7 @@
   function permissionLines(d: ToolDraft): string[] {
     const i = d.info;
     const out = [
-      i.network.length ? t('tools.inst_perm_network', { hosts: i.network.join(', ') }) : t('tools.inst_perm_no_network'),
+      i.network.includes('*') ? t('tools.network_any') : i.network.length ? t('tools.inst_perm_network', { hosts: i.network.join(', ') }) : t('tools.inst_perm_no_network'),
     ];
     if (i.fs_read.length) out.push(t('tools.inst_perm_read', { folders: i.fs_read.join(', ') }));
     if (i.fs_write.length) out.push(t('tools.inst_perm_write', { folders: i.fs_write.join(', ') }));
@@ -254,10 +256,18 @@
           {t('tools.gen_what')}
           <FieldHelp text={t('help.tool_description')}><Textarea bind:value={description} rows={3} disabled={phase === 'running'} placeholder={t('tools.gen_what_ph')} class="resize-y text-sm font-normal" /></FieldHelp>
         </label>
+        <label class="flex flex-col gap-1.5 text-xs font-medium">
+          {t('tools.gen_network')}
+          <select bind:value={networkMode} disabled={phase === 'running'} class="rounded-md border border-input bg-background p-2 text-sm">
+            <option value="none">{t('tools.network_none')}</option>
+            <option value="any">{t('tools.network_any')}</option>
+            <option value="listed">{t('tools.network_listed')}</option>
+          </select>
+        </label>
         <div class="grid gap-3 sm:grid-cols-3">
           <label class="flex flex-col gap-1.5 text-xs font-medium">
             {t('tools.gen_hosts')}
-            <FieldHelp text={t('tools.gen_hosts_hint')}><Textarea bind:value={hosts} rows={3} disabled={phase === 'running'} placeholder={t('tools.gen_hosts_ph')} class="resize-y font-mono text-xs font-normal" /></FieldHelp>
+            <FieldHelp text={t('tools.gen_hosts_hint')}><Textarea bind:value={hosts} rows={3} disabled={phase === 'running' || networkMode !== 'listed'} placeholder={t('tools.gen_hosts_ph')} class="resize-y font-mono text-xs font-normal" /></FieldHelp>
             <span class="font-normal text-muted-foreground">{t('tools.gen_hosts_hint')}</span>
           </label>
           <label class="flex flex-col gap-1.5 text-xs font-medium">

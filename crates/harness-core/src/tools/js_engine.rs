@@ -7,7 +7,7 @@
 //! outside world:
 //!
 //! * `harness.http.get(url)` / `harness.http.post(url, jsonBody)` -> `{status, content_type,
-//!   url, body}`. The host must be on the manifest's `network` list on the first request and on
+//!   url, body}`. The host must be allowed by the manifest's `network` scope on the first request and on
 //!   every redirect; the request then goes through the same public-address check, resolver pin
 //!   and size limit as the built-in `fetch_url` (so a private or link-local address is refused
 //!   even when a hostname on the list resolves to it).
@@ -244,6 +244,7 @@ impl Host {
     fn http(&self, method: &str, raw: &str, body: Option<Json>) -> Result<Json, ToolError> {
         let allowed = self.perms.network.clone();
         let check = move |url: &reqwest::Url| -> Result<(), ToolError> {
+            check_network_port(url)?;
             let host = url.host_str().unwrap_or_default();
             if domain_allowed(&allowed, host) {
                 Ok(())
@@ -481,6 +482,53 @@ impl Host {
         entries.sort_by(|a, b| a["name"].as_str().cmp(&b["name"].as_str()));
         Ok(Json::Array(entries))
     }
+}
+
+/// Deny Harness listener ports even when a public hostname points at them. Resolve and pin
+/// public addresses separately in `http::request_checked`, on every redirect as well.
+fn check_network_port(url: &reqwest::Url) -> Result<(), ToolError> {
+    check_network_port_with_default(url, crate::servers::default_server().config.port)
+}
+
+fn check_network_port_with_default(
+    url: &reqwest::Url,
+    default_server_port: u16,
+) -> Result<(), ToolError> {
+    let settings = crate::config::AppSettings::load();
+    let gateway = crate::gateway::status();
+    let blocked = [
+        Some(crate::control_api::DEFAULT_PORT),
+        Some(crate::gateway::DEFAULT_PORT),
+        Some(crate::gateway::OLLAMA_DEFAULT_PORT),
+        Some(settings.control_api.port),
+        Some(settings.gateway.port),
+        Some(settings.gateway.ollama_port),
+        Some(settings.server.port),
+        Some(default_server_port),
+        crate::ports::live_api_port(),
+        gateway.port,
+        gateway.ollama_port,
+    ];
+    let port = url.port_or_known_default();
+    if port.is_some_and(|p| crate::ports::AUTO_RANGE.contains(&p))
+        || blocked
+            .into_iter()
+            .flatten()
+            .chain(crate::servers::live_listener_ports())
+            .chain(
+                crate::servers::load_profiles()
+                    .iter()
+                    .map(|p| p.config.port),
+            )
+            .any(|p| Some(p) == port)
+    {
+        return Err(denied(
+            ToolErrorCode::Network,
+            "Harness ports are not accessible to tools",
+        )
+        .network_target(http::target(url)));
+    }
+    Ok(())
 }
 
 /// Hosts a test registered as reachable although they are on a private address (a local test
@@ -839,6 +887,115 @@ mod tests {
 
     fn plain(code: &str, args: Json) -> Result<ToolOutput, ToolError> {
         run(code, args, Permissions::default(), Duration::from_secs(10))
+    }
+
+    #[tokio::test]
+    async fn custom_dashboard_and_running_ports_are_blocked_on_every_hop() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let dir = tempfile::tempdir().unwrap();
+        let domain = crate::domain::store::Domain::at(dir.path());
+        domain
+            .save_session(&crate::process::LaunchConfig {
+                model_path: "test.gguf".into(),
+                host: "0.0.0.0".into(),
+                port: 18080,
+                ..Default::default()
+            })
+            .unwrap();
+        let defaults = crate::domain::launch::LaunchDefaults::load();
+        assert!(domain.profile_views(&defaults).unwrap().is_empty());
+        let dashboard = domain.default_server(&defaults).unwrap();
+        assert_eq!(dashboard.config.port, 18080);
+
+        let registry = crate::servers::ServerRegistry::default();
+        let pm = registry.get_or_create("unsaved-tool-port-test");
+        let active = serde_json::from_value(json!({
+            "connect_host": "127.0.0.1", "bind_host": "0.0.0.0", "port": 18081,
+            "api_key_set": false, "model_path": "test.gguf", "router_mode": false
+        }))
+        .unwrap();
+        pm.simulate_running_for_tests(active);
+        assert!(crate::servers::live_listener_ports().contains(&18081));
+
+        let check = |url: &reqwest::Url| {
+            assert!(domain_allowed(&["*".into()], url.host_str().unwrap()));
+            check_network_port_with_default(url, dashboard.config.port)
+        };
+        assert!(check(&reqwest::Url::parse("http://8.8.8.8/").unwrap()).is_ok());
+        for port in [18080, 18081] {
+            let target = format!("http://8.8.8.8:{port}/");
+            let error = check(&reqwest::Url::parse(&target).unwrap()).unwrap_err();
+            assert_eq!(error.code, ToolErrorCode::Network);
+            assert!(error.message.contains("Harness ports"));
+
+            // Only the first hop is trusted locally. The public redirect must be refused
+            // by the listener guard before any attempt to connect to that address.
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let response = format!(
+                "HTTP/1.1 302 Found\r\nLocation: {target}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            );
+            let server = tokio::spawn(async move {
+                let (mut stream, _) = listener.accept().await.unwrap();
+                let mut request = [0; 4096];
+                assert!(stream.read(&mut request).await.unwrap() > 0);
+                stream.write_all(response.as_bytes()).await.unwrap();
+            });
+            let error = http::request_checked(
+                reqwest::Method::GET,
+                &format!("http://{address}/"),
+                &ToolCtx::new(None),
+                None,
+                Some(address.to_string()),
+                &check,
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(error.code, ToolErrorCode::Network);
+            assert!(error.message.contains("Harness ports"), "{}", error.message);
+            server.await.unwrap();
+        }
+        drop(registry);
+        assert!(!crate::servers::live_listener_ports().contains(&18081));
+    }
+
+    #[test]
+    fn entire_internet_still_refuses_private_targets_and_harness_ports() {
+        for url in [
+            "http://127.0.0.1/",
+            "http://10.1.2.3/",
+            "http://169.254.169.254/",
+            "http://100.64.0.1/",
+            "http://[::1]/",
+            "http://[fc00::1]/",
+            "http://8.8.8.8:11500/",
+            "http://8.8.8.8:11435/",
+            "http://8.8.8.8:11434/",
+            "http://8.8.8.8:11440/",
+            "http://8.8.8.8:11499/",
+        ] {
+            let source = format!(
+                "function run() {{ return harness.http.get({}); }}",
+                json!(url)
+            );
+            let e = run(
+                &source,
+                json!({}),
+                Permissions {
+                    network: vec!["*".into()],
+                    ..Default::default()
+                },
+                Duration::from_secs(5),
+            )
+            .unwrap_err();
+            assert_eq!(e.code, ToolErrorCode::Network, "{url}: {}", e.message);
+            assert!(
+                e.message.contains("private or local") || e.message.contains("Harness ports"),
+                "{url}: {}",
+                e.message
+            );
+        }
     }
 
     #[test]

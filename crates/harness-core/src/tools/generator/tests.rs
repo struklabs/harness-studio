@@ -1575,3 +1575,28 @@ fn a_context_overflow_from_the_model_is_a_keyed_error() {
     assert_eq!(context_exceeded(raw), Some((4273, 4096)));
     assert_eq!(context_exceeded("HTTP 500: boom"), None);
 }
+
+#[test]
+fn entire_internet_is_an_explicit_generation_upper_bound() {
+    let none = perms(&[], &[], &[]);
+    let any = perms(&["*"], &[], &[]);
+    let listed = perms(&["example.com", "*.wikipedia.org"], &[], &[]);
+    for asked in [&none, &any, &listed] {
+        assert!(within_bounds(asked, &any).is_ok());
+    }
+    assert!(within_bounds(&any, &none).is_err());
+    assert!(within_bounds(&any, &listed).is_err());
+    assert!(within_bounds(&listed, &none).is_err());
+    assert!(within_bounds(&perms(&["other.net"], &[], &[]), &listed).is_err());
+}
+
+#[test]
+fn entire_internet_manifest_is_normalized_and_checked_against_user_scope() {
+    let mut m = manifest("public_lookup");
+    m["permissions"]["network"] = json!(["*"]);
+    let reply = reply_with(m, CODE, TEST);
+    assert!(parse_reply(&reply, &perms(&[], &[], &[])).is_err());
+    assert!(parse_reply(&reply, &perms(&["example.com"], &[], &[])).is_err());
+    let parsed = parse_reply(&reply, &perms(&["*"], &[], &[])).unwrap();
+    assert_eq!(parsed.manifest.permissions.network, ["*"]);
+}

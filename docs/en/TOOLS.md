@@ -39,7 +39,7 @@ Put `manifest.json`, `index.js`, and preferably `test.js` in a folder. An option
 | `description` | Up to 1024 characters explaining when the model should call the tool. |
 | `input_schema` | A JSON Schema with `type: object`; parameters via `properties` and `required`. |
 | `output` | What the result text contains. |
-| `permissions` | Explicit domain names and folder permissions relative to the workspace; an empty list grants no access. |
+| `permissions` | Network scope and folder permissions relative to the workspace; an empty list grants no access. For network, `["*"]` grants the entire public internet. |
 | `runtime` | `js` (QuickJS). |
 | `entry`, `test` | Relative file paths inside the package; absolute paths and `..` are forbidden. `test` is optional. |
 
@@ -56,7 +56,7 @@ The result can be a string or any value that converts to JSON. The `btoa`, `atob
 
 ### Network and file API
 
-- `harness.http.get(url)` and `harness.http.post(url, jsonBody)` are synchronous and return `{status, content_type, url, body}`. `permissions.network` contains domain names only: `example.com` or `*.example.com`; no protocol or path. A wildcard covers subdomains but not the root domain. The network engine's private/local network and redirect checks are applied in addition.
+- `harness.http.get(url)` and `harness.http.post(url, jsonBody)` are synchronous and return `{status, content_type, url, body}`. `permissions.network` has three scopes: `[]` denies network access, `["*"]` permits the entire public internet, and other lists permit only those domains (`example.com`, `*.example.com`; no protocol or path). `*.example.com` covers subdomains but not the root domain; `"*"` cannot be combined with other entries. Existing empty lists still deny network access. Every scope blocks loopback, link-local/metadata, private networks, CGNAT, IPv6 ULA, and Harness ports. Every DNS answer and redirect is checked; connections are pinned to validated addresses and system proxies are disabled.
 - `harness.fs.read(path)` reads text, `harness.fs.write(path, text)` writes, and `harness.fs.list(path)` lists a directory. Paths are relative to the chat's workspace. Read and write permissions are separate; write does not grant read. `"."` covers the whole workspace, and `"out"` covers only that folder and below. Symbolic links cannot reach outside the boundary.
 - `shell` can only be `false`. JS packages cannot start processes.
 
@@ -83,7 +83,9 @@ In **Create → My Tools → Installed Tools**, select the folder. Review the pe
 
 ## Tool Creator
 
-On the **Create → Tool Creator** page, select the model endpoint and the model; the default endpoint is the currently running server/gateway. Describe the tool and write the domain names and relative folders that may be allowed. The model produces the package and its tests; it repairs invalid JSON, permission overruns, or test failures with up to four correction attempts. You can read the manifest, code, tests, and permissions and approve them for the session, then save permanently. The **Create Tool…** button in the Playground opens the same creator component. Small models may write faulty packages more often.
+On the **Create → Tool Creator** page, select the model endpoint and the model; the default endpoint is the currently running server/gateway. Describe the tool, choose its network scope, and optionally list allowed domains and relative folders. The model produces the package and its tests; it repairs invalid JSON, permission overruns, or test failures with up to four correction attempts. You can read the manifest, code, tests, and permissions and approve them for the session, then save permanently. The **Create Tool…** button in the Playground opens the same creator component. Small models may write faulty packages more often.
+
+The tool builder defaults to **Entire Internet**. Choose **No Network Access** or **Only These Domains** to restrict it. The domain textarea applies only to the last option; an empty list grants no access. Your choice is the upper bound on permissions the model may request; overruns are rejected and sent back to the model for correction. Tools requesting network/file access, including in the automatic builder, require explicit approval at install; the permission summary labels the unrestricted public scope **Entire Internet**.
 
 `null` and `undefined` returns are the four-character `"null"` result text not only in tests but in normal execution; an empty string `""` stays empty. The Playground result card shows `null` and sends the same text in the next model turn. The gateway's shared tool loop also passes it to the model as a successful tool result; it is not an error or cancellation marker. A tool that must give the user a meaningful confirmation should return an explicit result string.
 

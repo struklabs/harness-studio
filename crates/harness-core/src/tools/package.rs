@@ -21,7 +21,7 @@
 //! ```
 //!
 //! * `network` lists the host names the code may contact through `harness.http` (`*.x.com` also
-//!   admits subdomains). Empty = no network.
+//!   admits subdomains). `["*"]` = any public internet host; empty = no network.
 //! * `fs.read` / `fs.write` list folders, relative to the chat workspace, the code may read /
 //!   write through `harness.fs`. Empty = none; `"."` is the whole workspace.
 //! * `shell` must be `false` or absent: this engine never starts a process.
@@ -57,7 +57,7 @@ pub struct FsScope {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Permissions {
-    /// Allowed host names (`example.com`, `*.example.com`).
+    /// Empty = none; `["*"]` = any public host; otherwise listed domains only.
     #[serde(default)]
     pub network: Vec<String>,
     #[serde(default)]
@@ -170,7 +170,11 @@ fn valid_domain(d: &str) -> bool {
 
 /// Does `host` fall under one of the allowed `domains`? `example.com` admits only that host,
 /// `*.example.com` admits its subdomains (not `example.com` itself).
+/// `["*"]` admits any host here; the HTTP transport must still vet and pin public addresses.
 pub fn domain_allowed(domains: &[String], host: &str) -> bool {
+    if domains == ["*"] {
+        return true;
+    }
     let host = host.trim_end_matches('.').to_ascii_lowercase();
     domains.iter().any(|d| match d.strip_prefix("*.") {
         Some(suffix) => host
@@ -221,7 +225,7 @@ pub(super) fn normalize_model_network(network: &mut [String]) -> Result<(), Stri
 /// Checks the permission lists of a manifest: host names and workspace folders.
 pub fn check_permissions(p: &Permissions) -> Result<(), String> {
     let net = &p.network;
-    if net.len() > MAX_DOMAINS || net.iter().any(|d| !valid_domain(d)) {
+    if net != &["*"] && (net.len() > MAX_DOMAINS || net.iter().any(|d| !valid_domain(d))) {
         let first = net.iter().find(|d| !valid_domain(d)).cloned();
         return Err(bad(
             "tools.package.network_invalid",
@@ -369,6 +373,31 @@ mod tests {
     }
 
     #[test]
+    fn network_modes_preserve_legacy_manifests() {
+        for (json, permitted) in [
+            (r#"{}"#, false),
+            (r#"{"network":[]}"#, false),
+            (r#"{"network":["*"]}"#, true),
+            (r#"{"network":["example.com"]}"#, true),
+        ] {
+            let p: Permissions = serde_json::from_str(json).unwrap();
+            check_permissions(&p).unwrap();
+            assert_eq!(domain_allowed(&p.network, "example.com"), permitted);
+            assert_eq!(
+                domain_allowed(&p.network, "other.example"),
+                p.network == ["*"]
+            );
+            let roundtrip: Permissions =
+                serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
+            assert_eq!(p, roundtrip);
+        }
+        let mut m = parse_manifest(&base().to_string()).unwrap();
+        m.permissions.fs = FsScope::default();
+        m.permissions.network = vec!["*".into()];
+        assert_eq!(m.class(), PermissionClass::Restricted);
+    }
+
+    #[test]
     fn a_complete_manifest_parses_and_gets_its_class() {
         let m = parse_manifest(&base().to_string()).unwrap();
         assert_eq!(m.name, "url_title");
@@ -444,7 +473,7 @@ mod tests {
             ),
             (
                 "tools.package.network_invalid",
-                Box::new(|v| v["permissions"]["network"] = json!(["*"])),
+                Box::new(|v| v["permissions"]["network"] = json!(["*", "example.com"])),
             ),
             (
                 "tools.package.network_invalid",

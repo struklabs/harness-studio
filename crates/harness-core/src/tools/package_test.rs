@@ -897,6 +897,15 @@ mod tests {
         perms.network.push("api.test.com".into());
         let r = run(code.into(), test.into(), perms.clone()).await;
         assert!(r.passed, "{r:?}");
+        let any = Permissions {
+            network: vec!["*".into()],
+            ..Default::default()
+        };
+        let r = run(code.into(), test.into(), any).await;
+        assert!(
+            r.passed,
+            "entire internet accepts unlisted public hosts: {r:?}"
+        );
 
         // Unmatched request error
         let code2 =

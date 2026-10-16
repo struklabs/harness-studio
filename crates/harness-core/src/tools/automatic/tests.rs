@@ -129,6 +129,8 @@ fn no_external_permission_is_auto_installed() {
     assert!(!needs_approval(&p));
     p.network.push("example.com".into());
     assert!(needs_approval(&p));
+    p.network = vec!["*".into()];
+    assert!(needs_approval(&p));
     p.network.clear();
     p.fs.read.push(".".into());
     assert!(needs_approval(&p));
@@ -1070,8 +1072,11 @@ fn ideation_network_urls_are_hosts_and_invalid_scopes_stay_rejected() {
     .unwrap();
     assert_eq!(result.accepted[0].permissions.network, ["api.example.com"]);
     assert!(parse_proposals(&reply(vec!["*.example.com"]), &[], 4).is_ok());
+    let any = parse_proposals(&reply(vec!["*"]), &[], 4).unwrap();
+    assert_eq!(any.accepted[0].permissions.network, ["*"]);
+    assert!(needs_approval(&any.accepted[0].permissions));
+    assert!(parse_proposals(&reply(vec!["*", "example.com"]), &[], 4).is_err());
     for value in [
-        "*",
         "https://*.example.com/v1",
         "https://%2A.example.com/v1",
         "https://127.0.0.1/v1",

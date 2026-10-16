@@ -123,7 +123,7 @@
   /** The permission lines of a package, as the install prompt and the list show them. */
   function permissionLines(tool: InstalledTool): string[] {
     const lines = [
-      tool.network.length
+      tool.network.includes('*') ? t('tools.network_any') : tool.network.length
         ? t('tools.inst_perm_network', { hosts: tool.network.join(', ') })
         : t('tools.inst_perm_no_network'),
     ];

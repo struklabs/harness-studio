@@ -39,7 +39,7 @@ Bir klasöre `manifest.json`, `index.js` ve tercihen `test.js` koyun. İsteğe b
 | `description` | Modelin hangi durumda çağıracağını anlatan, en fazla 1024 karakter açıklama. |
 | `input_schema` | `type: object` içeren JSON Schema; `properties` ve `required` ile parametreler. |
 | `output` | Sonuç metninin ne içerdiği. |
-| `permissions` | Açık alan adı ve çalışma alanına göre klasör izinleri; boş liste erişim vermez. |
+| `permissions` | Ağ kapsamı ve çalışma alanına göre klasör izinleri; boş liste erişim vermez. Ağ için `["*"]` tüm genel internete izin verir. |
 | `runtime` | `js` (QuickJS). |
 | `entry`, `test` | Paket içindeki göreli dosya yolları; mutlak yol ve `..` yasak. `test` isteğe bağlı. |
 
@@ -56,7 +56,7 @@ Sonuç string veya JSON'a çevrilebilen bir değer olabilir. `btoa`, `atob`, `Te
 
 ### Ağ ve dosya API'si
 
-- `harness.http.get(url)` ve `harness.http.post(url, jsonBody)` eşzamanlıdır; `{status, content_type, url, body}` döndürür. `permissions.network` yalnızca alan adı içerir: `example.com` veya `*.example.com`; protokol/yol içermez. Wildcard alt alan adlarını kapsar, kök alanı kapsamaz. Ağ motorunun özel/yerel ağ ve yönlendirme kontrolleri ayrıca uygulanır.
+- `harness.http.get(url)` ve `harness.http.post(url, jsonBody)` eşzamanlıdır; `{status, content_type, url, body}` döndürür. `permissions.network` üç kapsam taşır: `[]` ağ erişimi yok, `["*"]` tüm genel internet, diğer listeler yalnız belirtilen alan adları (`example.com`, `*.example.com`; protokol/yol yok). `*.example.com` alt alan adlarını kapsar, kök alanı kapsamaz; `"*"` başka girdilerle birleştirilemez. Eski boş listeler ağ erişimi vermez. Her kapsamda loopback, link-local/metadata, özel ağ, CGNAT, IPv6 ULA ve Harness portları engellenir. Her DNS cevabı ve yönlendirme denetlenir; bağlantı doğrulanan adreslere sabitlenir ve sistem proxy’si kullanılmaz.
 - `harness.fs.read(path)` metin okur, `harness.fs.write(path, text)` yazar, `harness.fs.list(path)` dizini listeler. Yollar sohbetin çalışma alanına görelidir. Okuma ve yazma izinleri ayrıdır; yazma okuma izni vermez. `"."` bütün çalışma alanını, `"out"` yalnızca o klasörü ve altını kapsar. Sembolik bağlantılar sınır dışına erişim sağlayamaz.
 - `shell` yalnızca `false` olabilir. JS paketleri süreç başlatamaz.
 
@@ -83,7 +83,9 @@ Her `expect` tam bir seçenek içerir: `equals`, `contains` (string veya string 
 
 ## Araç oluşturucu
 
-**Oluştur → Araç Oluşturucu** sayfasında model uç noktasını ve modeli seçin; varsayılan uç nokta mevcut çalışan sunucu/ağ geçididir. Aracı tarif edin, izin verilebilecek alan adlarını ve göreli klasörleri yazın. Model paket ve testleri üretir; bozuk JSON, izin aşımı veya test hatasını en fazla dört düzeltme denemesiyle onarır. Manifest, kod, test ve izinleri okuyup oturum için onaylayabilir, ardından kalıcı kaydedebilirsiniz. Playground'daki **Araç Oluştur…** düğmesi aynı üretici bileşenini açar. Küçük modeller daha sık hatalı paket yazabilir.
+**Oluştur → Araç Oluşturucu** sayfasında model uç noktasını ve modeli seçin; varsayılan uç nokta mevcut çalışan sunucu/ağ geçididir. Aracı tarif edin, ağ kapsamını seçin ve isteğe bağlı olarak izin verilen alan adlarını ve göreli klasörleri yazın. Model paket ve testleri üretir; bozuk JSON, izin aşımı veya test hatasını en fazla dört düzeltme denemesiyle onarır. Manifest, kod, test ve izinleri okuyup oturum için onaylayabilir, ardından kalıcı kaydedebilirsiniz. Playground'daki **Araç Oluştur…** düğmesi aynı üretici bileşenini açar. Küçük modeller daha sık hatalı paket yazabilir.
+
+Araç Oluşturucu varsayılan olarak **Tüm İnternet** seçer. **Ağ Erişimi Yok** veya **Yalnızca Bu Alan Adları** ile daraltabilirsiniz. Alan adı metin kutusu yalnız son seçenekte uygulanır; boş liste erişim vermez. Seçiminiz modelin isteyebileceği iznin üst sınırıdır; aşılırsa araç reddedilir ve modelden düzeltmesi istenir. Ağ/dosya izni isteyen araçlar, Otomatik Araç Oluşturucu dahil, kurulumda açık onay gerektirir; tam ağ kapsamı onay özetinde **Tüm İnternet** olarak gösterilir.
 
 `null` ve `undefined` dönüşleri yalnız testlerde değil, normal çalıştırmada da dört karakterlik `"null"` sonuç metnidir; boş dize `""` boş kalır. Playground sonuç kartı `null` gösterir ve sonraki model turuna aynı metni yollar. Gateway'in ortak araç döngüsü de bunu başarılı tool sonucu olarak modele iletir; bu bir hata veya iptal işareti değildir. Kullanıcıya anlamlı bir onay vermesi gereken araç açık bir sonuç dizesi döndürmelidir.
 
