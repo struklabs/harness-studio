@@ -99,8 +99,8 @@
             <Table.Cell>
               <span class="font-mono text-xs whitespace-nowrap text-muted-foreground">{row.method}</span>
             </Table.Cell>
-            <Table.Cell class="truncate text-xs">{row.label}</Table.Cell>
-            <Table.Cell class="truncate font-mono text-xs text-foreground" title={row.url}>{row.url}</Table.Cell>
+            <Table.Cell class="text-xs whitespace-normal">{row.label}</Table.Cell>
+            <Table.Cell class="font-mono text-xs break-all whitespace-normal text-foreground">{row.url}</Table.Cell>
             <Table.Cell class="text-right">
               <CopyButton text={row.url} ariaLabel={t('conn.copy_url_aria', { name: row.label })} />
             </Table.Cell>
