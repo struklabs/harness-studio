@@ -561,7 +561,7 @@ ${t('agent.applied_models', {
   <li>
     <Collapsible.Root bind:open={() => open[item.id] ?? false, (v) => (open[item.id] = v)}>
       <div class="flex flex-wrap items-center gap-3 p-3">
-        <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <div class="flex min-w-40 flex-1 flex-col gap-1">
           <div class="flex flex-wrap items-center gap-1.5">
             <span class="text-sm font-medium">{item.name}</span>
             {#if item.installed === true}

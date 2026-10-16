@@ -118,7 +118,7 @@
           <div class="flex min-w-0 items-center justify-between gap-3">
             <div class="flex min-w-0 flex-col gap-0.5">
               <span class="flex min-w-0 items-center gap-1.5 text-sm font-medium">
-                <span class="truncate">{t(`ort.variant_${v.variant}` as TKey)}</span>
+                <span class="truncate" title={t(`ort.variant_${v.variant}` as TKey)}>{t(`ort.variant_${v.variant}` as TKey)}</span>
                 <Badge variant="outline" class="font-mono text-xs">{v.version}</Badge>
                 {#if v.default}<Badge variant="secondary" class="text-xs">{t('ort.default')}</Badge>{/if}
               </span>
