@@ -3919,6 +3919,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn dropping_pending_acquire_allows_idle_unload() {
+        let sched = Scheduler::new(
+            SchedulerContext {
+                registry: Arc::default(),
+                runtime: Arc::default(),
+                gate: Arc::default(),
+            },
+            GatewaySettings::default(),
+        );
+        let def = ModelDefinition::new(
+            "idle-unload-cancelled-acquire",
+            crate::domain::ModelRef::Local {
+                path: "missing.gguf".into(),
+            },
+        );
+        let entry = sched.entry(&def);
+        // Block readiness before any model lookup, network request, or server load.
+        let ready = entry.ready.lock().await;
+        let mut acquire = Box::pin(sched.acquire_keep_alive(&def, None, Some(KeepAlive::Forever)));
+        std::future::poll_fn(|cx| {
+            assert!(std::future::Future::poll(acquire.as_mut(), cx).is_pending());
+            std::task::Poll::Ready(())
+        })
+        .await;
+        assert_eq!(entry.state().waiting, 1);
+        assert_eq!(entry.state().keep_alive, Some(KeepAlive::Forever));
+
+        drop(acquire);
+        assert_eq!(entry.state().waiting, 0);
+        drop(ready);
+        // No server exists; passing the idle guard still clears the override.
+        assert!(!sched.unload_if_idle(&def.id).await.unwrap());
+        assert_eq!(entry.state().keep_alive, None);
+    }
+
+    #[tokio::test]
     async fn keep_alive_lives_only_for_the_request_that_sent_it() {
         let sched = Scheduler::new(
             SchedulerContext {
