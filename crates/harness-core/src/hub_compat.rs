@@ -728,6 +728,8 @@ pub fn mlx_compatibility_on(
         {
             MLX_AUDIO_FAMILY
         }
+        // Vocal separation (Mel-Band-RoFormer) behind `/v1/audio/process`.
+        Some("audio-to-audio") if crate::engine::mlx::is_sts_repo(tags) => MLX_AUDIO_FAMILY,
         Some(_) => return None,
     };
     if !apple_silicon || format != ModelFormat::Mlx {
@@ -735,10 +737,11 @@ pub fn mlx_compatibility_on(
     }
     let root = |f: &&String| !f.contains('/') && !f.contains('\\');
     let has_config = files.iter().filter(root).any(|f| f == "config.json");
-    // mlx-examples' older Whisper conversions have `weights.npz`.
+    // mlx-examples' older Whisper conversions have `weights.npz` (recognition only).
     let has_weights = files.iter().filter(root).any(|f| {
         let f = f.to_ascii_lowercase();
-        f.ends_with(".safetensors") || (family == MLX_AUDIO_FAMILY && f.ends_with(".npz"))
+        f.ends_with(".safetensors")
+            || (task == Some("automatic-speech-recognition") && f.ends_with(".npz"))
     });
     if !files.is_empty() && !(has_config && has_weights) {
         return None;
@@ -1561,6 +1564,46 @@ mod tests {
                 "{repo}"
             );
         }
+        // Vocal separation: an MLX audio-to-audio repo of a tested architecture (by its
+        // `model_type` tag) runs on mlx-audio; another audio-to-audio repo does not.
+        let sep = &s(&["README.md", "config.json", "model.safetensors"]);
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/mel-roformer-kim-vocal-2-mlx",
+                ModelFormat::Mlx,
+                Some("audio-to-audio"),
+                sep,
+                &s(&["mlx", "safetensors", "mel_band_roformer", "audio-to-audio"]),
+                true,
+                false
+            ),
+            audio
+        );
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/sam-audio-small",
+                ModelFormat::Mlx,
+                Some("audio-to-audio"),
+                sep,
+                &s(&["mlx-audio", "sam_audio", "audio-to-audio"]),
+                true,
+                false
+            ),
+            None
+        );
+        // npz weights count for recognition only: not for a text-to-speech repo.
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit",
+                ModelFormat::Mlx,
+                Some("text-to-speech"),
+                &s(&["config.json", "weights.npz"]),
+                &s(&["mlx"]),
+                true,
+                false
+            ),
+            None
+        );
         // Weights without a processor or a known layout are not offered; npz is no chat model.
         assert_eq!(
             mlx_compatibility_on(

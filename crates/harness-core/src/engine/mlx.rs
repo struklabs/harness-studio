@@ -365,18 +365,29 @@ fn whisper_processor_for_vocab(n_vocab: u64) -> Option<Codec> {
     }
 }
 
-/// The processor of a Hub Whisper repo by its name (the listing has no config): large-v3 and
-/// turbo, English-only (`.en`), else the multilingual one.
-fn whisper_processor_for_repo(id: &str) -> Codec {
+/// The processor of a Hub Whisper repo by its name (the listing has no config), for OpenAI's
+/// sizes only (`whisper-<size>[.en]`): large-v3 and turbo, English-only (`.en`), else the
+/// multilingual one. `None` for any other name: a fine-tune (`kotoba-whisper-v2.0`) may have
+/// another vocabulary, so it is not guessed.
+fn whisper_processor_for_repo(id: &str) -> Option<Codec> {
     let name = id.rsplit('/').next().unwrap_or(id).to_ascii_lowercase();
-    if name.contains("large-v3") || name.contains("turbo") {
+    let re = regex::Regex::new(
+        r"(^|[-_])whisper-(tiny|base|small|medium|large-v3-turbo|large-v3|large-v2|large|turbo)(\.en)?([-_]|$)",
+    )
+    .ok()?;
+    let caps = re.captures(&name)?;
+    let size = caps.get(2)?.as_str();
+    Some(if size.starts_with("large-v3") || size == "turbo" {
         WHISPER_LARGE_V3_PROCESSOR
-    } else if name.contains(".en") {
+    } else if caps.get(3).is_some() {
         WHISPER_TINY_EN_PROCESSOR
     } else {
         WHISPER_SMALL_PROCESSOR
-    }
+    })
 }
+
+/// The bundle id of a Whisper processor plan ([`codec_plan_for_repo`]).
+pub const WHISPER_BUNDLE: &str = "mlx-audio:whisper";
 
 /// Whether a config is mlx-examples' Whisper config (`n_mels`, `n_vocab`...; transformers names
 /// them `num_mel_bins`, `vocab_size`). Such a folder is an MLX build and has no processor.
@@ -526,7 +537,7 @@ pub fn codec_plan_for_repo(
         // The processor of an mlx-examples Whisper conversion. mlx-audio's own conversions
         // (`whisper-large-v3-turbo-asr-fp16`) have theirs.
         None if name.contains("whisper") && !name.contains("-asr") => {
-            ("whisper", vec![whisper_processor_for_repo(repo)])
+            ("whisper", vec![whisper_processor_for_repo(repo)?])
         }
         None => return None,
     };
@@ -551,7 +562,11 @@ pub fn codec_plan_for_repo(
         })
         .collect();
     Some(crate::image_bundles::BundlePlan {
-        bundle_id: format!("mlx-audio:{family}"),
+        bundle_id: if family == "whisper" {
+            WHISPER_BUNDLE.to_string()
+        } else {
+            format!("mlx-audio:{family}")
+        },
         label: repo.rsplit('/').next().unwrap_or(repo).to_string(),
         components,
         defaults: Default::default(),
@@ -945,8 +960,9 @@ pub fn has_whisper_processor(has: impl Fn(&str) -> bool) -> bool {
 /// Whether a Hub repo's root files are enough for mlx-audio: a Whisper repo
 /// ([`is_stt_repo`] by a `whisper` tag or name) needs [`has_whisper_processor`], or is one of
 /// mlx-examples' conversions (`config.json` and `weights.npz` / `weights.safetensors`, or
-/// quantized `model.safetensors` with a tiktoken vocabulary) whose processor is downloaded with
-/// it ([`codec_plan_for_repo`]). A listing without file names is taken as it is.
+/// quantized `model.safetensors` with a root tiktoken vocabulary) named after an OpenAI size,
+/// whose processor is downloaded with it ([`codec_plan_for_repo`]). A listing without file
+/// names is taken as it is.
 pub fn stt_repo_files_ok(id: &str, tags: &[String], files: &[String]) -> bool {
     let whisper = id
         .rsplit('/')
@@ -959,7 +975,11 @@ pub fn stt_repo_files_ok(id: &str, tags: &[String], files: &[String]) -> bool {
     let mlx_examples = root("config.json")
         && (root("weights.npz")
             || root("weights.safetensors")
-            || (root("model.safetensors") && files.iter().any(|f| f.ends_with(".tiktoken"))));
+            || (root("model.safetensors")
+                && files
+                    .iter()
+                    .any(|f| !f.contains('/') && f.ends_with(".tiktoken"))))
+        && whisper_processor_for_repo(id).is_some();
     files.is_empty() || !whisper || has_whisper_processor(root) || mlx_examples
 }
 
@@ -1011,7 +1031,34 @@ pub fn is_spark_dir(path: &Path) -> bool {
 
 /// Whether `path` is a folder of the `mlx-audio` engine (text to speech or recognition).
 pub fn is_audio_dir(path: &Path) -> bool {
-    is_tts_dir(path) || is_stt_dir(path)
+    is_tts_dir(path) || is_stt_dir(path) || is_sts_dir(path)
+}
+
+/// mlx-audio audio-to-audio architectures (`model_type`) Harness runs: Mel-Band-RoFormer vocal
+/// separation (`mlx_audio.sts.models.mel_roformer`).
+const STS_TYPES: &[&str] = &["mel_band_roformer"];
+
+/// Whether `path` is an audio-to-audio folder the `mlx-audio` engine runs ([`STS_TYPES`]): its
+/// `config.json` names the architecture, it has safetensors weights and an MLX card
+/// (`library_name: mlx` / `mlx-audio`, or the `mlx` tag). The worker separates it with
+/// `--task separate` behind the gateway's `/v1/audio/process`.
+pub fn is_sts_dir(path: &Path) -> bool {
+    path.is_dir()
+        && !super::mistralrs::weight_files(path).is_empty()
+        && model_type(path).is_some_and(|t| STS_TYPES.contains(&t.as_str()))
+        && (card_field(path, "library_name")
+            .is_some_and(|l| l.eq_ignore_ascii_case("mlx-audio") || l.eq_ignore_ascii_case("mlx"))
+            || card_tags(path)
+                .iter()
+                .any(|t| t == "mlx" || t == "mlx-audio"))
+}
+
+/// Whether a Hub repo is an audio-to-audio model of a tested architecture: its tags list a
+/// [`STS_TYPES`] `model_type` (the Hub copies the config's there). The folder check after the
+/// download is [`is_sts_dir`].
+pub fn is_sts_repo(tags: &[String]) -> bool {
+    tags.iter()
+        .any(|t| STS_TYPES.contains(&t.to_ascii_lowercase().as_str()))
 }
 
 /// Families whose mlx-audio `generate` takes a `speed` (mlx-audio 0.5.9); the worker refuses a
@@ -1085,7 +1132,7 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
     // Chatterbox, VoxCPM2): its folder is described by its weights and `model_type` alone.
     let info = match super::mistralrs::inspect_checkpoint(dir) {
         Some(info) => info,
-        None if stt || is_tts_dir(dir) => audio_dir_info(dir),
+        None if stt || is_tts_dir(dir) || is_sts_dir(dir) => audio_dir_info(dir),
         None => return None,
     };
     let mut model = super::mistralrs::to_local_model(dir, &info, root);
@@ -1098,6 +1145,8 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
     }
     if stt {
         model.task = Some("automatic-speech-recognition".into());
+    } else if is_sts_dir(dir) {
+        model.task = Some("audio-to-audio".into());
     }
     if let Some(bits) = read_json(&dir.join("config.json")).and_then(|c| quant_bits(&c)) {
         model.quantization = format!("{bits}bit");
@@ -1524,6 +1573,9 @@ fn build_args(
     if flavour == Flavour::Audio && is_stt_dir(&config.model_path) {
         args.push("--task".into());
         args.push("transcription".into());
+    } else if flavour == Flavour::Audio && is_sts_dir(&config.model_path) {
+        args.push("--task".into());
+        args.push("separate".into());
     }
     if flavour == Flavour::Audio && !companions_of(&config.model_path).is_empty() {
         let libraries = crate::config::AppSettings::load().all_models_dirs();
@@ -2497,6 +2549,79 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             assert_eq!(folder, format!("{processor}-processor"));
             assert_eq!(file.repo, processor);
         }
+        // Only OpenAI's size names are mapped: a fine-tune may have another vocabulary.
+        for repo in [
+            "mlx-community/kotoba-whisper-v2.0",
+            "someone/whisper-custom-mlx",
+            "mlx-community/whisperx",
+        ] {
+            assert!(whisper_processor_for_repo(repo).is_none(), "{repo}");
+            assert!(codec_plan_for_repo(repo, &libraries).is_none(), "{repo}");
+        }
+        for (repo, processor) in [
+            (
+                "mlx-community/distil-whisper-large-v3",
+                "openai/whisper-large-v3",
+            ),
+            ("mlx-community/whisper-turbo", "openai/whisper-large-v3"),
+            ("mlx-community/whisper-large-v2-mlx", "openai/whisper-small"),
+            (
+                "mlx-community/whisper-medium.en-mlx",
+                "openai/whisper-tiny.en",
+            ),
+            ("mlx-community/whisper-tiny", "openai/whisper-small"),
+        ] {
+            assert_eq!(
+                whisper_processor_for_repo(repo).map(|c| c.repo),
+                Some(processor),
+                "{repo}"
+            );
+        }
+        // The processor of each vocabulary.
+        for (vocab, processor) in [
+            (51866, "openai/whisper-large-v3"),
+            (51865, "openai/whisper-small"),
+            (51864, "openai/whisper-tiny.en"),
+        ] {
+            assert_eq!(
+                whisper_processor_for_vocab(vocab).map(|c| c.repo),
+                Some(processor)
+            );
+        }
+        assert!(whisper_processor_for_vocab(51867).is_none());
+        // The Hub: a tiktoken vocabulary counts at the root only, and an unknown name is not
+        // offered without a processor of its own.
+        let files = |f: &[&str]| f.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let quantized = files(&["config.json", "model.safetensors", "multilingual.tiktoken"]);
+        assert!(stt_repo_files_ok(
+            "mlx-community/whisper-large-v3-turbo-4bit",
+            &[],
+            &quantized
+        ));
+        assert!(!stt_repo_files_ok(
+            "mlx-community/whisper-large-v3-turbo-4bit",
+            &[],
+            &files(&[
+                "config.json",
+                "model.safetensors",
+                "sub/multilingual.tiktoken"
+            ])
+        ));
+        assert!(!stt_repo_files_ok(
+            "mlx-community/kotoba-whisper-v2.0",
+            &[],
+            &quantized
+        ));
+        assert!(stt_repo_files_ok(
+            "mlx-community/kotoba-whisper-v2.0",
+            &[],
+            &files(&[
+                "config.json",
+                "model.safetensors",
+                "preprocessor_config.json",
+                "tokenizer.json"
+            ])
+        ));
     }
 
     /// CSM (`sesame`, `mlx-community/csm-1b-fp16`): a speech folder whose Mimi codec, Llama 3.2
@@ -2781,6 +2906,12 @@ tags:
             ]);
             assert!(is_stt_dir(npz.path()), "{vocab}");
             assert_eq!(audio_dir_info(npz.path()).weights.len(), 1);
+            // Safetensors beside the npz are the weights, the npz is not counted twice.
+            std::fs::write(npz.path().join("weights.safetensors"), "x").unwrap();
+            let weights = audio_dir_info(npz.path()).weights;
+            assert_eq!(weights.len(), 1);
+            assert!(weights[0].ends_with("weights.safetensors"));
+            std::fs::remove_file(npz.path().join("weights.safetensors")).unwrap();
             let e = companion_args(npz.path(), &[]).unwrap_err();
             assert!(e.contains(repo), "{e}");
         }
@@ -3751,6 +3882,117 @@ print("processors", bare._processor == "proc " + w.os.path.realpath("/lib/p"), o
             "nan scores 'Real speech.'",
             "no starts 'as is'",
             "no segments 'p'",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+    }
+
+    /// A Mel-Band-RoFormer folder (`mlx-community/mel-roformer-*-mlx`) is mlx-audio's
+    /// separator: a pipeline model of the audio-to-audio task, launched with `--task separate`;
+    /// no chat or Python engine takes it, and without an MLX card it is nobody's.
+    #[test]
+    fn separation_folders_are_mlx_audio() {
+        let card = "---\nlibrary_name: mlx\npipeline_tag: audio-to-audio\ntags:\n- mlx\n- mel_band_roformer\n---\n";
+        let config = r#"{"_class":"MelRoFormerConfig","model_type":"mel_band_roformer","dim":192,"sample_rate":44100,"chunk_size":352800,"num_overlap":2}"#;
+        let sep = folder(&[
+            ("config.json", config),
+            ("model.safetensors", "x"),
+            ("README.md", card),
+        ]);
+        assert!(is_sts_dir(sep.path()));
+        assert!(is_audio_dir(sep.path()) && !is_tts_dir(sep.path()) && !is_stt_dir(sep.path()));
+        assert_eq!(flavour_of(sep.path()), Some(Flavour::Audio));
+        assert!(!is_model_dir(sep.path()));
+        assert!(!super::super::mistralrs::is_model_dir(sep.path()));
+        assert!(super::super::python_hf::detect(sep.path()).is_none());
+        assert!(companion_args(sep.path(), &[]).unwrap().is_empty());
+        let m = to_local_model(sep.path(), sep.path().parent().unwrap()).unwrap();
+        assert_eq!(m.kind, crate::domain::ModelKind::Pipeline);
+        assert_eq!(m.task.as_deref(), Some("audio-to-audio"));
+        let config = LaunchConfig {
+            model_path: sep.path().to_path_buf(),
+            host: "127.0.0.1".into(),
+            port: 11454,
+            ..Default::default()
+        };
+        let args = build_args(
+            &config,
+            Path::new("/env/mlx_audio_worker.py"),
+            Flavour::Audio,
+        )
+        .unwrap()
+        .args
+        .join(" ");
+        assert!(args.contains(" --task separate"), "{args}");
+        assert!(!args.contains("transcription"), "{args}");
+        // No MLX card, or another architecture: not a separator.
+        let plain = folder(&[
+            ("config.json", r#"{"model_type":"mel_band_roformer"}"#),
+            ("model.safetensors", "x"),
+        ]);
+        assert!(!is_sts_dir(plain.path()));
+        let other = folder(&[
+            ("config.json", r#"{"model_type":"bs_roformer"}"#),
+            ("model.safetensors", "x"),
+            ("README.md", card),
+        ]);
+        assert!(!is_sts_dir(other.path()));
+        // The Hub: by the `model_type` tag.
+        let tags = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(is_sts_repo(&tags(&[
+            "mlx",
+            "mel_band_roformer",
+            "audio-to-audio"
+        ])));
+        assert!(!is_sts_repo(&tags(&["mlx", "audio-to-audio", "sam_audio"])));
+    }
+
+    /// The separation worker's request takes the WAV alone (base64, a WAV data URI allowed) and
+    /// refuses anything else; the audio is cut into overlapping windows that cover it all.
+    #[test]
+    fn the_audio_worker_separates_in_windows() {
+        let Some(python) = system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let script = format!(
+            r#"
+import sys, json; sys.path.insert(0, {:?}); import mlx_audio_worker as w
+def req(body):
+    try:
+        return w.process_request(json.dumps(body).encode())
+    except w.Refused as e:
+        return "refused: %s" % e
+print("plain", req({{"model": "m", "request": {{"audio_base64": "UklGRg=="}}}}))
+print("uri", req({{"request": {{"audio_base64": "data:audio/wav;base64,UklGRg=="}}}}))
+print("option", req({{"model": "m", "request": {{"audio_base64": "UklGRg==", "seed": 1}}}}))
+print("extra", req({{"model": "m", "prompt": "x", "request": {{"audio_base64": "UklGRg=="}}}}))
+print("bad", req({{"request": {{"audio_base64": "!!"}}}}))
+print("short", w.windows(100, 352800, 2))
+print("long", w.windows(10, 4, 2))
+print("exact", w.windows(8, 4, 2))
+"#,
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "plain b'RIFF'",
+            "uri b'RIFF'",
+            "option refused: the request must hold only audio_base64",
+            "extra refused: the body must hold only model and request",
+            "bad refused: audio_base64 is not base64",
+            "short [(0, 100)]",
+            "long [(0, 4), (2, 6), (4, 8), (6, 10)]",
+            "exact [(0, 4), (2, 6), (4, 8)]",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }

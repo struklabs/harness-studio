@@ -389,6 +389,34 @@ Playground > Speech includes **Process Audio**: choose a model, upload WAV or re
 
 Not included: `mossformer2` and `tf_gridnet` have no model specs/implementation in the supplied v0.9.1 tree. `builtin_audio_utils` RNNoise (`rnnoise10Gb_15.safetensors`) and DeepFilterNet2 (`deepfilternet2.safetensors`, 48 kHz input/output) have repository asset weights but no single HF package in their model spec; a safe Hub install/identity path is not implemented. SpeechBrain pickle `.ckpt`, custom-code repositories, standalone vocoders and other built-in utilities remain excluded.
 
+### Vocal Separation with mlx-audio (Apple Silicon)
+
+On Apple Silicon (macOS 14+), mlx-community's Mel-Band-RoFormer separators run on the managed MLX audio environment, without audio.cpp:
+- `mlx-community/mel-roformer-kim-vocal-2-mlx` (0.43 GB);
+- `mlx-community/mel-roformer-zfturbo-vocals-v1-mlx` (64 MB).
+
+On the Hub, an MLX `audio-to-audio` repo whose tags name `mel_band_roformer` is marked as running with mlx-audio. After download, the folder (a `config.json` with `model_type: mel_band_roformer` and an MLX card) is a pipeline model of the audio-to-audio task.
+
+`POST /v1/audio/process` serves these models with the same request and response as audio.cpp:
+- Request: multipart `model` + `file`, or JSON `model` + `audio_base64`. The audio is a PCM or float WAV of at most 32 MiB.
+- Response: `{model, outputs:[vocals, instrumental]}`, as 16-bit stereo WAVs at 44.1 kHz. The instrumental is the mix minus the vocals.
+- They take no options or prompt; any other field gets a 400.
+
+The worker is `mlx_audio_worker.py --task separate`. It listens on 127.0.0.1 and requires a key. For each request it:
+1. Resamples the input to 44.1 kHz stereo; mono input is copied to both channels.
+2. Separates the audio in the model's 8-second windows with 50% overlap, blending the windows by overlap-add.
+3. Refuses audio over 300 seconds. Two stereo stems of that length stay under the gateway's 128 MiB output limit.
+
+The gateway's request timeout is checked between windows and ends a long job with a 504.
+
+Models that audio.cpp runs keep their route unchanged. With audio.cpp off, only these separators are served.
+
+Playground > Speech > Process Audio lists both engines' models, each labelled with its engine.
+
+Measured on an M1 8 GB:
+- 4.5 s of speech took 1.5 to 4.3 s;
+- 21.6 s took 12 s, including the model load.
+
 ## Experimental CrispASR Speech Recognition
 
 CrispASR is **experimental**: it is on by default once installed, but the engine is young and its model support is limited to CrispASR-format GGUFs.

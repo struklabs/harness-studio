@@ -903,6 +903,37 @@ pub fn companion_plan(
         .or_else(|| repo.and_then(|r| crate::engine::mlx::codec_plan_for_repo(r, libraries)))
 }
 
+/// [`companion_plan`] with the Hub listing of `repo` checked: a Whisper repo whose root has its
+/// own processor ([`crate::engine::mlx::has_whisper_processor`]) needs no processor companion.
+/// When the listing cannot be read, the plan stands (the processor is a few MB).
+pub async fn companion_plan_checked(
+    main_file: &str,
+    repo: Option<&str>,
+    libraries: &[PathBuf],
+    token: Option<&str>,
+) -> Option<crate::image_bundles::BundlePlan> {
+    let plan = companion_plan(main_file, repo, libraries)?;
+    let Some(repo) = repo.filter(|_| plan.bundle_id == crate::engine::mlx::WHISPER_BUNDLE) else {
+        return Some(plan);
+    };
+    match DownloadManager::list_repo_files(repo, token).await {
+        Ok(items) => {
+            let root: Vec<&str> = items
+                .iter()
+                .filter_map(|i| i.get("path").and_then(|v| v.as_str()))
+                .filter(|p| !p.contains('/'))
+                .collect();
+            (!own_whisper_processor(&root)).then_some(plan)
+        }
+        Err(_) => Some(plan),
+    }
+}
+
+/// Whether a repo's root files hold a Whisper processor of its own.
+fn own_whisper_processor(root: &[&str]) -> bool {
+    crate::engine::mlx::has_whisper_processor(|name| root.contains(&name))
+}
+
 /// Each audio.cpp GGUF is a model variant with only its own folder's companion
 /// files. In the package repo, unrelated families and languages stay separate.
 fn audio_cpp_variants(
@@ -2318,7 +2349,7 @@ impl DownloadManager {
         token: Option<&str>,
     ) -> Result<Vec<u64>, String> {
         let libraries = AppSettings::load().all_models_dirs();
-        let Some(plan) = companion_plan(main_file, repo, &libraries) else {
+        let Some(plan) = companion_plan_checked(main_file, repo, &libraries, token).await else {
             return Ok(Vec::new());
         };
         let active: Vec<(String, String)> = self
@@ -5802,6 +5833,17 @@ mod tests {
         ];
         let v = safetensors_variants("a/b", &both).unwrap();
         assert!(!v[0].shards.iter().any(|s| s.filename.ends_with(".bin")));
+        // A repo with its own Whisper processor needs no processor companion.
+        assert!(own_whisper_processor(&[
+            "config.json",
+            "preprocessor_config.json",
+            "tokenizer.json"
+        ]));
+        assert!(own_whisper_processor(&[
+            "preprocessor_config.json",
+            "vocab.json"
+        ]));
+        assert!(!own_whisper_processor(&["config.json", "weights.npz"]));
         // mlx-examples' Whisper conversion: `weights.npz` is its weights.
         let npz = vec![
             file("config.json", 266),

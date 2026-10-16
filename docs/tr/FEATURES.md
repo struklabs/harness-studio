@@ -392,6 +392,34 @@ Playground > Konuşma içindeki **Sesi İşle** paneli model seçme, WAV yüklem
 
 Dışarıda kalanlar: sağlanan v0.9.1 ağacında `mossformer2` ve `tf_gridnet` model tanımı/uygulaması yoktur. `builtin_audio_utils` RNNoise (`rnnoise10Gb_15.safetensors`) ve DeepFilterNet2 (`deepfilternet2.safetensors`; 48 kHz girdi/çıktı) depo varlığı olarak bulunur ancak model tanımları tek bir HF paketi belirtmez; güvenli Hub kurulum/kimlik yolu eklenmemiştir. SpeechBrain pickle `.ckpt`, özel kod isteyen depolar, bağımsız vocoder modelleri ve diğer yerleşik araçlar kapsam dışıdır.
 
+### mlx-audio ile Vokal Ayırma (Apple Silicon)
+
+Apple Silicon'da (macOS 14+) mlx-community'nin Mel-Band-RoFormer ayırıcıları audio.cpp olmadan, yönetilen MLX ses ortamında çalışır:
+- `mlx-community/mel-roformer-kim-vocal-2-mlx` (0,43 GB);
+- `mlx-community/mel-roformer-zfturbo-vocals-v1-mlx` (64 MB).
+
+Hub'da, etiketleri `mel_band_roformer` diyen MLX `audio-to-audio` deposu mlx-audio ile çalışır olarak işaretlenir. İndirilen klasör (`model_type: mel_band_roformer` diyen bir `config.json` ve MLX kartı) audio-to-audio görevinin pipeline modelidir.
+
+`POST /v1/audio/process` bu modelleri audio.cpp ile aynı istek ve yanıtla sunar:
+- İstek: multipart `model` + `file` ya da JSON `model` + `audio_base64`. Ses en çok 32 MiB PCM ya da float WAV olmalıdır.
+- Yanıt: `{model, outputs:[vocals, instrumental]}`, 44,1 kHz 16-bit stereo WAV olarak. Enstrümantal, karışımdan vokalin çıkarılmasıyla elde edilir.
+- Seçenek ya da istem almazlar; başka her alan 400 döner.
+
+Worker `mlx_audio_worker.py --task separate`'tir. 127.0.0.1'de dinler ve anahtar ister. Her istekte:
+1. Girdiyi 44,1 kHz stereoya çevirir; mono ses iki kanala kopyalanır.
+2. Sesi modelin 8 saniyelik pencerelerinde %50 örtüşmeyle ayırır ve pencereleri örtüşme-toplamayla birleştirir.
+3. 300 saniyeden uzun sesi reddeder. Bu uzunluktaki iki stereo çıktı ağ geçidinin 128 MiB çıktı sınırının altında kalır.
+
+Ağ geçidinin istek zaman aşımı pencereler arasında kontrol edilir ve uzun bir işi 504 ile bitirir.
+
+audio.cpp'nin çalıştırdığı modellerin yolu değişmez. audio.cpp kapalıyken yalnız bu ayırıcılar sunulur.
+
+Playground > Konuşma > Sesi İşle iki motorun modellerini, her birini çalıştıran motorun adıyla listeler.
+
+M1 8 GB'ta ölçüm:
+- 4,5 sn konuşma 1,5–4,3 sn sürdü;
+- 21,6 sn, model yüklemesi dahil 12 sn sürdü.
+
 ## Deneysel CrispASR ile Konuşma Tanıma
 
 CrispASR **deneyseldir**: kurulunca varsayılan olarak açıktır, ancak motor yenidir ve model desteği CrispASR biçimli GGUF dosyalarıyla sınırlıdır.

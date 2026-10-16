@@ -16,7 +16,7 @@
 
   type OptionName = 'audio_chunk_duration_sec' | 'audio_chunk_overlap_sec' | 'edge_pad_duration_sec' | 'num_inference_steps' | 'guidance_scale' | 'ddim_eta' | 'seed' | 'input_sample_rate' | 'sampler_mode';
   interface OptionSpec { name: OptionName; min: number; max: number; default: number; integer: boolean; choices: string[] }
-  interface Model { name: string; family: string; options: OptionSpec[] }
+  interface Model { name: string; family: string; engine: 'audio.cpp' | 'mlx-audio'; options: OptionSpec[] }
   interface Output { name: 'enhanced' | 'vocals' | 'instrumental' | 'target' | 'residual'; audio_base64: string; mime: string; url: string }
   let overview = $state<{ models: Model[]; runtime_installed: boolean } | null>(null);
   let model = $state('');
@@ -29,8 +29,11 @@
   let loadToken = 0;
   let error = $state('');
   let controller: AbortController | null = null;
-  let chosen = $derived(overview?.models.find(m => m.name === model));
   let enabled = $derived(!!app.settings?.audio_cpp_enabled);
+  // mlx-audio separators run without audio.cpp; its notices show only when nothing else can run.
+  let mlxModels = $derived(overview?.models.filter(m => m.engine === 'mlx-audio') ?? []);
+  let models = $derived(overview?.models.filter(m => m.engine === 'mlx-audio' || (enabled && overview?.runtime_installed)) ?? []);
+  let chosen = $derived(models.find(m => m.name === model));
   const controlClass = 'h-8 rounded-md border border-input bg-background px-2 text-sm';
 
   async function load() {
@@ -39,7 +42,8 @@
       const next = await invoke<typeof overview>('get_audio_process_overview');
       if (token !== loadToken) return;
       overview = next;
-      if (!overview?.models.some(m => m.name === model)) model = overview?.models[0]?.name ?? '';
+      const usable = overview?.models.filter(m => m.engine === 'mlx-audio' || (enabled && overview?.runtime_installed)) ?? [];
+      if (!usable.some(m => m.name === model)) model = usable[0]?.name ?? '';
     } catch (e) { error = localizeError(e); }
   }
   onMount(() => { void runtimesStore.load(); });
@@ -93,16 +97,16 @@
 <section class="mx-auto flex w-full max-w-[860px] flex-col gap-4 px-4 py-6" aria-labelledby="audio-process-title">
   <div class="flex items-center gap-2"><h2 id="audio-process-title" class="text-base font-semibold">{t('process.title')}</h2><span class="rounded border border-warning/40 px-2 py-0.5 text-xs text-warning">{t('process.experimental')}</span></div>
   <p class="text-sm text-muted-foreground">{t('process.description')}</p>
-  {#if !enabled}
+  {#if !enabled && !mlxModels.length}
     <p class="text-sm text-muted-foreground">{t('audio_cpp.needs_engine')}</p>
     <Button variant="outline" class="self-start" onclick={() => security.openSettings('runtime-installed')}>{t('audio_cpp.enable')}</Button>
-  {:else if overview && !overview.runtime_installed}
+  {:else if enabled && overview && !overview.runtime_installed && !mlxModels.length}
     <EngineNeeded family="audio.cpp" onInstalled={() => void load()} />
   {:else}
-    {#if overview && !overview.models.length}<p class="text-sm text-muted-foreground">{t('process.no_models')}</p>{/if}
+    {#if overview && !models.length}<p class="text-sm text-muted-foreground">{t('process.no_models')}</p>{/if}
     <label class="flex flex-col gap-1 text-sm" for="process-model">{t('process.model')}
-      <select id="process-model" class={controlClass} bind:value={model} disabled={busy || !overview?.models.length}>
-        {#each overview?.models ?? [] as m}<option value={m.name}>{m.name} · {m.family}</option>{/each}
+      <select id="process-model" class={controlClass} bind:value={model} disabled={busy || !models.length}>
+        {#each models as m}<option value={m.name}>{m.name} · {m.engine} · {m.family}</option>{/each}
       </select>
     </label>
     <div class="flex flex-col gap-1.5">
