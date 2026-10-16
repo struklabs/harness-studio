@@ -4493,7 +4493,13 @@ fn safetensors_variants(
     if weights.is_empty() {
         weights = files.iter().filter(|f| is_torch_weights(&f.path)).collect();
     }
-    let is_weights = |f: &F| root(f) && (is_safetensors(f) || is_torch_weights(&f.path));
+    // mlx-examples' older Whisper conversions: `weights.npz` (mlx-audio loads it).
+    let is_npz = |f: &F| root(f) && f.path.to_ascii_lowercase().ends_with(".npz");
+    if weights.is_empty() {
+        weights = files.iter().filter(|f| is_npz(f)).collect();
+    }
+    let is_weights =
+        |f: &F| root(f) && (is_safetensors(f) || is_torch_weights(&f.path) || is_npz(f));
     if weights.is_empty() || !files.iter().any(|f| f.path == "config.json") {
         return Ok(Vec::new());
     }
@@ -5796,6 +5802,15 @@ mod tests {
         ];
         let v = safetensors_variants("a/b", &both).unwrap();
         assert!(!v[0].shards.iter().any(|s| s.filename.ends_with(".bin")));
+        // mlx-examples' Whisper conversion: `weights.npz` is its weights.
+        let npz = vec![
+            file("config.json", 266),
+            lfs("weights.npz", 481_307_592, &oid),
+            file("README.md", 343),
+        ];
+        let v = safetensors_variants("mlx-community/whisper-small-mlx", &npz).unwrap();
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(names, ["weights.npz", "README.md", "config.json"]);
         // Alternative weight sets of one model come down once: openai/whisper-large-v3 (fp32
         // shards beside model.safetensors) and sesame/csm-1b (transformers shards beside it).
         let whisper = vec![
