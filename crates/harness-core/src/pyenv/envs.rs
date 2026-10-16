@@ -802,9 +802,8 @@ pub(crate) mod tests {
 
     #[test]
     fn transcribe_cpp_locks_pin_every_file_of_one_version() {
-        let mut locks = vec![TRANSCRIBE_CPP.lock];
         #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
-        {
+        let locks = {
             assert_eq!(TRANSCRIBE_CPP_CUDA.gpu_build_of, Some(TRANSCRIBE_CPP.name));
             assert!(preferred(&TRANSCRIBE_CPP_CUDA, true));
             assert!(!preferred(&TRANSCRIBE_CPP, true));
@@ -818,8 +817,10 @@ pub(crate) mod tests {
                     && cuda.contains("nvidia-cuda-runtime-cu12==12.9.")
             );
             assert!(!cuda.contains("transcribe-cpp-native=="));
-            locks.push(cuda);
-        }
+            vec![TRANSCRIBE_CPP.lock, cuda]
+        };
+        #[cfg(not(all(any(windows, target_os = "linux"), target_arch = "x86_64")))]
+        let locks = vec![TRANSCRIBE_CPP.lock];
         for lock in locks {
             assert!(lock.contains("transcribe-cpp==0.4.0 \\"));
             let requirements: Vec<&str> = lock
