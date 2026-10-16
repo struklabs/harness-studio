@@ -1,7 +1,8 @@
-"""Harness MLX audio worker: text to speech or speech recognition with one local mlx-audio model folder.
+"""Harness MLX audio worker: text to speech, speech recognition or vocal separation with one local mlx-audio model folder.
 
     <env python> mlx_audio_worker.py --model <dir> --port <port> [--alias <name>]
-        [--task speech|transcription] [--max-chars N] [--max-seconds N] [--max-audio-seconds N]
+        [--task speech|transcription|separate] [--max-chars N] [--max-seconds N]
+        [--max-audio-seconds N]
         [--companion owner/repo=folder ...]
 
 mlx-audio's own server is large (realtime websockets, transcription, voice lists fetched from
@@ -13,8 +14,10 @@ names. This worker serves only what Harness needs, itself:
   removed from the environment once read and never logged.
 * GET /health ({"status": "ok"}), GET /v1/models (the alias and the model's voices) and one
   POST route by --task: /v1/audio/speech ({"input", "voice", "speed", "language"} in, 16-bit
-  WAV out) or /v1/audio/transcriptions (multipart "file" with optional "language" and "task"
-  in, {"text"} out); every other route is 404.
+  WAV out), /v1/audio/transcriptions (multipart "file" with optional "language" and "task"
+  in, {"text"} out) or /v1/tasks/run (the gateway's /v1/audio/process: {"model", "request":
+  {"audio_base64"}} with a WAV in, {"named_audio_outputs": [vocals, instrumental]} as 16-bit
+  44.1 kHz WAVs out); every other route is 404.
 * Browsers: only the origins in HARNESS_WORKER_ORIGINS (the Harness window and the user's CORS
   origins) get CORS headers; their preflight is answered here (it carries no key). A request
   with any other Origin is refused (403) before anything else, so no web page can drive it.
@@ -61,6 +64,13 @@ ORIGINS = frozenset(o for o in os.environ.pop("HARNESS_WORKER_ORIGINS", "").spli
 HOST = "127.0.0.1"
 SPEECH_PATH = "/v1/audio/speech"
 TRANSCRIPTION_PATH = "/v1/audio/transcriptions"
+# The audio.cpp task route the gateway's /v1/audio/process posts to (the same JSON shape).
+PROCESS_PATH = "/v1/tasks/run"
+# The gateway sends a WAV of at most 32 MiB, base64 in JSON.
+MAX_PROCESS_BODY = 48 * 1024 * 1024
+# Separation runs at the model's rate in stereo; two stems of five minutes (about 53 MB each as
+# 16-bit WAV) stay under the gateway's output limit (128 MiB).
+SEPARATE_MAX_AUDIO_SECONDS = 300.0
 FIELDS = {"model", "input", "voice", "speed", "language", "response_format"}
 FORM_FIELDS = {"file", "model", "language", "task", "response_format"}
 LABEL = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
@@ -133,7 +143,7 @@ def parser():
     p.add_argument("--alias", default=None)
     p.add_argument("--max-chars", type=int, default=4096)
     p.add_argument("--max-seconds", type=float, default=DEFAULT_MAX_SECONDS)
-    p.add_argument("--task", choices=("speech", "transcription"), default="speech")
+    p.add_argument("--task", choices=("speech", "transcription", "separate"), default="speech")
     p.add_argument("--max-audio-seconds", type=float, default=DEFAULT_MAX_AUDIO_SECONDS)
     # A Hub repo the model's loader asks for (its codec) and the library folder that holds it.
     p.add_argument("--companion", action="append", default=[], metavar="OWNER/REPO=DIR")
@@ -371,6 +381,92 @@ def heard_text(result, seconds):
     if not isinstance(text, str):
         raise RuntimeError("no text")
     return text.strip()
+
+
+def process_request(raw):
+    """The WAV bytes of a processing request: {"model", "request": {"audio_base64"}} and
+    nothing else (no options: the separator has none)."""
+    import base64
+
+    try:
+        body = json.loads(raw or b"{}")
+    except ValueError:
+        raise Refused("the body must be JSON")
+    if not isinstance(body, dict) or set(body) - {"model", "request"}:
+        raise Refused("the body must hold only model and request")
+    request = body.get("request")
+    if not isinstance(request, dict) or set(request) != {"audio_base64"} \
+            or not isinstance(request["audio_base64"], str):
+        raise Refused("the request must hold only audio_base64")
+    data = request["audio_base64"]
+    for prefix in ("data:audio/wav;base64,", "data:audio/x-wav;base64,"):
+        if data.startswith(prefix):
+            data = data[len(prefix):]
+    try:
+        return base64.b64decode(data, validate=True)
+    except ValueError:
+        raise Refused("audio_base64 is not base64")
+
+
+def overlap_weights(length, np):
+    """Weights of a chunk in the overlap-add: a triangle (never zero), so neighbouring chunks
+    fade into each other."""
+    ramp = np.minimum(np.arange(1, length + 1), np.arange(length, 0, -1)).astype(np.float32)
+    return ramp / ramp.max()
+
+
+def windows(n, chunk, overlap):
+    """The (start, end) windows of `n` samples: `chunk` long, a new one every chunk / overlap
+    samples, the last one ending at `n`."""
+    step = max(1, chunk // max(1, overlap))
+    out, start = [], 0
+    while True:
+        end = min(start + chunk, n)
+        out.append((start, end))
+        if end >= n:
+            return out
+        start += step
+
+
+def make_separate(model, max_seconds, chunk, overlap, clock=time.monotonic):
+    """`separate(stereo)` -> (vocals, instrumental), each [2, n] float32: the model run over
+    windows of `chunk` samples, `overlap` of them per window (mlx-audio's MelRoFormer config:
+    chunk_size, num_overlap), blended by overlap-add; the instrumental is the mix minus the
+    vocals. Stopped with TooSlow after `max_seconds` (checked between windows)."""
+    import numpy as np
+    import mlx.core as mx
+
+    def separate(stereo):
+        n = stereo.shape[1]
+        out = np.zeros_like(stereo, dtype=np.float32)
+        weight = np.zeros(n, dtype=np.float32)
+        deadline = clock() + max_seconds
+        for start, end in windows(n, chunk, overlap):
+            if clock() > deadline:
+                raise TooSlow()
+            piece = model(mx.array(stereo[None, :, start:end]))
+            mx.eval(piece)
+            w = overlap_weights(end - start, np)
+            out[:, start:end] += np.asarray(piece[0], dtype=np.float32)[:, :end - start] * w
+            weight[start:end] += w
+        vocals = out / np.maximum(weight, 1e-8)
+        return vocals, stereo - vocals
+
+    return separate
+
+
+def wav_bytes_channels(samples, rate):
+    """16-bit PCM WAV of float samples [channels, n] in [-1, 1]."""
+    import numpy as np
+
+    pcm = (np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0) * 32767.0).astype("<i2")
+    out = io.BytesIO()
+    with wave.open(out, "wb") as w:
+        w.setnchannels(pcm.shape[0])
+        w.setsampwidth(2)
+        w.setframerate(int(rate))
+        w.writeframes(pcm.T.tobytes())
+    return out.getvalue()
 
 
 def wav_bytes(samples, rate):
@@ -764,6 +860,57 @@ def transcription_app_for(transcribe, decode, alias):
     return app_with(TRANSCRIPTION_PATH, handle, entry, MAX_AUDIO_BODY)
 
 
+def separation_app_for(separate, decode, encode, alias):
+    """The vocal separation app; `decode(bytes)` makes [2, n] samples at the model's rate,
+    `separate(samples)` the two stems and `encode(samples)` a WAV (all blocking)."""
+    import base64
+
+    one_at_a_time = threading.Lock()
+
+    def run(audio):
+        try:
+            samples = decode(audio)
+        except Refused:
+            raise
+        except Exception:
+            raise Refused("the audio could not be decoded")
+        with one_at_a_time:
+            vocals, instrumental = separate(samples)
+        return [{"id": name, "audio": base64.b64encode(encode(stem)).decode()}
+                for name, stem in (("vocals", vocals), ("instrumental", instrumental))]
+
+    def refused(e):
+        return 400, error(str(e) + ".", "invalid_request_error", "invalid_request"), \
+            b"application/json", []
+
+    async def handle(raw, _content_type):
+        try:
+            audio = process_request(raw)
+            outputs = await on_model_thread(run, audio)
+        except Refused as e:
+            return refused(e)
+        except TooSlow:
+            return 504, error("Separation took longer than the worker's time limit.",
+                              "server_error", "separation_timeout"), b"application/json", []
+        except Exception as e:  # the model's own failure, without the folder's path
+            return 500, error("Separation failed: %s" % type(e).__name__, "server_error",
+                              "separation_failed"), b"application/json", []
+        return 200, {"named_audio_outputs": outputs}, b"application/json", []
+
+    entry = {"id": alias or "default_model", "object": "model", "owned_by": "harness"}
+    return app_with(PROCESS_PATH, handle, entry, MAX_PROCESS_BODY)
+
+
+def decode_stereo(audio, rate, max_seconds, miniaudio, np):
+    """[2, n] float32 samples of a WAV at `rate` (mono is doubled); more than `max_seconds` is
+    refused."""
+    decoded = miniaudio.decode(audio, output_format=miniaudio.SampleFormat.FLOAT32, nchannels=2,
+                               sample_rate=int(rate))
+    if decoded.num_frames > max_seconds * rate:
+        raise Refused("the audio is longer than %d seconds" % max_seconds)
+    return np.asarray(decoded.samples, dtype=np.float32).reshape(-1, 2).T.copy()
+
+
 def stt_options(model_dir):
     """Loader options of a recognition folder: a NeMo Parakeet config names no `model_type`
     (mlx-audio would guess it from the folder's name), so it is given here."""
@@ -939,6 +1086,23 @@ def main(argv=None):
     import mlx.core as mx
 
     wire_weights(mx)
+
+    if args.task == "separate":
+        import miniaudio
+        import numpy as np
+        from mlx_audio.sts.models.mel_roformer.model import MelRoFormer
+
+        model = MODEL_THREAD.submit(MelRoFormer.from_pretrained, model_dir).result()
+        config = model.config
+        rate = getattr(config, "sample_rate", 44100)
+        limit = min(args.max_audio_seconds, SEPARATE_MAX_AUDIO_SECONDS)
+        separate = make_separate(model, args.max_seconds, getattr(config, "chunk_size", 352800),
+                                 getattr(config, "num_overlap", 2))
+        app = separation_app_for(
+            separate, lambda audio: decode_stereo(audio, rate, limit, miniaudio, np),
+            lambda samples: wav_bytes_channels(samples, rate), args.alias)
+        uvicorn.run(cors(app), host=HOST, port=args.port, log_level="info", access_log=True)
+        return
 
     if args.task == "transcription":
         import miniaudio

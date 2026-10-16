@@ -216,28 +216,51 @@ async fn serve(
         header_str(headers, "x-harness-client"),
         caller.token_name.clone(),
     );
-    crate::speech::check_audio_cpp_enabled()?;
-    let (fields, audio) = read_request(state, request).await?;
+    // With audio.cpp off, only an mlx-audio separator is served; any other request gets the
+    // same error as before (also when its body or model is wrong).
+    let disabled = crate::speech::check_audio_cpp_enabled().err();
+    let (fields, audio) = match read_request(state, request).await {
+        Ok(read) => read,
+        Err(e) => return Err(disabled.unwrap_or(e)),
+    };
     let model = fields
         .get("model")
         .and_then(Value::as_str)
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| bad("model is required."))?;
-    let def = state
-        .scheduler
-        .resolve(Some(model))
-        .await
-        .map_err(|e| GatewayError::from_sched(&e))?;
-    caller.check_model(&def.alias)?;
-    GatewayError::reject_remote(&def)?;
-    let family = def
+        .filter(|s| !s.is_empty());
+    let def = match model {
+        Some(model) => state.scheduler.resolve(Some(model)).await,
+        None => {
+            return Err(disabled.unwrap_or_else(|| bad("model is required.")));
+        }
+    };
+    let def = match def {
+        Ok(def) => def,
+        Err(e) => return Err(disabled.unwrap_or_else(|| GatewayError::from_sched(&e))),
+    };
+    let separator = def
         .base
         .local_path()
-        .and_then(audio_cpp::metadata)
-        .and_then(|m| m.audiocpp_family)
-        .ok_or_else(|| bad("Select an audio.cpp processing model."))?;
-    let rebuilt = core::rebuild(&def.alias, &family, &fields, &audio).map_err(bad)?;
-    let diarization = audio_cpp::is_diarization(&family);
+        .is_some_and(harness_core::engine::mlx::is_sts_dir)
+        && !def.base.local_path().is_some_and(audio_cpp::is_model);
+    if !separator {
+        if let Some(e) = disabled {
+            return Err(e);
+        }
+    }
+    caller.check_model(&def.alias)?;
+    GatewayError::reject_remote(&def)?;
+    let (rebuilt, diarization) = if separator {
+        (mlx_request(&def.alias, &fields, &audio)?, false)
+    } else {
+        let family = def
+            .base
+            .local_path()
+            .and_then(audio_cpp::metadata)
+            .and_then(|m| m.audiocpp_family)
+            .ok_or_else(|| bad("Select an audio.cpp processing model."))?;
+        let rebuilt = core::rebuild(&def.alias, &family, &fields, &audio).map_err(bad)?;
+        (rebuilt, audio_cpp::is_diarization(&family))
+    };
     guard.admitted(caller.admit(state)?);
     guard.get().model = Some(def.alias.clone());
     guard.get().alias = Some(def.alias.clone());
@@ -270,6 +293,12 @@ async fn serve(
             .http
             .post(format!("{}/v1/tasks/run", lease.upstream))
             .json(&rebuilt);
+        // The mlx-audio worker checks its key; audio.cpp's request stays as it was.
+        if separator {
+            if let Some(key) = &lease.api_key {
+                request = request.bearer_auth(key);
+            }
+        }
         if let Some(timeout) = timeout {
             request = request.timeout(timeout);
         }
@@ -298,7 +327,11 @@ async fn serve(
         if response.status().is_success() {
             break response;
         }
+        let status = response.status().as_u16();
         let body = response.bytes().await.unwrap_or_default();
+        if separator {
+            return Err(mlx_error(status, &body));
+        }
         if gpu_lost(&body) {
             return Err(keyed(
                 GatewayError::new(
@@ -353,6 +386,41 @@ async fn serve(
     guard.get().ttft_ms = Some(guard.started.elapsed().as_millis() as u64);
     guard.finish(200, None);
     Ok(Json(result).into_response())
+}
+
+/// The worker request of an mlx-audio separator (Mel-Band-RoFormer): the WAV alone, in
+/// audio.cpp's task shape. It takes no options or prompt.
+fn mlx_request(
+    alias: &str,
+    fields: &Map<String, Value>,
+    audio: &[u8],
+) -> Result<Value, GatewayError> {
+    if let Some(name) = fields
+        .keys()
+        .find(|k| !matches!(k.as_str(), "model" | "audio_base64"))
+    {
+        return Err(bad(format!("Unknown field `{name}`.")));
+    }
+    Ok(json!({"model": alias, "request": {"audio_base64": STANDARD.encode(audio)}}))
+}
+
+/// An mlx-audio separator's refusal (400: audio too long or undecodable) or time limit (504),
+/// with the worker's own message; anything else is an invalid result.
+fn mlx_error(status: u16, body: &[u8]) -> GatewayError {
+    let message = serde_json::from_slice::<Value>(body).ok().and_then(|v| {
+        v.pointer("/error/message")
+            .and_then(Value::as_str)
+            .map(String::from)
+    });
+    match (status, message) {
+        (400, Some(message)) => bad(message),
+        (504, Some(message)) => GatewayError::new(504, "upstream_timeout", message),
+        _ => GatewayError::new(
+            502,
+            "upstream_error",
+            "mlx-audio could not separate this audio.",
+        ),
+    }
 }
 
 /// Names of the audio a worker may return: enhanced speech, the two stems of a vocal separator,
@@ -456,6 +524,36 @@ mod tests {
         )
         .unwrap()
     }
+    /// An mlx-audio separator gets the WAV alone in audio.cpp's task shape; options, a prompt or
+    /// unknown fields are refused, and its refusals keep their message.
+    #[test]
+    fn mlx_separators_take_the_wav_alone() {
+        let wav = audio();
+        let mut fields = Map::new();
+        fields.insert("model".into(), json!("sep"));
+        let request = mlx_request("sep", &fields, &wav).unwrap();
+        assert_eq!(
+            request,
+            json!({"model":"sep","request":{"audio_base64":STANDARD.encode(&wav)}})
+        );
+        fields.insert("audio_base64".into(), json!("x"));
+        assert!(mlx_request("sep", &fields, &wav).is_ok());
+        for extra in ["prompt", "seed", "audio_chunk_duration_sec"] {
+            let mut with = fields.clone();
+            with.insert(extra.into(), json!(1));
+            let e = mlx_request("sep", &with, &wav).unwrap_err();
+            assert_eq!(e.status, 400, "{extra}");
+        }
+        let refusal = br#"{"error":{"message":"the audio is longer than 300 seconds."}}"#;
+        let e = mlx_error(400, refusal);
+        assert_eq!(
+            (e.status, e.message.as_str()),
+            (400, "the audio is longer than 300 seconds.")
+        );
+        assert_eq!(mlx_error(504, refusal).status, 504);
+        assert_eq!(mlx_error(500, b"oops").status, 502);
+    }
+
     #[test]
     fn inline_audio_and_artifact_payloads_are_rebuilt_without_metadata() {
         let encoded = STANDARD.encode(audio());

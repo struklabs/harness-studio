@@ -196,6 +196,8 @@ pub(crate) fn get_tts_install_progress() -> Option<RuntimeDownloadProgress> {
 pub(crate) struct AudioProcessModel {
     name: String,
     family: String,
+    /// The engine that runs it: `audio.cpp`, or `mlx-audio` (Apple Silicon vocal separation).
+    engine: &'static str,
     options: Vec<harness_core::engine::audio_process::OptionSpec>,
 }
 
@@ -212,9 +214,14 @@ pub(crate) async fn get_audio_process_overview() -> Result<AudioProcessOverview,
         let library = harness_core::models::ModelManager.scan_models();
         harness_core::library_definitions::ensure(&library, &[harness_core::domain::ModelKind::Pipeline])?;
         let models = harness_core::domain::store::Domain::global().definitions()?.into_iter().filter_map(|def| {
-            let family = audio_cpp::metadata(def.base.local_path()?)?.audiocpp_family?;
+            let path = def.base.local_path()?;
+            if !audio_cpp::is_model(path) && harness_core::engine::mlx::is_sts_dir(path) {
+                // An mlx-audio separator takes the WAV alone.
+                return Some(AudioProcessModel { name: def.alias, family: "mel_band_roformer".into(), engine: harness_core::engine::MLX_AUDIO, options: Vec::new() });
+            }
+            let family = audio_cpp::metadata(path)?.audiocpp_family?;
             audio_cpp::processing_task(&family).filter(|_| !audio_cpp::is_diarization(&family))?;
-            Some(AudioProcessModel { name: def.alias, options: audio_process::options(&family), family })
+            Some(AudioProcessModel { name: def.alias, options: audio_process::options(&family), family, engine: AUDIO_CPP })
         }).collect();
         Ok(AudioProcessOverview { models, runtime_installed: harness_core::runtimes::resolve_family_binary_in(&harness_core::runtimes::RuntimeRegistry::global(), AUDIO_CPP, None).is_ok() })
     }).await?

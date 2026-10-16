@@ -728,6 +728,8 @@ pub fn mlx_compatibility_on(
         {
             MLX_AUDIO_FAMILY
         }
+        // Vocal separation (Mel-Band-RoFormer) behind `/v1/audio/process`.
+        Some("audio-to-audio") if crate::engine::mlx::is_sts_repo(tags) => MLX_AUDIO_FAMILY,
         Some(_) => return None,
     };
     if !apple_silicon || format != ModelFormat::Mlx {
@@ -1562,6 +1564,33 @@ mod tests {
                 "{repo}"
             );
         }
+        // Vocal separation: an MLX audio-to-audio repo of a tested architecture (by its
+        // `model_type` tag) runs on mlx-audio; another audio-to-audio repo does not.
+        let sep = &s(&["README.md", "config.json", "model.safetensors"]);
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/mel-roformer-kim-vocal-2-mlx",
+                ModelFormat::Mlx,
+                Some("audio-to-audio"),
+                sep,
+                &s(&["mlx", "safetensors", "mel_band_roformer", "audio-to-audio"]),
+                true,
+                false
+            ),
+            audio
+        );
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/sam-audio-small",
+                ModelFormat::Mlx,
+                Some("audio-to-audio"),
+                sep,
+                &s(&["mlx-audio", "sam_audio", "audio-to-audio"]),
+                true,
+                false
+            ),
+            None
+        );
         // npz weights count for recognition only: not for a text-to-speech repo.
         assert_eq!(
             mlx_compatibility_on(
