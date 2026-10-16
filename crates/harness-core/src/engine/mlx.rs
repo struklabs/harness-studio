@@ -2928,6 +2928,11 @@ try:
     speak("one two", None, 1.5, None)
 except w.Refused as e:
     print("refused speed:", e)
+# A VoiceDesign model is given the voice description with every call.
+one = OneSpeed()
+speak = w.make_speak(one, [], 24000, 10, encode, clock, instruct=w.DESIGNED_VOICE)
+speak("one two", None, 1.0, None)
+print("designed", one.calls[0]["instruct"] == w.DESIGNED_VOICE)
 # A model that cannot stream is called a sentence at a time; the time limit stops it between
 # sentences (each takes 4 s of the 10 here).
 class Whole:
@@ -3042,6 +3047,7 @@ print("wired", w.wire_weights(metal), wired, w.wire_weights(types.SimpleNamespac
             "budget spark 3264",
             "one speed ('wav of 1 chunks', None) [{'max_tokens': 94}]",
             "refused speed: this model speaks at one speed; use speed 1",
+            "designed True",
             "sentences ('wav of 3 chunks', 'time') ['One.', 'Two!', 'Three?']",
             "split ['Hi there.', 'Bye。', 'Yes'] ['   ']",
             "tr ['Dr. Ali geldi.', '3. madde önemli, vs. bitti…', 'A. Yılmaz yazdı.']",

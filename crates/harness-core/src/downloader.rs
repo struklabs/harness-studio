@@ -4194,15 +4194,21 @@ const PYTHON_COMPANIONS: [&str; 13] = [
     "spm.model",
 ];
 
+/// Sub-model folders a checkpoint loads from beside its root weights: Qwen3-TTS's
+/// `speech_tokenizer/` (its audio codec; mlx-audio refuses to speak without it).
+const SUBMODEL_DIRS: [&str; 1] = ["speech_tokenizer"];
+
 /// A companion file of a safetensors checkpoint at the repo root ([`SAFETENSORS_COMPANIONS`],
-/// [`PYTHON_COMPANIONS`], a Jinja template or a tiktoken vocabulary), or a sentence-transformers
-/// module folder's file (`1_Pooling/config.json`, `2_Dense/model.safetensors`).
+/// [`PYTHON_COMPANIONS`], a Jinja template or a tiktoken vocabulary), a sentence-transformers
+/// module folder's file (`1_Pooling/config.json`, `2_Dense/model.safetensors`) or a
+/// [`SUBMODEL_DIRS`] file (`speech_tokenizer/model.safetensors`).
 fn is_safetensors_repo_file(path: &str) -> bool {
     let lower = path.to_ascii_lowercase().replace('\\', "/");
     if let Some((dir, rest)) = lower.split_once('/') {
         let module = dir
             .split_once('_')
-            .is_some_and(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()));
+            .is_some_and(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+            || SUBMODEL_DIRS.contains(&dir);
         return module
             && !rest.contains('/')
             && (rest.ends_with(".json")
@@ -5882,6 +5888,32 @@ mod tests {
                 "config.json",
                 "modules.json",
                 "sentence_bert_config.json",
+            ]
+        );
+        // Qwen3-TTS: its speech tokenizer folder (the codec) comes with the model.
+        let qwen_tts = vec![
+            file("config.json", 5_000),
+            lfs("model.safetensors", 2_000, &oid),
+            file("model.safetensors.index.json", 78),
+            file("speech_tokenizer/config.json", 2_336),
+            file("speech_tokenizer/configuration.json", 76),
+            lfs("speech_tokenizer/model.safetensors", 680, &oid),
+            file("speech_tokenizer/preprocessor_config.json", 234),
+            file("other/model.safetensors", 1),
+        ];
+        let v =
+            safetensors_variants("mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit", &qwen_tts).unwrap();
+        let names: Vec<&str> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "model.safetensors",
+                "config.json",
+                "model.safetensors.index.json",
+                "speech_tokenizer/config.json",
+                "speech_tokenizer/configuration.json",
+                "speech_tokenizer/model.safetensors",
+                "speech_tokenizer/preprocessor_config.json",
             ]
         );
         // Pruning a root precision copy leaves module weights in their folders alone.

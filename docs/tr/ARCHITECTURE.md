@@ -1120,7 +1120,7 @@ MLX biçimli görüntü-dil modelleriyle (`mlx-community/Qwen3-VL-...`, Gemma 3,
 
 ### 14.11. MLX ses motoru (mlx-audio metinden konuşma, Apple Silicon)
 
-mlx-community'deki mlx-audio modelleriyle metinden konuşma sağlar (hazır sesleriyle Qwen3-TTS; iki kayıtlı sesiyle CSM; varsayılan sesleriyle Chatterbox Turbo, Soprano, VoxCPM2, Spark-TTS, OuteTTS, Orpheus ve Dia); ağ geçidinin `/v1/audio/speech` uç noktası arkasında çalışır. Aile `mlx-audio`'dur; `MlxEngine`'in ses türüdür (`MlxEngine::AUDIO`, `mlx::Flavour::Audio`). Yalnız Apple Silicon'da, macOS 14 veya üstünde çalışır.
+mlx-community'deki mlx-audio modelleriyle metinden konuşma sağlar (Qwen3-TTS: CustomVoice hazır sesleriyle, Base kendi sesiyle, VoiceDesign sakin bir yetişkin sesinin sabit tarifiyle; her biri ağırlıkların yanına indirilen `speech_tokenizer/` codec klasörüyle; iki kayıtlı sesiyle CSM; varsayılan sesleriyle Chatterbox Turbo, Soprano, VoxCPM2, Spark-TTS, OuteTTS, Orpheus ve Dia); ağ geçidinin `/v1/audio/speech` uç noktası arkasında çalışır. Aile `mlx-audio`'dur; `MlxEngine`'in ses türüdür (`MlxEngine::AUDIO`, `mlx::Flavour::Audio`). Yalnız Apple Silicon'da, macOS 14 veya üstünde çalışır.
 
 - **Çalışma ortamı:** kendine ait bir ortamı yoktur. `mlx-vlm` ortamı (§14.10) mlx-audio 0.5.9'u ve metinden konuşma modellerinin ihtiyacı olan her şeyi zaten içerir; iki motordan biri kurulunca ikisi de hazır olur. Ayarlar > Model Motoru > Kurulu Model Motoru > Diğer Model Motorları ikisini aynı ortamla listeler.
 - **İşçi:** `python/mlx_audio_worker.py`, mlx-audio'nun model yükleyicisinin etrafında Harness'in kendi küçük ASGI sunucusudur. mlx-audio'nun sunucusu kullanılmaz, çünkü:
