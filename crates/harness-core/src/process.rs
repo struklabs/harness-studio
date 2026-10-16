@@ -1920,44 +1920,67 @@ impl ProcessManager {
         };
 
         use std::sync::atomic::Ordering::SeqCst;
-        if let Some(stdout) = child_group.inner().stdout.take() {
-            let this = self.clone();
-            this.readers.fetch_add(1, SeqCst);
-            std::thread::spawn(move || {
-                for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                    this.push_log(format!("[stdout] {}", line));
+        let readers_started = (|| -> std::io::Result<()> {
+            if let Some(stdout) = child_group.inner().stdout.take() {
+                let this = self.clone();
+                this.readers.fetch_add(1, SeqCst);
+                let spawned = crate::resource_io::spawn_thread("harness-process-log", move || {
+                    for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                        this.push_log(format!("[stdout] {}", line));
+                    }
+                    this.readers.fetch_sub(1, SeqCst);
+                });
+                if let Err(e) = spawned {
+                    self.readers.fetch_sub(1, SeqCst);
+                    return Err(e);
                 }
-                this.readers.fetch_sub(1, SeqCst);
-            });
-        }
-        if let Some(stderr) = child_group.inner().stderr.take() {
-            let this = self.clone();
-            this.readers.fetch_add(1, SeqCst);
-            std::thread::spawn(move || {
-                let mut whisper_fallback_noted = false;
-                let mut fallback_noted = false;
-                for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                    if whisper_cuda
-                        && !whisper_fallback_noted
-                        && line.to_ascii_lowercase().contains("no gpu found")
-                    {
-                        let lang = crate::config::AppSettings::load().language;
-                        if let Some(note) = crate::engine::whisper_gpu_fallback_note(&line, &lang) {
-                            whisper_fallback_noted = true;
-                            this.push_log(note.into());
+            }
+            if let Some(stderr) = child_group.inner().stderr.take() {
+                let this = self.clone();
+                this.readers.fetch_add(1, SeqCst);
+                let spawned = crate::resource_io::spawn_thread("harness-process-log", move || {
+                    let mut whisper_fallback_noted = false;
+                    let mut fallback_noted = false;
+                    for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                        if whisper_cuda
+                            && !whisper_fallback_noted
+                            && line.to_ascii_lowercase().contains("no gpu found")
+                        {
+                            let lang = crate::config::AppSettings::load().language;
+                            if let Some(note) =
+                                crate::engine::whisper_gpu_fallback_note(&line, &lang)
+                            {
+                                whisper_fallback_noted = true;
+                                this.push_log(note.into());
+                            }
+                        }
+                        let fallback = crate::capabilities::verify::kv_fa_fallback(&line);
+                        this.push_log(format!("[stderr] {}", line));
+                        // llama.cpp repeats the warning (every graph build); note it once per run.
+                        if let Some(pair) = fallback.filter(|_| !fallback_noted) {
+                            fallback_noted = true;
+                            let lang = crate::config::AppSettings::load().language;
+                            this.note_kv_fa_fallback(&pair, &lang);
                         }
                     }
-                    let fallback = crate::capabilities::verify::kv_fa_fallback(&line);
-                    this.push_log(format!("[stderr] {}", line));
-                    // llama.cpp repeats the warning (every graph build); note it once per run.
-                    if let Some(pair) = fallback.filter(|_| !fallback_noted) {
-                        fallback_noted = true;
-                        let lang = crate::config::AppSettings::load().language;
-                        this.note_kv_fa_fallback(&pair, &lang);
-                    }
+                    this.readers.fetch_sub(1, SeqCst);
+                });
+                if let Err(e) = spawned {
+                    self.readers.fetch_sub(1, SeqCst);
+                    return Err(e);
                 }
-                this.readers.fetch_sub(1, SeqCst);
-            });
+            }
+
+            Ok(())
+        })();
+        if let Err(e) = readers_started {
+            // A child with undrained pipes can deadlock. Kill and reap even when
+            // only the first reader started, then publish a normal startup error.
+            let _ = child_group.kill();
+            let _ = child_group.wait();
+            self.stop_relay();
+            self.record_failure(crate::failure::spawn_failure(&e));
+            return Err(self.set_error(err("process.log_reader_failed").with("error", e).into()));
         }
 
         {

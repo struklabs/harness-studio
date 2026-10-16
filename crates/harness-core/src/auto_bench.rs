@@ -118,12 +118,19 @@ pub fn maybe_start(
         return false;
     }
     // Free the slot when the run is over (its own threads outlive this call).
-    std::thread::spawn(move || {
-        while manager.status().running {
+    let watcher = manager.clone();
+    if crate::resource_io::spawn_thread("harness-auto-bench", move || {
+        while watcher.status().running {
             std::thread::sleep(Duration::from_millis(500));
         }
         RUNNING.store(false, Ordering::SeqCst);
-    });
+    })
+    .is_err()
+    {
+        manager.cancel();
+        RUNNING.store(false, Ordering::SeqCst);
+        return false;
+    }
     true
 }
 

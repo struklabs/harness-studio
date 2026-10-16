@@ -535,13 +535,21 @@ pub fn pdf_pages_with(exe: &Path, path: &Path) -> Result<Vec<PageText>, String> 
     }
     let mut child = cmd.spawn().map_err(|e| pdf_error(path, &e.to_string()))?;
     let mut stdout = child.stdout.take();
-    let reader = std::thread::spawn(move || {
+    let reader = crate::resource_io::spawn_thread("harness-pdf-output", move || {
         let mut out = Vec::new();
         if let Some(s) = stdout.as_mut() {
             let _ = s.read_to_end(&mut out);
         }
         out
     });
+    let reader = match reader {
+        Ok(reader) => reader,
+        Err(e) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(pdf_error(path, &e.to_string()));
+        }
+    };
     let started = std::time::Instant::now();
     let status = loop {
         match child.try_wait() {
