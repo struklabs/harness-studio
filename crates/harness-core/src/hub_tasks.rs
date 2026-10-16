@@ -179,6 +179,8 @@ pub enum TaskSource {
 pub enum NotRunnable {
     /// The repo lists files but none is a `.gguf`.
     NoGguf,
+    /// A speech GGUF made for another engine; no Harness engine loads this format.
+    ForeignSpeechGguf,
     VibevoiceLayout,
     AudioCppIncompletePackage,
     SdxlRefinerFolderRequired,
@@ -344,7 +346,17 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
     {
         pipeline_tag = Some("audio-text-to-text".to_string());
     }
-    let not_runnable = not_runnable(id, &tags, &files, library.as_deref(), gguf.as_ref());
+    let not_runnable =
+        not_runnable(id, &tags, &files, library.as_deref(), gguf.as_ref()).or_else(|| {
+            (matches!(
+                pipeline_tag.as_deref(),
+                Some("text-to-speech" | "text-to-audio" | "automatic-speech-recognition")
+            ) && !gguf_file_names(&files).is_empty()
+                && !crate::hub_compat::is_audio_cpp_repo(item)
+                && !crate::engine::crispasr::supports_repo(id, pipeline_tag.as_deref())
+                && !crate::engine::crispasr_tts::supports_repo(id, pipeline_tag.as_deref()))
+            .then_some(NotRunnable::ForeignSpeechGguf)
+        });
     let found = if pipeline_tag.is_none()
         && item
             .get("config")
@@ -1481,6 +1493,42 @@ mod tests {
         let mut table: Vec<String> = KNOWN_TASKS.iter().map(|s| s.to_string()).collect();
         table.sort();
         assert_eq!(ids, table);
+    }
+
+    #[test]
+    fn foreign_speech_ggufs_have_a_precise_refusal() {
+        for (id, arch, task) in [
+            ("ampixa/sanoTTS", "sanotts", "text-to-speech"),
+            ("dignome/Echo-TTS", "echo_tts", "text-to-speech"),
+            ("other/speech", "other", "text-to-audio"),
+            ("other/asr", "other", "automatic-speech-recognition"),
+        ] {
+            let item = serde_json::json!({"id": id, "pipeline_tag": task,
+                "gguf": {"architecture": arch}, "siblings": [{"rfilename": "model.gguf"}]});
+            assert_eq!(
+                analyze_repo(&item).not_runnable,
+                Some(NotRunnable::ForeignSpeechGguf),
+                "{id}"
+            );
+        }
+        for item in [
+            serde_json::json!({"id": "audio-cpp/audio.cpp-gguf", "pipeline_tag": "text-to-speech", "siblings": [{"rfilename": "model.gguf"}]}),
+            serde_json::json!({"id": "someone/voice-GGUF", "library_name": "audio.cpp", "pipeline_tag": "text-to-speech", "siblings": [{"rfilename": "model.gguf"}]}),
+            serde_json::json!({"id": "cstr/wav2vec2-GGUF", "pipeline_tag": "automatic-speech-recognition", "siblings": [{"rfilename": "model.gguf"}]}),
+            serde_json::json!({"id": "other/asr", "pipeline_tag": "automatic-speech-recognition", "siblings": [{"rfilename": "model.gguf"}, {"rfilename": "mmproj-f16.gguf"}]}),
+            serde_json::json!({"id": "other/chat", "pipeline_tag": "text-generation", "gguf": {"architecture": "llama"}, "siblings": [{"rfilename": "model.gguf"}]}),
+        ] {
+            let a = analyze_repo(&item);
+            assert_ne!(
+                a.not_runnable,
+                Some(NotRunnable::ForeignSpeechGguf),
+                "{}",
+                item["id"]
+            );
+            if item["id"] == "other/asr" {
+                assert_eq!(a.pipeline_tag.as_deref(), Some("audio-text-to-text"));
+            }
+        }
     }
 
     fn caps_without(flags: &[&str]) -> RuntimeCapabilities {

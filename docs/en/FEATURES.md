@@ -66,6 +66,10 @@ Where the competitors lead: prompt processing (Ollama), short-prompt speed at 65
 | Load/run when the download finishes, library refreshes automatically | ✅ ("Load and Chat", optional automatic load) | ✅ | ✅ | **L** |
 | Model definition file (model.yaml / Modelfile) | ✅ (`*.harness.toml`) | ✅ | ✅ | **M**: the Harness Model Definition (see §4) |
 
+WhisperKit Core ML exports, like faster-whisper exports, link to `ggerganov/whisper.cpp`, selecting a ggml file when a single known size is listed.
+Pyannote pipeline refusals point to Harness speaker diarization with sherpa-onnx models through `diarized_json` / `speakers` on `/v1/audio/transcriptions`.
+Speech GGUFs claimed by no Harness engine show a specific foreign speech GGUF refusal.
+
 ## 2. Local Library (My Models)
 
 | Feature | Harness | LM Studio | Ollama | Path / note |

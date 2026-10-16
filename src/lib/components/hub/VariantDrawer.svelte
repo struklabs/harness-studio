@@ -88,8 +88,8 @@
   let artifactUpdateMsg = $state<string | null>(null);
 
   let repoId = $derived(repo?.id ?? null);
-  /** A CTranslate2 export whose ggml build the whisper.cpp engine runs. */
-  let ggmlTwin = $derived(repo?.compatibility.status === 'unsupported' || repo?.format === 'ctranslate2' ? ggmlTwinFor(repo?.id) : null);
+  /** A Whisper export whose ggml build the whisper.cpp engine runs. */
+  let ggmlTwin = $derived(repo?.compatibility.status === 'unsupported' || repo?.format === 'ctranslate2' ? ggmlTwinFor(repo?.id, variants.flatMap((v) => [v.name, ...v.shards.map((s) => s.filename)]), repo?.format === 'core_ml') : null);
 
   let unsupportedFormat = $derived(repo?.compatibility.status === 'unsupported' ? repo.compatibility.format : null);
   /** Its runtime has no build for this OS / architecture (ONNX on an Intel Mac): no download either. */
@@ -680,7 +680,9 @@
                 </div>
                 {#if ggmlTwin}
                   <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
-                    <span class="flex min-w-0 items-center gap-1.5 text-muted-foreground"><Play class="size-3.5 shrink-0 text-success" />{t('hub.ct2_runs_with', { file: ggmlTwin.file })}</span>
+                    {#if ggmlTwin.file}
+                      <span class="flex min-w-0 items-center gap-1.5 text-muted-foreground"><Play class="size-3.5 shrink-0 text-success" />{t('hub.ct2_runs_with', { file: ggmlTwin.file })}</span>
+                    {/if}
                     <Button variant="outline" size="xs" onclick={() => onOpenRepo?.(ggmlTwin.repo, ggmlTwin.file)}>{t('hub.ct2_open_ggml')}</Button>
                   </div>
                 {/if}

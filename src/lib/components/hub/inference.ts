@@ -12,6 +12,7 @@ const SOURCE_KEYS: Record<HfTaskSource, TKey> = {
 };
 
 const NOT_RUNNABLE_KEYS: Record<HfNotRunnable, TKey> = {
+  foreign_speech_gguf: 'hub.not_runnable_foreign_speech_gguf',
   no_gguf: 'hub.not_runnable_no_gguf',
   vibevoice_layout: 'hub.vibevoice_layout',
   audio_cpp_incomplete_package: 'hub.audio_cpp_incomplete_package',
@@ -61,6 +62,7 @@ export function notRunnableKey(reason: HfNotRunnable): TKey {
 
 /** Short card labels of the precise refusals; the full sentence stays in the tooltip and drawer. */
 const SHORT_REFUSAL_KEYS: Partial<Record<HfNotRunnable, TKey>> = {
+  foreign_speech_gguf: 'hub.refusal_short_foreign_speech_gguf',
   needs_own_package: 'hub.refusal_short_needs_own_package',
   unsupported_architecture: 'hub.refusal_short_unsupported_architecture',
   safetensors_only: 'hub.refusal_short_safetensors_only',
@@ -82,6 +84,7 @@ export function notRunnableShortKey(reason: HfNotRunnable): TKey {
 }
 
 const PRECISE_REFUSALS: ReadonlySet<HfNotRunnable> = new Set<HfNotRunnable>([
+  'foreign_speech_gguf',
   'needs_own_package',
   'unsupported_architecture',
   'safetensors_only',

@@ -66,6 +66,10 @@ Rakiplerin önde olduğu yerler: istem işleme (Ollama), sığmayan kartta 65k b
 | İndirme bitince yükle/çalıştır, kütüphane otomatik yenilensin | ✅ ("Yükle ve Sohbet Et", isteğe bağlı otomatik yükleme) | ✅ | ✅ | **L** |
 | Model tanımı dosyası (model.yaml / Modelfile) | ✅ (`*.harness.toml`) | ✅ | ✅ | **M** — Harness Model Tanımı (bkz. §4) |
 
+WhisperKit Core ML dışa aktarımları, faster-whisper gibi `ggerganov/whisper.cpp` deposuna yönlendirir; listede tek bir bilinen boyut varsa ggml dosyası seçilir.
+Pyannote boru hattı ret açıklaması, `/v1/audio/transcriptions` üzerinde `diarized_json` / `speakers` ile sherpa-onnx konuşmacı ayrımına yönlendirir.
+Hiçbir Harness motorunun desteklemediği konuşma GGUF dosyaları için özel bir ret nedeni gösterilir.
+
 ## 2. Yerel kütüphane (My Models)
 
 | Özellik | Harness | LM Studio | Ollama | Yol / not |

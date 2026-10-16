@@ -32,3 +32,12 @@ test('twin file matching ignores folders and case', () => {
   assert.equal(isTwinFile('ggml-small.en.bin', 'ggml-small.bin'), false);
   assert.equal(isTwinFile(undefined, 'ggml-small.bin'), false);
 });
+
+test('WhisperKit points to whisper.cpp with a file only for one known size', () => {
+  const repo = 'ggerganov/whisper.cpp';
+  assert.deepEqual(ggmlTwinFor('argmaxinc/whisperkit-coreml'), { repo });
+  assert.deepEqual(ggmlTwinFor('argmaxinc/whisperkit-coreml', ['openai_whisper-large-v3/AudioEncoder.mlmodelc/weights/weight.bin']), { repo, file: 'ggml-large-v3.bin' });
+  assert.deepEqual(ggmlTwinFor('argmaxinc/whisperkit-coreml', ['openai_whisper-small', 'openai_whisper-large-v3']), { repo });
+  assert.deepEqual(ggmlTwinFor('argmaxinc/whisperkit-coreml', ['openai_whisper-unknown']), { repo });
+  assert.deepEqual(ggmlTwinFor('owner/whisperkit-small', ['openai_whisper-small.en'], true), { repo, file: 'ggml-small.en.bin' });
+});
