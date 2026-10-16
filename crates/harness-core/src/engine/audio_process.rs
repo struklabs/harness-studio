@@ -439,7 +439,9 @@ struct Turn<'a> {
 }
 
 /// Turns in time order, a speaker's neighbours closer than [`MERGE_GAP_SECS`] joined, the
-/// remaining ones shorter than [`MIN_TURN_SECS`] dropped.
+/// remaining ones shorter than [`MIN_TURN_SECS`] dropped. Only the last emitted turn is
+/// considered for merging: in an overlapping A, B, A sequence, B separates the two A turns,
+/// so they remain separate even when their times overlap or their gap is small.
 fn merge_turns(mut turns: Vec<Turn<'_>>) -> Vec<Turn<'_>> {
     turns.sort_by(|a, b| a.start.total_cmp(&b.start));
     let mut merged: Vec<Turn<'_>> = Vec::with_capacity(turns.len());

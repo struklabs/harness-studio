@@ -7747,7 +7747,12 @@ mod audio_cpp_tests {
             verify_model_magic(&path, &format!("Piper-TTS-GGUF/{name}")).unwrap();
             assert!(path.exists());
         }
-        for name in ["invalid.gguf", "invalid.GGUF", "README.md"] {
+        for name in [
+            "invalid.gguf",
+            "invalid.GGUF",
+            "invalid.safetensors",
+            "README.md",
+        ] {
             let path = dir.path().join(name);
             fs::write(&path, "<html>Sign in</html>").unwrap();
             assert!(verify_model_magic(&path, name).is_err());

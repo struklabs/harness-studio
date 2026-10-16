@@ -1075,7 +1075,8 @@ impl Scheduler {
                 None => admit.await,
             }
             .map_err(|e| SchedError::Internal(e.to_string()))?;
-        drop(waiting);
+        // Keep the waiting reservation until in_flight has been incremented: idle unloads
+        // must never observe a gap between the two counts.
         // The server may have gone away while we waited for the slot (stopped by the user):
         // check again.
         let (server_id, upstream, api_key) = match self.upstream_of(&entry) {
@@ -1083,6 +1084,7 @@ impl Scheduler {
             None => {
                 drop(budget);
                 drop(permit);
+                drop(waiting);
                 return Box::pin(self.acquire_for(def, demand, keep_alive, route)).await;
             }
         };
@@ -1092,6 +1094,7 @@ impl Scheduler {
                 None => {
                     drop(budget);
                     drop(permit);
+                    drop(waiting);
                     return Box::pin(self.acquire_for(def, demand, keep_alive, route)).await;
                 }
             },
@@ -1108,6 +1111,7 @@ impl Scheduler {
                 s.concurrency,
             )
         };
+        drop(waiting);
         Ok(Lease {
             _activity: activity,
             definition_id: def.id.clone(),
@@ -2526,10 +2530,33 @@ impl Scheduler {
             .unwrap_or(5)
     }
 
+    /// Unloads only if no request is running, queued, or loading this definition.
+    /// The readiness lock prevents a new request from loading or leasing the server between
+    /// the idle check and stop; waiting includes requests pending the global load lock.
+    pub async fn unload_if_idle(&self, definition_id: &str) -> Result<bool, String> {
+        let entry = self.entries.lock().unwrap().get(definition_id).cloned();
+        let Some(entry) = entry else {
+            return Ok(false);
+        };
+        let Ok(_ready) = entry.ready.try_lock() else {
+            return Ok(false);
+        };
+        let _load = self.load_lock.lock().await;
+        if !entry.idle() {
+            return Ok(false);
+        }
+        self.unload_locked(definition_id).await
+    }
+
     /// Unloads a definition the gateway serves (GUI / API "unload"). Servers the user started
     /// are stopped too (explicit request). Returns whether something was stopped.
     pub async fn unload(&self, definition_id: &str) -> Result<bool, String> {
         let _load = self.load_lock.lock().await;
+        self.unload_locked(definition_id).await
+    }
+
+    /// Caller holds load_lock (and ready for conditional unloads).
+    async fn unload_locked(&self, definition_id: &str) -> Result<bool, String> {
         let ids = crate::orchestrator::unload_definition(&self.ctx.registry, definition_id).await?;
         self.clear_keep_alive(definition_id);
         if let Some(e) = self.entries.lock().unwrap().get(definition_id).cloned() {
@@ -3836,6 +3863,59 @@ mod tests {
         };
         assert_eq!(retry_after(&s), 6);
         assert_eq!(retry_after(&EntryState::default()), 2);
+    }
+
+    #[tokio::test]
+    async fn idle_unload_refuses_running_queued_and_loading_requests() {
+        let sched = Scheduler::new(
+            SchedulerContext {
+                registry: Arc::default(),
+                runtime: Arc::default(),
+                gate: Arc::default(),
+            },
+            GatewaySettings::default(),
+        );
+        let def = ModelDefinition::new(
+            "idle-unload-guard",
+            crate::domain::ModelRef::Local {
+                path: "missing.gguf".into(),
+            },
+        );
+        let entry = sched.entry(&def);
+        entry.state().keep_alive = Some(KeepAlive::Forever);
+        entry.state().in_flight = 1;
+        assert!(!sched.unload_if_idle(&def.id).await.unwrap());
+        entry.state().in_flight = 0;
+        // Includes loads waiting for load_lock, before any server exists.
+        entry.state().waiting = 1;
+        assert!(!sched.unload_if_idle(&def.id).await.unwrap());
+        entry.state().waiting = 0;
+        let loading = entry.ready.lock().await;
+        assert!(!sched.unload_if_idle(&def.id).await.unwrap());
+        assert_eq!(entry.state().keep_alive, Some(KeepAlive::Forever));
+        drop(loading);
+        // A lease arriving while unload waits for the global lock must win the re-check.
+        let load_lock = sched.load_lock.lock().await;
+        let unload = tokio::spawn({
+            let sched = sched.clone();
+            let id = def.id.clone();
+            async move { sched.unload_if_idle(&id).await }
+        });
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while entry.ready.try_lock().is_ok() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
+        entry.state().in_flight = 1;
+        drop(load_lock);
+        assert!(!unload.await.unwrap().unwrap());
+        assert_eq!(entry.state().keep_alive, Some(KeepAlive::Forever));
+        entry.state().in_flight = 0;
+        // No server exists here; passing the guard still clears its keep_alive override.
+        assert!(!sched.unload_if_idle(&def.id).await.unwrap());
+        assert_eq!(entry.state().keep_alive, None);
     }
 
     #[tokio::test]

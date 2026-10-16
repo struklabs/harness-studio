@@ -51,14 +51,14 @@ fn gpu_lost(body: &[u8]) -> bool {
 /// `ErrorOutOfDeviceMemory`): long audio and other resident models both use it up.
 fn gpu_memory(body: &[u8]) -> bool {
     let text = String::from_utf8_lossy(&body[..body.len().min(4096)]).to_ascii_lowercase();
-    [
-        "allocation failed",
-        "failed to allocate",
-        "outofdevicememory",
-        "out of memory",
-    ]
-    .iter()
-    .any(|needle| text.contains(needle))
+    // A bare "allocation failed" also covers disk, port and validation errors: require a
+    // ggml object (graph, tensor, buffer) next to it.
+    let ggml = ["graph", "tensor", "buffer"]
+        .iter()
+        .any(|object| text.contains(object));
+    text.contains("outofdevicememory")
+        || text.contains("out of memory")
+        || (ggml && (text.contains("allocation failed") || text.contains("failed to allocate")))
 }
 /// Unloads the other audio.cpp models the gateway holds and nobody is using; whether any was.
 async fn free_idle_audio_workers(state: &GwState, keep: &str) -> bool {
@@ -74,11 +74,9 @@ async fn free_idle_audio_workers(state: &GwState, keep: &str) -> bool {
             && slot.managed
             && !slot.pinned
             && audio
-            && slot.in_flight == 0
-            && slot.queued == 0
             && state
                 .scheduler
-                .unload(&slot.definition_id)
+                .unload_if_idle(&slot.definition_id)
                 .await
                 .unwrap_or(false)
         {
@@ -549,6 +547,7 @@ mod tests {
             "SAM Audio decoder graph allocation failed",
             "Failed to allocate Sortformer diar backend tensors",
             "vk::Device::allocateMemory: ErrorOutOfDeviceMemory",
+            "ggml_gallocr_reserve_n: failed to allocate Vulkan0 buffer of size 2147483648",
             "out of memory",
         ] {
             let body = format!(r#"{{"error":{{"message":"{message}","type":"server_error"}}}}"#);
@@ -560,6 +559,14 @@ mod tests {
         assert!(!gpu_memory(
             br#"{"error":{"message":"request exceeds fixed graph capacity"}}"#
         ));
+        for message in [
+            "disk allocation failed: no space left on device",
+            "failed to allocate a worker port",
+            "request allocation failed validation",
+            "failed to allocate output file: permission denied",
+        ] {
+            assert!(!gpu_memory(message.as_bytes()), "{message}");
+        }
         assert_eq!(
             key(&keyed(
                 GatewayError::new(502, "upstream_error", "x"),

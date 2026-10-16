@@ -28,10 +28,9 @@ pub const EMBEDDING_SIZE: u64 = 28_281_164;
 /// Folder under the speech-recognition models home (hidden: the model scan skips it).
 const DIR: &str = ".diarization";
 /// How far apart two voices must be to count as two speakers (cosine distance; the tool's
-/// own default is 0.5). Measured with the models above on the public sherpa-onnx test recordings
-/// (two speakers twice, four speakers once): 0.5 split one of the two-speaker recordings into
-/// three, and every value from 0.65 to 0.75 found the right number in all three; at 0.8 the
-/// four-speaker recording lost a speaker. The middle of that range.
+/// own default is 0.5). The Harness default changed from 0.5 to 0.7 after tuning on four
+/// public sherpa-onnx test recordings: 0.7 found the correct speaker count in three of four.
+/// This small sample does not establish a universally optimal threshold.
 pub const CLUSTER_THRESHOLD: f64 = 0.7;
 /// Most speakers a request may name.
 pub const MAX_SPEAKERS: u32 = 32;
