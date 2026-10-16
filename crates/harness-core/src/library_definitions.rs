@@ -69,8 +69,26 @@ pub fn ensure_in(
             }
             // A repo's own vision projector that arrived after the definition was made
             // replaces the curated one.
-            if model.kind == ModelKind::Image && def.load.contains_key("llm_vision") {
-                if let Some(own) = crate::image_bundles::own_projector(&model.path) {
+            let current = def.load.get("llm_vision").and_then(|v| match v {
+                crate::params::ParamValue::Text(t) => Some(t.as_str()),
+                _ => None,
+            });
+            let curated = crate::image_bundles::bundle_for(&model.filename)
+                .and_then(|b| b.components.iter().find(|c| c.role == "llm_vision"));
+            let may_update = current.is_none_or(str::is_empty)
+                || curated.is_some_and(|c| {
+                    current.is_some_and(|p| {
+                        libraries
+                            .iter()
+                            .any(|l| std::path::Path::new(p) == l.join(c.repo).join(c.file))
+                            || model.path.parent().is_some_and(|d| {
+                                std::path::Path::new(p)
+                                    == d.join(c.file.rsplit('/').next().unwrap_or(c.file))
+                            })
+                    })
+                });
+            if model.kind == ModelKind::Image && may_update {
+                if let Some(own) = crate::image_bundles::own_projector(&model.path, libraries) {
                     let own = crate::params::ParamValue::Text(own.to_string_lossy().to_string());
                     if def.load.get("llm_vision") != Some(&own) {
                         def.load.insert("llm_vision".into(), own);
@@ -270,6 +288,24 @@ mod tests {
         assert!(
             projector(&domain).ends_with("text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf")
         );
+        // A later scan preserves a user-selected projector, even when the repo has its own.
+        let mut def = domain.definitions().unwrap().remove(0);
+        def.load.insert(
+            "llm_vision".into(),
+            crate::params::ParamValue::Text("custom/vision.gguf".into()),
+        );
+        domain.save_definition(def).unwrap();
+        ensure_in(&domain, &libs, std::slice::from_ref(&main), &KINDS).unwrap();
+        assert_eq!(projector(&domain), "custom/vision.gguf");
+        // Empty values can still be filled automatically.
+        let mut def = domain.definitions().unwrap().remove(0);
+        def.load.insert(
+            "llm_vision".into(),
+            crate::params::ParamValue::Text(String::new()),
+        );
+        domain.save_definition(def).unwrap();
+        ensure_in(&domain, &libs, std::slice::from_ref(&main), &KINDS).unwrap();
+        assert_eq!(projector(&domain), own.to_string_lossy().replace('\\', "/"));
     }
 
     #[test]

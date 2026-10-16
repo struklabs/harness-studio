@@ -402,6 +402,8 @@ pub fn parse_timm_preprocess(cfg: &Value) -> Preprocess {
             Some((width, height)),
         )
     };
+    // Our resize implementation has nearest, bilinear and bicubic kernels only.
+    // Approximate box/hamming with bilinear and lanczos with bicubic.
     let resample = match cfg.get("interpolation").and_then(Value::as_str) {
         Some("nearest") => Resample::Nearest,
         Some("bilinear" | "box" | "hamming") => Resample::Bilinear,

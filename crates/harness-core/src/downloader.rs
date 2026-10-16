@@ -912,20 +912,15 @@ fn in_component_folder(lower_path: &str) -> bool {
 }
 
 /// The vision projector a repo ships itself (best precision first), from its file listing.
-fn own_projector_from(items: &[serde_json::Value]) -> Option<String> {
-    let mut found: Vec<&str> = items
-        .iter()
-        .filter(|i| i.get("type").and_then(|v| v.as_str()) != Some("directory"))
-        .filter_map(|i| i.get("path").and_then(|v| v.as_str()))
-        .filter(|p| crate::image_bundles::is_projector_file(p))
-        .collect();
-    found.sort_by_key(|p| {
-        (
-            crate::image_bundles::projector_rank(p),
-            p.to_ascii_lowercase(),
-        )
-    });
-    found.first().map(|p| p.to_string())
+fn own_projector_from(main: &str, items: &[serde_json::Value]) -> Option<String> {
+    crate::image_bundles::select_own_projector(
+        main,
+        items
+            .iter()
+            .filter(|i| i.get("type").and_then(|v| v.as_str()) != Some("directory"))
+            .filter_map(|i| i.get("path").and_then(|v| v.as_str())),
+    )
+    .map(str::to_string)
 }
 
 /// What a model needs besides itself: the curated image bundle of its main file, or the codec
@@ -2268,6 +2263,15 @@ impl DownloadManager {
             }
         }
 
+        let has_main_gguf = single_files
+            .iter()
+            .chain(split_groups.values().flatten())
+            .any(|s| {
+                let lower = s.filename.to_ascii_lowercase();
+                lower.ends_with(".gguf")
+                    && !lower.contains("mmproj")
+                    && !in_component_folder(&lower)
+            });
         let mut variants = Vec::new();
 
         for shard in single_files {
@@ -2275,7 +2279,7 @@ impl DownloadManager {
             // Vision projectors are companions, not standalone models.
             let quantization = if lower.contains("mmproj") {
                 "mmproj".to_string()
-            } else if lower.ends_with(".gguf") && in_component_folder(&lower) {
+            } else if has_main_gguf && lower.ends_with(".gguf") && in_component_folder(&lower) {
                 // A text encoder / VAE GGUF in its own folder (`split/text_encoders/`) is a
                 // part of a model, not one.
                 "component".to_string()
@@ -2421,7 +2425,7 @@ impl DownloadManager {
         let own_projector = match repo {
             Some(r) if plan.components.iter().any(|c| c.role == "llm_vision") => {
                 match Self::list_repo_files(r, token).await {
-                    Ok(items) => own_projector_from(&items).map(|file| (file, items)),
+                    Ok(items) => own_projector_from(main_file, &items).map(|file| (file, items)),
                     Err(_) => None,
                 }
             }
@@ -2886,9 +2890,12 @@ impl DownloadManager {
                 // A finished image model (or the last companion it waited for) gets its model
                 // definition; the library has no other way to make one for it.
                 if status == DownloadStatus::Completed
-                    && items
-                        .iter()
-                        .any(|i| crate::image_bundles::concerns_image_models(&i.filename))
+                    && items.iter().any(|i| {
+                        crate::image_bundles::concerns_image_models(&i.filename)
+                            || crate::image_bundles::is_bundle_companion(
+                                &target_dir.join(&i.filename).to_string_lossy(),
+                            )
+                    })
                 {
                     let synced =
                         tokio::task::spawn_blocking(crate::image_bundles::sync_library_definitions)
@@ -8366,20 +8373,27 @@ mod false_positive_tests {
     #[test]
     fn a_repos_own_projector_is_chosen_over_the_curated_one() {
         assert_eq!(
-            own_projector_from(&uncensored_tree()).as_deref(),
+            own_projector_from(
+                "split/diffusion_models/qwen-image-edit-2511-Q4_K_M.gguf",
+                &uncensored_tree()
+            )
+            .as_deref(),
             Some("split/text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf")
         );
-        // Best precision first, whatever the listing order.
-        let two: Vec<_> = ["a-mmproj-Q8_0.gguf", "b-mmproj-F16.gguf"]
+        // Family compatibility takes precedence over precision.
+        let two: Vec<_> = ["Qwen2.5-VL-mmproj-Q8_0.gguf", "Qwen3-VL-mmproj-F16.gguf"]
             .iter()
             .map(|p| json!({"type": "file", "path": p}))
             .collect();
         assert_eq!(
-            own_projector_from(&two).as_deref(),
-            Some("b-mmproj-F16.gguf")
+            own_projector_from("qwen-image-edit-2511-Q4_K_M.gguf", &two).as_deref(),
+            Some("Qwen2.5-VL-mmproj-Q8_0.gguf")
         );
         assert_eq!(
-            own_projector_from(&[json!({"type": "file", "path": "m-Q4_K_M.gguf"})]),
+            own_projector_from(
+                "qwen-image-edit-2511-Q4_K_M.gguf",
+                &[json!({"type": "file", "path": "m-Q4_K_M.gguf"})]
+            ),
             None
         );
         let tree = uncensored_tree();
@@ -8391,6 +8405,61 @@ mod false_positive_tests {
         .unwrap()
         .unwrap();
         assert_eq!(variant.total_size_bytes, 1354162944);
+    }
+
+    #[test]
+    fn projector_download_and_runtime_agree_on_layout_and_family() {
+        let lib = tempfile::tempdir().unwrap();
+        let repo = lib.path().join("owner/repo");
+        for (main, candidate, accepted) in [
+            (
+                "qwen-image-edit-2511-Q4_K_M.gguf",
+                "mmproj/Qwen2.5-VL-mmproj-f16.gguf",
+                false,
+            ),
+            (
+                "split/diffusion_models/qwen-image-edit-2511-Q4_K_M.gguf",
+                "split/text_encoders/Qwen2_5_VL-mmproj-f16.gguf",
+                true,
+            ),
+            (
+                "qwen-image-edit-2511-Q4_K_M.gguf",
+                "Qwen2.5VL-mmproj-f16.gguf",
+                true,
+            ),
+        ] {
+            let main_path = repo.join(main);
+            let path = repo.join(candidate);
+            std::fs::create_dir_all(main_path.parent().unwrap()).unwrap();
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&main_path, b"x").unwrap();
+            std::fs::write(&path, b"x").unwrap();
+            let items = vec![json!({"path": candidate, "type": "file"})];
+            let download = own_projector_from(main, &items).map(|p| repo.join(p));
+            let runtime =
+                crate::image_bundles::own_projector(&main_path, &[lib.path().to_path_buf()]);
+            assert_eq!(download.is_some(), accepted, "{candidate}");
+            assert_eq!(download, runtime, "{candidate}");
+            std::fs::remove_file(path).unwrap();
+        }
+        assert!(own_projector_from(
+            "qwen-image-edit-2511-Q4_K_M.gguf",
+            &[json!({"path": "Qwen3-VL-mmproj-F16.gguf"})]
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn component_only_repos_keep_quantization_labels() {
+        let items = vec![
+            json!({"path": "vae/weights-Q8_0.gguf", "type": "file", "size": 1}),
+            json!({"path": "text_encoder/weights-Q4_0.gguf", "type": "file", "size": 1}),
+        ];
+        let variants = DownloadManager::file_variants("o/repo", &items, false).unwrap();
+        assert_eq!(variants.len(), 2);
+        assert!(variants.iter().all(|v| v.quantization != "component"));
+        assert!(variants.iter().any(|v| v.quantization == "Q8_0"));
+        assert!(variants.iter().any(|v| v.quantization == "Q4_0"));
     }
 
     #[test]

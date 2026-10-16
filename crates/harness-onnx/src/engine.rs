@@ -424,7 +424,8 @@ pub(crate) fn with_cpu_retry<T>(
 pub(crate) struct CpuFallback {
     model: PathBuf,
     threads: Option<usize>,
-    session: OnceLock<Result<SessionLock, String>>,
+    session: OnceLock<SessionLock>,
+    build_lock: Mutex<()>,
     /// Set once the warm-up passed: a non-finite warm-up reloads the engine on the CPU instead.
     armed: AtomicBool,
 }
@@ -435,6 +436,7 @@ impl CpuFallback {
             model,
             threads,
             session: OnceLock::new(),
+            build_lock: Mutex::new(()),
             armed: AtomicBool::new(false),
         }
     }
@@ -449,22 +451,37 @@ impl CpuFallback {
     }
 
     pub(crate) fn get(&self) -> Result<&SessionLock, ApiError> {
-        self.session
-            .get_or_init(|| {
-                eprintln!(
-                    "harness-onnx: the GPU produced non-finite values for {}; answering on the CPU from now on where it does",
-                    self.model.display()
-                );
-                build_session_with(&self.model, Provider::Cpu, self.threads, false)
-                    .map(|(session, _)| Mutex::new(session))
-            })
-            .as_ref()
-            .map_err(|e| {
-                ApiError::server(format!(
-                    "output contains {NON_FINITE} and the CPU retry failed: {e}"
-                ))
-            })
+        try_cached(&self.session, &self.build_lock, || {
+            eprintln!(
+                "harness-onnx: the GPU produced non-finite values for {}; retrying on the CPU",
+                self.model.display()
+            );
+            build_session_with(&self.model, Provider::Cpu, self.threads, false)
+                .map(|(session, _)| Mutex::new(session))
+        })
+        .map_err(|e| {
+            ApiError::server(format!(
+                "output contains {NON_FINITE} and the CPU retry failed: {e}"
+            ))
+        })
     }
+}
+
+// Serialize initialization, retaining only successful builds so transient failures can retry.
+fn try_cached<'a, T>(
+    cache: &'a OnceLock<T>,
+    lock: &Mutex<()>,
+    build: impl FnOnce() -> Result<T, String>,
+) -> Result<&'a T, String> {
+    if let Some(value) = cache.get() {
+        return Ok(value);
+    }
+    let _guard = lock.lock().map_err(|e| e.to_string())?;
+    if let Some(value) = cache.get() {
+        return Ok(value);
+    }
+    let value = build()?;
+    Ok(cache.get_or_init(|| value))
 }
 
 pub(crate) fn finish_profile(session: &SessionLock) {
@@ -1493,5 +1510,21 @@ mod tests {
         assert_eq!(id_type(Some(TensorElementType::Int64)), Some(IdType::Int64));
         assert_eq!(id_type(Some(TensorElementType::Float32)), None);
         assert_eq!(id_type(None), None);
+    }
+}
+
+#[cfg(test)]
+mod cpu_cache_tests {
+    use super::*;
+    #[test]
+    fn failed_build_is_retried_and_success_is_reused() {
+        let cache = OnceLock::new();
+        let lock = Mutex::new(());
+        assert!(try_cached::<u8>(&cache, &lock, || Err("transient".into())).is_err());
+        assert_eq!(*try_cached(&cache, &lock, || Ok(7)).unwrap(), 7);
+        assert_eq!(
+            *try_cached(&cache, &lock, || panic!("already built")).unwrap(),
+            7
+        );
     }
 }

@@ -656,7 +656,7 @@ pub fn find_component(
     // A repo that ships its own vision projector (next to the main file or in the sibling
     // `text_encoders/` folder) is used with it, rather than the curated one.
     if c.role == "llm_vision" {
-        if let Some(own) = main.and_then(own_projector) {
+        if let Some(own) = main.and_then(|p| own_projector(p, libraries)) {
             return Some(own);
         }
     }
@@ -702,37 +702,100 @@ pub fn projector_rank(path: &str) -> u8 {
     }
 }
 
-/// The projector a repo ships for `main`, found on disk: in the main file's folder or the
-/// `text_encoders/` folder beside its parent (the `split/diffusion_models` + `split/text_encoders`
-/// layout).
-pub fn own_projector(main: &Path) -> Option<PathBuf> {
+/// Select a compatible repo projector using the same layout and family rules for downloads
+/// and disk discovery. Paths must use forward slashes and be relative to the same root.
+pub fn select_own_projector<'a>(
+    main: &str,
+    candidates: impl IntoIterator<Item = &'a str>,
+) -> Option<&'a str> {
+    let curated = bundle_for(main)?
+        .components
+        .iter()
+        .find(|c| c.role == "llm_vision")?;
+    // Drop the parameter count (7B) and suffixes, retaining the architecture family.
+    let family = curated
+        .file
+        .rsplit('/')
+        .next()?
+        .split(['-', '_'])
+        .take_while(|part| {
+            !part.ends_with(['B', 'b'])
+                || !part[..part.len() - 1].chars().all(|c| c.is_ascii_digit())
+        })
+        .collect::<String>();
+    let normalize = |s: &str| {
+        s.chars()
+            .filter(char::is_ascii_alphanumeric)
+            .flat_map(char::to_lowercase)
+            .collect::<String>()
+    };
+    let family = normalize(&family);
+    let dirs = projector_dirs(Path::new(main))?;
+    candidates
+        .into_iter()
+        .filter(|p| {
+            is_projector_file(p)
+                && normalize(p.rsplit('/').next().unwrap_or(p)).contains(&family)
+                && Path::new(p)
+                    .parent()
+                    .is_some_and(|d| dirs.iter().any(|allowed| d == allowed))
+        })
+        .min_by_key(|p| (projector_rank(p), p.to_ascii_lowercase()))
+}
+
+fn projector_dirs(main: &Path) -> Option<[PathBuf; 3]> {
     let dir = main.parent()?;
-    let mut dirs = vec![dir.to_path_buf()];
-    if let Some(parent) = dir.parent() {
-        dirs.push(parent.join("text_encoders"));
-        dirs.push(parent.join("text_encoder"));
-    }
-    for d in dirs {
-        let mut found: Vec<PathBuf> = std::fs::read_dir(&d)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| {
-                p.is_file()
-                    && p.file_name()
-                        .is_some_and(|n| is_projector_file(&n.to_string_lossy()))
-            })
-            .collect();
-        found.sort_by_key(|p| {
-            let name = p.file_name().map(|n| n.to_string_lossy().to_string());
-            (projector_rank(name.as_deref().unwrap_or("")), name)
-        });
-        if let Some(p) = found.into_iter().next() {
-            return Some(p);
+    let parent = dir.parent().unwrap_or_else(|| Path::new(""));
+    Some([
+        dir.to_path_buf(),
+        parent.join("text_encoders"),
+        parent.join("text_encoder"),
+    ])
+}
+
+/// Find the repo's compatible projector beside the main file or in sibling text encoder folders.
+pub fn own_projector(main: &Path, libraries: &[PathBuf]) -> Option<PathBuf> {
+    let dir = main.parent()?;
+    let repo_root = libraries.iter().find_map(|library| {
+        let relative = main.strip_prefix(library).ok()?;
+        let mut parts = relative.components();
+        let root = library
+            .join(parts.next()?.as_os_str())
+            .join(parts.next()?.as_os_str());
+        parts.next()?; // A repo root must still contain a file path.
+        Some(root)
+    });
+    let root = repo_root.as_deref().unwrap_or_else(|| {
+        if dir.file_name().is_some_and(|n| n == "diffusion_models") {
+            dir.parent().unwrap_or(dir)
+        } else {
+            dir
         }
-    }
-    None
+    });
+    let relative = main.strip_prefix(root).ok()?;
+    let dirs = projector_dirs(relative)?;
+    let candidates: Vec<String> = dirs
+        .into_iter()
+        .flat_map(|d| {
+            std::fs::read_dir(root.join(d))
+                .into_iter()
+                .flatten()
+                .flatten()
+        })
+        .map(|e| e.path())
+        .filter(|p| p.is_file())
+        .filter_map(|p| {
+            p.strip_prefix(root)
+                .ok()
+                .map(|p| p.to_string_lossy().replace('\\', "/"))
+        })
+        .collect();
+    let main = main
+        .strip_prefix(root)
+        .ok()?
+        .to_string_lossy()
+        .replace('\\', "/");
+    select_own_projector(&main, candidates.iter().map(String::as_str)).map(|p| root.join(p))
 }
 
 /// The plan of a main file, or a bundle by id and a bare name: `libraries` are the model
@@ -811,7 +874,7 @@ pub fn concerns_image_models(file: &str) -> bool {
 pub fn is_bundle_companion(file: &str) -> bool {
     let lower = file.replace('\\', "/").to_ascii_lowercase();
     BUNDLES.iter().flat_map(|b| b.components).any(|c| {
-        let want = c.file.to_ascii_lowercase();
+        let want = format!("{}/{}", c.repo, c.file).to_ascii_lowercase();
         lower == want || lower.ends_with(&format!("/{want}"))
     })
 }
@@ -1062,6 +1125,18 @@ mod tests {
     }
 
     #[test]
+    fn companions_require_the_repo_and_entire_relative_path() {
+        let c = FLUX2_VAE;
+        assert!(is_bundle_companion(&format!("{}/{}", c.repo, c.file)));
+        assert!(!is_bundle_companion(c.file));
+        assert!(!is_bundle_companion(&format!("other/repo/{}", c.file)));
+        assert!(!is_bundle_companion(&format!(
+            "{}/elsewhere/{}",
+            c.repo, c.file
+        )));
+    }
+
+    #[test]
     fn a_repos_own_projector_wins_over_the_curated_one() {
         let dir = tempfile::tempdir().unwrap();
         let lib = dir.path().to_path_buf();
@@ -1108,12 +1183,9 @@ mod tests {
     #[test]
     fn the_last_companion_to_arrive_completes_the_model() {
         // A text encoder or projector GGUF has no image-model name but finishes a bundle.
-        for f in [
-            "Qwen3-4B-Q4_K_M.gguf",
-            "Qwen2.5-VL-7B-Instruct.mmproj-Q8_0.gguf",
-            "split_files/vae/flux2-vae.safetensors",
-        ] {
-            assert!(concerns_image_models(f), "{f}");
+        for c in [QWEN3_4B, QWEN25_VL_7B_MMPROJ, FLUX2_VAE] {
+            let f = format!("{}/{}", c.repo, c.file);
+            assert!(concerns_image_models(&f), "{f}");
         }
         assert!(concerns_image_models(
             "split/text_encoders/Qwen2.5-VL-7B-Instruct-mmproj-f16.gguf"
