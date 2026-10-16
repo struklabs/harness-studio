@@ -70,7 +70,7 @@ const tr = {
   'onboarding.wizard_vram_shared': 'sistem belleğini paylaşıyor',
   'onboarding.wizard_unified_budget': 'Birleşik bellek: GPU en çok {size} kullanabilir',
   'onboarding.wizard_primary_gpu': 'Öncelikli ekran kartı',
-  'onboarding.wizard_igpu_skipped': 'Dahili ekran kartı (stok GPU) atlanarak maksimum hız için harici ekran kartınız önceliklendirildi.',
+  'onboarding.wizard_igpu_skipped': 'Maksimum hız için dahili ekran kartı atlanarak harici ekran kartınız önceliklendirildi.',
   'onboarding.wizard_recommended_backend': 'Önerilen hızlandırma',
   'onboarding.wizard_step2_title': 'Model Klasörü',
   'onboarding.wizard_step2_desc': 'İndirdiğiniz modeller bu klasöre kaydedilir. Hızlı yükleme için klasörü bir SSD’de tutun.',

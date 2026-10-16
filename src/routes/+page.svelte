@@ -274,12 +274,19 @@
     }
   }
 
+  /** True from the wizard's completion until the first tab is chosen (the Dashboard tour waits). */
+  let landingAfterWizard = $state<boolean>(false);
+
   /** After the first-run wizard: the Model Hub when no model exists yet, else the Playground. A page remembered from an earlier session is dropped. */
   async function landAfterWizard() {
     forgetRestoreTab();
-    const models = await library.refresh();
-    const tab: Tab = models.length === 0 ? 'hub' : 'playground';
-    currentTab = tab;
+    try {
+      const models = await library.refresh();
+      const tab: Tab = models.length === 0 ? 'hub' : 'playground';
+      currentTab = tab;
+    } finally {
+      landingAfterWizard = false;
+    }
     void focusPageStart();
   }
 
@@ -327,6 +334,7 @@
   {@const settings = app.settings}
   {@const serverStatus = app.serverStatus}
   {@const hardware = app.hardware}
+  {@const wizardOpen = !settings.privacy.onboarding_completed || showWizardManually}
 
   <Tooltip.Provider delayDuration={250}>
     {#if !settings.privacy.onboarding_completed || showWizardManually}
@@ -337,6 +345,7 @@
         onComplete={(updated: AppSettings) => {
           const firstRun = !settings.privacy.onboarding_completed;
           showWizardManually = false;
+          if (firstRun) landingAfterWizard = true;
           handleSettingsUpdated(updated);
           if (firstRun) void landAfterWizard();
         }}
@@ -377,6 +386,7 @@
               {settings}
               {serverStatus}
               {hardware}
+              active={currentTab === 'dashboard' && !wizardOpen && !landingAfterWizard}
               onGoToHub={() => (currentTab = 'hub')}
               onGoToServers={() => (currentTab = 'servers')}
               onGoToConnections={() => (currentTab = 'connections')}
@@ -441,6 +451,6 @@
     {#if presetsOpened}
       <LazyView load={views.presets} />
     {/if}
-    <Toaster theme={toastTheme} position="bottom-right" offset={{ bottom: 'calc(var(--toast-clearance, 0px) + 24px)' }} mobileOffset={{ bottom: 'calc(var(--toast-clearance, 0px) + 16px)' }} closeButtonAriaLabel={t('ui.toast_close')} />
+    <Toaster theme={toastTheme} position="bottom-right" offset={{ bottom: `calc(var(--toast-clearance, 0px) + ${wizardOpen ? 80 : 24}px)` }} mobileOffset={{ bottom: `calc(var(--toast-clearance, 0px) + ${wizardOpen ? 72 : 16}px)` }} closeButtonAriaLabel={t('ui.toast_close')} />
   </Tooltip.Provider>
 {/if}

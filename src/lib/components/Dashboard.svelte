@@ -74,9 +74,11 @@
     onGoToServers: () => void;
     /** Opens the Connections tab (MCP servers are configured there). */
     onGoToConnections: () => void;
+    /** The Dashboard is the shown tab (it stays mounted while hidden); the tour waits for this. */
+    active?: boolean;
   }
 
-  let { settings, serverStatus, hardware, onGoToHub, onGoToConnections }: Props = $props();
+  let { settings, serverStatus, hardware, onGoToHub, onGoToConnections, active = true }: Props = $props();
 
   let models = $state<LocalModel[]>([]);
   let selectedModelId = $state<string>('');
@@ -136,21 +138,26 @@
   let showMigrationModal = $state<boolean>(false);
   let showImportModal = $state<boolean>(false);
 
+  // The tour opens the first time the Dashboard is shown after the first-run wizard is done. The
+  // Dashboard is already mounted behind the wizard, and the wizard lands on Playground or Model
+  // Hub, so a mount-time check never fired on first run (only on a later launch).
+  let tourChecked = false;
+  $effect(() => {
+    if (tourChecked || !active || !settings.privacy.onboarding_completed) return;
+    tourChecked = true;
+    try {
+      if (!localStorage.getItem('harness_tour_dismissed')) showCoachMarks = true;
+    } catch {
+      // storage unavailable
+    }
+  });
+
   // Runs once on mount (not on every settings change, which used to reset the port and rescan).
   onMount(() => {
     void domain.refreshPresets();
     refreshModels();
     port = settings.server.port || 0;
     portAuto = !settings.server.port;
-
-    try {
-      // Don't stack the tour on top of the first-run privacy dialog.
-      if (!localStorage.getItem('harness_tour_dismissed') && settings.privacy.onboarding_completed) {
-        showCoachMarks = true;
-      }
-    } catch {
-      // storage unavailable
-    }
 
     // New log lines are pushed (`server-logs`, coalesced); nothing is fetched while the window
     // is hidden, and everything missed is fetched when it shows again.
