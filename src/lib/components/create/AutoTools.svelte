@@ -214,7 +214,7 @@
             <div class="mt-3 border-t border-border pt-3 text-xs">
               <p class="font-medium">{t('tools.inst_confirm_asks')}</p>
               <ul class="my-2 space-y-1">
-                <li>{item.draft.info.network.length ? t('tools.inst_perm_network', { hosts: item.draft.info.network.join(', ') }) : t('tools.inst_perm_no_network')}</li>
+                <li>{item.draft.info.network.includes('*') ? t('tools.network_any') : item.draft.info.network.length ? t('tools.inst_perm_network', { hosts: item.draft.info.network.join(', ') }) : t('tools.inst_perm_no_network')}</li>
                 <li>{item.draft.info.fs_read.length ? t('tools.inst_perm_read', { folders: item.draft.info.fs_read.join(', ') }) : t('tools.inst_perm_no_files')}</li>
                 {#if item.draft.info.fs_write.length}<li>{t('tools.inst_perm_write', { folders: item.draft.info.fs_write.join(', ') })}</li>{/if}
                 <li>{t('tools.inst_perm_shell')}</li>

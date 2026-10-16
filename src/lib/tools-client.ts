@@ -235,7 +235,7 @@ export interface InstalledTool {
   version: string;
   description: string;
   output: string;
-  /** Host names the code may contact. */
+  /** [] denies network; ['*'] permits public internet; otherwise listed domains only. */
   network: string[];
   /** Workspace folders it may read / write. */
   fs_read: string[];
@@ -280,6 +280,7 @@ export const testInstalledTool = (name: string) => invoke<TestReport>('installed
 /** What the user typed into the generator: the tool they want and the upper bound of its permissions. */
 export interface GenerateToolRequest {
   description: string;
+  /** Upper bound: [] = none, ['*'] = public internet, otherwise listed domains only. */
   network: string[];
   fs_read: string[];
   fs_write: string[];

@@ -4,7 +4,7 @@
 use crate::process::{ActiveServerInfo, LaunchConfig, ProcessManager, ServerStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::{Duration, Instant};
 
 /// Instance used by the Dashboard and by every command that doesn't name a server.
@@ -47,8 +47,42 @@ fn is_active(status: &ServerStatus) -> bool {
     )
 }
 
+type Instances = Mutex<BTreeMap<String, Arc<ProcessManager>>>;
+
+// Observe the existing registries without keeping servers alive. Tools need every live
+// listener, including direct servers when the gateway is stopped and transient launches.
+fn live_registries() -> &'static Mutex<Vec<Weak<Instances>>> {
+    static REGISTRIES: OnceLock<Mutex<Vec<Weak<Instances>>>> = OnceLock::new();
+    REGISTRIES.get_or_init(Mutex::default)
+}
+
+pub(crate) fn live_listener_ports() -> Vec<u16> {
+    let registries = {
+        let mut live = live_registries().lock().unwrap();
+        let registries: Vec<_> = live.iter().filter_map(Weak::upgrade).collect();
+        live.retain(|registry| registry.strong_count() > 0);
+        registries
+    };
+    registries
+        .into_iter()
+        .flat_map(|instances| {
+            instances
+                .lock()
+                .unwrap()
+                .values()
+                .filter_map(|pm| {
+                    pm.active_server().map(|active| active.port).or_else(|| {
+                        // A stopping process can still accept connections until it exits.
+                        (pm.get_status() == ServerStatus::Stopping).then(|| pm.get_active_port())
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 pub struct ServerRegistry {
-    instances: Mutex<BTreeMap<String, Arc<ProcessManager>>>,
+    instances: Arc<Instances>,
 }
 
 impl Default for ServerRegistry {
@@ -58,9 +92,12 @@ impl Default for ServerRegistry {
             DEFAULT_SERVER_ID.to_string(),
             Arc::new(ProcessManager::with_id(DEFAULT_SERVER_ID)),
         );
-        Self {
-            instances: Mutex::new(map),
-        }
+        let instances = Arc::new(Mutex::new(map));
+        live_registries()
+            .lock()
+            .unwrap()
+            .push(Arc::downgrade(&instances));
+        Self { instances }
     }
 }
 

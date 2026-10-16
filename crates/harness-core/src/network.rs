@@ -478,6 +478,12 @@ pub async fn resolve_public_http_url(url: &reqwest::Url) -> Result<Vec<SocketAdd
     let addresses = lookup_url_host(url, port)
         .await
         .map_err(|e| crate::http_error::dns(&e, url.as_str()))?;
+    check_public_addresses(host, &addresses)?;
+    Ok(addresses)
+}
+
+/// Validate the complete DNS answer, before a client is pinned to it.
+fn check_public_addresses(host: &str, addresses: &[SocketAddr]) -> Result<(), String> {
     if addresses.is_empty() {
         return Err(format!("{host} did not resolve to an address"));
     }
@@ -487,7 +493,7 @@ pub async fn resolve_public_http_url(url: &reqwest::Url) -> Result<Vec<SocketAdd
     {
         return Err(format!("refused private or local network target: {host}"));
     }
-    Ok(addresses)
+    Ok(())
 }
 
 /// Resolves a redirect relative to the current URL and applies the same structural rules.

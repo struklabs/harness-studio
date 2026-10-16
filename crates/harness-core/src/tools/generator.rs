@@ -451,6 +451,12 @@ fn review_unicode(description: &str, files: &Files, report: &mut TestReport) {
 // ---- Permission upper bound ----
 
 fn host_covered(allowed: &[String], wanted: &str) -> bool {
+    if allowed == ["*"] {
+        return true;
+    }
+    if wanted == "*" {
+        return false;
+    }
     let (wild, host) = match wanted.strip_prefix("*.") {
         Some(h) => (true, h),
         None => (false, wanted),
@@ -526,10 +532,10 @@ const cases = [ /* two to five meaningful cases */ ];
 The index.js: and test.js: label lines are REQUIRED when using plain js fences.
 If JavaScript contains a line of ``` (for example inside a template literal), wrap that file in ````js fences and close with ````. The closing fence must be at least as long as the opening fence.
 
-manifest fields: category (file, web, calculation, datetime, text or other; default other), name (lowercase letters, digits and underscores, starts with a letter, 2-48 characters), version ("0.1.0"), description (one or two sentences: what the tool does and when to call it), input_schema (JSON Schema with "type": "object", "properties" and "required"), output (what the result text contains), permissions {"network": [host names], "fs": {"read": [folders], "write": [folders]}}. Ask only for what the tool needs and never for more than the user allows (given below). Do not write entry, test, runtime or shell.
+manifest fields: category (file, web, calculation, datetime, text or other; default other), name (lowercase letters, digits and underscores, starts with a letter, 2-48 characters), version ("0.1.0"), description (one or two sentences: what the tool does and when to call it), input_schema (JSON Schema with "type": "object", "properties" and "required"), output (what the result text contains), permissions {"network": [host names], "fs": {"read": [folders], "write": [folders]}}. For network, use [] for no access, ["*"] for the entire public internet, or domain names for listed domains only; never combine "*" with other entries. Ask only for what the tool needs and never for more than the user allows (given below). Do not write entry, test, runtime or shell.
 
 index_js defines `function run(args)` and returns a string (or a JSON-serializable value). Available globals include btoa, atob (Latin-1 binary strings), TextEncoder/TextDecoder (UTF-8 encode/decode), JSON, Math, Date and RegExp. For Unicode, convert TextEncoder's UTF-8 bytes to a binary string with String.fromCharCode before btoa. TextDecoder supports UTF-8 only, no streaming. There is no require, import, fetch, process, DOMParser, document or timers. The only way out of the sandbox is the global `harness`:
-- harness.http.get(url) and harness.http.post(url, jsonBody) return {status, content_type, url, body}. They are synchronous and only work for hosts listed in permissions.network.
+- harness.http.get(url) and harness.http.post(url, jsonBody) return {status, content_type, url, body}. They are synchronous and only work for hosts allowed by permissions.network. ["*"] permits any public host; [] denies all network. Private/local addresses and Harness ports are always blocked.
 - harness.fs.read(path), harness.fs.write(path, text), harness.fs.list(path): paths are relative to the workspace folder and only work inside the folders listed in permissions.fs.
 For text/data transformations (CSV/JSON, HTML-to-text, Markdown, base64), take content strings by default and return the transformed content; do not invent input/output paths or filesystem permissions unless the user explicitly requests file operations. For multiline markup, parse lines/blocks before inline replacements: distinguish heading levels, handle the last line without a trailing newline, and never wrap heading blocks in paragraph tags. Do not use unanchored overlapping heading replacements.
 For natural-language text processing use Unicode-aware regex: \p{L} for letters, \p{N} for numbers and the u flag (for example /[^\p{L}\p{N}\s]/gu). Never discard non-ASCII letters with \w or [a-zA-Z]. If the user description contains non-ASCII characters OR the tool processes text, include at least one successful non-ASCII-letter input case in the description's language, with meaningful expected output (Turkish example: bir iki iki üç üç üç must count six words, including üç three times). A Unicode case name, comment or expectation alone does not count.

@@ -760,3 +760,33 @@ fn browser_origin_gate() {
         );
     }
 }
+
+#[test]
+fn public_tool_dns_answers_reject_every_non_public_address() {
+    let public: SocketAddr = "8.8.8.8:443".parse().unwrap();
+    assert!(check_public_addresses("public.example", &[public]).is_ok());
+    assert!(check_public_addresses("empty.example", &[]).is_err());
+    for ip in [
+        "127.0.0.1",
+        "10.0.0.1",
+        "172.16.0.1",
+        "192.168.1.1",
+        "169.254.169.254",
+        "169.254.1.1",
+        "100.64.0.1",
+        "100.127.255.254",
+        "0.0.0.0",
+        "224.0.0.1",
+        "::1",
+        "fc00::1",
+        "fe80::1",
+        "::ffff:127.0.0.1",
+        "64:ff9b::a00:1",
+    ] {
+        let private = SocketAddr::new(ip.parse().unwrap(), 443);
+        assert!(
+            check_public_addresses("rebind.example", &[public, private]).is_err(),
+            "{ip}"
+        );
+    }
+}
