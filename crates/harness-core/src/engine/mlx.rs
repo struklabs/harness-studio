@@ -208,6 +208,205 @@ const CSM_PROMPTS: Codec = Codec {
     ],
 };
 
+/// The Hugging Face processor (feature extractor and tokenizer) of a Whisper, for mlx-examples'
+/// conversions that ship none (`whisper-large-v3-turbo`, `whisper-small-mlx`: weights and a short
+/// config). One per tokenizer: large-v3 and turbo (128 mel bins, 51866 tokens), the other
+/// multilingual sizes (51865) and the English-only ones (51864). Folders of their own: the repo
+/// is a model too.
+const WHISPER_LARGE_V3_PROCESSOR: Codec = Codec {
+    repo: "openai/whisper-large-v3",
+    folder: "openai/whisper-large-v3-processor",
+    rev: "06f233fe06e710322aca913c1bc4249a0d71fce1",
+    files: &[
+        (
+            "added_tokens.json",
+            34_648,
+            "3c51f66c4c21f9e126970078f11ae77a78c74aee8df606ee9daba86e467108e0",
+        ),
+        (
+            "merges.txt",
+            493_869,
+            "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+        ),
+        (
+            "normalizer.json",
+            52_666,
+            "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+        ),
+        (
+            "preprocessor_config.json",
+            340,
+            "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+        ),
+        (
+            "special_tokens_map.json",
+            2_072,
+            "1c70773c078cb2ca96e0fcff113102f1d3e2b1504272c3bb63b035d4a6700d87",
+        ),
+        (
+            "tokenizer.json",
+            2_480_617,
+            "6d8cbd7cd0d8d5815e478dac67b85a26bbe77c1f5e0c6d76d1ce2abc0e5f21ca",
+        ),
+        (
+            "tokenizer_config.json",
+            282_843,
+            "844b642c73a91359722f47b35705f7174686df33d252695d8572cf9ac03a6389",
+        ),
+        (
+            "vocab.json",
+            1_036_558,
+            "e2aa043ef015641d363d8288e7c241c85e36a5c761fb303598e0710233344387",
+        ),
+    ],
+};
+const WHISPER_SMALL_PROCESSOR: Codec = Codec {
+    repo: "openai/whisper-small",
+    folder: "openai/whisper-small-processor",
+    rev: "973afd24965f72e36ca33b3055d56a652f456b4d",
+    files: &[
+        (
+            "added_tokens.json",
+            34_604,
+            "9715fd2243b6f06a5858b5e32950d2853f73dd5bc201aafcf76f5082a2d8acd1",
+        ),
+        (
+            "merges.txt",
+            493_869,
+            "2df2990a395e35e8dfbc7511e08c12d56018d8d04691e0133e5d63b21e154dc6",
+        ),
+        (
+            "normalizer.json",
+            52_666,
+            "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+        ),
+        (
+            "preprocessor_config.json",
+            184_990,
+            "9b5cd03a36fbb8a627c64d98a5b5b126ead95a77720723944487311f0110b666",
+        ),
+        (
+            "special_tokens_map.json",
+            2_194,
+            "e67ae3a0aaa99abcd9f187138e12db1f65c16a14761c50ef10eef2c174a7a691",
+        ),
+        (
+            "tokenizer.json",
+            2_480_466,
+            "27fc476bfe7f17299480be2273fc0608e4d5a99aba2ab5dec5374b4482d1a566",
+        ),
+        (
+            "tokenizer_config.json",
+            282_683,
+            "2a4c4281cf9f51ac6ccc406fdc711a087afe6530f671fa7b80953edc498275ce",
+        ),
+        (
+            "vocab.json",
+            835_550,
+            "8f680bba319e01a653d2e8a5dbc17a9157179e0576e6ce74ce0c06356c6e24f9",
+        ),
+    ],
+};
+const WHISPER_TINY_EN_PROCESSOR: Codec = Codec {
+    repo: "openai/whisper-tiny.en",
+    folder: "openai/whisper-tiny.en-processor",
+    rev: "87c7102498dcde7456f24cfd30239ca606ed9063",
+    files: &[
+        (
+            "added_tokens.json",
+            34_604,
+            "560be47bea388757f8d4cc185c5d82067426cbb6361e38016dd90ddc01ab203a",
+        ),
+        (
+            "merges.txt",
+            456_318,
+            "1ce1664773c50f3e0cc8842619a93edc4624525b728b188a9e0be33b7726adc5",
+        ),
+        (
+            "normalizer.json",
+            52_666,
+            "bf1c507dc8724ca9cf9903640dacfb69dae2f00edee4f21ceba106a7392f26dd",
+        ),
+        (
+            "preprocessor_config.json",
+            184_990,
+            "9b5cd03a36fbb8a627c64d98a5b5b126ead95a77720723944487311f0110b666",
+        ),
+        (
+            "special_tokens_map.json",
+            1_830,
+            "014f8f802366ed818919550be0ad9e35907327cb9e142e8aaa102420f460bda8",
+        ),
+        (
+            "tokenizer.json",
+            2_405_679,
+            "5eb60cec1e77aeeb6869a2bb5a8e01a84c3fe5d072d75369343021fe6f5310d0",
+        ),
+        (
+            "tokenizer_config.json",
+            805,
+            "14f84bdf4b9ecdbd4738ddc81c17a1baedfc02bb93c6e049c951e15a1b40b70d",
+        ),
+        (
+            "vocab.json",
+            798_156,
+            "3ba3c3109ff33976c4bd966589c11ee14fcaa1f4c9e5e154c2ed7f99d80709e7",
+        ),
+    ],
+};
+
+/// The processor of an mlx-examples Whisper config by its vocabulary (`n_vocab`).
+fn whisper_processor_for_vocab(n_vocab: u64) -> Option<Codec> {
+    match n_vocab {
+        51866 => Some(WHISPER_LARGE_V3_PROCESSOR),
+        51865 => Some(WHISPER_SMALL_PROCESSOR),
+        51864 => Some(WHISPER_TINY_EN_PROCESSOR),
+        _ => None,
+    }
+}
+
+/// The processor of a Hub Whisper repo by its name (the listing has no config): large-v3 and
+/// turbo, English-only (`.en`), else the multilingual one.
+fn whisper_processor_for_repo(id: &str) -> Codec {
+    let name = id.rsplit('/').next().unwrap_or(id).to_ascii_lowercase();
+    if name.contains("large-v3") || name.contains("turbo") {
+        WHISPER_LARGE_V3_PROCESSOR
+    } else if name.contains(".en") {
+        WHISPER_TINY_EN_PROCESSOR
+    } else {
+        WHISPER_SMALL_PROCESSOR
+    }
+}
+
+/// Whether a config is mlx-examples' Whisper config (`n_mels`, `n_vocab`...; transformers names
+/// them `num_mel_bins`, `vocab_size`). Such a folder is an MLX build and has no processor.
+fn is_mlx_whisper_config(cfg: &serde_json::Value) -> bool {
+    cfg.get("n_mels").is_some_and(|v| v.is_u64())
+        && cfg
+            .get("n_vocab")
+            .and_then(|v| v.as_u64())
+            .and_then(whisper_processor_for_vocab)
+            .is_some()
+}
+
+/// The weights of an mlx-audio folder: its safetensors, else mlx-examples' `weights.npz` (older
+/// Whisper conversions), the way mlx-audio's loader looks for them.
+fn audio_weight_files(dir: &Path) -> Vec<PathBuf> {
+    let files = super::mistralrs::weight_files(dir);
+    if !files.is_empty() {
+        return files;
+    }
+    let mut npz: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_file() && p.extension().is_some_and(|e| e.eq_ignore_ascii_case("npz")))
+        .collect();
+    npz.sort();
+    npz
+}
+
 /// The voices of a CSM folder: its [`CSM_PROMPTS`]. The worker lists them too (`CSM_VOICES` in
 /// `mlx_audio_worker.py`); `csm_voices_match_the_worker` keeps the two the same.
 pub const CSM_VOICES: &[&str] = &["conversational_a", "conversational_b"];
@@ -225,6 +424,9 @@ pub fn pinned_codec_file(
         MIMI,
         LLAMA32_TOKENIZER,
         CSM_PROMPTS,
+        WHISPER_LARGE_V3_PROCESSOR,
+        WHISPER_SMALL_PROCESSOR,
+        WHISPER_TINY_EN_PROCESSOR,
     ]
     .iter()
     .filter(|c| c.repo == repo)
@@ -264,12 +466,36 @@ pub fn codec_dir(codec: &Codec, libraries: &[PathBuf]) -> Option<PathBuf> {
         .find(|dir| codec.files.iter().all(|(f, _, _)| dir.join(f).is_file()))
 }
 
-/// The codecs a text-to-speech folder needs, each with its library folder (`None` when it is
-/// not downloaded).
-pub fn codec_dirs(dir: &Path, libraries: &[PathBuf]) -> Vec<(Codec, Option<PathBuf>)> {
+/// What an mlx-audio folder loads from elsewhere: a text-to-speech family's codecs
+/// ([`codecs_of`]), or the processor of a Whisper without one ([`whisper_processor_of`]).
+fn companions_of(dir: &Path) -> Vec<Codec> {
+    if let Some(processor) = whisper_processor_of(dir) {
+        return vec![processor];
+    }
     tts_type(dir)
-        .map(|t| codecs_of(&t))
+        .map(|t| codecs_of(&t).to_vec())
         .unwrap_or_default()
+}
+
+/// The processor an mlx-examples Whisper folder needs ([`is_mlx_whisper_config`] and no
+/// processor of its own); `None` for any other folder.
+fn whisper_processor_of(dir: &Path) -> Option<Codec> {
+    if has_whisper_processor(|name| dir.join(name).is_file()) {
+        return None;
+    }
+    let cfg = read_json(&dir.join("config.json"))?;
+    if !is_mlx_whisper_config(&cfg) {
+        return None;
+    }
+    cfg.get("n_vocab")
+        .and_then(|v| v.as_u64())
+        .and_then(whisper_processor_for_vocab)
+}
+
+/// The codecs (or processor) an mlx-audio folder needs ([`companions_of`]), each with its
+/// library folder (`None` when it is not downloaded).
+pub fn codec_dirs(dir: &Path, libraries: &[PathBuf]) -> Vec<(Codec, Option<PathBuf>)> {
+    companions_of(dir)
         .iter()
         .map(|c| (*c, codec_dir(c, libraries)))
         .collect()
@@ -294,8 +520,16 @@ pub fn codec_plan_for_repo(
     if !is_mlx_repo_id(repo) {
         return None;
     }
-    let family = tts_repo_family(repo)?;
-    let codecs = codecs_of(family);
+    let name = repo.rsplit('/').next().unwrap_or(repo).to_ascii_lowercase();
+    let (family, codecs): (&str, Vec<Codec>) = match tts_repo_family(repo) {
+        Some(family) => (family, codecs_of(family).to_vec()),
+        // The processor of an mlx-examples Whisper conversion. mlx-audio's own conversions
+        // (`whisper-large-v3-turbo-asr-fp16`) have theirs.
+        None if name.contains("whisper") && !name.contains("-asr") => {
+            ("whisper", vec![whisper_processor_for_repo(repo)])
+        }
+        None => return None,
+    };
     if codecs.is_empty() {
         return None;
     }
@@ -709,8 +943,10 @@ pub fn has_whisper_processor(has: impl Fn(&str) -> bool) -> bool {
 }
 
 /// Whether a Hub repo's root files are enough for mlx-audio: a Whisper repo
-/// ([`is_stt_repo`] by a `whisper` tag or name) needs [`has_whisper_processor`]. A listing
-/// without file names is taken as it is.
+/// ([`is_stt_repo`] by a `whisper` tag or name) needs [`has_whisper_processor`], or is one of
+/// mlx-examples' conversions (`config.json` and `weights.npz` / `weights.safetensors`, or
+/// quantized `model.safetensors` with a tiktoken vocabulary) whose processor is downloaded with
+/// it ([`codec_plan_for_repo`]). A listing without file names is taken as it is.
 pub fn stt_repo_files_ok(id: &str, tags: &[String], files: &[String]) -> bool {
     let whisper = id
         .rsplit('/')
@@ -720,16 +956,21 @@ pub fn stt_repo_files_ok(id: &str, tags: &[String], files: &[String]) -> bool {
         .contains("whisper")
         || tags.iter().any(|t| t.eq_ignore_ascii_case("whisper"));
     let root = |name: &str| files.iter().any(|f| f == name);
-    files.is_empty() || !whisper || has_whisper_processor(root)
+    let mlx_examples = root("config.json")
+        && (root("weights.npz")
+            || root("weights.safetensors")
+            || (root("model.safetensors") && files.iter().any(|f| f.ends_with(".tiktoken"))));
+    files.is_empty() || !whisper || has_whisper_processor(root) || mlx_examples
 }
 
 /// Whether `path` is a speech recognition folder the `mlx-audio` engine runs: a Whisper or
-/// Parakeet model in MLX's format (its card says `library_name: mlx` / `mlx-audio`, or its
-/// config has MLX's quantization), with `config.json` and safetensors weights, and for Whisper
-/// its processor ([`has_whisper_processor`]). A transformers Whisper checkpoint (no MLX card)
-/// stays the Python engine's.
+/// Parakeet model in MLX's format (its card says `library_name: mlx` / `mlx-audio`, its config
+/// has MLX's quantization or is mlx-examples' Whisper config), with `config.json` and weights
+/// ([`audio_weight_files`]), and for Whisper its processor ([`has_whisper_processor`]) or, for an
+/// mlx-examples conversion, one to load from the library ([`whisper_processor_of`]). A
+/// transformers Whisper checkpoint (no MLX card) stays the Python engine's.
 pub fn is_stt_dir(path: &Path) -> bool {
-    if !path.is_dir() || super::mistralrs::weight_files(path).is_empty() {
+    if !path.is_dir() || audio_weight_files(path).is_empty() {
         return false;
     }
     let Some(cfg) = read_json(&path.join("config.json")) else {
@@ -741,6 +982,7 @@ pub fn is_stt_dir(path: &Path) -> bool {
         .map(str::to_ascii_lowercase);
     if model_type.as_deref() == Some("whisper")
         && !has_whisper_processor(|name| path.join(name).is_file())
+        && !is_mlx_whisper_config(&cfg)
     {
         return false;
     }
@@ -753,6 +995,7 @@ pub fn is_stt_dir(path: &Path) -> bool {
     arch && (card_field(path, "library_name")
         .is_some_and(|l| l.eq_ignore_ascii_case("mlx-audio") || l.eq_ignore_ascii_case("mlx"))
         || quant_bits(&cfg).is_some()
+        || is_mlx_whisper_config(&cfg)
         || card_tags(path)
             .iter()
             .any(|t| t == "mlx" || t == "mlx-audio"))
@@ -896,7 +1139,7 @@ fn nested_weight_bytes(dir: &Path) -> u64 {
 
 /// What the files of a speech folder say: its weights and `model_type`.
 fn audio_dir_info(dir: &Path) -> super::mistralrs::ModelDirInfo {
-    let weights = super::mistralrs::weight_files(dir);
+    let weights = audio_weight_files(dir);
     super::mistralrs::ModelDirInfo {
         weights_bytes: weights
             .iter()
@@ -1041,7 +1284,7 @@ impl MlxEngine {
 
 /// Unified memory a launch takes: the weights and a margin for the KV cache and MLX itself.
 pub fn vram_need(config: &LaunchConfig) -> u64 {
-    let weights: u64 = super::mistralrs::weight_files(&config.model_path)
+    let weights: u64 = audio_weight_files(&config.model_path)
         .iter()
         .filter_map(|p| std::fs::metadata(p).ok())
         .map(|m| m.len())
@@ -1184,7 +1427,7 @@ impl ServerEngine for MlxEngine {
                 .model_path
                 .as_deref()
                 .map(|p| {
-                    super::mistralrs::weight_files(Path::new(p))
+                    audio_weight_files(Path::new(p))
                         .iter()
                         .filter_map(|f| std::fs::metadata(f).ok())
                         .map(|m| m.len())
@@ -1282,8 +1525,7 @@ fn build_args(
         args.push("--task".into());
         args.push("transcription".into());
     }
-    let needs_codec = tts_type(&config.model_path).is_some_and(|t| !codecs_of(&t).is_empty());
-    if flavour == Flavour::Audio && needs_codec {
+    if flavour == Flavour::Audio && !companions_of(&config.model_path).is_empty() {
         let libraries = crate::config::AppSettings::load().all_models_dirs();
         args.extend(companion_args(&config.model_path, &libraries)?);
     }
@@ -2229,6 +2471,32 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         assert!(plan.complete(), "{plan:?}");
         assert!(codec_plan_for_repo("mlx-community/Soprano-80M-bf16", &libraries).is_none());
         assert!(codec_plan_for_repo("mlx-community/whisper-tiny-asr-fp16", &libraries).is_none());
+        // mlx-examples' Whisper conversions: the processor of their tokenizer, by name.
+        for (repo, processor) in [
+            (
+                "mlx-community/whisper-large-v3-turbo",
+                "openai/whisper-large-v3",
+            ),
+            (
+                "mlx-community/whisper-large-v3-mlx",
+                "openai/whisper-large-v3",
+            ),
+            ("mlx-community/whisper-small-mlx", "openai/whisper-small"),
+            (
+                "mlx-community/whisper-tiny.en-8bit",
+                "openai/whisper-tiny.en",
+            ),
+        ] {
+            let plan = codec_plan_for_repo(repo, &libraries).unwrap();
+            assert_eq!(plan.components.len(), 8, "{repo}");
+            assert!(
+                plan.components.iter().all(|c| c.repo == processor),
+                "{repo}"
+            );
+            let (file, folder) = pinned_codec_file(processor, "tokenizer.json").unwrap();
+            assert_eq!(folder, format!("{processor}-processor"));
+            assert_eq!(file.repo, processor);
+        }
     }
 
     /// CSM (`sesame`, `mlx-community/csm-1b-fp16`): a speech folder whose Mimi codec, Llama 3.2
@@ -2428,12 +2696,12 @@ tags:
                 .as_deref(),
             Some("whisper")
         );
-        // mlx-examples' older layout (`weights.safetensors`, a short config, no processor):
-        // mlx-audio loads it and fails at the first transcription, so it is not offered.
+        // mlx-examples' older layout (`weights.safetensors` or `weights.npz`, a short config, no
+        // processor): mlx-audio runs it with the processor of its vocabulary from the library.
         let turbo = folder(&[
             (
                 "config.json",
-                r#"{"n_mels":128,"n_audio_ctx":1500,"n_text_layer":4,"model_type":"whisper"}"#,
+                r#"{"n_mels":128,"n_vocab":51866,"n_audio_ctx":1500,"n_text_layer":4,"model_type":"whisper"}"#,
             ),
             ("weights.safetensors", "x"),
             (
@@ -2441,8 +2709,35 @@ tags:
                 "---\nlibrary_name: mlx\npipeline_tag: automatic-speech-recognition\n---\n",
             ),
         ]);
-        assert!(!is_stt_dir(turbo.path()));
-        assert!(!is_audio_dir(turbo.path()));
+        assert!(is_stt_dir(turbo.path()));
+        let library = tempfile::tempdir().unwrap();
+        let libraries = vec![library.path().to_path_buf()];
+        let e = companion_args(turbo.path(), &libraries).unwrap_err();
+        assert!(e.contains("openai/whisper-large-v3"), "{e}");
+        let processor = library.path().join("openai/whisper-large-v3-processor");
+        std::fs::create_dir_all(&processor).unwrap();
+        for (f, _, _) in WHISPER_LARGE_V3_PROCESSOR.files {
+            std::fs::write(processor.join(f), "{}").unwrap();
+        }
+        assert_eq!(
+            companion_args(turbo.path(), &libraries).unwrap(),
+            [
+                "--companion".to_string(),
+                format!("openai/whisper-large-v3={}", processor.to_string_lossy())
+            ]
+        );
+        // A folder with its own processor needs none; an unknown vocabulary is not offered.
+        assert!(companion_args(ported.path(), &libraries)
+            .unwrap()
+            .is_empty());
+        let odd = folder(&[
+            (
+                "config.json",
+                r#"{"n_mels":80,"n_vocab":12,"model_type":"whisper"}"#,
+            ),
+            ("weights.safetensors", "x"),
+        ]);
+        assert!(!is_stt_dir(odd.path()));
         assert!(has_whisper_processor(
             |n| n == "preprocessor_config.json" || n == "vocab.json"
         ));
@@ -2471,13 +2766,24 @@ tags:
             super::super::python_hf::detect(hf.path()).as_deref(),
             Some("automatic-speech-recognition")
         );
-        // Old mlx-whisper weights (`weights.npz`) and untested recognizers are not offered.
-        let npz = folder(&[
-            ("config.json", r#"{"n_mels":80,"model_type":"whisper"}"#),
-            ("weights.npz", "x"),
-            ("README.md", "---\nlibrary_name: mlx\n---\n"),
-        ]);
-        assert!(!is_stt_dir(npz.path()));
+        // Old mlx-whisper weights (`weights.npz`) are mlx-audio's, with a multilingual or an
+        // English-only processor by the vocabulary; untested recognizers are not offered.
+        for (vocab, repo) in [
+            (51865, "openai/whisper-small"),
+            (51864, "openai/whisper-tiny.en"),
+        ] {
+            let npz = folder(&[
+                (
+                    "config.json",
+                    &format!(r#"{{"n_mels":80,"n_vocab":{vocab},"model_type":"whisper"}}"#),
+                ),
+                ("weights.npz", "x"),
+            ]);
+            assert!(is_stt_dir(npz.path()), "{vocab}");
+            assert_eq!(audio_dir_info(npz.path()).weights.len(), 1);
+            let e = companion_args(npz.path(), &[]).unwrap_err();
+            assert!(e.contains(repo), "{e}");
+        }
         let moonshine = folder(&[
             ("config.json", r#"{"model_type":"moonshine"}"#),
             ("model.safetensors", "x"),
@@ -3398,6 +3704,18 @@ print("tail", repr(w.heard_text(heard, 3.0)))
 print("no starts", repr(w.heard_text(types.SimpleNamespace(text=" as is ", segments=[dict(text="x")]), 3.0)))
 print("no segments", repr(w.heard_text(types.SimpleNamespace(text=" p "), 3.0)))
 print("parakeet options", w.stt_options({:?}))
+# A Whisper loaded without a processor gets the `openai/whisper-*` companion's; one with its own,
+# or a model without the attribute, keeps what it has.
+bare = types.SimpleNamespace(_processor=None)
+w.whisper_processor(bare, ["kyutai/x=/a", "openai/whisper-small=/lib/p"], lambda d: "proc " + d)
+own = types.SimpleNamespace(_processor="own")
+w.whisper_processor(own, ["openai/whisper-small=/lib/p"], lambda d: "proc " + d)
+other = types.SimpleNamespace()
+w.whisper_processor(other, ["openai/whisper-small=/lib/p"], lambda d: "proc " + d)
+# The worker resolves the folder (`realpath`: `/lib` is a link on Linux, a drive is added on
+# Windows), so the expected value is resolved the same way.
+print("processors", bare._processor == "proc " + w.os.path.realpath("/lib/p"), own._processor,
+      hasattr(other, "_processor"))
 "#,
             dir.path().to_string_lossy(),
             dir.path().join("parakeet").to_string_lossy()
@@ -3428,6 +3746,7 @@ print("parakeet options", w.stt_options({:?}))
             "parakeet translate refused this model only transcribes",
             "parakeet calls [{'chunk_duration': None}, {'chunk_duration': 120.0}]",
             "parakeet options {'model_type': 'parakeet'}",
+            "processors True own False",
             "tail 'Hello there.'",
             "nan scores 'Real speech.'",
             "no starts 'as is'",

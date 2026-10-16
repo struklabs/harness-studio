@@ -24,7 +24,8 @@ names. This worker serves only what Harness needs, itself:
 * It listens on 127.0.0.1 only; remote code is never trusted; Hugging Face Hub access is off;
   proxy variables are cleared. A codec the model's loader asks the Hub for by name (OuteTTS,
   Orpheus, Dia) is given with --companion owner/repo=folder (a library folder Harness
-  downloaded with the model) and found in a cache of links to those folders only.
+  downloaded with the model) and found in a cache of links to those folders only. A Whisper
+  without a processor (mlx-examples' conversions) is given an `openai/whisper-*` one that way.
 * A request cannot run away: generation is capped at a number of codec frames that grows with
   the text (see `frame_budget`; sampling can miss the end token and keep talking), and it stops
   after --max-seconds of wall-clock time. Audio made by then is answered with
@@ -871,6 +872,18 @@ def companion_cache(companions, root):
     return cache
 
 
+def whisper_processor(model, companions, load):
+    """Gives a Whisper loaded without a processor (mlx-examples' conversions ship none) the
+    `openai/whisper-*` companion's: `load(folder)` makes it. Any other model is left alone."""
+    if getattr(model, "_processor", False) is not None:
+        return
+    for item in companions:
+        repo, _, folder = item.partition("=")
+        if repo.startswith("openai/whisper-"):
+            model._processor = load(os.path.realpath(folder))
+            return
+
+
 def own_tokenizer(load_config, model_dir):
     """`load_config` that points a config without `tokenizer_name` at the folder's own tokenizer:
     mlx-audio's OuteTTS and Orpheus would fetch a tokenizer from the Hub by default (OuteTTS a
@@ -933,6 +946,7 @@ def main(argv=None):
         from mlx_audio.stt.utils import resample_audio
 
         model = MODEL_THREAD.submit(load_stt, model_dir, **stt_options(model_dir)).result()
+        whisper_processor(model, args.companion, transformers.WhisperProcessor.from_pretrained)
 
         def decode(audio):
             return mx.array(decode_capped(audio, args.max_audio_seconds, miniaudio, resample_audio))

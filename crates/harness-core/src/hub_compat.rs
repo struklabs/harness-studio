@@ -735,10 +735,11 @@ pub fn mlx_compatibility_on(
     }
     let root = |f: &&String| !f.contains('/') && !f.contains('\\');
     let has_config = files.iter().filter(root).any(|f| f == "config.json");
-    let has_weights = files
-        .iter()
-        .filter(root)
-        .any(|f| f.to_ascii_lowercase().ends_with(".safetensors"));
+    // mlx-examples' older Whisper conversions have `weights.npz`.
+    let has_weights = files.iter().filter(root).any(|f| {
+        let f = f.to_ascii_lowercase();
+        f.ends_with(".safetensors") || (family == MLX_AUDIO_FAMILY && f.ends_with(".npz"))
+    });
     if !files.is_empty() && !(has_config && has_weights) {
         return None;
     }
@@ -1517,7 +1518,7 @@ mod tests {
                 None
             );
         }
-        // An untested recognizer, or a repo of npz weights, is not offered.
+        // An untested recognizer is not offered.
         assert_eq!(
             mlx_compatibility_on(
                 "mlx-community/moonshine-tiny",
@@ -1530,27 +1531,56 @@ mod tests {
             ),
             None
         );
+        // mlx-examples' layouts have no processor: it is downloaded with them (npz weights,
+        // `weights.safetensors`, quantized weights with a tiktoken vocabulary).
+        for (repo, files) in [
+            (
+                "mlx-community/whisper-tiny-mlx",
+                vec!["config.json", "weights.npz"],
+            ),
+            (
+                "mlx-community/whisper-large-v3-turbo",
+                vec!["README.md", "config.json", "weights.safetensors"],
+            ),
+            (
+                "mlx-community/whisper-large-v3-turbo-4bit",
+                vec!["config.json", "model.safetensors", "multilingual.tiktoken"],
+            ),
+        ] {
+            assert_eq!(
+                mlx_compatibility_on(
+                    repo,
+                    ModelFormat::Mlx,
+                    asr,
+                    &s(&files),
+                    &s(&["mlx"]),
+                    true,
+                    false
+                ),
+                audio,
+                "{repo}"
+            );
+        }
+        // Weights without a processor or a known layout are not offered; npz is no chat model.
         assert_eq!(
             mlx_compatibility_on(
-                "mlx-community/whisper-tiny-mlx",
+                "mlx-community/whisper-odd",
                 ModelFormat::Mlx,
                 asr,
-                &s(&["config.json", "weights.npz"]),
+                &s(&["config.json", "model.safetensors"]),
                 &s(&["mlx"]),
                 true,
                 false
             ),
             None
         );
-
-        // mlx-examples' older layout has no processor: mlx-audio cannot transcribe with it.
         assert_eq!(
             mlx_compatibility_on(
-                "mlx-community/whisper-large-v3-turbo",
+                "mlx-community/some-chat",
                 ModelFormat::Mlx,
-                asr,
-                &s(&["README.md", "config.json", "weights.safetensors"]),
-                &s(&["mlx", "whisper"]),
+                None,
+                &s(&["config.json", "weights.npz"]),
+                &s(&["mlx"]),
                 true,
                 false
             ),
