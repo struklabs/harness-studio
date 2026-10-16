@@ -28,4 +28,4 @@ AppImage: make it executable (`chmod +x Harness.Studio_{VERSION}_Linux_x86_64.Ap
 
 `latest.json`, the `.sig` files and the `.app.tar.gz` archives are used by the in-app updater; you do not need to download them.
 
-See the [changelog](https://github.com/struklabs/harness-studio/blob/main/docs/CHANGELOG.md) for what is new.
+See the [0.1.1 release notes](https://github.com/struklabs/harness-studio/blob/main/docs/en/RELEASE_NOTES_0.1.1.md) ([Türkçe](https://github.com/struklabs/harness-studio/blob/main/docs/tr/RELEASE_NOTES_0.1.1.md)) for highlights and known limitations, and the [changelog](https://github.com/struklabs/harness-studio/blob/main/docs/CHANGELOG.md) for all changes.

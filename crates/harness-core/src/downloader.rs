@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 use tokio::io::{AsyncWriteExt, BufWriter};
 
-const USER_AGENT: &str = "HarnessStudio/0.1.0";
+const USER_AGENT: &str = "HarnessStudio/0.1.1";
 #[path = "downloader_task_listing.rs"]
 mod task_listing;
 

@@ -1,6 +1,6 @@
 [package]
 name = "harness-studio"
-version = "0.1.0"
+version = "0.1.1"
 description = "Harness Studio - Lightweight llama.cpp Control Center"
 authors = ["struklabs and Harness Studio contributors"]
 repository = "https://github.com/struklabs/harness-studio"

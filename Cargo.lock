@@ -2145,7 +2145,7 @@ dependencies = [
 
 [[package]]
 name = "harness-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "futures-util",
@@ -2167,7 +2167,7 @@ dependencies = [
 
 [[package]]
 name = "harness-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2189,7 +2189,7 @@ dependencies = [
 
 [[package]]
 name = "harness-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "axum",
@@ -2238,7 +2238,7 @@ dependencies = [
 
 [[package]]
 name = "harness-gateway"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2262,7 +2262,7 @@ dependencies = [
 
 [[package]]
 name = "harness-mcp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "harness-core",
  "serde",
@@ -2272,7 +2272,7 @@ dependencies = [
 
 [[package]]
 name = "harness-onnx"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -2295,7 +2295,7 @@ dependencies = [
 
 [[package]]
 name = "harness-studio"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.22.1",
  "gio",

@@ -6,7 +6,7 @@ Türkçe: [../tr/01-kurulum.md](../tr/01-kurulum.md)
 
 ## Get the Installer
 
-Harness Studio 0.1.0 is distributed as platform-specific packages on the project's [GitHub Releases](https://github.com/struklabs/harness-studio/releases) page. To build the app yourself, see the build section of the [main README](../../../README.md); this page covers installing from the ready-made installer.
+Harness Studio 0.1.1 is distributed as platform-specific packages on the project's [GitHub Releases](https://github.com/struklabs/harness-studio/releases) page. To build the app yourself, see the build section of the [main README](../../../README.md); this page covers installing from the ready-made installer.
 
 | System | Package | Status |
 | --- | --- | --- |

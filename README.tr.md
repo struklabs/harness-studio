@@ -181,7 +181,7 @@ Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işled
 - **Birden çok model ve kullanıcı için tasarlandı.** Eşzamanlılık, tek adresten model değiştirme, token başına sınırlar ve istemci bazında analitik.
 - **Gözlemlenebilirlik yerleşik.** İstek analitiği, izleme görünümü, Prometheus ve OpenTelemetry.
 - **Tek çekirdek, çok kapı.** Uygulama, CLI, Control API ve MCP aynı Rust servislerini kullanır.
-- **Dürüst sınırlar.** Harness Studio küçük bir ekibin ilk herkese açık sürümüdür (0.1.0). LM Studio ve Ollama'nın daha büyük kullanıcı kitleleri, model kataloğu, macOS desteği ve SDK'ları var. Bkz. [Rakiplerin önde olduğu yerler](docs/tr/COMPARISON.md).
+- **Dürüst sınırlar.** Harness Studio küçük bir ekibin erken aşamadaki herkese açık sürümüdür (0.1.1). LM Studio ve Ollama'nın daha büyük kullanıcı kitleleri, model kataloğu, macOS desteği ve SDK'ları var. Bkz. [Rakiplerin önde olduğu yerler](docs/tr/COMPARISON.md).
 
 ## Gizlilik
 
@@ -274,7 +274,7 @@ Evet. Ağ geçidini açtığınızda OpenAI, Anthropic ve Ollama API'leriyle uyu
 <details>
 <summary><b>Windows SmartScreen uyarı veriyor. Güvenli mi?</b></summary>
 
-v0.1.0 kurulum dosyası henüz dijital olarak imzalı değil; SmartScreen bilinmeyen yayıncılar için uyarır. **Ek bilgi**'yi, sonra **Yine de çalıştır**'ı seçin. Kaynak kod ve derleme akışı bu depoda herkese açıktır; imzalı kurulum dosyası [yol haritasında](#yol-haritası).
+v0.1.1 kurulum dosyası henüz dijital olarak imzalı değil; SmartScreen bilinmeyen yayıncılar için uyarır. **Ek bilgi**'yi, sonra **Yine de çalıştır**'ı seçin. Kaynak kod ve derleme akışı bu depoda herkese açıktır; imzalı kurulum dosyası [yol haritasında](#yol-haritası).
 </details>
 
 <details>
@@ -335,26 +335,11 @@ Bellek yetmezse bir pencere neyin sığmadığını gösterir ve çözümler sun
 
 Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, yön gösterir.
 
-**Şimdi mevcut (v0.1.0)**
-- Windows kurulum dosyası; Model Hub, Kütüphane, Dashboard, Playground
-- OpenAI, Anthropic ve Ollama API'li ağ geçidi; yönlendirmeli araç entegrasyonları
-- Araçlar ve MCP; CLI, Control API ve başsız kip
-- Analitik, karşılaştırmalı testler ve Prometheus/OpenTelemetry dışa aktarımı
-- Konuşma, görsel üretimi, embedding ve rerank motorları
+**0.1.1 ile gelenler:** yeni konuşma ve Apple Silicon görsel motorları, Harness Link, genişleyen ONNX ve ses kapsamı, macOS güncellemeleri, erişilebilirlik ve ilk çalıştırma düzeltmeleri, npm'de TypeScript SDK. Bkz. [sürüm notları](docs/tr/RELEASE_NOTES_0.1.1.md).
 
-**Üzerinde çalışılıyor**
-- Linux derlemelerinin daha çok donanımda (AMD, NVIDIA, Intel) ve dağıtımda doğrulanması
-- Her platformda ilk açılış deneyiminin cilalanması
-- Linux'ta karşılaştırmalı testler (Windows'ta NVIDIA/CUDA tamamlandı)
-- Küçük pencere ve yüksek arayüz ölçeği için erişilebilirlik denetimleri
+**Sıradaki adımlar:** Linux doğrulaması, ilk çalıştırma ve erişilebilirlik kontrolleri, benchmark ve güncelleyici paketleri; Linux NVIDIA doğrulamasından sonra CUDA vLLM; PyPI'da Python SDK; web sitesinden sonra imzalı Windows kurulumu; upstream desteğinden sonra LFM2.5-Audio ses çıkışı.
 
-**Sıradaki planlar**
-- **Sunucu kipi:** Harness'i kendi sunucunuzda web arayüzünden yönetin; parola ya da token oturumları, alan adı ve otomatik SSL, systemd servisi ve Docker imajları (CUDA, ROCm, Vulkan, CPU)
-- Önizlemenin ötesinde imzalı Linux paketleri
-- Kod imzalı Windows kurulum dosyası; arka planda katılımsız uygulama güncellemesi
-- Control API SDK'larının npm ve PyPI'da yayımlanması; karar modeli uç noktaları
-
-**Daha sonra:** araçlar ve MCP sunucuları için topluluk kayıt defteri, ComfyUI köprüsü, araç yönlendirici ve daha çok üretim sayfası.
+**0.2.0 için planlananlar:** sunucu kipi ile araç, MCP ve skill kataloğu. Uzun vadeli fikirler [tam yol haritasında](docs/tr/ROADMAP.md).
 
 ## Projeye nasıl destek olabilirsiniz?
 
