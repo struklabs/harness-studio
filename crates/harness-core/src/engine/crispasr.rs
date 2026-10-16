@@ -93,13 +93,16 @@ pub fn supports_metadata(meta: &GgufMetadata) -> bool {
     })
 }
 
-/// ASR container evidence, including exports refused by the format check.
+/// ASR container evidence, including exports refused by the format check. transcribe.cpp
+/// exports (`stt.variant`) share architecture names but are that engine's, not CrispASR's.
 pub fn is_asr_gguf(path: &Path) -> bool {
     ModelFormat::of(path) == ModelFormat::Gguf
-        && crate::models::cached_metadata(path)
-            .as_ref()
-            .and_then(|m| m.architecture.as_deref())
-            .is_some_and(|a| is_asr_arch(a) || a == "cohere_asr")
+        && crate::models::cached_metadata(path).is_some_and(|m| {
+            !super::transcribe_cpp::is_export(&m)
+                && m.architecture
+                    .as_deref()
+                    .is_some_and(|a| is_asr_arch(a) || a == "cohere_asr")
+        })
 }
 
 /// Architectures whose CrispASR backend translates (CAP_TRANSLATE); every other family only

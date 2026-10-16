@@ -523,6 +523,9 @@ pub(crate) mod tests {
             export(&path, arch, Some(name));
             assert!(is_model(&path), "{name}");
             assert!(!super::super::crispasr::is_model(&path), "{name}");
+            // Nor its wider "speech recognition GGUF" check (the gateway scheduler refused
+            // transcriptions with it as a CrispASR route).
+            assert!(!super::super::crispasr::is_asr_gguf(&path), "{name}");
             assert_eq!(launch(&path), TRANSCRIBE_CPP, "{name}");
             assert_eq!(
                 super::super::server_for_model(&path).map(|e| e.family()),
@@ -536,6 +539,7 @@ pub(crate) mod tests {
         let crisp = dir.path().join("parakeet-crisp.gguf");
         export(&crisp, "parakeet", None);
         assert!(!is_model(&crisp));
+        assert!(super::super::crispasr::is_asr_gguf(&crisp));
         assert_eq!(launch(&crisp), super::super::CRISPASR);
         // Voice activity, diarization and language identification are not speech recognition.
         for arch in NOT_SPEECH_RECOGNITION {
