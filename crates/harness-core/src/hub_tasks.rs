@@ -272,9 +272,13 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
     if crate::hub_compat::is_audio_cpp_repo(item) {
         let tts = crate::hub_compat::audio_cpp_repo_tts(item);
         let process = crate::hub_compat::audio_cpp_repo_processing(item);
+        let diarization = crate::hub_compat::audio_cpp_repo_diarization(item);
         return RepoAnalysis {
             pipeline_tag: if tts {
                 Some("text-to-speech".into())
+            } else if diarization {
+                // Speaker turns, not audio: the task its own repositories declare.
+                Some("voice-activity-detection".into())
             } else {
                 process.then(|| "audio-to-audio".into())
             },

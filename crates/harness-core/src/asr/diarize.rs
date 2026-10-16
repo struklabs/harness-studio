@@ -27,6 +27,11 @@ pub const EMBEDDING_SHA256: &str =
 pub const EMBEDDING_SIZE: u64 = 28_281_164;
 /// Folder under the speech-recognition models home (hidden: the model scan skips it).
 const DIR: &str = ".diarization";
+/// How far apart two voices must be to count as two speakers (cosine distance; the tool's
+/// own default is 0.5). The Harness default changed from 0.5 to 0.7 after tuning on four
+/// public sherpa-onnx test recordings: 0.7 found the correct speaker count in three of four.
+/// This small sample does not establish a universally optimal threshold.
+pub const CLUSTER_THRESHOLD: f64 = 0.7;
 /// Most speakers a request may name.
 pub const MAX_SPEAKERS: u32 = 32;
 /// The rate the tool reads.
@@ -126,7 +131,9 @@ pub fn build_args(models: &Models, speakers: Option<u32>, threads: u32) -> Vec<S
     ];
     match speakers {
         Some(n) => args.push(format!("--clustering.num-clusters={n}")),
-        None => args.push("--clustering.cluster-threshold=0.5".to_string()),
+        None => args.push(format!(
+            "--clustering.cluster-threshold={CLUSTER_THRESHOLD}"
+        )),
     }
     args
 }
@@ -146,6 +153,91 @@ pub fn parse_turns(stdout: &str) -> Vec<Turn> {
             })
         })
         .collect()
+}
+
+/// Silence put into the audio where one speaker takes over from another without a pause (see
+/// [`Splice`]). Long enough for the voice activity detector (0.5 s) and for the streaming
+/// models' pause rule (1 s) to end a segment there.
+pub const SPLICE_SILENCE_SECS: f64 = 1.2;
+/// A speaker change is cut only when both turns around it last this long (seconds): a short
+/// "yes" inside the other voice's sentence is not worth cutting the sentence for.
+const SPLICE_MIN_TURN_SECS: f64 = 0.8;
+/// Turns closer than this (seconds) count as running into each other; a longer gap is a pause
+/// the voice activity detector cuts at anyway.
+const SPLICE_MAX_GAP_SECS: f64 = 0.5;
+
+/// The places where the audio gets silence put in before speech recognition. A segment of the
+/// recognizer is cut at pauses, so two speakers who answer each other without one ended up in the
+/// same segment and the transcript gave the whole segment to whoever spoke more of it. With the
+/// silence at each speaker change, every segment has one speaker. The recognized times are put
+/// back afterwards ([`Splice::restore`]), so the answer never shows the silence.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Splice {
+    /// Seconds into the audio the tool read (padding included), ascending.
+    points: Vec<f64>,
+}
+
+impl Splice {
+    /// A cut at each change between two speakers whose turns run into each other.
+    pub fn at_speaker_changes(turns: &[Turn]) -> Self {
+        let mut sorted: Vec<&Turn> = turns.iter().collect();
+        sorted.sort_by(|a, b| a.start.total_cmp(&b.start));
+        let mut points: Vec<f64> = Vec::new();
+        for pair in sorted.windows(2) {
+            let (a, b) = (pair[0], pair[1]);
+            let long = |t: &Turn| t.end - t.start >= SPLICE_MIN_TURN_SECS;
+            if a.speaker == b.speaker
+                || !long(a)
+                || !long(b)
+                || b.start - a.end > SPLICE_MAX_GAP_SECS
+            {
+                continue;
+            }
+            let at = (a.end + b.start) / 2.0;
+            if points
+                .last()
+                .is_none_or(|last| at - last >= SPLICE_MIN_TURN_SECS)
+            {
+                points.push(at);
+            }
+        }
+        Self { points }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.points.is_empty()
+    }
+
+    /// Seconds of silence the cuts add.
+    pub fn added_secs(&self) -> f64 {
+        self.points.len() as f64 * SPLICE_SILENCE_SECS
+    }
+
+    /// 16-bit mono `pcm` at `rate` with the silence put in.
+    pub fn apply(&self, rate: u32, pcm: &[u8]) -> Vec<u8> {
+        let silence = vec![0u8; (f64::from(rate) * SPLICE_SILENCE_SECS) as usize * 2];
+        let mut out = Vec::with_capacity(pcm.len() + silence.len() * self.points.len());
+        let mut from = 0;
+        for point in &self.points {
+            let at = (((point * f64::from(rate)) as usize) * 2).clamp(from, pcm.len() / 2 * 2);
+            out.extend_from_slice(&pcm[from..at]);
+            out.extend_from_slice(&silence);
+            from = at;
+        }
+        out.extend_from_slice(&pcm[from..]);
+        out
+    }
+
+    /// The time in the original audio of `t` seconds into the spliced audio (both with the
+    /// padding): the silence before `t` is taken out; a time inside a cut is the cut's place.
+    pub fn restore(&self, t: f64) -> f64 {
+        let mut removed = 0.0;
+        for (k, point) in self.points.iter().enumerate() {
+            let start = point + k as f64 * SPLICE_SILENCE_SECS;
+            removed += (t - start).clamp(0.0, SPLICE_SILENCE_SECS);
+        }
+        t - removed
+    }
 }
 
 /// OpenAI's speaker names: `A`, `B`, ... `Z`, then `A2`, `B2`...
@@ -277,6 +369,75 @@ mod tests {
         assert_eq!(segs[0].speaker, None);
     }
 
+    fn turn(start: f64, end: f64, speaker: u32) -> Turn {
+        Turn {
+            start,
+            end,
+            speaker,
+        }
+    }
+
+    #[test]
+    fn a_cut_goes_where_one_long_turn_runs_into_another_speakers() {
+        let turns = [
+            turn(0.5, 4.0, 0),
+            turn(4.0, 9.0, 1),
+            // A pause of a second: the voice activity detector cuts there itself.
+            turn(10.2, 14.0, 0),
+            // Overlapping: the cut goes in the middle of the overlap.
+            turn(13.0, 18.0, 1),
+            // The same speaker goes on: no cut.
+            turn(18.0, 20.0, 1),
+            // A short turn on either side: no cut.
+            turn(20.0, 20.5, 0),
+            turn(20.5, 26.0, 1),
+        ];
+        let splice = Splice::at_speaker_changes(&turns);
+        assert_eq!(splice.points, [4.0, 13.5]);
+        assert_eq!(splice.added_secs(), 2.4);
+        assert!(Splice::at_speaker_changes(&[turn(0.0, 5.0, 0)]).is_empty());
+        assert!(Splice::at_speaker_changes(&[]).is_empty());
+        // Turns come in any order.
+        let mut shuffled = turns;
+        shuffled.reverse();
+        assert_eq!(Splice::at_speaker_changes(&shuffled), splice);
+    }
+
+    #[test]
+    fn the_silence_goes_in_and_the_times_come_back() {
+        let splice = Splice {
+            points: vec![1.0, 3.0],
+        };
+        // 4 s of audio at 100 Hz, every sample 1.
+        let pcm: Vec<u8> = std::iter::repeat_n(1i16.to_le_bytes(), 400)
+            .flatten()
+            .collect();
+        let spliced = splice.apply(100, &pcm);
+        let samples: Vec<i16> = spliced
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| i16::from_le_bytes(*c))
+            .collect();
+        assert_eq!(samples.len(), 400 + 2 * 120);
+        // 1 s of audio, 1.2 s of silence, 2 s of audio, 1.2 s of silence, 1 s of audio.
+        let runs: Vec<(i16, usize)> = samples
+            .chunk_by(|a, b| a == b)
+            .map(|r| (r[0], r.len()))
+            .collect();
+        assert_eq!(runs, [(1, 100), (0, 120), (1, 200), (0, 120), (1, 100)]);
+        // Before the first cut nothing moves; after both the 2.4 s are taken out.
+        assert_eq!(splice.restore(0.5), 0.5);
+        assert_eq!(splice.restore(1.0), 1.0);
+        assert!((splice.restore(2.2) - 1.0).abs() < 1e-9);
+        assert!((splice.restore(2.7) - 1.5).abs() < 1e-9);
+        assert!((splice.restore(5.4) - 3.0).abs() < 1e-9);
+        assert!((splice.restore(6.4) - 4.0).abs() < 1e-9);
+        // Nothing to cut: the audio is the audio.
+        assert_eq!(Splice::default().apply(100, &pcm), pcm);
+        assert_eq!(Splice::default().restore(2.5), 2.5);
+    }
+
     #[test]
     fn speakers_are_named_like_openai_names_them() {
         assert_eq!(speaker_name(0), "A");
@@ -296,6 +457,10 @@ mod tests {
             .iter()
             .any(|a| a.starts_with("--segmentation.pyannote-model=")));
         let args = build_args(&m, None, 4);
-        assert!(args.contains(&"--clustering.cluster-threshold=0.5".to_string()));
+        assert!(args.contains(&"--clustering.cluster-threshold=0.7".to_string()));
+        // A known number of speakers replaces the threshold.
+        assert!(!build_args(&m, Some(2), 4)
+            .iter()
+            .any(|a| a.contains("cluster-threshold")));
     }
 }

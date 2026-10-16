@@ -46,6 +46,46 @@ fn gpu_lost(body: &[u8]) -> bool {
     let text = String::from_utf8_lossy(&body[..body.len().min(4096)]).to_ascii_lowercase();
     text.contains("devicelost") || text.contains("device lost") || text.contains("device_lost")
 }
+/// audio.cpp's errors when the GPU has no room left for a job's buffers (`SAM Audio decoder graph
+/// allocation failed`, `Failed to allocate Sortformer diar backend tensors`, a Vulkan
+/// `ErrorOutOfDeviceMemory`): long audio and other resident models both use it up.
+fn gpu_memory(body: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(&body[..body.len().min(4096)]).to_ascii_lowercase();
+    // A bare "allocation failed" also covers disk, port and validation errors: require a
+    // ggml object (graph, tensor, buffer) next to it.
+    let ggml = ["graph", "tensor", "buffer"]
+        .iter()
+        .any(|object| text.contains(object));
+    text.contains("outofdevicememory")
+        || text.contains("out of memory")
+        || (ggml && (text.contains("allocation failed") || text.contains("failed to allocate")))
+}
+/// Unloads the other audio.cpp models the gateway holds and nobody is using; whether any was.
+async fn free_idle_audio_workers(state: &GwState, keep: &str) -> bool {
+    let Ok(definitions) = state.scheduler.definitions().await else {
+        return false;
+    };
+    let mut any = false;
+    for slot in state.scheduler.snapshot().await {
+        let audio = definitions.iter().any(|d| {
+            d.id == slot.definition_id && d.base.local_path().is_some_and(audio_cpp::is_model)
+        });
+        if slot.definition_id != keep
+            && slot.managed
+            && !slot.pinned
+            && audio
+            && state
+                .scheduler
+                .unload_if_idle(&slot.definition_id)
+                .await
+                .unwrap_or(false)
+        {
+            any = true;
+        }
+    }
+    any
+}
+
 /// How long one processing request may take: the gateway's request timeout, raised for long
 /// audio (CPU separation runs well below real time), at most an hour. `None`: no limit.
 fn process_timeout(configured_secs: u32, audio_secs: f64) -> Option<Duration> {
@@ -150,16 +190,10 @@ async fn read_request(
             audio = Some(bytes);
         } else {
             let text = String::from_utf8(bytes).map_err(|_| bad("Form fields must be UTF-8."))?;
-            let value = if !core::options("apollo")
-                .into_iter()
-                .chain(core::options("audiosr"))
-                .chain(core::options("sam_audio"))
-                .chain(core::options("universr"))
-                .any(|spec| spec.name == name && spec.choices.is_empty())
-            {
-                json!(text)
-            } else {
+            let value = if core::numeric_option(&name) {
                 serde_json::from_str(&text).map_err(|_| bad(format!("Invalid `{name}`.")))?
+            } else {
+                json!(text)
             };
             fields.insert(name, value);
         }
@@ -203,6 +237,7 @@ async fn serve(
         .and_then(|m| m.audiocpp_family)
         .ok_or_else(|| bad("Select an audio.cpp processing model."))?;
     let rebuilt = core::rebuild(&def.alias, &family, &fields, &audio).map_err(bad)?;
+    let diarization = audio_cpp::is_diarization(&family);
     guard.admitted(caller.admit(state)?);
     guard.get().model = Some(def.alias.clone());
     guard.get().alias = Some(def.alias.clone());
@@ -227,40 +262,42 @@ async fn serve(
         guard.get().evicted = load.evicted.clone();
         guard.get().oom = load.recovered;
     }
-    let timeout = process_timeout(
-        state.scheduler.settings().request_timeout_secs,
-        harness_core::audio::wav_duration_secs(&audio).unwrap_or(0.0),
-    );
-    let mut request = state
-        .http
-        .post(format!("{}/v1/tasks/run", lease.upstream))
-        .json(&rebuilt);
-    if let Some(timeout) = timeout {
-        request = request.timeout(timeout);
-    }
-    let response = request.send().await.map_err(|e| {
-        if e.is_timeout() {
-            let secs = timeout.map_or(0, |t| t.as_secs());
-            keyed(
-                GatewayError::new(
-                    504,
-                    "upstream_timeout",
-                    format!("audio.cpp did not finish within {secs} s."),
-                ),
-                err("audio_process.timeout").with("seconds", secs),
-            )
-        } else {
-            keyed(
-                GatewayError::new(
-                    502,
-                    "upstream_error",
-                    "The audio.cpp server did not answer.",
-                ),
-                err("audio_process.no_answer"),
-            )
+    let audio_secs = harness_core::audio::wav_duration_secs(&audio).unwrap_or(0.0);
+    let timeout = process_timeout(state.scheduler.settings().request_timeout_secs, audio_secs);
+    let mut freed = false;
+    let response = loop {
+        let mut request = state
+            .http
+            .post(format!("{}/v1/tasks/run", lease.upstream))
+            .json(&rebuilt);
+        if let Some(timeout) = timeout {
+            request = request.timeout(timeout);
         }
-    })?;
-    if !response.status().is_success() {
+        let response = request.send().await.map_err(|e| {
+            if e.is_timeout() {
+                let secs = timeout.map_or(0, |t| t.as_secs());
+                keyed(
+                    GatewayError::new(
+                        504,
+                        "upstream_timeout",
+                        format!("audio.cpp did not finish within {secs} s."),
+                    ),
+                    err("audio_process.timeout").with("seconds", secs),
+                )
+            } else {
+                keyed(
+                    GatewayError::new(
+                        502,
+                        "upstream_error",
+                        "The audio.cpp server did not answer.",
+                    ),
+                    err("audio_process.no_answer"),
+                )
+            }
+        })?;
+        if response.status().is_success() {
+            break response;
+        }
         let body = response.bytes().await.unwrap_or_default();
         if gpu_lost(&body) {
             return Err(keyed(
@@ -272,8 +309,24 @@ async fn serve(
                 err("audio_process.gpu_lost"),
             ));
         }
+        if gpu_memory(&body) {
+            // Other audio.cpp models stay resident after their last request and hold the GPU:
+            // unload the idle ones and try once more.
+            if !freed && free_idle_audio_workers(state, &def.id).await {
+                freed = true;
+                continue;
+            }
+            return Err(keyed(
+                GatewayError::new(
+                    502,
+                    "upstream_error",
+                    "The GPU ran out of memory for this audio; try a shorter clip or the CPU backend.",
+                ),
+                err("audio_process.gpu_memory"),
+            ));
+        }
         return Err(upstream());
-    }
+    };
     // Bound the response while streaming, including dishonest/missing Content-Length.
     let mut response = response;
     let mut bytes = Vec::new();
@@ -284,6 +337,13 @@ async fn serve(
         bytes.extend_from_slice(&chunk);
     }
     let value: Value = serde_json::from_slice(&bytes).map_err(|_| upstream())?;
+    if diarization {
+        let result =
+            core::diarization_result(&def.alias, &value, audio_secs).ok_or_else(upstream)?;
+        guard.get().ttft_ms = Some(guard.started.elapsed().as_millis() as u64);
+        guard.finish(200, None);
+        return Ok(Json(result).into_response());
+    }
     let root = state
         .scheduler
         .registry()
@@ -294,6 +354,21 @@ async fn serve(
     guard.finish(200, None);
     Ok(Json(result).into_response())
 }
+
+/// Names of the audio a worker may return: enhanced speech, the two stems of a vocal separator,
+/// the target and the rest of SAM Audio, and the stems of HTDemucs (and its six-stem model).
+const OUTPUT_NAMES: &[&str] = &[
+    "enhanced",
+    "vocals",
+    "instrumental",
+    "target",
+    "residual",
+    "drums",
+    "bass",
+    "other",
+    "guitar",
+    "piano",
+];
 
 /// v0.9.1 runtime.cpp task_result_json_with_timing emits audio, named_audio_outputs,
 /// or artifacts {id,kind,payload,meta}. Reconstruct only names and WAV bytes.
@@ -310,9 +385,7 @@ pub fn normalize(model: &str, value: &Value, root: Option<&Path>) -> Result<Valu
     let mut files = Cleanup(Vec::new());
     let mut total = 0usize;
     let mut add = |name: &str, bytes: Vec<u8>| -> Result<(), GatewayError> {
-        if !["enhanced", "vocals", "instrumental", "target", "residual"].contains(&name)
-            || outputs.len() >= 8
-        {
+        if !OUTPUT_NAMES.contains(&name) || outputs.len() >= 8 {
             return Err(upstream());
         }
         core::validate_output(&bytes).map_err(|_| upstream())?;
@@ -409,6 +482,29 @@ mod tests {
         }
     }
     #[test]
+    fn demucs_stems_are_returned_by_name_and_other_names_are_not() {
+        let encoded = STANDARD.encode(audio());
+        let stems = ["drums", "bass", "other", "vocals", "guitar", "piano"];
+        let value = json!({"named_audio_outputs": stems.iter().map(|s| json!({"id": s, "audio": encoded})).collect::<Vec<_>>()});
+        let result = normalize("htdemucs", &value, None).unwrap();
+        let names: Vec<_> = result["outputs"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|o| o["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, stems);
+        for bad in ["Drums", "drums.wav", "bass/../x", "", "synth"] {
+            let value = json!({"named_audio_outputs": [{"id": bad, "audio": encoded}]});
+            assert_eq!(
+                normalize("m", &value, None).unwrap_err().status,
+                502,
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
     fn only_owned_file_artifacts_are_read_inlined_and_removed() {
         let dir = tempfile::tempdir().unwrap();
         let output = dir.path().join("outputs");
@@ -447,6 +543,37 @@ mod tests {
             br#"{"error":{"message":"vk::Queue::submit: ErrorDeviceLost","type":"server_error"}}"#
         ));
         assert!(!gpu_lost(br#"{"error":{"message":"out of memory"}}"#));
+        for message in [
+            "SAM Audio decoder graph allocation failed",
+            "Failed to allocate Sortformer diar backend tensors",
+            "vk::Device::allocateMemory: ErrorOutOfDeviceMemory",
+            "ggml_gallocr_reserve_n: failed to allocate Vulkan0 buffer of size 2147483648",
+            "out of memory",
+        ] {
+            let body = format!(r#"{{"error":{{"message":"{message}","type":"server_error"}}}}"#);
+            assert!(gpu_memory(body.as_bytes()), "{message}");
+        }
+        assert!(!gpu_memory(
+            br#"{"error":{"message":"unknown model id: x"}}"#
+        ));
+        assert!(!gpu_memory(
+            br#"{"error":{"message":"request exceeds fixed graph capacity"}}"#
+        ));
+        for message in [
+            "disk allocation failed: no space left on device",
+            "failed to allocate a worker port",
+            "request allocation failed validation",
+            "failed to allocate output file: permission denied",
+        ] {
+            assert!(!gpu_memory(message.as_bytes()), "{message}");
+        }
+        assert_eq!(
+            key(&keyed(
+                GatewayError::new(502, "upstream_error", "x"),
+                err("audio_process.gpu_memory")
+            )),
+            json!("audio_process.gpu_memory")
+        );
         assert_eq!(process_timeout(0, 30.0), None);
         assert_eq!(process_timeout(600, 2.0), Some(Duration::from_secs(600)));
         assert_eq!(process_timeout(600, 11.0), Some(Duration::from_secs(1110)));

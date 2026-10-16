@@ -128,17 +128,40 @@ pub fn task(family: &str) -> Option<&'static str> {
 pub const PROCESS_FAMILIES: &[&str] = &[
     "bs_roformer",
     "mel_band_roformer",
+    "htdemucs",
+    "htdemucs_6stems",
     "sam_audio",
     "sidon",
     "apollo",
     "audiosr",
     "universr",
+    "reuse",
+    "nemotron_3_diar",
+    "sortformer_diar",
 ];
 
 pub fn processing_task(family: &str) -> Option<&'static str> {
     match family {
-        "bs_roformer" | "mel_band_roformer" => Some("sep"),
-        "sam_audio" | "sidon" | "apollo" | "audiosr" | "universr" => Some("s2s"),
+        "bs_roformer" | "mel_band_roformer" | "htdemucs" | "htdemucs_6stems" => Some("sep"),
+        "sam_audio" | "sidon" | "apollo" | "audiosr" | "universr" | "reuse" => Some("s2s"),
+        "nemotron_3_diar" | "sortformer_diar" => Some("diar"),
+        _ => None,
+    }
+}
+
+/// Speaker diarization families: `/v1/audio/process` answers them with speaker turns instead of
+/// audio, so the Playground's Process Audio panel (audio in, audio out) does not list them.
+pub fn is_diarization(family: &str) -> bool {
+    processing_task(family) == Some("diar")
+}
+
+/// Packages that sit alone in their own Hugging Face repository, by repository id. The listing
+/// shows no model family for them, and their files carry no folder name to recognize.
+pub fn family_of_repo(repo: &str) -> Option<&'static str> {
+    match repo {
+        "audio-cpp/SAM-Audio-GGUF" => Some("sam_audio"),
+        "audio-cpp/RE-USE-GGUF" => Some("reuse"),
+        "audio-cpp/Nemotron-3-Diarization-GGUF" => Some("nemotron_3_diar"),
         _ => None,
     }
 }
@@ -163,6 +186,10 @@ pub fn family_from_package_path(path: &str) -> Option<&'static str> {
     const PACKAGES: &[(&str, &str)] = &[
         ("bs-roformer", "bs_roformer"),
         ("mel-band-roformer", "mel_band_roformer"),
+        // The six-stem package first: its folder name also starts with the plain one.
+        ("htdemucs-6stems", "htdemucs_6stems"),
+        ("htdemucs", "htdemucs"),
+        ("sortformer-diar-4spk-v1", "sortformer_diar"),
         ("sam-audio", "sam_audio"),
         ("sidon", "sidon"),
         ("apollo", "apollo"),
@@ -424,6 +451,11 @@ pub fn server_config(config: &LaunchConfig) -> Result<serde_json::Value, String>
         if let Some(language) = language(path) {
             model["load_options"] = serde_json::json!({"language": language});
         }
+    }
+    // Sortformer's offline graph holds 20 s when the backend plans on the device (Vulkan, CUDA);
+    // the tiered capacity grows it with the request, as the host-graph backends do by default.
+    if family == "sortformer_diar" {
+        model["session_options"] = serde_json::json!({"graph_capacity_mode": "tiered"});
     }
     if let Some(voice) = voice {
         model["default_voice_preset"] = serde_json::json!({"voice_id": voice});
@@ -949,6 +981,72 @@ mod tests {
         ] {
             assert!(processing_task(family).is_none());
         }
+    }
+
+    #[test]
+    fn diarization_is_served_through_the_process_route_but_not_listed_as_audio_in_audio_out() {
+        for family in ["nemotron_3_diar", "sortformer_diar"] {
+            assert_eq!(processing_task(family), Some("diar"));
+            assert_eq!(task(family), Some("diar"));
+            assert!(is_diarization(family));
+        }
+        for family in PROCESS_FAMILIES {
+            assert_eq!(
+                is_diarization(family),
+                family.ends_with("_diar"),
+                "{family}"
+            );
+        }
+        // Sortformer's offline graph holds 20 s on a device backend unless it may grow.
+        let dir = tempfile::tempdir().unwrap();
+        for (family, sessions) in [
+            (
+                "sortformer_diar",
+                Some(serde_json::json!({"graph_capacity_mode": "tiered"})),
+            ),
+            ("nemotron_3_diar", None),
+        ] {
+            let path = dir.path().join(format!("{family}.gguf"));
+            gguf(&path, family);
+            let c = LaunchConfig {
+                model_path: path,
+                host: "127.0.0.1".into(),
+                ..Default::default()
+            };
+            let config = server_config(&c).unwrap();
+            assert_eq!(config["models"][0]["task"], "diar");
+            assert_eq!(
+                config["models"][0].get("session_options").cloned(),
+                sessions
+            );
+        }
+    }
+
+    #[test]
+    fn package_folders_and_single_package_repos_name_their_family() {
+        for (path, family) in [
+            ("HTDemucs-GGUF/htdemucs-q8_0.gguf", "htdemucs"),
+            (
+                "HTDemucs-6stems-GGUF/htdemucs-6stems-q8_0.gguf",
+                "htdemucs_6stems",
+            ),
+            (
+                "Sortformer-Diar-4spk-v1-GGUF/sortformer-diar-4spk-v1-q8_0.gguf",
+                "sortformer_diar",
+            ),
+        ] {
+            assert_eq!(family_from_package_path(path), Some(family), "{path}");
+        }
+        assert_eq!(family_of_repo("audio-cpp/RE-USE-GGUF"), Some("reuse"));
+        assert_eq!(
+            family_of_repo("audio-cpp/SAM-Audio-GGUF"),
+            Some("sam_audio")
+        );
+        assert_eq!(
+            family_of_repo("audio-cpp/Nemotron-3-Diarization-GGUF"),
+            Some("nemotron_3_diar")
+        );
+        assert_eq!(family_of_repo("someone/RE-USE-GGUF"), None);
     }
 
     #[test]

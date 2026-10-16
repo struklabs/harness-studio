@@ -1,6 +1,8 @@
 //! Gateway, auth, scheduler and multipart/JSON boundary against a fake worker.
 mod common;
 use axum::{
+    http::StatusCode,
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
@@ -64,14 +66,22 @@ async fn processing_rebuilds_both_client_formats_and_sanitizes_worker_results() 
         .route("/v1/tasks/run", post(move |Json(body): Json<Value>| {
             let calls = calls.clone(); let audio = response_audio.clone();
             async move {
-                calls.lock().unwrap().push(body.clone());
+                let attempt = {
+                    let mut calls = calls.lock().unwrap();
+                    calls.push(body.clone());
+                    calls.iter().filter(|call| call["request"]["text"] == body["request"]["text"]).count()
+                };
+                let prompt = body["request"]["text"].as_str().unwrap();
+                if prompt == "oom-twice" || (prompt == "oom-once" && attempt == 1) {
+                    return (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error":{"message":"SAM Audio decoder graph allocation failed"}}))).into_response();
+                }
                 match body["request"]["text"].as_str().unwrap() {
                     "unsafe" => Json(json!({"artifacts":[{"id":"target","path":"C:/secret.wav"}]})),
                     "empty" => Json(json!({"timing":{"path":"never return"}})),
                     "malformed" => Json(json!({"audio":"not base64"})),
                     "enhance" => Json(json!({"audio":audio,"path":"never return","timing":{"wall_ms":1}})),
                     _ => Json(json!({"named_audio_outputs":[{"id":"target","audio":audio},{"id":"residual","audio":audio}],"path":"never return"})),
-                }
+                }.into_response()
             }
         }));
     let port = harness_core::engine::audio_cpp::random_port().unwrap();
@@ -99,9 +109,9 @@ async fn processing_rebuilds_both_client_formats_and_sanitizes_worker_results() 
     common::start_process(
         &pm,
         LaunchConfig {
-            binary_path: bridge,
-            model_path: transport,
-            definition_id: Some(def.id),
+            binary_path: bridge.clone(),
+            model_path: transport.clone(),
+            definition_id: Some(def.id.clone()),
             host: "127.0.0.1".into(),
             custom_args: Some(format!("--bridge-target {port}")),
             ..Default::default()
@@ -159,6 +169,35 @@ async fn processing_rebuilds_both_client_formats_and_sanitizes_worker_results() 
             assert!(http.post(format!("{base}{path}")).json(&json!({"model":"sam","audio":"secret"})).send().await.unwrap().status().is_client_error());
         }
         assert_eq!(registry.all().len(), servers_before);
+        let scheduler = gateway.scheduler().await.unwrap();
+        for (prompt, expected_status) in [("oom-once", 200), ("oom-twice", 502)] {
+            // An idle, gateway-managed audio worker is the memory recovery victim.
+            let idle_model = dir.path().join(format!("{prompt}.gguf"));
+            gguf(&idle_model, "sam_audio");
+            let idle_def = harness_core::domain::store::Domain::global()
+                .save_definition(ModelDefinition::new(prompt, ModelRef::Local { path: idle_model }))
+                .unwrap();
+            // Refresh the scheduler's short definitions cache for this new companion.
+            scheduler.resolve(Some(prompt)).await.unwrap();
+            let idle_pm = registry.get_or_create(&format!("gw-{prompt}"));
+            common::start_process(&idle_pm, LaunchConfig {
+                binary_path: bridge.clone(), model_path: transport.clone(),
+                definition_id: Some(idle_def.id.clone()), host: "127.0.0.1".into(),
+                custom_args: Some(format!("--bridge-target {port}")), ..Default::default()
+            }).await.unwrap();
+            let lease = scheduler.acquire_audio_process(&idle_def).await.unwrap();
+            assert!(!scheduler.unload_if_idle(&idle_def.id).await.unwrap());
+            assert_eq!(idle_pm.get_status(), harness_core::process::ServerStatus::Running);
+            drop(lease);
+            let response = http.post(&url).json(&json!({"model":"sam","audio_base64":encoded,"prompt":prompt})).send().await.unwrap();
+            assert_eq!(response.status(), expected_status);
+            if expected_status == 502 {
+                let error: Value = response.json().await.unwrap();
+                assert_eq!(error["error"]["harness"]["error_key"], "audio_process.gpu_memory");
+            }
+            assert_eq!(seen.lock().unwrap().iter().filter(|call| call["request"]["text"] == prompt).count(), 2);
+            assert_ne!(idle_pm.get_status(), harness_core::process::ServerStatus::Running);
+        }
         harness_core::config::AppSettings { audio_cpp_enabled: false, ..Default::default() }.save().unwrap();
         assert_eq!(http.post(&url).json(&json!({"model":"sam","audio_base64":encoded,"prompt":"man speaking"})).send().await.unwrap().status(), 403);
     }).catch_unwind().await;

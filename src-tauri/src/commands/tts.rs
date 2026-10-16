@@ -213,7 +213,7 @@ pub(crate) async fn get_audio_process_overview() -> Result<AudioProcessOverview,
         harness_core::library_definitions::ensure(&library, &[harness_core::domain::ModelKind::Pipeline])?;
         let models = harness_core::domain::store::Domain::global().definitions()?.into_iter().filter_map(|def| {
             let family = audio_cpp::metadata(def.base.local_path()?)?.audiocpp_family?;
-            audio_cpp::processing_task(&family)?;
+            audio_cpp::processing_task(&family).filter(|_| !audio_cpp::is_diarization(&family))?;
             Some(AudioProcessModel { name: def.alias, options: audio_process::options(&family), family })
         }).collect();
         Ok(AudioProcessOverview { models, runtime_installed: harness_core::runtimes::resolve_family_binary_in(&harness_core::runtimes::RuntimeRegistry::global(), AUDIO_CPP, None).is_ok() })
