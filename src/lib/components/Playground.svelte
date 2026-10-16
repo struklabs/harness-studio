@@ -289,7 +289,8 @@
     pgTab = tab;
     const alias = app.requestedPlaygroundModel;
     app.requestedPlaygroundModel = null;
-    if (alias && (tab === 'embedding' || tab === 'rerank' || tab === 'pipeline')) modeModels[tab] = alias;
+    if (alias && tab === 'chat' && isRemoteModel(alias)) useModel(app.selectedServerId, alias);
+    else if (alias && (tab === 'embedding' || tab === 'rerank' || tab === 'pipeline')) modeModels[tab] = alias;
   });
   // Embedding / Rerank list definitions: library files found by a scan get their default one first.
   $effect(() => {
