@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { parseSearchQuery } from '../src/lib/components/hub/searchParser.ts';
 import { isCompanionVariant, pickProjectorVariant, recommendFloatVariant, recommendVariant } from '../src/lib/components/hub/recommend.ts';
 import { needsPrismFork } from '../src/lib/components/hub/forkQuants.ts';
@@ -236,4 +236,19 @@ test('ChrisCole Qwen edit CPU recommendation excludes split text encoders and VA
   for (const folder of ['text_encoder', 'vae', 'vision_encoder', 'audio_encoders', 'tokenizer']) {
     assert.equal(isCompanionVariant(gguf(`nested/${folder}/model-Q4_0`, 'Q4_0', 1)), true);
   }
+});
+
+test('every backend refusal has frontend mapping and both translations', () => {
+  const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+  const rust = read('crates/harness-core/src/hub_tasks.rs').split('pub enum NotRunnable {')[1].split('}')[0];
+  const inference = read('src/lib/components/hub/inference.ts');
+  const locales = readdirSync(new URL('../src/lib/locales/', import.meta.url)).filter((p) => p.endsWith('.ts')).map((p) => read('src/lib/locales/' + p)).join('\n');
+  for (const [, variant] of rust.matchAll(/^    ([A-Z]\w*),/gm)) {
+    const key = variant.replace(/[A-Z]/g, (c, i) => (i ? '_' : '') + c.toLowerCase());
+    const locale = new RegExp('  ' + key + ": '([^']+)'").exec(inference)?.[1];
+    assert.ok(locale, key);
+    assert.equal(locales.split("'" + locale + "':").length - 1, 2, locale);
+  }
+  assert.match(inference, /foreign_speech_gguf: 'hub.refusal_short_foreign_speech_gguf'/);
+  assert.equal(locales.split("'hub.refusal_short_foreign_speech_gguf':").length - 1, 2);
 });

@@ -1028,6 +1028,7 @@ export type HfTaskSource = 'tags' | 'name' | 'files' | 'library' | 'gguf';
 
 /** `harness_core::hub_tasks::NotRunnable`. */
 export type HfNotRunnable =
+  | 'foreign_speech_gguf'
   | 'needs_sea_g2p'
   | 'needs_librosa'
   | 'vibevoice_layout'
