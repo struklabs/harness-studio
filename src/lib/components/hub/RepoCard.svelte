@@ -84,9 +84,10 @@
       ? null
       : (taskSupportStore.info(task?.id)?.needs_runtime ?? null)
   );
-  /** Runtimes that run a repo of a task whose usual family is another one (CrispASR GGUFs, MLX
-   *  speech): their verdict stands and the task's "needs whisper.cpp" hint does not apply. */
-  const OWN_RUNTIMES = ['audio.cpp', 'crispasr', 'mlx', 'mlx-vlm', 'mlx-audio', 'mflux'];
+  /** Runtimes that run a repo of a task whose usual family is another one (CrispASR and
+   *  transcribe.cpp GGUFs, Qwen3-TTS on llama.cpp, MLX speech): their verdict stands and the
+   *  task's "needs whisper.cpp / audio.cpp" hint does not apply. */
+  const OWN_RUNTIMES = ['audio.cpp', 'crispasr', 'transcribe.cpp', 'llama.cpp', 'mlx', 'mlx-vlm', 'mlx-audio', 'mflux'];
   let compat = $derived(engineCompatibility(repo.compatibility, (family) => engineInstall.installed(family)));
   /** A safetensors chat model: not run as it is, but the drawer offers the GGUF conversion. */
   let convertible = $derived(canConvert(repo));
