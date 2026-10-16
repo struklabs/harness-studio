@@ -12,7 +12,7 @@ body:
     attributes:
       label: Harness Studio version
       description: Run `harness --version`, or check the installer file name or the Windows "Apps" list.
-      placeholder: "0.1.0"
+      placeholder: "0.1.1"
     validations:
       required: true
   - type: dropdown

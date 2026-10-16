@@ -181,7 +181,7 @@ The others win some rows too: Ollama processed long prompts faster, and at 65k c
 - **Built for several models and several users.** Concurrency, model switching through one endpoint, per-token limits, and per-client analytics.
 - **Observability built in.** Request analytics, a trace view, Prometheus, and OpenTelemetry.
 - **One core, many doors.** The app, the CLI, the Control API, and MCP all use the same Rust services.
-- **Honest limits.** Harness Studio is a first public release (0.1.0) with a small team. LM Studio and Ollama have larger user bases, catalogs, macOS support, and SDKs. See [Where the competitors lead](docs/en/COMPARISON.md#where-the-competitors-lead).
+- **Honest limits.** Harness Studio is an early public release (0.1.1) with a small team. LM Studio and Ollama have larger user bases, catalogs, macOS support, and SDKs. See [Where the competitors lead](docs/en/COMPARISON.md#where-the-competitors-lead).
 
 ## Privacy
 
@@ -274,7 +274,7 @@ All three run models locally on top of llama.cpp. Harness Studio keeps the advan
 <details>
 <summary><b>Windows shows a SmartScreen warning. Is it safe?</b></summary>
 
-The v0.1.0 installer is not code-signed yet, so SmartScreen warns about unknown publishers. Choose **More info**, then **Run anyway**. The source code and the build workflow are public in this repository, and a signed installer is on the [roadmap](#roadmap).
+The v0.1.1 installer is not code-signed yet, so SmartScreen warns about unknown publishers. Choose **More info**, then **Run anyway**. The source code and the build workflow are public in this repository, and a signed installer is on the [roadmap](#roadmap).
 </details>
 
 <details>
@@ -335,26 +335,11 @@ Open an [issue](https://github.com/struklabs/harness-studio/issues/new/choose) w
 
 The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction, not promises.
 
-**Available now (v0.1.0)**
-- Windows installer; Model Hub, Library, Dashboard, Playground
-- Gateway with OpenAI, Anthropic, and Ollama APIs; guided tool integrations
-- Tools and MCP; CLI, Control API, and headless mode
-- Analytics, benchmarks, and Prometheus/OpenTelemetry export
-- Speech, image generation, embeddings, and reranking engines
+**Shipped in 0.1.1:** new speech and Apple Silicon image engines, Harness Link, broader ONNX and audio coverage, macOS updates, accessibility and first-run fixes, and the TypeScript SDK on npm. See the [release notes](docs/en/RELEASE_NOTES_0.1.1.md).
 
-**In progress**
-- Verifying the Linux builds on more hardware (AMD, NVIDIA, Intel) and distributions
-- First-run polish on every platform
-- Benchmarks on Linux (NVIDIA/CUDA on Windows is done)
-- Accessibility checks for small windows and high interface scale
+**Next:** Linux verification, first-run and accessibility checks, benchmarks and updater packages; CUDA vLLM after Linux NVIDIA verification; Python SDK on PyPI; a signed Windows installer after the website; LFM2.5-Audio output after upstream support.
 
-**Planned next**
-- **Server mode:** manage Harness on your own server from a web interface, with passwords or tokens, domain and automatic SSL, a systemd service, and Docker images (CUDA, ROCm, Vulkan, CPU)
-- Signed Linux packages beyond the preview
-- Code-signed Windows installer; unattended background app updates
-- Publishing the Control API SDKs to npm and PyPI; decision-model endpoints
-
-**Later:** a community registry of tools and MCP servers, a ComfyUI bridge, a tool router, and more creation pages.
+**Planned for 0.2.0:** server mode and the tool, MCP, and skills registry. Longer-term ideas are in the [full roadmap](docs/en/ROADMAP.md).
 
 ## How you can support the project
 

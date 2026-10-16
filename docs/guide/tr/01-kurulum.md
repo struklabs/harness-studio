@@ -6,7 +6,7 @@ English: [../en/01-installation.md](../en/01-installation.md)
 
 ## Kurulum Paketini Edinme
 
-Harness Studio 0.1.0, projenin [GitHub Releases](https://github.com/struklabs/harness-studio/releases) sayfasında platforma uygun paketlerle dağıtılır. Uygulamayı kendiniz derlemek isterseniz [ana README](../../../README.tr.md) içindeki derleme bölümüne bakın; bu sayfa hazır kurulum paketiyle kurulumu anlatır.
+Harness Studio 0.1.1, projenin [GitHub Releases](https://github.com/struklabs/harness-studio/releases) sayfasında platforma uygun paketlerle dağıtılır. Uygulamayı kendiniz derlemek isterseniz [ana README](../../../README.tr.md) içindeki derleme bölümüne bakın; bu sayfa hazır kurulum paketiyle kurulumu anlatır.
 
 | Sistem | Paket | Durum |
 | --- | --- | --- |

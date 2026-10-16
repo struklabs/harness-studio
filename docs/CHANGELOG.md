@@ -2,9 +2,11 @@
 
 All notable changes to Harness Studio are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-Release notes with system requirements and known limitations (English and Turkish): [RELEASE_NOTES_0.1.0.md](en/RELEASE_NOTES_0.1.0.md).
+Release notes with system requirements and known limitations (English and Turkish): [0.1.1 English](en/RELEASE_NOTES_0.1.1.md) / [Türkçe](tr/RELEASE_NOTES_0.1.1.md).
 
 ## [Unreleased]
+
+## [0.1.1] - 2026-10-16
 
 - Long chats open instantly: recent messages show first and older ones load in the background without moving the view.
 - Uzun sohbetler anında açılıyor: son mesajlar önce görünüyor, eskiler görünümü kaydırmadan arka planda yükleniyor.
@@ -394,6 +396,31 @@ Planned work is tracked in the [roadmap](en/ROADMAP.md).
 - GGUF conversion: a repository that is already quantized with a method the converter can't read (AWQ, bitsandbytes, ...) is refused in the plan, before anything is downloaded, and the message names the base model to use instead. It used to download the whole checkpoint and fail at the end. GPTQ, FP8, compressed-tensors, MXFP4 and NVFP4 (ModelOpt) checkpoints still convert.
 - An ONNX model on a server is shown by name in the Playground's model picker and in the sidebar's running servers: the picker shows the definition's alias, the sidebar the repo folder. Both used to show the file name of the export, such as `model_quantized.onnx`.
 
+- Image edits with FLUX.1 Kontext, FLUX.2 and Qwen-Image-Edit now apply the instruction (full strength by default) instead of returning the picture almost unchanged; a repo's own vision projector is used and downloaded; Lightning fp8 exports the native engine cannot load are marked unsupported. HF ONNX: timm models use their own preprocessing and a GPU that returns invalid numbers falls back to the CPU. My Models shows Token Rejected for remote Harness links.
+- FLUX.1 Kontext, FLUX.2 ve Qwen-Image-Edit ile görsel düzenleme artık talimatı uyguluyor (varsayılan tam güç), resmi neredeyse değiştirmeden geri vermiyor; deponun kendi görü projektörü kullanılıp indiriliyor; yerel motorun yükleyemediği Lightning fp8 dışa aktarımları desteklenmiyor olarak işaretleniyor. HF ONNX: timm modelleri kendi ön işlemesini kullanıyor, geçersiz sayı döndüren GPU'da CPU'ya geçiliyor. Kütüphanem, uzak Harness bağlantıları için Token Reddedildi durumunu gösteriyor.
+- Image generation on Apple Silicon: FLUX.2 [klein] models in mflux's format draw and edit images through `/v1/images/generations`, `/v1/images/edits` and the Playground, with a memory check that picks or refuses the size, a time limit and stop on disconnect.
+- Apple Silicon'da görsel üretme: mflux biçimindeki FLUX.2 [klein] modelleri `/v1/images/generations`, `/v1/images/edits` ve Playground üzerinden görsel çiziyor ve düzenliyor; boyutu seçen ya da reddeden bir bellek kontrolü, zaman sınırı ve bağlantı kopunca durdurma var.
+- `harness serve` and the app no longer crash when Windows temporarily runs out of system resources while starting a model's log readers; they retry briefly and otherwise report an error.
+- `harness serve` ve uygulama, bir modelin günlük okuyucuları başlatılırken Windows'un sistem kaynakları geçici olarak tükendiğinde artık çökmüyor; kısa süre yeniden deniyor, olmazsa hata bildiriyor.
+- An interrupted `harness pull` now fails with a clear message and a non-zero exit code; the partial file is kept and the next pull resumes it.
+- Kesilen bir `harness pull` artık açık bir mesajla ve sıfırdan farklı çıkış koduyla başarısız oluyor; yarım dosya korunuyor ve sonraki pull kaldığı yerden devam ediyor.
+- My Models no longer lists the component files of a Diffusers pipeline folder (such as unet) as separate models; old automatic entries for them are cleaned up.
+- Kütüphanem artık bir Diffusers klasörünün bileşen dosyalarını (unet gibi) ayrı model olarak listelemiyor; bunlar için eski otomatik kayıtlar temizleniyor.
+- Hub: WhisperKit Core ML repos link to their whisper.cpp build, pyannote diarization pipelines explain that Harness diarizes with sherpa-onnx models, and speech GGUFs made for another engine show a precise refusal.
+- Hub: WhisperKit Core ML depoları whisper.cpp sürümüne yönlendiriyor, pyannote diyarizasyon boru hatları Harness'in konuşmacı ayrımını sherpa-onnx modelleriyle yaptığını söylüyor, başka bir motor için hazırlanmış konuşma GGUF'ları açık bir ret nedeni gösteriyor.
+- Process Audio lists the diarization models (Nemotron 3 Diarization, Sortformer) and shows speaker turns as a timeline and table, with Copy and Download JSON; a recording with no speech gives an empty result instead of an error.
+- Ses İşleme, konuşmacı ayrımı modellerini (Nemotron 3 Diarization, Sortformer) listeliyor ve konuşmacı bölümlerini zaman çizelgesi ve tablo olarak, JSON Kopyala ve JSON İndir ile gösteriyor; konuşma olmayan bir kayıt hata yerine boş sonuç veriyor.
+- At a high interface scale or in a small window, the servers table keeps names readable and its actions in view, the model picker's help button is no longer covered, and the Performance description and the endpoint list no longer cut off text.
+- Yüksek arayüz ölçeğinde ya da küçük pencerede sunucu tablosu adları okunur, işlem düğmelerini görünür tutuyor. Model seçicinin yardım düğmesi artık örtülmüyor. Performans açıklaması ve uç nokta listesi artık metni kesmiyor.
+- The first-open tour now appears on the first Dashboard visit right after setup (it used to wait for a later launch); download toasts no longer cover the setup wizard's buttons.
+- İlk açılış turu artık kurulumdan hemen sonra Dashboard'a ilk girişte açılıyor (önceden sonraki açılışı bekliyordu); indirme bildirimleri kurulum sihirbazının düğmelerini artık kapatmıyor.
+- At large interface sizes and small windows, dialogs scroll instead of being cut off, the command palette stays on screen, the model file list keeps its Download buttons reachable, and truncated server, runtime and MCP names show a tooltip.
+- Büyük arayüz boyutlarında ve küçük pencerelerde diyaloglar kesilmek yerine kayıyor, komut paleti ekranda kalıyor, model dosya listesindeki İndir düğmelerine ulaşılabiliyor; kesilen sunucu, motor ve MCP adları ipucu gösteriyor.
+- New speech recognition engine: transcribe.cpp (Parakeet, Canary, Cohere Transcribe, Qwen3-ASR, Whisper, Moonshine and more from handy-computer's GGUF exports), with a CUDA build on NVIDIA GPUs, in Playground Transcribe, the gateway audio API, `harness transcribe` and the Hub.
+- Yeni konuşma tanıma motoru: transcribe.cpp (handy-computer GGUF dışa aktarımlarından Parakeet, Canary, Cohere Transcribe, Qwen3-ASR, Whisper, Moonshine ve diğerleri). NVIDIA GPU'larda CUDA sürümüyle; Playground Yazıya Dök, ağ geçidi ses API'si, `harness transcribe` ve Hub'da.
+- Text to speech with llama.cpp: Qwen3-TTS GGUF models speak on `/v1/audio/speech` and in the Speech panel through the runtime's `llama-tts` (10 languages, the model's own voice), and the Hub shows them as runnable.
+- llama.cpp ile metinden konuşma: Qwen3-TTS GGUF modelleri, çalışma zamanının `llama-tts` aracıyla `/v1/audio/speech` uç noktasında ve Konuşma panelinde konuşuyor (10 dil, modelin kendi sesi). Hub bunları çalışır olarak gösteriyor.
+
 ## [0.1.0] - 2026-10-12
 
 First public release. Windows installer (NSIS) and signed, notarized macOS DMGs (Apple Silicon and Intel) on GitHub Releases; a Linux `.deb` package as a preview.
@@ -470,5 +497,6 @@ First public release. Windows installer (NSIS) and signed, notarized macOS DMGs 
 - The Windows installer is unsigned; SmartScreen may show a warning (**More info > Run anyway**).
 - The Linux packages are a preview, tested on one Ubuntu 24.04 machine so far.
 
-[Unreleased]: https://github.com/struklabs/harness-studio/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/struklabs/harness-studio/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/struklabs/harness-studio/releases/tag/v0.1.1
 [0.1.0]: https://github.com/struklabs/harness-studio/releases/tag/v0.1.0

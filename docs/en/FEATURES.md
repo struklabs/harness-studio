@@ -5,7 +5,7 @@ Türkçe: ../tr/FEATURES.md
 The single source of truth for what Harness Studio **actually has today**, what LM Studio and Ollama have, and how the remaining gaps will be closed. Plans and priorities are in [ROADMAP.md](ROADMAP.md); the target architecture is in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Last audited: **October 2026** (competitor columns were re-verified against official documentation, and the Harness column was re-audited against `main`; the remaining gaps are on the [ROADMAP](ROADMAP.md)). Versions compared:
-- Harness Studio `main` (0.1.0)
+- Harness Studio `main` (0.1.1)
 - LM Studio **0.4.26** (lmstudio.ai/download, 2026-10-12; 0.4.26 build 4)
 - Ollama **0.40.3** (2026-10-11; MLX is the default on Apple Silicon since 0.40.0)
 - llama-server **0.5.0-dev build 11236** (the `--help` audit is against this build; the §0 measurements use b11552/b11556)

@@ -5,7 +5,7 @@
     version?: string;
   }
 
-  let { size = 22, showText = true, version = 'v0.1.0' }: Props = $props();
+  let { size = 22, showText = true, version = 'v0.1.1' }: Props = $props();
 </script>
 
 <div class="inline-flex items-center gap-2.5 text-foreground">

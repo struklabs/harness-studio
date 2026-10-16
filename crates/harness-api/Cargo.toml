@@ -1,6 +1,6 @@
 [package]
 name = "harness-api"
-version = "0.1.0"
+version = "0.1.1"
 description = "Harness Control API: local HTTP management API (axum + OpenAPI) over harness-core"
 authors = ["struklabs and Harness Studio contributors"]
 repository = "https://github.com/struklabs/harness-studio"
