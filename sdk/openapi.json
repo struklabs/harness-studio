@@ -12745,6 +12745,13 @@
             "type": "boolean",
             "description": "`stt.capability.translate` of such an export."
           },
+          "gen_audio_projector": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`clip.gen.audio.projector_type` of a projector that makes audio (`qwen3tts_gen`): the\nmodel speaks through `llama-tts` (`crate::tts::llama`)."
+          },
           "has_classifier_labels": {
             "type": "boolean",
             "description": "A `<arch>.classifier.output_labels` key exists (classification heads, e.g. rerankers)."
