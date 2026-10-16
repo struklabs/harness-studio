@@ -10,7 +10,7 @@ interface DialogOptions {
 
 /**
  * Modal dialog behaviour: moves focus into the node, keeps Tab/Shift+Tab inside it,
- * handles Escape and restores focus to the previously focused element on destroy.
+ * handles Escape and restores focus to the previously focused element once it is gone.
  */
 export const dialog: Action<HTMLElement, DialogOptions | undefined> = (node, options) => {
   let opts = options ?? {};
@@ -59,7 +59,11 @@ export const dialog: Action<HTMLElement, DialogOptions | undefined> = (node, opt
     },
     destroy() {
       node.removeEventListener('keydown', onKeydown);
-      if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus();
+      // After the update that removes the dialog: the page behind it may still be `inert` while
+      // this runs, and focus() on an inert element does nothing.
+      queueMicrotask(() => {
+        if (previouslyFocused && document.contains(previouslyFocused)) previouslyFocused.focus();
+      });
     },
   };
 };
