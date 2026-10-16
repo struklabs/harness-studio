@@ -230,6 +230,12 @@ async fn serve(
             .body(axum::body::Body::from(audio))
             .map_err(|e| bad(e.to_string()));
         }
+        if crate::transcribe_cpp::is_model(&def) {
+            return Err(bad(
+                "transcribe.cpp only accepts audio transcription and translation requests",
+            )
+            .param("model"));
+        }
         if crate::audio::is_crispasr_model(&def) {
             return Err(
                 bad("CrispASR only accepts audio transcription and translation requests")

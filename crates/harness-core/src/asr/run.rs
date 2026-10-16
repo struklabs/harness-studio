@@ -127,7 +127,7 @@ pub fn resample_16k(rate: u32, pcm: &[u8]) -> Vec<u8> {
 }
 
 /// A 16-bit mono WAV of `samples` at `rate`.
-fn wav_of(rate: u32, parts: &[&[u8]]) -> Vec<u8> {
+pub(crate) fn wav_of(rate: u32, parts: &[&[u8]]) -> Vec<u8> {
     let len: usize = parts.iter().map(|p| p.len()).sum();
     let mut out = Vec::with_capacity(44 + len);
     out.extend_from_slice(b"RIFF");

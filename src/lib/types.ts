@@ -904,6 +904,10 @@ export interface GgufMetadata {
   has_audio_encoder?: boolean;
   /** The audio projector's family (`lfm2a`, `qwen3asr`, `ultravox`...) when it has an audio encoder. */
   audio_projector?: string | null;
+  /** `stt.variant` of a transcribe.cpp speech recognition export. */
+  stt_variant?: string | null;
+  /** `stt.capability.translate` of such an export. */
+  stt_translate?: boolean;
   has_classifier_labels?: boolean;
   /** `<arch>.decision.type`: a native decision model (`/v1/systemone`, `/v1/decisions`). */
   decision_type?: string;

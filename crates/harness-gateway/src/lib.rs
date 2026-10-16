@@ -41,6 +41,7 @@ pub mod sherpa_asr;
 pub mod speech;
 mod text_tool_calls;
 mod tool_loop_guard;
+pub mod transcribe_cpp;
 pub mod videos;
 
 use std::net::SocketAddr;

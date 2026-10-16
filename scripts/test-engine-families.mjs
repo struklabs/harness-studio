@@ -16,6 +16,10 @@ test('families a model can need are all known', () => {
   assert.equal(engineSpec('mistral.rs').method, 'manual');
   assert.equal(engineSpec('onnxruntime').method, 'onnx');
   assert.equal(engineSpec('lemonade').method, 'lemonade');
+  // transcribe.cpp runs from a managed Python environment (`pyenv::envs::TRANSCRIBE_CPP`).
+  assert.equal(engineSpec('transcribe.cpp').method, 'pyenv');
+  assert.equal(engineSpec('transcribe.cpp').env, 'transcribe-cpp');
+  assert.equal(familyFromError('runtime.family_not_installed: transcribe.cpp'), 'transcribe.cpp');
   assert.equal(engineSpec('nope'), undefined);
 });
 

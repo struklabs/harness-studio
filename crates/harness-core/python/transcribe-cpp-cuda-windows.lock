@@ -1,0 +1,12 @@
+# Written by hand, see python/transcribe-cpp.in (Windows x86-64).
+transcribe-cpp==0.4.0 \
+    --hash=sha256:9e1b8e522944bb3771829af91f5517a75fe1887a913329d8a25637f05adeed48
+transcribe-cpp-native-cu12 @ https://github.com/handy-computer/transcribe.cpp/releases/download/v0.4.0/transcribe_cpp_native_cu12-0.4.0-py3-none-win_amd64.whl \
+    --hash=sha256:174681e659240c7b1beee27ef1cd75f895bdf986c972662406e421bf10103158
+    # via transcribe-cpp[cu12]
+nvidia-cuda-runtime-cu12==12.9.79 \
+    --hash=sha256:8e018af8fa02363876860388bd10ccb89eb9ab8fb0aa749aaf58430a9f7c4891
+    # via transcribe-cpp-native-cu12
+nvidia-cublas-cu12==12.9.2.10 \
+    --hash=sha256:623f43027d40d44ceadf0043f002bd25cf353e8f13ce90b9a87057019f560661
+    # via transcribe-cpp-native-cu12

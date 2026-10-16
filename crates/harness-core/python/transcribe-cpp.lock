@@ -1,0 +1,10 @@
+# Written by hand, see python/transcribe-cpp.in.
+transcribe-cpp==0.4.0 \
+    --hash=sha256:9e1b8e522944bb3771829af91f5517a75fe1887a913329d8a25637f05adeed48
+transcribe-cpp-native==0.4.0 \
+    --hash=sha256:3dda6c74f3c38add562beb116afe10bf921685c4a96306b1999f852fcf0a3a08 \
+    --hash=sha256:7693adc5251611acb4420a8e334e993df62225215a71dfa4be0c492e97fc6ec3 \
+    --hash=sha256:01a2baea659ca01a9279a69c31d02a91329977290450be14dfce871e4c338007 \
+    --hash=sha256:9d681da060b182a2358dd2ab1a8090f5cb53a6e5853cb3f8c4bb3b66f2cd6954 \
+    --hash=sha256:d949f0e38b7e5c709ebabfffee640573ed5838c39d1227762365e672d03b75ab
+    # via transcribe-cpp

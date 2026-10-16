@@ -140,6 +140,14 @@ pub struct GgufMetadata {
     /// transcription prompt of a chat model that hears (`crate::asr::llm`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio_projector: Option<String>,
+    /// `stt.variant` of a transcribe.cpp speech recognition export (`parakeet-tdt-0.6b-v3`...):
+    /// every converter of transcribe.cpp writes it and CrispASR's do not, so it tells the two
+    /// GGUF flavours of one architecture apart (`crate::engine::transcribe_cpp`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stt_variant: Option<String>,
+    /// `stt.capability.translate` of such an export.
+    #[serde(default)]
+    pub stt_translate: bool,
     /// A `<arch>.classifier.output_labels` key exists (classification heads, e.g. rerankers).
     #[serde(default)]
     pub has_classifier_labels: bool,
@@ -434,6 +442,12 @@ pub fn read_gguf_metadata(path: &Path) -> Result<GgufMetadata, String> {
             }
             "general.source.repo_url" if val_type == GgufType::String => {
                 meta.source_repo_url = read_string(&mut reader).ok()
+            }
+            "stt.variant" if val_type == GgufType::String => {
+                meta.stt_variant = read_string(&mut reader).ok()
+            }
+            "stt.capability.translate" if val_type == GgufType::Bool => {
+                meta.stt_translate = read_uint(&mut reader, val_type)?.unwrap_or(0) != 0
             }
             "general.type" if val_type == GgufType::String => {
                 general_type = read_string(&mut reader).ok()
@@ -1324,6 +1338,28 @@ mod tests {
             assert_eq!(meta.audio_projector.as_deref(), expected, "{keys:?}");
             assert_eq!(meta.has_audio_encoder, expected.is_some(), "{keys:?}");
         }
+    }
+
+    #[test]
+    fn a_transcribe_cpp_export_is_recognised_by_its_stt_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("parakeet.gguf");
+        let mut f = File::create(&path).unwrap();
+        f.write_all(b"GGUF").unwrap();
+        f.write_all(&3u32.to_le_bytes()).unwrap();
+        f.write_all(&0u64.to_le_bytes()).unwrap();
+        f.write_all(&3u64.to_le_bytes()).unwrap();
+        write_kv_str(&mut f, "general.architecture", "parakeet");
+        write_kv_str(&mut f, "stt.variant", "parakeet-tdt-0.6b-v3");
+        let key = "stt.capability.translate";
+        f.write_all(&(key.len() as u64).to_le_bytes()).unwrap();
+        f.write_all(key.as_bytes()).unwrap();
+        f.write_all(&7u32.to_le_bytes()).unwrap();
+        f.write_all(&[1]).unwrap();
+        drop(f);
+        let meta = read_gguf_metadata(&path).unwrap();
+        assert_eq!(meta.stt_variant.as_deref(), Some("parakeet-tdt-0.6b-v3"));
+        assert!(meta.stt_translate);
     }
 
     #[test]

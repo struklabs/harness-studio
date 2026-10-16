@@ -152,6 +152,14 @@ fn could_be_crisp_asr(model: &LocalModel) -> bool {
         .is_none_or(crate::engine::crispasr::supports_metadata)
 }
 
+/// A transcribe.cpp speech recognition export (its scanned header has `stt.variant`).
+fn is_transcribe_cpp(model: &LocalModel) -> bool {
+    model
+        .gguf
+        .as_ref()
+        .is_some_and(crate::engine::transcribe_cpp::is_export)
+}
+
 fn could_be_crisp_tts(model: &LocalModel) -> bool {
     model.gguf.as_ref().is_none_or(|g| {
         g.architecture
@@ -181,7 +189,11 @@ pub fn local_format(model: &LocalModel) -> ModelFormat {
         {
             ModelFormat::Onnx
         }
-        ModelKind::Asr if crate::engine::crispasr::is_asr_gguf(&model.path) => ModelFormat::Gguf,
+        ModelKind::Asr
+            if is_transcribe_cpp(model) || crate::engine::crispasr::is_asr_gguf(&model.path) =>
+        {
+            ModelFormat::Gguf
+        }
         ModelKind::Asr => ModelFormat::WhisperGgml,
         ModelKind::Tts => ModelFormat::Onnx,
         _ if model.gguf.is_none() && crate::engine::mlx::is_any_model_dir(&model.path) => {
@@ -229,6 +241,15 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             } else {
                 Compatibility::Unsupported { format }
             }),
+        };
+    }
+    if is_transcribe_cpp(model) {
+        let runtime = crate::engine::TRANSCRIBE_CPP.to_string();
+        return ModelRecord {
+            capabilities: vec![Capability::Asr],
+            format,
+            runtime: Some(runtime.clone()),
+            compatibility: Some(Compatibility::Runnable { runtime }),
         };
     }
     if (could_be_crisp_asr(model) && crate::engine::crispasr::is_model(&model.path))
@@ -359,6 +380,9 @@ pub fn installed_families() -> Vec<String> {
     }
     if crate::engine::python_hf::binary().is_ok() {
         families.push(crate::engine::PYTHON_HF.to_string());
+    }
+    if crate::engine::transcribe_cpp::binary().is_ok() {
+        families.push(crate::engine::TRANSCRIBE_CPP.to_string());
     }
     if crate::engine::mlx::binary().is_ok() {
         families.push(crate::engine::MLX.to_string());

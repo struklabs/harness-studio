@@ -65,17 +65,20 @@ pub fn is_asr_arch(arch: &str) -> bool {
     )
 }
 
-/// Repository provenance is a format boundary: transcribe.cpp exports are not interchangeable.
+/// Repository provenance is a format boundary: transcribe.cpp exports (handy-computer) are not
+/// interchangeable, and they run on the transcribe.cpp engine
+/// ([`super::transcribe_cpp::is_hub_repo`]).
 pub fn supports_repo(repo: &str, task: Option<&str>) -> bool {
     let repo = repo.to_ascii_lowercase();
-    repo == "handy-computer/canary-180m-flash-gguf"
-        || (repo.starts_with("cstr/")
-            && repo.ends_with("-gguf")
-            && task == Some("automatic-speech-recognition"))
+    repo.starts_with("cstr/")
+        && repo.ends_with("-gguf")
+        && task == Some("automatic-speech-recognition")
 }
 
 pub fn supports_metadata(meta: &GgufMetadata) -> bool {
-    if !meta.architecture.as_deref().is_some_and(is_asr_arch) {
+    // A transcribe.cpp export (`stt.variant`) is that engine's, even where CrispASR reads the
+    // architecture (handy-computer's canary-180m-flash).
+    if meta.stt_variant.is_some() || !meta.architecture.as_deref().is_some_and(is_asr_arch) {
         return false;
     }
     let provenance = [
@@ -86,7 +89,7 @@ pub fn supports_metadata(meta: &GgufMetadata) -> bool {
     ];
     !provenance.into_iter().flatten().any(|url| {
         let url = url.to_ascii_lowercase();
-        url.contains("handy-computer/") && !url.contains("handy-computer/canary-180m-flash-gguf")
+        url.contains("handy-computer/")
     })
 }
 
@@ -130,7 +133,7 @@ pub fn is_model(path: &Path) -> bool {
         return false;
     }
     let lower = path.to_string_lossy().to_ascii_lowercase();
-    if lower.contains("handy-computer") && !lower.contains("canary-180m-flash") {
+    if lower.contains("handy-computer") {
         return false;
     }
     let Some(meta) = crate::models::cached_metadata(path) else {
@@ -500,11 +503,13 @@ mod tests {
             &["enc.pre.out.weight", "dec.emb.weight"],
         );
         assert!(is_model(&canonical));
+        // handy-computer's canary is a transcribe.cpp export: that engine's, not CrispASR's.
         let canary = dir.path().join("handy-computer-canary-180m-flash.gguf");
         model(&canary, "canary", &[]);
-        assert!(is_model(&canary));
+        assert!(!is_model(&canary));
         for repo in [
             "handy-computer/cohere-transcribe-03-2026-gguf",
+            "handy-computer/canary-180m-flash-gguf",
             "cstr/Qwen3-TTS-GGUF",
             "nvidia/parakeet-tdt",
         ] {
@@ -514,7 +519,10 @@ mod tests {
             "cstr/data2vec-audio-960h-GGUF",
             Some("automatic-speech-recognition")
         ));
-        assert!(supports_repo("handy-computer/canary-180m-flash-gguf", None));
+        assert!(!supports_repo(
+            "handy-computer/canary-180m-flash-gguf",
+            Some("automatic-speech-recognition")
+        ));
         let whisper = LaunchConfig {
             model_path: "ggml-base.bin".into(),
             ..Default::default()

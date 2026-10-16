@@ -909,6 +909,7 @@ const fn row_alt(
 // (Whisper encoder/decoder, transducers) are not covered by this implementation.
 const ASR_ALTS: &[(&str, Support)] = &[
     (WHISPER_FAMILY, Yes),
+    (crate::engine::TRANSCRIBE_CPP, Yes),
     (SHERPA_FAMILY, Yes),
     (crate::engine::PYTHON_HF, Yes),
     (crate::engine::ONNX_FAMILY, Partial),

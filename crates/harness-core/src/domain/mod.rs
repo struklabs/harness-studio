@@ -297,6 +297,15 @@ impl ModelDefinition {
                 crate::params::ParamValue::Text("crispasr".into()),
             );
         }
+        if base
+            .local_path()
+            .is_some_and(crate::engine::transcribe_cpp::is_model)
+        {
+            load.insert(
+                "task".into(),
+                crate::params::ParamValue::Text(crate::engine::transcribe_cpp::TASK.into()),
+            );
+        }
         Self {
             id: String::new(),
             alias: alias.into(),

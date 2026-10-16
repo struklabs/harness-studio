@@ -121,16 +121,45 @@ pub const MFLUX: EnvSpec = EnvSpec {
     gpu_build_of: None,
 };
 
+/// The `transcribe.cpp` engine's environment: the transcribe-cpp binding and its default
+/// native provider (CPU and Vulkan; Metal on macOS). The worker needs nothing else (the HTTP
+/// server and WAV reading are the standard library's). `python/transcribe-cpp.in` says how the
+/// lock is kept.
+pub const TRANSCRIBE_CPP: EnvSpec = EnvSpec {
+    name: "transcribe-cpp",
+    lock: include_str!("../../python/transcribe-cpp.lock"),
+    verify: "import transcribe_cpp; transcribe_cpp.native_version()",
+    estimated_size_bytes: 60 * 1024 * 1024,
+    min_macos: None,
+    gpu_build_of: None,
+};
+
+/// The NVIDIA build of [`TRANSCRIBE_CPP`] (Windows and Linux on x86-64): the CUDA 12.9 native
+/// provider (CUDA, Vulkan and CPU modules) and the NVIDIA runtime wheels it loads (cudart,
+/// cuBLAS), so nothing of CUDA is needed on the system but the driver.
+#[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
+pub const TRANSCRIBE_CPP_CUDA: EnvSpec = EnvSpec {
+    name: "transcribe-cpp-cuda",
+    #[cfg(windows)]
+    lock: include_str!("../../python/transcribe-cpp-cuda-windows.lock"),
+    #[cfg(target_os = "linux")]
+    lock: include_str!("../../python/transcribe-cpp-cuda-linux.lock"),
+    verify: "import transcribe_cpp; transcribe_cpp.native_version()",
+    estimated_size_bytes: 1_250 * 1024 * 1024,
+    min_macos: None,
+    gpu_build_of: Some("transcribe-cpp"),
+};
+
 /// The environments engines can ask for.
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-pub const ENVS: &[EnvSpec] = &[HF_CPU, MLX, MLX_VLM, MFLUX];
+pub const ENVS: &[EnvSpec] = &[HF_CPU, MLX, MLX_VLM, MFLUX, TRANSCRIBE_CPP];
 #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
-pub const ENVS: &[EnvSpec] = &[HF_CPU, HF_CUDA];
+pub const ENVS: &[EnvSpec] = &[HF_CPU, HF_CUDA, TRANSCRIBE_CPP, TRANSCRIBE_CPP_CUDA];
 #[cfg(not(any(
     all(target_os = "macos", target_arch = "aarch64"),
     all(any(windows, target_os = "linux"), target_arch = "x86_64")
 )))]
-pub const ENVS: &[EnvSpec] = &[HF_CPU];
+pub const ENVS: &[EnvSpec] = &[HF_CPU, TRANSCRIBE_CPP];
 
 /// Whether a CUDA build can run here: an NVIDIA GPU with a CUDA driver.
 pub fn cuda_present() -> bool {
@@ -769,6 +798,44 @@ pub(crate) mod tests {
             .map(|p| p.parse().unwrap())
             .collect();
         assert!(ver >= vec![2, 6], "{torch}");
+    }
+
+    #[test]
+    fn transcribe_cpp_locks_pin_every_file_of_one_version() {
+        let mut locks = vec![TRANSCRIBE_CPP.lock];
+        #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
+        {
+            assert_eq!(TRANSCRIBE_CPP_CUDA.gpu_build_of, Some(TRANSCRIBE_CPP.name));
+            assert!(preferred(&TRANSCRIBE_CPP_CUDA, true));
+            assert!(!preferred(&TRANSCRIBE_CPP, true));
+            let cuda = TRANSCRIBE_CPP_CUDA.lock;
+            // The CUDA provider is a GitHub release wheel of the same version as the binding.
+            assert!(cuda.contains(
+                "transcribe-cpp-native-cu12 @ https://github.com/handy-computer/transcribe.cpp/releases/download/v0.4.0/"
+            ));
+            assert!(
+                cuda.contains("nvidia-cublas-cu12==12.9.")
+                    && cuda.contains("nvidia-cuda-runtime-cu12==12.9.")
+            );
+            assert!(!cuda.contains("transcribe-cpp-native=="));
+            locks.push(cuda);
+        }
+        for lock in locks {
+            assert!(lock.contains("transcribe-cpp==0.4.0 \\"));
+            let requirements: Vec<&str> = lock
+                .lines()
+                .filter(|l| !l.starts_with(' ') && !l.starts_with('#') && !l.trim().is_empty())
+                .collect();
+            assert!(!requirements.is_empty());
+            for line in requirements {
+                assert!(
+                    line.contains("==") || line.contains(" @ https://"),
+                    "{line}"
+                );
+                assert!(line.trim_end().ends_with('\\'), "no hashes after {line}");
+            }
+        }
+        assert!(spec("transcribe-cpp").is_some());
     }
 
     #[test]
