@@ -15,11 +15,14 @@ export interface EngineSpec {
   /** Managed Python environment of `pyenv` families (its CPU build when it has a GPU one). */
   env?: string;
   /** Locale key of the one-line description shown on the Installed Runtime page. */
-  descKey: 'eng.desc_audio_cpp' | 'eng.desc_crispasr' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio' | 'eng.desc_mflux';
+  descKey: 'eng.desc_audio_cpp' | 'eng.desc_transcribe_cpp' | 'eng.desc_crispasr' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio' | 'eng.desc_mflux';
 }
 
 export const ENGINES: readonly EngineSpec[] = [
   { family: 'audio.cpp', method: 'github', repo: '0xShug0/audio.cpp', descKey: 'eng.desc_audio_cpp' },
+  // Speech recognition GGUFs of handy-computer/transcribe.cpp: its Python binding in a managed
+  // environment (the NVIDIA build where there is a CUDA driver).
+  { family: 'transcribe.cpp', method: 'pyenv', env: 'transcribe-cpp', descKey: 'eng.desc_transcribe_cpp' },
   { family: 'crispasr', method: 'github', repo: 'CrispStrobe/CrispASR', descKey: 'eng.desc_crispasr' },
   { family: 'whisper.cpp', method: 'github', repo: 'ggml-org/whisper.cpp', descKey: 'eng.desc_whisper' },
   { family: 'stable-diffusion.cpp', method: 'github', repo: 'leejet/stable-diffusion.cpp', descKey: 'eng.desc_sdcpp' },
@@ -127,6 +130,7 @@ const ENGINE_LABELS: Record<string, string> = {
   'python-hf': 'Python (HF)',
   'audio.cpp': 'audio.cpp',
   crispasr: 'CrispASR',
+  'transcribe.cpp': 'transcribe.cpp',
   'mistral.rs': 'mistral.rs',
   'whisper.cpp': 'whisper.cpp',
   'stable-diffusion.cpp': 'sd.cpp',

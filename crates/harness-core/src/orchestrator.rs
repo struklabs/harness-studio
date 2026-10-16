@@ -143,6 +143,8 @@ pub async fn launch(
     } else if engine.family() == crate::engine::PYTHON_HF {
         // The interpreter of the managed environment (Settings > Runtime > Installed Runtime > Other Runtimes installs it).
         crate::engine::python_hf::binary()?
+    } else if engine.family() == crate::engine::TRANSCRIBE_CPP {
+        crate::engine::transcribe_cpp::binary()?
     } else if engine.family() == crate::engine::MLX {
         crate::engine::mlx::binary()?
     } else if engine.family() == crate::engine::MLX_VLM {

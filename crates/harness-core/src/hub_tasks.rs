@@ -475,15 +475,22 @@ const OWN_PACKAGE_NAME_TOKENS: &[&str] = &[
     "xtts",
 ];
 
-/// Whether a repo-name word is one of `words` or one of them with a version after it
-/// (`cosyvoice3`, `voxcpm2`, `xttsv2`).
+/// Whether a repo-name word is one of `words` or one of them with a version of one or two digits
+/// after it (`cosyvoice3`, `voxcpm2`, `xttsv2`). A longer number is another name
+/// (`xtts2024`), and a word that ends in a digit takes a version only after a `v` (`f5v1`;
+/// `f512` is not F5).
 fn has_family_token(tokens: &[String], words: &[&str]) -> bool {
     tokens.iter().any(|t| {
         words.iter().any(|w| {
             t.strip_prefix(w).is_some_and(|rest| {
-                let digits = rest.strip_prefix('v').unwrap_or(rest);
+                let digits = match rest.strip_prefix('v') {
+                    Some(d) => d,
+                    None if w.ends_with(|c: char| c.is_ascii_digit()) => return rest.is_empty(),
+                    None => rest,
+                };
                 rest.is_empty()
-                    || (!digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()))
+                    || ((1..=2).contains(&digits.len())
+                        && digits.bytes().all(|b| b.is_ascii_digit()))
             })
         })
     })
@@ -921,6 +928,7 @@ const fn row_alt(
 // (Whisper encoder/decoder, transducers) are not covered by this implementation.
 const ASR_ALTS: &[(&str, Support)] = &[
     (WHISPER_FAMILY, Yes),
+    (crate::engine::TRANSCRIBE_CPP, Yes),
     (SHERPA_FAMILY, Yes),
     (crate::engine::PYTHON_HF, Yes),
     (crate::engine::ONNX_FAMILY, Partial),
@@ -1281,7 +1289,14 @@ mod tests {
                 "{id}"
             );
         }
-        for id in ["a/cosyvoicex", "a/f5x", "a/kokorov", "a/parlerish"] {
+        for id in [
+            "a/cosyvoicex",
+            "a/f5x",
+            "a/kokorov",
+            "a/parlerish",
+            "a/f512",
+            "a/xtts2024",
+        ] {
             assert!(
                 !has_family_token(&tokens(id), OWN_PACKAGE_NAME_TOKENS),
                 "{id}"

@@ -20,6 +20,19 @@ export function isCrispasrDefinition(d: ModelDefinition): boolean {
   return d.load?.task === 'crispasr';
 }
 
+/** A transcribe.cpp speech recognition GGUF (`engine::transcribe_cpp::TASK`). */
+export function isTranscribeCppDefinition(d: ModelDefinition): boolean {
+  return d.load?.task === 'transcribe_cpp';
+}
+
+/** Whether a transcribe.cpp definition can translate: its header's `stt.capability.translate`
+ *  (`engine::transcribe_cpp::can_translate`); an unknown file cannot. */
+export function transcribeCppCanTranslate(d: ModelDefinition, files: HeaderFile[]): boolean {
+  if (!isTranscribeCppDefinition(d) || d.base.kind !== 'local') return false;
+  const path = d.base.path;
+  return files.find(f => samePath(f.path, path))?.gguf?.stt_translate === true;
+}
+
 /** Whether a CrispASR definition can translate; an unknown file or architecture cannot. */
 export function crispasrCanTranslate(d: ModelDefinition, files: { path: string; architecture: string | null }[]): boolean {
   if (!isCrispasrDefinition(d) || d.base.kind !== 'local') return false;
@@ -29,7 +42,7 @@ export function crispasrCanTranslate(d: ModelDefinition, files: { path: string; 
 }
 
 /** A library file as the speech helpers read it: its path and GGUF header. */
-export type HeaderFile = { path: string; gguf?: { has_audio_encoder?: boolean; audio_projector?: string | null } | null };
+export type HeaderFile = { path: string; gguf?: { has_audio_encoder?: boolean; audio_projector?: string | null; stt_translate?: boolean } | null };
 
 const normalPath = (p: string) => p.replace(/[\\/]+/g, '/').toLowerCase();
 const samePath = (a: string, b: string) => normalPath(a) === normalPath(b);
@@ -62,13 +75,14 @@ export function isTranscriptionDefinition(d: ModelDefinition, files: HeaderFile[
 }
 
 export function isSpeechDefinition(d: ModelDefinition): boolean {
-  return d.load?.task === 'crispasr' || isOnnxCtcDefinition(d) || isSpeechFile(d.base.kind === 'local' ? d.base.path : d.base.file);
+  return d.load?.task === 'crispasr' || isTranscribeCppDefinition(d) || isOnnxCtcDefinition(d) || isSpeechFile(d.base.kind === 'local' ? d.base.path : d.base.file);
 }
 
 /** The engine family `model` transcribes with: sherpa-onnx for its recognition models, mlx-audio for
  *  the library's MLX ones (`engine`, aliases), llama.cpp for chat models that hear, else whisper.cpp. */
 export function dictationFamily(model: string, sherpa: string[] = [], definitions: ModelDefinition[] = [], engine: string[] = [], files: HeaderFile[] = []): string {
   if (definitions.some(d => d.alias === model && d.load?.task === 'crispasr')) return 'crispasr';
+  if (definitions.some(d => d.alias === model && isTranscribeCppDefinition(d))) return 'transcribe.cpp';
   if (definitions.some(d => d.alias === model && isAudioLlmDefinition(d, files))) return 'llama.cpp';
   if (definitions.some(d => d.alias === model && isOnnxCtcDefinition(d))) return 'onnxruntime';
   if (engine.includes(model)) return 'mlx-audio';
@@ -76,7 +90,7 @@ export function dictationFamily(model: string, sherpa: string[] = [], definition
 }
 
 /** Families whose environment the app manages itself: no runtime to register first. */
-const MANAGED_FAMILIES = ['onnxruntime', 'mlx-audio'];
+const MANAGED_FAMILIES = ['onnxruntime', 'mlx-audio', 'transcribe.cpp'];
 
 /** What is missing before `model` can transcribe; a sherpa-onnx model needs the sherpa-onnx runtime, a whisper one whisper.cpp. */
 export function dictationRequirement(model: string, runtimes: RuntimeView[], gatewayRunning: boolean, sherpa: string[] = [], definitions: ModelDefinition[] = [], engine: string[] = [], files: HeaderFile[] = []): 'model' | 'runtime' | 'gateway' | null {

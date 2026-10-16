@@ -1,0 +1,17 @@
+# transcribe.cpp engine (speech recognition GGUFs of handy-computer/transcribe.cpp): its Python
+# binding and a native provider. The worker (transcribe_cpp_worker.py) needs nothing else: the
+# HTTP server and WAV reading are the standard library's.
+#
+# The locks are written by hand, not by `uv pip compile`: the CUDA provider
+# (transcribe-cpp-native-cu12) is published only as GitHub release wheels (PyPI has a 0.0.0
+# placeholder), so it is a direct URL. Each file is pinned by its SHA-256: PyPI's for the PyPI
+# wheels, the GitHub release asset's `digest` for the provider. Updating means bumping the
+# versions below and copying the hashes from https://pypi.org/pypi/<name>/<version>/json and
+# `gh api repos/handy-computer/transcribe.cpp/releases/tags/v<version>`.
+#
+# transcribe-cpp.lock         transcribe-cpp + transcribe-cpp-native (CPU and Vulkan; Metal on
+#                             macOS), every platform.
+# transcribe-cpp-cuda-*.lock  transcribe-cpp + transcribe-cpp-native-cu12 (CUDA 12.9 build:
+#                             CUDA, Vulkan and CPU modules) + the NVIDIA runtime wheels it loads
+#                             (cudart, cuBLAS). Built where there is an NVIDIA GPU.
+transcribe-cpp==0.4.0

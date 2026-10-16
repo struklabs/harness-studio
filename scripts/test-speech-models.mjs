@@ -32,3 +32,21 @@ test('LFM2.5-Audio and Qwen3-ASR only transcribe; llama.cpp runs them', () => {
   assert.equal(dictationFamily('lfm', [], [whisper, lfm], [], files), 'llama.cpp');
   assert.equal(dictationFamily('whisper', [], [whisper, lfm], [], files), 'whisper.cpp');
 });
+
+test('transcribe.cpp models transcribe on their managed engine and translate only when their header says so', async () => {
+  const { dictationRequirement, isSpeechDefinition, transcribeCppCanTranslate } = await import('../src/lib/components/playground/speechModels.ts');
+  const parakeet = { alias: 'parakeet', base: { kind: 'local', path: 'C:/m/parakeet-tdt-0.6b-v3-Q4_K_M.gguf' }, load: { task: 'transcribe_cpp' } };
+  const canary = { alias: 'canary', base: { kind: 'local', path: 'C:/m/canary-1b-v2-Q4_K_M.gguf' }, load: { task: 'transcribe_cpp' } };
+  const headers = [
+    { path: 'C:/m/parakeet-tdt-0.6b-v3-Q4_K_M.gguf', gguf: { stt_translate: false } },
+    { path: 'C:\\m\\canary-1b-v2-Q4_K_M.gguf', gguf: { stt_translate: true } },
+  ];
+  assert.ok(isSpeechDefinition(parakeet) && isTranscriptionDefinition(parakeet, headers));
+  assert.equal(dictationFamily('parakeet', [], [parakeet], [], headers), 'transcribe.cpp');
+  assert.ok(!transcribeCppCanTranslate(parakeet, headers));
+  assert.ok(transcribeCppCanTranslate(canary, headers), 'path separators do not matter');
+  assert.ok(!transcribeCppCanTranslate(canary, []), 'an unknown file does not translate');
+  // Its environment is managed (Settings installs it); no runtime entry is needed, only the gateway.
+  assert.equal(dictationRequirement('parakeet', [], false, [], [parakeet], [], headers), 'gateway');
+  assert.equal(dictationRequirement('parakeet', [], true, [], [parakeet], [], headers), null);
+});

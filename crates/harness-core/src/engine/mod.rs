@@ -32,6 +32,7 @@ mod onnx;
 pub mod python_hf;
 mod sd_cpp;
 mod sherpa_onnx;
+pub mod transcribe_cpp;
 mod whisper_cpp;
 #[cfg(test)]
 mod whisper_e2e;
@@ -75,6 +76,7 @@ pub use sd_cpp::{
     weights_bytes as sd_weights_bytes, MainRole, SdCppEngine, COMPONENTS as SD_COMPONENTS, SD_CPP,
 };
 pub use sherpa_onnx::{SherpaOnnxEngine, SHERPA_ONNX, SHERPA_ONNX_REPO};
+pub use transcribe_cpp::{TranscribeCppEngine, TRANSCRIBE_CPP};
 pub(crate) use whisper_cpp::gpu_fallback_note as whisper_gpu_fallback_note;
 pub use whisper_cpp::{
     footprint_bytes as whisper_footprint_bytes,
@@ -97,6 +99,7 @@ pub fn display_name(family: &str) -> &str {
         "python-hf" => "Python (HF)",
         "audio.cpp" => "audio.cpp",
         "crispasr" => "CrispASR",
+        "transcribe.cpp" => "transcribe.cpp",
         "mistral.rs" => "mistral.rs",
         "whisper.cpp" => "whisper.cpp",
         "stable-diffusion.cpp" => "sd.cpp",
@@ -361,6 +364,7 @@ static ONNX: OnnxEngine = OnnxEngine;
 static LEMONADE: LemonadeEngine = LemonadeEngine;
 static MISTRAL: MistralRsEngine = MistralRsEngine;
 static PYHF: PythonHfEngine = PythonHfEngine;
+static TRANSCRIBE: TranscribeCppEngine = TranscribeCppEngine;
 static MLX_ENGINE: MlxEngine = MlxEngine::TEXT;
 static MLX_VLM_ENGINE: MlxEngine = MlxEngine::VISION;
 static MLX_AUDIO_ENGINE: MlxEngine = MlxEngine::AUDIO;
@@ -418,11 +422,12 @@ pub fn audio_cpp() -> &'static dyn ServerEngine {
 }
 
 /// Every known family.
-pub fn engines() -> [&'static dyn Engine; 14] {
+pub fn engines() -> [&'static dyn Engine; 15] {
     [
         &LLAMA,
         &WHISPER,
         &AUDIO,
+        &TRANSCRIBE,
         &CRISP,
         &SDCPP,
         &SHERPA,
@@ -464,6 +469,10 @@ pub fn server_for(config: &LaunchConfig) -> &'static dyn ServerEngine {
     if config.router_mode {
         return &LLAMA;
     }
+    // Before CrispASR and llama.cpp, which share its architecture names.
+    if transcribe_cpp::is_model(&config.model_path) {
+        return &TRANSCRIBE;
+    }
     if is_mistralrs_dir(&config.model_path) {
         return &MISTRAL;
     }
@@ -496,6 +505,7 @@ pub fn is_llama_server(model_path: &Path, router_mode: bool) -> bool {
             ) || is_mistralrs_dir(model_path)
                 || python_hf::is_model_dir(model_path)
                 || mlx::is_any_model_dir(model_path)
+                || transcribe_cpp::is_model(model_path)
                 || crispasr::is_asr_gguf(model_path)
                 || crispasr_tts::is_tts_gguf(model_path)))
 }
@@ -509,6 +519,7 @@ pub fn non_llama_vram_need(config: &LaunchConfig) -> u64 {
         ONNX_FAMILY => onnx_vram_need(config),
         MISTRALRS => mistralrs::vram_need(config),
         PYTHON_HF => python_hf::vram_need(config),
+        TRANSCRIBE_CPP => transcribe_cpp::vram_need(config),
         MLX | MLX_VLM | MLX_AUDIO | MFLUX => mlx::vram_need(config),
         _ => whisper_vram_need(config),
     }
@@ -566,6 +577,9 @@ fn mlx_engine_for(path: &Path) -> Option<&'static MlxEngine> {
 pub fn server_for_model(path: &Path) -> Option<&'static dyn ServerEngine> {
     if audio_cpp::is_model(path) {
         return Some(&AUDIO);
+    }
+    if transcribe_cpp::is_model(path) {
+        return Some(&TRANSCRIBE);
     }
     if is_mistralrs_dir(path) {
         return Some(&MISTRAL);

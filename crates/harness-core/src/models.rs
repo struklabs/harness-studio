@@ -442,6 +442,10 @@ fn ggml_bin_traits(filename: &str) -> (crate::domain::ModelKind, String) {
 /// tensors) is [`crate::domain::ModelKind::Image`].
 fn image_aware_kind(path: &Path, metadata: Option<&GgufMetadata>) -> crate::domain::ModelKind {
     use crate::domain::ModelKind;
+    // A transcribe.cpp export, whatever its architecture (`whisper` included).
+    if metadata.is_some_and(crate::engine::transcribe_cpp::is_export) {
+        return ModelKind::Asr;
+    }
     if metadata.is_none_or(crate::engine::crispasr::supports_metadata)
         && crate::engine::crispasr::is_model(path)
     {

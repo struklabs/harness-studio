@@ -143,7 +143,11 @@ async fn read_form(mut mp: Multipart) -> Result<Form, GatewayError> {
 }
 
 /// A multipart/form-data body: `file` first, then the text fields.
-fn multipart_body(filename: &str, audio: &[u8], fields: &[(&str, String)]) -> (String, Vec<u8>) {
+pub(crate) fn multipart_body(
+    filename: &str,
+    audio: &[u8],
+    fields: &[(&str, String)],
+) -> (String, Vec<u8>) {
     let boundary = format!(
         "harness-{}",
         harness_core::network::generate_api_key().expect("multipart randomness")
@@ -188,6 +192,7 @@ pub fn is_speech_model(def: &ModelDefinition) -> bool {
     };
     ModelFormat::of(&path) == ModelFormat::GgmlBin
         || harness_core::asr::is_onnx_ctc_file(&path)
+        || harness_core::engine::transcribe_cpp::is_model(&path)
         || harness_core::engine::crispasr::is_asr_gguf(&path)
 }
 
@@ -355,6 +360,22 @@ async fn run(
     }
     caller.check_model(&def.alias)?;
     GatewayError::reject_remote(&def)?;
+    // A transcribe.cpp export: before CrispASR, which knows the same architectures.
+    if crate::transcribe_cpp::is_model(&def) {
+        return crate::transcribe_cpp::transcribe(
+            state,
+            crate::transcribe_cpp::Request {
+                task,
+                def: &def,
+                audio: bytes,
+                language: form.language.as_deref(),
+                format,
+                diarize: format == "diarized_json" || speakers.is_some(),
+            },
+            guard,
+        )
+        .await;
+    }
     let crisp = is_crispasr_model(&def);
     if crisp {
         validate_crispasr_form(&form)?;

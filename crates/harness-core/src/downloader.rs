@@ -559,6 +559,13 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     let compatibility = if crate::hub_compat::is_audio_cpp_repo(item) {
         crate::hub_compat::audio_cpp_compatibility(item)
     } else if format == crate::hub_compat::ModelFormat::Gguf
+        && crate::engine::transcribe_cpp::is_hub_repo(item)
+    {
+        // Before CrispASR: handy-computer's exports are transcribe.cpp's.
+        crate::hub_compat::Compatibility::Runnable {
+            runtime: crate::engine::TRANSCRIBE_CPP.into(),
+        }
+    } else if format == crate::hub_compat::ModelFormat::Gguf
         && (crate::engine::crispasr::supports_repo(&id, task)
             || crate::engine::crispasr_tts::supports_repo(&id, task))
     {
@@ -5242,6 +5249,38 @@ mod tests {
             companion_variant_from("Comfy-Org/flux2-dev", "vae/missing.safetensors", &items)
                 .unwrap()
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn transcribe_cpp_speech_recognition_repos_run_on_transcribe_cpp() {
+        // handy-computer listings (2026-10-16): `library_name: transcribe.cpp`.
+        for repo in [
+            "handy-computer/nemotron-3.5-asr-streaming-0.6b-gguf",
+            "handy-computer/parakeet-unified-en-0.6b-gguf",
+            "handy-computer/cohere-transcribe-03-2026-gguf",
+            "handy-computer/canary-180m-flash-gguf",
+        ] {
+            let item = serde_json::json!({"id":repo,"pipeline_tag":"automatic-speech-recognition",
+                "library_name":"transcribe.cpp","tags":["gguf","transcribe.cpp"],
+                "siblings":[{"rfilename":"model-Q4_K_M.gguf"}]});
+            assert_eq!(
+                parse_search_item(&item).unwrap().compatibility,
+                crate::hub_compat::Compatibility::Runnable {
+                    runtime: crate::engine::TRANSCRIBE_CPP.into()
+                },
+                "{repo}"
+            );
+        }
+        // Voice activity detection is not speech recognition.
+        let vad = serde_json::json!({"id":"handy-computer/silero-vad-gguf",
+            "pipeline_tag":"voice-activity-detection","library_name":"transcribe.cpp",
+            "siblings":[{"rfilename":"silero-vad.gguf"}]});
+        assert_ne!(
+            parse_search_item(&vad).unwrap().compatibility,
+            crate::hub_compat::Compatibility::Runnable {
+                runtime: crate::engine::TRANSCRIBE_CPP.into()
+            }
         );
     }
 

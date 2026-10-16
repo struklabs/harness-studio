@@ -443,6 +443,16 @@ pub fn normalize_definition(def: &mut ModelDefinition) {
     if def
         .base
         .local_path()
+        .is_some_and(crate::engine::transcribe_cpp::is_model)
+    {
+        def.load.insert(
+            "task".into(),
+            crate::params::ParamValue::Text(crate::engine::transcribe_cpp::TASK.into()),
+        );
+    }
+    if def
+        .base
+        .local_path()
         .is_some_and(crate::asr::is_onnx_ctc_file)
     {
         def.load.insert(

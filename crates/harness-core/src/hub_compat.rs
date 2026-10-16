@@ -35,6 +35,7 @@ pub fn audio_cpp_not_runnable(item: &serde_json::Value) -> Option<crate::hub_tas
 pub fn native_speech_format(item: &serde_json::Value, files: &[String]) -> Option<ModelFormat> {
     let task = item["pipeline_tag"].as_str()?;
     if is_audio_cpp_repo(item)
+        || crate::engine::transcribe_cpp::is_hub_repo(item)
         || item["id"].as_str().is_some_and(|id| {
             crate::engine::crispasr::supports_repo(id, Some(task))
                 || crate::engine::crispasr_tts::supports_repo(id, Some(task))

@@ -20,7 +20,7 @@ export interface TranscribeResult {
   truncated: Truncation;
 }
 
-export { isSpeechFile, isSpeechDefinition, isOnnxCtcDefinition, isCrispasrDefinition, crispasrCanTranslate, isTranscriptionDefinition, isAudioLlmDefinition, audioLlmTranslates } from './speechModels';
+export { isSpeechFile, isSpeechDefinition, isOnnxCtcDefinition, isCrispasrDefinition, crispasrCanTranslate, isTranscribeCppDefinition, transcribeCppCanTranslate, isTranscriptionDefinition, isAudioLlmDefinition, audioLlmTranslates } from './speechModels';
 
 /** whisper starts every segment line with a space; plain text drops it. */
 export function tidySegments(text: string): string {

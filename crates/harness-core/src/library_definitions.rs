@@ -101,7 +101,13 @@ pub fn ensure_in(
             }
             continue;
         }
-        let load = if crate::engine::crispasr::is_model(&model.path) {
+        let load = if crate::engine::transcribe_cpp::is_model(&model.path) {
+            [(
+                "task".into(),
+                crate::params::ParamValue::Text(crate::engine::transcribe_cpp::TASK.into()),
+            )]
+            .into()
+        } else if crate::engine::crispasr::is_model(&model.path) {
             [(
                 "task".into(),
                 crate::params::ParamValue::Text("crispasr".into()),

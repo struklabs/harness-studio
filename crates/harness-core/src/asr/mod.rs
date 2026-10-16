@@ -28,6 +28,7 @@ pub mod diarize;
 pub mod llm;
 pub mod onnx;
 pub mod run;
+pub mod transcribe_cpp;
 
 use std::path::{Path, PathBuf};
 

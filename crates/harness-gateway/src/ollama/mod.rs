@@ -422,6 +422,13 @@ async fn run(
             "CrispASR only accepts /v1/audio/transcriptions and /v1/audio/translations",
         ));
     }
+    if crate::transcribe_cpp::is_model(&def) {
+        return Err(GatewayError::new(
+            400,
+            "model_is_speech",
+            "transcribe.cpp only accepts /v1/audio/transcriptions and /v1/audio/translations",
+        ));
+    }
     if def.capture_content {
         guard.capture = Some(ContentCapture::new(
             &body,

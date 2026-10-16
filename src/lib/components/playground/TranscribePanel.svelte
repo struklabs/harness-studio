@@ -22,7 +22,7 @@
   import { Progress } from '#lib/components/ui/progress/index.js';
   import { Download } from '@lucide/svelte';
   import { onDestroy, untrack } from 'svelte';
-  import { fetchTranscription, isTranscriptionDefinition, isAudioLlmDefinition, audioLlmTranslates, isOnnxCtcDefinition, crispasrCanTranslate, isCrispasrDefinition, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
+  import { fetchTranscription, isTranscriptionDefinition, isAudioLlmDefinition, audioLlmTranslates, isOnnxCtcDefinition, crispasrCanTranslate, isCrispasrDefinition, isTranscribeCppDefinition, transcribeCppCanTranslate, type AudioFormat, type AudioTask, type TranscribeResult } from './transcribe';
   import AudioFilePicker from './AudioFilePicker.svelte';
   import { speech } from './speech.svelte';
   import { isSherpaChoice, speechModel } from './speechSetup';
@@ -49,7 +49,8 @@
    *  Whisper's (and some chat models' that hear). */
   let onlyTranscribes = $derived(sherpaChosen || ctcChosen || (engineChosen !== null && !engineChosen.translates) || (audioLlm !== null && !audioLlmTranslates(audioLlm, library.models)));
   let crispChosen = $derived(models.some(d => d.alias === speech.model && isCrispasrDefinition(d)));
-  let crispNoTranslate = $derived(models.some(d => d.alias === speech.model && isCrispasrDefinition(d) && !crispasrCanTranslate(d, library.models)));
+  let transcribeCppChosen = $derived(models.some(d => d.alias === speech.model && isTranscribeCppDefinition(d)));
+  let crispNoTranslate = $derived(models.some(d => d.alias === speech.model && ((isCrispasrDefinition(d) && !crispasrCanTranslate(d, library.models)) || (isTranscribeCppDefinition(d) && !transcribeCppCanTranslate(d, library.models)))));
   let noModel = $derived(models.length === 0 && sherpaModels.length === 0 && engineModels.length === 0);
   let noModelNotice = $derived(noModel && !libraryDefinitions.busy);
   let installingRuntime = $derived(tts.installingRuntime);
@@ -88,9 +89,10 @@
   const uiLanguage = locale().slice(0, 2);
   let language = $state(uiLanguage);
   /** The language sent: the prefilled UI language goes to whisper only; other recognition models
-   *  (sherpa-onnx, CrispASR, MLX) keep detecting unless the user types one. */
+   *  (sherpa-onnx, CrispASR, transcribe.cpp, MLX) keep detecting unless the user types one
+   *  (an English-only transcribe.cpp model refuses any other language). */
   let sentLanguage = $derived(
-    ctcChosen ? '' : language === uiLanguage && (sherpaChosen || crispChosen || engineChosen || audioLlm) ? '' : language
+    ctcChosen ? '' : language === uiLanguage && (sherpaChosen || crispChosen || transcribeCppChosen || engineChosen || audioLlm) ? '' : language
   );
   let prompt = $state('');
   let file = $state<File | null>(null);
