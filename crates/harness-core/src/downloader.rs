@@ -965,7 +965,8 @@ fn audio_cpp_variants(
         variants.push(HfModelVariant {
             not_runnable: not_runnable.or_else(|| {
                 (crate::engine::audio_cpp::family_from_package_path(model).is_none()
-                    && !(repo == "audio-cpp/SAM-Audio-GGUF" && model.starts_with("sam-audio-")))
+                    && !(crate::engine::audio_cpp::family_of_repo(repo).is_some()
+                        && !model.contains('/')))
                 .then_some(crate::hub_tasks::NotRunnable::AudioCppUnsupported)
             }),
             name: model.trim_end_matches(".gguf").into(),
@@ -4523,6 +4524,11 @@ fn safetensors_variants(
 /// the ggml magic. A wrong file (an HTML error page...) is deleted.
 fn verify_model_magic(path: &Path, filename: &str) -> Result<(), String> {
     let lower = filename.to_ascii_lowercase();
+    // A licence page of a model repository (audio-cpp/Nemotron-3-Diarization-GGUF ships
+    // LICENSE.html next to the weights) is HTML by design: there is no error page to catch.
+    if lower.ends_with(".html") || lower.ends_with(".htm") {
+        return Ok(());
+    }
     if lower.ends_with(".safetensors") {
         return verify_safetensors_header(path);
     }
@@ -7749,6 +7755,58 @@ mod audio_cpp_tests {
         }
     }
 
+    /// audio-cpp/Nemotron-3-Diarization-GGUF lists LICENSE.html among the files of the package:
+    /// the web-page check must not delete it and fail the whole download.
+    #[test]
+    fn a_licence_page_is_not_mistaken_for_an_error_page() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["LICENSE.html", "license.HTM"] {
+            let path = dir.path().join(name);
+            fs::write(
+                &path,
+                "<!doctype html>
+<html lang=\"en-US\"><body>OpenMDW</body></html>",
+            )
+            .unwrap();
+            verify_model_magic(&path, name).unwrap();
+            assert!(path.exists());
+        }
+    }
+
+    /// The root-level packages: the repository id names the family, so every GGUF of the repo
+    /// is runnable and its licence page and README come along as companions.
+    #[test]
+    fn single_package_audio_repos_download_their_weights_and_licence() {
+        for (repo, gguf, license) in [
+            ("audio-cpp/RE-USE-GGUF", "reuse-f32.gguf", "LICENSE"),
+            (
+                "audio-cpp/Nemotron-3-Diarization-GGUF",
+                "nemotron-3-diarization-q8_0.gguf",
+                "LICENSE.html",
+            ),
+        ] {
+            let items = [
+                json!({"path": license, "size": 5}),
+                json!({"path": "README.md", "size": 5}),
+                json!({"path": gguf, "size": 100, "lfs": {"size": 100}}),
+            ];
+            let variants = audio_cpp_variants(repo, &items, None).unwrap();
+            assert_eq!(variants.len(), 1, "{repo}");
+            assert_eq!(variants[0].not_runnable, None, "{repo}");
+            let files: Vec<_> = variants[0]
+                .shards
+                .iter()
+                .map(|s| s.filename.as_str())
+                .collect();
+            // The weights first, then the companions in name order.
+            assert_eq!(files, [gguf, license, "README.md"], "{repo}");
+        }
+        // Another repository's root-level GGUF is not captured.
+        let items = [json!({"path": "model.gguf", "size": 100})];
+        let variants = audio_cpp_variants("someone/else", &items, None).unwrap();
+        assert!(variants[0].not_runnable.is_some());
+    }
+
     #[test]
     fn mixed_audio_packages_mark_only_tts_variants_runnable() {
         let supported = [
@@ -7766,6 +7824,9 @@ mod audio_cpp_tests {
             "Sidon-GGUF",
             "Apollo-GGUF",
             "UniverSR-GGUF",
+            "HTDemucs-GGUF",
+            "HTDemucs-6stems-GGUF",
+            "Sortformer-Diar-4spk-v1-GGUF",
         ];
         let unsupported = [
             "ACE-Step1.5-GGUF",

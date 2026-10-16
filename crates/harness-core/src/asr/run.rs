@@ -286,10 +286,37 @@ pub async fn transcribe(
             )
         })?;
     const INPUT: &str = "input.wav";
+    let params = Params {
+        vad: req.vad.to_path_buf(),
+        language: req.language.map(str::to_string),
+        threads: req.threads.unwrap_or_else(crate::tts::run::default_threads),
+    };
+    let _permit = permits()
+        .acquire()
+        .await
+        .map_err(|_| String::from(err("stt.run_failed").with("detail", "gate closed")))?;
+    let started = Instant::now();
+    // Who speaks when comes first: where one speaker takes over from another the recognizer
+    // gets a pause, so that a segment never has two voices in it.
+    let (turns, splice) = match &req.diarize {
+        Some(d) => {
+            let turns =
+                diarize_run(runtime_binary, d, &prepared, dir.path(), params.threads).await?;
+            let splice = super::diarize::Splice::at_speaker_changes(&turns);
+            (turns, splice)
+        }
+        None => (Vec::new(), super::diarize::Splice::default()),
+    };
     // The online decoder reads 16 kHz only (it does not resample).
+    let streaming = req.model.family.is_streaming();
     let input = match pcm16_mono(&prepared.wav) {
-        Some((rate, pcm)) if req.model.family.is_streaming() && rate != 16_000 => {
-            wav_of(16_000, &[&resample_16k(rate, pcm)])
+        Some((rate, pcm)) if !splice.is_empty() || (streaming && rate != 16_000) => {
+            let (rate, pcm) = if streaming && rate != 16_000 {
+                (16_000, resample_16k(rate, pcm))
+            } else {
+                (rate, pcm.to_vec())
+            };
+            wav_of(rate, &[&splice.apply(rate, &pcm)])
         }
         _ => prepared.wav.clone(),
     };
@@ -302,24 +329,14 @@ pub async fn transcribe(
                     .with("error", e),
             )
         })?;
-    let params = Params {
-        vad: req.vad.to_path_buf(),
-        language: req.language.map(str::to_string),
-        threads: req.threads.unwrap_or_else(crate::tts::run::default_threads),
-    };
     let mut args = build_args(req.model, &params);
     args.push(INPUT.to_string());
 
-    let _permit = permits()
-        .acquire()
-        .await
-        .map_err(|_| String::from(err("stt.run_failed").with("detail", "gate closed")))?;
-    let started = Instant::now();
     let out = run_tool(
         &tool,
         &args,
         dir.path(),
-        timeout_for(prepared.duration_secs),
+        timeout_for(prepared.duration_secs + splice.added_secs()),
     )
     .await?;
     let stderr = String::from_utf8_lossy(&out.stderr);
@@ -329,17 +346,25 @@ pub async fn transcribe(
             .into());
     }
     // The online decoder writes its result to stderr, as JSON with the token times.
+    let length = prepared.duration_secs + splice.added_secs();
     let mut segments = if req.model.family.is_streaming() {
-        super::parse_online_json(&stderr, prepared.pad_secs, prepared.duration_secs)
+        super::parse_online_json(&stderr, prepared.pad_secs, length)
     } else {
         parse_output(
             &String::from_utf8_lossy(&out.stdout),
             prepared.pad_secs,
-            prepared.duration_secs,
+            length,
         )
     };
-    if let Some(d) = &req.diarize {
-        let turns = diarize_run(runtime_binary, d, &prepared, dir.path(), params.threads).await?;
+    // The times of the audio the recognizer heard (the pauses put in) back to the audio's own.
+    if !splice.is_empty() {
+        let pad = prepared.pad_secs;
+        let back = |t: f64| (splice.restore(t + pad) - pad).clamp(0.0, prepared.duration_secs);
+        for s in &mut segments {
+            (s.start, s.end) = (back(s.start), back(s.end).max(back(s.start)));
+        }
+    }
+    if req.diarize.is_some() {
         super::diarize::label(&mut segments, &turns, prepared.pad_secs);
     }
     Ok(Transcript::new(

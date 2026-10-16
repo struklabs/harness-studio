@@ -97,7 +97,7 @@ pub fn detect_kind(meta: Option<&GgufMetadata>) -> ModelKind {
             .and_then(crate::engine::audio_cpp::task)
         {
             Some("tts") => ModelKind::Tts,
-            Some("sep" | "s2s") => ModelKind::Pipeline,
+            Some("sep" | "s2s" | "diar") => ModelKind::Pipeline,
             _ => ModelKind::Unknown,
         };
     }

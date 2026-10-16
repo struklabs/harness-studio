@@ -66,10 +66,9 @@ pub fn native_speech_format(item: &serde_json::Value, files: &[String]) -> Optio
 /// Repo metadata can identify audio.cpp before any GGUF extension fallback.
 pub fn is_audio_cpp_repo(item: &serde_json::Value) -> bool {
     let marker = |s: &str| matches!(s.to_ascii_lowercase().as_str(), "audio.cpp" | "audiocpp");
-    matches!(
-        item["id"].as_str(),
-        Some("audio-cpp/audio.cpp-gguf" | "audio-cpp/SAM-Audio-GGUF")
-    ) || audio_cpp_not_runnable(item).is_some()
+    item["id"].as_str().is_some_and(|id| {
+        id == "audio-cpp/audio.cpp-gguf" || crate::engine::audio_cpp::family_of_repo(id).is_some()
+    }) || audio_cpp_not_runnable(item).is_some()
         || item["library_name"].as_str().is_some_and(marker)
         || item["cardData"]["library_name"]
             .as_str()
@@ -104,13 +103,26 @@ pub fn audio_cpp_repo_processing(item: &serde_json::Value) -> bool {
     if !is_audio_cpp_repo(item) || audio_cpp_custom_code(item) {
         return false;
     }
-    if item["id"] == "audio-cpp/SAM-Audio-GGUF" {
-        return true;
-    }
-    item["gguf"]["audiocpp.model_spec.family"]
-        .as_str()
-        .or_else(|| item["gguf"]["family"].as_str())
+    audio_cpp_repo_family(item)
         .is_some_and(|f| crate::engine::audio_cpp::processing_task(f).is_some())
+}
+
+/// The family a single-package repository holds, else the one its GGUF header names.
+fn audio_cpp_repo_family(item: &serde_json::Value) -> Option<&str> {
+    item["id"]
+        .as_str()
+        .and_then(crate::engine::audio_cpp::family_of_repo)
+        .or_else(|| {
+            item["gguf"]["audiocpp.model_spec.family"]
+                .as_str()
+                .or_else(|| item["gguf"]["family"].as_str())
+        })
+}
+
+/// A speaker diarization package (it answers with speaker turns, not audio).
+pub fn audio_cpp_repo_diarization(item: &serde_json::Value) -> bool {
+    audio_cpp_repo_processing(item)
+        && audio_cpp_repo_family(item).is_some_and(crate::engine::audio_cpp::is_diarization)
 }
 
 fn audio_cpp_custom_code(item: &serde_json::Value) -> bool {
@@ -1810,6 +1822,55 @@ mod tests {
 mod audio_cpp_tests {
     use super::*;
     use serde_json::json;
+    /// Repositories that hold one audio.cpp package: the listing shows no model family, the
+    /// repository id says which.
+    #[test]
+    fn single_package_repos_are_runnable_on_audio_cpp() {
+        for (repo, tag, task) in [
+            ("audio-cpp/RE-USE-GGUF", "audio-to-audio", false),
+            ("audio-cpp/SAM-Audio-GGUF", "audio-to-audio", false),
+            (
+                "audio-cpp/Nemotron-3-Diarization-GGUF",
+                "voice-activity-detection",
+                true,
+            ),
+        ] {
+            // What the Hub lists for them: no family in the GGUF header block.
+            let item = json!({
+                "id": repo,
+                "pipeline_tag": task_tag(repo),
+                "tags": ["gguf", "audio.cpp"],
+                "gguf": {"total": 9607747, "architecture": "audiocpp", "totalFileSize": 39642144},
+                "siblings": [{"rfilename": "LICENSE"}, {"rfilename": "model.gguf"}],
+            });
+            assert!(is_audio_cpp_repo(&item), "{repo}");
+            assert!(audio_cpp_repo_processing(&item), "{repo}");
+            assert_eq!(audio_cpp_repo_diarization(&item), task, "{repo}");
+            assert!(!audio_cpp_repo_tts(&item), "{repo}");
+            assert_eq!(
+                audio_cpp_compatibility(&item),
+                Compatibility::Runnable {
+                    runtime: crate::engine::AUDIO_CPP.into()
+                }
+            );
+            let analysis = crate::hub_tasks::analyze_repo(&item);
+            assert_eq!(analysis.pipeline_tag.as_deref(), Some(tag));
+            assert_eq!(analysis.not_runnable, None);
+        }
+        // A lookalike from someone else is not captured.
+        let item = json!({"id": "someone/RE-USE-GGUF", "pipeline_tag": "audio-to-audio",
+            "gguf": {"architecture": "gtcrn"}});
+        assert!(!is_audio_cpp_repo(&item));
+    }
+
+    fn task_tag(repo: &str) -> &'static str {
+        if repo.contains("Diarization") {
+            "voice-activity-detection"
+        } else {
+            "audio-to-audio"
+        }
+    }
+
     #[test]
     fn processing_requires_provenance_and_never_captures_other_audio_engines() {
         for family in crate::engine::audio_cpp::PROCESS_FAMILIES {
@@ -1821,12 +1882,18 @@ mod audio_cpp_tests {
                 audio_cpp_compatibility(&item),
                 Compatibility::Runnable { .. }
             ));
+            // Diarization answers with speaker turns: the task its own repositories declare.
             assert_eq!(
                 crate::hub_tasks::analyze_repo(&item)
                     .pipeline_tag
                     .as_deref(),
-                Some("audio-to-audio")
+                Some(if family.ends_with("_diar") {
+                    "voice-activity-detection"
+                } else {
+                    "audio-to-audio"
+                })
             );
+            assert_eq!(audio_cpp_repo_diarization(&item), family.ends_with("_diar"));
             let mut custom = item;
             custom["tags"] = json!(["custom_code"]);
             assert!(!audio_cpp_repo_processing(&custom));
