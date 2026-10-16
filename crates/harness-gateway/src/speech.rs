@@ -203,7 +203,7 @@ async fn serve(
             guard.admitted(caller.admit(state)?);
             guard.get().alias = Some(def.alias.clone());
             guard.get().definition_id = Some(def.id.clone());
-            return crate::llama_tts::speak(state, model, &def.alias, checked, guard).await;
+            return crate::llama_tts::speak(state, model, &def, checked, guard).await;
         }
         if is_crispasr_tts(&def) {
             caller.check_model(&def.alias)?;

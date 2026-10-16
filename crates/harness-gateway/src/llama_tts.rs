@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use axum::http::{header, StatusCode};
 use axum::response::Response;
+use harness_core::domain::ModelDefinition;
 use harness_core::tts::llama::{self, TtsModel};
 use harness_core::tts::{run, AudioFormat};
 
@@ -87,16 +88,18 @@ pub fn check(
 pub async fn speak(
     state: &GwState,
     model: TtsModel,
-    alias: &str,
+    definition: &ModelDefinition,
     checked: Checked,
     guard: &mut RecordGuard,
 ) -> Result<Response, GatewayError> {
+    let alias = &definition.alias;
     let runtime = state.scheduler.runtime().clone();
+    let selection = runtime_selection(definition);
     let server = tokio::task::spawn_blocking(move || {
         harness_core::runtimes::resolve_binary(
             &runtime,
             &harness_core::config::AppSettings::load(),
-            None,
+            selection.as_deref(),
         )
     })
     .await
@@ -146,9 +149,38 @@ pub async fn speak(
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
 }
 
+fn runtime_selection(definition: &ModelDefinition) -> Option<String> {
+    definition
+        .load
+        .get("runtime")
+        .and_then(|value| match value {
+            harness_core::params::ParamValue::Text(value) => Some(value.clone()),
+            _ => None,
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn model_runtime_selection_is_forwarded() {
+        let mut definition = ModelDefinition::new(
+            "q",
+            harness_core::domain::ModelRef::Local {
+                path: "q.gguf".into(),
+            },
+        );
+        assert_eq!(runtime_selection(&definition), None);
+        definition.load.insert(
+            "runtime".into(),
+            harness_core::params::ParamValue::Text("registered-tts".into()),
+        );
+        assert_eq!(
+            runtime_selection(&definition).as_deref(),
+            Some("registered-tts")
+        );
+    }
 
     fn req(body: serde_json::Value) -> SpeechRequest {
         serde_json::from_value(body).unwrap()

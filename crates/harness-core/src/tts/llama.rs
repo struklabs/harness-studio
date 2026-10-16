@@ -18,10 +18,11 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
-use command_group::AsyncCommandGroup;
+use command_group::{AsyncCommandGroup, AsyncGroupChild};
+use tokio::io::AsyncReadExt;
 use tokio::sync::{Semaphore, SemaphorePermit};
 
 use crate::domain::ModelDefinition;
@@ -406,6 +407,71 @@ pub fn at_budget(secs: f64, budget: u32) -> bool {
     secs * FRAME_RATE >= f64::from(budget) - 1.0
 }
 
+/// Keep the gate until a cancelled run's process group has been killed and reaped.
+struct RunChild {
+    child: Option<AsyncGroupChild>,
+    permit: Arc<SemaphorePermit<'static>>,
+}
+
+impl Drop for RunChild {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.start_kill();
+            let permit = self.permit.clone();
+            tokio::spawn(async move {
+                let _permit = permit;
+                let _ = child.wait().await;
+            });
+        }
+    }
+}
+
+async fn run_child(
+    command: &mut tokio::process::Command,
+    limit: Option<Duration>,
+    permit: Arc<SemaphorePermit<'static>>,
+) -> std::io::Result<Option<std::process::Output>> {
+    // The group builder's flag only affects Windows in command-group 5.0.1.
+    command.kill_on_drop(true);
+    let mut group = command.group();
+    group.kill_on_drop(true);
+    #[cfg(windows)]
+    group.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    let mut run = RunChild {
+        child: Some(group.spawn()?),
+        permit,
+    };
+    let child = run.child.as_mut().unwrap();
+    let mut stderr = child.inner().stderr.take();
+    let wait = async {
+        let mut bytes = Vec::new();
+        if let Some(stderr) = &mut stderr {
+            stderr.read_to_end(&mut bytes).await?;
+        }
+        Ok::<_, std::io::Error>(std::process::Output {
+            status: child.wait().await?,
+            stdout: Vec::new(),
+            stderr: bytes,
+        })
+    };
+    let out = match limit {
+        Some(limit) => match tokio::time::timeout(limit, wait).await {
+            Ok(out) => out?,
+            Err(_) => {
+                // Retain ownership across timeout so the entire group is killed and reaped.
+                let child = run.child.as_mut().unwrap();
+                child.start_kill()?;
+                child.wait().await?;
+                run.child.take();
+                return Ok(None);
+            }
+        },
+        None => wait.await?,
+    };
+    run.child.take();
+    Ok(Some(out))
+}
+
 /// Speaks `text` with `binary`; `limit` is the request's time (None: no limit). Errors are
 /// plain messages; `Err` before any audio was made.
 pub async fn speak(
@@ -419,7 +485,7 @@ pub async fn speak(
         .prefix("harness-llama-tts-")
         .tempdir()
         .map_err(|e| format!("could not create a temporary folder: {e}"))?;
-    let _permit = permit().await;
+    let permit = Arc::new(permit().await);
     let started = Instant::now();
     let deadline = limit.map(|l| started + l);
     let mut runs = Vec::new();
@@ -446,25 +512,13 @@ pub async fn speak(
         if let Some(parent) = binary.parent() {
             command.current_dir(parent);
         }
-        let mut group = command.group();
-        group.kill_on_drop(true);
-        #[cfg(windows)]
-        group.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-        let child = group
-            .spawn()
-            .map_err(|e| format!("could not start {}: {e}", binary.display()))?;
-        let waited = match left {
-            Some(left) => match tokio::time::timeout(left, child.wait_with_output()).await {
-                Ok(out) => out,
-                Err(_) => {
-                    // The child was dropped with the timeout: its process tree is killed.
-                    cut = Some(Cut::Time);
-                    break;
-                }
-            },
-            None => child.wait_with_output().await,
+        let Some(out) = run_child(&mut command, left, permit.clone())
+            .await
+            .map_err(|e| format!("llama-tts ({}): {e}", binary.display()))?
+        else {
+            cut = Some(Cut::Time);
+            break;
         };
-        let out = waited.map_err(|e| format!("llama-tts: {e}"))?;
         if !out.status.success() {
             let stderr = String::from_utf8_lossy(&out.stderr);
             return Err(format!(
@@ -503,6 +557,111 @@ pub async fn speak(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Re-enter this test binary as a stand-in for llama-tts and its descendant.
+    #[test]
+    fn process_group_fixture() {
+        let Some(dir) = std::env::var_os("HARNESS_LLAMA_TTS_FIXTURE") else {
+            return;
+        };
+        let dir = PathBuf::from(dir);
+        let descendant = std::env::var_os("HARNESS_LLAMA_TTS_DESCENDANT").is_some();
+        let _child = if descendant {
+            None
+        } else {
+            Some(
+                std::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["--exact", "tts::llama::tests::process_group_fixture"])
+                    .env("HARNESS_LLAMA_TTS_DESCENDANT", "1")
+                    .spawn()
+                    .unwrap(),
+            )
+        };
+        std::fs::write(
+            dir.join(if descendant { "descendant" } else { "parent" }),
+            std::process::id().to_string(),
+        )
+        .unwrap();
+        std::thread::sleep(Duration::from_secs(60));
+    }
+
+    #[tokio::test]
+    async fn timeout_and_cancellation_kill_and_reap_process_groups() {
+        for cancel in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let permit = Arc::new(permit().await);
+            let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args(["--exact", "tts::llama::tests::process_group_fixture"])
+                .env("HARNESS_LLAMA_TTS_FIXTURE", dir.path())
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped());
+            let task = tokio::spawn(async move {
+                run_child(
+                    &mut command,
+                    (!cancel).then_some(Duration::from_secs(3)),
+                    permit,
+                )
+                .await
+            });
+            let pids = tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    if let (Ok(parent), Ok(descendant)) = (
+                        std::fs::read_to_string(dir.path().join("parent")),
+                        std::fs::read_to_string(dir.path().join("descendant")),
+                    ) {
+                        break [parent.parse::<u32>().unwrap(), descendant.parse().unwrap()];
+                    }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("fixture processes started");
+            if cancel {
+                task.abort();
+                assert!(task.await.unwrap_err().is_cancelled());
+            } else {
+                assert!(task.await.unwrap().unwrap().is_none());
+            }
+            // The gate is held by cancellation cleanup until wait() has reaped the child.
+            let _permit = tokio::time::timeout(Duration::from_secs(10), super::permit())
+                .await
+                .expect("cleanup released the gate");
+            tokio::time::timeout(Duration::from_secs(10), async {
+                loop {
+                    let mut system = sysinfo::System::new();
+                    let pids = pids.map(sysinfo::Pid::from_u32);
+                    system.refresh_processes_specifics(
+                        sysinfo::ProcessesToUpdate::Some(&pids),
+                        true,
+                        sysinfo::ProcessRefreshKind::nothing(),
+                    );
+                    if pids.iter().all(|pid| {
+                        system.process(*pid).is_none_or(|process| {
+                            process.status() == sysinfo::ProcessStatus::Zombie
+                        })
+                    }) {
+                        break;
+                    }
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .expect("the entire process group exited");
+            #[cfg(unix)]
+            {
+                let mut status = 0;
+                assert_eq!(
+                    unsafe { libc::waitpid(pids[0] as i32, &mut status, libc::WNOHANG) },
+                    -1
+                );
+                assert_eq!(
+                    std::io::Error::last_os_error().raw_os_error(),
+                    Some(libc::ECHILD)
+                );
+            }
+        }
+    }
 
     #[test]
     fn languages_are_codes_or_names() {
