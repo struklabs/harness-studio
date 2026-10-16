@@ -15,7 +15,7 @@ export interface EngineSpec {
   /** Managed Python environment of `pyenv` families (its CPU build when it has a GPU one). */
   env?: string;
   /** Locale key of the one-line description shown on the Installed Runtime page. */
-  descKey: 'eng.desc_audio_cpp' | 'eng.desc_crispasr' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio';
+  descKey: 'eng.desc_audio_cpp' | 'eng.desc_crispasr' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio' | 'eng.desc_mflux';
 }
 
 export const ENGINES: readonly EngineSpec[] = [
@@ -90,7 +90,7 @@ export function onnxUnsupportedText(p: { os: string; arch: string; runtime?: str
 /** One route a server serves directly (`path` under `/v1`, or under the host when `root`). */
 export interface DirectRoute {
   method: 'GET' | 'POST' | 'GET · POST';
-  labelKey: 'conn.ep_base_url_label' | 'conn.ep_models_label' | 'conn.ep_chat_label' | 'conn.ep_completions_label' | 'conn.ep_speech_label';
+  labelKey: 'conn.ep_base_url_label' | 'conn.ep_models_label' | 'conn.ep_chat_label' | 'conn.ep_completions_label' | 'conn.ep_speech_label' | 'conn.ep_images_label' | 'conn.ep_image_edits_label';
   path: string;
 }
 
@@ -110,6 +110,8 @@ export function workerRoutes(family: string | null | undefined): DirectRoute[] |
       return [...base, { method: 'POST', labelKey: 'conn.ep_chat_label', path: '/chat/completions' }];
     case 'mlx-audio':
       return [...base, { method: 'POST', labelKey: 'conn.ep_speech_label', path: '/audio/speech' }];
+    case 'mflux':
+      return [...base, { method: 'POST', labelKey: 'conn.ep_images_label', path: '/images/generations' }, { method: 'POST', labelKey: 'conn.ep_image_edits_label', path: '/images/edits' }];
     default:
       return null;
   }

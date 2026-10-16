@@ -921,7 +921,17 @@ pub async fn companion_plan_checked(
     let Some(repo) = repo.filter(|_| plan.bundle_id == crate::engine::mlx::WHISPER_BUNDLE) else {
         return Some(plan);
     };
-    match DownloadManager::list_repo_files(repo, token).await {
+    checked_whisper_plan(plan, DownloadManager::list_repo_files(repo, token).await)
+}
+
+/// [`companion_plan_checked`]'s verdict on a Whisper processor plan from the repo's listing: no
+/// plan when its root holds a processor of its own; the plan when the listing failed (offline,
+/// rate limited), as a processor too many is harmless and one missing breaks the model.
+fn checked_whisper_plan(
+    plan: crate::image_bundles::BundlePlan,
+    listing: Result<Vec<serde_json::Value>, String>,
+) -> Option<crate::image_bundles::BundlePlan> {
+    match listing {
         Ok(items) => {
             let root: Vec<&str> = items
                 .iter()
@@ -5969,6 +5979,40 @@ mod tests {
             "vocab.json"
         ]));
         assert!(!own_whisper_processor(&["config.json", "weights.npz"]));
+        // The plan stands when the listing fails, and goes when the root has a processor.
+        let libraries = [std::path::PathBuf::from("/lib")];
+        let plan = || {
+            companion_plan(
+                "/lib/mlx-community/whisper-small-mlx/weights.npz",
+                Some("mlx-community/whisper-small-mlx"),
+                &libraries,
+            )
+            .expect("a processor plan")
+        };
+        assert_eq!(plan().bundle_id, crate::engine::mlx::WHISPER_BUNDLE);
+        let listed = |names: &[&str]| -> Result<Vec<serde_json::Value>, String> {
+            Ok(names
+                .iter()
+                .map(|n| serde_json::json!({"type": "file", "path": n}))
+                .collect())
+        };
+        assert!(checked_whisper_plan(plan(), Err("offline".into())).is_some());
+        assert!(checked_whisper_plan(plan(), listed(&["config.json", "weights.npz"])).is_some());
+        assert!(checked_whisper_plan(
+            plan(),
+            listed(&["config.json", "preprocessor_config.json", "tokenizer.json"])
+        )
+        .is_none());
+        // A processor in a subfolder is not the model's own.
+        assert!(checked_whisper_plan(
+            plan(),
+            listed(&[
+                "weights.npz",
+                "x/preprocessor_config.json",
+                "x/tokenizer.json"
+            ])
+        )
+        .is_some());
         // mlx-examples' Whisper conversion: `weights.npz` is its weights.
         let npz = vec![
             file("config.json", 266),

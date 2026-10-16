@@ -18,7 +18,7 @@
   interface OptionSpec { name: OptionName; min: number; max: number; default: number; integer: boolean; choices: string[] }
   interface Model { name: string; family: string; engine: 'audio.cpp' | 'mlx-audio'; options: OptionSpec[] }
   interface Output { name: 'enhanced' | 'vocals' | 'instrumental' | 'target' | 'residual'; audio_base64: string; mime: string; url: string }
-  let overview = $state<{ models: Model[]; runtime_installed: boolean } | null>(null);
+  let overview = $state<{ models: Model[]; runtime_installed: boolean; mlx_separation?: boolean } | null>(null);
   let model = $state('');
   let file = $state<File | null>(null);
   let prompt = $state('');
@@ -103,7 +103,7 @@
   {:else if enabled && overview && !overview.runtime_installed && !mlxModels.length}
     <EngineNeeded family="audio.cpp" onInstalled={() => void load()} />
   {:else}
-    {#if overview && !models.length}<p class="text-sm text-muted-foreground">{t('process.no_models')}</p>{/if}
+    {#if overview && !models.length}<p class="text-sm text-muted-foreground">{t(overview.mlx_separation ? 'process.no_models_mac' : 'process.no_models')}</p>{/if}
     <label class="flex flex-col gap-1 text-sm" for="process-model">{t('process.model')}
       <select id="process-model" class={controlClass} bind:value={model} disabled={busy || !models.length}>
         {#each models as m}<option value={m.name}>{m.name} · {m.engine} · {m.family}</option>{/each}

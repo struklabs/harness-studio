@@ -204,6 +204,44 @@ async fn read_request(
     Ok((fields, audio.ok_or_else(|| bad("file is required."))?))
 }
 
+/// Whether a definition is an mlx-audio separator (a Mel-Band-RoFormer MLX folder audio.cpp does
+/// not run). mlx-audio runs on Apple Silicon only: elsewhere every request takes audio.cpp's path.
+fn is_separator(def: &harness_core::domain::ModelDefinition) -> bool {
+    cfg!(all(target_os = "macos", target_arch = "aarch64"))
+        && def
+            .base
+            .local_path()
+            .is_some_and(harness_core::engine::mlx::is_sts_dir)
+        && !def.base.local_path().is_some_and(audio_cpp::is_model)
+}
+
+/// With audio.cpp off (`disabled`), a request is refused before its body is read unless some
+/// definition is an mlx-audio separator.
+fn before_body(disabled: Option<&GatewayError>, any_separator: bool) -> Result<(), GatewayError> {
+    match disabled {
+        Some(e) if !any_separator => Err(e.clone()),
+        _ => Ok(()),
+    }
+}
+
+/// With audio.cpp off (`disabled`), only a separator is served once the model is known.
+fn for_model(disabled: Option<GatewayError>, separator: bool) -> Result<(), GatewayError> {
+    match disabled {
+        Some(e) if !separator => Err(e),
+        _ => Ok(()),
+    }
+}
+
+/// Whether any definition is an mlx-audio separator ([`is_separator`]).
+async fn has_separator(state: &GwState) -> bool {
+    cfg!(all(target_os = "macos", target_arch = "aarch64"))
+        && state
+            .scheduler
+            .definitions()
+            .await
+            .is_ok_and(|defs| defs.iter().any(is_separator))
+}
+
 async fn serve(
     state: &GwState,
     headers: &HeaderMap,
@@ -217,8 +255,12 @@ async fn serve(
         caller.token_name.clone(),
     );
     // With audio.cpp off, only an mlx-audio separator is served; any other request gets the
-    // same error as before (also when its body or model is wrong).
+    // same error as before (also when its body or model is wrong). Without a separator to serve,
+    // it gets it before the body is read, as it did.
     let disabled = crate::speech::check_audio_cpp_enabled().err();
+    if disabled.is_some() {
+        before_body(disabled.as_ref(), has_separator(state).await)?;
+    }
     let (fields, audio) = match read_request(state, request).await {
         Ok(read) => read,
         Err(e) => return Err(disabled.unwrap_or(e)),
@@ -237,18 +279,8 @@ async fn serve(
         Ok(def) => def,
         Err(e) => return Err(disabled.unwrap_or_else(|| GatewayError::from_sched(&e))),
     };
-    // mlx-audio runs on Apple Silicon only: elsewhere every request takes audio.cpp's path.
-    let separator = cfg!(all(target_os = "macos", target_arch = "aarch64"))
-        && def
-            .base
-            .local_path()
-            .is_some_and(harness_core::engine::mlx::is_sts_dir)
-        && !def.base.local_path().is_some_and(audio_cpp::is_model);
-    if !separator {
-        if let Some(e) = disabled {
-            return Err(e);
-        }
-    }
+    let separator = is_separator(&def);
+    for_model(disabled, separator)?;
     caller.check_model(&def.alias)?;
     GatewayError::reject_remote(&def)?;
     let (rebuilt, diarization) = if separator {
@@ -274,7 +306,7 @@ async fn serve(
         .map_err(|e| {
             let mut error = GatewayError::from_sched(&e);
             // Launch failures may include local model/configuration paths.
-            error.message = "The audio.cpp processing worker could not be acquired.".into();
+            error.message = "The audio processing worker could not be acquired.".into();
             error.details = None;
             keyed(error, err("audio_process.worker_failed"))
         })?;
@@ -311,7 +343,7 @@ async fn serve(
                     GatewayError::new(
                         504,
                         "upstream_timeout",
-                        format!("audio.cpp did not finish within {secs} s."),
+                        format!("The audio processing worker did not finish within {secs} s."),
                     ),
                     err("audio_process.timeout").with("seconds", secs),
                 )
@@ -320,7 +352,7 @@ async fn serve(
                     GatewayError::new(
                         502,
                         "upstream_error",
-                        "The audio.cpp server did not answer.",
+                        "The audio processing worker did not answer.",
                     ),
                     err("audio_process.no_answer"),
                 )
@@ -526,6 +558,56 @@ mod tests {
         )
         .unwrap()
     }
+    /// With audio.cpp off, a request is refused before its body is read when no separator is
+    /// defined, and once its model is known unless that is a separator; with audio.cpp on,
+    /// nothing changes. Only Apple Silicon has separators.
+    #[test]
+    fn with_audio_cpp_off_only_separators_are_served() {
+        let off = GatewayError::new(503, "audio_cpp_disabled", "audio.cpp is off");
+        let code = |r: Result<(), GatewayError>| r.err().map(|e| e.code);
+        assert_eq!(
+            code(before_body(Some(&off), false)),
+            Some("audio_cpp_disabled".into())
+        );
+        assert_eq!(code(before_body(Some(&off), true)), None);
+        assert_eq!(code(before_body(None, false)), None);
+        assert_eq!(
+            code(for_model(Some(off.clone()), false)),
+            Some("audio_cpp_disabled".into())
+        );
+        assert_eq!(code(for_model(Some(off), true)), None);
+        assert_eq!(code(for_model(None, false)), None);
+        assert_eq!(code(for_model(None, true)), None);
+
+        let dir = tempfile::tempdir().unwrap();
+        let sep = dir.path().join("mel-roformer");
+        std::fs::create_dir_all(&sep).unwrap();
+        std::fs::write(
+            sep.join("config.json"),
+            r#"{"model_type":"mel_band_roformer"}"#,
+        )
+        .unwrap();
+        std::fs::write(sep.join("model.safetensors"), "x").unwrap();
+        std::fs::write(
+            sep.join("README.md"),
+            "---\nlibrary_name: mlx-audio\ntags:\n- mlx\n---\n",
+        )
+        .unwrap();
+        let def = |path: &Path| {
+            harness_core::domain::ModelDefinition::new(
+                "sep",
+                harness_core::domain::ModelRef::Local {
+                    path: path.to_path_buf(),
+                },
+            )
+        };
+        assert_eq!(
+            is_separator(&def(&sep)),
+            cfg!(all(target_os = "macos", target_arch = "aarch64"))
+        );
+        assert!(!is_separator(&def(dir.path())));
+    }
+
     /// An mlx-audio separator gets the WAV alone in audio.cpp's task shape; options, a prompt or
     /// unknown fields are refused, and its refusals keep their message.
     #[test]

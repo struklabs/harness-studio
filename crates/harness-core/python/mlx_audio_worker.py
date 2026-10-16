@@ -428,13 +428,21 @@ def windows(n, chunk, overlap):
         start += step
 
 
-def make_separate(model, max_seconds, chunk, overlap, clock=time.monotonic):
+def make_separate(model, max_seconds, chunk, overlap, clock=time.monotonic, run=None):
     """`separate(stereo)` -> (vocals, instrumental), each [2, n] float32: the model run over
     windows of `chunk` samples, `overlap` of them per window (mlx-audio's MelRoFormer config:
     chunk_size, num_overlap), blended by overlap-add; the instrumental is the mix minus the
-    vocals. Stopped with TooSlow after `max_seconds` (checked between windows)."""
+    vocals. Stopped with TooSlow after `max_seconds` (checked between windows). `run(piece)`
+    (MLX by default) gives the model's [1, 2, k] output of a [1, 2, k] window."""
     import numpy as np
-    import mlx.core as mx
+
+    if run is None:
+        import mlx.core as mx
+
+        def run(piece):
+            out = model(mx.array(piece))
+            mx.eval(out)
+            return out
 
     def separate(stereo):
         n = stereo.shape[1]
@@ -444,8 +452,7 @@ def make_separate(model, max_seconds, chunk, overlap, clock=time.monotonic):
         for start, end in windows(n, chunk, overlap):
             if clock() > deadline:
                 raise TooSlow()
-            piece = model(mx.array(stereo[None, :, start:end]))
-            mx.eval(piece)
+            piece = run(stereo[None, :, start:end])
             w = overlap_weights(end - start, np)
             out[:, start:end] += np.asarray(piece[0], dtype=np.float32)[:, :end - start] * w
             weight[start:end] += w
@@ -902,10 +909,28 @@ def separation_app_for(separate, decode, encode, alias):
 
 
 def decode_stereo(audio, rate, max_seconds, miniaudio, np):
-    """[2, n] float32 samples of a WAV at `rate` (mono is doubled); more than `max_seconds` is
-    refused."""
-    decoded = miniaudio.decode(audio, output_format=miniaudio.SampleFormat.FLOAT32, nchannels=2,
-                               sample_rate=int(rate))
+    """[2, n] float32 samples of a WAV at `rate` (mono is doubled). The length its header
+    declares is checked before anything is decoded: more than `max_seconds` is refused, and so is
+    a WAV without a frame."""
+    if audio_format(audio) != "wav":
+        raise Refused("the audio must be WAV")
+    try:
+        info = miniaudio.wav_get_info(audio)
+    except Exception:
+        raise Refused("the audio could not be decoded")
+    own_rate = int(getattr(info, "sample_rate", 0) or 0)
+    frames = int(getattr(info, "num_frames", 0) or 0)
+    if own_rate <= 0 or frames <= 0:
+        raise Refused("the audio has no samples")
+    if frames > max_seconds * own_rate:
+        raise Refused("the audio is longer than %d seconds" % max_seconds)
+    try:
+        decoded = miniaudio.decode(audio, output_format=miniaudio.SampleFormat.FLOAT32,
+                                   nchannels=2, sample_rate=int(rate))
+    except Exception:
+        raise Refused("the audio could not be decoded")
+    if decoded.num_frames == 0:
+        raise Refused("the audio has no samples")
     if decoded.num_frames > max_seconds * rate:
         raise Refused("the audio is longer than %d seconds" % max_seconds)
     return np.asarray(decoded.samples, dtype=np.float32).reshape(-1, 2).T.copy()

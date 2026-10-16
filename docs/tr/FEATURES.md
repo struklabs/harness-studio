@@ -408,17 +408,44 @@ Hub'da, etiketleri `mel_band_roformer` diyen MLX `audio-to-audio` deposu mlx-aud
 Worker `mlx_audio_worker.py --task separate`'tir. 127.0.0.1'de dinler ve anahtar ister. Her istekte:
 1. Girdiyi 44,1 kHz stereoya çevirir; mono ses iki kanala kopyalanır.
 2. Sesi modelin 8 saniyelik pencerelerinde %50 örtüşmeyle ayırır ve pencereleri örtüşme-toplamayla birleştirir.
-3. 300 saniyeden uzun sesi reddeder. Bu uzunluktaki iki stereo çıktı ağ geçidinin 128 MiB çıktı sınırının altında kalır.
+3. 300 saniyeden uzun sesi, WAV başlığının bildirdiği uzunluğa bakarak, çözmeden önce reddeder; örneği olmayan WAV da reddedilir (400). Bu uzunluktaki iki stereo çıktı ağ geçidinin 128 MiB çıktı sınırının altında kalır.
 
 Ağ geçidinin istek zaman aşımı pencereler arasında kontrol edilir ve uzun bir işi 504 ile bitirir.
 
-audio.cpp'nin çalıştırdığı modellerin yolu değişmez. audio.cpp kapalıyken yalnız bu ayırıcılar sunulur.
+audio.cpp'nin çalıştırdığı modellerin yolu değişmez. audio.cpp kapalıyken yalnız bu ayırıcılar sunulur: hiçbiri tanımlı değilse istek, eskisi gibi, gövdesi okunmadan reddedilir.
 
 Playground > Konuşma > Sesi İşle iki motorun modellerini, her birini çalıştıran motorun adıyla listeler.
 
 M1 8 GB'ta ölçüm:
 - 4,5 sn konuşma 1,5–4,3 sn sürdü;
 - 21,6 sn, model yüklemesi dahil 12 sn sürdü.
+
+### mflux ile Görsel Üretme (Apple Silicon)
+
+Apple Silicon'da (macOS 14+) mflux biçimindeki FLUX.2 [klein] modelleri mflux motoruyla metinden görsel çizer ve görsel düzenler (aile `mflux`, kendi yönetilen ortamı, yaklaşık 1,1 GB). Örnekler:
+- `mlx-community/FLUX.2-Klein-4B-3bit` (3,6 GB);
+- `mlx-community/FLUX.2-Klein-4B-4bit` ve `mflux-community/flux2-klein-4b-mflux-q4` (4,6 GB).
+
+4B modeller Apache-2.0'dır. 9B olanlar (`flux2-klein-9b*`, `flux-2-klein-base-9b*`) Black Forest Labs'in ticari olmayan lisansını kullanır: Hub her deponun lisansını gösterir; etiketin ipucu ve motor açıklaması da bunu söyler. mflux biçimindeki Qwen-Image-Edit ve FLUX.1 Kontext dönüşümleri sunulmaz.
+
+Hub, etiketleri bir FLUX.2 [klein] temel modeli adlandıran ve dosyaları mflux düzeninde olan depoyu "mflux ile çizer" olarak işaretler (`transformer/`, `text_encoder/`, `vae/` numaralı parçalar ve diziniyle, `tokenizer/`). İndirme model kartını ve bu dört klasörü alır. Kütüphane klasörü görsel modeli olarak listeler; Playground > Görsel onu gösterir.
+
+`POST /v1/images/generations` ve `POST /v1/images/edits` bu modelleri OpenAI alanlarıyla sunar:
+- `prompt`, `n` (1–4), `size` (iki kenar 64–2048 arası ve 16'nın katı), `seed`, `steps` (1–50), `guidance` (0–20), `response_format`; düzenleme ayrıca `image` (1–4 görsel, başvuru olarak kullanılır) ve `strength` alır.
+- Negatif istem, maske, örnekleyici, zamanlayıcı ya da `cfg_scale` yoktur; böyle bir alan, adını veren bir 400 alır.
+- Boyut verilmezse üretim, 1024, 768, 512, 384 ve 256 kare boyutlardan Mac'in belleğine sığan en büyüğünü alır; düzenleme ilk görselin biçimini korur.
+- Adım sayısı damıtılmış modellerde 4, temel modellerde 28'dir.
+
+Worker her görselden önce belleğini tahmin eder (ağırlıklar ve görselle büyüyen kısım) ve sığmayan bir boyutu, sığan en büyüğünü söyleyerek reddeder. Tahmin M1 8 GB'ta 3-bit 4B ile ölçülerek kuruldu; orada sığan en büyük boyut 512×512'dir.
+
+Üretim, worker'ın zaman sınırı dolunca (504; ağ geçidinin istek zaman aşımından 30 sn kısa, en çok 600 sn) ya da istemci ayrılınca gürültü giderme adımları arasında durur. Playground'daki Durdur düğmesi de bunu yapar.
+
+Worker Python'u yalnız hash'leri sabitlenmiş ortamdan çalıştırır, yalnız başlatıldığı klasörü yükler, çevrimdışı çalışır, 127.0.0.1'de dinler ve her çalıştırmanın anahtarını ister.
+
+M1 8 GB'ta `FLUX.2-Klein-4B-3bit` ile ölçüm:
+- 512×512, 4 adım: 43 sn (tepe 5,7 GB);
+- 512×512 bir görselin 512×512 düzenlemesi: 68 sn (tepe 5,8 GB);
+- 256×256, 2 adım, ağ geçidi üzerinden: model yüklemesiyle 22 sn.
 
 ## Deneysel CrispASR ile Konuşma Tanıma
 

@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { isImageDefinition, needsStartImage, takesStrength } = await import('../src/lib/components/playground/imageModels.ts');
+const { isImageDefinition, isMflux, needsStartImage, takesStrength } = await import('../src/lib/components/playground/imageModels.ts');
 
 const file = (name, task, architecture) => ({ id: name, name, path: `/m/${name}`, kind: 'pipeline', task, architecture, is_ready: true });
 const def = (alias) => ({ id: `md-${alias}`, alias, base: { kind: 'local', path: `/m/${alias}` } });
@@ -24,4 +24,15 @@ test('image-to-image models need a start image; only the Img2Img ones take a str
   assert.deepEqual(defs.map((d) => needsStartImage(d.alias, defs, files)), [false, true, true, true, false]);
   assert.deepEqual(['tiny-sd', 'pix2pix', 'refiner', 'qwen-edit'].map((a) => takesStrength(a, defs, files)), [true, false, true, false]);
   assert.equal(needsStartImage('unknown', defs, files), false);
+});
+
+test('mflux FLUX.2 [klein] folders draw and edit; they are told apart from diffusers pipelines', () => {
+  const klein = file('klein', 'text-to-image', 'flux2-klein-4b');
+  const all = [...files, klein];
+  const defsAll = [...defs, def('klein')];
+  assert.equal(isImageDefinition(def('klein'), all), true);
+  assert.equal(isMflux('klein', defsAll, all), true);
+  assert.equal(needsStartImage('klein', defsAll, all), false);
+  assert.equal(takesStrength('klein', defsAll, all), true);
+  assert.deepEqual(['tiny-sd', 'qwen-edit', 'unknown'].map((a) => isMflux(a, defsAll, all)), [false, false, false]);
 });

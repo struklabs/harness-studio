@@ -401,12 +401,14 @@ fn whisper_processor_for_vocab(n_vocab: u64) -> Option<Codec> {
 /// multilingual one. `None` for any other name: a fine-tune (`kotoba-whisper-v2.0`) may have
 /// another vocabulary, so it is not guessed.
 fn whisper_processor_for_repo(id: &str) -> Option<Codec> {
+    static SIZE_NAME: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(
+            r"(^|[-_])whisper-(tiny|base|small|medium|large-v3-turbo|large-v3|large-v2|large|turbo)(\.en)?([-_]|$)",
+        )
+        .expect("a valid pattern")
+    });
     let name = id.rsplit('/').next().unwrap_or(id).to_ascii_lowercase();
-    let re = regex::Regex::new(
-        r"(^|[-_])whisper-(tiny|base|small|medium|large-v3-turbo|large-v3|large-v2|large|turbo)(\.en)?([-_]|$)",
-    )
-    .ok()?;
-    let caps = re.captures(&name)?;
+    let caps = SIZE_NAME.captures(&name)?;
     let size = caps.get(2)?.as_str();
     Some(if size.starts_with("large-v3") || size == "turbo" {
         WHISPER_LARGE_V3_PROCESSOR
@@ -2748,6 +2750,20 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
                 "openai/whisper-tiny.en",
             ),
             ("mlx-community/whisper-tiny", "openai/whisper-small"),
+            ("mlx-community/whisper-base-mlx", "openai/whisper-small"),
+            (
+                "mlx-community/whisper-small-mlx-8bit",
+                "openai/whisper-small",
+            ),
+            ("mlx-community/whisper-large-mlx", "openai/whisper-small"),
+            (
+                "mlx-community/whisper-large-v3-turbo-4bit",
+                "openai/whisper-large-v3",
+            ),
+            (
+                "mlx-community/whisper-tiny.en-8bit",
+                "openai/whisper-tiny.en",
+            ),
         ] {
             assert_eq!(
                 whisper_processor_for_repo(repo).map(|c| c.repo),
@@ -4151,6 +4167,46 @@ print("bad", req({{"request": {{"audio_base64": "!!"}}}}))
 print("short", w.windows(100, 352800, 2))
 print("long", w.windows(10, 4, 2))
 print("exact", w.windows(8, 4, 2))
+
+# The WAV's header is checked before anything is decoded.
+import types
+class Mini:
+    SampleFormat = types.SimpleNamespace(FLOAT32="f32")
+    def __init__(self, rate, frames):
+        self.info = types.SimpleNamespace(sample_rate=rate, num_frames=frames)
+        self.decoded = 0
+    def wav_get_info(self, audio):
+        return self.info
+    def decode(self, audio, **kw):
+        self.decoded += 1
+        raise RuntimeError("decoded")
+wav = b"RIFF\x00\x00\x00\x00WAVEfmt "
+for name, audio, mini in [("long header", wav, Mini(44100, 44100 * 301)), ("no frames", wav, Mini(44100, 0)),
+                          ("not wav", b"fLaC" + b"\x00" * 8, Mini(44100, 10)), ("broken", wav, Mini(44100, 10))]:
+    try:
+        w.decode_stereo(audio, 44100, 300, mini, None)
+    except w.Refused as e:
+        print(name, "refused:", e, "decoded", mini.decoded)
+
+# The stems come back as `vocals` and `instrumental`, each one WAV.
+import asyncio, base64
+async def call(app, body):
+    sent, msgs = [], [{{"type": "http.request", "body": body, "more_body": False}}]
+    async def receive():
+        return msgs.pop(0)
+    async def send(m):
+        sent.append(m)
+    await app({{"type": "http", "method": "POST", "path": w.PROCESS_PATH, "headers": [(b"authorization", b"Bearer k")]}}, receive, send)
+    return sent[0]["status"], json.loads(sent[1]["body"])
+def decode(audio):
+    if audio == b"empty":
+        raise w.Refused("the audio has no samples")
+    return "mix"
+app = w.separation_app_for(lambda mix: (mix + ":v", mix + ":i"), decode, lambda stem: stem.encode(), "sep")
+status, body = asyncio.run(call(app, json.dumps({{"model": "sep", "request": {{"audio_base64": "UklGRg=="}}}}).encode()))
+print("stems", status, [(o["id"], base64.b64decode(o["audio"])) for o in body["named_audio_outputs"]])
+status, body = asyncio.run(call(app, json.dumps({{"request": {{"audio_base64": base64.b64encode(b"empty").decode()}}}}).encode()))
+print("empty", status, body["error"]["message"])
 "#,
             dir.path().to_string_lossy()
         );
@@ -4171,6 +4227,81 @@ print("exact", w.windows(8, 4, 2))
             "short [(0, 100)]",
             "long [(0, 4), (2, 6), (4, 8), (6, 10)]",
             "exact [(0, 4), (2, 6), (4, 8)]",
+            "long header refused: the audio is longer than 300 seconds decoded 0",
+            "no frames refused: the audio has no samples decoded 0",
+            "not wav refused: the audio must be WAV decoded 0",
+            "broken refused: the audio could not be decoded decoded 1",
+            "stems 200 [('vocals', b'mix:v'), ('instrumental', b'mix:i')]",
+            "empty 400 the audio has no samples.",
+        ] {
+            assert!(text.contains(line), "{line} missing:\n{text}");
+        }
+    }
+
+    /// A Python with NumPy for the worker checks that need it: the system Python when it has
+    /// NumPy, else `HS_TEST_PYTHON` (an environment's interpreter); `None` skips them.
+    fn python_with_numpy() -> Option<String> {
+        let has = |python: &str| {
+            std::process::Command::new(python)
+                .args(["-I", "-c", "import numpy"])
+                .output()
+                .is_ok_and(|o| o.status.success())
+        };
+        system_python()
+            .map(str::to_string)
+            .filter(|p| has(p))
+            .or_else(|| std::env::var("HS_TEST_PYTHON").ok().filter(|p| has(p)))
+    }
+
+    /// Separation blends overlapping windows back into the whole length (a model that halves
+    /// its input gives half the mix as vocals and the other half as instrumental, ends
+    /// included) and stops between windows once its time is up.
+    #[test]
+    fn the_audio_worker_blends_separation_windows() {
+        let Some(python) = python_with_numpy() else {
+            eprintln!("no Python with NumPy, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mlx_audio_worker.py"), AUDIO_WORKER).unwrap();
+        let script = format!(
+            r#"
+import sys; sys.path.insert(0, {:?}); import mlx_audio_worker as w
+import numpy as np
+mix = np.stack([np.linspace(-1, 1, 10, dtype=np.float32), np.linspace(1, -1, 10, dtype=np.float32)])
+seen = []
+def run(piece):
+    seen.append(piece.shape)
+    return piece * 0.5
+vocals, instrumental = w.make_separate(None, 60, 4, 2, run=run)(mix)
+print("shapes", vocals.shape, instrumental.shape, seen)
+print("halves", bool(np.allclose(vocals, mix / 2, atol=1e-6)), bool(np.allclose(instrumental, mix / 2, atol=1e-6)))
+now = [0.0]
+def slow(piece):
+    now[0] += 10
+    return piece
+try:
+    w.make_separate(None, 15, 4, 2, clock=lambda: now[0], run=slow)(mix)
+except w.TooSlow:
+    print("too slow after", now[0])
+wav = w.wav_bytes_channels(np.stack([mix[0], mix[1]]), 44100)
+print("wav", wav[:4], wav[8:12], int.from_bytes(wav[22:24], "little"), int.from_bytes(wav[24:28], "little"), len(wav) - 44)
+"#,
+            dir.path().to_string_lossy()
+        );
+        let out = std::process::Command::new(&python)
+            .args(["-I", "-c", &script])
+            .env("HARNESS_WORKER_API_KEY", "k")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&out.stdout).to_string()
+            + &String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{text}");
+        for line in [
+            "shapes (2, 10) (2, 10) [(1, 2, 4), (1, 2, 4), (1, 2, 4), (1, 2, 4)]",
+            "halves True True",
+            "too slow after 20.0",
+            "wav b'RIFF' b'WAVE' 2 44100 40",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }
