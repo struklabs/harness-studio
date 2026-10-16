@@ -1033,6 +1033,7 @@ export type HfNotRunnable =
   | 'vibevoice_layout'
   | 'audio_cpp_incomplete_package'
   | 'sdxl_refiner_folder_required'
+  | 'unsupported_weight_layout'
   | 'no_gguf'
   | 'adapter'
   | 'not_language_model'
