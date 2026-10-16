@@ -402,6 +402,7 @@
       <p class="text-sm">{t('onboarding.sg_mcp_found', { list: mcpSummary })}</p>
       <div class="flex max-h-56 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border bg-card p-1">
         {#each mcpFound as s (s.key)}
+          {@const mcpTarget = s.def.url ?? [s.def.command ?? '', ...(s.def.args ?? [])].join(' ')}
           <label class="flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted/50">
             <Checkbox
               disabled={busy || outcome[s.key]?.ok}
@@ -410,8 +411,8 @@
             />
             <span class="shrink-0 font-medium">{s.name}</span>
             <Badge variant="outline" class="shrink-0 text-muted-foreground">{MCP_SOURCE_LABEL[s.source]}</Badge>
-            <code class="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-              {s.def.url ?? [s.def.command ?? '', ...(s.def.args ?? [])].join(' ')}
+            <code class="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground" title={mcpTarget}>
+              {mcpTarget}
             </code>
             {#if outcome[s.key]?.ok}<Check class="size-3.5 shrink-0 text-success" />{/if}
           </label>

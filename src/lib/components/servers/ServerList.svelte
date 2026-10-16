@@ -229,7 +229,7 @@
                 {:else}
                   <div class="flex min-w-0 flex-col gap-0.5">
                     <div class="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                      <span class="max-w-full truncate text-sm font-medium text-foreground">{app.serverLabel(r.id)}</span>
+                      <span class="max-w-full truncate text-sm font-medium text-foreground" title={app.serverLabel(r.id)}>{app.serverLabel(r.id)}</span>
                       {#if !r.profile && !r.session}
                         <span class="shrink-0 text-xs text-muted-foreground" title={r.id === DEFAULT_SERVER_ID ? t('srv.default_unsaved_tip') : t('ui.srv_unsaved_tip')}>{t('ui.srv_unsaved')}</span>
                       {/if}

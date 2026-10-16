@@ -29,7 +29,7 @@
 
 <Dialog.Root bind:open {...restProps}>
 	<Dialog.Content
-		class={cn("rounded-xl! top-1/3 translate-y-0 overflow-hidden p-0", className)}
+		class={cn("rounded-xl! top-1/3 translate-y-0 overflow-hidden p-0 [@media(max-height:640px)]:top-4", className)}
 		{showCloseButton}
 		{portalProps}
 	>

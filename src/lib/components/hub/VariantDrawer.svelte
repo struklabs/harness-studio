@@ -734,7 +734,7 @@
                         {@const isRecommended = recommended?.name === variant.name}
                         {@const isFocused = !!focusFile && isTwinFile(variant.shards[0]?.filename ?? variant.name, focusFile)}
                         <Table.Row class={isFocused ? 'bg-primary/10' : ''} data-unavailable={!!variant.not_runnable || undefined} data-focus={isFocused ? 'true' : undefined} {@attach focusRow(isFocused)}>
-                          <Table.Cell class="max-w-[220px]">
+                          <Table.Cell class="max-w-[150px] sm:max-w-[220px]">
                             <div class="flex min-w-0 flex-col">
                               <span class="flex items-center gap-1.5">
                                 {#if uiLevel.advanced || showAllFiles}<span class="font-mono text-sm font-medium" title={t('hub.quant_badge_title')}>{quantLabel(variant)}</span>{:else if isFocused}<span class="min-w-0 truncate text-sm font-medium" title={variant.name}>{variant.name}</span>{:else}<span class="text-sm font-medium">{t('hub.download_option')}</span>{/if}
@@ -765,7 +765,7 @@
                           <Table.Cell class="text-right font-num text-xs">
                             {variant.total_size_bytes > 0 ? formatBytes(variant.total_size_bytes) : '–'}
                           </Table.Cell>
-                          <Table.Cell>
+                          <Table.Cell class="whitespace-normal">
                             {#if variant.not_runnable}
                               <span class="text-xs text-warning">{t(notRunnableKey(variant.not_runnable))}</span>
                             {:else if 'runtime' in repo.compatibility && repo.compatibility.runtime === 'audio.cpp'}
@@ -827,7 +827,7 @@
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    class="min-w-24 font-num"
+                                    class="min-w-20 font-num sm:min-w-24"
                                     onclick={() => requestDownload(variant)}
                                     disabled={pending || adding || isLoadingVariants}
                                   >
