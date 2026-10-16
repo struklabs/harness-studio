@@ -3712,7 +3712,10 @@ own = types.SimpleNamespace(_processor="own")
 w.whisper_processor(own, ["openai/whisper-small=/lib/p"], lambda d: "proc " + d)
 other = types.SimpleNamespace()
 w.whisper_processor(other, ["openai/whisper-small=/lib/p"], lambda d: "proc " + d)
-print("processors", bare._processor, own._processor, hasattr(other, "_processor"))
+# The worker resolves the folder (`realpath`: `/lib` is a link on Linux, a drive is added on
+# Windows), so the expected value is resolved the same way.
+print("processors", bare._processor == "proc " + w.os.path.realpath("/lib/p"), own._processor,
+      hasattr(other, "_processor"))
 "#,
             dir.path().to_string_lossy(),
             dir.path().join("parakeet").to_string_lossy()
@@ -3743,7 +3746,7 @@ print("processors", bare._processor, own._processor, hasattr(other, "_processor"
             "parakeet translate refused this model only transcribes",
             "parakeet calls [{'chunk_duration': None}, {'chunk_duration': 120.0}]",
             "parakeet options {'model_type': 'parakeet'}",
-            "processors proc /lib/p own False",
+            "processors True own False",
             "tail 'Hello there.'",
             "nan scores 'Real speech.'",
             "no starts 'as is'",
