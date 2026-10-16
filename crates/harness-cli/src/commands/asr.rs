@@ -229,7 +229,9 @@ fn render(t: &Transcript, format: Format) -> String {
 }
 
 fn is_resident_asr(path: &std::path::Path) -> bool {
-    asr::is_onnx_ctc_file(path) || harness_core::engine::crispasr::is_model(path)
+    harness_core::engine::transcribe_cpp::is_model(path)
+        || asr::is_onnx_ctc_file(path)
+        || harness_core::engine::crispasr::is_model(path)
 }
 
 pub async fn transcribe(args: &TranscribeArgs, out: &Out) -> CliResult<()> {
@@ -298,7 +300,17 @@ pub async fn transcribe(args: &TranscribeArgs, out: &Out) -> CliResult<()> {
     }
     let transcript = if let Some(path) = ctc {
         out.info(format!("Transcribing with {} ...", path.display()));
-        if harness_core::engine::crispasr::is_model(&path) {
+        if harness_core::engine::transcribe_cpp::is_model(&path) {
+            asr::transcribe_cpp::transcribe(
+                &path,
+                audio,
+                args.language.as_deref(),
+                false,
+                matches!(format, Format::VerboseJson | Format::Srt | Format::Vtt),
+            )
+            .await
+            .map_err(CliError::core)?
+        } else if harness_core::engine::crispasr::is_model(&path) {
             asr::crispasr::transcribe(
                 &path,
                 audio,
@@ -410,6 +422,30 @@ mod tests {
         let mut v = vec!["harness"];
         v.extend_from_slice(args);
         crate::cli::Cli::try_parse_from(v).unwrap().command
+    }
+
+    #[test]
+    fn transcribe_cpp_is_resident_asr() {
+        use std::io::Write;
+        let dir = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        let path = dir.path().join("parakeet.gguf");
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(b"GGUF").unwrap();
+        file.write_all(&3u32.to_le_bytes()).unwrap();
+        file.write_all(&0u64.to_le_bytes()).unwrap();
+        file.write_all(&2u64.to_le_bytes()).unwrap();
+        for (key, value) in [
+            ("general.architecture", "parakeet"),
+            ("stt.variant", "parakeet"),
+        ] {
+            file.write_all(&(key.len() as u64).to_le_bytes()).unwrap();
+            file.write_all(key.as_bytes()).unwrap();
+            file.write_all(&8u32.to_le_bytes()).unwrap();
+            file.write_all(&(value.len() as u64).to_le_bytes()).unwrap();
+            file.write_all(value.as_bytes()).unwrap();
+        }
+        drop(file);
+        assert!(is_resident_asr(&path));
     }
 
     #[test]
