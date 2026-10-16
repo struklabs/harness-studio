@@ -8,7 +8,7 @@
   let descriptionId = $derived(id ?? uid);
 </script>
 {#if children}
-  <span data-help-scope class={cn('field-help inline-flex min-w-0 items-center gap-1', className)} use:describeFields={descriptionId}>
+  <span data-help-scope class={cn('field-help inline-flex max-w-full min-w-0 items-center gap-1', className)} use:describeFields={descriptionId}>
     <span class="min-w-0 flex-1">{@render children()}</span>
     <HelpPopover {text} {label} />
     <span id={descriptionId} class="sr-only">{text}</span>

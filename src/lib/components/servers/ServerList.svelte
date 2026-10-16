@@ -191,7 +191,7 @@
     {/if}
   </div>
 
-  <div class="overflow-hidden rounded-lg border border-border bg-card">
+  <div class="@container/srv overflow-hidden rounded-lg border border-border bg-card">
     {#if rows.length === 0}
       <div class="p-8">
         <Empty>
@@ -200,14 +200,15 @@
         </Empty>
       </div>
     {:else}
-      <Table.Root class="w-full table-fixed">
+      <!-- The fixed columns take 416px: in a narrow window or at a high interface scale the table scrolls sideways rather than squeezing the name to a few letters, and the actions column stays in view. -->
+      <Table.Root class="w-full min-w-[600px] table-fixed">
         <Table.Header>
           <Table.Row class="border-b border-border hover:bg-transparent">
             <Table.Head class="min-w-0 pl-4">{t('ui.srv_col_server')}</Table.Head>
             <Table.Head class="w-[84px] text-right">{t('srv.col_port')}</Table.Head>
             <Table.Head class="w-[120px]">{t('srv.col_status')}</Table.Head>
             <Table.Head class="w-[124px] text-center" title={t('srv.auto_start_note')}>{t('ui.srv_col_autostart')}</Table.Head>
-            <Table.Head class="w-[88px] pr-4 text-right"><span class="sr-only">{t('srv.col_actions')}</span></Table.Head>
+            <Table.Head class="w-[88px] pr-4 text-right @max-[600px]/srv:sticky @max-[600px]/srv:right-0 @max-[600px]/srv:bg-card"><span class="sr-only">{t('srv.col_actions')}</span></Table.Head>
           </Table.Row>
         </Table.Header>
         <Table.Body>
@@ -229,7 +230,7 @@
                 {:else}
                   <div class="flex min-w-0 flex-col gap-0.5">
                     <div class="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                      <span class="max-w-full truncate text-sm font-medium text-foreground">{app.serverLabel(r.id)}</span>
+                      <span class="max-w-full truncate text-sm font-medium text-foreground" title={app.serverLabel(r.id)}>{app.serverLabel(r.id)}</span>
                       {#if !r.profile && !r.session}
                         <span class="shrink-0 text-xs text-muted-foreground" title={r.id === DEFAULT_SERVER_ID ? t('srv.default_unsaved_tip') : t('ui.srv_unsaved_tip')}>{t('ui.srv_unsaved')}</span>
                       {/if}
@@ -286,7 +287,7 @@
                 {/if}
               </Table.Cell>
 
-              <Table.Cell class="py-2 pr-4 text-right align-top">
+              <Table.Cell class="py-2 pr-4 text-right align-top @max-[600px]/srv:sticky @max-[600px]/srv:right-0 @max-[600px]/srv:bg-card">
                 <div class="flex items-center justify-end gap-1">
                   {#if live}
                     <Button
