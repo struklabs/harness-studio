@@ -735,10 +735,11 @@ pub fn mlx_compatibility_on(
     }
     let root = |f: &&String| !f.contains('/') && !f.contains('\\');
     let has_config = files.iter().filter(root).any(|f| f == "config.json");
-    // mlx-examples' older Whisper conversions have `weights.npz`.
+    // mlx-examples' older Whisper conversions have `weights.npz` (recognition only).
     let has_weights = files.iter().filter(root).any(|f| {
         let f = f.to_ascii_lowercase();
-        f.ends_with(".safetensors") || (family == MLX_AUDIO_FAMILY && f.ends_with(".npz"))
+        f.ends_with(".safetensors")
+            || (task == Some("automatic-speech-recognition") && f.ends_with(".npz"))
     });
     if !files.is_empty() && !(has_config && has_weights) {
         return None;
@@ -1561,6 +1562,19 @@ mod tests {
                 "{repo}"
             );
         }
+        // npz weights count for recognition only: not for a text-to-speech repo.
+        assert_eq!(
+            mlx_compatibility_on(
+                "mlx-community/Qwen3-TTS-12Hz-0.6B-Base-8bit",
+                ModelFormat::Mlx,
+                Some("text-to-speech"),
+                &s(&["config.json", "weights.npz"]),
+                &s(&["mlx"]),
+                true,
+                false
+            ),
+            None
+        );
         // Weights without a processor or a known layout are not offered; npz is no chat model.
         assert_eq!(
             mlx_compatibility_on(

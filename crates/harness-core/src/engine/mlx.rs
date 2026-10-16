@@ -365,18 +365,29 @@ fn whisper_processor_for_vocab(n_vocab: u64) -> Option<Codec> {
     }
 }
 
-/// The processor of a Hub Whisper repo by its name (the listing has no config): large-v3 and
-/// turbo, English-only (`.en`), else the multilingual one.
-fn whisper_processor_for_repo(id: &str) -> Codec {
+/// The processor of a Hub Whisper repo by its name (the listing has no config), for OpenAI's
+/// sizes only (`whisper-<size>[.en]`): large-v3 and turbo, English-only (`.en`), else the
+/// multilingual one. `None` for any other name: a fine-tune (`kotoba-whisper-v2.0`) may have
+/// another vocabulary, so it is not guessed.
+fn whisper_processor_for_repo(id: &str) -> Option<Codec> {
     let name = id.rsplit('/').next().unwrap_or(id).to_ascii_lowercase();
-    if name.contains("large-v3") || name.contains("turbo") {
+    let re = regex::Regex::new(
+        r"(^|[-_])whisper-(tiny|base|small|medium|large-v3-turbo|large-v3|large-v2|large|turbo)(\.en)?([-_]|$)",
+    )
+    .ok()?;
+    let caps = re.captures(&name)?;
+    let size = caps.get(2)?.as_str();
+    Some(if size.starts_with("large-v3") || size == "turbo" {
         WHISPER_LARGE_V3_PROCESSOR
-    } else if name.contains(".en") {
+    } else if caps.get(3).is_some() {
         WHISPER_TINY_EN_PROCESSOR
     } else {
         WHISPER_SMALL_PROCESSOR
-    }
+    })
 }
+
+/// The bundle id of a Whisper processor plan ([`codec_plan_for_repo`]).
+pub const WHISPER_BUNDLE: &str = "mlx-audio:whisper";
 
 /// Whether a config is mlx-examples' Whisper config (`n_mels`, `n_vocab`...; transformers names
 /// them `num_mel_bins`, `vocab_size`). Such a folder is an MLX build and has no processor.
@@ -526,7 +537,7 @@ pub fn codec_plan_for_repo(
         // The processor of an mlx-examples Whisper conversion. mlx-audio's own conversions
         // (`whisper-large-v3-turbo-asr-fp16`) have theirs.
         None if name.contains("whisper") && !name.contains("-asr") => {
-            ("whisper", vec![whisper_processor_for_repo(repo)])
+            ("whisper", vec![whisper_processor_for_repo(repo)?])
         }
         None => return None,
     };
@@ -551,7 +562,11 @@ pub fn codec_plan_for_repo(
         })
         .collect();
     Some(crate::image_bundles::BundlePlan {
-        bundle_id: format!("mlx-audio:{family}"),
+        bundle_id: if family == "whisper" {
+            WHISPER_BUNDLE.to_string()
+        } else {
+            format!("mlx-audio:{family}")
+        },
         label: repo.rsplit('/').next().unwrap_or(repo).to_string(),
         components,
         defaults: Default::default(),
@@ -945,8 +960,9 @@ pub fn has_whisper_processor(has: impl Fn(&str) -> bool) -> bool {
 /// Whether a Hub repo's root files are enough for mlx-audio: a Whisper repo
 /// ([`is_stt_repo`] by a `whisper` tag or name) needs [`has_whisper_processor`], or is one of
 /// mlx-examples' conversions (`config.json` and `weights.npz` / `weights.safetensors`, or
-/// quantized `model.safetensors` with a tiktoken vocabulary) whose processor is downloaded with
-/// it ([`codec_plan_for_repo`]). A listing without file names is taken as it is.
+/// quantized `model.safetensors` with a root tiktoken vocabulary) named after an OpenAI size,
+/// whose processor is downloaded with it ([`codec_plan_for_repo`]). A listing without file
+/// names is taken as it is.
 pub fn stt_repo_files_ok(id: &str, tags: &[String], files: &[String]) -> bool {
     let whisper = id
         .rsplit('/')
@@ -959,7 +975,11 @@ pub fn stt_repo_files_ok(id: &str, tags: &[String], files: &[String]) -> bool {
     let mlx_examples = root("config.json")
         && (root("weights.npz")
             || root("weights.safetensors")
-            || (root("model.safetensors") && files.iter().any(|f| f.ends_with(".tiktoken"))));
+            || (root("model.safetensors")
+                && files
+                    .iter()
+                    .any(|f| !f.contains('/') && f.ends_with(".tiktoken"))))
+        && whisper_processor_for_repo(id).is_some();
     files.is_empty() || !whisper || has_whisper_processor(root) || mlx_examples
 }
 
@@ -2497,6 +2517,79 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             assert_eq!(folder, format!("{processor}-processor"));
             assert_eq!(file.repo, processor);
         }
+        // Only OpenAI's size names are mapped: a fine-tune may have another vocabulary.
+        for repo in [
+            "mlx-community/kotoba-whisper-v2.0",
+            "someone/whisper-custom-mlx",
+            "mlx-community/whisperx",
+        ] {
+            assert!(whisper_processor_for_repo(repo).is_none(), "{repo}");
+            assert!(codec_plan_for_repo(repo, &libraries).is_none(), "{repo}");
+        }
+        for (repo, processor) in [
+            (
+                "mlx-community/distil-whisper-large-v3",
+                "openai/whisper-large-v3",
+            ),
+            ("mlx-community/whisper-turbo", "openai/whisper-large-v3"),
+            ("mlx-community/whisper-large-v2-mlx", "openai/whisper-small"),
+            (
+                "mlx-community/whisper-medium.en-mlx",
+                "openai/whisper-tiny.en",
+            ),
+            ("mlx-community/whisper-tiny", "openai/whisper-small"),
+        ] {
+            assert_eq!(
+                whisper_processor_for_repo(repo).map(|c| c.repo),
+                Some(processor),
+                "{repo}"
+            );
+        }
+        // The processor of each vocabulary.
+        for (vocab, processor) in [
+            (51866, "openai/whisper-large-v3"),
+            (51865, "openai/whisper-small"),
+            (51864, "openai/whisper-tiny.en"),
+        ] {
+            assert_eq!(
+                whisper_processor_for_vocab(vocab).map(|c| c.repo),
+                Some(processor)
+            );
+        }
+        assert!(whisper_processor_for_vocab(51867).is_none());
+        // The Hub: a tiktoken vocabulary counts at the root only, and an unknown name is not
+        // offered without a processor of its own.
+        let files = |f: &[&str]| f.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let quantized = files(&["config.json", "model.safetensors", "multilingual.tiktoken"]);
+        assert!(stt_repo_files_ok(
+            "mlx-community/whisper-large-v3-turbo-4bit",
+            &[],
+            &quantized
+        ));
+        assert!(!stt_repo_files_ok(
+            "mlx-community/whisper-large-v3-turbo-4bit",
+            &[],
+            &files(&[
+                "config.json",
+                "model.safetensors",
+                "sub/multilingual.tiktoken"
+            ])
+        ));
+        assert!(!stt_repo_files_ok(
+            "mlx-community/kotoba-whisper-v2.0",
+            &[],
+            &quantized
+        ));
+        assert!(stt_repo_files_ok(
+            "mlx-community/kotoba-whisper-v2.0",
+            &[],
+            &files(&[
+                "config.json",
+                "model.safetensors",
+                "preprocessor_config.json",
+                "tokenizer.json"
+            ])
+        ));
     }
 
     /// CSM (`sesame`, `mlx-community/csm-1b-fp16`): a speech folder whose Mimi codec, Llama 3.2
@@ -2781,6 +2874,12 @@ tags:
             ]);
             assert!(is_stt_dir(npz.path()), "{vocab}");
             assert_eq!(audio_dir_info(npz.path()).weights.len(), 1);
+            // Safetensors beside the npz are the weights, the npz is not counted twice.
+            std::fs::write(npz.path().join("weights.safetensors"), "x").unwrap();
+            let weights = audio_dir_info(npz.path()).weights;
+            assert_eq!(weights.len(), 1);
+            assert!(weights[0].ends_with("weights.safetensors"));
+            std::fs::remove_file(npz.path().join("weights.safetensors")).unwrap();
             let e = companion_args(npz.path(), &[]).unwrap_err();
             assert!(e.contains(repo), "{e}");
         }

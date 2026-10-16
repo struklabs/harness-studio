@@ -31,11 +31,15 @@ pub(crate) async fn get_image_bundle_plan(
     file: String,
     repo: Option<String>,
 ) -> Result<Option<harness_core::image_bundles::BundlePlan>, String> {
-    blocking(move || {
-        let libraries = AppSettings::load().all_models_dirs();
-        harness_core::downloader::companion_plan(&file, repo.as_deref(), &libraries)
-    })
-    .await
+    let libraries = blocking(|| AppSettings::load().all_models_dirs()).await?;
+    let token = harness_core::hf_auth::current_token().await;
+    Ok(harness_core::downloader::companion_plan_checked(
+        &file,
+        repo.as_deref(),
+        &libraries,
+        token.as_deref(),
+    )
+    .await)
 }
 
 /// Makes a model definition for every ready image model that has none (companions included);
