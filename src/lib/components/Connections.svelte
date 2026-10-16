@@ -44,7 +44,6 @@
     active = id;
     visited[id] = true;
     try { localStorage.setItem('harness_connections_page', id); } catch { /* unavailable */ }
-    if (navPane.floating) navPane.close();
   }
   onMount(() => {
     let saved: string | null = null;
