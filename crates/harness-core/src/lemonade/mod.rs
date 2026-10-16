@@ -512,7 +512,11 @@ fn spawn(
         readers.push(reader(errs, log));
     }
     for r in readers {
-        std::thread::spawn(r);
+        if let Err(e) = crate::resource_io::spawn_thread("harness-lemond-log", r) {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(err("process.log_reader_failed").with("error", e).into());
+        }
     }
     Ok(child)
 }

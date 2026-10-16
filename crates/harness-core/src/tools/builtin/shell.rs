@@ -125,13 +125,31 @@ pub fn run_shell(
     // One buffer for both pipes, in the order the bytes arrive.
     let sink = Arc::new(Mutex::new(Sink::default()));
     let mut readers = Vec::new();
-    if let Some(out) = child.inner().stdout.take() {
-        let s = sink.clone();
-        readers.push(std::thread::spawn(move || pump(out, s, max_output)));
-    }
-    if let Some(err) = child.inner().stderr.take() {
-        let s = sink.clone();
-        readers.push(std::thread::spawn(move || pump(err, s, max_output)));
+    let readers_started = (|| -> std::io::Result<()> {
+        if let Some(out) = child.inner().stdout.take() {
+            let s = sink.clone();
+            readers.push(crate::resource_io::spawn_thread(
+                "harness-shell-stdout",
+                move || pump(out, s, max_output),
+            )?);
+        }
+        if let Some(err) = child.inner().stderr.take() {
+            let s = sink.clone();
+            readers.push(crate::resource_io::spawn_thread(
+                "harness-shell-stderr",
+                move || pump(err, s, max_output),
+            )?);
+        }
+
+        Ok(())
+    })();
+    if let Err(e) = readers_started {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(ToolError::new(
+            ToolErrorCode::Io,
+            String::from(crate::error_key::err("process.log_reader_failed").with("error", e)),
+        ));
     }
 
     let deadline = Instant::now() + timeout;
