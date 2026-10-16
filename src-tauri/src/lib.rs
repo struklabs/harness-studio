@@ -386,6 +386,7 @@ pub fn run() {
             get_tts_overview,
             get_audio_process_overview,
             save_processed_audio,
+            save_audio_process_json,
             install_tts_model,
             get_tts_install_progress,
             get_asr_overview,
