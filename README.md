@@ -103,7 +103,7 @@ Everything below works locally. Details are in the [user guide](docs/guide/en/RE
 - **Model Hub:** search Hugging Face with filters, read model cards, see whether a model fits your hardware, and download through a resumable queue that verifies SHA-256 checksums.
 - **Playground:** a chat window with saved conversations, side-by-side model comparison, Markdown and Mermaid diagrams, image input for vision models, documents with local search and citations (RAG), speech to text, read-aloud, and image generation.
 - **Tools in chat:** models can use built-in file, web, and weather tools, with an approval step before anything risky runs.
-- **Harness Link:** use the models of another Harness instance (address and inference token) in the Playground, My Models, and the gateway; see [Harness Link](docs/en/FEATURES.md#harness-link)
+- **Harness Link:** use the models of another Harness instance (address and inference token) in the Playground, My Models, and the gateway; see [Harness Link](docs/en/FEATURES.md#harness-link).
 - **Simple and Advanced levels:** Simple shows only what a first-time user needs; Advanced reveals every setting. Switching never loses a setting ([details](docs/en/UI_LEVELS.md)).
 - **Comfortable to use:** English and Turkish interface, light and dark themes, high-contrast and color-blind-friendly options, system tray, and launch at login.
 
