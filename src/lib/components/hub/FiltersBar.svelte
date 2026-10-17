@@ -110,8 +110,8 @@
   }
 </script>
 
-<div class="flex flex-col gap-3 rounded-lg border border-border bg-card p-3" role="group" aria-label={t('hub.search_filters_label')}>
-  <div class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-3">
+<div class="flex shrink-0 flex-col gap-3 rounded-lg border border-border bg-card p-3" role="group" aria-label={t('hub.search_filters_label')}>
+  <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,160px),1fr))] gap-3">
     <div class="flex min-w-0 flex-col gap-1">
       <FilterSelect help={t('help.license')}
         label={t('hub.license_label')}
@@ -124,8 +124,8 @@
         onchange={onLicenseSelect}
       />
       {#if licenseSelect === CUSTOM}
-        <FieldHelp text={t('help.license')}><Input
-          class="h-7 font-mono text-xs"
+        <FieldHelp text={t('help.license')} class="w-full"><Input
+          class="h-8 font-mono text-xs"
           aria-label={t('hub.license_custom_label')}
           placeholder={t('hub.license_custom_placeholder')}
           bind:value={license}
@@ -136,9 +136,9 @@
 
     <div class="flex min-w-0 flex-col gap-1">
       <label for="hub-author" class="text-xs text-muted-foreground">{t('hub.author_label')}</label>
-      <FieldHelp text={t('help.author')}><Input
+      <FieldHelp text={t('help.author')} class="w-full"><Input
         id="hub-author"
-        class="h-7 text-xs"
+        class="h-8 text-xs"
         placeholder={t('hub.author_placeholder')}
         bind:value={author}
         onchange={changed}
@@ -161,6 +161,7 @@
   <label class="flex items-start gap-2 text-xs" for="hub-non-gguf">
     <FieldHelp text={t('help.non_gguf')}><Switch
       id="hub-non-gguf"
+      aria-label={t('hub.include_non_gguf')}
       size="sm"
       class="mt-px"
       checked={includeNonGguf}
@@ -175,7 +176,7 @@
     </span>
   </label>
 
-  <div class="flex items-start justify-between gap-3">
+  <div class="flex flex-wrap items-start justify-between gap-3">
     <div class="flex min-w-0 flex-wrap items-center gap-1.5">
       <span class="mr-1 text-xs text-muted-foreground">{t('hub.tag_filter_label')}</span>
       {#each ['ALL', ...availableTags] as tag (tag)}
@@ -183,7 +184,7 @@
         <FieldHelp text={t('help.tag_filter')}><button
           type="button"
           class={cn(
-            'h-6 rounded-md border px-2 text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
+            'min-h-8 max-w-full break-words rounded-md border px-2 py-1 text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
             active
               ? 'border-primary/50 bg-primary/10 text-primary'
               : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground'

@@ -6,6 +6,9 @@ Release notes with system requirements and known limitations (English and Turkis
 
 ## [Unreleased]
 
+- Polish Dashboard, Servers, Model Hub and My Models: responsive toolbars, readable long names, consistent spacing, keyboard focus and clearer English/Turkish labels.
+- Dashboard, Sunucular, Model Hub ve Kütüphanem: uyarlanabilir araç çubukları, okunabilir uzun adlar, tutarlı aralıklar, klavye odağı ve daha açık Türkçe/İngilizce etiketler.
+
 ## [0.1.1] - 2026-10-16
 
 - Long chats open instantly: recent messages show first and older ones load in the background without moving the view.

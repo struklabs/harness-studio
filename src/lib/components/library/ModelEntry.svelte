@@ -362,7 +362,7 @@
       <DropdownMenu.Item onclick={() => load(def, { kind: 'new_server' })}>{t('pgm.load_new')}</DropdownMenu.Item>
       {#if !selectedIsProfile}
         <DropdownMenu.Item onclick={() => load(def, { kind: 'server', server_id: app.selectedServerId })}>
-          <span class="min-w-0 truncate">
+          <span class="min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]">
             {app.isRunning || app.isBusy
               ? t('pgm.load_here_restart', { server: app.serverLabel(app.selectedServerId) })
               : t('pgm.load_here', { server: app.serverLabel(app.selectedServerId) })}
@@ -374,7 +374,7 @@
         <DropdownMenu.Label class="text-xs text-muted-foreground">{t('pgm.load_with_profile')}</DropdownMenu.Label>
         {#each profilesOf(def) as p (p.id)}
           <DropdownMenu.Item onclick={() => load(def, { kind: 'profile', profile_id: p.id })}>
-            <span class="min-w-0 truncate">{p.name} <span class="font-num text-muted-foreground">{savedPortText(p.config, t('dash.port_auto'))}</span></span>
+            <span class="min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]">{p.name} <span class="font-num text-muted-foreground">{savedPortText(p.config, t('dash.port_auto'))}</span></span>
           </DropdownMenu.Item>
         {/each}
       {/if}
@@ -406,7 +406,7 @@
         {#if entry.repo_id}
           <PublisherAvatar name={entry.repo_id.split('/')[0]} class="size-5 rounded text-xs" />
         {/if}
-        <span class="min-w-0 truncate text-sm font-medium" title={m.name}>{m.name}</span>
+        <span class="min-w-0 break-words text-sm font-medium [overflow-wrap:anywhere]" title={m.name}>{m.name}</span>
         {#if running.length > 0}
           <span class="size-1.5 shrink-0 rounded-full bg-success" role="img" aria-label={t('lib.running')}></span>
         {/if}
@@ -415,7 +415,7 @@
         {/if}
       </div>
       <!-- Primary facts in one line of text (no badge per fact); the rest is under "Details". -->
-      <p class="truncate text-xs text-muted-foreground" title={summary}>{summary}</p>
+      <p class="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]" title={summary}>{summary}</p>
     </div>
     <DropdownMenu.Root onOpenChange={onMenuChange}>
       <DropdownMenu.Trigger class={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'shrink-0')} aria-label={t('lib.actions')}>
@@ -456,7 +456,7 @@
   {#if fit}
     <p class="flex min-w-0 items-center gap-1.5 text-xs" title={uiLevel.advanced ? `${fit.description} · ${t(fitMemKey(fit), { vram: formatBytes(fit.requiredVramBytes, 1) })}` : undefined}>
       <span class={cn('size-1.5 shrink-0 rounded-full', FIT_DOT[fit.category])} aria-hidden="true"></span>
-      <span class={cn('truncate', FIT_TONE[fit.category])}>{fit.label}</span>
+      <span class={cn('whitespace-normal break-words [overflow-wrap:anywhere]', FIT_TONE[fit.category])}>{fit.label}</span>
     </p>
   {/if}
 
@@ -471,7 +471,7 @@
     {@const s = entry.shards}
       <div class="flex flex-col gap-1 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2 text-xs" role="status">
         <span class="text-warning">{t('lib.shards_missing', { present: s.present, total: s.total })}</span>
-        <AdvancedOnly><span class="truncate font-mono text-xs text-muted-foreground" title={s.missing.join('\n')}>{s.missing.join(', ')}</span></AdvancedOnly>
+        <AdvancedOnly><span class="whitespace-normal break-words [overflow-wrap:anywhere] font-mono text-xs text-muted-foreground" title={s.missing.join('\n')}>{s.missing.join(', ')}</span></AdvancedOnly>
         {#if entry.repair?.reason}
           <span class="text-muted-foreground">{localizeError(entry.repair.reason)}</span>
           {#if entry.repair.url_allowed}
@@ -493,7 +493,7 @@
             {#if state.repairing}<LoaderCircle class="animate-spin" />{:else}<Wrench />{/if}{t('lib.repair', { repo: entry.repair.repo_id })}
           </Button>
         {:else if entry.repair?.source_url}
-          <span class="truncate font-mono text-xs text-muted-foreground" title={entry.repair.source_url}>{entry.repair.source_url}</span>
+          <span class="whitespace-normal break-words [overflow-wrap:anywhere] font-mono text-xs text-muted-foreground" title={entry.repair.source_url}>{entry.repair.source_url}</span>
           <Button size="xs" variant="outline" class="self-start" onclick={() => repair()} disabled={state.repairing}>
             {#if state.repairing}<LoaderCircle class="animate-spin" />{:else}<Wrench />{/if}{t('lib.repair_recorded')}
           </Button>
@@ -519,30 +519,30 @@
     </summary>
     <div class="mt-1.5 flex flex-col gap-1.5 pl-4.5">
       <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
-        {#if m.architecture}<dt class="text-muted-foreground">{t('lib.arch')}</dt><dd class="truncate font-mono">{m.architecture}</dd>{/if}
+        {#if m.architecture}<dt class="text-muted-foreground">{t('lib.arch')}</dt><dd class="whitespace-normal break-words [overflow-wrap:anywhere] font-mono">{m.architecture}</dd>{/if}
         {#if m.context_length}<dt class="text-muted-foreground">{t('lib.ctx')}</dt><dd class="font-num">{m.context_length.toLocaleString(locale())}</dd>{/if}
         {#if fit}<dt class="text-muted-foreground">{t('lib.fit')}</dt><dd class="font-num">{t(fitMemKey(fit), { vram: formatBytes(fit.requiredVramBytes, 1) })}</dd>{/if}
         {#if caps.length > 0}<dt class="text-muted-foreground">{t('lib.caps')}</dt><dd>{caps.join(', ')}</dd>{/if}
-        {#if runtimeText}<dt class="text-muted-foreground">{t('lib.runtime')}</dt><dd class="truncate">{formatLabel} · {runtimeText}</dd>{/if}
+        {#if runtimeText}<dt class="text-muted-foreground">{t('lib.runtime')}</dt><dd class="whitespace-normal break-words [overflow-wrap:anywhere]">{formatLabel} · {runtimeText}</dd>{/if}
         {#if capsSource}<dt class="text-muted-foreground">{t('lib.caps_source')}</dt><dd class="font-num text-xs">{capsSource}</dd>{/if}
-        {#if linked}<dt class="text-muted-foreground">{t('ui.lib_source')}</dt><dd class="truncate">{t('lib.linked', { source: m.source ?? '' })}</dd>{/if}
-        {#if presetName}<dt class="text-muted-foreground">{t('ui.lib_preset')}</dt><dd class="truncate">{presetName}</dd>{/if}
+        {#if linked}<dt class="text-muted-foreground">{t('ui.lib_source')}</dt><dd class="whitespace-normal break-words [overflow-wrap:anywhere]">{t('lib.linked', { source: m.source ?? '' })}</dd>{/if}
+        {#if presetName}<dt class="text-muted-foreground">{t('ui.lib_preset')}</dt><dd class="whitespace-normal break-words [overflow-wrap:anywhere]">{presetName}</dd>{/if}
         {#if entry.shards && entry.shards.missing.length === 0}<dt class="text-muted-foreground">{t('ui.lib_parts')}</dt><dd>{t('lib.shards_ok', { total: entry.shards.total })}</dd>{/if}
         {#if added}<dt class="text-muted-foreground">{t('ui.lib_added')}</dt><dd title={new Date(entry.added_at ?? 0).toLocaleString(locale())}>{added}</dd>{/if}
       </dl>
     {#if entry.pairs.length > 0}
-      <p class="truncate text-xs text-muted-foreground" title={entry.pairs.map(nameOf).join('\n')}>
+      <p class="whitespace-normal break-words [overflow-wrap:anywhere] text-xs text-muted-foreground" title={entry.pairs.map(nameOf).join('\n')}>
         {m.kind === 'mmproj' ? t('lib.projector_for', { names: entry.pairs.map(nameOf).join(', ') }) : t('lib.projector', { names: entry.pairs.map(nameOf).join(', ') })}
       </p>
     {/if}
     {#if entry.draft_for.length > 0}
-      <p class="truncate text-xs text-muted-foreground" title={entry.draft_for.map(nameOf).join('\n')}>{t('lib.draft_for', { names: entry.draft_for.map(nameOf).join(', ') })}</p>
+      <p class="whitespace-normal break-words [overflow-wrap:anywhere] text-xs text-muted-foreground" title={entry.draft_for.map(nameOf).join('\n')}>{t('lib.draft_for', { names: entry.draft_for.map(nameOf).join(', ') })}</p>
     {/if}
     {#if drafts.length > 0}
-      <p class="truncate text-xs text-muted-foreground">{t('lib.suggested_drafts', { names: drafts.map((d) => d.model.name).join(', ') })}</p>
+      <p class="whitespace-normal break-words [overflow-wrap:anywhere] text-xs text-muted-foreground">{t('lib.suggested_drafts', { names: drafts.map((d) => d.model.name).join(', ') })}</p>
     {/if}
     <!-- Path -->
-    <button type="button" class="min-w-0 truncate text-left font-mono text-xs text-muted-foreground hover:text-foreground" title={t('lib.copy_path_title', { path: m.path })} onclick={copyPath}>
+    <button type="button" class="min-w-0 whitespace-normal break-words [overflow-wrap:anywhere] text-left font-mono text-xs text-muted-foreground hover:text-foreground focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title={t('lib.copy_path_title', { path: m.path })} onclick={copyPath}>
       {m.path}
     </button>
     </div>
@@ -552,14 +552,14 @@
   <!-- Primary action: load the chat model and start talking to it. -->
   {#if isChatLoadable(m) || mlxChat}
     <div class="flex items-center gap-2 border-t border-border pt-2">
-      <Button size="xs" onclick={startChat} disabled={state.startingChat || !!platformBlocked}>
+      <Button variant="outline" size="xs" onclick={startChat} disabled={state.startingChat || !!platformBlocked}>
         {#if state.startingChat}<LoaderCircle class="animate-spin" />{:else}<MessageSquare />{/if}{running.length > 0 ? t('hub.chat_now') : t('hub.load_and_chat')}
       </Button>
     </div>
   {:else if playgroundTab}
     <!-- Image, speech, voice, embedding and rerank files: open the Playground tab with the file selected (its definition is made when missing). -->
     <div class="flex items-center gap-2 border-t border-border pt-2">
-      <Button size="xs" onclick={openPlayground} disabled={state.openingPlayground}>
+      <Button variant="outline" size="xs" onclick={openPlayground} disabled={state.openingPlayground}>
         {#if state.openingPlayground}<LoaderCircle class="animate-spin" />{:else}<SquareArrowOutUpRight />{/if}{t('lib.open_in_playground')}
       </Button>
     </div>
@@ -586,7 +586,7 @@
     {/if}
     <AdvancedOnly>
     <div class="flex flex-col gap-1 border-t border-border pt-2">
-      <div class="flex items-center justify-between gap-2">
+      <div class="flex flex-wrap items-center justify-between gap-2">
         <span class="text-xs font-medium text-muted-foreground">{t('lib.definitions')}</span>
         <Button size="xs" variant="ghost" onclick={() => onNewDefinition(entry)} disabled={!m.is_ready}><Plus />{t('lib.new_definition')}</Button>
       </div>
@@ -598,8 +598,8 @@
         {@const definitionState = st?.state ?? 'idle'}
         <div class="flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 hover:bg-muted/40">
           <div class="flex min-w-0 flex-1 flex-col">
-            <span class="truncate font-mono text-xs" title={def.description || def.alias}>{def.alias}</span>
-            <span class="truncate text-xs">
+            <span class="whitespace-normal break-words [overflow-wrap:anywhere] font-mono text-xs" title={def.description || def.alias}>{def.alias}</span>
+            <span class="whitespace-normal break-words [overflow-wrap:anywhere] text-xs">
               <span class={STATE_TONE[definitionState]}>{t(STATE_LABEL[definitionState])}</span>
               {#if st?.servers.length}
                 <span class="text-muted-foreground"> · {st.servers.map((s) => `${app.serverLabel(s.server_id)} :${s.port}`).join(', ')}</span>

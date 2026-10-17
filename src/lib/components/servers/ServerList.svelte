@@ -183,7 +183,7 @@
   }
 </script>
 
-<section class="flex flex-col gap-2" aria-labelledby="srv-list-title">
+<section class="flex shrink-0 flex-col gap-3" aria-labelledby="srv-list-title">
   <div class="flex items-baseline justify-between gap-3">
     <h2 id="srv-list-title" class="text-sm font-semibold text-foreground">{t('ui.srv_list_title')}</h2>
     {#if app.runningCount > 0}
@@ -201,14 +201,14 @@
       </div>
     {:else}
       <!-- The fixed columns take 416px: in a narrow window or at a high interface scale the table scrolls sideways rather than squeezing the name to a few letters, and the actions column stays in view. -->
-      <Table.Root class="w-full min-w-[600px] table-fixed">
+      <Table.Root class="w-full min-w-[640px] table-fixed">
         <Table.Header>
           <Table.Row class="border-b border-border hover:bg-transparent">
             <Table.Head class="min-w-0 pl-4">{t('ui.srv_col_server')}</Table.Head>
             <Table.Head class="w-[84px] text-right">{t('srv.col_port')}</Table.Head>
             <Table.Head class="w-[120px]">{t('srv.col_status')}</Table.Head>
             <Table.Head class="w-[124px] text-center" title={t('srv.auto_start_note')}>{t('ui.srv_col_autostart')}</Table.Head>
-            <Table.Head class="w-[88px] pr-4 text-right @max-[600px]/srv:sticky @max-[600px]/srv:right-0 @max-[600px]/srv:bg-card"><span class="sr-only">{t('srv.col_actions')}</span></Table.Head>
+            <Table.Head class="w-[88px] pr-4 text-right @max-[640px]/srv:sticky @max-[640px]/srv:right-0 @max-[640px]/srv:bg-card"><span class="sr-only">{t('srv.col_actions')}</span></Table.Head>
           </Table.Row>
         </Table.Header>
         <Table.Body>
@@ -221,32 +221,32 @@
               <Table.Cell class="min-w-0 py-2.5 pl-4 align-top">
                 {#if r.profile && renamingId === r.id}
                   {@const p = r.profile}
-                  <form class="flex items-center gap-1.5" onsubmit={(e) => commitRename(p, e)}>
+                  <form class="flex flex-wrap items-center gap-1.5" onsubmit={(e) => commitRename(p, e)}>
                     <label class="sr-only" for="rename-{p.id}">{t('srv.rename_label')}</label>
-                    <FieldHelp text={t('help.server_rename')}><Input id="rename-{p.id}" type="text" maxlength={80} bind:value={renameValue} class="h-7 min-w-0 flex-1 text-sm" /></FieldHelp>
+                    <FieldHelp text={t('help.server_rename')} class="w-full"><Input id="rename-{p.id}" type="text" maxlength={80} bind:value={renameValue} class="h-7 min-w-0 flex-1 text-sm" /></FieldHelp>
                     <Button type="submit" size="xs" disabled={busy[p.id]}>{t('srv.save')}</Button>
                     <Button type="button" variant="ghost" size="xs" onclick={() => (renamingId = null)}>{t('srv.cancel')}</Button>
                   </form>
                 {:else}
                   <div class="flex min-w-0 flex-col gap-0.5">
                     <div class="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                      <span class="max-w-full truncate text-sm font-medium text-foreground" title={app.serverLabel(r.id)}>{app.serverLabel(r.id)}</span>
+                      <span class="max-w-full whitespace-normal break-words text-sm [overflow-wrap:anywhere] font-medium text-foreground" title={app.serverLabel(r.id)}>{app.serverLabel(r.id)}</span>
                       {#if !r.profile && !r.session}
                         <span class="shrink-0 text-xs text-muted-foreground" title={r.id === DEFAULT_SERVER_ID ? t('srv.default_unsaved_tip') : t('ui.srv_unsaved_tip')}>{t('ui.srv_unsaved')}</span>
                       {/if}
                     </div>
                     {#if r.profile?.description}
-                      <span class="truncate text-xs text-muted-foreground" title={r.profile.description}>{r.profile.description}</span>
+                      <span class="whitespace-normal break-words text-xs text-muted-foreground [overflow-wrap:anywhere]" title={r.profile.description}>{r.profile.description}</span>
                     {/if}
                     {#if info.model}
-                      <span class="truncate font-mono text-xs text-muted-foreground" title={info.modelPath}>
+                      <span class="whitespace-normal break-words font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]" title={info.modelPath}>
                         {info.params ? `${info.model} · ${info.params}` : info.model}
                       </span>
                     {/if}
                     {#if failure}
                       <span class="flex items-center gap-1 text-xs text-destructive" role="alert">
                         <AlertCircle class="size-3 shrink-0" />
-                        <span class="truncate" title={failure}>{failure}</span>
+                        <span class="whitespace-normal break-words [overflow-wrap:anywhere]" title={failure}>{failure}</span>
                       </span>
                     {/if}
                     {#if r.summary?.restart}
@@ -257,7 +257,7 @@
                     {#if errors[r.id]}
                       <span class="flex items-center gap-1 text-xs text-destructive" role="alert">
                         <AlertCircle class="size-3 shrink-0" />
-                        <span class="truncate">{errors[r.id]}</span>
+                        <span class="whitespace-normal break-words [overflow-wrap:anywhere]">{errors[r.id]}</span>
                       </span>
                     {/if}
                   </div>
@@ -279,7 +279,7 @@
                     bind:checked={p.auto_start}
                     onCheckedChange={(val) => toggleAutoStart(p, val)}
                     disabled={busy[p.id]}
-                    aria-label={t('srv.auto_start')}
+                    aria-label={`${t('srv.auto_start')}: ${app.serverLabel(r.id)}`}
                     class="mt-0.5"
                   /></FieldHelp>
                 {:else}
@@ -287,14 +287,14 @@
                 {/if}
               </Table.Cell>
 
-              <Table.Cell class="py-2 pr-4 text-right align-top @max-[600px]/srv:sticky @max-[600px]/srv:right-0 @max-[600px]/srv:bg-card">
+              <Table.Cell class="py-2 pr-4 text-right align-top @max-[640px]/srv:sticky @max-[640px]/srv:right-0 @max-[640px]/srv:bg-card">
                 <div class="flex items-center justify-end gap-1">
                   {#if live}
                     <Button
                       variant="outline"
                       size="icon-sm"
                       title={t('srv.stop')}
-                      aria-label={t('srv.stop')}
+                      aria-label={`${t('srv.stop')}: ${app.serverLabel(r.id)}`}
                       onclick={() => stop(r.id)}
                       disabled={busy[r.id] || r.summary?.status === 'Stopping'}
                     >
@@ -305,7 +305,7 @@
                       variant="outline"
                       size="icon-sm"
                       title={t('srv.start')}
-                      aria-label={t('srv.start')}
+                      aria-label={`${t('srv.start')}: ${app.serverLabel(r.id)}`}
                       onclick={() => start(r.id)}
                       disabled={busy[r.id]}
                     >
@@ -318,7 +318,7 @@
                   <DropdownMenu.Root>
                     <DropdownMenu.Trigger class={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }))}>
                       <MoreHorizontal class="size-4" />
-                      <span class="sr-only">{t('srv.more_actions')}</span>
+                      <span class="sr-only">{t('srv.more_actions')}: {app.serverLabel(r.id)}</span>
                     </DropdownMenu.Trigger>
                     <DropdownMenu.Content align="end" class="w-48">
                       <DropdownMenu.Item onclick={() => onOpenDashboard(r.id)}>

@@ -1323,7 +1323,7 @@
 {#snippet controls()}
   <aside class={cn('flex min-h-0 flex-col bg-card/40', stacked ? 'overflow-clip border-b border-border' : 'h-full overflow-hidden')} aria-label={t('dash.aria_controls')}>
     <!-- Flat sections split by rules (no cards inside the panel): server, model, parameters, advanced. -->
-    <div class="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
       <AdvancedPageNotice level={pageLevel(DASHBOARD_GROUPS, section.active)} />
       <div class="flex min-w-0 items-center gap-1">
         <h1 class="min-w-0 text-base font-semibold">{t(DASHBOARD_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.label)}</h1>
@@ -1335,11 +1335,11 @@
       </div>
 <div hidden={section.active !== 'overview'} class="flex flex-col gap-3">
       <div class="flex flex-col gap-2.5 border-b border-border pb-4" role="group" aria-label={t('srv.card_aria')}>
-        <div class="flex items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <!-- Run state is shown once, globally, in the title bar's server indicator. -->
-          <div class="flex min-w-0 items-baseline gap-2">
+          <div class="flex min-w-0 flex-wrap items-baseline gap-2">
             <h2 class="text-sm font-semibold text-foreground">{t('ui.dash_server')}</h2>
-            <span class="truncate text-xs text-muted-foreground" title={savedStateTip}>
+            <span class="break-words text-xs text-muted-foreground" title={savedStateTip}>
               {#if savedLaunch && !formDraft}
                 {t('ui.dash_saved')} · <span class="font-num">{savedPortText(savedLaunch, t('dash.port_auto'))}</span>
               {:else}
@@ -1483,7 +1483,7 @@
 
 <!-- Right: live telemetry and terminal -->
 {#snippet telemetry()}
-  <div class={cn('flex min-w-0 flex-1 flex-col overflow-hidden', stacked ? 'min-h-[720px]' : 'h-full min-h-0')} role="region" aria-label={t('dash.aria_telemetry')}>
+  <div class={cn('flex min-w-0 flex-1 flex-col overflow-hidden', stacked ? 'min-h-96' : 'h-full min-h-0')} role="region" aria-label={t('dash.aria_telemetry')}>
     <!-- The empty state only repeats "Start" when the controls (with their own button) are hidden. -->
     {#if uiLevel.advanced}
       <VerticalSplit id="dash-telemetry" label={t('pane.dash_split')}>
