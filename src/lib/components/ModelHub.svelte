@@ -106,7 +106,7 @@
   });
 
   let activeFiltersCount = $derived(
-    [licenseFilter, authorFilter.trim(), includeNonGguf, selectedTagFilter !== 'ALL', selectedQuantFilter !== 'ALL', selectedSizeFilter !== 'ALL'].filter(Boolean)
+    [licenseFilter, authorFilter.trim(), !includeNonGguf, selectedTagFilter !== 'ALL', selectedQuantFilter !== 'ALL', selectedSizeFilter !== 'ALL'].filter(Boolean)
       .length
   );
 
@@ -129,7 +129,7 @@
       pipeline_tag: pipelineTag || null,
       license: licenseFilter.trim() || null,
       author: authorFilter.trim() || null,
-      include_non_gguf: includeNonGguf || null,
+      include_non_gguf: includeNonGguf,
     };
   }
 
@@ -152,7 +152,7 @@
       pipelineTag = '';
       licenseFilter = '';
       authorFilter = '';
-      includeNonGguf = false;
+      includeNonGguf = true;
       void runList();
     });
   });
@@ -263,7 +263,7 @@
     pipelineTag = '';
     licenseFilter = '';
     authorFilter = '';
-    includeNonGguf = false;
+    includeNonGguf = true;
     onServerFiltersChange();
   }
 

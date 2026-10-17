@@ -1603,33 +1603,9 @@ impl DownloadManager {
         options: &HfSearchOptions,
         token: Option<&str>,
     ) -> Result<HfSearchPage, String> {
-        let include_extras = !options.include_non_gguf.unwrap_or(false);
-        let (page, extras, whisper) = tokio::join!(
-            Self::search_gguf_page(options, token),
-            async {
-                if include_extras {
-                    Self::runnable_non_gguf(options, token).await
-                } else {
-                    Vec::new()
-                }
-            },
-            async {
-                if include_extras && wants_whisper_repo(options) {
-                    Self::fetch_whisper_repo(token).await
-                } else {
-                    None
-                }
-            }
-        );
-        let mut page = page?;
-        merge_search_extras(&mut page, extras, whisper, options.sort.as_deref());
-        if exact_repo_missing(options, &page.items) {
-            if let Some(repo) = Self::fetch_exact_repo(options.query.trim(), token).await {
-                page.items.push(repo);
-            }
-        }
-        prioritize_exact_repo(&mut page.items, &options.query);
-        Ok(page)
+        // Paginated Hub listings must retain HF's order and cursor. First-page extras
+        // would select a different subset for each sort and break the next page boundary.
+        Self::search_gguf_page(options, token).await
     }
 
     /// The `ggerganov/whisper.cpp` repo as a listing item; `None` when it cannot be read (the
@@ -1782,7 +1758,35 @@ impl DownloadManager {
         options: &HfSearchOptions,
         token: Option<&str>,
     ) -> Result<Vec<HfModelSearchResult>, String> {
-        let results = Self::search_models_page(options, token).await?.items;
+        // Legacy unpaginated search keeps its curated discovery suggestions. The Model Hub
+        // uses search_models_page directly, without these first-page additions/promotions.
+        let include_extras = !options.include_non_gguf.unwrap_or(false);
+        let (page, extras, whisper) = tokio::join!(
+            Self::search_models_page(options, token),
+            async {
+                if include_extras {
+                    Self::runnable_non_gguf(options, token).await
+                } else {
+                    Vec::new()
+                }
+            },
+            async {
+                if include_extras && wants_whisper_repo(options) {
+                    Self::fetch_whisper_repo(token).await
+                } else {
+                    None
+                }
+            }
+        );
+        let mut page = page?;
+        merge_search_extras(&mut page, extras, whisper, options.sort.as_deref());
+        if exact_repo_missing(options, &page.items) {
+            if let Some(repo) = Self::fetch_exact_repo(options.query.trim(), token).await {
+                page.items.push(repo);
+            }
+        }
+        prioritize_exact_repo(&mut page.items, &options.query);
+        let results = page.items;
         // If exact user query returned no results, try fallback with sanitized query
         // (strips quant names like Q4_K_M, parentheses, and redundant .gguf)
         if results.is_empty() && options.cursor.is_none() {
@@ -5679,27 +5683,25 @@ mod tests {
             query: "whisper.cpp".into(),
             ..Default::default()
         };
-        let page = DownloadManager::search_models_page(&by_query, None)
+        let items = DownloadManager::search_models(&by_query, None)
             .await
             .unwrap();
-        assert_eq!(page.items[0].id, WHISPER_CPP_REPO);
-        assert!(page.items[0].not_runnable.is_none());
+        assert_eq!(items[0].id, WHISPER_CPP_REPO);
+        assert!(items[0].not_runnable.is_none());
         let by_task = HfSearchOptions {
             pipeline_tag: Some("automatic-speech-recognition".into()),
             ..Default::default()
         };
-        let page = DownloadManager::search_models_page(&by_task, None)
+        let items = DownloadManager::search_models(&by_task, None)
             .await
             .unwrap();
-        assert_eq!(page.items[0].id, WHISPER_CPP_REPO);
+        assert_eq!(items[0].id, WHISPER_CPP_REPO);
         let other = HfSearchOptions {
             query: "gemma".into(),
             ..Default::default()
         };
-        let page = DownloadManager::search_models_page(&other, None)
-            .await
-            .unwrap();
-        assert!(page.items.iter().all(|m| m.id != WHISPER_CPP_REPO));
+        let items = DownloadManager::search_models(&other, None).await.unwrap();
+        assert!(items.iter().all(|m| m.id != WHISPER_CPP_REPO));
     }
 
     /// With `include_non_gguf` the listing is no longer GGUF only; the default keeps the filter.
@@ -6711,6 +6713,100 @@ mod tests {
             sha256_file(&p).unwrap(),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+
+    #[test]
+    fn search_params_sort_changes_only_order_for_every_filter_and_cursor() {
+        for include_non_gguf in [false, true] {
+            for task in [
+                None,
+                Some("text-to-image"),
+                Some(crate::hub_tasks::DECISION_TASK),
+            ] {
+                for cursor in [None, Some("eyJhIjoxfQ==")] {
+                    let mut baseline = None;
+                    for sort in SORT_KEYS {
+                        let params = search_params(&HfSearchOptions {
+                            query: " sd-turbo ".into(),
+                            pipeline_tag: task.map(String::from),
+                            license: Some("mit".into()),
+                            author: Some(" stabilityai ".into()),
+                            include_non_gguf: Some(include_non_gguf),
+                            sort: Some((*sort).into()),
+                            limit: Some(30),
+                            cursor: cursor.map(String::from),
+                            ..Default::default()
+                        });
+                        assert!(params.contains(&("sort", (*sort).into())));
+                        assert!(params.contains(&("direction", "-1".into())));
+                        assert!(params.contains(&("search", "sd-turbo".into())));
+                        let filters: Vec<_> = params
+                            .into_iter()
+                            .filter(|(key, _)| *key != "sort")
+                            .collect();
+                        if let Some(expected) = &baseline {
+                            assert_eq!(&filters, expected);
+                        } else {
+                            baseline = Some(filters);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ignore] // network: compare every page with HF, including ties and page boundaries
+    async fn real_hf_sort_parity() {
+        let mut sets = Vec::new();
+        for sort in ["downloads", "likes"] {
+            let mut options = HfSearchOptions {
+                query: "sd-turbo".into(),
+                sort: Some(sort.into()),
+                include_non_gguf: Some(true),
+                limit: Some(30),
+                ..Default::default()
+            };
+            let mut ids = std::collections::BTreeSet::new();
+            loop {
+                let (raw, next) = DownloadManager::fetch_listing(&options, None)
+                    .await
+                    .unwrap();
+                let page = DownloadManager::search_models_page(&options, None)
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    page.items.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+                    raw.iter()
+                        .map(|m| m["id"].as_str().unwrap())
+                        .collect::<Vec<_>>()
+                );
+                // HF includes a per-request searchSequenceToken in otherwise equivalent
+                // cursors. Compare the actual boundary, not that ephemeral session token.
+                let boundary = |cursor: &Option<String>| {
+                    use base64::Engine;
+                    cursor.as_ref().map(|cursor| {
+                        let bytes = base64::engine::general_purpose::STANDARD
+                            .decode(cursor)
+                            .unwrap();
+                        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+                        value.as_object_mut().unwrap().remove("searchSequenceToken");
+                        value
+                    })
+                };
+                assert_eq!(boundary(&page.next_cursor), boundary(&next));
+                for item in page.items {
+                    assert!(ids.insert(item.id), "duplicate across pages");
+                }
+                options.cursor = next;
+                if options.cursor.is_none() {
+                    break;
+                }
+            }
+            assert!(!ids.is_empty());
+            sets.push(ids);
+        }
+        assert_eq!(sets[0], sets[1]);
     }
 
     #[test]

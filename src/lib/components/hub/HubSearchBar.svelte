@@ -91,7 +91,7 @@
   </AdvancedOnly>
 
   <FilterSelect help={t('help.hub_sort')}
-    class="w-40"
+    class="w-max max-w-[min(24rem,100%)] shrink"
     label={t('hub.sort_label')}
     showLabel={false}
     bind:value={sort}

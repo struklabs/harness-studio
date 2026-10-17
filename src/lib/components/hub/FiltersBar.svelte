@@ -14,7 +14,7 @@
     /** '' = any; free-text license id when not in the list. */
     license: string;
     author: string;
-    /** Also list repos that are not GGUF (default off). */
+    /** Also list repos that are not GGUF (default on). */
     includeNonGguf: boolean;
     tagFilter: string;
     quantFilter: string;
@@ -94,7 +94,7 @@
   }
 
   let hasFilters = $derived(
-    !!(pipelineTag || license || author.trim() || includeNonGguf || tagFilter !== 'ALL' || quantFilter !== 'ALL' || sizeFilter !== 'ALL')
+    !!(pipelineTag || license || author.trim() || !includeNonGguf || tagFilter !== 'ALL' || quantFilter !== 'ALL' || sizeFilter !== 'ALL')
   );
 
   function resetAllFilters() {
@@ -102,7 +102,7 @@
     license = '';
     customLicense = false;
     author = '';
-    includeNonGguf = false;
+    includeNonGguf = true;
     tagFilter = 'ALL';
     quantFilter = 'ALL';
     sizeFilter = 'ALL';

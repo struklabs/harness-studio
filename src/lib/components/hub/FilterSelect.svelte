@@ -31,7 +31,7 @@
       onchange?.(v);
     }}
   >
-    <Select.Trigger size="sm" class="w-full min-w-0" aria-label={label}>
+    <Select.Trigger size="sm" class="w-full min-w-0" aria-label={label} title={current}>
       <span class="truncate">{current}</span>
     </Select.Trigger>
     <Select.Content>
