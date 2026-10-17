@@ -24,6 +24,8 @@
   import { parseSearchQuery } from './hub/searchParser';
   import { fetchPage, loadPrefs, savePrefs } from './hub/hubData';
   import { engineCompatibility } from './hub/engineCompatibility';
+  import { rankHardware, type HubFit } from './hub/hardwareRanking';
+  import HelpPopover from './common/HelpPopover.svelte';
   import EngineNeeded from './common/EngineNeeded.svelte';
   import { taskInfo } from './hub/tasks';
   import { taskSupportStore } from './hub/taskSupport.svelte';
@@ -56,6 +58,14 @@
   let selectedQuantFilter = $state(prefs.quant);
   let selectedSizeFilter = $state(prefs.size);
   let showFilters = $state(prefs.showFilters);
+  let bestHardware = $state(prefs.bestHardware);
+  let fits = $state(new Map<string, { key: string; fit: HubFit }>());
+  let fitContext = $derived(app.settings?.server.default_ctx || 32768);
+  let hardwareKey = $derived((hardware ?? app.hardware) ? JSON.stringify([hardware ?? app.hardware, fitContext]) : '');
+  let currentFits = $derived(new Map([...fits].filter(([, v]) => v.key === hardwareKey).map(([id, v]) => [id, v.fit])));
+  function recordFit(id: string, key: string, fit: HubFit) {
+    if (key === hardwareKey) fits = new Map(fits).set(id, { key, fit });
+  }
 
   // Client-side tag filter (only meaningful for the loaded results).
   let selectedTagFilter = $state('ALL');
@@ -102,6 +112,7 @@
       quant: selectedQuantFilter,
       size: selectedSizeFilter,
       showFilters,
+      bestHardware,
     });
   });
 
@@ -204,7 +215,7 @@
     const options: HfSearchOptions = {
       query: parsed.cleanedQuery || searchQuery.trim(),
       ...baseFilters,
-      sort: sortKey,
+      sort: bestHardware ? 'downloads' : sortKey,
       limit: PAGE_LIMIT,
     };
     listOptions = options;
@@ -302,11 +313,13 @@
       .map((entry) => entry[0]);
   });
 
-  let filteredRepos = $derived(
+  let taggedRepos = $derived(
     selectedTagFilter === 'ALL'
       ? results
       : results.filter((repo) => repo.tags?.some((tag) => tag.toLowerCase() === selectedTagFilter.toLowerCase()))
   );
+
+  let filteredRepos = $derived(bestHardware ? rankHardware(taggedRepos, currentFits) : taggedRepos);
 
   /** Engine families the shown models need and that are not installed yet (mistral.rs has no managed download and is shown on its own). */
   let neededFamilies = $derived(
@@ -316,7 +329,7 @@
     }))]
   );
 
-  let listTitle = $derived(shownQuery.trim() ? t('hub.list_title_search', { query: shownQuery.trim() }) : t(LIST_TITLES[sortKey]));
+  let listTitle = $derived(bestHardware ? t('hub.best_hardware') : shownQuery.trim() ? t('hub.list_title_search', { query: shownQuery.trim() }) : t(LIST_TITLES[sortKey]));
 </script>
 
 <div class="flex h-full min-h-0 flex-col gap-3 p-4">
@@ -328,11 +341,19 @@
     activeFilters={activeFiltersCount}
     searching={isSearching}
     onSearch={runList}
-    onSortChange={() => void runList()}
+    onSortChange={() => { bestHardware = false; void runList(); }}
     onCustomUrl={() => (showCustomModal = true)}
   />
 
-  <TaskPicker value={pipelineTag} onchange={onTaskChange} />
+  <div class="flex flex-wrap items-start gap-2">
+    <div class="min-w-0 flex-1"><TaskPicker value={pipelineTag} onchange={onTaskChange} /></div>
+    <div class="flex items-center gap-1">
+      <button type="button" aria-pressed={bestHardware}
+        class={cn('inline-flex h-7 items-center rounded-md border px-2.5 text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none', bestHardware ? 'border-primary/50 bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground')}
+        onclick={() => { bestHardware = !bestHardware; void runList(); }}>{t('hub.best_hardware')}</button>
+      <HelpPopover text={t('hub.hardware_help')} label={t('hub.best_hardware')} />
+    </div>
+  </div>
 
   {#if !uiLevel.advanced && activeFiltersCount > 0}
     <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
@@ -454,6 +475,9 @@
           {#each filteredRepos as repo (repo.id)}
             <RepoCard
               {repo}
+              {hardwareKey}
+              context={fitContext}
+              onFit={recordFit}
               layout={viewMode}
               selected={selectedRepo?.id === repo.id}
               quantFilter={selectedQuantFilter}

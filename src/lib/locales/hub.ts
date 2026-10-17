@@ -1,5 +1,12 @@
 // Model Hub: search, filters, model card, variants, download queue, custom URL modal.
 const tr = {
+  'hub.best_hardware': 'Donanımıma Uygun',
+  'hub.hardware_full': 'Tam GPU',
+  'hub.hardware_partial': 'Kısmi / CPU',
+  'hub.hardware_unknown': 'Bilinmiyor',
+  'hub.hardware_unavailable': 'Sığmaz / Kullanılamaz',
+  'hub.hardware_badge_help': 'Bu makine için tahmini bellek uyumu ve önerilen kuantizasyon. Model dosyaları indirilmez.',
+  'hub.hardware_help': 'Yüklenen sonuçları donanımınıza göre sıralar: bağlam ve yardımcı dosyalar için bellek ayrıldıktan sonra tam GPU, ardından RAM kullanan kısmi yükleme / CPU. Her grupta indirme sayısı önceliklidir. Bilinmeyenler uyumu bilinenlerden sonra, sığmayan veya bu platformda motoru bulunmayanlar en sonda gösterilir. Tahminler görünür kartlar için Hub dosya metaverilerinden hesaplanır; desteklenen bir metaveri tahmini olmayan motorlar Bilinmiyor olarak işaretlenir. Daha fazla sonuç yükledikçe sıralama değişebilir.',
   'hub.needs_prism_fork':
     'Bu modelin PQ2_0 / PTQ1_0 kuant türlerini yalnızca PrismML’in llama.cpp fork’u yükleyebilir. İndirebilirsiniz ama çalıştırmak için Ayarlar > Model Motoru > Registry sayfasından PrismML deposunu eklemeniz gerekir.',
   'hub.hidden_filters_active': '{count} gelişmiş filtre etkin.',
@@ -327,6 +334,13 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'hub.best_hardware': 'Best for My Hardware',
+  'hub.hardware_full': 'Full GPU',
+  'hub.hardware_partial': 'Partial / CPU',
+  'hub.hardware_unknown': 'Unknown',
+  'hub.hardware_unavailable': 'Too Large / Unavailable',
+  'hub.hardware_badge_help': 'Estimated memory fit and suggested quantization for this machine. No model files are downloaded.',
+  'hub.hardware_help': 'Ranks loaded results for your hardware: full GPU with room for context and companion files first, then partial offload / CPU using RAM. Each tier keeps download popularity order. Unknown fits follow known fits; models that are too large or whose engine is unavailable on this platform come last. Visible cards are estimated from Hub file metadata; engines without a supported metadata estimate show Unknown. Rankings can change as more results load.',
   'hub.needs_prism_fork':
     'Only PrismML’s llama.cpp fork can load this model’s PQ2_0 / PTQ1_0 quant types. You can download it, but to run it add the PrismML repository in Settings > Runtime > Registry.',
   'hub.hidden_filters_active': '{count} advanced filters are active.',

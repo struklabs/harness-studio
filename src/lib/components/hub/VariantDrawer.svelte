@@ -8,6 +8,7 @@
   import { toast } from 'svelte-sonner';
   import { formatBytes } from '#lib/format.js';
   import { defaultLoadFit, toHardwareFit } from '#lib/fit.js';
+  import { fetchVariants } from './hardwareFit';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { onnxUnsupportedText } from '#lib/engines.js';
   import { app } from '#lib/stores/app.svelte.js';
@@ -292,7 +293,7 @@
     }
 
     try {
-      const res: HfModelVariant[] = await invoke('get_hf_model_variants', { repoId: id });
+      const res = await fetchVariants(id);
       if (token === variantsToken) variants = res;
     } catch (e) {
       if (token === variantsToken && variants.length === 0) {
