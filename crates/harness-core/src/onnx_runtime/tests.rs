@@ -478,6 +478,43 @@ async fn zip_files_are_checked_against_their_pins_and_fall_back_to_the_whole_arc
     }
 }
 
+#[tokio::test]
+async fn unsafe_zip_metadata_is_rejected_with_and_without_ranges() {
+    let leak = |s: String| -> &'static str { Box::leak(s.into_boxed_str()) };
+    for symlink in [false, true] {
+        let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+        let options = zip::write::SimpleFileOptions::default();
+        writer.start_file("runtime.dll", options).unwrap();
+        writer.write_all(b"binary").unwrap();
+        if symlink {
+            writer
+                .add_symlink("link", "../../outside", options)
+                .unwrap();
+        } else {
+            writer.start_file("../outside", options).unwrap();
+        }
+        let bytes = writer.finish().unwrap().into_inner();
+        for ranges in [true, false] {
+            let dir = tempfile::tempdir().unwrap();
+            let spec = ArchiveSpec {
+                url: leak(serve_archive(bytes.clone(), ranges).await),
+                size: bytes.len() as u64,
+                sha256: leak(hex(&bytes)),
+                format: ArchiveFormat::Zip,
+                files: Box::leak(Box::new([FileSpec {
+                    inner: "runtime.dll",
+                    out: "runtime.dll",
+                    sha256: leak(hex(b"binary")),
+                }])),
+            };
+            let error = fetch_zip_files(&client().unwrap(), &spec, dir.path(), 0)
+                .await
+                .unwrap_err();
+            assert!(error.contains("unsafe ZIP"), "{error}");
+        }
+    }
+}
+
 /// Downloads the real DirectML (or default) build into a temp folder, checks the pinned
 /// digests and the install state.
 ///

@@ -36,7 +36,7 @@ tauri-plugin-dialog = "2"
 base64 = "0.22"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
-tauri-plugin-updater = "2"
+tauri-plugin-updater = "2.14"
 
 # WebView2 memory target while the window is hidden (same versions as wry uses); waiting for the
 # released page's browser process before the window is built again (`windows`, as harness-core).
