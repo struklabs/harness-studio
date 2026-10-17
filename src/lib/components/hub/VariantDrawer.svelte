@@ -490,14 +490,14 @@
 </script>
 
 <Sheet.Root open={!!repo} onOpenChange={(o) => !o && onClose()}>
-  <Sheet.Content side="right" class="w-[min(680px,94vw)] gap-0 p-0 data-[side=right]:sm:max-w-none">
+  <Sheet.Content side="right" class="data-[side=right]:w-[min(680px,100vw)] gap-0 p-0 data-[side=right]:sm:max-w-none">
     {#if repo}
-      <Sheet.Header class="gap-1 border-b border-border pr-12">
+      <Sheet.Header class="shrink-0 gap-1 border-b border-border pr-12">
         <div class="flex min-w-0 items-center gap-3">
           <PublisherAvatar name={repo.id.includes('/') ? repo.id.split('/')[0] : (repo.author ?? '')} class="size-10" />
-          <Sheet.Title class="truncate text-base font-semibold" title={repo.id}>{repo.id}</Sheet.Title>
+          <Sheet.Title class="min-w-0 break-words text-base font-semibold [overflow-wrap:anywhere]" title={repo.id}>{repo.id}</Sheet.Title>
         </div>
-        <Sheet.Description class="flex items-center gap-2 text-xs">
+        <Sheet.Description class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
           <span>{t('hub.sheet_desc')}</span>
           <AdvancedOnly><button
             type="button"
@@ -512,7 +512,7 @@
 
       <Tabs.Root bind:value={tab} class="min-h-0 flex-1 gap-0">
         <div class="border-b border-border px-4 py-2">
-          <Tabs.List variant="line">
+          <Tabs.List variant="line" class="h-auto flex-wrap">
             <Tabs.Trigger value="files">
               {t('hub.tab_files')}
               <span class="font-num text-xs text-muted-foreground">{variants.length}</span>
@@ -521,7 +521,7 @@
           </Tabs.List>
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto p-4">
+        <div class="min-h-0 flex-1 overflow-y-auto p-4 [overflow-wrap:anywhere]">
           <!-- Gated repo status (both tabs) -->
           {#if repoGated}
             <div class="mb-4" aria-live="polite">
@@ -715,7 +715,7 @@
                   <Button variant="outline" size="sm" class="self-start" onclick={() => (showAllFiles = true)}>{t('hub.all_files')}</Button>
                 {/if}
                 <div class="min-w-0 overflow-hidden rounded-lg border border-border">
-                  <Table.Root>
+                  <Table.Root class="min-w-[560px]">
                     <Table.Header>
                       <Table.Row class="hover:bg-transparent">
                         <Table.Head class="h-8 text-xs">{t(uiLevel.advanced || showAllFiles ? 'hub.col_quant' : 'hub.download_option')}</Table.Head>
@@ -736,17 +736,17 @@
                         {@const isRecommended = recommended?.name === variant.name}
                         {@const isFocused = !!focusFile && isTwinFile(variant.shards[0]?.filename ?? variant.name, focusFile)}
                         <Table.Row class={isFocused ? 'bg-primary/10' : ''} data-unavailable={!!variant.not_runnable || undefined} data-focus={isFocused ? 'true' : undefined} {@attach focusRow(isFocused)}>
-                          <Table.Cell class="max-w-[150px] sm:max-w-[220px]">
+                          <Table.Cell class="min-w-48 max-w-[240px] whitespace-normal">
                             <div class="flex min-w-0 flex-col">
                               <span class="flex items-center gap-1.5">
-                                {#if uiLevel.advanced || showAllFiles}<span class="font-mono text-sm font-medium" title={t('hub.quant_badge_title')}>{quantLabel(variant)}</span>{:else if isFocused}<span class="min-w-0 truncate text-sm font-medium" title={variant.name}>{variant.name}</span>{:else}<span class="text-sm font-medium">{t('hub.download_option')}</span>{/if}
+                                {#if uiLevel.advanced || showAllFiles}<span class="font-mono text-sm font-medium" title={t('hub.quant_badge_title')}>{quantLabel(variant)}</span>{:else if isFocused}<span class="min-w-0 break-words text-sm font-medium [overflow-wrap:anywhere]" title={variant.name}>{variant.name}</span>{:else}<span class="text-sm font-medium">{t('hub.download_option')}</span>{/if}
                                 {#if variant.is_split && (uiLevel.advanced || showAllFiles)}
                                   <Badge variant="outline" class="text-xs" title={t('hub.split_desc', { count: variant.shards.length })}>
                                     {t('hub.split_set', { count: variant.shards.length })}
                                   </Badge>
                                 {/if}
                               </span>
-                              {#if uiLevel.advanced || showAllFiles}<span class="truncate font-mono text-xs text-muted-foreground" title={variant.name}>{variant.name}</span>{/if}
+                              {#if uiLevel.advanced || showAllFiles}<span class="break-words font-mono text-xs text-muted-foreground [overflow-wrap:anywhere]" title={variant.name}>{variant.name}</span>{/if}
                               {#if isRecommended || local || hasUpdate}
                                 <span class="mt-1 flex flex-wrap items-center gap-1">
                                   {#if isRecommended}
