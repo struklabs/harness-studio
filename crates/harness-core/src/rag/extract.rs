@@ -349,6 +349,7 @@ pub fn normalize(text: &str) -> String {
 /// Paragraph text of a DOCX (`word/document.xml`).
 pub fn docx_text(bytes: &[u8]) -> Result<String, String> {
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| e.to_string())?;
+    crate::zip_safety::validate_archive(&mut zip)?;
     let mut xml = String::new();
     zip.by_name("word/document.xml")
         .map_err(|e| e.to_string())?

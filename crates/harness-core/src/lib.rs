@@ -88,6 +88,7 @@ pub mod tools;
 pub mod tts;
 pub mod vram;
 pub mod watchdog;
+mod zip_safety;
 
 #[cfg(test)]
 mod engine_golden_tests;

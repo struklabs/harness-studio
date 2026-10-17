@@ -878,6 +878,7 @@ async fn fetch_zip_files(
                         std::fs::File::open(&part2).map_err(|e| e.to_string())?,
                     )
                     .map_err(|e| e.to_string())?;
+                    crate::zip_safety::validate_archive(&mut zip)?;
                     let mut out = Vec::new();
                     for name in names {
                         let mut f = zip.by_name(&name).map_err(|e| format!("{}: {}", name, e))?;
