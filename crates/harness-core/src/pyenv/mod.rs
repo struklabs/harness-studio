@@ -354,7 +354,8 @@ fn extract_single(
     inner: &str,
     target: &Path,
 ) -> Result<(), String> {
-    use std::io::Read;
+    use std::io::{Read, Write};
+    crate::zip_safety::reject_symlink_ancestors(target, target.parent().unwrap_or(target))?;
     if let Some(parent) = target.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -364,6 +365,7 @@ fn extract_single(
             let mut zip =
                 zip::ZipArchive::new(std::fs::File::open(archive).map_err(|e| e.to_string())?)
                     .map_err(|e| e.to_string())?;
+            crate::zip_safety::validate_archive(&mut zip)?;
             let mut f = zip.by_name(inner).map_err(|e| format!("{inner}: {e}"))?;
             f.read_to_end(&mut bytes).map_err(|e| e.to_string())?;
         }
@@ -389,17 +391,24 @@ fn extract_single(
             }
         }
     }
-    std::fs::write(target, &bytes).map_err(|e| {
+    let write_failed = |e: std::io::Error| {
         String::from(
             err("fs.write_failed")
                 .with("path", target.display())
                 .with("error", e),
         )
-    })?;
+    };
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(target)
+        .map_err(write_failed)?;
+    file.write_all(&bytes).map_err(write_failed)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(target, std::fs::Permissions::from_mode(0o755));
+        file.set_permissions(std::fs::Permissions::from_mode(0o755))
+            .map_err(write_failed)?;
     }
     Ok(())
 }
@@ -571,6 +580,33 @@ pub fn python_env(hf_home_parent: &Path) -> Vec<(&'static str, std::ffi::OsStrin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zip_binary_extraction_rejects_symlinks() {
+        use std::io::{Cursor, Write};
+        for symlink in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let archive = dir.path().join("uv.zip");
+            let target = dir.path().join("uv");
+            let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+            let options = zip::write::SimpleFileOptions::default();
+            if symlink {
+                writer.add_symlink("uv", "../../outside", options).unwrap();
+            } else {
+                writer.start_file("uv", options).unwrap();
+                writer.write_all(b"binary").unwrap();
+            }
+            std::fs::write(&archive, writer.finish().unwrap().into_inner()).unwrap();
+            let result = extract_single(&archive, Archive::Zip, "uv", &target);
+            if symlink {
+                assert!(result.is_err());
+                assert!(!target.exists());
+            } else {
+                result.unwrap();
+                assert_eq!(std::fs::read(target).unwrap(), b"binary");
+            }
+        }
+    }
 
     #[test]
     fn the_newest_unpacked_python_of_the_series_is_found() {
