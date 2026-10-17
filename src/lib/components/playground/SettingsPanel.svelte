@@ -276,7 +276,7 @@
 </div>
 <div hidden={section.active !== 'system'} class="flex flex-col gap-3">
       <!-- System prompt -->
-      <Field label={t('pg.system_prompt')} id={id('system')} hint={t('help.system_prompt')}>
+      <Field label={t('pg.system_prompt')} id={id('system')} hint={`${t('help.system_prompt')} ${t('pg.rich_hint')}`}>
         <Textarea
           id={id('system')}
           rows={3}

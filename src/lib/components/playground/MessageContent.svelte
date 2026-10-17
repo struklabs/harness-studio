@@ -1,7 +1,7 @@
 <script module lang="ts">
   import { RenderCache } from './longChat';
 
-  type CachedSegment = { kind: 'text'; html: string } | { kind: 'code'; lang: string; value: string; closed: boolean };
+  type CachedSegment = { kind: 'text'; html: string } | { kind: 'table'; headers: string[]; rows: string[][] } | { kind: 'code'; lang: string; value: string; closed: boolean };
   /** Parsed + sanitized segments of finished messages, shared by every mounted message. */
   const parsed = new RenderCache<CachedSegment[]>();
 </script>
@@ -19,6 +19,11 @@
   import { Check, Copy } from '@lucide/svelte';
   import { renderChatMarkdown } from './markdown';
   import MermaidBlock from './MermaidBlock.svelte';
+  import { marked } from 'marked';
+  import DataTable from './DataTable.svelte';
+  import ChartBlock from './ChartBlock.svelte';
+  import DeclarativeBlock from './DeclarativeBlock.svelte';
+  import { parseChart, parseUi } from './generativeUi';
   import { scrollFocusable } from '#lib/actions/scrollFocusable.js';
   import { renderCacheKey } from './longChat';
 
@@ -30,7 +35,7 @@
 
   let { text, cacheId }: Props = $props();
 
-  type Segment = { kind: 'text'; html: string } | { kind: 'code'; lang: string; value: string; closed: boolean };
+  type Segment = CachedSegment;
 
   const MD_CLASSES =
     'min-w-0 text-base leading-relaxed [overflow-wrap:anywhere] [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-2 [&_h1]:mt-4 [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1.5 [&_h3]:text-base [&_h3]:font-semibold [&_h4]:mt-3 [&_h4]:mb-1 [&_h4]:font-semibold [&_h5]:font-semibold [&_h6]:font-semibold [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_li>p]:my-0.5 [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_strong]:font-semibold [&_em]:italic [&_del]:line-through [&_hr]:my-4 [&_hr]:border-border [&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-xs [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-border [&_pre]:bg-card [&_pre]:p-3 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-2 [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:border-collapse [&_table]:text-xs [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-semibold [&_th]:[overflow-wrap:break-word] [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_td]:align-top [&_td]:[overflow-wrap:break-word] [&_td]:min-w-[8ch] [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_input]:mr-1';
@@ -55,15 +60,23 @@
     const hit = key ? parsed.get(key) : undefined;
     if (hit) return hit;
     const out = parseUncached(src);
-    if (key) parsed.set(key, out, out.reduce((n, g) => n + (g.kind === 'text' ? g.html.length : g.value.length), 0));
+    if (key) parsed.set(key, out, out.reduce((n, g) => n + (g.kind === 'text' ? g.html.length : g.kind === 'table' ? JSON.stringify(g).length : g.value.length), 0));
     return out;
   }
 
   function parseUncached(src: string): Segment[] {
     const segments: Segment[] = [];
     const pushText = (value: string) => {
-      const seg = textSegment(value);
-      if (seg) segments.push(seg);
+      let pending = '';
+      const flush = () => { const seg = textSegment(pending); if (seg) segments.push(seg); pending = ''; };
+      for (const token of marked.lexer(value, { gfm: true })) {
+        if (token.type === 'table') {
+          flush();
+          const table = token as import('marked').Tokens.Table;
+          segments.push({ kind: 'table', headers: table.header.map(c => c.text), rows: table.rows.map(row => row.map(c => c.text)) });
+        } else pending += token.raw;
+      }
+      flush();
     };
     let pos = 0;
     while (pos < src.length) {
@@ -142,6 +155,13 @@
         <!-- Sanitized by DOMPurify in renderChatMarkdown -->
         {@html seg.html}
       </div>
+    {:else if seg.kind === 'table'}
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+      <div class="min-w-0" onclick={onContentClick}><DataTable headers={seg.headers} rows={seg.rows} markdown /></div>
+    {:else if seg.closed && ['chart', 'json'].includes(seg.lang.toLowerCase()) && parseChart(seg.value)}
+      <ChartBlock chart={parseChart(seg.value)!} />
+    {:else if seg.closed && seg.lang.toLowerCase() === 'ui' && parseUi(seg.value)}
+      <DeclarativeBlock block={parseUi(seg.value)!} />
     {:else if isMermaid(seg.lang)}
       <MermaidBlock code={seg.value} complete={seg.closed} />
     {:else}

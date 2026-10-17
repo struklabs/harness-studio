@@ -498,3 +498,20 @@ Harness Link, başka bir Harness Studio örneğinin modellerini yerel gibi kulla
 **Adresler.** `http` adreslerine yalnızca yerel ya da özel ağ adresleri için ve onay kutusunu işaretlediğinizde izin verilir. Diğer her durumda HTTPS kullanın. Sunucu kipi gelene kadar HTTPS için uzak gateway'in önüne Caddy gibi bir ters vekil koyun. Bağlantılar zincirlenemez: uzak bir model, başka bir bağlantının uzak modeli olamaz.
 
 **Desteklenen uç noktalar.** Chat completions, completions, responses, embeddings, rerank ve messages. Görsel, ses ve video uç noktaları uzak modeller için desteklenmez.
+
+## Playground Sohbetinde Zengin Bloklar
+
+Asistanın Markdown tabloları yatay kaydırmayı ve **CSV Olarak Kopyala** eylemini destekler. JSON araç sonuçları anahtar-değer kartı veya sıralanabilir nesne dizisi tablosu olarak açılır; **Ham JSON** düğmesi özgün sonucu gösterir. Boş sonuçlar açıkça belirtilir. Değerler düz metindir; modelin HTML veya JavaScript çıktısı çalıştırılmaz.
+
+Kapalı bir `chart` (veya `json`) kod bloğunda `{"type":"bar","labels":["Oca","Şub"],"series":[{"name":"Satış","values":[12,18]}]}` kullanın. Türler: `bar`, `line`, `pie`. Her seride etiket başına mutlak değeri en fazla 10^12 olan bir sonlu sayı bulunmalıdır. En fazla 40 etiket ve 6 seri desteklenir. Pasta grafiği tek seri, negatif olmayan değerler ve pozitif toplam gerektirir. SVG grafiklerinin altında tam değerleri içeren tablo ve CSV kopyalama eylemi bulunur.
+
+Kapalı bir `ui` kod bloğu, `type` ve düz metin `title` alanlarını içeren tek nesne kabul eder:
+
+| Tür | Ek Alanlar |
+| --- | --- |
+| `card`, `callout` | `"text":"Ayrıntılar"` |
+| `list`, `steps` | `"items":["Birinci","İkinci"]` |
+| `progress` | `"value":65` (0–100) |
+| `key-value` | `"entries":{"Durum":"Hazır"}` (metin değerleri) |
+
+Bilinmeyen alanlar ve güvensiz prototip anahtarları reddedilir. Metin alanları 4.000 karakterle, listeler ve anahtar-değer alanları 100 öğeyle, JSON 200.000 karakterle, araç tabloları 500 satır/50 sütunla ve nesne kartları 100 anahtarla sınırlıdır. Geçersiz, fazla büyük veya tamamlanmamış bloklar okunabilir kod olarak kalır. CSV dışa aktarımı hücreleri tırnak içine alır ve formül öneklerini etkisizleştirir.
