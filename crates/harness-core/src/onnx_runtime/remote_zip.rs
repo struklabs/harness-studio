@@ -51,8 +51,12 @@ pub fn parse_central_directory(cd: &[u8]) -> Result<Vec<Entry>, String> {
             .get(i + 46..i + 46 + nlen)
             .ok_or("zip: truncated name")?
             .to_vec();
+        let name = String::from_utf8(name).map_err(|_| "zip: invalid UTF-8 entry name")?;
+        // Fail closed on symlink mode bits, regardless of the claimed producer platform.
+        let mode = Some(field(38)? >> 16);
+        crate::zip_safety::validate_entry(&name, mode)?;
         out.push(Entry {
-            name: String::from_utf8_lossy(&name).to_string(),
+            name,
             method: u16_at(cd, i + 10).ok_or("zip: truncated record")?,
             crc32: field(16)?,
             compressed: u64::from(field(20)?),
