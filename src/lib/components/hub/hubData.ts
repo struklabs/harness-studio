@@ -64,6 +64,7 @@ export interface HubPrefs {
   quant: string;
   size: string;
   showFilters: boolean;
+  bestHardware: boolean;
 }
 
 const PREFS_KEY = 'harness_hub_prefs_v2';
@@ -81,6 +82,7 @@ export const DEFAULT_PREFS: HubPrefs = {
   quant: 'ALL',
   size: 'ALL',
   showFilters: false,
+  bestHardware: false,
 };
 
 export function loadPrefs(): HubPrefs {
@@ -102,6 +104,7 @@ export function loadPrefs(): HubPrefs {
       quant: str(raw.quant, 'ALL'),
       size: str(raw.size, 'ALL'),
       showFilters: raw.showFilters === true,
+      bestHardware: raw.bestHardware === true,
     };
   } catch {
     return { ...DEFAULT_PREFS };

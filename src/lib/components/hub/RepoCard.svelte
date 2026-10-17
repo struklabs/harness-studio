@@ -7,6 +7,8 @@
   import { onnxUnsupportedText } from '#lib/engines.js';
   import type { HfModelSearchResult, ModelCapability } from '#lib/types.js';
   import { cn } from '#lib/utils.js';
+  import { cachedRepoFit } from './hardwareFit';
+  import { repoUnavailable, type HubFit, type HubFitTier } from './hardwareRanking';
   import { library } from '#lib/stores/library.svelte.js';
   import PublisherAvatar from './PublisherAvatar.svelte';
   import UpdateBadge from './UpdateBadge.svelte';
@@ -25,9 +27,39 @@
     /** Quant currently used as a client-side filter (highlighted in the chips). */
     quantFilter: string;
     onSelect: (repoId: string) => void;
+    hardwareKey: string;
+    context: number;
+    onFit: (repoId: string, key: string, fit: HubFit) => void;
   }
 
-  let { repo, selected, layout, quantFilter, onSelect }: Props = $props();
+  let { repo, selected, layout, quantFilter, onSelect, hardwareKey, context, onFit }: Props = $props();
+  let visible = $state(false);
+  let hardwareFit = $state<HubFit>({ tier: 'unknown' });
+  const FIT_LABELS: Record<HubFitTier, TKey> = {
+    full: 'hub.hardware_full', partial: 'hub.hardware_partial', unknown: 'hub.hardware_unknown', unavailable: 'hub.hardware_unavailable',
+  };
+  const FIT_CLASSES: Record<HubFitTier, string> = {
+    full: 'text-success', partial: 'text-warning', unknown: 'text-muted-foreground', unavailable: 'text-destructive',
+  };
+  let shownFit = $derived(repoUnavailable(repo) ? { tier: 'unavailable' } as HubFit : hardwareFit);
+  function observeFit(node: HTMLElement) {
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) { visible = true; observer.disconnect(); }
+    });
+    observer.observe(node);
+    return { destroy: () => observer.disconnect() };
+  }
+  $effect(() => {
+    if (!visible || !hardwareKey) return;
+    const item = repo;
+    const key = hardwareKey;
+    let stale = false;
+    hardwareFit = { tier: 'unknown' };
+    void cachedRepoFit(item, context, key).then(fit => {
+      if (!stale) { hardwareFit = fit; onFit(item.id, key, fit); }
+    });
+    return () => { stale = true; };
+  });
 
   let license = $derived.by(() => {
     if (repo.license) return repo.license;
@@ -101,7 +133,7 @@
 
 <!-- The help icon sits inside the card's top-right corner, over the card button (a button cannot nest
      inside another), instead of beside the card where it broke the grid's alignment. -->
-<div class="relative h-full min-w-0">
+<div class="relative h-full min-w-0" use:observeFit>
 <button
   type="button"
   class={cn(
@@ -145,6 +177,9 @@
 
   <!-- State as coloured text, capabilities as one line; licence and details are in the drawer. -->
   <div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs">
+    <span class={cn('inline-flex items-center gap-1 rounded border border-border px-1.5 py-px text-xs', FIT_CLASSES[shownFit.tier])} title={t('hub.hardware_badge_help')}>
+      {t(FIT_LABELS[shownFit.tier])}{shownFit.quant ? ` · ${shownFit.quant}` : ''}
+    </span>
     {#if running}
       <span class="inline-flex items-center gap-1 text-success"><Play class="size-3" />{t('hub.badge_running')}</span>
     {:else if downloaded}
