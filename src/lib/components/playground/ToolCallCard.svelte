@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t, type TKey } from '#lib/i18n.svelte.js';
+  import StructuredResult from './StructuredResult.svelte';
   import { prettyArgs } from '#lib/mcp-client.js';
   import { cn } from '#lib/utils.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -90,9 +91,9 @@
   role="group"
   aria-label={t('pg.tool_call_aria', { name: call.name })}
 >
-  <div class="flex min-w-0 items-center gap-2">
+  <div class="flex min-w-0 flex-wrap items-center gap-2">
     <Wrench class="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-    <code class="min-w-0 truncate font-mono text-xs font-medium text-foreground" title={call.name}>{call.name}</code>
+    <code class="min-w-0 font-mono text-xs font-medium text-foreground [overflow-wrap:anywhere]">{call.name}</code>
     {#if call.dangerous}
       <Tooltip.Root>
         <Tooltip.Trigger>
@@ -169,11 +170,7 @@
         <span class="font-num font-normal">({t('pg.tool_result_len', { n: call.result.length })})</span>
       </Collapsible.Trigger>
       <Collapsible.Content>
-        <pre
-          class={cn(
-            'mt-1.5 max-h-64 overflow-auto rounded-md border border-border bg-muted p-2 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap select-text',
-            call.status === 'error' ? 'text-destructive' : 'text-foreground'
-          )}>{call.result}</pre>
+        <StructuredResult source={call.result} />
       </Collapsible.Content>
     </Collapsible.Root>
   {/if}

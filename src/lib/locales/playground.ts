@@ -1,5 +1,19 @@
 // Playground view: in-app streaming chat against the running llama-server.
 const tr = {
+  'pg.rich_raw': 'Ham JSON',
+  'pg.rich_preview': 'Ön İzleme',
+  'pg.rich_copy_csv': 'CSV Olarak Kopyala',
+  'pg.rich_copied': 'Kopyalandı',
+  'pg.rich_copy_failed': 'Kopyalanamadı. Yeniden deneyin.',
+  'pg.rich_rows': '{n} Satır',
+  'pg.rich_table': 'Veri Tablosu',
+  'pg.rich_sort': '{name} Alanına Göre Sırala',
+  'pg.rich_empty': 'Gösterilecek veri yok.',
+  'pg.rich_chart': 'Grafik',
+  'pg.rich_chart_description': 'Etiketler ve tam değerler aşağıdaki tabloda yer alır.',
+  'pg.rich_label': 'Etiket',
+  'pg.rich_hint': 'Zengin yanıtlar için modelden chart veya ui türünde bir JSON kod bloğu isteyin. Şemalar Özellikler belgesinde açıklanır.',
+
   'pg.audio_attach': 'Ses Ekle',
   'pg.audio_record': 'Ses Kaydet',
   'pg.audio_stop': 'Kaydı Durdur',
@@ -304,6 +318,20 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'pg.rich_raw': 'Raw JSON',
+  'pg.rich_preview': 'Preview',
+  'pg.rich_copy_csv': 'Copy as CSV',
+  'pg.rich_copied': 'Copied',
+  'pg.rich_copy_failed': 'Could not copy. Try again.',
+  'pg.rich_rows': '{n} Rows',
+  'pg.rich_table': 'Data Table',
+  'pg.rich_sort': 'Sort by {name}',
+  'pg.rich_empty': 'No data to display.',
+  'pg.rich_chart': 'Chart',
+  'pg.rich_chart_description': 'Labels and exact values are available in the table below.',
+  'pg.rich_label': 'Label',
+  'pg.rich_hint': 'For rich responses, ask the model for a chart or ui JSON code block. Schemas are described in Features.',
+
   'pg.audio_attach': 'Attach Audio',
   'pg.audio_record': 'Record Audio',
   'pg.audio_stop': 'Stop Recording',

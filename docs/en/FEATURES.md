@@ -504,3 +504,20 @@ Harness Link uses the models of another Harness Studio instance as if they were 
 **Addresses.** `http` addresses are accepted only for local or private network addresses, and only after you confirm the consent box. For anything else use HTTPS. Until server mode exists, put a reverse proxy such as Caddy in front of the remote gateway to get HTTPS. Links cannot be chained: a remote model cannot itself be a remote model of another link.
 
 **Supported endpoints.** Chat completions, completions, responses, embeddings, rerank, and messages. Image, audio, and video endpoints are not supported for remote models.
+
+## Rich Blocks in Playground Chat
+
+Assistant markdown tables support horizontal scrolling and **Copy as CSV**. JSON tool results open as key-value cards or sortable object-array tables, with a **Raw JSON** toggle. Empty results have an explicit empty state. Values are inert text; model HTML and JavaScript never become interactive UI.
+
+Use a closed `chart` (or `json`) fence containing `{"type":"bar","labels":["Jan","Feb"],"series":[{"name":"Sales","values":[12,18]}]}`. Types: `bar`, `line`, `pie`. Each series needs one finite number per label (absolute value at most 10^12). Up to 40 labels and 6 series; pie requires one nonnegative series with a positive total. SVG charts include an exact-value table and CSV export.
+
+A closed `ui` fence accepts one object with `type` and a plain-text `title`:
+
+| Type | Additional Fields |
+| --- | --- |
+| `card`, `callout` | `"text":"Details"` |
+| `list`, `steps` | `"items":["First","Second"]` |
+| `progress` | `"value":65` (0–100) |
+| `key-value` | `"entries":{"Status":"Ready"}` (string values) |
+
+Unknown fields and unsafe prototype keys are rejected. Text fields are limited to 4,000 characters; lists/entries to 100 items, JSON to 200,000 characters, tool tables to 500 rows/50 columns and object cards to 100 keys. Invalid, oversized, or incomplete blocks remain readable code. CSV export quotes cells and neutralizes formula prefixes.
