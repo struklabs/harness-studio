@@ -1437,7 +1437,7 @@ impl RuntimeManager {
 }
 
 /// Extracts a `.zip`, `.tar.gz` or `.tar.bz2` archive into `dest`. Entries that would escape
-/// `dest` are skipped (zip `enclosed_name`, tar `unpack`).
+/// `dest` are rejected for ZIP archives (tar uses `unpack`).
 pub(crate) fn extract_archive(archive: &Path, dest: &Path) -> Result<(), String> {
     let name = archive.to_string_lossy().to_lowercase();
     let file = fs::File::open(archive).map_err(|e| {
@@ -1455,12 +1455,14 @@ pub(crate) fn extract_archive(archive: &Path, dest: &Path) -> Result<(), String>
     };
     if name.ends_with(".zip") {
         let mut zip = zip::ZipArchive::new(file).map_err(|e| invalid(&e))?;
+        crate::zip_safety::validate_archive(&mut zip).map_err(|e| invalid(&e))?;
         for i in 0..zip.len() {
             let mut entry = zip.by_index(i).map_err(|e| invalid(&e))?;
-            let Some(rel) = entry.enclosed_name() else {
-                continue;
-            };
+            let rel = entry
+                .enclosed_name()
+                .ok_or_else(|| invalid(&"unsafe ZIP path"))?;
             let out = dest.join(rel);
+            crate::zip_safety::reject_symlink_ancestors(&out, dest).map_err(|e| invalid(&e))?;
             if entry.is_dir() {
                 fs::create_dir_all(&out).map_err(|e| create_dir_failed(&out, e))?;
                 continue;
@@ -1474,13 +1476,19 @@ pub(crate) fn extract_archive(archive: &Path, dest: &Path) -> Result<(), String>
                     .with("error", e)
                     .into()
             };
-            let mut f = fs::File::create(&out).map_err(write_failed)?;
+            // Never follow or overwrite an existing link (or hard link).
+            let mut f = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&out)
+                .map_err(write_failed)?;
             std::io::copy(&mut entry, &mut f).map_err(write_failed)?;
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
                 if let Some(mode) = entry.unix_mode() {
-                    let _ = fs::set_permissions(&out, fs::Permissions::from_mode(mode));
+                    f.set_permissions(fs::Permissions::from_mode(mode & 0o777))
+                        .map_err(write_failed)?;
                 }
             }
         }

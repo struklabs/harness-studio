@@ -18,7 +18,7 @@ sysinfo = { version = "0.38", default-features = false, features = ["system", "d
 command-group = { version = "5.0", features = ["with-tokio"] }
 # Reads llama.cpp release zips and DOCX (Deflate; Deflate64 for 7-Zip archives). The default
 # features add zstd, bzip2, xz and AES in C/Rust that no archive here uses.
-zip = { version = "4.6", default-features = false, features = ["deflate", "deflate64"] }
+zip = { version = "9.0.5", default-features = false, features = ["deflate", "deflate64"] }
 futures-util = "0.3"
 bytes = "1"
 base64 = "0.22"
