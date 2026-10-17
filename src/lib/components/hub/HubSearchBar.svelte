@@ -44,18 +44,18 @@
   ];
 </script>
 
-<div class="flex flex-wrap items-center gap-2">
+<div class="flex shrink-0 flex-wrap items-center gap-2">
   <!-- A form so Enter in the field searches however the key arrives (the Search button submits it). -->
   <form
-    class="contents"
+    class="flex min-w-0 max-w-3xl flex-[1_1_24rem] items-center gap-2"
     onsubmit={(e) => {
       e.preventDefault();
       onSearch(); // a new search replaces one still running
     }}
   >
-  <div class="relative min-w-[240px] flex-1">
+  <div class="relative min-w-0 flex-1">
     <Search class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-    <FieldHelp text={t('help.hub_search')}><Input
+    <FieldHelp text={t('help.hub_search')} class="w-full"><Input
       type="text"
       class="h-9 pl-8 text-sm"
       placeholder={t('hub.search_placeholder')}
@@ -64,7 +64,7 @@
     /></FieldHelp>
   </div>
 
-  <Button type="submit" class="h-9" aria-busy={searching}>
+  <Button type="submit" class="h-9 shrink-0" aria-busy={searching}>
     {#if searching}
       <LoaderCircle class="animate-spin" />
       {t('hub.searching')}
@@ -91,7 +91,7 @@
   </AdvancedOnly>
 
   <FilterSelect help={t('help.hub_sort')}
-    class="w-40"
+    class="w-44 max-w-full"
     label={t('hub.sort_label')}
     showLabel={false}
     bind:value={sort}

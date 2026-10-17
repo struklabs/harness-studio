@@ -230,7 +230,7 @@
   </div>
 
   {#if uiLevel.advanced && !shortWindow.current}
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <!-- llama-server's own web UI: other engines (ONNX, whisper.cpp, sd.cpp...) have none. -->
       {#if !capsStore.otherEngine}
         <Button variant="outline" size="sm" class="flex-1" disabled={!running} onclick={openWebUi}>

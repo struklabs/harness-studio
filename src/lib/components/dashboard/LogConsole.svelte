@@ -337,14 +337,14 @@
 
 <section class="flex h-full min-h-0 flex-col" bind:this={cardEl} aria-label={t('dash.lc_title')}>
   <div class="flex shrink-0 flex-col gap-2 border-b border-border px-4 py-2.5">
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <h2 class="text-sm font-semibold text-foreground" title={t('dash.lc_title_tip')}>
         {t('dash.n_logs_title')}
       </h2>
       {#if isHistory && selectedInfo}
         <span class="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground" role="status">
           <Clock class="size-3 shrink-0" />
-          <span class="truncate">{t('dash.lc_history_chip', { date: fmtDate(selectedInfo.modified) })}</span>
+          <span class="break-words">{t('dash.lc_history_chip', { date: fmtDate(selectedInfo.modified) })}</span>
           <Button variant="link" size="xs" class="h-auto px-0 text-xs" onclick={backToLive}>{t('dash.lc_back_to_live')}</Button>
         </span>
       {/if}
@@ -386,7 +386,7 @@
       {/if}
 
       <div class="flex flex-wrap items-center gap-1.5">
-        <div class="relative min-w-28 flex-1">
+        <div class="relative min-w-[min(100%,16rem)] flex-1">
           <Search class="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <label class="sr-only" for="{uid}-search">{t('dash.lc_search_label')}</label>
           <Input

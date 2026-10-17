@@ -246,21 +246,22 @@
 
 <div class="flex h-full min-h-0 overflow-hidden">
   <SectionSidebar pane={panes.libraryNav} label={t('nav.library')} groups={LIBRARY_GROUPS} active={section.active} onSelect={section.select} />
-  <main class="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden p-4">
+  <main class="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
     <AdvancedPageNotice level={pageLevel(LIBRARY_GROUPS, section.active)} />
     <header><h1 class="text-lg font-semibold">{t(LIBRARY_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.label)}{#if TABS.includes(section.active as LibraryTab)} <span class="ml-1.5 font-num text-sm text-muted-foreground">{counts[tab]}</span>{/if}</h1></header>
     <div hidden={section.active !== 'import'} class="min-h-0 flex-1 overflow-y-auto">
       {#if importVisited}<ImportModal inline onClose={() => section.select('all')} onImported={refresh} />{/if}
     </div>
-    <div hidden={section.active === 'import'} class="flex min-h-0 flex-1 flex-col gap-3">
+    <div hidden={section.active === 'import'} class="flex min-h-64 flex-1 flex-col gap-4">
   <!-- Toolbar -->
-  <div class="flex flex-wrap items-center gap-2">
-    <div class="relative min-w-[220px] flex-1">
+  <div class="flex shrink-0 flex-wrap items-center gap-2">
+    <div class="relative min-w-0 max-w-3xl flex-[1_1_18rem]">
       <Search class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-      <FieldHelp text={t('help.library_search')}><Input type="search" class="h-8 pl-8" placeholder={t('lib.search_placeholder')} aria-label={t('lib.search_placeholder')} bind:value={query} /></FieldHelp>
+      <FieldHelp text={t('help.library_search')} class="w-full"><Input type="search" class="h-8 pl-8" placeholder={t('lib.search_placeholder')} aria-label={t('hub.search_input_label')} bind:value={query} /></FieldHelp>
     </div>
+    <div class="flex max-w-full flex-wrap items-center gap-2">
     <FilterSelect help={t('help.library_sort')}
-      class="w-44"
+      class="w-48 max-w-full"
       label={t('lib.sort_label')}
       showLabel={false}
       value={sort}
@@ -284,6 +285,7 @@
       <ToggleGroup.Item value="grid" aria-label={t('lib.view_grid')}><LayoutGrid /></ToggleGroup.Item>
       <ToggleGroup.Item value="list" aria-label={t('lib.view_list')}><List /></ToggleGroup.Item>
     </ToggleGroup.Root></FieldHelp>
+    </div>
   </div>
 
   {#if view?.state_error}
@@ -295,12 +297,12 @@
   <div hidden={section.active !== 'definitions'} class="min-h-0 flex-1 overflow-y-auto">
     {#each domain.definitions as definition (definition.id)}
       <div class="flex items-center justify-between gap-3 border-b border-border py-3">
-        <div class="min-w-0"><p class="truncate font-mono text-sm">{definition.alias}</p><p class="truncate text-xs text-muted-foreground">{definition.base.kind === 'local' ? definition.base.path : definition.base.kind}</p></div>
+        <div class="min-w-0"><p class="break-words font-mono text-sm [overflow-wrap:anywhere]">{definition.alias}</p><p class="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">{definition.base.kind === 'local' ? definition.base.path : definition.base.kind}</p></div>
         <Button variant="outline" size="sm" onclick={() => editDef = definition}>{t('lib.edit_definition')}</Button>
       </div>
     {:else}<p class="text-sm text-muted-foreground">{t('def.no_definition')}</p>{/each}
   </div>
-  <div bind:this={modelsViewport} hidden={section.active === 'definitions'} class="min-h-0 flex-1 overflow-y-auto" aria-busy={loading}>
+  <div bind:this={modelsViewport} hidden={section.active === 'definitions'} class="min-h-40 flex-1 overflow-y-auto p-1 -m-1" aria-busy={loading}>
     {#if loadError}
       <div class="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
         <CircleAlert class="size-3.5 shrink-0" /><span class="min-w-0 break-words">{t('lib.load_error', { error: loadError })}</span>
@@ -309,7 +311,7 @@
     {:else if view === null}
       <SectionLoading shape="rows" rows={6} label={t('sl.lib_label')} phases={[t('sl.lib_1'), t('sl.lib_2')]} />
     {:else if entries.length === 0}
-      <Empty.Root class="h-full">
+      <Empty.Root class="min-h-48">
         <Empty.Header>
           <Empty.Media variant="icon"><LibraryIcon /></Empty.Media>
           <Empty.Title>{t('lib.empty_title')}</Empty.Title>
@@ -320,9 +322,10 @@
         </Empty.Content>
       </Empty.Root>
     {:else if visible.length === 0}
-      <Empty.Root class="h-full">
+      <Empty.Root class="min-h-48">
         <Empty.Header>
           <Empty.Title>{t('lib.no_match')}</Empty.Title>
+          <Empty.Description>{t('lib.no_match_hint')}</Empty.Description>
         </Empty.Header>
         <Empty.Content>
           <FieldHelp text={t('help.favorites')}><Button

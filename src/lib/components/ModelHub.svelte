@@ -319,7 +319,7 @@
   let listTitle = $derived(shownQuery.trim() ? t('hub.list_title_search', { query: shownQuery.trim() }) : t(LIST_TITLES[sortKey]));
 </script>
 
-<div class="flex h-full min-h-0 flex-col gap-3 p-4">
+<div class="@container/hub flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
   <HubSearchBar
     bind:query={searchQuery}
     bind:sort={sortKey}
@@ -385,7 +385,7 @@
     </div>
   {/if}
 
-  <div bind:this={scroller} class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" aria-busy={isSearching}>
+  <div bind:this={scroller} class="min-h-48 flex-1 overflow-x-hidden overflow-y-auto p-1 -m-1" aria-busy={isSearching}>
     <div class="flex flex-col gap-3 pb-2">
       <!-- "GGUF only" is not true once non-GGUF repos are listed too. -->
       {#if !includeNonGguf && uiLevel.advanced}
@@ -393,8 +393,8 @@
           <Compass class="size-3.5 shrink-0" />{t('hub.discover_scope')}
         </p>
       {/if}
-      <div class="mb-2 flex min-w-0 items-center gap-2">
-        <h2 class="min-w-0 truncate text-sm font-semibold" title={listTitle}>{listTitle}</h2>
+      <div class="flex min-w-0 flex-wrap items-baseline gap-2">
+        <h2 class="min-w-0 break-words text-sm font-semibold [overflow-wrap:anywhere]" title={listTitle}>{listTitle}</h2>
         {#if !isSearching && !searchError && results.length > 0}
           <span class="shrink-0 font-mono text-xs text-muted-foreground tabular">
             {t(nextCursor ? 'hub.results_count_more' : 'hub.results_count', { count: results.length })}
@@ -411,7 +411,7 @@
       {:else if isSearching}
         <SectionLoading shape="rows" rows={7} label={t('sl.hub_label')} phases={[t('sl.hub_1'), t('sl.hub_2')]} />
       {:else if results.length === 0}
-        <Empty.Root class="h-full">
+        <Empty.Root class="min-h-48">
           <Empty.Header>
             <Empty.Media variant="icon"><SearchX /></Empty.Media>
             <Empty.Title>{t('hub.search_no_results')}</Empty.Title>
@@ -430,7 +430,7 @@
           {/if}
         </Empty.Root>
       {:else if filteredRepos.length === 0}
-        <Empty.Root class="h-full">
+        <Empty.Root class="min-h-48">
           <Empty.Header>
             <Empty.Title>{t('hub.no_tag_filter_results')}</Empty.Title>
           </Empty.Header>

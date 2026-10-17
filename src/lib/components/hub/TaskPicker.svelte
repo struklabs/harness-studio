@@ -59,12 +59,12 @@
   }
 
   const chip =
-    'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none';
+    'inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none';
   const chipIdle = 'border-border text-muted-foreground hover:bg-muted hover:text-foreground';
   const chipActive = 'border-primary/50 bg-primary/10 text-primary';
 </script>
 
-<div class="flex min-w-0 flex-wrap items-center gap-1.5" role="group" aria-label={t('hub.task_label')}>
+<div class="flex min-w-0 shrink-0 flex-wrap items-center gap-1.5" role="group" aria-label={t('hub.task_label')}>
   <span class="mr-0.5 text-xs text-muted-foreground">{t('hub.task_label')}</span>
   <FieldHelp text={t('help.task_all')}><button type="button" class={cn(chip, value === '' ? chipActive : chipIdle)} aria-pressed={value === ''} onclick={() => pick('')}>
     {t('hub.filter_all')}
@@ -110,7 +110,7 @@
                 {@const active = value === task.id}
                 <button
                   type="button"
-                  class={cn(chip, 'h-6 px-2', active ? chipActive : chipIdle, level(task) === 'no' && !active && 'opacity-75')}
+                  class={cn(chip, 'min-h-7 px-2', active ? chipActive : chipIdle, level(task) === 'no' && !active && 'opacity-75')}
                   aria-pressed={active}
                   data-unavailable={(level(task) === 'no' && !active) || undefined}
                   title={tip(task)}
