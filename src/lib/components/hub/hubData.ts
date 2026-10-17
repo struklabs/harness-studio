@@ -66,7 +66,8 @@ export interface HubPrefs {
   showFilters: boolean;
 }
 
-const PREFS_KEY = 'harness_hub_prefs_v1';
+const PREFS_KEY = 'harness_hub_prefs_v2';
+const LEGACY_PREFS_KEY = 'harness_hub_prefs_v1';
 const SORTS: HfSortKey[] = ['downloads', 'likes', 'trendingScore', 'lastModified', 'createdAt'];
 
 export const DEFAULT_PREFS: HubPrefs = {
@@ -74,7 +75,7 @@ export const DEFAULT_PREFS: HubPrefs = {
   task: '',
   license: '',
   author: '',
-  includeNonGguf: false,
+  includeNonGguf: true,
   sort: 'trendingScore',
   viewMode: 'grid',
   quant: 'ALL',
@@ -84,14 +85,18 @@ export const DEFAULT_PREFS: HubPrefs = {
 
 export function loadPrefs(): HubPrefs {
   try {
-    const raw = JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as Partial<HubPrefs>;
+    const saved = localStorage.getItem(PREFS_KEY);
+    const raw = JSON.parse(saved ?? localStorage.getItem(LEGACY_PREFS_KEY) ?? '{}') as Partial<HubPrefs>;
+    // v1's off switch still injected runnable non-GGUF suggestions. Start the new strict
+    // format filter at all formats; keep the other remembered search/task/sort choices.
+    if (saved === null) raw.includeNonGguf = DEFAULT_PREFS.includeNonGguf;
     const str = (v: unknown, d: string) => (typeof v === 'string' ? v : d);
     return {
       query: str(raw.query, ''),
       task: str(raw.task, ''),
       license: str(raw.license, ''),
       author: str(raw.author, ''),
-      includeNonGguf: raw.includeNonGguf === true,
+      includeNonGguf: typeof raw.includeNonGguf === 'boolean' ? raw.includeNonGguf : DEFAULT_PREFS.includeNonGguf,
       sort: SORTS.includes(raw.sort as HfSortKey) ? (raw.sort as HfSortKey) : DEFAULT_PREFS.sort,
       viewMode: raw.viewMode === 'list' ? 'list' : 'grid',
       quant: str(raw.quant, 'ALL'),
