@@ -45,7 +45,7 @@ const BUILD_CLIENT_ID: Option<&str> = option_env!("HARNESS_HF_OAUTH_CLIENT_ID");
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 /// Refresh this long before the access token expires.
 const REFRESH_MARGIN_SECS: u64 = 120;
-const USER_AGENT: &str = "HarnessStudio/0.1.1";
+const USER_AGENT: &str = "HarnessStudio/0.1.2";
 
 fn now_secs() -> u64 {
     std::time::SystemTime::now()

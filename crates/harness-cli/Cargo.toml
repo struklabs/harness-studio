@@ -1,6 +1,6 @@
 [package]
 name = "harness-cli"
-version = "0.1.1"
+version = "0.1.2"
 description = "harness: command-line interface and headless mode of Harness Studio"
 authors = ["struklabs and Harness Studio contributors"]
 repository = "https://github.com/struklabs/harness-studio"

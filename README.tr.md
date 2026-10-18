@@ -185,7 +185,7 @@ Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işled
 - **Birden çok model ve kullanıcı için tasarlandı.** Eşzamanlılık, tek adresten model değiştirme, token başına sınırlar ve istemci bazında analitik.
 - **Gözlemlenebilirlik yerleşik.** İstek analitiği, izleme görünümü, Prometheus ve OpenTelemetry.
 - **Tek çekirdek, çok kapı.** Uygulama, CLI, Control API ve MCP aynı Rust servislerini kullanır.
-- **Dürüst sınırlar.** Harness Studio küçük bir ekibin erken aşamadaki herkese açık sürümüdür (0.1.1). LM Studio ve Ollama'nın daha büyük kullanıcı kitleleri, model kataloğu, macOS desteği ve SDK'ları var. Bkz. [Rakiplerin önde olduğu yerler](docs/tr/COMPARISON.md).
+- **Dürüst sınırlar.** Harness Studio küçük bir ekibin erken aşamadaki herkese açık sürümüdür (0.1.2). LM Studio ve Ollama'nın daha büyük kullanıcı kitleleri, model kataloğu, macOS desteği ve SDK'ları var. Bkz. [Rakiplerin önde olduğu yerler](docs/tr/COMPARISON.md).
 
 ## Gizlilik
 
@@ -278,7 +278,7 @@ Evet. Ağ geçidini açtığınızda OpenAI, Anthropic ve Ollama API'leriyle uyu
 <details>
 <summary><b>Windows SmartScreen uyarı veriyor. Güvenli mi?</b></summary>
 
-v0.1.1 kurulum dosyası henüz dijital olarak imzalı değil; SmartScreen bilinmeyen yayıncılar için uyarır. **Ek bilgi**'yi, sonra **Yine de çalıştır**'ı seçin. Kaynak kod ve derleme akışı bu depoda herkese açıktır; imzalı kurulum dosyası [yol haritasında](#yol-haritası).
+v0.1.2 kurulum dosyası henüz dijital olarak imzalı değil; SmartScreen bilinmeyen yayıncılar için uyarır. **Ek bilgi**'yi, sonra **Yine de çalıştır**'ı seçin. Kaynak kod ve derleme akışı bu depoda herkese açıktır; imzalı kurulum dosyası [yol haritasında](#yol-haritası).
 </details>
 
 <details>
@@ -339,7 +339,7 @@ Bellek yetmezse bir pencere neyin sığmadığını gösterir ve çözümler sun
 
 Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, yön gösterir.
 
-**0.1.1 ile gelenler:** yeni konuşma ve Apple Silicon görsel motorları, Harness Link, genişleyen ONNX ve ses kapsamı, macOS güncellemeleri, erişilebilirlik ve ilk çalıştırma düzeltmeleri, npm'de TypeScript SDK. Bkz. [sürüm notları](docs/tr/RELEASE_NOTES_0.1.1.md).
+**0.1.2 ile gelenler:** Playground'da üretken arayüz, donanıma uygun model keşfi, Basit ve Gelişmiş modlar, daha anlaşılır düzenler, ek araç denetimleri ve daha güvenli arşiv açma. Bkz. [sürüm notları](docs/tr/RELEASE_NOTES_0.1.2.md).
 
 **Sıradaki adımlar:** Linux doğrulaması, ilk çalıştırma ve erişilebilirlik kontrolleri, benchmark ve güncelleyici paketleri; Linux NVIDIA doğrulamasından sonra CUDA vLLM; PyPI'da Python SDK; web sitesinden sonra imzalı Windows kurulumu; upstream desteğinden sonra LFM2.5-Audio ses çıkışı.
 

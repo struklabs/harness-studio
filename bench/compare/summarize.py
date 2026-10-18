@@ -15,7 +15,7 @@ BASE = REPO / "docs" / "benchmarks" / os.environ.get("BENCH_RESULTS", "2026-10-1
 SECOND = os.environ.get("BENCH_SECOND", "14B")
 RAW = BASE / "raw"
 BACKENDS = ["harness", "harness_prefix", "harness_prefix_textrecovery", "lmstudio", "lmstudio_control", "ollama", "llamacpp", "llamacpp_b11552"]
-LABEL = {"harness": os.environ.get("BENCH_HARNESS_LABEL", "Harness Studio (0.1.1 release build)"), "harness_prefix": "Harness Studio - earlier build (before fixes)", "harness_prefix_textrecovery": "Harness Studio - earlier build + text tool-call recovery (opt-in setting)", "lmstudio_control": "LM Studio - control re-run (same day as the re-run Harness rows)", "lmstudio": "LM Studio", "ollama": "Ollama", "llamacpp": os.environ.get("BENCH_LLAMACPP_LABEL", "llama.cpp b11026 (winget)"),
+LABEL = {"harness": os.environ.get("BENCH_HARNESS_LABEL", "Harness Studio (0.1.2 release build)"), "harness_prefix": "Harness Studio - earlier build (before fixes)", "harness_prefix_textrecovery": "Harness Studio - earlier build + text tool-call recovery (opt-in setting)", "lmstudio_control": "LM Studio - control re-run (same day as the re-run Harness rows)", "lmstudio": "LM Studio", "ollama": "Ollama", "llamacpp": os.environ.get("BENCH_LLAMACPP_LABEL", "llama.cpp b11026 (winget)"),
          "llamacpp_b11552": os.environ.get("BENCH_MANAGED_LABEL", "llama.cpp b11552 (Harness engine)")}
 
 
