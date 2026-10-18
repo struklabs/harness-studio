@@ -146,7 +146,7 @@
     if (tourChecked || !active || !settings.privacy.onboarding_completed) return;
     tourChecked = true;
     try {
-      if (!localStorage.getItem('harness_tour_dismissed')) showCoachMarks = true;
+      if (uiLevel.advanced && !localStorage.getItem('harness_tour_dismissed')) showCoachMarks = true;
     } catch {
       // storage unavailable
     }
@@ -1326,7 +1326,7 @@
     <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
       <AdvancedPageNotice level={pageLevel(DASHBOARD_GROUPS, section.active)} />
       <div class="flex min-w-0 items-center gap-1">
-        <h1 class="min-w-0 text-base font-semibold">{t(DASHBOARD_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.label)}</h1>
+        <h1 class="min-w-0 text-base font-semibold">{t((!uiLevel.advanced && DASHBOARD_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.simpleLabel) || DASHBOARD_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.label)}</h1>
         {#if section.active === 'sampling'}<HelpPopover text={t('menus.sampling_note')} />{/if}
       </div>
       <div hidden={section.active !== 'sampling'} class="flex flex-col gap-3">
@@ -1334,6 +1334,16 @@
         <Button variant="outline" onclick={() => domain.openPresetManager(null)}>{t('ip.manage')}</Button>
       </div>
 <div hidden={section.active !== 'overview'} class="flex flex-col gap-3">
+      {#if !uiLevel.advanced}
+        <p class="text-sm leading-relaxed text-muted-foreground">{t('uiLevel.start_hint')}</p>
+        <Button onclick={() => section.select('model')}>{t('uiLevel.model')}</Button>
+        <div class="flex flex-wrap gap-2">
+          <Button variant="outline" onclick={onGoToHub}>{t('uiLevel.find')}</Button>
+          <Button variant="outline" onclick={() => app.openPlaygroundTab('chat')}>{t('uiLevel.use')}</Button>
+          <Button variant="ghost" onclick={onGoToConnections}>{t('uiLevel.connect')}</Button>
+        </div>
+      {/if}
+      <AdvancedOnly>
       <div class="flex flex-col gap-2.5 border-b border-border pb-4" role="group" aria-label={t('srv.card_aria')}>
         <div class="flex flex-wrap items-center justify-between gap-2">
           <!-- Run state is shown once, globally, in the title bar's server indicator. -->
@@ -1365,6 +1375,7 @@
         </Field>
         </div>
       </div>
+      </AdvancedOnly>
 
 </div>
 <div hidden={section.active !== 'model'} class="flex flex-col gap-3">

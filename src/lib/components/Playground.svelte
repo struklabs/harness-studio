@@ -2855,7 +2855,7 @@
         >
           <!-- Narrow centre: the tabs turn into icons (label kept for screen readers and as a
                tooltip) so the model picker stays readable next to them. -->
-          {#each PLAYGROUND_MODES.filter(mode => isVisible(mode.level, uiLevel.level)) as tab (tab.id)}
+          {#each PLAYGROUND_MODES.filter(mode => isVisible(mode.level, uiLevel.level) || mode.id === pgTab) as tab (tab.id)}
             <ToggleGroup.Item value={tab.id} class="h-7 px-2 text-xs" title={t(tab.label)}>
               <tab.icon class={cn('size-3.5', tabsCompact === 0 && 'hidden')} aria-hidden="true" />
               <span class={cn(tabsCompact > 0 && 'sr-only')}>{t(tab.label)}</span>
@@ -2876,7 +2876,7 @@
         {/if}
       </div>
       <div class="flex shrink-0 items-center gap-1.5">
-        {#if pgTab === 'chat'}
+        {#if pgTab === 'chat' && (uiLevel.advanced || compare.enabled)}
           <Tooltip.Root>
             <Tooltip.Trigger>
               {#snippet child({ props })}
@@ -3019,8 +3019,10 @@
           <TranscribePanel />
           <hr class="mx-auto w-full max-w-[860px] border-border" />
           <TtsPanel />
-          <hr class="mx-auto w-full max-w-[860px] border-border" />
-          <AudioProcessPanel />
+          <AdvancedOnly>
+            <hr class="mx-auto w-full max-w-[860px] border-border" />
+            <AudioProcessPanel />
+          </AdvancedOnly>
         {:else if pgTab === 'image'}
           <ImagePanel />
         {:else if pgTab === 'pipeline'}

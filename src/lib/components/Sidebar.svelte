@@ -75,7 +75,14 @@
     },
   ];
 
-  let visible = $derived(groups.map(group => ({ ...group, items: group.items.filter(item => isVisible(item.level, uiLevel.level)) })).filter(group => group.items.length));
+  const simpleItems: NavItem[] = [
+    { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+    { id: 'hub', labelKey: 'uiLevel.find', icon: Compass },
+    { id: 'library', labelKey: 'nav.library', icon: Library },
+    { id: 'playground', labelKey: 'uiLevel.use', icon: MessageSquare },
+    { id: 'connections', labelKey: 'uiLevel.connect', icon: Cable },
+  ];
+  let visible = $derived(!uiLevel.advanced ? [{ labelKey: 'nav.group_use' as TKey, items: simpleItems }] : groups.map(group => ({ ...group, items: group.items.filter(item => isVisible(item.level, uiLevel.level)) })).filter(group => group.items.length));
 
   /** Servers that are up or coming up, shown as live entries like containers in OrbStack. */
   let liveServers = $derived(app.servers.filter((s) => s.status === 'Running' || s.status === 'Starting'));
@@ -97,7 +104,7 @@
   }
 
   const itemBase =
-    'group/nav flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground';
+    'group/nav flex min-h-8 w-full items-center gap-2.5 rounded-md px-2 text-sm font-medium text-sidebar-foreground py-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground';
 </script>
 
 {#snippet navButton(item: NavItem)}
@@ -122,7 +129,7 @@
       class={cn('size-4 shrink-0', active ? 'text-sidebar-primary' : 'text-muted-foreground group-hover/nav:text-sidebar-accent-foreground')}
       strokeWidth={active ? 2.1 : 1.8}
     />
-    {#if !isCollapsed}<span class="truncate">{label}</span>{/if}
+    {#if !isCollapsed}<span class="min-w-0 break-words text-left leading-snug">{label}</span>{/if}
   </button>
 {/snippet}
 
@@ -159,6 +166,7 @@
       </div>
     {/each}
 
+    {#if uiLevel.advanced || liveServers.length > 0}
     <!-- Live servers -->
     <div class="flex flex-col gap-0.5">
       {#if !isCollapsed}
@@ -199,7 +207,7 @@
                 <span class="flex min-w-0 flex-col items-start leading-tight">
                   <span class="w-full truncate text-left text-sm">{label}</span>
                   <span class="w-full truncate text-left font-num text-xs text-muted-foreground">
-                    :{srv.active?.port ?? '—'} · {modelName(srv.active?.model_path)}
+                    {#if uiLevel.advanced}:{srv.active?.port ?? '—'} · {/if}{modelName(srv.active?.model_path)}
                   </span>
                 </span>
               {/if}
@@ -209,6 +217,7 @@
         {/each}
       {/if}
     </div>
+    {/if}
   </nav>
 
   <div class="flex flex-col gap-0.5 border-t border-sidebar-border px-2 py-2">

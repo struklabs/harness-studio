@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AdvancedPageNotice from '#lib/components/common/AdvancedPageNotice.svelte';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { t } from '#lib/i18n.svelte.js';
@@ -53,7 +54,7 @@
       onSearch(); // a new search replaces one still running
     }}
   >
-  <div class="relative min-w-0 flex-1">
+  <div class="relative min-w-0 basis-60 flex-1">
     <Search class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
     <FieldHelp text={t('help.hub_search')} class="w-full"><Input
       type="text"
@@ -124,3 +125,5 @@
     </ToggleGroup.Root></FieldHelp>
   </AdvancedOnly>
 </div>
+
+<AdvancedPageNotice discoverable />

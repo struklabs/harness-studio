@@ -1,8 +1,8 @@
-# Arayüz düzeyi (Basit / Gelişmiş) ve bilgi hiyerarşisi
+# Arayüz Düzeyi (Basit / Gelişmiş) ve Bilgi Hiyerarşisi
 
 [English](../en/UI_LEVELS.md)
 
-## 1. Arka plan
+## 1. Arka Plan
 
 - **Özellik yüzeyi geniş, katman yok.** 10 ana ekran; yalnız Dashboard'da 9, Ayarlar'da 22, Kütüphane'de 11 alt sayfa. Model seçip sohbet etmek isteyen kullanıcı da `-np`, `--fit`, `--cpu-moe`, KV önbellek kuantı, router modu, model motoru seçimi, gateway uç noktası tablosu ve MCP sunucularıyla aynı düzeyde karşılaşıyor.
 - **Metin ile kontrol aynı görsel ağırlıkta.** Dashboard `Field` etiketi 12 px `font-medium`, altındaki açıklama 12 px `muted-foreground`: aradaki tek fark ağırlık ve renk tonu. `SettingRow` açıklaması her zaman satır içinde. 52 `SettingRow`, 13 `Field` satır içi açıklama taşıyor; bunlara ek olarak bileşenlere elle yazılmış 233 `text-xs text-muted-foreground` paragraf var (en çok Bağlantılar, Araç, Analitik, Ayarlar > Ağ Geçidi).
@@ -19,7 +19,7 @@
 
 Neden iki ayrı görünüm değil: Bakım yükü iki katına çıkardı. Her yeni özellik iki yerde yazılırdı ve davranışlar zamanla ayrışırdı. Kullanıcı düzey değiştirince başka bir uygulamaya geçmiş gibi olurdu. Kademeli açılımda öğe aynı yerinde kalır, Gelişmiş düzeyde yalnız fazlası görünür.
 
-## 3. Arayüz düzeyi
+## 3. Arayüz Düzeyi
 
 ### Kurallar
 
@@ -33,22 +33,26 @@ Neden iki ayrı görünüm değil: Bakım yükü iki katına çıkardı. Her yen
    - Varsayılan: işaretsiz öğe iki düzeyde de görünür. Yeni özellik eklerken tek karar verilir: "Bu, ilk kez yerel yapay zekâ kullanan biri için gerekli mi?" Gerekli değilse `advanced` işaretlenir.
 6. **Düzey değiştirmek gezinmeyi değiştirmez.** Gelişmiş bir sayfadayken Basit'e geçilirse kullanıcı aynı sayfada kalır, sayfanın üstünde 2. kuraldaki şerit belirir. Menüden başka bir sayfaya geçince gizli sayfa listede görünmez. Kayıtlı "son sayfa" tercihi silinmez. Ekran açılırken son sayfa Basit düzeyde gizliyse ilk görünür sayfa açılır.
 
-### Basit düzey haritası
+### Basit Düzey Haritası
 
 | Ekran | Basit düzeyde görünür | Yalnız Gelişmiş |
 |---|---|---|
-| Ana gezinme | Dashboard, Kütüphanem, Model Hub, Playground, Bağlantılar, Ayarlar, Çalışan Sunucular | Sunucular, Araç (Oluştur), Performans, Analitik |
-| Dashboard | Özet; Model (model seçici, sığma göstergesi); Bağlam ve Bellek (yalnız bağlam boyutu) | Ağ, GPU, Örnekleme, Şablon ve Reasoning, Araçlar, Diğer Parametreler; Router modu, model motoru seçici, bayrak sayısı satırı, eşzamanlı istek, KV önbellek ve tüm "Bellek ve KV Cache" bölümü; llama.cpp Web Arayüzü ve "Sunucu Olarak Kaydet" düğmeleri |
+| Ana gezinme | Dashboard, Model Bul, Kütüphanem, Sohbet ve Medya, Uygulama Bağla; altta Ayarlar; yalnızca varsa çalışan sunucular | Sunucular, Araç (Oluştur), Performans, Analitik |
+| Dashboard | Model seçme, model bulma, sohbet ve uygulama bağlama kısayollarıyla Özet; Model Seç (model seçici, sığma göstergesi); Sohbet Uzunluğu (yalnız bağlam boyutu) | Ağ, GPU, Örnekleme, Şablon ve Reasoning, Araçlar, Diğer Parametreler; Router modu, model motoru seçici, bayrak sayısı satırı, eşzamanlı istek, KV önbellek ve tüm "Bellek ve KV Cache" bölümü; llama.cpp Web Arayüzü ve "Sunucu Olarak Kaydet" düğmeleri |
 | Dashboard sağ panel | Telemetri (bellek çubukları); Sunucu Logları **kapalı katlanmış** ("Logları Göster"), hata olunca kendiliğinden açılır | Log süzgeçleri ve araç çubuğu açık |
-| Playground | Sohbet ve Konuşma; giriş satırında Web ve Araçlar anahtarı, dikte (başlat/durdur, süre ve iptal); sağ panel: Model ve Preset, Sistem İstemi, Araçlar (izinler) | Embedding, Rerank sekmeleri; Örnekleme, Çıktı Sınırları, Geçmiş ve Compaction, RAG ayarları; giriş satırındaki token sayacı |
-| Kütüphanem | Modeller grubu (Tümü, Sohbet, Görsel Anlama, Embedding, Reranker, Konuşma, Görsel Üretimi), İçe Aktarma | Yardımcı Dosyalar (Draft, Adapter, Projektör), Model Tanımları |
-| Model Hub | Arama, görev süzgeci, model kartları, indirme | Ayrıntılı süzgeç paneli, kuant listesindeki teknik ayrıntılar |
-| Bağlantılar | Otomatik Yapılandırma, Adım Adım Kurulum, Uç Nokta Listesi | Ollama Uç Noktası, Port Notları, SDK ve Kod Örnekleri, Harness MCP, MCP Sunucuları grubu, Test grubu |
+| Playground | Sohbet, konuşma ve görsel sekmeleri; sesi yazıya çevirme ve ses oluşturma; Gelişmiş Ayarlar altında isteğe bağlı konuşma ve görsel kontrolleri; giriş satırında Web ve Araçlar anahtarı, dikte (başlat/durdur, süre ve iptal); sağ panel: Model ve Preset, Sistem İstemi, Araçlar (izinler) | Embedding, Rerank ve Pipeline sekmeleri; ses işleme ve etkin olmayan karşılaştırma kontrolü; Örnekleme, Çıktı Sınırları, Geçmiş ve Compaction, RAG ayarları; giriş satırındaki token sayacı |
+| Kütüphanem | Modeller grubu (Tümü, Sohbet, Görsel Anlama, Konuşma, Görsel Üretimi, Metinden Sese), İçe Aktarma | Embedding ve Reranker kategorileri, yinelenen dosya bulucu, Yardımcı Dosyalar (Draft, Adapter, Projektör), Model Tanımları |
+| Model Hub | Arama, dört yalın görev kısayolu (Sohbet, Sesi Yazıya Çevir, Ses Oluştur, Görsel Oluştur), tüm görevleri açma, model kartları, indirme | Ayrıntılı süzgeç paneli, kuant listesindeki teknik ayrıntılar |
+| Bağlantılar | İlk ziyarette Otomatik Yapılandırma, Adım Adım Kurulum, Harness Link, Uç Nokta Listesi | Ollama Uç Noktası, Port Notları, SDK ve Kod Örnekleri, Harness MCP, MCP Sunucuları grubu, Test grubu |
 | Ayarlar | Kurulu Model Motoru, Dizinler, Hugging Face Hesabı, Görünüm ve Başlangıç, Güncellemeler, Gizlilik | Registry, Ollama, Ağ, Güvenlik, Ağ Geçidi, Araçlar, Geliştirici, OpenTelemetry, Tanılama |
 
-Bu tablo başlangıç sınıflandırmasıdır. Test sırasında Basit düzeyde bir akışın tamamlanamadığı görülürse ilgili öğe Basit'e alınır. Hedef akış: model bul → indir → başlat → sohbet et → bir uygulamaya bağla.
+Basit düzeyde ana hedefler tek tık uzaktadır. Dashboard > Özet üzerinden model seçiciye bir tıkla ulaşılır, sonraki tıkla model seçilir; Başlat düğmesi sabit kalır. Model bulma, sohbet ve uygulama bağlama doğrudan kısayollardır. İndirme, kurulum ve uygulama yapılandırması ek seçimler gerektirebilir; 1–2 tık hedefi akışa ulaşmak içindir.
 
-## 4. Bilgi hiyerarşisi (iki düzeyde de geçerli)
+Gelişmiş düzey tüm hedefleri ve kontrolleri mevcut görev gruplarında korur. Basit düzeyde teknik etiket yerine gerektiğinde `SectionPage.simpleLabel` kullanılır. Bölüm menüleri, arama ve sohbet ayarları tek tıkla Gelişmiş Ayarlar erişimi sunar. İsteğe bağlı konuşma ve görsel kontrolleri genel düzey değiştirilmeden yerel olarak da açılabilir. Geçersiz görsel boyutu ilgili kontrolleri kendiliğinden açar. Zorunlu girdiler, hatalar ve görsel düzenleme ekleri görünür kalır.
+
+Düzey geçişi model ve form değerlerini korur. Etkin bir Gelişmiş Playground sekmesi Basit düzeye geçildiğinde sekme çubuğunda kalır; etkin karşılaştırma kapatılabilir. Yeni Basit ziyaretlerde bu ek kontroller gösterilmez. Dar panellerde gezinme etiketleri kesilmek yerine alt satıra geçer.
+
+## 4. Bilgi Hiyerarşisi (İki Düzeyde de Geçerli)
 
 Metin silinmez. Her metin bir katmana atanır ve o katmanın görünümünü alır.
 
@@ -71,16 +75,6 @@ Bileşen API'si:
 
 ## 5. Doğrulama
 
-Düzeyler 744 sayfa görünümünde denetlendi (iki düzey × TR/EN × koyu/açık × 1440 / 900 px, izole veri klasörü). Sonuç: 0 hata, sayfa taşması yok, düzey geçişinde ayarlar korunuyor, derin bağlantı şeridi çalışıyor. Örnekler:
+`npm run check`, `npm run check:locales` ve yalnızca ilgili `node --test scripts/test-ui-levels.mjs` regresyon paketini çalıştırın. Paket tam Gelişmiş menülerini, azaltılmış Basit menülerini, gruptan gelen görünürlüğü, kayıtlı sayfa geri dönüşünü ve derin bağlantı hedeflerinin korunmasını denetler. Masaüstü arka ucu gerektirmez.
 
-| Basit | Gelişmiş |
-|---|---|
-| ![](../screenshots/tr/simple-library.png) | ![](../screenshots/tr/advanced-library.png) |
-
-Basit düzey (solda) ilk kez kullanan biri için gerekenleri gösterir; Gelişmiş düzey (sağda) tüm ayarları açar. Diğer Gelişmiş ekranlar:
-
-| Dashboard | Connections | Settings > Runtime |
-|---|---|---|
-| ![](../screenshots/tr/advanced-dashboard.png) | ![](../screenshots/tr/advanced-connections.png) | ![](../screenshots/tr/advanced-settings-runtime.png) |
-
-Basit düzeyde Gelişmiş bir sayfaya derin bağlantı: sayfa normal açılır ve üstte ince bir şerit "Bu sayfa Gelişmiş düzeydedir" uyarısı gösterir.
+Etkileşimli incelemede iki dili ve düzeyi, dar panelleri, model seçme ve başlatmayı, Hub arama ve indirmeyi, konuşma ve görsel işlemlerini, uygulama bağlamayı, düzenlenmiş ayarlarla düzey geçişini ve Gelişmiş derin bağlantıları denetleyin. Geçersiz boyutla görsel seçeneklerini açıp doğrulamanın görünür kaldığını kontrol edin. Ön izleme rotalarını, taklit verileri, üretilen ekran görüntülerini ve `output/` dosyalarını commit'e eklemeyin. Bu otomatik kontroller masaüstü akışlarının tamamının doğrulandığı anlamına gelmez.

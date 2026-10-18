@@ -4,11 +4,11 @@ import type { SectionGroup } from './sections';
 export const DASHBOARD_GROUPS: SectionGroup[] = [
   { label: 'menus.server', pages: [
     { id: 'overview', label: 'menus.overview', icon: Activity },
-    { id: 'model', label: 'menus.model_runtime', icon: Cpu },
+    { id: 'model', simpleLabel: 'uiLevel.model', label: 'menus.model_runtime', icon: Cpu },
     { level: 'advanced', id: 'network', label: 'menus.network', icon: Network },
   ] },
   { label: 'menus.inference', pages: [
-    { id: 'context', label: 'menus.context_memory', icon: HardDrive },
+    { id: 'context', simpleLabel: 'uiLevel.context', label: 'menus.context_memory', icon: HardDrive },
     { level: 'advanced', id: 'gpu', label: 'menus.gpu', icon: Cpu },
     { level: 'advanced', id: 'sampling', label: 'menus.sampling', icon: SlidersHorizontal },
   ] },
@@ -22,7 +22,7 @@ export const DASHBOARD_GROUPS: SectionGroup[] = [
 export const PLAYGROUND_GROUPS: SectionGroup[] = [
   { label: 'menus.session', pages: [
     { id: 'model', label: 'menus.model_preset', icon: Cpu },
-    { id: 'system', label: 'menus.system', icon: Settings2 },
+    { id: 'system', simpleLabel: 'uiLevel.system', label: 'menus.system', icon: Settings2 },
   ] },
   { level: 'advanced', label: 'menus.generation', pages: [
     { level: 'advanced', id: 'sampling', label: 'menus.sampling', icon: SlidersHorizontal },
@@ -40,8 +40,8 @@ export const LIBRARY_GROUPS: SectionGroup[] = [
     { id: 'all', label: 'lib.tab_all', icon: Cpu },
     { id: 'llm', label: 'menus.chat', icon: Cpu },
     { id: 'vlm', label: 'menus.vision', icon: Cpu },
-    { id: 'embedding', label: 'lib.tab_embedding', icon: Cpu },
-    { id: 'reranker', label: 'lib.tab_reranker', icon: Cpu },
+    { level: 'advanced', id: 'embedding', label: 'lib.tab_embedding', icon: Cpu },
+    { level: 'advanced', id: 'reranker', label: 'lib.tab_reranker', icon: Cpu },
     { id: 'asr', label: 'menus.speech', icon: Cpu },
     { id: 'image', label: 'menus.image', icon: Cpu },
     { id: 'tts', label: 'lib.tab_tts', icon: Cpu },

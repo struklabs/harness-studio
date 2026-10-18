@@ -246,6 +246,7 @@
     <Field label={t('asr.file_label')} id="asr-file" note={t('asr.file_desc')}>
       <AudioFilePicker id="asr-file" label={t('asr.file_label')} accept="audio/*,video/webm,video/mp4,.wav,.mp3,.flac,.ogg,.opus,.m4a,.webm" bind:file bind:recState {busy} onRecorded={() => { result = null; error = ''; needFamily = null; }} />
     </Field>
+    <AdvancedOnly collapsible>
     <div class="grid gap-3 sm:grid-cols-3">
       <div class="flex flex-col gap-1.5">
         <Label for="asr-task" class="text-sm font-semibold text-foreground">{t('asr.task_label')}</Label>
@@ -278,7 +279,8 @@
         <Input id="asr-prompt" bind:value={prompt} placeholder={t('asr.prompt_placeholder')} disabled={busy} />
       </div>
     {/if}
-    <div class="flex items-center gap-3">
+    </AdvancedOnly>
+    <div class="flex flex-wrap items-center gap-3">
       <Button size="sm" onclick={run} disabled={!canRun}>
         <AudioLines />
         {busy ? t('asr.running') : t('asr.run')}

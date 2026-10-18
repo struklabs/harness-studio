@@ -32,9 +32,9 @@
   let { settings, serverStatus }: Props = $props();
 
   const navPane = panes.connectionsNav;
-  let active = $state('endpoints');
+  let active = $state('config');
   let selected = false;
-  let visited = $state<Record<string, boolean>>({ endpoints: true });
+  let visited = $state<Record<string, boolean>>({ config: true });
   const activePage = $derived(CONNECTION_PAGES.find((p) => p.id === active)!);
   const clientPage = $derived(['config', 'guide', 'sdk'].includes(active));
   const mcpPage = $derived(['servers', 'import', 'status'].includes(active));
@@ -52,7 +52,7 @@
     const explicit = connectionPageFromUrl(location.href) ?? app.requestedConnectionPage;
     if (explicit) select(explicit);
     else if (!selected) {
-      active = initialPage(CONNECTION_GROUPS, resolveConnectionPage(saved ?? '') ?? 'endpoints', uiLevel.level);
+      active = initialPage(CONNECTION_GROUPS, resolveConnectionPage(saved ?? '') ?? (uiLevel.advanced ? 'endpoints' : 'config'), uiLevel.level);
       visited[active] = true;
     }
     const navigate = () => { const id = connectionPageFromUrl(location.href); if (id) select(id); };

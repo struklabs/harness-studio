@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { onMount } from 'svelte';
   import type { ServerStatus, TelemetrySnapshot } from '#lib/types.js';
   import { t } from '#lib/i18n.svelte.js';
@@ -58,7 +59,7 @@
   {#if running.length === 0}
     <ServerOffState
       status={serverStatus}
-      description={onStart ? t('ui.off_dash_desc') : t('ui.off_dash_desc_left')}
+      description={!uiLevel.advanced ? t('uiLevel.ready_hint') : onStart ? t('ui.off_dash_desc') : t('ui.off_dash_desc_left')}
       failedDescription={onStart ? undefined : t('ui.off_failed_dash_desc')}
       hideError={!onStart}
       {onStart}

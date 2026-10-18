@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { t, type TKey } from '#lib/i18n.svelte.js';
@@ -27,10 +28,10 @@
     no: { key: 'hub.task_support_no', dot: 'bg-muted-foreground/40' },
   };
 
-  let quick = $derived(QUICK_TASKS.map((id) => taskInfo(id)).filter((x): x is HubTask => !!x));
+  let quick = $derived((uiLevel.advanced ? QUICK_TASKS : ['text-generation', 'automatic-speech-recognition', 'text-to-speech', 'text-to-image']).map((id) => taskInfo(id)).filter((x): x is HubTask => !!x));
   let current = $derived(taskInfo(value));
   /** A selected task outside the quick chips still shows as a chip. */
-  let extra = $derived(current && !QUICK_TASKS.includes(current.id) ? current : null);
+  let extra = $derived(current && !quick.some(task => task.id === current.id) ? current : null);
 
   /** Verdict of the installed runtime for a task; unknown until the backend answered. */
   function level(task: HubTask): TaskSupport | null {
@@ -73,7 +74,7 @@
     {@const active = value === task.id}
     <button type="button" class={cn(chip, active ? chipActive : chipIdle)} aria-pressed={active} title={tip(task)} onclick={() => pick(task.id)}>
       <span class={cn('size-1.5 rounded-full', dot(task))} aria-hidden="true"></span>
-      {t(task.key)}
+      {t(!uiLevel.advanced ? ({ 'text-generation': 'uiLevel.chat', 'automatic-speech-recognition': 'uiLevel.transcribe', 'text-to-speech': 'uiLevel.speak', 'text-to-image': 'uiLevel.image' } as Record<string, TKey>)[task.id] ?? task.key : task.key)}
     </button>
   {/each}
   {#if extra}
