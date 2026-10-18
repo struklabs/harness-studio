@@ -4,6 +4,13 @@
 
 Harness Studio manages local text, image, speech, and tool workloads in one place. Local first, with optional engines and cloud connections. This roadmap shows direction; priorities may change with feedback. Share suggestions in [Discussions](https://github.com/struklabs/harness-studio/discussions) or [issues](https://github.com/struklabs/harness-studio/issues). See the [changelog](../CHANGELOG.md) for details.
 
+## Shipped in 0.1.2
+
+- **Playground:** generative UI for tool results, tables, charts, and simple UI blocks.
+- **Model discovery:** Best for My Hardware ranking and fit badges; sorting that matches Hugging Face.
+- **Everyday controls:** Simple and Advanced modes, polished page layouts, a section menu that stays open, Entire Internet tool permissions, and Clear Log in Automatic Tool Builder.
+- **Security:** archive extraction rejects symbolic links and paths outside the destination and removes privileged permission bits.
+
 ## Shipped in 0.1.1
 
 - **Engines:** transcribe.cpp, llama.cpp Qwen3-TTS, mflux images on Apple Silicon, and broader MLX speech support including CSM.

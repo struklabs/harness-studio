@@ -4,6 +4,13 @@
 
 Harness Studio, yerel metin, görsel, konuşma ve araç iş yüklerini tek yerden yönetir. Öncelik yerel kullanımdadır; ek motorlar ve bulut bağlantıları isteğe bağlıdır. Bu yol haritası yön gösterir; öncelikler geri bildirimle değişebilir. Önerilerinizi [Discussions](https://github.com/struklabs/harness-studio/discussions) veya [issue](https://github.com/struklabs/harness-studio/issues) üzerinden paylaşın. Ayrıntılar için [değişiklik günlüğüne](../CHANGELOG.md) bakın.
 
+## 0.1.2 ile Gelenler
+
+- **Playground:** araç sonuçları, tablolar, grafikler ve basit arayüz blokları için üretken arayüz.
+- **Model keşfi:** Donanımıma Uygun sıralaması ve sığma etiketleri; Hugging Face ile aynı sıralama.
+- **Günlük denetimler:** Basit ve Gelişmiş modlar, iyileştirilmiş sayfa düzenleri, açık kalan bölüm menüsü, araçlar için Tüm İnternet izni ve Otomatik Araç Oluşturucu'da Günlüğü Temizle.
+- **Güvenlik:** arşiv açılırken sembolik bağlantılar ve hedef klasör dışındaki yollar reddediliyor, ayrıcalıklı izin bitleri kaldırılıyor.
+
 ## 0.1.1 ile Gelenler
 
 - **Motorlar:** transcribe.cpp, llama.cpp Qwen3-TTS, Apple Silicon'da mflux ile görseller, CSM dahil genişleyen MLX konuşma desteği.

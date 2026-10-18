@@ -5,7 +5,7 @@
 Tek doğruluk kaynağı: Harness Studio'da **bugün gerçekten ne var**, LM Studio ve Ollama'da ne var, hangi boşluğu nasıl kapatacağız. Plan ve öncelikler [ROADMAP.md](ROADMAP.md)'te, hedef mimari [ARCHITECTURE.md](ARCHITECTURE.md) içinde.
 
 Son denetim: **Ekim 2026** (rakip sütunları resmi belgelere karşı yeniden doğrulandı, Harness sütunu `main` koduyla yeniden denetlendi; kalan eksikler [ROADMAP](ROADMAP.md)'te). Karşılaştırılan sürümler:
-- Harness Studio `main` (0.1.1)
+- Harness Studio `main` (0.1.2)
 - LM Studio **0.4.26** (lmstudio.ai/download, 2026-10-12; 0.4.26 build 4)
 - Ollama **0.40.3** (2026-10-11; 0.40.0 ile Apple Silicon'da MLX varsayılan)
 - llama-server **0.5.0-dev build 11236** (`--help` denetimi bu build'e göre; §0 ölçümleri b11552/b11556)

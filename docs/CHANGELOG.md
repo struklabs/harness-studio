@@ -2,9 +2,9 @@
 
 All notable changes to Harness Studio are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/).
 
-Release notes with system requirements and known limitations (English and Turkish): [0.1.1 English](en/RELEASE_NOTES_0.1.1.md) / [Türkçe](tr/RELEASE_NOTES_0.1.1.md).
+Release notes with system requirements and known limitations (English and Turkish): [0.1.2 English](en/RELEASE_NOTES_0.1.2.md) / [Türkçe](tr/RELEASE_NOTES_0.1.2.md).
 
-## [Unreleased]
+## [0.1.2] - 2026-10-18
 
 - The section menu stays open after you choose an item; close it with Collapse.
 - Bölüm menüsü bir öğe seçtikten sonra açık kalıyor; Daralt ile kapatılıyor.
@@ -518,6 +518,6 @@ First public release. Windows installer (NSIS) and signed, notarized macOS DMGs 
 - The Windows installer is unsigned; SmartScreen may show a warning (**More info > Run anyway**).
 - The Linux packages are a preview, tested on one Ubuntu 24.04 machine so far.
 
-[Unreleased]: https://github.com/struklabs/harness-studio/compare/v0.1.1...HEAD
+[0.1.2]: https://github.com/struklabs/harness-studio/releases/tag/v0.1.2
 [0.1.1]: https://github.com/struklabs/harness-studio/releases/tag/v0.1.1
 [0.1.0]: https://github.com/struklabs/harness-studio/releases/tag/v0.1.0

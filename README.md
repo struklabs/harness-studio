@@ -185,7 +185,7 @@ The others win some rows too: Ollama processed long prompts faster, and at 65k c
 - **Built for several models and several users.** Concurrency, model switching through one endpoint, per-token limits, and per-client analytics.
 - **Observability built in.** Request analytics, a trace view, Prometheus, and OpenTelemetry.
 - **One core, many doors.** The app, the CLI, the Control API, and MCP all use the same Rust services.
-- **Honest limits.** Harness Studio is an early public release (0.1.1) with a small team. LM Studio and Ollama have larger user bases, catalogs, macOS support, and SDKs. See [Where the competitors lead](docs/en/COMPARISON.md#where-the-competitors-lead).
+- **Honest limits.** Harness Studio is an early public release (0.1.2) with a small team. LM Studio and Ollama have larger user bases, catalogs, macOS support, and SDKs. See [Where the competitors lead](docs/en/COMPARISON.md#where-the-competitors-lead).
 
 ## Privacy
 
@@ -278,7 +278,7 @@ All three run models locally on top of llama.cpp. Harness Studio keeps the advan
 <details>
 <summary><b>Windows shows a SmartScreen warning. Is it safe?</b></summary>
 
-The v0.1.1 installer is not code-signed yet, so SmartScreen warns about unknown publishers. Choose **More info**, then **Run anyway**. The source code and the build workflow are public in this repository, and a signed installer is on the [roadmap](#roadmap).
+The v0.1.2 installer is not code-signed yet, so SmartScreen warns about unknown publishers. Choose **More info**, then **Run anyway**. The source code and the build workflow are public in this repository, and a signed installer is on the [roadmap](#roadmap).
 </details>
 
 <details>
@@ -339,7 +339,7 @@ Open an [issue](https://github.com/struklabs/harness-studio/issues/new/choose) w
 
 The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction, not promises.
 
-**Shipped in 0.1.1:** new speech and Apple Silicon image engines, Harness Link, broader ONNX and audio coverage, macOS updates, accessibility and first-run fixes, and the TypeScript SDK on npm. See the [release notes](docs/en/RELEASE_NOTES_0.1.1.md).
+**Shipped in 0.1.2:** generative UI in Playground, hardware-aware model discovery, Simple and Advanced modes, clearer layouts, more tool controls, and safer archive extraction. See the [release notes](docs/en/RELEASE_NOTES_0.1.2.md).
 
 **Next:** Linux verification, first-run and accessibility checks, benchmarks and updater packages; CUDA vLLM after Linux NVIDIA verification; Python SDK on PyPI; a signed Windows installer after the website; LFM2.5-Audio output after upstream support.
 

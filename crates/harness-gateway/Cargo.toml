@@ -1,6 +1,6 @@
 [package]
 name = "harness-gateway"
-version = "0.1.1"
+version = "0.1.2"
 description = "Harness gateway: one OpenAI/Anthropic-compatible endpoint for every model definition (JIT load, TTL, queue) over harness-core"
 authors = ["struklabs and Harness Studio contributors"]
 repository = "https://github.com/struklabs/harness-studio"
