@@ -1,6 +1,12 @@
 import { Link2, Network, Plug, BookOpen, Code, Server, Download, Activity, FlaskConical, Route, Wrench } from '@lucide/svelte';
 import type { SectionGroup } from '../common/sections';
 export const CONNECTION_GROUPS: SectionGroup[] = [
+  { label: 'conn.tab_clients', pages: [
+    { id: 'config', label: 'intg.section_config', icon: Wrench },
+    { id: 'guide', label: 'intg.section_guide', icon: BookOpen },
+    { level: 'advanced', id: 'sdk', label: 'intg.section_sdk', icon: Code },
+    { level: 'advanced', id: 'harness-mcp', label: 'conn.nav_harness_mcp', icon: Plug },
+  ] },
   { label: 'link.group', pages: [
     { id: 'harness-link', label: 'link.page', icon: Link2 },
   ] },
@@ -8,12 +14,6 @@ export const CONNECTION_GROUPS: SectionGroup[] = [
     { id: 'endpoints', label: 'conn.nav_endpoint_list', icon: Network },
     { level: 'advanced', id: 'ollama', label: 'conn.nav_ollama', icon: Plug },
     { level: 'advanced', id: 'ports', label: 'conn.nav_ports', icon: Route },
-  ] },
-  { label: 'conn.tab_clients', pages: [
-    { id: 'config', label: 'intg.section_config', icon: Wrench },
-    { id: 'guide', label: 'intg.section_guide', icon: BookOpen },
-    { level: 'advanced', id: 'sdk', label: 'intg.section_sdk', icon: Code },
-    { level: 'advanced', id: 'harness-mcp', label: 'conn.nav_harness_mcp', icon: Plug },
   ] },
   { level: 'advanced', label: 'conn.tab_mcp', pages: [
     { level: 'advanced', id: 'servers', label: 'conn.nav_servers', icon: Server },

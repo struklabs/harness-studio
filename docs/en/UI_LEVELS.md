@@ -1,6 +1,6 @@
 Türkçe: ../tr/UI_LEVELS.md
 
-# Interface level (Simple / Advanced) and information hierarchy
+# Interface Level (Simple / Advanced) and Information Hierarchy
 
 ## 1. Background
 
@@ -19,7 +19,7 @@ Two separate views were rejected in favor of **one interface with two informatio
 
 Why not two separate views: maintenance would double. Every new feature would be written in two places and behavior would drift apart. Switching the level would feel like switching to a different application. With progressive disclosure each item stays where it is, and the Advanced level only shows more.
 
-## 3. Interface level
+## 3. Interface Level
 
 ### Rules
 
@@ -33,22 +33,26 @@ Why not two separate views: maintenance would double. Every new feature would be
    - Default: an unmarked item is visible at both levels. When adding a feature there is a single decision: "Does someone using local AI for the first time need this?" If not, mark it `advanced`.
 6. **Switching the level does not change navigation.** If the user switches to Simple while on an Advanced page, they stay on that page and the banner from rule 2 appears at the top. When they navigate to another page, hidden pages no longer appear in the list. The saved "last page" preference is not erased. When a screen opens and its last page is hidden at the Simple level, the first visible page opens instead.
 
-### Simple-level map
+### Simple-Level Map
 
 | Screen | Visible at Simple | Advanced only |
 |---|---|---|
-| Main navigation | Dashboard, My Models, Model Hub, Playground, Connections, Settings, Running Servers | Servers, Create (tools), Performance, Analytics |
-| Dashboard | Overview; Model (model picker, fit indicator); Context and Memory (context size only) | Network, GPU, Sampling, Template and Reasoning, Tools, Other Parameters; router mode, runtime picker, flag-count row, concurrent requests, KV cache, and the whole "Memory and KV Cache" section; the "llama.cpp Web UI" and "Save as Server" buttons |
+| Main navigation | Dashboard, Find a Model, My Models, Chat and Media, Connect an App; Settings in the footer; running servers only when present | Servers, Create (tools), Performance, Analytics |
+| Dashboard | Overview with shortcuts to choose a model, find models, chat, and connect an app; Choose a Model (model picker, fit indicator); Conversation Length (context size only) | Network, GPU, Sampling, Template and Reasoning, Tools, Other Parameters; router mode, runtime picker, flag-count row, concurrent requests, KV cache, and the whole "Memory and KV Cache" section; the "llama.cpp Web UI" and "Save as Server" buttons |
 | Dashboard right panel | Telemetry (memory bars); Server Logs **collapsed** ("Show Logs"), which opens by itself when an error occurs | Log filters and toolbar open |
-| Playground | Chat and Conversation; Web and Tools switch in the input row, dictation (start/stop, duration, and cancel); right panel: Model and Preset, System Prompt, Tools (permissions) | Embedding and Rerank tabs; Sampling, Output Limits, History and Compaction, RAG settings; the token counter in the input row |
-| My Models | Models group (All, Chat, Vision, Embedding, Reranker, Speech), Import | Supporting Files (Draft, Adapter, Projector), Model Definitions |
-| Model Hub | Search, task filter, model cards, download | Detailed filter panel, technical details in the quantization list |
-| Connections | Auto Configure, Step-by-Step Setup, Endpoint List | Ollama Endpoint, Port Notes, SDK and Code Examples, Harness MCP, the MCP Servers group, the Test group |
+| Playground | Chat, speech, and image tabs; transcription and speech generation; optional transcription and image controls under Advanced Settings; Web and Tools switch in the input row, dictation (start/stop, duration, and cancel); right panel: Model and Preset, System Prompt, Tools (permissions) | Embedding, Rerank, and Pipeline tabs; audio processing and the inactive comparison control; Sampling, Output Limits, History and Compaction, RAG settings; the token counter in the input row |
+| My Models | Models group (All, Chat, Vision, Speech, Image Generation, Text-to-Speech), Import | Embedding and Reranker categories, duplicate finder, Supporting Files (Draft, Adapter, Projector), Model Definitions |
+| Model Hub | Search, four plain-language task shortcuts (Chat, Transcribe Audio, Create Speech, Generate Images), Browse All Tasks, model cards, download | Detailed filter panel, technical details in the quantization list |
+| Connections | Auto Configure first on a fresh visit, Step-by-Step Setup, Harness Link, Endpoint List | Ollama Endpoint, Port Notes, SDK and Code Examples, Harness MCP, the MCP Servers group, the Test group |
 | Settings | Installed Runtime, Directories, Hugging Face Account, Appearance & Startup, Updates, Privacy | Registry, Ollama, Network, Security, Gateway, Tools, Developer, OpenTelemetry, Diagnostics |
 
-This table is the initial classification. If a flow cannot be completed at the Simple level during testing, the relevant item moves to Simple. The target flow: find a model → download → start → chat → connect to an application.
+Simple keeps the main destinations one click away. From Dashboard > Overview, choosing a model takes one click and selecting it takes the next; Start remains pinned. Finding a model, opening chat, and connecting an app are direct shortcuts. Download, installation, and client setup may require further choices; the 1–2-click target applies to reaching the journey, not completing a download or setup.
 
-## 4. Information hierarchy (applies at both levels)
+Advanced retains every destination and control in the existing task groups. Simple uses `SectionPage.simpleLabel` where the technical label would be unclear. Section menus, search, and chat settings offer a one-click Advanced Settings action. Optional transcription and image controls can also be expanded locally without changing the global level. Invalid image dimensions automatically reveal the relevant controls. Required inputs, errors, and image-edit attachments remain visible.
+
+Switching levels preserves model and form values. An active Advanced Playground tab remains in the tab strip after switching to Simple; comparison can still be turned off when already active. New Simple visits omit these extra controls. Navigation labels wrap in narrow panes instead of being clipped.
+
+## 4. Information Hierarchy (Applies at Both Levels)
 
 No text is removed. Each text is assigned to a layer and takes that layer's presentation.
 
@@ -71,16 +75,6 @@ Component API:
 
 ## 5. Verification
 
-The levels were checked on 744 page views (two levels × TR/EN × dark/light × 1440 / 900 px, isolated data folder). Result: 0 errors, no page overflow, settings preserved across level switches, and the deep-link banner works. Examples:
+Run `npm run check`, `npm run check:locales`, and the focused `node --test scripts/test-ui-levels.mjs` regression suite. The suite checks full Advanced menus, reduced Simple menus, inherited group visibility, saved-page fallback, and preservation of deep-link targets. It does not require a desktop backend.
 
-| Simple | Advanced |
-|---|---|
-| ![](../screenshots/en/simple-library.png) | ![](../screenshots/en/advanced-library.png) |
-
-The Simple level (left) shows only what a first-time user needs; the Advanced level (right) reveals every setting. More Advanced screens:
-
-| Dashboard | Connections | Settings > Runtime |
-|---|---|---|
-| ![](../screenshots/en/advanced-dashboard.png) | ![](../screenshots/en/advanced-connections.png) | ![](../screenshots/en/advanced-settings-runtime.png) |
-
-Deep link to an Advanced page at the Simple level: the page opens normally and a thin banner at the top reads "This page is at the Advanced level · Switch to Advanced Level".
+For interactive review, check both languages and levels, narrow panes, model selection and Start, Hub search and download, speech and image actions, connection setup, mode switches with edited settings, and Advanced deep links. Expand image options with an invalid size and confirm the validation remains visible. Do not commit preview routes, mocks, generated screenshots, or `output/` files. These automated checks do not establish full desktop journey coverage.

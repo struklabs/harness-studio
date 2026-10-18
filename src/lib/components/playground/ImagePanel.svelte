@@ -228,32 +228,13 @@
         }}
       />
     </div>
+    <AdvancedOnly collapsible invalid={sizeError}>
     {#if !mflux}
       <div class="flex flex-col gap-1.5">
         <Label for="img-negative" class="text-sm font-semibold text-foreground">{t('img.negative_label')}</Label>
         <Input id="img-negative" bind:value={form.negative} placeholder={t('img.negative_placeholder')} disabled={busy} />
       </div>
     {/if}
-    <div class="flex flex-col gap-1.5">
-      <span class="text-sm font-semibold text-foreground">{t('img.init_label')}</span>
-      <input bind:this={fileInput} type="file" accept={START_IMAGE_TYPES.join(',')} class="hidden" onchange={pickStartImage} />
-      {#if form.init}
-        <div class="flex flex-wrap items-end gap-3">
-          <img src={dataUrl(form.init)} alt={t('img.init_label')} class="size-24 rounded-md border border-border bg-muted object-contain" />
-          {#if strengthShown}
-            <Field label={t('img.strength_label')} id="img-strength" note={strengthError ? t('img.strength_invalid') : t('img.strength_note')}>
-              <Input id="img-strength" bind:value={form.strength} inputmode="decimal" placeholder="0.75" disabled={busy} aria-invalid={strengthError} class="w-28" />
-            </Field>
-          {/if}
-          <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.init = null)}><X />{t('img.init_remove')}</Button>
-        </div>
-      {:else}
-        <div class="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" disabled={busy} onclick={() => fileInput?.click()}><ImagePlus />{t('img.init_pick')}</Button>
-          <span class="text-xs text-muted-foreground">{t(editsOnly ? 'img.init_required' : 'img.init_note')}</span>
-        </div>
-      {/if}
-    </div>
     <div class="grid gap-3 sm:grid-cols-4">
       <Field label={t('img.size_label')} id="img-size" note={sizeError ? t('img.size_invalid') : t('img.size_note')}>
         <Input id="img-size" bind:value={form.size} list="img-sizes" placeholder={form.init ? t('img.init_size') : t(mflux ? 'img.mflux_size' : 'img.model_size')} disabled={busy} aria-invalid={sizeError} />
@@ -274,15 +255,34 @@
       </Field>
     </div>
     {#if !mflux}
-      <AdvancedOnly>
         <div class="grid gap-3 sm:grid-cols-4">
           <Field label={t('img.cfg_label')} id="img-cfg" note={t('img.cfg_note')}>
             <Input id="img-cfg" bind:value={form.cfgScale} inputmode="decimal" placeholder={t('img.model_default')} disabled={busy} />
           </Field>
         </div>
-      </AdvancedOnly>
     {/if}
-    <div class="flex items-center gap-3">
+    </AdvancedOnly>
+    <div class="flex flex-col gap-1.5">
+      <span class="text-sm font-semibold text-foreground">{t('img.init_label')}</span>
+      <input bind:this={fileInput} type="file" accept={START_IMAGE_TYPES.join(',')} class="hidden" onchange={pickStartImage} />
+      {#if form.init}
+        <div class="flex flex-wrap items-end gap-3">
+          <img src={dataUrl(form.init)} alt={t('img.init_label')} class="size-24 rounded-md border border-border bg-muted object-contain" />
+          {#if strengthShown}
+            <Field label={t('img.strength_label')} id="img-strength" note={strengthError ? t('img.strength_invalid') : t('img.strength_note')}>
+              <Input id="img-strength" bind:value={form.strength} inputmode="decimal" placeholder="0.75" disabled={busy} aria-invalid={strengthError} class="w-28" />
+            </Field>
+          {/if}
+          <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.init = null)}><X />{t('img.init_remove')}</Button>
+        </div>
+      {:else}
+        <div class="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" disabled={busy} onclick={() => fileInput?.click()}><ImagePlus />{t('img.init_pick')}</Button>
+          <span class="text-xs text-muted-foreground">{t(editsOnly ? 'img.init_required' : 'img.init_note')}</span>
+        </div>
+      {/if}
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
       {#if busy}
         <Button size="sm" variant="destructive" onclick={stop}>
           <Square />{t('img.stop')}

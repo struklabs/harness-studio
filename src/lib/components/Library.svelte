@@ -1,4 +1,5 @@
 ﻿<script lang="ts">
+  import AdvancedOnly from './common/AdvancedOnly.svelte';
   import AdvancedPageNotice from './common/AdvancedPageNotice.svelte';
   import { pageLevel } from '#lib/uiLevel.js';
   import SectionSidebar from './common/SectionSidebar.svelte';
@@ -277,7 +278,7 @@
     >
       <Star fill={favoritesOnly ? 'currentColor' : 'none'} />{t('lib.favorites_only')}
     </Button></FieldHelp>
-    <Button variant="outline" size="sm" onclick={() => (showDupes = true)}><CopyIcon />{t('lib.find_dupes')}</Button>
+    <AdvancedOnly><Button variant="outline" size="sm" onclick={() => (showDupes = true)}><CopyIcon />{t('lib.find_dupes')}</Button></AdvancedOnly>
     <Button variant="ghost" size="icon-sm" aria-label={t('lib.refresh')} title={t('lib.refresh')} onclick={refresh} disabled={loading}>
       <RefreshCw class={cn(loading && 'animate-spin')} />
     </Button>

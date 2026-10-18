@@ -143,19 +143,20 @@
   <nav class="shrink-0 border-b border-border p-3" aria-label={t('pg.settings_title')} data-panel-sections="playground">
     <NativeSelect title={t('pg.settings_title')} value={section.active} aria-label={t('pg.settings_title')} onchange={e => section.select(e.currentTarget.value)}>
       {#if pageLevel(PLAYGROUND_GROUPS, section.active) === 'advanced' && !uiLevel.advanced}
-        <option value={section.active} hidden>{t(PLAYGROUND_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.label)}</option>
+        <option value={section.active} hidden>{t((!uiLevel.advanced && PLAYGROUND_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.simpleLabel) || PLAYGROUND_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.label)}</option>
       {/if}
       {#each visibleGroups(PLAYGROUND_GROUPS, uiLevel.level) as group}
         <optgroup label={t(group.label!)}>
-          {#each group.pages as page}<option value={page.id}>{t(page.label)}</option>{/each}
+          {#each group.pages as page}<option value={page.id}>{t((!uiLevel.advanced && page.simpleLabel) || page.label)}</option>{/each}
         </optgroup>
       {/each}
     </NativeSelect>
+    <div class="mt-2"><AdvancedPageNotice discoverable /></div>
   </nav>
   <!-- One native scroll surface fills the panel; the tool list must not nest another. -->
   <div data-settings-scroll class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
     <AdvancedPageNotice level={pageLevel(PLAYGROUND_GROUPS, section.active)} />
-    <h3 class="px-4 pt-4 text-sm font-semibold">{t(PLAYGROUND_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.label)}</h3>
+    <h3 class="px-4 pt-4 text-sm font-semibold">{t((!uiLevel.advanced && PLAYGROUND_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.simpleLabel) || PLAYGROUND_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.label)}</h3>
     <UiField.Group class="gap-5 p-4">
 <div hidden={section.active !== 'model'} class="flex flex-col gap-3">
       <!-- Model -->
