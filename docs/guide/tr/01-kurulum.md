@@ -47,7 +47,7 @@ Model motoru, model dosyasını çalıştıran motordur. Sohbet genellikle llama
 | Seçenek | Ne zaman kullanılır? |
 | --- | --- |
 | **Yönetilen (önerilen)** | Çoğu kullanıcı için. Harness Studio resmi sürümü indirir, doğrular ve güncel tutar. |
-| **Özel İkili** | Kendi `llama-server` dosyanız varsa. Konumunu **llama-server yolu** alanına yazıp **Doğrula** düğmesine basın. Özel ikili otomatik olarak güncellenmez veya geri alınmaz. |
+| **Özel İkili** | Kendi `llama-server` dosyanız varsa. Konumunu **Llama-server Yolu** alanına yazıp **Doğrula** düğmesine basın. Özel ikili otomatik olarak güncellenmez veya geri alınmaz. |
 
 Önerilen hızlandırma donanımınıza bağlıdır: NVIDIA için CUDA, uygun AMD kartlar için ROCm/HIP veya Vulkan, Intel Arc için SYCL veya Vulkan, Apple Silicon için Metal. GPU yoksa CPU kullanılır. Bir ekran kartının algılanması, seçilen derlemenin onu kullanabileceğini garanti etmez. Kurulu derleme kartı göremezse kurulum sihirbazı Vulkan'ı dener (uyumlu bir GPU ve sürücü gerekir) ve bunu **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında size bildirir. Mevcut kurulumlar derlemelerini korur; değiştirmek için aynı sayfayı kullanın. Windows'ta ROCm/HIP yalnızca HIP SDK kitaplıkları yüklenebiliyorsa önerilir; aksi halde Vulkan önerilir.
 
@@ -80,7 +80,7 @@ Uygulama verileri (ayarlar, sohbet veritabanı, motorlar ve günlükler) model k
 | --- | --- |
 | Windows | `%APPDATA%\com.harnessstudio.app` |
 | macOS | `~/Library/Application Support/com.harnessstudio.app` |
-| Linux (x64) | `.deb` / AppImage | Önizleme paketleri; sürüm iş akışı iki biçimi de üretir. |
+| Linux | `$XDG_DATA_HOME/com.harnessstudio.app` (varsayılan: `~/.local/share/com.harnessstudio.app`) |
 
 Veri klasörünü komut satırından değiştirmek için [CLI başvurusuna](../../tr/CLI.md) bakın. Kimlik bilgilerinin nasıl saklandığı için [güvenlik modeline](../../tr/SECURITY_MODEL.md) bakın. Sıfırdan başlamak için uygulamayı kapatın, bu klasörü yedekleyin ve silin; ayarlarınız ve sohbetleriniz de onunla birlikte silinir. Windows'ta tam kaldırma için CLI oturum servisini kurduysanız önce `harness service uninstall` çalıştırın, saklanan kimlik bilgilerini (Hugging Face belirteci, sunucu API anahtarları) uygulamadan veya Windows Kimlik Bilgileri Yöneticisi'nden (`com.harnessstudio.app` içeren girdiler) temizleyin; ardından uygulamayı kaldırıp istemediğiniz veri ve model klasörlerini silin.
 

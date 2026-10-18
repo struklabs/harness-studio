@@ -38,7 +38,7 @@ A model cannot widen its own permissions. Running commands has a broader effect 
 
 1. In the left menu open the **Create** section, then **Tool Creator**, and choose the model endpoint. A running server or the gateway must be on.
 2. In **What should the tool do?**, describe a small, concrete job. Example: "Count the words in the given text and return the three most frequent words."
-3. If needed, fill in **Allowed hosts**, **Readable folders**, and **Writable folders**. An empty field turns that access off. Folders are written relative to the working folder.
+3. Choose **Network Access**: **No Network Access**, **Entire Internet** (default), or **Only These Domains**. For the last option, fill in **Allowed Domains**, one per line; an empty list grants no network access. **Readable folders** and **Writable folders** are optional; empty lists deny file access. Folders are relative to the working folder. Local/private addresses and Harness listener ports remain blocked in every network mode.
 4. Press **Create**. The model writes code and a test, and Harness Studio runs the test in a sandbox.
 5. Review **Code (index.js)**, the **Manifest**, the permissions, and the test result. A tool that does not pass its test cannot be approved.
 6. Enable the tool with **Approve and Use in This Session**. A session tool goes away when the app closes. Use **Save Permanently** to keep it.
@@ -48,12 +48,14 @@ Generated JavaScript tools can reach only the network and file areas listed in t
 ## Automatic Tool Generator
 
 1. In the **Create** section, open **Automatic Tool Generator**.
-2. Choose a **Model** and the **Number of tools to plan**, then press **Automatically Create Tools**.
-3. Reorder the jobs in the **Build Queue** by dragging or with **Move to front** and **Undo**.
+2. Choose a **Model** and the **Number of Tools to Plan**, then press **Automatically Create Tools**.
+3. Reorder the jobs in the **Build Queue** by dragging or with **Move Up** and **Move Down**.
 4. Use **Pause**, **Resume**, or **Stop** if needed. The queue and the results are saved.
 5. Packages that ask for network or file access stay at **Awaiting approval**. Look at one with **Inspect Package** and, if you accept it, choose **Install with These Permissions**.
 
 Tools that need no network or file access are installed automatically. Outside access is off during testing. For failed generations, read the error detail and use **Retry Failed Tools**.
+
+The automatic builder has the same network choices and defaults to **Entire Internet**. The selection limits what the model may request; review the actual scope before installation. In **Live Activity Log**, **Clear Log** clears the visible and persisted entries without changing the queue, results, inventory, token totals, or running generation. It is disabled while a control action is busy or the log is empty.
 
 ## Installed Tools and MCP
 

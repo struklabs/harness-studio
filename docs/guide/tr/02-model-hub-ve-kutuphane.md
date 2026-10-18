@@ -6,12 +6,12 @@ English: [../en/02-model-hub-and-library.md](../en/02-model-hub-and-library.md)
 
 ## Model Arama
 
-1. Sol menüden **Model Hub** sayfasını açın.
-2. **Model ara** alanına bir model adı yazıp **Ara** düğmesine basın. Hiçbir şey yazmadan da göz atabilirsiniz: arama boşken liste filtreleri ve **Sırala** düzenini (**Trend olan**, **En çok indirilen**, **En çok beğenilen**, **Son güncellenen**, **En yeni**) izler.
-3. **Filtreler** altında **Görev**, **Lisans**, **Yazar** ve **Sırala** seçeneklerini kullanın. Sohbet için **Metin üretimi (LLM)**, konuşmayı yazıya dökmek için **Konuşma tanıma (ASR)** seçin. Görev listesi Hugging Face'in kendi kategorilerini izler ve her görevin Harness Studio'da çalışıp çalışamayacağı işaretlenir. **Karar modeli**, Hugging Face'in karar modeli olarak etiketlediği depoları (evet/hayır, seçim ve puan sorularını olasılıklarla yanıtlayan modeller) listeler; kartlarında **Karar modeli** etiketi bulunur.
+1. Sol menüden Basit düzeyde **Model Bul**, Gelişmiş düzeyde **Model Hub** sayfasını açın.
+2. **Model Ara** alanına bir model adı yazıp **Ara** düğmesine basın. Hiçbir şey yazmadan da göz atabilirsiniz: arama boşken liste filtreleri ve **Sırala** düzenini (**Trend Olan**, **En çok indirilen**, **En Çok Beğenilen**, **Son Güncellenen**, **En Yeni**) izler.
+3. Gelişmiş düzeyde **Lisans** ve **Yazar** için ayrıntılı **Filtreler** panelini kullanın. **Görev** seçiciden, **Sırala** araç çubuğundan seçilir. Sohbet için **Metin Üretimi (LLM)**, konuşmayı yazıya dökmek için **Konuşma Tanıma (ASR)** seçin. Görev listesi Hugging Face'in kendi kategorilerini izler ve her görevin Harness Studio'da çalışıp çalışamayacağı işaretlenir. **Karar modeli**, Hugging Face'in karar modeli olarak etiketlediği depoları (evet/hayır, seçim ve puan sorularını olasılıklarla yanıtlayan modeller) listeler; kartlarında **Karar modeli** etiketi bulunur.
 4. Sonuçları **Etiket**, **Kuant** ve **Boyut** ile daraltın. Hiçbir şey eşleşmezse **Filtreleri Sıfırla** düğmesine basıp yeniden deneyin.
 
-Varsayılan olarak liste yalnızca GGUF depolarını gösterir; bu, llama.cpp'nin kullandığı dosya biçimidir. Konuşma modelleri için `whisper` arayın (bu, Whisper ggml `.bin` dosyalarını bulur) veya **Konuşma tanıma (ASR)** görevini seçin.
+Varsayılan olarak liste yalnızca GGUF depolarını gösterir; bu, llama.cpp'nin kullandığı dosya biçimidir. Konuşma modelleri için `whisper` arayın (bu, Whisper ggml `.bin` dosyalarını bulur) veya **Konuşma Tanıma (ASR)** görevini seçin.
 
 **GGUF olmayan modelleri de göster** seçeneği bu varsayılanı genişletir. Listelenmek, bir modelin çalışabileceği anlamına gelmez. Desteklenmeyen biçimlerin indirmesi kapalıdır; bu yüzden kartlardaki **Burada çalışmaz** ve **Kısmi destek** notlarına dikkat edin. Kart ve ayrıntı paneli, deponun neden çalışamadığını belirtir: desteklenmeyen mimari, CTranslate2 dışa aktarımı, yalnız Apple için bir biçim veya tam modeli gerektiren bir parça gibi. Tanınan `Systran/faster-whisper-*` dışa aktarımlarında **whisper.cpp Sürümünü Aç**, `ggerganov/whisper.cpp` içindeki eşleşen ggml dosyasını açar; CTranslate2 dışa aktarımının kendisi burada çalışmaz. Bazı biçimler isteğe bağlı motorlar üzerinden desteklenir; kart, bir modelin hangisine ihtiyaç duyduğunu söyler:
 
@@ -28,6 +28,12 @@ Varsayılan olarak liste yalnızca GGUF depolarını gösterir; bu, llama.cpp'ni
 Bir kartta **Gerekli: Konuşma modülü (whisper.cpp)** veya **Gerekli: Görsel modülü (stable-diffusion.cpp)** yazıyorsa modeli yine de indirebilirsiniz, ancak çalıştırmadan önce **Kur** düğmesine (listenin üstünde ya da modelin ayrıntılarında) basmanız gerekir.
 
 **Bir model neden listede yok?** Birçok resmi model deposunda hiç GGUF dosyası yoktur; `meta-llama/Llama-3.2-1B-Instruct` bunun bir örneğidir. Varsayılan Model Hub listesi bu tür depoları göstermez, yalnızca üçüncü kişilerin yayımladığı GGUF kopyalarını gösterir. Bu kopyalar genellikle lisans onayı gerektirmez, ancak onları özgün yayıncı yapmamıştır: indirmeden önce yayıncıyı ve lisansı **Model Kartı** üzerinden kontrol edin.
+
+**Basit** düzeyde **Sohbet**, **Sesi Yazıya Çevir**, **Ses Oluştur** veya **Görsel Oluştur** ile başlayın; **Tüm Görevler (N)** tam görev listesini açar. Ayrıntılı filtreler ve **Özel URL** için **Gelişmiş Ayarlar** kullanılır. **Sırala** menüsü iki düzeyde de bulunur; aynı filtrelerle Hugging Face sırasını ve sayfalamasını izler. Yer varsa tam etiketi gösterir; dar alanda tam etiketi görmek için üzerine gelin.
+
+**Donanımıma Uygun**, görev filtrelerinin yanında, iki düzeyde de bulunan ayrı bir düğmedir. Yüklenen sonuçları önce tahmini tam GPU sığması, sonra RAM kullanan kısmi yükleme/CPU, ardından bilinmeyen olarak sıralar; çalışamayacak modeller sona gelir. Her grupta indirme popülerliği korunur. Kartlarda sığma etiketi ve kuant önerisi gösterilir. Görünen sonuçlar için meta veriler gerektiğinde alınır; model ağırlıkları indirilmez. Daha fazla sonuç yüklendikçe sıra değişebilir. Bu bir tahmindir, garanti değildir.
+
+Basit düzeyde dosya paneli önerilen indirmeyi öne çıkarır ve teknik ayrıntıları gizler. Diğer seçenekleri yerel olarak karşılaştırmak için **Tümünü Göster (N)**, tüm kuant ayrıntıları için Gelişmiş düzeyi kullanın.
 
 ## Varyant, Kuant ve Bellek
 
@@ -81,7 +87,7 @@ Hesap ayarları **Ayarlar > Depolama > Hugging Face Hesabı** sayfasındadır. L
 1. [Hugging Face token sayfasında](https://huggingface.co/settings/tokens) oturum açın (**Token Sayfasını Aç** düğmesi aynı adresi açar).
 2. **Read** yetkisine sahip bir token oluşturun.
 3. Harness Studio'da **Ayarlar > Depolama > Hugging Face Hesabı** sayfasını açın.
-4. Değeri **Erişim tokenı** alanına yapıştırın ve yanındaki **Kaydet** düğmesine basın.
+4. Değeri **Erişim Tokenı** alanına yapıştırın ve yanındaki **Kaydet** düğmesine basın.
 5. **Hesap** satırında **Erişim tokenı ile bağlı** yazdığını kontrol edin. Token işletim sisteminizin anahtarlığında saklanır ve varsa mevcut OAuth girişinin yerini alır. Silmek için **Sil** düğmesini kullanın.
 
 ### Tarayıcıyla Giriş: OAuth
@@ -116,7 +122,7 @@ Lisansı yeni onaylanmış modellerde Hugging Face bazen maskelenmiş bir sağla
 
 ## Kütüphanem ve Model Tanımları
 
-1. Sol menüden **Kütüphanem** sayfasını açın. Soldaki listede **Modeller** grubu (**Tümü**, **Sohbet**, **Görsel Anlama**, **Embedding**, **Reranker**, **Konuşma**, **Görsel Üretimi**, **Seslendirme**), **Yardımcı Dosyalar** grubu (**Draft**, **Adapter**, **Projektör**) ve **Yönetim** grubu (**İçe Aktarma**, **Model Tanımları**) bulunur. Yardımcı dosya sayfaları ve **Model Tanımları** Gelişmiş düzeydeki sayfalardır.
+1. Sol menüden **Kütüphanem** sayfasını açın. Soldaki listede **Modeller** grubu (**Tümü**, **Sohbet**, **Görsel Anlama**, **Embedding**, **Reranker**, **Konuşma**, **Görsel Üretimi**, **Seslendirme**), **Yardımcı Dosyalar** grubu (**Draft**, **Adapter**, **Projektör**) ve **Yönetim** grubu (**İçe Aktarma**, **Model Tanımları**) bulunur. **Embedding** ve **Reranker** kategorileri, yardımcı dosya sayfaları, yinelenen dosya bulucu ve **Model Tanımları** yalnız Gelişmiş düzeydedir; **İçe Aktarma** Basit düzeyde de bulunur.
 2. Bir dosya görünmüyorsa **Kütüphaneyi Yeniden Tara** düğmesine basın. Diğer klasörlerdeki modelleri **Ayarlar > Depolama > Dizinler** altından ekleyebilirsiniz.
 3. Bir model kartında boyuta, kuanta, bağlama, donanım tahminine ve eksik parça uyarısına bakın. Listeyi favoriler ve son kullanımla düzenleyin. Sohbet modeli kartı **Yükle ve Sohbet Et** seçeneğini sunar. Görsel, konuşma, ses, embedding veya reranker kartı ise **Playground'da Aç** seçeneğini sunar; bu, ilgili sekmeyi dosya seçili olarak açar. Bu, Model Hub'dan indirilmemiş, klasörlerinizde zaten bulunan dosyalar için de çalışır; önce bir tanım oluşturmanız gerekmez.
 4. Dosyanın **Tanımlar (Alias)** bölümünü kontrol edin. **Yükle ve Sohbet Et** veya **Playground'da Aç**'a bastığınızda tanım sizin için oluşturulur; ayrıca Playground sekmeleri taranmış görsel, konuşma, embedding ve reranker dosyalarını kendiliğinden listeler. Kendi ayarlarınızla ek bir tanım istiyorsanız **Yeni Tanım**'ı seçin.

@@ -6,7 +6,7 @@ Türkçe: [../tr/03-dashboard-ve-sunucular.md](../tr/03-dashboard-ve-sunucular.m
 
 ## How the Screen Is Laid Out
 
-The **Dashboard** has two parts. The settings are on the left. In the **Simple** interface level you see **Overview**, **Model and Runtime**, and **Context and Memory**. In **Advanced** the list is:
+The **Dashboard** has two parts. The settings are on the left. In **Simple** you see **Overview**, **Choose a Model**, and **Conversation Length**. Overview links directly to choosing/finding a model, chat, and app connections. Conversation Length shows context size only; runtime choice, router mode, concurrent requests, and KV-cache controls require Advanced. In **Advanced** the list is:
 
 | Group | Page | What it holds |
 | --- | --- | --- |
@@ -24,10 +24,10 @@ The server switcher at the top (**Controlled server**) decides which server the 
 
 ## Start Your First Server
 
-1. On **Dashboard > Model and Runtime**, pick a local model and, if you have one, a **Model definition**. If the list is empty, use **Go to Model Hub and download a model**.
+1. On **Dashboard > Choose a Model** (**Model and Runtime** in Advanced), pick a local model and, if you have one, a **Model definition**. If the list is empty, use **Go to Model Hub and download a model**.
 2. If there is a runtime warning, [install or verify the runtime](01-installation.md#choosing-the-runtime) first.
-3. Read the suggestions on **Context and Memory** and **GPU**. **Auto** uses the GGUF model's training context, capped at 32,768 tokens (32,768 if unknown); memory fitting may reduce it. Check the model's limit and your free memory. The hardware-fit badge next to the model (**Fits in VRAM**, **VRAM is tight**, **Partial GPU offload**, **Mostly CPU**, **May run out of memory**) shows the estimate.
-4. On the **Network** page, check the port. With **Automatic**, Harness Studio picks a free port from 11440 to 11499 on every start. If you type a port, that port is saved.
+3. In Simple, use **Conversation Length**; in Advanced, read the suggestions on **Context and Memory** and **GPU**. **Auto** uses the GGUF model's training context, capped at 32,768 tokens (32,768 if unknown); memory fitting may reduce it. Check the model's limit and your free memory. The hardware-fit badge next to the model (**Fits in VRAM**, **VRAM is tight**, **Partial GPU offload**, **Mostly CPU**, **May run out of memory**) shows the estimate.
+4. In Advanced, check the port on **Network**; in Simple, keep the automatic port. With **Automatic**, Harness Studio picks a free port from 11440 to 11499 on every start. If you type a port, that port is saved.
 5. Press **Start Server**. While it shows **Starting...** the model is being loaded into memory (large models can take minutes; **Cancel** stops it). Wait for **Server active**.
 6. Go to the **Playground** and chat. When you are done, **Stop Server** frees the memory the model uses.
 
@@ -36,6 +36,8 @@ When **Context size** and **GPU layers** are left on **Auto**, Harness Studio pi
 The **Router Mode** switch serves every ready model in your model folder from a single server instead of one model; clients choose a model by name, and a model loads on its first request or from the **Router Models** list. For everyday use, a single model or the [gateway](05-connections-and-gateway.md) is enough.
 
 The **Server mode** setting normally follows the model type: an embedding model starts as an embedding server and a reranker as a rerank server. It can be changed if you need to.
+
+For a first Simple-mode start, leave automatic memory settings in place and press **Start Server** after choosing the model. The **GPU** and **Network** steps above, router controls, and **Save as Server** require **Advanced**. In Simple, **Server Logs** starts collapsed behind **Show Logs** and opens automatically on an error; Advanced shows the log toolbar and filters.
 
 ## What the Settings Mean
 
@@ -81,7 +83,7 @@ If a model does not fit in memory, the server stops and the **The model did not 
 4. If the retry works, check with a new chat. To keep the values, tick **Save these values to the model definition**; when it is off, the values apply to this start only.
 5. If there is no option ("No automatic option for this failure. Check the logs."), use **Open logs** to inspect the error and pick a smaller model or a smaller quant (for example Q4_K_M).
 
-Reducing GPU layers increases RAM needs. If the app warns that system memory may not be enough, take it seriously. Recovery options are for memory errors during loading. For servers that stop unexpectedly while running, **Settings > Network > Listening** has **Restart automatically after a crash** (load failures are not retried).
+Reducing GPU layers increases RAM needs. If the app warns that system memory may not be enough, take it seriously. Recovery options are for memory errors during loading. For servers that stop unexpectedly while running, **Settings > Network > Listening** has **Restart Automatically After a Crash** (load failures are not retried).
 
 ## Servers and Profiles
 
@@ -93,7 +95,7 @@ A profile is a named record of a model and a set of run settings (port included)
 2. Press **Save as Server**, enter a **Profile name**, and save.
 3. Next time, start the profile from the **Servers** page.
 4. When you change a profile's settings, use **Save Changes** on the Dashboard.
-5. If you want, turn on **Start automatically when the app launches**. It takes effect the next time Harness Studio starts.
+5. If you want, turn on **Start Automatically When the App Launches**. It takes effect the next time Harness Studio starts.
 
 **New Server** creates a new server draft with the same settings on the next free port; edit the model and settings before you start it. Manage profiles with **Rename**, **Duplicate**, and **Delete**; you cannot delete a running profile, so stop it first. The memory needs of servers running at the same time add up, and they may not all fit on the graphics card. If you give two servers the same port you get a warning: "This port is currently used by the "{label}" server. Pick another port before starting."
 

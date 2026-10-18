@@ -6,8 +6,26 @@ Release notes with system requirements and known limitations (English and Turkis
 
 ## [Unreleased]
 
-- Polish Dashboard, Servers, Model Hub and My Models: responsive toolbars, readable long names, consistent spacing, keyboard focus and clearer English/Turkish labels.
-- Dashboard, Sunucular, Model Hub ve Kütüphanem: uyarlanabilir araç çubukları, okunabilir uzun adlar, tutarlı aralıklar, klavye odağı ve daha açık Türkçe/İngilizce etiketler.
+- The section menu stays open after you choose an item; close it with Collapse.
+- Bölüm menüsü bir öğe seçtikten sonra açık kalıyor; Daralt ile kapatılıyor.
+- Automatic Tool Builder: the activity log can be cleared with Clear Log.
+- Otomatik Araç Oluşturucu: işlem günlüğü Günlüğü Temizle ile temizlenebiliyor.
+- Tools can be given Entire Internet access; the allowed-domains list is now an optional restriction. Local and private network addresses stay blocked.
+- Araçlara Tüm İnternet erişimi verilebiliyor; izin verilen alan adları artık isteğe bağlı bir sınırlama. Yerel ve özel ağ adresleri engelli kalıyor.
+- Model Hub sorting matches Hugging Face; the sort menu shows its full label when there is room.
+- Model Hub sıralaması Hugging Face ile aynı; sıralama menüsü yer olduğunda tam etiketini gösteriyor.
+- Model Hub: Best for My Hardware ranks models by how well they fit this machine and shows a fit badge.
+- Model Hub: Donanımıma Uygun, modelleri bu bilgisayara ne kadar sığdıklarına göre sıralıyor ve sığma etiketi gösteriyor.
+- Security: archive extraction rejects symlinks and paths outside the target folder, and drops privileged permission bits.
+- Güvenlik: arşiv açma, kısayol dosyalarını ve hedef klasör dışındaki yolları reddediyor, ayrıcalıklı izin bitlerini kaldırıyor.
+- Playground renders tool results, tables, charts and simple UI blocks as rich components.
+- Playground araç sonuçlarını, tabloları, grafikleri ve basit arayüz bloklarını zengin bileşenlerle gösteriyor.
+- Polished Dashboard, Servers, Model Hub and My Library layouts.
+- Dashboard, Sunucular, Model Hub ve Kütüphanem düzenleri iyileştirildi.
+- Polished Settings, Connections, Create, Performance and Analytics layouts.
+- Ayarlar, Bağlantılar, Oluştur, Performans ve Analitik düzenleri iyileştirildi.
+- Simple mode shows only the essentials with plain labels; Advanced keeps every option, better grouped.
+- Basit mod yalnızca temel işleri sade etiketlerle gösteriyor; Gelişmiş mod tüm seçenekleri daha düzenli gruplarla sunuyor.
 
 ## [0.1.1] - 2026-10-16
 

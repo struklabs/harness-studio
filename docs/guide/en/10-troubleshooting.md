@@ -79,7 +79,7 @@ If a card in Model Hub or My Models says an engine is required (the Speech modul
 | --- | --- |
 | `{repo} requires accepting its license. Sign in with Hugging Face (Settings > Storage > Hugging Face account), accept the license on the model page and retry the download.` | No account is connected. Complete the [account connection and license flow](02-model-hub-and-library.md#download-a-license-gated-model). |
 | `{repo} requires accepting its license and your account has no access yet. Accept the license on the model page (some owners approve requests manually), then retry the download.` | The account is connected but the license is not accepted or is awaiting approval. Accept the license on the model page with the same account, then press **Retry**. With manual approval you may have to wait ("Still no access. If approval is manual, try again a little later."). |
-| `The Hugging Face token is invalid or expired.` | Create a new **Read** token and save it in the **Access token** field on **Settings > Storage > Hugging Face Account**. |
+| `The Hugging Face token is invalid or expired.` | Create a new **Read** token and save it in the **Access Token** field on **Settings > Storage > Hugging Face Account**. |
 | `Signing in with Hugging Face needs the client ID of an OAuth app. Enter it in Settings > Storage > Hugging Face account, or use an access token.` | There is no client ID for browser sign-in. The simplest route is to use an access token. |
 | `Hugging Face sign-in timed out (5 minutes). Try again.` | The browser approval was not finished in time. Try again with **Sign In with Hugging Face**. |
 
@@ -90,11 +90,15 @@ When the gateway needs to load a model, it may find no model it can unload to fr
 | Actual message | Cause and what to do |
 | --- | --- |
 | `{model} cannot be loaded right now: {busy} is serving requests and cannot be unloaded. {wait} try again.` (Playground) | There is no memory to load the new model, and the loaded model(s) are answering at that moment. When the answers finish, press **Retry** in the Playground. |
-| `{models} are busy; retry {model} after their requests finish.` and `Retry after the busy model finishes its request.` | The same situation, as the gateway reports it. Your HTTP client receives an English message (for example `Cannot load "{model}": model(s) … are busy; retry after their requests finish.`), the `model_busy` code, the 503 status, and a `Retry-After` header; it should wait and retry. If this happens often, review **Max loaded models**, **Queue per model**, and **VRAM headroom (MiB, 0 = automatic)** on **Settings > Gateway > Routing**, or mark a model **Pinned (always loaded)**. |
+| `{models} are busy; retry {model} after their requests finish.` and `Retry after the busy model finishes its request.` | The same situation, as the gateway reports it. Your HTTP client receives an English message (for example `Cannot load "{model}": model(s) … are busy; retry after their requests finish.`), the `model_busy` code, the 503 status, and a `Retry-After` header; it should wait and retry. If this happens often, review **Max loaded models**, **Queue per Model**, and **VRAM Headroom (MiB, 0 = Automatic)** on **Settings > Gateway > Routing**, or mark a model **Pinned (always loaded)**. |
 
 ## What a Start Failure Explanation Looks Like
 
 Server start failures can also show a classified explanation and **Recovery Options**. The **Open logs** button opens the relevant lines (**Log Lines**). The memory, library, damaged model, architecture, and timeout explanations in the tables above come from this classification.
+
+## Finding Controls in Simple Mode
+
+**Find a Model**, **Chat and Media**, and **Connect an App** are the Simple names for Model Hub, Playground, and Connections. Choose **Advanced Settings** or switch to **Advanced** for detailed Hub filters, GPU/network settings, comparison, Tasks, Performance, Analytics, and developer settings. Hidden active values are preserved. For model choice, try **Best for My Hardware** and read the fit badge; it is an estimate based on available metadata.
 
 ## Frequently Asked Questions
 
@@ -106,7 +110,7 @@ Server start failures can also show a classified explanation and **Recovery Opti
 
 **I cannot find a page this guide mentions.** You may be in the **Simple** interface level. Switch to **Advanced** with the switch under the main navigation (see [Simple and Advanced levels](README.md#simple-and-advanced-interface-levels)); switching never changes a saved value.
 
-**A model does not show up in search. Do I need an account?** First reset the filters. The default Hub list is limited to GGUF repositories, so official repositories without a GGUF file (for example `meta-llama/Llama-3.2-1B-Instruct`) do not appear; only third-party GGUF copies are listed. For speech, pick the **Speech recognition (ASR)** task to find Whisper and ONNX CTC models. For private or license-gated repositories, account access is needed as well.
+**A model does not show up in search. Do I need an account?** First reset the filters. The default Hub list is limited to GGUF repositories, so official repositories without a GGUF file (for example `meta-llama/Llama-3.2-1B-Instruct`) do not appear; only third-party GGUF copies are listed. For speech, pick the **Speech Recognition (ASR)** task to find Whisper and ONNX CTC models. For private or license-gated repositories, account access is needed as well.
 
 **I added a token. Why won't the gated model download?** The token's account must have accepted that model's license. Some model owners approve access by hand. An OAuth client ID is not a substitute for model access permission.
 

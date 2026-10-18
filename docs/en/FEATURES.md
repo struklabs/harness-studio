@@ -25,6 +25,12 @@ Sources: a code audit of the repository, lmstudio.ai/docs and /changelog, docs.o
 
 ---
 
+## Simple and Advanced Navigation
+
+Simple shows **Dashboard**, **Find a Model** (Model Hub), **My Models**, **Chat and Media** (Playground), and **Connect an App** (Connections), with **Settings** below. **Servers**, **Create**, **Performance**, and **Analytics** are Advanced destinations. Dashboard uses **Choose a Model** and **Conversation Length**; Playground uses **Assistant Instructions**. Detailed filters, embedding/reranking/task tabs, and technical settings require Advanced. Links and the command palette can still open hidden pages. Switching preserves saved values; see [Interface Levels](UI_LEVELS.md).
+
+**Best for My Hardware** is a separate Model Hub button. It ranks loaded results: full GPU fit, partial offload/CPU using RAM, unknown, then too large or unavailable. Download popularity orders each tier. Fit badges suggest a quantization; estimates use Hub metadata without downloading model weights and can change as more results load. With this button off, the sort menu follows Hugging Face ordering and pagination with the same filters.
+
 ## 0. Measured Comparison (2026-10-11)
 
 Windows 11, RX 7900 GRE 16 GB (Vulkan); Harness 0.1.0 (llama.cpp b11556), LM Studio (engine 2.51.0), Ollama 0.35.1, llama.cpp b11026/b11552. The models are Qwen3-4B-Instruct-2507 and Qwen2.5-Coder-14B-Instruct, Q4_K_M, the same file in every tool. Each tool uses its own defaults ("out of the box"); methodology and raw data are in [COMPARISON.md](COMPARISON.md) and [benchmarks/2026-10-11](../benchmarks/2026-10-11/summary.md).
@@ -225,7 +231,7 @@ According to the `--help` output of llama-server build 11236:
 | Remote instance (`--host`) | ✅ (`HARNESS_HOST` + `HARNESS_TOKEN`, named-token scopes) | ✅ | ✅ (`OLLAMA_HOST`) | — |
 | Its own MCP server (agents use Harness as a tool) | ✅ (`harness mcp` stdio + Control API `/mcp`, 20 tools (16 in the default scope; 4 conversation tools need the `conversations` scope), token scopes; [MCP.md](MCP.md)) | ❌ | ❌ | A differentiator |
 | `launch <tool>` (start a tool with the right environment) | ✅ (`harness launch`) | ❌ | ✅ | **L** |
-| Official SDKs (JS / Python) and plugin development (`lms dev`, `lms push`/`clone` to the Hub) | 🟡 (TypeScript and Python clients of the Control API in [`sdk/`](../../sdk/README.md), generated from the OpenAPI schema; not on npm / PyPI yet) | ✅ | ✅ (Python / JS client libraries) | A plugin runtime and Hub publishing are deliberately out of scope (§14) |
+| Official SDKs (JS / Python) and plugin development (`lms dev`, `lms push`/`clone` to the Hub) | 🟡 (TypeScript and Python clients of the Control API in [`sdk/`](../../sdk/README.md), generated from the OpenAPI schema; TypeScript on npm; Python in the repo) | ✅ | ✅ (Python / JS client libraries) | A plugin runtime and Hub publishing are deliberately out of scope (§14) |
 | Shell completion | ✅ (`harness completion <shell>`) | ? | ❌ | — |
 
 ## 10. Integrations
@@ -340,9 +346,9 @@ Details: ARCHITECTURE §13.
 
 ## 15. Create: Tool Generation
 
-A **Create** group in the main menu; in the shared section side panel: **Tool Creator**, **Automatic Tool Generator**, **My Tools**. The manual page shares the Playground generator. The automatic page runs the inventory → idea → queue → generation → test → install flow with the selected model; pending cards are prioritized by dragging/keyboard. There are pause/resume/stop, retry after an error, a live log, and counters. TR/EN, light/dark themes, and reduced motion are supported.
+A **Create** group in the main menu; in the shared section side panel: **Tool Creator**, **Automatic Tool Generator**, **My Tools**. The manual page uses Tool Creator; the Playground also offers a generator dialog. The automatic page runs the inventory → idea → queue → generation → test → install flow with the selected model; pending cards are prioritized by dragging/keyboard. There are pause/resume/stop, retry after an error, a live log with **Clear Log**, and counters. Both builders default to **Entire Internet**; **No Network Access** and **Only These Domains** narrow the scope. Local/private addresses and Harness listener ports remain blocked. TR/EN, light/dark themes, and reduced motion are supported.
 
-The persistent worker in the Rust core is shared by the UI, the CLI, and the Control API. Suggestions are validated with strict JSON; name and description token similarity eliminates duplicates. The generator makes two correction attempts. Packages that ask for no external access and pass their tests are installed permanently and automatically; those that ask for network/file access wait for approval that shows the exact permissions. Tests run without external access. The queue, drafts, and log are stored on disk; when the application reopens, a paused run can be resumed.
+The persistent worker in the Rust core is shared by the UI, the CLI, and the Control API. Suggestions are validated with strict JSON; name and description token similarity eliminates duplicates. The generator allows up to four correction attempts. Packages that ask for no external access and pass their tests are installed permanently and automatically; those that ask for network/file access wait for approval that shows the exact permissions. Tests run without external access. The queue, drafts, and log are stored on disk; when the application reopens, a paused run can be resumed.
 
 My Tools lists built-in, installed/generated, and per-server MCP tools in functional categories. The manifest `category` field is validated against six fixed values; older packages become `other`. Installed-tool management shares the existing Settings component; there is package code/manifest/test review, enabling, testing, and removal. [Usage and package guide](TOOLS.md).
 
@@ -497,7 +503,7 @@ The local gold lexicon prevents Misaki's automatic download; a local CMU diction
 
 Harness Link uses the models of another Harness Studio instance as if they were local. The remote models appear as `remote:<link>/<model>` in the local gateway, in a **Remote** section of the Playground model picker, and in a read-only **Remote** group in My Models (it lists the model, the link name, and whether the link is online, and offers **Open in Playground**).
 
-**Set up the remote side.** In **Settings > Gateway** on the remote instance, turn on **Allow network access** and create a named token with the `inference` scope. Do not give the token more scopes than it needs; Harness warns when a link's token has an admin scope.
+**Set up the remote side.** In **Settings > Gateway** on the remote instance, turn on **Allow Network Access** and create a named token with the `inference` scope. Do not give the token more scopes than it needs; Harness warns when a link's token has an admin scope.
 
 **Add the link.** In **Connections > Harness Link**, choose **Add Remote Harness**, then enter a name, the remote gateway address, and the token. Use **Test Connection** to check it. The token is stored only in the operating system keychain, never in a settings file. The local gateway must be running to use remote models.
 

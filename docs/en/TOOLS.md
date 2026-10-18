@@ -1,10 +1,10 @@
 Türkçe: ../tr/TOOLS.md
 
-# Writing and creating tools
+# Writing and Creating Tools
 
 Harness tools share the same registry and permission policy in the Playground, the CLI, and the Control API. **Create → My Tools** lists all built-in, installed/generated, and MCP tools. MCP tools are grouped by server, and each source is grouped by function. Disabled or broken installed packages are listed too; they do not count as runnable tools.
 
-## Writing a package by hand
+## Writing a Package by Hand
 
 Put `manifest.json`, `index.js`, and preferably `test.js` in a folder. An optional `README.md` appears in the tool details.
 
@@ -54,7 +54,7 @@ function run(args) {
 
 The result can be a string or any value that converts to JSON. The `btoa`, `atob`, `TextEncoder`, `TextDecoder`, `JSON`, `Math`, `Date`, and `RegExp` globals are available. Missing web globals are provided in pure JS; existing implementations are not changed and no new file, network, or process access is granted. `btoa`/`atob` use Latin-1 binary strings; `btoa` input outside Latin-1 or invalid base64 raises an error. `atob` accepts ASCII whitespace and missing padding. To encode Unicode text, first convert it to UTF-8 bytes with `new TextEncoder().encode(text)`, then to a binary string, and then use `btoa`. `TextEncoder.encode` returns a Uint8Array; `TextDecoder.decode` decodes an ArrayBuffer or typed-array view as UTF-8. The polyfill decoder supports UTF-8 only and no streaming; it replaces malformed bytes with U+FFFD by default and throws with `{fatal: true}`. `require`, `import`, `fetch`, `process`, and timers do not exist. There are limits on memory, time, and result size.
 
-### Network and file API
+### Network and File API
 
 - `harness.http.get(url)` and `harness.http.post(url, jsonBody)` are synchronous and return `{status, content_type, url, body}`. `permissions.network` has three scopes: `[]` denies network access, `["*"]` permits the entire public internet, and other lists permit only those domains (`example.com`, `*.example.com`; no protocol or path). `*.example.com` covers subdomains but not the root domain; `"*"` cannot be combined with other entries. Existing empty lists still deny network access. Every scope blocks loopback, link-local/metadata, private networks, CGNAT, IPv6 ULA, and Harness ports. Every DNS answer and redirect is checked; connections are pinned to validated addresses and system proxies are disabled.
 - `harness.fs.read(path)` reads text, `harness.fs.write(path, text)` writes, and `harness.fs.list(path)` lists a directory. Paths are relative to the chat's workspace. Read and write permissions are separate; write does not grant read. `"."` covers the whole workspace, and `"out"` covers only that folder and below. Symbolic links cannot reach outside the boundary.
@@ -77,19 +77,19 @@ const cases = [
 
 Each `expect` contains exactly one option: `equals`, `contains` (a string or a list of strings), or `error` (`true` or an error text). Each test case runs in its own empty temporary workspace. For file input, add `fs: [{path: "input.csv", content: "name,age\nAlice,30"}]` to the case; the runner writes the UTF-8 content before `run(args)`. Nested folders are created. Relative paths are used; absolute paths, `.`/`..`, empty path components, and duplicate files are rejected. At most 32 files and 1 MiB of total content are accepted per case. Preparing a fixture does not grant the tool any permission: the manifest's read/write scopes apply unchanged. Files written by a case are not carried over to the next case; the temporary folder is cleaned up when the case ends. A `setup` callback is not supported and is rejected with an explicit error; a `file://` mock inside `http` does not create files. Tests of packages that make network calls can define an optional `http` array (URL match, HTTP status, headers, and body). If a test case defines `http`, `harness.http` calls use ONLY the mock responses and never reach the network (an unmatched request is rejected with an error). In the automatic generator's tests, real network access is off and file access is directed to a temporary workspace containing only the fixtures; the automatic generator always writes the tests of every network tool with `http` mocks, otherwise the test fails with a `network` denial and the model is asked to fix it. Network tests of hand-installed packages (and of cases that use no mocks) can reach the real network.
 
-### Installing and managing
+### Installing and Managing
 
 In **Create → My Tools → Installed Tools**, select the folder. Review the permissions shown and confirm the installation. The package is copied under `tools/<name>/` in the application's data directory. Enable/disable, test, inspect details, and remove are in the same place. The installed-tool management in Settings uses the same component. Installing does not loosen the permission policy for tool calls.
 
 ## Tool Creator
 
-On the **Create → Tool Creator** page, select the model endpoint and the model; the default endpoint is the currently running server/gateway. Describe the tool, choose its network scope, and optionally list allowed domains and relative folders. The model produces the package and its tests; it repairs invalid JSON, permission overruns, or test failures with up to four correction attempts. You can read the manifest, code, tests, and permissions and approve them for the session, then save permanently. The **Create Tool…** button in the Playground opens the same creator component. Small models may write faulty packages more often.
+On the **Create → Tool Creator** page, select the model endpoint and the model; the default endpoint is the currently running server/gateway. Describe the tool, choose its network scope, and optionally list allowed domains and relative folders. The model produces the package and its tests; it repairs invalid JSON, permission overruns, or test failures with up to four correction attempts. You can read the manifest, code, tests, and permissions and approve them for the session, then save permanently. The **Create Tool…** button in the Playground opens a generator dialog using the same backend. Small models may write faulty packages more often.
 
 The tool builder defaults to **Entire Internet**. Choose **No Network Access** or **Only These Domains** to restrict it. The domain textarea applies only to the last option; an empty list grants no access. Your choice is the upper bound on permissions the model may request; overruns are rejected and sent back to the model for correction. Tools requesting network/file access, including in the automatic builder, require explicit approval at install; the permission summary labels the unrestricted public scope **Entire Internet**.
 
 `null` and `undefined` returns are the four-character `"null"` result text not only in tests but in normal execution; an empty string `""` stays empty. The Playground result card shows `null` and sends the same text in the next model turn. The gateway's shared tool loop also passes it to the model as a successful tool result; it is not an error or cancellation marker. A tool that must give the user a meaningful confirmation should return an explicit result string.
 
-## Automatic tool generator
+## Automatic Tool Generator
 
 `equals` compares the expected and actual text after applying `trim_end` to both sides: only trailing line-ending and whitespace differences are ignored. Leading and inner whitespace must match exactly. The report keeps the original expected/actual text; run output is not truncated. The `contains`, `matches`, and `length` rules are unchanged.
 
@@ -111,9 +111,11 @@ On the **Create → Automatic Tool Generator** page, select a model and press **
 2. The model proposes new purposes. Strict JSON is validated; the same name, a semantically equivalent name (a token set folded by stem/inflection and synonyms; `word_counter` ≈ `count_words`), and high description similarity are eliminated. Malformed/repeated proposals are requested once more. This lexical filtering (no embeddings or server needed) does not catch every semantic equivalence; after filtering, the queue can be shorter than requested.
 3. The queue is processed automatically. You can prioritize pending cards by dragging or with the up/down buttons, and remove them. The order of the running card does not change. Pause/stop cancels the model request; resume regenerates the interrupted tool. A failed card can be retried.
 4. The current generator produces a manifest, JS, and tests for each package; it passes errors to the model and corrects up to four times. Tests run without access to user files or the real network. File inputs are tested with per-case `fs` fixture contents and network inputs with `http` mock responses; pure logic and access denial can also be tested; the behavior of a real external system must be verified separately.
-5. A package that passes its tests and asks for no network/file access is installed permanently. A package that asks for network or file access moves to **Awaiting approval**. The card shows the exact domain names, read/write folders, and the shell ban; **Install with These Permissions** installs that package. Permissions are never widened silently. A failed package is not installed; existing tools are not overwritten.
+5. A package that passes its tests and asks for no network/file access is installed permanently. A package that asks for network or file access moves to **Awaiting approval**. The card shows Entire Internet or the domain restriction, read/write folders, and the shell ban; **Install with These Permissions** installs that package. Permissions are never widened silently. A failed package is not installed; existing tools are not overwritten.
 
 The queue, package drafts, states, and the last 500 activity entries are stored in `auto-tools/run.json`. Leaving the page does not stop the work. If the application closes, the run is paused on reopening; select a model and continue. Endpoint credentials are not kept in this file. A new run cannot start until cards that await permission or have not yet been processed are finished or removed.
+
+**Clear Log** in **Live Activity Log** clears both the visible and saved log. It is disabled while a control action is busy or the log is empty. It leaves the queue, results, inventory, token totals, and running generation intact.
 
 ### CLI and Control API
 
@@ -133,7 +135,7 @@ CLI ownership: `harness tools auto` commands go to the Control API through `sess
 
 Pause/stop is also passed to the running sandbox test's QuickJS cancellation token; a long JS loop or network wait is cut off without waiting for the 30-second test limit. A broken package manifest fails only its own card with an error message; the other tools in the queue continue to be processed.
 
-### Smart correction and generator tokens
+### Smart Correction and Generator Tokens
 
 First generation + four corrections = at most **five model calls** (`build:1`…`build:5`). A correction response gives `CHANGE: what I am changing and why` on its first line; the parser keeps this line out of the package. The note, the number of failed cases, tokens, repeat/strategy, and context-summary information are stored in the draft and in the card history of the automatic run. For models that give no note, an explicit empty-note text is shown.
 
@@ -149,10 +151,10 @@ Generation/ideation sends `x-harness-client: harness-auto-tools`, and manual gen
 
 The manual component of the Create page is in `create/ToolGenerator.svelte`. The backend returns draft tokens on both call paths; the manual estimate/history view is on the Create page.
 
-### Generator error handling
+### Generator Error Handling
 
 Text/data conversions (CSV/JSON, HTML, Markdown, base64) take string content and return content by default in the planning and generation prompts; a file contract is suggested only for explicit file operations. Existing packages with a file contract are supported by fixture tests; permission approval continues. QuickJS provides no DOM (`DOMParser` and `document` do not exist). For Markdown, the line/block distinction, heading levels, and a last line without a line ending are stated explicitly in the prompt.
 
-The counter strip uses 2/3/4/7 fixed grid columns depending on the window width; a change in the number does not determine the column count or the label position. Numbers use `font-num`, filter counts use a fixed `3ch`, and card/manual tokens use a minimum `12ch` area. The live log and attempt tokens use tabular digits. A failed card gives a short TR/EN summary; the technical error, test output, and history stay under **Review Package**.
+The counter strip uses 2/3/4/7 fixed grid columns depending on the window width; a change in the number does not determine the column count or the label position. Numbers use `font-num`, filter counts use a fixed `3ch`, and card/manual tokens use a minimum `12ch` area. The live log and attempt tokens use tabular digits. A failed card gives a short TR/EN summary; the technical error, test output, and history stay under **Inspect Package**.
 
 Copies of the code/tests/manifests of four packages from a real generation record are in `crates/harness-core/tests/data/tool-generator-reported-failures.json`. The CSV fixture regression first failed with `path does not exist: input.csv` and passed after the fix. With the real record's code, the missing file and Markdown's `<p><h1>Header 1</h1><br>#<h1>Header 2</h1><br>### Header 3</p>` output are reproduced. Base64 passes with the same code once a fixture is added; after the HTML fixture, the second error, a missing `DOMParser`, becomes visible. A late Markdown retry accepts the code fix and passes the tests in the fifth round with a fake chat endpoint. These tests do not guarantee that a real Qwen model will generate successfully; they cover the generator's handling of the recorded failures.

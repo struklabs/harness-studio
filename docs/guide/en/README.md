@@ -27,9 +27,9 @@ Five minutes is a goal for getting to know the steps. Engine and model downloads
 
 1. **Download and install.** Get the Windows installer (`.exe`, NSIS) from the project's [GitHub Releases](https://github.com/struklabs/harness-studio/releases) page and run it. The installer is not code-signed yet, so Windows SmartScreen may warn you the first time; the steps are in [Installation](01-installation.md). Signed, Apple-notarized DMGs are available for Apple Silicon and Intel (macOS 13.3+); Linux `.deb` and AppImage packages are previews.
 2. **Finish the setup wizard.** In the **Setup wizard**, go through **Hardware**, **Storage**, **Engine**, **Purpose**, and **Privacy**. For the managed engine, choose **Download and Install the Latest**. In the **Purpose** step you also pick your interface level (**Simple** is recommended for a first run). Finish with **Finish Setup**.
-3. **Download a model.** In **Model Hub**, search for a chat model and open **Files and quants**. Read the **Hardware fit** column and press **Download** on one file. Wait for **Completed** in the **Download Queue**.
+3. **Download a model.** In **Find a Model** (**Model Hub** in Advanced), search for a chat model and open **Files and quants**. Read the **Hardware fit** column and press **Download** on one file. Wait for **Completed** in the **Download Queue**.
 4. **Start the server.** In **Dashboard**, pick the model you downloaded (and a **Model definition**, if you have one). Check the memory estimate and press **Start Server**. Wait for **Server active**.
-5. **Chat.** In **Playground**, open **Chat**, check the model, type "Write me a three-item plan for today." into **Your message**, and press **Send**.
+5. **Chat.** In **Chat and Media** (**Playground** in Advanced), open **Chat**, check the model, type "Write me a three-item plan for today." into **Your message**, and press **Send**.
 
 If the model does not load, go to the [memory recovery steps](03-dashboard-and-servers.md#when-memory-runs-out-oom) and the [troubleshooting chapter](10-troubleshooting.md).
 
@@ -50,9 +50,11 @@ If the model does not load, go to the [memory recovery steps](03-dashboard-and-s
 
 Harness Studio has one interface with two levels of detail. **Simple** shows what you need to find a model, download it, chat, and connect an app. **Advanced** adds the technical pages: the **Servers** page, **Create**, **Performance**, **Analytics**, most Dashboard and Playground settings pages, and most Settings sections.
 
-You can switch at any time with the **Simple / Advanced** switch under the main navigation, with **Interface level** in **Settings > Appearance & Startup**, or from the command palette (**Switch to Advanced Level**). Switching only changes what is visible; it does not change or reset any value. If a link, an error message, or the command palette opens an Advanced page while you are in Simple, the page opens normally with a short notice at the top ("This page is at the Advanced level.").
+You can switch at any time with the **Simple / Advanced** switch under the main navigation, with **Interface Level** in **Settings > Appearance & Startup**, or from the command palette (**Switch to Advanced Level**). Switching only changes what is visible; it does not change or reset any value. If a link, an error message, or the command palette opens an Advanced page while you are in Simple, the page opens normally with a short notice at the top ("This page is at the Advanced level.").
 
 This guide marks Advanced-level pages where it matters. If you cannot find a page mentioned here, switch to **Advanced**.
+
+Simple navigation names are **Find a Model** (Advanced: **Model Hub**), **Chat and Media** (**Playground**), and **Connect an App** (**Connections**). Dashboard offers **Overview**, **Choose a Model**, and **Conversation Length**; only context size is exposed on the last page. Use **Advanced Settings** to reach technical controls. In a narrow window the floating section menu stays open after a selection; close it with **Collapse** or Escape. This differs from the main navigation drawer, which closes after navigation.
 
 ## How This Guide Writes Paths
 

@@ -1,10 +1,10 @@
-# Araç yazma ve oluşturma
+# Araç Yazma ve Oluşturma
 
 [English](../en/TOOLS.md)
 
 Harness araçları Playground, CLI ve Control API'de aynı kayıt defterini ve izin politikasını kullanır. **Oluştur → Araçlarım** tüm yerleşik, kurulu/üretilmiş ve MCP araçlarını gösterir. MCP araçları sunucularına göre, her kaynak da işlevine göre gruplandırılır. Kapalı veya bozuk kurulu paketler de listelenir; bunlar çalıştırılabilir araç sayılmaz.
 
-## Elle bir paket yazma
+## Elle Bir Paket Yazma
 
 Bir klasöre `manifest.json`, `index.js` ve tercihen `test.js` koyun. İsteğe bağlı `README.md` araç ayrıntılarında görünür.
 
@@ -54,7 +54,7 @@ function run(args) {
 
 Sonuç string veya JSON'a çevrilebilen bir değer olabilir. `btoa`, `atob`, `TextEncoder`, `TextDecoder`, `JSON`, `Math`, `Date` ve `RegExp` globalleri kullanılabilir. Eksik web globalleri saf JS ile sağlanır; mevcut uygulamalar değiştirilmez ve yeni dosya/ağ/süreç erişimi verilmez. `btoa`/`atob` Latin-1 ikili dizeler kullanır; Latin-1 dışındaki `btoa` girdisi veya geçersiz base64 hata verir. `atob` ASCII boşlukları ve eksik padding'i kabul eder. Unicode metni önce `new TextEncoder().encode(text)` ile UTF-8 baytlarına, ardından ikili dizeye çevirip `btoa` kullanın. `TextEncoder.encode` Uint8Array döndürür; `TextDecoder.decode` ArrayBuffer veya typed array görünümünü UTF-8 olarak çözer. Polyfill decoder yalnız UTF-8 destekler, streaming desteklemez; bozuk baytları varsayılan olarak U+FFFD ile değiştirir, `{fatal: true}` ile hata verir. `require`, `import`, `fetch`, `process` ve zamanlayıcılar bulunmaz. Bellek, süre ve sonuç boyutu sınırları vardır.
 
-### Ağ ve dosya API'si
+### Ağ ve Dosya API'si
 
 - `harness.http.get(url)` ve `harness.http.post(url, jsonBody)` eşzamanlıdır; `{status, content_type, url, body}` döndürür. `permissions.network` üç kapsam taşır: `[]` ağ erişimi yok, `["*"]` tüm genel internet, diğer listeler yalnız belirtilen alan adları (`example.com`, `*.example.com`; protokol/yol yok). `*.example.com` alt alan adlarını kapsar, kök alanı kapsamaz; `"*"` başka girdilerle birleştirilemez. Eski boş listeler ağ erişimi vermez. Her kapsamda loopback, link-local/metadata, özel ağ, CGNAT, IPv6 ULA ve Harness portları engellenir. Her DNS cevabı ve yönlendirme denetlenir; bağlantı doğrulanan adreslere sabitlenir ve sistem proxy’si kullanılmaz.
 - `harness.fs.read(path)` metin okur, `harness.fs.write(path, text)` yazar, `harness.fs.list(path)` dizini listeler. Yollar sohbetin çalışma alanına görelidir. Okuma ve yazma izinleri ayrıdır; yazma okuma izni vermez. `"."` bütün çalışma alanını, `"out"` yalnızca o klasörü ve altını kapsar. Sembolik bağlantılar sınır dışına erişim sağlayamaz.
@@ -77,19 +77,19 @@ const cases = [
 
 Her `expect` tam bir seçenek içerir: `equals`, `contains` (string veya string listesi), `error` (`true` veya hata metni). Her test vakası ayrı, boş bir geçici çalışma alanında çalışır. Dosya girdisi için vakaya `fs: [{path: "input.csv", content: "name,age\nAlice,30"}]` ekleyin; çalıştırıcı UTF-8 içeriği `run(args)` öncesinde yazar. İç içe klasörler oluşturulur. Göreli yollar kullanılır; mutlak yol, `.`/`..`, boş yol bileşeni ve yinelenen dosya reddedilir. Vaka başına en fazla 32 dosya ve toplam 1 MiB içerik kabul edilir. Fixture hazırlamak araca izin vermez: manifest okuma/yazma kapsamları aynen uygulanır. Vakanın yazdığı dosyalar sonraki vakaya taşınmaz; geçici klasör vaka bitiminde temizlenir. `setup` callback desteklenmez ve açık hatayla reddedilir; `http` içindeki `file://` mock'u dosya oluşturmaz. Ağ çağrıları yapan paketlerin testlerinde, isteğe bağlı `http` dizisi (URL eşleşmesi, HTTP status, headers ve body) tanımlanabilir. Bir test senaryosunda `http` tanımlıysa, `harness.http` çağrıları YALNIZCA mock yanıtlarını kullanır; ağa çıkmaz (eşleşmeyen istek hatayla reddedilir). Otomatik üreticinin testlerinde gerçek ağ erişimi kapalıdır, dosya erişimi yalnız fixture içeren geçici çalışma alanına yönelir; otomatik üretici her ağ aracının testini mutlaka `http` mock'larıyla yazar; aksi halde test `network` reddiyle başarısız olur ve modelden bunu düzeltmesi istenir. Elle kurulan paketlerin (ve mock kullanmayan senaryoların) ağ testleri gerçek ağa erişebilir.
 
-### Kurulum ve yönetim
+### Kurulum ve Yönetim
 
 **Oluştur → Araçlarım → Kurulu Araçlar** bölümünde klasörü seçin. Gösterilen izinleri inceleyip kurulumu onaylayın. Paket uygulamanın veri dizinindeki `tools/<name>/` altına kopyalanır. Aç/kapa, test et, ayrıntıları incele ve kaldır işlemleri aynı yerde bulunur. Ayarlar'daki kurulu araç yönetimi de aynı bileşeni kullanır. Kurulum, araç çağrılarının izin politikasını gevşetmez.
 
-## Araç oluşturucu
+## Araç Oluşturucu
 
-**Oluştur → Araç Oluşturucu** sayfasında model uç noktasını ve modeli seçin; varsayılan uç nokta mevcut çalışan sunucu/ağ geçididir. Aracı tarif edin, ağ kapsamını seçin ve isteğe bağlı olarak izin verilen alan adlarını ve göreli klasörleri yazın. Model paket ve testleri üretir; bozuk JSON, izin aşımı veya test hatasını en fazla dört düzeltme denemesiyle onarır. Manifest, kod, test ve izinleri okuyup oturum için onaylayabilir, ardından kalıcı kaydedebilirsiniz. Playground'daki **Araç Oluştur…** düğmesi aynı üretici bileşenini açar. Küçük modeller daha sık hatalı paket yazabilir.
+**Oluştur → Araç Oluşturucu** sayfasında model uç noktasını ve modeli seçin; varsayılan uç nokta mevcut çalışan sunucu/ağ geçididir. Aracı tarif edin, ağ kapsamını seçin ve isteğe bağlı olarak izin verilen alan adlarını ve göreli klasörleri yazın. Model paket ve testleri üretir; bozuk JSON, izin aşımı veya test hatasını en fazla dört düzeltme denemesiyle onarır. Manifest, kod, test ve izinleri okuyup oturum için onaylayabilir, ardından kalıcı kaydedebilirsiniz. Playground'daki **Araç Oluştur…** düğmesi aynı arka ucu kullanan bir üretici iletişim kutusu açar. Küçük modeller daha sık hatalı paket yazabilir.
 
 Araç Oluşturucu varsayılan olarak **Tüm İnternet** seçer. **Ağ Erişimi Yok** veya **Yalnızca Bu Alan Adları** ile daraltabilirsiniz. Alan adı metin kutusu yalnız son seçenekte uygulanır; boş liste erişim vermez. Seçiminiz modelin isteyebileceği iznin üst sınırıdır; aşılırsa araç reddedilir ve modelden düzeltmesi istenir. Ağ/dosya izni isteyen araçlar, Otomatik Araç Oluşturucu dahil, kurulumda açık onay gerektirir; tam ağ kapsamı onay özetinde **Tüm İnternet** olarak gösterilir.
 
 `null` ve `undefined` dönüşleri yalnız testlerde değil, normal çalıştırmada da dört karakterlik `"null"` sonuç metnidir; boş dize `""` boş kalır. Playground sonuç kartı `null` gösterir ve sonraki model turuna aynı metni yollar. Gateway'in ortak araç döngüsü de bunu başarılı tool sonucu olarak modele iletir; bu bir hata veya iptal işareti değildir. Kullanıcıya anlamlı bir onay vermesi gereken araç açık bir sonuç dizesi döndürmelidir.
 
-## Otomatik araç oluşturucu
+## Otomatik Araç Oluşturucu
 
 `equals`, beklenen ve gerçek metni iki tarafa `trim_end` uygulayarak karşılaştırır: yalnız sondaki satır sonu ve boşluk farkları yok sayılır. Baştaki ve ortadaki boşluklar tam eşleşmelidir. Rapor özgün beklenen/gerçek metni korur; çalıştırma çıktısı kırpılmaz. `contains`, `matches` ve `length` kuralları değişmez.
 
@@ -111,9 +111,11 @@ Retry feedback'i `bad_case` için testi düzeltmeyi, diğer hatalarda kod ve bek
 2. Model yeni amaçlar önerir. Katı JSON doğrulanır, aynı ad, anlamca eşdeğer ad (kök/çekim eki ve eşanlamlı katlanmış belirteç kümesi; `word_counter` ≈ `count_words`) ve yüksek açıklama benzerliği elenir. Bozuk/tekrarlanan öneriler bir kez yeniden istenir. Bu sözcüksel eleme (gömme/sunucu gerektirmez) her anlam eşdeğerliğini yakalamaz; eleme sonrası sıra istenenden kısa olabilir.
 3. Kuyruk otomatik işlenir. Bekleyen kartları sürükleyerek veya yukarı/aşağı düğmeleriyle önceliklendirebilir, çıkarabilirsiniz. Çalışan kartın sırası değişmez. Duraklat/durdur model isteğini iptal eder; devam et kesilen aracı yeniden üretir. Başarısız kart tekrar denenebilir.
 4. Mevcut üretici her paket için manifest, JS ve test üretir; hataları modele ileterek en fazla dört kez düzeltir. Testler kullanıcı dosyalarına ve gerçek ağa erişmeden çalışır. Dosya girdileri vaka başına `fs` fixture içerikleriyle, ağ girdileri `http` mock yanıtlarıyla test edilir; saf mantık ve erişim reddi de test edilebilir; gerçek dış sistem davranışı ayrıca doğrulanmalıdır.
-5. Testi geçen, ağ/dosya istemeyen paket kalıcı kurulur. Ağ veya dosya isteyen paket **İzin bekliyor** durumuna geçer. Kart kesin alan adlarını, okuma/yazma klasörlerini ve shell yasağını gösterir; **Bu İzinlerle Kur** o paketi kurar. İzinler sessizce genişletilmez. Başarısız paket kurulmaz; mevcut araçlar üzerine yazılmaz.
+5. Testi geçen, ağ/dosya istemeyen paket kalıcı kurulur. Ağ veya dosya isteyen paket **İzin bekliyor** durumuna geçer. Kart Tüm İnternet veya alan adı sınırlamasını, okuma/yazma klasörlerini ve shell yasağını gösterir; **Bu İzinlerle Kur** o paketi kurar. İzinler sessizce genişletilmez. Başarısız paket kurulmaz; mevcut araçlar üzerine yazılmaz.
 
 Sıra, paket taslakları, durumlar ve son 500 etkinlik `auto-tools/run.json` dosyasında saklanır. Sayfadan ayrılmak işi durdurmaz. Uygulama kapanırsa yeniden açılışta çalışma duraklatılmış olur; model seçip devam edin. Uç nokta kimlik bilgileri bu dosyada tutulmaz. İzin bekleyen/henüz işlenmeyen kartlar bitirilmeden veya çıkarılmadan yeni çalışma başlatılamaz.
+
+**Canlı İşlem Günlüğü** içindeki **Günlüğü Temizle**, görünen ve kayıtlı günlüğü temizler. Bir kontrol işlemi sürerken veya günlük boşken devre dışıdır. Sıra, sonuçlar, envanter, token toplamları ve çalışan üretim korunur.
 
 ### CLI ve Control API
 
@@ -134,7 +136,7 @@ CLI sahiplik kararı: `harness tools auto` komutları `session::connect` üzerin
 
 Duraklat/durdur, çalışan sandbox testinin QuickJS iptal token'ına da iletilir; uzun JS döngüsü veya ağ beklemesi 30 saniyelik test sınırını beklemeden kesilir. Bozuk paket manifesti yalnızca ilgili kartı hata mesajıyla başarısız yapar; kuyruktaki diğer araçlar işlenmeye devam eder.
 
-### Akıllı düzeltme ve üretici tokenları
+### Akıllı Düzeltme ve Üretici Tokenları
 
 İlk üretim + dört düzeltme = en fazla **beş model çağrısı** (`build:1`…`build:5`). Düzeltme yanıtı ilk satırda `CHANGE: ne değiştiriyorum ve neden` verir; ayrıştırıcı bu satırı paket dışında tutar. Not, başarısız case sayısı, tokenlar, tekrar/strateji ve bağlam özeti bilgisi taslakta ve otomatik run'ın kart geçmişinde saklanır. Not vermeyen modeller için açık boş-not metni gösterilir.
 
@@ -150,7 +152,7 @@ Başlangıç tahmini planlama prompt sayımı + araç başına ölçülen sistem
 
 Create sayfasının manuel bileşeni `create/ToolGenerator.svelte` içindedir; Playground'ın korunan diyaloğu değiştirilmemiştir. Backend taslak tokenları her iki çağrı yolunda da döner; yeni manuel tahmin/geçmiş görünümü Create sayfasındadır.
 
-### Üretici hata işleme
+### Üretici Hata İşleme
 
 Metin/veri dönüşümleri (CSV/JSON, HTML, Markdown, base64) planlama ve üretim istemlerinde varsayılan olarak string içerik alıp içerik döndürür; dosya sözleşmesi yalnız açık dosya işlemlerinde önerilir. Mevcut dosya sözleşmeli paketler fixture testleriyle desteklenir; izin onayı sürer. QuickJS DOM sağlamaz (`DOMParser` ve `document` yoktur). Markdown için satır/blok ayrımı, başlık seviyeleri ve satır sonu olmayan son satır istemde açıkça belirtilir.
 

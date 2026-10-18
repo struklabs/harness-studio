@@ -33,7 +33,7 @@ Benchmark için `llama-bench` gerekir. Bulunamıyorsa [sorun giderme tablosuna](
 
 1. Sol menüde **İzle** altındaki **Analitik** sayfasını açın. Ağ geçidinin açık olduğundan ve **Gateway isteklerini kaydet** seçiminin etkin olduğundan emin olun (**Kayıt ve Saklama Politikası** bölümündedir).
 2. **Genel Bakış** ve **Model ve İstemci Kırılımı** ile istekleri, tokenları, hızı, gecikmeyi ve hata oranlarını inceleyin.
-3. **Günlük** sayfasında **Model**, **İstemci**, **Uç nokta** ve **Durum** filtrelerini kullanın.
+3. **Günlük** sayfasında **Model**, **İstemci**, **Uç Nokta** ve **Durum** filtrelerini kullanın.
 4. Bir istek seçin. **Seçili İstek Ayrıntısı** altındaki **Zaman Çizelgesi**, **Token ve Hız**, **Kaynaklar** ve **Hata** bölümlerini okuyun. Zaman çizelgesi kuyruk, yükleme, istem ve üretim aşamalarını gösterir; başarısız bir araç çağrısı için olası suçlu (sunucu ya da şablon, bağlam, model veya istemci) teşhis edilir.
 5. Kuyruk ya da yükleme süreleri yüksekse modelin ilk kez yüklenip yüklenmediğine ve başka isteklerin çalışıp çalışmadığına bakın.
 

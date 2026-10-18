@@ -6,15 +6,17 @@ Türkçe: [../tr/04-playground.md](../tr/04-playground.md)
 
 ## How the Screen Is Laid Out
 
-At the top of the Playground are the mode tabs (**Playground mode**): **Chat**, **Embedding**, **Rerank**, **Speech**, **Image Generation**, and **Tasks**. In the **Simple** interface level you see **Chat**, **Speech**, **Image Generation**, and **Tasks**; **Embedding**, **Rerank**, and **Tasks** appear in **Advanced**. In Chat mode, the chat list is on the left (**Show chats**), the conversation and the **Your message** box are in the middle, and the **Session Settings** panel (**Show settings**) is on the right. Session Settings is split into these pages:
+At the top of the Playground are the mode tabs (**Playground mode**): **Chat**, **Embedding**, **Rerank**, **Speech**, **Image Generation**, and **Tasks**. In the **Simple** interface level you see **Chat**, **Speech**, and **Image Generation**; **Embedding**, **Rerank**, and **Tasks** appear in **Advanced**. In Chat mode, the chat list is on the left (**Show chats**), the conversation and the **Your message** box are in the middle, and the **Session Settings** panel (**Show settings**) is on the right. Session Settings is split into these pages:
 
 | Group | Page | Purpose |
 | --- | --- | --- |
 | Session | **Model and Preset** | Choose the model and a preset (a saved set of settings). |
-| Session | **System Prompt** | The general instruction given to the model. |
+| Session | **Assistant Instructions** (Simple) / **System Prompt** (Advanced) | The general instruction given to the model. |
 | Generation (Advanced) | **Sampling**, **Output Limits** | Creativity and answer length. |
 | Context (Advanced) | **History and Compaction**, **RAG** | Summarizing long chats and searching documents. |
 | Tools | **Selection and Permissions** | Which tools the model may use, and the working folder. |
+
+Open this screen as **Chat and Media** in Simple or **Playground** in Advanced. **Advanced Settings** reveals Sampling, Output Limits, History and Compaction, and RAG controls. Comparison and audio processing are Advanced; optional speech and image controls can be expanded locally under **Advanced Settings**. An already active Advanced tab stays visible when switching to Simple, and active comparison can still be turned off.
 
 ## Your First Chat
 
@@ -43,10 +45,14 @@ To get a different answer, choose **Regenerate Response**; this works for an ans
 
 Answers render full Markdown (lists, tables, headings), and `mermaid` code blocks appear as diagrams you can switch to source, copy, or save as SVG. **Read Aloud** on an answer reads it out (see [Text to Speech](#text-to-speech)).
 
+## Tables, Charts, and UI Blocks
+
+Structured JSON tool results appear as key-value cards or sortable tables; **Raw JSON** shows the underlying result. Markdown tables scroll horizontally and offer **Copy as CSV**. A complete `chart` block can show a bar, line, or pie chart. A complete `ui` block can show a card, list, steps, callout, progress bar, or key-value view. These use a limited declarative JSON schema: model HTML and JavaScript are never executed. Invalid or incomplete blocks remain readable code. See the [supported schemas](../../en/FEATURES.md#rich-blocks-in-playground-chat).
+
 ## System Prompt, Presets, and Sampling
 
 1. Open the **Session Settings** panel with **Show settings**.
-2. On the **System Prompt** page, write the general instruction you want the model to follow. Example: "Answer in short sentences."
+2. On **Assistant Instructions** (Simple) or **System Prompt** (Advanced), write the general instruction you want the model to follow. Example: "Answer in short sentences."
 3. On the **Sampling** page you can edit **Temperature**, **Top P**, **Top K**, **Min P**, **Repeat penalty**, and **Seed**. Use the defaults if you do not need to change them; empty fields are not sent with the request.
 4. On the **Output Limits** page, set the upper limit of the answer with **Max tokens**. Watch the **Context usage** indicator so there is room left for the output.
 

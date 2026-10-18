@@ -11,10 +11,12 @@ Playground'un üstünde mod sekmeleri (**Playground modu**) bulunur: **Sohbet**,
 | Grup | Sayfa | Ne için? |
 | --- | --- | --- |
 | Oturum | **Model ve Preset** | Model seçimi ve bir preset (kayıtlı ayar takımı) seçimi. |
-| Oturum | **Sistem İstemi** | Modele verilen genel yönerge. |
+| Oturum | **Asistan Talimatları** (Basit) / **Sistem İstemi** (Gelişmiş) | Modele verilen genel yönerge. |
 | Üretim (Gelişmiş) | **Örnekleme**, **Çıktı Sınırları** | Yaratıcılık ve yanıt uzunluğu. |
 | Bağlam (Gelişmiş) | **Geçmiş ve Compaction**, **RAG** | Uzun sohbetleri özetleme ve belge arama. |
 | Araçlar | **Seçim ve İzinler** | Modelin kullanabileceği araçlar ve çalışma klasörü. |
+
+Bu ekranı Basit düzeyde **Sohbet ve Medya**, Gelişmiş düzeyde **Playground** adıyla açın. **Gelişmiş Ayarlar**, Örnekleme, Çıktı Sınırları, Geçmiş ve Compaction ile RAG kontrollerini açar. Karşılaştırma ve ses işleme Gelişmiş düzeydedir; isteğe bağlı konuşma ve görsel kontrolleri **Gelişmiş Ayarlar** altında yerel olarak genişletilebilir. Etkin Gelişmiş sekme Basit’e geçince görünür kalır; etkin karşılaştırma yine kapatılabilir.
 
 ## İlk Sohbetiniz
 
@@ -43,10 +45,14 @@ Farklı bir yanıt almak için **Yanıtı Yeniden Oluştur** seçeneğini kullan
 
 Yanıtlar Markdown'ı tam olarak (listeler, tablolar, başlıklar) işler; `mermaid` kod blokları diyagram olarak görünür, bunları kaynağa çevirebilir, kopyalayabilir veya SVG olarak kaydedebilirsiniz. Bir yanıttaki **Sesli Oku** düğmesi yanıtı sesli okur (bkz. [Metinden Konuşmaya](#metinden-konuşmaya)).
 
+## Tablolar, Grafikler ve Arayüz Blokları
+
+Yapılandırılmış JSON araç sonuçları anahtar-değer kartları veya sıralanabilir tablolarla gösterilir; **Ham JSON** asıl sonucu gösterir. Markdown tabloları yatay kaydırılır ve **CSV Olarak Kopyala** sunar. Tamamlanmış bir `chart` bloğu çubuk, çizgi veya pasta grafiği gösterebilir. Tamamlanmış bir `ui` bloğu kart, liste, adımlar, uyarı, ilerleme çubuğu veya anahtar-değer görünümü gösterebilir. Bunlar sınırlı bir bildirimsel JSON şeması kullanır; modelin HTML veya JavaScript kodu çalıştırılmaz. Geçersiz veya eksik bloklar okunabilir kod olarak kalır. [Desteklenen şemalara](../../tr/FEATURES.md#playground-sohbetinde-zengin-bloklar) bakın.
+
 ## Sistem İstemi, Presetler ve Örnekleme
 
 1. **Ayarları göster** ile **Oturum Ayarları** panelini açın.
-2. **Sistem İstemi** sayfasına modelin izlemesini istediğiniz genel yönergeyi yazın. Örnek: "Kısa cümlelerle yanıt ver."
+2. **Asistan Talimatları** (Basit) veya **Sistem İstemi** (Gelişmiş) sayfasına modelin izlemesini istediğiniz genel yönergeyi yazın. Örnek: "Kısa cümlelerle yanıt ver."
 3. **Örnekleme** sayfasında **Sıcaklık (temperature)**, **Top P**, **Top K**, **Min P**, **Tekrar cezası** ve **Seed** alanlarını düzenleyebilirsiniz. Değiştirmeniz gerekmiyorsa varsayılanları kullanın; boş alanlar isteğe eklenmez.
 4. **Çıktı Sınırları** sayfasında **Maks. token** ile yanıtın üst sınırını belirleyin. Çıktıya yer kalması için **Bağlam kullanımı** göstergesini izleyin.
 

@@ -1,8 +1,12 @@
-# Güvenlik modeli
+# Güvenlik Modeli
 
 [English](../en/SECURITY_MODEL.md)
 
 Bu belge Harness Studio'nun güvenlik modelini anlatır: hangi sırlar nerede tutulur, hangi ağ ve izin kuralları uygulanır, hangi alanlar güvenlik açısından önemlidir. Bir güvenlik açığı bildirmek için kökteki [SECURITY.md](../../SECURITY.md) dosyasına bakın.
+
+## Arşiv Açma
+
+Harness’ın yönettiği model motoru, ONNX, Python ortamı ve RAG arşivleri açılırken sembolik bağlantılar, mutlak yollar ve `..` yolları reddedilir; mevcut dosyaların üzerine yazılmaz ve SUID, SGID ile sticky izin bitleri kaldırılır. Uygulama güncellemeleri, arşivi açmadan önce imza doğrulaması gerektiren Tauri güncelleyicisini kullanır.
 
 ## Kapsam
 
@@ -35,7 +39,7 @@ Yerel yönetim API'si (`/api/harness/v1`, varsayılan `127.0.0.1:11500`) varsay�
 - **Kapatma:** `POST /shutdown` `admin` ister ve yalnız headless sahipte (`harness serve`) çalışır; GUI `409 api.shutdown_unsupported` döner.
 - **CLI (`harness`):** yerel örneğe oturum token dosyasını okuyarak bağlanır; dosya yalnız kullanıcıya açık olduğu için başka kullanıcılar bağlanamaz. Uzak örnek için isimli token gerekir (`HARNESS_TOKEN`; değer yardım çıktısında gösterilmez). Geçici örnekler yalnız `127.0.0.1`'e ve rastgele bir porta bağlanır, komut bitince oturum token dosyasını siler. `profile export` anahtar referansını ve binary yolunu yazmaz. `HARNESS_MEMORY_SECRETS=1` anahtarlık yerine bellekte sır deposu kullandırır (testler için).
 
-## Harness gateway
+## Harness Gateway
 
 Tek uç nokta (varsayılan `127.0.0.1:11435`) varsayılan olarak kapalıdır; Ayarlar > Gateway'den ya da `harness serve --gateway` ile açılır. Yalnız veri dizininin sahibi olan süreçte çalışır.
 
@@ -62,7 +66,7 @@ Gateway'in `/v1/responses` uç noktası OpenAI gibi durumludur (P2): `store` gö
 - **Kapatma:** istek başına `"store": false` (yanıt hiç yazılmaz, sonra alınamaz), ya da Ayarlar > Gateway > "Yanıtları sakla" kapatılır (`settings.gateway.responses.store`); kapalıyken yeni yanıt saklanmaz, eskiler süresi dolana ya da "Tümünü Sil"e kadar durur.
 - Saklanan içerik olay yoluna, loglara ve OTLP'ye girmez; Control API'de okunabilir değildir (yalnız gateway uç noktaları, kendi token'ıyla).
 
-## İstek analitiği ve içerik kaydı
+## İstek Analitiği ve İçerik Kaydı
 
 Gateway'den geçen her isteğin metadata'sı `<veri dizini>/analytics.db`'ye (SQLite, `state.db`'den ayrı) yazılır.
 
@@ -73,7 +77,7 @@ Gateway'den geçen her isteğin metadata'sı `<veri dizini>/analytics.db`'ye (SQ
 - **Erişim:** Control API'de `GET /analytics/summary`, `/analytics/requests`, `/analytics/requests/{id}` ve `/metrics` `read` kapsamı ister. `/analytics/requests/{id}` kaydedilmiş içeriği döndürür; içerik kaydını yalnız bu kapsamı verdiğiniz istemcilere güvendiğiniz tanımlarda açın.
 - **Araç uyumluluğu:** desteklenmeyen araç tipleri sessizce düşürülmez; açık 400 ya da tanım başına açık izinle yok sayma (`X-Harness-Compat` başlığı ve olay kaydı).
 
-## OpenTelemetry (OTLP) dışa aktarma
+## OpenTelemetry (OTLP) Dışa Aktarma
 
 - **Varsayılan kapalı:** açılmadıkça hiçbir bağlantı kurulmaz ve hiçbir şey gönderilmez. Özellik `otel` cargo özelliğinin arkasındadır; onsuz derlenen sürüm hiç ağ kodu içermez. OTLP/HTTP uygulamanın diğer istekleriyle aynı HTTP istemcisini (reqwest 0.12, işletim sisteminin TLS'i ve kök sertifikaları) kullanır. OTLP/gRPC (tonic + rustls/ring, sistem kökleri) yalnız `otel-grpc` ile derlenen sürümlerdedir; varsayılan sürümlerde gRPC seçilemez (`otel.grpc_not_built`).
 - **Başlıklar:** toplayıcı başlıklarının (ör. `authorization`) değerleri OS anahtarlığında (`otel-headers`) tutulur; `settings.json`'da ve API/GUI yanıtlarında yalnız adları vardır.
@@ -81,7 +85,7 @@ Gateway'den geçen her isteğin metadata'sı `<veri dizini>/analytics.db`'ye (SQ
 - **Dağıtık iz:** yalnız W3C sürüm 00 biçiminde, küçük harf onaltılık ve tümü sıfır olmayan trace/span kimlikli `traceparent` kabul edilir; geçersiz başlık yok sayılır. Kabul edilen uzak ebeveyn ve isteğe bağlı geçerli `tracestate` dışa aktarılan sunucu span'ine bağlanır; log kaydı aynı trace/span kimliklerini taşır.
 - **Değiştirme ve deneme** (`PUT /otel`, `POST /otel/test`) yalnız `admin` kapsamıyla yapılır; deneme, çağıranın verdiği adrese veri gönderdiği için. Okuma (`GET /otel`) `read` ister.
 
-## Araç motoru (`harness_core::tools`)
+## Araç Motoru (`harness_core::tools`)
 
 Araçlar (dosya okuma / yazma / arama, kabuk) modelin kullanıcının makinesinde bir şey yapmasıdır; kurallar çekirdektedir ve her yüzey (Control API, CLI, ileride Playground, MCP, gateway) aynı servisten geçer.
 
@@ -95,13 +99,13 @@ Araçlar (dosya okuma / yazma / arama, kabuk) modelin kullanıcının makinesind
 - **Ağ araçları:** `fetch_url` ve kullanıcı adresli SearXNG yalnız HTTP(S) kabul eder (SearXNG'nin kullanıcının kendi yapılandırdığı host:port'u yerel/LAN olabilir; bu istisna yönlendirmelere ve modelin verdiği URL'lere uygulanmaz); URL içi kimlik bilgisi reddedilir. Her hedef DNS ile çözülür, cevaplardan biri bile loopback/özel/link-local/ULA/unspecified/multicast/CGNAT (100.64/10) ya da IPv4 gömülü IPv6 (::ffff:, NAT64) biçimleriyle özel bir adres ise çağrı durur; reqwest doğrulanan adreslere sabitlenir, sistem proxy'si kullanılmaz ve her yönlendirme aynı denetimden yeniden geçer. Böylece DNS rebinding ve localhost/metadata yönlendirmesi engellenir. İndirme 2 MiB ve beş yönlendirmeyle sınırlıdır; ikili içerik çalıştırılmaz ya da kaydedilmez.
 - **Web Araması sırları:** Brave ve Tavily anahtarları OS anahtarlığında `web-search:<sağlayıcı>` hesabındadır. `settings.json` yalnız sağlayıcı ve SearXNG adresini taşır; API/GUI yalnız `api_key_set` döndürür. Anahtar araç argümanı, araç günlüğü ya da hata metni olmaz. SearXNG kullanıcının seçtiği sunucuya sorguyu gönderir; model sağlayıcıyı seçemez; yanıt veren sunucuyu sonuçtaki `source` alanından öğrenir. Anahtarsız seçenek DuckDuckGo → Bing → Mwmbl → DuckDuckGo Lite → Wikipedia sırasıyla sorguyu gönderir (sorgu bu sitelere gider; sonuncusu yalnız ansiklopedi).
 
-### Araç paketlerinin ağ izinleri
+### Araç Paketlerinin Ağ İzinleri
 
 Kurulan/üretilen araçlar üç açık `permissions.network` kapsamı kullanır: `[]` (Ağ Erişimi Yok), `["*"]` (Tüm İnternet, yalnız genel adresler) veya alan adı listesi (Yalnızca Bu Alan Adları). Eski boş listeler erişim vermez; eski alan adı listeleri kapsamını korur. Oluşturucunun varsayılanı Tüm İnternet’tir; kullanıcının seçimi üretim için üst sınırdır, aşan istekler düzeltme için reddedilir. Otomatik araçlar dahil ağ/dosya izinleri kurulumda açık onay gerektirir; izin özetinde Tüm İnternet açıkça gösterilir.
 
-Her gerçek HTTP isteği ve yönlendirme kapsamı denetler, Harness portlarını (varsayılan, yapılandırılmış ve etkin Control API/gateway/Ollama dinleyicileri) reddeder, DNS çözer ve herhangi bir cevap loopback, özel/RFC1918, link-local/metadata, CGNAT, IPv6 ULA veya başka bir engellenen yerel aralıktaysa host’u reddeder. Bağlantılar doğrulanan adreslere sabitlenir, sistem proxy’si kullanılmaz. Wildcard bu denetimleri aşamaz. Çevrimdışı test mock’ları gerçek ağ erişimi vermez.
+Her gerçek HTTP isteği ve yönlendirme kapsamı denetler, Harness portlarını (varsayılan ve yapılandırılmış Control API/gateway/Ollama dinleyicileri, otomatik sunucu port aralığı, Dashboard profil portu ve çalışan sunucuların portları) reddeder, DNS çözer ve herhangi bir cevap loopback, özel/RFC1918, link-local/metadata, CGNAT, IPv6 ULA veya başka bir engellenen yerel aralıktaysa host’u reddeder. Bağlantılar doğrulanan adreslere sabitlenir, sistem proxy’si kullanılmaz. Wildcard bu denetimleri aşamaz. Çevrimdışı test mock’ları gerçek ağ erişimi vermez.
 
-## Harness MCP istemcisi (`harness_core::tools::mcp_client`)
+## Harness MCP İstemcisi (`harness_core::tools::mcp_client`)
 
 Harness, `mcp_servers.json`'daki MCP sunucularına kendisi bağlanır ve araçlarını modele sunar. Yerel (stdio) bir sunucu, bu bilgisayarda kullanıcının yetkileriyle bir program çalıştırmaktır; uzak (HTTP) sunucu ise araç sonuçları ve argümanları üçüncü bir tarafa gönderir.
 
@@ -112,7 +116,7 @@ Harness, `mcp_servers.json`'daki MCP sunucularına kendisi bağlanır ve araçla
 - **Sırlar:** sunucunun ortam değişkenleri ve HTTP başlıkları anahtarlıkta durur (dosyada yer tutucu), arayüze maskeli döner; yalnız bağlanırken çözülür ve alt sürece / isteğe verilir. OAuth yoktur: korumalı bir uzak sunucu için token başlığa konur ve `401/403` bunu söyleyen bir hatayla biter.
 - **Süreç denetimi:** stdio sunucusu kendi süreç grubunda (Windows'ta Job Object) konsol penceresi olmadan çalışır; bağlantı kapanınca stdin kapanır, çıkmayan sunucunun tüm süreç ağacı öldürülür; uygulama kapanırken de. Testle doğrulanmıştır: kapatma, düşürme, yapılandırmadan çıkarma ve sunucunun kendiliğinden ölümü sonrası öksüz süreç kalmaz.
 
-## Harness MCP sunucusu
+## Harness MCP Sunucusu
 
 Ajanların Harness'ı araç olarak kullandığı MCP sunucusu ([MCP.md](MCP.md)) Control API'nin üstünde çalışır; kendi yetkisi yoktur.
 
@@ -129,7 +133,7 @@ Ajanların Harness'ı araç olarak kullandığı MCP sunucusu ([MCP.md](MCP.md))
 - **Defter ve yedekler:** `config/integrations.json` yazılan değerlerin kendisini değil SHA-256'sını ve anahtarın önceki değerini tutar (önceki değer kullanıcının kendi ayarıdır). Zaman damgalı yedekler (`<dosya>.harness-*.bak`, 5 kuşak) dosyanın o anki içeriğini, varsa anahtarlarıyla birlikte taşır; yedekler özgün dosyanın klasöründe kalır.
 - **Bağlantı testi:** tek bir küçük istek, yalnız gösterilen Harness uç noktasına gider; anahtar istek başlığında kalır, sonuçta gösterilmez.
 
-## Ağ erişimi kuralları
+## Ağ Erişimi Kuralları
 
 Kurallar `harness_core::network` içinde tek yerde durur. Her başlatma yolu (Kontrol paneli, kayıtlı profil, açılışta geri yükleme, "Sunucuyu Hazırla", router modu) aynı fonksiyondan geçer ve süreç başlatılırken aynı kural yeniden denetlenir.
 
@@ -142,7 +146,7 @@ Kurallar `harness_core::network` içinde tek yerde durur. Her başlatma yolu (Ko
 - **CORS (`--cors-origins`):** kullanıcı listesi varsa o gönderilir. Liste boşsa: loopback sunucuda llama-server varsayılanı kalır (araçlar/MCP açıkken llama-server kendisi `localhost`'a daraltır); ağa açık sunucuda `none` gönderilir, yani hiçbir tarayıcı sayfası sunucuya CORS ile erişemez. Masaüstü istemciler ve komut satırı araçları CORS'tan etkilenmez.
 - **Güvenlik duvarı:** Harness Studio güvenlik duvarı ayarlarını değiştirmez; LAN adresleri yalnızca bilgi olarak gösterilir.
 
-## Hugging Face hesabı
+## Hugging Face Hesabı
 
 - **Saklama:** yapıştırılan erişim tokenı ve OAuth erişim tokenı OS anahtarlığında `com.harnessstudio.app` / `huggingface_token` kaydında durur. OAuth oturumu (erişim + yenileme tokenı, bitiş zamanı, client ID, kapsamlar, kullanıcı adı/avatar) ayrı `huggingface_oauth` kaydındadır. `settings.json`'a yalnız `hf_token_set` ve herkese açık `hf_oauth_client_id` yazılır; token hiçbir dosyaya, loga ya da arayüze gitmez (Rust tiplerinin `Debug` çıktısı tokenı gizler, hata mesajları yalnız sunucunun `error_description`'ını taşır). Anahtarlık okunamazsa durum "çıkış yapılmış" sayılmaz, `secrets.hf_read_failed` döner.
 - **Tokenın gittiği yer:** `Authorization: Bearer` yalnız `huggingface.co` / `hf.co` (ve alt alan adları) üzerindeki HTTPS isteklere eklenir; başka ana bilgisayara yönlendirmede reqwest başlığı düşürür.
