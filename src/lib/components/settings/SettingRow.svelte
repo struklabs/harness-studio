@@ -30,9 +30,9 @@
 
 {#if !advanced || uiLevel.advanced}
   <div data-setting-field data-help-scope class={cn('flex min-w-0 flex-col gap-2 px-4 py-3', className)} use:describeFields={description ? uid : undefined}>
-    <div class="flex min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-2">
+    <div class="setting-line flex min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-2">
       <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-        <label for={forId} class="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+        <label for={forId} class="flex min-w-0 flex-wrap items-center gap-1.5 text-sm font-medium">
           <span class="min-w-0 break-words">{label}</span>
           {#if popover}<HelpPopover text={popover} {label} />{/if}
           {#if flag && uiLevel.advanced}<span class="font-mono text-xs text-muted-foreground">{flag}</span>{/if}
@@ -43,7 +43,7 @@
         {#if description}<span id={uid} class="sr-only" data-field-help-text>{description}</span>{/if}
       </div>
       {#if children}
-        <div class="flex min-w-0 max-w-full flex-wrap items-center gap-2">{@render children()}</div>
+        <div class="setting-control flex min-w-0 max-w-full flex-wrap items-center gap-2">{@render children()}</div>
       {/if}
     </div>
     {#if extra}{@render extra()}{/if}

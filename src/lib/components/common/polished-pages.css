@@ -1,0 +1,31 @@
+/* Shared layout guardrails for Settings, Connections, Create, Performance and Analytics.
+   Container widths account for both resizable navigation panes and webview zoom. */
+.polished-page main { container-type: inline-size; }
+.polished-page :where(h1, h2, h3, p, label, code) { overflow-wrap: anywhere; }
+.polished-page h1 { font-size: 1.125rem; line-height: 1.5; letter-spacing: -0.025em; }
+.polished-page :where(.truncate) { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+.polished-page :where(input, select, textarea) { min-width: 0; max-width: 100%; }
+.polished-page :where([data-slot="button"], [data-slot="toggle-group-item"]) {
+  max-width: 100%; height: auto; min-height: 2rem; white-space: normal; overflow-wrap: anywhere;
+}
+.polished-page :where(button, a, input, textarea, select, summary):focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.polished-page :where(nav button) { height: auto; min-height: 2rem; padding-block: 0.375rem; }
+.polished-page :where(nav button span) { text-align: start; }
+.polished-page .page-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+.polished-page .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); }
+@container (max-width: 40rem) {
+  .polished-page .setting-line:not(:has([role="switch"])) { align-items: start; flex-direction: column; }
+  .polished-page .setting-line:not(:has([role="switch"])) .setting-control { width: 100%; }
+  .polished-page .setting-control > :where(input, select, .field-help) { flex: 1; }
+  .polished-page .page-toolbar { flex-wrap: wrap; }
+  .polished-page .page-padding { padding-inline: 1rem; }
+}
+
+.polished-page [data-slot="toggle-group"] { max-width: 100%; flex-wrap: wrap; }
+.polished-page [data-slot="toggle-group-item"] { flex: 0 0 auto; padding-block: 0.25rem; }
+.polished-page .setting-control { flex-shrink: 0; }
+
+/* Keep cards and feedback readable inside short scrolling panes. */
+.polished-page main :where(.page-grid, .metric-grid) > * { min-width: 0; }
+.polished-page :where([data-slot="table-head"]) { height: auto; padding-block: 0.75rem; white-space: normal; overflow-wrap: anywhere; }
+.polished-page .performance-content > * { flex-shrink: 0; }

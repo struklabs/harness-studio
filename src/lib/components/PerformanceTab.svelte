@@ -1,4 +1,5 @@
 <script lang="ts">
+  import './common/polished-pages.css';
   import AdvancedPageNotice from './common/AdvancedPageNotice.svelte';
   import { pageLevel } from '#lib/uiLevel.js';
   import SectionSidebar from './common/SectionSidebar.svelte';
@@ -24,7 +25,7 @@
   let benchmarkVisited = $state(false);
   $effect(() => { if (['new', 'results', 'compare'].includes(section.active)) benchmarkVisited = true; });
 </script>
-<div class="flex h-full min-h-0 overflow-hidden">
+<div class="polished-page flex h-full min-h-0 overflow-hidden">
   <SectionSidebar pane={panes.performanceNav} label={t('nav.performance')} groups={PERFORMANCE_GROUPS} active={section.active} onSelect={section.select} />
   <main class="flex min-w-0 flex-1 flex-col overflow-hidden">
     <AdvancedPageNotice level={pageLevel(PERFORMANCE_GROUPS, section.active)} />

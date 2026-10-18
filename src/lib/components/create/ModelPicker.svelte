@@ -72,10 +72,10 @@
   onDestroy(() => controller?.abort());
 </script>
 <div class="flex flex-wrap items-end gap-3">
-  <label class="flex min-w-0 flex-1 flex-col gap-1 text-xs text-muted-foreground">{t('create.endpoint_base')}
+  <label class="flex min-w-0 basis-56 flex-1 flex-col gap-1 text-xs text-muted-foreground">{t('create.endpoint_base')}
     <Input aria-describedby={uid + '-endpoint-help'} aria-invalid={!gatewayOff && !valid} class="font-mono text-xs" bind:value={url} {disabled} oninput={() => { useGateway = false; controller?.abort(); models = []; selectedModel = ''; extraHeaders = {}; }} />
   </label>
-  <label class="flex min-w-40 flex-1 flex-col gap-1 text-xs text-muted-foreground">{t('create.model')}
+  <label class="flex min-w-0 basis-48 flex-1 flex-col gap-1 text-xs text-muted-foreground">{t('create.model')}
     <select onchange={() => userPicked = true} aria-describedby={uid + '-model-help'} class="h-8 max-w-full rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring" bind:value={selectedModel} disabled={disabled || loading}>
       <option value="">{t('create.model')}</option>{#each models as m}<option value={m}>{m} · {port(m) ? t('create.model_running', { port: port(m)! }) : t(('create.model_' + (fits[m] ?? 'unknown')) as TKey)}</option>{/each}
     </select>
@@ -84,7 +84,7 @@
 </div>
 <FieldHelp id={uid + '-endpoint-help'} text={t('create.endpoint_help')} />
 {#if gatewayOff}
-  <div class="flex items-center gap-2 text-xs text-muted-foreground" role="status">
+  <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
     <span>{t('gw.off')}</span>
     <Button variant="outline" size="sm" {disabled} onclick={() => security.openSettings('gateway-endpoint')}>{t('gw.ep_open_settings')}</Button>
   </div>

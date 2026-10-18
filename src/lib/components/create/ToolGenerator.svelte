@@ -264,7 +264,7 @@
             <option value="listed">{t('tools.network_listed')}</option>
           </select>
         </label>
-        <div class="grid gap-3 sm:grid-cols-3">
+        <div class="page-grid gap-3">
           <label class="flex flex-col gap-1.5 text-xs font-medium">
             {t('tools.gen_hosts')}
             <FieldHelp text={t('tools.gen_hosts_hint')}><Textarea bind:value={hosts} rows={3} disabled={phase === 'running' || networkMode !== 'listed'} placeholder={t('tools.gen_hosts_ph')} class="resize-y font-mono text-xs font-normal" /></FieldHelp>
@@ -347,7 +347,7 @@
       {/if}
     </div>
 
-    <div class="flex justify-end gap-2">
+    <div class="flex flex-wrap items-center justify-end gap-2">
       {#if phase === 'running'}
         <span class="mr-auto flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
           <LoaderCircle class="size-3.5 animate-spin" aria-hidden="true" />

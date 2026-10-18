@@ -23,7 +23,7 @@
   };
 </script>
 
-<div class="grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-2">
+<div class="page-grid gap-x-8 gap-y-5">
   <div class="flex min-w-0 flex-col">
     <div class="flex items-baseline justify-between gap-2 border-b border-border pb-1.5">
       <h3 class="text-xs font-medium text-muted-foreground">{t('perf.last_request')}</h3>

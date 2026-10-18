@@ -1,4 +1,5 @@
 <script lang="ts">
+  import './common/polished-pages.css';
   import AdvancedPageNotice from './common/AdvancedPageNotice.svelte';
   import { pageLevel } from '#lib/uiLevel.js';
   import SectionSidebar from './common/SectionSidebar.svelte';
@@ -82,8 +83,11 @@
   let retentionDraft = $state<number | null>(30);
   let savingSettings = $state(false);
   let confirmClear = $state(false);
+  let clearing = $state(false);
 
+  let loadSequence = 0;
   async function load() {
+    const sequence = ++loadSequence;
     loading = true;
     try {
       const first = info === null;
@@ -91,14 +95,15 @@
         invoke<AnalyticsSummary>('get_analytics_summary', { fromMs: rangeStart(range), toMs: null }),
         invoke<AnalyticsInfo>('get_analytics_info'),
       ]);
+      if (sequence !== loadSequence) return;
       summary = s;
       info = i;
       if (first && section.active === 'policy') openSettings(true);
       error = null;
     } catch (e) {
-      error = String(e);
+      if (sequence === loadSequence) error = localizeError(e);
     } finally {
-      loading = false;
+      if (sequence === loadSequence) loading = false;
     }
   }
 
@@ -154,6 +159,7 @@
   }
 
   async function saveSettings() {
+    if (savingSettings || clearing || !info) return;
     savingSettings = true;
     try {
       const days = retentionDraft != null && Number.isFinite(retentionDraft) ? Math.trunc(retentionDraft) : 30;
@@ -163,20 +169,24 @@
       toast.success(t('an.set_saved'));
       refresh();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(localizeError(e));
     } finally {
       savingSettings = false;
     }
   }
 
   async function clearAll() {
+    if (clearing || savingSettings) return;
+    clearing = true;
     try {
       info = await invoke<AnalyticsInfo>('clear_analytics');
       confirmClear = false;
       toast.success(t('an.cleared'));
       refresh();
     } catch (e) {
-      toast.error(String(e));
+      toast.error(localizeError(e));
+    } finally {
+      clearing = false;
     }
   }
 
@@ -184,7 +194,7 @@
   let recorder = $derived(info?.recorder ?? summary?.recorder ?? null);
 </script>
 
-<div class="flex h-full min-h-0 overflow-hidden bg-background">
+<div class="polished-page flex h-full min-h-0 overflow-hidden bg-background">
   <SectionSidebar pane={panes.analyticsNav} label={t('nav.analytics')} groups={ANALYTICS_GROUPS} active={section.active} onSelect={selectPage} />
   <main class="flex min-w-0 flex-1 flex-col overflow-hidden">
     <AdvancedPageNotice level={pageLevel(ANALYTICS_GROUPS, section.active)} />
@@ -209,7 +219,7 @@
       </div>
     </div>
 
-    <div class="flex shrink-0 flex-col gap-1.5 px-6 pt-3">
+    <div class="page-padding flex max-h-[35%] shrink-0 flex-col gap-1.5 overflow-y-auto px-6 pt-3">
       <div class="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
         <Info class="mt-0.5 size-3.5 shrink-0" />
         <p class="flex-1 leading-snug">
@@ -220,14 +230,14 @@
         </p>
       </div>
       {#if gatewayOff}
-        <div class="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+        <div class="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
           <TriangleAlert class="size-3.5 shrink-0 text-warning" />
           <span class="flex-1">{t('an.gateway_off')}</span>
           <Button variant="outline" size="xs" onclick={() => security.openSettings('gateway')}>{t('an.gateway_settings')}</Button>
         </div>
       {/if}
       {#if info && !info.settings.enabled}
-        <div class="flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+        <div class="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
           <TriangleAlert class="size-3.5 shrink-0 text-warning" />
           <span>{t('an.recording_off')}</span>
         </div>
@@ -278,11 +288,11 @@
         <div class="flex flex-col items-start gap-3 p-6"><p class="text-sm text-muted-foreground">{t('menus.choose_request')}</p><Button variant="outline" onclick={() => section.select('requests')}>{t('menus.log')}</Button></div>
       {/if}
     </div>
-    <div hidden={section.active !== 'policy'} class="min-h-0 flex-1 overflow-y-auto p-6">
-      <section class="flex max-w-xl flex-col gap-3">
+    <div hidden={section.active !== 'policy'} class="page-padding min-h-0 flex-1 overflow-y-auto p-6">
+      <section class="flex max-w-xl flex-col gap-5 rounded-lg border border-border bg-card p-5">
             <span class="text-xs font-semibold">{t('an.settings')}</span>
             <label class="flex items-start gap-2 text-xs">
-              <Switch size="sm" checked={enabledDraft} onCheckedChange={(c) => (enabledDraft = c)} />
+              <Switch aria-label={t('an.set_enabled')} size="sm" checked={enabledDraft} onCheckedChange={(c) => (enabledDraft = c)} />
               <span class="flex flex-col gap-0.5">
                 <span class="font-medium">{t('an.set_enabled')}</span>
                 <span class="text-xs text-muted-foreground">{t('an.set_enabled_hint')}</span>
@@ -290,10 +300,10 @@
             </label>
             <label class="flex flex-col gap-1 text-xs">
               <span class="font-medium">{t('an.set_retention')}</span>
-              <FieldHelp text={t('an.set_retention_hint')}><Input type="number" min="1" max="3650" class="h-7 font-num" bind:value={retentionDraft} /></FieldHelp>
+              <FieldHelp text={t('an.set_retention_hint')}><Input type="number" min="1" max="3650" aria-label={t('an.set_retention')} class="h-8 font-num" bind:value={retentionDraft} /></FieldHelp>
               <span class="text-xs text-muted-foreground">{t('an.set_retention_hint')}</span>
             </label>
-            <Button size="sm" onclick={saveSettings} disabled={savingSettings}>{t('an.set_save')}</Button>
+            <Button size="sm" onclick={saveSettings} disabled={!info || savingSettings || clearing}>{t(savingSettings ? 'an.saving' : 'an.set_save')}</Button>
             {#if info?.storage}
               <p class="font-mono text-xs leading-snug text-muted-foreground" title={info.storage.path}>
                 {t('an.storage', {
@@ -307,11 +317,11 @@
             {#if confirmClear}
               <p class="text-xs text-destructive">{t('an.clear_confirm')}</p>
               <div class="flex gap-2">
-                <Button size="sm" variant="outline" class="flex-1" onclick={() => (confirmClear = false)}>{t('ip.cancel')}</Button>
-                <Button size="sm" variant="destructive" class="flex-1" onclick={clearAll}>{t('an.clear')}</Button>
+                <Button size="sm" variant="outline" class="flex-1" disabled={clearing} onclick={() => (confirmClear = false)}>{t('ip.cancel')}</Button>
+                <Button size="sm" variant="destructive" class="flex-1" disabled={clearing} onclick={clearAll}>{t(clearing ? 'an.clearing' : 'an.clear')}</Button>
               </div>
             {:else}
-              <Button size="sm" variant="ghost" class="text-destructive" onclick={() => (confirmClear = true)}>
+              <Button size="sm" variant="ghost" class="self-start text-destructive" disabled={!info || clearing || savingSettings} onclick={() => (confirmClear = true)}>
                 <Trash2 />
                 {t('an.clear')}
               </Button>

@@ -24,7 +24,7 @@
 
 {#if !advanced || uiLevel.advanced}
   <section data-help-scope class="flex min-w-0 flex-col gap-2" aria-describedby={hint ? uid : undefined} use:describeFields={hint ? uid : undefined}>
-    <div class="flex items-end justify-between gap-3">
+    <div class="flex flex-wrap items-end justify-between gap-3">
       <div class="flex min-w-0 flex-col gap-0.5">
         {#if showTitle}<h3
           class={cn(
@@ -42,7 +42,7 @@
         {#if description}<p class="text-xs text-muted-foreground">{description}</p>{/if}
         {#if note}<p class="text-xs text-muted-foreground">{note}</p>{/if}
       </div>
-      {#if actions}<div class="flex shrink-0 items-center gap-2">{@render actions()}</div>{/if}
+      {#if actions}<div class="flex max-w-full flex-wrap items-center gap-2">{@render actions()}</div>{/if}
     </div>
     <div
       class={cn(

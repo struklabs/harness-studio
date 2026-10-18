@@ -266,7 +266,7 @@
   });
 </script>
 
-<div class="flex h-full min-h-0 w-full min-w-0 flex-col gap-6 overflow-y-auto p-4 sm:p-6">
+<div class="performance-content flex h-full min-h-0 w-full min-w-0 flex-col gap-6 overflow-y-auto p-4 sm:p-6">
   <!-- Page Header -->
   <div class="flex flex-col gap-1 shrink-0">
     <h1 class="text-lg font-semibold text-foreground truncate">{t('bench.title')}</h1>

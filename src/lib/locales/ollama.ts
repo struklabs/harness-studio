@@ -21,14 +21,14 @@ const tr = {
   'ollama.address': 'Adres',
   'ollama.address_hint': 'İstemcide OLLAMA_HOST ya da "Ollama URL" olarak bu adresi girin.',
   'ollama.gateway_off': 'Gateway kapalı. Ollama uyumlu API gateway açıkken çalışır.',
-  'ollama.port_enable': 'Ollama portunda da dinle',
+  'ollama.port_enable': 'Ollama Portunda da Dinle',
   'ollama.port_enable_hint':
     'Yalnız Ollama\'nın varsayılan adresini bilen istemciler için. Varsayılan kapalı. Bu portta gerçek bir Ollama çalışıyorsa ya da Ollama kuruluysa Harness portu almaz, uyarı gösterir.',
   'ollama.port_pending': 'Beklemede',
   'ollama.port_pending_hint': 'Ayar açık ama port şu an dinlenmiyor (uyarıya bakın). Neden ortadan kalkınca anahtarı kapatıp yeniden açın.',
-  'ollama.port': 'Ollama portu',
+  'ollama.port': 'Ollama Portu',
   'ollama.port_hint': 'Varsayılan 11434.',
-  'ollama.allow_pull': '/api/pull ile indirmeye izin ver',
+  'ollama.allow_pull': '/api/pull ile İndirmeye İzin Ver',
   'ollama.allow_pull_hint':
     'Yalnız Hugging Face adları indirilebilir: hf.co/<sahip>/<depo>:<kuant>. Ollama kayıt defteri adları (llama3.2 gibi) açık bir hatayla reddedilir. Varsayılan kapalı.',
   'ollama.names_title': 'Model Adları',
@@ -41,7 +41,7 @@ const tr = {
   'ollama.card_title': 'Ollama Uyumlu Uç Nokta',
   'ollama.card_desc': 'Ollama istemcileri için aynı gateway: OLLAMA_HOST bu adres olmalı.',
   'ollama.card_off': 'Gateway açıkken kullanılabilir (Ayarlar > Gateway).',
-  'ollama.card_port_badge': 'Ayrıca {port} portunda',
+  'ollama.card_port_badge': 'Ayrıca {port} Portunda',
   'ollama.card_env': 'Ortam değişkeni',
 };
 
@@ -64,14 +64,14 @@ const en: Record<keyof typeof tr, string> = {
   'ollama.address': 'Address',
   'ollama.address_hint': 'Enter this address as OLLAMA_HOST or the client’s "Ollama URL".',
   'ollama.gateway_off': 'The gateway is off. The Ollama-compatible API works while the gateway runs.',
-  'ollama.port_enable': 'Also listen on the Ollama port',
+  'ollama.port_enable': 'Also Listen on the Ollama Port',
   'ollama.port_enable_hint':
     'Only for clients that know nothing but Ollama’s default address. Off by default. If a real Ollama runs on that port, or Ollama is installed, Harness does not take the port and shows a warning.',
   'ollama.port_pending': 'Pending',
   'ollama.port_pending_hint': 'The setting is on but the port is not listened on right now (see the warning). Once the cause is gone, turn the switch off and on again.',
-  'ollama.port': 'Ollama port',
+  'ollama.port': 'Ollama Port',
   'ollama.port_hint': 'Default 11434.',
-  'ollama.allow_pull': 'Allow downloads through /api/pull',
+  'ollama.allow_pull': 'Allow Downloads Through /api/pull',
   'ollama.allow_pull_hint':
     'Only Hugging Face names can be pulled: hf.co/<owner>/<repo>:<quant>. Ollama registry names (like llama3.2) are refused with a clear error. Off by default.',
   'ollama.names_title': 'Model Names',
@@ -83,7 +83,7 @@ const en: Record<keyof typeof tr, string> = {
   'ollama.card_title': 'Ollama-Compatible Endpoint',
   'ollama.card_desc': 'The same gateway for Ollama clients: set OLLAMA_HOST to this address.',
   'ollama.card_off': 'Available while the gateway runs (Settings > Gateway).',
-  'ollama.card_port_badge': 'Also on port {port}',
+  'ollama.card_port_badge': 'Also on Port {port}',
   'ollama.card_env': 'Environment variable',
 };
 

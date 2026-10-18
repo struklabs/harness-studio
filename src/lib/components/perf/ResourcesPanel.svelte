@@ -29,7 +29,7 @@
   );
 </script>
 
-<div class={serverRunning ? 'grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-3' : 'grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-2'}>
+<div class="page-grid gap-x-8 gap-y-5">
   <div class="flex min-w-0 flex-col">
     <h3 class="border-b border-border pb-1.5 text-xs font-medium text-muted-foreground">{t('perf.res_system')}</h3>
     <div class="divide-y divide-border/60">

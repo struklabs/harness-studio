@@ -58,13 +58,13 @@ const tr = {
 
   // Settings > Runtime: server start behaviour
   'settings.group_server_start': 'Sunucu Başlatma',
-  'settings.load_timeout': 'Yükleme zaman aşımı (sn)',
+  'settings.load_timeout': 'Yükleme Zaman Aşımı (sn)',
   'settings.load_timeout_desc': 'Sunucu bu süre içinde hazır olmazsa başlatma hatayla biter. Tek bir model için Kontrol paneli > Gelişmiş\'ten ayrıca ayarlanır.',
-  'settings.auto_restart': 'Çökünce otomatik yeniden başlat',
+  'settings.auto_restart': 'Çökünce Otomatik Yeniden Başlat',
   'settings.auto_restart_desc': 'Çalışırken beklenmedik şekilde duran sunucu 2, 4, 8… sn beklemelerle yeniden başlatılır. Yükleme hataları (bellek, bozuk dosya, port) yeniden denenmez.',
-  'settings.restart_max_attempts': 'En fazla deneme',
+  'settings.restart_max_attempts': 'En Fazla Deneme',
   'settings.restart_max_attempts_desc': '5 dakika çalışan sunucuda sayaç sıfırlanır.',
-  'settings.auto_benchmark': 'Tümleşik GPU\'da ilk yüklemede otomatik ölçüm',
+  'settings.auto_benchmark': 'Tümleşik GPU\'da İlk Yüklemede Otomatik Ölçüm',
   'settings.auto_benchmark_desc': 'İşlemci ile ekran kartı belleği paylaşıyorsa doğru yön modele göre değişir. Bir model ilk kez yüklendiğinde arka planda kısa bir ölçüm (llama-bench, en çok 90 sn) CPU ile GPU\'yu karşılaştırır ve sonuç Benchmark geçmişine yazılır; önerilen -ngl ölçülen yönü izler.',
 
   // Dashboard > Advanced: per-server load timeout
@@ -174,13 +174,13 @@ const en: Record<keyof typeof tr, string> = {
   'restart.cancel': 'Cancel Restart',
 
   'settings.group_server_start': 'Server Start',
-  'settings.load_timeout': 'Load timeout (s)',
+  'settings.load_timeout': 'Load Timeout (s)',
   'settings.load_timeout_desc': 'A start fails when the server is not ready within this time. Can be set per model in Dashboard > Advanced.',
-  'settings.auto_restart': 'Restart automatically after a crash',
+  'settings.auto_restart': 'Restart Automatically After a Crash',
   'settings.auto_restart_desc': 'A server that stops unexpectedly while running is restarted after 2, 4, 8… s. Load failures (memory, broken file, port) are not retried.',
-  'settings.restart_max_attempts': 'Maximum attempts',
+  'settings.restart_max_attempts': 'Maximum Attempts',
   'settings.restart_max_attempts_desc': 'The count resets once a server has run for 5 minutes.',
-  'settings.auto_benchmark': 'Measure automatically on first load (integrated GPU)',
+  'settings.auto_benchmark': 'Measure Automatically on First Load (integrated GPU)',
   'settings.auto_benchmark_desc': 'When the GPU shares memory with the CPU, which one is faster depends on the model. The first time a model loads, a short background measurement (llama-bench, up to 90 s) compares CPU and GPU and is written to the benchmark history; the recommended -ngl then follows the measured direction.',
 
   'dash.load_timeout_label': 'Load timeout (s)',

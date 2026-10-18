@@ -57,7 +57,7 @@ const tr = {
   'imp.unlink_failed': 'Bağlantı kaldırılamadı: {error}',
 
   // Settings
-  'imp.settings_btn': 'Ollama / LM Studio’dan içe aktar',
+  'imp.settings_btn': 'Ollama / LM Studio’dan İçe Aktar',
 };
 
 const en: Record<keyof typeof tr, string> = {

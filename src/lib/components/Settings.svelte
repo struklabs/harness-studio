@@ -1,4 +1,5 @@
 <script lang="ts">
+  import './common/polished-pages.css';
   import HelpPopover from './common/HelpPopover.svelte';
   import { app } from '#lib/stores/app.svelte.js';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
@@ -139,7 +140,7 @@
   }
 </script>
 
-<div class="flex h-full min-h-0 w-full overflow-hidden bg-background">
+<div class="polished-page flex h-full min-h-0 w-full overflow-hidden bg-background">
   <SectionSidebar pane={navPane} label={t('pane.settings_nav')} groups={SETTINGS_GROUPS} {active} onSelect={select} />
 
   <main class="flex min-w-0 flex-1 flex-col">
@@ -147,7 +148,7 @@
       <div bind:this={content} class="flex w-full max-w-5xl flex-col gap-6 px-6 py-6 max-md:px-4">
         <AdvancedPageNotice level={pageLevel(SETTINGS_GROUPS, active)} />
         <header class="flex flex-col gap-1">
-          <h1 class="flex items-center gap-1.5 text-base font-semibold">{t(activeSection.label)}<HelpPopover text={t(activeSection.desc)} label={t(activeSection.label)} /></h1>
+          <h1 class="flex items-center gap-1.5 text-lg font-semibold">{t(activeSection.label)}<HelpPopover text={t(activeSection.desc)} label={t(activeSection.label)} /></h1>
         </header>
 
         <div class:hidden={activeRoot !== 'runtime'}>
@@ -214,8 +215,8 @@
     </div>
 
     {#if dirtyCount > 0 || saveError}
-      <footer class="shrink-0 border-t border-border bg-card px-6 py-2.5">
-        <div class="flex w-full max-w-5xl items-center justify-between gap-4">
+      <footer class="max-h-[45%] shrink-0 overflow-y-auto border-t border-border bg-card px-6 py-2.5">
+        <div class="flex w-full max-w-5xl flex-wrap items-center justify-between gap-4">
           <p
             class={cn('flex min-w-0 items-center gap-1.5 text-xs', saveError ? 'text-destructive' : 'text-muted-foreground')}
             role={saveError ? 'alert' : 'status'}

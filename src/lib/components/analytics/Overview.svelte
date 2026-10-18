@@ -76,7 +76,7 @@
 <div class="flex flex-col gap-4 px-6 py-4">
   {#if !summary}
     {#if loadFailed}
-      <p class="text-xs text-muted-foreground">{t('an.loading')}</p>
+      <p class="text-xs text-muted-foreground">{t('an.unavailable')}</p>
     {:else}
       <SectionLoading shape="cards" minHeight="24rem" label={t('sl.an_label')} phases={[t('sl.an_1'), t('sl.an_2'), t('sl.an_3')]} />
     {/if}
@@ -92,7 +92,7 @@
     <!-- One flat strip of measurements, vertical rules between them. The -ml-px/-mb-px grid hides
          the rule of whichever item starts a wrapped line, so it works at any width. -->
     <div hidden={page === 'breakdown'} class="shrink-0 overflow-hidden rounded-lg border border-border bg-card">
-      <dl class="-mb-px -ml-px grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
+      <dl class="metric-grid -mb-px -ml-px">
       {#each [
         { label: t('an.kpi_requests'), value: fmtInt(totals.requests), sub: totals.cancelled ? `${fmtInt(totals.cancelled)} ${t('an.cancelled')}` : '' },
         { label: t('an.kpi_tokens'), value: `${fmtCompact(totals.prompt_tokens)} / ${fmtCompact(totals.completion_tokens)}`, sub: '' },
@@ -245,7 +245,7 @@
                 { label: t('an.bench_real_prompt'), v: m.avg_prompt_tps, other: b.prompt_tps, color: 'bg-chart-2' },
                 { label: t('an.bench_bench_prompt', { n: b.n_prompt ?? '' }), v: b.prompt_tps, other: m.avg_prompt_tps, color: 'bg-chart-2/40' },
               ] as row (row.label)}
-                <div class="grid grid-cols-[8rem_minmax(0,1fr)_5.5rem] items-center gap-2 text-xs">
+                <div class="grid grid-cols-[minmax(0,1fr)_minmax(2rem,1fr)_auto] items-center gap-2 text-xs">
                   <span class="truncate text-muted-foreground">{row.label}</span>
                   <div class="h-2 overflow-hidden rounded-full bg-muted">
                     <div class="h-full rounded-full {row.color}" style="width: {barPct(row.v, row.other)}%"></div>

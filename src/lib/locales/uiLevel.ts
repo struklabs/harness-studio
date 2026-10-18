@@ -1,5 +1,5 @@
 const tr = {
-  'uiLevel.label': 'Arayüz düzeyi',
+  'uiLevel.label': 'Arayüz Düzeyi',
   'uiLevel.simple': 'Basit',
   'uiLevel.advanced': 'Gelişmiş',
   'uiLevel.hint': 'Basit düzey temel akışları gösterir; Gelişmiş düzey tüm teknik ayarları açar. Ayarlarınız korunur.',
@@ -14,7 +14,7 @@ const tr = {
   'uiLevel.advanced_desc': 'Tüm llama.cpp parametreleri, ağ, gateway, MCP ve ölçümler.',
 };
 const en: Record<keyof typeof tr, string> = {
-  'uiLevel.label': 'Interface level',
+  'uiLevel.label': 'Interface Level',
   'uiLevel.simple': 'Simple',
   'uiLevel.advanced': 'Advanced',
   'uiLevel.hint': 'Simple shows the core workflows; Advanced opens all technical settings. Your settings are preserved.',
