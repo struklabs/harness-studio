@@ -94,7 +94,7 @@
 {#snippet tourIcon()}<CircleHelp />{/snippet}
 
 <section class="flex flex-col gap-3 border-b border-border pb-4" aria-labelledby="{uid}-title">
-  <div class="flex items-center justify-between gap-2">
+  <div class="flex flex-wrap items-center justify-between gap-2">
     <SectionLabel><span id="{uid}-title" title={t('dash.ms_title_tip')}>{t('dash.n_model')}</span></SectionLabel>
     <div class="flex items-center gap-0.5">
       <AdvancedOnly>

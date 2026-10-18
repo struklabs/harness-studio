@@ -139,7 +139,7 @@
   class={cn(
     'group flex h-full w-full min-w-0 flex-col gap-2 rounded-lg border bg-card p-3 pr-10 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none',
     selected ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-foreground/25 hover:bg-muted/40',
-    layout === 'list' && 'sm:flex-row sm:items-center sm:gap-4',
+    layout === 'list' && '@3xl/hub:flex-row @3xl/hub:items-center @3xl/hub:gap-4',
     unsupported && 'opacity-60'
   )}
   aria-pressed={selected}
@@ -147,20 +147,20 @@
   aria-label={t('hub.open_repo_aria', { repo: repo.id })}
   onclick={() => onSelect(repo.id)}
 >
-  <div class={cn('flex min-w-0 items-center gap-2.5', layout === 'list' && 'sm:w-[34%] sm:shrink-0')}>
+  <div class={cn('flex min-w-0 items-center gap-2.5', layout === 'list' && '@3xl/hub:w-[34%] @3xl/hub:shrink-0')}>
     <PublisherAvatar name={owner} />
     <div class="flex min-w-0 flex-col gap-0.5">
       <div class="flex min-w-0 items-center gap-1.5">
-        <span class="truncate text-sm font-medium" title={repo.id}>{name}</span>
+        <span class="min-w-0 break-words text-sm font-medium [overflow-wrap:anywhere]" title={repo.id}>{name}</span>
         {#if repo.gated}
           <Lock class="size-3 shrink-0 text-warning" aria-hidden="true" />
         {/if}
       </div>
-      <span class="truncate text-xs text-muted-foreground">{owner}</span>
+      <span class="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]">{owner}</span>
     </div>
   </div>
 
-  <div class="flex shrink-0 items-center gap-3 font-num text-xs text-muted-foreground">
+  <div class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 font-num text-xs text-muted-foreground">
     <!-- Some repos (ggerganov/whisper.cpp) are not download-tracked: HF reports 0, so show nothing. -->
     {#if repo.downloads > 0}
       <span class="flex items-center gap-1" title={t('hub.downloads_count', { count: repo.downloads.toLocaleString(locale()) })}>
@@ -278,7 +278,7 @@
       </span>
     {/if}
     {#if capLabels.length > 0}
-      <span class="min-w-0 truncate text-muted-foreground" title={license ?? undefined}>{capLabels.join(' · ')}</span>
+      <span class="min-w-0 break-words text-muted-foreground" title={license ?? undefined}>{capLabels.join(' · ')}</span>
     {/if}
   </div>
   {#if quants.length > 0 && uiLevel.advanced}

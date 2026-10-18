@@ -35,7 +35,7 @@
 <div class="flex h-full w-full min-w-0 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
   <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
     <div class="flex min-w-0 items-center gap-1.5"><p class="text-xs text-muted-foreground">{t('srv.intro_short')}</p><HelpPopover text={t('ui.srv_intro')} label={t('nav.servers')} /></div>
-    <div class="flex shrink-0 items-center gap-2">
+    <div class="flex min-w-0 flex-wrap items-center gap-2">
       <Button variant="outline" size="sm" onclick={refresh} disabled={refreshing}>
         <RefreshCw class={refreshing ? 'size-3.5 animate-spin' : 'size-3.5'} />
         {t('srv.refresh')}
