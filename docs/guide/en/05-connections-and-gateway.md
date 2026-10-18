@@ -15,11 +15,11 @@ Another program (Claude Code, Codex, OpenCode, an editor extension, Open WebUI, 
 
 The big advantage of the gateway is one fixed address: even if you change the model or the port, the address in your client stays the same. The gateway can also serve models that run on the optional engines (speech, image, ONNX, Lemonade, mistral.rs) next to llama.cpp models, through the same address.
 
-### Turn the Gateway On
+### Turn the Gateway on
 
 1. Check that a [model definition exists in My Models](02-model-hub-and-library.md#my-models-and-model-definitions); the name your client uses is the definition's alias.
 2. Open **Settings > Gateway > Endpoint**.
-3. Enable **Turn on the gateway** and press **Apply**. The status should say **Running**.
+3. Enable **Turn on the Gateway** and press **Apply**. The status should say **Running**.
 4. Enter the address from **Base URL** (it has a **Copy** button) in your client. Use the definition's alias as the model name.
 
 The gateway is off by default and stops when Harness Studio closes. The Playground's Speech and Image tabs and the integrations use the gateway too.
@@ -38,11 +38,11 @@ The local gateway does not ask for a key by default. For tools that insist on on
 
 | Page | What it does |
 | --- | --- |
-| **Settings > Gateway > Endpoint** | Turn it on or off, **Port**, **Bind address**, **Allow network access**, **Require a token on this computer too**, **Allowed browser origins** (for web apps). |
-| **Settings > Gateway > Routing** | **Max loaded models**, **Queue per model**, **Request timeout (s)**, **Default idle time (s)**, **Memory-aware eviction**, **VRAM headroom (MiB, 0 = automatic)**, **Chat model emulation for decision endpoints**; below them, each model's state (**Ready**, **Loading**, **Not loaded**) and an **Unload** button. |
-| **Settings > Gateway > Responses** | Whether the OpenAI Responses API keeps responses locally (**Store responses**) and the retention limits. |
+| **Settings > Gateway > Endpoint** | Turn it on or off, **Port**, **Bind Address**, **Allow Network Access**, **Require a Token on This Computer Too**, **Allowed Browser Origins** (for web apps). |
+| **Settings > Gateway > Routing** | **Max loaded models**, **Queue per Model**, **Request Timeout (s)**, **Default Idle Time (s)**, **Memory-aware Eviction**, **VRAM Headroom (MiB, 0 = Automatic)**, **Chat Model Emulation for Decision Endpoints**; below them, each model's state (**Ready**, **Loading**, **Not loaded**) and an **Unload** button. |
+| **Settings > Gateway > Responses** | Whether the OpenAI Responses API keeps responses locally (**Store Responses**) and the retention limits. |
 
-**Default idle time (s)** applies to models without their own idle time; empty means never unload for idleness. With a compatible stable-diffusion.cpp build and automatic fitting enabled, the gateway can admit an image model with part of its weights in RAM: the GPU must hold the compute buffers plus headroom, and the remaining weights must fit within 90% of free RAM. An older build, disabled auto-fit, or explicit weight placement requires the full GPU estimate to fit.
+**Default Idle Time (s)** applies to models without their own idle time; empty means never unload for idleness. With a compatible stable-diffusion.cpp build and automatic fitting enabled, the gateway can admit an image model with part of its weights in RAM: the GPU must hold the compute buffers plus headroom, and the remaining weights must fit within 90% of free RAM. An older build, disabled auto-fit, or explicit weight placement requires the full GPU estimate to fit.
 
 The gateway unloads only the models it loaded itself (**Loaded by gateway**) according to idle time and memory rules. It routes to servers you started by hand (**Your server**) but never shuts them down. If you mark a model definition **Pinned (always loaded)**, the gateway loads it when it starts and never unloads it.
 
@@ -84,12 +84,13 @@ The sections of **Connections** in the left menu:
 
 | Group | Pages | What they hold |
 | --- | --- | --- |
-| **Endpoints** | **Endpoint List**, **Ollama Endpoint**, **Port Notes** | Addresses of the servers and the gateway; copyable. |
 | **Tools and Clients** | **Automatic Setup**, **Step-by-Step Setup**, **SDKs and Code Samples**, **Add Harness MCP** | Connecting coding tools and code snippets. |
+| **Harness Link** | **Harness Link** | Remote Harness models and connection status. |
+| **Endpoints** | **Endpoint List**, **Ollama Endpoint**, **Port Notes** | Addresses of the servers and the gateway; copyable. |
 | **MCP Servers** | **Server List**, import, **Status and Live Tools** | Servers that Harness Studio connects to with its own MCP client. |
 | **Test** | **Tool-Calling Workbench**, **Connection Tests** | Connection and tool-calling trials. |
 
-In the **Simple** interface level only **Automatic Setup**, **Step-by-Step Setup**, and **Endpoint List** are shown; the rest are Advanced pages.
+In **Simple**, open **Connect an App**: **Automatic Setup**, **Step-by-Step Setup**, **Harness Link**, and **Endpoint List** are visible. A fresh visit starts on Automatic Setup. In **Advanced**, the screen is called **Connections** and all groups are available; gateway settings are Advanced pages that links can also open from Simple. The section groups follow this order: Tools and Clients, Harness Link, Endpoints, MCP Servers, Test.
 
 ## Connect a Coding Agent
 
@@ -121,8 +122,8 @@ Use **Test Connection** to try the client's own API format. A passing test does 
 | Server API key | Protects the direct llama-server connection. Managed on the Dashboard's **Network** page in the **API key** field or in **Settings > Security > API Keys**. |
 | Named token | Scoped access given to the Control API or the gateway. Created in **Settings > Developer > Control API**. A model request needs the `inference` scope. |
 
-If **Require a token on this computer too** is off on the gateway, local clients connect without a key. If it is on, use a named token with the `inference` scope. A named token's value is shown only when it is created, so copy it then.
+If **Require a Token on This Computer Too** is off on the gateway, local clients connect without a key. If it is on, use a named token with the `inference` scope. A named token's value is shown only when it is created, so copy it then.
 
-For other devices to reach the gateway you need **Allow network access** and a token with the `inference` scope; there is no keyless network access. For this use, follow the conditions in the [security model](../../en/SECURITY_MODEL.md) and set your firewall yourself; Harness Studio does not change it. Do not use the gateway's, the Control API's, and the direct server's keys in place of one another.
+For other devices to reach the gateway you need **Allow Network Access** and a token with the `inference` scope; there is no keyless network access. For this use, follow the conditions in the [security model](../../en/SECURITY_MODEL.md) and set your firewall yourself; Harness Studio does not change it. Do not use the gateway's, the Control API's, and the direct server's keys in place of one another.
 
 Next: [Tools](06-tools.md).

@@ -1,8 +1,10 @@
 # Ayarlar
 
+English: [../en/08-settings.md](../en/08-settings.md)
+
 **Bu sayfada ne yapılır:** Ayar sayfalarının görevleri anlaşılır, görünüm ve başlangıç davranışı seçilir, tepside pencerenin tutulması yönetilir.
 
-## Ayarlar nasıl çalışır?
+## Ayarlar Nasıl Çalışır?
 
 Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve alt sayfalara ayrılmıştır; bu kılavuz yolları **Ayarlar > Bölüm > Sayfa** biçiminde yazar. İlk sayfa **Model Motoru > Kurulu Model Motoru**'dır.
 
@@ -11,7 +13,11 @@ Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve
 - Kaydedilmemiş değişiklik varken pencereyi tepsiye küçültürseniz o girdi kaybolabilir; bkz. [Tepside sayfa bırakmak](#tepside-sayfa-bırakmak).
 - Komut paletinden (arama) bir ayar adını yazarak doğrudan ilgili sayfaya gidebilirsiniz.
 
-### Ayar haritası
+**Basit** düzeyde yalnız **Kurulu Model Motoru**, **Dizinler**, **Hugging Face Hesabı**, **Görünüm ve Başlangıç**, **Güncellemeler** ve **Gizlilik** listelenir. Diğer sayfalar Gelişmiş düzeydedir; komut paleti ve uygulama içi bağlantılarla Basit düzeyden de açılabilir. **Arayüz Düzeyi** seçimini Görünüm ve Başlangıç’ta veya ana gezinmenin altında değiştirin; kayıtlı değerler korunur.
+
+Yüzen bölüm menüsü sayfa seçtikten sonra açık kalır. Kapatmak için **Daralt** veya Escape kullanın. Gizli Gelişmiş sayfalara komut paleti ve uygulama içi bağlantılarla ulaşılabilir.
+
+### Ayar Haritası
 
 | Ayar | Yol |
 | --- | --- |
@@ -42,8 +48,8 @@ Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve
 
 **Ayarlar > Model Motoru > Kurulu Model Motoru** motor kaynağını düzenler.
 
-- **Yönetilen (önerilen)** seçiliyken **Kurulu sürüm**, **Güncellemeleri Denetle** ve **Otomatik güncelle** görünür. Otomatik güncelleme yeni sürümü arka planda indirip doğrular ve sunucular durduğunda etkinleştirir. Yeni sürüm elle de indirilip test edilir (**{sürüm} İndir ve Test Et**) ve siz **Yeni Sürümü Etkinleştir** diyene kadar eski sürüm çalışır. Bir güncelleme sorun çıkarırsa yedek varsa **Önceki sürüme dön** kullanılabilir.
-- **Özel ikili** seçiliyken **llama-server yolu** yazılır veya **Otomatik Bul** ile aranır, **Doğrula** ile denenir. Özel ikili otomatik güncellenmez ve geri alınmaz.
+- **Yönetilen (önerilen)** seçiliyken **Kurulu Sürüm**, **Güncellemeleri Denetle** ve **Otomatik Güncelle** görünür. Otomatik güncelleme yeni sürümü arka planda indirip doğrular ve sunucular durduğunda etkinleştirir. Yeni sürüm elle de indirilip test edilir (**{sürüm} İndir ve Test Et**) ve siz **Yeni Sürümü Etkinleştir** diyene kadar eski sürüm çalışır. Bir güncelleme sorun çıkarırsa yedek varsa **Önceki Sürüme Dön** kullanılabilir.
+- **Özel ikili** seçiliyken **Llama-server Yolu** yazılır veya **Otomatik Bul** ile aranır, **Doğrula** ile denenir. Özel ikili otomatik güncellenmez ve geri alınmaz.
 - **Backend** satırı hangi derlemenin (CUDA, Vulkan, ROCm, Metal, CPU) kurulu ve donanımınız için önerildiğini gösterir; kurulu derleme ekran kartını göremiyorsa başka derleme kurabilirsiniz.
 - **Kurulum sihirbazı > Sihirbazı Aç** ilk açılış sihirbazını yeniden çalıştırır.
 
@@ -63,17 +69,17 @@ Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve
 
 | Grup | Alanlar | Anlamı |
 | --- | --- | --- |
-| **Sunucu Varsayılanları** | **Port**, **GPU katmanları (-ngl)**, **Bağlam boyutu (-c)** | Yeni oluşturulan sunucuların başlangıç değerleri. Port `0` (Otomatik) 11440–11499 aralığından boş port seçer. Daha önce başlatılmış sunucu kendi kayıtlı değerlerini kullanır. |
-| **Sunucu Başlatma** | **Yükleme zaman aşımı (sn)**, **Çökünce otomatik yeniden başlat**, **En fazla deneme** | Sunucu bu sürede hazır olmazsa başlatma hatayla biter (büyük modelde artırın). Çalışırken beklenmedik duran sunucu 2, 4, 8... sn beklemelerle yeniden başlatılır; yükleme hataları (bellek, bozuk dosya, port) yeniden denenmez. |
+| **Sunucu Varsayılanları** | **Port**, **GPU katmanları (-ngl)**, **Bağlam Boyutu (-c)** | Yeni oluşturulan sunucuların başlangıç değerleri. Port `0` (Otomatik) 11440–11499 aralığından boş port seçer. Daha önce başlatılmış sunucu kendi kayıtlı değerlerini kullanır. |
+| **Sunucu Başlatma** | **Yükleme zaman aşımı (sn)**, **Çökünce Otomatik Yeniden Başlat**, **En Fazla Deneme** | Sunucu bu sürede hazır olmazsa başlatma hatayla biter (büyük modelde artırın). Çalışırken beklenmedik duran sunucu 2, 4, 8... sn beklemelerle yeniden başlatılır; yükleme hataları (bellek, bozuk dosya, port) yeniden denenmez. |
 | **Varsayılan Bağlanma Adresi** | **Yalnız bu bilgisayar**, **Yerel ağ**, **Özel adres** | `127.0.0.1` yalnız bu bilgisayara açıktır (önerilen). **Yerel ağ** (`0.0.0.0`) aynı ağdaki cihazların bağlanmasını sağlar ve API anahtarı gerektirir; anahtarsız açmak istenirse uygulama bir **Yine de Aç** onayı ister (bu onaylar **Güvenlik > İzinler** sayfasında listelenir). |
 
 **Ağ > Erişim** sayfası, tarayıcıda çalışan web uygulamalarının sunuculara erişimini (**İzinli Tarayıcı Origin'leri (CORS)**) belirler. Masaüstü istemciler ve komut satırı araçları bundan etkilenmez. Harness güvenlik duvarını kendiliğinden değiştirmez; Windows Güvenlik Duvarı ilk başlatmada izin isteyebilir, yalnız "Özel ağlar" için izin vermeniz önerilir.
 
 ## Güvenlik
 
-**API Anahtarları** sayfasında her sunucu için anahtar durumu görünür (**Anahtar var** / **Anahtar yok**); **Güçlü Anahtar Üret**, **Yeni Anahtar Üret** ve **Anahtarı Kopyala** düğmeleri vardır. Anahtarlar işletim sistemi anahtarlığında tutulur, dosyalara yazılmaz. Yeni anahtar sunucu yeniden başlatılınca geçerli olur ve eski anahtarı kullanan istemcilerin ayarını da güncellemeniz gerekir. **İzinler** sayfası, sunucuları anahtarsız ağa açmak için verdiğiniz **Yine de Aç** onaylarını listeler ve geri almanıza izin verir. Ayrıntılı koşullar [SECURITY.md](../SECURITY.md) belgesindedir.
+**API Anahtarları** sayfasında her sunucu için anahtar durumu görünür (**Anahtar var** / **Anahtar yok**); **Güçlü Anahtar Üret**, **Yeni Anahtar Üret** ve **Anahtarı Kopyala** düğmeleri vardır. Anahtarlar işletim sistemi anahtarlığında tutulur, dosyalara yazılmaz. Yeni anahtar sunucu yeniden başlatılınca geçerli olur ve eski anahtarı kullanan istemcilerin ayarını da güncellemeniz gerekir. **İzinler** sayfası, sunucuları anahtarsız ağa açmak için verdiğiniz **Yine de Aç** onaylarını listeler ve geri almanıza izin verir. Ayrıntılı koşullar [SECURITY.md](../../tr/SECURITY_MODEL.md) belgesindedir.
 
-## Ağ geçidi
+## Ağ Geçidi
 
 **Uç Nokta** ağ geçidini açar ve adresini düzenler, **Yönlendirme** model yükleme/boşaltma ve kuyruk kurallarını, **Responses** OpenAI Responses API'sinin saklama seçeneklerini içerir. Ağ geçidi varsayılan kapalıdır ve uygulama kapanınca kapanır. Ayrıntı ve istemci bağlama için [Bağlantılar sayfasına](05-baglantilar-ve-ag-gecidi.md) bakın.
 
@@ -87,21 +93,21 @@ Sol menüdeki **Ayarlar** düğmesi sayfayı açar. Soldaki liste bölümlere ve
 
 ## OpenTelemetry
 
-**OpenTelemetry** metrik ve izleri seçtiğiniz toplayıcıya aktarmak içindir; yalnız gözlem altyapısı kuran kullanıcılar içindir ve varsayılan olarak kapalıdır. **Dışa aktarmayı aç** seçilmedikçe uygulama kendiliğinden toplayıcıya bağlanmaz ve veri göndermez. Tek istisna **Deneme Gönder** düğmesidir: dışa aktarma kapalı olsa bile formdaki adrese gerçek bir deneme span'ı gönderir. Dışa aktarma açıldığında veriler yazdığınız toplayıcı adresine gider. Derlemede gRPC desteği yoksa **HTTP/protobuf (port 4318)** protokolünü seçin.
+**OpenTelemetry** metrik ve izleri seçtiğiniz toplayıcıya aktarmak içindir; yalnız gözlem altyapısı kuran kullanıcılar içindir ve varsayılan olarak kapalıdır. **Dışa Aktarmayı Aç** seçilmedikçe uygulama kendiliğinden toplayıcıya bağlanmaz ve veri göndermez. Tek istisna **Deneme Gönder** düğmesidir: dışa aktarma kapalı olsa bile formdaki adrese gerçek bir deneme span'ı gönderir. Dışa aktarma açıldığında veriler yazdığınız toplayıcı adresine gider. Derlemede gRPC desteği yoksa **HTTP/protobuf (port 4318)** protokolünü seçin.
 
-## Görünüm ve başlangıç
+## Görünüm ve Başlangıç
 
 | Ayar | Ne yapar? |
 | --- | --- |
 | Tema | **Koyu**, **Açık**, **Sistem**, **OLED Siyah**, **Gece**, **Yüksek Kontrast Koyu**, **Yüksek Kontrast Açık**. |
 | Dil | Türkçe/İngilizce; değişiklik hemen uygulanır. |
-| **Arayüz boyutu** | Yazı, simge ve boşlukları birlikte ölçekler. Kısayollar: Ctrl+= büyüt, Ctrl+- küçült, Ctrl+0 sıfırla. |
-| **Renk körlüğü dostu renkler** | Durum ve grafik renklerini kırmızı/yeşil ayrımına dayanmayan renklerle değiştirir. |
-| **Oturum açılınca başlat** | Kullanıcı hesabınızda oturum açtığınızda Harness Studio başlar. Hemen uygulanır. |
-| **Küçültülmüş başlat** | Otomatik açılışta pencere açılmaz, uygulama tepside bekler. Yalnız **Oturum açılınca başlat** açıkken kullanılabilir. |
-| **Son oturumu geri yükle** | Açılışta en son başlattığınız sunucu yeniden başlar. |
-| **Pencereyi kapatınca** | **Sor**, **Tepsiye Küçült** veya **Uygulamadan Çık**. macOS'ta **Menü çubuğunda tut** karşılığı vardır. |
-| **Tepsideyken pencereyi bellekte tut** | Tepsideki sayfanın bellekte kalıp kalmayacağı; aşağıda anlatılır. |
+| **Arayüz Boyutu** | Yazı, simge ve boşlukları birlikte ölçekler. Kısayollar: Ctrl+= büyüt, Ctrl+- küçült, Ctrl+0 sıfırla. |
+| **Renk Körlüğü Dostu Renkler** | Durum ve grafik renklerini kırmızı/yeşil ayrımına dayanmayan renklerle değiştirir. |
+| **Oturum Açılınca Başlat** | Kullanıcı hesabınızda oturum açtığınızda Harness Studio başlar. Hemen uygulanır. |
+| **Küçültülmüş Başlat** | Otomatik açılışta pencere açılmaz, uygulama tepside bekler. Yalnız **Oturum Açılınca Başlat** açıkken kullanılabilir. |
+| **Son Oturumu Geri Yükle** | Açılışta en son başlattığınız sunucu yeniden başlar. |
+| **Pencereyi Kapatınca** | **Sor**, **Tepsiye Küçült** veya **Uygulamadan Çık**. macOS'ta **Menü çubuğunda tut** karşılığı vardır. |
+| **Tepsideyken Pencereyi Bellekte Tut** | Tepsideki sayfanın bellekte kalıp kalmayacağı; aşağıda anlatılır. |
 
 Windows’ta uygulama, çalıştırılabilir dosya yolunu tırnak içine alarak kendi kullanıcıya özel `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` girdisini yazar. Durum okuma hataları bildirilir. Girdiyi Görev Yöneticisi'nin **Başlangıç uygulamaları** sekmesinde kapattıysanız ayar kapalı görünür. Yönetici olarak çalıştırılan eski bir sürüm makine geneli bir `HKLM` girdisi bıraktıysa uygulama bunu söyler: kaldırmak için uygulamayı bir kez yönetici olarak açın ve bu ayarı bir kez kapatıp açın. Linux’ta mutlak bir yol olan `XDG_CONFIG_HOME` altında (yoksa `~/.config` içinde), kullanılıyorsa AppImage dosyasının kendisini gösteren bir XDG otomatik başlatma girdisi yazılır. AppImage’ı taşıdıktan veya yeniden adlandırdıktan sonra girdiyi yenilemek için yeni konumdan bir kez çalıştırın.
 
@@ -111,24 +117,24 @@ Windows’ta uygulama, çalıştırılabilir dosya yolunu tırnak içine alarak 
 
 ## Gizlilik
 
-**Gizlilik** yerel tanılama raporlarının içeriğini seçer: **Çökme raporları**, **Uygulama hataları**, **Sunucu hataları (llama.cpp)**, **Donanım bilgisi**, **Performans metrikleri**. Raporlar yalnız bu cihazda saklanır ve hiçbir yere otomatik gönderilmez. Bu raporlara istemler, model yanıtları, dosya içerikleri ve API istek gövdeleri girmez. Sohbet geçmişi ve isteğe bağlı analitik içerik kaydı ayrı işlevlerdir; [analitik sayfasındaki](07-performans-ve-analitik.md#analitik-ve-istek-günlüğü) düz metin içerik kaydı açıklamasını da okuyun.
+**Gizlilik** yerel tanılama raporlarının içeriğini seçer: **Çökme Raporları**, **Uygulama hataları**, **Sunucu hataları (llama.cpp)**, **Donanım Bilgisi**, **Performans Metrikleri**. Raporlar yalnız bu cihazda saklanır ve hiçbir yere otomatik gönderilmez. Bu raporlara istemler, model yanıtları, dosya içerikleri ve API istek gövdeleri girmez. Sohbet geçmişi ve isteğe bağlı analitik içerik kaydı ayrı işlevlerdir; [analitik sayfasındaki](07-performans-ve-analitik.md#analitik-ve-istek-günlüğü) düz metin içerik kaydı açıklamasını da okuyun.
 
 ## Tanılama
 
 **Tanılama > Sağlık** sayfasında **Denetimi Çalıştır** kurulumu, model motoru uyumunu, GPU kütüphanelerini ve portları denetler; sonuçlar **Tamam**, **Uyarı** veya **Hata** olarak işaretlenir ve **JSON'u Kopyala** ile rapora eklenir. **Tanılama > Raporlar** yerel tanılama kayıtlarını inceleme (**İncele**), kopyalama ve silme (**Raporları Sil**) alanıdır. Bir hata için önce başarısız denetimin açıklamasını okuyun; [sorun giderme sayfasıyla](10-sorun-giderme.md) devam edin.
 
-## Tepside sayfa bırakmak
+## Tepside Sayfa Bırakmak
 
-**Pencereyi kapatınca** seçimi **Tepsiye Küçült** ise pencereyi kapatmak uygulamayı kapatmaz: uygulama sistem tepsisinde (macOS'ta menü çubuğunda) çalışmaya devam eder, sunucular ve indirmeler sürer. Tepsi simgesinden pencere yeniden açılır; tamamen kapatmak için simgenin menüsündeki **Çıkış** kullanılır. **Uygulamadan Çık** seçiliyse çalışan sunucular durdurulur. Bu masaüstünde tepsi veya menü çubuğu simgesi yoksa pencereyi kapatmak uygulamadan çıkar. Linux'ta buna AppIndicator eklentisi olmayan standart GNOME da girer.
+**Pencereyi Kapatınca** seçimi **Tepsiye Küçült** ise pencereyi kapatmak uygulamayı kapatmaz: uygulama sistem tepsisinde (macOS'ta menü çubuğunda) çalışmaya devam eder, sunucular ve indirmeler sürer. Tepsi simgesinden pencere yeniden açılır; tamamen kapatmak için simgenin menüsündeki **Çıkış** kullanılır. **Uygulamadan Çık** seçiliyse çalışan sunucular durdurulur. Bu masaüstünde tepsi veya menü çubuğu simgesi yoksa pencereyi kapatmak uygulamadan çıkar. Linux'ta buna AppIndicator eklentisi olmayan standart GNOME da girer.
 
 Tepsideyken bellek tasarrufu için pencerenin web sayfası kapatılabilir:
 
-1. **Ayarlar > Görünüm ve Başlangıç** içinde **Pencereyi kapatınca** seçimini **Tepsiye Küçült** yapın.
+1. **Ayarlar > Görünüm ve Başlangıç** içinde **Pencereyi Kapatınca** seçimini **Tepsiye Küçült** yapın.
 2. Pencereyi kapatın. Sunucular ve indirmeler uygulama sürecinde çalışmaya devam eder.
-3. **Tepsideyken pencereyi bellekte tut** kapalıysa (varsayılan davranış), pencere tepsideyken yaklaşık 30 saniye sonra arayüz sayfası kapatılır ve yalnız uygulama süreci kalır; bu, tepside yaklaşık 60 MiB daha az bellek demektir. Tepsi simgesinden açtığınızda sayfa yeniden kurulur (yaklaşık yarım saniye) ve açık sekme geri gelir.
+3. **Tepsideyken Pencereyi Bellekte Tut** kapalıysa (varsayılan davranış), pencere tepsideyken yaklaşık 30 saniye sonra arayüz sayfası kapatılır ve yalnız uygulama süreci kalır; bu, tepside yaklaşık 60 MiB daha az bellek demektir. Tepsi simgesinden açtığınızda sayfa yeniden kurulur (yaklaşık yarım saniye) ve açık sekme geri gelir.
 4. Sayfa şu durumlarda kapatılmaz, tepsideyken bile bekletilir: Playground'da yanıt akıyorsa veya araç çağrısı sürüyorsa, bir indirme çalışıyorsa, bir araç onayı bekleniyorsa, yazılmış ama gönderilmemiş mesaj varsa, Dashboard'da kaydedilmemiş sunucu ayarı veya Ayarlar'da kaydedilmemiş değişiklik varsa, araç oluşturucu veya ses kaydı çalışıyorsa.
-5. Hazır beklemesini istiyorsanız **Tepsideyken pencereyi bellekte tut** seçimini açın. Daha fazla bellek kullanır ama açılış anlıktır.
+5. Hazır beklemesini istiyorsanız **Tepsideyken Pencereyi Bellekte Tut** seçimini açın. Daha fazla bellek kullanır ama açılış anlıktır.
 
-Yukarıdaki korumalara girmeyen girdiler (örneğin bir arama kutusuna yazılmış ama aranmamış metin) kaybolabilir; pencereyi kapatmadan önce işinizi kaydedin. macOS'ta ilgili tercih **Menü çubuğundayken pencereyi bellekte tut** olarak görünür.
+Yukarıdaki korumalara girmeyen girdiler (örneğin bir arama kutusuna yazılmış ama aranmamış metin) kaybolabilir; pencereyi kapatmadan önce işinizi kaydedin. macOS'ta ilgili tercih **Menü Çubuğundayken Pencereyi Bellekte Tut** olarak görünür.
 
 <!-- Kaynak denetimi: src/lib/components/Settings.svelte, settings/sections.ts, settings/AppearanceSettings.svelte, settings/RuntimeSettings.svelte, settings/NetworkSettings.svelte, settings/SecuritySettings.svelte, settings/PrivacySettings.svelte, settings/DiagnosticsSettings.svelte, settings/DeveloperApiSettings.svelte, settings/OtelSettings.svelte; src/lib/windowActivity.ts (holdReleaseWhile ve 30 sn bırakma); src-tauri/src/desktop.rs (release_window); src/lib/locales/settings.ts, menus.ts, tools.ts, developer.ts, security.ts, gateway.ts, recovery.ts, shell.ts; docs/RELEASE_NOTES_0.1.0.md. -->

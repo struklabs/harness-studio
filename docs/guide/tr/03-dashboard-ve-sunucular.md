@@ -6,7 +6,7 @@ English: [../en/03-dashboard-and-servers.md](../en/03-dashboard-and-servers.md)
 
 ## Ekranın Yapısı
 
-**Dashboard** iki parçadan oluşur. Solda ayarlar vardır. **Basit** arayüz düzeyinde **Özet**, **Model ve Model Motoru** ve **Bağlam ve Bellek** sayfalarını görürsünüz. **Gelişmiş** düzeyde liste şöyledir:
+**Dashboard** iki parçadan oluşur. Solda ayarlar vardır. **Basit** düzeyde **Özet**, **Model Seç** ve **Sohbet Uzunluğu** görünür. Özet, model seçme/bulma, sohbet ve uygulama bağlantılarına doğrudan erişim sağlar. Sohbet Uzunluğu yalnız bağlam boyutunu gösterir; motor seçimi, router modu, eşzamanlı istek ve KV önbellek kontrolleri Gelişmiş düzey gerektirir. **Gelişmiş** düzeyde liste şöyledir:
 
 | Grup | Sayfa | İçeriği |
 | --- | --- | --- |
@@ -24,10 +24,10 @@ Sağ tarafta canlı telemetri (üretim hızı, VRAM ve RAM kullanımı) ve altı
 
 ## İlk Sunucunuzu Başlatın
 
-1. **Dashboard > Model ve Model Motoru** sayfasında yerel bir model seçin ve varsa bir **Model tanımı** seçin. Liste boşsa **Model Hub'a git ve model indir** düğmesini kullanın.
+1. **Dashboard > Model Seç** (Gelişmiş düzeyde **Model ve Model Motoru**) sayfasında yerel bir model seçin ve varsa bir **Model tanımı** seçin. Liste boşsa **Model Hub'a git ve model indir** düğmesini kullanın.
 2. Model motoru uyarısı varsa önce [motoru kurun veya doğrulayın](01-kurulum.md#model-motoru-seçimi).
-3. **Bağlam ve Bellek** ile **GPU** sayfalarındaki önerileri okuyun. **Otomatik**, GGUF modelinin eğitim bağlamını en fazla 32.768 token olarak kullanır (bilinmiyorsa 32.768); belleğe sığdırma bunu azaltabilir. Modelin sınırını ve boş belleğinizi kontrol edin. Modelin yanındaki donanım uyumu rozeti (**VRAM'e sığıyor**, **VRAM sınırda**, **Kısmi GPU yükleme**, **Çoğunlukla CPU**, **Bellek Yetmeyebilir**) tahmini gösterir.
-4. **Ağ** sayfasında portu kontrol edin. **Otomatik** seçildiğinde Harness Studio her başlatmada 11440 ile 11499 arasından boş bir port seçer. Kendiniz bir port yazarsanız o port kaydedilir.
+3. Basit düzeyde **Sohbet Uzunluğu** kullanın; Gelişmiş düzeyde **Bağlam ve Bellek** ile **GPU** sayfalarındaki önerileri okuyun. **Otomatik**, GGUF modelinin eğitim bağlamını en fazla 32.768 token olarak kullanır (bilinmiyorsa 32.768); belleğe sığdırma bunu azaltabilir. Modelin sınırını ve boş belleğinizi kontrol edin. Modelin yanındaki donanım uyumu rozeti (**VRAM'e sığıyor**, **VRAM sınırda**, **Kısmi GPU yükleme**, **Çoğunlukla CPU**, **Bellek Yetmeyebilir**) tahmini gösterir.
+4. Gelişmiş düzeyde **Ağ** sayfasında portu kontrol edin; Basit düzeyde otomatik portu koruyun. **Otomatik** seçildiğinde Harness Studio her başlatmada 11440 ile 11499 arasından boş bir port seçer. Kendiniz bir port yazarsanız o port kaydedilir.
 5. **Sunucuyu Başlat** düğmesine basın. **Başlatılıyor...** görünürken model belleğe yüklenir (büyük modellerde dakikalar sürebilir; **İptal Et** ile vazgeçilir). **Sunucu aktif** durumunu bekleyin.
 6. **Playground**'a geçip sohbet edin. İşiniz bitince **Sunucuyu Durdur**, modelin kullandığı belleği boşaltır.
 
@@ -36,6 +36,8 @@ Sağ tarafta canlı telemetri (üretim hızı, VRAM ve RAM kullanımı) ve altı
 **Router Modu** anahtarı, tek bir model yerine model klasörünüzdeki tüm hazır modelleri tek bir sunucuda sunar; istemci model adını belirterek istediğini seçer ve model ilk istekte ya da **Router Modelleri** listesinden yüklenir. Günlük kullanım için tek bir model veya [ağ geçidi](05-baglantilar-ve-ag-gecidi.md) yeterlidir.
 
 **Sunucu modu** ayarı normalde model türünü izler: embedding modeli embedding sunucusu, reranker ise rerank sunucusu olarak başlar. Gerekirse değiştirilebilir.
+
+Basit düzeyde ilk başlatmada model seçtikten sonra otomatik bellek ayarlarını koruyup **Sunucuyu Başlat** düğmesine basın. Yukarıdaki **GPU** ve **Ağ** adımları, router kontrolleri ve **Sunucu Olarak Kaydet**, **Gelişmiş** düzey gerektirir. Basit düzeyde **Sunucu Logları**, **Logları Göster** arkasında kapalı başlar ve hata olduğunda otomatik açılır; Gelişmiş düzey günlük araç çubuğunu ve filtreleri gösterir.
 
 ## Ayarlar Ne Anlama Gelir?
 
@@ -81,7 +83,7 @@ Bir model belleğe sığmazsa sunucu durur ve **Model belleğe sığmadı** penc
 4. Deneme başarılı olursa yeni bir sohbetle kontrol edin. Değerlerin kalıcı olmasını istiyorsanız **Bu değerleri model tanımına kaydet** kutusunu işaretleyin; kapalıysa değerler yalnızca bu başlatmaya uygulanır.
 5. Hiç seçenek yoksa ("Bu hata için otomatik seçenek yok. Logları inceleyin."), hatayı incelemek için **Logları aç** düğmesini kullanın ve daha küçük bir model ya da daha küçük bir kuant (örneğin Q4_K_M) seçin.
 
-GPU katmanlarını azaltmak RAM ihtiyacını artırır. Uygulama sistem belleğinin yetmeyebileceği konusunda uyarırsa bunu ciddiye alın. Kurtarma seçenekleri, yükleme sırasındaki bellek hataları içindir. Çalışırken beklenmedik biçimde duran sunucular için **Ayarlar > Ağ > Dinleme** sayfasında **Çökünce otomatik yeniden başlat** seçeneği vardır (yükleme hataları yeniden denenmez).
+GPU katmanlarını azaltmak RAM ihtiyacını artırır. Uygulama sistem belleğinin yetmeyebileceği konusunda uyarırsa bunu ciddiye alın. Kurtarma seçenekleri, yükleme sırasındaki bellek hataları içindir. Çalışırken beklenmedik biçimde duran sunucular için **Ayarlar > Ağ > Dinleme** sayfasında **Çökünce Otomatik Yeniden Başlat** seçeneği vardır (yükleme hataları yeniden denenmez).
 
 ## Sunucular ve Profiller
 
@@ -93,7 +95,7 @@ Profil, bir model ile bir çalıştırma ayarları takımının (port dahil) adl
 2. **Sunucu Olarak Kaydet** düğmesine basın, bir **Profil adı** girin ve kaydedin.
 3. Bir sonraki kullanımda profili **Sunucular** sayfasından başlatın.
 4. Bir profilin ayarlarını değiştirdiğinizde Dashboard'daki **Değişiklikleri Kaydet** düğmesini kullanın.
-5. İsterseniz **Uygulama açılışında otomatik başlat** seçeneğini açın. Bu, Harness Studio'nun bir sonraki açılışında devreye girer.
+5. İsterseniz **Uygulama Açılışında Otomatik Başlat** seçeneğini açın. Bu, Harness Studio'nun bir sonraki açılışında devreye girer.
 
 **Yeni Sunucu**, aynı ayarlarla bir sonraki boş portta yeni bir sunucu taslağı oluşturur; başlatmadan önce modeli ve ayarları düzenleyin. Profilleri **Yeniden Adlandır**, **Çoğalt** ve **Sil** ile yönetirsiniz; çalışan bir profil silinemez, önce durdurun. Aynı anda çalışan sunucuların bellek ihtiyaçları toplanır ve hepsi ekran kartına sığmayabilir. İki sunucuya aynı portu verirseniz şu uyarıyı alırsınız: "Bu port şu anda “{label}” sunucusu tarafından kullanılıyor. Başlatmadan önce başka bir port seçin."
 

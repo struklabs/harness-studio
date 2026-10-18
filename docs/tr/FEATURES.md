@@ -25,7 +25,13 @@ Kaynaklar: repo kod denetimi, lmstudio.ai/docs ve /changelog, docs.ollama.com + 
 
 ---
 
-## 0. Ölçülen karşılaştırma (2026-10-11)
+## Basit ve Gelişmiş Gezinme
+
+Basit düzeyde **Dashboard**, **Model Bul** (Model Hub), **Kütüphanem**, **Sohbet ve Medya** (Playground) ve **Uygulama Bağla** (Bağlantılar), altta ise **Ayarlar** görünür. **Sunucular**, **Oluştur**, **Performans** ve **Analitik** Gelişmiş hedeflerdir. Dashboard’da **Model Seç** ve **Sohbet Uzunluğu**, Playground’da **Asistan Talimatları** kullanılır. Ayrıntılı filtreler, embedding/rerank/görev sekmeleri ve teknik ayarlar Gelişmiş düzeydedir. Bağlantılar ve komut paleti gizli sayfaları yine açabilir. Geçiş kayıtlı değerleri korur; bkz. [Arayüz Düzeyleri](UI_LEVELS.md).
+
+**Donanımıma Uygun**, Model Hub’da ayrı bir düğmedir. Yüklenen sonuçları önce tam GPU sığması, ardından RAM kullanan kısmi yükleme/CPU, bilinmeyen ve son olarak fazla büyük veya kullanılamayan modeller şeklinde sıralar. Her grupta indirme popülerliği korunur. Sığma etiketleri kuant önerir; tahminler model ağırlıklarını indirmeden Hub meta verilerini kullanır ve daha fazla sonuç yüklendikçe değişebilir. Bu düğme kapalıyken sıralama menüsü aynı filtrelerle Hugging Face sırasını ve sayfalamasını izler.
+
+## 0. Ölçülen Karşılaştırma (2026-10-11)
 
 Windows 11, RX 7900 GRE 16 GB (Vulkan); Harness 0.1.0 (llama.cpp b11556), LM Studio (motor 2.51.0), Ollama 0.35.1, llama.cpp b11026/b11552. Modeller Qwen3-4B-Instruct-2507 ve Qwen2.5-Coder-14B-Instruct, Q4_K_M, her araçta aynı dosya. Her araç kendi varsayılanlarıyla ("kutudan çıktığı gibi"); yöntem ve ham veri [COMPARISON.md](COMPARISON.md), [benchmarks/2026-10-11](../benchmarks/2026-10-11/summary.md).
 
@@ -47,7 +53,7 @@ Windows 11, RX 7900 GRE 16 GB (Vulkan); Harness 0.1.0 (llama.cpp b11556), LM Stu
 
 Rakiplerin önde olduğu yerler: istem işleme (Ollama), sığmayan kartta 65k bağlamda kısa istem hızı (LM Studio/Ollama, paylaşılan belleğe taşarak), olgunluk ve ekosistem (aşağıdaki tablolar). Sınırlar: tek makine, yalnız AMD/Vulkan; 14B'de ölçümler arası değişim ~%20.
 
-## 1. Model keşfi ve indirme
+## 1. Model Keşfi ve İndirme
 
 | Özellik | Harness | LM Studio | Ollama | Yol / not |
 |---|---|---|---|---|
@@ -70,7 +76,7 @@ WhisperKit Core ML dışa aktarımları, faster-whisper gibi `ggerganov/whisper.
 Pyannote boru hattı ret açıklaması, `/v1/audio/transcriptions` üzerinde `diarized_json` / `speakers` ile sherpa-onnx konuşmacı ayrımına yönlendirir.
 Hiçbir Harness motorunun desteklemediği konuşma GGUF dosyaları için özel bir ret nedeni gösterilir.
 
-## 2. Yerel kütüphane (My Models)
+## 2. Yerel Kütüphane (My Models)
 
 | Özellik | Harness | LM Studio | Ollama | Yol / not |
 |---|---|---|---|---|
@@ -88,7 +94,7 @@ Hiçbir Harness motorunun desteklemediği konuşma GGUF dosyaları için özel b
 | Kopya model tespiti (hash) | ✅ (ön özet + tam SHA-256) | ❌ | ✅ (digest) | **L** |
 | Favoriler, son kullanılanlar, son indirilenler | ✅ | 🟡 | ❌ | **L** |
 
-## 3. Yükleme (load) yapılandırması
+## 3. Yükleme (Load) Yapılandırması
 
 llama-server build 11236'nın `--help` çıktısına göre:
 
@@ -117,7 +123,7 @@ llama-server build 11236'nın `--help` çıktısına göre:
 | Runtime yeteneğine göre arayüz | ✅ (yetenek kaydı: `--help` çıktısından bayrak/değer; parametre başına `feature`, desteklenmeyen alan rozetli/gizli) | ✅ | — | ARCHITECTURE §13.2 |
 | Serbest ek parametre, korumalı bayrak listesi | ✅ | ✅ | ❌ | — |
 
-## 4. Preset, Model Tanımı, alias
+## 4. Preset, Model Tanımı, Alias
 
 | Özellik | Harness | LM Studio | Ollama | Yol / not |
 |---|---|---|---|---|
@@ -129,7 +135,7 @@ llama-server build 11236'nın `--help` çıktısına göre:
 | Tek yeniden kullanılabilir tanım (base + template + defaults + adapter + alias) | ✅ (`*.harness.toml`) | ✅ (model.yaml) | ✅ (Modelfile) | **M** — "Harness Model Tanımı" (TOML) |
 | Ollama Modelfile içe aktarma | ✅ (FROM GGUF/Ollama model adı, PARAMETER, SYSTEM, ADAPTER; TEMPLATE ve MESSAGE → uyarı; önizleme, `harness import modelfile`) | ❌ | — | Go TEMPLATE yerine GGUF'un Jinja şablonu kullanılır |
 
-## 5. Çıkarım / örnekleme (Playground ve API)
+## 5. Çıkarım / Örnekleme (Playground ve API)
 
 | Parametre | Harness Playground | llama-server | LM Studio | Ollama |
 |---|---|---|---|---|
@@ -166,7 +172,7 @@ llama-server build 11236'nın `--help` çıktısına göre:
 | Embedding testi (çoklu metin, boyut, süre, kosinüs benzerlik matrisi) ve Rerank testi (sorgu + belgeler, puanlı sıralama) | ✅ | ❌ | ❌ | Seçili sunucuya gerçek `/v1/embeddings` ve `/v1/rerank` isteği; embedding/rerank sunucusunda sohbet sekmesi uyarır |
 | Yanıt başına spekülatif kabul oranı | ✅ (`timings.draft_n_accepted / draft_n`) | 🟡 | ❌ | — |
 
-## 7. Sunucu orkestrasyonu
+## 7. Sunucu Orkestrasyonu
 
 | Özellik | Harness | LM Studio | Ollama | Yol / not |
 |---|---|---|---|---|
@@ -183,7 +189,7 @@ llama-server build 11236'nın `--help` çıktısına göre:
 | Yükleme zaman aşımı ayarı | ✅ (ayar + model/profil başına) | ? | ✅ | — |
 | Hata sınıflandırma (OOM, eksik DLL, bozuk GGUF, mimari, port) ve `harness doctor` | ✅ (sabit kodlar, TR/EN mesaj, Ayarlar > Tanılama) | 🟡 | 🟡 | — |
 
-## 8. API uyumluluğu ve Harness API
+## 8. API Uyumluluğu ve Harness API
 
 | Özellik | Harness | LM Studio | Ollama | Yol / not |
 |---|---|---|---|---|
@@ -215,7 +221,7 @@ llama-server build 11236'nın `--help` çıktısına göre:
 | Görsel üretimi (`/v1/images/generations`, görsel düzenleme `/v1/images/edits`) | ✅ (stable-diffusion.cpp `sd-server`; SD1.5/SDXL/SD-Turbo/SD3.5/FLUX/FLUX.2 klein paketleri; Playground Görsel sekmesi, `harness image`; tohum verilmezse rastgele seçilir; isteğe bağlı olarak Python motorunun diffusers klasörleri: metinden görsele, `strength` ile görselden görsele ve maskeli düzenleme (inpainting), örnekleyici seçimi (`euler`, `euler_a`, `dpm++2m`... ve `karras`), "En büyük görsel" (istek başına megapiksel) ve "Az bellek" (dilimli dikkat ve VAE) ayarları) | ? | ❌ (kaldırıldı) | — |
 | Durumlu sohbet (`previous_response_id`) | ✅ (`store` varsayılan açık, `GET`/`DELETE /v1/responses/{id}`, `input_items`, `background: true` + `POST .../cancel`, `context_management` ile zincir sıkıştırma; `state.db`'de token'a ait, saklama süresi/sayı/boyut sınırlı; Ayarlar > Ağ Geçidi'den kapatılır) | ✅ | ❌ | Doğrudan llama-server portunda yok (llama.cpp stateless) |
 
-## 9. CLI, headless, ajan kontrol düzlemi
+## 9. CLI, Headless, Ajan Kontrol Düzlemi
 
 | Özellik | Harness | LM Studio | Ollama | Yol / not |
 |---|---|---|---|---|
@@ -225,7 +231,7 @@ llama-server build 11236'nın `--help` çıktısına göre:
 | Uzak instance (`--host`) | ✅ (`HARNESS_HOST` + `HARNESS_TOKEN`, isimli token kapsamları) | ✅ | ✅ (`OLLAMA_HOST`) | — |
 | Kendi MCP sunucusu (ajanlar Harness'ı araç olarak kullanır) | ✅ (`harness mcp` stdio + Control API `/mcp`, 20 araç (16 varsayılan kapsamda; 4 konuşma aracı `conversations` kapsamını gerektirir), token kapsamları; [MCP.md](MCP.md)) | ❌ | ❌ | Farklılaştırıcı |
 | `launch <araç>` (araçla doğru ortamla başlat) | ✅ (`harness launch`) | ❌ | ✅ | **L** |
-| Resmi SDK'lar (JS / Python) ve eklenti geliştirme (`lms dev`, Hub'a `lms push`/`clone`) | 🟡 (Control API'nin TypeScript ve Python istemcileri [`sdk/`](../../sdk/README.md) altında, OpenAPI şemasından üretilir; henüz npm / PyPI'da yok) | ✅ | ✅ (Python / JS istemci kitaplıkları) | Eklenti çalışma zamanı ve Hub yayınlama bilerek kapsam dışı (§14) |
+| Resmi SDK'lar (JS / Python) ve eklenti geliştirme (`lms dev`, Hub'a `lms push`/`clone`) | 🟡 (Control API'nin TypeScript ve Python istemcileri [`sdk/`](../../sdk/README.md) altında, OpenAPI şemasından üretilir; TypeScript npm’de; Python depoda) | ✅ | ✅ (Python / JS istemci kitaplıkları) | Eklenti çalışma zamanı ve Hub yayınlama bilerek kapsam dışı (§14) |
 | Shell completion | ✅ (`harness completion <kabuk>`) | ? | ❌ | — |
 
 ## 10. Entegrasyonlar
@@ -279,7 +285,7 @@ zaman damgalı 5 kuşak yedek, dosya elle değiştiyse hash uyarısı. Başvuru:
 | OpenTelemetry | ✅ (OTLP HTTP/protobuf veya gRPC; istek başına span ve kuyruk/yükleme/üretim alt span'leri, isteğe bağlı korelasyonlu log, gen_ai metrikleri, W3C traceparent/tracestate; içerik yalnız açıkça; "Deneme Gönder") | ❌ | ❌ | Tümü varsayılan kapalı; log sinyali ayrıca opt-in |
 | Benchmark ↔ gerçek kullanım karşılaştırması | ✅ (son llama-bench koşusunun en iyi pp/tg'si gateway ortalamasının yanında) | ❌ | ❌ | — |
 
-## 13. Donanım, backend ve motorlar
+## 13. Donanım, Backend ve Motorlar
 
 - **audio.cpp konuşma ve ses işleme:** Windows, Linux ve macOS için GitHub sürümlerinden yönetilen motor kurulumu; AMD/Intel için Vulkan, Windows NVIDIA için ek çalışma kitaplıklarıyla CUDA, macOS için Metal ve CPU seçeneği. Ayrık ekran kartı yoksa otomatik seçim CPU'dur, çünkü tümleşik GPU'da uzun Vulkan işleri sürücü zaman aşımına düşebilir. Vulkan model başına yine seçilebilir; iş sırasında GPU kaybolursa bu açıkça bildirilir. Ses işleme istekleri uzun seste daha uzun zaman aşımı alır (120 sn + ses saniyesi başına 90 sn, en fazla bir saat, gateway zaman aşımının altına inmez). TTS aileleri `/v1/audio/speech`, denetlenmiş ayrıştırma/iyileştirme ve konuşmacı ayrımı GGUF aileleri `/v1/audio/process` kullanır. Playground kayıt, dinleme ve WAV kaydetme sunar. Ses seçicisi `embeddings/*.safetensors` dosyalarını okur; arka uç, aygıt, iş parçacığı ve boşta bırakma süresi katalogdan ayarlanır; CPU arka ucunda iş parçacığı ayarlanmamışsa tüm fiziksel çekirdekler kullanılır. Hub paket varyantları seçili model klasörünü ve yardımcı dosyalarını korur. Diğer audio.cpp görevleri kapsam dışıdır.
 
@@ -295,7 +301,7 @@ zaman damgalı 5 kuşak yedek, dosya elle değiştiyse hash uyarısı. Başvuru:
 | MLX motoru (Apple Silicon) | ✅ (mlx-lm, mlx-vlm ve mlx-audio, ARCHITECTURE §14.9–14.11) | ✅ (MLX; Mac'e özel Splash motoru 0.4.25) | ✅ (0.40.0'dan beri desteklenen mimarilerde varsayılan) | **M**, llama.cpp dışı — ayrı değerlendirme (ARCHITECTURE §13.8) |
 | Yetim süreç koruması | ✅ Windows (yönetilen sunucu ağaçları için kapanınca sonlandıran Job Object; bazı kurulum yardımcılarında henüz eşdeğer ağaç temizliği yok), ✅ Linux (PDEATHSIG), ✅ macOS (kqueue watchdog, çalıştırılmadı) | ✅ | ✅ | — |
 
-## 13a. Uygulama penceresi ve yerleşim
+## 13a. Uygulama Penceresi ve Yerleşim
 
 | Özellik | Harness | LM Studio | Ollama app | Yol / not |
 |---|---|---|---|---|
@@ -305,7 +311,7 @@ zaman damgalı 5 kuşak yedek, dosya elle değiştiyse hash uyarısı. Başvuru:
 
 ---
 
-## 13b. Arayüz ve erişilebilirlik
+## 13b. Arayüz ve Erişilebilirlik
 
 | Özellik | Harness | LM Studio | Ollama | Yol / not |
 |---|---|---|---|---|
@@ -321,7 +327,7 @@ zaman damgalı 5 kuşak yedek, dosya elle değiştiyse hash uyarısı. Başvuru:
 
 ---
 
-## 14. Kopyalanmayacaklar (bilerek kapsam dışı)
+## 14. Kopyalanmayacaklar (Bilerek Kapsam Dışı)
 
 | Özellik | Kimde | Neden |
 |---|---|---|
@@ -341,11 +347,11 @@ Yeni karar:
 
 Ayrıntı: ARCHITECTURE §13.
 
-## 15. Oluştur — araç üretimi
+## 15. Oluştur — Araç Üretimi
 
-Ana menüde **Oluştur** grubu; ortak bölüm yan panelinde **Araç Oluşturucu**, **Otomatik Araç Oluşturucu**, **Araçlarım**. Manuel sayfa Playground üreticisini paylaşır. Otomatik sayfa seçilen modelle envanter → fikir → sıra → üretim → test → kurulum akışını yürütür; bekleyen kartlar sürükleme/klavye ile önceliklendirilir. Duraklat/devam et/durdur, hata sonrası tekrar deneme, canlı günlük ve sayaçlar vardır. TR/EN, açık/koyu tema ve azaltılmış hareket desteklenir.
+Ana menüde **Oluştur** grubu; ortak bölüm yan panelinde **Araç Oluşturucu**, **Otomatik Araç Oluşturucu**, **Araçlarım**. Manuel sayfa Araç Oluşturucu bileşenini kullanır; Playground’da ayrıca bir üretici iletişim kutusu bulunur. Otomatik sayfa seçilen modelle envanter → fikir → sıra → üretim → test → kurulum akışını yürütür; bekleyen kartlar sürükleme/klavye ile önceliklendirilir. Duraklat/devam et/durdur, hata sonrası tekrar deneme, **Günlüğü Temizle** sunan canlı günlük ve sayaçlar vardır. İki oluşturucu da **Tüm İnternet** ile başlar; **Ağ Erişimi Yok** ve **Yalnızca Bu Alan Adları** kapsamı daraltır. Yerel/özel adresler ve Harness dinleme portları engelli kalır. TR/EN, açık/koyu tema ve azaltılmış hareket desteklenir.
 
-Rust çekirdeğindeki kalıcı işçi UI, CLI ve Control API tarafından paylaşılır. Öneriler katı JSON ile doğrulanır; ad ve açıklama token benzerliği tekrarları eler. Üretici iki düzeltme denemesi yapar. Dış erişim istemeyen ve testten geçen paketler otomatik kalıcı kurulur; ağ/dosya isteyenler kesin izinleri gösteren onayı bekler. Testler dış erişim olmadan çalışır. Sıra, taslaklar ve günlük diskte saklanır; uygulama yeniden açılınca duraklatılmış çalışma devam ettirilebilir.
+Rust çekirdeğindeki kalıcı işçi UI, CLI ve Control API tarafından paylaşılır. Öneriler katı JSON ile doğrulanır; ad ve açıklama token benzerliği tekrarları eler. Üretici en fazla dört düzeltme denemesi yapar. Dış erişim istemeyen ve testten geçen paketler otomatik kalıcı kurulur; ağ/dosya isteyenler kesin izinleri gösteren onayı bekler. Testler dış erişim olmadan çalışır. Sıra, taslaklar ve günlük diskte saklanır; uygulama yeniden açılınca duraklatılmış çalışma devam ettirilebilir.
 
 Araçlarım yerleşik, kurulu/üretilmiş ve sunucu bazında MCP araçlarını işlevsel kategorilerde listeler. Manifest `category` alanı sabit altı değerle doğrulanır; eski paketler `other` olur. Kurulu araç yönetimi mevcut Ayarlar bileşenini paylaşır; paket kodu/manifest/test incelemesi, etkinleştirme, test ve kaldırma vardır. [Kullanım ve paket rehberi](TOOLS.md).
 
@@ -399,7 +405,7 @@ Playground > Konuşma içindeki **Sesi İşle** paneli model seçme, WAV yüklem
 
 Dışarıda kalanlar: sağlanan v0.9.1 ağacında `mossformer2` ve `tf_gridnet` model tanımı/uygulaması yoktur. `builtin_audio_utils` RNNoise (`rnnoise10Gb_15.safetensors`) ve DeepFilterNet2 (`deepfilternet2.safetensors`; 48 kHz girdi/çıktı) depo varlığı olarak bulunur ancak model tanımları tek bir HF paketi belirtmez; güvenli Hub kurulum/kimlik yolu eklenmemiştir. SpeechBrain pickle `.ckpt`, özel kod isteyen depolar, bağımsız vocoder modelleri ve diğer yerleşik araçlar kapsam dışıdır.
 
-### mlx-audio ile Vokal Ayırma (Apple Silicon)
+### Mlx-audio ile Vokal Ayırma (Apple Silicon)
 
 Apple Silicon'da (macOS 14+) mlx-community'nin Mel-Band-RoFormer ayırıcıları audio.cpp olmadan, yönetilen MLX ses ortamında çalışır:
 - `mlx-community/mel-roformer-kim-vocal-2-mlx` (0,43 GB);
@@ -427,7 +433,7 @@ M1 8 GB'ta ölçüm:
 - 4,5 sn konuşma 1,5–4,3 sn sürdü;
 - 21,6 sn, model yüklemesi dahil 12 sn sürdü.
 
-### mflux ile Görsel Üretme (Apple Silicon)
+### Mflux ile Görsel Üretme (Apple Silicon)
 
 Apple Silicon'da (macOS 14+) mflux biçimindeki FLUX.2 [klein] modelleri mflux motoruyla metinden görsel çizer ve görsel düzenler (aile `mflux`, kendi yönetilen ortamı, yaklaşık 1,1 GB). Örnekler:
 - `mlx-community/FLUX.2-Klein-4B-3bit` (3,6 GB);

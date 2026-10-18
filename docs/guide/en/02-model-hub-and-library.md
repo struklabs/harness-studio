@@ -6,12 +6,12 @@ Türkçe: [../tr/02-model-hub-ve-kutuphane.md](../tr/02-model-hub-ve-kutuphane.m
 
 ## Find a Model
 
-1. Open **Model Hub** from the left menu.
-2. Type a model name into **Search models** and press **Search**. You can also browse without typing anything: with an empty search, the list follows the filters and the **Sort** order (**Trending**, **Most downloaded**, **Most liked**, **Recently updated**, **Newest**).
-3. Under **Filters**, use **Task**, **License**, **Author**, and **Sort**. Choose **Text generation (LLM)** for chat, or **Speech recognition (ASR)** for speech to text. The task list follows Hugging Face's own categories, and each task is marked with whether it can run in Harness Studio. **Decision model** lists the repositories Hugging Face tags as decision models (models that answer yes/no, choice, and score questions with probabilities); their cards carry a **Decision model** label.
-4. Narrow the results with **Tag**, **Quant**, and **Size**. If nothing matches, press **Reset Filters** and try again.
+1. Open **Find a Model** in Simple, or **Model Hub** in Advanced, from the left menu.
+2. Type a model name into **Search models** and press **Search**. You can also browse without typing anything: with an empty search, the list follows the filters and the **Sort** order (**Trending**, **Most Downloaded**, **Most Liked**, **Recently Updated**, **Newest**).
+3. In Advanced, use the detailed **Filters** panel for **License** and **Author**. Choose **Task** from the task picker; **Sort** is on the toolbar. Choose **Text Generation (LLM)** for chat, or **Speech Recognition (ASR)** for speech to text. The task list follows Hugging Face's own categories, and each task is marked with whether it can run in Harness Studio. **Decision model** lists the repositories Hugging Face tags as decision models (models that answer yes/no, choice, and score questions with probabilities); their cards carry a **Decision model** label.
+4. In Advanced, narrow the results with **Tag**, **Quant**, and **Size**. If nothing matches, press **Reset Filters** and try again.
 
-By default the list shows only GGUF repositories, the file format llama.cpp uses. For speech models, search for `whisper` (this finds Whisper ggml `.bin` files) or pick the **Speech recognition (ASR)** task.
+By default the list shows only GGUF repositories, the file format llama.cpp uses. For speech models, search for `whisper` (this finds Whisper ggml `.bin` files) or pick the **Speech Recognition (ASR)** task.
 
 **Also show non-GGUF models** widens that default. Being listed does not mean a model can run. Downloads of unsupported formats are disabled, so pay attention to the **Won't run here** and **Partial support** notes on cards. The card and drawer explain the specific reason a repository cannot run, such as an unsupported architecture, a CTranslate2 export, an Apple-only format, or a component that needs the full model. For recognized `Systran/faster-whisper-*` exports, **Open whisper.cpp Build** opens the matching ggml file in `ggerganov/whisper.cpp`; the CTranslate2 export itself cannot run here. Some formats are supported through optional engines; the card tells you which one a model needs:
 
@@ -28,6 +28,12 @@ By default the list shows only GGUF repositories, the file format llama.cpp uses
 If a card says **Required: Speech module (whisper.cpp)** or **Required: Image module (stable-diffusion.cpp)**, you can still download the model, but you need to press **Install** (above the list, or in the model's details) before you can run it.
 
 **Why is a model missing from the list?** Many official model repositories contain no GGUF file at all; `meta-llama/Llama-3.2-1B-Instruct` is an example. The default Model Hub list does not show such repositories, only GGUF copies published by third parties. Those copies usually do not require license approval, but the original publisher did not make them: check the publisher and the license on the **Model Card** before downloading.
+
+In **Simple**, start with **Chat**, **Transcribe Audio**, **Create Speech**, or **Generate Images**; **All Tasks (N)** opens the full task list. Use **Advanced Settings** for the detailed filter panel and **Custom URL**. The **Sort** menu remains available in both levels and follows Hugging Face ordering and pagination with the same filters. It shows the full label when space permits; hover for the full label when constrained.
+
+**Best for My Hardware** is a separate button next to the task filters, available at both levels. It ranks loaded results by estimated full GPU fit, then partial offload/CPU using RAM, then unknown; models that cannot run come last. Download popularity orders each tier. Cards show a fit badge and suggested quantization. Metadata is fetched lazily for visible results without downloading model weights; rankings can change as more results load. This is an estimate, not a guarantee.
+
+In Simple, the file drawer emphasizes the recommended download and hides technical details. Use **Show All (N)** to compare alternatives locally, or switch to Advanced for the full quantization details.
 
 ## Variants, Quants, and Memory
 
@@ -81,10 +87,10 @@ There are two ways because they trade simplicity for convenience. An access toke
 1. Sign in on the [Hugging Face tokens page](https://huggingface.co/settings/tokens) (the **Open the Tokens Page** button opens the same address).
 2. Create a token with **Read** permission.
 3. In Harness Studio, open **Settings > Storage > Hugging Face Account**.
-4. Paste the value into the **Access token** field and press **Save** next to it.
+4. Paste the value into the **Access Token** field and press **Save** next to it.
 5. Check that the **Account** row says **Connected with an access token**. The token is stored in your operating system keychain and replaces any existing OAuth sign-in. Use **Remove** to delete it.
 
-### Signing In with Your Browser: OAuth
+### Signing in with Your Browser: OAuth
 
 1. On the same page, open **Advanced: OAuth App**. This route needs the client ID of an OAuth app.
 2. Press **Open the New App Page** and create a public OAuth app (one without a secret) on Hugging Face. The app asks for these values:
@@ -116,7 +122,7 @@ For models whose license was only just approved, Hugging Face sometimes returns 
 
 ## My Models and Model Definitions
 
-1. Open **My Models** from the left menu. The list on the left has the **Models** group (**All**, **Chat**, **Vision**, **Embedding**, **Reranker**, **Speech**, **Image Generation**, **Text to Speech**), the **Supporting Files** group (**Draft**, **Adapter**, **Projector**), and the **Management** group (**Import**, **Model Definitions**). The supporting-file pages and **Model Definitions** are Advanced-level pages.
+1. Open **My Models** from the left menu. The list on the left has the **Models** group (**All**, **Chat**, **Vision**, **Embedding**, **Reranker**, **Speech**, **Image Generation**, **Text to Speech**), the **Supporting Files** group (**Draft**, **Adapter**, **Projector**), and the **Management** group (**Import**, **Model Definitions**). The **Embedding** and **Reranker** categories, supporting-file pages, duplicate finder, and **Model Definitions** are Advanced only; **Import** remains available in Simple.
 2. If a file does not appear, press **Rescan Library**. You can add models in other folders under **Settings > Storage > Directories**.
 3. On a model card, look at the size, quant, context, hardware estimate, and any missing-part warning. Organize the list with favorites and recent use. A chat model card offers **Load and Chat**. An image, speech, voice, embedding, or reranker card offers **Open in Playground**, which opens the matching tab with that file selected. This also works for files that were already in your folders and not downloaded through Model Hub; you do not need to create a definition first.
 4. Check the file's **Definitions (Aliases)** section. A definition is made for you when you press **Load and Chat** or **Open in Playground**, and the Playground tabs also list scanned image, speech, embedding, and reranker files by themselves. Choose **New Definition** only when you want an extra one with your own settings.

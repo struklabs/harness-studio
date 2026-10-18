@@ -1,8 +1,12 @@
 Türkçe: ../tr/SECURITY_MODEL.md
 
-# Security model
+# Security Model
 
 This document describes Harness Studio's security model: where secrets are kept, which network and permission rules apply, and which areas matter for security. To report a vulnerability, see [SECURITY.md](../../SECURITY.md) in the repository root.
+
+## Archive Extraction
+
+Harness-managed runtime, ONNX, Python-environment, and RAG archive extraction rejects symlinks, absolute paths, and `..` paths; it never overwrites existing files and removes SUID, SGID, and sticky permission bits. Application updates use the upstream Tauri updater and require signature verification before extraction.
 
 ## Scope
 
@@ -35,7 +39,7 @@ The local management API (`/api/harness/v1`, default `127.0.0.1:11500`) is off b
 - **Shutdown:** `POST /shutdown` requires `admin` and works only on a headless owner (`harness serve`); the GUI returns `409 api.shutdown_unsupported`.
 - **CLI (`harness`):** Connects to the local instance by reading the session token file; since the file is open only to the user, other users cannot connect. A remote instance needs a named token (`HARNESS_TOKEN`; the value is not shown in help output). Temporary instances bind only to `127.0.0.1` and a random port, and delete the session token file when the command ends. `profile export` does not write the key reference and the binary path. `HARNESS_MEMORY_SECRETS=1` makes it use an in-memory secret store instead of the keychain (for tests).
 
-## Harness gateway
+## Harness Gateway
 
 The single endpoint (default `127.0.0.1:11435`) is off by default; it is turned on in Settings > Gateway or with `harness serve --gateway`. It runs only in the process that owns the data directory.
 
@@ -62,7 +66,7 @@ The gateway's `/v1/responses` endpoint is stateful like OpenAI's: if `store` is 
 - **Turning it off:** Per request with `"store": false` (the response is never written and cannot be retrieved later), or by turning off Settings > Gateway > "Store responses" (`settings.gateway.responses.store`); while off, new responses are not stored, and older ones remain until they expire or "Delete All".
 - Stored content does not enter the event path, logs, or OTLP; it cannot be read through the Control API (only the gateway endpoints, with its own token).
 
-## Request analytics and content recording
+## Request Analytics and Content Recording
 
 The metadata of every request that passes through the gateway is written to `<data directory>/analytics.db` (SQLite, separate from `state.db`).
 
@@ -73,7 +77,7 @@ The metadata of every request that passes through the gateway is written to `<da
 - **Access:** In the Control API, `GET /analytics/summary`, `/analytics/requests`, `/analytics/requests/{id}`, and `/metrics` require the `read` scope. `/analytics/requests/{id}` returns recorded content; turn content recording on only for definitions where you trust the clients to which you give this scope.
 - **Tool compatibility:** Unsupported tool types are not dropped silently; there is an explicit 400, or ignoring with explicit per-definition permission (the `X-Harness-Compat` header and an event record).
 
-## OpenTelemetry (OTLP) export
+## OpenTelemetry (OTLP) Export
 
 - **Off by default:** Unless it is turned on, no connection is made and nothing is sent. The feature is behind the `otel` cargo feature; a build without it contains no network code at all. OTLP/HTTP uses the same HTTP client as the application's other requests (reqwest 0.12, the operating system's TLS and root certificates). OTLP/gRPC (tonic + rustls/ring, system roots) exists only in builds compiled with `otel-grpc`; gRPC cannot be selected in the default builds (`otel.grpc_not_built`).
 - **Headers:** The values of collector headers (for example `authorization`) are kept in the OS keychain (`otel-headers`); only their names appear in `settings.json` and in API/GUI responses.
@@ -81,7 +85,7 @@ The metadata of every request that passes through the gateway is written to `<da
 - **Distributed trace:** Only a `traceparent` in W3C version 00 form, with lowercase hexadecimal and trace/span ids that are not all zero, is accepted; an invalid header is ignored. The accepted remote parent and an optional valid `tracestate` are attached to the exported server span; the log record carries the same trace/span ids.
 - **Changing and testing** (`PUT /otel`, `POST /otel/test`) are done only with the `admin` scope; the test sends data to an address supplied by the caller. Reading (`GET /otel`) requires `read`.
 
-## Tool engine (`harness_core::tools`)
+## Tool Engine (`harness_core::tools`)
 
 Tools (file read / write / search, shell) let the model do something on the user's machine; the rules live in the core, and every surface (Control API, CLI, Playground, MCP, gateway) goes through the same service.
 
@@ -95,13 +99,13 @@ Tools (file read / write / search, shell) let the model do something on the user
 - **Network tools:** `fetch_url` and a user-addressed SearXNG accept only HTTP(S) (the host:port that the user configured for SearXNG may be local/LAN; this exception does not apply to redirects or URLs given by the model); credentials inside a URL are rejected. Every target is resolved through DNS, and if even one of the answers is a private address in loopback/private/link-local/ULA/unspecified/multicast/CGNAT (100.64/10) or IPv4-embedded IPv6 (::ffff:, NAT64) forms, the call stops; reqwest is pinned to the verified addresses, the system proxy is not used, and every redirect passes the same check again. This prevents DNS rebinding and localhost/metadata redirection. Download is limited to 2 MiB and five redirects; binary content is not run or saved.
 - **Web search secrets:** The Brave and Tavily keys are in the OS keychain under the account `web-search:<provider>`. `settings.json` carries only the provider and the SearXNG address; the API/GUI return only `api_key_set`. A key is never a tool argument, a tool-log entry, or error text. SearXNG sends the query to the server the user chose; the model cannot choose the provider; the responding server is learned from the `source` field in the result. The keyless option sends the query in the order DuckDuckGo → Bing → Mwmbl → DuckDuckGo Lite → Wikipedia (the query goes to these sites; the last is an encyclopedia only).
 
-### Tool package network permissions
+### Tool Package Network Permissions
 
 Installed/generated tools use three explicit `permissions.network` scopes: `[]` (No Network Access), `["*"]` (Entire Internet, public hosts only), or a domain list (Only These Domains). Existing empty lists remain denied; existing domain lists retain their scope. The builder defaults to Entire Internet; the user's selection is the generation upper bound, and excessive requests are rejected for correction. Network/file permissions still require explicit installation approval, including automatic tools; Entire Internet is named in the permission summary.
 
-Every real HTTP request and redirect checks the scope, rejects Harness ports (default, configured, and active Control API/gateway/Ollama listeners), resolves DNS, and refuses the host if any answer is loopback, private/RFC1918, link-local/metadata, CGNAT, IPv6 ULA, or another blocked local range. Connections are pinned to the validated addresses with system proxies disabled. The wildcard never bypasses these checks. Offline test mocks grant no real network access.
+Every real HTTP request and redirect checks the scope, rejects Harness ports (default and configured Control API/gateway/Ollama listeners, the automatic server port range, the Dashboard profile port, and running server ports), resolves DNS, and refuses the host if any answer is loopback, private/RFC1918, link-local/metadata, CGNAT, IPv6 ULA, or another blocked local range. Connections are pinned to the validated addresses with system proxies disabled. The wildcard never bypasses these checks. Offline test mocks grant no real network access.
 
-## Harness MCP client (`harness_core::tools::mcp_client`)
+## Harness MCP Client (`harness_core::tools::mcp_client`)
 
 Harness connects to the MCP servers in `mcp_servers.json` itself and offers their tools to the model. A local (stdio) server means running a program on this computer with the user's privileges; a remote (HTTP) server sends tool results and arguments to a third party.
 
@@ -112,7 +116,7 @@ Harness connects to the MCP servers in `mcp_servers.json` itself and offers thei
 - **Secrets:** The server's environment variables and HTTP headers stay in the keychain (a placeholder in the file) and return masked to the UI; they are resolved only at connection time and given to the child process / request. For a protected remote server, either a token in a header or OAuth authorization is used (see [MCP.md](MCP.md)); the OAuth session is also stored in the keychain.
 - **Process control:** A stdio server runs in its own process group (a Job Object on Windows) without a console window; when the connection closes, stdin closes, and the whole process tree of a server that does not exit is killed; also when the application closes. Verified by tests: no orphan process remains after shutdown, a drop, removal from the configuration, and the server dying on its own.
 
-## Harness MCP server
+## Harness MCP Server
 
 The MCP server through which agents use Harness as a tool ([MCP.md](MCP.md)) runs on top of the Control API; it has no authority of its own.
 
@@ -129,7 +133,7 @@ The MCP server through which agents use Harness as a tool ([MCP.md](MCP.md)) run
 - **Ledger and backups:** `config/integrations.json` keeps not the written values themselves but their SHA-256 and the key's previous value (the previous value is the user's own setting). Timestamped backups (`<file>.harness-*.bak`, 5 generations) carry the file's content at that moment, with its keys if any; backups stay in the original file's folder.
 - **Connection test:** A single small request goes only to the Harness endpoint shown; the key stays in the request header and is not shown in the result.
 
-## Network access rules
+## Network Access Rules
 
 The rules live in one place, `harness_core::network`. Every launch path (the Dashboard, a saved profile, restore at startup, "Prepare Server", router mode) goes through the same function, and the same rule is checked again when the process is started.
 
@@ -142,7 +146,7 @@ The rules live in one place, `harness_core::network`. Every launch path (the Das
 - **CORS (`--cors-origins`):** If the user has a list, that is sent. If the list is empty: on a loopback server, llama-server's default stays (when tools/MCP are on, llama-server itself narrows to `localhost`); on a server open to the network `none` is sent, meaning no browser page can reach the server through CORS. Desktop clients and command-line tools are not affected by CORS.
 - **Firewall:** Harness Studio does not change firewall settings; LAN addresses are shown for information only.
 
-## Hugging Face account
+## Hugging Face Account
 
 - **Storage:** The pasted access token and the OAuth access token live in the OS keychain in the `com.harnessstudio.app` / `huggingface_token` entry. The OAuth session (access + refresh token, expiry, client ID, scopes, user name/avatar) is in the separate `huggingface_oauth` entry. Only `hf_token_set` and the public `hf_oauth_client_id` are written to `settings.json`; the token goes to no file, log, or UI (the `Debug` output of the Rust types hides the token, and error messages carry only the server's `error_description`). If the keychain cannot be read, the state is not treated as "signed out"; `secrets.hf_read_failed` is returned.
 - **Where the token goes:** `Authorization: Bearer` is added only to HTTPS requests to `huggingface.co` / `hf.co` (and subdomains); on a redirect to another host, reqwest drops the header.

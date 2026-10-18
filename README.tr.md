@@ -43,23 +43,23 @@
 - [Projeye nasıl destek olabilirsiniz?](#projeye-nasıl-destek-olabilirsiniz)
 - [Belgeler](#belgeler) · [Kaynaktan derleme](#kaynaktan-derleme) · [Lisans](#lisans)
 
-## Harness Studio nedir?
+## Harness Studio Nedir?
 
 ChatGPT gibi bir yapay zekâ sohbet programı normalde bir şirketin bilgisayarlarında çalışır: yazdıklarınız internet üzerinden gidip cevap getirir. **Harness Studio yapay zekâyı bunun yerine kendi bilgisayarınızda çalıştırmanızı sağlar.** Bir *model* indirirsiniz (yapay zekânın "beynini" taşıyan bir dosya), bir düğmeye basarsınız ve sohbet edersiniz. İndirmeden sonra hiçbir şeyin bilgisayarınızdan çıkması gerekmez, abonelik yoktur ve internet olmadan da çalışır.
 
 Programcı olmanız gerekmez. Uygulama sizin için model bulur, bilgisayarınıza sığıp sığmadığını denetler, indirir, başlatır ve size bir sohbet penceresi verir. Programcıysanız ya da ileri düzey bir kullanıcıysanız aynı uygulama aynı zamanda OpenAI uyumlu API'si, komut satırı ve araç/MCP desteği olan yerel bir yapay zekâ sunucusudur; editörünüz, kodlama araçlarınız veya betikleriniz yerel modellerinizi kullanabilir.
 
-Harness Studio; Tauri, Rust ve Svelte ile yazılmış bir masaüstü uygulamasıdır. Modelleri gerçekten çalıştıran açık kaynaklı motorları (esas olarak [llama.cpp](https://github.com/ggml-org/llama.cpp)) yönetir ve üzerine kullanışlı bir arayüz, güvenlik denetimleri ve ölçümler ekler.
+Harness Studio; Tauri, Rust ve Svelte 5 ile yazılmış bir masaüstü uygulamasıdır. Modelleri gerçekten çalıştıran açık kaynaklı motorları (esas olarak [llama.cpp](https://github.com/ggml-org/llama.cpp)) yönetir ve üzerine kullanışlı bir arayüz, güvenlik denetimleri ve ölçümler ekler.
 
-## 3 adımda hızlı başlangıç
+## 3 Adımda Hızlı Başlangıç
 
 1. **İndirin ve kurun.** [Sürümler sayfasından](https://github.com/struklabs/harness-studio/releases/latest) sisteminize uygun kurulum dosyasını indirin. **Windows:** `Harness.Studio_..._Windows_x64-setup.exe` dosyasını (yaklaşık 21 MB) çalıştırın. Kurulum dosyası **henüz dijital olarak imzalı değildir**; bu yüzden Windows SmartScreen "Windows bilgisayarınızı korudu" diyebilir. **Ek bilgi**'ye, sonra **Yine de çalıştır**'a tıklayın. **macOS:** Mac'inize uygun DMG'yi (Apple Silicon için `Harness.Studio_..._macOS_Apple-Silicon.dmg`, yaklaşık 29 MB; Intel için `Harness.Studio_..._macOS_Intel.dmg`, yaklaşık 32 MB) açın ve **Harness Studio**'yu **Uygulamalar** klasörüne sürükleyin. Uygulama Apple Developer ID ile imzalı ve Apple tarafından doğrulanmıştır (notarization); indirilen her uygulama gibi açılır. Kaynak kod ve derleme akışı bu depoda açıktır.
 2. **İlk açılış sihirbazını izleyin.** Donanımınıza bakar, modellerin nerede saklanacağını sorar, modelleri çalıştıran motoru kurar ve gizlilik ayarlarını seçmenizi sağlar. Yeniyseniz **Basit** arayüz düzeyini seçin.
-3. **Model seçin ve sohbet edin.** **Model Hub**'da bilgisayarınıza uyan önerilen bir model seçin (uygulama uyum tahmini gösterir) ve **İndir**'e basın. Sonra **Dashboard**'u açın, modeli seçin, **Sunucuyu Başlat**'a basın, **Playground**'u açıp merhaba deyin.
+3. **Model seçin ve sohbet edin.** **Model Bul** (Gelişmiş düzeyde **Model Hub**) sayfasında bilgisayarınıza uyan önerilen bir model seçin (uygulama uyum tahmini gösterir) ve **İndir** düğmesine basın. Sonra **Dashboard**’u açın, modeli seçin, **Sunucuyu Başlat** düğmesine basın, **Sohbet ve Medya** (Gelişmiş düzeyde **Playground**) sayfasını açıp merhaba deyin.
 
 Her ekranın anlatıldığı adım adım rehber: [Kullanım kılavuzu](docs/guide/tr/README.md).
 
-## Sistem gereksinimleri
+## Sistem Gereksinimleri
 
 Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değil. Değerler v0.1.0'ın Windows ve macOS (Apple M1, 8 GB) sürümlerinde ölçülmüştür.
 
@@ -77,7 +77,7 @@ Bunlar **Harness Studio'nun kendi** gereksinimleridir; herhangi bir modelin değ
 
 Donanımınıza göre otomatik seçilen hızlandırma seçenekleri: **CUDA** (NVIDIA), **ROCm/HIP** (yeni AMD kartlar; Windows'ta HIP SDK kitaplıklarının yüklenebilir olması gerekir, aksi halde Vulkan önerilir), **SYCL** (Intel Arc), **Vulkan** (diğer çoğu GPU), **Metal** (Apple Silicon, macOS sürümüyle) ve **CPU**.
 
-### Bilgisayarım ne kadar büyük bir modeli çalıştırır?
+### Bilgisayarım Ne Kadar Büyük Bir Modeli Çalıştırır?
 
 Belirleyici olan *modelin* ne kadar belleğe ihtiyaç duyduğudur; bu da modelin boyutuna ve ne kadar sıkıştırıldığına bağlıdır. Çoğu kişi **GGUF** biçimindeki *nicemlenmiş* (quantized) modelleri indirir: nicemleme (örneğin Q4_K_M) modelin sayılarını daha sıkı biçimde saklar; kalitede küçük bir kayıpla dosya çok küçülür. **VRAM**, ekran kartınızın kendi belleğidir; model tamamen ona sığarsa en hızlı çalışır.
 
@@ -92,13 +92,17 @@ Aşağıdakiler nicemlenmiş GGUF modeller için kaba yol göstericilerdir. Ger�
 
 Bunu kendiniz hesaplamak zorunda değilsiniz. Model Hub ve Dashboard her modelin yanında bir donanım uyumu ipucu gösterir (**VRAM'e sığıyor**, **VRAM sınırda**, **Kısmi GPU aktarımı**, **Çoğunlukla CPU**, **Bellek yetmeyebilir**). **Bağlam boyutu** ve **GPU katmanları** **Otomatik**'te bırakıldığında Harness Studio güvenli ayarları sizin için seçer: küçük bir ekran kartında tüm katmanları GPU'da tutup bağlamı küçültmeyi tercih eder; sığmayacak bir isteği çok yavaş çalıştırmak yerine yüklemeyi reddeder. İkinci bir sunucu, yalnızca o anda boş GPU belleğinin alabileceği kadar katman kullanır; kalanı CPU'da çalışır. Yine de sığmazsa bir pencere neyin yetmediğini ve neyi değiştirmeniz gerektiğini anlatır.
 
+**Basit gezinme:** Dashboard, Model Bul, Kütüphanem, Sohbet ve Medya ve Uygulama Bağla; Ayarlar gezinmenin altında kalır. **Gelişmiş**, Sunucular, Oluştur, Performans, Analitik ve teknik kontrolleri ekler. **Basit / Gelişmiş** ile geçiş yapın; kayıtlı değerler korunur.
+
 ## Özellikler
 
 - **audio.cpp ile deneysel metinden konuşma:** PocketTTS ve diğer audio.cpp TTS GGUF aileleri Playground ve `/v1/audio/speech` üzerinden çalışır. Motor varsayılan olarak kapalıdır; risk bildirimini onaylayıp **Ayarlar > Model Motoru > Kurulu Model Motoru > Diğer Model Motorları** altında etkinleştirin. Platforma göre Vulkan, CUDA, Metal veya CPU kullanılır. Ses gömmeleri konuşma seçicisinde görünür; işçiler beş dakika boş kalınca durur.
 
 Aşağıdakilerin hepsi yerel çalışır. Ayrıntılar [kullanım kılavuzunda](docs/guide/tr/README.md) ve [FEATURES.md](docs/tr/FEATURES.md) içindedir.
 
-### Günlük kullanıcılar için
+Model Hub’da **Donanımıma Uygun**, yüklenen sonuçları tahmini sığmaya göre sıralar; sığma etiketinde önerilen kuant görünür. Playground yapılandırılmış araç sonuçlarını, sıralanabilir tabloları, grafikleri ve bildirimsel arayüz bloklarını gösterir; modelin HTML veya JavaScript kodunu çalıştırmaz.
+
+### Günlük Kullanıcılar İçin
 
 - **Model Hub:** Hugging Face'te filtreli arama, model kartları, modelin donanımınıza uyup uymadığı ve SHA-256 sağlama toplamı doğrulayan, devam ettirilebilir indirme kuyruğu.
 - **Playground:** kayıtlı konuşmalar, yan yana model karşılaştırma, Markdown ve Mermaid şemaları, görsel girdisi (vision modelleri), yerel arama ve kaynak göstermeli belge sohbeti (RAG), konuşmadan yazıya, sesli okuma ve görsel üretimi olan bir sohbet penceresi.
@@ -107,7 +111,7 @@ Aşağıdakilerin hepsi yerel çalışır. Ayrıntılar [kullanım kılavuzunda]
 - **Basit ve Gelişmiş düzeyler:** Basit düzey ilk kez kullanan biri için gereken her şeyi gösterir; Gelişmiş düzey tüm ayarları açar. Düzey değiştirmek hiçbir ayarı kaybettirmez ([ayrıntılar](docs/tr/UI_LEVELS.md)).
 - **Rahat kullanım:** Türkçe ve İngilizce arayüz, açık ve koyu temalar, yüksek karşıtlık ve renk körlüğüne uygun seçenekler, sistem tepsisi ve oturum açılınca başlatma.
 
-### Geliştiriciler ve araç kullanıcıları için
+### Geliştiriciler ve Araç Kullanıcıları İçin
 
 - **Birçok model için tek yerel adres** (*ağ geçidi*): OpenAI, Anthropic ve Ollama API'lerini konuşur. Modeller ilk istekte yüklenir, boşta kalınca boşaltılır. İsteğe bağlıdır.
 - **Araçlarınız için yönlendirmeli kurulum:** Claude Code, Codex, OpenCode, Aider, Goose, Continue, Zed, VS Code, Cline, JetBrains, Open WebUI ve daha fazlası; fark önizlemesi, yedek ve tek tıkla geri alma ile. `harness launch` bir aracı doğru ayarlarla başlatır ve genel ayarlarınıza dokunmaz.
@@ -115,7 +119,7 @@ Aşağıdakilerin hepsi yerel çalışır. Ayrıntılar [kullanım kılavuzunda]
 - **Her iki yönde MCP:** MCP sunucularını sohbetlerinize bağlayın; diğer araçlar da Harness'in kendisini MCP sunucusu olarak kullanabilsin.
 - **Özel araçlar:** bir aracı anlatın, yerel bir model onu korumalı (sandbox) JavaScript olarak üretsin.
 
-### Gelişmiş kullanım (komut satırı ve API)
+### Gelişmiş Kullanım (Komut Satırı ve API)
 
 - **Aynı anda birden çok sunucu:** profiller, otomatik portlar, bellek tahminleri, canlı telemetri ve açık hata yönlendirmesi (bellek yetmezliği, eksik kütüphane, port çakışması).
 - **llama.cpp üzerinde tam denetim:** bağlam, GPU katmanları, KV önbellek türü, slot sayısı, örnekleme ve daha fazlası; ayrıca SHA-256 doğrulamalı motorlardan oluşan bir çalışma zamanı kaydı ve sunucu başına motor seçimi. [CLI başvurusuna](docs/tr/CLI.md) bakın.
@@ -123,11 +127,11 @@ Aşağıdakilerin hepsi yerel çalışır. Ayrıntılar [kullanım kılavuzunda]
 - **CLI, Control API ve başsız kip:** `harness` komutu, OpenAPI şemalı yetkilendirmeli Control API ve pencere olmadan çalıştıran `harness serve`. Hepsi uygulamayla aynı Rust kodunu kullanır.
 - **Daha fazla motor:** whisper.cpp, sherpa-onnx, ONNX Runtime, CrispASR, deneysel audio.cpp (varsayılan olarak kapalı), stable-diffusion.cpp, Python (`python-hf`, CPU/CUDA; transformers ve diffusers), MLX (sohbet, görüntü, ses; Apple Silicon, macOS 14+), Lemonade ve mistral.rs. Safetensors modelleri Hub üzerinden GGUF biçimine dönüştürülebilir.
 
-## Neden Harness Studio? Rakiplerle karşılaştırma
+## Neden Harness Studio? Rakiplerle Karşılaştırma
 
 Zaten iyi araçlar var ve Harness Studio herkes için hepsinin yerini almaz. Amacı, [LM Studio](https://lmstudio.ai) ve [Ollama](https://ollama.com)'nın yaptığını **llama.cpp'nin gelişmiş ayarlarını saklamadan** yapmak; gözlemlenebilirlikte ve kodlama araçlarıyla çalışmada daha güçlü olmak ve tamamen açık kaynak kalmaktır.
 
-### LM Studio, Ollama ve llama.cpp ile ölçülmüş karşılaştırma
+### LM Studio, Ollama ve llama.cpp ile Ölçülmüş Karşılaştırma
 
 Tek bir Windows bilgisayarda (AMD RX 7900 GRE 16 GB, Vulkan) aynı GGUF dosyaları, her araç kendi varsayılanlarında:
 
@@ -143,7 +147,7 @@ Tek bir Windows bilgisayarda (AMD RX 7900 GRE 16 GB, Vulkan) aynı GGUF dosyalar
 
 Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işledi; 65 bin bağlamda LM Studio ve Ollama paylaşımlı belleğe taşarak yaklaşık 3 kat hızlı üretti, Harness ise modeli ekran kartı belleğinde tutar. Yöntem, sınırlar ve tüm tablolar: [COMPARISON.md](docs/tr/COMPARISON.md).
 
-### Özellik karşılaştırması
+### Özellik Karşılaştırması
 
 ✓ var · ✗ yok · kısmi = sınırlı. Kaynak: [FEATURES.md](docs/tr/FEATURES.md) içindeki denetlenmiş tablo; rakip sütunları orada yazan sürümleri yansıtır.
 
@@ -160,9 +164,9 @@ Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işled
 | Yönetim API'si için OpenAPI şeması | ✓ | ✗ | ✓ | ✗ |
 | Yüksek karşıtlık ve renk körlüğüne uygun temalar | ✓ | ✗ | ✗ | — |
 | Arayüz dilleri | kısmi (Türkçe, İngilizce) | ✓ (30+) | doğrulanmadı | — |
-| Resmî JS ve Python SDK'ları | kısmen (depoda; henüz npm/PyPI'da yok) | ✓ | ✓ | ✗ |
+| Resmî JS ve Python SDK'ları | TypeScript npm’de; Python depoda | ✓ | ✓ | ✗ |
 
-### Diğer araçlarla ilişkisi
+### Diğer Araçlarla İlişkisi
 
 | Araç | Nedir | Harness Studio ile ilişkisi |
 |---|---|---|
@@ -173,7 +177,7 @@ Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işled
 | **Open WebUI** | Ollama ve OpenAI tarzı API'ler için web sohbet arayüzü | Harness adresiyle çalışır (yönlendirmeli kurulum var). Harness'in kendi masaüstü arayüzü de var. |
 | **llama-swap / yalın llama.cpp** | Model değiştiren bir ara sunucu ve motorun kendisi | Harness llama.cpp'yi sizin için yönetir; model değiştirme, güvenli varsayılanlar ve aynı ham ayarlar dahil. |
 
-### Ne farklı?
+### Ne Farklı?
 
 - **Çalışan varsayılanlar.** Eşit ayarlarla bu araçların hepsi yaklaşık aynı hızda çalışır, çünkü llama.cpp çekirdeğini paylaşırlar. Fark, her aracın sizin yerinize ne seçtiğinden gelir. Harness bağlamı ve GPU aktarımını boş VRAM'inize ve modele göre ayarlar; böylece 20 bin token'lık bir istem ayar yapmadan çalışır.
 - **Sessiz yavaşlama yok.** Modelleri paylaşımlı sistem belleğinin dışında tutar, sığmayan istekleri nedenini açıklayarak reddeder.
@@ -191,7 +195,7 @@ Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işled
 - **Yerel adres yereldir.** Ağ geçidi ve API'ler siz ağ erişimini açmadıkça yalnızca kendi bilgisayarınızda dinler; açtığınızda token ister. [Güvenlik modeline](docs/tr/SECURITY_MODEL.md) bakın.
 - **İstek günlüğü içeriği değil, üst veriyi saklar.** İstek analitiği süre ve token sayısı gibi bilgileri tutar. İstem ve yanıtları kaydetme varsayılan olarak kapalıdır, model tanımı başına isteğe bağlıdır ve süre sınırı vardır.
 
-## Gelişmiş kullanım (komut satırı ve API)
+## Gelişmiş Kullanım (Komut Satırı ve API)
 
 Bir terminalde ağ geçidiyle başsız bir sahip başlatın, diğerinden kullanın:
 
@@ -227,7 +231,7 @@ Anthropic tarzı (`/v1/messages`) ve Ollama tarzı (`/api/chat`) istemciler ayn�
 
 Başvuru: [CLI.md](docs/tr/CLI.md) · [MCP.md](docs/tr/MCP.md) · [INTEGRATIONS.md](docs/tr/INTEGRATIONS.md) · [ARCHITECTURE.md](docs/tr/ARCHITECTURE.md) · [PERFORMANCE.md](docs/tr/PERFORMANCE.md)
 
-## Sık sorulan sorular
+## Sık Sorulan Sorular
 
 <details>
 <summary><b>Harness Studio ücretsiz mi?</b></summary>
@@ -292,7 +296,7 @@ Windows'ta **Uygulamalar > Yüklü uygulamalar**'ı kullanın. Kaldırma, kaldı
 <details>
 <summary><b>Linux veya macOS'ta çalışır mı?</b></summary>
 
-macOS: evet. Apple Silicon (Metal hızlandırmalı) ve Intel Mac'ler (yalnızca CPU) için birer DMG var; macOS 13.3 veya üstü gerekir. İlk açılış adımı için bkz. [Hızlı başlangıç](#3-adımda-hızlı-başlangıç). Linux: Releases sayfasında **önizleme** olarak bir `.deb` paketi (x86_64) var; AppImage 0.1.1 ile gelecek. Şimdilik tek bir Ubuntu makinede test edildi; pürüzler olabilir, bulduklarınızı lütfen bildirin. Linux'un daha geniş testi [yol haritasındadır](#yol-haritası).
+macOS: evet. Apple Silicon (Metal hızlandırmalı) ve Intel Mac'ler (yalnızca CPU) için birer DMG var; macOS 13.3 veya üstü gerekir. İlk açılış adımı için bkz. [Hızlı başlangıç](#3-adımda-hızlı-başlangıç). Linux: Releases sayfasında **önizleme** olarak bir `.deb` paketi (x86_64) var; AppImage önizleme paketleri de mevcut. Şimdilik tek bir Ubuntu makinede test edildi; pürüzler olabilir, bulduklarınızı lütfen bildirin. Linux'un daha geniş testi [yol haritasındadır](#yol-haritası).
 </details>
 
 <details>
@@ -331,7 +335,7 @@ Bellek yetmezse bir pencere neyin sığmadığını gösterir ve çözümler sun
 İşletim sisteminiz, GPU ve sürücünüz, arka uç, uygulama sürümü, kullandığınız model ve hata metniyle bir [issue](https://github.com/struklabs/harness-studio/issues/new/choose) açın (tanılama raporları kişisel bilgiler çıkarılarak dışa aktarılabilir). Sorular ve fikirler [Discussions](https://github.com/struklabs/harness-studio/discussions) sayfasına. Güvenlik sorunları: [SECURITY.md](SECURITY.md).
 </details>
 
-## Yol haritası
+## Yol Haritası
 
 Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, yön gösterir.
 
@@ -341,7 +345,7 @@ Güncel ve tam liste [ROADMAP.md](docs/tr/ROADMAP.md) içindedir. Söz değil, y
 
 **0.2.0 için planlananlar:** sunucu kipi ile araç, MCP ve skill kataloğu. Uzun vadeli fikirler [tam yol haritasında](docs/tr/ROADMAP.md).
 
-## Projeye nasıl destek olabilirsiniz?
+## Projeye Nasıl Destek Olabilirsiniz?
 
 Harness Studio açıkta geliştirilir ve her yardım değerlidir.
 
@@ -366,7 +370,7 @@ Harness Studio açıkta geliştirilir ve her yardım değerlidir.
 | [Özellikler](docs/tr/FEATURES.md) · [Arayüz düzeyleri](docs/tr/UI_LEVELS.md) | Özellik özellik tablo; Basit ve Gelişmiş düzeyler |
 | [Yol haritası](docs/tr/ROADMAP.md) · [Değişiklik günlüğü](docs/CHANGELOG.md) | Açık işler; her sürümde neler değişti |
 
-## Kaynaktan derleme
+## Kaynaktan Derleme
 
 **Rust (stable)**, **Node.js 22+** ve işletim sisteminiz için [Tauri ön koşulları](https://v2.tauri.app/start/prerequisites/) gerekir.
 

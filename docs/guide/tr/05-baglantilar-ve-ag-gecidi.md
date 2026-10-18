@@ -38,11 +38,11 @@ Yerel ağ geçidi varsayılan olarak anahtar istemez. Anahtar isteyen araçlar i
 
 | Sayfa | Ne yapar? |
 | --- | --- |
-| **Ayarlar > Ağ Geçidi > Uç Nokta** | Açma/kapama, **Port**, **Bağlanma adresi**, **Ağdan erişime izin ver**, **Bu bilgisayarda da token iste**, **İzinli tarayıcı origin'leri** (web uygulamaları için). |
-| **Ayarlar > Ağ Geçidi > Yönlendirme** | **En fazla yüklü model**, **Model başına kuyruk**, **İstek zaman aşımı (sn)**, **Varsayılan boşta kalma süresi (sn)**, **Bellek farkındalıklı tahliye**, **VRAM payı (MiB, 0 = otomatik)**, **Karar uç noktalarında sohbet modeli emülasyonu**; altında her modelin durumu (**Hazır**, **Yükleniyor**, **Yüklü değil**) ve **Boşalt** düğmesi. |
-| **Ayarlar > Ağ Geçidi > Responses** | OpenAI Responses API'nin yanıtları yerelde saklayıp saklamaması (**Yanıtları sakla**) ve saklama sınırları. |
+| **Ayarlar > Ağ Geçidi > Uç Nokta** | Açma/kapama, **Port**, **Bağlanma Adresi**, **Ağdan erişime izin ver**, **Bu bilgisayarda da token iste**, **İzinli tarayıcı origin'leri** (web uygulamaları için). |
+| **Ayarlar > Ağ Geçidi > Yönlendirme** | **En Fazla Yüklü Model**, **Model Başına Kuyruk**, **İstek Zaman Aşımı (sn)**, **Varsayılan Boşta Kalma Süresi (sn)**, **Bellek Farkındalıklı Tahliye**, **VRAM Payı (MiB, 0 = Otomatik)**, **Karar Uç Noktalarında Sohbet Modeli Emülasyonu**; altında her modelin durumu (**Hazır**, **Yükleniyor**, **Yüklü değil**) ve **Boşalt** düğmesi. |
+| **Ayarlar > Ağ Geçidi > Responses** | OpenAI Responses API'nin yanıtları yerelde saklayıp saklamaması (**Yanıtları Sakla**) ve saklama sınırları. |
 
-**Varsayılan boşta kalma süresi (sn)**, kendi boşta kalma süresi olmayan modellere uygulanır; boş bırakılırsa boşta kalma nedeniyle boşaltılmazlar. Uyumlu bir stable-diffusion.cpp derlemesi ve otomatik sığdırma açıkken ağ geçidi, ağırlıkların bir kısmını RAM’de tutan görsel modelini kabul edebilir: GPU, hesaplama tamponları ve bellek payını alabilmeli; kalan ağırlıklar boş RAM’in %90’ına sığmalıdır. Eski derleme, kapalı otomatik sığdırma veya açıkça belirlenmiş ağırlık yerleşimi, tam GPU tahmininin sığmasını gerektirir.
+**Varsayılan Boşta Kalma Süresi (sn)**, kendi boşta kalma süresi olmayan modellere uygulanır; boş bırakılırsa boşta kalma nedeniyle boşaltılmazlar. Uyumlu bir stable-diffusion.cpp derlemesi ve otomatik sığdırma açıkken ağ geçidi, ağırlıkların bir kısmını RAM’de tutan görsel modelini kabul edebilir: GPU, hesaplama tamponları ve bellek payını alabilmeli; kalan ağırlıklar boş RAM’in %90’ına sığmalıdır. Eski derleme, kapalı otomatik sığdırma veya açıkça belirlenmiş ağırlık yerleşimi, tam GPU tahmininin sığmasını gerektirir.
 
 Ağ geçidi yalnızca kendi yüklediği modelleri (**Gateway yükledi**) boşta kalma süresine ve bellek kurallarına göre boşaltır. Sizin elle başlattığınız sunuculara (**Sizin sunucunuz**) yönlendirir ama onları hiçbir zaman kapatmaz. Bir model tanımında **Sabit (hep yüklü)** işaretlenirse ağ geçidi başlarken o model yüklenir ve asla boşaltılmaz.
 
@@ -84,12 +84,13 @@ Sol menüdeki **Bağlantılar** bölümünün sayfaları:
 
 | Grup | Sayfalar | İçeriği |
 | --- | --- | --- |
-| **Uç Noktalar** | **Uç Nokta Listesi**, **Ollama Uç Noktası**, **Port Notları** | Sunucuların ve ağ geçidinin adresleri; kopyalanabilir. |
 | **Araçlar ve İstemciler** | **Otomatik Yapılandırma**, **Adım Adım Kurulum**, **SDK ve Kod Örnekleri**, **Harness MCP'yi Ekle** | Kodlama araçlarını bağlama ve kod parçaları. |
+| **Harness Link** | **Harness Link** | Uzak Harness modelleri ve bağlantı durumu. |
+| **Uç Noktalar** | **Uç Nokta Listesi**, **Ollama Uç Noktası**, **Port Notları** | Sunucuların ve ağ geçidinin adresleri; kopyalanabilir. |
 | **MCP Sunucuları** | **Sunucu Listesi**, içe aktarma, **Durum ve Canlı Araçlar** | Harness Studio'nun kendi MCP istemcisiyle bağlandığı sunucular. |
 | **Test** | **Araç Çağırma Tezgâhı**, **Bağlantı Testleri** | Bağlantı ve araç çağırma denemeleri. |
 
-**Basit** arayüz düzeyinde yalnızca **Otomatik Yapılandırma**, **Adım Adım Kurulum** ve **Uç Nokta Listesi** gösterilir; diğerleri Gelişmiş sayfalardır.
+**Basit** düzeyde **Uygulama Bağla** sayfasını açın: **Otomatik Yapılandırma**, **Adım Adım Kurulum**, **Harness Link** ve **Uç Nokta Listesi** görünür. İlk ziyaret Otomatik Yapılandırma ile başlar. **Gelişmiş** düzeyde ekranın adı **Bağlantılar** olur ve tüm gruplar açılır; ağ geçidi ayarları, Basit düzeyden bağlantılarla da açılabilen Gelişmiş sayfalardır. Bölüm sırası: Araçlar ve İstemciler, Harness Link, Uç Noktalar, MCP Sunucuları, Test.
 
 ## Kodlama Ajanı Bağla
 

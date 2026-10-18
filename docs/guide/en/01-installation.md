@@ -47,7 +47,7 @@ The runtime is the engine that runs a model file. Chat normally uses llama.cpp; 
 | Option | When to use it |
 | --- | --- |
 | **Managed (recommended)** | For most people. Harness Studio downloads the official release, verifies it, and keeps it up to date. |
-| **Custom Binary** | You have your own `llama-server`. Enter its location in **llama-server path** and press **Verify**. A custom binary is never updated or rolled back automatically. |
+| **Custom Binary** | You have your own `llama-server`. Enter its location in **Llama-server Path** and press **Verify**. A custom binary is never updated or rolled back automatically. |
 
 The recommended acceleration depends on your hardware: CUDA for NVIDIA, ROCm/HIP or Vulkan for suitable AMD cards, SYCL or Vulkan for Intel Arc, Metal for Apple Silicon. Without a GPU, the CPU is used. Detecting a graphics card does not guarantee the chosen build can use it. If the installed build cannot see the card, the setup wizard tries Vulkan (it needs a compatible GPU and driver) and tells you on the **Settings > Runtime > Installed Runtime** page. Existing installs keep their build; change it on that page. On Windows, ROCm/HIP is recommended only when the HIP SDK libraries can be loaded; otherwise Vulkan is recommended.
 
@@ -80,7 +80,7 @@ Application data (settings, the chat database, engines, and logs) is kept in a s
 | --- | --- |
 | Windows | `%APPDATA%\com.harnessstudio.app` |
 | macOS | `~/Library/Application Support/com.harnessstudio.app` |
-| Linux (x64) | `.deb` / AppImage | Preview packages; the release workflow builds both formats. |
+| Linux | `$XDG_DATA_HOME/com.harnessstudio.app` (default: `~/.local/share/com.harnessstudio.app`) |
 
 To change the data folder from the command line, see the [CLI reference](../../en/CLI.md). For how credentials are stored, see the [security model](../../en/SECURITY_MODEL.md). To start from scratch, close the app, back up this folder, and delete it; your settings and chats are deleted with it. For full removal on Windows, first run `harness service uninstall` if you installed the CLI login service, clear stored credentials (Hugging Face token, server API keys) in the app or in Windows Credential Manager (entries containing `com.harnessstudio.app`), then uninstall and delete the retained data and model folders you no longer want.
 

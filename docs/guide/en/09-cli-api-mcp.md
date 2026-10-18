@@ -12,12 +12,14 @@ You do not need a terminal to chat, download models, or start servers. This chap
 | Control API | Lets other programs manage Harness Studio's models and servers. It is a separate service from the gateway you talk to models through. | [Security model](../../en/SECURITY_MODEL.md), [CLI reference](../../en/CLI.md) |
 | Harness MCP server | Lets clients such as Claude Code, Codex, OpenCode, or Cursor use tools to list and load models and read metrics. | [MCP reference](../../en/MCP.md) |
 
-## Turn On the Control API
+The Developer settings and MCP connection pages below are **Advanced** pages. Switch using **Simple / Advanced** or open the page through the command palette; the interface level does not change CLI or API permissions.
+
+## Turn on the Control API
 
 1. Open **Settings > Developer > Control API**.
 2. Enable **Enable the API** and press **Apply**.
 3. Check the **Base URL**. The default is `http://127.0.0.1:11500/api/harness/v1`; if the port is busy, the address shown can differ.
-4. To see the API's description, use **Open** in the **OpenAPI schema** field. The default OpenAPI schema address, `http://127.0.0.1:11500/api/harness/v1/openapi.json`, only makes sense on this computer while the API is on; if the port changed, use the link in the app.
+4. To see the API's description, use **Open** in the **OpenAPI Schema** field. The default OpenAPI schema address, `http://127.0.0.1:11500/api/harness/v1/openapi.json`, only makes sense on this computer while the API is on; if the port changed, use the link in the app.
 
 Management requests are protected by a token. The exceptions for local `/health` and schema access, and the token scopes, are explained in the [security model](../../en/SECURITY_MODEL.md). When it manages the app's data folder, the CLI reaches it through this API; if the API is off, the CLI cannot connect to the owning instance.
 
@@ -25,7 +27,7 @@ On the **CLI** page (**Settings > Developer > CLI**), **Use in a Terminal** show
 
 ## Use the API from Code
 
-The repository has ready-made clients for the Control API in [`sdk/`](../../../sdk/README.md): a TypeScript package and a Python package. They are generated from the OpenAPI schema, so every endpoint, parameter and answer has a type. They are not on npm or PyPI yet; install them from the repository folder.
+The repository has ready-made clients for the Control API in [`sdk/`](../../../sdk/README.md): a TypeScript package and a Python package. They are generated from the OpenAPI schema, so every endpoint, parameter and answer has a type. Install TypeScript with `npm install @struklabs/harness-studio-sdk`; install Python from the repository folder (PyPI publication is planned).
 
 Both find the running Harness Studio by themselves: the app, or `harness serve`, writes its address to `instance.json` in its data folder, and the session token is in `api-token` next to it. On another computer, give the address and a named token instead.
 
@@ -45,7 +47,7 @@ When Harness Studio is an **MCP server**, other agents call its management tools
 
 When Harness Studio is an **MCP client**, it brings the tools of other MCP servers into the Playground. Add servers, or import them from other applications, in the **MCP Servers** area of **Connections**. This connection and connecting to a model's chat endpoint are separate things.
 
-Offering the built-in file, command, and network tools to other MCP clients is off by default. Turn it on with **Offer tools to MCP clients** in **Settings > Tools > Built-In Tools**. The permission policy still applies; calls that cannot ask you for approval over MCP are denied. Set the permissions of the tools you will use according to the [Tools chapter](06-tools.md).
+Offering the built-in file, command, and network tools to other MCP clients is off by default. Turn it on with **Offer Tools to MCP Clients** in **Settings > Tools > Built-In Tools**. The permission policy still applies; calls that cannot ask you for approval over MCP are denied. Set the permissions of the tools you will use according to the [Tools chapter](06-tools.md).
 
 See also the [coding agent integrations](../../en/INTEGRATIONS.md) and the [security model](../../en/SECURITY_MODEL.md).
 

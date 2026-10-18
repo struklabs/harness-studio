@@ -38,7 +38,7 @@ Bir model kendi izinlerini genişletemez. Komut çalıştırmak, yalnızca dosya
 
 1. Sol menüde **Oluştur** bölümünü, ardından **Araç Oluşturucu** sayfasını açın ve model uç noktasını seçin. Çalışan bir sunucu ya da açık bir ağ geçidi gerekir.
 2. **Araç ne yapmalı?** alanına küçük, somut bir iş yazın. Örnek: "Verilen metindeki kelimeleri say ve en sık geçen üç kelimeyi döndür."
-3. Gerekirse **İzin verilen alan adları**, **Okunabilir klasörler** ve **Yazılabilir klasörler** alanlarını doldurun. Boş bırakılan alan, ilgili erişimi kapatır. Klasörler çalışma klasörüne göre yazılır.
+3. **Ağ Erişimi** seçin: **Ağ Erişimi Yok**, **Tüm İnternet** (varsayılan) veya **Yalnızca Bu Alan Adları**. Son seçenekte **İzin Verilen Alan Adları** alanına her satıra bir alan adı yazın; boş liste ağ erişimi vermez. **Okunabilir klasörler** ve **Yazılabilir klasörler** isteğe bağlıdır; boş listeler dosya erişimi vermez. Klasörler çalışma klasörüne göredir. Her ağ modunda yerel/özel adresler ve Harness dinleme portları engelli kalır.
 4. **Oluştur** düğmesine basın. Model kod ve test üretir; Harness Studio testi bir kum havuzunda çalıştırır.
 5. **Kod (index.js)**, **Manifest**, izinler ve test sonucunu inceleyin. Testi geçemeyen araç onaylanamaz.
 6. **Onayla, Bu Oturumda Kullan** ile aracı etkinleştirin. Oturum aracı, uygulama kapanınca kalkar. Saklamak için **Kalıcı Kaydet** düğmesini kullanın.
@@ -48,12 +48,14 @@ Bir model kendi izinlerini genişletemez. Komut çalıştırmak, yalnızca dosya
 ## Otomatik Araç Oluşturucu
 
 1. **Oluştur** bölümünde **Otomatik Araç Oluşturucu** sayfasını açın.
-2. Bir **Model** ve **Planlanacak araç sayısı** seçin, ardından **Otomatik Araç Oluştur** düğmesine basın.
-3. **Üretim Sırası** içindeki işleri sürükleyerek ya da **Öne al** ve **Geri Al** ile yeniden sıralayın.
+2. Bir **Model** ve **Planlanacak Araç Sayısı** seçin, ardından **Otomatik Araç Oluştur** düğmesine basın.
+3. **Üretim Sırası** içindeki işleri sürükleyerek ya da **Öne Al** ve **Geri Al** ile yeniden sıralayın.
 4. Gerekirse **Duraklat**, **Devam Et** veya **Durdur** kullanın. Sıra ve sonuçlar saklanır.
 5. Ağ ya da dosya erişimi isteyen paketler **İzin bekliyor** durumunda kalır. Birini **Paketi İncele** ile inceleyin ve kabul ediyorsanız **Bu İzinlerle Kur** seçeneğini seçin.
 
 Ağ ve dosya erişimi gerektirmeyen araçlar otomatik kurulur. Test sırasında dış erişim kapalıdır. Başarısız üretimlerde hata ayrıntısını okuyun ve **Başarısızları Tekrar Dene** seçeneğini kullanın.
+
+Otomatik oluşturucuda aynı ağ seçenekleri vardır; varsayılan **Tüm İnternet**’tir. Seçiminiz modelin isteyebileceği izinlerin üst sınırıdır; kurulumdan önce gerçek kapsamı inceleyin. **Canlı İşlem Günlüğü** içindeki **Günlüğü Temizle**, sıra, sonuçlar, envanter, token toplamları veya çalışan üretimi değiştirmeden görünen ve kayıtlı girdileri temizler. Bir kontrol işlemi sürerken veya günlük boşken devre dışıdır.
 
 ## Kurulu Araçlar ve MCP
 

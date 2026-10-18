@@ -31,7 +31,7 @@ Benchmarks need `llama-bench`. If it cannot be found, see the [troubleshooting t
 
 ## Analytics and the Request Log
 
-1. In the left menu, open **Analytics** under **Monitor**. Make sure the gateway is on and **Record gateway requests** is enabled (it is in the **Recording and Retention Policy** section).
+1. In the left menu, open **Analytics** under **Monitor**. Make sure the gateway is on and **Record Gateway Requests** is enabled (it is in the **Recording and Retention Policy** section).
 2. Use **Overview** and **Model and Client Breakdown** to look at requests, tokens, speed, latency, and error rates.
 3. On the **Log** page use the **Model**, **Client**, **Endpoint**, and **Status** filters.
 4. Select a request. Read **Timeline**, **Tokens and Speed**, **Resources**, and **Error** under **Selected Request Detail**. The timeline shows queue, load, prompt, and generation phases, and a failed tool call is diagnosed down to the likely culprit (server or template, context, model, or client).
@@ -43,7 +43,7 @@ Gateway requests are recorded one by one. Direct Playground and tool-generator u
 
 On the **Recording and Retention Policy** page you can edit how long raw records are kept (the default is 30 days; older rows are rolled up into daily totals). By default the metadata recorded is time, model, client, tokens, durations, memory, and errors. Prompt and response content is not recorded by default.
 
-If **Capture request content (analytics)** is turned on in a model definition, prompts and responses passing through the gateway are written to disk as plain text. Do not turn this on for sensitive content. **Delete Analytics** cannot be undone; chats are not affected by it.
+If **Capture Request Content (Analytics)** is turned on in a model definition, prompts and responses passing through the gateway are written to disk as plain text. Do not turn this on for sensitive content. **Delete Analytics** cannot be undone; chats are not affected by it.
 
 The **Tool Calls** log lets you inspect the tool name, client, result, and approval status. Denied calls are logged too.
 

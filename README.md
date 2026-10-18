@@ -43,23 +43,23 @@
 - [How you can support the project](#how-you-can-support-the-project)
 - [Documentation](#documentation) · [Build from source](#build-from-source) · [License](#license)
 
-## What is Harness Studio?
+## What Is Harness Studio?
 
 An AI chatbot such as ChatGPT normally runs on a company's computers: your words travel over the internet to get an answer. **Harness Studio lets you run the AI on your own computer instead.** You download a *model* (a file that holds the AI's "brain"), press a button, and chat. After the download, nothing has to leave your machine, there is no subscription, and it keeps working without internet.
 
 You do not need to be a programmer. The app finds models for you, checks whether they fit your computer, downloads them, starts them, and gives you a chat window. If you *are* a programmer or power user, the same app is also a local AI server with an OpenAI-compatible API, a command line, and tool and MCP support, so your editor, coding tools, or scripts can use your local models.
 
-Harness Studio is a desktop app built with Tauri, Rust, and Svelte. It manages the open-source engines that actually run the models (mainly [llama.cpp](https://github.com/ggml-org/llama.cpp)) and adds a friendly interface, safety checks, and measurements on top.
+Harness Studio is a desktop app built with Tauri, Rust, and Svelte 5. It manages the open-source engines that actually run the models (mainly [llama.cpp](https://github.com/ggml-org/llama.cpp)) and adds a friendly interface, safety checks, and measurements on top.
 
-## Quick start in 3 steps
+## Quick Start in 3 Steps
 
 1. **Download and install.** Get the installer for your system from the [Releases page](https://github.com/struklabs/harness-studio/releases/latest). **Windows:** run `Harness.Studio_..._Windows_x64-setup.exe` (about 21 MB). The installer is **not code-signed yet**, so Windows SmartScreen may say "Windows protected your PC". Click **More info**, then **Run anyway**. **macOS:** open the DMG for your Mac (`Harness.Studio_..._macOS_Apple-Silicon.dmg` for Apple Silicon, about 29 MB; `Harness.Studio_..._macOS_Intel.dmg` for Intel, about 32 MB) and drag **Harness Studio** to **Applications**. The app is signed with an Apple Developer ID and notarized by Apple, so it opens like any other downloaded app. The source code and the build workflow are open in this repository.
 2. **Follow the first-run wizard.** It looks at your hardware, asks where to keep models, installs the engine that runs them, and lets you choose your privacy settings. Pick the **Simple** interface level if you are new to this.
-3. **Pick a model and chat.** In **Model Hub**, choose a recommended model that fits your computer (the app shows a fit estimate) and press **Download**. Then open **Dashboard**, select the model, press **Start Server**, open **Playground**, and say hello.
+3. **Pick a model and chat.** In **Find a Model** (**Model Hub** in Advanced), choose a recommended model that fits your computer (the app shows a fit estimate) and press **Download**. Then open **Dashboard**, select the model, press **Start Server**, open **Chat and Media** (**Playground** in Advanced), and say hello.
 
 Step by step, with every screen explained: [User guide](docs/guide/en/README.md).
 
-## System requirements
+## System Requirements
 
 These are the requirements of **Harness Studio itself**, not of any model. Figures are measured on v0.1.0 on Windows and on macOS (Apple M1, 8 GB).
 
@@ -77,7 +77,7 @@ These are the requirements of **Harness Studio itself**, not of any model. Figur
 
 Supported acceleration, chosen automatically for your hardware: **CUDA** (NVIDIA), **ROCm/HIP** (recent AMD cards; on Windows this needs the HIP SDK libraries to be loadable, otherwise Vulkan is recommended), **SYCL** (Intel Arc), **Vulkan** (most other GPUs), **Metal** (Apple Silicon, with the macOS build), and **CPU**.
 
-### How big a model can my PC run?
+### How Big a Model Can My PC Run?
 
 What matters is how much memory the *model* needs, which depends on its size and on how heavily it is compressed. Most people download *quantized* models in the **GGUF** format: a quantization (such as Q4_K_M) stores the model's numbers in a more compact form, so the file is much smaller for a small loss of quality. **VRAM** is your graphics card's own memory; if the whole model fits in it, the model runs fastest.
 
@@ -92,13 +92,17 @@ These are rough guides for quantized GGUF models. Real needs also grow with the 
 
 You do not have to work this out yourself. The Model Hub and the Dashboard show a hardware-fit hint next to each model (**Fits in VRAM**, **VRAM is tight**, **Partial GPU offload**, **Mostly CPU**, **May run out of memory**). When **Context size** and **GPU layers** are left on **Auto**, Harness Studio picks safe settings for you: on a small graphics card it prefers keeping every layer on the GPU and shrinking the context, and it refuses to load a request that cannot fit instead of running it painfully slowly. A second server uses only the layers that currently free GPU memory can hold; the rest run on the CPU. If a model still does not fit, a dialog explains what ran out and what to change.
 
+**Simple navigation:** Dashboard, Find a Model, My Models, Chat and Media, and Connect an App; Settings stays below the navigation. **Advanced** adds Servers, Create, Performance, Analytics, and the technical controls. Switch with **Simple / Advanced**; saved values are preserved.
+
 ## Features
 
 - **Experimental text-to-speech with audio.cpp:** PocketTTS and other audio.cpp TTS GGUF families run in Playground and `/v1/audio/speech`. The engine is off by default; enable it under **Settings > Runtime > Installed Runtime > Other Runtimes** after confirming the risk notice. Platform builds use Vulkan, CUDA, Metal, or CPU. Voice embeddings appear in the speech picker; workers stop after five idle minutes.
 
 Everything below works locally. Details are in the [user guide](docs/guide/en/README.md) and [FEATURES.md](docs/en/FEATURES.md).
 
-### For everyday users
+Use **Best for My Hardware** in Model Hub to rank loaded results by estimated fit, with a suggested quantization on each fit badge. Playground renders structured tool results, sortable tables, charts, and declarative UI blocks; model HTML and JavaScript are never executed.
+
+### For Everyday Users
 
 - **Model Hub:** search Hugging Face with filters, read model cards, see whether a model fits your hardware, and download through a resumable queue that verifies SHA-256 checksums.
 - **Playground:** a chat window with saved conversations, side-by-side model comparison, Markdown and Mermaid diagrams, image input for vision models, documents with local search and citations (RAG), speech to text, read-aloud, and image generation.
@@ -107,7 +111,7 @@ Everything below works locally. Details are in the [user guide](docs/guide/en/RE
 - **Simple and Advanced levels:** Simple shows only what a first-time user needs; Advanced reveals every setting. Switching never loses a setting ([details](docs/en/UI_LEVELS.md)).
 - **Comfortable to use:** English and Turkish interface, light and dark themes, high-contrast and color-blind-friendly options, system tray, and launch at login.
 
-### For developers and tool users
+### For Developers and Tool Users
 
 - **One local endpoint for many models** (the *gateway*): speaks the OpenAI, Anthropic, and Ollama APIs. Models load on first use and unload when idle. It is opt-in.
 - **Guided setup for your tools:** Claude Code, Codex, OpenCode, Aider, Goose, Continue, Zed, VS Code, Cline, JetBrains, Open WebUI, and more, with a diff preview, backups, and one-click undo. `harness launch` starts a tool with the right settings and changes nothing global.
@@ -115,7 +119,7 @@ Everything below works locally. Details are in the [user guide](docs/guide/en/RE
 - **MCP both ways:** connect MCP servers to your chats, and let other tools use Harness itself as an MCP server.
 - **Custom tools:** describe a tool and let a local model generate it as sandboxed JavaScript.
 
-### For power users
+### For Power Users
 
 - **Several servers at once** with profiles, automatic ports, memory estimates, live telemetry, and clear failure help (out of memory, missing libraries, port conflicts).
 - **Full control of llama.cpp:** context, GPU layers, KV cache type, slots, sampling, and many more, plus a runtime registry with SHA-256-verified engines and per-server runtime choice. See the [CLI reference](docs/en/CLI.md).
@@ -123,7 +127,7 @@ Everything below works locally. Details are in the [user guide](docs/guide/en/RE
 - **CLI, Control API, and headless mode:** the `harness` command, an authenticated Control API with an OpenAPI schema, and `harness serve` to run without a window. All of them share the same Rust code as the app.
 - **More engines:** whisper.cpp, sherpa-onnx, ONNX Runtime, CrispASR, experimental audio.cpp (off by default), stable-diffusion.cpp, Python (`python-hf`, CPU/CUDA; transformers and diffusers), MLX (chat, vision, audio; Apple Silicon, macOS 14+), Lemonade, and mistral.rs. Safetensors models can be converted to GGUF from the Hub.
 
-## Why Harness Studio? How it compares
+## Why Harness Studio? How It Compares
 
 There are good tools already, and Harness Studio does not replace all of them for everyone. It aims to do what [LM Studio](https://lmstudio.ai) and [Ollama](https://ollama.com) do **without hiding llama.cpp's advanced controls**, while being stronger at observability and at working with coding tools, and staying fully open source.
 
@@ -143,7 +147,7 @@ Same GGUF files on one Windows PC (AMD RX 7900 GRE 16 GB, Vulkan), each tool at 
 
 The others win some rows too: Ollama processed long prompts faster, and at 65k context LM Studio and Ollama decoded about 3x faster by spilling into shared memory, while Harness keeps the model in video memory. Methodology, caveats, and the full tables: [COMPARISON.md](docs/en/COMPARISON.md).
 
-### Feature comparison
+### Feature Comparison
 
 ✓ available · ✗ not available · partial = limited. Sourced from the audited matrix in [FEATURES.md](docs/en/FEATURES.md); competitor columns reflect the versions listed there.
 
@@ -160,9 +164,9 @@ The others win some rows too: Ollama processed long prompts faster, and at 65k c
 | OpenAPI schema for its management API | ✓ | ✗ | ✓ | ✗ |
 | High-contrast and color-blind-friendly themes | ✓ | ✗ | ✗ | — |
 | Interface languages | partial (English, Turkish) | ✓ (30+) | not verified | — |
-| Official JS and Python SDKs | partial (in the repo, not yet on npm/PyPI) | ✓ | ✓ | ✗ |
+| Official JS and Python SDKs | TypeScript on npm; Python in the repo | ✓ | ✓ | ✗ |
 
-### How it relates to other tools
+### How It Relates to Other Tools
 
 | Tool | What it is | How Harness Studio relates |
 |---|---|---|
@@ -173,7 +177,7 @@ The others win some rows too: Ollama processed long prompts faster, and at 65k c
 | **Open WebUI** | A web chat interface for Ollama and OpenAI-style APIs | Works with the Harness endpoint (guided setup included). Harness has its own desktop UI. |
 | **llama-swap / raw llama.cpp** | A model-swapping proxy and the engine itself | Harness manages llama.cpp for you, including model switching, safe defaults, and the same raw controls. |
 
-### What is unique
+### What Is Unique
 
 - **Defaults that work.** With equal settings all these tools run at about the same speed, because they share the llama.cpp core. The differences come from what each tool picks for you. Harness sizes context and offload from your free VRAM and the model, so a 20k-token prompt works without tuning.
 - **No silent slow-downs.** It keeps models out of shared system memory and refuses requests that cannot fit, explaining why.
@@ -191,7 +195,7 @@ The others win some rows too: Ollama processed long prompts faster, and at 65k c
 - **The local endpoint is local.** The gateway and APIs listen only on your own computer unless you turn on network access, and then they require tokens. See the [security model](docs/en/SECURITY_MODEL.md).
 - **Request logging stores metadata, not content.** Request analytics keep things like timing and token counts. Saving prompts and replies is off by default and is opt-in per model definition, with a time limit.
 
-## For power users
+## For Power Users
 
 Start a headless owner with the gateway in one terminal, and use it from another:
 
@@ -292,7 +296,7 @@ Use Windows **Apps > Installed apps**. Uninstalling keeps your data unless you t
 <details>
 <summary><b>Does it run on Linux or macOS?</b></summary>
 
-macOS: yes. There is a DMG for Apple Silicon (with Metal acceleration) and one for Intel Macs (CPU only), for macOS 13.3 or later; see [Quick start](#quick-start-in-3-steps) for the first-open step. Linux: a **preview** `.deb` package (x86_64) is on the Releases page; an AppImage follows in 0.1.1. It has been tested on one Ubuntu machine so far, so expect rough edges and please report what you find. Wider Linux testing is on the [roadmap](#roadmap).
+macOS: yes. There is a DMG for Apple Silicon (with Metal acceleration) and one for Intel Macs (CPU only), for macOS 13.3 or later; see [Quick start](#quick-start-in-3-steps) for the first-open step. Linux: a **preview** `.deb` package (x86_64) is on the Releases page; AppImage preview packages are also available. It has been tested on one Ubuntu machine so far, so expect rough edges and please report what you find. Wider Linux testing is on the [roadmap](#roadmap).
 </details>
 
 <details>
@@ -316,7 +320,7 @@ No. There is no telemetry and no account. See [Privacy](#privacy).
 <details>
 <summary><b>How do I use it from my phone or another computer?</b></summary>
 
-In **Settings > Gateway**, enable **Allow network access** and create a named token with the `inference` scope. Keyless network access is not allowed. You must set your firewall yourself. To use models from another Harness instance, add it under **Connections > Harness Link** (see [Harness Link](docs/en/FEATURES.md#harness-link)).
+In **Settings > Gateway**, enable **Allow Network Access** and create a named token with the `inference` scope. Keyless network access is not allowed. You must set your firewall yourself. To use models from another Harness instance, add it under **Connections > Harness Link** (see [Harness Link](docs/en/FEATURES.md#harness-link)).
 </details>
 
 <details>
@@ -341,7 +345,7 @@ The full, living list is in [ROADMAP.md](docs/en/ROADMAP.md). It shows direction
 
 **Planned for 0.2.0:** server mode and the tool, MCP, and skills registry. Longer-term ideas are in the [full roadmap](docs/en/ROADMAP.md).
 
-## How you can support the project
+## How You Can Support the Project
 
 Harness Studio is built in the open and every bit of help counts.
 
@@ -366,7 +370,7 @@ Harness Studio is built in the open and every bit of help counts.
 | [Features](docs/en/FEATURES.md) · [UI levels](docs/en/UI_LEVELS.md) | Feature-by-feature matrix; Simple and Advanced levels |
 | [Roadmap](docs/en/ROADMAP.md) · [Changelog](docs/CHANGELOG.md) | Open work; what changed in each version |
 
-## Build from source
+## Build from Source
 
 You need **Rust (stable)**, **Node.js 22+**, and the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/) for your operating system.
 

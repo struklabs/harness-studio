@@ -1,8 +1,8 @@
-# Sorun giderme ve SSS
+# Sorun Giderme ve SSS
 
 **Bu sayfada ne yapılır:** Ekrandaki hata mesajı tanınır, nedeni anlaşılır, uygun düzeltme uygulanır ve sık sorulan kullanım soruları yanıtlanır.
 
-## Önce üç kontrol
+## Önce Üç Kontrol
 
 1. **Sunucular** sayfasında doğru sunucunun durumunu (**Çalışıyor**, **Başlatılıyor**, **Kapalı**, **Hata**) ve adresini kontrol edin. Üstteki sunucu seçicisinde (**Kontrol edilen sunucu**) çalışmak istediğiniz sunucunun seçili olduğundan emin olun.
 2. Dashboard'daki **Sunucu Logları** alanında ilk hata satırını okuyun. Yükleniyor durumunu bağlantı hatasıyla karıştırmayın; büyük modelin yüklenmesi dakikalar sürebilir.
@@ -10,9 +10,9 @@
 
 Aşağıdaki mesajlar uygulamanın Türkçe hata çevirilerinden alınmıştır. `{url}`, `{path}`, `{port}` ve benzeri alanlar ekranda gerçek değerlerle doldurulur. İşletim sistemi hata ayrıntısı farklı dilde olabilir.
 
-## Hata mesajları ve çözümleri
+## Hata Mesajları ve Çözümleri
 
-### Sunucuya bağlanılamıyor
+### Sunucuya Bağlanılamıyor
 
 | Gerçek mesaj | Neden ve ne yapılır? |
 | --- | --- |
@@ -23,11 +23,11 @@ Aşağıdaki mesajlar uygulamanın Türkçe hata çevirilerinden alınmıştır.
 | `Sunucunun adı çözümlenemedi ({url}). Adresi ve ağ/DNS ayarlarını kontrol edin.` | Alan adı çözümlenemiyor: adres yazım hatası veya DNS sorunu. |
 | `Güvenli bağlantı kurulamadı ({url}). Sunucunun TLS sertifikasını ve bilgisayarın tarihini kontrol edin.` | Sertifika geçersiz ya da bilgisayarın saati yanlış. |
 
-### Model belleğe sığmıyor veya sunucu yüklenirken duruyor
+### Model Belleğe Sığmıyor veya Sunucu Yüklenirken Duruyor
 
 | Gerçek mesaj | Neden ve ne yapılır? |
 | --- | --- |
-| `GPU belleği yetmedi; sunucu durduruldu. [{code}]` ve **Model belleğe sığmadı** penceresi | Model, bağlam veya hesaplama alanı ekran kartı belleğine sığmadı. [OOM kurtarma adımlarını](03-dashboard-ve-sunucular.md#bellek-yetmezse-oom) izleyin: **Bununla Dene** düğmesi bağlamı küçültür, KV önbelleğini sıkıştırır veya GPU katmanını azaltır. Kalıcı çözüm için daha küçük bir model veya kuant seçin. |
+| `GPU belleği yetmedi; sunucu durduruldu. [{code}]` ve **Model belleğe sığmadı** penceresi | Model, bağlam veya hesaplama alanı ekran kartı belleğine sığmadı. [OOM kurtarma adımlarını](03-dashboard-ve-sunucular.md#bellek-yetmediğinde-oom) izleyin: **Bununla Dene** düğmesi bağlamı küçültür, KV önbelleğini sıkıştırır veya GPU katmanını azaltır. Kalıcı çözüm için daha küçük bir model veya kuant seçin. |
 | `Bellek yetersiz: llama-server model için yer ayıramadı (VRAM ya da RAM).` | Aynı durumun sınıflandırılmış açıklaması. RAM ve VRAM ihtiyacını birlikte kontrol edin; başka bir sunucu ekran kartını tutuyorsa onu durdurun. |
 | `Model GPU belleğine sığmıyor: ~{need_mib} MiB gerekiyor, birleşik bellekte GPU payı {budget_mib} MiB. Bağlamı ya da GPU katmanlarını azaltın.` | Başlatma öncesi bellek kontrolü. Önerilen kadar bağlamı veya GPU katmanını azaltın. |
 | `Ekran kartı işi durdurdu (sürücü sıfırlandı ya da GPU hatası). Sunucuyu yeniden başlatın; tekrarlarsa daha az GPU katmanı ya da başka bir sürücü sürümü deneyin.` | GPU sürücüsü işlemi yarıda kesti. Sürücüyü güncelleyin veya GPU katmanını azaltın. |
@@ -36,7 +36,7 @@ Aşağıdaki mesajlar uygulamanın Türkçe hata çevirilerinden alınmıştır.
 | `Sunucu {seconds} sn içinde hazır olmadı. Büyük modeller için yükleme zaman aşımını artırın.` | Model zamanında yüklenemedi. **Yükleme zaman aşımı (sn)** değerini Dashboard > GPU sayfasında (o model için) veya **Ayarlar > Ağ > Dinleme** sayfasında (genel) artırın. Günlükte başka hata varsa önce onu çözün. |
 | `llama-server yüklenirken sonlandı ({status}). Logları kontrol edin. [{code}]` | Süreç yükleme sırasında çıktı. **Sunucu Logları** son satırlarında neden yazar (bellek, bozuk dosya, desteklenmeyen mimari, eksik kütüphane). |
 
-### Port kullanımda
+### Port Kullanımda
 
 | Gerçek mesaj | Neden ve ne yapılır? |
 | --- | --- |
@@ -44,7 +44,7 @@ Aşağıdaki mesajlar uygulamanın Türkçe hata çevirilerinden alınmıştır.
 | `{port} portunu “{server}” sunucusu kullanıyor. Başka bir port seçin ya da portu Otomatik yapın.` | İki Harness sunucusuna aynı port verilmiş. Farklı port verin veya otomatik seçimi kullanın. |
 | `Gateway bu adreste başlatılamadı (port kullanımda olabilir)` | Ağ geçidi portu dolu. **Ayarlar > Ağ Geçidi > Uç Nokta** sayfasında portu değiştirin; Harness varsayılan port doluysa kendisi boş porta geçer ve yeni adresi **Bağlantılar** sayfasında gösterir. |
 
-### Model Motoru (motor) eksik veya başlamıyor
+### Model Motoru (Motor) Eksik veya Başlamıyor
 
 | Gerçek mesaj | Neden ve ne yapılır? |
 | --- | --- |
@@ -58,7 +58,7 @@ Aşağıdaki mesajlar uygulamanın Türkçe hata çevirilerinden alınmıştır.
 | `Runtime değiştirilmeden önce çalışan tüm sunucuları durdurun.` | Motoru değiştirmek için önce sunucuları durdurun. |
 | `llama-bench bulunamadı: {path}. Resmi llama.cpp paketini kullanın.` | Benchmark için `llama-bench` gerekir. Yönetilen resmi paket onu içerir; özel paketinizde bu dosyanın bulunduğunu kontrol edin. |
 
-### Model indirme
+### Model İndirme
 
 | Gerçek mesaj | Neden ve ne yapılır? |
 | --- | --- |
@@ -70,38 +70,42 @@ Aşağıdaki mesajlar uygulamanın Türkçe hata çevirilerinden alınmıştır.
 | `İndirilen dosya geçerli bir GGUF değil (sihirli baytlar uyuşmuyor).` | İnen şey bir model dosyası değil (örneğin bir hata sayfası). Adresi ve depoyu kontrol edin. |
 | `Model bulunamadı: {path}` | Dosya taşınmış veya silinmiş. **Kütüphanem > Kütüphaneyi Yeniden Tara** deyin ve model tanımındaki dosya seçimini düzeltin. |
 
-### Lisans onaylı (gated) model ve Hugging Face hesabı
+### Lisans Onaylı (Gated) Model ve Hugging Face Hesabı
 
 | Gerçek mesaj | Neden ve ne yapılır? |
 | --- | --- |
-| `{repo} lisans onayı gerektiriyor. Hugging Face ile giriş yapın (Ayarlar > Depolama > Hugging Face Hesabı), model sayfasında lisansı kabul edin ve indirmeyi yeniden deneyin.` | Hesap bağlı değil. [Hesap bağlama ve lisans akışını](02-model-hub-ve-kutuphane.md#lisans-onaylı-model-indir) tamamlayın. |
+| `{repo} lisans onayı gerektiriyor. Hugging Face ile giriş yapın (Ayarlar > Depolama > Hugging Face Hesabı), model sayfasında lisansı kabul edin ve indirmeyi yeniden deneyin.` | Hesap bağlı değil. [Hesap bağlama ve lisans akışını](02-model-hub-ve-kutuphane.md#lisans-onaylı-bir-model-indirme) tamamlayın. |
 | `{repo} lisans onayı gerektiriyor ve hesabınızın henüz erişimi yok. Model sayfasında lisansı kabul edin (bazı modellerde onay elle verilir), ardından indirmeyi yeniden deneyin.` | Hesap bağlı ama lisans kabul edilmemiş veya onay bekliyor. Aynı hesapla model sayfasında lisansı kabul edin, sonra **Tekrar Dene** deyin. Elle onayda beklemek gerekebilir (**Erişim hâlâ yok. Onay elle veriliyorsa biraz sonra tekrar deneyin.**). |
-| `Hugging Face tokenı geçersiz ya da süresi dolmuş.` | Yeni bir **Read** tokenı oluşturup **Ayarlar > Depolama > Hugging Face Hesabı** sayfasında **Erişim tokenı** alanından kaydedin. |
+| `Hugging Face tokenı geçersiz ya da süresi dolmuş.` | Yeni bir **Read** tokenı oluşturup **Ayarlar > Depolama > Hugging Face Hesabı** sayfasında **Erişim Tokenı** alanından kaydedin. |
 | `Hugging Face ile giriş için bir OAuth uygulaması istemci kimliği (client ID) gerekiyor. Ayarlar > Depolama > Hugging Face Hesabı bölümünden girin ya da erişim tokenı kullanın.` | Tarayıcıyla giriş için istemci kimliği yok. En basiti erişim tokenı kullanmaktır. |
 | `Hugging Face girişi zaman aşımına uğradı (5 dakika). Yeniden deneyin.` | Tarayıcı onayı zamanında tamamlanmadı. **Hugging Face ile Giriş Yap** ile yeniden deneyin. |
 
-### Model meşgul (503)
+### Model Meşgul (503)
 
 Ağ geçidi bir model yüklemesi gerektiğinde, bellekte yer açmak için boşaltabileceği bir model bulamayabilir; çünkü diğer modeller istek işliyordur. Bu durumda istek 503 ile reddedilir.
 
 | Gerçek mesaj | Neden ve ne yapılır? |
 | --- | --- |
 | `{model} şu an yüklenemedi: {busy} istek işliyor ve kapatılamıyor. {wait} tekrar deneyin.` (Playground) | Yeni modeli yüklemek için bellek yok ve yüklü model(ler) o anda yanıt üretiyor. Yanıtlar bitince Playground'daki **Tekrar Dene** düğmesine basın. |
-| `{models} meşgul; istekleri bitince {model} için tekrar deneyin.` ve `Meşgul modelin isteği bitince tekrar deneyin.` | Aynı durum, ağ geçidinin yanıtı; bu Türkçe iletiler arayüzün çevirisidir. HTTP istemciniz ise İngilizce bir ileti (ör. `Cannot load "{model}": model(s) … are busy; retry after their requests finish.`), `model_busy` kodu, 503 durumu ve `Retry-After` başlığı alır; bekleyip yeniden denemelidir. Sık oluyorsa **Ayarlar > Ağ Geçidi > Yönlendirme** sayfasında **En fazla yüklü model**, **Model başına kuyruk** ve **VRAM payı (MiB)** değerlerini gözden geçirin veya bir modeli **Sabit (hep yüklü)** yapın. |
+| `{models} meşgul; istekleri bitince {model} için tekrar deneyin.` ve `Meşgul modelin isteği bitince tekrar deneyin.` | Aynı durum, ağ geçidinin yanıtı; bu Türkçe iletiler arayüzün çevirisidir. HTTP istemciniz ise İngilizce bir ileti (ör. `Cannot load "{model}": model(s) … are busy; retry after their requests finish.`), `model_busy` kodu, 503 durumu ve `Retry-After` başlığı alır; bekleyip yeniden denemelidir. Sık oluyorsa **Ayarlar > Ağ Geçidi > Yönlendirme** sayfasında **En Fazla Yüklü Model**, **Model Başına Kuyruk** ve **VRAM payı (MiB)** değerlerini gözden geçirin veya bir modeli **Sabit (hep yüklü)** yapın. |
 
-## Başlatma hatasının açıklaması
+## Başlatma Hatasının Açıklaması
 
 Sunucu başlatma hataları ayrıca sınıflandırılmış açıklama ve **Kurtarma Seçenekleri** gösterebilir. **Logları aç** düğmesi ilgili log satırlarını (**Log Satırları**) açar. Yukarıdaki tablolardaki bellek, kütüphane, bozuk model, mimari ve zaman aşımı açıklamaları bu sınıflandırmadandır.
 
-## Sık sorulan sorular
+## Basit Düzeyde Kontrolleri Bulma
 
-**Terminal öğrenmem gerekiyor mu?** Hayır. Hazır uygulama paketinde motor kurma, model indirme, sunucu başlatma ve sohbet arayüzden yapılır. macOS whisper sunucusu gibi hazır paketi bulunmayan özel akışların ek hazırlık gerektirdiği [kurulum](01-kurulum.md) ve [Konuşma](04-playground.md#konuşma-ve-mikrofon) bölümlerinde belirtilmiştir.
+**Model Bul**, **Sohbet ve Medya** ve **Uygulama Bağla**, Model Hub, Playground ve Bağlantılar’ın Basit adlarıdır. Ayrıntılı Hub filtreleri, GPU/ağ ayarları, karşılaştırma, Görevler, Performans, Analitik ve geliştirici ayarları için **Gelişmiş Ayarlar** seçin veya **Gelişmiş** düzeye geçin. Gizli etkin değerler korunur. Model seçerken **Donanımıma Uygun** kullanıp sığma etiketini okuyun; mevcut meta verilere dayalı bir tahmindir.
+
+## Sık Sorulan Sorular
+
+**Terminal öğrenmem gerekiyor mu?** Hayır. Hazır uygulama paketinde motor kurma, model indirme, sunucu başlatma ve sohbet arayüzden yapılır. macOS whisper sunucusu gibi hazır paketi bulunmayan özel akışların ek hazırlık gerektirdiği [kurulum](01-kurulum.md) ve [Konuşma](04-playground.md#konuşma-yazıya-dökme-ve-sesli-okuma) bölümlerinde belirtilmiştir.
 
 **Hangi modeli indirmeliyim?** Önce **Model Hub**'da **Donanım uyumu** sütunu **VRAM'e sığıyor** diyen bir dosya seçin. Emin değilseniz Q4_K_M kuantını ve küçük bir model (1B-8B parametre) ile başlayın; sonra büyütün.
 
 **Model indirdim, neden sohbet edemiyorum?** İndirilen dosya bir sunucuda yüklenmelidir. Dashboard'dan başlatın veya açık ağ geçidinde model tanımını seçin. Model embedding, reranker veya konuşma tanıma türündeyse ilgili Playground sekmesini kullanın veya kütüphane kartındaki **Playground'da Aç**'a basın. Klasörlerinizde zaten bulunan dosyalar orada ek bir adım olmadan listelenir.
 
-**Model aramada görünmüyor; hesap gerekir mi?** Önce filtreleri sıfırlayın. Varsayılan Hub listesi GGUF depolarıyla sınırlıdır; bu yüzden GGUF dosyası olmayan resmi depolar (ör. `meta-llama/Llama-3.2-1B-Instruct`) görünmez, yalnız üçüncü kişilerin GGUF kopyaları listelenir. Whisper ve ONNX CTC modellerini bulmak için **Konuşma tanıma (ASR)** görevini seçin. Özel veya lisans onaylı depolarda hesap erişimi ayrıca gerekir.
+**Model aramada görünmüyor; hesap gerekir mi?** Önce filtreleri sıfırlayın. Varsayılan Hub listesi GGUF depolarıyla sınırlıdır; bu yüzden GGUF dosyası olmayan resmi depolar (ör. `meta-llama/Llama-3.2-1B-Instruct`) görünmez, yalnız üçüncü kişilerin GGUF kopyaları listelenir. Whisper ve ONNX CTC modellerini bulmak için **Konuşma Tanıma (ASR)** görevini seçin. Özel veya lisans onaylı depolarda hesap erişimi ayrıca gerekir.
 
 **Token ekledim, neden gated model inmiyor?** Tokenın hesabı ilgili modelin lisansını kabul etmiş olmalıdır. Bazı model sahipleri erişimi elle onaylar. OAuth istemci kimliği, model erişim izni yerine geçmez.
 
@@ -111,7 +115,7 @@ Sunucu başlatma hataları ayrıca sınıflandırılmış açıklama ve **Kurtar
 
 **Dosya aracı neden klasör istiyor?** Sohbetin çalışma klasörü seçilmelidir veya **Ayarlar > Araçlar > Yerleşik Araçlar** içindeki varsayılan klasör kullanılmalıdır. Sohbet listesindeki klasörler bu seçimden ayrıdır.
 
-**Mikrofon çalışmıyor; ne yapmalıyım?** Sistem gizlilik ayarlarında Harness Studio'ya mikrofon izni verin ve etkin mikrofonu kontrol edin. macOS'ta güncellemeden sonra izin sıfırlanmış olabilir. Kayıt yerine **Dosya Seç** ile ses dosyası da kullanabilirsiniz. Desteklenen biçimler [Konuşma bölümündedir](04-playground.md#konuşma-ve-mikrofon).
+**Mikrofon çalışmıyor; ne yapmalıyım?** Sistem gizlilik ayarlarında Harness Studio'ya mikrofon izni verin ve etkin mikrofonu kontrol edin. macOS'ta güncellemeden sonra izin sıfırlanmış olabilir. Kayıt yerine **Dosya Seç** ile ses dosyası da kullanabilirsiniz. Desteklenen biçimler [Konuşma bölümündedir](04-playground.md#konuşma-yazıya-dökme-ve-sesli-okuma).
 
 **macOS "uygulama açılamıyor" diyor.** Resmî DMG paketleri imzalı ve Apple noter onaylıdır. Apple Silicon veya Intel için doğru paketi kullandığınızı ve macOS sürümünüzün en az 13.3 olduğunu kontrol edin; gerekirse [GitHub Releases](https://github.com/struklabs/harness-studio/releases) üzerinden yeniden indirin.
 
@@ -121,8 +125,8 @@ Sunucu başlatma hataları ayrıca sınıflandırılmış açıklama ve **Kurtar
 
 **Yeni sürümü nasıl denetlerim?** **Ayarlar > Güncellemeler > Güncellemeleri Denetle** ile denetleyin, ardından **Güncellemeyi Kur** ile indirin, kurun ve yeniden başlatın. Motor güncellemesi **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında ayrıca çalışır.
 
-**Eski sürüme nasıl dönerim?** Harness Studio'yu kapatın ve eski sürümü kurmadan önce veri klasöründeki `config/settings.json.bak-v2` dosyasını `config/settings.json` üzerine kopyalayın. Yeni ayar biçimine geçtikten sonra değiştirdiğiniz ayarlar kaybolur. Ayrıntı [ana README'dedir](../../README.md#configuration-and-data).
+**Eski sürüme nasıl dönerim?** Harness Studio'yu kapatın ve eski sürümü kurmadan önce veri klasöründeki `config/settings.json.bak-v2` dosyasını `config/settings.json` üzerine kopyalayın. Yeni ayar biçimine geçtikten sonra değiştirdiğiniz ayarlar kaybolur. Ayrıntı [sürüm notlarındadır](../../tr/RELEASE_NOTES_0.1.0.md).
 
-Sorun sürerse hata metnini, uygulama ve model motoru sürümünü, **Sağlık** denetim sonucunu ve dışa aktarılan günlükleri hazırlayın. Paylaşmadan önce içeriği inceleyin. [Güvenlik](../SECURITY.md), [entegrasyonlar](../INTEGRATIONS.md), [CLI](../CLI.md), [MCP](../MCP.md) ve [araçlar](../TOOLS.md) belgeleri ayrıntılı başvurulardır.
+Sorun sürerse hata metnini, uygulama ve model motoru sürümünü, **Sağlık** denetim sonucunu ve dışa aktarılan günlükleri hazırlayın. Paylaşmadan önce içeriği inceleyin. [Güvenlik](../../tr/SECURITY_MODEL.md), [entegrasyonlar](../../tr/INTEGRATIONS.md), [CLI](../../tr/CLI.md), [MCP](../../tr/MCP.md) ve [araçlar](../../tr/TOOLS.md) belgeleri ayrıntılı başvurulardır.
 
 <!-- Kaynak denetimi: src/lib/locales/errors.ts, errorsDownloads.ts, errorsRuntime.ts, recovery.ts, gateway.ts, hfAuth.ts, playground.ts, whisper.ts, analytics.ts, shell.ts; src/lib/gateway-error.ts; src/lib/components/dashboard/RecoveryDialog.svelte, settings/DiagnosticsSettings.svelte; docs/RELEASE_NOTES_0.1.0.md; README.md. Hata tablolarında errors*.ts ve gateway.ts metinleri, sınıflandırma satırlarında recovery.ts metinleri kullanıldı. -->

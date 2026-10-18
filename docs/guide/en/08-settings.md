@@ -13,6 +13,8 @@ The **Settings** button in the left menu opens the page. The list on the left is
 - If you minimize the window to the tray while there are unsaved changes, that input can be lost; see [Leaving the Window Open in the Tray](#leaving-the-window-open-in-the-tray).
 - From the command palette (search) you can type a setting's name to go straight to its page.
 
+The floating section menu stays open after selecting a page. Use **Collapse** or Escape to close it. Hidden Advanced pages remain reachable through the command palette and in-app links.
+
 ### Settings Map
 
 | Setting | Path |
@@ -44,8 +46,8 @@ The **Settings** button in the left menu opens the page. The list on the left is
 
 **Settings > Runtime > Installed Runtime** edits the engine source.
 
-- With **Managed (recommended)** selected you see **Installed version**, **Check for Updates**, and **Update automatically**. Automatic updating downloads and verifies a new version in the background and activates it when servers are stopped. You can also download and test a new version by hand, and the old version keeps running until you press **Activate New Version**. If an update causes trouble and a backup exists, you can use **Roll back to previous version**.
-- With **Custom binary** selected, enter the **llama-server path** or look for it with **Auto-Detect**, and try it with **Verify**. A custom binary is never updated or rolled back automatically.
+- With **Managed (recommended)** selected you see **Installed Version**, **Check for Updates**, and **Update Automatically**. Automatic updating downloads and verifies a new version in the background and activates it when servers are stopped. You can also download and test a new version by hand, and the old version keeps running until you press **Activate New Version**. If an update causes trouble and a backup exists, you can use **Roll Back to Previous Version**.
+- With **Custom Binary** selected, enter the **Llama-server Path** or look for it with **Auto-Detect**, and try it with **Verify**. A custom binary is never updated or rolled back automatically.
 - The **Backend** row shows which build (CUDA, Vulkan, ROCm, Metal, CPU) is installed and recommended for your hardware; if the installed build cannot see your graphics card you can install another one.
 - **Setup wizard > Open Wizard** reruns the first-launch wizard.
 
@@ -75,8 +77,8 @@ The **Network > Listening** page has three groups:
 
 | Group | Fields | Meaning |
 | --- | --- | --- |
-| **Server Defaults** | **Port**, **GPU layers (-ngl)**, **Context size (-c)** | Starting values for newly created servers. Port `0` (Automatic) picks a free port from 11440 to 11499. A server that was started before uses its own saved values. |
-| **Server Start** | **Load timeout (s)**, **Restart automatically after a crash**, **Maximum attempts** | If a server is not ready within this time, the start ends with an error (increase it for large models). A server that stops unexpectedly while running is restarted with waits of 2, 4, 8... seconds; load errors (memory, a damaged file, a port) are not retried. |
+| **Server Defaults** | **Port**, **GPU layers (-ngl)**, **Context Size (-c)** | Starting values for newly created servers. Port `0` (Automatic) picks a free port from 11440 to 11499. A server that was started before uses its own saved values. |
+| **Server Start** | **Load timeout (s)**, **Restart Automatically After a Crash**, **Maximum Attempts** | If a server is not ready within this time, the start ends with an error (increase it for large models). A server that stops unexpectedly while running is restarted with waits of 2, 4, 8... seconds; load errors (memory, a damaged file, a port) are not retried. |
 | **Default Bind Address** | **This computer only**, **Local network**, **Custom address** | `127.0.0.1` is open only to this computer (recommended). **Local network** (`0.0.0.0`) lets devices on the same network connect and requires an API key; if you want to open it without a key the app asks for an **Open Anyway** confirmation (these confirmations are listed on **Security > Permissions**). |
 
 **Network > Access** decides which web apps running in a browser can reach the servers (**Allowed Browser Origins (CORS)**). Desktop clients and command-line tools are not affected. Harness Studio does not change your firewall by itself; Windows Firewall may ask for permission on first start, and allowing only "Private networks" is recommended.
@@ -91,7 +93,7 @@ The **API Keys** page shows each server's key status (**Key set** / **No key**) 
 
 ## Tools
 
-**Built-In Tools** holds the permission policy, trusted tools, the default working folder, the web search provider, and the **Offer tools to MCP clients** option. **Installed Tools** manages ready-made or generated packages. Details are in the [Tools chapter](06-tools.md).
+**Built-In Tools** holds the permission policy, trusted tools, the default working folder, the web search provider, and the **Offer Tools to MCP Clients** option. **Installed Tools** manages ready-made or generated packages. Details are in the [Tools chapter](06-tools.md).
 
 ## Developer
 
@@ -99,7 +101,7 @@ The **API Keys** page shows each server's key status (**Key set** / **No key**) 
 
 ## OpenTelemetry
 
-**OpenTelemetry** is for exporting metrics and traces to a collector you choose. It is meant only for people who run observability infrastructure, and it is off by default. Unless you choose **Turn on export**, the app does not connect to a collector or send data on its own. The one exception is the **Test Export** button: it sends a real test span to the address in the form even when export is off. When export is on, data goes to the collector address you entered. If the build has no gRPC support, choose the **HTTP/protobuf (port 4318)** protocol.
+**OpenTelemetry** is for exporting metrics and traces to a collector you choose. It is meant only for people who run observability infrastructure, and it is off by default. Unless you choose **Turn on Export**, the app does not connect to a collector or send data on its own. The one exception is the **Test Export** button: it sends a real test span to the address in the form even when export is off. When export is on, data goes to the collector address you entered. If the build has no gRPC support, choose the **HTTP/protobuf (port 4318)** protocol.
 
 ## Appearance & Startup
 
@@ -107,14 +109,14 @@ The **API Keys** page shows each server's key status (**Key set** / **No key**) 
 | --- | --- |
 | Theme | **Dark**, **Light**, **System**, **OLED Black**, **Night**, **High Contrast Dark**, **High Contrast Light**. |
 | Language | Turkish or English; the change applies immediately. |
-| **Interface level** | **Simple** or **Advanced**; see [Simple and Advanced levels](README.md#simple-and-advanced-interface-levels). It changes only what is visible, never a saved value. |
-| **Interface size** | Scales text, icons, and spacing together. Shortcuts: Ctrl+= to enlarge, Ctrl+- to shrink, Ctrl+0 to reset. |
-| **Colour-blind friendly colours** | Replaces status and chart colors with colors that do not depend on telling red from green. |
-| **Start when you sign in** | Harness Studio starts when you sign in to your user account. It takes effect immediately. |
-| **Start minimized** | On an automatic start no window opens and the app waits in the tray. Available only while **Start when you sign in** is on. |
-| **Restore last session** | On launch, the server you last started starts again. |
-| **When closing the window** | **Ask**, **Minimize to Tray**, or **Quit**. On macOS the equivalent of tray is **Keep in the menu bar**. |
-| **Keep the window loaded in the tray** | Whether the page stays in memory while in the tray; explained below. |
+| **Interface Level** | **Simple** or **Advanced**; see [Simple and Advanced levels](README.md#simple-and-advanced-interface-levels). It changes only what is visible, never a saved value. |
+| **Interface Size** | Scales text, icons, and spacing together. Shortcuts: Ctrl+= to enlarge, Ctrl+- to shrink, Ctrl+0 to reset. |
+| **Colour-blind Friendly Colours** | Replaces status and chart colors with colors that do not depend on telling red from green. |
+| **Start When You Sign In** | Harness Studio starts when you sign in to your user account. It takes effect immediately. |
+| **Start Minimized** | On an automatic start no window opens and the app waits in the tray. Available only while **Start When You Sign In** is on. |
+| **Restore Last Session** | On launch, the server you last started starts again. |
+| **When Closing the Window** | **Ask**, **Minimize to Tray**, or **Quit**. On macOS the equivalent of tray is **Keep in the menu bar**. |
+| **Keep the Window Loaded in the Tray** | Whether the page stays in memory while in the tray; explained below. |
 
 On Windows, the app writes its own per-user `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` entry with a quoted executable path. Status read errors are reported. If you turned the entry off in Task Manager's **Startup apps**, the setting shows it as off. If an earlier version run as administrator left a machine-wide `HKLM` entry, the app says so: open the app once as administrator and switch this setting off and on once to remove it. On Linux, it writes an XDG autostart entry under an absolute `XDG_CONFIG_HOME` (otherwise `~/.config`), pointing to the AppImage itself when used. After moving or renaming an AppImage, launch it once from the new location to refresh the entry.
 
@@ -124,7 +126,7 @@ The **Updates** page shows the app version and has an **Application** section wi
 
 ## Privacy
 
-**Privacy** chooses what local diagnostic reports contain: **Crash reports**, **App errors**, **Server errors (llama.cpp)**, **Hardware info**, and **Performance metrics**. Reports are kept only on this device and are never sent anywhere automatically. Prompts, model responses, file contents, and API request bodies do not go into these reports. Chat history and the optional analytics content capture are separate functions; also read the plain-text content capture explanation in the [analytics section](07-performance-and-analytics.md#analytics-and-the-request-log).
+**Privacy** chooses what local diagnostic reports contain: **Crash Reports**, **App errors**, **Server errors (llama.cpp)**, **Hardware Info**, and **Performance Metrics**. Reports are kept only on this device and are never sent anywhere automatically. Prompts, model responses, file contents, and API request bodies do not go into these reports. Chat history and the optional analytics content capture are separate functions; also read the plain-text content capture explanation in the [analytics section](07-performance-and-analytics.md#analytics-and-the-request-log).
 
 ## Diagnostics
 
@@ -132,16 +134,16 @@ On **Diagnostics > Health**, **Run Checks** checks your setup, runtime compatibi
 
 ## Leaving the Window Open in the Tray
 
-If **When closing the window** is set to **Minimize to Tray**, closing the window does not close the app: it keeps running in the system tray (the menu bar on macOS), and servers and downloads continue. Reopen the window from the tray icon; to quit completely, use **Quit** in the icon's menu. If **Quit** is selected, running servers are stopped. If your desktop has no tray or menu bar icon, closing the window quits the app. On Linux this includes stock GNOME, which shows tray icons only with the AppIndicator extension.
+If **When Closing the Window** is set to **Minimize to Tray**, closing the window does not close the app: it keeps running in the system tray (the menu bar on macOS), and servers and downloads continue. Reopen the window from the tray icon; to quit completely, use **Quit** in the icon's menu. If **Quit** is selected, running servers are stopped. If your desktop has no tray or menu bar icon, closing the window quits the app. On Linux this includes stock GNOME, which shows tray icons only with the AppIndicator extension.
 
 To save memory while in the tray, the window's web page can be closed:
 
-1. In **Settings > Appearance & Startup**, set **When closing the window** to **Minimize to Tray**.
+1. In **Settings > Appearance & Startup**, set **When Closing the Window** to **Minimize to Tray**.
 2. Close the window. Servers and downloads keep running in the app process.
-3. If **Keep the window loaded in the tray** is off (the default), the interface page is closed after about 30 seconds in the tray and only the app process remains; this saves about 60 MiB in the tray. When you open it from the tray icon the page is rebuilt (about half a second) and your open tab comes back.
+3. If **Keep the Window Loaded in the Tray** is off (the default), the interface page is closed after about 30 seconds in the tray and only the app process remains; this saves about 60 MiB in the tray. When you open it from the tray icon the page is rebuilt (about half a second) and your open tab comes back.
 4. The page is not closed, even in the tray, when: an answer is streaming or a tool call is running in the Playground, a download is running, a tool approval is waiting, there is a message you typed but did not send, there is an unsaved server setting on the Dashboard or an unsaved change in Settings, or the tool creator or an audio recording is running.
-5. If you want instant readiness, turn **Keep the window loaded in the tray** on. It uses more memory but opening is immediate.
+5. If you want instant readiness, turn **Keep the Window Loaded in the Tray** on. It uses more memory but opening is immediate.
 
-Input that falls outside these protections (for example, text typed into a search box but not searched) can be lost; save your work before you close the window. On macOS the preference appears as **Keep the window loaded in the menu bar**.
+Input that falls outside these protections (for example, text typed into a search box but not searched) can be lost; save your work before you close the window. On macOS the preference appears as **Keep the Window Loaded in the Menu Bar**.
 
 Next: [CLI, Control API, and MCP](09-cli-api-mcp.md).

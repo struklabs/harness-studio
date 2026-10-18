@@ -12,12 +12,14 @@ Sohbet etmek, model indirmek ya da sunucu başlatmak için terminale ihtiyacın�
 | Control API | Başka programların Harness Studio'nun modellerini ve sunucularını yönetmesini sağlar. Modellerle konuştuğunuz ağ geçidinden ayrı bir hizmettir. | [Güvenlik modeli](../../tr/SECURITY_MODEL.md), [CLI başvurusu](../../tr/CLI.md) |
 | Harness MCP sunucusu | Claude Code, Codex, OpenCode veya Cursor gibi istemcilerin araçlarla modelleri listelemesini, yüklemesini ve metrikleri okumasını sağlar. | [MCP başvurusu](../../tr/MCP.md) |
 
+Aşağıdaki Geliştirici ayarları ve MCP bağlantı sayfaları **Gelişmiş** düzeydedir. **Basit / Gelişmiş** ile geçiş yapın veya sayfayı komut paletinden açın; arayüz düzeyi CLI veya API izinlerini değiştirmez.
+
 ## Control API'yi Aç
 
 1. **Ayarlar > Geliştirici > Control API** sayfasını açın.
 2. **API'yi etkinleştir** seçimini açıp **Uygula** düğmesine basın.
-3. **Temel adres** alanını kontrol edin. Varsayılan `http://127.0.0.1:11500/api/harness/v1` adresidir; port doluysa görünen adres farklı olabilir.
-4. API'nin tanımını görmek için **OpenAPI şeması** alanındaki **Aç** düğmesini kullanın. Varsayılan OpenAPI şema adresi `http://127.0.0.1:11500/api/harness/v1/openapi.json` yalnızca bu bilgisayarda ve API açıkken anlamlıdır; port değiştiyse uygulamadaki bağlantıyı kullanın.
+3. **Temel Adres** alanını kontrol edin. Varsayılan `http://127.0.0.1:11500/api/harness/v1` adresidir; port doluysa görünen adres farklı olabilir.
+4. API'nin tanımını görmek için **OpenAPI Şeması** alanındaki **Aç** düğmesini kullanın. Varsayılan OpenAPI şema adresi `http://127.0.0.1:11500/api/harness/v1/openapi.json` yalnızca bu bilgisayarda ve API açıkken anlamlıdır; port değiştiyse uygulamadaki bağlantıyı kullanın.
 
 Yönetim istekleri bir tokenla korunur. Yerel `/health` ve şema erişimi için istisnalar ile token kapsamları [güvenlik modelinde](../../tr/SECURITY_MODEL.md) açıklanır. Uygulamanın veri klasörünü yönetirken CLI ona bu API üzerinden ulaşır; API kapalıysa CLI sahibi olan örneğe bağlanamaz.
 
@@ -25,7 +27,7 @@ Yönetim istekleri bir tokenla korunur. Yerel `/health` ve şema erişimi için 
 
 ## API'yi Koddan Kullan
 
-Depoda Control API için hazır istemciler var: [`sdk/`](../../../sdk/README.md) altında bir TypeScript paketi ve bir Python paketi. OpenAPI şemasından üretildikleri için her uç noktanın, parametrenin ve yanıtın türü vardır. Henüz npm veya PyPI'da değiller; depo klasöründen kurun.
+Depoda Control API için hazır istemciler var: [`sdk/`](../../../sdk/README.md) altında bir TypeScript paketi ve bir Python paketi. OpenAPI şemasından üretildikleri için her uç noktanın, parametrenin ve yanıtın türü vardır. TypeScript için `npm install @struklabs/harness-studio-sdk` kullanın; Python paketini depo klasöründen kurun (PyPI yayını planlanıyor).
 
 İkisi de çalışan Harness Studio'yu kendisi bulur: uygulama ya da `harness serve`, adresini veri klasöründeki `instance.json` dosyasına yazar; oturum anahtarı da yanındaki `api-token` dosyasındadır. Başka bir bilgisayar için adresi ve adlandırılmış bir anahtarı kendiniz verin.
 
