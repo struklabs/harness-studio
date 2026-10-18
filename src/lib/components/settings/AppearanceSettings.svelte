@@ -217,7 +217,7 @@
     <SettingRow label={t('uiLevel.label')} hint={t('uiLevel.hint')}><UiLevelToggle /></SettingRow>
     <div class="flex flex-col gap-2 px-4 py-3">
       <span id="theme-label" class="text-sm font-medium">{t('settings.theme')}</span>
-      <div class="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3 max-[1100px]:gap-2" role="radiogroup" aria-labelledby="theme-label">
+      <div class="grid grid-cols-[repeat(auto-fill,minmax(min(100%,11rem),1fr))] gap-3 max-[1100px]:gap-2" role="radiogroup" aria-labelledby="theme-label">
         {#each themes as opt (opt.id)}
           {@const selected = theme === opt.id}
           <label

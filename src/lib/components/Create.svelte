@@ -1,4 +1,5 @@
 <script lang="ts">
+  import './common/polished-pages.css';
   import { onMount } from 'svelte';
   import { t } from '#lib/i18n.svelte.js';
   import { app } from '#lib/stores/app.svelte.js';
@@ -30,7 +31,7 @@
   });
   $effect(() => { if (app.requestedCreatePage) { select(app.requestedCreatePage); app.requestedCreatePage = null; } });
 </script>
-<div class="flex h-full min-h-0 w-full overflow-hidden bg-background">
+<div class="polished-page flex h-full min-h-0 w-full overflow-hidden bg-background">
   <SectionSidebar pane={panes.createNav} label={t('nav.create')} groups={CREATE_GROUPS} {active} onSelect={select} />
   <main class="min-w-0 flex-1 overflow-y-auto">
     <div class="flex max-w-6xl flex-col gap-5 p-6 max-md:p-4">

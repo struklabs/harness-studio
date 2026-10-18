@@ -1,4 +1,5 @@
 <script lang="ts">
+  import './common/polished-pages.css';
   import { onDestroy, onMount } from 'svelte';
   import { Activity, Loader } from '@lucide/svelte';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -121,7 +122,7 @@
   }
 </script>
 
-<div class="flex h-full min-h-0 w-full overflow-hidden bg-background">
+<div class="polished-page flex h-full min-h-0 w-full overflow-hidden bg-background">
   <SectionSidebar pane={navPane} label={t('conn.nav_label')} groups={CONNECTION_GROUPS} {active} onSelect={select} />
   <main class="min-w-0 flex-1 overflow-y-auto">
     <div class="flex w-full max-w-5xl flex-col gap-6 px-6 py-6 max-md:px-4">
@@ -177,7 +178,7 @@
       </div>
     </div>
     <!-- The server is picked once, in the title bar; this row only reports and tests it. -->
-    <div class="flex items-center gap-3">
+    <div class="flex min-w-0 flex-wrap items-center gap-3">
       {#if ping && !ping.loading}
         <span class={cn('text-xs', ping.success ? 'text-success' : 'text-destructive')} role="status">{ping.message}</span>
       {/if}

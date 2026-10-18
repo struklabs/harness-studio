@@ -23,7 +23,7 @@
   );
 </script>
 
-<div class="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2 xl:grid-cols-3">
+<div class="page-grid gap-x-8 gap-y-5">
 <div hidden={page === 'resources'} class="contents">  <SparkChart
     title={t('perf.chart_gen')}
     format={tps}

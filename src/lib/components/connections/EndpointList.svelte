@@ -83,8 +83,8 @@
 </script>
 
 {#snippet urlTable(list: { method: string; label: string; url: string }[])}
-  <div class="overflow-hidden rounded-lg border border-border bg-card">
-    <Table.Root class="table-fixed">
+  <div class="overflow-x-auto rounded-lg border border-border bg-card">
+    <Table.Root class="min-w-[32rem] table-fixed">
       <Table.Header>
         <Table.Row class="hover:bg-transparent">
           <Table.Head class="w-28 text-xs">{t('conn.col_method')}</Table.Head>
@@ -112,7 +112,7 @@
 {/snippet}
 
 <section class="flex min-w-0 flex-col gap-3" aria-labelledby="conn-endpoints-title">
-  <div class="flex items-center justify-between gap-3">
+  <div class="flex flex-wrap items-center justify-between gap-3">
     <h2 id="conn-endpoints-title" class="text-base font-medium">{t('conn.endpoints')}</h2>
     <AdvancedOnly><Badge variant="outline" class="text-muted-foreground">{t('conn.badge_compatible')}</Badge></AdvancedOnly>
   </div>
@@ -129,14 +129,14 @@
 
   <AdvancedOnly>
     <!-- Endpoint kinds: managed (gateway) and direct llama-server. -->
-    <div class="grid grid-cols-2 gap-2 max-[1100px]:grid-cols-1">
+    <div class="page-grid gap-3">
       <div
         class={cn(
           'flex flex-col gap-1.5 rounded-lg border p-3',
           managedOn ? 'border-border bg-card' : 'border-dashed border-border',
         )}
       >
-        <div class="flex items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <span class={cn('flex items-center gap-1.5 text-sm font-medium', !managedOn && 'text-muted-foreground')}>
             <Route class="size-3.5" />
             {t('sec.ep_managed_title')}
@@ -168,7 +168,7 @@
       <div
         class={cn('flex flex-col gap-1.5 rounded-lg border p-3', 'border-border')}
       >
-        <div class="flex items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
           <span class="flex items-center gap-1.5 text-sm font-medium">
             <Network class="size-3.5" />
             {routes ? t('sec.ep_direct_title_engine', { engine: family }) : t('sec.ep_direct_title')}

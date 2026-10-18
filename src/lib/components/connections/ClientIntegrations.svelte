@@ -494,7 +494,7 @@ ${t('agent.applied_models', {
 </script>
 
 <section class="flex min-w-0 flex-col gap-3" aria-labelledby="conn-clients-title">
-  <div class="flex items-center justify-between gap-3">
+  <div class="flex flex-wrap items-center justify-between gap-3">
     <div class="flex min-w-0 flex-col">
       <h2 id="conn-clients-title" class="flex items-center gap-1 text-base font-semibold">{t('conn.clients_title')}<HelpPopover text={t('conn.clients_desc')} label={t('conn.clients_title')} /></h2>
     </div>

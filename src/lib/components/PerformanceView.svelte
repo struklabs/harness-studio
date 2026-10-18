@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { Button } from '#lib/components/ui/button/index.js';
+  import * as Empty from '#lib/components/ui/empty/index.js';
   import { formatBytes } from '#lib/format.js';
   import { onMount, untrack } from 'svelte';
   import { invoke } from '#lib/ipc.js';
@@ -136,7 +138,13 @@
   const fmtTps = (v: number | null | undefined) => (v == null ? NA : v.toFixed(1));
 </script>
 
-<div class="flex h-full w-full min-w-0 flex-col gap-6 overflow-y-auto p-4 sm:p-6">
+<div class="performance-content @container flex h-full w-full min-w-0 flex-col gap-6 overflow-y-auto p-4 sm:p-6">
+  {#if (page === 'clients' && summaryFailed) || (page !== 'clients' && readFailed)}
+    <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4" role="alert">
+      <p class="text-sm">{t('perf.read_failed')}</p>
+      <Button variant="outline" onclick={() => page === 'clients' ? fetchSummary() : fetchTelemetryData()}>{t('perf.retry')}</Button>
+    </div>
+  {/if}
   {#if page === 'clients'}
     <section hidden={page !== 'clients'} class="flex flex-col gap-3" aria-labelledby="perf-clients-title">
       <h2 id="perf-clients-title" class="text-sm font-semibold text-foreground">{t('an.clients')}</h2>
@@ -147,7 +155,9 @@
         </select>
         <FieldHelp text={t('an.token_breakdown_hint')} />
       </div>
-      {#if summary}
+      {#if summary && summary.clients.length === 0}
+        <Empty.Root class="border border-border bg-card py-10"><Empty.Header><Empty.Title>{t('perf.clients_empty')}</Empty.Title><Empty.Description>{t('perf.clients_empty_hint')}</Empty.Description></Empty.Header></Empty.Root>
+      {:else if summary}
         <div class="text-xs text-muted-foreground">{t('an.kpi_total_tokens')}: <strong class="font-num text-foreground">{formatTokens(summary.clients.reduce((n,c) => n + c.total_tokens, 0), locale())}</strong></div>
         <div class="overflow-x-auto rounded-lg border border-border bg-card">
           <Table.Root>
@@ -221,11 +231,11 @@
          overflow-hidden item of the scrolling column it would otherwise shrink to its border
          in a short window (seen at 900x600). -->
     <div hidden={page !== 'overview'}>
-    <div class="grid shrink-0 grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,1fr))] gap-px overflow-hidden rounded-lg border border-border bg-border max-[1100px]:grid-cols-2">
+    <div class="metric-grid shrink-0 gap-px overflow-hidden rounded-lg border border-border bg-border">
       <div class="flex flex-col gap-1.5 bg-card p-4">
         <span class="text-xs text-muted-foreground">{t('perf.chart_gen')}</span>
-        <div class="flex items-end justify-between gap-3">
-          <div class="flex items-baseline gap-1.5">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div class="flex min-w-0 flex-wrap items-baseline gap-1.5">
             <span class="font-num text-3xl font-semibold text-foreground">{online ? fmtTps(snapshot?.predicted_tokens_per_sec) : NA}</span>
             <span class="text-xs text-muted-foreground">t/s</span>
           </div>
@@ -236,7 +246,7 @@
 
       <div class="flex flex-col gap-1.5 bg-card p-4">
         <span class="text-xs text-muted-foreground">{t('perf.chart_prompt')}</span>
-        <div class="flex items-baseline gap-1.5">
+        <div class="flex min-w-0 flex-wrap items-baseline gap-1.5">
           <span class="font-num text-2xl font-semibold text-foreground">{online ? fmtTps(snapshot?.prompt_tokens_per_sec) : NA}</span>
           <span class="text-xs text-muted-foreground">t/s</span>
         </div>

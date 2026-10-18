@@ -33,9 +33,9 @@ const tr = {
   // Performance
 
   // Settings
-  'settings.theme': 'Arayüz teması',
-  'settings.language': 'Uygulama dili',
-  'settings.save': 'Ayarları kaydet',
+  'settings.theme': 'Arayüz Teması',
+  'settings.language': 'Uygulama Dili',
+  'settings.save': 'Ayarları Kaydet',
   'status.error_detail': 'Hata: {message}',
   'hw.unknown': 'Bilinmeyen donanım',
   'hw.detected': 'Algılanan donanım',
@@ -118,9 +118,9 @@ const en: Record<keyof typeof tr, string> = {
   // Performance
 
   // Settings
-  'settings.theme': 'Interface theme',
-  'settings.language': 'Application language',
-  'settings.save': 'Save settings',
+  'settings.theme': 'Interface Theme',
+  'settings.language': 'Application Language',
+  'settings.save': 'Save Settings',
   'status.error_detail': 'Error: {message}',
   'hw.unknown': 'Unknown hardware',
   'hw.detected': 'Detected hardware',

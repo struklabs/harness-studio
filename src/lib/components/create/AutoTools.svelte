@@ -136,11 +136,11 @@
   <p class="text-xs text-muted-foreground">{t('create.policy')}</p>
 </div>
 {#if error || run?.error}<GatewayError error={error || run?.error} onUse={model => { selectedModel = model; error = ''; if (run) run.error = null; }} onRetry={() => launch(canResume)} />{/if}
-<ol class="grid grid-cols-3 gap-2 sm:grid-cols-6" aria-label={t('create.auto')}>
+<ol class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,7rem),1fr))] gap-2" aria-label={t('create.auto')}>
   {#each stages as stage, i}
     {@const active = running && run?.stage === stage}
     {@const done = !!run && (run.status === 'completed' || (stageIndex > i && run.status !== 'idle'))}
-    <li class="stage relative flex items-center gap-2 overflow-hidden rounded-md border border-border px-3 py-3 text-xs" class:stage-active={active} class:stage-done={done && !active} class:text-primary={active} aria-current={active ? 'step' : undefined}>
+    <li class="stage relative flex min-w-0 items-center gap-2 overflow-hidden rounded-md border border-border px-3 py-3 text-xs" class:stage-active={active} class:stage-done={done && !active} class:text-primary={active} aria-current={active ? 'step' : undefined}>
       <span class="stage-index font-num">{#if done && !active}<Check class="size-3.5 text-success" aria-hidden="true" />{:else}{i + 1}{/if}</span><span>{t(('create.stage_' + stage) as TKey)}</span>
       {#if active}<span class="pipeline-progress absolute inset-x-0 bottom-0 h-0.5 bg-primary" aria-hidden="true"></span>{/if}
     </li>
