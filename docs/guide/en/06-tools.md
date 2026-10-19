@@ -59,6 +59,10 @@ The automatic builder has the same network choices and defaults to **Entire Inte
 
 ## Installed Tools and MCP
 
+**Official Registry** is available on **Settings > Tools > Installed Tools** in Simple and Advanced modes, and under **Tools > My Tools** in Advanced mode. Search the official StrukLabs catalog, filter by Tool, Skill, or MCP, and sort by name or type. Each entry shows its English/Turkish description, version, license, source, and declared permissions. Only entries compatible with your platform and Harness version are listed.
+
+Choose **Review and Install** to download a Tool from the same Git revision as the catalog, then approve its permissions in the existing install prompt. For MCP, review and confirm the server configuration; existing server names are never overwritten. MCP declarations describe expected access and do not sandbox the server. Skills show **Coming Soon** until a native loader is available. Installed Tools use the existing **Remove** action; MCP entries can be removed from the catalog or managed in **Connections**. Offline, the last valid catalog remains available for browsing; installation needs a connection.
+
 On **Settings > Tools > Installed Tools** you can manage package activity, **Run Test**, and **Remove**. For a ready-made package there is **Install from Folder...**; read the permissions and choose **Confirm Permissions and Install**.
 
 Tools from MCP servers are added under **Connections > MCP Servers**. An MCP server that uses a local command runs programs with your user permissions. Exposing Harness Studio's own tools to another MCP client is a separate setting; see [CLI, Control API, and MCP](09-cli-api-mcp.md).

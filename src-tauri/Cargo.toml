@@ -34,6 +34,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["full"] }
 tauri-plugin-dialog = "2"
 base64 = "0.22"
+tempfile = "3"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2.14"

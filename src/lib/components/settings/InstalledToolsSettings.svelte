@@ -26,6 +26,7 @@
     type TestReport,
   } from '#lib/tools-client.js';
   import ToolTestReport from '#lib/components/tools/ToolTestReport.svelte';
+  import OfficialRegistry from '#lib/components/tools/OfficialRegistry.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
 
@@ -134,6 +135,8 @@
     return lines;
   }
 </script>
+
+<OfficialRegistry installed={items} reviewing={pending !== null} onTool={async path => { pending = { path, tool: await inspectInstalledTool(path) }; }} />
 
 <SettingGroup title={t('tools.inst_title')} {showTitle} hint={t('tools.inst_desc')}>
   {#if error}

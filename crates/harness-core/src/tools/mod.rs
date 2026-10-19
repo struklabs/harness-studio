@@ -49,6 +49,7 @@ pub mod installed;
 pub mod js_engine;
 pub mod limits;
 pub mod mcp_client;
+pub mod official_registry;
 pub mod package;
 pub mod package_test;
 pub mod policy;

@@ -293,6 +293,43 @@ pub(crate) async fn installed_tools_list() -> Result<Vec<crate::tools::installed
     blocking(|| crate::tools::installed::list(&crate::tools::installed::tools_root())).await
 }
 
+#[tauri::command]
+pub(crate) async fn official_registry_list() -> Result<harness_core::tools::official_registry::Snapshot, String> {
+    let mut snapshot = harness_core::tools::official_registry::fetch().await.map_err(registry_error)?;
+    let platform = if cfg!(target_os = "macos") { "macos" } else { std::env::consts::OS };
+    snapshot.index.entries = snapshot.index.compatible(platform, env!("CARGO_PKG_VERSION"));
+    Ok(snapshot)
+}
+
+fn registry_error(detail: String) -> String {
+    harness_core::error_key::err("tools.registry_failed").with("detail", detail).into()
+}
+
+pub(crate) type RegistryStaging = std::sync::Mutex<Option<tempfile::TempDir>>;
+
+#[derive(serde::Serialize)]
+pub(crate) struct RegistryPrepared {
+    path: Option<String>,
+    config: Option<harness_core::mcp::McpConfig>,
+}
+
+#[tauri::command]
+pub(crate) async fn official_registry_prepare(commit: String, id: String, staged: State<'_, RegistryStaging>) -> Result<RegistryPrepared, String> {
+    use harness_core::tools::official_registry::{self, Kind};
+    let (snapshot, entry) = official_registry::selected(&commit, &id).map_err(registry_error)?;
+    match entry.kind {
+        Kind::Tool => {
+            let dir = official_registry::prepare_tool(&snapshot, &entry).await.map_err(registry_error)?;
+            let path = dir.path().to_string_lossy().into_owned();
+            // One review at a time; keep its staging folder alive until the next review.
+            *staged.lock().map_err(|e| registry_error(e.to_string()))? = Some(dir);
+            Ok(RegistryPrepared { path: Some(path), config: None })
+        }
+        Kind::Mcp => Ok(RegistryPrepared { path: None, config: Some(official_registry::prepare_mcp(&snapshot, &entry).await.map_err(registry_error)?) }),
+        Kind::Skill => Err("tools.registry_soon".into()),
+    }
+}
+
 /// Validates the package folder `path` and returns what it asks for, without installing it:
 /// the install dialog shows this and the user confirms before `installed_tools_install`.
 #[tauri::command]
