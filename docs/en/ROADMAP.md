@@ -43,7 +43,7 @@ Deliver vertical slices in order: each wave includes setup, use, permissions, an
 - [ ] Keep the core lightweight; distinguish Modules (functional areas), shared Components, Skills, MCP servers, Connectors, Tools, and Client Integrations. Plan optional Training, Agents, Automations, Paperclip, and REA areas with clear navigation.
 - [ ] Let users inspect a module's functions, dependencies, permissions, and disk estimate, approve installation, and open its workspace from the same menu. Separate first-run onboarding, module installation, and reusable job setup.
 - [ ] Use versioned manifests, API/IPC boundaries, and isolated backend processes with compatibility checks. Ship module UI with the app; download only backends/dependencies, without downloaded screens or external JavaScript UI.
-- [ ] Extend the existing `struklabs/harness-registry` for official StrukLabs Skills, MCP servers, and Tools only. Verify existing content; provide search, sorting, filters, descriptions, publisher/version details, permissions, hashes, and CI validation via a versioned index and maintainer PRs, without waiting for a website or automatic publishing.
+- [ ] Extend the existing `struklabs/harness-registry` for official StrukLabs Skills, MCP servers, and Tools only. Verify existing content; provide search, sorting, filters, descriptions, version details, and CI checks via a versioned index and maintainer PRs, without waiting for a website or automatic publishing.
 
 ### W2 — Connect an Agent and Complete a Task
 

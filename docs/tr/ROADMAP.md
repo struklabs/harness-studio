@@ -43,7 +43,7 @@ Uçtan uca akışları sırayla sunmak: her dalga kurulum, kullanım, izin ve ku
 - [ ] Temel uygulamayı hafif tutmak; işlevsel alan olan Module, paylaşılan Component, Skill, MCP sunucusu, Connector, Tool ve Client Integration türlerini ayırmak. İsteğe bağlı Training, Agents, Automations, Paperclip ve REA alanları için anlaşılır gezinme planlamak.
 - [ ] Kullanıcının modül işlevlerini, bağımlılıklarını, izinlerini ve disk tahminini incelemesini, kurulumu onaylamasını ve aynı menüden çalışma alanını açmasını sağlamak. İlk açılış, modül kurulumu ve tekrar kullanılabilir iş hazırlığını ayırmak.
 - [ ] Uyumluluk denetimiyle sürümlü manifest, API/IPC sınırları ve yalıtılmış arka uç süreçleri kullanmak. Modül arayüzünü uygulamayla dağıtmak; indirilebilir ekran veya dış JavaScript arayüzü olmadan yalnız arka uçları/bağımlılıkları indirmek.
-- [ ] Mevcut `struklabs/harness-registry` deposunu yalnız resmî StrukLabs Skill, MCP sunucusu ve Tool içerikleri için ilerletmek. Mevcut içeriği doğrulamak; web sitesi veya otomatik yayını beklemeden sürümlü indeks ve bakımcı PR'larıyla arama, sıralama, filtre, açıklama, yayıncı/sürüm, izin, sağlama toplamı ve CI denetimi sunmak.
+- [ ] Mevcut `struklabs/harness-registry` deposunu yalnız resmî StrukLabs Skill, MCP sunucusu ve Tool içerikleri için ilerletmek. Mevcut içeriği doğrulamak; web sitesi veya otomatik yayını beklemeden sürümlü indeks ve bakımcı PR'larıyla arama, sıralama, filtre, açıklama, sürüm bilgisi ve CI kontrolü sunmak.
 
 ### W2 — Ajan Bağlama ve Görev Tamamlama
 
