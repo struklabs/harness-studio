@@ -44,6 +44,7 @@
     servers: 'nav.servers',
     library: 'nav.library',
     hub: 'nav.hub',
+    modules: 'modules.title',
     connections: 'nav.connections',
     performance: 'nav.performance',
     analytics: 'nav.analytics',

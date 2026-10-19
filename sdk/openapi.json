@@ -3951,6 +3951,206 @@
         }
       }
     },
+    "/api/harness/v1/modules": {
+      "get": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "list_modules",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModuleView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/modules/{id}": {
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "install_module",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "remove_module",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/modules/{id}/cancel": {
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "cancel_module",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/onnx-runtime": {
       "get": {
         "tags": [
@@ -9758,6 +9958,41 @@
         ],
         "description": "Whether Harness can run a repo."
       },
+      "Component": {
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "sources",
+          "download_bytes",
+          "disk_bytes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "download_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Estimates, including temporary download space; not a preflight free-space guarantee.",
+            "minimum": 0
+          },
+          "disk_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Conversation": {
         "type": "object",
         "required": [
@@ -14332,6 +14567,21 @@
           }
         }
       },
+      "LocaleKeys": {
+        "type": "object",
+        "required": [
+          "en",
+          "tr"
+        ],
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "tr": {
+            "type": "string"
+          }
+        }
+      },
       "LogsResponse": {
         "type": "object",
         "required": [
@@ -15817,6 +16067,154 @@
           }
         }
       },
+      "ModuleManifest": {
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "manifest_version",
+          "name",
+          "description",
+          "functions",
+          "platforms",
+          "hardware",
+          "components",
+          "permissions",
+          "shared_component_ids",
+          "min_app_version",
+          "planned"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "manifest_version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "name": {
+            "$ref": "#/components/schemas/LocaleKeys"
+          },
+          "description": {
+            "$ref": "#/components/schemas/LocaleKeys"
+          },
+          "functions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocaleKeys"
+            }
+          },
+          "platforms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hardware": {
+            "$ref": "#/components/schemas/LocaleKeys"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Component"
+            }
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocaleKeys"
+            }
+          },
+          "shared_component_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "min_app_version": {
+            "type": "string"
+          },
+          "planned": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ModuleState": {
+        "type": "object",
+        "required": [
+          "status",
+          "components"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "installed_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ModuleView": {
+        "type": "object",
+        "required": [
+          "manifest",
+          "state",
+          "components"
+        ],
+        "properties": {
+          "manifest": {
+            "$ref": "#/components/schemas/ModuleManifest"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ModuleState"
+          },
+          "incompatibility": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EnvProgress"
+              }
+            ]
+          },
+          "components": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/OwnedComponent"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "NpuInfo": {
         "type": "object",
         "description": "What the NPU detection found.",
@@ -16103,6 +16501,25 @@
           },
           "status": {
             "$ref": "#/components/schemas/OtelStatus"
+          }
+        }
+      },
+      "OwnedComponent": {
+        "type": "object",
+        "required": [
+          "version",
+          "owners"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
           }
         }
       },
@@ -19433,6 +19850,15 @@
           }
         }
       },
+      "Status": {
+        "type": "string",
+        "enum": [
+          "not_installed",
+          "installing",
+          "installed",
+          "failed"
+        ]
+      },
       "StatusResponse": {
         "type": "object",
         "required": [
@@ -20948,6 +21374,10 @@
     {
       "name": "runtimes",
       "description": "Runtime registry: extra llama-server builds (forks, local folders) chosen per server"
+    },
+    {
+      "name": "modules",
+      "description": "Bundled optional modules: read to inspect; admin to install, cancel, or remove"
     },
     {
       "name": "models",
