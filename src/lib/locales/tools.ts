@@ -1,7 +1,6 @@
 // Tool engine UI (T1b): Settings > Tools and the tool log in the request inspector.
 const tr = {
   'tools.registry_title': 'Resmî Katalog',
-  'tools.registry_failed': 'Katalog işlemi tamamlanamadı: {detail}',
   'tools.registry_permissions': 'Beyan Edilen İzinler',
   'tools.registry_no_shell': 'Beyan edilen komut çalıştırma izni: yok',
   'tools.registry_desc': 'StrukLabs tarafından sürdürülen Araçlar, Skills ve MCP yapılandırmaları. Kurmadan önce izinleri inceleyin.',
@@ -16,7 +15,6 @@ const tr = {
   'tools.registry_version': 'Sürüm',
   'tools.registry_license': 'Lisans',
   'tools.registry_source': 'Kaynak',
-  'tools.registry_soon': 'Yakında',
   'tools.registry_installed': 'Kurulu',
   'tools.registry_install': 'İncele ve Kur',
   'tools.registry_confirm': 'MCP Değişikliğini Onayla',
@@ -253,7 +251,6 @@ const tr = {
 
 const en: Record<keyof typeof tr, string> = {
   'tools.registry_title': 'Official Registry',
-  'tools.registry_failed': 'Could not complete the registry operation: {detail}',
   'tools.registry_permissions': 'Declared Permissions',
   'tools.registry_no_shell': 'Declared shell access: none',
   'tools.registry_desc': 'StrukLabs-maintained Tools, Skills, and MCP configurations. Review permissions before installing.',
@@ -268,7 +265,6 @@ const en: Record<keyof typeof tr, string> = {
   'tools.registry_version': 'Version',
   'tools.registry_license': 'License',
   'tools.registry_source': 'Source',
-  'tools.registry_soon': 'Coming Soon',
   'tools.registry_installed': 'Installed',
   'tools.registry_install': 'Review and Install',
   'tools.registry_confirm': 'Confirm MCP Change',

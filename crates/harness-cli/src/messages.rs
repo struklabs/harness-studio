@@ -570,6 +570,21 @@ mod tests {
     }
 
     #[test]
+    fn registry_errors_have_cli_templates() {
+        let error: String = harness_core::error_key::err("tools.registry_failed")
+            .with("detail", "Registry cache unavailable")
+            .into();
+        assert_eq!(
+            core_text(&error),
+            "Could not complete the registry operation: Registry cache unavailable"
+        );
+        assert_eq!(core_text("tools.registry_soon"), "Coming Soon");
+        for key in ["tools.registry_failed", "tools.registry_soon"] {
+            assert_eq!(locale_template(key).map(str::to_string), english_text(key));
+        }
+    }
+
+    #[test]
     fn creation_errors_have_cli_templates() {
         for key in [
             "create.js_invalid_string",
