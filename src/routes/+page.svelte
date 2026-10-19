@@ -57,7 +57,7 @@
   function takeRestoreTab(): Tab {
     try {
       const tab = localStorage.getItem(RESTORE_TAB_KEY);
-      const tabs: Tab[] = ['settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'library', 'hub', 'connections', 'performance', 'analytics', 'settings', 'create'];
+      const tabs: Tab[] = ['modules', 'settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'library', 'hub', 'connections', 'performance', 'analytics', 'settings', 'create'];
       if (tabs.includes(tab as Tab)) return tab as Tab;
     } catch {
       // storage unavailable
@@ -405,6 +405,8 @@
                 currentTab = 'playground';
               }}
             />
+          {:else if currentTab === 'modules'}
+            <LazyView load={views.modules} fallback />
           {:else if currentTab === 'hub'}
             <LazyView load={views.hub} fallback {hardware} />
           {:else if currentTab === 'create'}

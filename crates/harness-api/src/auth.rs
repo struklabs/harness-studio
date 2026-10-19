@@ -211,6 +211,19 @@ mod tests {
         );
         assert_eq!(required_scope(&get, "/models", true), Some(Scope::Read));
         assert_eq!(required_scope(&get, "/tokens", true), Some(Scope::Admin));
+        assert_eq!(required_scope(&get, "/modules", true), Some(Scope::Read));
+        assert_eq!(
+            required_scope(&post, "/modules/{id}", true),
+            Some(Scope::Admin)
+        );
+        assert_eq!(
+            required_scope(&post, "/modules/{id}/cancel", true),
+            Some(Scope::Admin)
+        );
+        assert_eq!(
+            required_scope(&del, "/modules/{id}", true),
+            Some(Scope::Admin)
+        );
         // Tools: listing and the policy are readable; running needs `tools`; changing the policy
         // and the log are admin.
         assert_eq!(required_scope(&get, "/tools", true), Some(Scope::Read));

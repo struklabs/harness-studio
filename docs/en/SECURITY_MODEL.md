@@ -21,6 +21,12 @@ Findings in these areas matter in particular:
 - **Harness Control API:** token validation, scopes, permissions on the session token file, Host/CORS checks (see below).
 - **Protected llama-server parameters:** `--host`, `--port`, `--api-key`, `--api-key-file`, `--cors-origins`, `--tools`, `--agent`, and `--mcp-*` cannot be given through `custom_args` or the parameter catalog (including the `--x=y` and `--x_y` spellings). The `LLAMA_ARG_*` environment variables of the same flags are removed from the child process.
 
+## Bundled Modules
+
+The Modules screen installs only bundled backend definitions; it never downloads UI or JavaScript. The first optional module, Speech Recognition, reuses the hash-pinned `transcribe-cpp` Python environment installer and the existing Playground Speech screen. Install explicitly approves the displayed download, managed-file, and backend-process permissions; these describe existing backend privileges, not a new sandbox or per-permission enforcement layer.
+
+Module inspection requires `read` in the Control API; install, cancel, and removal require `admin`. Cancellation uses the existing installer's process-tree cleanup. Installation state and component owners are saved atomically in `config/modules.json`; interrupted installations can be retried. Removal refuses a detected running worker and deletes only the managed speech environment when no other module owns it. Models, outputs, datasets, and shared uv/Python support tools are retained (other existing Python engines also use those tools). Disk and download values are estimates, including shared dependencies; module update/rollback and free-space preflight remain W3 work. Training, Agents, Automations, and REA are planned and cannot be installed.
+
 ## Harness Control API
 
 The local management API (`/api/harness/v1`, default `127.0.0.1:11500`) is off by default; it is turned on in Settings > Developer > Control API.

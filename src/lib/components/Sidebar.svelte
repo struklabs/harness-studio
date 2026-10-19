@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  export type Tab = 'dashboard' | 'playground' | 'servers' | 'library' | 'hub' | 'connections' | 'performance' | 'analytics' | 'settings' | 'create';
+  export type Tab = 'dashboard' | 'playground' | 'servers' | 'library' | 'hub' | 'connections' | 'performance' | 'analytics' | 'settings' | 'create' | 'modules';
 </script>
 
 <script lang="ts">
@@ -56,6 +56,7 @@
       items: [
         { id: 'library', labelKey: 'nav.library', icon: Library },
         { id: 'hub', labelKey: 'nav.hub', icon: Compass },
+        { id: 'modules', labelKey: 'modules.title', icon: SlidersHorizontal },
       ],
     },
     {
@@ -78,6 +79,7 @@
   const simpleItems: NavItem[] = [
     { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
     { id: 'hub', labelKey: 'uiLevel.find', icon: Compass },
+    { id: 'modules', labelKey: 'modules.title', icon: SlidersHorizontal },
     { id: 'library', labelKey: 'nav.library', icon: Library },
     { id: 'playground', labelKey: 'uiLevel.use', icon: MessageSquare },
     { id: 'connections', labelKey: 'uiLevel.connect', icon: Cable },
