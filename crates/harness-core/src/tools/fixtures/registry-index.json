@@ -1,0 +1,106 @@
+{
+  "entries": [
+    {
+      "artifact": "mcp/microsoft-learn/config.json",
+      "description": {
+        "en": "Search Microsoft documentation and code samples through the official Microsoft Learn MCP server.",
+        "tr": "Resm? Microsoft Learn MCP sunucusu ?zerinden Microsoft belgelerinde ve kod ?rneklerinde arama yapar."
+      },
+      "homepage": "https://github.com/struklabs/harness-registry/tree/main/mcp/microsoft-learn",
+      "id": "struklabs.mcp.microsoft-learn",
+      "license": "MIT",
+      "min_harness_version": "0.1.0",
+      "name": "Microsoft Learn",
+      "permissions": {
+        "fs": {
+          "read": [],
+          "write": []
+        },
+        "network": [
+          "learn.microsoft.com"
+        ],
+        "shell": false
+      },
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "publisher": "StrukLabs",
+      "source": "https://github.com/struklabs/harness-registry/tree/main/mcp/microsoft-learn",
+      "tags": [
+        "documentation",
+        "microsoft"
+      ],
+      "type": "mcp",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "skills/release-notes/SKILL.md",
+      "description": {
+        "en": "Turn supplied changes or a diff into user-facing release notes. Use when preparing a changelog or release announcement.",
+        "tr": "Sa?lanan de?i?ikliklerden veya diff ??kt?s?ndan kullan?c?ya y?nelik s?r?m notlar? haz?rlar. De?i?iklik g?nl??? veya s?r?m duyurusu yazarken kullan?l?r."
+      },
+      "homepage": "https://github.com/struklabs/harness-registry/tree/main/skills/release-notes",
+      "id": "struklabs.skill.release-notes",
+      "license": "MIT",
+      "min_harness_version": "0.1.0",
+      "name": "Release Notes",
+      "permissions": {
+        "fs": {
+          "read": [],
+          "write": []
+        },
+        "network": [],
+        "shell": false
+      },
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "publisher": "StrukLabs",
+      "source": "https://github.com/struklabs/harness-registry/tree/main/skills/release-notes",
+      "tags": [
+        "writing",
+        "releases"
+      ],
+      "type": "skill",
+      "version": "1.0.0"
+    },
+    {
+      "artifact": "tools/json_format",
+      "description": {
+        "en": "Validate, pretty-print or compact JSON, optionally sorting object keys. No file or network access.",
+        "tr": "JSON verisini do?rular, okunakl? veya s?k??t?r?lm?? bi?ime d?n??t?r?r ve iste?e ba?l? olarak nesne anahtarlar?n? s?ralar. Dosya veya a? eri?imi yoktur."
+      },
+      "homepage": "https://github.com/struklabs/harness-registry/tree/main/tools/json_format",
+      "id": "struklabs.tool.json_format",
+      "license": "MIT",
+      "min_harness_version": "0.1.0",
+      "name": "JSON Formatter",
+      "permissions": {
+        "fs": {
+          "read": [],
+          "write": []
+        },
+        "network": [],
+        "shell": false
+      },
+      "platforms": [
+        "windows",
+        "macos",
+        "linux"
+      ],
+      "publisher": "StrukLabs",
+      "source": "https://github.com/struklabs/harness-registry/tree/main/tools/json_format",
+      "tags": [
+        "json",
+        "formatting"
+      ],
+      "type": "tool",
+      "version": "1.0.0"
+    }
+  ],
+  "schema_version": 1
+}

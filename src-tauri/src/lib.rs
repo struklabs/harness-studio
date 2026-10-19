@@ -323,6 +323,7 @@ pub fn run() {
         .manage(AppUpdateState::default())
         .manage(commands::PendingExposure::default())
         .manage::<commands::ToolRuns>(tools::RunTable::new())
+        .manage(commands::RegistryStaging::default())
         .manage(telemetry_poller)
         .manage(Arc::new(perf::PerfSampler::default()))
         .plugin(desktop::autostart_plugin())
@@ -688,6 +689,8 @@ pub fn run() {
             installed_tools_files,
             installed_tools_inspect,
             installed_tools_install,
+            official_registry_list,
+            official_registry_prepare,
             installed_tools_remove,
             installed_tools_set_enabled,
             installed_tools_test,

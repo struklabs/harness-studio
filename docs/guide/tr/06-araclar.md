@@ -59,6 +59,10 @@ Otomatik oluşturucuda aynı ağ seçenekleri vardır; varsayılan **Tüm İnter
 
 ## Kurulu Araçlar ve MCP
 
+**Resmî Katalog**, Basit ve Gelişmiş modlarda **Ayarlar > Araçlar > Kurulu Araçlar**, Gelişmiş modda ayrıca **Araçlar > Araçlarım** altında bulunur. Resmî StrukLabs kataloğunda arama yapabilir, Araç, Skill veya MCP türüne göre filtreleyebilir ve ada ya da türe göre sıralayabilirsiniz. Her kayıt İngilizce/Türkçe açıklama, sürüm, lisans, kaynak ve beyan edilen izinleri gösterir. Yalnızca platformunuzla ve Harness sürümünüzle uyumlu kayıtlar listelenir.
+
+Bir Aracı katalogla aynı Git revizyonundan indirmek için **İncele ve Kur** seçeneğini kullanın, ardından mevcut kurulum isteminde izinleri onaylayın. MCP için sunucu yapılandırmasını inceleyip onaylayın; mevcut sunucu adlarının üzerine yazılmaz. MCP beyanları beklenen erişimi açıklar, sunucuyu korumalı alanda çalıştırmaz. Yerel bir yükleyici hazır olana kadar Skills için **Yakında** gösterilir. Kurulu Araçlar mevcut **Kaldır** işlemini kullanır; MCP kayıtlarını katalogdan kaldırabilir veya **Bağlantılar** bölümünde yönetebilirsiniz. Çevrimdışıyken son geçerli katalog incelenebilir; kurulum için bağlantı gerekir.
+
 **Ayarlar > Araçlar > Kurulu Araçlar** sayfasında paket etkinliğini yönetebilir, **Testi Çalıştır** ve **Kaldır** işlemlerini kullanabilirsiniz. Hazır bir paket için **Klasörden Kur…** vardır; izinleri okuyup **İzinleri Onayla ve Kur** seçeneğini seçin.
 
 MCP sunucularının araçları **Bağlantılar > MCP Sunucuları** altından eklenir. Yerel komut kullanan bir MCP sunucusu, kullanıcı yetkilerinizle program çalıştırır. Harness Studio'nun kendi araçlarını başka bir MCP istemcisine açmak ayrı bir ayardır; [CLI, Control API ve MCP](09-cli-api-mcp.md) bölümüne bakın.

@@ -10,7 +10,7 @@ const ROOT_SECTIONS: { level?: 'advanced'; id: SectionId; label: TKey; desc: TKe
   { level: 'advanced', id: 'network', label: 'settings.tab_network', desc: 'settings.desc_network', keywords: 'cmd.kw_network', icon: Network },
   { level: 'advanced', id: 'security', label: 'settings.tab_security', desc: 'settings.desc_security', keywords: 'cmd.kw_security', icon: Lock },
   { level: 'advanced', id: 'gateway', label: 'settings.tab_gateway', desc: 'settings.desc_gateway', keywords: 'cmd.kw_gateway', icon: Route },
-  { level: 'advanced', id: 'tools', label: 'settings.tab_tools', desc: 'settings.desc_tools', keywords: 'cmd.kw_tools', icon: Wrench },
+  { id: 'tools', label: 'settings.tab_tools', desc: 'settings.desc_tools', keywords: 'cmd.kw_tools', icon: Wrench },
   { level: 'advanced', id: 'developer', label: 'settings.tab_developer', desc: 'settings.desc_developer', keywords: 'cmd.kw_developer', icon: Code },
   { level: 'advanced', id: 'otel', label: 'settings.tab_otel', desc: 'settings.desc_otel', keywords: 'cmd.kw_otel', icon: Activity },
   { id: 'appearance', label: 'settings.tab_appearance', desc: 'settings.desc_appearance', keywords: 'cmd.kw_appearance', icon: Palette },
@@ -25,7 +25,7 @@ const SUBPAGES: Partial<Record<SectionId, { level?: 'advanced'; id: string; labe
   network: [{ id: 'listen', label: 'menus.listen' }, { id: 'access', label: 'menus.access' }],
   security: [{ id: 'keys', label: 'menus.keys' }, { id: 'permissions', label: 'menus.security_permissions' }],
   gateway: [{ id: 'endpoint', label: 'menus.endpoint' }, { id: 'routing', label: 'menus.routing' }, { id: 'responses', label: 'menus.responses' }],
-  tools: [{ id: 'builtin', label: 'menus.builtin_tools' }, { id: 'installed', label: 'menus.installed_tools', desc: 'settings.desc_installed_tools' }],
+  tools: [{ level: 'advanced', id: 'builtin', label: 'menus.builtin_tools' }, { id: 'installed', label: 'menus.installed_tools', desc: 'settings.desc_installed_tools' }],
   developer: [{ id: 'api', label: 'menus.control_api' }, { id: 'cli', label: 'menus.cli' }],
   diagnostics: [{ id: 'health', label: 'menus.health' }, { id: 'reports', label: 'menus.reports' }],
 };
