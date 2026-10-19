@@ -91,3 +91,5 @@ include!("lemonade.rs");
 include!("convert.rs");
 include!("pyenv.rs");
 include!("otel.rs");
+
+include!("modules.rs");

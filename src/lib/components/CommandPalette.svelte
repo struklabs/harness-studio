@@ -59,6 +59,7 @@
     { id: 'servers', key: 'nav.servers', icon: Server },
     { id: 'library', key: 'nav.library', icon: Library },
     { id: 'hub', key: 'nav.hub', icon: Compass },
+    { id: 'modules', key: 'modules.title', icon: Compass },
     { id: 'playground', key: 'nav.playground', icon: MessageSquare },
     { id: 'connections', key: 'nav.connections', icon: Cable },
     { id: 'performance', key: 'nav.performance', icon: Activity },

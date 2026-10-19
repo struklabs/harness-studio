@@ -10,6 +10,7 @@ mod events;
 mod gateway;
 mod lemonade;
 mod models;
+mod modules;
 mod onnx_runtime;
 mod otel;
 mod runtimes;
@@ -47,6 +48,7 @@ models:write, downloads:write, servers:write, servers:control, conversations, ad
     tags(
         (name = "system", description = "Health, status, hardware, runtime"),
         (name = "runtimes", description = "Runtime registry: extra llama-server builds (forks, local folders) chosen per server"),
+        (name = "modules", description = "Bundled optional modules: read to inspect; admin to install, cancel, or remove"),
         (name = "models", description = "Library, downloads"),
         (name = "definitions", description = "Model definitions and inference presets"),
         (name = "servers", description = "Server instances and profiles, load/unload, metrics, logs"),
@@ -83,6 +85,9 @@ impl Modify for BearerAuth {
 
 fn api_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
+        .routes(routes!(modules::list_modules))
+        .routes(routes!(modules::install_module, modules::remove_module))
+        .routes(routes!(modules::cancel_module))
         .routes(routes!(system::health))
         .routes(routes!(system::status))
         .routes(routes!(system::hardware))

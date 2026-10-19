@@ -6,6 +6,7 @@ import { loadView, type ViewLoader } from '#lib/components/common/LazyView.svelt
  * loaded component is cached per loader).
  */
 export const views = {
+  modules: (() => import('#lib/components/Modules.svelte')) as ViewLoader,
   create: (() => import('#lib/components/Create.svelte')) as ViewLoader,
   playground: (() => import('#lib/components/Playground.svelte')) as ViewLoader,
   servers: (() => import('#lib/components/Servers.svelte')) as ViewLoader,
@@ -21,6 +22,7 @@ export const views = {
 
 /** Tabs that are a lazy view (the Dashboard is part of the main bundle). */
 const tabViews: Record<string, ViewLoader> = {
+  modules: views.modules,
   create: views.create,
   playground: views.playground,
   servers: views.servers,

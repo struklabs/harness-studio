@@ -21,6 +21,12 @@ Harness’ın yönettiği model motoru, ONNX, Python ortamı ve RAG arşivleri a
 - **Harness Control API:** token doğrulaması, kapsamlar, oturum token dosyasının izinleri, Host/CORS denetimleri (aşağıya bakın).
 - **Korumalı llama-server parametreleri:** `--host`, `--port`, `--api-key`, `--api-key-file`, `--cors-origins`, `--tools`, `--agent`, `--mcp-*` parametreleri `custom_args` veya parametre kataloğu ile verilemez (`--x=y` ve `--x_y` yazımları dahil). Aynı bayrakların `LLAMA_ARG_*` ortam değişkenleri alt süreçten silinir.
 
+## Uygulamayla Gelen Modüller
+
+Modüller ekranı yalnızca uygulamayla gelen arka uç tanımlarını yükler; arayüz veya JavaScript indirmez. İlk isteğe bağlı modül Konuşma Tanıma, özet değerleri sabitlenmiş mevcut `transcribe-cpp` Python ortamı yükleyicisini ve Deney Alanı Konuşma ekranını kullanır. Yükle düğmesi gösterilen indirme, yönetilen dosya ve arka uç süreci izinlerini açıkça onaylar; bunlar mevcut arka uç yetkilerini açıklar, yeni bir korumalı alan veya izin başına uygulama katmanı oluşturmaz.
+
+Control API üzerinden modülleri incelemek `read`; yüklemek, iptal etmek ve kaldırmak `admin` gerektirir. İptal, mevcut yükleyicinin süreç ağacı temizliğini kullanır. Kurulum durumu ve bileşen sahipleri `config/modules.json` dosyasına atomik olarak kaydedilir; kesintiye uğrayan kurulumlar yeniden denenebilir. Kaldırma, çalışan bir işçi algılanırsa reddedilir ve yalnızca başka bir modülün sahip olmadığı yönetilen konuşma ortamını siler. Modeller, çıktılar, veri kümeleri ve paylaşılan uv/Python araçları korunur; mevcut diğer Python motorları da bu araçları kullanır. Disk ve indirme değerleri paylaşılan bağımlılıkları içeren tahminlerdir; modül güncelleme/geri alma ve boş alan ön denetimi W3 kapsamındadır. Eğitim, Ajanlar, Otomasyonlar ve REA planlanmaktadır ve yüklenemez.
+
 ## Harness Control API
 
 Yerel yönetim API'si (`/api/harness/v1`, varsayılan `127.0.0.1:11500`) varsayılan olarak kapalıdır; Ayarlar > Geliştirici > Control API'den açılır.

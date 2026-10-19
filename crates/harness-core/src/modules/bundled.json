@@ -1,0 +1,163 @@
+[
+  {
+    "id": "speech",
+    "version": "0.1.0",
+    "manifest_version": 1,
+    "name": {
+      "en": "modules.speech",
+      "tr": "modules.speech"
+    },
+    "description": {
+      "en": "modules.speech_description",
+      "tr": "modules.speech_description"
+    },
+    "functions": [
+      {
+        "en": "modules.transcribe",
+        "tr": "modules.transcribe"
+      }
+    ],
+    "platforms": [
+      "windows-x86_64",
+      "linux-x86_64",
+      "macos-aarch64"
+    ],
+    "hardware": {
+      "en": "modules.cpu",
+      "tr": "modules.cpu"
+    },
+    "components": [],
+    "permissions": [
+      {
+        "en": "modules.network",
+        "tr": "modules.network"
+      },
+      {
+        "en": "modules.files",
+        "tr": "modules.files"
+      },
+      {
+        "en": "modules.process",
+        "tr": "modules.process"
+      }
+    ],
+    "shared_component_ids": [
+      "managed-uv",
+      "managed-python"
+    ],
+    "min_app_version": "0.1.2",
+    "planned": false
+  },
+  {
+    "id": "training",
+    "version": "0.1.0",
+    "manifest_version": 1,
+    "name": {
+      "en": "modules.training",
+      "tr": "modules.training"
+    },
+    "description": {
+      "en": "modules.training_description",
+      "tr": "modules.training_description"
+    },
+    "functions": [],
+    "platforms": [
+      "windows-x86_64",
+      "linux-x86_64",
+      "macos-aarch64"
+    ],
+    "hardware": {
+      "en": "modules.cpu",
+      "tr": "modules.cpu"
+    },
+    "components": [],
+    "permissions": [],
+    "shared_component_ids": [],
+    "min_app_version": "0.1.2",
+    "planned": true
+  },
+  {
+    "id": "agents",
+    "version": "0.1.0",
+    "manifest_version": 1,
+    "name": {
+      "en": "modules.agents",
+      "tr": "modules.agents"
+    },
+    "description": {
+      "en": "modules.agents_description",
+      "tr": "modules.agents_description"
+    },
+    "functions": [],
+    "platforms": [
+      "windows-x86_64",
+      "linux-x86_64",
+      "macos-aarch64"
+    ],
+    "hardware": {
+      "en": "modules.cpu",
+      "tr": "modules.cpu"
+    },
+    "components": [],
+    "permissions": [],
+    "shared_component_ids": [],
+    "min_app_version": "0.1.2",
+    "planned": true
+  },
+  {
+    "id": "automations",
+    "version": "0.1.0",
+    "manifest_version": 1,
+    "name": {
+      "en": "modules.automations",
+      "tr": "modules.automations"
+    },
+    "description": {
+      "en": "modules.automations_description",
+      "tr": "modules.automations_description"
+    },
+    "functions": [],
+    "platforms": [
+      "windows-x86_64",
+      "linux-x86_64",
+      "macos-aarch64"
+    ],
+    "hardware": {
+      "en": "modules.cpu",
+      "tr": "modules.cpu"
+    },
+    "components": [],
+    "permissions": [],
+    "shared_component_ids": [],
+    "min_app_version": "0.1.2",
+    "planned": true
+  },
+  {
+    "id": "rea",
+    "version": "0.1.0",
+    "manifest_version": 1,
+    "name": {
+      "en": "modules.rea",
+      "tr": "modules.rea"
+    },
+    "description": {
+      "en": "modules.rea_description",
+      "tr": "modules.rea_description"
+    },
+    "functions": [],
+    "platforms": [
+      "windows-x86_64",
+      "linux-x86_64",
+      "macos-aarch64"
+    ],
+    "hardware": {
+      "en": "modules.cpu",
+      "tr": "modules.cpu"
+    },
+    "components": [],
+    "permissions": [],
+    "shared_component_ids": [],
+    "min_app_version": "0.1.2",
+    "planned": true
+  }
+]
