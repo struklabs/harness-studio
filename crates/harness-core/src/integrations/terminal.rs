@@ -453,6 +453,7 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
+    #[ignore = "opens real console windows (Windows Terminal keeps them open); run with --ignored"]
     fn new_console_does_not_replace_inherited_redirected_handles() {
         use std::os::windows::process::CommandExt;
         use std::process::{Command, Stdio};
@@ -473,6 +474,7 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
+    #[ignore = "opens real console windows (Windows Terminal keeps them open); run with --ignored"]
     fn windows_launcher_reconnects_all_tools_to_console_and_keeps_plan() {
         use std::process::Stdio;
         let d = tempfile::tempdir().unwrap();
