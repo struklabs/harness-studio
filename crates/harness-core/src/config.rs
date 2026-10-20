@@ -100,15 +100,30 @@ impl Default for ServerConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-#[derive(Default)]
 pub struct PrivacySettings {
     pub onboarding_completed: bool,
     pub crash_reports: bool,
+    pub retention_days: u32,
     pub app_errors: bool,
     pub llama_errors: bool,
     pub hardware_info: bool,
     pub performance_metrics: bool,
     pub anonymous_analytics: bool,
+}
+
+impl Default for PrivacySettings {
+    fn default() -> Self {
+        Self {
+            onboarding_completed: false,
+            crash_reports: false,
+            retention_days: 30,
+            app_errors: false,
+            llama_errors: false,
+            hardware_info: false,
+            performance_metrics: false,
+            anonymous_analytics: false,
+        }
+    }
 }
 
 fn default_theme() -> String {
@@ -440,6 +455,7 @@ impl AppSettings {
         cached.hf_token_set = cached.hf_token.is_some();
         *CACHE.lock().unwrap() = Some(cached);
         crate::models::invalidate_scan();
+        crate::diagnostics::DiagnosticsManager::configure(self);
         Ok(())
     }
 
