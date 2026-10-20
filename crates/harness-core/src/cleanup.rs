@@ -57,6 +57,10 @@ fn redirected(m: &fs::Metadata) -> bool {
 /// Root must be the identifier's dedicated directory or an explicitly marked isolated root.
 pub fn validate_root(root: &Path, identifier: &str) -> Result<(), String> {
     check_path(root)?;
+    // A marked custom root must still never be a drive root, the home directory or an ancestor of it.
+    if root.parent().is_none() || dirs::home_dir().is_some_and(|home| home.starts_with(root)) {
+        return Err("Cleanup refuses a drive root or the home directory".into());
+    }
     if identifier.is_empty()
         || !identifier
             .bytes()
@@ -272,6 +276,15 @@ mod tests {
             assert!(root.join(name).join("keep").is_file());
         }
         assert!(validate_root(temp.path(), "com.harnessstudio.app").is_err());
+        // A marker cannot legitimise the home directory or a drive root.
+        if let Some(home) = dirs::home_dir() {
+            assert!(validate_root(&home, "com.harnessstudio.app").is_err());
+        }
+        assert!(validate_root(
+            Path::new(if cfg!(windows) { "C:\\" } else { "/" }),
+            "com.harnessstudio.app"
+        )
+        .is_err());
         assert!(validate_root(&root.join("../escape"), "com.harnessstudio.cleanup-test").is_err());
     }
     #[test]
