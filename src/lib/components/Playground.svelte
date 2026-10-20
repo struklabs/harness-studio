@@ -48,6 +48,7 @@
   import { withSkillGuidance, type SkillMetadata } from './playground/skillGuidance';
   import { salvageToolCalls, TextCallStreamBuffer } from './playground/textToolCalls';
   import { chatRequest } from './playground/chatRequest';
+  import { notifyRoutingFallback } from './playground/routingNotice';
   import { parseChoiceLogprobs, rememberLogprobs, type TokenLogprob } from './playground/logprobs';
   import { parseTextToolCalls } from '#lib/tools-client.js';
   import ConversationSidebar from './playground/ConversationSidebar.svelte';
@@ -2636,7 +2637,7 @@
     try {
       const request = await chatRequest(endpoint, body,
         { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...app.inferenceHeaders() }, c.signal);
-      if (request.routingFallback) toast.warning(`${t('w4.routing_fallback')} ${request.routingError}`);
+      if (request.routingFallback) notifyRoutingFallback(request.routingError);
       const res = request.response;
       toolDefs = (request.body.tools ?? []) as typeof toolDefs;
       sentTools = toolDefs.length > 0;

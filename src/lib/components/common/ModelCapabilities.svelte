@@ -4,7 +4,7 @@
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { taskSupportStore } from '../hub/taskSupport.svelte';
   let { record, caps, task }: { record?: Partial<ModelRecord> | null; caps?: ModelCaps; task?: string | null } = $props();
-  const kinds = ['chat', 'vision', 'image_generation', 'asr', 'tts', 'video', 'embedding', 'rerank', 'tools'] as const;
+  const kinds = ['chat', 'vision', 'audio', 'image_generation', 'asr', 'tts', 'video', 'embedding', 'rerank', 'tools'] as const;
   $effect(() => { void taskSupportStore.load(); });
   // The task table already records partial or missing features of llama.cpp builds.
   let runtimeTask = $derived(record?.runtime === 'llama.cpp' ? taskSupportStore.info(task) : null);

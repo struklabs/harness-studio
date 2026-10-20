@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
-import { toolIndex, selectedTools, routeTools } from '../src/lib/components/playground/toolRouting.ts';
+import { toolIndex, selectedTools, routeTools, redactDetail } from '../src/lib/components/playground/toolRouting.ts';
 
 const tools = JSON.parse(readFileSync(new URL('../crates/harness-core/src/tools/builtin/llama_tools.json', import.meta.url))).map(t => t.definition);
 const signal = () => new AbortController().signal;
@@ -28,10 +28,26 @@ test('discovery sends only the compact index and loads exactly selected schemas'
   assert.equal(body.tools, tools);
 });
 
-test('empty discovery permits a schema-free answer and removes tool_choice', async () => {
-  const result = await routeTools('local', { ...body, tool_choice: 'required' }, {}, signal(), async () => reply([]));
+test('empty discovery permits a schema-free answer when tool_choice is not forced', async () => {
+  const result = await routeTools('local', { ...body, tool_choice: 'auto' }, {}, signal(), async () => reply([]));
   assert.equal(result.body.tools, undefined);
   assert.equal(result.body.tool_choice, undefined);
+});
+
+test('empty discovery keeps the full tool list and tool_choice required', async () => {
+  const result = await routeTools('local', { ...body, tool_choice: 'required' }, {}, signal(), async () => reply([]));
+  assert.deepEqual(result.body.tools, tools);
+  assert.equal(result.body.tool_choice, 'required');
+  assert.equal(result.fallback, false);
+});
+
+test('redactDetail strips credentials and truncates', () => {
+  const key = 'sk-abcdefghijklmnop1234';
+  const text = `401 Authorization: Bearer ${key} api_key=abc123secret {"token":"zzz999"} https://x/y?key=q1w2e3 ${'A'.repeat(40)}`;
+  const out = redactDetail(text);
+  for (const leak of [key, 'abc123secret', 'zzz999', 'q1w2e3', 'AAAAAAAAAAAAAAAA']) assert.ok(!out.includes(leak), leak);
+  assert.ok(out.includes('401'));
+  assert.ok(redactDetail('x '.repeat(5000), 100).length <= 101);
 });
 
 test('a forced tool_choice function stays available even when discovery omits it', async () => {

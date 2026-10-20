@@ -36,6 +36,26 @@ function discoveryContext(messages: Record<string, unknown>[]): string {
   return context.join('\n');
 }
 
+const SECRET_PATTERNS: RegExp[] = [
+  /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi,
+  /\b(?:sk|pk|rk|hf|ghp|gho|xox[abps])[-_][A-Za-z0-9_-]{8,}/g,
+  /((?:api[_-]?key|access[_-]?token|auth(?:orization)?|token|secret|password)["']?\s*[:=]\s*["']?)[^\s"',;&}]+/gi,
+  /([?&](?:api[_-]?key|key|token|access_token)=)[^\s&"']+/gi,
+  /\b[A-Za-z0-9_-]{32,}\b/g,
+];
+
+/** Redacts credentials from upstream error text and bounds its length; safe to show or copy. */
+export function redactDetail(text: string, max = 2000): string {
+  let out = String(text ?? '');
+  out = out.replace(SECRET_PATTERNS[0], '$1 [redacted]')
+    .replace(SECRET_PATTERNS[1], '[redacted]')
+    .replace(SECRET_PATTERNS[2], '$1[redacted]')
+    .replace(SECRET_PATTERNS[3], '$1[redacted]')
+    .replace(SECRET_PATTERNS[4], '[redacted]')
+    .replace(/\s+/g, ' ').trim();
+  return out.length > max ? `${out.slice(0, max)}…` : out;
+}
+
 export async function routeTools(endpoint: string, body: Record<string, unknown>, headers: Record<string, string>, signal: AbortSignal, send: typeof fetch) {
   const tools = body.tools as ToolDefinition[] | undefined;
   if (!tools?.length) return { body, fallback: false, error: '' };
@@ -67,6 +87,9 @@ export async function routeTools(endpoint: string, body: Record<string, unknown>
   selected = tools.filter(t => selected.includes(t) || previous.has(t.function.name) || t.function.name === forced);
   const routed = { ...body };
   if (selected.length) routed.tools = selected;
-  else { delete routed.tools; delete routed.tool_choice; }
+  else if (body.tool_choice === 'required' || (typeof body.tool_choice === 'object' && body.tool_choice)) {
+    // A forced tool call cannot be honoured without schemas; send them all rather than drop it silently.
+    routed.tools = tools;
+  } else { delete routed.tools; delete routed.tool_choice; }
   return { body: routed, fallback, error: errorMessage };
 }
