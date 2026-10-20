@@ -326,21 +326,35 @@ impl DiagnosticsManager {
         if !ENABLED.load(Ordering::Relaxed) {
             return;
         }
+        // A panic while writing a report (this runs from the panic hook) must not recurse.
+        thread_local!(static BUSY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) });
+        struct BusyReset;
+        impl Drop for BusyReset {
+            fn drop(&mut self) {
+                BUSY.with(|b| b.set(false));
+            }
+        }
+        if BUSY.with(|b| b.replace(true)) {
+            return;
+        }
+        let _reset = BusyReset;
         let mut settings = AppSettings::default();
         settings.privacy.crash_reports = true;
         settings.privacy.hardware_info = HARDWARE.load(Ordering::Relaxed);
         settings.privacy.retention_days = RETENTION.load(Ordering::Relaxed);
-        let _ = Self::default_manager().save_event(
-            &DiagnosticEvent {
-                event_type: event_type.into(),
-                message,
-                stack_trace,
-                metadata: None,
-            },
-            &settings,
-            engine,
-            logs,
-        );
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            Self::default_manager().save_event(
+                &DiagnosticEvent {
+                    event_type: event_type.into(),
+                    message,
+                    stack_trace,
+                    metadata: None,
+                },
+                &settings,
+                engine,
+                logs,
+            )
+        }));
     }
     pub fn process_offline_crash(
         &self,
@@ -458,13 +472,20 @@ pub fn sanitize_text(input: &str) -> String {
         // Home paths: omit the entire suffix, which can itself identify a chat or file.
         (r#"(?i)\b[a-z]:[/\\]Users[/\\][^\s"'<>]+"#, "~"),
         (r#"/(?:home|Users)/[^\s"'<>]+"#, "~"),
+        // UNC administrative-share profile paths (\\server\c$\Users\name\...).
+        (r#"(?i)\\\\[^\s"'<>\\]+\\[a-z]\$\\Users\\[^\s"'<>]+"#, "~"),
         // Bearer tokens and key=value secrets.
         (
             r#"(?i)(Bearer\s+|["']?(?:api[_-]?key|access[_-]?token|token|secret|password)["']?\s*[:=]\s*["']?|--api-key\s+)[^\s"',;]+"#,
             "$1[REDACTED_KEY]",
         ),
         // Well-known token formats even without a prefix (HF, OpenAI-style).
-        (r"\bhf_[A-Za-z0-9]{20,}", "[REDACTED_KEY]"),
+        (r"\b(?:hf|hs)_[A-Za-z0-9_\-]{8,}", "[REDACTED_KEY]"),
+        // Secrets in URL query strings.
+        (
+            r"(?i)([?&](?:key|api[_-]?key|access[_-]?token|token|auth|sig|signature)=)[^&\s]+",
+            "$1[REDACTED_KEY]",
+        ),
         (r"\bsk-[A-Za-z0-9_\-]{16,}", "[REDACTED_KEY]"),
         // E-mail addresses.
         (
@@ -487,6 +508,16 @@ pub fn sanitize_text(input: &str) -> String {
     for (pattern, replacement) in rules {
         if let Ok(re) = Regex::new(pattern) {
             result = re.replace_all(&result, *replacement).to_string();
+        }
+    }
+    // The bare account name can appear outside a path (e.g. "user alice").
+    if let Some(user) = std::env::var("USERNAME")
+        .or_else(|_| std::env::var("USER"))
+        .ok()
+        .filter(|u| u.len() >= 3)
+    {
+        if let Ok(re) = Regex::new(&format!(r"(?i)\b{}\b", regex::escape(&user))) {
+            result = re.replace_all(&result, "<USER>").to_string();
         }
     }
     result
@@ -547,6 +578,32 @@ mod tests {
         }
         assert!(json.contains("harness_core::process::run"));
         assert!(json.contains("Out of memory"));
+    }
+    #[test]
+    fn scrubs_unc_hs_tokens_query_keys_and_username() {
+        let text = sanitize_text(
+            r"\\srv\c$\Users\alice\chat.txt hs_abcdef123456 http://x/v1?key=SECRET1&a=1 mail bob@example.com",
+        );
+        for leak in ["alice", "chat.txt", "abcdef123456", "SECRET1", "bob@"] {
+            assert!(!text.contains(leak), "{text}");
+        }
+        std::env::set_var("USERNAME", "zelda_tester");
+        assert!(!sanitize_text("login zelda_tester ok").contains("zelda_tester"));
+    }
+    #[test]
+    fn cleanup_and_delete_stay_inside_reports_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = dir.path().join("settings.json");
+        fs::write(&outside, "{}").unwrap();
+        let mgr = DiagnosticsManager::new(dir.path().join("diag"));
+        fs::create_dir_all(mgr.reports_dir()).unwrap();
+        fs::write(mgr.reports_dir().join("notes.txt"), "keep").unwrap();
+        mgr.cleanup(1);
+        assert!(outside.exists());
+        assert!(mgr.reports_dir().join("notes.txt").exists());
+        assert!(mgr.delete_report("1-2-3.json.bak").is_err());
+        assert!(mgr.delete_report("..\\1-2-3.json").is_err());
+        assert!(mgr.delete_report("../../settings.json").is_err());
     }
     #[test]
     fn disabled_writes_no_reports() {
