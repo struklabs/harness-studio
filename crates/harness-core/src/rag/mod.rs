@@ -30,7 +30,9 @@
 
 pub mod chunk;
 pub mod client;
+pub mod embedder;
 pub mod extract;
+pub mod kb;
 pub mod models;
 pub mod search;
 
@@ -47,8 +49,22 @@ pub use client::Endpoint;
 
 /// Chunks per conversation (all documents).
 pub const MAX_CHUNKS_PER_CONVERSATION: usize = 6000;
+/// Chunks per knowledge base (one flat vector scan per question: 30 000 chunks of 384
+/// dimensions are 46 MB).
+pub const KB_MAX_CHUNKS: usize = 30_000;
+/// Documents per knowledge base.
+pub const KB_MAX_DOCUMENTS: i64 = 1000;
+/// Share of the chat model's context the excerpts of knowledge bases may use.
+pub const KB_TOKEN_SHARE: f32 = 0.25;
+/// Most tokens the excerpts of knowledge bases add to one request.
+pub const KB_MAX_TOKENS: usize = 2000;
 /// Chunks per embedding request.
 pub const EMBED_BATCH: usize = 16;
+/// Whether a document status means a job works on it.
+pub(crate) fn state_is_active(status: &str) -> bool {
+    crate::state::ACTIVE_STATUSES.contains(&status)
+}
+
 /// Documents in "auto" mode go in whole while all full-text documents need at most this
 /// share of the chat model's context.
 pub const FULL_TEXT_SHARE: f32 = 0.5;
@@ -82,6 +98,12 @@ impl Jobs {
         flag
     }
 
+    /// Registers a job that stops with an existing flag (a knowledge base run cancels all its
+    /// documents with one flag).
+    pub fn register_shared(&self, document_id: &str, flag: Arc<AtomicBool>) {
+        self.lock().insert(document_id.to_string(), flag);
+    }
+
     /// Asks a job to stop; false when none runs for the document.
     pub fn cancel(&self, document_id: &str) -> bool {
         match self.lock().get(document_id) {
@@ -97,7 +119,8 @@ impl Jobs {
         self.lock().contains_key(document_id)
     }
 
-    fn finish(&self, document_id: &str, flag: &Arc<AtomicBool>) {
+    /// Removes a finished job (only when `flag` is still the one registered).
+    pub fn finish(&self, document_id: &str, flag: &Arc<AtomicBool>) {
         let mut map = self.lock();
         if map.get(document_id).is_some_and(|f| Arc::ptr_eq(f, flag)) {
             map.remove(document_id);
@@ -120,19 +143,47 @@ pub struct EmbedModel {
     pub alias: String,
     pub query_prefix: String,
     pub doc_prefix: String,
+    /// Longest input in characters: the model's context is small (512 tokens for e5) and a
+    /// longer text is an error, so the text is cut instead of failing the whole document.
+    pub max_chars: Option<usize>,
 }
 
 impl EmbedModel {
     /// For a definition: its alias and the prefixes of its model family.
     pub fn for_definition(endpoint: Endpoint, def: &crate::domain::ModelDefinition) -> Self {
         let (q, d) = models::prefixes_for(def);
+        let context = def
+            .base
+            .local_path()
+            .and_then(|p| crate::gguf::read_gguf_metadata(p).ok())
+            .and_then(|m| m.context_length);
         Self {
             endpoint,
             alias: def.alias.clone(),
             query_prefix: q.to_string(),
             doc_prefix: d.to_string(),
+            max_chars: max_chars_for_context(context),
         }
     }
+
+    /// `text` cut to the model's input limit (at a character boundary).
+    pub fn clip<'a>(&self, text: &'a str) -> &'a str {
+        match self.max_chars {
+            Some(max) => match text.char_indices().nth(max) {
+                Some((i, _)) => &text[..i],
+                None => text,
+            },
+            None => text,
+        }
+    }
+}
+
+/// Characters an embedding model with `context` tokens takes safely (2 per token: source code
+/// and non-Latin text tokenize densely). `None` = large enough for any chunk.
+pub fn max_chars_for_context(context: Option<u64>) -> Option<usize> {
+    let ctx = context?;
+    let chars = (ctx as usize).saturating_mul(2);
+    (chars < chunk::MAX_CHARS * 2).then_some(chars.max(256))
 }
 
 /// A progress report of an indexing job (Tauri event `rag-progress`).
@@ -230,6 +281,35 @@ async fn blocking_or_cancel<T: Send + 'static>(
     }
 }
 
+/// Whether an embedding error says the input was longer than the model's context.
+fn input_too_long(error: &str) -> bool {
+    let e = error.to_lowercase();
+    e.contains("context size")
+        || e.contains("larger than")
+        || e.contains("too large")
+        || e.contains("exceeds")
+}
+
+/// Embeds a batch. A text that is longer than the model's context (dense code or tables
+/// tokenize far below the 2 characters per token of [`max_chars_for_context`]) makes the
+/// server refuse the batch; the texts are cut by a quarter and tried again (at most three
+/// times) instead of failing the whole document. The cut part is still found through the
+/// chunk overlap and the keyword index.
+async fn embed_batch(embed: &EmbedModel, mut input: Vec<String>) -> Result<Vec<Vec<f32>>, String> {
+    for attempt in 0..4 {
+        match client::embed(&embed.endpoint, &embed.alias, &input).await {
+            Err(e) if attempt < 3 && input_too_long(&e) => {
+                for t in &mut input {
+                    let keep = (t.chars().count() * 3 / 4).max(64);
+                    *t = t.chars().take(keep).collect();
+                }
+            }
+            other => return other,
+        }
+    }
+    unreachable!("the last attempt returns")
+}
+
 async fn index_inner(
     db: &Arc<StateDb>,
     job: &IndexJob,
@@ -250,6 +330,10 @@ async fn index_inner(
                 .then(|| d.source_path.map(PathBuf::from))
                 .flatten()
         }
+    };
+    let max_chunks = match db.rag_document(id) {
+        Ok(d) if db.rag_is_kb(&d.conversation_id) => KB_MAX_CHUNKS,
+        _ => MAX_CHUNKS_PER_CONVERSATION,
     };
     if let Some(path) = source {
         db.rag_set_status(id, "extracting", None)
@@ -285,7 +369,7 @@ async fn index_inner(
             doc.page_count().map(i64::from),
             &doc.full_text(),
             &chunks,
-            MAX_CHUNKS_PER_CONVERSATION,
+            max_chunks,
         )
         .map_err(String::from)?;
     }
@@ -311,14 +395,15 @@ async fn index_inner(
         let input: Vec<String> = batch
             .iter()
             .map(|c| {
-                format!(
+                let text = format!(
                     "{}{}",
                     embed.doc_prefix,
                     chunk::embed_text(&c.text, c.heading.as_deref())
-                )
+                );
+                embed.clip(&text).to_string()
             })
             .collect();
-        let vectors = client::embed(&embed.endpoint, &embed.alias, &input).await?;
+        let vectors = embed_batch(embed, input).await?;
         let rows: Vec<(i64, Vec<f32>)> = batch.iter().map(|c| c.chunk_id).zip(vectors).collect();
         db.rag_store_embeddings(id, &rows).map_err(String::from)?;
         done += rows.len();
@@ -475,7 +560,18 @@ pub async fn prepare(
     conversation_id: &str,
     opts: &RetrieveOptions,
 ) -> Result<Prepared, String> {
-    let docs = db.rag_documents(conversation_id).map_err(String::from)?;
+    let mut docs = db.rag_documents(conversation_id).map_err(String::from)?;
+    // Attached knowledge bases are only ever searched (never added whole): their documents
+    // join the search set in retrieval mode.
+    let kbs = db.kb_attached(conversation_id).map_err(String::from)?;
+    let mut kb_docs: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for kb in &kbs {
+        for mut d in db.rag_documents(&kb.id).map_err(String::from)? {
+            d.mode = "retrieval".into();
+            kb_docs.insert(d.id.clone());
+            docs.push(d);
+        }
+    }
     let (full, search_docs) = plan(&docs, opts.context_tokens);
     let mut out = Prepared::default();
     if full.is_empty() && search_docs.is_empty() {
@@ -529,8 +625,15 @@ pub async fn prepare(
         if current.len() < search_docs.len() {
             out.notices.push(err("rag.notice_not_embedded").into());
         }
+        for kb in &kbs {
+            if kb.embed_model.as_deref() != Some(embed.alias.as_str()) {
+                out.notices
+                    .push(err("rag.notice_kb_stale").with("name", &kb.name).into());
+            }
+        }
         if !current.is_empty() {
             let q = format!("{}{}", embed.query_prefix, opts.query.trim());
+            let q = embed.clip(&q).to_string();
             match client::embed(&embed.endpoint, &embed.alias, &[q]).await {
                 Ok(v) => {
                     let vectors = db
@@ -596,6 +699,14 @@ pub async fn prepare(
     if chosen.is_empty() {
         chosen = hits.into_iter().take(top_k).map(|h| (h, None)).collect();
     }
+    // Excerpts of knowledge bases stay within a small share of the context.
+    if chosen.iter().any(|(h, _)| kb_docs.contains(&h.document_id)) {
+        chosen = kb::fit_budget(
+            chosen,
+            |(h, _)| search::estimate_tokens(h.text.chars().count()),
+            kb::token_budget(ctx),
+        );
+    }
     for (i, (hit, score)) in chosen.into_iter().enumerate() {
         let sim = similarity.get(&hit.chunk_id).copied();
         out.tokens += search::estimate_tokens(hit.text.chars().count());
@@ -610,3 +721,6 @@ pub async fn prepare(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod tests_kb;

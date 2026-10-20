@@ -1092,7 +1092,7 @@ pub enum DownloadStatus {
 }
 
 impl DownloadStatus {
-    fn is_pending(&self) -> bool {
+    pub fn is_pending(&self) -> bool {
         matches!(
             self,
             DownloadStatus::Queued | DownloadStatus::Downloading | DownloadStatus::Verifying
@@ -2951,6 +2951,16 @@ impl DownloadManager {
                         )
                     })
                     .await;
+                }
+                // The recommended embedding model of the knowledge bases gets its definition
+                // (pinned to the CPU) as soon as it is complete.
+                if status == DownloadStatus::Completed
+                    && items
+                        .iter()
+                        .any(|i| i.filename == crate::rag::embedder::FILE)
+                {
+                    let _ =
+                        tokio::task::spawn_blocking(crate::rag::embedder::sync_definition).await;
                 }
                 this.update(id, |p| {
                     if status == DownloadStatus::Completed {
