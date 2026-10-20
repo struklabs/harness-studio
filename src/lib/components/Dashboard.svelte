@@ -7,7 +7,7 @@
   import { classifyLevel } from './dashboard/logFilter';
   import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
   import type { HardwareFitResult, LocalModel, ServerStatus, AppSettings, ModelPreset, StorageDirInfo, SystemHardwareInfo, LaunchConfig, ServerProfile, ModelDefinition, DefinitionImport, ModelfileImport, RecoveryOption } from '#lib/types.js';
-  import { onMount, untrack } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { definitionsEpoch, invoke, invokeShared } from '#lib/ipc.js';
   import { estimateLaunchFit, toHardwareFit, vramSpillRisk } from '#lib/fit.js';
   import { t } from '#lib/i18n.svelte.js';
@@ -1310,6 +1310,24 @@
     if (failed || error !== null) logsOpen = true;
   });
 
+  // The title bar's Logs button asks for the console.
+  let logConsole = $state<HTMLDivElement | null>(null);
+  let seenLogsRequest = untrack(() => app.logsRequest);
+  $effect(() => {
+    const r = app.logsRequest;
+    if (active && r !== seenLogsRequest) {
+      seenLogsRequest = r;
+      logsOpen = true;
+      void tick().then(() => {
+        // Let the toolbar's overflow menu finish restoring focus to its trigger first.
+        requestAnimationFrame(() => {
+          logConsole?.scrollIntoView({ block: 'nearest' });
+          logConsole?.focus({ preventScroll: true });
+        });
+      });
+    }
+  });
+
   async function clearLogs() {
     try {
       await serverLogs.clear(shownLogIds);
@@ -1489,7 +1507,9 @@
   <LoraLiveScales {serverStatus} serverId={app.selectedServerId} />
 {/snippet}
 {#snippet logContent()}
-  <LogConsole {logs} sourceIds={logSources} shownIds={shownLogIds} onClear={clearLogs} />
+  <div bind:this={logConsole} tabindex="-1" class="h-full min-h-0 outline-none">
+    <LogConsole {logs} sourceIds={logSources} shownIds={shownLogIds} onClear={clearLogs} />
+  </div>
 {/snippet}
 
 <!-- Right: live telemetry and terminal -->

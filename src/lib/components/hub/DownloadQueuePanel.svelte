@@ -26,9 +26,10 @@
 
   interface Props {
     queue: DownloadQueue;
+    showEmpty?: boolean;
   }
 
-  let { queue }: Props = $props();
+  let { queue, showEmpty = false }: Props = $props();
 
   const uid = $props.id();
 
@@ -110,7 +111,7 @@
 
 <div class="sr-only" role="status" aria-live="polite">{queue.announcement}</div>
 
-{#if queue.jobs.length > 0}
+{#if queue.jobs.length > 0 || showEmpty}
   <section class="flex min-w-0 shrink-0 flex-col rounded-lg border border-border bg-card" aria-labelledby="{uid}-title">
     <header class="flex items-center gap-2 px-3 py-2">
       <h2 id="{uid}-title" class="text-sm font-semibold text-foreground">{t('hub.queue_title')}</h2>
@@ -131,6 +132,10 @@
       </Button>
       {/if}
     </header>
+
+    {#if queue.jobs.length === 0}
+      <p class="px-3 pb-3 text-sm text-muted-foreground">{t('toolbar.downloads_empty')}</p>
+    {/if}
 
     {#if queue.actionError}
       <div class="mx-3 mb-2 flex items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive" role="alert">
