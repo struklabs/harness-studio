@@ -1,3 +1,5 @@
+import { toast } from 'svelte-sonner';
+import { t } from '#lib/i18n.svelte.js';
 import { observeThinking, resetThinking } from './thinking';
 import { guardToolCalls } from './toolLoopGuard';
 // Playground split view (P2): the same prompt against two models or two presets side by side.
@@ -351,8 +353,9 @@ export async function streamInto(
     const request = await chatRequest(ep.baseUrl,
       { ...body, stream: true, stream_options: { include_usage: true } },
       { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...ep.headers }, local.signal);
+    if (request.routingFallback) toast.warning(`${t('w4.routing_fallback')} ${request.routingError}`);
     const res = request.response;
-    if (!request.body.tools) names.length = 0;
+    names.splice(0, names.length, ...((request.body.tools ?? []) as { function: { name: string } }[]).map(tool => tool.function.name));
     if (!res.ok) {
       const raw = await res.text().catch(() => '');
       result = { status: res.status, code: errorCode(raw) ?? res.headers.get('x-harness-error') ?? undefined };

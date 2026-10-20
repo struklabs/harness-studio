@@ -1054,7 +1054,7 @@ export type HfNotRunnable =
   | 'component_only';
 
 /** `harness_core::model_registry::Capability`. */
-export type ModelCapability = 'chat' | 'vision' | 'audio' | 'embedding' | 'rerank' | 'asr' | 'tts' | 'image_generation';
+export type ModelCapability = 'chat' | 'vision' | 'audio' | 'embedding' | 'rerank' | 'asr' | 'tts' | 'image_generation' | 'video';
 
 /** `harness_core::model_registry::ModelRecord`: capability, format, runtime (a local file or a Hub repo). */
 export interface ModelRecord {

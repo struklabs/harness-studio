@@ -89,6 +89,7 @@
     asr: 'hub.cap_asr',
     tts: 'hub.cap_tts',
     image_generation: 'hub.cap_image',
+    video: 'w4.video',
   };
   let capLabels = $derived((repo.capabilities ?? []).map((c) => t(CAP_KEY[c])));
   let owner = $derived(repo.id.includes('/') ? repo.id.split('/')[0] : (repo.author ?? ''));
