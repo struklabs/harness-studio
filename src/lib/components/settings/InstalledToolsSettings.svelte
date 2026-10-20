@@ -140,8 +140,8 @@
 </script>
 
 <TrustPermissions kind="scoped" />
-<SkillsSettings revision={skillsRevision} onChanged={() => skillsRevision++} />
 <OfficialRegistry installed={items} {skillsRevision} onSkill={() => skillsRevision++} reviewing={pending !== null} onTool={async path => { pending = { path, tool: await inspectInstalledTool(path) }; }} />
+<SkillsSettings revision={skillsRevision} onChanged={() => skillsRevision++} />
 
 <SettingGroup title={t('tools.inst_title')} {showTitle} hint={t('tools.inst_desc')}>
   {#if error}

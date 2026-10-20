@@ -154,7 +154,8 @@ pub fn owner_client(info: &instance::InstanceInfo) -> CliResult<Option<ApiClient
         _ => host,
     };
     let base = format!(
-        "http://{}:{}{}",
+        "{}://{}:{}{}",
+        if api.tls { "https" } else { "http" },
         host,
         api.port,
         harness_core::control_api::BASE_PATH
@@ -258,6 +259,7 @@ pub async fn connect(g: &GlobalArgs, data_dir: &Path, need: Need, out: &Out) -> 
 
 /// Settings of an in-process instance.
 pub struct InstanceOptions {
+    pub browser: Option<harness_api::browser::BrowserConfig>,
     pub settings: ControlApiSettings,
     /// Pick a free loopback port (temporary instances).
     pub ephemeral_port: bool,
@@ -274,6 +276,7 @@ impl InstanceOptions {
                 enabled: true,
                 ..Default::default()
             },
+            browser: None,
             ephemeral_port: true,
             strict_port: false,
             shutdown: None,
@@ -284,6 +287,7 @@ impl InstanceOptions {
 /// Core services + Control API of an in-process instance that owns the data directory
 /// (temporary instances and `harness serve`).
 pub struct Instance {
+    pub setup_code: Option<String>,
     pub lock: Arc<InstanceLock>,
     pub api: ApiServer,
     pub ctx: ApiContext,
@@ -322,6 +326,14 @@ impl Instance {
             .await
             .map_err(|e| CliError::general("cli.io", e.to_string()))?;
         let api = ApiServer::new();
+        let setup_code = if let Some(config) = options.browser {
+            let (auth, code) = harness_api::browser::BrowserAuth::open(data_dir, config)
+                .map_err(CliError::core)?;
+            api.set_browser(auth);
+            code
+        } else {
+            None
+        };
         api.set_instance(Some(lock.clone()));
         api.set_shutdown_hook(options.shutdown.clone());
         api.set_strict_port(options.strict_port);
@@ -360,6 +372,7 @@ impl Instance {
         }
         let token = api.session_token().await.unwrap_or_default();
         Ok(Self {
+            setup_code,
             lock,
             base_url: status.base_url.unwrap_or_default(),
             api,

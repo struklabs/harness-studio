@@ -479,6 +479,11 @@ async fn openapi_document_is_valid_and_lists_every_route() {
     let paths = doc["paths"].as_object().unwrap();
     let expected: &[(&str, &[&str])] = &[
         ("/health", &["get"]),
+        ("/browser/session", &["get"]),
+        ("/browser/login", &["post"]),
+        ("/browser/logout", &["post"]),
+        ("/browser/sessions", &["delete"]),
+        ("/browser/settings", &["get", "put"]),
         ("/status", &["get"]),
         ("/hardware", &["get"]),
         ("/hardware/devices", &["get"]),
@@ -617,7 +622,7 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         let status = api.get(path).await.status();
         assert_ne!(status, 404, "{path}");
     }
-    // /health is public in the document, everything else inherits the bearer requirement.
+    // Public operations declare empty security; protected operations inherit bearer/cookie auth.
     let health = &paths[&format!("{}/health", control_api::BASE_PATH)]["get"];
     assert_eq!(health["security"], json!([{}]));
     // Every $ref resolves.
@@ -680,7 +685,7 @@ fn openapi_operations_have_unique_ids_and_auth_errors() {
                     "{method} {path}: `{name}` undeclared"
                 );
             }
-            if path.ends_with("/health") {
+            if op["security"] == json!([{}]) {
                 continue;
             }
             for code in ["401", "403"] {

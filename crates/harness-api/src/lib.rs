@@ -12,6 +12,7 @@
 //!   `instance.json`.
 
 pub mod auth;
+pub mod browser;
 pub mod error;
 mod mcp;
 mod routes;
@@ -54,6 +55,7 @@ pub struct ApiContext {
 /// Per-listener state handed to every handler.
 #[derive(Clone)]
 pub struct AppState {
+    pub browser: Option<Arc<browser::BrowserAuth>>,
     pub ctx: ApiContext,
     pub session_token: Arc<str>,
     pub tokens: TokenStore,
@@ -83,6 +85,7 @@ pub struct ApiStatus {
 }
 
 struct Running {
+    tls: bool,
     addr: SocketAddr,
     session_token: String,
     token_path: PathBuf,
@@ -129,6 +132,7 @@ fn follow_port(data_dir: &std::path::Path, port: u16, history: Vec<u16>) {
 /// Starts and stops the API listener. At most one listener at a time.
 #[derive(Default)]
 pub struct ApiServer {
+    browser: std::sync::Mutex<Option<Arc<browser::BrowserAuth>>>,
     running: Mutex<Option<Running>>,
     last_error: std::sync::Mutex<Option<String>>,
     instance: std::sync::Mutex<Option<Arc<InstanceLock>>>,
@@ -137,11 +141,16 @@ pub struct ApiServer {
     strict_port: std::sync::atomic::AtomicBool,
 }
 
-fn base_url(addr: &SocketAddr) -> String {
-    format!("http://{}{}", addr, control_api::BASE_PATH)
+fn base_url(addr: &SocketAddr, tls: bool) -> String {
+    let scheme = if tls { "https" } else { "http" };
+    format!("{scheme}://{addr}{}", control_api::BASE_PATH)
 }
 
 impl ApiServer {
+    pub fn set_browser(&self, auth: Arc<browser::BrowserAuth>) {
+        *self.browser.lock().unwrap() = Some(auth);
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -223,6 +232,34 @@ impl ApiServer {
             }
         };
         let addr = listener.local_addr().map_err(|e| e.to_string())?;
+        let browser = self.browser.lock().unwrap().clone();
+        let tls = browser.as_ref().is_some_and(|b| b.tls);
+        if let Some(b) = &browser {
+            if let Some(origin) = &b.config.public_origin {
+                let normalized = harness_core::network::normalize_origin(origin)?;
+                let scheme = if tls { "https://" } else { "http://" };
+                if normalized != *origin || !origin.starts_with(scheme) {
+                    return Err("browser.origin".into());
+                }
+            } else if !harness_core::network::is_loopback_host(&settings.host) {
+                return Err("browser.public_origin_required".into());
+            }
+        }
+        let tls_config = if let Some(b) = browser.as_ref().filter(|b| b.tls) {
+            let _ = rustls::crypto::ring::default_provider().install_default();
+            Some(
+                axum_server::tls_rustls::RustlsConfig::from_pem_file(
+                    b.config.tls_cert.as_ref().unwrap(),
+                    b.config.tls_key.as_ref().unwrap(),
+                )
+                .await
+                .map_err(|e| format!("browser.tls: {e}"))?,
+            )
+        } else {
+            None
+        };
+        let session_token = control_api::new_session_token()?;
+        let token_path = control_api::write_session_token(&ctx.data_dir, &session_token)?;
         if fallback.is_some() {
             PortState::update(&ctx.data_dir, |s| s.control_api = Some(addr.port()));
         }
@@ -230,9 +267,8 @@ impl ApiServer {
             .control_api_history;
         follow_port(&ctx.data_dir, addr.port(), history);
         harness_core::ports::set_live_api_port(Some(addr.port()));
-        let session_token = control_api::new_session_token()?;
-        let token_path = control_api::write_session_token(&ctx.data_dir, &session_token)?;
         let state = AppState {
+            browser,
             session_token: session_token.clone().into(),
             tokens,
             addr,
@@ -244,22 +280,39 @@ impl ApiServer {
         let app = routes::router(state, &settings.cors_origins);
         let (tx, rx) = oneshot::channel::<()>();
         let task = tokio::spawn(async move {
-            let _ = axum::serve(listener, app)
-                .with_graceful_shutdown(async {
+            if let Some(config) = tls_config {
+                let handle = axum_server::Handle::new();
+                let shutdown = handle.clone();
+                let watcher = tokio::spawn(async move {
                     let _ = rx.await;
-                })
-                .await;
+                    shutdown.graceful_shutdown(Some(std::time::Duration::from_secs(1)));
+                });
+                if let Ok(listener) = listener.into_std() {
+                    if let Ok(server) = axum_server::from_tcp_rustls(listener, config) {
+                        let _ = server.handle(handle).serve(app.into_make_service()).await;
+                    }
+                }
+                watcher.abort();
+            } else {
+                let _ = axum::serve(listener, app)
+                    .with_graceful_shutdown(async {
+                        let _ = rx.await;
+                    })
+                    .await;
+            }
         });
         if let Some(lock) = self.instance.lock().unwrap().as_ref() {
             let endpoint = ApiEndpoint {
                 host: addr.ip().to_string(),
                 port: addr.port(),
+                tls,
             };
             if let Err(e) = lock.set_api(Some(endpoint), Some(token_path.clone())) {
                 eprintln!("[Harness Studio] instance.json yazılamadı: {}", e);
             }
         }
         *self.running.lock().await = Some(Running {
+            tls,
             addr,
             session_token,
             token_path,
@@ -276,6 +329,9 @@ impl ApiServer {
         let Some(running) = self.running.lock().await.take() else {
             return;
         };
+        if let Some(browser) = self.browser.lock().unwrap().as_ref() {
+            browser.revoke_all();
+        }
         let _ = running.shutdown.send(());
         // Long-lived SSE connections would keep a graceful shutdown waiting: give it a moment,
         // then abort.
@@ -298,7 +354,7 @@ impl ApiServer {
         match self.running.lock().await.as_ref() {
             Some(r) => ApiStatus {
                 running: true,
-                base_url: Some(base_url(&r.addr)),
+                base_url: Some(base_url(&r.addr, r.tls)),
                 host: Some(r.addr.ip().to_string()),
                 port: Some(r.addr.port()),
                 token_path: Some(r.token_path.clone()),

@@ -268,6 +268,7 @@ pub async fn run_tool(
         .map(|t| t.def().class.as_str());
     let client = label(req.client).unwrap_or_else(|| match &caller.principal {
         Principal::Session => "api".to_string(),
+        Principal::Browser => "api:browser".to_string(),
         Principal::Named { name, .. } => format!("api:{name}"),
     });
     let mut origin = ToolOrigin::new(client);
