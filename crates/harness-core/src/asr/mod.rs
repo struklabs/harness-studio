@@ -65,6 +65,12 @@ pub enum AsrFamily {
     /// Cohere Transcribe (14 languages, punctuation): `encoder` + `decoder`; it needs the
     /// language named ([`cohere_language`]).
     CohereTranscribe,
+    /// OpenAI Whisper exported for sherpa-onnx (`<size>-encoder.onnx`, `<size>-decoder.onnx`,
+    /// `<size>-tokens.txt`), multilingual or English only.
+    Whisper,
+    /// Moonshine v1 (English, tiny and base): `preprocess`, `encode`, `uncached_decode` and
+    /// `cached_decode` graphs.
+    Moonshine,
 }
 
 impl AsrFamily {
@@ -79,6 +85,8 @@ impl AsrFamily {
             Self::Dolphin => "dolphin",
             Self::StreamingTransducer => "streaming_transducer",
             Self::CohereTranscribe => "cohere_transcribe",
+            Self::Whisper => "whisper",
+            Self::Moonshine => "moonshine",
         }
     }
 
@@ -107,6 +115,11 @@ pub struct AsrModel {
     pub decoder: Option<PathBuf>,
     #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
     pub joiner: Option<PathBuf>,
+    /// Moonshine's `preprocess.onnx` (`model_file` is its encoder, `decoder` the uncached and
+    /// `joiner` the cached decoder).
+    #[serde(default)]
+    #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
+    pub preprocessor: Option<PathBuf>,
     #[cfg_attr(feature = "openapi", schema(value_type = String))]
     pub tokens: PathBuf,
     pub size_bytes: u64,
@@ -132,56 +145,170 @@ fn pick_onnx(files: &[PathBuf], prefix: &str) -> Option<PathBuf> {
     found.first().map(|p| (*p).clone())
 }
 
-/// Whether `dir` is a speech-recognition model folder this build runs, and which: the files
-/// sherpa-onnx's published archives have (`tokens.txt` plus `encoder` / `decoder` / `joiner`, or
-/// one `model*.onnx` and a family name in the folder name). A transducer whose folder name says
-/// `streaming` is a streaming one; Cohere Transcribe is an `encoder` + `decoder` in a `cohere`
-/// folder. Other streaming models (CTC, Paraformer), Whisper (whisper.cpp runs those), Canary,
-/// Moonshine and the text-to-speech folders are not recognised.
-pub fn detect(dir: &Path) -> Option<AsrModel> {
-    let name = file_name(dir);
+/// Names of `files` (lower case) that are `.onnx` graphs.
+fn onnx_names(files: &[String]) -> Vec<String> {
+    files
+        .iter()
+        .map(|f| f.to_ascii_lowercase())
+        .filter(|f| f.ends_with(".onnx"))
+        .collect()
+}
+
+/// Whether an `.onnx` name in `names` starts with `prefix` (`encoder-epoch-99.onnx`).
+fn has_onnx(names: &[String], prefix: &str) -> bool {
+    names.iter().any(|n| n.starts_with(prefix))
+}
+
+/// The `.onnx` of a Whisper export whose name has `-<part>` (`tiny.en-encoder.int8.onnx`):
+/// int8 before the rest.
+fn pick_whisper(files: &[PathBuf], part: &str) -> Option<PathBuf> {
+    let marker = format!("-{part}");
+    let mut found: Vec<&PathBuf> = files
+        .iter()
+        .filter(|p| {
+            let n = file_name(p).to_ascii_lowercase();
+            n.contains(&marker) && n.ends_with(".onnx")
+        })
+        .collect();
+    found.sort_by_key(|p| {
+        let n = file_name(p).to_ascii_lowercase();
+        (!n.contains("int8"), n)
+    });
+    found.first().map(|p| (*p).clone())
+}
+
+/// A sherpa-onnx Whisper export's tokens file (`tiny.en-tokens.txt`).
+fn whisper_tokens(files: &[PathBuf]) -> Option<PathBuf> {
+    files
+        .iter()
+        .find(|p| file_name(p).to_ascii_lowercase().ends_with("-tokens.txt"))
+        .cloned()
+}
+
+/// The architecture of a sherpa-onnx speech-recognition folder (or Hub repo) from its `name`
+/// and the names of the files at its root, `None` for what this build does not run. One
+/// function for the local scan ([`detect`]) and for the Hub listing ([`crate::sherpa_layout`]).
+pub fn classify(name: &str, files: &[String]) -> Option<AsrFamily> {
     let lower = name.to_ascii_lowercase();
+    let onnx = onnx_names(files);
+    let tokens = files.iter().any(|f| f == "tokens.txt");
+    // Whisper: `<size>-encoder.onnx` + `<size>-decoder.onnx` + `<size>-tokens.txt`.
+    let whisper_tokens = files
+        .iter()
+        .any(|f| f.to_ascii_lowercase().ends_with("-tokens.txt"));
+    if whisper_tokens
+        && onnx.iter().any(|n| n.contains("-encoder"))
+        && onnx.iter().any(|n| n.contains("-decoder"))
+    {
+        return Some(AsrFamily::Whisper);
+    }
     if lower.contains("whisper") {
+        // whisper.cpp runs those (ggml); a transformers / Optimum export is no sherpa layout.
         return None;
     }
+    if !tokens {
+        return None;
+    }
+    // Moonshine v1: four graphs, `tokens.txt`.
+    if has_onnx(&onnx, "preprocess")
+        && has_onnx(&onnx, "encode")
+        && has_onnx(&onnx, "uncached_decode")
+        && has_onnx(&onnx, "cached_decode")
+    {
+        return Some(AsrFamily::Moonshine);
+    }
     let streaming = lower.contains("streaming");
-    let files = files_of(dir);
-    let tokens = files.iter().find(|p| file_name(p) == "tokens.txt")?.clone();
-    let transducer = (
-        pick_onnx(&files, "encoder"),
-        pick_onnx(&files, "decoder"),
-        pick_onnx(&files, "joiner"),
+    let (enc, dec, join) = (
+        has_onnx(&onnx, "encoder"),
+        has_onnx(&onnx, "decoder"),
+        has_onnx(&onnx, "joiner"),
     );
-    let (family, model_file, decoder, joiner) = if let (Some(e), Some(d), Some(j)) = transducer {
-        let nemo = lower.contains("nemo") || lower.contains("parakeet");
-        let family = if streaming {
+    if enc && dec && join {
+        return Some(if streaming {
             AsrFamily::StreamingTransducer
-        } else if nemo {
+        } else if lower.contains("nemo") || lower.contains("parakeet") {
             AsrFamily::NemoTransducer
         } else {
             AsrFamily::Transducer
-        };
-        (family, e, Some(d), Some(j))
-    } else if streaming {
+        });
+    }
+    if streaming {
         return None;
-    } else if let (true, (Some(e), Some(d), None)) = (lower.contains("cohere"), transducer) {
-        (AsrFamily::CohereTranscribe, e, Some(d), None)
+    }
+    if lower.contains("cohere") && enc && dec {
+        return Some(AsrFamily::CohereTranscribe);
+    }
+    if !has_onnx(&onnx, "model") {
+        return None;
+    }
+    if lower.contains("sense-voice") || lower.contains("sensevoice") {
+        Some(AsrFamily::SenseVoice)
+    } else if lower.contains("paraformer") {
+        Some(AsrFamily::Paraformer)
+    } else if lower.contains("omnilingual") {
+        Some(AsrFamily::Omnilingual)
+    } else if lower.contains("dolphin") {
+        Some(AsrFamily::Dolphin)
+    } else if lower.contains("nemo") && lower.contains("ctc") {
+        Some(AsrFamily::NemoCtc)
     } else {
-        let model = pick_onnx(&files, "model")?;
-        let family = if lower.contains("sense-voice") || lower.contains("sensevoice") {
-            AsrFamily::SenseVoice
-        } else if lower.contains("paraformer") {
-            AsrFamily::Paraformer
-        } else if lower.contains("omnilingual") {
-            AsrFamily::Omnilingual
-        } else if lower.contains("dolphin") {
-            AsrFamily::Dolphin
-        } else if lower.contains("nemo") && lower.contains("ctc") {
-            AsrFamily::NemoCtc
-        } else {
-            return None;
-        };
-        (family, model, None, None)
+        None
+    }
+}
+
+/// Whether `dir` is a speech-recognition model folder this build runs, and which: the files
+/// sherpa-onnx's published archives have (`tokens.txt` plus `encoder` / `decoder` / `joiner`,
+/// or one `model*.onnx` and a family name in the folder name, or Whisper's `<size>-encoder` /
+/// `<size>-decoder` / `<size>-tokens.txt`, or Moonshine's four graphs), see [`classify`]. A
+/// transducer whose folder name says `streaming` is a streaming one; Cohere Transcribe is an
+/// `encoder` + `decoder` in a `cohere` folder. Other streaming models (CTC, Paraformer),
+/// Canary and the text-to-speech folders are not recognised.
+pub fn detect(dir: &Path) -> Option<AsrModel> {
+    let name = file_name(dir);
+    let files = files_of(dir);
+    let names: Vec<String> = files.iter().map(|p| file_name(p)).collect();
+    let class = classify(&name, &names)?;
+    let mut preprocessor = None;
+    let (family, model_file, decoder, joiner, tokens) = match class {
+        AsrFamily::Whisper => (
+            class,
+            pick_whisper(&files, "encoder")?,
+            Some(pick_whisper(&files, "decoder")?),
+            None,
+            whisper_tokens(&files)?,
+        ),
+        AsrFamily::Moonshine => {
+            preprocessor = Some(pick_onnx(&files, "preprocess")?);
+            (
+                class,
+                pick_onnx(&files, "encode")?,
+                Some(pick_onnx(&files, "uncached_decode")?),
+                Some(pick_onnx(&files, "cached_decode")?),
+                files.iter().find(|p| file_name(p) == "tokens.txt")?.clone(),
+            )
+        }
+        _ => {
+            let tokens = files.iter().find(|p| file_name(p) == "tokens.txt")?.clone();
+            match class {
+                AsrFamily::NemoTransducer
+                | AsrFamily::Transducer
+                | AsrFamily::StreamingTransducer => (
+                    class,
+                    pick_onnx(&files, "encoder")?,
+                    Some(pick_onnx(&files, "decoder")?),
+                    Some(pick_onnx(&files, "joiner")?),
+                    tokens,
+                ),
+                AsrFamily::CohereTranscribe => (
+                    class,
+                    pick_onnx(&files, "encoder")?,
+                    Some(pick_onnx(&files, "decoder")?),
+                    None,
+                    tokens,
+                ),
+                _ => (class, pick_onnx(&files, "model")?, None, None, tokens),
+            }
+        }
     };
     let languages = catalog::find(&name)
         .map(|e| e.languages)
@@ -196,6 +323,7 @@ pub fn detect(dir: &Path) -> Option<AsrModel> {
         model_file,
         decoder,
         joiner,
+        preprocessor,
         tokens,
         languages,
     })
@@ -256,7 +384,16 @@ pub(crate) fn library_models_in(
     root: &Path,
     tree: &crate::models::discovery::DirectoryTree,
 ) -> Vec<crate::models::LocalModel> {
-    let mut models = tree.scan(root, &["tokens.txt"], detect, |m| m.id.clone());
+    // Whisper's tokens file is `<size>-tokens.txt`.
+    let mut models = tree.scan_where(
+        root,
+        |name| {
+            let n = name.to_ascii_lowercase();
+            n == "tokens.txt" || n.ends_with("-tokens.txt")
+        },
+        detect,
+        |m| m.id.clone(),
+    );
     models.sort_by(|a, b| a.name.cmp(&b.name));
     models
         .into_iter()
@@ -383,6 +520,34 @@ pub fn sense_voice_language(language: Option<&str>) -> &'static str {
     }
 }
 
+/// Whisper's language code for a request's `language` (`tr`, `tr-TR`, `Turkish`): the two or
+/// three letter code, `None` for nothing or `auto` (the model then detects the language).
+pub fn whisper_language(language: Option<&str>) -> Option<String> {
+    let l = language?.trim().to_ascii_lowercase();
+    if l.is_empty() || l == "auto" {
+        return None;
+    }
+    let code = l.split(['-', '_']).next().unwrap_or_default();
+    let code = match code {
+        "english" => "en",
+        "turkish" => "tr",
+        "german" => "de",
+        "french" => "fr",
+        "spanish" => "es",
+        "italian" => "it",
+        "portuguese" => "pt",
+        "russian" => "ru",
+        "chinese" | "mandarin" => "zh",
+        "japanese" => "ja",
+        "korean" => "ko",
+        "arabic" => "ar",
+        other => other,
+    };
+    code.chars()
+        .all(|c| c.is_ascii_alphabetic())
+        .then(|| code.to_string())
+}
+
 /// Cohere Transcribe's languages (it has no automatic detection).
 pub const COHERE_LANGUAGES: [&str; 14] = [
     "en", "fr", "de", "it", "es", "pt", "el", "nl", "pl", "zh", "ja", "ko", "vi", "ar",
@@ -485,6 +650,35 @@ pub fn build_args(model: &AsrModel, params: &Params) -> Vec<String> {
         AsrFamily::Omnilingual => args.push(path_arg("--omnilingual-asr-model", &model.model_file)),
         AsrFamily::Dolphin => args.push(path_arg("--dolphin-model", &model.model_file)),
         AsrFamily::StreamingTransducer => unreachable!("built above"),
+        AsrFamily::Whisper => {
+            args.push(path_arg("--whisper-encoder", &model.model_file));
+            if let Some(d) = &model.decoder {
+                args.push(path_arg("--whisper-decoder", d));
+            }
+            // No `--whisper-tail-paddings`: the tool's own default (1000 frames) is the one that
+            // does not repeat the sentence on the silence the run pads the audio with (measured
+            // on tiny.en: 50 and 300 looped, -1 did not). An English-only model takes no language.
+            let english_only = file_name(&model.model_file)
+                .to_ascii_lowercase()
+                .contains(".en-");
+            if !english_only {
+                if let Some(lang) = whisper_language(params.language.as_deref()) {
+                    args.push(format!("--whisper-language={lang}"));
+                }
+            }
+        }
+        AsrFamily::Moonshine => {
+            if let Some(p) = &model.preprocessor {
+                args.push(path_arg("--moonshine-preprocessor", p));
+            }
+            args.push(path_arg("--moonshine-encoder", &model.model_file));
+            if let Some(d) = &model.decoder {
+                args.push(path_arg("--moonshine-uncached-decoder", d));
+            }
+            if let Some(j) = &model.joiner {
+                args.push(path_arg("--moonshine-cached-decoder", j));
+            }
+        }
         AsrFamily::CohereTranscribe => {
             args.push(path_arg("--cohere-transcribe-encoder", &model.model_file));
             if let Some(d) = &model.decoder {
