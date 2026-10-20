@@ -140,6 +140,10 @@ pub fn run() {
             desktop::show_main_window(app);
         }));
     }
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.on_web_content_process_terminate(desktop::recover_web_content);
+    }
     builder
         .setup(move |app| {
             startup::mark("setup entry (window created)");
@@ -363,6 +367,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             desktop::is_tray_available,
+            desktop::take_display_recovered,
             desktop::resolve_window_close,
             desktop::release_window,
             detect_system_hardware,

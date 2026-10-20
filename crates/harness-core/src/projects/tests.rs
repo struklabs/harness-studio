@@ -281,6 +281,12 @@ fn export_holds_manifest_chats_and_files() {
         .unwrap();
     assert_eq!(text, "first");
     assert!(archive.by_name(&format!("chats/{conv}.json")).is_ok());
+    // Entries carry real times, not the format's 1980 epoch.
+    for i in 0..archive.len() {
+        let entry = archive.by_index(i).unwrap();
+        let year = entry.last_modified().map(|t| t.year()).unwrap_or(0);
+        assert!(year >= 2024, "{:?} dated {year}", entry.name());
+    }
     assert!(!dest.with_extension("zip.part").exists());
 }
 
