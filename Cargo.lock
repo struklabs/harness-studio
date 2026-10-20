@@ -2377,6 +2377,7 @@ dependencies = [
  "harness-core",
  "harness-gateway",
  "libc",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "tauri",
