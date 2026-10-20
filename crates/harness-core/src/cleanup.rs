@@ -240,10 +240,18 @@ pub fn remove_platform_caches(identifier: &str, root: &Path) -> Result<(), Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+    /// macOS temp dirs live under the /var symlink, which check_path rightly refuses.
+    fn base(temp: &tempfile::TempDir) -> PathBuf {
+        if cfg!(target_os = "macos") {
+            temp.path().canonicalize().unwrap()
+        } else {
+            temp.path().to_path_buf()
+        }
+    }
     #[test]
     fn allowlist_preserves_models_and_user_content() {
         let temp = tempfile::tempdir().unwrap();
-        let root = temp.path().join("com.harnessstudio.cleanup-test");
+        let root = base(&temp).join("com.harnessstudio.cleanup-test");
         fs::create_dir_all(&root).unwrap();
         for name in [
             "models",
@@ -275,7 +283,7 @@ mod tests {
         ] {
             assert!(root.join(name).join("keep").is_file());
         }
-        assert!(validate_root(temp.path(), "com.harnessstudio.app").is_err());
+        assert!(validate_root(&base(&temp), "com.harnessstudio.app").is_err());
         // A marker cannot legitimise the home directory or a drive root.
         if let Some(home) = dirs::home_dir() {
             assert!(validate_root(&home, "com.harnessstudio.app").is_err());
@@ -290,8 +298,8 @@ mod tests {
     #[test]
     fn deletion_unlinks_nested_links_without_following_them() {
         let temp = tempfile::tempdir().unwrap();
-        let root = temp.path().join("owned");
-        let outside = temp.path().join("outside");
+        let root = base(&temp).join("owned");
+        let outside = base(&temp).join("outside");
         fs::create_dir_all(&root).unwrap();
         fs::create_dir_all(&outside).unwrap();
         fs::write(outside.join("keep"), b"data").unwrap();
@@ -316,7 +324,7 @@ mod tests {
     #[test]
     fn keep_data_cleanup_is_fast_and_skips_models() {
         let temp = tempfile::tempdir().unwrap();
-        let root = temp.path().join("com.harnessstudio.cleanup-speed");
+        let root = base(&temp).join("com.harnessstudio.cleanup-speed");
         for dir in ["bin", "cache", "logs", "models"] {
             let p = root.join(dir);
             fs::create_dir_all(&p).unwrap();
