@@ -47,7 +47,7 @@ Deliver vertical slices in order: each wave includes setup, use, permissions, an
 
 ### W2 — Connect an Agent and Complete a Task
 
-First slice: [Hermes Agent connection and first task](HERMES_AGENT.md) is implemented; the remaining W2 items below are not yet complete.
+Delivered slices: [Hermes Agent connection, tasks, scoped read permissions, history/audit, and existing Paperclip model handoff](HERMES_AGENT.md). The broader OpenClaw, upstream update, and Tool Builder items below remain open.
 
 - [ ] Install OpenClaw or Hermes Agent on demand, or connect existing installations; manage upstream versions, setup, start/update, missing dependencies, and first-run tests while preserving external interfaces.
 - [ ] Supply local or Harness Link models to OpenClaw, Hermes Agent, and an existing Paperclip instance; recommend models for task/hardware needs and configure endpoints/keys securely. Paperclip lifecycle management remains Later.

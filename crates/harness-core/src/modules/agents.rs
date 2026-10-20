@@ -1,4 +1,4 @@
-//! Hermes upstream adapter. Credentials never cross IPC; first tasks have no tools.
+//! Hermes upstream adapter with private Harness history and explicit run grants.
 use crate::{
     control_api::{Scope, TokenStore},
     store::JsonStore,
@@ -414,11 +414,129 @@ fn disconnect_in(dir: &Path, tokens: &TokenStore) -> Result<(), String> {
     Ok(())
 }
 
-#[derive(Clone, Serialize, Default)]
+#[derive(Clone, Serialize, Deserialize, Default)]
+#[serde(default)]
 pub struct TaskStatus {
+    pub id: String,
+    pub model: String,
+    pub prompt: String,
+    pub started_at: u64,
+    pub finished_at: Option<u64>,
+    pub tokens: Option<u64>,
+    pub grants: RunGrants,
+    pub audit: Vec<String>,
     pub status: String,
     pub output: String,
     pub error: Option<String>,
+}
+/// Only bounded, read-only file tools are supported. Shell, writes and additional
+/// network access cannot be granted by this adapter.
+#[derive(Clone, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct RunGrants {
+    pub read_folders: Vec<PathBuf>,
+}
+impl RunGrants {
+    fn validate(&mut self) -> Result<(), String> {
+        if self.read_folders.len() > 8 {
+            return Err("agents.scope_invalid".into());
+        }
+        for folder in &mut self.read_folders {
+            #[cfg(windows)]
+            {
+                use std::{
+                    os::windows::fs::MetadataExt,
+                    path::{Component, Prefix},
+                };
+                if !matches!(folder.components().next(), Some(Component::Prefix(p)) if matches!(p.kind(), Prefix::Disk(_) | Prefix::VerbatimDisk(_)))
+                {
+                    return Err("agents.scope_invalid".into());
+                }
+                let mut parts: Vec<_> = folder.ancestors().collect();
+                parts.reverse();
+                for part in parts {
+                    if std::fs::symlink_metadata(part)
+                        .map_err(|_| "agents.scope_invalid")?
+                        .file_attributes()
+                        & 0x400
+                        != 0
+                    {
+                        return Err("agents.scope_invalid".into());
+                    }
+                }
+            }
+            if !folder.is_absolute() || !folder.is_dir() || folder.parent().is_none() {
+                return Err("agents.scope_invalid".into());
+            }
+            *folder = folder.canonicalize().map_err(|_| "agents.scope_invalid")?;
+            if folder.parent().is_none() {
+                return Err("agents.scope_invalid".into());
+            }
+        }
+        Ok(())
+    }
+}
+fn now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+fn history_store() -> JsonStore {
+    JsonStore::sensitive(crate::paths::data_root().join("agents/history.json"))
+}
+fn save_task(status: &TaskStatus) -> Result<(), String> {
+    history_store().update::<Vec<TaskStatus>, _>(|entries| {
+        entries.retain(|e| e.id != status.id);
+        entries.insert(0, status.clone());
+        Ok(())
+    })
+}
+pub fn task_history() -> Result<Vec<TaskStatus>, String> {
+    // Serialize recovery with start/delete so a newly started run cannot be
+    // mistaken for an interrupted run by an earlier history poll.
+    let task = TASK.lock().unwrap();
+    let active = task
+        .as_ref()
+        .map(|run| run.status.lock().unwrap().clone())
+        .unwrap_or_default();
+    history_store().update::<Vec<TaskStatus>, _>(|entries| {
+        for entry in entries.iter_mut() {
+            if entry.id == active.id {
+                // Never replace a newer durable completion with a stale poll.
+                continue;
+            } else if entry.status == "running" {
+                entry.status = "interrupted".into();
+                entry.finished_at = Some(now());
+                entry.audit.push("interrupted".into());
+            }
+        }
+        let mut view = entries.clone();
+        if let Some(entry) = view.iter_mut().find(|e| e.id == active.id) {
+            *entry = active;
+        }
+        Ok(view)
+    })
+}
+pub fn delete_task(id: &str) -> Result<(), String> {
+    let mut slot = TASK.lock().unwrap();
+    if let Some(run) = slot.as_ref() {
+        let status = run.status.lock().unwrap();
+        if status.id == id && status.status == "running" {
+            return Err("agents.busy".into());
+        }
+    }
+    history_store().update::<Vec<TaskStatus>, _>(|entries| {
+        entries.retain(|e| e.id != id);
+        Ok(())
+    })?;
+    if slot
+        .as_ref()
+        .is_some_and(|r| r.status.lock().unwrap().id == id)
+    {
+        *slot = None;
+    }
+    Ok(())
 }
 struct Run {
     status: Mutex<TaskStatus>,
@@ -440,6 +558,7 @@ fn running() -> bool {
 pub fn stop() {
     if let Some(r) = TASK.lock().unwrap().as_ref() {
         r.cancel.store(true, Ordering::SeqCst);
+        r.status.lock().unwrap().audit.push("stop_requested".into());
     }
 }
 /// Give workers time to reap process trees and remove temporary task secrets on exit.
@@ -460,6 +579,10 @@ pub fn shutdown() {
     }
 }
 pub fn start_task(prompt: String) -> Result<(), String> {
+    start_task_with_grants(prompt, RunGrants::default())
+}
+pub fn start_task_with_grants(prompt: String, mut grants: RunGrants) -> Result<(), String> {
+    grants.validate()?;
     let _connection = CONNECTION_LOCK.lock().unwrap();
     let mut task = TASK.lock().unwrap();
     if task
@@ -483,16 +606,24 @@ pub fn start_task(prompt: String) -> Result<(), String> {
     // A clean upstream home avoids user hooks, MCP servers, skills and credential fallbacks.
     let isolated = tempfile::tempdir().map_err(|e| e.to_string())?;
     JsonStore::sensitive(isolated.path().join("config.yaml")).write_bytes(serde_norway::to_string(&json!({"model": value["model"], "toolsets": [], "agent": {"max_turns": 2}, "skills": {"auto_load": []}})).map_err(|e| e.to_string())?.as_bytes())?;
-    JsonStore::sensitive(isolated.path().join("harness-task.json"))
-        .save(&json!({"model": value["model"], "prompt": prompt}))?;
+    JsonStore::sensitive(isolated.path().join("harness-task.json")).save(
+        &json!({"model": value["model"], "prompt": prompt, "read_folders": grants.read_folders}),
+    )?;
     let secret = value["model"]["api_key"].as_str().unwrap_or("").to_string();
     let run = Arc::new(Run {
         status: Mutex::new(TaskStatus {
+            id: uuid::Uuid::new_v4().to_string(),
+            model: record.model,
+            prompt,
+            started_at: now(),
+            grants,
+            audit: vec!["granted".into(), "started".into()],
             status: "running".into(),
             ..Default::default()
         }),
         cancel: Arc::new(AtomicBool::new(false)),
     });
+    save_task(&run.status.lock().unwrap())?;
     *task = Some(run.clone());
     std::thread::spawn(move || {
         c.current_dir(isolated.path()).env_clear();
@@ -535,6 +666,12 @@ pub fn start_task(prompt: String) -> Result<(), String> {
             status.status = "stopped".into();
             status.error = None;
         }
+        status.finished_at = Some(now());
+        let event = status.status.clone();
+        status.audit.push(event);
+        if let Err(e) = save_task(&status) {
+            status.error = Some(e);
+        }
     });
     Ok(())
 }
@@ -574,34 +711,75 @@ fn run_process(
                     line.replace(&secret, "[redacted]")
                 };
                 let mut status = run.status.lock().unwrap();
+                if let Some(event) = line.strip_prefix("HARNESS_EVENT:") {
+                    if let Ok(value) = serde_json::from_str::<serde_json::Value>(event) {
+                        if value["kind"] == "usage" {
+                            status.tokens = value["tokens"].as_u64();
+                        } else if value["kind"] == "output" {
+                            status.output.push_str(value["text"].as_str().unwrap_or(""));
+                            status.output.push('\n');
+                            trim_output(&mut status.output);
+                        } else {
+                            if status.audit.len() < 256 {
+                                status.audit.push(value.to_string());
+                            }
+                        }
+                        if !status.id.is_empty() {
+                            if let Err(e) = save_task(&status) {
+                                status.error = Some(e);
+                            }
+                        }
+                        continue;
+                    }
+                }
                 status.output.push_str(&line);
                 status.output.push('\n');
-                if status.output.len() > 65536 {
-                    let mut end = status.output.len() - 65536;
-                    while !status.output.is_char_boundary(end) {
-                        end += 1;
-                    }
-                    status.output.drain(..end);
-                }
+                trim_output(&mut status.output);
             }
         }));
     }
     let start = Instant::now();
-    let result = loop {
+    let mut result = loop {
         if run.cancel.load(Ordering::SeqCst) || start.elapsed() > timeout {
             let _ = child.kill();
             let _ = child.wait();
             break Err("agents.timeout".into());
         }
-        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
-            break Ok(status.success());
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status.success()),
+            Ok(None) => {}
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                break Err(e.to_string());
+            }
         }
         std::thread::sleep(Duration::from_millis(100));
     };
+    // Descendants can retain stdout after their parent exits. Keep cancellation
+    // and the deadline active until pipes close instead of blocking in join().
+    while readers.iter().any(|reader| !reader.is_finished()) {
+        if run.cancel.load(Ordering::SeqCst) || start.elapsed() > timeout {
+            let _ = child.kill();
+            let _ = child.wait();
+            result = Err("agents.timeout".into());
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
     for reader in readers {
         let _ = reader.join();
     }
     result
+}
+fn trim_output(output: &mut String) {
+    if output.len() > 65536 {
+        let mut end = output.len() - 65536;
+        while !output.is_char_boundary(end) {
+            end += 1;
+        }
+        output.drain(..end);
+    }
 }
 pub async fn install() -> Result<(), String> {
     if detect()?.installed {
@@ -702,6 +880,50 @@ async fn install_upstream(run: &Arc<Run>) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
+    fn grants_fail_closed_and_history_deletion_preserves_agent_data() {
+        let temp = tempfile::tempdir().unwrap();
+        let external = temp.path().join("agent-session.json");
+        std::fs::write(&external, "keep").unwrap();
+        let mut grants = RunGrants {
+            read_folders: vec![temp.path().to_path_buf()],
+        };
+        grants.validate().unwrap();
+        assert_eq!(grants.read_folders[0], temp.path().canonicalize().unwrap());
+        for folders in [
+            vec![PathBuf::from("relative")],
+            vec![external.clone()],
+            vec![temp.path().to_path_buf(); 9],
+        ] {
+            assert!(RunGrants {
+                read_folders: folders
+            }
+            .validate()
+            .is_err());
+        }
+        assert!(serde_json::from_value::<RunGrants>(json!({"shell": true})).is_err());
+        assert!(RunGrants::default().read_folders.is_empty());
+        let entry = TaskStatus {
+            id: uuid::Uuid::new_v4().to_string(),
+            model: "chat".into(),
+            status: "running".into(),
+            output: "retained output".into(),
+            grants,
+            started_at: now(),
+            ..Default::default()
+        };
+        save_task(&entry).unwrap();
+        let history = task_history().unwrap();
+        let recovered = history.iter().find(|e| e.id == entry.id).unwrap();
+        assert_eq!(recovered.status, "interrupted");
+        assert_eq!(recovered.output, "retained output");
+        assert!(recovered.finished_at.is_some());
+        delete_task(&entry.id).unwrap();
+        assert!(task_history().unwrap().iter().all(|e| e.id != entry.id));
+        assert_eq!(std::fs::read_to_string(external).unwrap(), "keep");
+        std::fs::remove_file(crate::paths::data_root().join("agents/history.json")).unwrap();
+        std::fs::remove_dir(crate::paths::data_root().join("agents")).unwrap();
+    }
+    #[test]
     fn process_errors_redact_secrets_and_stop_is_bounded() {
         let run = Arc::new(Run {
             status: Mutex::new(TaskStatus::default()),
@@ -727,6 +949,53 @@ mod tests {
         let start = Instant::now();
         assert!(run_process(c, &run, "", Duration::from_secs(10)).is_err());
         assert!(start.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    fn stop_reaps_descendants_after_the_parent_exits() {
+        let run = Arc::new(Run {
+            status: Mutex::new(TaskStatus::default()),
+            cancel: Arc::new(AtomicBool::new(false)),
+        });
+        let mut c = command(std::env::current_exe().unwrap());
+        c.args([
+            "--ignored",
+            "--exact",
+            "modules::agents::tests::pipe_child_fixture",
+            "--nocapture",
+        ])
+        .env("HS_AGENT_PIPE_FIXTURE", "parent");
+        let cancel = run.cancel.clone();
+        let stopper = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            cancel.store(true, Ordering::SeqCst);
+        });
+        let start = Instant::now();
+        assert!(run_process(c, &run, "", Duration::from_secs(3)).is_err());
+        stopper.join().unwrap();
+        assert!(start.elapsed() < Duration::from_secs(5));
+    }
+
+    #[test]
+    #[ignore = "subprocess fixture for the descendant cancellation test"]
+    #[allow(clippy::zombie_processes)] // The parent must exit; run_process reaps its entire group.
+    fn pipe_child_fixture() {
+        if std::env::var("HS_AGENT_PIPE_FIXTURE").as_deref() == Ok("parent") {
+            let mut c = command(std::env::current_exe().unwrap());
+            c.args([
+                "--ignored",
+                "--exact",
+                "modules::agents::tests::pipe_child_fixture",
+                "--nocapture",
+            ])
+            .env("HS_AGENT_PIPE_FIXTURE", "child")
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+            // Deliberately leave the descendant alive with inherited output.
+            let _child = c.spawn().unwrap();
+        } else if std::env::var("HS_AGENT_PIPE_FIXTURE").as_deref() == Ok("child") {
+            std::thread::sleep(Duration::from_secs(30));
+        }
     }
 
     #[test]
