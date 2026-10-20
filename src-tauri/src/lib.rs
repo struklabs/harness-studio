@@ -38,7 +38,7 @@ use runtime_update::RuntimeAutoUpdater;
 use servers::ServerRegistry;
 use telemetry::TelemetryPoller;
 
-/// Records Rust panics as local crash events (processed on next start, subject to consent).
+/// Writes consent-gated, sanitized Rust panic reports before unwinding or aborting.
 fn install_panic_hook() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -272,6 +272,23 @@ pub fn run() {
                 // (model definitions + server profiles), keeping `.pre-v2` backups.
                 ModelManager::migrate_secrets();
             });
+            if owner {
+                DiagnosticsManager::start_session(
+                    &AppSettings::load(),
+                    &hardware::detect_hardware(),
+                );
+                tauri::async_runtime::spawn(async {
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                        let _ = tauri::async_runtime::spawn_blocking(|| {
+                            DiagnosticsManager::default_manager()
+                                .cleanup(AppSettings::load().privacy.retention_days);
+                            DiagnosticsManager::default_manager().checkpoint(&AppSettings::load());
+                        })
+                        .await;
+                    }
+                });
+            }
             install_panic_hook();
             restore_downloads.restore();
             app.manage(Arc::new(DiagnosticsManager::default_manager()));
@@ -422,6 +439,10 @@ pub fn run() {
             cancel_convert_env_install,
             remove_convert_env,
             detect_agent,
+            install_openclaw,
+            cancel_openclaw_install,
+            remove_openclaw,
+            list_agent_choices,
             connect_agent,
             disconnect_agent,
             agent_task_status,
@@ -552,6 +573,8 @@ pub fn run() {
             n8n_openai_connection,
             n8n_create_gateway_token,
             get_gateway_status,
+            get_jobs,
+            cancel_job,
             link_list,
             link_models,
             link_add,
@@ -630,6 +653,8 @@ pub fn run() {
             save_crash_event,
             list_diagnostic_reports,
             clear_diagnostic_reports,
+            delete_diagnostic_report,
+            export_diagnostic_report,
             get_storage_directories,
             add_storage_directory,
             remove_storage_directory,
@@ -827,6 +852,7 @@ pub fn run() {
                 tauri::async_runtime::block_on(stop_mcp());
                 if let Some(state) = app.try_state::<InstanceState>() {
                     if let Some(lock) = &state.lock {
+                        DiagnosticsManager::default_manager().end_session();
                         lock.release();
                     }
                 }

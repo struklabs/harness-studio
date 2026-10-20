@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onDestroy } from 'svelte';
   import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { ShieldCheck, Copy, Check } from '@lucide/svelte';
@@ -12,6 +12,7 @@
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
   import SwitchRow from './SwitchRow.svelte';
+  import NumberField from './NumberField.svelte';
 
   interface Props {
     page?: string;
@@ -23,7 +24,6 @@
   const toggles: { key: DraftKey; label: TKey; desc: TKey }[] = [
     { key: 'crash_reports', label: 'settings.crash_reports_label', desc: 'settings.crash_reports_desc' },
     { key: 'app_errors', label: 'settings.app_errors_label', desc: 'settings.app_errors_desc' },
-    { key: 'llama_errors', label: 'settings.llama_errors_label', desc: 'settings.llama_errors_desc' },
     { key: 'hardware_info', label: 'settings.hardware_info_label', desc: 'settings.hardware_info_desc' },
     { key: 'performance_metrics', label: 'settings.perf_metrics_label', desc: 'settings.perf_metrics_desc' },
     { key: 'anonymous_analytics', label: 'settings.usage_analytics_label', desc: 'settings.usage_analytics_desc' },
@@ -73,7 +73,23 @@
     }
   }
 
-  onMount(loadReports);
+  async function deleteReport(id: string) {
+    try {
+      await invoke('delete_diagnostic_report', { id });
+      await loadReports();
+    } catch (e) { toast.error(t('settings.reports_clear_failed', { error: String(e) })); }
+  }
+  async function exportReport(id: string) {
+    try {
+      await invoke('export_diagnostic_report', { id });
+    } catch (e) { toast.error(t('settings.report_export_failed', { error: String(e) })); }
+  }
+  $effect(() => {
+    if (page !== 'reports') return;
+    void loadReports();
+    const refresh = setInterval(() => void loadReports(), 60_000);
+    return () => clearInterval(refresh);
+  });
   onDestroy(() => {
     destroyed = true;
     if (copiedTimer) clearTimeout(copiedTimer);
@@ -93,6 +109,9 @@
         onchange={(v) => form.set(tg.key, v as never)}
       />
     {/each}
+    <SettingRow label={t('settings.retention_days')} hint={t('settings.retention_days_hint')} for="report-retention" dirty={form.isDirty('retention_days')}>
+      <NumberField id="report-retention" min={1} max={365} value={form.get('retention_days')} onchange={(v) => form.set('retention_days', Math.round(v))} />
+    </SettingRow>
   </SettingGroup>
 
   <div class="flex items-start gap-2.5 rounded-lg border border-border bg-card px-4 py-3">
@@ -111,13 +130,17 @@
       {#snippet extra()}
         {#if showReports && reports.length > 0}
           <div class="flex max-h-72 flex-col gap-1 overflow-auto">
-            {#each reports as r, i (i)}
+            {#each reports as r (r.id)}
               <Collapsible.Root class="rounded-md border border-border">
                 <Collapsible.Trigger class="flex w-full min-w-0 items-center gap-2 px-2.5 py-1.5 text-left text-xs hover:bg-muted/50">
                   <Badge variant="outline" class="shrink-0 font-mono">{r.event_type}</Badge>
                   <span class="shrink-0 text-muted-foreground tabular">{new Date(r.timestamp * 1000).toLocaleString(locale())}</span>
                   <span class="min-w-0 truncate text-muted-foreground">{r.sanitized_message.slice(0, 120)}</span>
                 </Collapsible.Trigger>
+                <div class="flex gap-2 px-2.5 pb-2">
+                  <Button variant="outline" size="sm" onclick={() => exportReport(r.id)}>{t('settings.export_report_zip')}</Button>
+                  <Button variant="destructive" size="sm" onclick={() => deleteReport(r.id)}>{t('settings.delete_report')}</Button>
+                </div>
                 <Collapsible.Content>
                   <pre class="selectable max-h-56 overflow-auto border-t border-border bg-muted/30 p-2.5 font-mono text-xs whitespace-pre-wrap">{JSON.stringify(r, null, 2)}</pre>
                 </Collapsible.Content>

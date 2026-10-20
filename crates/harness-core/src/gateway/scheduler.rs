@@ -2749,7 +2749,13 @@ impl Scheduler {
                 entry.state().waiting += 1;
             }
             let waiting = Waiting(entry.clone());
-            if let Err(e) = self.ensure_ready(&entry, &def).await {
+            if let Err(e) = crate::jobs::JOB_PRIORITY
+                .scope(
+                    crate::jobs::Priority::Background,
+                    self.ensure_ready(&entry, &def),
+                )
+                .await
+            {
                 eprintln!(
                     "[Harness Gateway] Pinned model {} could not be loaded: {}",
                     def.alias,
