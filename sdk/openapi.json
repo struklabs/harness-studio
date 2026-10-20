@@ -341,6 +341,473 @@
         }
       }
     },
+    "/api/harness/v1/automations/n8n": {
+      "get": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "Saved n8n address and whether an API key is stored.",
+        "operationId": "get_n8n",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/N8nView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "automations"
+        ],
+        "operationId": "put_n8n",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveN8nRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/N8nView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/automations/n8n/executions": {
+      "get": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "Recent executions with their status.",
+        "operationId": "n8n_executions",
+        "parameters": [
+          {
+            "name": "workflow_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "int32",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Execution"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/automations/n8n/executions/{id}/error": {
+      "get": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "Why an execution failed.",
+        "operationId": "n8n_execution_error",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionError"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/automations/n8n/openai": {
+      "get": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "The gateway's OpenAI-compatible base URL for n8n's OpenAI credentials.",
+        "operationId": "n8n_openai",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenAiConnection"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/automations/n8n/test": {
+      "post": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "Checks the address and key against n8n's public API.",
+        "operationId": "test_n8n",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestN8nRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/N8nConnection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/automations/n8n/workflows": {
+      "get": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "Workflows with active state and triggers.",
+        "operationId": "n8n_workflows",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Workflow"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/automations/n8n/workflows/{id}/trigger": {
+      "post": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "Starts a workflow through its webhook trigger (active workflows only).",
+        "operationId": "trigger_n8n",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriggerN8nRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriggerResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/benchmarks": {
       "get": {
         "tags": [
@@ -13157,6 +13624,66 @@
           "measured"
         ]
       },
+      "Execution": {
+        "type": "object",
+        "required": [
+          "id",
+          "workflow_id",
+          "status",
+          "mode",
+          "editor_url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workflow_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`success`, `error`, `crashed`, `running`, `waiting`, `canceled`, `new` or `unknown`."
+          },
+          "mode": {
+            "type": "string",
+            "description": "`manual`, `trigger`, `webhook`, `retry`, ..."
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stopped_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "editor_url": {
+            "type": "string"
+          }
+        }
+      },
+      "ExecutionError": {
+        "type": "object",
+        "description": "Why an execution failed (read on demand: the list call does not carry run data).",
+        "properties": {
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "node": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The node that failed."
+          }
+        }
+      },
       "ExportedChunk": {
         "type": "object",
         "properties": {
@@ -17808,6 +18335,44 @@
           }
         }
       },
+      "N8nConnection": {
+        "type": "object",
+        "description": "Result of the connection test.",
+        "required": [
+          "ok",
+          "url",
+          "has_workflows"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string",
+            "description": "The normalized address that answered."
+          },
+          "has_workflows": {
+            "type": "boolean",
+            "description": "Whether the key can read at least one workflow (`false` for an empty instance)."
+          }
+        }
+      },
+      "N8nView": {
+        "type": "object",
+        "description": "What Settings shows: the saved URL and whether a key is stored (never the key).",
+        "required": [
+          "url",
+          "key_set"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "key_set": {
+            "type": "boolean"
+          }
+        }
+      },
       "NpuInfo": {
         "type": "object",
         "description": "What the NPU detection found.",
@@ -17914,6 +18479,28 @@
               "type": "string"
             },
             "description": "Files whose hash differs or that are missing."
+          }
+        }
+      },
+      "OpenAiConnection": {
+        "type": "object",
+        "description": "The gateway address n8n's OpenAI node uses (Base URL) and whether it needs a key.",
+        "required": [
+          "running",
+          "requires_token"
+        ],
+        "properties": {
+          "running": {
+            "type": "boolean"
+          },
+          "base_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "requires_token": {
+            "type": "boolean"
           }
         }
       },
@@ -20998,6 +21585,25 @@
           }
         }
       },
+      "SaveN8nRequest": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Empty disconnects (and removes the key)."
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absent keeps the saved key, `\"\"` removes it."
+          }
+        }
+      },
       "SaveOtelRequest": {
         "type": "object",
         "required": [
@@ -22197,6 +22803,24 @@
           }
         }
       },
+      "TestN8nRequest": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Unsaved address; absent uses the saved one."
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "TestOtelRequest": {
         "type": "object",
         "properties": {
@@ -22807,6 +23431,44 @@
           "generated"
         ]
       },
+      "TriggerN8nRequest": {
+        "type": "object",
+        "required": [
+          "confirm"
+        ],
+        "properties": {
+          "confirm": {
+            "type": "boolean",
+            "description": "Must be `true`: starting a workflow is a deliberate act."
+          },
+          "payload": {
+            "description": "JSON body sent to the webhook (not for GET webhooks)."
+          }
+        }
+      },
+      "TriggerResult": {
+        "type": "object",
+        "required": [
+          "status",
+          "ok",
+          "body"
+        ],
+        "properties": {
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "description": "HTTP status of the webhook answer.",
+            "minimum": 0
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "body": {
+            "type": "string",
+            "description": "Start of the answer body."
+          }
+        }
+      },
       "UndoBody": {
         "type": "object",
         "required": [
@@ -23227,6 +23889,76 @@
             "type": "boolean"
           }
         }
+      },
+      "WebhookTrigger": {
+        "type": "object",
+        "description": "How a workflow can be started from outside.",
+        "required": [
+          "method",
+          "path",
+          "url"
+        ],
+        "properties": {
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Production webhook URL (`<n8n>/webhook/<path>`), live while the workflow is active."
+          }
+        }
+      },
+      "Workflow": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "active",
+          "triggers",
+          "editor_url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "triggers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Short names of the trigger nodes (`webhook`, `scheduleTrigger`, `manualTrigger`, ...)."
+          },
+          "webhook": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WebhookTrigger",
+                "description": "The first webhook trigger, when there is one: the only way to start a run from here."
+              }
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "editor_url": {
+            "type": "string",
+            "description": "Link that opens the workflow in the n8n editor."
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -23295,6 +24027,10 @@
     {
       "name": "analytics",
       "description": "Gateway request log, statistics and Prometheus metrics"
+    },
+    {
+      "name": "automations",
+      "description": "The user's own n8n instance: connection, workflows, executions, webhook runs (admin)"
     },
     {
       "name": "tools",
