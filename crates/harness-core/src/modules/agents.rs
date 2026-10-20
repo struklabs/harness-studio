@@ -139,20 +139,114 @@ pub(super) fn missing_files() -> Vec<String> {
 pub(super) fn external_runtime() -> Option<PathBuf> {
     external_executable().and_then(|exe| library_entry(&exe).ok().map(|(_, root)| root))
 }
+/// The data root that holds a new-style external install's dependency environment: the folder
+/// with an `installs/<key>/facts.json`. Upstream puts the checkout at `<root>/hermes-agent`, so
+/// that parent is tried first, then the platform default home. `None` for an old-style install
+/// (a `venv` inside the checkout), which needs no such root.
+fn installs_owner(checkout: &Path, default_home: Option<&Path>) -> Option<PathBuf> {
+    let has_environment = |root: &Path| {
+        std::fs::read_dir(root.join("installs"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|entry| entry.path().join("facts.json").is_file())
+    };
+    checkout
+        .parent()
+        .into_iter()
+        .chain(default_home)
+        .find(|root| has_environment(root))
+        .map(Path::to_path_buf)
+}
+/// Links `link` to the directory `target` (an NTFS junction on Windows, which needs no
+/// privilege; a symlink elsewhere). An existing link to another target is replaced.
+fn link_dir(target: &Path, link: &Path) -> Result<(), String> {
+    if let Ok(meta) = std::fs::symlink_metadata(link) {
+        if std::fs::canonicalize(link).ok() == std::fs::canonicalize(target).ok() {
+            return Ok(());
+        }
+        // Only a link is ever replaced; a real folder is not ours to remove.
+        if !meta.file_type().is_symlink() && !is_junction(link) {
+            return Err("agents.home_unavailable".into());
+        }
+        std::fs::remove_dir(link)
+            .or_else(|_| std::fs::remove_file(link))
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(windows)]
+    {
+        let done = command("cmd")
+            .arg("/C")
+            .arg("mklink")
+            .arg("/J")
+            // `mklink` reads a forward slash as an option, so both paths use backslashes.
+            .arg(link.to_string_lossy().replace('/', "\\"))
+            .arg(target.to_string_lossy().replace('/', "\\"))
+            .stdin(std::process::Stdio::null())
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !done.status.success() {
+            return Err("agents.home_unavailable".into());
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    std::os::unix::fs::symlink(target, link).map_err(|e| e.to_string())
+}
+fn is_junction(path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        std::fs::symlink_metadata(path).is_ok_and(|m| m.file_attributes() & 0x400 != 0)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        false
+    }
+}
+/// A Harness-owned profile root for an external new-style install. Upstream maps
+/// `<root>/profiles/<name>` back to `<root>` to find `<root>/installs`, so the root here only
+/// holds a link to the install's `installs` folder and the throwaway profiles; the user's own
+/// home (config, sessions, credentials) is never used as the task home.
+fn external_profiles(owner: &Path) -> Result<PathBuf, String> {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    owner.hash(&mut hasher);
+    let root = crate::paths::data_root()
+        .join("agents/hermes-external")
+        .join(format!("{:016x}", hasher.finish()));
+    let profiles = root.join("profiles");
+    std::fs::create_dir_all(&profiles).map_err(|e| e.to_string())?;
+    link_dir(&owner.join("installs"), &root.join("installs"))?;
+    Ok(profiles)
+}
 /// A clean, throwaway Hermes home. Upstream keeps the dependency environment under
-/// `<root>/installs`, so a home that is not the managed root or one of its profiles cannot
-/// find it ("No module named dotenv"). For the managed install the home is therefore a
-/// profile folder of the managed root; any other install gets a plain temporary folder.
+/// `<root>/installs`, so a home that is not a root or one of its profiles cannot find it
+/// ("No module named dotenv"). The managed install uses a profile folder of its own root, a
+/// new-style external install one under a Harness-owned root that links to its `installs`; an
+/// old-style install gets a plain temporary folder.
 fn isolated_home(exe: &Path) -> Result<tempfile::TempDir, String> {
-    if managed_executable().is_some_and(|m| m == exe) {
+    let profiles = if managed_executable().is_some_and(|m| m == exe) {
         let profiles = managed_root().join("profiles");
         std::fs::create_dir_all(&profiles).map_err(|e| e.to_string())?;
-        return tempfile::Builder::new()
+        Some(profiles)
+    } else {
+        match library_entry(exe) {
+            Ok((_, checkout)) => match installs_owner(&checkout, home().ok().as_deref()) {
+                Some(owner) => Some(external_profiles(&owner)?),
+                None => None,
+            },
+            Err(_) => None,
+        }
+    };
+    match profiles {
+        Some(dir) => tempfile::Builder::new()
             .prefix("task-")
-            .tempdir_in(profiles)
-            .map_err(|e| e.to_string());
+            .tempdir_in(dir)
+            .map_err(|e| e.to_string()),
+        None => tempfile::tempdir().map_err(|e| e.to_string()),
     }
-    tempfile::tempdir().map_err(|e| e.to_string())
 }
 pub(super) fn verify() -> Result<(), String> {
     PROBE.lock().unwrap().clear();
@@ -1667,6 +1761,49 @@ async fn install_upstream(run: &Arc<Run>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn installs_owner_detects_both_layouts() {
+        let temp = tempfile::tempdir().unwrap();
+        // New style: <root>/hermes-agent with <root>/installs/<key>/facts.json.
+        let root = temp.path().join("root");
+        let checkout = root.join("hermes-agent");
+        std::fs::create_dir_all(&checkout).unwrap();
+        assert_eq!(installs_owner(&checkout, None), None);
+        std::fs::create_dir_all(root.join("installs/abc")).unwrap();
+        assert_eq!(installs_owner(&checkout, None), None, "no facts.json yet");
+        std::fs::write(root.join("installs/abc/facts.json"), "{}").unwrap();
+        assert_eq!(installs_owner(&checkout, None), Some(root.clone()));
+        // A checkout elsewhere falls back to the platform default home.
+        let elsewhere = temp.path().join("src/hermes-agent");
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        assert_eq!(installs_owner(&elsewhere, Some(&root)), Some(root.clone()));
+        assert_eq!(installs_owner(&elsewhere, None), None);
+        // Old style: a venv in the checkout and no installs folder.
+        let old = temp.path().join("old/hermes-agent");
+        std::fs::create_dir_all(old.join("venv")).unwrap();
+        assert_eq!(installs_owner(&old, Some(&temp.path().join("old"))), None);
+    }
+    #[test]
+    fn link_dir_links_replaces_links_and_keeps_real_folders() {
+        let temp = tempfile::tempdir().unwrap();
+        let (a, b) = (temp.path().join("a"), temp.path().join("b"));
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        std::fs::write(a.join("marker"), "a").unwrap();
+        let link = temp.path().join("link");
+        link_dir(&a, &link).unwrap();
+        assert!(link.join("marker").is_file());
+        link_dir(&a, &link).unwrap();
+        link_dir(&b, &link).unwrap();
+        assert!(!link.join("marker").exists());
+        // Removing the link never touches the target.
+        std::fs::remove_dir(&link).unwrap();
+        assert!(a.join("marker").is_file());
+        let real = temp.path().join("real");
+        std::fs::create_dir_all(&real).unwrap();
+        assert!(link_dir(&a, &real).is_err());
+        assert!(real.is_dir());
+    }
     #[test]
     fn source_install_with_a_command_file_launcher_is_found() {
         // Upstream publishes hermes.cmd (no hermes.exe) when distlib is unavailable.
