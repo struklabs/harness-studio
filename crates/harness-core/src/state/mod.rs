@@ -49,6 +49,9 @@
 //! - `rag_documents`, `rag_chunks`, `rag_fts` (v5): documents attached to a conversation for
 //!   local RAG, their chunks with f32 embeddings (BLOB) and a keyword index (see `crate::rag`,
 //!   [`StateDb::rag_documents`]). Deleting a conversation deletes its documents.
+//! - `rag_kbs`, `rag_conversation_kbs` (v8): named knowledge bases (their documents are
+//!   `rag_documents` of a hidden conversation row with the same id) and their attachment to
+//!   conversations (see [`StateDb::kb_list`]).
 //! - `gateway_responses(rid, id UNIQUE, scope, previous_id, model, created_at, last_used_at,
 //!   input_json, response_json, bytes)` (v6): stored `/v1/responses` of the gateway
 //!   (`store`, `previous_response_id`; see `crate::gateway::responses`). Rows are scoped to
@@ -72,6 +75,7 @@ mod conversations;
 mod export;
 mod models;
 mod rag;
+mod rag_kb;
 mod responses;
 mod schema;
 #[cfg(test)]
@@ -82,6 +86,7 @@ pub use conversations::*;
 pub use export::*;
 pub use models::*;
 pub use rag::*;
+pub use rag_kb::*;
 pub use responses::*;
 
 use crate::error_key::{err, ErrorKey};

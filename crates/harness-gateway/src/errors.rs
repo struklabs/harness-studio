@@ -88,9 +88,43 @@ impl GatewayError {
         .details(json!({"error_key": key}))
     }
 
+    /// A BYOK cloud provider failed or refused (`cloud.*` keys).
+    pub fn cloud(key: &str) -> Self {
+        let (status, code, message) = match key {
+            "cloud.unsupported_endpoint" => (
+                400,
+                "cloud_unsupported_endpoint",
+                "Cloud provider models only accept POST /v1/chat/completions.",
+            ),
+            "cloud.unauthorized" => (
+                502,
+                "cloud_provider_unauthorized",
+                "The cloud provider rejected the API key.",
+            ),
+            "cloud.key_missing" => (
+                502,
+                "cloud_provider_key_missing",
+                "No API key is saved for this cloud provider.",
+            ),
+            "cloud.timeout" => (
+                504,
+                "cloud_provider_timeout",
+                "The cloud provider did not answer in time.",
+            ),
+            _ => (
+                502,
+                "cloud_provider_unreachable",
+                "The cloud provider is unreachable.",
+            ),
+        };
+        Self::new(status, code, message).details(json!({"error_key": key}))
+    }
+
     pub fn reject_remote(def: &harness_core::domain::ModelDefinition) -> Result<(), Self> {
         if harness_core::link::parse_model(&def.id).is_some() {
             Err(Self::remote("link.unsupported_endpoint"))
+        } else if harness_core::cloud::parse_model(&def.id).is_some() {
+            Err(Self::cloud("cloud.unsupported_endpoint"))
         } else {
             Ok(())
         }
@@ -101,6 +135,14 @@ impl GatewayError {
         if let SchedError::LoadFailed { code, message, .. } = e {
             if code == "link.unsupported_endpoint" {
                 return Self::remote("link.unsupported_endpoint");
+            }
+            if code == "cloud_provider" {
+                let key = harness_core::error_key::parse(message).map(|(k, _)| k);
+                return Self::cloud(match key {
+                    Some(k @ ("cloud.unauthorized" | "cloud.key_missing" | "cloud.timeout")) => k,
+                    Some("cloud.unsupported_endpoint") => "cloud.unsupported_endpoint",
+                    _ => "cloud.unreachable",
+                });
             }
             if code == "harness_link_unreachable" {
                 return Self::remote(if message.starts_with("link.unauthorized") {
