@@ -138,11 +138,17 @@ The **Updates** page shows the app version and has an **Application** section wi
 
 ## Privacy
 
-**Privacy** chooses what local diagnostic reports contain: **Crash Reports**, **App errors**, **Server errors (llama.cpp)**, **Hardware Info**, and **Performance Metrics**. Reports are kept only on this device and are never sent anywhere automatically. Prompts, model responses, file contents, and API request bodies do not go into these reports. Chat history and the optional analytics content capture are separate functions; also read the plain-text content capture explanation in the [analytics section](07-performance-and-analytics.md#analytics-and-the-request-log).
+**Crash Reports** in **Settings > Privacy** is off by default and enables local reports for Rust panics, unexpected desktop exits, and engine process failures. **Retention period (days)** defaults to 30 days (1-365); expired reports are removed on startup, when reports are opened or created, when settings are saved, and every minute while the app runs.
+
+Reports include the app version, OS, engine, optional GPU/driver summary (**Hardware Info**), compiled stack frames, a normalized panic/error category, and up to 40 recent engine log lines. Free text, chat, model and file contents are omitted; log lines keep only recognized error categories. Home paths are replaced with `~` and known token formats are redacted.
+
+A forced shutdown is detected on the next launch as an unexpected exit; native crashes cannot provide a stack trace. While enabled, a local snapshot of sanitized engine log categories is refreshed every minute for recovery on the next launch. No report is created while collection is disabled.
+
+**Privacy** also offers category preferences: **Crash Reports**, **App errors**, **Hardware Info**, and **Performance Metrics**. Reports are kept only on this device and are never sent anywhere automatically. Prompts, model responses, file contents, and API request bodies do not go into these reports. Chat history and the optional analytics content capture are separate functions; also read the plain-text content capture explanation in the [analytics section](07-performance-and-analytics.md#analytics-and-the-request-log).
 
 ## Diagnostics
 
-On **Diagnostics > Health**, **Run Checks** checks your setup, runtime compatibility, GPU libraries, and ports; results are marked **OK**, **Warning**, or **Error**, and **Copy JSON** adds them to a report. **Diagnostics > Reports** is where you review (**Review**), copy, and delete (**Delete Reports**) local diagnostic records. For a problem, first read the explanation of the failed check, then continue with the [troubleshooting chapter](10-troubleshooting.md).
+On **Diagnostics > Health**, **Run Checks** checks your setup, runtime compatibility, GPU libraries, and ports; results are marked **OK**, **Warning**, or **Error**, and **Copy JSON** adds them to a report. **Diagnostics > Reports** is where you review (**Review**), copy, export an individual report with **Export as ZIP**, delete individual reports with **Delete Report**, or delete all reports with **Delete Reports**. ZIP export contains only the selected sanitized JSON report. Sharing is manual: no network upload endpoint is configured or called. Upload is reserved for a future version; enabling local collection does not authorize future uploads. For a problem, first read the explanation of the failed check, then continue with the [troubleshooting chapter](10-troubleshooting.md).
 
 ## Leaving the Window Open in the Tray
 
