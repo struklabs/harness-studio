@@ -34,15 +34,48 @@ test('empty discovery permits a schema-free answer and removes tool_choice', asy
   assert.equal(result.body.tool_choice, undefined);
 });
 
-test('unknown names, malformed responses and failed discovery use request matches without execution', async () => {
+test('unknown names, malformed responses and failed discovery preserve enabled schemas', async () => {
   assert.throws(() => selectedTools('["invented"]', tools));
   assert.throws(() => selectedTools('{}', tools));
-  for (const send of [async () => reply(['invented']), async () => new Response('', { status: 500 }), async () => { throw Error('offline'); }]) {
+  for (const send of [async () => reply(['invented']), async () => reply({}), async () => new Response('', { status: 500 }), async () => { throw Error('offline'); }]) {
     const result = await routeTools('local', body, {}, signal(), send);
     assert.equal(result.fallback, true);
-    assert.ok(result.body.tools.some(t => t.function.name === 'read_file'));
-    assert.ok(result.body.tools.length < tools.length);
+    assert.deepEqual(result.body.tools, tools);
+    assert.ok(result.error);
   }
+});
+
+test('malformed discovery preserves enabled schemas for a Turkish request in the actual chat', async () => {
+  const sent = [];
+  const result = await chatRequest('local', { ...body, messages: [{ role: 'user', content: 'README.md dosyasını oku' }], tool_choice: 'auto' }, {}, signal(), async (_, init) => {
+    sent.push(JSON.parse(init.body));
+    return sent.length === 1
+      ? Response.json({ choices: [{ message: { content: 'not JSON' } }] })
+      : Response.json({ choices: [{ message: { content: 'done' } }] });
+  });
+  assert.equal(sent.length, 2);
+  assert.deepEqual(sent[1].tools, tools);
+  assert.equal(sent[1].tool_choice, 'auto');
+  assert.equal(result.routingFallback, true);
+});
+
+test('confirmation follow-ups retain the request and assistant context before any tool call', async () => {
+  const contexts = [];
+  for (const [request, confirmation, name] of [
+    ['Read README.md', 'Shall I read the file?', 'read_file'],
+    ['Run the test suite', 'Shall I run the tests?', 'exec_shell_command'],
+  ]) {
+    assert.ok(tools.some(t => t.function.name === name));
+    const history = [{ role: 'user', content: request }, { role: 'assistant', content: confirmation }, { role: 'user', content: 'Yes, go ahead' }];
+    const result = await routeTools('local', { ...body, messages: history }, {}, signal(), async (_, init) => {
+      const context = JSON.parse(init.body).messages[1].content;
+      contexts.push(context);
+      assert.equal(context, `user: ${request}\nassistant: ${confirmation}\nuser: Yes, go ahead`);
+      return reply([context.includes('Read README.md') ? 'read_file' : 'exec_shell_command']);
+    });
+    assert.deepEqual(result.body.tools.map(t => t.function.name), [name]);
+  }
+  assert.notEqual(contexts[0], contexts[1]);
 });
 
 test('previously called contracts remain available for subsequent rounds', async () => {
@@ -51,7 +84,7 @@ test('previously called contracts remain available for subsequent rounds', async
   assert.deepEqual(result.body.tools.map(t => t.function.name), ['read_file']);
 });
 
-test('discovery uses one user turn and excludes attachment payloads and oversized results', async () => {
+test('discovery excludes attachment payloads and truncates oversized results', async () => {
   const history = [...messages, { role: 'tool', content: 'x'.repeat(10000) },
     { role: 'user', content: [{ type: 'text', text: 'Read README.md' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,SECRET' } }] }];
   await routeTools('local', { ...body, messages: history }, {}, signal(), async (_, init) => {
@@ -62,6 +95,25 @@ test('discovery uses one user turn and excludes attachment payloads and oversize
     assert.ok(!request.messages[1].content.includes('SECRET'));
     return reply(['read_file']);
   });
+});
+
+test('discovery bounds recent conversation and tool results in chronological order', async () => {
+  const history = [{ role: 'user', content: 'OLD_REQUEST' },
+    ...Array.from({ length: 8 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', content: `${i}:` + 'x'.repeat(10000) })),
+    ...Array.from({ length: 4 }, (_, i) => ({ role: 'tool', content: `result-${i}` })),
+    { role: 'user', content: 'Yes, go ahead' }];
+  let context;
+  await routeTools('local', { ...body, messages: history }, {}, signal(), async (_, init) => {
+    context = JSON.parse(init.body).messages[1].content;
+    return reply([]);
+  });
+  assert.ok(context.length <= 8000);
+  assert.ok(!context.includes('OLD_REQUEST'));
+  assert.ok(!context.includes('result-0'));
+  assert.ok(!context.includes('result-1'));
+  assert.ok(context.includes('result-2'));
+  assert.ok(context.indexOf('result-2') < context.indexOf('result-3'));
+  assert.ok(context.endsWith('user: Yes, go ahead'));
 });
 
 test('discovery retains the current request after several tool results', async () => {

@@ -13,24 +13,27 @@ export function selectedTools(content: string, tools: ToolDefinition[]): ToolDef
   return tools.filter(t => names.includes(t.function.name));
 }
 
-/** Conservative fallback for models unable to return a discovery selection. */
-export function matchingTools(messages: Record<string, unknown>[], tools: ToolDefinition[]): ToolDefinition[] {
-  const user = [...messages].reverse().find(m => m.role === 'user');
-  const words = new Set(JSON.stringify(user?.content ?? '').toLowerCase().replaceAll('_', ' ').match(/[\p{L}\p{N}]{3,}/gu) ?? []);
-  return tools.filter(t => `${t.function.name.replaceAll('_', ' ')} ${t.function.description ?? ''}`.toLocaleLowerCase()
-    .match(/[\p{L}\p{N}]{3,}/gu)?.some(w => words.has(w)));
-}
-
 /** Keep discovery text-only and bounded; never resend attachment data or entire tool outputs. */
 function discoveryContext(messages: Record<string, unknown>[]): string {
-  const user = messages.findLast(m => m.role === 'user');
-  const context = [...(user ? [user] : []), ...messages.filter(m => m.role === 'tool').slice(-2)];
-  return context.map(m => {
+  let turns = 0;
+  let results = 0;
+  let remaining = 8000; // Character budget, including role labels and separators.
+  const context: string[] = [];
+  for (const m of [...messages].reverse()) {
+    if (m.role === 'tool') {
+      if (++results > 2) continue;
+    } else if (m.role === 'user' || m.role === 'assistant') {
+      if (++turns > 6) continue;
+    } else continue;
     const content = Array.isArray(m.content)
       ? m.content.filter(part => part?.type === 'text').map(part => part.text).join('\n')
       : typeof m.content === 'string' ? m.content : '';
-    return `${m.role}: ${content.slice(0, 2000)}`;
-  }).join('\n');
+    const entry = `${m.role}: ${content.slice(0, 2000)}`.slice(0, remaining);
+    context.unshift(entry);
+    remaining -= entry.length + 1;
+    if (remaining <= 0) break;
+  }
+  return context.join('\n');
 }
 
 export async function routeTools(endpoint: string, body: Record<string, unknown>, headers: Record<string, string>, signal: AbortSignal, send: typeof fetch) {
@@ -52,7 +55,7 @@ export async function routeTools(endpoint: string, body: Record<string, unknown>
     selected = selectedTools(result.choices?.[0]?.message?.content ?? '', tools);
   } catch (error) {
     if (signal.aborted) throw error;
-    selected = matchingTools(messages, tools);
+    selected = tools;
     fallback = true;
     errorMessage = error instanceof Error ? error.message : String(error);
   }
