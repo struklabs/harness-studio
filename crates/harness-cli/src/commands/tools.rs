@@ -382,3 +382,24 @@ pub async fn automatic(
     out.data(&v, || serde_json::to_string_pretty(&v).unwrap_or_default());
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use harness_core::tools::{LogSink, ToolRegistry, ToolService, ToolSettings};
+
+    #[test]
+    fn tools_listing_includes_the_safe_builtin_skill_loader() {
+        let service = ToolService::new(ToolRegistry::with_builtin(), LogSink::None);
+        let listing = serde_json::to_value(service.listing(&ToolSettings::default())).unwrap();
+        let skill = listing["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|tool| tool["name"] == "load_skill")
+            .unwrap();
+
+        assert_eq!(skill["source"], "builtin");
+        assert_eq!(skill["class"], "safe");
+        assert_eq!(skill["decision"], "run");
+    }
+}

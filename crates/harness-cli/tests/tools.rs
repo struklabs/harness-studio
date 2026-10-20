@@ -39,8 +39,11 @@ fn list_shows_class_source_and_the_policys_decision() {
     let v = r.json();
     assert_eq!(v["policy"], "ask_every_time");
     let tools = v["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 13);
+    assert_eq!(tools.len(), 14);
     assert!(tools.iter().all(|t| t["source"] == "builtin"));
+    let skill = tools.iter().find(|t| t["name"] == "load_skill").unwrap();
+    assert_eq!(skill["class"], "safe");
+    assert_eq!(skill["decision"], "run");
     assert_eq!(
         tools.iter().find(|t| t["name"] == "calculator").unwrap()["decision"],
         "run"
@@ -71,6 +74,11 @@ fn list_shows_class_source_and_the_policys_decision() {
     };
     assert!(line("read_file").contains("restricted") && line("read_file").contains("run"));
     assert!(line("write_file").contains("dangerous") && line("write_file").contains("ask"));
+    let skill_line = line("load_skill");
+    assert!(
+        skill_line.contains("safe") && skill_line.contains("builtin") && skill_line.contains("run"),
+        "{skill_line}"
+    );
     assert!(r.stdout.contains("NAME") && r.stdout.contains("POLICY"));
 }
 
