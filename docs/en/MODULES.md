@@ -46,6 +46,6 @@ Export is deterministic (sorted entries, fixed timestamps), so exporting the sam
    ```
 
    Add one entry per platform. Entries must name a bundled, non-planned module at its current version; a unit test checks this.
-4. Ship the app. Only builds that contain the entry accept that bundle.
+4. Ship the app. Only builds that contain the entry accept that bundle. The index is empty until hashes are recorded, so until then every import is refused with `modules.bundle_unofficial`; do this before announcing offline install in a release.
 
 Modules that use an agent program installed outside Harness Studio cannot be exported.

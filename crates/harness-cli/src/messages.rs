@@ -236,7 +236,7 @@ pub fn base(code: &str) -> Option<&'static str> {
         "benchmark.not_running" => "The benchmark is not running.",
         "runtime.not_available" => "No llama-server runtime is installed or configured.",
         // Modules (`harness modules`).
-        "modules.bundle_unofficial" => "This bundle is not an official Harness Studio module bundle (its SHA-256 is not in the index shipped with this build). Community bundles are not supported.",
+        "modules.bundle_unofficial" => "This bundle is not an official Harness Studio module bundle (its SHA-256 is not in the index shipped with this build, and this build may not record any yet). Community bundles are not supported.",
         "modules.bundle_mismatch" => "This bundle does not match the official entry or the module version this build installs.",
         "modules.bundle_corrupt" => "The bundle is damaged or was changed: a file does not match its recorded checksum. Nothing was installed.",
         "modules.bundle_incompatible" => "This bundle was made by a newer or unknown bundle format.",
