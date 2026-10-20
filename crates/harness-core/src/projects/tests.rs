@@ -178,8 +178,9 @@ fn outputs_are_saved_recorded_and_opened_inside_the_project() {
     let second = save_output(&db, &project.id, "cat.png", b"png2", &from).unwrap();
     assert!(first.path.ends_with("cat.png"));
     assert!(second.path.ends_with("cat (2).png"));
-    assert!(Path::new(&first.path)
-        .starts_with(std::fs::canonicalize(&folder).unwrap().join(OUTPUTS_DIR)));
+    // The stored folder is the canonical one without the Windows `\?\` prefix.
+    let canonical = crate::paths::display_path(&std::fs::canonicalize(&folder).unwrap());
+    assert!(Path::new(&first.path).starts_with(Path::new(&canonical).join(OUTPUTS_DIR)));
     assert_eq!(first.kind, "image");
     assert_eq!(first.model.as_deref(), Some("sd-model"));
     assert_eq!(first.conversation_id.as_deref(), Some(conv.as_str()));

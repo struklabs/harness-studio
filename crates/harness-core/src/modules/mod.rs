@@ -1,6 +1,7 @@
 //! Bundled module contracts and lifecycle. Only backend dependencies are downloaded.
 pub mod agents;
 mod lifecycle;
+mod openclaw;
 pub mod paperclip;
 use crate::{
     paths,
@@ -8,7 +9,8 @@ use crate::{
     store::JsonStore,
 };
 pub use lifecycle::{
-    action, ensure_enabled, remove_with_options as lifecycle_remove, RemovalOptions,
+    action, ensure_enabled, ensure_not_disabled, remove_with_options as lifecycle_remove,
+    RemovalOptions,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -598,6 +600,7 @@ mod tests {
             connected: false,
             installation: Default::default(),
             model: None,
+            managed: false,
         })
     }
     #[test]

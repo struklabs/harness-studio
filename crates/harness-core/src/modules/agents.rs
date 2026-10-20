@@ -1,4 +1,7 @@
-//! Hermes upstream adapter with private Harness history and explicit run grants.
+//! Upstream agent adapters (Hermes, OpenClaw) with private Harness history and explicit run
+//! grants. Both share the connect/restore protocol, the run machinery and the history; what
+//! differs per agent (config format, launch, install) is selected by [`AgentKind`].
+use super::openclaw;
 use crate::{
     control_api::{Scope, TokenStore},
     store::JsonStore,
@@ -19,26 +22,58 @@ use std::{
     time::{Duration, Instant},
 };
 
+/// The upstream agents Harness can connect to a gateway model.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AgentKind {
+    #[default]
+    Hermes,
+    OpenClaw,
+}
+impl AgentKind {
+    pub fn parse(name: &str) -> Result<Self, String> {
+        match name {
+            "hermes" => Ok(Self::Hermes),
+            "openclaw" => Ok(Self::OpenClaw),
+            _ => Err("agents.kind_invalid".into()),
+        }
+    }
+    fn label(self) -> &'static str {
+        match self {
+            Self::Hermes => "Hermes Agent",
+            Self::OpenClaw => "OpenClaw",
+        }
+    }
+}
+
 struct Probe {
     executable: PathBuf,
     at: Instant,
     output: Option<String>,
 }
-static PROBE: Mutex<Option<Probe>> = Mutex::new(None);
+static PROBE: Mutex<Vec<Probe>> = Mutex::new(Vec::new());
 fn probe(exe: &Path) -> Option<String> {
-    let mut slot = PROBE.lock().unwrap();
-    if let Some(p) = slot
-        .as_ref()
-        .filter(|p| p.executable == exe && p.at.elapsed() < Duration::from_secs(30))
+    let mut slots = PROBE.lock().unwrap();
+    if let Some(p) = slots
+        .iter()
+        .find(|p| p.executable == exe && p.at.elapsed() < Duration::from_secs(30))
     {
         return p.output.clone();
     }
-    let mut c = command(exe);
+    let mut c = if exe
+        .file_stem()
+        .is_some_and(|n| n.eq_ignore_ascii_case("openclaw"))
+    {
+        openclaw::launcher(exe)
+    } else {
+        command(exe)
+    };
     c.arg("--version");
     let output = bounded_output(c, Duration::from_secs(15))
         .ok()
         .and_then(|(ok, s)| ok.then_some(s));
-    *slot = Some(Probe {
+    slots.retain(|p| p.executable != exe);
+    slots.push(Probe {
         executable: exe.to_path_buf(),
         at: Instant::now(),
         output: output.clone(),
@@ -48,6 +83,7 @@ fn probe(exe: &Path) -> Option<String> {
 static CONNECTION_LOCK: Mutex<()> = Mutex::new(());
 static TASK: Mutex<Option<Arc<Run>>> = Mutex::new(None);
 static INSTALL_RUN: Mutex<Option<Arc<Run>>> = Mutex::new(None);
+static INSTALL_RUN_OPENCLAW: Mutex<Option<Arc<Run>>> = Mutex::new(None);
 
 pub(super) fn home() -> Result<PathBuf, String> {
     if let Some(p) = std::env::var_os("HERMES_HOME") {
@@ -94,7 +130,7 @@ pub(super) fn external_runtime() -> Option<PathBuf> {
     external_executable().and_then(|exe| library_runtime(&exe).ok().map(|(_, root)| root))
 }
 pub(super) fn verify() -> Result<(), String> {
-    *PROBE.lock().unwrap() = None;
+    PROBE.lock().unwrap().clear();
     let exe = managed_executable()
         .or_else(executable)
         .ok_or("agents.not_installed")?;
@@ -190,7 +226,7 @@ fn library_runtime(exe: &Path) -> Result<(Command, PathBuf), String> {
     }
     Err("agents.library_missing".into())
 }
-fn command(path: impl AsRef<std::ffi::OsStr>) -> Command {
+pub(super) fn command(path: impl AsRef<std::ffi::OsStr>) -> Command {
     let c = Command::new(path);
     #[cfg(windows)]
     let c = {
@@ -211,6 +247,8 @@ pub struct Detection {
     pub connected: bool,
     pub installation: TaskStatus,
     pub model: Option<String>,
+    /// The executable is Harness's own install (the only one Harness may remove).
+    pub managed: bool,
 }
 pub fn detect() -> Result<Detection, String> {
     let exe = executable();
@@ -263,6 +301,70 @@ pub fn detect() -> Result<Detection, String> {
         missing_dependencies: missing,
         connected: record.is_some(),
         model: record.map(|r| r.model),
+        managed: false,
+    })
+}
+/// Detection of the given agent (the Hermes variant is [`detect`]).
+pub fn detect_kind(kind: AgentKind) -> Result<Detection, String> {
+    match kind {
+        AgentKind::Hermes => detect(),
+        AgentKind::OpenClaw => detect_openclaw(),
+    }
+}
+fn tool_version(tool: &str) -> Option<String> {
+    let mut c = command(tool);
+    c.arg("--version");
+    bounded_output(c, Duration::from_secs(15))
+        .ok()
+        .and_then(|(ok, s)| ok.then_some(s))
+        .and_then(|s| s.lines().next().map(|l| l.trim().to_string()))
+}
+fn npm_tool() -> &'static str {
+    if cfg!(windows) {
+        "npm.cmd"
+    } else {
+        "npm"
+    }
+}
+fn detect_openclaw() -> Result<Detection, String> {
+    let exe = openclaw::executable();
+    let version = exe
+        .as_ref()
+        .and_then(|p| probe(p))
+        .and_then(|text| text.lines().next().map(str::to_string));
+    let mut missing = Vec::new();
+    if exe.is_some() && version.is_none() {
+        missing.push("agents.runtime_broken".into());
+    }
+    if exe.is_none() {
+        // Only an install needs them: Node (upstream engines range) and npm.
+        match tool_version("node") {
+            None => missing.push("node".into()),
+            Some(v) if !openclaw::node_supported(&v) => missing.push("agents.node_outdated".into()),
+            Some(_) => {}
+        }
+        if tool_version(npm_tool()).is_none() {
+            missing.push("npm".into());
+        }
+    }
+    let config = openclaw::config_path()?;
+    let record = record_at(&config)?;
+    let managed = exe.is_some() && exe == openclaw::managed_executable();
+    Ok(Detection {
+        installation: INSTALL_RUN_OPENCLAW
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|r| r.status.lock().unwrap().clone())
+            .unwrap_or_default(),
+        installed: version.is_some(),
+        version,
+        executable: exe.map(|p| p.display().to_string()),
+        config_path: config.display().to_string(),
+        missing_dependencies: missing,
+        connected: record.is_some(),
+        model: record.map(|r| r.model),
+        managed,
     })
 }
 fn bounded_output(mut c: Command, timeout: Duration) -> Result<(bool, String), String> {
@@ -329,6 +431,30 @@ fn record(dir: &Path) -> Result<Option<Connection>, String> {
         Ok(None)
     }
 }
+/// The journal sits beside the config file it protects.
+fn config_dir(config: &Path) -> &Path {
+    config.parent().unwrap_or(Path::new("."))
+}
+fn record_at(config: &Path) -> Result<Option<Connection>, String> {
+    record(config_dir(config))
+}
+fn backup_of(config: &Path) -> PathBuf {
+    let mut name = config.as_os_str().to_os_string();
+    name.push(".harness.bak");
+    name.into()
+}
+fn config_file(kind: AgentKind) -> Result<PathBuf, String> {
+    match kind {
+        AgentKind::Hermes => Ok(home()?.join("config.yaml")),
+        AgentKind::OpenClaw => openclaw::config_path(),
+    }
+}
+fn parse_config(kind: AgentKind, bytes: &[u8]) -> Result<serde_json::Value, String> {
+    match kind {
+        AgentKind::Hermes => config(bytes),
+        AgentKind::OpenClaw => openclaw::parse_config(bytes),
+    }
+}
 fn hash(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
@@ -370,21 +496,65 @@ fn connected_config(
         .map_err(|e| e.to_string())
 }
 pub fn connect(base: &str, model: &str) -> Result<(), String> {
+    connect_kind(AgentKind::Hermes, base, model)
+}
+/// OpenClaw's install is independent of the Hermes module transaction, so only an explicit
+/// "disabled" state of the agents module blocks it.
+fn ensure_kind_enabled(kind: AgentKind) -> Result<(), String> {
+    match kind {
+        AgentKind::Hermes => super::ensure_enabled("agents"),
+        AgentKind::OpenClaw => super::ensure_not_disabled("agents"),
+    }
+}
+fn executable_kind(kind: AgentKind) -> Option<PathBuf> {
+    match kind {
+        AgentKind::Hermes => executable(),
+        AgentKind::OpenClaw => openclaw::executable(),
+    }
+}
+pub fn connect_kind(kind: AgentKind, base: &str, model: &str) -> Result<(), String> {
     let _operation = super::OPERATION.try_lock().map_err(|_| "modules.busy")?;
-    super::ensure_enabled("agents")?;
+    ensure_kind_enabled(kind)?;
     let _lock = CONNECTION_LOCK.lock().unwrap();
-    if executable().is_none() {
+    if executable_kind(kind).is_none() {
         return Err("agents.not_installed".into());
     }
-    if !crate::integrations::agent_models::list()?
+    let found = crate::integrations::agent_models::list_with_link()?;
+    let Some(chosen) = found
         .iter()
-        .any(|m| m.alias == model && m.chat != Some(false))
-    {
+        .find(|m| m.alias == model && m.chat != Some(false))
+    else {
         return Err("agents.model_missing".into());
-    }
-    connect_in(&home()?, &TokenStore::global(), base, model)
+    };
+    connect_at(
+        kind,
+        &config_file(kind)?,
+        &TokenStore::global(),
+        base,
+        model,
+        chosen.context_size,
+    )
 }
+#[cfg(test)]
 fn connect_in(dir: &Path, tokens: &TokenStore, base: &str, model: &str) -> Result<(), String> {
+    connect_at(
+        AgentKind::Hermes,
+        &dir.join("config.yaml"),
+        tokens,
+        base,
+        model,
+        None,
+    )
+}
+fn connect_at(
+    kind: AgentKind,
+    path: &Path,
+    tokens: &TokenStore,
+    base: &str,
+    model: &str,
+    context: Option<u32>,
+) -> Result<(), String> {
+    let dir = config_dir(path);
     let url = reqwest::Url::parse(base).map_err(|_| "agents.gateway_required".to_string())?;
     if url.scheme() != "http"
         || !matches!(url.host_str(), Some("127.0.0.1" | "localhost" | "[::1]"))
@@ -402,21 +572,24 @@ fn connect_in(dir: &Path, tokens: &TokenStore, base: &str, model: &str) -> Resul
     if record(dir)?.is_some() {
         return Err("agents.already_connected".into());
     }
-    let path = dir.join("config.yaml");
-    let old = match std::fs::read(&path) {
+    let old = match std::fs::read(path) {
         Ok(b) => Some(b),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
         Err(e) => return Err(e.to_string()),
     };
     if let Some(bytes) = &old {
-        config(bytes)?;
+        parse_config(kind, bytes)?;
     }
-    let backup = dir.join("config.yaml.harness.bak");
+    let backup = backup_of(path);
     if backup.exists() {
         return Err("agents.backup_exists".into());
     }
+    if kind == AgentKind::OpenClaw {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    // The model id is matched exactly (a Harness Link model is `remote:<link>/<model>`).
     let token = tokens.create_with_policy(
-        "Hermes Agent",
+        kind.label(),
         &[Scope::Inference],
         &TokenPolicy {
             models: vec![model.into()],
@@ -425,7 +598,12 @@ fn connect_in(dir: &Path, tokens: &TokenStore, base: &str, model: &str) -> Resul
         },
     )?;
     let result = (|| {
-        let bytes = connected_config(old.as_deref(), base, model, &token.token)?;
+        let bytes = match kind {
+            AgentKind::Hermes => connected_config(old.as_deref(), base, model, &token.token)?,
+            AgentKind::OpenClaw => {
+                openclaw::connected_config(old.as_deref(), base, model, &token.token, context)?
+            }
+        };
         if let Some(old) = &old {
             JsonStore::sensitive(&backup).write_bytes(old)?;
         }
@@ -436,7 +614,7 @@ fn connect_in(dir: &Path, tokens: &TokenStore, base: &str, model: &str) -> Resul
             applied_hash: hash(&bytes),
             model: model.into(),
         })?;
-        JsonStore::sensitive(&path).write_bytes(&bytes)
+        JsonStore::sensitive(path).write_bytes(&bytes)
     })();
     if result.is_err() {
         let _ = tokens.revoke(&token.info.id);
@@ -448,13 +626,21 @@ fn connect_in(dir: &Path, tokens: &TokenStore, base: &str, model: &str) -> Resul
     result
 }
 pub fn disconnect() -> Result<(), String> {
+    disconnect_kind(AgentKind::Hermes)
+}
+pub fn disconnect_kind(kind: AgentKind) -> Result<(), String> {
     let _lock = CONNECTION_LOCK.lock().unwrap();
     if running() {
         return Err("agents.busy".into());
     }
-    disconnect_in(&home()?, &TokenStore::global())
+    disconnect_at(&config_file(kind)?, &TokenStore::global())
 }
+#[cfg(test)]
 fn disconnect_in(dir: &Path, tokens: &TokenStore) -> Result<(), String> {
+    disconnect_at(&dir.join("config.yaml"), tokens)
+}
+fn disconnect_at(path: &Path, tokens: &TokenStore) -> Result<(), String> {
+    let dir = config_dir(path);
     let Some(record) = record(dir)? else {
         return Ok(());
     };
@@ -464,13 +650,12 @@ fn disconnect_in(dir: &Path, tokens: &TokenStore) -> Result<(), String> {
         Err(e) if e == crate::control_api::ERR_TOKEN_NOT_FOUND => {}
         Err(e) => return Err(e),
     }
-    let path = dir.join("config.yaml");
-    let current = match std::fs::read(&path) {
+    let current = match std::fs::read(path) {
         Ok(bytes) => bytes,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound && !record.original_exists => Vec::new(),
         Err(e) => return Err(e.to_string()),
     };
-    let backup = dir.join("config.yaml.harness.bak");
+    let backup = backup_of(path);
     let original = if record.original_exists {
         Some(std::fs::read(&backup).map_err(|e| e.to_string())?)
     } else {
@@ -483,9 +668,9 @@ fn disconnect_in(dir: &Path, tokens: &TokenStore) -> Result<(), String> {
         return Err("agents.config_changed".into());
     }
     if let Some(bytes) = original {
-        JsonStore::sensitive(&path).write_bytes(&bytes)?;
+        JsonStore::sensitive(path).write_bytes(&bytes)?;
     } else if path.exists() {
-        std::fs::remove_file(&path).map_err(|e| e.to_string())?;
+        std::fs::remove_file(path).map_err(|e| e.to_string())?;
     }
     std::fs::remove_file(dir.join("harness-connection.json")).map_err(|e| e.to_string())?;
     if backup.exists() {
@@ -498,6 +683,8 @@ fn disconnect_in(dir: &Path, tokens: &TokenStore) -> Result<(), String> {
 #[serde(default)]
 pub struct TaskStatus {
     pub id: String,
+    /// Which agent ran the task (entries from before OpenClaw are Hermes runs).
+    pub agent: AgentKind,
     pub model: String,
     pub prompt: String,
     pub started_at: u64,
@@ -650,13 +837,17 @@ pub fn stop() {
 pub fn shutdown() {
     stop();
     cancel_install();
+    cancel_install_kind(AgentKind::OpenClaw);
     let start = Instant::now();
     while start.elapsed() < Duration::from_secs(3) {
-        let installing = INSTALL_RUN
-            .lock()
-            .unwrap()
-            .as_ref()
-            .is_some_and(|r| r.status.lock().unwrap().status == "running");
+        let installing = [&INSTALL_RUN, &INSTALL_RUN_OPENCLAW]
+            .into_iter()
+            .any(|slot| {
+                slot.lock()
+                    .unwrap()
+                    .as_ref()
+                    .is_some_and(|r| r.status.lock().unwrap().status == "running")
+            });
         if !running() && !installing {
             break;
         }
@@ -669,15 +860,59 @@ pub fn start_task(prompt: String) -> Result<(), String> {
 pub fn start_task_with_grants(prompt: String, grants: RunGrants) -> Result<(), String> {
     start_task_for_project(prompt, grants, None)
 }
-/// Starts a task filed under `project_id` (see `crate::projects::start_agent_task`).
+/// Starts a Hermes task filed under `project_id` (see `crate::projects::start_agent_task`).
 pub fn start_task_for_project(
+    prompt: String,
+    grants: RunGrants,
+    project_id: Option<String>,
+) -> Result<(), String> {
+    start_task_kind_for_project(AgentKind::Hermes, prompt, grants, project_id)
+}
+/// How a prepared task is launched; `extra` is added to the minimal inherited environment.
+struct Launch {
+    command: Command,
+    extra: Vec<(&'static str, std::ffi::OsString)>,
+    /// Keep the user's HOME/profile variables out of the child (OpenClaw reads them).
+    isolate_profile: bool,
+    /// OpenClaw prints its result as one JSON envelope on stdout.
+    envelope: Option<Arc<Mutex<String>>>,
+    audit: Vec<String>,
+}
+/// Environment variables a task process inherits from Harness.
+const INHERITED_ENV: [&str; 12] = [
+    "PATH",
+    "SystemRoot",
+    "WINDIR",
+    "COMSPEC",
+    "PATHEXT",
+    "TEMP",
+    "TMP",
+    "HOME",
+    "USERPROFILE",
+    "LOCALAPPDATA",
+    "APPDATA",
+    "LANG",
+];
+const PROFILE_ENV: [&str; 4] = ["HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA"];
+
+pub fn start_task_kind(kind: AgentKind, prompt: String, grants: RunGrants) -> Result<(), String> {
+    start_task_kind_for_project(kind, prompt, grants, None)
+}
+
+/// [`start_task_kind`] for a task filed under `project_id`.
+pub fn start_task_kind_for_project(
+    kind: AgentKind,
     prompt: String,
     mut grants: RunGrants,
     project_id: Option<String>,
 ) -> Result<(), String> {
     grants.validate()?;
+    if kind == AgentKind::OpenClaw && grants.read_folders.len() > 1 {
+        // OpenClaw's read tool is confined to one workspace folder.
+        return Err("agents.openclaw_one_folder".into());
+    }
     let _operation = super::OPERATION.try_lock().map_err(|_| "modules.busy")?;
-    super::ensure_enabled("agents")?;
+    ensure_kind_enabled(kind)?;
     let _connection = CONNECTION_LOCK.lock().unwrap();
     let mut task = TASK.lock().unwrap();
     if task
@@ -689,30 +924,114 @@ pub fn start_task_for_project(
     if prompt.trim().is_empty() || prompt.len() > 16384 {
         return Err("agents.task_invalid".into());
     }
-    let exe = executable().ok_or("agents.not_installed")?;
-    let (mut c, source) = library_runtime(&exe)?;
-    let dir = home()?;
-    let record = record(&dir)?.ok_or("agents.not_connected")?;
-    let bytes = std::fs::read(dir.join("config.yaml")).map_err(|e| e.to_string())?;
+    let exe = executable_kind(kind).ok_or("agents.not_installed")?;
+    let hermes_source = match kind {
+        AgentKind::Hermes => Some(library_runtime(&exe)?),
+        AgentKind::OpenClaw => None,
+    };
+    let config_path = config_file(kind)?;
+    let record = record_at(&config_path)?.ok_or("agents.not_connected")?;
+    let bytes = std::fs::read(&config_path).map_err(|e| e.to_string())?;
     if hash(&bytes) != record.applied_hash {
         return Err("agents.config_changed".into());
     }
-    let value = config(&bytes)?;
+    let value = parse_config(kind, &bytes)?;
     // A clean upstream home avoids user hooks, MCP servers, skills and credential fallbacks.
     let isolated = tempfile::tempdir().map_err(|e| e.to_string())?;
-    JsonStore::sensitive(isolated.path().join("config.yaml")).write_bytes(serde_norway::to_string(&json!({"model": value["model"], "toolsets": [], "agent": {"max_turns": 2}, "skills": {"auto_load": []}})).map_err(|e| e.to_string())?.as_bytes())?;
-    JsonStore::sensitive(isolated.path().join("harness-task.json")).save(
-        &json!({"model": value["model"], "prompt": prompt, "read_folders": grants.read_folders}),
-    )?;
-    let secret = value["model"]["api_key"].as_str().unwrap_or("").to_string();
+    let (launch, secret) = match (kind, hermes_source) {
+        (AgentKind::Hermes, Some((mut c, source))) => {
+            JsonStore::sensitive(isolated.path().join("config.yaml")).write_bytes(serde_norway::to_string(&json!({"model": value["model"], "toolsets": [], "agent": {"max_turns": 2}, "skills": {"auto_load": []}})).map_err(|e| e.to_string())?.as_bytes())?;
+            JsonStore::sensitive(isolated.path().join("harness-task.json")).save(
+                &json!({"model": value["model"], "prompt": prompt, "read_folders": grants.read_folders}),
+            )?;
+            let secret = value["model"]["api_key"].as_str().unwrap_or("").to_string();
+            c.current_dir(isolated.path());
+            (
+                Launch {
+                    command: c,
+                    extra: vec![
+                        ("HARNESS_HERMES_SOURCE", source.into()),
+                        ("HERMES_HOME", isolated.path().into()),
+                        ("PYTHONIOENCODING", "utf-8".into()),
+                        ("PYTHONUNBUFFERED", "1".into()),
+                    ],
+                    isolate_profile: false,
+                    envelope: None,
+                    audit: vec![],
+                },
+                secret,
+            )
+        }
+        _ => {
+            let provider = value["models"]["providers"][openclaw::PROVIDER].clone();
+            let secret = provider["apiKey"].as_str().unwrap_or("").to_string();
+            let root = isolated.path();
+            let (state, home, workspace) =
+                (root.join("state"), root.join("home"), root.join("work"));
+            for dir in [&state, &home, &workspace] {
+                std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+            }
+            // A granted folder is the agent workspace and the only place its read tool reaches.
+            let cwd =
+                openclaw::plain_path(grants.read_folders.first().cloned().unwrap_or(workspace));
+            let config = root.join("openclaw.json");
+            let task_config = openclaw::task_config(
+                &provider,
+                &record.model,
+                &cwd,
+                !grants.read_folders.is_empty(),
+            );
+            JsonStore::sensitive(&config).write_bytes(
+                &serde_json::to_vec_pretty(&task_config).map_err(|e| e.to_string())?,
+            )?;
+            let prompt_file = root.join("prompt.txt");
+            JsonStore::sensitive(&prompt_file).write_bytes(prompt.as_bytes())?;
+            let mut c = openclaw::task_command(
+                &exe,
+                &config,
+                &state,
+                &cwd,
+                &prompt_file,
+                &record.model,
+                600,
+            );
+            c.arg("--json").current_dir(root);
+            let scope = if grants.read_folders.is_empty() {
+                json!({"kind": "scope", "tools": []})
+            } else {
+                json!({"kind": "scope", "tools": ["read"], "workspace": cwd})
+            };
+            (
+                Launch {
+                    command: c,
+                    extra: vec![
+                        ("HOME", home.clone().into()),
+                        ("USERPROFILE", home.clone().into()),
+                        ("APPDATA", home.join("AppData/Roaming").into()),
+                        ("LOCALAPPDATA", home.join("AppData/Local").into()),
+                        ("OPENCLAW_HOME", home.into()),
+                        ("OPENCLAW_STATE_DIR", state.into()),
+                        ("OPENCLAW_CONFIG_PATH", config.into()),
+                    ],
+                    isolate_profile: true,
+                    envelope: Some(Arc::new(Mutex::new(String::new()))),
+                    audit: vec![scope.to_string()],
+                },
+                secret,
+            )
+        }
+    };
+    let mut audit = vec!["granted".to_string(), "started".to_string()];
+    audit.extend(launch.audit.iter().cloned());
     let run = Arc::new(Run {
         status: Mutex::new(TaskStatus {
             id: uuid::Uuid::new_v4().to_string(),
+            agent: kind,
             model: record.model,
             prompt,
             started_at: now(),
             grants,
-            audit: vec!["granted".into(), "started".into()],
+            audit,
             status: "running".into(),
             project_id,
             ..Default::default()
@@ -722,31 +1041,36 @@ pub fn start_task_for_project(
     save_task(&run.status.lock().unwrap())?;
     *task = Some(run.clone());
     std::thread::spawn(move || {
-        c.current_dir(isolated.path()).env_clear();
-        for key in [
-            "PATH",
-            "SystemRoot",
-            "WINDIR",
-            "COMSPEC",
-            "PATHEXT",
-            "TEMP",
-            "TMP",
-            "HOME",
-            "USERPROFILE",
-            "LOCALAPPDATA",
-            "APPDATA",
-            "LANG",
-        ] {
+        let Launch {
+            mut command,
+            extra,
+            isolate_profile,
+            envelope,
+            ..
+        } = launch;
+        command.env_clear();
+        for key in INHERITED_ENV {
+            if isolate_profile && PROFILE_ENV.contains(&key) {
+                continue;
+            }
             if let Some(v) = std::env::var_os(key) {
-                c.env(key, v);
+                command.env(key, v);
             }
         }
-        c.env("HARNESS_HERMES_SOURCE", source)
-            .env("HERMES_HOME", isolated.path())
-            .env("PYTHONIOENCODING", "utf-8")
-            .env("PYTHONUNBUFFERED", "1");
-        let result = run_process(c, &run, &secret, Duration::from_secs(600));
+        for (key, value) in extra {
+            command.env(key, value);
+        }
+        let result = run_process_ext(
+            command,
+            &run,
+            &secret,
+            Duration::from_secs(600),
+            envelope.clone(),
+        );
         let mut status = run.status.lock().unwrap();
+        if let Some(envelope) = &envelope {
+            apply_envelope(&mut status, &envelope.lock().unwrap(), &secret);
+        }
         match result {
             Ok(true) => status.status = "completed".into(),
             Ok(false) => {
@@ -768,14 +1092,66 @@ pub fn start_task_for_project(
         if let Err(e) = save_task(&status) {
             status.error = Some(e);
         }
+        drop(isolated);
     });
     Ok(())
 }
+/// Shows the answer of an OpenClaw run (`final` text, token usage) instead of the diagnostics
+/// that were collected while it ran. A run that printed no envelope keeps its raw output.
+fn apply_envelope(status: &mut TaskStatus, stdout: &str, secret: &str) {
+    let Some(start) = stdout.find('{') else {
+        return;
+    };
+    let Some(end) = stdout.rfind('}') else { return };
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&stdout[start..=end]) else {
+        return;
+    };
+    let mut text = value["payloads"]
+        .as_array()
+        .map(|p| {
+            p.iter()
+                .filter_map(|p| p["text"].as_str())
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .filter(|t| !t.is_empty())
+        .or_else(|| value["final"].as_str().map(str::to_string))
+        .unwrap_or_default();
+    if !secret.is_empty() {
+        text = text.replace(secret, "[redacted]");
+    }
+    if value["ok"] == false {
+        if text.is_empty() {
+            text = value["error"]["message"]
+                .as_str()
+                .unwrap_or_default()
+                .into();
+        }
+        if !status.output.trim().is_empty() {
+            text = format!("{text}\n\n{}", status.output.trim_end());
+        }
+    }
+    status.output = text;
+    trim_output(&mut status.output);
+    if let Some(total) = value["usage"]["total"].as_u64() {
+        status.tokens = Some(total);
+    }
+}
 fn run_process(
+    c: Command,
+    run: &Arc<Run>,
+    secret: &str,
+    timeout: Duration,
+) -> Result<bool, String> {
+    run_process_ext(c, run, secret, timeout, None)
+}
+/// With `capture`, stdout goes there (bounded) instead of the visible output; stderr is shown.
+fn run_process_ext(
     mut c: Command,
     run: &Arc<Run>,
     secret: &str,
     timeout: Duration,
+    capture: Option<Arc<Mutex<String>>>,
 ) -> Result<bool, String> {
     c.stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -796,25 +1172,41 @@ fn run_process(
     };
     let _group_guard = crate::process_limits::GroupGuard(child.id());
     let mut readers = Vec::new();
-    for pipe in [
-        child
-            .inner()
-            .stdout
-            .take()
-            .map(|p| Box::new(p) as Box<dyn Read + Send>),
-        child
-            .inner()
-            .stderr
-            .take()
-            .map(|p| Box::new(p) as Box<dyn Read + Send>),
+    for (is_stdout, pipe) in [
+        (
+            true,
+            child
+                .inner()
+                .stdout
+                .take()
+                .map(|p| Box::new(p) as Box<dyn Read + Send>),
+        ),
+        (
+            false,
+            child
+                .inner()
+                .stderr
+                .take()
+                .map(|p| Box::new(p) as Box<dyn Read + Send>),
+        ),
     ]
     .into_iter()
-    .flatten()
+    .filter_map(|(is_stdout, pipe)| pipe.map(|p| (is_stdout, p)))
     {
         let run = run.clone();
         let secret = secret.to_string();
+        let capture = capture.clone().filter(|_| is_stdout);
         readers.push(std::thread::spawn(move || {
             for line in BufReader::new(pipe).lines().map_while(Result::ok) {
+                if let Some(capture) = &capture {
+                    // Redaction happens when the envelope is read; keep a bounded copy.
+                    let mut text = capture.lock().unwrap();
+                    if text.len() < 1 << 20 {
+                        text.push_str(&line);
+                        text.push('\n');
+                    }
+                    continue;
+                }
                 let line = if secret.is_empty() {
                     line
                 } else {
@@ -925,9 +1317,118 @@ pub async fn install_managed() -> Result<(), String> {
     result
 }
 pub fn cancel_install() {
-    if let Some(r) = INSTALL_RUN.lock().unwrap().as_ref() {
+    cancel_install_kind(AgentKind::Hermes);
+}
+pub fn cancel_install_kind(kind: AgentKind) {
+    let slot = match kind {
+        AgentKind::Hermes => &INSTALL_RUN,
+        AgentKind::OpenClaw => &INSTALL_RUN_OPENCLAW,
+    };
+    if let Some(r) = slot.lock().unwrap().as_ref() {
         r.cancel.store(true, Ordering::SeqCst);
     }
+}
+/// Installs the pinned upstream OpenClaw release into Harness's own npm prefix with the
+/// official `npm install` method (no global command, no PATH change, no daemon, no onboarding).
+pub async fn install_openclaw() -> Result<(), String> {
+    super::ensure_not_disabled("agents")?;
+    let run = Arc::new(Run {
+        status: Mutex::new(TaskStatus {
+            agent: AgentKind::OpenClaw,
+            status: "running".into(),
+            ..Default::default()
+        }),
+        cancel: Arc::new(AtomicBool::new(false)),
+    });
+    {
+        let mut slot = INSTALL_RUN_OPENCLAW.lock().unwrap();
+        if slot
+            .as_ref()
+            .is_some_and(|r| r.status.lock().unwrap().status == "running")
+        {
+            return Err("modules.busy".into());
+        }
+        *slot = Some(run.clone());
+    }
+    let result = install_openclaw_run(&run).await;
+    let mut status = run.status.lock().unwrap();
+    status.status = if run.cancel.load(Ordering::SeqCst) {
+        "stopped"
+    } else if result.is_ok() {
+        "completed"
+    } else {
+        "failed"
+    }
+    .into();
+    status.error = result.as_ref().err().cloned();
+    result
+}
+async fn install_openclaw_run(run: &Arc<Run>) -> Result<(), String> {
+    if openclaw::managed_executable().is_some() {
+        return Ok(());
+    }
+    let node = tokio::task::spawn_blocking(|| tool_version("node"))
+        .await
+        .map_err(|e| e.to_string())?;
+    if !node.as_deref().is_some_and(openclaw::node_supported) {
+        return Err("agents.node_outdated".into());
+    }
+    let npm = tokio::task::spawn_blocking(|| tool_version(npm_tool()))
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("agents.npm_missing")?;
+    let root = openclaw::managed_root();
+    std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    let mut c = command(npm_tool());
+    // Upstream documents a global install; a private prefix keeps it out of the user's globals.
+    c.args(["install", "--global", "--prefix"])
+        .arg(&root)
+        .arg(format!("openclaw@{}", openclaw::OPENCLAW_VERSION))
+        .args(["--no-fund", "--no-audit", "--no-update-notifier"])
+        // A large package on a flaky connection: retry instead of failing on one reset.
+        .args(["--fetch-retries=5", "--fetch-retry-mintimeout=2000"])
+        .env("npm_config_cache", root.join("cache"));
+    if openclaw::npm_allows_scripts_flag(&npm) {
+        // Upstream's documented flag lets the package run its own install scripts.
+        c.arg("--allow-scripts=openclaw");
+    }
+    let task = run.clone();
+    let success =
+        tokio::task::spawn_blocking(move || run_process(c, &task, "", Duration::from_secs(1800)))
+            .await
+            .map_err(|e| e.to_string())??;
+    PROBE.lock().unwrap().clear();
+    if !success {
+        return Err("agents.install_failed".into());
+    }
+    if openclaw::managed_executable().is_none() {
+        return Err("agents.not_installed".into());
+    }
+    Ok(())
+}
+/// Removes Harness's own OpenClaw install (never an external one) after restoring its config.
+pub fn remove_openclaw() -> Result<(), String> {
+    let _operation = super::OPERATION.try_lock().map_err(|_| "modules.busy")?;
+    if running()
+        || INSTALL_RUN_OPENCLAW
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|r| r.status.lock().unwrap().status == "running")
+    {
+        return Err("agents.busy".into());
+    }
+    disconnect_kind(AgentKind::OpenClaw)?;
+    let root = openclaw::managed_root();
+    match std::fs::symlink_metadata(&root) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e.to_string()),
+        Ok(m) if m.file_type().is_symlink() => return Err("modules.unsafe_path".into()),
+        Ok(_) => std::fs::remove_dir_all(&root).map_err(|e| e.to_string())?,
+    }
+    PROBE.lock().unwrap().clear();
+    *INSTALL_RUN_OPENCLAW.lock().unwrap() = None;
+    Ok(())
 }
 async fn install_upstream(run: &Arc<Run>) -> Result<(), String> {
     let temp = tempfile::tempdir().map_err(|e| e.to_string())?;
@@ -1010,7 +1511,7 @@ async fn install_upstream(run: &Arc<Run>) -> Result<(), String> {
         }
     }
 
-    *PROBE.lock().unwrap() = None;
+    PROBE.lock().unwrap().clear();
     if managed_executable().is_none() {
         return Err("agents.not_installed".into());
     }
@@ -1257,5 +1758,201 @@ mod tests {
         assert!(!dir.join("config.yaml").exists());
         assert!(connect_in(dir, &tokens, "https://example.com/v1", "chat").is_err());
         assert!(connect_in(dir, &tokens, "http://127.0.0.1:11435/v1", "*").is_err());
+    }
+
+    #[test]
+    fn openclaw_connection_restores_exact_bytes_and_scopes_the_token() {
+        let temp = tempfile::tempdir().unwrap();
+        let tokens = TokenStore::at(&temp.path().join("tokens"));
+        let config = temp.path().join("state").join("openclaw.json");
+        std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+        let old =
+            b"// my comments survive in the backup\n{\n  \"channels\": {\"telegram\": {}},\n}\n";
+        std::fs::write(&config, old).unwrap();
+        let url = "http://127.0.0.1:11620/v1";
+        connect_at(
+            AgentKind::OpenClaw,
+            &config,
+            &tokens,
+            url,
+            "chat",
+            Some(8192),
+        )
+        .unwrap();
+        assert_eq!(std::fs::read(backup_of(&config)).unwrap(), old);
+        let cfg = openclaw::parse_config(&std::fs::read(&config).unwrap()).unwrap();
+        assert_eq!(cfg["channels"]["telegram"], json!({}));
+        assert_eq!(
+            cfg["agents"]["defaults"]["model"]["primary"],
+            "harness/chat"
+        );
+        assert_eq!(
+            cfg["models"]["providers"]["harness"]["models"][0]["id"],
+            "chat"
+        );
+        let token = &tokens.list().unwrap()[0];
+        assert_eq!(token.scopes, vec![Scope::Inference]);
+        assert_eq!(token.policy.models, vec!["chat"]);
+        assert_eq!(
+            token.policy.endpoints,
+            vec![GatewayEndpoint::Chat, GatewayEndpoint::Models]
+        );
+        assert!(token.policy.allows_model("chat") && !token.policy.allows_model("other"));
+        assert!(record_at(&config).unwrap().is_some());
+        assert_eq!(
+            connect_at(AgentKind::OpenClaw, &config, &tokens, url, "chat", None).unwrap_err(),
+            "agents.already_connected"
+        );
+        disconnect_at(&config, &tokens).unwrap();
+        assert_eq!(std::fs::read(&config).unwrap(), old);
+        assert!(tokens.list().unwrap().is_empty());
+        assert!(!backup_of(&config).exists());
+        assert!(record_at(&config).unwrap().is_none());
+        disconnect_at(&config, &tokens).unwrap();
+    }
+
+    #[test]
+    fn openclaw_refuses_external_edits_and_unparseable_configs() {
+        let temp = tempfile::tempdir().unwrap();
+        let tokens = TokenStore::at(&temp.path().join("tokens"));
+        let config = temp.path().join("openclaw.json");
+        let url = "http://127.0.0.1:11620/v1";
+        std::fs::write(&config, "{ unquoted: json5 }").unwrap();
+        assert_eq!(
+            connect_at(AgentKind::OpenClaw, &config, &tokens, url, "chat", None).unwrap_err(),
+            "agents.config_invalid"
+        );
+        assert!(tokens.list().unwrap().is_empty());
+        assert!(!backup_of(&config).exists());
+        std::fs::remove_file(&config).unwrap();
+        connect_at(AgentKind::OpenClaw, &config, &tokens, url, "chat", None).unwrap();
+        std::fs::write(&config, "{\"mine\": true}").unwrap();
+        assert_eq!(
+            disconnect_at(&config, &tokens).unwrap_err(),
+            "agents.config_changed"
+        );
+        // The token is revoked even when the restore is refused; the edit stays untouched.
+        assert!(tokens.list().unwrap().is_empty());
+        assert_eq!(
+            std::fs::read_to_string(&config).unwrap(),
+            "{\"mine\": true}"
+        );
+    }
+
+    #[test]
+    fn openclaw_without_an_original_config_removes_what_it_wrote() {
+        let temp = tempfile::tempdir().unwrap();
+        let tokens = TokenStore::at(&temp.path().join("tokens"));
+        let config = temp.path().join("fresh").join("openclaw.json");
+        let url = "http://127.0.0.1:11620/v1";
+        connect_at(AgentKind::OpenClaw, &config, &tokens, url, "chat", None).unwrap();
+        assert!(config.exists());
+        disconnect_at(&config, &tokens).unwrap();
+        assert!(!config.exists());
+        for (base, model) in [("https://example.com/v1", "chat"), (url, "a*"), (url, "")] {
+            assert!(connect_at(AgentKind::OpenClaw, &config, &tokens, base, model, None).is_err());
+        }
+        assert!(tokens.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn link_models_get_an_exact_token_policy_for_every_agent() {
+        let model = "remote:lab-box/qwen3:8b";
+        let temp = tempfile::tempdir().unwrap();
+        let tokens = TokenStore::at(&temp.path().join("tokens"));
+        let url = "http://127.0.0.1:11620/v1";
+        connect_in(temp.path(), &tokens, url, model).unwrap();
+        let config = temp.path().join("oc").join("openclaw.json");
+        connect_at(AgentKind::OpenClaw, &config, &tokens, url, model, None).unwrap();
+        let list = tokens.list().unwrap();
+        assert_eq!(list.len(), 2);
+        for token in &list {
+            assert_eq!(token.policy.models, vec![model]);
+            assert!(token.policy.allows_model(model));
+            assert!(token.policy.allows_model("REMOTE:lab-box/QWEN3:8b"));
+            assert!(!token.policy.allows_model("remote:lab-box/qwen3:70b"));
+            assert!(!token.policy.allows_model("remote:other/qwen3:8b"));
+            assert!(!token.policy.allows_model("qwen3:8b"));
+        }
+        // A glob-looking id would widen the token: refused.
+        let glob = temp.path().join("g.json");
+        assert!(connect_at(
+            AgentKind::OpenClaw,
+            &glob,
+            &tokens,
+            url,
+            "remote:lab/*",
+            None
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn openclaw_envelope_becomes_the_task_answer_and_usage() {
+        let mut status = TaskStatus {
+            output: "diagnostics\n".into(),
+            ..Default::default()
+        };
+        let stdout = "{\n \"ok\": true,\n \"payloads\": [{\"text\": \"HARNESS_OK sk-secret\"}],\n \"usage\": {\"total\": 42}\n}\n";
+        apply_envelope(&mut status, stdout, "sk-secret");
+        assert_eq!(status.output, "HARNESS_OK [redacted]");
+        assert_eq!(status.tokens, Some(42));
+        let mut failed = TaskStatus {
+            output: "stderr line\n".into(),
+            ..Default::default()
+        };
+        apply_envelope(
+            &mut failed,
+            "{\"ok\": false, \"error\": {\"message\": \"timed out\"}}",
+            "",
+        );
+        assert_eq!(failed.output, "timed out\n\nstderr line");
+        let mut raw = TaskStatus {
+            output: "kept".into(),
+            ..Default::default()
+        };
+        apply_envelope(&mut raw, "not json", "");
+        assert_eq!(raw.output, "kept");
+    }
+
+    #[test]
+    fn agent_kinds_parse_and_old_history_entries_are_hermes() {
+        assert_eq!(AgentKind::parse("hermes").unwrap(), AgentKind::Hermes);
+        assert_eq!(AgentKind::parse("openclaw").unwrap(), AgentKind::OpenClaw);
+        assert_eq!(
+            AgentKind::parse("other").unwrap_err(),
+            "agents.kind_invalid"
+        );
+        let old: TaskStatus =
+            serde_json::from_value(json!({"id": "x", "status": "completed"})).unwrap();
+        assert_eq!(old.agent, AgentKind::Hermes);
+        assert_eq!(
+            serde_json::to_value(AgentKind::OpenClaw).unwrap(),
+            "openclaw"
+        );
+    }
+
+    #[test]
+    fn captured_stdout_stays_out_of_the_visible_output() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("out.json"), "{\"ok\": true}\n").unwrap();
+        let run = Arc::new(Run {
+            status: Mutex::new(TaskStatus::default()),
+            cancel: Arc::new(AtomicBool::new(false)),
+        });
+        let mut c = command(if cfg!(windows) { "cmd" } else { "sh" });
+        c.current_dir(temp.path());
+        if cfg!(windows) {
+            c.args(["/C", "type out.json& echo diagnostic 1>&2"]);
+        } else {
+            c.args(["-c", "cat out.json; echo diagnostic >&2"]);
+        }
+        let capture = Arc::new(Mutex::new(String::new()));
+        assert!(
+            run_process_ext(c, &run, "", Duration::from_secs(10), Some(capture.clone())).unwrap()
+        );
+        assert!(capture.lock().unwrap().contains("\"ok\""));
+        let output = run.status.lock().unwrap().output.clone();
+        assert!(output.contains("diagnostic") && !output.contains("\"ok\""));
     }
 }
