@@ -42,6 +42,9 @@ def main():
         run("systemd-run", "--quiet", "--on-active=2", "/usr/bin/systemctl", "restart", "harness-server.service")
     elif len(args) == 2 and args[0] == "update" and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args[1]):
         version = args[1]
+        installed = subprocess.run(["dpkg-query", "-W", "-f=${Version}", "harness-server"], capture_output=True, text=True).stdout.strip()
+        if installed and subprocess.run(["dpkg", "--compare-versions", version, "gt", installed]).returncode != 0:
+            raise ValueError("Version must be newer than the installed one")
         arch = os.uname().machine
         if arch not in ("x86_64", "aarch64"):
             raise ValueError("Unsupported architecture")

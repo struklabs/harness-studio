@@ -20505,7 +20505,8 @@
           "managed",
           "uptime_seconds",
           "start_on_boot",
-          "version"
+          "version",
+          "restore_failed"
         ],
         "properties": {
           "managed": {
@@ -20521,6 +20522,10 @@
           },
           "version": {
             "type": "string"
+          },
+          "restore_failed": {
+            "type": "boolean",
+            "description": "A staged restore failed at startup and the previous configuration was kept."
           }
         }
       },

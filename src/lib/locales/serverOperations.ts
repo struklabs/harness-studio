@@ -33,6 +33,7 @@ const en = {
   'browser.operation_busy': 'Another Backup or Restore Is Running.',
   'browser.operation_failed': 'The Service Operation Failed. Check the Service Installation and Retry.',
   'browser.operation_accepted': 'Operation Accepted. Reconnect and Sign In After Restart.',
+  'browser.restore_failed': 'The Staged Restore Failed at Startup and Was Not Applied. The Previous Configuration Is Unchanged. See the Service Logs.',
   'browser.restore_pending': 'A Restore Is Already Staged. Restart to Apply It First.',
 };
 const tr: Record<keyof typeof en, string> = {
@@ -70,6 +71,7 @@ const tr: Record<keyof typeof en, string> = {
   'browser.operation_busy': 'Başka Bir Yedekleme veya Geri Yükleme Çalışıyor.',
   'browser.operation_failed': 'Hizmet İşlemi Başarısız. Hizmet Kurulumunu Denetleyip Yeniden Deneyin.',
   'browser.operation_accepted': 'İşlem Kabul Edildi. Yeniden Başlatmadan Sonra Bağlanıp Giriş Yapın.',
+  'browser.restore_failed': 'Hazırlanan Geri Yükleme Başlangıçta Başarısız Oldu ve Uygulanmadı. Önceki Yapılandırma Değişmedi. Hizmet Günlüklerine Bakın.',
   'browser.restore_pending': 'Bir Geri Yükleme Zaten Hazırlandı. Önce Uygulamak İçin Yeniden Başlatın.',
 };
 export default { tr, en };

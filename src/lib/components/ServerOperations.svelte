@@ -5,7 +5,7 @@
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { control, ControlError } from '#lib/transport.js';
 
-  let service = $state<{ managed: boolean; uptime_seconds: number; start_on_boot: boolean; version: string }>();
+  let service = $state<{ managed: boolean; uptime_seconds: number; start_on_boot: boolean; version: string; restore_failed?: boolean }>();
   let update = $state<{ current: string; version: string; available: boolean; applicable: boolean }>();
   let logs = $state('');
   let password = $state('');
@@ -48,6 +48,7 @@
   <h3>{t('browser.service')}</h3>
   {#if service}
     <p>{t('browser.version')}: {service.version} · {t('browser.uptime')}: {service.uptime_seconds}s</p>
+    {#if service.restore_failed}<p role="alert">{t('browser.restore_failed')}</p>{/if}
     <p>{t(service.managed ? 'browser.managed_service' : 'browser.unmanaged_service')}</p>
     <div class="actions">
       <Button disabled={busy} onclick={() => run(refresh)}>{t('browser.refresh')}</Button>

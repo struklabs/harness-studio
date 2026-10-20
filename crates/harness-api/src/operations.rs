@@ -218,6 +218,8 @@ pub async fn restore(
         if path.exists() {
             return Err("browser.restore_pending".into());
         }
+        // A new staging attempt supersedes the record of an earlier failed one.
+        let _ = std::fs::remove_file(s.ctx.data_dir.join(FAILED_RESTORE));
         harness_core::instance::write_private_file(
             &path,
             &serde_json::to_vec(&snapshot).map_err(|e| e.to_string())?,
@@ -225,6 +227,23 @@ pub async fn restore(
     })
     .await??;
     Ok(StatusCode::ACCEPTED)
+}
+
+const FAILED_RESTORE: &str = "restore-pending.failed.json";
+
+/// Startup wrapper: a staged restore must never keep the server from starting (systemd
+/// would crash-loop). On any failure the previous configuration stays in place, the staged
+/// file is renamed to `restore-pending.failed.json`, and the error is returned for logging.
+pub fn apply_pending_or_quarantine(dir: &Path) -> Option<String> {
+    let error = apply_pending(dir).err()?;
+    let pending = dir.join("restore-pending.json");
+    let _ = std::fs::remove_file(dir.join("restore-rollback.json"));
+    let _ = std::fs::remove_file(dir.join(FAILED_RESTORE));
+    if std::fs::rename(&pending, dir.join(FAILED_RESTORE)).is_err() {
+        let _ = std::fs::remove_file(&pending);
+        let _ = std::fs::write(dir.join(FAILED_RESTORE), error.as_bytes());
+    }
+    Some(error)
 }
 
 /// Called only after acquiring the instance lock, before opening services. A private rollback
@@ -306,6 +325,8 @@ pub struct ServiceStatus {
     uptime_seconds: u64,
     start_on_boot: bool,
     version: String,
+    /// A staged restore failed at startup and the previous configuration was kept.
+    restore_failed: bool,
 }
 #[derive(Deserialize, utoipa::ToSchema)]
 #[serde(rename_all = "snake_case")]
@@ -347,6 +368,7 @@ pub async fn service_status(State(s): State<AppState>) -> ApiResult<Json<Service
         managed: managed(),
         uptime_seconds,
         start_on_boot,
+        restore_failed: s.ctx.data_dir.join(FAILED_RESTORE).is_file(),
         version: s.ctx.version,
     }))
 }
@@ -493,6 +515,71 @@ mod tests {
         archive.ciphertext[0] ^= 1;
         assert!(decrypt(archive, "backup-password-1234").is_err());
         assert!(encrypt(&snapshot, "short").is_err());
+    }
+    #[test]
+    fn failed_staged_restore_is_quarantined_and_config_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join("config");
+        std::fs::create_dir(&config).unwrap();
+        std::fs::write(config.join("settings.json"), "original").unwrap();
+        let mut files = BTreeMap::new();
+        files.insert(
+            "settings.json".into(),
+            serde_json::json!({"schema_version":999}),
+        );
+        let snapshot = Snapshot {
+            files,
+            tokens: vec![],
+        };
+        std::fs::write(
+            dir.path().join("restore-pending.json"),
+            serde_json::to_vec(&snapshot).unwrap(),
+        )
+        .unwrap();
+        assert!(apply_pending_or_quarantine(dir.path()).is_some());
+        assert!(!dir.path().join("restore-pending.json").exists());
+        assert!(dir.path().join(FAILED_RESTORE).is_file());
+        assert_eq!(
+            std::fs::read_to_string(config.join("settings.json")).unwrap(),
+            "original"
+        );
+        assert!(apply_pending_or_quarantine(dir.path()).is_none());
+    }
+    #[test]
+    fn write_error_during_staged_restore_quarantines_and_keeps_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = dir.path().join("config");
+        std::fs::create_dir(&config).unwrap();
+        std::fs::write(config.join("server_profiles.json"), "original").unwrap();
+        let mut files = BTreeMap::new();
+        files.insert(
+            "server_profiles.json".into(),
+            serde_json::json!({"schema_version":2}),
+        );
+        files.insert(
+            "settings.json".into(),
+            serde_json::json!({"schema_version":3,"server":{"default_ngl":17}}),
+        );
+        let snapshot = Snapshot {
+            files,
+            tokens: vec![],
+        };
+        validate(&snapshot).unwrap();
+        // A directory in place of a target file makes the restore fail after validation.
+        std::fs::create_dir(config.join("settings.json")).unwrap();
+        std::fs::write(
+            dir.path().join("restore-pending.json"),
+            serde_json::to_vec(&snapshot).unwrap(),
+        )
+        .unwrap();
+        assert!(apply_pending_or_quarantine(dir.path()).is_some());
+        assert!(!dir.path().join("restore-pending.json").exists());
+        assert!(dir.path().join(FAILED_RESTORE).is_file());
+        assert!(!dir.path().join("restore-rollback.json").exists());
+        assert_eq!(
+            std::fs::read_to_string(config.join("server_profiles.json")).unwrap(),
+            "original"
+        );
     }
     #[test]
     fn restore_allowlist_preserves_models_and_credentials() {

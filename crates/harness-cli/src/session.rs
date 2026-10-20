@@ -305,7 +305,10 @@ impl Instance {
             Err(AcquireError::Io(e)) => return Err(CliError::general("cli.io", e)),
         };
         let restoring = data_dir.join("restore-pending.json").exists();
-        harness_api::operations::apply_pending(data_dir).map_err(CliError::core)?;
+        if let Some(error) = harness_api::operations::apply_pending_or_quarantine(data_dir) {
+            // Never block startup: a crash loop under systemd would hide the admin UI.
+            eprintln!("staged restore failed, previous configuration kept: {error}");
+        }
         if restoring {
             // serve reads settings before it can take the owner lock. Refresh its shared
             // cache after restoring, while keeping this listener's explicit bind options.
