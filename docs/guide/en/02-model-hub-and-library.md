@@ -24,6 +24,7 @@ By default the list shows only GGUF repositories, the file format llama.cpp uses
 | CrispASR / audio.cpp GGUF speech models | CrispASR; experimental audio.cpp (off by default) |
 | MLX-format chat, vision, and audio | MLX engines (Apple Silicon, macOS 14+) |
 | Hugging Face task folders / diffusers pipelines | Python (`python-hf`, CPU/CUDA); diffusers opens in Image Generation |
+| Safetensors sentence-transformers embedders and cross-encoder rerankers without an `onnx/` folder | Python (`python-hf`). They work as embedding and rerank models in knowledge bases and on `/v1/embeddings` and `/v1/rerank`; a repo that ships an ONNX export runs on ONNX Runtime instead, which starts faster and uses less memory. The decoder-based rerankers (Qwen3-Reranker) are not cross-encoders and are not offered. |
 
 If a card says **Required: Speech module (whisper.cpp)** or **Required: Image module (stable-diffusion.cpp)**, you can still download the model, but you need to press **Install** (above the list, or in the model's details) before you can run it.
 
