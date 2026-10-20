@@ -96,6 +96,54 @@ async fn real_hermes_gateway_connect_task_stop_disconnect() {
         eprintln!("Task {}: {} {:?}", task.status, task.output, task.error);
         assert_eq!(task.status, "completed");
         assert!(task.output.contains("HARNESS_HERMES_OK"));
+        assert_eq!(task.model, "hermes-e2e");
+        assert!(task.started_at > 0 && task.finished_at.is_some());
+        assert!(task.tokens.is_some());
+        let file_scope = tempfile::tempdir().unwrap();
+        let input = file_scope.path().join("input.txt");
+        std::fs::write(&input, "HARNESS_SCOPED_FILE_OK").unwrap();
+        agents::start_task_with_grants(
+            format!(
+                "Use harness_read_file to read {} and return its exact content.",
+                input.to_string_lossy().replace('\\', "/")
+            ),
+            agents::RunGrants {
+                read_folders: vec![file_scope.path().to_path_buf()],
+            },
+        )
+        .unwrap();
+        let scoped = terminal().await;
+        eprintln!(
+            "Scoped task: {} {} {:?}",
+            scoped.status, scoped.output, scoped.audit
+        );
+        assert_eq!(scoped.status, "completed", "{}", scoped.output);
+        assert!(
+            scoped.output.contains("HARNESS_SCOPED_FILE_OK"),
+            "{}",
+            scoped.output
+        );
+        assert!(
+            scoped
+                .audit
+                .iter()
+                .any(|e| e.contains("harness_read_file") && e.contains("completed")),
+            "{:?}",
+            scoped.audit
+        );
+        let history = agents::task_history().unwrap();
+        assert!(history
+            .iter()
+            .any(|e| e.id == task.id && e.output == task.output));
+        agents::delete_task(&task.id).unwrap();
+        assert!(!agents::task_history()
+            .unwrap()
+            .iter()
+            .any(|e| e.id == task.id));
+        assert_eq!(
+            std::fs::read_to_string(&input).unwrap(),
+            "HARNESS_SCOPED_FILE_OK"
+        );
         agents::start_task("Write an extremely long essay about the solar system.".into()).unwrap();
         agents::stop();
         assert_eq!(terminal().await.status, "stopped");

@@ -47,7 +47,7 @@ Uçtan uca akışları sırayla sunmak: her dalga kurulum, kullanım, izin ve ku
 
 ### W2 — Ajan Bağlama ve Görev Tamamlama
 
-İlk dilim: [Hermes Agent bağlantısı ve ilk görev](HERMES_AGENT.md) uygulandı; aşağıdaki W2 maddelerinin kalan kapsamı henüz tamamlanmadı.
+Tamamlanan dilimler: [Hermes Agent bağlantısı, görevler, kısıtlı okuma izinleri, geçmiş/denetim ve mevcut Paperclip örneğine model aktarımı](HERMES_AGENT.md). Aşağıdaki daha geniş OpenClaw, upstream güncelleme ve Araç Oluşturucu kapsamı açık kalır.
 
 - [ ] OpenClaw veya Hermes Agent'ı isteğe bağlı kurmak ya da mevcut kurulumlara bağlanmak; dış arayüzlerini koruyarak upstream sürümleri, kurulum, başlatma/güncelleme, eksik bağımlılıklar ve ilk çalıştırma testlerini yönetmek.
 - [ ] Yerel veya Harness Link modellerini OpenClaw, Hermes Agent ve mevcut Paperclip örneğine sağlamak; görev/donanıma uygun model önerip uç nokta/anahtarları güvenle yapılandırmak. Paperclip yaşam döngüsü yönetimini Daha Sonra kapsamında tutmak.

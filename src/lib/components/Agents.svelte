@@ -10,13 +10,24 @@
 
   interface Detection { installed: boolean; version: string | null; executable: string | null; config_path: string; missing_dependencies: string[]; connected: boolean; model: string | null; installation: Task }
   interface Model { alias: string; chat: boolean | null; tools: string; model_path: string | null; file_bytes: number | null; context_size: number | null }
-  interface Task { status: string; output: string; error: string | null }
+  interface Task { status: string; output: string; error: string | null; id?: string; model?: string; prompt?: string; started_at?: number; finished_at?: number | null; tokens?: number | null; grants?: { read_folders: string[] }; audit?: string[] }
   let detection = $state<Detection | null>(null);
   let models = $state<Model[]>([]);
   let selected = $state('');
   let recommended = $state('');
   let task = $state<Task>({ status: 'idle', output: '', error: null });
   let prompt = $state('');
+  let folders = $state('');
+  let granted = $state(false);
+  let history = $state<Task[]>([]);
+  let opened = $state('');
+  let handoff = $state<{ token_id: string; endpoint: string; config: Record<string, unknown> } | null>(null);
+  let paperclipModel = $state('');
+  let instance = $state('http://127.0.0.1:3100');
+  let paperclipAgent = $state('');
+  let credential = $state('');
+  let notice = $state('');
+  const viewing = $derived(history.find(entry => entry.id === opened));
   let error = $state('');
   let pending = $state(false);
   let disposed = false;
@@ -25,8 +36,8 @@
     if (reading) return;
     reading = true;
     try {
-      const [d, s] = await Promise.all([invoke<Detection>('detect_agent'), invoke<Task>('agent_task_status')]);
-      if (!disposed) { detection = d; task = s; if (d.model) selected = d.model; }
+      const [d, s, h] = await Promise.all([invoke<Detection>('detect_agent'), invoke<Task>('agent_task_status'), invoke<Task[]>('agent_task_history')]);
+      if (!disposed) { detection = d; task = s; history = h; if (d.model) selected = d.model; }
     } catch (e) { if (!disposed) error = errorText(e); }
     finally { reading = false; }
   }
@@ -54,6 +65,22 @@
     pending = true; error = '';
     try { await invoke(command, args); await refresh(); }
     catch (e) { error = errorText(e); }
+    finally { pending = false; }
+  }
+  async function run() {
+    if (!granted) return;
+    const read_folders = folders.split('\n').map(s => s.trim()).filter(Boolean);
+    granted = false;
+    await action('start_agent_task', { prompt, grants: { read_folders } });
+  }
+  async function paperclip(command: 'generate' | 'copy' | 'apply' | 'revoke') {
+    pending = true; error = ''; notice = '';
+    try {
+      if (command === 'generate') handoff = await invoke('paperclip_handoff', { model: paperclipModel });
+      if (command === 'copy' && handoff) { await navigator.clipboard.writeText(JSON.stringify(handoff.config, null, 2)); notice = t('agents.copied'); }
+      if (command === 'apply' && handoff) { await invoke('apply_paperclip_config', { instance, agent: paperclipAgent, credential, config: handoff.config }); credential = ''; notice = t('agents.paperclip_applied'); }
+      if (command === 'revoke' && handoff) { await invoke('revoke_paperclip_token', { id: handoff.token_id }); handoff = null; }
+    } catch (e) { error = errorText(e); }
     finally { pending = false; }
   }
 </script>
@@ -93,10 +120,14 @@
         <Button variant="outline" disabled={pending} onclick={() => { void refresh(); void loadModels(); }}>{t('modules.refresh')}</Button>
       </div>
       <p class="text-sm text-muted-foreground">{t('agents.task_permission')}</p>
+      <label class="block text-sm" for="agent-folders">{t('agents.read_folders')}</label>
+      <textarea id="agent-folders" class="w-full rounded border bg-background p-2" bind:value={folders} oninput={() => granted = false} disabled={task.status === 'running'}></textarea>
+      <p class="text-xs text-muted-foreground">{t('agents.scope_limits')}</p>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={granted} disabled={task.status === 'running'} />{t('agents.grant_run')}</label>
       <label class="block text-sm" for="agent-prompt">{t('agents.task')}</label>
       <textarea id="agent-prompt" class="min-h-24 w-full rounded border bg-background p-2" bind:value={prompt} placeholder={t('agents.example')} maxlength="16384" disabled={task.status === 'running'}></textarea>
       <div class="flex gap-2">
-        <Button disabled={pending || !detection.connected || !prompt.trim() || task.status === 'running' || detection.missing_dependencies.length > 0} onclick={() => action('start_agent_task', { prompt })}>{t('agents.run')}</Button>
+        <Button disabled={pending || !granted || !detection.connected || !prompt.trim() || task.status === 'running' || detection.missing_dependencies.length > 0} onclick={run}>{t('agents.run')}</Button>
         <Button variant="outline" disabled={task.status !== 'running'} onclick={() => action('stop_agent_task')}>{t('agents.stop')}</Button>
       </div>
       <p role="status" aria-live="polite">{t(('agents.' + task.status) as TKey)}</p>
@@ -104,4 +135,43 @@
       {#if task.output}<pre class="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 text-xs" aria-label={t('agents.output')}>{task.output}</pre>{/if}
     {/if}
   {/if}
+  <h4 class="font-semibold">{t('agents.history')}</h4>
+  <p class="text-xs text-muted-foreground">{t('agents.history_help')}</p>
+  {#each history as entry (entry.id)}
+    <div class="space-y-2 rounded border p-3 text-sm">
+      <p class="break-words">{entry.prompt}</p>
+      <p>{entry.model} · {t(('agents.' + entry.status) as TKey)} · {entry.started_at ? new Date(entry.started_at).toLocaleString() : '—'}</p>
+      <p>{t('agents.duration')}: {Math.max(0, Math.round(((entry.finished_at ?? Date.now()) - (entry.started_at ?? Date.now())) / 1000))} s · {t('agents.tokens')}: {entry.tokens ?? t('agents.unavailable')}</p>
+      {#if entry.error}<p class="text-destructive">{errorText(entry.error)}</p>{/if}
+      <Button variant="outline" onclick={() => opened = opened === entry.id ? '' : entry.id ?? ''}>{t('agents.reopen')}</Button>
+      <Button variant="outline" disabled={pending || entry.status === 'running'} onclick={async () => { await action('delete_agent_task', { id: entry.id }); if (opened === entry.id) opened = ''; }}>{t('agents.delete_history')}</Button>
+    </div>
+  {/each}
+  {#if viewing}
+    <pre class="max-h-96 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 text-xs" aria-label={t('agents.output')}>{viewing.output}</pre>
+    <h4 class="font-semibold">{t('agents.audit')}</h4>
+    <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify({ grants: viewing.grants, network: 'inference_only', started_at: viewing.started_at, finished_at: viewing.finished_at, events: viewing.audit }, null, 2)}</pre>
+  {/if}
+  <h4 class="font-semibold">Paperclip</h4>
+  <p class="text-sm text-muted-foreground">{t('agents.paperclip_help')}</p>
+  <label class="block text-sm" for="paperclip-model">{t('agents.model')}</label>
+  <select id="paperclip-model" class="w-full rounded border bg-background p-2" bind:value={paperclipModel} disabled={pending || !!handoff}>
+    {#each models as model (model.alias)}<option value={model.alias}>{model.alias}</option>{/each}
+  </select>
+  <Button disabled={pending || !paperclipModel || !!handoff} onclick={() => paperclip('generate')}>{t('agents.generate_config')}</Button>
+  {#if handoff}
+    <p class="break-all text-sm">{handoff.endpoint}</p>
+    <p class="text-xs">{t('agents.secret_help')}</p>
+    <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 text-xs">{JSON.stringify(handoff.config, null, 2)}</pre>
+    <Button variant="outline" disabled={pending} onclick={() => paperclip('copy')}>{t('agents.copy_config')}</Button>
+    <Button variant="outline" disabled={pending} onclick={() => paperclip('revoke')}>{t('agents.revoke_token')}</Button>
+    <label class="block text-sm" for="paperclip-instance">{t('agents.paperclip_instance')}</label>
+    <input id="paperclip-instance" class="w-full rounded border bg-background p-2" bind:value={instance} />
+    <label class="block text-sm" for="paperclip-agent">{t('agents.paperclip_agent')}</label>
+    <input id="paperclip-agent" class="w-full rounded border bg-background p-2" bind:value={paperclipAgent} />
+    <label class="block text-sm" for="paperclip-credential">{t('agents.paperclip_credential')}</label>
+    <input id="paperclip-credential" type="password" autocomplete="off" class="w-full rounded border bg-background p-2" bind:value={credential} />
+    <Button disabled={pending || !paperclipAgent || !instance} onclick={() => paperclip('apply')}>{t('agents.apply_config')}</Button>
+  {/if}
+  {#if notice}<p role="status">{notice}</p>{/if}
 </section>
