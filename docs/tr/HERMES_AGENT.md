@@ -18,7 +18,7 @@ Hermes'in açık boş araç listesi kabul eden süreç içi Python API'si ve yer
 
 Harness, resmî `hermes-agent.nousresearch.com/install.ps1` veya `install.sh` dosyasını indirip etkileşimsiz, tarayıcı ve bilgisayar kullanımı kurulumu atlanmış şekilde çalıştırır. Fork, mesajlaşma kurulumu veya servis oluşturmaz. Bağımlılıkları upstream kurucu yönetir. Kurulum onayı bu betiğin kullanıcı yetkilerinizle çalışmasına izin verir; bu, Harness'in hash ile sabitlenmiş çalışma zamanı kurucusu değildir. Boyutlar tahmindir. Kaynak derleme bağımlılıkları gerekebilir. İptal, kurulum süreç ağacını sonlandırır.
 
-Algılama PATH ve standart kaynak kurulum yollarını, süre sınırlı sürüm sorgusunu ve Python API çalışma zamanını denetler. Sürüm kısa süre önbelleğe alınır. Güncel PM kaynak başlatıcısı ve eski sanal ortamlar desteklenir. Kaynak/API çalışma zamanı bulunamayan yalnızca masaüstü kurulumları eksik bağımlılık olarak gösterilir; resmî kaynak kurulumunu kullanın. Güncellemeler upstream'e aittir; kaynak kurulumunda `hermes update` kullanılır.
+Algılama yönetilen çalışma zamanını, PATH ve standart kaynak kurulum yollarını, süre sınırlı sürüm sorgusunu ve Python API çalışma zamanını denetler. Sürüm kısa süre önbelleğe alınır. Güncel PM kaynak başlatıcısı ve eski sanal ortamlar desteklenir. Kaynak/API çalışma zamanı bulunamayan yalnızca masaüstü kurulumları eksik bağımlılık olarak gösterilir; resmî kaynak kurulumunu kullanın. Yönetilen çalışma zamanının güncellemeleri [Modül Yaşam Döngüsü](MODULE_LIFECYCLE.md) belgesindeki kaynak sabiti ve geri alma akışını kullanır. Harici kaynak kurulumları kendi upstream güncelleme akışını korur.
 
 ## Güvenlik ve Kurtarma
 
@@ -43,3 +43,7 @@ Otomatik Uygula, mevcut Paperclip örneğindeki **mevcut bir `opencode_local` ar
 Rust birim testleri yedek/geri yükleme, dış düzenlemeler, token kapsamı/iptali, izin doğrulama, geçmiş kurtarma/silme, süreç hataları, alt süreçleri durdurma, Paperclip ayarlarını koruma ve yönlendirmeyi reddeden yerel GET/PATCH API testini kapsar. `python scripts/test-hermes-adapter.py`, deterministik upstream API test eşlemiyle araç listesini, dosya sınırlarını, yol geçişi/sembolik bağlantı retlerini, genişletilmiş Windows yollarını ve denetim olaylarını denetler. Windows UNC/aygıt yolları ve yeniden ayrıştırma noktaları, izinsiz ağ erişimini önlemek için çözümlemeden önce reddedilir. Gerçek uçtan uca testin komutu [İngilizce belgede](../en/HERMES_AGENT.md#verification) bulunur.
 
 Windows'ta mevcut upstream Hermes v0.14.0, gerçek Harness Gateway kimlik doğrulaması, llama-server ve Qwen3-4B-Instruct-2507 Q4_K_M ile çıkarım, izinli dosya okuma ve gerçek araç denetim kaydı, token kullanımı, geçmişi açma/silme, Stop, iptal edilmiş tokenın reddi, birebir geri yükleme ve iptal geçici klasörlerde doğrulandı. Kullanıcı yapılandırması ve mevcut kurulum değiştirilmedi. Paperclip API'si canlı örnek yerine yerel test sunucusuyla doğrulanır. macOS/Linux ve daha yeni Hermes sürümleri için platform uçtan uca doğrulaması gereklidir; sıfırdan kurulum yapıldığı iddia edilmez.
+
+## 0.2 W3
+
+[Modül Yaşam Döngüsü](MODULE_LIFECYCLE.md), yönetilen kurulumun yeni güncelleme, onarma, geri alma ve açık veri silme seçimlerini açıklar. Yukarıdaki W2 doğrulaması mevcut harici kurulumla yapılan tarihsel testi anlatır; yeni yönetilen kurulumun doğrulaması değildir.

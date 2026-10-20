@@ -1,3 +1,6 @@
+; User data preservation contract: hooks only remove the application PATH entry.
+; Never recursively delete APPDATA, LOCALAPPDATA, a custom data root, models, or Hermes homes.
+; Any data deletion must remain a separate explicit user choice.
 ; Kaldırıcı kancası: uygulamanın "PATH'e Ekle" ile kullanıcı PATH'ine (HKCU\Environment\Path)
 ; yazdığı kurulum klasörü girdisini siler. Girdi, `harness.exe` sidecar'ının klasörüdür
 ; (= $INSTDIR); eşleşme büyük/küçük harfe ve sondaki ters eğik çizgiye duyarsızdır

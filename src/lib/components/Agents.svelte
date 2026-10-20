@@ -8,6 +8,8 @@
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
 
+  let { enabled = true }: { enabled?: boolean } = $props();
+
   interface Detection { installed: boolean; version: string | null; executable: string | null; config_path: string; missing_dependencies: string[]; connected: boolean; model: string | null; installation: Task }
   interface Model { alias: string; chat: boolean | null; tools: string; model_path: string | null; file_bytes: number | null; context_size: number | null }
   interface Task { status: string; output: string; error: string | null; id?: string; model?: string; prompt?: string; started_at?: number; finished_at?: number | null; tokens?: number | null; grants?: { read_folders: string[] }; audit?: string[] }
@@ -89,6 +91,9 @@
   <h3 class="font-semibold">Hermes Agent</h3>
   <p class="text-sm text-muted-foreground">{t('agents.function')}</p>
   {#if error}<p role="alert" class="text-sm text-destructive">{error}</p>{/if}
+  {#if pending}<p role="status" aria-live="polite" class="text-sm text-muted-foreground">{t('modules.working')}</p>{/if}
+  {#if !enabled && task.status === 'running'}<Button variant="outline" onclick={() => action('stop_agent_task')}>{t('agents.stop')}</Button>{/if}
+  {#if !enabled}<p role="status" class="text-sm text-muted-foreground">{t('modules.agent_unavailable')}</p>{/if}
   {#if detection}
     <p class="text-sm">{t('modules.version')}: {detection.version ?? t('modules.not_installed')}</p>
     {#if detection.installation.output && (uiLevel.advanced || detection.installation.status === 'failed')}
@@ -102,7 +107,7 @@
         <dt>{t('agents.backup')}</dt><dd>{detection.config_path}.harness.bak</dd>
       </dl>
     {/if}
-    {#if detection.installed}
+    {#if detection.installed && enabled}
       <p class="text-sm">{t('agents.connect_permission')}</p>
       {#if app.gateway?.status.running && !app.gateway.status.require_token}<p class="text-xs text-muted-foreground">{t('agents.open_gateway')}</p>{/if}
       <label class="block text-sm" for="agent-model">{t('agents.model')}</label>

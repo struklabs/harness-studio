@@ -224,6 +224,9 @@ mod tests {
             required_scope(&del, "/modules/{id}", true),
             Some(Scope::Admin)
         );
+        for path in ["/modules/{id}/action", "/modules/{id}/remove-data"] {
+            assert_eq!(required_scope(&post, path, true), Some(Scope::Admin));
+        }
         // Tools: listing and the policy are readable; running needs `tools`; changing the policy
         // and the log are admin.
         assert_eq!(required_scope(&get, "/tools", true), Some(Scope::Read));

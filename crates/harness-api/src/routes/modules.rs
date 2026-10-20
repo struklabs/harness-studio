@@ -26,3 +26,27 @@ pub async fn remove_module(P(id): P<String>) -> ApiResult<StatusCode> {
     blocking(move || modules::remove(&id)).await??;
     Ok(StatusCode::NO_CONTENT)
 }
+
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub struct ModuleAction {
+    /// install, update, repair, enable, or disable
+    action: String,
+}
+#[utoipa::path(post, path = "/modules/{id}/action", tag = "modules", params(("id" = String, Path)), request_body = ModuleAction,
+    responses((status = 204), (status = 422, body = ErrorBody), (status = 403, body = ErrorBody)))]
+pub async fn module_action(
+    P(id): P<String>,
+    Json(body): Json<ModuleAction>,
+) -> ApiResult<StatusCode> {
+    modules::action(&id, &body.action).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+#[utoipa::path(post, path = "/modules/{id}/remove-data", tag = "modules", params(("id" = String, Path)), request_body = modules::RemovalOptions,
+    responses((status = 204), (status = 422, body = ErrorBody), (status = 403, body = ErrorBody)))]
+pub async fn remove_module_data(
+    P(id): P<String>,
+    Json(options): Json<modules::RemovalOptions>,
+) -> ApiResult<StatusCode> {
+    blocking(move || modules::lifecycle_remove(&id, &options)).await??;
+    Ok(StatusCode::NO_CONTENT)
+}

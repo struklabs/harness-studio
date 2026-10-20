@@ -69,3 +69,11 @@ pub(crate) async fn revoke_paperclip_token(id: String) -> Result<(), String> {
 pub(crate) async fn apply_paperclip_config(instance: String, agent: String, credential: String, config: serde_json::Value) -> Result<(), String> {
     harness_core::modules::paperclip::apply(instance, agent, credential, config).await
 }
+#[tauri::command]
+pub(crate) async fn module_action(id: String, action: String) -> Result<(), String> {
+    harness_core::modules::action(&id, &action).await
+}
+#[tauri::command]
+pub(crate) async fn remove_module_data(id: String, options: harness_core::modules::RemovalOptions) -> Result<(), String> {
+    blocking(move || harness_core::modules::lifecycle_remove(&id, &options)).await?
+}

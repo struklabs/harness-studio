@@ -106,7 +106,7 @@
     "components": [
       {
         "id": "hermes-agent",
-        "version": "upstream-stable",
+        "version": "d923a5eb487a17c0a68801bba9ef0f56c81040a8",
         "sources": [
           "https://hermes-agent.nousresearch.com/docs/getting-started/installation"
         ],

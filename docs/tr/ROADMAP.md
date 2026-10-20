@@ -56,6 +56,8 @@ Tamamlanan dilimler: [Hermes Agent bağlantısı, görevler, kısıtlı okuma iz
 
 ### W3 — İyileştirme Dalgası: Güvenilir Kurulum ve Ajan Kullanımı
 
+İlk dilim: [Modül Yaşam Döngüsü](MODULE_LIFECYCLE.md), mevcut Konuşma Tanıma ve Hermes Agent modüllerini kapsar; aşağıdaki daha geniş güvenlik ve lisans çalışmaları henüz tamamlanmamıştır.
+
 - [ ] Paylaşılan bileşen sahipliği, disk kullanımı, uyumluluk denetimi, geri alma ve uygulanabilir çevrimdışı kurulum/kaldırmayla modül açma/kapatma, güncelleme, onarma ve kaldırmayı tamamlamak. Kullanımdaki bileşenlerin kaldırılmasını engellemek.
 - [ ] İş, sohbet, model ve fiziksel dosya silmeyi ayırmak; modül ve uygulama kaldırılırken veri kümelerini, modelleri, projeleri ve değerli çıktıları korumak, silme tercihlerini açıkça sunmak.
 - [ ] Mevcut Güvenlik Modeli'ni MCP, ajan motoru, eğitim arka ucu ve Tool güven seviyeleriyle genişletmek; dosya/klasör, ağ, kabuk, servis, hesap ve dışarı veri aktarımı izinlerini verme/geri alma anında açıklamak. Mümkün olduğunda işletim sistemi yalıtımı kullanıp Windows/macOS/Linux sınırlarını belgelemek.

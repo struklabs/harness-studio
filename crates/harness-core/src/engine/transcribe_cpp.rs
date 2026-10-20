@@ -145,6 +145,7 @@ pub fn worker_script() -> Result<PathBuf, String> {
 /// The interpreter a launch runs: the environment's, when it is installed for this version;
 /// else `runtime.family_not_installed: transcribe.cpp` (the UI offers the install).
 pub fn binary() -> Result<PathBuf, String> {
+    crate::modules::ensure_enabled("speech")?;
     let root = crate::pyenv::envs::root();
     let spec = env_in(&root);
     if !crate::pyenv::envs::status_in(&root, spec).ready {
