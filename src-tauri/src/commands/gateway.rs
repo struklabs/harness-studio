@@ -163,3 +163,13 @@ pub(crate) async fn unload_gateway_model(
     }
     gateway_overview(&instance, &gw).await
 }
+
+#[tauri::command]
+pub(crate) fn get_jobs() -> Vec<harness_core::jobs::JobStatus> {
+    harness_core::jobs::global().snapshot()
+}
+
+#[tauri::command]
+pub(crate) fn cancel_job(id: u64) -> bool {
+    harness_core::jobs::global().cancel(id)
+}

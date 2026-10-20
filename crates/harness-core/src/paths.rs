@@ -180,6 +180,15 @@ pub(crate) fn canonicalize_lenient(path: &Path) -> PathBuf {
 }
 
 /// Returns true if `path` is located inside `dir` (symlinks and `..` resolved).
+/// A canonical path as people write it: without the Windows `\\?\` verbatim prefix.
+pub fn display_path(path: &Path) -> String {
+    let text = path.to_string_lossy();
+    if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{unc}");
+    }
+    text.strip_prefix(r"\\?\").unwrap_or(&text).to_string()
+}
+
 pub fn is_within(path: &Path, dir: &Path) -> bool {
     canonicalize_lenient(path).starts_with(canonicalize_lenient(dir))
 }

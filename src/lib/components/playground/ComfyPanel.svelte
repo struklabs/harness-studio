@@ -17,6 +17,8 @@
   import { CircleCheck, ExternalLink, FolderOpen, Image as ImageIcon, LoaderCircle, Radar, RefreshCw, Square, Trash2 } from '@lucide/svelte';
   import { dataUrl, SIZE_PRESETS } from './image';
   import { addComfyResults, imageSession as form } from './image.svelte';
+  import { projects } from '#lib/stores/projects.svelte.js';
+  import { projectApi } from '#lib/projects.js';
   import {
     COMFYUI_DEFAULT_URL,
     comfyApi,
@@ -100,18 +102,20 @@
         promptId = e.payload.prompt_id;
       });
       const checkpoint = form.comfyCheckpoint || (source.kind === 'builtin' ? catalog?.checkpoints[0] ?? null : null);
-      const result = await comfyApi.run(source, paramsFromForm(form, checkpoint));
+      const project = projects.active?.folder ? projects.active : null;
+      const result = await comfyApi.run(source, paramsFromForm(form, checkpoint), project?.id ?? null);
       const workflow = workflowLabel();
       addComfyResults(
         result.images.map((img) => ({
           path: img.path,
+          outputId: img.output_id,
           image: { data: img.data, format: img.format },
           prompt: form.prompt.trim(),
           workflow,
           seed: result.seed,
         })),
       );
-      toast.success(t('comfy.saved', { count: result.images.length }));
+      toast.success(project ? t('comfy.saved_project', { count: result.images.length, project: project.name }) : t('comfy.saved', { count: result.images.length }));
     } catch (e) {
       if (errorCode(e) === 'comfyui.cancelled') toast.info(t('comfy.cancelled'));
       else error = localizeError(e);
@@ -144,9 +148,10 @@
     return t('comfy.builtin');
   }
 
-  async function open(path: string, reveal: boolean) {
+  async function open(item: { path: string; outputId: string | null }, reveal: boolean) {
     try {
-      await (reveal ? comfyApi.reveal(path) : comfyApi.open(path));
+      if (item.outputId) await (reveal ? projectApi.revealOutput(item.outputId) : projectApi.openOutput(item.outputId));
+      else await (reveal ? comfyApi.reveal(item.path) : comfyApi.open(item.path));
     } catch (e) {
       toast.error(localizeError(e));
     }
@@ -351,8 +356,8 @@
               <p class="line-clamp-2 text-xs text-foreground [overflow-wrap:anywhere]" title={item.prompt}>{item.prompt}</p>
               <p class="truncate font-num text-xs text-muted-foreground" title={item.path}>{item.workflow} · {t('comfy.seed_value', { seed: item.seed })}</p>
               <div class="flex items-center gap-1.5">
-                <Button variant="outline" size="sm" onclick={() => open(item.path, false)}><ExternalLink />{t('comfy.open')}</Button>
-                <Button variant="ghost" size="sm" onclick={() => open(item.path, true)}><FolderOpen />{t('comfy.reveal')}</Button>
+                <Button variant="outline" size="sm" onclick={() => open(item, false)}><ExternalLink />{t('comfy.open')}</Button>
+                <Button variant="ghost" size="sm" onclick={() => open(item, true)}><FolderOpen />{t('comfy.reveal')}</Button>
                 <Button
                   variant="ghost"
                   size="icon-sm"

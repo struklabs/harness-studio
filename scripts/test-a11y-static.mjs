@@ -4,10 +4,10 @@ import { test } from 'node:test';
 
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 
-test('the app behind the wizard is inert exactly while the wizard is shown', () => {
+test('the app behind Setup is inert exactly while Setup is shown', () => {
   const page = read('src/routes/+page.svelte');
-  const shown = page.match(/\{#if (!settings\.privacy\.onboarding_completed \|\| showWizardManually)\}\s*<LazyView\s+load=\{views\.onboarding\}/);
-  assert.ok(shown, 'wizard condition not found');
+  const shown = page.match(/\{#if (!settings\.privacy\.onboarding_completed \|\| showWizardManually)\}\s*<LazyView\s+load=\{views\.setup\}/);
+  assert.ok(shown, 'Setup condition not found');
   assert.ok(page.includes(`inert={${shown[1]}}`), 'the content is not inert under the same condition');
 });
 

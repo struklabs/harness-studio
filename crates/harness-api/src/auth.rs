@@ -67,6 +67,10 @@ pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Sc
     if route.starts_with("/automations/") {
         return Some(Scope::Admin);
     }
+    // Provider keys are saved and spent through these routes: every one needs admin.
+    if route == "/cloud" || route.starts_with("/cloud/") {
+        return Some(Scope::Admin);
+    }
     if route.starts_with("/browser/")
         || route == "/tokens"
         || route.starts_with("/tokens/")
@@ -377,6 +381,20 @@ mod tests {
             required_scope(&Method::PATCH, "/tokens/{id}", true),
             Some(Scope::Admin)
         );
+        for (method, path) in [
+            (&get, "/cloud/providers"),
+            (&post, "/cloud/providers"),
+            (&Method::PUT, "/cloud/providers/{id}"),
+            (&del, "/cloud/providers/{id}"),
+            (&post, "/cloud/providers/{id}/test"),
+            (&get, "/cloud/models"),
+        ] {
+            assert_eq!(
+                required_scope(method, path, true),
+                Some(Scope::Admin),
+                "{path}"
+            );
+        }
         assert_eq!(required_scope(&get, "/otel", true), Some(Scope::Read));
         assert_eq!(
             required_scope(&Method::PUT, "/otel", true),

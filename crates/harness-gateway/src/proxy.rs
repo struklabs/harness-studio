@@ -211,7 +211,9 @@ pub(crate) fn request_id() -> String {
 /// the one model it was started with and does not know the Harness alias); every other server
 /// gets the body as it is. Remote definitions use the remote model id.
 pub(crate) fn upstream_body(def: &harness_core::domain::ModelDefinition, body: Bytes) -> Bytes {
-    if let Some(rewritten) = harness_core::link::rewrite_model(&def.id, &body) {
+    if let Some(rewritten) = harness_core::link::rewrite_model(&def.id, &body)
+        .or_else(|| harness_core::cloud::rewrite_model(&def.id, &body))
+    {
         return Bytes::from(rewritten);
     }
     if !def
@@ -283,7 +285,10 @@ pub async fn handle(state: GwState, api: Api, headers: HeaderMap, body: Bytes) -
         && serde_json::from_slice::<Peek>(&body)
             .ok()
             .and_then(|p| p.model)
-            .is_some_and(|m| harness_core::link::parse_model(&m).is_some());
+            .is_some_and(|m| {
+                harness_core::link::parse_model(&m).is_some()
+                    || harness_core::cloud::parse_model(&m).is_some()
+            });
     if api == Api::Responses && !remote {
         if let Some(resp) = crate::responses::start_background(&state, &headers, &body).await {
             return resp;
@@ -389,9 +394,10 @@ async fn run(
     let client_body = body.clone();
     let mut body = body;
     if api == Api::Responses
-        && !model
-            .as_deref()
-            .is_some_and(|m| harness_core::link::parse_model(m).is_some())
+        && !model.as_deref().is_some_and(|m| {
+            harness_core::link::parse_model(m).is_some()
+                || harness_core::cloud::parse_model(m).is_some()
+        })
     {
         let prep = crate::responses::prepare(&caller, &settings, &body, response_id).await?;
         if let Some(b) = prep.body {
@@ -415,13 +421,30 @@ async fn run(
     }
     caller.check_model(&def.alias)?;
     let remote = harness_core::link::parse_model(&def.id);
+    let cloud = harness_core::cloud::parse_model(&def.id);
+    // Remote Harness and cloud models skip every local-model step (compat, reasoning,
+    // tool diagnosis): the other side handles the request as sent.
+    let external = remote.is_some() || cloud.is_some();
+    // Each provider kind serves the protocols it speaks (chat everywhere; Responses, Messages
+    // and embeddings where the provider has them).
+    let cloud_kind = cloud.and_then(|_| harness_core::cloud::kind_of(&def.id));
+    if cloud.is_some() {
+        match cloud_kind {
+            Some(kind) if kind.accepts(api.path()) => {}
+            Some(_) => return Err(GatewayError::cloud("cloud.unsupported_endpoint")),
+            None => return Err(GatewayError::cloud("cloud.unreachable")),
+        }
+    }
+    // Chat completions to an Anthropic provider are translated to its native Messages API.
+    let anthropic_key = cloud_kind == Some(harness_core::cloud::Kind::Anthropic);
+    let translate = anthropic_key && api == Api::Chat;
     if remote.is_some() && headers.contains_key("x-harness-link-hop") {
         return Err(GatewayError::remote("link.chained_not_allowed"));
     }
     if remote.is_some() && matches!(api, Api::Hf | Api::CountTokens) {
         return Err(GatewayError::remote("link.unsupported_endpoint"));
     }
-    if remote.is_none()
+    if !external
         && (crate::speech::is_audio_cpp_model(&def) || crate::speech::is_crispasr_tts(&def))
     {
         return Err(GatewayError::new(
@@ -430,7 +453,7 @@ async fn run(
             "audio.cpp only accepts POST /v1/audio/speech through the gateway.",
         ));
     }
-    if remote.is_none() && crate::audio::is_speech_model(&def) {
+    if !external && crate::audio::is_speech_model(&def) {
         return Err(GatewayError::new(
             400,
             "model_is_speech",
@@ -442,7 +465,7 @@ async fn run(
         )
         .param("model"));
     }
-    if remote.is_none() && crate::images::is_image_model(&def) {
+    if !external && crate::images::is_image_model(&def) {
         return Err(GatewayError::new(
             400,
             "model_is_image",
@@ -474,6 +497,9 @@ async fn run(
     // tool loop itself instead of rejecting hosted tools.
     if remote.is_some() && settings.server_tools_of(&def.id).is_some() {
         return Err(GatewayError::remote("link.unsupported_endpoint"));
+    }
+    if cloud.is_some() && settings.server_tools_of(&def.id).is_some() {
+        return Err(GatewayError::cloud("cloud.unsupported_endpoint"));
     }
     if let Some(cfg) = settings.server_tools_of(&def.id) {
         let planned = crate::server_tools::plan(api, &body, cfg, settings.ignored_tools(&def.id))
@@ -508,7 +534,7 @@ async fn run(
             .await;
         }
     }
-    let mut prepared = if remote.is_some() {
+    let mut prepared = if external {
         compat::Prepared::default()
     } else {
         compat::prepare(api, &body, settings.ignored_tools(&def.id)).map_err(|u| {
@@ -561,7 +587,7 @@ async fn run(
             }
         }
     }
-    if remote.is_none() && matches!(api, Api::Chat | Api::Responses) {
+    if !external && matches!(api, Api::Chat | Api::Responses) {
         if let Some(mapped) = crate::reasoning::translate(
             prepared.body.as_deref().unwrap_or(&body),
             lease.reasoning_control,
@@ -571,7 +597,7 @@ async fn run(
     }
     // Tool-call diagnosis: the round is read from the request that goes upstream (after the
     // compat changes, so the names match what the model answers with).
-    if remote.is_none() && matches!(api, Api::Chat | Api::Messages | Api::Responses) {
+    if !external && matches!(api, Api::Chat | Api::Messages | Api::Responses) {
         guard.tool = ToolRound::start(
             prepared.body.as_deref().unwrap_or(&body),
             lease.template_tools,
@@ -582,19 +608,18 @@ async fn run(
         n => Some(Duration::from_secs(u64::from(n))),
     };
     let compat_header = prepared.header();
-    let recovery_names =
-        if remote.is_none() && api == Api::Chat && settings.recover_text_tools(&def.id) {
-            text_tool_calls::offered(prepared.body.as_deref().unwrap_or(&body))
-        } else {
-            Vec::new()
-        };
-    let loop_names = if remote.is_none() && api == Api::Chat {
+    let recovery_names = if !external && api == Api::Chat && settings.recover_text_tools(&def.id) {
+        text_tool_calls::offered(prepared.body.as_deref().unwrap_or(&body))
+    } else {
+        Vec::new()
+    };
+    let loop_names = if !external && api == Api::Chat {
         text_tool_calls::offered(prepared.body.as_deref().unwrap_or(&body))
     } else {
         vec![]
     };
     let names = std::mem::take(&mut prepared.names);
-    let renames_model = remote.is_none()
+    let renames_model = !external
         && def
             .base
             .local_path()
@@ -606,17 +631,45 @@ async fn run(
             None => body,
         },
     );
+    let body = if translate {
+        Bytes::from(
+            crate::anthropic_chat::request(&body)
+                .map_err(|m| GatewayError::new(400, "invalid_request", m))?,
+        )
+    } else {
+        body
+    };
     let http = if let Some((name, _)) = remote {
         harness_core::link::client_for(name, settings.request_timeout_secs)
             .map_err(|_| GatewayError::remote("link.unreachable"))?
+    } else if cloud.is_some() {
+        harness_core::cloud::client_for(settings.request_timeout_secs)
+            .map_err(|_| GatewayError::cloud("cloud.unreachable"))?
     } else {
         state.http.clone()
     };
+    // A cloud base URL already carries its API version (`https://api.openai.com/v1`).
+    let path = if translate {
+        "/messages"
+    } else if cloud.is_some() {
+        api.upstream_path().trim_start_matches("/v1")
+    } else {
+        api.upstream_path()
+    };
     let mut req = http
-        .post(format!("{}{}", lease.upstream, api.upstream_path()))
+        .post(format!("{}{}", lease.upstream, path))
         .header(header::CONTENT_TYPE, "application/json")
         .body(body);
-    for name in ["accept", "anthropic-version", "anthropic-beta"] {
+    let forwarded: &[&str] = if cloud.is_some() {
+        if anthropic_key && !translate {
+            &["accept", "anthropic-version", "anthropic-beta"]
+        } else {
+            &["accept"]
+        }
+    } else {
+        &["accept", "anthropic-version", "anthropic-beta"]
+    };
+    for name in forwarded.iter().copied() {
         if let Some(v) = headers.get(name) {
             req = req.header(name, v.clone());
         }
@@ -624,14 +677,24 @@ async fn run(
     if remote.is_some() {
         req = req.header("x-harness-link-hop", "1");
     }
-    if let Some(context) = &guard.trace_context.as_ref().filter(|_| remote.is_none()) {
+    if let Some(context) = &guard.trace_context.as_ref().filter(|_| !external) {
         req = req.header("traceparent", context.traceparent());
         if let Some(state) = context.tracestate() {
             req = req.header("tracestate", state);
         }
     }
     if let Some(key) = &lease.api_key {
-        req = req.bearer_auth(key);
+        if anthropic_key {
+            let mut value =
+                HeaderValue::from_str(key).map_err(|_| GatewayError::cloud("cloud.key_missing"))?;
+            value.set_sensitive(true);
+            req = req.header("x-api-key", value);
+        } else {
+            req = req.bearer_auth(key);
+        }
+    }
+    if anthropic_key && (translate || !headers.contains_key("anthropic-version")) {
+        req = req.header("anthropic-version", harness_core::cloud::ANTHROPIC_VERSION);
     }
     let send = req.send();
     let upstream = match timeout {
@@ -639,6 +702,8 @@ async fn run(
             if let Some((name, _)) = remote {
                 harness_core::link::request_refresh(name);
                 GatewayError::remote("link.timeout")
+            } else if cloud.is_some() {
+                GatewayError::cloud("cloud.timeout")
             } else {
                 GatewayError::new(
                     504,
@@ -664,6 +729,16 @@ async fn run(
             };
             harness_core::link::request_refresh(name);
             GatewayError::remote(key)
+        } else if cloud.is_some() {
+            let error = harness_core::cloud::transport_error(e, lease.api_key.as_deref());
+            GatewayError::cloud(
+                if harness_core::error_key::parse(&error).is_some_and(|(k, _)| k == "cloud.timeout")
+                {
+                    "cloud.timeout"
+                } else {
+                    "cloud.unreachable"
+                },
+            )
         } else {
             GatewayError::new(502, "upstream_unreachable", format!("llama-server: {}", e))
         }
@@ -683,6 +758,14 @@ async fn run(
             };
             harness_core::link::request_refresh(name);
             return Err(GatewayError::remote(key));
+        }
+    }
+    // The provider's own error bodies (unknown model, 429, quota ...) reach the caller, except
+    // a rejected key: its message can echo part of the key.
+    if let Some((name, _)) = cloud {
+        if matches!(status, 401 | 403) {
+            harness_core::cloud::request_refresh(name);
+            return Err(GatewayError::cloud("cloud.unauthorized"));
         }
     }
     let content_type = upstream
@@ -707,7 +790,7 @@ async fn run(
             "x-harness-queue-ms",
             lease.queue_wait.as_millis().to_string(),
         );
-    if remote.is_some() {
+    if external {
         if let Some(retry) = upstream.headers().get(header::RETRY_AFTER) {
             builder = builder.header(header::RETRY_AFTER, retry.clone());
         }
@@ -733,6 +816,34 @@ async fn run(
         builder = builder.header("x-harness-compaction", n);
     }
 
+    if translate && !sse {
+        let read = upstream.bytes();
+        let bytes = match timeout {
+            Some(t) => tokio::time::timeout(t, read)
+                .await
+                .map_err(|_| GatewayError::cloud("cloud.timeout"))?,
+            None => read.await,
+        }
+        .map_err(|_| GatewayError::cloud("cloud.unreachable"))?;
+        let mut observer = UsageObserver::new(false);
+        observer.feed(&bytes);
+        observer.finish();
+        guard.get().usage = observer.usage;
+        guard.get().ttft_ms = Some(guard.started.elapsed().as_millis() as u64);
+        let out = if status == 200 {
+            crate::anthropic_chat::response(&bytes).unwrap_or_else(|| bytes.to_vec())
+        } else {
+            crate::anthropic_chat::error(&bytes)
+        };
+        if let Some(c) = guard.capture.as_mut() {
+            c.push_response(&out);
+        }
+        guard.finish(status, None);
+        drop(lease);
+        return builder
+            .body(Body::from(out))
+            .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()));
+    }
     if (!recovery_names.is_empty() || !loop_names.is_empty()) && status == 200 && !sse {
         let read = upstream.bytes();
         let bytes = match timeout {
@@ -831,7 +942,7 @@ async fn run(
     }
 
     let relay = Relay {
-        loop_guard: (remote.is_none() && api == Api::Chat && status == 200 && sse)
+        loop_guard: (!external && api == Api::Chat && status == 200 && sse)
             .then(|| crate::tool_loop_guard::Guard::new(loop_names.len())),
         inner: Box::pin(upstream.bytes_stream()),
         recovery,
@@ -850,6 +961,7 @@ async fn run(
             .map(|p| (p, crate::responses::SseScan::default(), Vec::new())),
         saving: None,
         held: None,
+        translator: (translate && sse && status == 200).then(crate::anthropic_chat::Stream::new),
     };
     builder
         .body(Body::new(StreamBody::new(relay)))
@@ -886,6 +998,8 @@ struct Relay {
     /// only after it, so the response can be read back as soon as the client sees the event.
     saving: Option<tokio::task::JoinHandle<()>>,
     held: Option<Bytes>,
+    /// Anthropic stream events of a translated Chat request, as chat completion chunks.
+    translator: Option<crate::anthropic_chat::Stream>,
 }
 
 impl Relay {
@@ -1019,6 +1133,10 @@ impl Stream for Relay {
                     if let Some(t) = this.guard.as_mut().and_then(|g| g.tool.as_mut()) {
                         t.feed(&chunk);
                     }
+                    let chunk = match this.translator.as_mut() {
+                        Some(t) => Bytes::from(t.push(&chunk)),
+                        None => chunk,
+                    };
                     let chunk = match this.recovery.as_mut() {
                         Some(r) => {
                             let out = r.push(&chunk);
@@ -1099,6 +1217,9 @@ impl Stream for Relay {
                         .map(|r| r.finish())
                         .unwrap_or_default();
                     rest.extend(recovered_rest);
+                    if let Some(t) = this.translator.as_mut() {
+                        rest.extend(t.finish());
+                    }
                     if let Some(r) = this.renamer.as_mut() {
                         let mut renamed = r.push(&rest);
                         renamed.extend(r.finish());
@@ -1232,6 +1353,15 @@ fn model_object(
             object["harness"]["remote"]["definition_id"] = serde_json::json!(definition_id);
             object["harness"]["remote"]["model_state"] = serde_json::json!(upstream_state);
         }
+    }
+    if let Some(m) = harness_core::cloud::model_info(&d.id) {
+        object["owned_by"] = serde_json::json!("harness-cloud");
+        object["harness"]["state"] = serde_json::json!("ready");
+        object["harness"]["cloud"] = serde_json::json!({
+            "provider": m.provider, "kind": m.kind, "label": m.label, "model": m.model,
+            "context_length": m.info.context_length, "input_price": m.info.input_price,
+            "output_price": m.info.output_price, "tools": m.info.tools, "vision": m.info.vision,
+        });
     }
     object
 }

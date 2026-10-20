@@ -52,7 +52,7 @@ export interface RunEvent {
 export interface RunResult {
   prompt_id: string;
   seed: number;
-  images: { path: string; format: string; data: string }[];
+  images: { path: string; format: string; data: string; output_id: string | null }[];
 }
 
 export const comfyApi = {
@@ -60,7 +60,9 @@ export const comfyApi = {
   save: (url: string) => invoke<{ url: string }>('comfyui_save_settings', { url }),
   status: (url: string | null) => invoke<ComfyStatus>('comfyui_status', { url }),
   catalog: () => invoke<ComfyCatalog>('comfyui_catalog'),
-  run: (source: WorkflowSource, params: Txt2ImgParams) => invoke<RunResult>('comfyui_run', { source, params }),
+  /** `project`: save into that project's outputs instead of the data folder. */
+  run: (source: WorkflowSource, params: Txt2ImgParams, project: string | null) =>
+    invoke<RunResult>('comfyui_run', { source, params, project }),
   cancel: (promptId: string) => invoke<void>('comfyui_cancel', { promptId }),
   open: (path: string) => invoke<void>('comfyui_open_output', { path }),
   reveal: (path: string) => invoke<void>('comfyui_reveal_output', { path }),

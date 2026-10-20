@@ -3,7 +3,7 @@ import type { TKey } from '#lib/i18n.svelte.js';
 /** Field labels and help, grouped by the page that owns them (including unvisited pages). */
 export const SETTINGS_SEARCH_KEYS: Record<string, TKey[]> = {
   'runtime-installed': [
-    'settings.group_engine', 'settings.wizard_label', 'settings.wizard_hint',
+    'settings.group_engine', 'settings.setup_label', 'settings.setup_hint',
     'settings.group_managed', 'settings.installed_version_label', 'settings.recommended_backend_hint',
     'settings.backend_label', 'settings.backend_installed', 'settings.backend_none',
     'settings.backend_other_build', 'settings.check_updates', 'settings.check_updates_hint',
@@ -123,6 +123,7 @@ export const SETTINGS_SEARCH_KEYS: Record<string, TKey[]> = {
     'cli.path_hint_windows', 'cli.path_hint_symlink',
   ],
   'privacy': [
+    'settings.retention_days', 'settings.retention_days_hint',
     'settings.privacy_title', 'settings.privacy_desc', 'settings.crash_reports_label',
     'settings.crash_reports_desc', 'settings.app_errors_label', 'settings.app_errors_desc',
     'settings.llama_errors_label', 'settings.llama_errors_desc', 'settings.hardware_info_label',
@@ -130,6 +131,7 @@ export const SETTINGS_SEARCH_KEYS: Record<string, TKey[]> = {
     'settings.usage_analytics_label', 'settings.usage_analytics_desc',
   ],
   'diagnostics-reports': [
+    'settings.export_report_zip', 'settings.delete_report',
     'settings.reports_title', 'settings.reports_desc', 'settings.local_reports_title',
     'settings.reports_empty', 'settings.group_danger', 'settings.clear_reports_label',
     'settings.clear_reports_hint',

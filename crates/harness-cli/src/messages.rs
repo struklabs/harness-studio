@@ -44,12 +44,20 @@ const ERROR_LOCALES: &[(&str, &str)] = &[
         include_str!("../../../src/lib/locales/errorsLink.ts"),
     ),
     (
+        "errorsProjects.ts",
+        include_str!("../../../src/lib/locales/errorsProjects.ts"),
+    ),
+    (
         "errorsAutomations.ts",
         include_str!("../../../src/lib/locales/errorsAutomations.ts"),
     ),
     (
         "errorsComfyui.ts",
         include_str!("../../../src/lib/locales/errorsComfyui.ts"),
+    ),
+    (
+        "errorsCloud.ts",
+        include_str!("../../../src/lib/locales/errorsCloud.ts"),
     ),
 ];
 

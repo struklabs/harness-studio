@@ -218,8 +218,8 @@ pub fn save_images(dir: &Path, images: &[RunImage]) -> Result<Vec<SavedImage>, S
         .map_err(|e| String::from(err("comfyui.save_failed").with("error", e)))?;
     let mut out = Vec::new();
     for image in images {
-        let format = image_format(&image.bytes)
-            .ok_or_else(|| String::from(err("comfyui.invalid_image")))?;
+        let format =
+            image_format(&image.bytes).ok_or_else(|| String::from(err("comfyui.invalid_image")))?;
         let stem = crate::paths::sanitize_file_name(&image.filename)
             .map(|n| match n.rsplit_once('.') {
                 Some((s, _)) if !s.is_empty() => s.to_string(),
@@ -238,9 +238,8 @@ pub fn save_images(dir: &Path, images: &[RunImage]) -> Result<Vec<SavedImage>, S
             match std::fs::File::create_new(&path) {
                 Ok(mut f) => {
                     use std::io::Write as _;
-                    f.write_all(&image.bytes).map_err(|e| {
-                        String::from(err("comfyui.save_failed").with("error", e))
-                    })?;
+                    f.write_all(&image.bytes)
+                        .map_err(|e| String::from(err("comfyui.save_failed").with("error", e)))?;
                     out.push(SavedImage {
                         path: path.to_string_lossy().into_owned(),
                         format: format.to_string(),
@@ -255,7 +254,8 @@ pub fn save_images(dir: &Path, images: &[RunImage]) -> Result<Vec<SavedImage>, S
     Ok(out)
 }
 
-fn image_format(bytes: &[u8]) -> Option<&'static str> {
+/// `png`, `jpeg` or `webp` from the file's magic bytes.
+pub fn image_format(bytes: &[u8]) -> Option<&'static str> {
     match bytes {
         [0x89, b'P', b'N', b'G', ..] => Some("png"),
         [0xff, 0xd8, 0xff, ..] => Some("jpeg"),
@@ -268,7 +268,9 @@ fn image_format(bytes: &[u8]) -> Option<&'static str> {
 pub fn random_seed() -> u64 {
     let mut b = [0u8; 8];
     if getrandom::fill(&mut b).is_err() {
-        b = uuid::Uuid::new_v4().as_bytes()[..8].try_into().unwrap_or_default();
+        b = uuid::Uuid::new_v4().as_bytes()[..8]
+            .try_into()
+            .unwrap_or_default();
     }
     u64::from_le_bytes(b) >> 14
 }
@@ -290,7 +292,8 @@ enum Poll {
 impl ComfyClient {
     pub fn new(url: &str) -> Result<Self, String> {
         let normalized = normalize_url(url)?;
-        let base = reqwest::Url::parse(&normalized).map_err(|_| String::from(err(ERR_URL_INVALID)))?;
+        let base =
+            reqwest::Url::parse(&normalized).map_err(|_| String::from(err(ERR_URL_INVALID)))?;
         let http = reqwest::Client::builder()
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(REQUEST_TIMEOUT)
@@ -329,7 +332,11 @@ impl ComfyClient {
         url
     }
 
-    async fn send(&self, req: reqwest::RequestBuilder, url: &str) -> Result<reqwest::Response, String> {
+    async fn send(
+        &self,
+        req: reqwest::RequestBuilder,
+        url: &str,
+    ) -> Result<reqwest::Response, String> {
         let resp = req
             .send()
             .await
@@ -388,8 +395,16 @@ impl ComfyClient {
             .into_iter()
             .flatten()
             .map(|d| ComfyDevice {
-                name: d.get("name").and_then(Value::as_str).unwrap_or("").to_string(),
-                kind: d.get("type").and_then(Value::as_str).unwrap_or("").to_string(),
+                name: d
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
+                kind: d
+                    .get("type")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string(),
                 vram_total: d.get("vram_total").and_then(Value::as_u64).unwrap_or(0),
                 vram_free: d.get("vram_free").and_then(Value::as_u64).unwrap_or(0),
             })
@@ -397,9 +412,8 @@ impl ComfyClient {
         Ok(ComfyStatus {
             url: self.base_url(),
             version: text("comfyui_version"),
-            python_version: text("python_version").map(|p| {
-                p.split_whitespace().next().unwrap_or_default().to_string()
-            }),
+            python_version: text("python_version")
+                .map(|p| p.split_whitespace().next().unwrap_or_default().to_string()),
             os: text("os"),
             devices,
         })
@@ -410,7 +424,12 @@ impl ComfyClient {
         let Some(v) = self
             .get_json_opt(
                 &["api", "userdata"],
-                &[("dir", "workflows"), ("recurse", "true"), ("full_info", "true"), ("split", "false")],
+                &[
+                    ("dir", "workflows"),
+                    ("recurse", "true"),
+                    ("full_info", "true"),
+                    ("split", "false"),
+                ],
             )
             .await?
         else {
@@ -436,7 +455,7 @@ impl ComfyClient {
             })
             .filter(|w| w.path.ends_with(".json") && saved_path_ok(&w.path))
             .collect();
-        out.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+        out.sort_by_key(|w| w.path.to_lowercase());
         Ok(out)
     }
 
@@ -445,7 +464,8 @@ impl ComfyClient {
     /// image categories are kept, without partner-API (`api_*`, paid) and app-mode templates.
     pub async fn templates(&self) -> Vec<Template> {
         let mut out = Vec::new();
-        if let Ok(Value::Array(categories)) = self.get_json(&["templates", "index.json"], &[]).await {
+        if let Ok(Value::Array(categories)) = self.get_json(&["templates", "index.json"], &[]).await
+        {
             for category in &categories {
                 if category
                     .get("type")
@@ -473,7 +493,8 @@ impl ComfyClient {
                     let Some(name) = t.get("name").and_then(Value::as_str) else {
                         continue;
                     };
-                    if !template_name_ok(name) || name.starts_with("api_") || name.ends_with(".app") {
+                    if !template_name_ok(name) || name.starts_with("api_") || name.ends_with(".app")
+                    {
                         continue;
                     }
                     let text = |k: &str| t.get(k).and_then(Value::as_str).unwrap_or("").to_string();
@@ -481,7 +502,11 @@ impl ComfyClient {
                     out.push(Template {
                         source: source.to_string(),
                         name: name.to_string(),
-                        title: if title.is_empty() { name.to_string() } else { title },
+                        title: if title.is_empty() {
+                            name.to_string()
+                        } else {
+                            title
+                        },
                         description: text("description"),
                         category: category_title.clone(),
                     });
@@ -493,7 +518,12 @@ impl ComfyClient {
                 if !template_name_ok(module) {
                     continue;
                 }
-                for name in names.as_array().into_iter().flatten().filter_map(Value::as_str) {
+                for name in names
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                {
                     if template_name_ok(name) {
                         out.push(Template {
                             source: module.clone(),
@@ -623,7 +653,9 @@ impl ComfyClient {
                     .with("error", rejection_text(&body))
                     .into());
             }
-            return Err(err("comfyui.http_error").num("status", status.as_u16()).into());
+            return Err(err("comfyui.http_error")
+                .num("status", status.as_u16())
+                .into());
         }
         body.get("prompt_id")
             .and_then(Value::as_str)
@@ -693,11 +725,13 @@ impl ComfyClient {
         let client_id = uuid::Uuid::new_v4().to_string();
         // Connected before queueing, so no progress message is missed.
         let mut socket = match self.socket_url(&client_id) {
-            Some(url) => tokio::time::timeout(CONNECT_TIMEOUT, tokio_tungstenite::connect_async(url))
-                .await
-                .ok()
-                .and_then(Result::ok)
-                .map(|(s, _)| s),
+            Some(url) => {
+                tokio::time::timeout(CONNECT_TIMEOUT, tokio_tungstenite::connect_async(url))
+                    .await
+                    .ok()
+                    .and_then(Result::ok)
+                    .map(|(s, _)| s)
+            }
             None => None,
         };
         let prompt_id = self.queue_prompt(graph, &client_id).await?;
@@ -792,7 +826,9 @@ impl ComfyClient {
         }
         let url = self.endpoint(&["queue"]);
         self.send(
-            self.http.post(url.clone()).json(&json!({"delete": [prompt_id]})),
+            self.http
+                .post(url.clone())
+                .json(&json!({"delete": [prompt_id]})),
             url.as_str(),
         )
         .await?;
@@ -806,7 +842,9 @@ impl ComfyClient {
         if running {
             let url = self.endpoint(&["interrupt"]);
             self.send(
-                self.http.post(url.clone()).json(&json!({"prompt_id": prompt_id})),
+                self.http
+                    .post(url.clone())
+                    .json(&json!({"prompt_id": prompt_id})),
                 url.as_str(),
             )
             .await?;
@@ -822,7 +860,9 @@ fn checked(resp: reqwest::Response) -> Result<reqwest::Response, String> {
     } else if status.is_redirection() {
         Err(err("comfyui.redirect").into())
     } else {
-        Err(err("comfyui.http_error").num("status", status.as_u16()).into())
+        Err(err("comfyui.http_error")
+            .num("status", status.as_u16())
+            .into())
     }
 }
 
@@ -922,7 +962,5 @@ fn template_name_ok(name: &str) -> bool {
 }
 
 fn prompt_id_ok(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 64
-        && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+    !id.is_empty() && id.len() <= 64 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }

@@ -1,5 +1,6 @@
 // Playground > Image > ComfyUI: the user's own ComfyUI (HTTP API only; Harness never installs
-// or runs it). Run pictures are saved to `<data dir>/outputs/comfyui`.
+// or runs it). Run pictures go to the active project's outputs, or else to
+// `<data dir>/outputs/comfyui`.
 
 use harness_core::comfyui::{self as comfy, ComfyClient};
 
@@ -15,6 +16,8 @@ pub(crate) struct ComfyRunResult {
 pub(crate) struct ComfyRunImage {
     path: String,
     format: String,
+    /// The project output it was recorded as (open and reveal go through the project then).
+    output_id: Option<String>,
     /// Base64 of the file.
     data: String,
 }
@@ -42,12 +45,15 @@ pub(crate) async fn comfyui_catalog() -> Result<comfy::Catalog, String> {
 }
 
 /// Runs a workflow on the saved ComfyUI; `comfyui-progress` events follow it. Resolves when
-/// the pictures are saved, or fails with `comfyui.cancelled` after [`comfyui_cancel`].
+/// the pictures are saved (into `project`'s outputs when given), or fails with
+/// `comfyui.cancelled` after [`comfyui_cancel`].
 #[tauri::command]
 pub(crate) async fn comfyui_run(
     app: tauri::AppHandle,
+    store: State<'_, ConversationStore>,
     source: comfy::WorkflowSource,
     params: comfy::Txt2ImgParams,
+    project: Option<String>,
 ) -> Result<ComfyRunResult, String> {
     use base64::Engine as _;
     let client = blocking(ComfyClient::saved).await??;
@@ -59,20 +65,46 @@ pub(crate) async fn comfyui_run(
         })
         .await?;
     let images = outcome.images;
-    let saved = blocking({
-        let images = images.clone();
-        move || comfy::save_images(&comfy::outputs_dir(), &images)
-    })
-    .await??;
+    let saved: Vec<(String, String, Option<String>)> = match project {
+        Some(project_id) => {
+            let db = store.0.clone()?;
+            let images = images.clone();
+            let from = harness_core::projects::OutputSource {
+                source: "image".into(),
+                model: Some(params.checkpoint.clone().unwrap_or_else(|| "ComfyUI".into())),
+                conversation_id: None,
+                agent_task_id: None,
+            };
+            blocking(move || {
+                images
+                    .iter()
+                    .map(|i| {
+                        let o = harness_core::projects::save_output(&db, &project_id, &i.filename, &i.bytes, &from)?;
+                        Ok((o.path, comfy::image_format(&i.bytes).unwrap_or("png").to_string(), Some(o.id)))
+                    })
+                    .collect::<Result<Vec<_>, String>>()
+            })
+            .await??
+        }
+        None => {
+            let images = images.clone();
+            blocking(move || comfy::save_images(&comfy::outputs_dir(), &images))
+                .await??
+                .into_iter()
+                .map(|s| (s.path, s.format, None))
+                .collect()
+        }
+    };
     Ok(ComfyRunResult {
         prompt_id: outcome.prompt_id,
         seed,
         images: saved
             .into_iter()
             .zip(images)
-            .map(|(s, i)| ComfyRunImage {
-                path: s.path,
-                format: s.format,
+            .map(|((path, format, output_id), i)| ComfyRunImage {
+                path,
+                format,
+                output_id,
                 data: base64::engine::general_purpose::STANDARD.encode(&i.bytes),
             })
             .collect(),

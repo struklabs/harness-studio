@@ -1568,6 +1568,374 @@
         }
       }
     },
+    "/api/harness/v1/cloud/models": {
+      "get": {
+        "tags": [
+          "cloud"
+        ],
+        "summary": "Chat and embedding models of the enabled providers (`embedding` tells them apart).",
+        "operationId": "list_cloud_models",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ModelView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/cloud/providers": {
+      "get": {
+        "tags": [
+          "cloud"
+        ],
+        "summary": "The configured providers with their connection state (no keys).",
+        "operationId": "list_cloud_providers",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProviderView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "cloud"
+        ],
+        "summary": "Adds a provider. `key` is saved in the OS keychain; the answer carries `key_set` only.",
+        "operationId": "add_cloud_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/cloud/providers/{id}": {
+      "put": {
+        "tags": [
+          "cloud"
+        ],
+        "summary": "Changes a provider. `key` omitted/null keeps the saved key, `\"\"` removes it. A saved key\nis not carried to a different host: changing the address needs a new key.",
+        "operationId": "update_cloud_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "cloud"
+        ],
+        "summary": "Removes a provider and its key.",
+        "operationId": "remove_cloud_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovedProvider"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/cloud/providers/{id}/test": {
+      "post": {
+        "tags": [
+          "cloud"
+        ],
+        "summary": "Connection test: lists the provider's models with the saved key (costs no tokens).",
+        "operationId": "test_cloud_provider",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/conversations": {
       "get": {
         "tags": [
@@ -3516,6 +3884,50 @@
         "security": [
           {}
         ]
+      }
+    },
+    "/api/harness/v1/jobs": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Read-only central GPU queue, including resident engine reservations.",
+        "operationId": "get_jobs",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobStatus"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/harness/v1/lemonade": {
@@ -11346,6 +11758,90 @@
           }
         }
       },
+      "CloudModel": {
+        "type": "object",
+        "description": "A model and what the provider says about it; `None` = not exposed by its API.",
+        "properties": {
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "context_length": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "input_price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "USD per million input tokens."
+          },
+          "output_price": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "USD per million output tokens."
+          },
+          "tools": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "vision": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "embedding": {
+            "type": "boolean",
+            "description": "An embedding model (`/v1/embeddings`); listed apart from the chat models."
+          }
+        }
+      },
+      "CloudProvider": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "base_url",
+          "enabled"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "Short name in model ids (`cloud:<name>/<model>`)."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          },
+          "base_url": {
+            "type": "string",
+            "description": "Base URL including the API version (`https://api.openai.com/v1`)."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "key_set": {
+            "type": "boolean"
+          }
+        }
+      },
       "CompactBody": {
         "type": "object",
         "properties": {
@@ -15089,6 +15585,23 @@
           }
         }
       },
+      "GpuJobPriority": {
+        "type": "string",
+        "enum": [
+          "interactive",
+          "agent",
+          "background"
+        ]
+      },
+      "GpuJobState": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "loading",
+          "running",
+          "cancelling"
+        ]
+      },
       "GpuMemory": {
         "type": "object",
         "description": "VRAM of one graphics adapter (a machine with several: discrete card plus integrated GPU).",
@@ -15732,6 +16245,55 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "JobStatus": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "priority",
+          "status",
+          "queue_wait_ms"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/GpuJobPriority"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GpuJobState"
+          },
+          "memory_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "None means the GPU footprint is unknown; admission waits.",
+            "minimum": 0
+          },
+          "queue_wait_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "load_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Time to engine readiness; one-shot binaries use their first output as the\nobservable startup boundary when they have no readiness protocol.",
+            "minimum": 0
           }
         }
       },
@@ -17987,6 +18549,44 @@
           }
         }
       },
+      "ModelView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CloudModel"
+          },
+          {
+            "type": "object",
+            "required": [
+              "id",
+              "model",
+              "provider",
+              "kind",
+              "label",
+              "state"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "kind": {
+                "$ref": "#/components/schemas/Kind"
+              },
+              "label": {
+                "type": "string"
+              },
+              "state": {
+                "$ref": "#/components/schemas/State"
+              }
+            }
+          }
+        ]
+      },
       "ModelfileImport": {
         "type": "object",
         "description": "What a Modelfile import found (nothing is saved yet).",
@@ -18998,6 +19598,104 @@
           }
         }
       },
+      "ProviderInput": {
+        "type": "object",
+        "description": "New provider settings; `key`: `None` keeps the saved key, `\"\"` removes it.",
+        "required": [
+          "name",
+          "kind"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          },
+          "base_url": {
+            "type": "string"
+          },
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Accepted when adding or updating; never returned."
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProviderStatus": {
+        "type": "object",
+        "required": [
+          "state",
+          "model_count"
+        ],
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "model_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_ok": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "latency_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "quota": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Quota"
+              }
+            ]
+          }
+        }
+      },
+      "ProviderView": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CloudProvider"
+          },
+          {
+            "$ref": "#/components/schemas/ProviderStatus"
+          },
+          {
+            "type": "object",
+            "required": [
+              "label"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
       "PullProgress": {
         "type": "object",
         "description": "Progress of a model pull or a backend install (the SSE `progress` events of lemond).",
@@ -19193,6 +19891,33 @@
             "format": "int32",
             "description": "Slots worth trying at the next load; `None` while the queue is no problem.",
             "minimum": 0
+          }
+        }
+      },
+      "Quota": {
+        "type": "object",
+        "description": "Spending information where the API exposes it (OpenRouter credits, in USD).",
+        "properties": {
+          "limit": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "usage": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "remaining": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           }
         }
       },
@@ -19814,6 +20539,18 @@
           },
           "delete_logs": {
             "type": "boolean"
+          }
+        }
+      },
+      "RemovedProvider": {
+        "type": "object",
+        "properties": {
+          "warning": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Set when the keychain could not be reached: the key may still be stored there."
           }
         }
       },
@@ -22296,6 +23033,15 @@
           }
         }
       },
+      "State": {
+        "type": "string",
+        "enum": [
+          "online",
+          "offline",
+          "unauthorized",
+          "key_missing"
+        ]
+      },
       "Status": {
         "type": "string",
         "enum": [
@@ -24019,6 +24765,10 @@
     {
       "name": "tokens",
       "description": "Named API tokens (admin)"
+    },
+    {
+      "name": "cloud",
+      "description": "BYOK cloud providers (OpenAI, Gemini, Anthropic, OpenRouter, custom): add, test and remove; the key is write-only (admin)"
     },
     {
       "name": "conversations",

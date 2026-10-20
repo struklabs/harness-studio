@@ -91,13 +91,37 @@ fn params() -> Txt2ImgParams {
 
 #[test]
 fn urls_and_names_are_validated() {
-    assert_eq!(normalize_url(" http://127.0.0.1:8188/ ").unwrap(), "http://127.0.0.1:8188");
-    assert_eq!(normalize_url("https://gpu.lan/comfy/").unwrap(), "https://gpu.lan/comfy");
-    for bad in ["", "127.0.0.1:8188", "ftp://x", "http://u:p@x", "http://x/?a=1", "http://x/#f"] {
-        assert!(normalize_url(bad).unwrap_err().contains(ERR_URL_INVALID), "{bad}");
+    assert_eq!(
+        normalize_url(" http://127.0.0.1:8188/ ").unwrap(),
+        "http://127.0.0.1:8188"
+    );
+    assert_eq!(
+        normalize_url("https://gpu.lan/comfy/").unwrap(),
+        "https://gpu.lan/comfy"
+    );
+    for bad in [
+        "",
+        "127.0.0.1:8188",
+        "ftp://x",
+        "http://u:p@x",
+        "http://x/?a=1",
+        "http://x/#f",
+    ] {
+        assert!(
+            normalize_url(bad).unwrap_err().contains(ERR_URL_INVALID),
+            "{bad}"
+        );
     }
     assert!(saved_path_ok("portraits/sdxl.json"));
-    for bad in ["", "../x.json", "a/../x.json", "/x.json", "a//x.json", "a\\x.json", "x.txt"] {
+    for bad in [
+        "",
+        "../x.json",
+        "a/../x.json",
+        "/x.json",
+        "a//x.json",
+        "a\\x.json",
+        "x.txt",
+    ] {
         assert!(!saved_path_ok(bad), "{bad}");
     }
     assert!(template_name_ok("default") && template_name_ok("image_flux_text_to_image"));
@@ -117,7 +141,10 @@ fn parameters_are_checked() {
     bad(|p| p.height = Some(16), "comfyui.size_invalid");
     bad(|p| p.steps = Some(0), "comfyui.steps_invalid");
     bad(|p| p.cfg = Some(-1.0), "comfyui.cfg_invalid");
-    bad(|p| p.prompt = "x".repeat(MAX_PROMPT_CHARS + 1), "comfyui.prompt_too_long");
+    bad(
+        |p| p.prompt = "x".repeat(MAX_PROMPT_CHARS + 1),
+        "comfyui.prompt_too_long",
+    );
 }
 
 #[test]
@@ -137,9 +164,18 @@ fn builtin_graph_takes_the_parameters() {
     assert_eq!(g["6"]["inputs"]["text"], "a red fox");
     assert_eq!(g["7"]["inputs"]["text"], "blurry");
     let k = &g["3"]["inputs"];
-    assert_eq!((k["seed"].as_u64(), k["steps"].as_u64(), k["cfg"].as_f64()), (Some(1234), Some(8), Some(2.5)));
+    assert_eq!(
+        (k["seed"].as_u64(), k["steps"].as_u64(), k["cfg"].as_f64()),
+        (Some(1234), Some(8), Some(2.5))
+    );
     assert_eq!(k["model"], json!(["4", 0]));
-    assert_eq!((g["5"]["inputs"]["width"].as_u64(), g["5"]["inputs"]["height"].as_u64()), (Some(768), Some(512)));
+    assert_eq!(
+        (
+            g["5"]["inputs"]["width"].as_u64(),
+            g["5"]["inputs"]["height"].as_u64()
+        ),
+        (Some(768), Some(512))
+    );
     assert_eq!(g["4"]["inputs"]["ckpt_name"], "b.safetensors");
     assert_eq!(g["9"]["inputs"]["filename_prefix"], FILENAME_PREFIX);
     assert!(is_api_format(&Value::Object(g)));
@@ -151,7 +187,9 @@ fn builtin_graph_takes_the_parameters() {
     assert_eq!(g["7"]["inputs"]["text"], "ugly");
     let mut no_text = builtin_txt2img("a.safetensors");
     no_text.remove("6");
-    assert!(apply_params(&mut no_text, &params(), 1).unwrap_err().contains("comfyui.no_prompt_input"));
+    assert!(apply_params(&mut no_text, &params(), 1)
+        .unwrap_err()
+        .contains("comfyui.no_prompt_input"));
 }
 
 #[test]
@@ -168,14 +206,28 @@ fn editor_workflows_are_converted() {
     // the primitive's value stays in the widget it drives.
     assert_eq!(k["model"], json!(["4", 0]));
     assert_eq!(g["6"]["inputs"]["clip"], json!(["4", 1]));
-    assert_eq!((k["seed"].as_u64(), k["steps"].as_u64(), k["cfg"].as_f64()), (Some(42), Some(25), Some(6.5)));
-    assert_eq!((k["sampler_name"].as_str(), k["denoise"].as_f64()), (Some("euler"), Some(1.0)));
+    assert_eq!(
+        (k["seed"].as_u64(), k["steps"].as_u64(), k["cfg"].as_f64()),
+        (Some(42), Some(25), Some(6.5))
+    );
+    assert_eq!(
+        (k["sampler_name"].as_str(), k["denoise"].as_f64()),
+        (Some("euler"), Some(1.0))
+    );
     assert_eq!(k["positive"], json!(["6", 0]));
     assert_eq!(g["9"]["inputs"]["images"], json!(["8", 0]));
     assert_eq!(g["9"]["inputs"]["filename_prefix"], "mine");
     assert_eq!(g["6"]["_meta"]["title"], "Positive");
 
-    apply_params(&mut g, &Txt2ImgParams { width: Some(1024), ..params() }, 7).unwrap();
+    apply_params(
+        &mut g,
+        &Txt2ImgParams {
+            width: Some(1024),
+            ..params()
+        },
+        7,
+    )
+    .unwrap();
     assert_eq!(g["6"]["inputs"]["text"], "a red fox");
     assert_eq!(g["7"]["inputs"]["text"], "blurry");
     assert_eq!(g["3"]["inputs"]["seed"], 7);
@@ -191,19 +243,29 @@ fn editor_workflows_are_converted() {
         .map(|l| json!({"id": l[0], "origin_id": l[1], "origin_slot": l[2], "target_id": l[3], "target_slot": l[4], "type": l[5]}))
         .collect();
     v1["links"] = json!(links);
-    assert_eq!(ui_to_api(&v1, &object_info()).unwrap(), ui_to_api(&ui, &object_info()).unwrap());
+    assert_eq!(
+        ui_to_api(&v1, &object_info()).unwrap(),
+        ui_to_api(&ui, &object_info()).unwrap()
+    );
 }
 
 #[test]
 fn unsupported_workflows_say_why() {
     let mut sub = ui_workflow();
     sub["definitions"] = json!({"subgraphs": [{"id": "x"}]});
-    assert!(ui_to_api(&sub, &object_info()).unwrap_err().contains("comfyui.workflow_unsupported"));
+    assert!(ui_to_api(&sub, &object_info())
+        .unwrap_err()
+        .contains("comfyui.workflow_unsupported"));
     let mut unknown = ui_workflow();
     unknown["nodes"][0]["type"] = json!("FancyLoader");
     let e = ui_to_api(&unknown, &object_info()).unwrap_err();
-    assert!(e.contains("comfyui.missing_node") && e.contains("FancyLoader"), "{e}");
-    assert!(ui_to_api(&json!({"nodes": []}), &object_info()).unwrap_err().contains("comfyui.workflow_invalid"));
+    assert!(
+        e.contains("comfyui.missing_node") && e.contains("FancyLoader"),
+        "{e}"
+    );
+    assert!(ui_to_api(&json!({"nodes": []}), &object_info())
+        .unwrap_err()
+        .contains("comfyui.workflow_invalid"));
 }
 
 #[test]
@@ -214,7 +276,10 @@ fn saved_outputs_win_over_previews() {
     }});
     let refs = output_images(&entry);
     assert_eq!(refs.len(), 1);
-    assert_eq!((refs[0].filename.as_str(), refs[0].kind.as_str()), ("a.png", "output"));
+    assert_eq!(
+        (refs[0].filename.as_str(), refs[0].kind.as_str()),
+        ("a.png", "output")
+    );
     let previews = json!({"outputs": {"10": {"images": [{"filename": "p.png", "subfolder": "s", "type": "temp"}]}}});
     assert_eq!(output_images(&previews)[0].subfolder, "s");
 }
@@ -222,16 +287,47 @@ fn saved_outputs_win_over_previews() {
 #[test]
 fn images_are_saved_without_overwriting() {
     let dir = tempfile::tempdir().unwrap();
-    let img = |name: &str| RunImage { filename: name.into(), bytes: PNG.to_vec() };
-    let saved = save_images(dir.path(), &[img("HarnessStudio_00001_.png"), img("HarnessStudio_00001_.png"), img("../../evil.png")]).unwrap();
+    let img = |name: &str| RunImage {
+        filename: name.into(),
+        bytes: PNG.to_vec(),
+    };
+    let saved = save_images(
+        dir.path(),
+        &[
+            img("HarnessStudio_00001_.png"),
+            img("HarnessStudio_00001_.png"),
+            img("../../evil.png"),
+        ],
+    )
+    .unwrap();
     let names: Vec<String> = saved
         .iter()
-        .map(|s| Path::new(&s.path).file_name().unwrap().to_string_lossy().into_owned())
+        .map(|s| {
+            Path::new(&s.path)
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
-    assert_eq!(names, ["HarnessStudio_00001_.png", "HarnessStudio_00001_ (2).png", "evil.png"]);
-    assert!(saved.iter().all(|s| s.format == "png" && Path::new(&s.path).starts_with(dir.path())));
-    let bad = RunImage { filename: "x.png".into(), bytes: b"GIF89a".to_vec() };
-    assert!(save_images(dir.path(), &[bad]).unwrap_err().contains("comfyui.invalid_image"));
+    assert_eq!(
+        names,
+        [
+            "HarnessStudio_00001_.png",
+            "HarnessStudio_00001_ (2).png",
+            "evil.png"
+        ]
+    );
+    assert!(saved
+        .iter()
+        .all(|s| s.format == "png" && Path::new(&s.path).starts_with(dir.path())));
+    let bad = RunImage {
+        filename: "x.png".into(),
+        bytes: b"GIF89a".to_vec(),
+    };
+    assert!(save_images(dir.path(), &[bad])
+        .unwrap_err()
+        .contains("comfyui.invalid_image"));
 }
 
 // --- A mock ComfyUI ---
@@ -253,7 +349,10 @@ type Shared = Arc<Mutex<Mock>>;
 const PROMPT_ID: &str = "11111111-2222-3333-4444-555555555555";
 
 async fn start(hang: bool) -> (String, Shared) {
-    let state: Shared = Arc::new(Mutex::new(Mock { hang, ..Default::default() }));
+    let state: Shared = Arc::new(Mutex::new(Mock {
+        hang,
+        ..Default::default()
+    }));
     let app = Router::new()
         .route(
             "/system_stats",
@@ -417,7 +516,10 @@ async fn detects_lists_and_runs_with_progress() {
     let client = ComfyClient::new(&format!("{url}/")).unwrap();
     let status = client.status().await.unwrap();
     assert_eq!(status.url, url);
-    assert_eq!((status.version.as_deref(), status.python_version.as_deref()), (Some("0.3.99"), Some("3.12.8")));
+    assert_eq!(
+        (status.version.as_deref(), status.python_version.as_deref()),
+        (Some("0.3.99"), Some("3.12.8"))
+    );
     assert_eq!(status.devices[0].kind, "mps");
 
     let catalog = client.catalog().await.unwrap();
@@ -429,22 +531,51 @@ async fn detects_lists_and_runs_with_progress() {
         .iter()
         .map(|t| (t.source.as_str(), t.name.as_str(), t.title.as_str()))
         .collect();
-    assert_eq!(templates, [("core", "default", "Image Generation"), ("comfy-pack", "upscale", "upscale")]);
+    assert_eq!(
+        templates,
+        [
+            ("core", "default", "Image Generation"),
+            ("comfy-pack", "upscale", "upscale")
+        ]
+    );
 
     // A saved editor workflow is converted; the parameters go in.
-    let source = WorkflowSource::Saved { path: "A.json".into() };
+    let source = WorkflowSource::Saved {
+        path: "A.json".into(),
+    };
     let graph = client.prepare(&source, &params(), 99).await.unwrap();
     assert_eq!(graph["6"]["inputs"]["text"], "a red fox");
     assert_eq!(graph["4"]["inputs"]["ckpt_name"], "b.safetensors");
     // The built-in graph takes the first checkpoint when none is picked.
-    let builtin = client.prepare(&WorkflowSource::Builtin, &params(), 5).await.unwrap();
+    let builtin = client
+        .prepare(&WorkflowSource::Builtin, &params(), 5)
+        .await
+        .unwrap();
     assert_eq!(builtin["4"]["inputs"]["ckpt_name"], "a.safetensors");
-    let api = client.prepare(&WorkflowSource::Saved { path: "b/api.json".into() }, &params(), 5).await.unwrap();
+    let api = client
+        .prepare(
+            &WorkflowSource::Saved {
+                path: "b/api.json".into(),
+            },
+            &params(),
+            5,
+        )
+        .await
+        .unwrap();
     assert_eq!(api["3"]["inputs"]["seed"], 5);
-    let template = WorkflowSource::Template { source: "core".into(), name: "default".into() };
+    let template = WorkflowSource::Template {
+        source: "core".into(),
+        name: "default".into(),
+    };
     assert!(client.prepare(&template, &params(), 5).await.is_ok());
-    let escape = WorkflowSource::Saved { path: "../secrets.json".into() };
-    assert!(client.prepare(&escape, &params(), 5).await.unwrap_err().contains("comfyui.workflow_path_invalid"));
+    let escape = WorkflowSource::Saved {
+        path: "../secrets.json".into(),
+    };
+    assert!(client
+        .prepare(&escape, &params(), 5)
+        .await
+        .unwrap_err()
+        .contains("comfyui.workflow_path_invalid"));
 
     let events = Arc::new(Mutex::new(Vec::new()));
     let seen = events.clone();
@@ -456,10 +587,24 @@ async fn detects_lists_and_runs_with_progress() {
     assert_eq!(outcome.images.len(), 2);
     assert_eq!(outcome.images[0].bytes, PNG);
     let events = events.lock().unwrap();
-    let stages: Vec<(&str, u64, u64)> = events.iter().map(|e| (e.stage.as_str(), e.value, e.max)).collect();
-    assert_eq!(stages, [("queued", 0, 0), ("running", 0, 0), ("progress", 1, 2), ("progress", 2, 2)]);
+    let stages: Vec<(&str, u64, u64)> = events
+        .iter()
+        .map(|e| (e.stage.as_str(), e.value, e.max))
+        .collect();
+    assert_eq!(
+        stages,
+        [
+            ("queued", 0, 0),
+            ("running", 0, 0),
+            ("progress", 1, 2),
+            ("progress", 2, 2)
+        ]
+    );
     assert!(events.iter().all(|e| e.prompt_id == PROMPT_ID));
-    assert_eq!(state.lock().unwrap().prompts[0]["6"]["inputs"]["text"], "a red fox");
+    assert_eq!(
+        state.lock().unwrap().prompts[0]["6"]["inputs"]["text"],
+        "a red fox"
+    );
 }
 
 #[tokio::test]
@@ -482,7 +627,10 @@ async fn a_cancelled_run_stops_waiting() {
         assert_eq!(m.deleted, [PROMPT_ID]);
         assert!(m.interrupted, "the executing run is interrupted");
     }
-    let result = tokio::time::timeout(Duration::from_secs(10), run).await.unwrap().unwrap();
+    let result = tokio::time::timeout(Duration::from_secs(10), run)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(result.unwrap_err().contains("comfyui.cancelled"));
     assert!(client.cancel("bad id!").await.is_err());
 }
@@ -494,14 +642,23 @@ async fn rejected_prompts_and_other_servers_are_reported() {
     let mut graph = builtin_txt2img("x");
     graph.insert("bad".into(), json!({"class_type": "X", "inputs": {}}));
     let e = client.run(&graph, &|_| {}).await.unwrap_err();
-    assert!(e.contains("comfyui.prompt_rejected") && e.contains("Value not in list") && e.contains("CheckpointLoaderSimple"), "{e}");
+    assert!(
+        e.contains("comfyui.prompt_rejected")
+            && e.contains("Value not in list")
+            && e.contains("CheckpointLoaderSimple"),
+        "{e}"
+    );
 
     // Something else on the port: not ComfyUI.
     let other = Router::new().route("/", get(|| async { "hello" }));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let other_url = format!("http://{}", listener.local_addr().unwrap());
     tokio::spawn(async move { axum::serve(listener, other).await.unwrap() });
-    let e = ComfyClient::new(&other_url).unwrap().status().await.unwrap_err();
+    let e = ComfyClient::new(&other_url)
+        .unwrap()
+        .status()
+        .await
+        .unwrap_err();
     assert!(e.contains("comfyui.not_comfyui"), "{e}");
 }
 
@@ -513,9 +670,18 @@ async fn live_txt2img() {
     let url = std::env::var("COMFYUI_URL").expect("COMFYUI_URL");
     let client = ComfyClient::new(&url).unwrap();
     let status = client.status().await.unwrap();
-    eprintln!("ComfyUI {:?} on {:?}", status.version, status.devices.first().map(|d| &d.kind));
+    eprintln!(
+        "ComfyUI {:?} on {:?}",
+        status.version,
+        status.devices.first().map(|d| &d.kind)
+    );
     let catalog = client.catalog().await.unwrap();
-    eprintln!("{} workflows, {} templates, checkpoints {:?}", catalog.workflows.len(), catalog.templates.len(), catalog.checkpoints);
+    eprintln!(
+        "{} workflows, {} templates, checkpoints {:?}",
+        catalog.workflows.len(),
+        catalog.templates.len(),
+        catalog.checkpoints
+    );
     let small = Txt2ImgParams {
         prompt: "a lighthouse on a cliff, watercolor".into(),
         width: Some(256),
@@ -526,12 +692,25 @@ async fn live_txt2img() {
     let mut sources = vec![WorkflowSource::Builtin];
     // A plain editor-format template exercises the conversion (its SDXL checkpoint is swapped
     // for the first one installed).
-    if catalog.templates.iter().any(|t| t.source == "core" && t.name == "image_sdxl_simple") {
-        sources.push(WorkflowSource::Template { source: "core".into(), name: "image_sdxl_simple".into() });
+    if catalog
+        .templates
+        .iter()
+        .any(|t| t.source == "core" && t.name == "image_sdxl_simple")
+    {
+        sources.push(WorkflowSource::Template {
+            source: "core".into(),
+            name: "image_sdxl_simple".into(),
+        });
     }
-    let small = Txt2ImgParams { checkpoint: catalog.checkpoints.first().cloned(), ..small };
+    let small = Txt2ImgParams {
+        checkpoint: catalog.checkpoints.first().cloned(),
+        ..small
+    };
     for source in sources {
-        let graph = client.prepare(&source, &small, random_seed()).await.unwrap();
+        let graph = client
+            .prepare(&source, &small, random_seed())
+            .await
+            .unwrap();
         let steps = Arc::new(Mutex::new(0u64));
         let seen = steps.clone();
         let started = Instant::now();
@@ -543,7 +722,12 @@ async fn live_txt2img() {
             })
             .await
             .unwrap();
-        eprintln!("{source:?}: {} image(s), last step {}, {:?}", outcome.images.len(), steps.lock().unwrap(), started.elapsed());
+        eprintln!(
+            "{source:?}: {} image(s), last step {}, {:?}",
+            outcome.images.len(),
+            steps.lock().unwrap(),
+            started.elapsed()
+        );
         assert!(!outcome.images.is_empty());
         assert_eq!(image_format(&outcome.images[0].bytes), Some("png"));
         assert_eq!(*steps.lock().unwrap(), 4, "progress came over the socket");

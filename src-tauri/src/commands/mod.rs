@@ -60,10 +60,13 @@ include!("benchmark.rs");
 include!("control_api.rs");
 include!("gateway.rs");
 include!("link.rs");
+include!("cloud.rs");
 include!("modelfile.rs");
 include!("conversations.rs");
+include!("projects.rs");
 include!("compaction.rs");
 include!("rag.rs");
+include!("knowledge.rs");
 include!("tools.rs");
 include!("capabilities.rs");
 include!("desktop.rs");
@@ -95,3 +98,4 @@ include!("automations.rs");
 include!("comfyui.rs");
 
 include!("modules.rs");
+include!("setup.rs");

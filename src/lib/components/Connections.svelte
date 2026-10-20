@@ -11,6 +11,7 @@
   import EndpointList from './connections/EndpointList.svelte';
   import HarnessMcp from './connections/HarnessMcp.svelte';
   import HarnessLinks from './connections/HarnessLinks.svelte';
+  import CloudProviders from './connections/CloudProviders.svelte';
   import McpServers from './connections/McpServers.svelte';
   import { fetchErrorText, fetchWithTimeout } from './connections/net';
   import AdvancedPageNotice from './common/AdvancedPageNotice.svelte';
@@ -154,6 +155,7 @@
         {/if}
       </div>
       <div hidden={active !== 'harness-link'}>{#if visited['harness-link']}<HarnessLinks />{/if}</div>
+      <div hidden={active !== 'cloud-providers'}>{#if visited['cloud-providers']}<CloudProviders />{/if}</div>
       <div hidden={active !== 'harness-mcp'}>{#if visited['harness-mcp']}<HarnessMcp />{/if}</div>
       <div hidden={!mcpPage}>
         {#if visited.servers || visited.import || visited.status}<McpServers onNavigate={select} page={active === 'import' ? 'import' : active === 'status' ? 'status' : 'servers'} />{/if}

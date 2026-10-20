@@ -18,6 +18,8 @@ export const GALLERY_LIMIT = 24;
 export interface ComfyItem {
   id: number;
   path: string;
+  /** Set when the picture went into a project's outputs. */
+  outputId: string | null;
   image: ImageResult;
   prompt: string;
   workflow: string;

@@ -8,6 +8,7 @@ pub mod push;
 #[cfg(all(windows, debug_assertions, feature = "qa-cdp"))]
 mod qa_cdp;
 pub mod startup;
+pub mod uninstall;
 
 // Core services live in `harness-core`; re-exported so `crate::<module>` paths keep working.
 pub use harness_core::{
@@ -37,7 +38,7 @@ use runtime_update::RuntimeAutoUpdater;
 use servers::ServerRegistry;
 use telemetry::TelemetryPoller;
 
-/// Records Rust panics as local crash events (processed on next start, subject to consent).
+/// Writes consent-gated, sanitized Rust panic reports before unwinding or aborting.
 fn install_panic_hook() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
@@ -82,6 +83,11 @@ pub(crate) async fn stop_lemonade_and_mcp() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // One copy of the embedded frontend serves both the app and the uninstall window.
+    let context = tauri::generate_context!();
+    if let Some(options) = uninstall::parse_args() {
+        return uninstall::run(options, context);
+    }
     let registry = Arc::new(ServerRegistry::default());
     let runtime_mgr = Arc::new(RuntimeManager::default());
     let model_mgr = Arc::new(ModelManager);
@@ -266,6 +272,23 @@ pub fn run() {
                 // (model definitions + server profiles), keeping `.pre-v2` backups.
                 ModelManager::migrate_secrets();
             });
+            if owner {
+                DiagnosticsManager::start_session(
+                    &AppSettings::load(),
+                    &hardware::detect_hardware(),
+                );
+                tauri::async_runtime::spawn(async {
+                    loop {
+                        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                        let _ = tauri::async_runtime::spawn_blocking(|| {
+                            DiagnosticsManager::default_manager()
+                                .cleanup(AppSettings::load().privacy.retention_days);
+                            DiagnosticsManager::default_manager().checkpoint(&AppSettings::load());
+                        })
+                        .await;
+                    }
+                });
+            }
             install_panic_hook();
             restore_downloads.restore();
             app.manage(Arc::new(DiagnosticsManager::default_manager()));
@@ -352,8 +375,8 @@ pub fn run() {
             estimate_definition_load_fit,
             get_backend_status,
             get_app_settings,
-            get_cleanup_plan,
-            prepare_uninstall,
+            launch_uninstaller,
+            setup_context,
             save_app_settings,
             set_audio_cpp_enabled,
             get_network_overview,
@@ -416,6 +439,10 @@ pub fn run() {
             cancel_convert_env_install,
             remove_convert_env,
             detect_agent,
+            install_openclaw,
+            cancel_openclaw_install,
+            remove_openclaw,
+            list_agent_choices,
             connect_agent,
             disconnect_agent,
             agent_task_status,
@@ -554,12 +581,21 @@ pub fn run() {
             comfyui_open_output,
             comfyui_reveal_output,
             get_gateway_status,
+            get_jobs,
+            cancel_job,
             link_list,
             link_models,
             link_add,
             link_update,
             link_remove,
             link_test,
+            cloud_list,
+            cloud_models,
+            cloud_add,
+            cloud_update,
+            cloud_remove,
+            cloud_test,
+            cloud_test_model,
             set_gateway_settings,
             unload_gateway_model,
             queue_gateway_load_override,
@@ -625,6 +661,8 @@ pub fn run() {
             save_crash_event,
             list_diagnostic_reports,
             clear_diagnostic_reports,
+            delete_diagnostic_report,
+            export_diagnostic_report,
             get_storage_directories,
             add_storage_directory,
             remove_storage_directory,
@@ -641,6 +679,22 @@ pub fn run() {
             import_playground_state,
             conversation_db_status,
             list_conversations,
+            projects_list,
+            project_create,
+            project_update,
+            project_archive,
+            project_delete,
+            project_set_chat,
+            project_outputs,
+            project_output_remove,
+            project_output_open,
+            project_output_reveal,
+            project_reveal_folder,
+            project_save_output,
+            project_export,
+            project_agent_start,
+            project_agent_tasks,
+            project_agent_save_output,
             create_conversation,
             open_conversation,
             get_conversation,
@@ -689,6 +743,22 @@ pub fn run() {
             rag_delete_document,
             rag_set_document_mode,
             rag_prepare,
+            // Knowledge bases
+            kb_list,
+            kb_create,
+            kb_rename,
+            kb_delete,
+            kb_documents,
+            kb_scan_folder,
+            kb_index,
+            kb_cancel,
+            kb_attach,
+            kb_detach,
+            kb_attached,
+            embedder_status,
+            embedder_install,
+            embedder_sync,
+            embedder_remove,
             // Integrations
             detect_installed_clients,
             list_integrations,
@@ -766,7 +836,7 @@ pub fn run() {
             set_analytics_settings,
             clear_analytics,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(move |app, event| {
             // macOS: clicking the Dock icon with the window hidden in the menu bar (or its
@@ -806,6 +876,7 @@ pub fn run() {
                 tauri::async_runtime::block_on(stop_mcp());
                 if let Some(state) = app.try_state::<InstanceState>() {
                     if let Some(lock) = &state.lock {
+                        DiagnosticsManager::default_manager().end_session();
                         lock.release();
                     }
                 }

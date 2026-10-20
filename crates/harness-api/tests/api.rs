@@ -493,6 +493,7 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/hardware", &["get"]),
         ("/hardware/devices", &["get"]),
         ("/gateway", &["get"]),
+        ("/jobs", &["get"]),
         ("/runtime", &["get"]),
         ("/runtime/flags", &["get"]),
         ("/runtime/managed", &["get"]),
@@ -573,6 +574,10 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/events", &["get"]),
         ("/tokens", &["get", "post"]),
         ("/tokens/{id}", &["get", "patch", "delete"]),
+        ("/cloud/providers", &["get", "post"]),
+        ("/cloud/providers/{id}", &["put", "delete"]),
+        ("/cloud/providers/{id}/test", &["post"]),
+        ("/cloud/models", &["get"]),
         ("/otel", &["get", "put"]),
         ("/otel/test", &["post"]),
         ("/automations/n8n", &["get", "put"]),
@@ -2313,4 +2318,48 @@ async fn only_the_local_session_reads_a_server_key() {
     assert!(!view.to_string().contains(&key), "{view}");
     let (_, logs) = json(api.get("/servers/worker/logs").await).await;
     assert!(!logs.to_string().contains(&key));
+}
+
+#[tokio::test]
+async fn jobs_exposes_the_shared_queue_with_read_authentication() {
+    let api = start().await;
+    let label = "api-queue-read-auth".to_string();
+    let ticket = harness_core::jobs::global().submit(
+        label.clone(),
+        harness_core::jobs::Priority::Background,
+        12345,
+    );
+    let (status, body) = json(api.get("/jobs").await).await;
+    assert_eq!(status, 200);
+    let job = body
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|job| job["label"] == label)
+        .unwrap();
+    assert_eq!(job["status"], "queued");
+    assert_eq!(job["priority"], "background");
+    assert_eq!(job["memory_bytes"], 12345);
+    let response = api
+        .http
+        .get(format!("{}/jobs", api.base))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 401);
+    drop(ticket);
+    api.server.stop().await;
+}
+
+#[test]
+fn jobs_schema_preserves_module_status() {
+    let document = serde_json::to_value(harness_api::openapi_document()).unwrap();
+    let schemas = &document["components"]["schemas"];
+    assert_eq!(schemas["Status"]["enum"][0], "not_installed");
+    assert_eq!(schemas["GpuJobState"]["enum"][0], "queued");
+    assert_eq!(schemas["GpuJobPriority"]["enum"][0], "interactive");
+    assert_eq!(
+        schemas["JobStatus"]["properties"]["status"]["$ref"],
+        "#/components/schemas/GpuJobState"
+    );
 }

@@ -2,7 +2,7 @@
 
 Türkçe: [../tr/04-playground.md](../tr/04-playground.md)
 
-**What you do here:** chat with a local model, organize chats, use documents and tools, compare two answers, work with embeddings and reranking, turn speech into text and text into speech, and generate images.
+**What you do here:** chat with a local model, organize chats, use documents and tools, compare two answers, work with embeddings and reranking, turn speech into text and text into speech, generate images, and group work into projects.
 
 ## How the Screen Is Laid Out
 
@@ -96,6 +96,17 @@ Approval lets the tool run on your computer. For file writes and commands, check
 
 The **Use** choice next to a document decides how it is used. With **Auto**, a document that fits comfortably in the context is added as full text, and for large documents the relevant parts are searched for on every question. You can change this with **Full Text** and **Search**. If no **Embedding model** is selected on **Session Settings > RAG**, only keyword search is used; for semantic search, download a small embedding model (for example nomic-embed-text) from Model Hub. Optional **Reranking** orders results more accurately with a reranker model at a small cost in speed. **Chunks per question** is the number of quotes added to the answer in search mode. Document processing and indexes run locally. Document search is not used in the comparison view.
 
+## Knowledge Bases
+
+A knowledge base is a named set of documents you can reuse in any chat.
+
+1. Open **Knowledge Bases** above the message box and choose **New from Folder** (supported files in the folder and its subfolders; hidden, build, and dependency folders are skipped) or **New from Files**.
+2. If no embedding model is installed, **Install Embedding Model** downloads a small multilingual one (about 126 MB). It runs on the CPU, so indexing does not keep your GPU busy. Make sure the gateway is on.
+3. Watch the progress under the base; **Stop** cancels it and **Resume** continues later. When indexing ends, the base shows how long it took.
+4. Choose **Use in This Chat**. On every question, only the best matching passages are added (a quarter of the context at most, 2,000 tokens at the very most), and the answer shows them as source chips.
+
+A base remembers which embedding model built its index. If you switch to another embedding model, the base is marked **Stale**; **Rebuild** re-reads and re-indexes it. Until then, searches fall back to keywords and a notice says why. Deleting a base removes its index only, never your files.
+
 ## Embedding and Rerank
 
 **Embedding** turns text into a numeric vector, used for search and similarity. Start a server with a suitable embedding model (a server whose model type is embedding starts in this mode on its own), fill in the **Texts** boxes on the **Embedding** tab, and press **Get Embeddings**. A similarity matrix needs at least two non-empty texts.
@@ -155,9 +166,22 @@ If you already run [ComfyUI](https://github.com/comfyanonymous/ComfyUI), the **I
    - **Templates** are ComfyUI's own image templates and those of your custom nodes. Partner-API (paid) templates are not listed.
 4. Write a **Prompt** and press **Generate in ComfyUI**. Optionally set a **Negative Prompt**, **Size**, **Steps**, **Seed**, or **CFG Scale** (under **Advanced Settings** in Simple mode); empty fields keep the workflow's own values, and an empty **Seed** is random. While it runs, the queue position and the sampler steps are shown, and **Cancel** removes the run from ComfyUI's queue or stops it.
 
-The pictures are saved to `outputs/comfyui` in the Harness data folder and listed under **ComfyUI Outputs** with **Open** and **Show in Folder**. **Remove from List (Keep File)** leaves the file on disk.
+While a project with a folder is active (see [Projects and Outputs](#projects-and-outputs)), the pictures are saved to its outputs; otherwise they go to `outputs/comfyui` in the Harness data folder. They are listed under **ComfyUI Outputs** with **Open** and **Show in Folder**. **Remove from List (Keep File)** leaves the file on disk.
 
 Workflows saved in ComfyUI's editor format are converted with your ComfyUI's node definitions. A workflow that uses subgraphs or group nodes cannot be converted; in ComfyUI, export it in API format, save it, and pick that file. A missing custom node is named in the error message.
+## Projects and Outputs
+
+A project groups chats, the files they produce, and agent tasks under a name and a folder. Open **Projects** in the sidebar and press **New Project**.
+
+1. Give it a **Name**, an optional description, and a **Project Folder** (an existing folder). Outputs are written to the `outputs` folder inside it.
+2. **Extra Allowed Folders** (one per line) lets tools and agents use other folders too. Tools in the project's chats and its agent tasks work only inside the project folder and these folders; a file tool asked to work elsewhere is refused.
+3. **Attached Tools**, **Attached Skills**, and **Attached MCP Servers** narrow what the project's chats offer. With nothing picked, the global settings apply.
+
+Press **Use in Playground**, or pick the project in the list above the chats (**All Chats** shows every chat). While a project is active, new chats are filed into it, the chat list shows only its chats, generated images and speech are saved to its `outputs` folder, and files written by `write_file` or `edit_file` are recorded as outputs.
+
+On the project page, **Outputs** lists each file with its source (chat, tool, image generation, speech, or agent), model, and time. **Open** opens it with the default app, **Show in Folder** reveals it, and **Remove from List (Keep File)** forgets it without touching the disk. **Agent Tasks** runs a Hermes Agent task that can read only the project's folders; **Save as Output** keeps its answer as a Markdown file.
+
+**Archive** hides a project from the list and the Playground picker (**Show Archived** brings it back; **Unarchive** restores it). **Export as Zip** saves the project details, its chats as JSON, and its output files. **Delete Project** keeps the chats (they no longer belong to a project); tick the checkbox to also delete the output files in the project's folders from disk. The folders themselves always stay.
 
 ## Tasks (Advanced)
 

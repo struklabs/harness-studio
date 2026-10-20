@@ -123,9 +123,9 @@ pub fn ui_to_api(ui: &Value, object_info: &Value) -> Result<Graph, String> {
         .pointer("/definitions/subgraphs")
         .and_then(Value::as_array)
         .is_some_and(|s| !s.is_empty())
-        || ui.pointer("/extra/groupNodes").is_some_and(|g| {
-            g.as_object().is_some_and(|m| !m.is_empty())
-        })
+        || ui
+            .pointer("/extra/groupNodes")
+            .is_some_and(|g| g.as_object().is_some_and(|m| !m.is_empty()))
     {
         return Err(err("comfyui.workflow_unsupported").into());
     }
@@ -196,7 +196,13 @@ fn link_table(links: Option<&Value>) -> HashMap<i64, (i64, i64)> {
     let mut out = HashMap::new();
     for link in links.and_then(Value::as_array).into_iter().flatten() {
         let parsed = match link {
-            Value::Array(a) => (|| Some((a.first()?.as_i64()?, a.get(1)?.as_i64()?, a.get(2)?.as_i64()?)))(),
+            Value::Array(a) => (|| {
+                Some((
+                    a.first()?.as_i64()?,
+                    a.get(1)?.as_i64()?,
+                    a.get(2)?.as_i64()?,
+                ))
+            })(),
             Value::Object(o) => (|| {
                 Some((
                     o.get("id")?.as_i64()?,
@@ -218,7 +224,10 @@ fn link_table(links: Option<&Value>) -> HashMap<i64, (i64, i64)> {
 fn ordered_inputs(spec: &Value) -> Vec<(String, &Value)> {
     let mut out = Vec::new();
     for group in ["required", "optional"] {
-        let Some(defs) = spec.pointer(&format!("/input/{group}")).and_then(Value::as_object) else {
+        let Some(defs) = spec
+            .pointer(&format!("/input/{group}"))
+            .and_then(Value::as_object)
+        else {
             continue;
         };
         let order: Vec<&str> = spec
