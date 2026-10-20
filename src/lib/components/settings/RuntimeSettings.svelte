@@ -395,9 +395,9 @@
     </AdvancedOnly>
     <RuntimeCurrentState {settings} {form} {onSettingsUpdated} />
     {#if onReopenWizard}
-      <SettingRow label={t('settings.wizard_label')} hint={t('settings.wizard_hint')}>
+      <SettingRow label={t('settings.setup_label')} hint={t('settings.setup_hint')}>
         <Button variant="outline" size="sm" onclick={onReopenWizard}>
-          <Compass /> {t('settings.wizard_btn')}
+          <Compass /> {t('settings.setup_btn')}
         </Button>
       </SettingRow>
     {/if}
