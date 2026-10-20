@@ -48,6 +48,7 @@ pub async fn run(args: &ServeArgs, data_dir: &Path, out: &Out) -> CliResult<()> 
             .unwrap_or_else(|| "build".into());
     }
     let browser = if browser.ui_dir.join("index.html").is_file() {
+        check_ui_bundle(&browser.ui_dir)?;
         Some(browser)
     } else {
         if args.ui_dir.is_some() || args.serve_config.is_some() {
@@ -263,4 +264,28 @@ async fn wait_for_stop(api: &tokio::sync::Notify) -> &'static str {
             _ = api.notified() => "api",
         }
     }
+}
+
+/// Refuses a browser UI bundle that was not built together with this binary, for
+/// example a leftover `build/` directory from an older checkout.
+fn check_ui_bundle(dir: &std::path::Path) -> Result<(), crate::error::CliError> {
+    let found = std::fs::read(dir.join("harness-ui.json"))
+        .ok()
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+        .and_then(|v| v.get("version").and_then(|v| v.as_str()).map(String::from));
+    let expected = env!("CARGO_PKG_VERSION");
+    if found.as_deref() == Some(expected) {
+        return Ok(());
+    }
+    let found = found.map_or_else(
+        || "no version marker (harness-ui.json)".to_string(),
+        |v| format!("version {v}"),
+    );
+    Err(crate::error::CliError::general(
+        "browser.ui_stale",
+        format!(
+            "The browser UI bundle in {} is stale or incompatible: it has {found}, but this binary is {expected}. Rebuild it with `npm run build` or pass --ui-dir to a matching bundle.",
+            dir.display()
+        ),
+    ))
 }
