@@ -139,6 +139,21 @@ pub(super) fn missing_files() -> Vec<String> {
 pub(super) fn external_runtime() -> Option<PathBuf> {
     external_executable().and_then(|exe| library_entry(&exe).ok().map(|(_, root)| root))
 }
+/// A clean, throwaway Hermes home. Upstream keeps the dependency environment under
+/// `<root>/installs`, so a home that is not the managed root or one of its profiles cannot
+/// find it ("No module named dotenv"). For the managed install the home is therefore a
+/// profile folder of the managed root; any other install gets a plain temporary folder.
+fn isolated_home(exe: &Path) -> Result<tempfile::TempDir, String> {
+    if managed_executable().is_some_and(|m| m == exe) {
+        let profiles = managed_root().join("profiles");
+        std::fs::create_dir_all(&profiles).map_err(|e| e.to_string())?;
+        return tempfile::Builder::new()
+            .prefix("task-")
+            .tempdir_in(profiles)
+            .map_err(|e| e.to_string());
+    }
+    tempfile::tempdir().map_err(|e| e.to_string())
+}
 pub(super) fn verify() -> Result<(), String> {
     PROBE.lock().unwrap().clear();
     let exe = managed_executable()
@@ -148,7 +163,7 @@ pub(super) fn verify() -> Result<(), String> {
         return Err("agents.runtime_broken".into());
     }
     let (mut c, source) = library_runtime(&exe)?;
-    let temporary = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let temporary = isolated_home(&exe)?;
     c.current_dir(temporary.path())
         .env("HERMES_HOME", temporary.path())
         .env("HARNESS_HERMES_SOURCE", source)
@@ -1019,7 +1034,10 @@ pub fn start_task_kind(
     }
     let value = parse_config(kind, &bytes)?;
     // A clean upstream home avoids user hooks, MCP servers, skills and credential fallbacks.
-    let isolated = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let isolated = match kind {
+        AgentKind::Hermes => isolated_home(&exe)?,
+        AgentKind::OpenClaw => tempfile::tempdir().map_err(|e| e.to_string())?,
+    };
     let (launch, secret) = match (kind, hermes_source) {
         (AgentKind::Hermes, Some((mut c, source))) => {
             JsonStore::sensitive(isolated.path().join("config.yaml")).write_bytes(serde_norway::to_string(&json!({"model": value["model"], "toolsets": [], "agent": {"max_turns": 2}, "skills": {"auto_load": []}})).map_err(|e| e.to_string())?.as_bytes())?;
@@ -1578,7 +1596,9 @@ async fn install_upstream(run: &Arc<Run>) -> Result<(), String> {
         c.env("HERMES_HOME", managed_root())
             .env("HERMES_INSTALL_DIR", managed_root().join("hermes-agent"))
             .env("UV_CACHE_DIR", managed_root().join("cache"))
-            .env("UV_PYTHON_INSTALL_DIR", managed_root().join("python"));
+            .env("UV_PYTHON_INSTALL_DIR", managed_root().join("python"))
+            // Stream every child command's output so a failure reaches agents-install.log.
+            .env("HERMES_INSTALL_VERBOSE", "1");
         if windows {
             c.args([
                 "-NoProfile",
