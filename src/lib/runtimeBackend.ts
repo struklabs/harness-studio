@@ -80,10 +80,8 @@ export function missingBackendLibraries(e: unknown): string | undefined {
   return /\(missing: ([^)]+)\)/.exec(rawError(e))?.[1];
 }
 
-export function backendFallbackText(note: BackendFallbackNote, compact = false): string {
-  const key = compact
-    ? note.reason === 'no_device' ? 'onboarding.wizard_fallback_no_device' : 'onboarding.wizard_fallback_unavailable'
-    : note.reason === 'no_device' ? 'settings.backend_fallback_no_device' : 'settings.backend_fallback_unavailable';
+export function backendFallbackText(note: BackendFallbackNote): string {
+  const key = note.reason === 'no_device' ? 'settings.backend_fallback_no_device' : 'settings.backend_fallback_unavailable';
   const text = t(key, {
     recommended: backendName(note.recommended), installed: backendName(note.installed), version: note.version,
   });

@@ -277,12 +277,12 @@
   /** True from the wizard's completion until the first tab is chosen (the Dashboard tour waits). */
   let landingAfterWizard = $state<boolean>(false);
 
-  /** After the first-run wizard: the Model Hub when no model exists yet, else the Playground. A page remembered from an earlier session is dropped. */
-  async function landAfterWizard() {
+  /** After first-run Setup: the Get Started checklist (Dashboard) when asked, else the Model Hub when no model exists yet, else the Playground. A page remembered from an earlier session is dropped. */
+  async function landAfterWizard(dashboard = false) {
     forgetRestoreTab();
     try {
       const models = await library.refresh();
-      const tab: Tab = models.length === 0 ? 'hub' : 'playground';
+      const tab: Tab = dashboard ? 'dashboard' : models.length === 0 ? 'hub' : 'playground';
       currentTab = tab;
     } finally {
       landingAfterWizard = false;
@@ -339,15 +339,16 @@
   <Tooltip.Provider delayDuration={250}>
     {#if !settings.privacy.onboarding_completed || showWizardManually}
       <LazyView
-        load={views.onboarding}
+        load={views.setup}
         {settings}
         {hardware}
-        onComplete={(updated: AppSettings) => {
+        onComplete={(updated: AppSettings, opts?: { dashboard?: boolean }) => {
           const firstRun = !settings.privacy.onboarding_completed;
           showWizardManually = false;
           if (firstRun) landingAfterWizard = true;
           handleSettingsUpdated(updated);
-          if (firstRun) void landAfterWizard();
+          if (firstRun) void landAfterWizard(opts?.dashboard);
+          else if (opts?.dashboard) currentTab = 'dashboard';
         }}
         onClose={settings.privacy.onboarding_completed
           ? () => {

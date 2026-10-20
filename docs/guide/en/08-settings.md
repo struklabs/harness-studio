@@ -19,7 +19,7 @@ The floating section menu stays open after selecting a page. Use **Collapse** or
 
 | Setting | Path |
 | --- | --- |
-| Engine (llama.cpp) source, version, update, setup wizard | **Runtime > Installed Runtime** |
+| Engine (llama.cpp) source, version, update, Setup | **Runtime > Installed Runtime** |
 | Optional speech, image, Python, MLX, and mistral.rs engines | **Runtime > Installed Runtime > Other Runtimes** |
 | Extra llama.cpp builds, ONNX Runtime, Lemonade, GGUF conversion | **Runtime > Registry** |
 | Ollama-compatible API | **Runtime > Ollama** |
@@ -50,7 +50,7 @@ The floating section menu stays open after selecting a page. Use **Collapse** or
 - With **Managed (recommended)** selected you see **Installed Version**, **Check for Updates**, and **Update Automatically**. Automatic updating downloads and verifies a new version in the background and activates it when servers are stopped. You can also download and test a new version by hand, and the old version keeps running until you press **Activate New Version**. If an update causes trouble and a backup exists, you can use **Roll Back to Previous Version**.
 - With **Custom Binary** selected, enter the **Llama-server Path** or look for it with **Auto-Detect**, and try it with **Verify**. A custom binary is never updated or rolled back automatically.
 - The **Backend** row shows which build (CUDA, Vulkan, ROCm, Metal, CPU) is installed and recommended for your hardware; if the installed build cannot see your graphics card you can install another one.
-- **Setup wizard > Open Wizard** reruns the first-launch wizard.
+- **Setup > Run Setup Again** reopens the first-launch Setup window.
 
 **Other Runtimes** on **Settings > Runtime > Installed Runtime** manages whisper.cpp, sherpa-onnx, stable-diffusion.cpp, mistral.rs, Python (`python-hf`, CPU/CUDA), MLX (chat, vision, audio; Apple Silicon, macOS 14+), CrispASR, and experimental audio.cpp (off by default; risk confirmation required). On Windows, Python environment installation checks the projected package paths before downloading. If the data folder would exceed `MAX_PATH` and Windows long paths are disabled or their status is unknown, installation is refused; choose a shorter data folder or enable Windows long paths.
 

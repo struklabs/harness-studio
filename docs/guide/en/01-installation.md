@@ -2,7 +2,7 @@
 
 Türkçe: [../tr/01-kurulum.md](../tr/01-kurulum.md)
 
-**What you do here:** install the app, get past the operating system's first-launch warning, finish the setup wizard, and choose where your models are stored.
+**What you do here:** install the app, get past the operating system's first-launch warning, finish the setup window, and choose where your models are stored.
 
 ## Get the Installer
 
@@ -37,19 +37,26 @@ On Linux, removing the server `.deb` keeps `/var/lib/harness`, `/etc/harness`, a
 
 Use **Settings > Updates > Check for Updates**, then **Install Update** to download, install, and restart. You can also run the latest package from GitHub Releases. The llama.cpp engine updates separately under **Settings > Runtime > Installed Runtime**.
 
-## First Launch: Five Steps
+## First Launch: The Setup Window
 
-The **Setup wizard** opens the first time you start the app. Move forward with **Continue**.
+Harness Studio keeps the installer simple (no extra pages) and asks what to set up in its own **Harness Studio Setup** window, which opens the first time you start the app. It has the same look as the uninstall window and four screens:
 
-1. **Hardware:** Review your processor, RAM, graphics card, and the recommended acceleration (backend).
-2. **Storage:** Check the **Model Folder**. To use another drive, press **Change** and pick a folder. New models are downloaded there. Large models can take tens of gigabytes, so leave enough free space.
-3. **Engine:** If a suitable llama.cpp is already on your system you can choose **Use the System Copy**. Otherwise press **Download and Install the Latest**. When the download and verification finish and you see **llama.cpp is ready.**, continue.
-4. **Purpose:** Pick **Chat**, **Coding Agent**, **Documents / RAG**, or **Speech to Text**. The wizard suggests an engine and models that fit your hardware. Use the primary footer button **Install Selected (N)** to install the selected suggestions (N is the selection count), or the secondary **Skip** button to continue without them. Model downloads run in the background; follow them in the **Model Hub** download queue. This step also asks how you want to use Harness Studio: **Simple** (recommended) or **Advanced** (see [Simple and Advanced levels](README.md#simple-and-advanced-interface-levels)).
-5. **Privacy:** Review **Save crash and error reports locally** and **Keep hardware info**, then press **Finish Setup**. Reports stay on this computer and are never sent anywhere automatically.
+1. **Welcome:** Shows the hardware Harness Studio found (graphics card, memory, and the acceleration it will use) and lets you pick the interface level, **Simple** (recommended) or **Advanced** (see [Simple and Advanced levels](README.md#simple-and-advanced-interface-levels)). Press **Get Started**, or **Skip for Now** to leave everything for later.
+2. **Choose:** Category cards with checkboxes and sizes. The defaults are minimal and safe: only the engine and one small first model are ticked, and only if your hardware and free disk space fit. Nothing else is ticked on its own.
+   - **Model Engine:** the llama.cpp build that suits your hardware (CUDA for NVIDIA, ROCm/HIP or Vulkan for suitable AMD cards, SYCL or Vulkan for Intel Arc, Metal for Apple Silicon, CPU otherwise). It shows **Installed** when you already have one.
+   - **First Model:** a **Tiny** (about 0.4 GB), **Small** (about 1.1 GB) or **Standard** (about 2.5 GB) model. The one recommended for your computer is marked and preselected; pick another size to change it. Bigger models are in the **Model Hub**.
+   - **Agents:** the optional **Hermes Agent** (needs 8 GB of memory; it sets up its own Python environment).
+   - **Server and Browser Admin:** adds the `harness` command-line tool to your user path, so you can run `harness serve` for the headless server and its browser administration.
+   - **Integrations:** **OpenCode**, **Zed** and **VS Code**. Only tools found on this computer can be ticked. The configuration is written (with a backup) when the local server is running; otherwise connect later in **Connections**.
+   - **Storage:** shows the **Models Folder** with its free space; press **Change** to use another drive. The **Data Folder** is shown too, but it can only be set outside the app, with the `HARNESS_DATA_DIR` environment variable.
+3. **Install:** Each item shows its own status and progress. **Cancel** stops after the current item, and **Retry** runs failed or cancelled items again. Model downloads also appear in the **Model Hub** queue.
+4. **Done:** Lists what was installed and hands off to the **Get Started** checklist on the **Dashboard**, which tracks the next steps (start the model, first chat).
 
-While the engine install or the **Purpose** install is running you cannot move between wizard steps; wait for it to finish. Model downloads are queued and continue in the background, so you do not have to wait for them.
+Privacy settings are not asked here; they stay off until you turn them on in **Settings**. Keep the window open while items install; downloads need an internet connection.
 
-To run the wizard again later, use the **Open Wizard** button in **Settings > Runtime > Installed Runtime**.
+To run Setup again later, use **Run Setup Again** in **Settings > Runtime > Installed Runtime**, or in the **Get Started** list.
+
+**Silent installs.** Running the installer with `/S` (a scripted install) skips the Setup window: it leaves a `setup-skipped` file next to the app so the first launch opens straight into the app. Run Setup from Settings whenever you want it.
 
 ## Choosing the Runtime
 
@@ -60,7 +67,7 @@ The runtime is the engine that runs a model file. Chat normally uses llama.cpp; 
 | **Managed (recommended)** | For most people. Harness Studio downloads the official release, verifies it, and keeps it up to date. |
 | **Custom Binary** | You have your own `llama-server`. Enter its location in **Llama-server Path** and press **Verify**. A custom binary is never updated or rolled back automatically. |
 
-The recommended acceleration depends on your hardware: CUDA for NVIDIA, ROCm/HIP or Vulkan for suitable AMD cards, SYCL or Vulkan for Intel Arc, Metal for Apple Silicon. Without a GPU, the CPU is used. Detecting a graphics card does not guarantee the chosen build can use it. If the installed build cannot see the card, the setup wizard tries Vulkan (it needs a compatible GPU and driver) and tells you on the **Settings > Runtime > Installed Runtime** page. Existing installs keep their build; change it on that page. On Windows, ROCm/HIP is recommended only when the HIP SDK libraries can be loaded; otherwise Vulkan is recommended.
+The recommended acceleration depends on your hardware: CUDA for NVIDIA, ROCm/HIP or Vulkan for suitable AMD cards, SYCL or Vulkan for Intel Arc, Metal for Apple Silicon. Without a GPU, the CPU is used. Detecting a graphics card does not guarantee the chosen build can use it. If the installed build cannot see the card, Setup tries Vulkan (it needs a compatible GPU and driver) and tells you on the **Settings > Runtime > Installed Runtime** page. Existing installs keep their build; change it on that page. On Windows, ROCm/HIP is recommended only when the HIP SDK libraries can be loaded; otherwise Vulkan is recommended.
 
 Other kinds of models use optional engines that you install when you need them, with one click: an **Install** button appears next to the "This model needs the … runtime" note on library cards, in the Model Hub and in Playground errors, and optional engine families are listed under **Other Runtimes** in **Settings > Runtime > Installed Runtime** (at both interface levels). ONNX Runtime, Lemonade, the conversion environment, and extra builds are managed in **Settings > Runtime > Registry** (an Advanced page):
 

@@ -2,11 +2,11 @@
 
 **What you do here:** follow one of three guided setups, see what each one is limited to, and recover when a step fails.
 
-The **Get Started** list on the **Dashboard** overview tracks all three. It reads the real state of the app, so progress is never lost, and you can hide it with **Hide** and bring it back with **Open Get Started** (or the command palette entry **Open Get Started**). **Reopen the Setup Wizard** in the same list runs the first-run wizard again. It works the same way in Simple and Advanced.
+The **Get Started** list on the **Dashboard** overview tracks all three. It reads the real state of the app, so progress is never lost, and you can hide it with **Hide** and bring it back with **Open Get Started** (or the command palette entry **Open Get Started**). **Run Setup Again** in the same list reopens the Setup window. It works the same way in Simple and Advanced.
 
 ## Scenario 1: First Model
 
-1. Finish the setup wizard, or choose **Install Engine** in **Get Started**. The managed engine is the official llama.cpp release.
+1. Finish the Setup window, or choose **Install Engine** in **Get Started**. The managed engine is the official llama.cpp release.
 2. Open **Find a Model** (**Model Hub** in Advanced), open a chat model's **Files and quants**, check **Hardware fit**, and press **Download**.
 3. In **Dashboard**, press **Choose a Model**, pick the file, and press **Start Server**.
 4. Open **Chat and Media**, then **Chat**, and send a message.

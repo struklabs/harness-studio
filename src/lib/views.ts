@@ -17,7 +17,7 @@ export const views = {
   performance: (() => import('#lib/components/PerformanceTab.svelte')) as ViewLoader,
   analytics: (() => import('#lib/components/Analytics.svelte')) as ViewLoader,
   settings: (() => import('#lib/components/Settings.svelte')) as ViewLoader,
-  onboarding: (() => import('#lib/components/OnboardingWizard.svelte')) as ViewLoader,
+  setup: (() => import('#lib/components/SetupWindow.svelte')) as ViewLoader,
   presets: (() => import('#lib/components/presets/PresetManager.svelte')) as ViewLoader,
 };
 
