@@ -1,4 +1,4 @@
-//! Ollama-compatible API on the gateway (ARCHITECTURE §13.4).
+//! Ollama-compatible API on the gateway (private hs-internal architecture notes).
 //!
 //! Ollama clients (the `ollama` CLI with `OLLAMA_HOST`, the Python/JS libraries, Open WebUI,
 //! editors) talk to the gateway's port (and, when turned on, to the Ollama port 11434); every

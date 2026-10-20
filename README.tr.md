@@ -107,15 +107,15 @@ Model Hub’da **Donanımıma Uygun**, yüklenen sonuçları tahmini sığmaya g
 - **Model Hub:** Hugging Face'te filtreli arama, model kartları, modelin donanımınıza uyup uymadığı ve SHA-256 sağlama toplamı doğrulayan, devam ettirilebilir indirme kuyruğu.
 - **Playground:** kayıtlı konuşmalar, yan yana model karşılaştırma, Markdown ve Mermaid şemaları, görsel girdisi (vision modelleri), yerel arama ve kaynak göstermeli belge sohbeti (RAG), konuşmadan yazıya, sesli okuma ve görsel üretimi olan bir sohbet penceresi.
 - **Sohbette araçlar:** modeller yerleşik dosya, web ve hava durumu araçlarını kullanabilir; riskli bir şey çalışmadan önce onayınız istenir.
-- **Harness Link:** başka bir Harness örneğinin modellerini (adres ve inference token'ı) Playground'da, Kütüphanem'de ve ağ geçidinde kullanın; bkz. [Harness Link](docs/tr/FEATURES.md#harness-link)
-- **Basit ve Gelişmiş düzeyler:** Basit düzey ilk kez kullanan biri için gereken her şeyi gösterir; Gelişmiş düzey tüm ayarları açar. Düzey değiştirmek hiçbir ayarı kaybettirmez ([ayrıntılar](docs/tr/UI_LEVELS.md)).
+- **Harness Link:** başka bir Harness örneğinin modellerini (adres ve inference token'ı) Playground'da, Kütüphanem'de ve ağ geçidinde kullanın; bkz. [Harness Link](docs/tr/FEATURES.md)
+- **Basit ve Gelişmiş düzeyler:** Basit düzey ilk kez kullanan biri için gereken her şeyi gösterir; Gelişmiş düzey tüm ayarları açar. Düzey değiştirmek hiçbir ayarı kaybettirmez ([Features](docs/tr/FEATURES.md)).
 - **Rahat kullanım:** Türkçe ve İngilizce arayüz, açık ve koyu temalar, yüksek karşıtlık ve renk körlüğüne uygun seçenekler, sistem tepsisi ve oturum açılınca başlatma.
 
 ### Geliştiriciler ve Araç Kullanıcıları İçin
 
 - **Birçok model için tek yerel adres** (*ağ geçidi*): OpenAI, Anthropic ve Ollama API'lerini konuşur. Modeller ilk istekte yüklenir, boşta kalınca boşaltılır. İsteğe bağlıdır.
 - **Araçlarınız için yönlendirmeli kurulum:** Claude Code, Codex, OpenCode, Aider, Goose, Continue, Zed, VS Code, Cline, JetBrains, Open WebUI ve daha fazlası; fark önizlemesi, yedek ve tek tıkla geri alma ile. `harness launch` bir aracı doğru ayarlarla başlatır ve genel ayarlarınıza dokunmaz.
-- **Yerel modellerde çalışan araç çağırma:** metin biçimindeki araç çağrıları gerçek OpenAI tarzı `tool_calls`'a çevrilir; kodlama araçları kullanılabilir sonuç alır ([ölçümler](docs/tr/COMPARISON.md)).
+- **Yerel modellerde çalışan araç çağırma:** metin biçimindeki araç çağrıları gerçek OpenAI tarzı `tool_calls`'a çevrilir; kodlama araçları kullanılabilir sonuç alır ([Features](docs/tr/FEATURES.md)).
 - **Her iki yönde MCP:** MCP sunucularını sohbetlerinize bağlayın; diğer araçlar da Harness'in kendisini MCP sunucusu olarak kullanabilsin.
 - **Özel araçlar:** bir aracı anlatın, yerel bir model onu korumalı (sandbox) JavaScript olarak üretsin.
 
@@ -130,22 +130,6 @@ Model Hub’da **Donanımıma Uygun**, yüklenen sonuçları tahmini sığmaya g
 ## Neden Harness Studio? Rakiplerle Karşılaştırma
 
 Zaten iyi araçlar var ve Harness Studio herkes için hepsinin yerini almaz. Amacı, [LM Studio](https://lmstudio.ai) ve [Ollama](https://ollama.com)'nın yaptığını **llama.cpp'nin gelişmiş ayarlarını saklamadan** yapmak; gözlemlenebilirlikte ve kodlama araçlarıyla çalışmada daha güçlü olmak ve tamamen açık kaynak kalmaktır.
-
-### LM Studio, Ollama ve llama.cpp ile Ölçülmüş Karşılaştırma
-
-Tek bir Windows bilgisayarda (AMD RX 7900 GRE 16 GB, Vulkan) aynı GGUF dosyaları, her araç kendi varsayılanlarında:
-
-| Kutudan çıktığı gibi | Harness Studio | LM Studio | Ollama | llama.cpp |
-|---|---|---|---|---|
-| Qwen3-4B üretim hızı (tok/s) | 140,9 | 142,0 | 128,9 | 114,5 |
-| Qwen2.5-Coder-14B üretim hızı (tok/s) | 48,6 | 42,0 | 49,0 | 40,9 |
-| 4 eşzamanlı istek, toplam (tok/s) | **344** | 157 | 126 | 152 |
-| 14B araç çağırma (38 durum) | **36/38** | 5/38 | 4/38 | 5/38 |
-| 20 bin token'lık istem | doğru | bağlam hatası | bağlam hatası | doğru |
-| 14B, 65 bin bağlamda paylaşımlı belleğe taşma | **98 MiB** | 12,4 GB | 10,3 GB | 5,2 GB |
-| Tek adresten model değiştirme | 6,5 sn | yanlış model yanıtladı | 5,6 sn | yeniden başlatma gerekir |
-
-Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işledi; 65 bin bağlamda LM Studio ve Ollama paylaşımlı belleğe taşarak yaklaşık 3 kat hızlı üretti, Harness ise modeli ekran kartı belleğinde tutar. Yöntem, sınırlar ve tüm tablolar: [COMPARISON.md](docs/tr/COMPARISON.md).
 
 ### Özellik Karşılaştırması
 
@@ -185,7 +169,7 @@ Diğerleri bazı satırlarda öndedir: Ollama uzun istemleri daha hızlı işled
 - **Birden çok model ve kullanıcı için tasarlandı.** Eşzamanlılık, tek adresten model değiştirme, token başına sınırlar ve istemci bazında analitik.
 - **Gözlemlenebilirlik yerleşik.** İstek analitiği, izleme görünümü, Prometheus ve OpenTelemetry.
 - **Tek çekirdek, çok kapı.** Uygulama, CLI, Control API ve MCP aynı Rust servislerini kullanır.
-- **Dürüst sınırlar.** Harness Studio küçük bir ekibin erken aşamadaki herkese açık sürümüdür (0.1.2). LM Studio ve Ollama'nın daha büyük kullanıcı kitleleri, model kataloğu, macOS desteği ve SDK'ları var. Bkz. [Rakiplerin önde olduğu yerler](docs/tr/COMPARISON.md).
+- **Dürüst sınırlar.** Harness Studio küçük bir ekibin erken aşamadaki herkese açık sürümüdür (0.1.2). LM Studio ve Ollama'nın daha büyük kullanıcı kitleleri, model kataloğu, macOS desteği ve SDK'ları var. Bkz. [Features](docs/tr/FEATURES.md).
 
 ## Gizlilik
 
@@ -229,7 +213,7 @@ print(reply.choices[0].message.content)
 
 Anthropic tarzı (`/v1/messages`) ve Ollama tarzı (`/api/chat`) istemciler aynı ağ geçidinde çalışır. `harness mcp` Harness'i stdio üzerinden MCP sunucusu olarak sunar. Çalışan bir sahip olmadan tek seferlik kullanım: `harness --headless run ./model.gguf "2+2?" --json`.
 
-Başvuru: [CLI.md](docs/tr/CLI.md) · [MCP.md](docs/tr/MCP.md) · [INTEGRATIONS.md](docs/tr/INTEGRATIONS.md) · [ARCHITECTURE.md](docs/tr/ARCHITECTURE.md) · [PERFORMANCE.md](docs/tr/PERFORMANCE.md)
+Başvuru: [CLI.md](docs/tr/CLI.md) · [MCP.md](docs/tr/MCP.md) · [INTEGRATIONS.md](docs/tr/INTEGRATIONS.md) · [Features](docs/tr/FEATURES.md) · [Features](docs/tr/FEATURES.md)
 
 ## Sık Sorulan Sorular
 
@@ -320,7 +304,7 @@ Hayır. Telemetri ve hesap yoktur. Bkz. [Gizlilik](#gizlilik).
 <details>
 <summary><b>Telefonumdan veya başka bir bilgisayardan nasıl kullanırım?</b></summary>
 
-**Ayarlar > Ağ Geçidi** altında **Ağdan erişime izin ver**'i açın ve `inference` kapsamlı adlandırılmış bir token oluşturun. Token'sız ağ erişimine izin verilmez. Güvenlik duvarınızı kendiniz ayarlamalısınız. Başka bir Harness örneğinin modellerini kullanmak için **Bağlantılar > Harness Link** altında ekleyin ([Harness Link](docs/tr/FEATURES.md#harness-link)).
+**Ayarlar > Ağ Geçidi** altında **Ağdan erişime izin ver**'i açın ve `inference` kapsamlı adlandırılmış bir token oluşturun. Token'sız ağ erişimine izin verilmez. Güvenlik duvarınızı kendiniz ayarlamalısınız. Başka bir Harness örneğinin modellerini kullanmak için **Bağlantılar > Harness Link** altında ekleyin ([Harness Link](docs/tr/FEATURES.md)).
 </details>
 
 <details>
@@ -365,9 +349,9 @@ Harness Studio açıkta geliştirilir ve her yardım değerlidir.
 | [CLI](docs/tr/CLI.md) | Komutlar, servisler, JSON çıktısı, çıkış kodları |
 | [Entegrasyonlar](docs/tr/INTEGRATIONS.md) | Kodlama araçları: başlatma ve yapılandırma biçimleri, geri alma |
 | [MCP](docs/tr/MCP.md) · [Araçlar](docs/tr/TOOLS.md) | MCP sunucusu ve istemcisi olarak Harness; yerleşik ve özel araçlar |
-| [Performans](docs/tr/PERFORMANCE.md) · [Karşılaştırma](docs/tr/COMPARISON.md) | Ölçümler ve yöntem |
-| [Mimari](docs/tr/ARCHITECTURE.md) · [Güvenlik modeli](docs/tr/SECURITY_MODEL.md) | Servisler, ağ geçidi, güven sınırları |
-| [Özellikler](docs/tr/FEATURES.md) · [Arayüz düzeyleri](docs/tr/UI_LEVELS.md) | Özellik özellik tablo; Basit ve Gelişmiş düzeyler |
+| [Features](docs/tr/FEATURES.md) · [Features](docs/tr/FEATURES.md) | Ölçümler ve yöntem |
+| [Features](docs/tr/FEATURES.md) · [Güvenlik modeli](docs/tr/SECURITY_MODEL.md) | Servisler, ağ geçidi, güven sınırları |
+| [Özellikler](docs/tr/FEATURES.md) · [Features](docs/tr/FEATURES.md) | Özellik özellik tablo; Basit ve Gelişmiş düzeyler |
 | [Yol haritası](docs/tr/ROADMAP.md) · [Değişiklik günlüğü](docs/CHANGELOG.md) | Açık işler; her sürümde neler değişti |
 
 ## Kaynaktan Derleme

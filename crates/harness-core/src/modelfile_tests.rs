@@ -462,7 +462,7 @@ fn ollama_dir_with_messages() -> tempfile::TempDir {
 }
 
 /// Ollama and llama-server both treat seed 0 as a real (deterministic) seed and -1 as random
-/// (measured, see ARCHITECTURE.md): `PARAMETER seed` must be carried over as written.
+/// (measured, see private hs-internal architecture notes): `PARAMETER seed` must be carried over as written.
 #[test]
 fn seed_parameter_is_kept_as_written() {
     let seed = |line: &str| {

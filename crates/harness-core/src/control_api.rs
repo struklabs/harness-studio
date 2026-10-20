@@ -1,4 +1,4 @@
-//! Control API credentials and settings (ARCHITECTURE §13.6). The HTTP server itself lives in
+//! Control API credentials and settings (private hs-internal architecture notes). The HTTP server itself lives in
 //! the `harness-api` crate; everything a front end needs without it is here (the GUI and the
 //! future CLI manage tokens and settings through these functions).
 //!

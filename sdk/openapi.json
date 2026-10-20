@@ -10210,7 +10210,7 @@
       },
       "CompactionSettings": {
         "type": "object",
-        "description": "Context compaction of stored Responses chains (`gateway.responses.compaction`; see\nARCHITECTURE §9.1): when the conversation a `previous_response_id` continues no longer fits\nthe model comfortably, its older links are replaced, in the request, by a summary the model\nwrites. The summary is stored on the new response (`harness_compaction`), so later turns\nstart from it instead of the whole chain. Always opt-in: a request asks for it with\n`context_management: [{\"type\": \"compaction\", \"compact_threshold\": <tokens>}]`, or the\nsetting turns it on for every chained request.",
+        "description": "Context compaction of stored Responses chains (`gateway.responses.compaction`):\nwhen the conversation a `previous_response_id` continues no longer fits\nthe model comfortably, its older links are replaced, in the request, by a summary the model\nwrites. The summary is stored on the new response (`harness_compaction`), so later turns\nstart from it instead of the whole chain. Always opt-in: a request asks for it with\n`context_management: [{\"type\": \"compaction\", \"compact_threshold\": <tokens>}]`, or the\nsetting turns it on for every chained request.",
         "properties": {
           "auto": {
             "type": "boolean",

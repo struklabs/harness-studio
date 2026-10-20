@@ -1,7 +1,7 @@
 //! Where commands run: a running instance's Control API, a remote one, or a temporary
 //! in-process instance.
 //!
-//! Discovery (ARCHITECTURE §13.1): the owner of the data directory holds `instance.lock` and
+//! Discovery (private hs-internal architecture notes): the owner of the data directory holds `instance.lock` and
 //! describes itself in `instance.json` (API address, session token file).
 //!
 //! * `--host` / `HARNESS_HOST`: that API, with `--token` / `HARNESS_TOKEN`.

@@ -11,7 +11,7 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 REPO = Path(__file__).resolve().parents[2]
 # BENCH_RESULTS: results folder; BENCH_MACHINE / BENCH_MODELS: the setup lines; BENCH_SECOND: name of the "14b"
 # slot (another model on a small card); BENCH_LLAMACPP_LABEL: the plain llama.cpp build.
-BASE = REPO / "docs" / "benchmarks" / os.environ.get("BENCH_RESULTS", "2026-10-11")
+BASE = REPO / "scratch" / "benchmarks" / os.environ.get("BENCH_RESULTS", "2026-10-11")
 SECOND = os.environ.get("BENCH_SECOND", "14B")
 RAW = BASE / "raw"
 BACKENDS = ["harness", "harness_prefix", "harness_prefix_textrecovery", "lmstudio", "lmstudio_control", "ollama", "llamacpp", "llamacpp_b11552"]

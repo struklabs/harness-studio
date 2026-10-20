@@ -77,7 +77,7 @@ Each shows a preview (a colored diff) first. Only Harness's keys change; comment
 
 ### 3a. OpenCode desktop
 
-The desktop application reads only the persistent configuration (at startup), and `OPENCODE_CONFIG_CONTENT` cannot be used (if the app is open, a new process only brings the existing window to the front). If the desktop app is installed, the Launch window offers "Configure and Open in Desktop": the preview in §3 → apply → the app opens as a detached process (its environment has no Harness setting). `harness_core::integrations::opencode_desktop`:
+The desktop application reads only the persistent configuration (at startup), and `OPENCODE_CONFIG_CONTENT` cannot be used (if the app is open, a new process only brings the existing window to the front). If the desktop app is installed, the Launch window offers "Configure and Open in Desktop": the preview in §3 → apply → the app opens as a detached process (its environment has no Harness setting).:
 
 | Platform | Location | Status |
 |---|---|---|
@@ -90,17 +90,9 @@ The desktop application reads only the persistent configuration (at startup), an
 
 Whether the application is running is read from the process list (the exe path); if it is running, a note says it must be restarted.
 
-### 3b. Model selection, tool calling, and the first response
+### 3b. Model Selection and Tool Calling
 
-`harness_core::integrations::agent_models` gives, for every definition (embedding/rerank excluded): context, parameter count, the tool-calling verdict, and prompt-processing speed. The tool-calling verdict, starting from the strongest:
-
-1. **Trial** ("Test Tool Calling"): the Chat Completions request with tools in §7; if it returned `tool_calls`, verified; if not, failed (if the response looks like `{"name":…,"arguments":…}`, `<tool_call>`, or `<tools>`, "wrote plain text"). It is stored in `config/tool_checks.json` with the model file and template override; it goes stale when the definition moves to another file.
-2. **Gateway record:** this alias's responses that ended with `finish_reason` `tool_calls` / `tool_use` / `function_call`.
-3. **GGUF template:** a template that does not handle tools → llama-server cannot return a tool call; a template that does → only "possible".
-
-The template alone is not enough: the templates of Qwen2.5-Coder-14B and Qwen3-4B carry the same `<tool_call>` markers, and llama-server (b11284) reports `chat_template_caps.supports_tools = true` for both; with the same request Qwen3 returns `tool_calls`, while the coder model writes the call as `<tools>{"name": "get_weather", …}</tools>` text (RX 7900 GRE). There is no fixed model list. The first-response estimate: the tool prompt (OpenCode ~29,000 tokens) / the prompt speed in the record (uncached tokens / `prompt_ms`, if at least 2,000 tokens were measured).
-
-Sources: code.visualstudio.com/docs/agent-customization/language-models; zed.dev/docs/ai/use-api-access; kilo.ai/docs; the goose `custom_providers` documentation; librechat.ai/docs/configuration/librechat_yaml/object_structure/custom_endpoint; docs.continue.dev.
+Choose a chat model with sufficient context for the client. Use **Test Tool Calling** to check whether the selected model returns a usable tool call. A compatible template alone does not guarantee success. Large client prompts can delay the first response.
 
 ## 4. Step-by-step setup (Harness writes no file)
 
@@ -122,54 +114,21 @@ The screen has steps and copyable fields (Base URL, key, model, and the context 
 
 OpenAI (Python/JS, `base_url` with `/v1`), Anthropic Python (`base_url` without `/v1`, `auth_token`), LangChain (`ChatOpenAI` with `/v1`, `ChatAnthropic` without `/v1`), LlamaIndex (`OpenAILike`, `is_chat_model`, `is_function_calling_model`, `context_window`), Vercel AI SDK (`@ai-sdk/openai-compatible`, `createOpenAICompatible({ name, baseURL })`), and cURL. All of them use the actual endpoint and model name at that moment.
 
-## 6. Undo and backups
+## 6. Undo and Backups
 
-- **Ledger:** `<data>/config/integrations.json`. For every application, per file: the path of every key written, the SHA-256 of the value written (not the value itself), the previous value, which parent path the key created, the marker (a whole table/item belonging to Harness) flag, the file's last SHA-256, and whether Harness created the file.
-- **Undo:** only keys that Harness wrote and that still carry the value Harness wrote are removed or return to their previous value; empty parent tables and files that Harness created are deleted. Keys the user changed afterwards stay in place and are reported as a warning. If there is no ledger (an older version, a hand-added entry), only the marker entries (`model_providers.harness`, `provider.harness`, the `"Harness Studio"` items...) are removed. A file that cannot be parsed is not touched.
-- **Backup:** before every write and undo, `<file>.harness-YYYYMMDD-HHMMSS.bak`; the last 5 generations per file are kept. The number of backups and their paths are visible on screen.
-- **Drift warning:** if the file's SHA-256 differs from the ledger's, an "Edited by hand" badge appears on screen, and a warning appears on apply and undo.
+Harness previews configuration changes and keeps timestamped backups next to the original file. **Undo** restores settings Harness changed when they have not been edited since. Other settings are preserved; malformed files are not overwritten.
 
-### 6a. Stale model name (alias drift)
+If an alias changes, Connections can warn about a stale model name. **Fix** opens a configuration preview; inspect it before applying. Update hand-written provider entries yourself.
 
-A tool stores the model name (the definition alias) that Harness wrote. If the alias is renamed, the definition is deleted, or a profile gets its own definition so that the served name becomes `<file>-<profile>` instead of `<file>`, the tool keeps asking for the old name and gets "model not found". The Connections screen finds this itself (`integrations::drift`, Tauri `check_integration_alias_drift`):
-
-- Read-only: the model names given to Harness are read from the file of every configured integration (OpenCode and Kilo Code: the default `model` + the `provider.harness.models` keys; others: the single model name) and compared case-insensitively with the definition aliases and the names currently served (a running server, the gateway). If there is neither a definition nor a served name, no judgment is made.
-- If a name is missing, the card shows a warning and a single "Fix" button. The suggestion: a single valid alias that starts with (or is started by) the missing default name; if there is more than one, no suggestion is made and the served model is used. "Fix" opens the tool's normal preview (the file diff to be written is visible); once confirmed, this write's backup and ledger are kept as usual; for OpenCode-style tools the provider block is rewritten with the gateway's chat models, so old names drop out.
-- A name change that occurs when a profile is given its own definition is caught through the same path (suggested by the `<file>` → `<file>-<profile>` prefix match).
-- **Hand-written provider blocks:** Apart from Harness's own `harness` block, if a block the user wrote targets the Harness gateway (the base address is loopback and the gateway's current or past port: `config/ports.json` `gateway_history` + the default), the model names in that block go through the same check: OpenCode and Kilo Code `provider.<name>` (+ the default `model` `<name>/<model>`), Codex `[model_providers.<name>]` (+ the top `model` if `model_provider` is that name), and Continue `models` entries whose `apiBase` is the gateway. It is only detected; these blocks are never rewritten automatically. The card shows the same warning with the block's name (even if the tool has no configuration written by Harness); "Fix" opens only the usual preview that writes Harness's own block, and the user updates the name in their own block themselves. Addresses that do not point to the gateway (cloud, another local server, Ollama 11434) do not count. Out of scope: "guide" tools such as Cursor and Cline, and hand-written configurations other than these three formats.
-
-### 6b. Control API spare port and Harness MCP
-
-When the Control API's 11500 is held by another program, it falls back to a spare port (or returns from the spare to the default). Entries that add Harness MCP over HTTP (Claude Code `mcpServers.harness`, Codex `[mcp_servers.harness]`, OpenCode `mcp.harness`, Cursor) carry the address, so they are updated automatically (`harness_mcp::follow_api_port`):
-
-- Each time it opens, the Control API writes the port it listens on to `config/ports.json` (`control_api_history`, at most 8). If the entry's address is loopback and its port is in this instance's own history, only the port changes to the new port; the token (Bearer) and the rest of the file stay as they are, and a `<file>.harness-<date>.bak` backup is taken before writing. The default 11500 is not added to the history automatically: an instance that works with a separate data folder and has never listened on 11500 does not move the real application's entry to its own port.
-- Stdio entries, remote/LAN addresses, and ports the Control API has never used are not touched.
-- It is gated: only the real application and `harness serve` turn it on (`harness_api::enable_mcp_follow`), and it works only for the application's own data folder; a Control API started by tests never rewrites the settings in the user's real home directory (the same as the gateway's `enable_client_follow` rule).
+Local HTTP MCP entries can follow a changed Control API port automatically. Remote entries and stdio connections are unaffected.
 
 ## 7. Connection test
 
 "Test Connection" sends a single small request with a tool to the API the tool speaks: `POST /v1/messages` (Anthropic) for Claude Code and Claude Desktop, `POST /v1/responses` for Codex, and `POST /v1/chat/completions` for the others. A `get_weather` tool is defined; the result is shown with the status code, latency, whether the model called the tool, and error detail.
 
-### Real client verification (Windows)
-
-One real round in each client through the gateway with Qwen3-4B (`q4-vulkan`):
-
-| Client | Path | Result |
-|---|---|---|
-| OpenCode 1.2.17 (`opencode-cli`) | `harness launch opencode --prepare -- run "…"` (`OPENCODE_CONFIG_CONTENT`) | "pong"; context prepared from 8192 to 65536 |
-| OpenCode | Connections' persistent write, in a temporary home directory (`USERPROFILE`), a copy of an existing `opencode.json` | backup `.harness-<date>.bak`; `opencode-cli run -m harness/q4-vulkan` "pong"; Undo returned the file to its old state byte for byte |
-| Aider 0.86.2 (isolated venv) | `harness launch aider --prepare -- --no-git --yes --message "…"` | "pong", 605 tokens. Aider writes no persistent file (`guide_only`) |
-| Goose 1.52.0 (official zip) | `harness launch goose --prepare -- run -t "…"` | "pong" |
-| Goose | persistent `custom_providers/harness.json` (a temporary `APPDATA`), `GOOSE_PROVIDER=harness` | "pong"; Undo deleted the file and left a backup |
-| Claude Code 2.1.283 | the "Add Harness MCP" write to a temporary home directory; the file used with `claude -p --mcp-config … --strict-mcp-config --allowedTools mcp__harness__list_models` | `list_models` was called, answer "11" (the definition count in that instance); haiku, 3 turns |
-
-Findings: (1) If `%LOCALAPPDATA%\OpenCode` is on PATH, `opencode` resolves to the GUI exe (`OpenCode.exe`, case-insensitive); when it is not on PATH, Harness correctly picks `opencode-cli.exe`. (2) On a non-English Windows console, Aider output gives the warning "Terminal does not support pretty output (UnicodeDecodeError)", which does not affect the run. (3) Goose gave the same result both with only `harness launch` environment variables (`GOOSE_PROVIDER=openai`) and with a persistent custom provider (`harness`); the first run creates `%APPDATA%\Block\goose`.
-
-Official SDKs (gateway :21435): `openai` Python 3.22.1 and JS 7.25.0, `ollama` Python 0.6.3 and JS 0.6.4; chat, streaming, tool calling, embeddings, and `show`/`ps`/`list` passed. Real Ollama 0.34.4 `pull` (`hf.co/...:Q8_0`) and vision (`images`) are covered in the Ollama compatibility notes in [ARCHITECTURE.md](ARCHITECTURE.md).
-
 ### Creating a model with the Ollama CLI (`ollama create`)
 
-The gateway's Ollama-compatible layer runs the `ollama create` / `cp` / `rm` commands on model **definitions** (details: ARCHITECTURE §13.4):
+The gateway's Ollama-compatible layer runs the `ollama create` / `cp` / `rm` commands on model **definitions** (details: private hs-internal architecture notes):
 
 ```
 set OLLAMA_HOST=127.0.0.1:21435
@@ -183,18 +142,3 @@ ollama rm copy
 - There is no `--quantize` (501), no `ollama push` (501, there is no registry), and no safetensors (GGUF only).
 - Deletion: `ollama rm` deletes only the definition; downloaded/library GGUF files stay. Blob files uploaded with `ollama create` and not used by another definition are deleted.
 - These endpoints go through the gateway's authentication (a key is required if there is one); in keyless local use, any program on the same machine can create/delete definitions.
-
-## 8. Not verified
-
-- Kilo Code and JetBrains AI Assistant were not tested on a real installation; they rest on the official documentation only.
-- The macOS/Linux desktop paths are assumptions. (On Windows, real clients were tried: OpenCode 1.2.17, Aider 0.86.2, Goose 1.52.0, Claude Code 2.1.283; see above.)
-- The GUI parts (sections, "Launch", the test, backup badges) have been exercised in automated checks (`svelte-check`) but their manual behavior in a real window on every platform is not documented here.
-
-### Client paths and key formats: verification sources (checked September 2026)
-
-| Client | What was verified | Source |
-|---|---|---|
-| VS Code | Custom endpoint `chatLanguageModels.json`; `vendor: customendpoint`; `apiType` `chat-completions`/`responses`/`messages`; the model `url` is the full endpoint; `${input:...}` for `apiKey`; the default header is `Authorization: Bearer`. Path: on Windows, `%APPDATA%\Code\User\chatLanguageModels.json` exists on a real installation (inspected read-only); the documentation does not state the path, and macOS/Linux assume the standard user directory. | https://code.visualstudio.com/docs/copilot/customization/language-models, https://github.com/microsoft/vscode-docs/blob/main/docs/agent-customization/language-models.md |
-| Zed | `language_models.openai_compatible.<name>.api_url` + `available_models[]`; the key is not written to settings.json; the environment variable is `<NAME>_API_KEY` (UpperSnake; in the source `format!("{}_API_KEY", id).to_case(Case::UpperSnake)`), i.e. `HARNESS_STUDIO_API_KEY`. | https://zed.dev/docs/ai/use-api-access, https://github.com/zed-industries/zed/blob/main/crates/language_models/src/provider/api_compatible.rs |
-| Kilo Code | The global configuration is `~/.config/kilo/kilo.json[c]`, on Windows `C:\Users\<user>\.config\kilo\kilo.jsonc`; the older `opencode.json[c]` is read too; `provider.<name>.options.{baseURL,apiKey}`, the `{env:VARIABLE}` syntax. | https://kilo.ai/docs/getting-started/settings, https://kilo.ai/docs/code-with-ai/platforms/cli, https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/kilocode/skills/kilo-config.md |
-| JetBrains AI Assistant | Settings \| Tools \| AI Assistant \| Providers & API keys (2026.2); fields URL, API Key, Tool calling, Test Connection. | https://www.jetbrains.com/help/ai-assistant/use-custom-models.html |

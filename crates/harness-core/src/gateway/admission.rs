@@ -3,7 +3,7 @@
 //! llama-server with several slots and a unified KV cache (`--kv-unified`, Harness's default)
 //! shares one `-c` sized pool between them and does not check admission: when the running
 //! requests outgrow the pool it fails *all* of them ("Context size has been exceeded", see
-//! ARCHITECTURE §5.4d). The scheduler therefore holds each request's estimate against the
+//! private hs-internal architecture notesd). The scheduler therefore holds each request's estimate against the
 //! pool (`Scheduler::acquire_tokens`) and queues the ones that do not fit, like TGI's
 //! `max_batch_total_tokens` or vLLM's block budget.
 //!

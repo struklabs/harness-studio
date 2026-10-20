@@ -7,7 +7,7 @@
 //! (`tests/tools_e2e.rs`). The streaming variant, which the gateway's server-side tools run,
 //! is [`super::agent_stream`]; both share [`CallContext::run_call`] (arguments, policy, approval,
 //! run, log). The Playground does **not** use either: its loop streams tokens into the UI and
-//! stays in TypeScript (see `docs/en/ARCHITECTURE.md`, "Tool loop").
+//! stays in TypeScript (see `private hs-internal architecture notes`, "Tool loop").
 //!
 //! The loop shape is the Playground's: request with the tool definitions -> `tool_calls` ->
 //! for each call (policy, approval, run, log) -> `tool` messages -> request again, until the

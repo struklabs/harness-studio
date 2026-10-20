@@ -662,7 +662,7 @@ fn hardware_budget_distinguishes_rocm_from_vulkan_and_old_budgets_default_to_vul
 
 #[test]
 fn cuda_4gb_card_avoids_the_overflowing_combinations() {
-    // Measured on the RTX 3050 Ti Laptop (docs/en/PERFORMANCE.md "CUDA"): model 2.32 GiB; f16 at
+    // Measured on the RTX 3050 Ti Laptop (private hs-internal performance notes "CUDA"): model 2.32 GiB; f16 at
     // 16k and q8_0 at 32k spill into system memory (generation 9.9 and 25-36 t/s against
     // 55 and 51), q8_0 at 16k and q4_0 at 32k fit.
     let (size, meta) = shape(QWEN3);

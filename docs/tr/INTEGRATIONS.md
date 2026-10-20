@@ -150,21 +150,6 @@ Masaüstü uygulaması yalnız kalıcı yapılandırmayı okur (açılışta), `
 
 Uygulamanın çalışıp çalışmadığı süreç listesinden (exe yolu) okunur; çalışıyorsa yeniden başlatılması gerektiği yazılır.
 
-### 3b. Model seçimi, araç çağrısı ve ilk yanıt
-
-`harness_core::integrations::agent_models` her tanım için (embedding/rerank hariç) şunları verir: bağlam, parametre sayısı, araç çağrısı kararı ve istem işleme hızı. Araç çağrısı kararı, en güçlüden başlayarak:
-
-1. **Deneme** ("Araç Çağrısını Dene"): §7'deki araçlı Chat Completions isteği; `tool_calls` döndüyse doğrulandı, döndürmediyse başarısız (yanıt `{"name":…,"arguments":…}`, `<tool_call>`, `<tools>` gibi görünüyorsa "düz metin yazdı"). `config/tool_checks.json`'da model dosyası ve şablon geçersiz kılmasıyla saklanır; tanım başka dosyaya geçince eskir.
-2. **Ağ Geçidi kaydı:** bu alias'ın `finish_reason` `tool_calls` / `tool_use` / `function_call` ile biten yanıtları.
-3. **GGUF şablonu:** araç işlemeyen şablon → llama-server araç çağrısı döndüremez; işleyen şablon → yalnız "mümkün".
-
-Şablon tek başına yetmez: Qwen2.5-Coder-14B ile Qwen3-4B'nin şablonları aynı `<tool_call>` işaretlerini taşır ve llama-server (b11284) ikisi için de `chat_template_caps.supports_tools = true` bildirir; aynı istekte Qwen3 `tool_calls` döndürür, coder modeli çağrıyı `<tools>{"name": "get_weather", …}</tools>` metni olarak yazar (RX 7900 GRE). Sabit model listesi yoktur. İlk yanıt tahmini: araç istemi (OpenCode ~29.000 token) / kayıttaki istem hızı (önbelleklenmemiş token / `prompt_ms`, en az 2.000 token ölçülmüşse).
-
-Kaynaklar: code.visualstudio.com/docs/agent-customization/language-models;
-zed.dev/docs/ai/use-api-access; kilo.ai/docs; goose `custom_providers` belgesi;
-librechat.ai/docs/configuration/librechat_yaml/object_structure/custom_endpoint;
-docs.continue.dev.
-
 ## 4. Adım adım kurulum (Harness dosya yazmaz)
 
 Ekranda adımlar ve kopyalanabilir alanlar (Base URL, anahtar, model, gerekirse bağlam) var.
@@ -189,74 +174,6 @@ OpenAI (Python/JS, `base_url` `/v1` ile), Anthropic Python (`base_url` `/v1` olm
 (`@ai-sdk/openai-compatible`, `createOpenAICompatible({ name, baseURL })`) ve cURL. Hepsi o anki
 gerçek uç noktayı ve model adını kullanır.
 
-## 6. Geri alma ve yedekler
-
-- **Defter:** `<veri>/config/integrations.json`. Her uygulamada dosya başına: yazılan her
-  anahtarın yolu, yazılan değerin SHA-256'sı (değerin kendisi değil), önceki değer, anahtarın
-  hangi üst yolu oluşturduğu, işaretçi (Harness'e ait bütün tablo/öğe) bayrağı, dosyanın son
-  SHA-256'sı, dosyayı Harness'in oluşturup oluşturmadığı.
-- **Geri Al:** yalnız Harness'in yazdığı ve hâlâ Harness'in yazdığı değeri taşıyan anahtarlar
-  kaldırılır ya da önceki değerine döner; Harness'in oluşturduğu boş üst tablolar ve dosyalar
-  silinir. Kullanıcının sonradan değiştirdiği anahtarlar yerinde kalır ve uyarı olarak
-  bildirilir. Defter yoksa (eski sürüm, elle eklenmiş kayıt) yalnız işaretçi girdiler
-  (`model_providers.harness`, `provider.harness`, `"Harness Studio"` öğeleri...) kaldırılır.
-  Çözümlenemeyen dosyaya dokunulmaz.
-- **Yedek:** her yazma ve geri almadan önce `<dosya>.harness-YYYYMMDD-HHMMSS.bak`; dosya başına
-  son 5 kuşak tutulur. Ekranda yedek sayısı ve yolları görünür.
-- **Sapma uyarısı:** dosyanın SHA-256'sı defterdekinden farklıysa ekranda "Elle değiştirildi"
-  rozeti, uygulama ve geri almada uyarı çıkar.
-
-### 6a. Eski model adı (alias sapması)
-
-Bir araç Harness'in yazdığı model adını (tanım alias'ı) saklar. Alias yeniden adlandırılırsa,
-tanım silinirse ya da bir profil kendi tanımını alıp sunulan ad `<dosya>` yerine
-`<dosya>-<profil>` olursa araç eski adı istemeye devam eder ve "model bulunamadı" alır.
-Bağlantılar ekranı bunu kendisi bulur (`integrations::drift`, Tauri `check_integration_alias_drift`):
-
-- Salt okunur: yapılandırılmış her entegrasyonun dosyasından Harness'e verilen model adları
-  okunur (OpenCode ve Kilo Code: varsayılan `model` + `provider.harness.models` anahtarları;
-  diğerleri: tek model adı) ve tanım alias'ları ile o an sunulan adlarla (çalışan sunucu,
-  gateway) büyük/küçük harf duyarsız karşılaştırılır. Tanım da sunulan ad da yoksa hüküm
-  verilmez.
-- Eksik ad varsa kartta uyarı ve tek bir "Düzelt" düğmesi çıkar. Öneri: eksik varsayılan adla
-  başlayan (ya da onunla başlayan) tek bir geçerli alias; birden çoksa öneri yok ve sunulan
-  model kullanılır. "Düzelt" aracın normal önizlemesini açar (yazılacak dosya farkı görünür),
-  onaylanınca bu yazmanın yedeği ve defteri her zamanki gibi tutulur; OpenCode biçimli
-  araçlarda sağlayıcı bloğu gateway'in sohbet modelleriyle yeniden yazıldığından eski adlar
-  düşer.
-- Profile kendi tanımı verilince ortaya çıkan ad değişikliği de aynı yoldan yakalanır
-  (`<dosya>` → `<dosya>-<profil>` ön ek eşleşmesiyle önerilir).
-- **Elle yazılmış sağlayıcı blokları:** Harness'in kendi `harness` bloğu dışında, kullanıcının
-  yazdığı bir blok Harness gateway'ini hedefliyorsa (taban adres loopback ve gateway'in şimdiki
-  ya da geçmiş portu: `config/ports.json` `gateway_history` + varsayılan) o bloktaki model adları
-  da aynı denetime girer: OpenCode ve Kilo Code `provider.<ad>` (+ varsayılan `model`
-  `<ad>/<model>`), Codex `[model_providers.<ad>]` (+ `model_provider` o ad ise üst `model`),
-  Continue `apiBase`'i gateway olan `models` girdileri. Yalnız algılanır, bu bloklar hiçbir
-  zaman kendiliğinden yeniden yazılmaz. Kart aynı uyarıyı bloğun adıyla gösterir (araç
-  Harness'in yazdığı bir yapılandırmaya sahip olmasa da); "Düzelt" yalnız Harness'in kendi
-  bloğunu yazan olağan önizlemeyi açar, kullanıcının bloğundaki adı kullanıcı kendisi
-  günceller. Gateway'i göstermeyen adresler (bulut, başka yerel sunucu, Ollama 11434) sayılmaz.
-  Kapsam dışı: Cursor, Cline gibi "rehber" araçlar ve bu üç biçim dışındaki elle yazılmış
-  yapılandırmalar.
-
-### 6b. Control API yedek portu ve Harness MCP
-
-Control API 11500 başka bir programdayken yedek porta geçer (ya da yedekten varsayılana döner).
-Harness MCP'yi HTTP ile ekleyen girdiler (Claude Code `mcpServers.harness`, Codex
-`[mcp_servers.harness]`, OpenCode `mcp.harness`, Cursor) adresi taşıdığından kendiliğinden
-güncellenir (`harness_mcp::follow_api_port`):
-
-- Control API her açılışta dinlediği portu `config/ports.json`'a (`control_api_history`, en çok 8)
-  yazar. Girdinin adresi loopback ve portu bu örneğin kendi geçmişindeyse yalnız port yeni portla
-  değişir; belirteç (Bearer) ve dosyanın geri kalanı olduğu gibi kalır, yazmadan önce
-  `<dosya>.harness-<tarih>.bak` yedeği alınır. Varsayılan 11500 geçmişe kendiliğinden eklenmez:
-  ayrı veri klasörüyle çalışan ve 11500'de hiç dinlememiş bir örnek, asıl uygulamanın girdisini
-  kendi portuna taşımaz.
-- Stdio girdilerine, uzak/LAN adreslerine ve Control API'nin hiç kullanmadığı portlara dokunulmaz.
-- Kapıdır: yalnız gerçek uygulama ve `harness serve` açar (`harness_api::enable_mcp_follow`) ve
-  yalnız uygulamanın kendi veri klasörü için çalışır; testlerin başlattığı Control API kullanıcının
-  gerçek ana dizinindeki ayarları asla yeniden yazmaz (gateway'in `enable_client_follow` kuralıyla aynı).
-
 ## 7. Bağlantı testi
 
 "Bağlantıyı Test Et", aracın konuştuğu API'de tek bir küçük, araçlı istek gönderir:
@@ -264,26 +181,9 @@ Claude Code ve Claude Desktop için `POST /v1/messages` (Anthropic), Codex için
 `POST /v1/responses`, diğerleri için `POST /v1/chat/completions`. `get_weather` aracı tanımlanır;
 sonuç durum kodu, gecikme, modelin aracı çağırıp çağırmadığı ve hata ayrıntısıyla gösterilir.
 
-### Gerçek istemci doğrulaması (Windows)
-
-Qwen3-4B (`q4-vulkan`) gateway üzerinden, her istemcide bir gerçek tur:
-
-| İstemci | Yol | Sonuç |
-|---|---|---|
-| OpenCode 1.2.17 (`opencode-cli`) | `harness launch opencode --prepare -- run "…"` (`OPENCODE_CONFIG_CONTENT`) | "pong"; bağlam 8192 → 65536 hazırlandı |
-| OpenCode | Bağlantılar'ın kalıcı yazımı, geçici ana dizinde (`USERPROFILE`), kullanıcının mevcut `opencode.json`'ının kopyası | yedek `.harness-<tarih>.bak`; `opencode-cli run -m harness/q4-vulkan` "pong"; Geri al dosyayı baytı baytına eski hâline getirdi |
-| Aider 0.86.2 (izole venv) | `harness launch aider --prepare -- --no-git --yes --message "…"` | "pong", 605 token. Aider kalıcı dosya yazmıyor (`guide_only`) |
-| Goose 1.52.0 (resmi zip) | `harness launch goose --prepare -- run -t "…"` | "pong" |
-| Goose | kalıcı `custom_providers/harness.json` (geçici `APPDATA`), `GOOSE_PROVIDER=harness` | "pong"; Geri al dosyayı sildi, yedek bıraktı |
-| Claude Code 2.1.283 | "Harness MCP'yi Ekle" yazımı geçici ana dizine; dosya `claude -p --mcp-config … --strict-mcp-config --allowedTools mcp__harness__list_models` ile | `list_models` çağrıldı, yanıt "11" (o örnekteki tanım sayısı); haiku, 3 tur |
-
-Bulgular: (1) `%LOCALAPPDATA%\OpenCode` PATH'e girerse `opencode` GUI exe'sine (`OpenCode.exe`, büyük/küçük harf duyarsız) çözülüyor; PATH'te değilken Harness `opencode-cli.exe`'yi doğru seçiyor. (2) Aider çıktısı Türkçe Windows konsolunda "Terminal does not support pretty output (UnicodeDecodeError)" uyarısı veriyor, çalışmayı etkilemiyor. (3) Goose yalnız `harness launch` ortam değişkenleriyle (`GOOSE_PROVIDER=openai`) çalışırken de, kalıcı özel sağlayıcıyla da (`harness`) aynı sonucu verdi; ilk çalıştırma `%APPDATA%\Block\goose` oluşturur.
-
-Resmi SDK'lar (gateway :21435): `openai` Python 3.22.1 ve JS 7.25.0, `ollama` Python 0.6.3 ve JS 0.6.4; sohbet, akış, araç çağrısı, embeddings, `show`/`ps`/`list` geçti. Gerçek Ollama 0.34.4 `pull` (`hf.co/...:Q8_0`) ve vision (`images`) için ROADMAP P2 Ollama maddesine bakın.
-
 ### Ollama CLI ile model oluşturma (`ollama create`)
 
-Gateway'in Ollama uyumlu katmanı `ollama create` / `cp` / `rm` komutlarını model **tanımları** üzerinde çalıştırır (ayrıntı: ARCHITECTURE §13.4):
+Gateway'in Ollama uyumlu katmanı `ollama create` / `cp` / `rm` komutlarını model **tanımları** üzerinde çalıştırır (ayrıntı: private hs-internal architecture notes):
 
 ```
 set OLLAMA_HOST=127.0.0.1:21435
@@ -297,20 +197,3 @@ ollama rm kopya
 - `--quantize` yok (501), `ollama push` yok (501, kayıt defteri yok), safetensors yok (yalnız GGUF).
 - Silme: `ollama rm` yalnız tanımı siler; indirilen/kütüphanedeki GGUF dosyaları kalır. `ollama create` ile yüklenmiş ve başka tanımın kullanmadığı blob dosyaları silinir.
 - Bu uçlar gateway'in kimlik doğrulamasından geçer (anahtar varsa gerekir); anahtarsız yerel kullanımda aynı makinedeki her program tanım oluşturabilir/silebilir.
-
-## 8. Doğrulanmayanlar
-
-- Kilo Code ve JetBrains AI Assistant gerçek kurulumda denenmedi; yalnız resmi belgeye dayanır.
-- macOS/Linux masaüstü yolları varsayım. (Windows'ta gerçek istemcilerle denendi:
-  OpenCode 1.2.17, Aider 0.86.2, Goose 1.52.0, Claude Code 2.1.283; yukarıya bakın.)
-- GUI (bölümler, "Başlat", test, yedek rozetleri) gerçek pencerede elle denenmedi;
-  `svelte-check` geçiyor.
-
-### İstemci yolları ve anahtar biçimleri: doğrulama kaynakları (Eylül 2026'da kontrol edildi)
-
-| İstemci | Doğrulanan | Kaynak |
-|---|---|---|
-| VS Code | Özel uç nokta `chatLanguageModels.json`; `vendor: customendpoint`; `apiType` `chat-completions`/`responses`/`messages`; model `url` tam uç nokta; `apiKey` için `${input:...}`; varsayılan başlık `Authorization: Bearer`. Yol: Windows'ta gerçek kurulumda `%APPDATA%\Code\User\chatLanguageModels.json` var (salt okunur bakıldı); belge yolu söylemez, macOS/Linux standart kullanıcı dizini varsayımı. | https://code.visualstudio.com/docs/copilot/customization/language-models, https://github.com/microsoft/vscode-docs/blob/main/docs/agent-customization/language-models.md |
-| Zed | `language_models.openai_compatible.<ad>.api_url` + `available_models[]`; anahtar settings.json'a yazılmaz; ortam değişkeni `<AD>_API_KEY` (UpperSnake; kaynakta `format!("{}_API_KEY", id).to_case(Case::UpperSnake)`), yani `HARNESS_STUDIO_API_KEY`. | https://zed.dev/docs/ai/use-api-access, https://github.com/zed-industries/zed/blob/main/crates/language_models/src/provider/api_compatible.rs |
-| Kilo Code | Genel yapılandırma `~/.config/kilo/kilo.json[c]`, Windows'ta `C:\Users\<kullanıcı>\.config\kilo\kilo.jsonc`; eski `opencode.json[c]` da okunur; `provider.<ad>.options.{baseURL,apiKey}`, `{env:DEĞİŞKEN}` sözdizimi. | https://kilo.ai/docs/getting-started/settings, https://kilo.ai/docs/code-with-ai/platforms/cli, https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/kilocode/skills/kilo-config.md |
-| JetBrains AI Assistant | Settings \| Tools \| AI Assistant \| Providers & API keys (2026.2); alanlar URL, API Key, Tool calling, Test Connection. | https://www.jetbrains.com/help/ai-assistant/use-custom-models.html |

@@ -9,7 +9,7 @@
 //! * `llamacpp:*{server="<id>"}`: every llama-server's own `/metrics` as last sampled by the
 //!   telemetry poller (servers started with metrics on; direct-endpoint traffic shows here).
 //!
-//! Names are documented in `docs/en/ARCHITECTURE.md` §13.5.
+//! Names are documented in `private hs-internal architecture notes` §13.5.
 
 use std::collections::BTreeMap;
 use std::fmt::Write;

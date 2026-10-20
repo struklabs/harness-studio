@@ -64,4 +64,4 @@ Kılavuz Türkçe arayüzü esas alır. Uygulama İngilizce de çalışır; dili
 
 ## Daha Ayrıntılı Başvurular
 
-[Özellikler](../../tr/FEATURES.md), [CLI](../../tr/CLI.md), [MCP](../../tr/MCP.md), [Entegrasyonlar](../../tr/INTEGRATIONS.md), [Güvenlik modeli](../../tr/SECURITY_MODEL.md), [Araçlar](../../tr/TOOLS.md), [Performans](../../tr/PERFORMANCE.md) ve [LM Studio ile Ollama karşılaştırması](../../tr/COMPARISON.md).
+[Özellikler](../../tr/FEATURES.md), [CLI](../../tr/CLI.md), [MCP](../../tr/MCP.md), [Entegrasyonlar](../../tr/INTEGRATIONS.md), [Güvenlik modeli](../../tr/SECURITY_MODEL.md), [Araçlar](../../tr/TOOLS.md), [Features](../../tr/FEATURES.md) ve [Features](../../tr/FEATURES.md).

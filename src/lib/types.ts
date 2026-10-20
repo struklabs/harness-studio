@@ -1877,7 +1877,7 @@ export interface EffectiveLaunchValues {
   observed_at: number;
 }
 
-// --- Domain model (ARCHITECTURE §13.3) ---
+// --- Domain model (private hs-internal architecture notes) ---
 
 /** Base weights of a definition: a local GGUF or a Hugging Face file not downloaded yet. */
 export type ModelRef = { kind: 'local'; path: string } | { kind: 'hf'; repo: string; file: string };

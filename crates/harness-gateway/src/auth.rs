@@ -1,4 +1,4 @@
-//! Gateway authentication and token policy (ARCHITECTURE §13.6).
+//! Gateway authentication and token policy (private hs-internal architecture notes).
 //!
 //! * Credentials: `Authorization: Bearer <token>` or `x-api-key: <token>` (Anthropic
 //!   clients). Accepted: named Control API tokens with the `inference` (or `admin`) scope and

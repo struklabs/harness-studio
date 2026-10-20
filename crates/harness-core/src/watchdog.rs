@@ -16,7 +16,7 @@
 //!
 //! Only async-signal-safe system calls run between `fork` and `exec` (fork, waitpid, _exit,
 //! close, kqueue, kevent, kill, sleep). Not compiled or run on the development machine
-//! (Windows); see ARCHITECTURE §13.7.
+//! (Windows); see private hs-internal architecture notes
 
 #[cfg(target_os = "macos")]
 pub fn install(cmd: &mut std::process::Command) {
