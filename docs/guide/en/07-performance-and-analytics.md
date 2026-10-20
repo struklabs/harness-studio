@@ -21,7 +21,7 @@ GPU load and temperature are read with `nvidia-smi` on NVIDIA, and from system s
 
 The Dashboard's **Jobs** panel lists queued loads and active engine processes, their priority, estimated GPU memory, and queue wait. Interactive chat loads take precedence over agent tasks, followed by background embedding loads and benchmarks. Jobs at the same priority start in arrival order; running work is not preempted.
 
-When the estimated model, context, and runtime memory do not fit, the load waits. Stop an unused model to make room, or cancel the waiting job. **Cancel** on a running engine stops that engine and interrupts requests using it. GPU memory remains reserved until its process exits. Engines with an unknown GPU memory requirement wait as well.
+When the estimated model, context, and runtime memory do not fit, the load waits. Stop an unused model to make room, or cancel the waiting job. **Cancel** on a running engine stops that engine and interrupts requests using it. GPU memory remains reserved until its process exits. An engine with an unknown GPU memory requirement starts only when no other GPU reservation is held, and then holds the whole GPU until it exits.
 
 Speech and image engines share this memory queue with chat engines. The gateway continues to manage speech request slots and idle unloading. Queue wait and load times are logged for comparisons; one-shot binaries use their first output as the observable load boundary. Control API clients can inspect the same queue with `GET /api/harness/v1/jobs`; this endpoint is read-only and requires read access.
 

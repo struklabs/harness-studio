@@ -120,7 +120,10 @@ pub fn available_memory() -> (u64, u64) {
             if budget.unified {
                 hw.available_ram_bytes.min(capacity)
             } else {
-                0
+                // No driver probe (integrated or unsupported adapter): the managed
+                // reservations still bound the total, but a missing probe must not
+                // block every GPU start forever.
+                capacity
             }
         });
     let reserve = crate::vram::fixed_footprint_headroom(capacity, 0);
@@ -226,12 +229,20 @@ impl JobScheduler {
             .iter_mut()
             .find(|entry| entry.view.id == id)
             .unwrap();
-        if entry.view.memory_bytes.unwrap_or(u64::MAX)
-            > free
-                .saturating_sub(pending)
-                .min(capacity.saturating_sub(reserved))
-        {
-            return false;
+        match entry.view.memory_bytes {
+            // An unknown footprint can never fit a byte budget, so it would wait
+            // forever; it runs alone, once no other GPU reservation is held.
+            None if reserved > 0 => return false,
+            None => {}
+            Some(need)
+                if need
+                    > free
+                        .saturating_sub(pending)
+                        .min(capacity.saturating_sub(reserved)) =>
+            {
+                return false;
+            }
+            Some(_) => {}
         }
         entry.admitted = Some(Instant::now());
         entry.view.status = Status::Loading;
@@ -281,6 +292,12 @@ impl Ticket {
             let (free, capacity) = tokio::task::spawn_blocking(available_memory)
                 .await
                 .unwrap_or((0, 0));
+            // No GPU detected: nothing to protect, so only the queue order applies.
+            let (free, capacity) = if capacity == 0 {
+                (u64::MAX, u64::MAX)
+            } else {
+                (free, capacity)
+            };
             if self.scheduler.admit(self.id, free, capacity) {
                 return Ok(());
             }
@@ -387,10 +404,26 @@ mod tests {
     #[test]
     fn cpu_work_can_run_while_gpu_work_waits() {
         let scheduler = Arc::new(JobScheduler::default());
-        let gpu = scheduler.submit("training".into(), Priority::Interactive, u64::MAX);
+        let gpu = scheduler.submit("training".into(), Priority::Interactive, 50);
         let cpu = scheduler.submit("index".into(), Priority::Background, 0);
         assert!(!scheduler.admit(gpu.id, 0, 0));
         assert!(scheduler.admit(cpu.id, 0, 0));
+    }
+
+    #[test]
+    fn unknown_footprint_runs_alone_instead_of_waiting_forever() {
+        let scheduler = Arc::new(JobScheduler::default());
+        let resident = scheduler.submit("chat".into(), Priority::Interactive, 40);
+        let unknown = scheduler.submit("router".into(), Priority::Agent, u64::MAX);
+        let after = scheduler.submit("speech".into(), Priority::Agent, 10);
+        assert!(scheduler.admit(resident.id, 100, 100));
+        assert!(!scheduler.admit(unknown.id, 100, 100));
+        drop(resident);
+        assert!(scheduler.admit(unknown.id, 100, 100));
+        // While it runs it holds the whole GPU.
+        assert!(!scheduler.admit(after.id, 100, 100));
+        drop(unknown);
+        assert!(scheduler.admit(after.id, 100, 100));
     }
 
     #[tokio::test]
