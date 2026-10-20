@@ -20,6 +20,7 @@
 //!
 //! Auth: [`auth`]. Tool compatibility (Codex/Responses): [`compat`]. Errors: [`errors`].
 
+mod anthropic_chat;
 pub mod audio;
 pub mod audio_llm;
 pub mod audio_process;
@@ -895,7 +896,8 @@ async fn guard_tts_routes(
                         | "/v1/rerank"
                         | "/v1/messages"
                 ))
-                || (cloud && path != "/v1/chat/completions")
+                || (cloud
+                    && harness_core::cloud::kind_of(&def.id).is_some_and(|k| !k.accepts(&path)))
             {
                 let caller = match auth::check(
                     &state,
@@ -912,6 +914,7 @@ async fn guard_tts_routes(
                 }
                 if cloud {
                     return errors::GatewayError::cloud("cloud.unsupported_endpoint")
+                        .anthropic(path.starts_with("/v1/messages"))
                         .into_response();
                 }
                 return errors::GatewayError::remote("link.unsupported_endpoint").into_response();

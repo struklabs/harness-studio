@@ -425,9 +425,19 @@ async fn run(
     // Remote Harness and cloud models skip every local-model step (compat, reasoning,
     // tool diagnosis): the other side handles the request as sent.
     let external = remote.is_some() || cloud.is_some();
-    if cloud.is_some() && api != Api::Chat {
-        return Err(GatewayError::cloud("cloud.unsupported_endpoint"));
+    // Each provider kind serves the protocols it speaks (chat everywhere; Responses, Messages
+    // and embeddings where the provider has them).
+    let cloud_kind = cloud.and_then(|_| harness_core::cloud::kind_of(&def.id));
+    if cloud.is_some() {
+        match cloud_kind {
+            Some(kind) if kind.accepts(api.path()) => {}
+            Some(_) => return Err(GatewayError::cloud("cloud.unsupported_endpoint")),
+            None => return Err(GatewayError::cloud("cloud.unreachable")),
+        }
     }
+    // Chat completions to an Anthropic provider are translated to its native Messages API.
+    let anthropic_key = cloud_kind == Some(harness_core::cloud::Kind::Anthropic);
+    let translate = anthropic_key && api == Api::Chat;
     if remote.is_some() && headers.contains_key("x-harness-link-hop") {
         return Err(GatewayError::remote("link.chained_not_allowed"));
     }
@@ -621,6 +631,14 @@ async fn run(
             None => body,
         },
     );
+    let body = if translate {
+        Bytes::from(
+            crate::anthropic_chat::request(&body)
+                .map_err(|m| GatewayError::new(400, "invalid_request", m))?,
+        )
+    } else {
+        body
+    };
     let http = if let Some((name, _)) = remote {
         harness_core::link::client_for(name, settings.request_timeout_secs)
             .map_err(|_| GatewayError::remote("link.unreachable"))?
@@ -631,7 +649,9 @@ async fn run(
         state.http.clone()
     };
     // A cloud base URL already carries its API version (`https://api.openai.com/v1`).
-    let path = if cloud.is_some() {
+    let path = if translate {
+        "/messages"
+    } else if cloud.is_some() {
         api.upstream_path().trim_start_matches("/v1")
     } else {
         api.upstream_path()
@@ -641,7 +661,11 @@ async fn run(
         .header(header::CONTENT_TYPE, "application/json")
         .body(body);
     let forwarded: &[&str] = if cloud.is_some() {
-        &["accept"]
+        if anthropic_key && !translate {
+            &["accept", "anthropic-version", "anthropic-beta"]
+        } else {
+            &["accept"]
+        }
     } else {
         &["accept", "anthropic-version", "anthropic-beta"]
     };
@@ -660,7 +684,17 @@ async fn run(
         }
     }
     if let Some(key) = &lease.api_key {
-        req = req.bearer_auth(key);
+        if anthropic_key {
+            let mut value =
+                HeaderValue::from_str(key).map_err(|_| GatewayError::cloud("cloud.key_missing"))?;
+            value.set_sensitive(true);
+            req = req.header("x-api-key", value);
+        } else {
+            req = req.bearer_auth(key);
+        }
+    }
+    if anthropic_key && (translate || !headers.contains_key("anthropic-version")) {
+        req = req.header("anthropic-version", harness_core::cloud::ANTHROPIC_VERSION);
     }
     let send = req.send();
     let upstream = match timeout {
@@ -782,6 +816,34 @@ async fn run(
         builder = builder.header("x-harness-compaction", n);
     }
 
+    if translate && !sse {
+        let read = upstream.bytes();
+        let bytes = match timeout {
+            Some(t) => tokio::time::timeout(t, read)
+                .await
+                .map_err(|_| GatewayError::cloud("cloud.timeout"))?,
+            None => read.await,
+        }
+        .map_err(|_| GatewayError::cloud("cloud.unreachable"))?;
+        let mut observer = UsageObserver::new(false);
+        observer.feed(&bytes);
+        observer.finish();
+        guard.get().usage = observer.usage;
+        guard.get().ttft_ms = Some(guard.started.elapsed().as_millis() as u64);
+        let out = if status == 200 {
+            crate::anthropic_chat::response(&bytes).unwrap_or_else(|| bytes.to_vec())
+        } else {
+            crate::anthropic_chat::error(&bytes)
+        };
+        if let Some(c) = guard.capture.as_mut() {
+            c.push_response(&out);
+        }
+        guard.finish(status, None);
+        drop(lease);
+        return builder
+            .body(Body::from(out))
+            .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()));
+    }
     if (!recovery_names.is_empty() || !loop_names.is_empty()) && status == 200 && !sse {
         let read = upstream.bytes();
         let bytes = match timeout {
@@ -899,6 +961,7 @@ async fn run(
             .map(|p| (p, crate::responses::SseScan::default(), Vec::new())),
         saving: None,
         held: None,
+        translator: (translate && sse && status == 200).then(crate::anthropic_chat::Stream::new),
     };
     builder
         .body(Body::new(StreamBody::new(relay)))
@@ -935,6 +998,8 @@ struct Relay {
     /// only after it, so the response can be read back as soon as the client sees the event.
     saving: Option<tokio::task::JoinHandle<()>>,
     held: Option<Bytes>,
+    /// Anthropic stream events of a translated Chat request, as chat completion chunks.
+    translator: Option<crate::anthropic_chat::Stream>,
 }
 
 impl Relay {
@@ -1068,6 +1133,10 @@ impl Stream for Relay {
                     if let Some(t) = this.guard.as_mut().and_then(|g| g.tool.as_mut()) {
                         t.feed(&chunk);
                     }
+                    let chunk = match this.translator.as_mut() {
+                        Some(t) => Bytes::from(t.push(&chunk)),
+                        None => chunk,
+                    };
                     let chunk = match this.recovery.as_mut() {
                         Some(r) => {
                             let out = r.push(&chunk);
@@ -1148,6 +1217,9 @@ impl Stream for Relay {
                         .map(|r| r.finish())
                         .unwrap_or_default();
                     rest.extend(recovered_rest);
+                    if let Some(t) = this.translator.as_mut() {
+                        rest.extend(t.finish());
+                    }
                     if let Some(r) = this.renamer.as_mut() {
                         let mut renamed = r.push(&rest);
                         renamed.extend(r.finish());

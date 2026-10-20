@@ -5,6 +5,7 @@ mod analytics;
 mod automations;
 mod benchmarks;
 mod catalog;
+mod cloud;
 mod conversations;
 mod convert;
 mod events;
@@ -58,6 +59,7 @@ the Secure HttpOnly session cookie; cookie writes need same-origin Origin and X-
         (name = "benchmarks", description = "llama-bench runs"),
         (name = "events", description = "Server-sent event streams"),
         (name = "tokens", description = "Named API tokens (admin)"),
+        (name = "cloud", description = "BYOK cloud providers (OpenAI, Gemini, Anthropic, OpenRouter, custom): add, test and remove; the key is write-only (admin)"),
         (name = "conversations", description = "Stored chats: list, read, export, documents, context compaction (scope `conversations`)"),
         (name = "analytics", description = "Gateway request log, statistics and Prometheus metrics"),
         (name = "automations", description = "The user's own n8n instance: connection, workflows, executions, webhook runs (admin)"),
@@ -228,6 +230,16 @@ fn api_routes() -> OpenApiRouter<AppState> {
             tokens::update_token,
             tokens::revoke_token
         ))
+        .routes(routes!(
+            cloud::list_cloud_providers,
+            cloud::add_cloud_provider
+        ))
+        .routes(routes!(
+            cloud::update_cloud_provider,
+            cloud::remove_cloud_provider
+        ))
+        .routes(routes!(cloud::test_cloud_provider))
+        .routes(routes!(cloud::list_cloud_models))
         .routes(routes!(otel::get_otel, otel::put_otel))
         .routes(routes!(otel::test_otel))
         .routes(routes!(automations::get_n8n, automations::put_n8n))

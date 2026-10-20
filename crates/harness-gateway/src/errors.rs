@@ -94,7 +94,7 @@ impl GatewayError {
             "cloud.unsupported_endpoint" => (
                 400,
                 "cloud_unsupported_endpoint",
-                "Cloud provider models only accept POST /v1/chat/completions.",
+                "This cloud provider does not serve this endpoint through the gateway.",
             ),
             "cloud.unauthorized" => (
                 502,

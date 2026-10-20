@@ -20,9 +20,10 @@ pub(crate) async fn rag_models(gw: State<'_, GatewayState>) -> Result<RagModels,
             .map(|defs| retrieval_models(&defs))
     })
     .await??;
-    let (embedding, rerank) = all
+    let (mut embedding, rerank): (Vec<_>, Vec<_>) = all
         .into_iter()
         .partition(|m| m.role == RetrievalRole::Embedding);
+    embedding.extend(harness_core::rag::models::cloud_embedding_models());
     Ok(RagModels {
         embedding,
         rerank,
@@ -49,15 +50,31 @@ async fn rag_embed_model(
         .await
         .ok_or_else(|| String::from(harness_core::error_key::err("rag.gateway_required")))?;
     let wanted = alias.to_string();
-    let def = blocking(move || {
-        harness_core::domain::store::Domain::global()
-            .definitions()
-            .map(|defs| {
-                defs.into_iter()
-                    .find(|d| d.alias.eq_ignore_ascii_case(&wanted))
+    // A BYOK cloud embedding model is not in the library: the gateway serves it by its id,
+    // and the index is marked with that provider model id.
+    let cloud = harness_core::cloud::embedding_models()
+        .iter()
+        .any(|m| m.id == wanted)
+        .then(|| {
+            harness_core::cloud::definitions()
+                .into_iter()
+                .find(|d| d.alias == wanted)
+        })
+        .flatten();
+    let def = match cloud {
+        Some(def) => Some(def),
+        None => {
+            blocking(move || {
+                harness_core::domain::store::Domain::global()
+                    .definitions()
+                    .map(|defs| {
+                        defs.into_iter()
+                            .find(|d| d.alias.eq_ignore_ascii_case(&wanted))
+                    })
             })
-    })
-    .await??
+            .await??
+        }
+    }
     .ok_or_else(|| {
         String::from(harness_core::error_key::err("rag.model_not_found").with("alias", alias))
     })?;
