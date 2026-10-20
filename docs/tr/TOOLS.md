@@ -154,6 +154,20 @@ Create sayfasının manuel bileşeni `create/ToolGenerator.svelte` içindedir; P
 
 ### Üretici Hata İşleme
 
+Dizin araçları `harness.fs.list(path)` kullanır; sonuç ada göre sıralanmış `{name, dir, size}` dizisidir ve `dir` bir boolean değeridir. `read_directory` adlı bir host işlevi yoktur. Boş dizin test verisi `{path: "empty", dir: true}` biçimindedir ve `content` içermez. Dosya test verileri üst dizinlerini oluşturur. Hiç test çalışmadan oluşan kurulum/yükleme hataları yanıltıcı `failed: 0` sayısı yerine nedenleriyle gösterilir. Başarılı denemelerde geçen test sayısı gösterilir.
+
+Araç oluşturucu varsayılan olarak ağ erişimi istemez. Onaylama/kaydetme öncesinde ağ, dosya okuma, dosya yazma ve komut çalıştırma izinleri ayrı gösterilir. Kaydedilen oluşturucu araçları **Kullanıcı Tarafından Oluşturulan**, katalog ve paket araçları **Katalogdan veya Paketten Kurulan** etiketi taşır. Kaynak bilgisi olmayan eski paketler paket etiketiyle kalır.
+
+### Ajan Becerileri
+
+**Oluştur → Araçlarım** veya **Ayarlar → Araçlar** altında **Ajan Becerileri** bölümünü açın. **Beceriler Klasörünü Aç**, `<veri dizini>/skills` klasörünü açar. `<beceri-adı>/SKILL.md` dosyasına YAML ön bilgisinde klasör adıyla eşleşen `name` ve bir `description`, ardından Markdown yönergeleri ekleyin. İsteğe bağlı metadata kabul edilir; `allowed-tools` izin vermez. Biçim için [Agent Skills standardına](https://agentskills.io/specification) bakın.
+
+Yerel değişiklikleri keşfetmek için yenileyin. Etkinleştirme/devre dışı bırakma klasörü korur; kaldırma onayı beceriyi ve kaynaklarını kalıcı olarak siler. Geçersiz becerilerin hatası gösterilir ve bu beceriler modele sunulmaz. Resmî katalog becerileri sabitlenmiş katalog sürümünden incelenip kurulabilir. Mevcut katalog bağımsız `SKILL.md` dosyaları sunar; yerel beceri klasörleri kaynak dosyaları da içerebilir.
+
+Playground araçları etkinken sistem bağlamına yalnızca etkin becerilerin adları ve açıklamaları eklenir. Model, görevle ilgili becerinin yönergelerini `load_skill` aracının `name` alanıyla, ilgili UTF-8 kaynaklarını ise `resource` alanıyla (örneğin `references/guide.md`) ister. Dosyalar 1 MiB ile sınırlıdır ve sembolik bağlantılar çözüldükten sonra da beceri klasörü içinde kalmalıdır. Kaynaklar ve betikler okunur, otomatik çalıştırılmaz. Mevcut araç izinleri geçerlidir. Yükleme, modelin araç çağırma desteğine ve seçimine bağlıdır; ilgisiz beceri içerikleri her isteğe eklenmez.
+
+### Diğer Oluşturucu Kurtarma Davranışları
+
 Metin/veri dönüşümleri (CSV/JSON, HTML, Markdown, base64) planlama ve üretim istemlerinde varsayılan olarak string içerik alıp içerik döndürür; dosya sözleşmesi yalnız açık dosya işlemlerinde önerilir. Mevcut dosya sözleşmeli paketler fixture testleriyle desteklenir; izin onayı sürer. QuickJS DOM sağlamaz (`DOMParser` ve `document` yoktur). Markdown için satır/blok ayrımı, başlık seviyeleri ve satır sonu olmayan son satır istemde açıkça belirtilir.
 
 Sayaç şeridi pencere genişliğine bağlı 2/3/4/7 sabit grid sütunu kullanır; sayı değişimi sütun sayısını veya etiket yerini belirlemez. Sayılar `font-num`, filtre sayıları sabit `3ch`, kart/manuel tokenları minimum `12ch` alan kullanır. Canlı günlük ve deneme tokenları tabular rakam kullanır. Başarısız kart kısa TR/EN özet verir; teknik hata, test çıktısı ve geçmiş **Paketi İncele** altında kalır.

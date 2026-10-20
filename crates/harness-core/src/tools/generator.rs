@@ -536,7 +536,7 @@ manifest fields: category (file, web, calculation, datetime, text or other; defa
 
 index_js defines `function run(args)` and returns a string (or a JSON-serializable value). Available globals include btoa, atob (Latin-1 binary strings), TextEncoder/TextDecoder (UTF-8 encode/decode), JSON, Math, Date and RegExp. For Unicode, convert TextEncoder's UTF-8 bytes to a binary string with String.fromCharCode before btoa. TextDecoder supports UTF-8 only, no streaming. There is no require, import, fetch, process, DOMParser, document or timers. The only way out of the sandbox is the global `harness`:
 - harness.http.get(url) and harness.http.post(url, jsonBody) return {status, content_type, url, body}. They are synchronous and only work for hosts allowed by permissions.network. ["*"] permits any public host; [] denies all network. Private/local addresses and Harness ports are always blocked.
-- harness.fs.read(path), harness.fs.write(path, text), harness.fs.list(path): paths are relative to the workspace folder and only work inside the folders listed in permissions.fs.
+- harness.fs.read(path) returns UTF-8 text; harness.fs.write(path, text) returns the byte count; harness.fs.list(path) returns a sorted array of {name: string, dir: boolean, size: number}. Use entry.dir, not entry.isDirectory() or entry.type. These APIs are synchronous. Paths are relative to the workspace folder (use "." for its root) and only work inside permissions.fs folders. A tool named read_directory must use harness.fs.list(args.path); there is no read_directory host function or tool-to-tool call API.
 For text/data transformations (CSV/JSON, HTML-to-text, Markdown, base64), take content strings by default and return the transformed content; do not invent input/output paths or filesystem permissions unless the user explicitly requests file operations. For multiline markup, parse lines/blocks before inline replacements: distinguish heading levels, handle the last line without a trailing newline, and never wrap heading blocks in paragraph tags. Do not use unanchored overlapping heading replacements.
 For natural-language text processing use Unicode-aware regex: \p{L} for letters, \p{N} for numbers and the u flag (for example /[^\p{L}\p{N}\s]/gu). Never discard non-ASCII letters with \w or [a-zA-Z]. If the user description contains non-ASCII characters OR the tool processes text, include at least one successful non-ASCII-letter input case in the description's language, with meaningful expected output (Turkish example: bir iki iki üç üç üç must count six words, including üç three times). A Unicode case name, comment or expectation alone does not count.
 Throw an Error with a clear message for bad input. Keep code concise. In raw JavaScript: literal newlines cannot appear inside single/double quoted JS strings; use escaped \n or template literals.
@@ -544,7 +544,7 @@ Throw an Error with a clear message for bad input. Keep code concise. In raw Jav
 test_js declares `const cases = [ ... ];` that run against index_js. Each case is {"name": "...", "args": {...}, "expect": {...}} where expect has exactly one of: "equals": "exact result text", "contains": "text" (or ["text", ...]), "matches": a JavaScript RegExp literal, pattern string, or "/pattern/flags" string (anchor with ^ and $ for a full match), "length": non-negative character count, "error": true (or "text the error message contains"). equals compares both sides after trimming trailing whitespace only; leading and internal whitespace must match exactly. Strings are compared as plain text; other values use JSON text; undefined is normalized to null. For random passwords, IDs or time-dependent results, check deterministic properties with matches/length, never exact random output or contains of an entire alphabet. Prefer regex literals to avoid string escapes: expect: { matches: /^[A-Za-z0-9]{12}$/ }. JavaScript RegExp syntax and flags apply, including lookahead. Validate zero separately from missing input (use ?? rather than || for defaults), and consider acronym boundaries in case conversion. Check that every expectation agrees with the stated contract; ISO dates without Z can be valid JavaScript dates. Write two to five cases that check the logic on given input and the error on bad input.
 
 FILE TESTS: Every case runs in its own empty temporary workspace. For file input include fs: [{path: "input.csv", content: "name,age\nAlice,30"}] on that case. The runner writes these UTF-8 fixtures before run(args); manifest read/write permissions still apply. Paths must be relative with no . or .. segments; at most 32 files and 1 MiB total content per case. Files and writes never leak to another case. Use fs: [] for missing-file cases. There are no setup callbacks and HTTP mocks (including file:// URLs) cannot create files.
-Example: {name: "read", args: {path: "input.txt"}, fs: [{path: "input.txt", content: "Hello"}], expect: {equals: "Hello"}}.
+Example: {name: "read", args: {path: "input.txt"}, fs: [{path: "input.txt", content: "Hello"}], expect: {equals: "Hello"}}. To create an empty directory use fs: [{path: "empty", dir: true}] (no content). Nested file fixtures create their parent directories. Do not call harness.fs in top-level test setup; call run only through cases.
 
 CRITICAL: Test cases MUST mock ALL network calls. If the tool uses harness.http, the case must include an `http` array of mocks. A mocked case intercepts harness.http calls matching the method and exact `url` or `url_prefix` and answers from the mock. Unmatched requests in a mocked case fail. The mock body can be a string or a JSON object.
 Example: { name: "ok", args: {q: "x"}, http: [{ url_prefix: "https://api.example.com/", status: 200, body: {results: []} }], expect: { equals: "0" } }"#;
@@ -1220,20 +1220,22 @@ pub async fn generate_observed(
                 review_unicode(&req.description, &files, &mut report);
                 record.total_cases = report.cases.len();
                 record.failed_cases = report.cases.iter().filter(|c| !c.passed).count();
-                record.failure_summary = report
-                    .cases
-                    .iter()
-                    .filter(|c| !c.passed)
-                    .map(|c| {
-                        format!(
-                            "{} (expected: {}; actual: {})",
-                            c.name,
-                            c.expected.chars().take(80).collect::<String>(),
-                            c.actual.chars().take(80).collect::<String>()
-                        )
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                record.failure_summary = report.error.clone().unwrap_or_else(|| {
+                    report
+                        .cases
+                        .iter()
+                        .filter(|c| !c.passed)
+                        .map(|c| {
+                            format!(
+                                "{} (expected: {}; actual: {})",
+                                c.name,
+                                c.expected.chars().take(80).collect::<String>(),
+                                c.actual.chars().take(80).collect::<String>()
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                });
                 record.feedback = report.feedback();
                 if report.passed {
                     progress(&format!(
@@ -1459,7 +1461,7 @@ pub fn save(
         // `install` refuses a name a non-installed tool holds: the in-memory copy steps aside
         // for the write and comes back when it fails.
         registry.unregister(name);
-        installed::install(root, &staging, registry).inspect_err(|_| {
+        installed::install_with_origin(root, &staging, registry, true).inspect_err(|_| {
             registry.register(installed::in_memory_tool(&manifest, &code));
         })
     });

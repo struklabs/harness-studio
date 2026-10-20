@@ -153,6 +153,20 @@ The manual component of the Create page is in `create/ToolGenerator.svelte`. The
 
 ### Generator Error Handling
 
+Directory tools use `harness.fs.list(path)`, which returns a sorted array of `{name, dir, size}` entries; `dir` is a boolean. There is no `read_directory` host function. Directory test fixtures use `{path: "empty", dir: true}` without `content`; file fixtures create their parent folders. A test setup/load error is reported with its cause even when no cases ran, instead of the misleading `failed: 0`. Successful attempts report passed cases.
+
+The builder defaults to no network access. Review shows network hosts, file reads, file writes and shell access separately before approval/save. Saved builder tools retain their **User-Created** origin; package and registry tools are labeled **Registry or Package**. Older packages without origin metadata keep the package label.
+
+### Agent Skills
+
+In **Create → My Tools** or **Settings → Tools**, open **Agent Skills**. **Open Skills Folder** opens `<data directory>/skills`. Add `<skill-name>/SKILL.md` with YAML frontmatter containing `name` (matching its folder) and `description`, followed by Markdown instructions. Optional metadata is accepted; `allowed-tools` does not grant permissions. See the [Agent Skills specification](https://agentskills.io/specification).
+
+Refresh to discover local changes. Enable/disable preserves the folder; removal asks for confirmation and deletes the skill and its resources. Invalid skills show an error and are excluded from the model catalog. Official registry Skills can be reviewed and installed from their pinned catalog revision. The current registry distributes standalone `SKILL.md` files; local skill folders can also contain resources.
+
+With Playground Tools enabled, only enabled skill names/descriptions enter the system context. When relevant, the model calls `load_skill` with `name` to retrieve instructions, then optionally `resource` (for example `references/guide.md`) for a UTF-8 file relative to that skill. Files are bounded to 1 MiB and confined to that folder, including symlink resolution. Resource files and scripts are read, never automatically executed. Existing tool permissions still apply. Loading depends on the model's tool-calling support and selection; unrelated skill bodies are not attached to every request.
+
+### Other Generator Recovery
+
 Text/data conversions (CSV/JSON, HTML, Markdown, base64) take string content and return content by default in the planning and generation prompts; a file contract is suggested only for explicit file operations. Existing packages with a file contract are supported by fixture tests; permission approval continues. QuickJS provides no DOM (`DOMParser` and `document` do not exist). For Markdown, the line/block distinction, heading levels, and a last line without a line ending are stated explicitly in the prompt.
 
 The counter strip uses 2/3/4/7 fixed grid columns depending on the window width; a change in the number does not determine the column count or the label position. Numbers use `font-num`, filter counts use a fixed `3ch`, and card/manual tokens use a minimum `12ch` area. The live log and attempt tokens use tabular digits. A failed card gives a short TR/EN summary; the technical error, test output, and history stay under **Inspect Package**.

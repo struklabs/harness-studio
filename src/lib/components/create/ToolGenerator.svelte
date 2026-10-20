@@ -24,6 +24,7 @@
   import { Button } from '#lib/components/ui/button/index.js';
   import * as Dialog from '#lib/components/ui/dialog/index.js';
   import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import ToolPermissions from '#lib/components/tools/ToolPermissions.svelte';
   import ToolTestReport from '#lib/components/tools/ToolTestReport.svelte';
   import {
     approveGeneratedTool,
@@ -64,7 +65,7 @@
   const fmt = (n: number) => Math.round(n).toLocaleString(locale());
   const range = (e: GeneratorEstimate) => e.high >= 10_000 ? `≈ ${(e.low / 1000).toLocaleString(locale(), {maximumFractionDigits:1})}–${(e.high / 1000).toLocaleString(locale(), {maximumFractionDigits:1})} ${t('create.token_thousand')} token` : `≈ ${fmt(e.low)}–${fmt(e.high)} token`;
   let hosts = $state('');
-  let networkMode = $state<'none' | 'any' | 'listed'>('any');
+  let networkMode = $state<'none' | 'any' | 'listed'>('none');
   const networkScope = () => networkMode === 'any' ? ['*'] : networkMode === 'listed' ? lines(hosts) : [];
   let readDirs = $state('');
   let writeDirs = $state('');
@@ -119,6 +120,7 @@
       await refreshSession();
       onChanged();
     } catch (e) {
+      error = rawError(e);
       toast.error(t('tools.gen_failed', { error: localizeError(e) }));
     }
   }
@@ -172,24 +174,31 @@
 
   const stop = () => void cancelToolGeneration().catch(() => {});
 
-  async function approve() {
+  async function approve(permanent = false) {
     if (!draft || busy) return;
-    busy = true;
+    busy = true; error = null;
     try {
       await approveGeneratedTool(draft.id);
       phase = 'approved';
       onChanged();
-      void refreshSession();
+      if (permanent) {
+        await saveGeneratedTool(draft.info.name);
+        saved = true;
+        toast.success(t('tools.gen_saved', { name: draft.info.name }));
+        onChanged();
+      }
     } catch (e) {
+      error = rawError(e);
       toast.error(t('tools.gen_failed', { error: localizeError(e) }));
     } finally {
       busy = false;
+      void refreshSession();
     }
   }
 
   async function save() {
     if (!draft || busy) return;
-    busy = true;
+    busy = true; error = null;
     try {
       await saveGeneratedTool(draft.info.name);
       saved = true;
@@ -197,6 +206,7 @@
       onChanged();
       void refreshSession();
     } catch (e) {
+      error = rawError(e);
       toast.error(t('tools.gen_failed', { error: localizeError(e) }));
     } finally {
       busy = false;
@@ -229,17 +239,6 @@
     if (phase === 'running') stop();
   });
 
-  function permissionLines(d: ToolDraft): string[] {
-    const i = d.info;
-    const out = [
-      i.network.includes('*') ? t('tools.network_any') : i.network.length ? t('tools.inst_perm_network', { hosts: i.network.join(', ') }) : t('tools.inst_perm_no_network'),
-    ];
-    if (i.fs_read.length) out.push(t('tools.inst_perm_read', { folders: i.fs_read.join(', ') }));
-    if (i.fs_write.length) out.push(t('tools.inst_perm_write', { folders: i.fs_write.join(', ') }));
-    if (!i.fs_read.length && !i.fs_write.length) out.push(t('tools.inst_perm_no_files'));
-    out.push(t('tools.inst_perm_shell'));
-    return out;
-  }
   const existingHelpId = $props.id();
 </script>
 
@@ -304,6 +303,7 @@
           <AttemptHistory history={progress.history} />
         {/if}
       {:else if draft}
+        {#if error}<p role="alert" class="text-xs text-destructive">{localizeError(error)}</p>{/if}
         <div class="flex flex-col gap-1">
           <p class="text-sm font-medium">{t('tools.gen_review', { name: draft.info.name, version: draft.info.version })}</p>
           <p class="text-xs text-muted-foreground">{draft.info.description}</p>
@@ -311,12 +311,7 @@
         </div>
 
         <div class="flex flex-col gap-1.5 rounded-md border p-3">
-          <p class="text-xs font-medium">{t('tools.inst_confirm_asks')}</p>
-          <ul class="list-disc pl-5 text-xs">
-            {#each permissionLines(draft) as line (line)}
-              <li>{line}</li>
-            {/each}
-          </ul>
+          <ToolPermissions {...draft.info} />
           <Badge variant="outline" class={cn('mt-1 w-fit gap-1', classTone[draft.info.class])}>
             {#if draft.info.class === 'dangerous'}<ShieldAlert />{/if}
             {t(classLabel[draft.info.class])}
@@ -359,9 +354,11 @@
         <Button disabled={!canStart} onclick={start}>{t('tools.gen_start')}</Button>
         {#if estimate}<span data-manual-token-estimate class="text-xs text-muted-foreground transition-opacity" class:opacity-50={estimating}>{range(estimate)} <InfoTip text={t('create.token_manual_estimate_help', { prompt: fmt(estimate.prompt_per_tool), reply: fmt(estimate.reply_per_tool) })} /></span>{/if}
       {:else if phase === 'review'}
-        <Button variant="outline" onclick={again}>{t('tools.gen_again')}</Button>
-        <Button disabled={busy || !draft?.report.passed} onclick={approve}>{t('tools.gen_approve')}</Button>
+        <Button variant="outline" disabled={busy} onclick={again}>{t('tools.gen_again')}</Button>
+        <Button variant="outline" disabled={busy || !draft?.report.passed} onclick={() => approve()}>{t('tools.gen_approve')}</Button>
+        <Button disabled={busy || !draft?.report.passed} onclick={() => approve(true)}>{t('tools.gen_save')}</Button>
       {:else}
+        <Button variant="outline" disabled={busy} onclick={again}>{t('tools.gen_again')}</Button>
         {#if !inline}<Button variant="outline" onclick={close}>{t('tools.gen_close')}</Button>{/if}
         {#if !saved}
           <Button disabled={busy} onclick={save}>{t('tools.gen_save')}</Button>

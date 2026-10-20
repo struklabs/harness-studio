@@ -1,5 +1,19 @@
 // Tool engine UI (T1b): Settings > Tools and the tool log in the request inspector.
 const tr = {
+  'tools.skills_title': 'Ajan Becerileri',
+  'tools.skills_desc': 'Harness skills klasörüne adıyla eşleşen bir klasör ve SKILL.md ekleyin. Playground yalnızca adları ve açıklamaları sunar; yönergeler ve kaynaklar gerektiğinde yüklenir.',
+  'tools.skills_folder': 'Beceriler Klasörünü Aç',
+  'tools.skills_empty': 'Henüz beceri yok. Bir SKILL.md klasörü ekleyin veya resmî katalogdan kurun.',
+  'tools.skills_invalid': 'Beceri yüklenemedi: {detail}',
+  'tools.skills_remove_confirm': 'Bu beceri klasörü ve içindeki tüm kaynaklar kalıcı olarak silinsin mi?',
+  'tools.skills_review': 'Yönergeleri kurmadan önce inceleyin. Beceri yüklemek dosya, ağ veya komut çalıştırma izni vermez. Kaynak dosyaları çalıştırılmaz.',
+  'tools.origin_created': 'Kullanıcı Tarafından Oluşturulan',
+  'tools.origin_installed': 'Katalogdan veya Paketten Kurulan',
+  'tools.permission_no_read': 'Dosya Okuma: Yok',
+  'tools.permission_no_write': 'Dosya Yazma: Yok',
+  'tools.builder_test_unavailable': 'Test Çalıştırılamadı',
+  'tools.builder_validation_failed': 'Doğrulama Başarısız',
+
   'tools.registry_title': 'Resmî Katalog',
   'tools.registry_permissions': 'Beyan Edilen İzinler',
   'tools.registry_no_shell': 'Beyan edilen komut çalıştırma izni: yok',
@@ -250,6 +264,19 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'tools.skills_title': 'Agent Skills',
+  'tools.skills_desc': 'Add a folder with a matching name and SKILL.md to the Harness skills folder. Playground offers only names and descriptions; instructions and resources load on demand.',
+  'tools.skills_folder': 'Open Skills Folder',
+  'tools.skills_empty': 'No skills yet. Add a SKILL.md folder or install from the official registry.',
+  'tools.skills_invalid': 'Could not load skill: {detail}',
+  'tools.skills_remove_confirm': 'Permanently delete this skill folder and all its resources?',
+  'tools.skills_review': 'Review the instructions before installing. Loading a skill grants no file, network or shell permissions. Resource files are never executed.',
+  'tools.origin_created': 'User-Created',
+  'tools.origin_installed': 'Registry or Package',
+  'tools.permission_no_read': 'File Read: None',
+  'tools.permission_no_write': 'File Write: None',
+  'tools.builder_test_unavailable': 'Test Could Not Run',
+  'tools.builder_validation_failed': 'Validation Failed',
   'tools.registry_title': 'Official Registry',
   'tools.registry_permissions': 'Declared Permissions',
   'tools.registry_no_shell': 'Declared shell access: none',

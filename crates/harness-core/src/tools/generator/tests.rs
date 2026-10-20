@@ -19,6 +19,41 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use super::*;
 use crate::error_key::parse as parse_key;
 use crate::tools::PermissionClass;
+
+#[tokio::test]
+async fn read_directory_recovers_from_test_setup_failure_with_actionable_history() {
+    let code = "function run(a) { return harness.fs.list(a.path).map(e => e.name + (e.dir ? '/' : '')).join(','); }";
+    let mut manifest = manifest("read_directory");
+    manifest["description"] = json!("List directory entries");
+    manifest["permissions"]["fs"]["read"] = json!(["."]);
+    manifest["input_schema"] =
+        json!({"type":"object","properties":{"path":{"type":"string"}},"required":["path"]});
+    let broken = "const cases = [{args:{path:'.'},setup:()=>{},expect:{equals:''}}];";
+    let fixed = "const cases = [{args:{path:'.'},fs:[{path:'empty',dir:true}],expect:{equals:'empty/'}},{args:{path:'empty'},fs:[{path:'empty',dir:true}],expect:{equals:''}}];";
+    let (endpoint, seen) = chat_endpoint(vec![
+        reply_with(manifest.clone(), code, broken),
+        reply_with(manifest, code, fixed),
+    ])
+    .await;
+    let mut req = request_for(endpoint, &[]);
+    req.fs_read = vec![".".into()];
+    req.description = "List directory entries".into();
+    let draft = generate(&req, &ToolRegistry::new(), &AtomicBool::new(false))
+        .await
+        .unwrap();
+    assert!(draft.report.passed, "{}", draft.report.feedback());
+    assert_eq!(draft.attempts, 2);
+    assert_eq!(draft.history[0].total_cases, 0);
+    assert!(draft.history[0]
+        .failure_summary
+        .contains("setup callbacks are unsupported"));
+    assert!(last_user_message(&seen).contains("setup callbacks are unsupported"));
+    assert!(seen.lock().unwrap()[0]["messages"][0]["content"]
+        .as_str()
+        .unwrap()
+        .contains("{name: string, dir: boolean, size: number}"));
+    discard(&draft.id);
+}
 #[tokio::test]
 async fn nonconsecutive_code_does_not_trigger_repetition_strategy() {
     let saved: Value = serde_json::from_str(include_str!(

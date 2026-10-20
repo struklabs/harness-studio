@@ -92,10 +92,17 @@ pub fn inventory_with(
                 .map(|p| p.category.clone())
                 .unwrap_or_else(|| category(&t.def.name, &t.def.description));
             InventoryTool {
+                source: if packages
+                    .iter()
+                    .any(|p| p.name == t.def.name && p.user_created)
+                {
+                    ToolSource::Generated
+                } else {
+                    t.def.source
+                },
                 name: t.def.name,
                 description: t.def.description,
                 category: cat,
-                source: t.def.source,
                 server: t.server,
             }
         })
@@ -107,7 +114,11 @@ pub fn inventory_with(
                 name: p.name,
                 description: p.description,
                 category: p.category,
-                source: ToolSource::Installed,
+                source: if p.user_created {
+                    ToolSource::Generated
+                } else {
+                    ToolSource::Installed
+                },
                 server: None,
             });
         }
@@ -505,6 +516,23 @@ pub fn needs_approval(p: &package::Permissions) -> bool {
     !p.network.is_empty() || !p.fs.read.is_empty() || !p.fs.write.is_empty() || p.shell
 }
 
+fn attempt_outcome(attempt: &generator::Attempt) -> String {
+    if !attempt.feedback.trim().is_empty() {
+        if attempt.total_cases == 0 {
+            format!("Test could not run: {}", attempt.feedback)
+        } else if attempt.failed_cases == 0 {
+            format!("Validation failed: {}", attempt.feedback)
+        } else {
+            format!(
+                "{} of {} cases failed: {}",
+                attempt.failed_cases, attempt.total_cases, attempt.feedback
+            )
+        }
+    } else {
+        format!("{} cases passed", attempt.total_cases)
+    }
+}
+
 /// One durable worker per application data directory. Mutations and installs serialize.
 pub struct AutoGenerator {
     path: PathBuf,
@@ -740,7 +768,7 @@ impl AutoGenerator {
                     .map_err(|e| e.to_string())?;
                 std::fs::write(staging.join("index.js"), &d.code).map_err(|e| e.to_string())?;
                 std::fs::write(staging.join("test.js"), &d.test).map_err(|e| e.to_string())?;
-                installed::install(&self.root, &staging, service.registry())?;
+                installed::install_with_origin(&self.root, &staging, service.registry(), true)?;
                 Ok::<_, String>(())
             })();
             let _ = std::fs::remove_dir_all(&staging);
@@ -1121,8 +1149,11 @@ impl AutoGenerator {
                             s,
                             "test",
                             format!(
-                                "{} · Attempt {}: {} · failed: {}",
-                                p.name, attempt.number, attempt.change, attempt.failed_cases
+                                "{} · Attempt {}: {} · {}",
+                                p.name,
+                                attempt.number,
+                                attempt.change,
+                                attempt_outcome(&attempt)
                             ),
                         );
                         return Ok(());

@@ -748,7 +748,8 @@ mod tests {
         assert_eq!(decision("write_file"), Decision::Run);
         assert_eq!(decision("exec_shell_command"), Decision::Ask);
         assert_eq!(decision("read_file"), Decision::Ask);
-        assert_eq!(l.tools.len(), 13);
+        assert_eq!(decision("load_skill"), Decision::Run);
+        assert_eq!(l.tools.len(), 14);
         let json = serde_json::to_value(&l).unwrap();
         // The definition's fields sit beside `decision`.
         assert_eq!(json["tools"][0]["name"], "read_file");

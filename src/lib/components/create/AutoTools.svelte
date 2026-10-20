@@ -13,6 +13,7 @@
   import { Input } from '#lib/components/ui/input/index.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
   import ToolTestReport from '../tools/ToolTestReport.svelte';
+  import ToolPermissions from '../tools/ToolPermissions.svelte';
   import ModelPicker from './ModelPicker.svelte';
   import GatewayError from '../common/GatewayError.svelte';
   import { rawError } from '#lib/errors.js';
@@ -200,6 +201,7 @@
             <p class="mt-2 text-xs text-destructive">{summary ? t(summary.key, { count: summary.count }) : t('create.package_failed')}</p>
           {/if}
           {#if item.draft}
+            <div class="mt-3"><ToolPermissions {...item.draft.info} /></div>
             <details class="mt-3 text-xs"><summary class="cursor-pointer text-muted-foreground">{t('create.details')}</summary><div class="mt-2 flex min-w-0 flex-col gap-3">
               {#if item.error}<pre class="max-h-32 overflow-auto whitespace-pre-wrap break-words text-destructive">{itemError(item.error)}</pre>{/if}
               <AttemptHistory history={item.history ?? item.draft.history ?? []} />
@@ -212,13 +214,6 @@
           {/if}
           {#if item.status === 'awaiting_approval' && item.draft}
             <div class="mt-3 border-t border-border pt-3 text-xs">
-              <p class="font-medium">{t('tools.inst_confirm_asks')}</p>
-              <ul class="my-2 space-y-1">
-                <li>{item.draft.info.network.includes('*') ? t('tools.network_any') : item.draft.info.network.length ? t('tools.inst_perm_network', { hosts: item.draft.info.network.join(', ') }) : t('tools.inst_perm_no_network')}</li>
-                <li>{item.draft.info.fs_read.length ? t('tools.inst_perm_read', { folders: item.draft.info.fs_read.join(', ') }) : t('tools.inst_perm_no_files')}</li>
-                {#if item.draft.info.fs_write.length}<li>{t('tools.inst_perm_write', { folders: item.draft.info.fs_write.join(', ') })}</li>{/if}
-                <li>{t('tools.inst_perm_shell')}</li>
-              </ul>
               <p class="mb-2 text-muted-foreground">{t('create.approval_note')}</p>
               <Button variant="outline" disabled={busy} onclick={() => act('approve', item.id)}>{t('create.approve')}</Button>
             </div>

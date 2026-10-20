@@ -101,6 +101,7 @@ async fn listing_policy_and_the_403_for_what_needs_approval() {
             "write_file",
             "edit_file",
             "get_info",
+            "load_skill",
             "current_datetime",
             "calculator",
             "fetch_url",
@@ -118,6 +119,8 @@ async fn listing_policy_and_the_403_for_what_needs_approval() {
         json!(["path", "edits"])
     );
     assert_eq!(tool("calculator")["decision"], "run");
+    assert_eq!(tool("load_skill")["class"], "safe");
+    assert_eq!(tool("load_skill")["decision"], "run");
     assert_eq!(tool("fetch_url")["decision"], "ask");
 
     // Dangerous without the policy: 403, and nothing happened.

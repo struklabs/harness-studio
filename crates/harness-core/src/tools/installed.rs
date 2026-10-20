@@ -37,6 +37,8 @@ pub fn tools_root() -> PathBuf {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct InstalledTool {
+    #[serde(default)]
+    pub user_created: bool,
     /// The folder name (the tool name when the package is valid).
     pub name: String,
     pub version: String,
@@ -63,6 +65,7 @@ impl InstalledTool {
     /// What the lists and prompts show of a manifest (also of a generated tool's draft).
     pub fn from_manifest(m: &Manifest, readme: Option<String>, enabled: bool) -> Self {
         Self {
+            user_created: false,
             name: m.name.clone(),
             version: m.version.clone(),
             category: m.category.clone(),
@@ -82,6 +85,8 @@ impl InstalledTool {
 
 #[derive(Default, Serialize, Deserialize)]
 struct State {
+    #[serde(default)]
+    created: BTreeSet<String>,
     #[serde(default)]
     disabled: BTreeSet<String>,
 }
@@ -176,7 +181,8 @@ pub fn list(root: &Path) -> Vec<InstalledTool> {
         .map(|e| {
             let name = e.file_name().to_string_lossy().to_string();
             let enabled = !state.disabled.contains(&name);
-            match package::load_dir(&e.path()) {
+            let user_created = state.created.contains(&name);
+            let mut info = match package::load_dir(&e.path()) {
                 Ok(pkg) if pkg.manifest.name == name => InstalledTool::of(&pkg, enabled),
                 Ok(pkg) => broken(
                     name,
@@ -186,7 +192,9 @@ pub fn list(root: &Path) -> Vec<InstalledTool> {
                         .into(),
                 ),
                 Err(e) => broken(name, enabled, e),
-            }
+            };
+            info.user_created = user_created;
+            info
         })
         .collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
@@ -195,6 +203,7 @@ pub fn list(root: &Path) -> Vec<InstalledTool> {
 
 fn broken(name: String, enabled: bool, error: String) -> InstalledTool {
     InstalledTool {
+        user_created: false,
         name,
         version: String::new(),
         category: package::default_category(),
@@ -263,6 +272,15 @@ pub fn inspect(src: &Path) -> Result<InstalledTool, String> {
 /// manifest validated. Only regular files are copied: a link in the source is skipped, never
 /// followed. The caller re-runs [`sync`].
 pub fn install(root: &Path, src: &Path, registry: &ToolRegistry) -> Result<InstalledTool, String> {
+    install_with_origin(root, src, registry, false)
+}
+
+pub(crate) fn install_with_origin(
+    root: &Path,
+    src: &Path,
+    registry: &ToolRegistry,
+    user_created: bool,
+) -> Result<InstalledTool, String> {
     let pkg = package::load_dir(src)?;
     package::read_entry(&pkg)?;
     let name = pkg.manifest.name.clone();
@@ -295,11 +313,17 @@ pub fn install(root: &Path, src: &Path, registry: &ToolRegistry) -> Result<Insta
     }
     let _ = std::fs::remove_dir_all(&backup);
     let mut state = load_state(root);
-    if state.disabled.remove(&name) {
-        save_state(root, &state)?;
+    state.disabled.remove(&name);
+    if user_created {
+        state.created.insert(name.clone());
+    } else {
+        state.created.remove(&name);
     }
+    save_state(root, &state)?;
     let installed = package::load_dir(&target)?;
-    Ok(InstalledTool::of(&installed, true))
+    let mut info = InstalledTool::of(&installed, true);
+    info.user_created = user_created;
+    Ok(info)
 }
 
 fn copy_tree(
@@ -342,9 +366,9 @@ pub fn remove(root: &Path, name: &str) -> Result<(), String> {
     }
     std::fs::remove_dir_all(root.join(name)).map_err(io_err)?;
     let mut state = load_state(root);
-    if state.disabled.remove(name) {
-        save_state(root, &state)?;
-    }
+    state.disabled.remove(name);
+    state.created.remove(name);
+    save_state(root, &state)?;
     Ok(())
 }
 
