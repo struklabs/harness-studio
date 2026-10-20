@@ -13,7 +13,7 @@ pub struct Handoff {
     pub config: Value,
 }
 pub fn generate(base: &str, model: &str) -> Result<Handoff, String> {
-    if !crate::integrations::agent_models::list()?
+    if !crate::integrations::agent_models::list_with_link()?
         .iter()
         .any(|m| m.alias == model && m.chat != Some(false))
     {
@@ -221,6 +221,17 @@ mod tests {
         assert_eq!(inline["provider"]["harness"]["options"]["apiKey"], "new");
         assert_eq!(merged["model"], "harness/chat");
         assert!(merge_config(&json!({"adapterType": "http"}), &config).is_err());
+    }
+    #[test]
+    fn link_model_ids_are_matched_exactly_by_the_handoff_token() {
+        let dir = tempfile::tempdir().unwrap();
+        let tokens = TokenStore::at(&dir.path().join("tokens.json"));
+        let model = "remote:lab-box/qwen3:8b";
+        generate_in(&tokens, "http://127.0.0.1:11620/v1", model).unwrap();
+        let policy = &tokens.list().unwrap()[0].policy;
+        assert_eq!(policy.models, vec![model]);
+        assert!(policy.allows_model(model) && !policy.allows_model("remote:lab-box/other"));
+        assert!(generate_in(&tokens, "http://127.0.0.1:11620/v1", "remote:lab/*").is_err());
     }
     #[test]
     fn token_is_exact_and_revocable_and_urls_cannot_exfiltrate_credentials() {

@@ -3518,6 +3518,50 @@
         ]
       }
     },
+    "/api/harness/v1/jobs": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Read-only central GPU queue, including resident engine reservations.",
+        "operationId": "get_jobs",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobStatus"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/lemonade": {
       "get": {
         "tags": [
@@ -15089,6 +15133,23 @@
           }
         }
       },
+      "GpuJobPriority": {
+        "type": "string",
+        "enum": [
+          "interactive",
+          "agent",
+          "background"
+        ]
+      },
+      "GpuJobState": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "loading",
+          "running",
+          "cancelling"
+        ]
+      },
       "GpuMemory": {
         "type": "object",
         "description": "VRAM of one graphics adapter (a machine with several: discrete card plus integrated GPU).",
@@ -15732,6 +15793,55 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "JobStatus": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "priority",
+          "status",
+          "queue_wait_ms"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/GpuJobPriority"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GpuJobState"
+          },
+          "memory_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "None means the GPU footprint is unknown; admission waits.",
+            "minimum": 0
+          },
+          "queue_wait_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "load_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Time to engine readiness; one-shot binaries use their first output as the\nobservable startup boundary when they have no readiness protocol.",
+            "minimum": 0
           }
         }
       },

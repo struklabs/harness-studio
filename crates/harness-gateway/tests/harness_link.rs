@@ -439,6 +439,63 @@ async fn remote_models_proxy_policy_and_failures() {
     assert_eq!(response.status(), 200);
     let _ = response.bytes().await.unwrap();
 
+    // The scoped token an agent connection mints: this exact Link model id, chat and models.
+    let agent = store
+        .create_with_policy(
+            "agent-exact",
+            &[Scope::Inference],
+            &TokenPolicy {
+                models: vec![MODEL.into()],
+                endpoints: vec![
+                    harness_core::token_policy::GatewayEndpoint::Chat,
+                    harness_core::token_policy::GatewayEndpoint::Models,
+                ],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let response = http
+        .post(format!("{base}/v1/chat/completions"))
+        .bearer_auth(&agent.token)
+        .json(&json!({"model": MODEL, "messages": [{"role": "user", "content": "hi"}]}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert!(response.text().await.unwrap().contains("hello"));
+    let listed: Value = http
+        .get(format!("{base}/v1/models"))
+        .bearer_auth(&agent.token)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let ids: Vec<&str> = listed["data"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|m| m["id"].as_str())
+        .collect();
+    assert_eq!(ids, vec![MODEL]);
+    for (path, body) in [
+        ("/v1/embeddings", json!({"model": MODEL, "input": "hi"})),
+        (
+            "/v1/chat/completions",
+            json!({"model": "local-model", "messages": []}),
+        ),
+    ] {
+        let response = http
+            .post(format!("{base}{path}"))
+            .bearer_auth(&agent.token)
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 403, "{path}");
+    }
+
     for path in [
         "/v1/images/generations",
         "/v1/audio/speech",

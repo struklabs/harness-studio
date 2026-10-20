@@ -181,6 +181,10 @@ pub struct AgentModel {
     /// Prompt processing speed of the newest llama-bench of this file (the side the definition
     /// loads on), tokens/s: the estimate for a model that has no long gateway requests yet.
     pub bench_prompt_tps: Option<f64>,
+    /// A model of a Harness Link (served by another Harness over the network): there is no
+    /// local file, so no hardware fit applies, and tool support is not known from a template.
+    #[serde(default)]
+    pub remote: bool,
 }
 
 /// The verdict from the signals, strongest first (see the module docs).
@@ -265,6 +269,9 @@ pub fn build(
 ) -> Vec<AgentModel> {
     defs.iter()
         .filter_map(|d| {
+            if crate::link::parse_model(&d.id).is_some() {
+                return Some(remote_model(d));
+            }
             let path = local_path(d);
             let m = path.as_deref().filter(|p| p.is_file()).and_then(&meta);
             let chat = chat_capability(d, m.as_ref());
@@ -315,9 +322,38 @@ pub fn build(
                 prompt_tps: sig.and_then(|s| s.prompt_tps),
                 prompt_tokens_timed: sig.map(|s| s.prompt_tokens_timed).unwrap_or(0),
                 bench_prompt_tps: None,
+                remote: false,
             })
         })
         .collect()
+}
+
+/// A Harness Link model. Its kind is not known from here (the other Harness serves it), so
+/// `chat` stays unknown instead of claiming a verdict; the id is matched exactly by tokens.
+fn remote_model(d: &ModelDefinition) -> AgentModel {
+    AgentModel {
+        alias: d.alias.clone(),
+        definition_id: Some(d.id.clone()),
+        model_path: None,
+        chat: None,
+        context_size: None,
+        params: None,
+        size_label: None,
+        file_bytes: None,
+        template_tools: None,
+        tools: ToolSupport::Unknown,
+        evidence: ToolEvidence::None,
+        check: None,
+        native_tool_calls: 0,
+        tool_rounds_ok: 0,
+        tool_rounds_bad: 0,
+        tool_level: None,
+        recommended_tools: recommended_tools(None, None),
+        prompt_tps: None,
+        prompt_tokens_timed: 0,
+        bench_prompt_tps: None,
+        remote: true,
+    }
 }
 
 /// The agent models of the user's definitions, with the stored checks and the gateway log.
@@ -336,6 +372,20 @@ pub fn list() -> Result<Vec<AgentModel>, String> {
             crate::benchmark::prompt_speed(&runs, Path::new(path), load_gpu_layers(d))
         });
     }
+    Ok(models)
+}
+
+/// [`list`] plus the models of the user's enabled Harness Links, for features that only send
+/// chat requests through the gateway (agents, Paperclip). Other lists stay local-only: their
+/// callers read model files.
+pub fn list_with_link() -> Result<Vec<AgentModel>, String> {
+    let mut models = list()?;
+    models.extend(build(
+        &crate::link::definitions(),
+        |_| None,
+        &ToolChecks::default(),
+        &[],
+    ));
     Ok(models)
 }
 
@@ -453,6 +503,28 @@ mod tests {
             latency_ms: 1,
             checked_at: 1,
         }
+    }
+
+    #[test]
+    fn link_models_are_listed_as_remote_without_a_local_fit() {
+        let local = def("local", Path::new("missing.gguf"), None);
+        let mut remote = ModelDefinition::new(
+            "remote:lab-box/qwen3:8b",
+            ModelRef::Local {
+                path: PathBuf::from("remote:lab-box/qwen3:8b"),
+            },
+        );
+        remote.id = "remote:lab-box/qwen3:8b".into();
+        let models = build(&[local, remote], |_| None, &ToolChecks::default(), &[]);
+        assert_eq!(models.len(), 2);
+        assert!(!models[0].remote);
+        let r = &models[1];
+        assert!(r.remote);
+        assert_eq!(r.alias, "remote:lab-box/qwen3:8b");
+        // No file: nothing to fit, no verdict from a template, but selectable as a chat model.
+        assert!(r.model_path.is_none() && r.file_bytes.is_none() && r.context_size.is_none());
+        assert_eq!(r.tools, ToolSupport::Unknown);
+        assert_ne!(r.chat, Some(false));
     }
 
     #[test]

@@ -157,6 +157,7 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(system::openapi_json))
         .routes(routes!(system::shutdown))
         .routes(routes!(gateway::gateway))
+        .routes(routes!(gateway::jobs))
         .routes(routes!(models::list_models))
         .routes(routes!(models::get_model, models::delete_model))
         .routes(routes!(models::model_fit))

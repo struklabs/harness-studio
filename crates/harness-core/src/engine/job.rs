@@ -21,6 +21,10 @@ pub struct JobCommand {
     pub cwd: Option<PathBuf>,
     /// Files the run must leave behind; a run that exits 0 without them failed.
     pub outputs: Vec<PathBuf>,
+    /// GPU footprint (weights + context + overhead), estimated before enqueueing.
+    /// CPU-only jobs explicitly reserve zero; unknown GPU footprints reserve u64::MAX.
+    pub memory_bytes: u64,
+    pub priority: crate::jobs::Priority,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -117,6 +121,58 @@ async fn drain_cancelled_output(
 /// Runs `cmd` to completion, cancellation or failure. `parse` reads progress from each
 /// output line (a [`JobEngine::parse_progress`]); `cancel` turning true kills the process.
 pub async fn run_job(
+    cmd: &JobCommand,
+    parse: impl Fn(&str) -> Option<JobProgress>,
+    cancel: watch::Receiver<bool>,
+    on_event: impl FnMut(JobEvent),
+) -> JobOutcome {
+    run_job_on(crate::jobs::global().clone(), cmd, parse, cancel, on_event).await
+}
+
+async fn run_job_on(
+    scheduler: std::sync::Arc<crate::jobs::JobScheduler>,
+    cmd: &JobCommand,
+    parse: impl Fn(&str) -> Option<JobProgress>,
+    mut cancel: watch::Receiver<bool>,
+    mut on_event: impl FnMut(JobEvent),
+) -> JobOutcome {
+    let ticket = scheduler.submit(
+        cmd.binary
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned(),
+        cmd.priority,
+        cmd.memory_bytes,
+    );
+    let mut central_cancel = ticket.cancellation();
+    tokio::select! {
+        result = ticket.wait() => if result.is_err() { return JobOutcome::Cancelled; },
+        _ = cancel.wait_for(|cancelled| *cancelled) => return JobOutcome::Cancelled,
+    }
+    if *cancel.borrow() || ticket.is_cancelled() {
+        return JobOutcome::Cancelled;
+    }
+    let (combined, receiver) = watch::channel(false);
+    let work = run_job_inner(cmd, parse, receiver, |event| {
+        ticket.loaded();
+        on_event(event);
+    });
+    tokio::pin!(work);
+    tokio::select! {
+        result = &mut work => result,
+        _ = cancel.wait_for(|cancelled| *cancelled) => {
+            combined.send_replace(true);
+            work.await
+        },
+        _ = central_cancel.wait_for(|cancelled| *cancelled) => {
+            combined.send_replace(true);
+            work.await
+        },
+    }
+}
+
+async fn run_job_inner(
     cmd: &JobCommand,
     mut parse: impl Fn(&str) -> Option<JobProgress>,
     mut cancel: watch::Receiver<bool>,
@@ -270,6 +326,8 @@ mod tests {
             args,
             cwd: Some(cwd.to_path_buf()),
             outputs,
+            memory_bytes: 0,
+            priority: crate::jobs::Priority::Background,
         }
     }
 
@@ -385,7 +443,7 @@ mod tests {
     /// The grandchild reports progress, then writes `late.txt` about 15 seconds in; killing only
     /// the shell would let it.
     #[tokio::test]
-    async fn cancel_kills_the_process_tree() {
+    async fn central_cancel_kills_the_process_tree() {
         let dir = tempfile::tempdir().unwrap();
         // The grandchild's work is a script file: nested quotes do not survive argv quoting.
         #[cfg(windows)]
@@ -407,14 +465,17 @@ mod tests {
             // `; true` keeps the shell from exec-ing into the script.
             shell("sh late.sh; true", dir.path(), vec![])
         };
-        let (tx, rx) = watch::channel(false);
+        let (_tx, rx) = watch::channel(false);
+        let scheduler = std::sync::Arc::new(crate::jobs::JobScheduler::default());
+        let cancel_scheduler = scheduler.clone();
         // Timed from the cancel, not the spawn: a loaded machine can be slow to start `cmd`.
         let cancelled_at = std::sync::Arc::new(std::sync::Mutex::new(None::<Instant>));
         let mark = cancelled_at.clone();
-        let outcome = run_job(&cmd, steps, rx, move |e| {
+        let outcome = run_job_on(scheduler, &cmd, steps, rx, move |e| {
             if matches!(e, JobEvent::Progress(_)) {
                 mark.lock().unwrap().get_or_insert_with(Instant::now);
-                let _ = tx.send(true);
+                let id = cancel_scheduler.snapshot()[0].id;
+                assert!(cancel_scheduler.cancel(id));
             }
         })
         .await;
