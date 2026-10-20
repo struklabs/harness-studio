@@ -77,7 +77,7 @@
       .catch(() => { if (live) deviceError = true; });
     return () => { live = false; };
   });
-  let resourceLayer = $derived(resourceOverrides(resource, (devices?.devices ?? []).map(d => d.index)));
+  let resourceLayer = $derived(resourceOverrides(resource, devices?.devices ?? [], app.hardware?.gpus ?? []));
   /** The engine's parameters this level shows (typed launch fields are not catalog values). */
   let engineSpecs = $derived(
     (engineCatalog?.param ?? []).filter((p) => !p.legacy_field && (uiLevel.level === 'advanced' || p.level === 'basic')),

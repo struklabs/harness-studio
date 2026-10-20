@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ModelCapabilities from '../common/ModelCapabilities.svelte';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { localizeError } from '#lib/network.js';
@@ -509,6 +510,7 @@
             <ExternalLink class="size-3" />
           </button></AdvancedOnly>
         </Sheet.Description>
+        <ModelCapabilities record={{ capabilities: repo.capabilities, runtime: 'runtime' in repo.compatibility ? repo.compatibility.runtime : null, compatibility: repo.compatibility }} task={repo.pipeline_tag ?? repo.inferred_task} />
       </Sheet.Header>
 
       <Tabs.Root bind:value={tab} class="min-h-0 flex-1 gap-0">

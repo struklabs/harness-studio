@@ -9608,7 +9608,8 @@
           "rerank",
           "asr",
           "tts",
-          "image_generation"
+          "image_generation",
+          "video"
         ]
       },
       "Catalog": {
