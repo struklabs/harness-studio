@@ -160,6 +160,16 @@ pub fn set_enabled(root: &Path, name: &str, enabled: bool) -> Result<(), String>
     save(root, &s)
 }
 
+/// Record external content as disabled before publishing its directory.
+pub(crate) fn disable_for_install(root: &Path, name: &str) -> Result<(), String> {
+    if !valid_name(name) {
+        return Err("Invalid skill name".into());
+    }
+    let mut s = state(root);
+    s.disabled.insert(name.into());
+    save(root, &s)
+}
+
 pub fn remove(root: &Path, name: &str) -> Result<(), String> {
     let path = directory(root, name)?;
     std::fs::remove_dir_all(path).map_err(|e| e.to_string())?;

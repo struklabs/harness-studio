@@ -78,6 +78,7 @@ include!("integrations.rs");
 include!("harness_mcp.rs");
 include!("library.rs");
 include!("hub.rs");
+include!("github_discovery.rs");
 include!("logs.rs");
 include!("mcp.rs");
 include!("network.rs");
