@@ -6,12 +6,16 @@
 
 <!-- Commands you ran, platform, GPU/backend, model. Screenshots for UI changes. -->
 
+## Changelog
+
+<!-- Proposed user-facing changelog lines belong here; do not edit docs/CHANGELOG.md. -->
+
 ## Checklist
 
 - [ ] `npm run check` passes with 0 errors
 - [ ] `npm run check:locales` passes (new UI text added in both Turkish and English)
 - [ ] `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings` pass
 - [ ] `cargo test --workspace` passes; tests added or updated for behavior changes
-- [ ] Documentation updated where relevant (`docs/`, user guides in `docs/guide/en` and `docs/guide/tr`)
-- [ ] `docs/CHANGELOG.md` `[Unreleased]` section updated for user-facing changes
+- [ ] English documentation updated where relevant; Turkish translations sync in one batch at release time
+- [ ] User-facing changelog lines included in this PR body; `docs/CHANGELOG.md` unchanged
 - [ ] No secrets, personal paths, or unrelated changes included
