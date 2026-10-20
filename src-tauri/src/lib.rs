@@ -8,6 +8,7 @@ pub mod push;
 #[cfg(all(windows, debug_assertions, feature = "qa-cdp"))]
 mod qa_cdp;
 pub mod startup;
+pub mod uninstall;
 
 // Core services live in `harness-core`; re-exported so `crate::<module>` paths keep working.
 pub use harness_core::{
@@ -82,6 +83,11 @@ pub(crate) async fn stop_lemonade_and_mcp() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // One copy of the embedded frontend serves both the app and the uninstall window.
+    let context = tauri::generate_context!();
+    if let Some(options) = uninstall::parse_args() {
+        return uninstall::run(options, context);
+    }
     let registry = Arc::new(ServerRegistry::default());
     let runtime_mgr = Arc::new(RuntimeManager::default());
     let model_mgr = Arc::new(ModelManager);
@@ -352,8 +358,7 @@ pub fn run() {
             estimate_definition_load_fit,
             get_backend_status,
             get_app_settings,
-            get_cleanup_plan,
-            prepare_uninstall,
+            launch_uninstaller,
             save_app_settings,
             set_audio_cpp_enabled,
             get_network_overview,
@@ -749,7 +754,7 @@ pub fn run() {
             set_analytics_settings,
             clear_analytics,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(move |app, event| {
             // macOS: clicking the Dock icon with the window hidden in the menu bar (or its
