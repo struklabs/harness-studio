@@ -4,6 +4,27 @@ All notable changes to Harness Studio are documented here. The format follows [K
 
 Release notes with system requirements and known limitations (English and Turkish): [0.1.2 English](en/RELEASE_NOTES_0.1.2.md) / [Türkçe](tr/RELEASE_NOTES_0.1.2.md).
 
+## [Unreleased]
+
+- Modules: a new Modules screen; speech recognition is an optional module you can install, enable, disable, update, repair, roll back and remove, with disk usage shown and your data kept on removal. (#307, #312)
+- Modüller: yeni Modüller ekranı; konuşma tanıma kurulup açılıp kapatılabilen, güncellenebilen, onarılabilen, geri alınabilen ve kaldırılabilen isteğe bağlı bir modül; disk kullanımı gösterilir, kaldırmada verileriniz korunur. (#307, #312)
+- Official Harness Registry: browse and install official Tools, MCP servers and Skills. (#308, #310)
+- Resmi Harness Registry: resmi Araçları, MCP sunucularını ve Skill'leri görüntüleyip kurabilirsiniz. (#308, #310)
+- Agents: connect Hermes Agent or an existing Paperclip instance to Harness models, run tasks, and review task history, per-run permissions and the audit log. (#309, #311)
+- Ajanlar: Hermes Agent'ı veya mevcut bir Paperclip kurulumunu Harness modellerine bağlayın, görev çalıştırın; görev geçmişini, çalıştırma bazlı izinleri ve denetim kaydını inceleyin. (#309, #311)
+- Agent Skills (SKILL.md) support; Tool Builder fixes and clearer permissions. (#310)
+- Agent Skills (SKILL.md) desteği; Tool Builder düzeltmeleri ve daha net izinler. (#310)
+- Clearer trust levels and permission summaries; MCP and agent processes are contained and cleaned up. (#313)
+- Daha net güven seviyeleri ve izin özetleri; MCP ve ajan süreçleri sınırlanır ve temizlenir. (#313)
+- Model capability badges, including Audio Input; tools load on demand, cutting tool prompt tokens by about half. (#315, #322)
+- Model yetenek rozetleri (Ses Girdisi dahil); araçlar gerektiğinde yükleniyor, araç istemi token'ları yaklaşık yarıya iniyor. (#315, #322)
+- Discover has categories for Skills, MCP, Connectors, Tools and Modules; model setup and where models run are clearer. (#316)
+- Keşfet, Skill, MCP, Connector, Araç ve Modüller için kategoriler sunuyor; model kurulumu ve modellerin çalıştığı yer daha net. (#316)
+- Manage a headless Harness server from your browser with a secure admin login and optional HTTPS. (#317)
+- Ekransız Harness sunucusunu güvenli yönetici girişi ve isteğe bağlı HTTPS ile tarayıcıdan yönetin. (#317)
+- Fixed on-demand tool routing dropping a tool forced through tool_choice; the tool routing warning is shorter, hides credentials and offers copyable details. (#321, #322)
+- İsteğe bağlı araç yönlendirmesinin tool_choice ile zorlanan aracı düşürmesi düzeltildi; araç yönlendirme uyarısı kısaldı, kimlik bilgilerini gizler ve kopyalanabilir ayrıntı sunar. (#321, #322)
+
 ## [0.1.2] - 2026-10-18
 
 - The section menu stays open after you choose an item; close it with Collapse.
