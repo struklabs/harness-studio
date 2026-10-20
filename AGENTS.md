@@ -3,12 +3,15 @@
 - Harness Studio is a Tauri + Svelte 5 desktop app: `src/` is the frontend,
   `crates/` contains Rust services, and `src-tauri/` is the desktop shell.
 - English docs under `docs/en/` and root `README.md` are the single source of truth.
-  Read only English documentation; the English user guide is in `docs/guide/en/`.
+  Read only English documentation, except `docs/tr/ROADMAP.md`;
+  the English user guide is in `docs/guide/en/`.
 - Never load `docs/tr/`, `docs/guide/tr/`, `README.tr.md`, or other Turkish
   translations (including Turkish sections in bilingual files) unless the task
-  is translation. Compare filenames and Git metadata for structural audits.
+  is translation or the task updates `docs/tr/ROADMAP.md`. Compare filenames and
+  Git metadata for structural audits.
 - Keep current EN/TR documentation pairs for public GitHub readers. Sync Turkish
-  translations in one batch at release time, never per PR.
+  translations in one batch at release time, never per PR, except
+  `docs/tr/ROADMAP.md`: it is the one Turkish doc kept in sync per change.
 - Never commit test reports, regression notes, one-off scripts, screenshots,
   build output, or AI attribution. Preserve tests and their fixtures, reusable
   tooling, release notes, licenses/notices, SDKs, and workflows during cleanup.

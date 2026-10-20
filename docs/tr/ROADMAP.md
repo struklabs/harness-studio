@@ -36,39 +36,43 @@ Harness Studio, yerel metin, görsel, konuşma ve araç iş yüklerini tek yerde
 
 ## 0.2
 
+Durum: W1–W4 tamamlandı, W5 sürüyor. Kısmen tamamlanan maddelerin kalan kapsamı aşağıda açık tutuldu.
+
 Uçtan uca akışları sırayla sunmak: her dalga kurulum, kullanım, izin ve kurtarma adımlarını kapsar. Her üçüncü dalga (W3, W6, …) sunulan akışları iyileştirir. Modül altyapısı, Daha Sonra özelliklerini 0.2'ye taşımaz.
 
 ### W1 — Modül Keşfi ve Kurulumu
 
-- [ ] Temel uygulamayı hafif tutmak; işlevsel alan olan Module, paylaşılan Component, Skill, MCP sunucusu, Connector, Tool ve Client Integration türlerini ayırmak. İsteğe bağlı Training, Agents, Automations, Paperclip ve REA alanları için anlaşılır gezinme planlamak.
-- [ ] Kullanıcının modül işlevlerini, bağımlılıklarını, izinlerini ve disk tahminini incelemesini, kurulumu onaylamasını ve aynı menüden çalışma alanını açmasını sağlamak. İlk açılış, modül kurulumu ve tekrar kullanılabilir iş hazırlığını ayırmak.
-- [ ] Uyumluluk denetimiyle sürümlü manifest, API/IPC sınırları ve yalıtılmış arka uç süreçleri kullanmak. Modül arayüzünü uygulamayla dağıtmak; indirilebilir ekran veya dış JavaScript arayüzü olmadan yalnız arka uçları/bağımlılıkları indirmek.
-- [ ] Mevcut `struklabs/harness-registry` deposunu yalnız resmî StrukLabs Skill, MCP sunucusu ve Tool içerikleri için ilerletmek. Mevcut içeriği doğrulamak; web sitesi veya otomatik yayını beklemeden sürümlü indeks ve bakımcı PR'larıyla arama, sıralama, filtre, açıklama, sürüm bilgisi ve CI kontrolü sunmak.
+- [x] Temel uygulamayı hafif tutmak; işlevsel alan olan Module, paylaşılan Component, Skill, MCP sunucusu, Connector, Tool ve Client Integration türlerini ayırmak. İsteğe bağlı Training, Agents, Automations, Paperclip ve REA alanları için anlaşılır gezinme planlamak ([PR #307](https://github.com/struklabs/harness-studio/pull/307)).
+- [x] Kullanıcının modül işlevlerini, bağımlılıklarını, izinlerini ve disk tahminini incelemesini, kurulumu onaylamasını ve aynı menüden çalışma alanını açmasını sağlamak. İlk açılış, modül kurulumu ve tekrar kullanılabilir iş hazırlığını ayırmak ([PR #307](https://github.com/struklabs/harness-studio/pull/307)).
+- [x] Uyumluluk denetimiyle sürümlü manifest, API/IPC sınırları ve yalıtılmış arka uç süreçleri kullanmak. Modül arayüzünü uygulamayla dağıtmak; indirilebilir ekran veya dış JavaScript arayüzü olmadan yalnız arka uçları/bağımlılıkları indirmek ([PR #307](https://github.com/struklabs/harness-studio/pull/307)).
+- [x] Mevcut `struklabs/harness-registry` deposunu yalnız resmî StrukLabs Skill, MCP sunucusu ve Tool içerikleri için ilerletmek. Mevcut içeriği doğrulamak; web sitesi veya otomatik yayını beklemeden sürümlü indeks ve bakımcı PR'larıyla arama, sıralama, filtre, açıklama, sürüm bilgisi ve CI kontrolü sunmak ([PR #308](https://github.com/struklabs/harness-studio/pull/308), [Registry PR #1](https://github.com/struklabs/harness-registry/pull/1)).
 
 ### W2 — Ajan Bağlama ve Görev Tamamlama
 
-Tamamlanan dilimler: [Hermes Agent bağlantısı, görevler, kısıtlı okuma izinleri, geçmiş/denetim ve mevcut Paperclip örneğine model aktarımı](HERMES_AGENT.md). Aşağıdaki daha geniş OpenClaw, upstream güncelleme ve Araç Oluşturucu kapsamı açık kalır.
+Tamamlanan dilimler: [Hermes Agent bağlantısı, görevler, kısıtlı okuma izinleri, geçmiş/denetim ve mevcut Paperclip örneğine model aktarımı](HERMES_AGENT.md) (#309, #311), ayrıca Araç Oluşturucu ve Agent Skills (#310). OpenClaw ve upstream sürüm takibi açık kalır; yönetilen Hermes güncellemeleri uygulamayla gelen sabit sürümleri kullanır (#312).
 
-- [ ] OpenClaw veya Hermes Agent'ı isteğe bağlı kurmak ya da mevcut kurulumlara bağlanmak; dış arayüzlerini koruyarak upstream sürümleri, kurulum, başlatma/güncelleme, eksik bağımlılıklar ve ilk çalıştırma testlerini yönetmek.
-- [ ] Yerel veya Harness Link modellerini OpenClaw, Hermes Agent ve mevcut Paperclip örneğine sağlamak; görev/donanıma uygun model önerip uç nokta/anahtarları güvenle yapılandırmak. Paperclip yaşam döngüsü yönetimini Daha Sonra kapsamında tutmak.
-- [ ] Onay, denetim kaydı ve durdurma denetimleriyle ajan görev/oturumlarını, model bağlantılarını, durumu, performansı, hataları ve kapsamlı araç izinlerini yönetmek; varsayılan olarak sınırsız yetki vermemek.
-- [ ] Mevcut Otomatik Araç Oluşturucu'nun oluşturma/test/kaydetme akışını ve izin gösterimini iyileştirmek; kullanıcı araçlarıyla kurulan Tool'ları ayırmak, Agent Skills/`SKILL.md` desteği sunmak, dış kodlama ajanlarının akışlarını yinelemek yerine Harness araçlarını paylaşmak.
+- [ ] OpenClaw veya Hermes Agent'ı isteğe bağlı kurmak ya da mevcut kurulumlara bağlanmak; dış arayüzlerini koruyarak upstream sürümleri, kurulum, başlatma/güncelleme, eksik bağımlılıklar ve ilk çalıştırma testlerini yönetmek ([PR #309](https://github.com/struklabs/harness-studio/pull/309), [PR #312](https://github.com/struklabs/harness-studio/pull/312)). Kalan: OpenClaw ve upstream sürüm takibi.
+- [ ] Yerel veya Harness Link modellerini OpenClaw, Hermes Agent ve mevcut Paperclip örneğine sağlamak; görev/donanıma uygun model önerip uç nokta/anahtarları güvenle yapılandırmak. Paperclip yaşam döngüsü yönetimini Daha Sonra kapsamında tutmak ([PR #309](https://github.com/struklabs/harness-studio/pull/309), [PR #311](https://github.com/struklabs/harness-studio/pull/311)). Kalan: OpenClaw model aktarımı.
+- [x] Onay, denetim kaydı ve durdurma denetimleriyle ajan görev/oturumlarını, model bağlantılarını, durumu, performansı, hataları ve kapsamlı araç izinlerini yönetmek; varsayılan olarak sınırsız yetki vermemek ([PR #311](https://github.com/struklabs/harness-studio/pull/311)).
+- [x] Mevcut Otomatik Araç Oluşturucu'nun oluşturma/test/kaydetme akışını ve izin gösterimini iyileştirmek; kullanıcı araçlarıyla kurulan Tool'ları ayırmak, Agent Skills/`SKILL.md` desteği sunmak, dış kodlama ajanlarının akışlarını yinelemek yerine Harness araçlarını paylaşmak ([PR #310](https://github.com/struklabs/harness-studio/pull/310)).
 
 ### W3 — İyileştirme Dalgası: Güvenilir Kurulum ve Ajan Kullanımı
 
-İlk dilim: [Modül Yaşam Döngüsü](MODULE_LIFECYCLE.md), mevcut Konuşma Tanıma ve Hermes Agent modüllerini kapsar; aşağıdaki daha geniş güvenlik ve lisans çalışmaları henüz tamamlanmamıştır.
+Tamamlanan dilimler: [Modül Yaşam Döngüsü](MODULE_LIFECYCLE.md), Konuşma Tanıma ve Hermes Agent modüllerini kapsar (#312); güven seviyeleri, süreç sınırlama ve lisans incelemesi teslim edildi (#313). Tamamen çevrimdışı kurulum ve işletim sistemi güvenlik yalıtımı açık kalır.
 
-- [ ] Paylaşılan bileşen sahipliği, disk kullanımı, uyumluluk denetimi, geri alma ve uygulanabilir çevrimdışı kurulum/kaldırmayla modül açma/kapatma, güncelleme, onarma ve kaldırmayı tamamlamak. Kullanımdaki bileşenlerin kaldırılmasını engellemek.
-- [ ] İş, sohbet, model ve fiziksel dosya silmeyi ayırmak; modül ve uygulama kaldırılırken veri kümelerini, modelleri, projeleri ve değerli çıktıları korumak, silme tercihlerini açıkça sunmak.
-- [ ] Mevcut Güvenlik Modeli'ni MCP, ajan motoru, eğitim arka ucu ve Tool güven seviyeleriyle genişletmek; dosya/klasör, ağ, kabuk, servis, hesap ve dışarı veri aktarımı izinlerini verme/geri alma anında açıklamak. Mümkün olduğunda işletim sistemi yalıtımı kullanıp Windows/macOS/Linux sınırlarını belgelemek.
-- [ ] Durum, bağımlılık, ilerleme, hata ve kurtarmayı tutarlı kılmak; disk alanı ve süreç temizliğiyle modüllerin uygulamayı kilitlemesini önlemek. Entegrasyon öncesinde üçüncü taraf lisans, yeniden dağıtım, ticari kullanım, gömme, barındırma ve atıf koşullarını incelemek.
+- [ ] Paylaşılan bileşen sahipliği, disk kullanımı, uyumluluk denetimi, geri alma ve uygulanabilir çevrimdışı kurulum/kaldırmayla modül açma/kapatma, güncelleme, onarma ve kaldırmayı tamamlamak. Kullanımdaki bileşenlerin kaldırılmasını engellemek ([PR #312](https://github.com/struklabs/harness-studio/pull/312)). Kalan: tamamen çevrimdışı kurulum.
+- [x] İş, sohbet, model ve fiziksel dosya silmeyi ayırmak; modül ve uygulama kaldırılırken veri kümelerini, modelleri, projeleri ve değerli çıktıları korumak, silme tercihlerini açıkça sunmak ([PR #312](https://github.com/struklabs/harness-studio/pull/312)).
+- [ ] Mevcut Güvenlik Modeli'ni MCP, ajan motoru, eğitim arka ucu ve Tool güven seviyeleriyle genişletmek; dosya/klasör, ağ, kabuk, servis, hesap ve dışarı veri aktarımı izinlerini verme/geri alma anında açıklamak. Mümkün olduğunda işletim sistemi yalıtımı kullanıp Windows/macOS/Linux sınırlarını belgelemek ([PR #313](https://github.com/struklabs/harness-studio/pull/313)). Kalan: işletim sistemi güvenlik yalıtımı.
+- [x] Durum, bağımlılık, ilerleme, hata ve kurtarmayı tutarlı kılmak; disk alanı ve süreç temizliğiyle modüllerin uygulamayı kilitlemesini önlemek. Entegrasyon öncesinde üçüncü taraf lisans, yeniden dağıtım, ticari kullanım, gömme, barındırma ve atıf koşullarını incelemek ([PR #312](https://github.com/struklabs/harness-studio/pull/312), [PR #313](https://github.com/struklabs/harness-studio/pull/313)).
 
 ### W4 — Model Seçimi ve İlgili Araç Kullanımı
 
-- [ ] Seçilen modelin sohbet, görü, görsel üretimi, STT, TTS, video, embedding, yeniden sıralama ve araç çağırma yeteneklerini göstermek; deneysel veya uyumsuz model/motor birleşimlerini açıkça etiketlemek.
-- [ ] Her şemayı her isteğe eklemek yerine gerektiğinde keşif ve şema yüklemeyle ilgili Tool/MCP yeteneklerine yönlendirmek; yönlendirme hatalarını ve izin ihtiyaçlarını göstermek.
-- [ ] Keşfet'te Skill, MCP sunucusu, Connector, Tool ve uygulamayla gelen Module türlerini ayrı göstermek; modül/arka uç kurulum metadatasını resmî Skill/MCP/Tool Registry'sinden ayrı tutmak.
-- [ ] İlk model kurulumu, kaynak seçimi, model değiştirme ve çalıştırma konumunu anlaşılır kılmak; akış boyunca model, sağlayıcı, ajan, iş akışı ve cihazı ayırmak.
+Keşif ve kurulum dilimi: [Keşfet ve Model Kurulumu](../en/MODEL_SETUP.md), mevcut Registry, Modüller, MCP ayarları, Playground ve Kütüphane akışlarını bağlar; özel Connector katalogları ve sağlayıcı model bağlantıları bu dilimin dışındadır.
+
+- [x] Seçilen modelin sohbet, görü, görsel üretimi, STT, TTS, video, embedding, yeniden sıralama ve araç çağırma yeteneklerini göstermek; deneysel veya uyumsuz model/motor birleşimlerini açıkça etiketlemek ([PR #315](https://github.com/struklabs/harness-studio/pull/315)).
+- [x] Her şemayı her isteğe eklemek yerine gerektiğinde keşif ve şema yüklemeyle ilgili Tool/MCP yeteneklerine yönlendirmek; yönlendirme hatalarını ve izin ihtiyaçlarını göstermek ([PR #315](https://github.com/struklabs/harness-studio/pull/315)).
+- [x] Keşfet'te Skill, MCP sunucusu, Connector, Tool ve uygulamayla gelen Module türlerini ayrı göstermek; modül/arka uç kurulum metadatasını resmî Skill/MCP/Tool Registry'sinden ayrı tutmak ([PR #316](https://github.com/struklabs/harness-studio/pull/316)).
+- [x] İlk model kurulumu, kaynak seçimi, model değiştirme ve çalıştırma konumunu anlaşılır kılmak; akış boyunca model, sağlayıcı, ajan, iş akışı ve cihazı ayırmak ([PR #316](https://github.com/struklabs/harness-studio/pull/316)).
 
 ### W5 — Mevcut Harness Sunucusunu Yönetme
 
