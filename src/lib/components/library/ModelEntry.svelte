@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ModelCapabilities from '../common/ModelCapabilities.svelte';
   import { onDestroy } from 'svelte';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
@@ -416,6 +417,7 @@
       </div>
       <!-- Primary facts in one line of text (no badge per fact); the rest is under "Details". -->
       <p class="break-words text-xs text-muted-foreground [overflow-wrap:anywhere]" title={summary}>{summary}</p>
+      <ModelCapabilities record={entry.record} caps={entry.caps} task={m.task} />
     </div>
     <DropdownMenu.Root onOpenChange={onMenuChange}>
       <DropdownMenu.Trigger class={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'shrink-0')} aria-label={t('lib.actions')}>

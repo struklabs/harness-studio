@@ -1,14 +1,15 @@
 <script lang="ts">
+  import ModelCapabilities from '../common/ModelCapabilities.svelte';
   // Playground model picker: every model definition with its run state (downloaded / loading /
   // loaded & running / not downloaded). Load a definition on the selected server, a new server or
   // one of its profiles, unload it, or switch the conversation to a server that runs it.
   import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
-  import type { DefinitionRunState, LoadTarget, ModelDefinition, ParamValues } from '#lib/types.js';
+  import type { LibraryEntry, LibraryView, DefinitionRunState, LoadTarget, ModelDefinition, ParamValues } from '#lib/types.js';
   import LoadSettings from './LoadSettings.svelte';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { savedPortText } from '../servers/utils';
-  import { definitionsForMode } from './modelModes';
+  import { definitionFile as resolveDefinitionFile, definitionsForMode } from './modelModes';
   import { library } from '#lib/stores/library.svelte.js';
   import { security } from '#lib/stores/security.svelte.js';
   import { filterRemoteModels, isRemoteModel, type RemoteModel } from './remoteModels';
@@ -38,7 +39,14 @@
 
   let { currentModel, onUse, onPicked, label, mode = 'chat' }: Props = $props();
 
+  let entries = $state<LibraryEntry[]>([]);
   let open = $state(false);
+  $effect(() => {
+    if (!open) return;
+    let alive = true;
+    void invoke<LibraryView>('list_library').then(view => { if (alive) entries = view.entries; }).catch(() => { if (alive) entries = []; });
+    return () => { alive = false; };
+  });
   let query = $state('');
   let remoteModels = $state<RemoteModel[]>([]);
   let remoteError = $state('');
@@ -276,10 +284,12 @@
       {#each rows as { def, st } (def.id)}
         {@const state = st?.state ?? 'idle'}
         {@const file = definitionFile(def)}
+        {@const entry = entries.find(e => e.model.id === resolveDefinitionFile(def, entries.map(e => e.model))?.id)}
         <div>
         <div class={cn('flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5', current?.id === def.id && 'bg-muted/60')}>
           <div class="flex min-w-0 flex-1 flex-col">
             <span class="truncate font-mono text-xs text-foreground" title={def.alias}>{def.alias}</span>
+            <ModelCapabilities record={entry?.record} caps={entry?.caps} task={entry?.model.task} />
             <span class="truncate text-xs text-muted-foreground" title={file ?? ''}>
               <span class={TONE[state]}>{t(LABEL[state])}</span>
               {#if st?.servers.length}

@@ -44,8 +44,10 @@ pub enum Capability {
     Asr,
     /// Speech synthesis (sherpa-onnx: Kokoro, Piper).
     Tts,
-    /// Image / video generation. No Harness runtime yet.
+    /// Image generation (also retained for video runtime routing).
     ImageGeneration,
+    /// Video input or generation, derived from a declared task.
+    Video,
 }
 
 /// Capability, format and runtime verdict of one model (a local file or a Hub repo).
@@ -80,16 +82,15 @@ pub fn task_capabilities(task: &str) -> &'static [Capability] {
         | "visual-question-answering"
         | "any-to-any"
         | "image-to-text"
-        | "document-question-answering"
-        | "video-text-to-text" => &[Chat, Vision],
+        | "document-question-answering" => &[Chat, Vision],
+        "video-text-to-text" => &[Chat, Vision, Video],
         "audio-text-to-text" => &[Chat, Audio],
         "feature-extraction" | "sentence-similarity" => &[Embedding],
         "text-ranking" => &[Rerank],
         "automatic-speech-recognition" => &[Asr],
         "text-to-speech" | "text-to-audio" => &[Tts],
-        "text-to-image" | "image-to-image" | "text-to-video" | "image-to-video" => {
-            &[ImageGeneration]
-        }
+        "text-to-image" | "image-to-image" => &[ImageGeneration],
+        "text-to-video" | "image-to-video" => &[ImageGeneration, Video],
         _ => &[],
     }
 }
@@ -326,8 +327,16 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             ModelFormat::Pytorch
         };
         let runtime = crate::engine::PYTHON_HF.to_string();
+        let mut capabilities = local_capabilities(caps);
+        if model
+            .task
+            .as_deref()
+            .is_some_and(|task| task_capabilities(task).contains(&Capability::Video))
+        {
+            capabilities.push(Capability::Video);
+        }
         return ModelRecord {
-            capabilities: local_capabilities(caps),
+            capabilities,
             format,
             runtime: Some(runtime.clone()),
             compatibility: Some(Compatibility::Runnable { runtime }),
@@ -521,6 +530,24 @@ mod tests {
         let f = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
         f.set_len(size).unwrap();
         path.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn video_tasks_preserve_runtime_routing_and_distinguish_video() {
+        use Capability::*;
+        assert_eq!(
+            task_capabilities("text-to-video"),
+            &[ImageGeneration, Video]
+        );
+        assert_eq!(
+            task_capabilities("video-text-to-text"),
+            &[Chat, Vision, Video]
+        );
+        assert!(!task_capabilities("text-to-image").contains(&Video));
+        assert!(matches!(
+            hub_compatibility(ModelFormat::Gguf, task_capabilities("text-to-video")),
+            Compatibility::Runnable { .. }
+        ));
     }
 
     #[test]
