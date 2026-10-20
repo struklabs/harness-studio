@@ -1,5 +1,7 @@
 <script lang="ts">
   import DiscoverCategories from './hub/DiscoverCategories.svelte';
+  import GithubDiscover from './hub/GithubDiscover.svelte';
+  let github = $state(false);
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { onMount, untrack } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
@@ -334,7 +336,10 @@
 </script>
 
 <div class="@container/hub flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
-  <DiscoverCategories />
+  <DiscoverCategories bind:github />
+  {#if github}
+    <GithubDiscover />
+  {:else}
   <HubSearchBar
     bind:query={searchQuery}
     bind:sort={sortKey}
@@ -515,6 +520,7 @@
 
   <DownloadQueuePanel queue={downloads} />
   <ConvertQueuePanel />
+  {/if}
 </div>
 
 <VariantDrawer
