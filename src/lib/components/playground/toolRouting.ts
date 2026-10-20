@@ -80,8 +80,11 @@ export async function routeTools(endpoint: string, body: Record<string, unknown>
     errorMessage = error instanceof Error ? error.message : String(error);
   }
   // History may refer to schemas already used; preserve those contracts across tool rounds.
+  // A forced function in tool_choice must stay defined, or the server rejects the request.
+  const choice = body.tool_choice as { function?: { name?: unknown } } | string | undefined;
+  const forced = typeof choice === 'object' && choice !== null && typeof choice.function?.name === 'string' ? choice.function.name : '';
   const previous = new Set(messages.flatMap(m => (m.tool_calls as { function?: { name?: string } }[] | undefined)?.map(c => c.function?.name) ?? []));
-  selected = tools.filter(t => selected.includes(t) || previous.has(t.function.name));
+  selected = tools.filter(t => selected.includes(t) || previous.has(t.function.name) || t.function.name === forced);
   const routed = { ...body };
   if (selected.length) routed.tools = selected;
   else if (body.tool_choice === 'required' || (typeof body.tool_choice === 'object' && body.tool_choice)) {
