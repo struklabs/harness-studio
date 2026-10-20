@@ -51,7 +51,15 @@ test('disabled modules retain recovery actions and cannot be opened or reinstall
 
 test('uninstall hooks preserve data and module removal choices default to keeping it', () => {
   const hooks = readFileSync(new URL('../src-tauri/windows/hooks.nsh', import.meta.url), 'utf8');
-  assert.doesNotMatch(hooks, /^\s*(?:RMDir|Delete)\s/im);
+  // The only file the hook removes itself is the installer's own `setup-skipped` marker in the
+  // install folder; user data is only ever removed by the app's uninstall window or the
+  // `harness cleanup` helper, which deletes data only when the checkbox is ticked.
+  const removals = [...hooks.matchAll(/^\s*(?:RMDir|Delete)\s+(.*)$/gim)].map(m => m[1].trim());
+  assert.deepEqual(removals, ['"$INSTDIR\\setup-skipped"']);
+  assert.doesNotMatch(hooks, /(?:RMDir|Delete)\s+(?:\/r\s+)?"?\$APPDATA/i);
+  assert.match(hooks, /\$R6 != "1"/);
+  assert.match(hooks, /cleanup --yes --delete-data/);
+  assert.match(hooks, /\$\{If\} \$DeleteAppDataCheckboxState = 1\s+nsExec::Exec '[^']*cleanup --yes --delete-data'/);
   const ui = readFileSync(new URL('../src/lib/components/Modules.svelte', import.meta.url), 'utf8');
   assert.match(ui, /deleteHistory = \$state\(false\)/);
   assert.match(ui, /deleteLogs = \$state\(false\)/);
