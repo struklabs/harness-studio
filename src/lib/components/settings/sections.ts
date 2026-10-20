@@ -1,7 +1,7 @@
-import { Cpu, HardDrive, Network, Palette, ShieldCheck, Download, Lock, Code, Stethoscope, Route, Activity, Wrench } from '@lucide/svelte';
+import { Cpu, HardDrive, Network, Palette, ShieldCheck, Download, Lock, Code, Stethoscope, Route, Activity, Wrench, Workflow } from '@lucide/svelte';
 import type { TKey } from '#lib/i18n.svelte.js';
 
-export type SectionId = 'runtime' | 'storage' | 'network' | 'security' | 'gateway' | 'tools' | 'developer' | 'otel' | 'appearance' | 'updates' | 'privacy' | 'diagnostics';
+export type SectionId = 'runtime' | 'storage' | 'network' | 'security' | 'gateway' | 'tools' | 'developer' | 'otel' | 'automations' | 'appearance' | 'updates' | 'privacy' | 'diagnostics';
 
 /** Settings sections, in sidebar order (the command palette lists them too). */
 const ROOT_SECTIONS: { level?: 'advanced'; id: SectionId; label: TKey; desc: TKey; keywords: TKey; icon: typeof Cpu }[] = [
@@ -13,6 +13,7 @@ const ROOT_SECTIONS: { level?: 'advanced'; id: SectionId; label: TKey; desc: TKe
   { id: 'tools', label: 'settings.tab_tools', desc: 'settings.desc_tools', keywords: 'cmd.kw_tools', icon: Wrench },
   { level: 'advanced', id: 'developer', label: 'settings.tab_developer', desc: 'settings.desc_developer', keywords: 'cmd.kw_developer', icon: Code },
   { level: 'advanced', id: 'otel', label: 'settings.tab_otel', desc: 'settings.desc_otel', keywords: 'cmd.kw_otel', icon: Activity },
+  { id: 'automations', label: 'settings.tab_automations', desc: 'settings.desc_automations', keywords: 'cmd.kw_automations', icon: Workflow },
   { id: 'appearance', label: 'settings.tab_appearance', desc: 'settings.desc_appearance', keywords: 'cmd.kw_appearance', icon: Palette },
   { id: 'updates', label: 'settings.tab_updates', desc: 'settings.desc_updates', keywords: 'cmd.kw_updates', icon: Download },
   { id: 'privacy', label: 'settings.tab_privacy', desc: 'settings.desc_privacy', keywords: 'cmd.kw_privacy', icon: ShieldCheck },

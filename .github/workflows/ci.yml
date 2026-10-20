@@ -1,18 +1,20 @@
 name: CI
 
-# Runs on pull requests (including from forks) and on pushes to main, except when a change
-# touches only documentation. No secrets are used: pull requests from forks run without access
-# to any secret.
+# Targeted CI: a small `changes` job maps the changed paths to areas (rust, frontend, sdk,
+# registry, audit) and only the matching jobs run. The `ci-ok` job always runs and reports
+# one result for the whole workflow, so it is the single check to require in branch rules.
+#
+# - Pull requests: one Linux runner per job; docs-only pull requests run nothing heavy.
+# - Push to main: the same path filters, but the Rust job runs on Windows, Linux and macOS.
+# - Weekly schedule and manual runs: every job, all operating systems.
+#
+# No secrets are used: pull requests from forks run without access to any secret.
 on:
   pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
   push:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
+  schedule:
+    - cron: '17 4 * * 1'
   workflow_dispatch:
 
 # Least privilege: jobs can only read the repository contents.
@@ -30,12 +32,130 @@ env:
   CARGO_PROFILE_TEST_DEBUG: line-tables-only
 
 jobs:
-  check:
-    name: ${{ matrix.os }}
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.out.outputs.rust }}
+      frontend: ${{ steps.out.outputs.frontend }}
+      sdk: ${{ steps.out.outputs.sdk }}
+      registry: ${{ steps.out.outputs.registry }}
+      audit: ${{ steps.out.outputs.audit }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # dorny/paths-filter v4.0.3, pinned by commit SHA.
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        id: filter
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        with:
+          filters: |
+            workflow:
+              - '.github/workflows/ci.yml'
+            rust:
+              - 'crates/**'
+              - 'src-tauri/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'rust-toolchain*'
+              - '.cargo/**'
+            frontend:
+              - 'src/**'
+              - 'static/**'
+              - 'shared/**'
+              - 'scripts/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'vite.config.js'
+              - 'tsconfig.json'
+              - 'components.json'
+              - 'crates/harness-core/src/tools/fixtures/**'
+            sdk:
+              - 'sdk/**'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+            registry:
+              - 'crates/harness-core/src/tools/fixtures/**'
+              - 'src/lib/components/tools/**'
+              - 'scripts/test-official-registry.mjs'
+            audit:
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '**/Cargo.toml'
+
+      # Scheduled and manual runs run everything; a change to this workflow does too.
+      - name: Resolve areas
+        id: out
+        env:
+          EVENT: ${{ github.event_name }}
+          WORKFLOW: ${{ steps.filter.outputs.workflow }}
+          RUST: ${{ steps.filter.outputs.rust }}
+          FRONTEND: ${{ steps.filter.outputs.frontend }}
+          SDK: ${{ steps.filter.outputs.sdk }}
+          REGISTRY: ${{ steps.filter.outputs.registry }}
+          AUDIT: ${{ steps.filter.outputs.audit }}
+        run: |
+          all=false
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ] || [ "$WORKFLOW" = true ]; then all=true; fi
+          for area in rust frontend sdk registry audit; do
+            var=$(echo "$area" | tr a-z A-Z)
+            value=${!var}
+            if [ "$all" = true ]; then value=true; fi
+            echo "$area=${value:-false}" >> "$GITHUB_OUTPUT"
+          done
+          cat "$GITHUB_OUTPUT"
+
+  # Frontend only: type check, locale parity, build and the Node tests. One Linux runner.
+  frontend:
+    name: Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Type-check frontend (svelte-check)
+        run: npm run check
+
+      - name: Check locale keys (tr/en parity)
+        run: npm run check:locales
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Frontend tests
+        run: npm run test:text-tool-calls
+
+  # Rust workspace: rustfmt, clippy and tests. The crates depend on harness-core (and
+  # harness-onnx through it), so any crate change checks the whole workspace. Pull requests
+  # use Linux only; pushes to main and scheduled runs use all three operating systems.
+  rust:
+    name: Rust (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-22.04, macos-latest]
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["ubuntu-22.04"]' || '["windows-latest","ubuntu-22.04","macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -63,14 +183,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # The Tauri crate embeds the built frontend, so it has to exist before clippy and tests.
       - name: Install frontend dependencies
         run: npm ci
-
-      - name: Type-check frontend (svelte-check)
-        run: npm run check
-
-      - name: Check locale keys (tr/en parity)
-        run: npm run check:locales
 
       - name: Build frontend
         run: npm run build
@@ -84,12 +199,34 @@ jobs:
       - name: Rust tests
         run: cargo test --workspace
 
+  # Registry fixtures: the catalog tests read crates/harness-core/src/tools/fixtures.
+  registry:
+    name: Registry fixtures
+    needs: changes
+    if: needs.changes.outputs.registry == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Registry catalog tests
+        run: node --test scripts/test-official-registry.mjs
+
   # The TypeScript and Python clients of the Control API: sdk/openapi.json matches the Rust
   # code (generate.mjs --check); the packages generate their code from it in their build and
   # test commands and are tested against a real `harness serve`.
   sdk:
     name: SDK (TypeScript, Python)
+    needs: changes
+    if: needs.changes.outputs.sdk == 'true'
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
         with:
@@ -136,7 +273,12 @@ jobs:
 
   audit:
     name: cargo audit
+    needs: changes
+    # Runs when dependencies change and on the weekly schedule, so new advisories show up
+    # without a dependency change.
+    if: needs.changes.outputs.audit == 'true'
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
@@ -150,3 +292,25 @@ jobs:
       # Fails on known vulnerabilities only; unmaintained/unsound advisories stay warnings.
       - name: Audit dependencies
         run: cargo audit --file Cargo.lock
+
+  # Always reports, so a required check on `ci-ok` works for every pull request: jobs that
+  # were skipped because their paths did not change count as passed; failures and
+  # cancellations fail it.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [changes, frontend, rust, registry, sdk, audit]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Check job results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          for r in $RESULTS; do
+            if [ "$r" = failure ] || [ "$r" = cancelled ]; then
+              echo "A required CI job did not pass."
+              exit 1
+            fi
+          done

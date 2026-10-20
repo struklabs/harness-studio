@@ -109,6 +109,21 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
           persist-credentials: false
 
+      - name: Check version consistency
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          tag="${TAG#v}"
+          pkg=$(grep -m1 '"version"' package.json | sed -E 's/.*"version": *"([^"]+)".*//')
+          fail=0
+          [ "$pkg" = "$tag" ] || { echo "package.json $pkg != tag $tag"; fail=1; }
+          for f in src-tauri/Cargo.toml crates/*/Cargo.toml; do
+            v=$(grep -m1 '^version' "$f" | sed -E 's/.*"([^"]+)".*//')
+            [ "$v" = "$tag" ] || { echo "$f $v != tag $tag"; fail=1; }
+          done
+          exit $fail
+
       - name: Free disk space (Linux)
         if: runner.os == 'Linux'
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL

@@ -2,6 +2,7 @@
 //! over a `harness-core` service.
 
 mod analytics;
+mod automations;
 mod benchmarks;
 mod catalog;
 mod conversations;
@@ -59,6 +60,7 @@ the Secure HttpOnly session cookie; cookie writes need same-origin Origin and X-
         (name = "tokens", description = "Named API tokens (admin)"),
         (name = "conversations", description = "Stored chats: list, read, export, documents, context compaction (scope `conversations`)"),
         (name = "analytics", description = "Gateway request log, statistics and Prometheus metrics"),
+        (name = "automations", description = "The user's own n8n instance: connection, workflows, executions, webhook runs (admin)"),
         (name = "tools", description = "Tool engine: list and run tools (file read/write/search, shell), the tool policy and the tool log (running needs scope `admin`)")
     )
 )]
@@ -228,6 +230,13 @@ fn api_routes() -> OpenApiRouter<AppState> {
         ))
         .routes(routes!(otel::get_otel, otel::put_otel))
         .routes(routes!(otel::test_otel))
+        .routes(routes!(automations::get_n8n, automations::put_n8n))
+        .routes(routes!(automations::test_n8n))
+        .routes(routes!(automations::n8n_workflows))
+        .routes(routes!(automations::n8n_executions))
+        .routes(routes!(automations::n8n_execution_error))
+        .routes(routes!(automations::trigger_n8n))
+        .routes(routes!(automations::n8n_openai))
         .routes(routes!(conversations::list))
         .routes(routes!(conversations::get_one))
         .routes(routes!(conversations::export))

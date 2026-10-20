@@ -4,7 +4,7 @@
       "artifact": "mcp/microsoft-learn/config.json",
       "description": {
         "en": "Search Microsoft documentation and code samples through the official Microsoft Learn MCP server.",
-        "tr": "Resm? Microsoft Learn MCP sunucusu ?zerinden Microsoft belgelerinde ve kod ?rneklerinde arama yapar."
+        "tr": "Resmî Microsoft Learn MCP sunucusu üzerinden Microsoft belgelerinde ve kod örneklerinde arama yapar."
       },
       "homepage": "https://github.com/struklabs/harness-registry/tree/main/mcp/microsoft-learn",
       "id": "struklabs.mcp.microsoft-learn",
@@ -39,7 +39,7 @@
       "artifact": "skills/release-notes/SKILL.md",
       "description": {
         "en": "Turn supplied changes or a diff into user-facing release notes. Use when preparing a changelog or release announcement.",
-        "tr": "Sa?lanan de?i?ikliklerden veya diff ??kt?s?ndan kullan?c?ya y?nelik s?r?m notlar? haz?rlar. De?i?iklik g?nl??? veya s?r?m duyurusu yazarken kullan?l?r."
+        "tr": "Sağlanan değişikliklerden veya diff çıktısından kullanıcıya yönelik sürüm notları hazırlar. Değişiklik günlüğü veya sürüm duyurusu yazarken kullanılır."
       },
       "homepage": "https://github.com/struklabs/harness-registry/tree/main/skills/release-notes",
       "id": "struklabs.skill.release-notes",
@@ -72,7 +72,7 @@
       "artifact": "tools/json_format",
       "description": {
         "en": "Validate, pretty-print or compact JSON, optionally sorting object keys. No file or network access.",
-        "tr": "JSON verisini do?rular, okunakl? veya s?k??t?r?lm?? bi?ime d?n??t?r?r ve iste?e ba?l? olarak nesne anahtarlar?n? s?ralar. Dosya veya a? eri?imi yoktur."
+        "tr": "JSON verisini doğrular, okunaklı veya sıkıştırılmış biçime dönüştürür ve isteğe bağlı olarak nesne anahtarlarını sıralar. Dosya veya ağ erişimi yoktur."
       },
       "homepage": "https://github.com/struklabs/harness-registry/tree/main/tools/json_format",
       "id": "struklabs.tool.json_format",

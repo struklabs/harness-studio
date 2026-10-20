@@ -63,6 +63,10 @@ pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Sc
     {
         return Some(Scope::Admin);
     }
+    // The n8n connection uses a stored API key and can start workflows.
+    if route.starts_with("/automations/") {
+        return Some(Scope::Admin);
+    }
     if route.starts_with("/browser/")
         || route == "/tokens"
         || route.starts_with("/tokens/")

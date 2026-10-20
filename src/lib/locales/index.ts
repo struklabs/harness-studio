@@ -71,12 +71,14 @@ import mlx from './mlx';
 import engines from './engines';
 import audioCpp from './audioCpp';
 import uninstall from './uninstall';
+import automations from './automations';
+import errorsAutomations from './errorsAutomations';
 
 // Common accessible field-help text.
 
 import modelCapabilities from './modelCapabilities';
 
-const namespaces = [browser, serverOperations, modelSetup, modelCapabilities, trust, agents, getStarted, modules, uiLevel, menus, help, create, common, fit, kv, hub, settings, connections, link, perf, onboarding, dashboard, playground, servers, benchmark, importNs, caps, params, security, presets, library, embed, developer, recovery, gateway, harnessMcp, integrations, agentModels, analytics, ollama, responses, loading, runtimes, split, compaction, shell, ui, hfAuth, errors, errorsDownloads, errorsIntegrations, errorsRuntime, errorsStore, rag, errorsRag, errorsLink, tools, toolDiag, whisper, sdcpp, tts, sherpaAsr, onnx, pipeline, lemonade, convert, mistralrs, pyhf, mlx, engines, audioCpp, uninstall] as const;
+const namespaces = [browser, serverOperations, modelSetup, modelCapabilities, trust, agents, getStarted, modules, uiLevel, menus, help, create, common, fit, kv, hub, settings, connections, link, perf, onboarding, dashboard, playground, servers, benchmark, importNs, caps, params, security, presets, library, embed, developer, recovery, gateway, harnessMcp, integrations, agentModels, analytics, ollama, responses, loading, runtimes, split, compaction, shell, ui, hfAuth, errors, errorsDownloads, errorsIntegrations, errorsRuntime, errorsStore, rag, errorsRag, errorsLink, tools, toolDiag, whisper, sdcpp, tts, sherpaAsr, onnx, pipeline, lemonade, convert, mistralrs, pyhf, mlx, engines, audioCpp, automations, errorsAutomations, uninstall] as const;
 
 type UnionToIntersection<U> = (U extends unknown ? (value: U) => void : never) extends (value: infer I) => void ? I : never;
 export type Dictionary = UnionToIntersection<(typeof namespaces)[number]['tr']>;

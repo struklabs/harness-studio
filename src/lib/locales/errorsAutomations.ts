@@ -1,0 +1,39 @@
+// Backend error keys of Automations (harness_core::automations, n8n connection).
+// Texts are single quoted literals (the CLI compiles the English half in); {name} = parameter.
+const tr = {
+  'automations.n8n_url_invalid': 'Kimlik bilgisi, sorgu veya parça içermeyen bir HTTP ya da HTTPS adresi girin.',
+  'automations.n8n_not_configured': 'n8n adresi kayıtlı değil. Önce Ayarlar > Otomasyonlar bölümünde bağlanın.',
+  'automations.n8n_key_missing': 'n8n API anahtarı eksik.',
+  'automations.n8n_unauthorized': 'n8n API anahtarını reddetti. Anahtarı kontrol edin veya yenisini oluşturun.',
+  'automations.n8n_forbidden': 'n8n isteğe izin vermedi. Anahtarın kapsamını ve genel API’nin açık olduğunu kontrol edin.',
+  'automations.n8n_api_missing': 'Bu adreste n8n genel API’si bulunamadı. Adresi ve genel API’nin açık olduğunu kontrol edin.',
+  'automations.n8n_redirect': 'n8n adresi başka bir yere yönlendiriyor. Son adresi (örneğin https ile) girin.',
+  'automations.n8n_server_error': 'n8n sunucusu hata verdi (HTTP {status}).',
+  'automations.n8n_http_error': 'n8n beklenmeyen bir yanıt verdi (HTTP {status}).',
+  'automations.n8n_invalid_response': 'Yanıt bir n8n API yanıtına benzemiyor. Adresin n8n’e ait olduğunu kontrol edin.',
+  'automations.n8n_id_invalid': 'Geçersiz kimlik.',
+  'automations.n8n_no_webhook': 'Bu iş akışında çalıştırılabilir bir webhook tetikleyicisi yok.',
+  'automations.n8n_workflow_inactive': 'İş akışı etkin değil. n8n’de etkinleştirin ve yeniden deneyin.',
+  'automations.n8n_confirm_required': 'Çalıştırmak için onay gerekir.',
+  'automations.keychain_unavailable': 'Sistem anahtar zincirine erişilemedi: {error}',
+};
+
+const en: Record<keyof typeof tr, string> = {
+  'automations.n8n_url_invalid': 'Enter an HTTP or HTTPS address without credentials, query or fragment.',
+  'automations.n8n_not_configured': 'No n8n address is saved. Connect first in Settings > Automations.',
+  'automations.n8n_key_missing': 'The n8n API key is missing.',
+  'automations.n8n_unauthorized': 'n8n rejected the API key. Check the key or create a new one.',
+  'automations.n8n_forbidden': 'n8n refused the request. Check the key scope and that the public API is enabled.',
+  'automations.n8n_api_missing': 'The n8n public API was not found at this address. Check the address and that the public API is enabled.',
+  'automations.n8n_redirect': 'The n8n address redirects elsewhere. Enter the final address (for example with https).',
+  'automations.n8n_server_error': 'The n8n server returned an error (HTTP {status}).',
+  'automations.n8n_http_error': 'n8n returned an unexpected answer (HTTP {status}).',
+  'automations.n8n_invalid_response': 'The answer does not look like an n8n API response. Check that the address belongs to n8n.',
+  'automations.n8n_id_invalid': 'Invalid id.',
+  'automations.n8n_no_webhook': 'This workflow has no runnable webhook trigger.',
+  'automations.n8n_workflow_inactive': 'The workflow is not active. Activate it in n8n and try again.',
+  'automations.n8n_confirm_required': 'Confirmation is required to run it.',
+  'automations.keychain_unavailable': 'The system keychain is unavailable: {error}',
+};
+
+export default { tr, en };
