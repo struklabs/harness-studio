@@ -125,6 +125,8 @@ pub struct ProviderView {
 /// A model and what the provider says about it; `None` = not exposed by its API.
 #[derive(Debug, Clone, Serialize, Default, PartialEq)]
 pub struct CloudModel {
+    /// The provider's model id; [`ModelView::model`] carries it (`id` there is the gateway id).
+    #[serde(skip_serializing)]
     pub id: String,
     pub display_name: Option<String>,
     pub context_length: Option<u64>,

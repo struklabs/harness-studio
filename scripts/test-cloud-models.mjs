@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { filterCloudModels, formatPrice, groupCloudModels, isCloudModel, isExternalModel } from '../src/lib/components/playground/cloudModels.ts';
+import { cloudLabel, filterCloudModels, formatPrice, groupCloudModels, isCloudModel, isExternalModel } from '../src/lib/components/playground/cloudModels.ts';
 
 const row = (provider, model, label = 'OpenAI') => ({
   id: `cloud:${provider}/${model}`, model, provider, kind: 'openai', label, state: 'online',
@@ -23,6 +23,11 @@ test('models are grouped per provider and filtered by any field', () => {
   assert.deepEqual(groups.map((g) => [g.provider, g.label, g.models.length]), [['openai', 'OpenAI', 2], ['router', 'OpenRouter', 1]]);
   assert.deepEqual(filterCloudModels(rows, 'openrouter').map((m) => m.model), ['meta/llama']);
   assert.deepEqual(filterCloudModels(rows, 'openai o3').map((m) => m.model), ['o3']);
+});
+
+test('custom endpoints are labeled by their name', () => {
+  assert.equal(cloudLabel({ kind: 'openai', label: 'OpenAI', provider: 'work' }), 'OpenAI');
+  assert.equal(cloudLabel({ kind: 'custom', label: 'Custom', provider: 'local-vllm' }), 'local-vllm');
 });
 
 test('prices stay short', () => {

@@ -15,7 +15,7 @@
   import { library } from '#lib/stores/library.svelte.js';
   import { security } from '#lib/stores/security.svelte.js';
   import { filterRemoteModels, isRemoteModel, type RemoteModel } from './remoteModels';
-  import { filterCloudModels, formatPrice, groupCloudModels, isCloudModel, type CloudModel } from './cloudModels';
+  import { cloudLabel, filterCloudModels, formatPrice, groupCloudModels, isCloudModel, type CloudModel } from './cloudModels';
   import { Input } from '#lib/components/ui/input/index.js';
   import type { ServeMode } from '#lib/types.js';
   import { cn } from '#lib/utils.js';
@@ -295,7 +295,7 @@
         </div>
         {#each cloudGroups as group (group.provider)}
           <div class="border-b border-border pb-1 mb-1">
-            <h3 class="flex items-baseline gap-2 px-2 py-1.5 text-xs font-semibold">{t('cloud.location', { provider: group.label })}<span class="font-mono font-normal text-muted-foreground">{group.provider}</span></h3>
+            <h3 class="flex items-baseline gap-2 px-2 py-1.5 text-xs font-semibold">{t('cloud.location', { provider: group.label })}{#if group.label !== group.provider}<span class="font-mono font-normal text-muted-foreground">{group.provider}</span>{/if}</h3>
             {#if !app.gatewayRunning}
               <p class="px-2 py-1 text-xs text-muted-foreground">{t('cloud.gateway_off')}</p>
             {:else}
@@ -417,5 +417,5 @@
     </div>
   </Popover.Content>
 </Popover.Root>
-{#if currentModel}<span class="max-w-64 truncate text-xs text-muted-foreground" title={t('setup.location')}>{t(location.key, { device: selectedRemote?.link ?? selectedCloud?.label ?? location.device ?? '' })}</span>{/if}
+{#if currentModel}<span class="max-w-64 truncate text-xs text-muted-foreground" title={t('setup.location')}>{t(location.key, { device: selectedRemote?.link ?? (selectedCloud && cloudLabel(selectedCloud)) ?? location.device ?? '' })}</span>{/if}
 </div>

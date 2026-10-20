@@ -129,3 +129,24 @@ fn rewrite_uses_the_provider_model_id() {
     assert_eq!(out["model"], "a/b");
     assert_eq!(out["stream"], true);
 }
+
+#[test]
+fn model_view_keeps_the_gateway_id() {
+    let view = ModelView {
+        id: model_id("router", "a/b"),
+        model: "a/b".into(),
+        provider: "router".into(),
+        kind: Kind::Openrouter,
+        label: "OpenRouter",
+        state: State::Online,
+        info: CloudModel {
+            id: "a/b".into(),
+            context_length: Some(8),
+            ..Default::default()
+        },
+    };
+    let json = serde_json::to_value(&view).unwrap();
+    assert_eq!(json["id"], "cloud:router/a/b");
+    assert_eq!(json["model"], "a/b");
+    assert_eq!(json["context_length"], 8);
+}

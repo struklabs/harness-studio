@@ -32,11 +32,16 @@ export function filterCloudModels(models: CloudModel[], query: string): CloudMod
   });
 }
 
+/** "Cloud: <this>": the provider's brand, or the user's name for a custom endpoint. */
+export function cloudLabel(m: Pick<CloudModel, 'kind' | 'label' | 'provider'>): string {
+  return m.kind === 'custom' ? m.provider : m.label;
+}
+
 /** Picker groups, one per provider, in the order the providers were listed. */
 export function groupCloudModels(models: CloudModel[]): { provider: string; label: string; models: CloudModel[] }[] {
   const groups = new Map<string, { provider: string; label: string; models: CloudModel[] }>();
   for (const m of models) {
-    const group = groups.get(m.provider) ?? { provider: m.provider, label: m.label, models: [] };
+    const group = groups.get(m.provider) ?? { provider: m.provider, label: cloudLabel(m), models: [] };
     group.models.push(m);
     groups.set(m.provider, group);
   }
