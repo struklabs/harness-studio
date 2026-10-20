@@ -572,6 +572,8 @@ pub fn run() {
             n8n_openai_connection,
             n8n_create_gateway_token,
             get_gateway_status,
+            get_jobs,
+            cancel_job,
             link_list,
             link_models,
             link_add,

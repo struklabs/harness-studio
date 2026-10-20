@@ -1,4 +1,5 @@
 <script lang="ts">
+  import JobsPanel from './JobsPanel.svelte';
   import { recommendedChatContext } from './dashboard/contextRecommendation';
   import type { PreparePlan } from './connections/agentTuning';
   import HelpPopover from '#lib/components/common/HelpPopover.svelte';
@@ -1345,6 +1346,7 @@
   <aside class={cn('flex min-h-0 flex-col bg-card/40', stacked ? 'overflow-clip border-b border-border' : 'h-full overflow-hidden')} aria-label={t('dash.aria_controls')}>
     <!-- Flat sections split by rules (no cards inside the panel): server, model, parameters, advanced. -->
     <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+      <JobsPanel />
       <AdvancedPageNotice level={pageLevel(DASHBOARD_GROUPS, section.active)} />
       <div class="flex min-w-0 items-center gap-1">
         <h1 class="min-w-0 text-base font-semibold">{t((!uiLevel.advanced && DASHBOARD_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.simpleLabel) || DASHBOARD_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.label)}</h1>
