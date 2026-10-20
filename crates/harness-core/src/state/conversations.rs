@@ -994,6 +994,7 @@ impl StateDb {
                     "SELECT {CONV_COLS} FROM conversations \
                      WHERE (?1 IS NULL OR folder_id = ?1) AND (?2 = 0 OR folder_id IS NULL) \
                        AND (?3 = 0 OR pinned = 1) AND (?4 = 0 OR favorite = 1) \
+                       AND id NOT IN (SELECT id FROM rag_kbs) \
                      ORDER BY pinned DESC, updated_at DESC, rid DESC LIMIT ?5 OFFSET ?6"
                 ))?;
                 let rows = stmt
