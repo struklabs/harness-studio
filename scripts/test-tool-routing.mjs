@@ -34,6 +34,13 @@ test('empty discovery permits a schema-free answer and removes tool_choice', asy
   assert.equal(result.body.tool_choice, undefined);
 });
 
+test('a forced tool_choice function stays available even when discovery omits it', async () => {
+  const tool_choice = { type: 'function', function: { name: 'read_file' } };
+  const result = await routeTools('local', { ...body, tool_choice }, {}, signal(), async () => reply([]));
+  assert.deepEqual(result.body.tools.map(t => t.function.name), ['read_file']);
+  assert.deepEqual(result.body.tool_choice, tool_choice);
+});
+
 test('unknown names, malformed responses and failed discovery preserve enabled schemas', async () => {
   assert.throws(() => selectedTools('["invented"]', tools));
   assert.throws(() => selectedTools('{}', tools));
