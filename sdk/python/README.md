@@ -2,7 +2,7 @@
 
 Client of the [Harness Studio](https://github.com/struklabs/harness-studio) Control API for Python 3.11+, generated from the API's OpenAPI document with [openapi-python-client](https://github.com/openapi-generators/openapi-python-client) (httpx and attrs; sync and asyncio).
 
-Not on PyPI yet. Install it from the repository:
+Source-only: the PyPI project returned 404 on October 20, 2026. Install it from the repository:
 
 ```bash
 pip install ./sdk/python        # or: uv pip install ./sdk/python

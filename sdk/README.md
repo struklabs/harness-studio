@@ -7,7 +7,13 @@ Clients of the Harness Studio [Control API](../docs/guide/en/09-cli-api-mcp.md),
 | `@struklabs/harness-studio-sdk` (npm) | [`typescript/`](typescript/README.md) | [openapi-typescript](https://openapi-ts.dev) types + [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) |
 | `harness-studio-sdk` (PyPI) | [`python/`](python/README.md) | [openapi-python-client](https://github.com/openapi-generators/openapi-python-client) (httpx, attrs) |
 
-Neither is published yet: build them from this folder (Node.js is needed for both, uv for Python).
+Publication checked on October 20, 2026: the [npm registry](https://registry.npmjs.org/@struklabs%2fharness-studio-sdk/latest) reports TypeScript version **0.1.0**. The [PyPI project](https://pypi.org/project/harness-studio-sdk/) returns 404: Python is **source-only**. Install the published TypeScript release with `npm install @struklabs/harness-studio-sdk`; install Python with `pip install ./sdk/python` (Node.js and uv are required for generation). New API operations in this checkout require building from source until a corresponding SDK release is published.
+
+## Coverage
+
+Both source clients derive HTTP paths, request/response types, and operations from the same committed OpenAPI snapshot. TypeScript uses openapi-fetch for every generated path; Python creates sync/async endpoint modules and generation fails on warnings rather than silently dropping endpoints. Run `node sdk/check-coverage.mjs` after generating both clients to compare every documented method/path with generated outputs. Browser bootstrap/session, settings, service lifecycle, logs, encrypted backup/restore, and update endpoints are included. Cookies/CSRF are a browser concern; automation normally uses scoped bearer tokens. The published npm 0.1.0 client predates the W5 browser operations; source coverage does not imply registry publication.
+
+SSE endpoints have generated HTTP signatures but streaming uses the hand-written SSE helpers. `/mcp` is an authenticated JSON-RPC transport, not an OpenAPI REST operation; use an MCP client. No SDK endpoint coverage is claimed for native Tauri IPC commands. Server setup: [Linux server guide](../docs/guide/en/10-server-mode.md).
 
 ## What is generated
 

@@ -138,6 +138,60 @@ async fn browser_setup_cookie_csrf_scopes_and_revocation() {
     assert_eq!(created.status(), StatusCode::CREATED);
     let created = created.json::<Value>().await.unwrap();
     let token = created["token"].as_str().unwrap();
+    // Operations are administrator-only, including read-only logs/status. Cookie writes
+    // must pass the same CSRF boundary as token creation.
+    for path in ["/browser/service", "/browser/logs", "/browser/update"] {
+        assert_eq!(
+            http.get(format!("{base}{path}"))
+                .bearer_auth(token)
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+    }
+    for path in [
+        "/browser/backup",
+        "/browser/restore",
+        "/browser/service",
+        "/browser/update",
+    ] {
+        assert_eq!(
+            http.post(format!("{base}{path}"))
+                .header(header::ORIGIN, &origin)
+                .header(header::COOKIE, cookie)
+                .json(&json!({}))
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::FORBIDDEN
+        );
+    }
+    let backup = http
+        .post(format!("{base}/browser/backup"))
+        .header(header::ORIGIN, &origin)
+        .header(header::COOKIE, cookie)
+        .header("x-harness-csrf", &csrf)
+        .json(&json!({"password":"backup-password-1234"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(backup.status(), StatusCode::OK);
+    let archive = backup.json::<Value>().await.unwrap();
+    assert!(archive.get("ciphertext").is_some());
+    let restore = http
+        .post(format!("{base}/browser/restore"))
+        .header(header::ORIGIN, &origin)
+        .header(header::COOKIE, cookie)
+        .header("x-harness-csrf", &csrf)
+        .json(&json!({"password":"backup-password-1234", "archive":archive}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(restore.status(), StatusCode::ACCEPTED);
+    assert!(dir.path().join("restore-pending.json").is_file());
     // Existing bearer clients still use their scopes; a cookie cannot rescue an invalid bearer.
     assert_eq!(
         http.get(format!("{base}/servers"))

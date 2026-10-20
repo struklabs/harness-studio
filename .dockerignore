@@ -1,0 +1,9 @@
+.git
+node_modules
+target
+build
+.svelte-kit
+scratch
+sdk/**/node_modules
+sdk/python/.venv
+*.log

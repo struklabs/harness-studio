@@ -1,0 +1,17 @@
+services:
+  harness:
+    build:
+      context: ../..
+      dockerfile: packaging/server/Dockerfile
+      target: cpu
+    restart: unless-stopped
+    # The loopback listener is reached through host networking on Linux.
+    # Keep this default for local/SSH access. For remote access, configure TLS and
+    # network approval as described in the server guide before binding 0.0.0.0.
+    network_mode: host
+    volumes:
+      - harness-data:/var/lib/harness
+    # Vulkan: target: vulkan, plus devices: [/dev/dri:/dev/dri] and
+    # group_add with the host render/video numeric GIDs. No privileged container.
+volumes:
+  harness-data:

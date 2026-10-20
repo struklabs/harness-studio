@@ -304,6 +304,24 @@ impl Instance {
             Err(AcquireError::Held { owner }) => return Err(lock_held(owner.as_ref())),
             Err(AcquireError::Io(e)) => return Err(CliError::general("cli.io", e)),
         };
+        let restoring = data_dir.join("restore-pending.json").exists();
+        if let Some(error) = harness_api::operations::apply_pending_or_quarantine(data_dir) {
+            // Never block startup: a crash loop under systemd would hide the admin UI.
+            eprintln!("staged restore failed, previous configuration kept: {error}");
+        }
+        if restoring {
+            // serve reads settings before it can take the owner lock. Refresh its shared
+            // cache after restoring, while keeping this listener's explicit bind options.
+            let restored =
+                harness_core::store::JsonStore::sensitive(data_dir.join("config/settings.json"))
+                    .load_versioned::<harness_core::config::AppSettings>(
+                        &harness_core::config::SETTINGS_SCHEMA,
+                    )
+                    .map_err(CliError::core)?;
+            if let Some(restored) = restored {
+                restored.data.save().map_err(CliError::core)?;
+            }
+        }
         let ctx = ApiContext {
             registry: Arc::new(ServerRegistry::default()),
             runtime: Arc::new(RuntimeManager::default()),
