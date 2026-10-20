@@ -65,6 +65,7 @@ include!("modelfile.rs");
 include!("conversations.rs");
 include!("compaction.rs");
 include!("rag.rs");
+include!("knowledge.rs");
 include!("tools.rs");
 include!("capabilities.rs");
 include!("desktop.rs");
