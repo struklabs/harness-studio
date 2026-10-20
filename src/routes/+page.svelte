@@ -390,6 +390,7 @@
               onGoToHub={() => (currentTab = 'hub')}
               onGoToServers={() => (currentTab = 'servers')}
               onGoToConnections={() => (currentTab = 'connections')}
+              onReopenWizard={() => (showWizardManually = true)}
             />
           </div>
           {#if currentTab === 'servers'}

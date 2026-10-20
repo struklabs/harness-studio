@@ -19,6 +19,7 @@
     SlidersHorizontal,
     MessageSquarePlus,
     Boxes,
+    Rocket,
   } from '@lucide/svelte';
   import { invoke } from '#lib/ipc.js';
   import { presetName } from '#lib/components/presets/presetText.js';
@@ -32,6 +33,7 @@
   import { CREATE_PAGES } from './create/navigation';
   import { CONNECTION_PAGES } from './connections/navigation';
   import { requestSection } from '#lib/stores/sectionPage.svelte.js';
+  import { getStarted } from '#lib/stores/getStarted.svelte.js';
   import { panes } from '#lib/stores/panes.svelte.js';
   import { DASHBOARD_GROUPS, PLAYGROUND_GROUPS, LIBRARY_GROUPS, PERFORMANCE_GROUPS, ANALYTICS_GROUPS } from './common/screenSections';
   import { SETTINGS_SECTIONS } from './settings/sections';
@@ -213,6 +215,9 @@
       <Command.Item value={t(uiLevel.advanced ? 'uiLevel.switch_simple' : 'uiLevel.switch_advanced')}
         onSelect={() => run(() => uiLevel.set(uiLevel.advanced ? 'simple' : 'advanced'))}>
         <SlidersHorizontal /><span>{t(uiLevel.advanced ? 'uiLevel.switch_simple' : 'uiLevel.switch_advanced')}</span>
+      </Command.Item>
+      <Command.Item value={t('cmd.get_started')} keywords={keywordsOf('cmd.get_started')} onSelect={() => run(() => { getStarted.show(); requestSection('dashboard', 'overview'); onNavigate('dashboard'); })}>
+        <Rocket /><span>{t('cmd.get_started')}</span>
       </Command.Item>
       {#if app.isRunning}
         <Command.Item value={t('cmd.stop_server')} keywords={keywordsOf('cmd.stop_server')} onSelect={() => run(() => invoke('stop_server', app.serverArgs()).then(() => {}))}>

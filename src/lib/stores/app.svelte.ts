@@ -74,6 +74,8 @@ class AppState {
   /** Bumped by the title bar Logs button: the Dashboard opens its log console. */
   logsRequest = $state(0);
   requestedTab = $state<string | null>(null);
+  /** Module the Modules page should select when it opens (consumed there, then null). */
+  requestedModule = $state<string | null>(null);
   /** Search the Model Hub should run when it is shown (consumed by the Hub, which resets it to null). */
   requestedHubSearch = $state<string | null>(null);
   /** Repo (and file in it) the Model Hub should open in its drawer when shown (consumed by the Hub, then null). */
