@@ -638,6 +638,7 @@ pub struct ProcessManager {
     /// Temporary configuration folder of the resident audio.cpp server.
     audio_run: Arc<Mutex<Option<tempfile::TempDir>>>,
     activity: Arc<Mutex<ProcessActivity>>,
+    gpu_job: Arc<Mutex<Option<Arc<crate::jobs::Ticket>>>>,
 }
 
 struct ProcessActivity {
@@ -645,6 +646,34 @@ struct ProcessActivity {
     in_flight: usize,
     retiring: bool,
     epoch: u64,
+}
+
+/// A dropped startup future must not leave an orphaned queue entry. Once the
+/// child is tracked, the supervisor/stop path owns the reservation instead.
+struct PendingGpuJob {
+    manager: ProcessManager,
+    slot: Arc<Mutex<Option<Arc<crate::jobs::Ticket>>>>,
+    ticket: Arc<crate::jobs::Ticket>,
+    committed: bool,
+}
+
+impl Drop for PendingGpuJob {
+    fn drop(&mut self) {
+        if !self.committed {
+            let mut slot = self.slot.lock().unwrap();
+            if slot
+                .as_ref()
+                .is_some_and(|ticket| Arc::ptr_eq(ticket, &self.ticket))
+            {
+                slot.take();
+            }
+            drop(slot);
+            self.manager.stop_relay();
+            if self.manager.get_status() == ServerStatus::Starting {
+                self.manager.set_status(ServerStatus::Stopped);
+            }
+        }
+    }
 }
 
 impl Default for ProcessActivity {
@@ -784,6 +813,7 @@ impl Default for ProcessManager {
             relay: Arc::new(Mutex::new(None)),
             audio_run: Arc::new(Mutex::new(None)),
             activity: Arc::new(Mutex::new(ProcessActivity::default())),
+            gpu_job: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -1316,6 +1346,14 @@ impl ProcessManager {
     /// spawn and the supervisor. A bind-failure retry on a new automatic port comes here
     /// directly, so the server stays "Starting" throughout.
     async fn run_claimed(&self, config: LaunchConfig) -> Result<(), String> {
+        let result = self.run_scheduled(config).await;
+        if result.is_err() && !self.has_child() {
+            self.gpu_job.lock().unwrap().take();
+        }
+        result
+    }
+
+    async fn run_scheduled(&self, config: LaunchConfig) -> Result<(), String> {
         *self.engine.lock().unwrap() = crate::engine::server_for(&config).family();
         self.failure.lock().unwrap().take();
         self.restart.lock().unwrap().ready_at = None;
@@ -1914,6 +1952,30 @@ impl ProcessManager {
             self.record_failure(crate::failure::spawn_failure(&e));
             return Err(self.set_error(e.to_string()));
         }
+        // All resident engines, including audio and image workers, share this
+        // admission boundary after their final context/backend settings are known.
+        let estimate_config = launch.clone();
+        let bytes =
+            tokio::task::spawn_blocking(move || crate::jobs::estimate_launch(&estimate_config))
+                .await
+                .map_err(|e| self.set_error(e.to_string()))?;
+        let priority = if prepared.mode == crate::serve_mode::ServeMode::Embedding {
+            crate::jobs::Priority::Background
+        } else {
+            crate::jobs::current_priority()
+        };
+        let ticket = Arc::new(crate::jobs::global().submit(self.id.clone(), priority, bytes));
+        *self.gpu_job.lock().unwrap() = Some(ticket.clone());
+        let mut claim = PendingGpuJob {
+            manager: self.clone(),
+            slot: self.gpu_job.clone(),
+            ticket: ticket.clone(),
+            committed: false,
+        };
+        ticket.wait().await.map_err(|error| self.set_error(error))?;
+        if ticket.is_cancelled() {
+            return Err(self.set_error("jobs.cancelled".into()));
+        }
         let mut group = cmd.group();
         // Only Windows has kill-on-drop for a std command group (the Job Object); on Unix the
         // process group is stopped explicitly and Linux also uses PR_SET_PDEATHSIG.
@@ -2024,6 +2086,7 @@ impl ProcessManager {
             };
         }
         *self.child.lock().unwrap() = Some(child_group);
+        claim.committed = true;
         let generation = self
             .generation
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
@@ -2137,6 +2200,22 @@ impl ProcessManager {
                 return;
             }
 
+            let cancelled = self
+                .gpu_job
+                .lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|job| job.is_cancelled());
+            if cancelled {
+                let _lifecycle = self.lifecycle.lock().await;
+                if self.is_current(generation) {
+                    let _ = self
+                        .stop_locked_until(Instant::now() + Duration::from_secs(7))
+                        .await;
+                }
+                return;
+            }
+
             // Did the process exit?
             let exit = {
                 let mut lock = self.child.lock().unwrap();
@@ -2152,6 +2231,7 @@ impl ProcessManager {
                         return;
                     }
                     let pid = self.child.lock().unwrap().take().map(|c| c.id());
+                    self.gpu_job.lock().unwrap().take();
                     self.active.lock().unwrap().take();
                     self.audio_run.lock().unwrap().take();
                     self.stop_relay();
@@ -2266,6 +2346,9 @@ impl ProcessManager {
                                 drop(status);
                                 self.activity.lock().unwrap().last_used = Instant::now();
                                 self.restart.lock().unwrap().ready_at = Some(Instant::now());
+                                if let Some(job) = self.gpu_job.lock().unwrap().as_ref() {
+                                    job.loaded();
+                                }
                                 self.publish_status(ServerStatus::Running);
                                 let secs = start_time.elapsed().as_secs_f32();
                                 self.push_log(
@@ -2648,6 +2731,7 @@ impl ProcessManager {
             match exit {
                 Some(Ok(Some(_))) => {
                     self.child.lock().unwrap().take();
+                    self.gpu_job.lock().unwrap().take();
                     return Ok(());
                 }
                 Some(Err(error)) => {
@@ -2685,6 +2769,9 @@ impl ProcessManager {
     }
 
     pub(crate) async fn stop_until(&self, deadline: Instant) -> Result<(), String> {
+        if let Some(job) = self.gpu_job.lock().unwrap().as_ref() {
+            job.request_cancel();
+        }
         let _lifecycle = self.lifecycle.lock().await;
         self.stop_locked_until(deadline).await
     }
@@ -3113,6 +3200,43 @@ fn apply_metadata_fixes(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn abandoned_gpu_start_releases_queue_and_starting_state() {
+        let manager = ProcessManager::new();
+        manager.set_status(ServerStatus::Starting);
+        let scheduler = Arc::new(crate::jobs::JobScheduler::default());
+        let ticket =
+            Arc::new(scheduler.submit("abandoned".into(), crate::jobs::Priority::Agent, u64::MAX));
+        *manager.gpu_job.lock().unwrap() = Some(ticket.clone());
+        let claim = PendingGpuJob {
+            manager: manager.clone(),
+            slot: manager.gpu_job.clone(),
+            ticket,
+            committed: false,
+        };
+        drop(claim);
+        assert!(scheduler.snapshot().is_empty());
+        assert_eq!(manager.get_status(), ServerStatus::Stopped);
+    }
+
+    #[test]
+    fn committed_gpu_start_keeps_reservation_until_process_cleanup() {
+        let manager = ProcessManager::new();
+        let scheduler = Arc::new(crate::jobs::JobScheduler::default());
+        let ticket =
+            Arc::new(scheduler.submit("resident".into(), crate::jobs::Priority::Interactive, 64));
+        *manager.gpu_job.lock().unwrap() = Some(ticket.clone());
+        drop(PendingGpuJob {
+            manager: manager.clone(),
+            slot: manager.gpu_job.clone(),
+            ticket,
+            committed: true,
+        });
+        assert_eq!(scheduler.snapshot().len(), 1);
+        manager.gpu_job.lock().unwrap().take();
+        assert!(scheduler.snapshot().is_empty());
+    }
 
     #[test]
     fn only_loopback_servers_are_bridged() {

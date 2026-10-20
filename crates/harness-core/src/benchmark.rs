@@ -82,6 +82,44 @@ pub fn preflight(servers: Vec<BenchServer>, usage: Option<(u64, u64)>) -> BenchP
     }
 }
 
+/// Reserve the largest combination in the sweep for the whole benchmark process.
+fn benchmark_memory(request: &BenchmarkRequest) -> u64 {
+    let layers = request.gpu_layers.iter().copied().max().unwrap_or(999);
+    let widest = |types: &[String]| {
+        types
+            .iter()
+            .max_by(|a, b| {
+                crate::vram::kv_bytes_per_element(Some(a))
+                    .total_cmp(&crate::vram::kv_bytes_per_element(Some(b)))
+            })
+            .cloned()
+            .unwrap_or_else(|| "f16".into())
+    };
+    let config = crate::process::LaunchConfig {
+        model_path: request.model_path.clone(),
+        gpu_layers: if request.gpu_layers.contains(&-1) {
+            999
+        } else {
+            layers.max(0) as u32
+        },
+        context_size: request
+            .n_prompt
+            .iter()
+            .max()
+            .copied()
+            .unwrap_or(512)
+            .saturating_add(request.n_gen.iter().max().copied().unwrap_or(128))
+            .saturating_add(request.n_depth.iter().max().copied().unwrap_or(0)),
+        logical_batch: request.batch_size,
+        physical_batch: request.ubatch_size,
+        parallel_slots: Some(1),
+        cache_type_k: Some(widest(&request.cache_type_k)),
+        cache_type_v: Some(widest(&request.cache_type_v)),
+        ..Default::default()
+    };
+    crate::jobs::estimate_launch(&config)
+}
+
 /// One llama-bench result row (a subset of its JSON output).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -334,6 +372,8 @@ impl BenchmarkManager {
             args,
             cwd: Some(bench_bin.parent().unwrap_or(Path::new(".")).to_path_buf()),
             outputs: Vec::new(),
+            memory_bytes: benchmark_memory(&req),
+            priority: crate::jobs::Priority::Background,
         };
         self.log(format!("$ llama-bench {}", cmd.args.join(" ")));
 
@@ -704,6 +744,8 @@ mod tests {
             args: build_args(&req, true).unwrap(),
             cwd: Some(dir.path().to_path_buf()),
             outputs: vec![],
+            memory_bytes: 0, // The fake engine in this test does not use a GPU.
+            priority: crate::jobs::Priority::Background,
         };
         let id = format!("fake-timeout-{}", dir.path().display());
         let started_at = now_secs();

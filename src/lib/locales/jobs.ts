@@ -1,0 +1,33 @@
+const tr = {
+  'jobs.title': 'İşler',
+  'jobs.cancel': 'İptal Et',
+  'jobs.empty': 'Kuyrukta veya çalışan iş yok.',
+  'jobs.failed': 'İş kuyruğu güncellenemedi.',
+  'jobs.cancelled': 'İş iptal edildi.',
+  'jobs.wait': 'Bekleme: {ms} ms',
+  'jobs.unknown': 'Bellek gereksinimi bilinmiyor',
+  'jobs.status.queued': 'Bekliyor',
+  'jobs.status.loading': 'Yükleniyor',
+  'jobs.status.running': 'Çalışıyor',
+  'jobs.status.cancelling': 'İptal ediliyor',
+  'jobs.priority.interactive': 'Etkileşimli sohbet',
+  'jobs.priority.agent': 'Ajan görevi',
+  'jobs.priority.background': 'Arka plan',
+};
+const en: Record<keyof typeof tr, string> = {
+  'jobs.title': 'Jobs',
+  'jobs.cancel': 'Cancel',
+  'jobs.empty': 'No queued or running jobs.',
+  'jobs.failed': 'The job queue could not be refreshed.',
+  'jobs.cancelled': 'The job was cancelled.',
+  'jobs.wait': 'Wait: {ms} ms',
+  'jobs.unknown': 'Unknown memory requirement',
+  'jobs.status.queued': 'Waiting',
+  'jobs.status.loading': 'Loading',
+  'jobs.status.running': 'Running',
+  'jobs.status.cancelling': 'Cancelling',
+  'jobs.priority.interactive': 'Interactive chat',
+  'jobs.priority.agent': 'Agent task',
+  'jobs.priority.background': 'Background',
+};
+export default { tr, en };

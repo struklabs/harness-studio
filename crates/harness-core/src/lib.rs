@@ -42,6 +42,7 @@ pub mod image_bundles;
 pub mod importer;
 pub mod instance;
 pub mod integrations;
+pub mod jobs;
 pub mod kv_policy;
 pub mod lemonade;
 pub mod library;
