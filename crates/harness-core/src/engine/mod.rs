@@ -62,7 +62,7 @@ pub use mistralrs::{
     trained_context as mistralrs_trained_context, upstream_body as mistralrs_upstream_body,
     MistralRsEngine, ModelDirInfo as MistralRsDirInfo, MISTRALRS,
 };
-pub use mlx::{MlxEngine, MFLUX, MLX, MLX_AUDIO, MLX_VLM};
+pub use mlx::{MlxEngine, MFLUX, MLX, MLX_AUDIO, MLX_EMBED, MLX_VLM};
 pub use onnx::{
     provider_of as onnx_provider_of, vram_need as onnx_vram_need, OnnxEngine, ONNX_FAMILY,
     PROVIDER_PARAM as ONNX_PROVIDER_PARAM,
@@ -95,6 +95,7 @@ pub fn display_name(family: &str) -> &str {
         "mlx" => "MLX",
         "mlx-vlm" => "MLX-VLM",
         "mlx-audio" => "MLX Audio",
+        "mlx-embed" => "MLX Embeddings",
         "mflux" => "mflux",
         "python-hf" => "Python (HF)",
         "audio.cpp" => "audio.cpp",
@@ -369,6 +370,7 @@ static MLX_ENGINE: MlxEngine = MlxEngine::TEXT;
 static MLX_VLM_ENGINE: MlxEngine = MlxEngine::VISION;
 static MLX_AUDIO_ENGINE: MlxEngine = MlxEngine::AUDIO;
 static MFLUX_ENGINE: MlxEngine = MlxEngine::IMAGE;
+static MLX_EMBED_ENGINE: MlxEngine = MlxEngine::RETRIEVAL;
 static LLAMA_BENCH_ENGINE: LlamaBenchEngine = LlamaBenchEngine;
 
 /// The llama.cpp engine.
@@ -422,7 +424,7 @@ pub fn audio_cpp() -> &'static dyn ServerEngine {
 }
 
 /// Every known family.
-pub fn engines() -> [&'static dyn Engine; 15] {
+pub fn engines() -> [&'static dyn Engine; 16] {
     [
         &LLAMA,
         &WHISPER,
@@ -439,6 +441,7 @@ pub fn engines() -> [&'static dyn Engine; 15] {
         &MLX_VLM_ENGINE,
         &MLX_AUDIO_ENGINE,
         &MFLUX_ENGINE,
+        &MLX_EMBED_ENGINE,
     ]
 }
 
@@ -520,7 +523,7 @@ pub fn non_llama_vram_need(config: &LaunchConfig) -> u64 {
         MISTRALRS => mistralrs::vram_need(config),
         PYTHON_HF => python_hf::vram_need(config),
         TRANSCRIBE_CPP => transcribe_cpp::vram_need(config),
-        MLX | MLX_VLM | MLX_AUDIO | MFLUX => mlx::vram_need(config),
+        MLX | MLX_VLM | MLX_AUDIO | MFLUX | MLX_EMBED => mlx::vram_need(config),
         _ => whisper_vram_need(config),
     }
 }
@@ -570,6 +573,7 @@ fn mlx_engine_for(path: &Path) -> Option<&'static MlxEngine> {
         mlx::Flavour::Vision => &MLX_VLM_ENGINE,
         mlx::Flavour::Audio => &MLX_AUDIO_ENGINE,
         mlx::Flavour::Image => &MFLUX_ENGINE,
+        mlx::Flavour::Retrieval => &MLX_EMBED_ENGINE,
     })
 }
 

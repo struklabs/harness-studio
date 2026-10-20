@@ -52,7 +52,7 @@ pub fn retrieval_models(defs: &[ModelDefinition]) -> Vec<RetrievalModel> {
     defs.iter()
         .filter_map(|d| {
             let path = d.base.local_path()?;
-            if let Some(model) = onnx_model(d, path) {
+            if let Some(model) = onnx_model(d, path).or_else(|| mlx_model(d, path)) {
                 return Some(model);
             }
             let meta = crate::gguf::read_gguf_metadata(path).ok()?;
@@ -76,6 +76,26 @@ pub fn retrieval_models(defs: &[ModelDefinition]) -> Vec<RetrievalModel> {
             })
         })
         .collect()
+}
+
+/// An MLX embedder or reranker folder (the `mlx-embed` engine).
+fn mlx_model(def: &ModelDefinition, path: &std::path::Path) -> Option<RetrievalModel> {
+    let (task, dims, context_length) = crate::engine::mlx::retrieval_info(path)?;
+    let role = match task {
+        crate::engine::mlx::RetrievalTask::Embedding => RetrievalRole::Embedding,
+        crate::engine::mlx::RetrievalTask::Rerank => RetrievalRole::Rerank,
+    };
+    Some(RetrievalModel {
+        definition_id: def.id.clone(),
+        alias: def.alias.clone(),
+        file: path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        dims: dims.filter(|_| role == RetrievalRole::Embedding),
+        context_length,
+        role,
+    })
 }
 
 /// An ONNX encoder definition (harness-onnx), read from the repo files around its graph.

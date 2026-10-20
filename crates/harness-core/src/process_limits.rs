@@ -18,6 +18,10 @@ fn memory_bytes(value: Option<String>) -> io::Result<Option<usize>> {
         .transpose()
 }
 
+/// Hard ceiling of a child's open files: what mlx-lm raises its own limit to on import.
+#[cfg(unix)]
+const NOFILE_HARD: libc::rlim_t = 4096;
+
 /// Set before constructing a process group. Never silently ignore invalid limits.
 pub fn prepare(command: &mut std::process::Command) -> io::Result<()> {
     let memory = memory_bytes(std::env::var("HARNESS_CHILD_MEMORY_MIB").ok())?;
@@ -25,16 +29,21 @@ pub fn prepare(command: &mut std::process::Command) -> io::Result<()> {
     {
         use std::os::unix::process::CommandExt;
         // Only async-signal-safe libc calls in the post-fork hook. Preserve lower inherited limits.
+        // Open files: 1024 by default, and a child may raise that to 4096 itself (mlx-lm sets
+        // (2048, 4096) when it is imported and fails if the hard limit is lower).
         unsafe {
             command.pre_exec(move || {
-                for (resource, ceiling) in [(libc::RLIMIT_CORE, 0), (libc::RLIMIT_NOFILE, 1024)] {
+                for (resource, soft, hard) in [
+                    (libc::RLIMIT_CORE, 0, 0),
+                    (libc::RLIMIT_NOFILE, 1024, NOFILE_HARD),
+                ] {
                     let mut old = std::mem::zeroed::<libc::rlimit>();
                     if libc::getrlimit(resource, &mut old) != 0 {
                         return Err(io::Error::last_os_error());
                     }
                     let limit = libc::rlimit {
-                        rlim_cur: old.rlim_cur.min(ceiling),
-                        rlim_max: old.rlim_max.min(ceiling),
+                        rlim_cur: old.rlim_cur.min(soft),
+                        rlim_max: old.rlim_max.min(hard),
                     };
                     if libc::setrlimit(resource, &limit) != 0 {
                         return Err(io::Error::last_os_error());
@@ -187,7 +196,10 @@ mod tests {
     #[test]
     fn unix_child_receives_resource_ceilings() {
         let mut command = std::process::Command::new("sh");
-        command.args(["-c", "ulimit -c; ulimit -n"]);
+        command.args([
+            "-c",
+            "ulimit -c; ulimit -n; ulimit -Hn; ulimit -n 4096 && echo raised",
+        ]);
         prepare(&mut command).unwrap();
         let output = command.output().unwrap();
         assert!(output.status.success());
@@ -195,5 +207,8 @@ mod tests {
         let values: Vec<_> = text.lines().collect();
         assert_eq!(values[0], "0");
         assert!(values[1].parse::<u64>().unwrap() <= 1024);
+        assert!(values[2].parse::<u64>().unwrap() <= 4096);
+        // A child may raise its own limit up to the hard ceiling (mlx-lm sets 4096 on import).
+        assert_eq!(values.get(3).copied(), Some("raised"), "{text}");
     }
 }

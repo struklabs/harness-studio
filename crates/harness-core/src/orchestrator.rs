@@ -153,6 +153,8 @@ pub async fn launch(
         crate::engine::mlx::audio_binary()?
     } else if engine.family() == crate::engine::MFLUX {
         crate::engine::mlx::mflux_binary()?
+    } else if engine.family() == crate::engine::MLX_EMBED {
+        crate::engine::mlx::embed_binary()?
     } else {
         crate::runtimes::resolve_family_binary_in(&reg, engine.family(), config.runtime.as_deref())?
     };
@@ -485,6 +487,7 @@ fn is_mlx_family(family: &str) -> bool {
         crate::engine::mlx::MLX_VLM,
         crate::engine::mlx::MLX_AUDIO,
         crate::engine::mlx::MFLUX,
+        crate::engine::mlx::MLX_EMBED,
     ]
     .contains(&family)
 }
