@@ -54,7 +54,8 @@
   import ConversationSidebar from './playground/ConversationSidebar.svelte';
   import ModelPicker from './playground/ModelPicker.svelte';
   import { gatewayModelStates, type GatewayModelEntry, type ModelLoadState } from './playground/gatewayModels';
-  import { isRemoteModel, type RemoteModel } from './playground/remoteModels';
+  import { type RemoteModel } from './playground/remoteModels';
+  import { isExternalModel } from './playground/cloudModels';
   import EmbeddingPanel from './playground/EmbeddingPanel.svelte';
   import RerankPanel from './playground/RerankPanel.svelte';
   import PipelinePanel from './playground/PipelinePanel.svelte';
@@ -267,7 +268,7 @@
     return def ? definitionFile(def, library.models)?.task : undefined;
   });
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
-  let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isRemoteModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
+  let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isExternalModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
   let pickerModel = $derived(pgTab === 'chat' ? settings.model : pgTab === 'image' ? imageSession.model : modeModels[pgTab]);
   $effect(() => {
     void library.version;
@@ -294,7 +295,7 @@
     pgTab = tab;
     const alias = app.requestedPlaygroundModel;
     app.requestedPlaygroundModel = null;
-    if (alias && tab === 'chat' && isRemoteModel(alias)) useModel(app.selectedServerId, alias);
+    if (alias && tab === 'chat' && isExternalModel(alias)) useModel(app.selectedServerId, alias);
     else if (alias && (tab === 'embedding' || tab === 'rerank' || tab === 'pipeline')) modeModels[tab] = alias;
   });
   // Embedding / Rerank list definitions: library files found by a scan get their default one first.
@@ -670,7 +671,7 @@
 
   /** Switches the conversation (or the open tab's model) to `alias` on `serverId`. */
   function useModel(serverId: string, alias: string) {
-    if (app.gatewayRunning && isRemoteModel(alias) && !models.includes(alias)) models = [...models, alias];
+    if (app.gatewayRunning && isExternalModel(alias) && !models.includes(alias)) models = [...models, alias];
     app.selectServer(serverId);
     if (pgTab !== 'chat') {
       modeModels[pgTab] = alias;

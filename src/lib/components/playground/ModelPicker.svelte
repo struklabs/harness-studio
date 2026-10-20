@@ -15,6 +15,7 @@
   import { library } from '#lib/stores/library.svelte.js';
   import { security } from '#lib/stores/security.svelte.js';
   import { filterRemoteModels, isRemoteModel, type RemoteModel } from './remoteModels';
+  import { filterCloudModels, formatPrice, groupCloudModels, isCloudModel, type CloudModel } from './cloudModels';
   import { Input } from '#lib/components/ui/input/index.js';
   import type { ServeMode } from '#lib/types.js';
   import { cn } from '#lib/utils.js';
@@ -54,14 +55,17 @@
   let remoteError = $state('');
   let remoteRows = $derived(filterRemoteModels(remoteModels, query));
   let selectedRemote = $derived(remoteModels.find((m) => m.id === currentModel));
+  let cloudModels = $state<CloudModel[]>([]);
+  let cloudGroups = $derived(groupCloudModels(filterCloudModels(cloudModels, query)));
+  let selectedCloud = $derived(cloudModels.find((m) => m.id === currentModel));
   let location = $derived(executionLocation(currentModel));
   $effect(() => {
     if (!open || mode !== 'chat') return;
     let alive = true;
     async function refresh() {
       try {
-        const models = await invoke<RemoteModel[]>('link_models');
-        if (alive) { remoteModels = models; remoteError = ''; }
+        const [models, cloud] = await Promise.all([invoke<RemoteModel[]>('link_models'), invoke<CloudModel[]>('cloud_models')]);
+        if (alive) { remoteModels = models; cloudModels = cloud; remoteError = ''; }
       } catch (e) { if (alive) remoteError = localizeError(e); }
     }
     void refresh();
@@ -233,7 +237,7 @@
     <Boxes class="size-3.5 shrink-0" />
     <span class="min-w-0 truncate font-mono text-xs">{label ?? current?.alias ?? (currentModel || t('pgm.none'))}</span>
     <span
-      class={cn('size-1.5 shrink-0 rounded-full', isRemoteModel(currentModel) ? app.gatewayRunning && selectedRemote?.state === 'online' ? 'bg-success' : 'bg-muted-foreground/40' : app.isRunning ? 'bg-success' : app.isBusy ? 'bg-warning' : 'bg-muted-foreground/40')}
+      class={cn('size-1.5 shrink-0 rounded-full', isRemoteModel(currentModel) ? app.gatewayRunning && selectedRemote?.state === 'online' ? 'bg-success' : 'bg-muted-foreground/40' : isCloudModel(currentModel) ? app.gatewayRunning && selectedCloud?.state === 'online' ? 'bg-success' : 'bg-muted-foreground/40' : app.isRunning ? 'bg-success' : app.isBusy ? 'bg-warning' : 'bg-muted-foreground/40')}
       aria-hidden="true"
     ></span>
     <ChevronDown class="size-3.5 shrink-0 opacity-60" />
@@ -289,6 +293,33 @@
             {/each}
           {/if}
         </div>
+        {#each cloudGroups as group (group.provider)}
+          <div class="border-b border-border pb-1 mb-1">
+            <h3 class="flex items-baseline gap-2 px-2 py-1.5 text-xs font-semibold">{t('cloud.location', { provider: group.label })}<span class="font-mono font-normal text-muted-foreground">{group.provider}</span></h3>
+            {#if !app.gatewayRunning}
+              <p class="px-2 py-1 text-xs text-muted-foreground">{t('cloud.gateway_off')}</p>
+            {:else}
+              {#each group.models as model (model.id)}
+                <button
+                  type="button"
+                  title={model.state !== 'online' ? t('cloud.offline') : model.id}
+                  class={cn('flex w-full flex-col rounded-md px-2 py-1.5 text-left hover:bg-muted/60 disabled:opacity-50 disabled:cursor-not-allowed', currentModel === model.id && 'bg-muted/60')}
+                  disabled={model.state !== 'online'}
+                  onclick={() => { if (app.gatewayRunning && model.state === 'online') use(app.selectedServerId, model.id); }}
+                >
+                  <span class="w-full truncate font-mono text-xs">{model.display_name ?? model.model}</span>
+                  <span class="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
+                    {#if model.display_name}<span class="font-mono">{model.model}</span>{/if}
+                    {#if model.context_length}<span>{t('cloud.context', { count: model.context_length.toLocaleString() })}</span>{/if}
+                    {#if model.input_price !== null && model.output_price !== null}<span>{t('cloud.price', { input: formatPrice(model.input_price), output: formatPrice(model.output_price) })}</span>{/if}
+                    {#if model.tools}<span>{t('cloud.tools')}</span>{/if}
+                    {#if model.vision}<span>{t('cloud.vision')}</span>{/if}
+                  </span>
+                </button>
+              {/each}
+            {/if}
+          </div>
+        {/each}
       {/if}
       <h3 class="px-2 py-1.5 text-xs font-semibold">{t('setup.local_models')}</h3>
       {#if rows.length === 0}
@@ -386,5 +417,5 @@
     </div>
   </Popover.Content>
 </Popover.Root>
-{#if currentModel}<span class="max-w-64 truncate text-xs text-muted-foreground" title={t('setup.location')}>{t(location.key, { device: selectedRemote?.link ?? location.device ?? '' })}</span>{/if}
+{#if currentModel}<span class="max-w-64 truncate text-xs text-muted-foreground" title={t('setup.location')}>{t(location.key, { device: selectedRemote?.link ?? selectedCloud?.label ?? location.device ?? '' })}</span>{/if}
 </div>
