@@ -1,4 +1,4 @@
-import { isRemoteModel } from './remoteModels.ts';
+import { isExternalModel } from './cloudModels.ts';
 
 /** A new chat keeps a loaded or remote choice; otherwise follows the selected running chat server. */
 export function selectChatModel(
@@ -7,7 +7,7 @@ export function selectChatModel(
   states: Record<string, string>,
   running: string | null,
 ): string {
-  if (available.includes(previous) && (isRemoteModel(previous) || states[previous] === 'loaded' || previous === running)) return previous;
+  if (available.includes(previous) && (isExternalModel(previous) || states[previous] === 'loaded' || previous === running)) return previous;
   if (running && available.includes(running)) return running;
   return available.find(alias => states[alias] === 'loaded') ?? (available.includes(previous) ? previous : available[0] ?? '');
 }

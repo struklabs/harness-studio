@@ -26,6 +26,8 @@ const WEB_SEARCH_PREFIX: &str = "web-search:";
 const N8N_ACCOUNT: &str = "n8n-api-key";
 /// OAuth session of a remote MCP server (`mcp-oauth:<server name>`).
 const MCP_OAUTH_PREFIX: &str = "mcp-oauth:";
+/// API key of a BYOK cloud provider (`cloud-provider:[<datadir-hash>:]<id>`).
+const CLOUD_PREFIX: &str = "cloud-provider:";
 
 pub trait SecretStore: Send + Sync {
     fn get(&self, account: &str) -> Result<Option<String>, String>;
@@ -492,7 +494,10 @@ pub fn n8n_key_set(value: Option<&str>) -> Result<(), String> {
     })
 }
 
-fn link_account_for(
+/// `<prefix><id>` for the real app's default data directory, `<prefix><hash>:<id>` for any
+/// other one, so isolated instances never read or overwrite the installed app's entries.
+fn scoped_account_for(
+    prefix: &str,
     data_dir: &std::path::Path,
     default_dir: Option<&std::path::Path>,
     id: &str,
@@ -501,16 +506,34 @@ fn link_account_for(
     let canonical = crate::paths::canonicalize_lenient(data_dir);
     // Preserve installed tokens only for the real app's default data directory.
     if default_dir.is_some_and(|dir| crate::paths::canonicalize_lenient(dir) == canonical) {
-        return format!("{LINK_PREFIX}{id}");
+        return format!("{prefix}{id}");
     }
     let digest = Sha256::digest(canonical.as_os_str().as_encoded_bytes());
     let hash: String = digest.iter().take(12).map(|b| format!("{b:02x}")).collect();
-    format!("{LINK_PREFIX}{hash}:{id}")
+    format!("{prefix}{hash}:{id}")
+}
+
+#[cfg(test)]
+fn link_account_for(
+    data_dir: &std::path::Path,
+    default_dir: Option<&std::path::Path>,
+    id: &str,
+) -> String {
+    scoped_account_for(LINK_PREFIX, data_dir, default_dir, id)
+}
+
+fn scoped_account(prefix: &str, id: &str) -> String {
+    let default_dir = dirs::data_dir().map(|dir| dir.join(SERVICE));
+    scoped_account_for(
+        prefix,
+        &crate::paths::data_root(),
+        default_dir.as_deref(),
+        id,
+    )
 }
 
 fn link_account(id: &str) -> String {
-    let default_dir = dirs::data_dir().map(|dir| dir.join(SERVICE));
-    link_account_for(&crate::paths::data_root(), default_dir.as_deref(), id)
+    scoped_account(LINK_PREFIX, id)
 }
 
 pub fn link_get(id: &str) -> Result<Option<String>, String> {
@@ -529,6 +552,31 @@ pub fn link_delete(id: &str) -> Result<(), String> {
     store()
         .delete(&link_account(id))
         .map_err(|_| crate::error_key::err("link.keychain_unavailable").into())
+}
+
+// --- Cloud provider API keys (BYOK) ---
+
+fn cloud_account(id: &str) -> String {
+    scoped_account(CLOUD_PREFIX, id)
+}
+
+pub fn cloud_key_get(id: &str) -> Result<Option<String>, String> {
+    store()
+        .get(&cloud_account(id))
+        .map(|k| k.filter(|k| !k.trim().is_empty()))
+        .map_err(|_| crate::error_key::err("cloud.keychain_unavailable").into())
+}
+
+pub fn cloud_key_set(id: &str, key: &str) -> Result<(), String> {
+    store()
+        .set(&cloud_account(id), key)
+        .map_err(|_| crate::error_key::err("cloud.keychain_unavailable").into())
+}
+
+pub fn cloud_key_delete(id: &str) -> Result<(), String> {
+    store()
+        .delete(&cloud_account(id))
+        .map_err(|_| crate::error_key::err("cloud.keychain_unavailable").into())
 }
 
 #[cfg(test)]
