@@ -35,6 +35,8 @@ pub enum InstanceKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ApiEndpoint {
+    #[serde(default)]
+    pub tls: bool,
     pub host: String,
     pub port: u16,
 }
@@ -432,6 +434,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn api_endpoint_preserves_tls_and_accepts_legacy_records() {
+        let legacy: ApiEndpoint =
+            serde_json::from_str(r#"{"host":"127.0.0.1","port":11520}"#).unwrap();
+        assert!(!legacy.tls);
+        let endpoint = ApiEndpoint {
+            tls: true,
+            ..legacy
+        };
+        let roundtrip: ApiEndpoint =
+            serde_json::from_str(&serde_json::to_string(&endpoint).unwrap()).unwrap();
+        assert!(roundtrip.tls);
+    }
+
+    #[test]
     fn two_handles_contend_and_release_frees_the_lock() {
         let dir = tempfile::tempdir().unwrap();
         let first = InstanceLock::acquire(dir.path(), InstanceKind::Gui, "1.0").unwrap();
@@ -448,6 +464,7 @@ mod tests {
         first
             .set_api(
                 Some(ApiEndpoint {
+                    tls: false,
                     host: "127.0.0.1".into(),
                     port: 11500,
                 }),

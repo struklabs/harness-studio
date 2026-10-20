@@ -37,6 +37,7 @@ impl Caller {
 pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Scope> {
     match route {
         "/health" => return None,
+        "/browser/login" | "/browser/session" => return None,
         "/openapi.json" if loopback => return None,
         // Any valid token may speak MCP; each tool checks its own scope.
         "/mcp" => return Some(Scope::Read),
@@ -62,7 +63,8 @@ pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Sc
     {
         return Some(Scope::Admin);
     }
-    if route == "/tokens"
+    if route.starts_with("/browser/")
+        || route == "/tokens"
         || route.starts_with("/tokens/")
         || route.ends_with("/exposure-ack")
         || route == "/shutdown"
@@ -179,7 +181,17 @@ pub async fn guard(State(state): State<AppState>, mut req: Request, next: Next) 
     let Some(needed) = required_scope(req.method(), &route, state.loopback) else {
         return next.run(req).await;
     };
-    let Some(caller) = bearer(&req).and_then(|t| authenticate(&state, t)) else {
+    let caller = if req.headers().contains_key(header::AUTHORIZATION) {
+        bearer(&req).and_then(|t| authenticate(&state, t))
+    } else if let Some(browser) = &state.browser {
+        match browser.caller(&state, req.headers(), req.method()) {
+            Ok(caller) => Some(caller),
+            Err(err) => return err.into_response(),
+        }
+    } else {
+        None
+    };
+    let Some(caller) = caller else {
         let mut resp = ApiError::unauthorized().into_response();
         resp.headers_mut().insert(
             header::WWW_AUTHENTICATE,
@@ -191,7 +203,15 @@ pub async fn guard(State(state): State<AppState>, mut req: Request, next: Next) 
         return ApiError::forbidden_scope(needed.as_str()).into_response();
     }
     req.extensions_mut().insert(caller);
-    next.run(req).await
+    let cookie_auth = !req.headers().contains_key(header::AUTHORIZATION);
+    let headers = req.headers().clone();
+    let response = next.run(req).await;
+    if cookie_auth {
+        if let Some(browser) = state.browser {
+            return crate::browser::protect_stream(response, browser, headers);
+        }
+    }
+    response
 }
 
 #[cfg(test)]

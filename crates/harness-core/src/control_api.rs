@@ -342,8 +342,14 @@ pub struct CreatedToken {
 /// Who a request authenticated as.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Principal {
+    /// Local owner credential read from the private session token file.
     Session,
-    Named { id: String, name: String },
+    /// Password-authenticated browser administrator; never a local owner credential.
+    Browser,
+    Named {
+        id: String,
+        name: String,
+    },
 }
 
 /// `config/api_tokens.json`: `{schema_version: 2, tokens: [...]}`.

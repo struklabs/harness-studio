@@ -74,6 +74,8 @@ Discovery and setup slice: [Discover and Model Setup](MODEL_SETUP.md) connects t
 
 ### W5 — Manage an Existing Harness Server
 
+First slice: [browser administration](CLI.md#browser-management) adds a static Svelte management shell, one-time administrator setup, password/cookie sessions, CSRF checks, backoff, session/token revocation, and user-supplied TLS on the existing Control API listener. Multiple users, ACME, service operations/packaging, and the SDK publication audit remain open.
+
 - [ ] Build browser management on shipped `harness serve`, Control API, Gateway, Harness Link, and authorization capabilities; review existing boundaries before extending them.
 - [ ] Deliver browser sessions, HTTPS, users, and scoped tokens with clear connection approval, revocation, and errors for remote administration.
 - [ ] Add server updates, logs, backup/restore, and service lifecycle flows with Linux service packages and Docker images.

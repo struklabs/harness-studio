@@ -378,3 +378,30 @@ HARNESS_HOST=192.168.1.20:11500 HARNESS_TOKEN=hs_... harness ps
 - MCP (`tests/mcp.rs`): the real `harness mcp` binary with line-by-line JSON-RPC; handshake, scopes, tool errors, modern/legacy era. `#[ignore]` end to end: `load_model` → `get_endpoint` → a real chat → `unload_model` → benchmark; configuration checks with the real `claude mcp list` and `codex mcp get` (a temporary `CLAUDE_CONFIG_DIR` / `CODEX_HOME`).
 - `launch` (`tests/launch.rs`, `#[ignore]`, ports 19120+): the `--dry-run` plan of five tools with `serve --gateway` (token hidden), connection tests (`/v1/messages`, `/v1/responses`, chat; a tool call), the real Claude Code with `HS_TEST_LAUNCH_CLAUDE=1` (a temporary `CLAUDE_CONFIG_DIR`, `--prepare`, `-p`), the real Codex with `HS_TEST_LAUNCH_CODEX=1` (a temporary `CODEX_HOME`, `exec`). Usage errors are in `tests/cli.rs`.
 - End to end (`tests/e2e.rs`, `#[ignore]`): `HS_LLAMA_SERVER=<llama-server> HS_TEST_MODEL=<gguf> cargo test -p harness-cli --test e2e -- --ignored --test-threads=1`. `serve` → `run` (a definition from a file path) → reuse by alias → `chat` (two turns, history) → `logs` → `benchmark run` → `unload` → `load` → `shutdown` (ports close); nothing stays open after `--headless run`. With `HS_TEST_OOM=1`, exit 5 and `servers.out_of_memory` (stage `kv_cache`) are verified on a real VRAM allocation failure; `e2e_oom_recovery_retry` verifies that the server really opens with `harness retry --option lower_context` and that it starts without `-ngl` with `enable_fit`; `e2e_crash_auto_restart` verifies that a crashed llama-server is restarted with exponential backoff and that `stop` cancels the attempt while waiting. `e2e_serve_gateway_run_uses_managed_endpoint` verifies the `serve --gateway` ready line, the gateway information in `status`, and that `run` goes through the gateway (ports 18800+). `e2e_serve_gateway_request_log_and_analytics` verifies that the gateway request of `run` is written to `analytics.db` and read back with `requests`, `requests <id>`, and `analytics` (ports 19010+).
+
+## Browser Management
+
+The first 0.2 W5 slice adds browser administration to the existing headless owner. Build the existing UI with `npm ci` and `npm run build`, then run:
+
+```sh
+harness serve --port 11520 --ui-dir ./build --no-restore
+```
+
+Open `http://localhost:11520/`, verify the displayed server address and administrator grant, and enter the one-time setup code printed on the server terminal. Set a password of at least 12 characters. Subsequent visits use that password. Sign Out revokes the current cookie; Settings can revoke every browser session. CLI/SDK clients continue to use scoped named tokens. The browser contains Dashboard/Servers (start, stop, retry), Library (load existing definitions, delete eligible files), model downloads (repository/variant, progress, pause/resume/cancel), basic context/GPU defaults, and token creation/revocation. Native desktop actions are hidden; all displayed paths belong to the server.
+
+For a headless distribution, place the static `build/` contents in a `web/` directory beside the `harness` executable. It is discovered automatically, with `./build` as the development fallback. `--ui-dir` overrides discovery. Without assets, `serve` warns and keeps its existing API-only behavior; an explicitly configured missing build fails startup. Copy the complete build, including `_app/` and fonts; no Node.js runtime is needed on the server.
+
+For direct HTTPS, pass `--serve-config /path/to/serve.json`:
+
+```json
+{
+  "ui_dir": "/opt/harness/web",
+  "public_origin": "https://harness.example:11520",
+  "tls_cert": "/etc/harness/fullchain.pem",
+  "tls_key": "/etc/harness/privkey.pem"
+}
+```
+
+Paths are resolved from the working directory. Both PEM files are required together; invalid TLS fails startup. Use a certificate trusted by your browser. For a network bind, first create a named token with the existing CLI token commands and approve `control_api.allow_network` in server settings, then add `--listen 0.0.0.0 --port 11520`. The configured public origin must match the URL used by the browser exactly (scheme, host, and port), without a path/trailing slash. The API retains its named-token requirement for network binds. Plain HTTP outside loopback warns and refuses password login. CLI auto-discovery uses the listener address; when the certificate covers only the public DNS name, connect explicitly with `--host https://harness.example:11520` and a named token. TLS covers this Control API/UI listener; the inference Gateway is configured separately. Automatic ACME issuance, reverse-proxy TLS termination, multiple users, and service packaging remain later slices.
+
+The setup code expires after 15 minutes. Restart before completing setup to get another code. Once configured, restart retains the password but revokes all sessions. For password recovery, stop the owner and move `<data directory>/config/browser-admin.json` to a private backup, then restart and pair again from the terminal. This requires server filesystem access. Do not share the setup code, password, TLS key, or API token.

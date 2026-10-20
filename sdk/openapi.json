@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Harness Control API",
-    "description": "Local management API of Harness Studio (llama.cpp control center). Every endpoint except /health needs `Authorization: Bearer <token>`: the session token (`<data dir>/api-token`, full access) or a named token with scopes (read, inference, models:write, downloads:write, servers:write, servers:control, conversations, admin); a token's gateway policy (allowed models and endpoints, rate limits) is part of it. Errors: `{\"error\": {\"code\", \"message_key\", \"params\"}}`.",
+    "description": "Local management API of Harness Studio (llama.cpp control center). Every protected endpoint accepts `Authorization: Bearer <token>`: the local owner token (`<data dir>/api-token`, full access) or a named token with scopes (read, inference, models:write, downloads:write, servers:write, servers:control, conversations, admin); a token's gateway policy (allowed models and endpoints, rate limits) is part of it. Headless browser administrators may instead use the Secure HttpOnly session cookie; cookie writes need same-origin Origin and X-Harness-CSRF. /health and browser login/session bootstrap are public. Errors: `{\"error\": {\"code\", \"message_key\", \"params\"}}`.",
     "contact": {
       "name": "struklabs and Harness Studio contributors"
     },
@@ -562,6 +562,239 @@
           },
           "409": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/browser/login": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/api/harness/v1/browser/logout": {
+      "post": {
+        "tags": [
+          "system"
+        ],
+        "operationId": "logout",
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/browser/session": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "operationId": "session",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/api/harness/v1/browser/sessions": {
+      "delete": {
+        "tags": [
+          "system"
+        ],
+        "operationId": "revoke",
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/browser/settings": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "operationId": "settings",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BasicSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "system"
+        ],
+        "operationId": "save_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BasicSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -9130,6 +9363,27 @@
           }
         }
       },
+      "BasicSettings": {
+        "type": "object",
+        "description": "Only non-secret launch defaults; never serialize AppSettings to a browser.",
+        "required": [
+          "default_ctx",
+          "default_ngl"
+        ],
+        "properties": {
+          "default_ctx": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "default_ngl": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
       "BenchResult": {
         "type": "object",
         "description": "One llama-bench result row (a subset of its JSON output).",
@@ -14730,6 +14984,23 @@
           }
         }
       },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "setup_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "LogsResponse": {
         "type": "object",
         "required": [
@@ -19845,6 +20116,27 @@
           }
         }
       },
+      "SessionStatus": {
+        "type": "object",
+        "required": [
+          "setup_required",
+          "authenticated"
+        ],
+        "properties": {
+          "setup_required": {
+            "type": "boolean"
+          },
+          "authenticated": {
+            "type": "boolean"
+          },
+          "csrf": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "SetWebSearchSettings": {
         "type": "object",
         "required": [
@@ -21558,12 +21850,21 @@
         "type": "http",
         "scheme": "bearer",
         "description": "Session token or named token"
+      },
+      "browser_cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-harness",
+        "description": "Serve-only administrator session. Writes also require same-origin Origin and X-Harness-CSRF from /browser/session. Secure, HttpOnly, SameSite=Strict."
       }
     }
   },
   "security": [
     {
       "bearer": []
+    },
+    {
+      "browser_cookie": []
     }
   ],
   "tags": [

@@ -163,6 +163,7 @@ pub async fn post(
     };
     let label = match &caller.principal {
         Principal::Session => "mcp".to_string(),
+        Principal::Browser => "mcp:browser".to_string(),
         Principal::Named { name, .. } => format!("mcp:{name}"),
     };
     let server = McpServer::new(Arc::new(backend), caller.scopes.clone(), Transport::Http)

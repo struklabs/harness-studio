@@ -488,6 +488,7 @@ mod tests {
         owner
             .set_api(
                 Some(ApiEndpoint {
+                    tls: false,
                     host: "127.0.0.1".into(),
                     port: listener.local_addr().unwrap().port(),
                 }),
