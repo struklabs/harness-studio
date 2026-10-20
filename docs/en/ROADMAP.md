@@ -65,6 +65,8 @@ First slice: [Module Lifecycle](MODULE_LIFECYCLE.md) covers the existing Speech 
 
 ### W4 — Choose a Model and Use Relevant Tools
 
+Discovery and setup slice: [Discover and Model Setup](MODEL_SETUP.md) connects the existing Registry, Modules, MCP settings, Playground, and Library; dedicated Connector catalogs and provider model connections remain outside this slice.
+
 - [ ] Show the selected model's chat, vision, image, STT, TTS, video, embedding, reranking, and tool-calling capabilities; clearly label experimental or incompatible model/runtime combinations.
 - [ ] Route requests to relevant Tools/MCP capabilities through on-demand discovery and schema loading instead of attaching every schema to every request; expose routing errors and permission needs.
 - [ ] Provide distinct Discover categories for Skills, MCP servers, Connectors, Tools, and bundled Modules; keep module/backend installation metadata separate from the official Skills/MCP/Tools Registry.

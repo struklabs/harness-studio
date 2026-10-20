@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { app } from '#lib/stores/app.svelte.js';
   import TrustPermissions from "./TrustPermissions.svelte";
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
@@ -27,6 +28,9 @@
   let error = $state('');
   let query = $state('');
   let kind = $state('all');
+  $effect(() => {
+    if (app.requestedRegistryKind) { kind = app.requestedRegistryKind; query = ''; app.requestedRegistryKind = null; }
+  });
   let sort = $state('name');
   let visible = $derived(filterCatalog(snapshot?.index.entries ?? [], query, kind, sort, getLanguage()));
   const key = (e: Entry) => e.id.split('.').at(-1)!;
@@ -77,6 +81,7 @@
 
 <SettingGroup title={t('tools.registry_title')} hint={t('tools.registry_desc')}>
   <div class="flex flex-col gap-3 p-4">
+    <p class="text-xs text-muted-foreground">{t('discover.registry_scope')}</p>
     <div class="flex flex-wrap items-center gap-2">
       <Input class="min-w-40 flex-1" aria-label={t('tools.registry_search')} placeholder={t('tools.registry_search')} bind:value={query} />
       <label class="text-xs">{t('tools.registry_type')}

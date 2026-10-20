@@ -4,6 +4,9 @@
   // the definition), with the memory estimate of the launch the load would start. A model
   // another engine runs (ONNX, whisper.cpp, sd.cpp, python-hf...) shows that engine's settings.
   import { definitionsEpoch, invoke, invokeShared } from '#lib/ipc.js';
+  import { resourceOverrides } from '#lib/modelSetup.js';
+  import { formatBytes } from '#lib/format.js';
+  import type { DeviceReport } from '#lib/types.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
   import { capsStore } from '#lib/stores/caps.svelte.js';
@@ -18,7 +21,7 @@
   import { Switch } from '#lib/components/ui/switch/index.js';
   import FitIndicator from '../dashboard/model/FitIndicator.svelte';
   import {
-    differsFromRunning, formFromDefinition, formValid, kvOptions, overridesFromForm, parseCount, sameForm, visibleFields,
+    differsFromRunning, formFromDefinition, formValid, kvOptions, overridesFromForm, parseCount, visibleFields,
     type KvChoice, type LoadForm, type RunningLoad,
   } from './loadSettings';
 
@@ -61,6 +64,20 @@
     };
   });
   let otherEngine = $derived(engine !== 'llama.cpp');
+  let resource = $state('saved');
+  let devices = $state<DeviceReport | null>(null);
+  let deviceError = $state(false);
+  $effect(() => {
+    void def.id;
+    const serverId = app.selectedServerId;
+    resource = 'saved'; devices = null; deviceError = false;
+    let live = true;
+    invoke<DeviceReport>('get_runtime_devices', { serverId, refresh: false })
+      .then(report => { if (live) { devices = report; deviceError = !!report.error; } })
+      .catch(() => { if (live) deviceError = true; });
+    return () => { live = false; };
+  });
+  let resourceLayer = $derived(resourceOverrides(resource, (devices?.devices ?? []).map(d => d.index)));
   /** The engine's parameters this level shows (typed launch fields are not catalog values). */
   let engineSpecs = $derived(
     (engineCatalog?.param ?? []).filter((p) => !p.legacy_field && (uiLevel.level === 'advanced' || p.level === 'basic')),
@@ -97,15 +114,15 @@
   let form = $state<LoadForm>(formFromDefinition(def.load));
   let level = $derived(uiLevel.level);
   let shown = $derived(visibleFields(level));
-  let overrides = $derived(otherEngine ? engineOverrides : overridesFromForm(form, base, level));
-  let valid = $derived(otherEngine || formValid(form, level));
-  let unchanged = $derived(Object.keys(overrides).length === 0 || (!otherEngine && sameForm(form, base)));
+  let overrides = $derived(otherEngine ? engineOverrides : { ...overridesFromForm(form, base, level), ...resourceLayer });
+  let valid = $derived(otherEngine || (formValid({ ...form, gpuLayers: resource === 'saved' ? form.gpuLayers : '' }, level) && resourceLayer !== null));
+  let unchanged = $derived(Object.keys(overrides).length === 0);
 
   // The definition changed under us (saved from here or elsewhere): start from it again.
   let baseKey = $derived(JSON.stringify(def.load));
   let seenKey = $state<string | null>(null);
   $effect(() => {
-    if (seenKey !== null && seenKey !== baseKey) form = { ...base };
+    if (seenKey !== null && seenKey !== baseKey) { form = { ...base }; resource = 'saved'; }
     seenKey = baseKey;
   });
 
@@ -156,30 +173,32 @@
       ? runningServerId
       : null
   );
-  let differs = $derived(otherEngine ? !!running && !unchanged : differsFromRunning(form, running, level));
+  let differs = $derived(otherEngine ? !!running && !unchanged : differsFromRunning(form, running, level) || (!!running && resource !== 'saved'));
 
   // Live memory estimate of the launch these settings would start (debounced).
   let fit = $state<HardwareFitResult | null>(null);
+  let fitPending = $state(false);
   let fitToken = 0;
   $effect(() => {
     const id = def.id;
     const ov = overrides;
     const ok = valid;
+    const mine = ++fitToken;
+    fit = null;
+    fitPending = ok;
     if (!ok) {
-      fit = null;
       return;
     }
-    const mine = ++fitToken;
     const timer = setTimeout(() => {
       invoke<FitResult>('estimate_definition_load_fit', { definitionId: id, overrides: ov })
         .then((r) => {
-          if (mine === fitToken) fit = toHardwareFit(r);
+          if (mine === fitToken) { fit = toHardwareFit(r); fitPending = false; }
         })
         .catch(() => {
-          if (mine === fitToken) fit = null;
+          if (mine === fitToken) { fit = null; fitPending = false; }
         });
     }, 250);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); fitToken++; };
   });
 
   /** `aria-invalid` of a number field. */
@@ -191,6 +210,7 @@
 </script>
 
 <div class="flex flex-col gap-3 border-t border-border/60 bg-muted/30 px-3 py-3" role="group" aria-label={t('pgm.settings_for', { alias: def.alias })}>
+  <p class="text-xs text-muted-foreground">{t('setup.location')}: {t('setup.this_pc')}</p>
   {#if otherEngine}
     <div class="flex flex-col gap-3">
       {#each engineSpecs as spec (spec.id)}
@@ -220,13 +240,27 @@
       {/each}
     </div>
   {:else}
+  <Field label={t('setup.resources')} id="{uid}-resource">
+    <NativeSelect id="{uid}-resource" bind:value={resource}>
+      <option value="saved">{t('setup.saved')}</option>
+      <option value="auto">{t('setup.auto')}</option>
+      <option value="cpu">{t('setup.cpu')}</option>
+      {#if capsStore.supports('main_gpu') && capsStore.supports('split_mode')}
+        {#each devices?.devices ?? [] as device (device.id)}
+          <option value={String(device.index)}>{device.id}: {device.name}{device.available_bytes !== null ? ` (${formatBytes(device.available_bytes)})` : ''}</option>
+        {/each}
+      {/if}
+    </NativeSelect>
+  </Field>
+  {#if deviceError}<p class="text-xs text-warning" role="status">{t('setup.device_unavailable')}</p>{/if}
+  {#if uiLevel.advanced}<p class="text-xs text-muted-foreground">{t('setup.resource_hint')}</p>{/if}
   <div class="grid grid-cols-2 gap-3">
     {#if shown.includes('context')}
       <Field label={t('dash.lp_ctx_label_short')} id="{uid}-ctx" hint={t('pgm.set_context_hint')} flag="-c">
         <Input id="{uid}-ctx" inputmode="numeric" placeholder={t('pgm.set_auto')} bind:value={form.context} class="font-num" aria-invalid={parseInvalid(form.context)} />
       </Field>
     {/if}
-    {#if shown.includes('gpuLayers')}
+    {#if shown.includes('gpuLayers') && resource === 'saved'}
       <Field label={t('pgm.set_gpu_layers')} id="{uid}-ngl" hint={t('pgm.set_gpu_layers_hint')} flag="-ngl">
         <Input id="{uid}-ngl" inputmode="numeric" placeholder={t('pgm.set_auto')} bind:value={form.gpuLayers} class="font-num" aria-invalid={parseInvalid(form.gpuLayers)} />
       </Field>
@@ -257,6 +291,8 @@
 
   {#if fit}
     <FitIndicator fitResult={fit} recommendedNgl={null} gpuLayers={fit.offloadedLayers} onApplyRecommendedNgl={() => {}} />
+  {:else if valid}
+    <p class="text-xs text-muted-foreground" role="status">{t(fitPending ? 'setup.fit_pending' : 'setup.fit_unavailable')}</p>
   {/if}
 
   <div class="flex flex-wrap items-center gap-2">
@@ -271,7 +307,7 @@
     {/if}
     <span class="ml-auto flex flex-wrap items-center gap-2">
       {#if !unchanged}
-        <Button variant="ghost" size="xs" onclick={() => { form = { ...base }; engineEdits = {}; }}>{t('pgm.set_reset')}</Button>
+        <Button variant="ghost" size="xs" onclick={() => { form = { ...base }; engineEdits = {}; resource = 'saved'; }}>{t('pgm.set_reset')}</Button>
       {/if}
       {#if reloadId && differs}
         <Button size="xs" variant="outline" disabled={busy || !valid} onclick={() => onLoad({ kind: 'server', server_id: reloadId }, overrides)} title={t('pgm.set_loaded_differs')}>

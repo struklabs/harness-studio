@@ -65,7 +65,7 @@
 
 <div class="flex h-full min-h-0 flex-col overflow-y-auto p-4 md:p-6">
   <div class="mb-5 flex items-start justify-between gap-4">
-    <div><h1 class="text-xl font-semibold">{t('modules.title')}</h1><p class="mt-1 text-sm text-muted-foreground">{t('modules.intro')}</p></div>
+    <div><h1 class="text-xl font-semibold">{t('modules.title')}</h1><p class="mt-1 text-sm text-muted-foreground">{t('modules.intro')}</p><p class="mt-2 text-xs text-muted-foreground">{t('discover.registry_scope')}</p></div>
     <Button variant="outline" onclick={() => { error = ''; void refresh(); }}>{t('modules.refresh')}</Button>
   </div>
   {#if error}<p role="alert" class="mb-4 rounded-md border border-destructive p-3 text-sm text-destructive">{error}</p>{/if}

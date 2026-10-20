@@ -68,6 +68,8 @@ class AppState {
   newServerPending = $state(false);
   /** Tab another component wants shown (consumed by the page, which resets it to null). */
   requestedCreatePage = $state<string | null>(null);
+  requestedRegistryKind = $state<'skill' | 'mcp' | 'tool' | null>(null);
+  requestedModelResources = $state<string | null>(null);
   requestedConnectionPage = $state<string | null>(null);
   requestedTab = $state<string | null>(null);
   /** Search the Model Hub should run when it is shown (consumed by the Hub, which resets it to null). */

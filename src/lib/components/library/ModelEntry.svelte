@@ -313,6 +313,13 @@
 
   /** The tab this file runs in (image, speech, embedding, rerank), or null for chat models and unfinished files. */
   let playgroundTab = $derived(playgroundTarget(m, entry.record.runtime));
+  function reviewResources() {
+    const def = definitions.find(d => d.id === entry.last_definition_id) ?? definitions[0];
+    if (!def) { openInDashboard(); return; }
+    app.requestedPlaygroundModel = def.alias;
+    app.requestedModelResources = def.id;
+    app.openPlaygroundTab(playgroundTab?.tab ?? 'chat');
+  }
   async function openPlayground() {
     if (state.openingPlayground) return;
     state.openingPlayground = true;
@@ -501,6 +508,7 @@
       </div>
   {/if}
 
+  <p class="text-xs text-muted-foreground">{t('setup.location')}: {t('setup.this_pc')}</p>
   <!-- Usage -->
   {#if running.length > 0 || lastUsed}
   <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -555,6 +563,7 @@
       <Button variant="outline" size="xs" onclick={startChat} disabled={state.startingChat || !!platformBlocked}>
         {#if state.startingChat}<LoaderCircle class="animate-spin" />{:else}<MessageSquare />{/if}{running.length > 0 ? t('hub.chat_now') : t('hub.load_and_chat')}
       </Button>
+      <Button variant="ghost" size="xs" onclick={reviewResources} disabled={!!platformBlocked}>{t('setup.review')}</Button>
     </div>
   {:else if playgroundTab}
     <!-- Image, speech, voice, embedding and rerank files: open the Playground tab with the file selected (its definition is made when missing). -->
@@ -562,6 +571,7 @@
       <Button variant="outline" size="xs" onclick={openPlayground} disabled={state.openingPlayground}>
         {#if state.openingPlayground}<LoaderCircle class="animate-spin" />{:else}<SquareArrowOutUpRight />{/if}{t('lib.open_in_playground')}
       </Button>
+      {#if definitions.length}<Button variant="ghost" size="xs" onclick={reviewResources}>{t('setup.review')}</Button>{/if}
     </div>
   {/if}
 

@@ -2,6 +2,8 @@
   // Playground model picker: every model definition with its run state (downloaded / loading /
   // loaded & running / not downloaded). Load a definition on the selected server, a new server or
   // one of its profiles, unload it, or switch the conversation to a server that runs it.
+  import { executionLocation } from '#lib/modelSetup.js';
+  import AdvancedOnly from '../common/AdvancedOnly.svelte';
   import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import type { DefinitionRunState, LoadTarget, ModelDefinition, ParamValues } from '#lib/types.js';
@@ -44,6 +46,7 @@
   let remoteError = $state('');
   let remoteRows = $derived(filterRemoteModels(remoteModels, query));
   let selectedRemote = $derived(remoteModels.find((m) => m.id === currentModel));
+  let location = $derived(executionLocation(currentModel));
   $effect(() => {
     if (!open || mode !== 'chat') return;
     let alive = true;
@@ -118,6 +121,12 @@
     if (!domain.pendingModelPicker) return;
     domain.pendingModelPicker = false;
     open = true;
+  });
+  $effect(() => {
+    if (!app.requestedModelResources) return;
+    open = true;
+    settingsFor = app.requestedModelResources;
+    app.requestedModelResources = null;
   });
 
   /** Switch to a running server's model, then close the popover and hand focus back to the composer. */
@@ -210,8 +219,9 @@
 
 <svelte:window onkeydown={onWindowKeydown} />
 
+<div class="flex min-w-0 flex-col items-end gap-0.5">
 <Popover.Root bind:open>
-  <Popover.Trigger class={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'max-w-64 min-w-32 shrink gap-1.5')} aria-label={t('pgm.open')}>
+    <Popover.Trigger class={cn(buttonVariants({ variant: 'outline', size: 'sm' }), 'max-w-64 min-w-32 shrink gap-1.5')} aria-label={t('setup.switch')}>
     <Boxes class="size-3.5 shrink-0" />
     <span class="min-w-0 truncate font-mono text-xs">{label ?? current?.alias ?? (currentModel || t('pgm.none'))}</span>
     <span
@@ -240,6 +250,8 @@
         </Button>
       </span>
     </div>
+    <AdvancedOnly><p class="px-3 py-2 text-xs text-muted-foreground">{t('setup.switch_hint')}</p></AdvancedOnly>
+    <details class="px-3 py-2 text-xs text-muted-foreground"><summary class="cursor-pointer">{t('setup.location')}</summary><p class="mt-2">{t('setup.roles')}</p></details>
     <div class="border-b border-border p-2">
       <Input bind:value={query} aria-label={t('link.model_filter')} placeholder={t('link.model_filter')} />
     </div>
@@ -270,8 +282,11 @@
           {/if}
         </div>
       {/if}
+      <h3 class="px-2 py-1.5 text-xs font-semibold">{t('setup.local_models')}</h3>
       {#if rows.length === 0}
         <p class="px-3 py-4 text-xs text-muted-foreground">{t('pgm.empty')}</p>
+        {#if domain.definitions.length === 0}<p class="px-3 text-xs text-muted-foreground">{t('setup.first_hint')}</p>{/if}
+        <div class="flex flex-wrap gap-2 p-3"><Button size="xs" variant="outline" onclick={() => { open = false; app.requestedTab = 'hub'; }}>{t('setup.discover')}</Button><Button size="xs" variant="outline" onclick={() => { open = false; app.requestedTab = 'library'; }}>{t('setup.library')}</Button></div>
       {/if}
       {#each rows as { def, st } (def.id)}
         {@const state = st?.state ?? 'idle'}
@@ -281,7 +296,7 @@
           <div class="flex min-w-0 flex-1 flex-col">
             <span class="truncate font-mono text-xs text-foreground" title={def.alias}>{def.alias}</span>
             <span class="truncate text-xs text-muted-foreground" title={file ?? ''}>
-              <span class={TONE[state]}>{t(LABEL[state])}</span>
+              {t('setup.this_pc')} · <span class={TONE[state]}>{t(LABEL[state])}</span>
               {#if st?.servers.length}
                 · {st.servers.map((s) => `${app.serverLabel(s.server_id)} :${s.port}`).join(', ')}
               {:else if file}
@@ -361,3 +376,5 @@
     </div>
   </Popover.Content>
 </Popover.Root>
+{#if currentModel}<span class="max-w-64 truncate text-xs text-muted-foreground" title={t('setup.location')}>{t(location.key, { device: selectedRemote?.link ?? location.device ?? '' })}</span>{/if}
+</div>
