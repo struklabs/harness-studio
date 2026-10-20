@@ -165,6 +165,14 @@ export const SETTINGS_SEARCH_KEYS: Record<string, TKey[]> = {
     'otelui.interval', 'otelui.content', 'otelui.content_hint',
     'otelui.headers', 'otelui.status_title',
   ],
+  'automations': [
+    'n8nui.connection_title', 'n8nui.connection_desc', 'n8nui.url',
+    'n8nui.url_hint', 'n8nui.key', 'n8nui.key_hint',
+    'n8nui.workflows_title', 'n8nui.workflows_desc', 'n8nui.executions_title',
+    'n8nui.executions_desc', 'n8nui.openai_title', 'n8nui.openai_desc',
+    'n8nui.base_url', 'n8nui.base_url_hint', 'n8nui.token',
+    'n8nui.token_hint',
+  ],
   'updates': [
     'settings.app_updates_title', 'settings.app_current_version', 'settings.app_updates_hint',
     'settings.app_install_progress_label',

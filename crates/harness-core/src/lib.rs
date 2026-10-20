@@ -7,6 +7,7 @@ pub mod appimage;
 pub mod asr;
 pub mod audio;
 pub mod auto_bench;
+pub mod automations;
 pub mod backend_support;
 pub mod benchmark;
 pub mod capabilities;

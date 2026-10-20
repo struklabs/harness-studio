@@ -12,6 +12,8 @@ const API_KEY_PREFIX: &str = "server-api-key:";
 const MCP_PREFIX: &str = "mcp-secret:";
 const LINK_PREFIX: &str = "harness-link:";
 const WEB_SEARCH_PREFIX: &str = "web-search:";
+/// API key of the user's own n8n instance (Settings > Automations).
+const N8N_ACCOUNT: &str = "n8n-api-key";
 /// OAuth session of a remote MCP server (`mcp-oauth:<server name>`).
 const MCP_OAUTH_PREFIX: &str = "mcp-oauth:";
 
@@ -357,6 +359,30 @@ pub fn web_search_key_set(provider: &str, value: Option<&str>) -> Result<(), Str
         None => store().delete(&account),
     }
     .map_err(|e| format!("could not update the web search key in the OS keychain: {e}"))
+}
+
+pub fn n8n_key_get() -> Result<Option<String>, String> {
+    store()
+        .get(N8N_ACCOUNT)
+        .map(|v| v.filter(|v| !v.trim().is_empty()))
+        .map_err(|e| {
+            crate::error_key::err("automations.keychain_unavailable")
+                .with("error", e)
+                .into()
+        })
+}
+
+/// Stores the n8n API key; `None` or an empty value removes it.
+pub fn n8n_key_set(value: Option<&str>) -> Result<(), String> {
+    match value.map(str::trim).filter(|v| !v.is_empty()) {
+        Some(value) => store().set(N8N_ACCOUNT, value),
+        None => store().delete(N8N_ACCOUNT),
+    }
+    .map_err(|e| {
+        crate::error_key::err("automations.keychain_unavailable")
+            .with("error", e)
+            .into()
+    })
 }
 
 fn link_account_for(

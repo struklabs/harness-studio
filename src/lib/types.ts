@@ -2547,3 +2547,58 @@ export interface ConvertEnvStatus {
   estimated_size_bytes: number;
   progress: ConvertEnvProgress | null;
 }
+
+/** Settings > Automations: the user's own n8n (the API key is in the keychain, never here). */
+export interface N8nView {
+  url: string;
+  key_set: boolean;
+}
+
+export interface N8nConnection {
+  ok: boolean;
+  url: string;
+  has_workflows: boolean;
+}
+
+export interface N8nWebhook {
+  method: string;
+  path: string;
+  url: string;
+}
+
+export interface N8nWorkflow {
+  id: string;
+  name: string;
+  active: boolean;
+  triggers: string[];
+  webhook: N8nWebhook | null;
+  updated_at: string | null;
+  editor_url: string;
+}
+
+export interface N8nExecution {
+  id: string;
+  workflow_id: string;
+  status: string;
+  mode: string;
+  started_at: string | null;
+  stopped_at: string | null;
+  editor_url: string;
+}
+
+export interface N8nExecutionError {
+  message: string | null;
+  node: string | null;
+}
+
+export interface N8nTriggerResult {
+  status: number;
+  ok: boolean;
+  body: string;
+}
+
+export interface N8nOpenAiConnection {
+  running: boolean;
+  base_url: string | null;
+  requires_token: boolean;
+}

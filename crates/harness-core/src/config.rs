@@ -179,6 +179,8 @@ pub struct AppSettings {
     pub analytics: crate::analytics::AnalyticsSettings,
     /// OpenTelemetry (OTLP) export of gateway traces and metrics (off by default; see `otel`).
     pub otel: crate::otel::OtelSettings,
+    /// The user's own n8n instance (address only; the API key is in the keychain).
+    pub n8n: crate::automations::N8nSettings,
     /// Tool engine policy: off / ask every time / allow trusted / allow all, the trusted tools
     /// and the default working directory (see `tools`).
     pub tools: crate::tools::ToolSettings,
@@ -271,6 +273,7 @@ impl Default for AppSettings {
             links: Vec::new(),
             analytics: crate::analytics::AnalyticsSettings::default(),
             otel: crate::otel::OtelSettings::default(),
+            n8n: crate::automations::N8nSettings::default(),
             tools: crate::tools::ToolSettings::default(),
         }
     }

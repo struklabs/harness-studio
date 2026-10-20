@@ -37,6 +37,7 @@ The floating section menu stays open after selecting a page. Use **Collapse** or
 | Control API and named tokens | **Developer > Control API** |
 | Command-line tool (CLI) | **Developer > CLI** |
 | Metric and trace export | **OpenTelemetry** |
+| Connection to your own n8n | **Automations** |
 | Theme, language, interface level, startup, tray | **Appearance & Startup** |
 | App version and update check | **Updates** |
 | What local diagnostic reports contain | **Privacy** |
@@ -102,6 +103,17 @@ The **API Keys** page shows each server's key status (**Key set** / **No key**) 
 ## OpenTelemetry
 
 **OpenTelemetry** is for exporting metrics and traces to a collector you choose. It is meant only for people who run observability infrastructure, and it is off by default. Unless you choose **Turn on Export**, the app does not connect to a collector or send data on its own. The one exception is the **Test Export** button: it sends a real test span to the address in the form even when export is off. When export is on, data goes to the collector address you entered. If the build has no gRPC support, choose the **HTTP/protobuf (port 4318)** protocol.
+
+## Automations
+
+**Automations** connects Harness Studio to an n8n instance you already run. Harness Studio does not install, bundle or start n8n, and nothing is sent until you save an address and an API key.
+
+1. In n8n, create an API key under **Settings > n8n API**.
+2. In **Settings > Automations**, enter the n8n URL (for example `https://n8n.example.com` or `http://localhost:5678`) and the key, then choose **Test Connection**. The key is stored in your operating system keychain, not in the settings file.
+3. After you save, the page lists your workflows with their active state and triggers, and the latest executions with their status. **Show Error** on a failed execution reads the error message and the failing node from n8n. **Open in n8n Editor** opens the workflow or execution in your browser.
+4. **Run** starts a workflow after you confirm. It works through the workflow's own Webhook trigger, so the workflow must be active and have a plain Webhook node. Workflows that only have a manual or schedule trigger are listed but cannot be started from here, because n8n's public API has no run call.
+
+**Harness Models for n8n** shows the gateway's OpenAI-compatible **Base URL**. In n8n, add an OpenAI credential, paste the Base URL, and use a token as the API Key. **Create Token** makes a token named `n8n` with only the `inference` scope; it is shown once, so copy it then. The gateway must be running (see [Connections and the Gateway](05-connections-and-gateway.md)). If n8n runs in Docker, replace `127.0.0.1` in the Base URL with `host.docker.internal`.
 
 ## Appearance & Startup
 

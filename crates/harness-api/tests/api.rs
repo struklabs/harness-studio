@@ -575,6 +575,13 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/tokens/{id}", &["get", "patch", "delete"]),
         ("/otel", &["get", "put"]),
         ("/otel/test", &["post"]),
+        ("/automations/n8n", &["get", "put"]),
+        ("/automations/n8n/test", &["post"]),
+        ("/automations/n8n/workflows", &["get"]),
+        ("/automations/n8n/executions", &["get"]),
+        ("/automations/n8n/executions/{id}/error", &["get"]),
+        ("/automations/n8n/workflows/{id}/trigger", &["post"]),
+        ("/automations/n8n/openai", &["get"]),
         ("/analytics/summary", &["get"]),
         ("/analytics/requests", &["get"]),
         ("/analytics/requests/{id}", &["get"]),
@@ -1650,6 +1657,155 @@ async fn narrow_scopes_and_token_update() {
     )
     .unwrap();
     assert_eq!(file["schema_version"], 2, "{file}");
+    api.server.stop().await;
+}
+
+/// n8n connection over the API: everything needs `admin`; the key is stored (never returned),
+/// the test and the workflow list reach a local mock of n8n's public API, and a run needs
+/// an explicit confirmation.
+#[tokio::test]
+async fn n8n_connection_workflows_and_confirmed_trigger() {
+    let api = start().await;
+    let admin = api.token.clone();
+    let (reader, _) = named(&api, "n8n-reader", json!(["read"])).await;
+
+    let (status, body) = json(
+        api.send(Method::GET, "/automations/n8n", &reader, None)
+            .await,
+    )
+    .await;
+    assert_eq!(status, 403);
+    assert_eq!(body["error"]["params"]["scope"], "admin");
+
+    let app = axum::Router::new()
+        .route(
+            "/api/v1/workflows",
+            axum::routing::get(|headers: axum::http::HeaderMap| async move {
+                if headers.get("x-n8n-api-key").and_then(|v| v.to_str().ok()) != Some("n8n-key") {
+                    return (axum::http::StatusCode::UNAUTHORIZED, String::new());
+                }
+                (
+                    axum::http::StatusCode::OK,
+                    json!({"data": [{"id": "w1", "name": "Hello", "active": true, "nodes": []}]})
+                        .to_string(),
+                )
+            }),
+        )
+        .route(
+            "/api/v1/workflows/w1",
+            axum::routing::get(|| async {
+                json!({"id": "w1", "name": "Hello", "active": true, "nodes": [
+                    {"type": "n8n-nodes-base.webhook", "parameters": {"path": "hello", "httpMethod": "POST"}}
+                ]})
+                .to_string()
+            }),
+        )
+        .route(
+            "/webhook/hello",
+            axum::routing::post(|| async { json!({"ok": true}).to_string() }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let n8n = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let (status, body) = json(
+        api.send(
+            Method::PUT,
+            "/automations/n8n",
+            &admin,
+            Some(json!({"url": "not a url"})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 400);
+    assert_error(&body, "automations.n8n_url_invalid");
+
+    let (status, view) = json(
+        api.send(
+            Method::PUT,
+            "/automations/n8n",
+            &admin,
+            Some(json!({"url": n8n, "api_key": "n8n-key"})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{view}");
+    assert_eq!(view, json!({"url": n8n, "key_set": true}));
+
+    let (status, test) = json(
+        api.send(
+            Method::POST,
+            "/automations/n8n/test",
+            &admin,
+            Some(json!({})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{test}");
+    assert_eq!(test["ok"], true);
+    let (status, body) = json(
+        api.send(
+            Method::POST,
+            "/automations/n8n/test",
+            &admin,
+            Some(json!({"api_key": "wrong"})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 502, "{body}");
+    assert_error(&body, "automations.n8n_unauthorized");
+
+    let (status, list) = json(
+        api.send(Method::GET, "/automations/n8n/workflows", &admin, None)
+            .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{list}");
+    assert_eq!(list[0]["name"], "Hello");
+    assert_eq!(list[0]["editor_url"], format!("{n8n}/workflow/w1"));
+
+    let trigger = "/automations/n8n/workflows/w1/trigger";
+    let (status, body) = json(
+        api.send(
+            Method::POST,
+            trigger,
+            &admin,
+            Some(json!({"confirm": false})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 400);
+    assert_error(&body, "automations.n8n_confirm_required");
+    let (status, run) = json(
+        api.send(
+            Method::POST,
+            trigger,
+            &admin,
+            Some(json!({"confirm": true, "payload": {"a": 1}})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{run}");
+    assert_eq!(run["ok"], true);
+
+    // Disconnecting removes the key.
+    let (_, view) = json(
+        api.send(
+            Method::PUT,
+            "/automations/n8n",
+            &admin,
+            Some(json!({"url": ""})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(view, json!({"url": "", "key_set": false}));
     api.server.stop().await;
 }
 
