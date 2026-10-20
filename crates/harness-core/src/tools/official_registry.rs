@@ -10,6 +10,7 @@ const LIMIT: usize = 2 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Description {
     pub en: String,
     pub tr: String,
@@ -17,6 +18,7 @@ pub struct Description {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum Kind {
     Tool,
     Skill,
@@ -25,6 +27,7 @@ pub enum Kind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Entry {
     pub id: String,
     #[serde(rename = "type")]
@@ -45,6 +48,7 @@ pub struct Entry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Index {
     pub schema_version: u32,
     pub entries: Vec<Entry>,
@@ -152,6 +156,7 @@ impl Index {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Snapshot {
     pub commit: String,
     pub etag: Option<String>,
@@ -384,6 +389,77 @@ async fn prepare_skill_from(
         return Err("Skill does not match declared registry metadata".into());
     }
     Ok(text)
+}
+
+/// What an approved install put on disk.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = RegistryInstalled))]
+pub enum Installed {
+    Tool(super::installed::InstalledTool),
+    Skill(crate::skills::Skill),
+}
+
+/// Installs one official entry the way the install dialog does, never silently: the caller must
+/// pass the permissions it showed the user (`approved`), and they must equal what the entry
+/// declares; otherwise nothing is downloaded (`tools.install_approval_required`, whose
+/// `permissions` parameter is the declaration as JSON). MCP entries change the user's server
+/// list and stay GUI-only (`tools.registry_kind_unsupported`).
+pub async fn install_entry(
+    snapshot: &Snapshot,
+    entry: &Entry,
+    approved: Option<&Permissions>,
+    tools_root: &Path,
+    skills_root: &Path,
+    registry: &super::ToolRegistry,
+) -> Result<Installed, String> {
+    install_entry_from(
+        snapshot,
+        entry,
+        approved,
+        tools_root,
+        skills_root,
+        registry,
+        RAW,
+    )
+    .await
+}
+
+async fn install_entry_from(
+    snapshot: &Snapshot,
+    entry: &Entry,
+    approved: Option<&Permissions>,
+    tools_root: &Path,
+    skills_root: &Path,
+    registry: &super::ToolRegistry,
+    raw: &str,
+) -> Result<Installed, String> {
+    if entry.kind == Kind::Mcp {
+        return Err(crate::error_key::err("tools.registry_kind_unsupported")
+            .with("id", &entry.id)
+            .into());
+    }
+    if approved != Some(&entry.permissions) {
+        return Err(crate::error_key::err("tools.install_approval_required")
+            .with("id", &entry.id)
+            .with(
+                "permissions",
+                serde_json::to_string(&entry.permissions).unwrap_or_default(),
+            )
+            .into());
+    }
+    match entry.kind {
+        Kind::Tool => {
+            let staged = prepare_tool_from(snapshot, entry, raw).await?;
+            super::installed::install(tools_root, staged.path(), registry).map(Installed::Tool)
+        }
+        Kind::Skill => {
+            let text = prepare_skill_from(snapshot, entry, raw).await?;
+            crate::skills::install(skills_root, &text).map(Installed::Skill)
+        }
+        Kind::Mcp => unreachable!("refused above"),
+    }
 }
 
 fn parse_mcp(text: &str, entry: &Entry) -> Result<crate::mcp::McpConfig, String> {
@@ -705,5 +781,91 @@ mod tests {
         let (base, task) = server(vec![(200, bad.to_string())]).await;
         assert!(prepare_tool_from(&snapshot, entry, &base).await.is_err());
         task.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn install_needs_the_exact_declared_permissions_and_never_downloads_without_them() {
+        let index = parse(FIXTURE).unwrap();
+        let snapshot = Snapshot {
+            commit: SHA.into(),
+            etag: None,
+            index: index.clone(),
+            offline: false,
+        };
+        let skill = index
+            .entries
+            .iter()
+            .find(|e| e.kind == Kind::Skill)
+            .unwrap();
+        let tools = tempfile::tempdir().unwrap();
+        let skills = tempfile::tempdir().unwrap();
+        let registry = super::super::ToolRegistry::new();
+        // Unreachable server: the refusal must come before any request.
+        let base = "http://127.0.0.1:9";
+        let mut wider = skill.permissions.clone();
+        wider.network.push("example.com".into());
+        for approved in [None, Some(&Permissions::default()), Some(&wider)] {
+            if approved == Some(&skill.permissions) {
+                continue;
+            }
+            let error = install_entry_from(
+                &snapshot,
+                skill,
+                approved,
+                tools.path(),
+                skills.path(),
+                &registry,
+                base,
+            )
+            .await
+            .unwrap_err();
+            let (key, params) = crate::error_key::parse(&error).unwrap();
+            assert_eq!(key, "tools.install_approval_required");
+            assert_eq!(
+                serde_json::from_str::<Permissions>(params["permissions"].as_str().unwrap())
+                    .unwrap(),
+                skill.permissions
+            );
+        }
+        assert!(crate::skills::list(skills.path()).is_empty());
+        // The declared permissions install it.
+        let text = format!(
+            "---
+name: release-notes
+description: {:?}
+---
+Write notes.",
+            skill.description.en
+        );
+        let (base, task) = server(vec![(200, text)]).await;
+        let done = install_entry_from(
+            &snapshot,
+            skill,
+            Some(&skill.permissions),
+            tools.path(),
+            skills.path(),
+            &registry,
+            &base,
+        )
+        .await
+        .unwrap();
+        assert!(matches!(done, Installed::Skill(s) if s.name == "release-notes"));
+        task.await.unwrap();
+        // MCP entries stay in the GUI.
+        let mcp = index.entries.iter().find(|e| e.kind == Kind::Mcp);
+        if let Some(mcp) = mcp {
+            let error = install_entry_from(
+                &snapshot,
+                mcp,
+                Some(&mcp.permissions),
+                tools.path(),
+                skills.path(),
+                &registry,
+                base.as_str(),
+            )
+            .await
+            .unwrap_err();
+            assert!(error.contains("tools.registry_kind_unsupported"));
+        }
     }
 }

@@ -280,3 +280,95 @@ fn failures_usage_errors_and_the_default_working_directory() {
     assert_eq!(r.code, 0, "{}", r.stderr);
     assert_eq!(r.stdout, "hello\n");
 }
+
+fn seed_installed(dir: &Path) {
+    let tool = dir.join("tools/cli_demo");
+    std::fs::create_dir_all(&tool).unwrap();
+    std::fs::write(
+        tool.join("manifest.json"),
+        json!({"name": "cli_demo", "version": "1.0.0", "description": "Demo", "input_schema": {"type": "object"},
+            "output": "text", "runtime": "js", "entry": "index.js",
+            "permissions": {"network": [], "fs": {"read": [], "write": []}, "shell": false}})
+        .to_string(),
+    )
+    .unwrap();
+    std::fs::write(tool.join("index.js"), "function run(args) { return 'ok'; }").unwrap();
+    let skill = dir.join("skills/cli-demo-skill");
+    std::fs::create_dir_all(&skill).unwrap();
+    std::fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: cli-demo-skill\ndescription: A demo skill.\n---\nDo the demo.",
+    )
+    .unwrap();
+}
+
+#[test]
+fn installed_tools_can_be_listed_switched_and_removed() {
+    let dir = data_dir(None, 18512);
+    seed_installed(dir.path());
+    let r = run(dir.path(), &["tools", "installed", "--json"]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let v = r.json();
+    let demo = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["name"] == "cli_demo")
+        .unwrap();
+    assert_eq!(demo["enabled"], true);
+
+    let r = run(dir.path(), &["tools", "disable", "cli_demo"]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let r = run(dir.path(), &["tools", "installed"]);
+    assert!(
+        r.stdout
+            .lines()
+            .any(|l| l.starts_with("cli_demo") && l.contains("off")),
+        "{}",
+        r.stdout
+    );
+    let r = run(dir.path(), &["tools", "enable", "cli_demo"]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    // Removing asks first; without a terminal and without --yes that is a usage error.
+    let r = run(dir.path(), &["tools", "remove", "cli_demo"]);
+    assert_eq!(r.code, 2, "{}", r.stderr);
+    assert!(dir.path().join("tools/cli_demo").exists());
+    let r = run(dir.path(), &["--yes", "tools", "remove", "cli_demo"]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert!(!dir.path().join("tools/cli_demo").exists());
+    let r = run(dir.path(), &["tools", "enable", "cli_demo"]);
+    assert_ne!(r.code, 0);
+}
+
+#[test]
+fn skills_can_be_listed_switched_and_removed() {
+    let dir = data_dir(None, 18511);
+    seed_installed(dir.path());
+    let r = run(dir.path(), &["skills", "list", "--json"]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert!(r
+        .json()
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s["name"] == "cli-demo-skill" && s["enabled"] == true));
+    let r = run(dir.path(), &["skills", "disable", "cli-demo-skill"]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let r = run(dir.path(), &["skills", "ls"]);
+    assert!(
+        r.stdout
+            .lines()
+            .any(|l| l.starts_with("cli-demo-skill") && l.contains("off")),
+        "{}",
+        r.stdout
+    );
+    let r = run(dir.path(), &["skills", "enable", "cli-demo-skill"]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let r = run(dir.path(), &["skills", "remove", "cli-demo-skill"]);
+    assert_eq!(r.code, 2, "{}", r.stderr);
+    let r = run(dir.path(), &["--yes", "skills", "remove", "cli-demo-skill"]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    assert!(!dir.path().join("skills/cli-demo-skill").exists());
+    let r = run(dir.path(), &["skills", "enable", "cli-demo-skill"]);
+    assert_eq!(r.code, 3, "{}", r.stderr);
+}

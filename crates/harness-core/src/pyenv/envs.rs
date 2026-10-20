@@ -276,6 +276,14 @@ pub struct EnvStatus {
 }
 
 pub fn status_in(root: &Path, spec: &EnvSpec) -> EnvStatus {
+    let mut status = status_in_quick(root, spec);
+    status.size_bytes = dir_size(&status.dir);
+    status
+}
+
+/// Like [`status_in`] without walking the folder: `size_bytes` stays 0. For callers that only
+/// need readiness and progress (the module list measures sizes in the background itself).
+pub fn status_in_quick(root: &Path, spec: &EnvSpec) -> EnvStatus {
     let manifest = read_manifest_in(root, spec.name);
     let installed = manifest.is_some() && python_in(root, spec.name).is_file();
     let ready = installed
@@ -291,7 +299,7 @@ pub fn status_in(root: &Path, spec: &EnvSpec) -> EnvStatus {
         installed,
         ready,
         manifest,
-        size_bytes: dir_size(&dir),
+        size_bytes: 0,
         dir,
         estimated_size_bytes: spec.estimated_size_bytes,
         progress: progress(spec.name),

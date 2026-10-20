@@ -392,3 +392,210 @@ pub async fn auto_action(Body(req): Body<AutoActionRequest>) -> ApiResult<Json<V
         serde_json::to_value(s).map_err(|e| ApiError::core(e.to_string()))?,
     ))
 }
+
+// --- installed tools, skills and the official registry ------------------------------------------
+//
+// The GUI Tools and Skills pages over HTTP. Listing is `read`; everything that installs,
+// switches or removes is `admin` (the router rule for `POST`/`DELETE` under `/tools` and
+// `/skills`). Installing is never silent: the caller passes the permissions it showed the user
+// and they must equal the entry declaration, as in the install dialog.
+
+fn registry_error(detail: String) -> ApiError {
+    ApiError::core(harness_core::error_key::err("tools.registry_failed").with("detail", detail))
+}
+
+/// The official registry (`struklabs/harness-registry`) as of its newest revision, narrowed to
+/// the entries this app version and platform can install. Falls back to the cached snapshot
+/// (`offline: true`) when GitHub cannot be reached. Pass `commit` and an entry `id` back to
+/// `POST /tools/registry/install`.
+#[utoipa::path(get, operation_id = "list_registry", path = "/tools/registry", tag = "tools",
+    responses((status = 200, body = harness_core::tools::official_registry::Snapshot),
+        (status = 422, body = ErrorBody)))]
+pub async fn registry_list() -> ApiResult<Json<harness_core::tools::official_registry::Snapshot>> {
+    let mut snapshot = harness_core::tools::official_registry::fetch()
+        .await
+        .map_err(registry_error)?;
+    let platform = if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        std::env::consts::OS
+    };
+    snapshot.index.entries = snapshot
+        .index
+        .compatible(platform, env!("CARGO_PKG_VERSION"));
+    Ok(Json(snapshot))
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct RegistryInstallRequest {
+    /// The `commit` of the listing the entry came from (the revision is pinned).
+    pub commit: String,
+    /// Entry id, e.g. `struklabs.tool.json_format` or `struklabs.skill.release-notes`.
+    pub id: String,
+    /// The permissions the user approved: must equal the entry `permissions`. Without them
+    /// (or with different ones) nothing is installed and the answer is
+    /// `403 tools.install_approval_required`.
+    #[serde(default)]
+    pub approved_permissions: Option<harness_core::tools::package::Permissions>,
+}
+
+/// Installs one official tool or skill after the caller approved its declared permissions
+/// (`403 tools.install_approval_required` otherwise). MCP entries are refused
+/// (`422 tools.registry_kind_unsupported`). Needs `admin`.
+#[utoipa::path(post, operation_id = "install_registry_entry", path = "/tools/registry/install", tag = "tools",
+    request_body = RegistryInstallRequest,
+    responses((status = 200, body = harness_core::tools::official_registry::Installed),
+        (status = 403, body = ErrorBody), (status = 422, body = ErrorBody)))]
+pub async fn registry_install(
+    Body(req): Body<RegistryInstallRequest>,
+) -> ApiResult<Json<harness_core::tools::official_registry::Installed>> {
+    use harness_core::tools::official_registry as registry;
+    let (commit, id) = (req.commit.clone(), req.id.clone());
+    let (snapshot, entry) = blocking(move || registry::selected(&commit, &id))
+        .await?
+        .map_err(registry_error)?;
+    let service = ToolService::shared();
+    let installed = registry::install_entry(
+        &snapshot,
+        &entry,
+        req.approved_permissions.as_ref(),
+        &tools::installed::tools_root(),
+        &harness_core::skills::root(),
+        service.registry(),
+    )
+    .await
+    .map_err(|e| {
+        if harness_core::error_key::parse(&e).is_some() {
+            ApiError::core(e)
+        } else {
+            registry_error(e)
+        }
+    })?;
+    if matches!(installed, registry::Installed::Tool(_)) {
+        service.reload_installed();
+    }
+    Ok(Json(installed))
+}
+
+/// The installed tools (`<data dir>/tools/`) with their permissions and whether they are
+/// switched on; a package that no longer validates carries its keyed `error`.
+#[utoipa::path(get, operation_id = "list_installed_tools", path = "/tools/installed", tag = "tools",
+    responses((status = 200, body = Vec<tools::installed::InstalledTool>)))]
+pub async fn installed_list() -> ApiResult<Json<Vec<tools::installed::InstalledTool>>> {
+    Ok(Json(
+        blocking(|| tools::installed::list(&tools::installed::tools_root())).await?,
+    ))
+}
+
+fn installed_one(name: &str) -> ApiResult<tools::installed::InstalledTool> {
+    tools::installed::list(&tools::installed::tools_root())
+        .into_iter()
+        .find(|t| t.name == name)
+        .ok_or_else(|| ApiError::not_found("tool", name))
+}
+
+async fn set_installed_enabled(
+    name: String,
+    enabled: bool,
+) -> ApiResult<Json<tools::installed::InstalledTool>> {
+    blocking(move || -> ApiResult<_> {
+        tools::installed::set_enabled(&tools::installed::tools_root(), &name, enabled)?;
+        ToolService::shared().reload_installed();
+        installed_one(&name).map(Json)
+    })
+    .await?
+}
+
+/// Switches an installed tool on. Needs `admin`.
+#[utoipa::path(post, operation_id = "enable_installed_tool", path = "/tools/installed/{name}/enable", tag = "tools",
+    params(("name" = String, Path, description = "Installed tool name")),
+    responses((status = 200, body = tools::installed::InstalledTool), (status = 422, body = ErrorBody)))]
+pub async fn installed_enable(
+    P(name): P<String>,
+) -> ApiResult<Json<tools::installed::InstalledTool>> {
+    set_installed_enabled(name, true).await
+}
+
+/// Switches an installed tool off (it stays installed). Needs `admin`.
+#[utoipa::path(post, operation_id = "disable_installed_tool", path = "/tools/installed/{name}/disable", tag = "tools",
+    params(("name" = String, Path, description = "Installed tool name")),
+    responses((status = 200, body = tools::installed::InstalledTool), (status = 422, body = ErrorBody)))]
+pub async fn installed_disable(
+    P(name): P<String>,
+) -> ApiResult<Json<tools::installed::InstalledTool>> {
+    set_installed_enabled(name, false).await
+}
+
+/// Removes an installed tool. Needs `admin`.
+#[utoipa::path(delete, operation_id = "remove_installed_tool", path = "/tools/installed/{name}", tag = "tools",
+    params(("name" = String, Path, description = "Installed tool name")),
+    responses((status = 204), (status = 422, body = ErrorBody)))]
+pub async fn installed_remove(P(name): P<String>) -> ApiResult<StatusCode> {
+    blocking(move || -> ApiResult<()> {
+        tools::installed::remove(&tools::installed::tools_root(), &name)?;
+        ToolService::shared().reload_installed();
+        Ok(())
+    })
+    .await??;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// The installed skills (`<data dir>/skills/`) and whether each is switched on.
+#[utoipa::path(get, operation_id = "list_skills", path = "/skills", tag = "tools",
+    responses((status = 200, body = Vec<harness_core::skills::Skill>)))]
+pub async fn skills_list() -> ApiResult<Json<Vec<harness_core::skills::Skill>>> {
+    Ok(Json(
+        blocking(|| harness_core::skills::list(&harness_core::skills::root())).await?,
+    ))
+}
+
+fn skill_one(root: &std::path::Path, name: &str) -> ApiResult<harness_core::skills::Skill> {
+    harness_core::skills::list(root)
+        .into_iter()
+        .find(|s| s.name == name)
+        .ok_or_else(|| ApiError::not_found("skill", name))
+}
+
+async fn set_skill_enabled(
+    name: String,
+    enabled: bool,
+) -> ApiResult<Json<harness_core::skills::Skill>> {
+    blocking(move || -> ApiResult<_> {
+        let root = harness_core::skills::root();
+        skill_one(&root, &name)?;
+        harness_core::skills::set_enabled(&root, &name, enabled).map_err(registry_error)?;
+        skill_one(&root, &name).map(Json)
+    })
+    .await?
+}
+
+/// Switches an installed skill on (a skill that no longer validates cannot be). Needs `admin`.
+#[utoipa::path(post, operation_id = "enable_skill", path = "/skills/{name}/enable", tag = "tools",
+    params(("name" = String, Path, description = "Skill name")),
+    responses((status = 200, body = harness_core::skills::Skill), (status = 404, body = ErrorBody),
+        (status = 422, body = ErrorBody)))]
+pub async fn skill_enable(P(name): P<String>) -> ApiResult<Json<harness_core::skills::Skill>> {
+    set_skill_enabled(name, true).await
+}
+
+/// Switches an installed skill off (it stays installed). Needs `admin`.
+#[utoipa::path(post, operation_id = "disable_skill", path = "/skills/{name}/disable", tag = "tools",
+    params(("name" = String, Path, description = "Skill name")),
+    responses((status = 200, body = harness_core::skills::Skill), (status = 404, body = ErrorBody)))]
+pub async fn skill_disable(P(name): P<String>) -> ApiResult<Json<harness_core::skills::Skill>> {
+    set_skill_enabled(name, false).await
+}
+
+/// Removes an installed skill. Needs `admin`.
+#[utoipa::path(delete, operation_id = "remove_skill", path = "/skills/{name}", tag = "tools",
+    params(("name" = String, Path, description = "Skill name")),
+    responses((status = 204), (status = 404, body = ErrorBody)))]
+pub async fn skill_remove(P(name): P<String>) -> ApiResult<StatusCode> {
+    blocking(move || -> ApiResult<()> {
+        let root = harness_core::skills::root();
+        skill_one(&root, &name)?;
+        harness_core::skills::remove(&root, &name).map_err(registry_error)
+    })
+    .await??;
+    Ok(StatusCode::NO_CONTENT)
+}

@@ -70,3 +70,19 @@ test('Hermes manifest pin matches the staged backend checkout', () => {
   assert.ok(source.includes(`HERMES_REVISION: &str = "${pin}"`));
   assert.match(source, /\.args\(\["-Commit", HERMES_REVISION\]\)/);
 });
+
+import { moduleStatusKey } from '../src/lib/modules.ts';
+test('a module with deleted files reads Needs Repair and offers only repair and remove', () => {
+  const broken = view('installed', { needs_repair: ['transcribe-cpp'] });
+  assert.equal(moduleStatusKey(broken), 'needs_repair');
+  const actions = moduleActions(broken);
+  assert.equal(actions.repair, true);
+  assert.equal(actions.remove, true);
+  assert.equal(actions.open, false);
+  assert.equal(actions.disable, false);
+  assert.equal(moduleActions(view('disabled', { needs_repair: ['hermes'] })).enable, false);
+  assert.equal(moduleStatusKey(view('installed', { needs_repair: [] })), 'installed');
+  assert.equal(moduleStatusKey(view('failed', { needs_repair: ['x'] })), 'failed');
+  assert.equal(locales.en['modules.needs_repair'], 'Needs Repair');
+  assert.equal(typeof locales.tr['modules.needs_repair'], 'string');
+});

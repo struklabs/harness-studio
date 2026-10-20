@@ -151,7 +151,7 @@ pub fn http_status(code: &str) -> u16 {
         | "compaction.gateway_required" => 409,
         "runtime.no_release" | "runtime.whisper_no_macos" => 404,
         // The tool policy refuses the call (Control API: it cannot ask the user).
-        "tools.disabled" | "tools.approval_required" => 403,
+        "tools.disabled" | "tools.approval_required" | "tools.install_approval_required" => 403,
         "tools.workdir_invalid" => 400,
         c if c.ends_with(".not_found") || c.ends_with("_not_found") => 404,
         c if c.ends_with(".exists") || c.ends_with(".already_exists") => 409,

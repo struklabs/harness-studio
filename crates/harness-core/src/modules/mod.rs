@@ -226,6 +226,12 @@ pub struct ModuleView {
     pub shared_disk_bytes: u64,
     pub update_available: bool,
     pub data_choices: Vec<lifecycle::DataChoice>,
+    /// Key files of an installed module that are gone (deleted by hand): the module needs the
+    /// Repair action. Empty when nothing is missing.
+    pub needs_repair: Vec<String>,
+    /// Some numbers (folder sizes, the agent probe) are still being measured in the
+    /// background: the list is complete in shape, ask again shortly for the final values.
+    pub measuring: bool,
 }
 /// Adopt legacy installs once; explicit removal stays removed if another module owns the backend.
 fn reconcile(data: &mut ModuleStore, manifest: &ModuleManifest, ready: bool, active: bool) {
@@ -241,32 +247,148 @@ fn reconcile(data: &mut ModuleStore, manifest: &ModuleManifest, ready: bool, act
         state.error = Some("modules.interrupted".into());
     }
 }
+/// The agent probe spawns a process (about two seconds cold), so the list never waits for it:
+/// it asks the cached result and, when there is none that is fresh, probes on a thread. Until
+/// then the stored state stands (no adoption, no "interrupted" flip on unknown data).
+struct AgentProbe {
+    value: Option<(std::time::Instant, agents::Detection)>,
+    running: bool,
+    generation: u64,
+}
+static AGENT_PROBE: Mutex<AgentProbe> = Mutex::new(AgentProbe {
+    value: None,
+    running: false,
+    generation: 0,
+});
+const AGENT_PROBE_FRESH: std::time::Duration = std::time::Duration::from_secs(30);
+fn agent_probe() -> Option<agents::Detection> {
+    agent_probe_with(&AGENT_PROBE, agents::detect)
+}
+fn agent_probe_with(
+    slot: &'static Mutex<AgentProbe>,
+    probe: fn() -> Result<agents::Detection, String>,
+) -> Option<agents::Detection> {
+    let mut guard = slot.lock().unwrap();
+    if let Some((at, found)) = &guard.value {
+        if at.elapsed() < AGENT_PROBE_FRESH {
+            return Some(found.clone());
+        }
+    }
+    if !guard.running {
+        guard.running = true;
+        let generation = guard.generation;
+        std::thread::spawn(move || {
+            let found = probe();
+            let mut guard = slot.lock().unwrap();
+            guard.running = false;
+            if let (Ok(found), true) = (found, guard.generation == generation) {
+                guard.value = Some((std::time::Instant::now(), found));
+            }
+        });
+    }
+    None
+}
+/// An install or removal changed what the probe sees.
+fn invalidate_agent_probe() {
+    let mut guard = AGENT_PROBE.lock().unwrap();
+    guard.value = None;
+    guard.generation += 1;
+}
+/// Key files whose absence means the installed module cannot start (checked on every list, so
+/// only existence checks). `root` is the managed Python root (`envs::root()`).
+fn speech_missing_files(root: &std::path::Path) -> Vec<String> {
+    let mut missing = Vec::new();
+    let venv = envs::env_dir_in(root, ENV).join("venv");
+    if !pyenv::venv_python(&venv).is_file() {
+        missing.push("python".into());
+    }
+    let interpreter = std::fs::read_dir(root.join("python"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with(&format!("cpython-{}.", pyenv::PYTHON_SERIES))
+        })
+        .any(|e| {
+            e.path()
+                .join(if cfg!(windows) {
+                    "python.exe"
+                } else {
+                    "bin/python3"
+                })
+                .is_file()
+        });
+    if !interpreter {
+        missing.push("managed-python".into());
+    }
+    let packages: Vec<std::path::PathBuf> = if cfg!(windows) {
+        vec![venv.join("Lib/site-packages")]
+    } else {
+        std::fs::read_dir(venv.join("lib"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path().join("site-packages"))
+            .collect()
+    };
+    let package = packages.iter().any(|dir| {
+        std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|e| {
+                let name = e.file_name().to_string_lossy().into_owned();
+                name == "transcribe_cpp" || name.starts_with("transcribe_cpp.")
+            })
+    });
+    if !package {
+        missing.push("transcribe-cpp".into());
+    }
+    missing
+}
+fn missing_files(id: &str) -> Vec<String> {
+    match id {
+        "speech" => speech_missing_files(&envs::root()),
+        "agents" => agents::missing_files(),
+        _ => vec![],
+    }
+}
 pub fn list() -> Result<Vec<ModuleView>, String> {
+    lifecycle::begin_listing();
     let _lock = STATE_LOCK.lock().unwrap();
     let mut data = load()?;
     lifecycle::recover(&mut data)?;
-    let backend = envs::status_in(&envs::root(), &envs::TRANSCRIBE_CPP);
+    let backend = envs::status_in_quick(&envs::root(), &envs::TRANSCRIBE_CPP);
     let active = OPERATION.try_lock().is_err() || backend.progress.is_some();
-    let agent = agents::detect()?;
+    let agent = agent_probe();
     let previous = data.clone();
-    let adopting_agent = !data.modules.contains_key("agents") && agent.installed && !active;
-    reconcile(&mut data, &selected("agents")?, agent.installed, active);
-    if adopting_agent {
-        data.components.get_mut("hermes-agent").unwrap().version =
-            format!("external:{}", agent.version.as_deref().unwrap_or("unknown"));
+    if let Some(agent) = &agent {
+        let adopting_agent = !data.modules.contains_key("agents") && agent.installed && !active;
+        reconcile(&mut data, &selected("agents")?, agent.installed, active);
+        if adopting_agent {
+            data.components.get_mut("hermes-agent").unwrap().version =
+                format!("external:{}", agent.version.as_deref().unwrap_or("unknown"));
+        }
     }
     reconcile(&mut data, &selected("speech")?, backend.ready, active);
     if data != previous {
         store().save(&data)?;
     }
-    Ok(bundled()
+    let mut views: Vec<ModuleView> = bundled()
         .into_iter()
         .map(|manifest| {
             let mut state = data.modules.get(&manifest.id).cloned().unwrap_or_default();
             if manifest.id == "speech" && backend.progress.is_some() {
                 state.status = Status::Installing;
             }
-
+            let needs_repair =
+                if !active && matches!(state.status, Status::Installed | Status::Disabled) {
+                    missing_files(&manifest.id)
+                } else {
+                    vec![]
+                };
             let incompatibility = manifest
                 .compatibility(
                     &format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
@@ -282,6 +404,8 @@ pub fn list() -> Result<Vec<ModuleView>, String> {
                 state,
                 incompatibility,
                 progress,
+                needs_repair,
+                measuring: false,
                 disk_bytes: lifecycle::module_bytes(&manifest),
                 shared_disk_bytes: lifecycle::shared_bytes(&manifest),
                 update_available: lifecycle::update_available(&data, &manifest),
@@ -298,7 +422,12 @@ pub fn list() -> Result<Vec<ModuleView>, String> {
                 manifest,
             }
         })
-        .collect())
+        .collect();
+    let measuring = lifecycle::listing_provisional() || agent.is_none();
+    for view in &mut views {
+        view.measuring = measuring;
+    }
+    Ok(views)
 }
 /// The job survives a disconnected API client; cancellation uses the installer's process-tree cleanup.
 pub async fn install(id: &str) -> Result<(), String> {
@@ -326,7 +455,7 @@ mod tests {
     #[ignore = "downloads uv, Python, and the speech backend"]
     async fn real_speech_install_cancel_retry_and_remove_preserves_user_data() {
         let job = tokio::spawn(async { install("speech").await });
-        while envs::status_in(&envs::root(), &envs::TRANSCRIBE_CPP)
+        while envs::status_in_quick(&envs::root(), &envs::TRANSCRIBE_CPP)
             .progress
             .is_none()
             && !job.is_finished()
@@ -422,5 +551,77 @@ mod tests {
         let mut data: ModuleStore = file.load().unwrap();
         assert!(data.release("other").contains(&ENV.to_string()));
         assert!(data.components.is_empty());
+    }
+    fn touch(path: &std::path::Path) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, "x").unwrap();
+    }
+    #[test]
+    fn deleted_package_files_are_reported_for_repair() {
+        let root = tempfile::tempdir().unwrap();
+        let root = root.path();
+        assert_eq!(
+            speech_missing_files(root),
+            ["python", "managed-python", "transcribe-cpp"]
+        );
+        let venv = envs::env_dir_in(root, ENV).join("venv");
+        touch(&pyenv::venv_python(&venv));
+        let interpreter = root
+            .join("python")
+            .join(format!("cpython-{}.1-test", pyenv::PYTHON_SERIES));
+        touch(&interpreter.join(if cfg!(windows) {
+            "python.exe"
+        } else {
+            "bin/python3"
+        }));
+        let site = if cfg!(windows) {
+            venv.join("Lib/site-packages")
+        } else {
+            venv.join("lib/python3.12/site-packages")
+        };
+        // A leftover dist-info is not the package itself.
+        touch(&site.join("transcribe_cpp-1.0.dist-info/METADATA"));
+        assert_eq!(speech_missing_files(root), ["transcribe-cpp"]);
+        touch(&site.join("transcribe_cpp/__init__.py"));
+        assert!(speech_missing_files(root).is_empty());
+        std::fs::remove_dir_all(site.join("transcribe_cpp")).unwrap();
+        assert_eq!(speech_missing_files(root), ["transcribe-cpp"]);
+    }
+    fn found() -> Result<agents::Detection, String> {
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        Ok(agents::Detection {
+            installed: true,
+            version: Some("1".into()),
+            executable: None,
+            config_path: String::new(),
+            missing_dependencies: vec![],
+            connected: false,
+            installation: Default::default(),
+            model: None,
+        })
+    }
+    #[test]
+    fn agent_probe_never_blocks_the_list_and_lands_for_the_next_one() {
+        static SLOT: Mutex<AgentProbe> = Mutex::new(AgentProbe {
+            value: None,
+            running: false,
+            generation: 0,
+        });
+        let started = std::time::Instant::now();
+        assert!(agent_probe_with(&SLOT, found).is_none());
+        assert!(agent_probe_with(&SLOT, found).is_none());
+        assert!(started.elapsed() < std::time::Duration::from_millis(250));
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        assert!(agent_probe_with(&SLOT, found).is_some_and(|d| d.installed));
+        // A change while a probe runs discards that probe's stale answer.
+        SLOT.lock().unwrap().value = None;
+        assert!(agent_probe_with(&SLOT, found).is_none());
+        {
+            let mut guard = SLOT.lock().unwrap();
+            guard.value = None;
+            guard.generation += 1;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        assert!(agent_probe_with(&SLOT, found).is_none());
     }
 }

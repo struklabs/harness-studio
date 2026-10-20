@@ -7,7 +7,7 @@
   import { t, getLanguage, type TKey } from '#lib/i18n.svelte.js';
   import { errorText } from '#lib/errors.js';
   import { app } from '#lib/stores/app.svelte.js';
-  import { moduleActions, progressPercent, type ModuleView, type LocaleKeys } from '#lib/modules.js';
+  import { moduleActions, moduleStatusKey, progressPercent, type ModuleView, type LocaleKeys } from '#lib/modules.js';
   import { Button } from '#lib/components/ui/button/index.js';
 
   let modules = $state<ModuleView[]>([]);
@@ -37,7 +37,10 @@
     disposed = false;
     void refresh();
     const timer = setInterval(() => void refresh(), 1500);
-    return () => { disposed = true; clearInterval(timer); };
+    // The first list answers at once with what is known; sizes and the agent probe finish in
+    // the background, so ask again shortly until nothing is measuring.
+    const soon = setInterval(() => { if (modules.some(m => m.measuring)) void refresh(); }, 400);
+    return () => { disposed = true; clearInterval(timer); clearInterval(soon); };
   });
   async function action(command: string, id: string) {
     pending = true;
@@ -76,7 +79,7 @@
       {#each modules as module (module.manifest.id)}
         <button class="rounded-lg border p-3 text-left hover:bg-muted" class:bg-muted={selected === module.manifest.id} aria-current={selected === module.manifest.id ? 'page' : undefined} onclick={() => { selected = module.manifest.id; removing = false; deleteHistory = false; deleteLogs = false; }}>
           <span class="block font-medium">{text(module.manifest.name)}</span>
-          <span class="text-xs text-muted-foreground">{t(module.manifest.planned ? 'modules.planned' : `modules.${module.state.status}`)}</span>
+          <span class="text-xs text-muted-foreground">{t(module.manifest.planned ? 'modules.planned' : `modules.${moduleStatusKey(module)}`)}</span>
         </button>
       {/each}
     </nav>
@@ -123,6 +126,7 @@
               {#if detail.progress}<p class="mt-1 break-all text-xs text-muted-foreground">{detail.progress.detail}</p>{/if}
             </div>
           {/if}
+          {#if detail.needs_repair?.length}<p role="alert" class="mt-4 text-sm text-destructive">{t('modules.needs_repair_hint')} ({detail.needs_repair.join(', ')})</p>{/if}
           {#if detail.state.error}<p role="alert" class="mt-4 text-sm text-destructive">{errorText(detail.state.error)}</p>{/if}
           {#if manifest.id === 'agents'}<Agents enabled={actions.open} />{/if}
           <div class="mt-5 flex flex-wrap gap-2">

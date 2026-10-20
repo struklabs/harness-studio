@@ -255,6 +255,30 @@ mod tests {
             Some(Scope::Read)
         );
         assert_eq!(required_scope(&get, "/tools/log", true), Some(Scope::Admin));
+        // Installed tools, skills and the official registry: lists are `read`; installing,
+        // switching and removing are `admin`.
+        for path in ["/tools/registry", "/tools/installed", "/skills"] {
+            assert_eq!(
+                required_scope(&get, path, true),
+                Some(Scope::Read),
+                "{path}"
+            );
+        }
+        for (method, path) in [
+            (&post, "/tools/registry/install"),
+            (&post, "/tools/installed/{name}/enable"),
+            (&post, "/tools/installed/{name}/disable"),
+            (&del, "/tools/installed/{name}"),
+            (&post, "/skills/{name}/enable"),
+            (&post, "/skills/{name}/disable"),
+            (&del, "/skills/{name}"),
+        ] {
+            assert_eq!(
+                required_scope(method, path, true),
+                Some(Scope::Admin),
+                "{path}"
+            );
+        }
         // MCP client: the state is `read`, resources are `tools`, signing in and out `admin`.
         assert_eq!(required_scope(&get, "/tools/mcp", true), Some(Scope::Read));
         assert_eq!(
