@@ -131,6 +131,23 @@ impl StateDb {
         name: &str,
         source_path: Option<&str>,
     ) -> StateResult<RagDocument> {
+        self.rag_create_document_limited(
+            conversation_id,
+            name,
+            source_path,
+            MAX_DOCUMENTS_PER_CONVERSATION,
+        )
+    }
+
+    /// [`rag_create_document`](Self::rag_create_document) with another document limit (a
+    /// knowledge base holds more than a conversation).
+    pub fn rag_create_document_limited(
+        &self,
+        conversation_id: &str,
+        name: &str,
+        source_path: Option<&str>,
+        max_documents: i64,
+    ) -> StateResult<RagDocument> {
         self.write(|tx| {
             let exists: Option<i64> = tx
                 .query_row("SELECT 1 FROM conversations WHERE id = ?1", [conversation_id], |r| {
@@ -147,9 +164,9 @@ impl StateDb {
                 [conversation_id],
                 |r| r.get(0),
             )?;
-            if count >= MAX_DOCUMENTS_PER_CONVERSATION {
+            if count >= max_documents {
                 return Err(StateError::invalid(
-                    err("rag.too_many_documents").num("max", MAX_DOCUMENTS_PER_CONVERSATION),
+                    err("rag.too_many_documents").num("max", max_documents),
                 ));
             }
             let id = new_id();
