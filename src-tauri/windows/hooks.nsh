@@ -1,6 +1,7 @@
-; User data preservation contract: hooks only remove the application PATH entry.
-; Never recursively delete APPDATA, LOCALAPPDATA, a custom data root, models, or Hermes homes.
-; Any data deletion must remain a separate explicit user choice.
+; User data contract: the uninstaller keeps models and user content by default. The
+; `harness cleanup` helper removes only app-owned files (engines, environments, caches, logs,
+; WebView2 data) and deletes data only when the user ticks the data checkbox. It refuses
+; redirected roots and never follows junctions. No script recursively deletes APPDATA itself.
 ; Kaldırıcı kancası: uygulamanın "PATH'e Ekle" ile kullanıcı PATH'ine (HKCU\Environment\Path)
 ; yazdığı kurulum klasörü girdisini siler. Girdi, `harness.exe` sidecar'ının klasörüdür
 ; (= $INSTDIR); eşleşme büyük/küçük harfe ve sondaki ters eğik çizgiye duyarsızdır
@@ -112,6 +113,23 @@ FunctionEnd
   ${AndIf} ${FileExists} "$INSTDIR\harness.exe"
     nsExec::Exec '"$INSTDIR\harness.exe" remove-from-path'
     Pop $R9
+  ${EndIf}
+  ; Uygulamaya ait dosyaları temizle: motorlar, ortamlar, önbellek, günlükler, WebView2 verisi.
+  ; Varsayılan: modeller ve kullanıcı içeriği kalır; yalnızca "Delete the application data"
+  ; kutusu işaretliyse veri de silinir. Yardımcı, kök dizini kimlikle doğrular ve
+  ; bağlantıları izlemeden siler.
+  ${If} $UpdateMode <> 1
+  ${AndIf} ${FileExists} "$INSTDIR\harness.exe"
+    ${If} $DeleteAppDataCheckboxState = 1
+      nsExec::Exec '"$INSTDIR\harness.exe" cleanup --yes --delete-data'
+    ${Else}
+      nsExec::Exec '"$INSTDIR\harness.exe" cleanup --yes'
+    ${EndIf}
+    Pop $R8
+  ${EndIf}
+  ; Otomatik başlatma kaydı.
+  ${If} $UpdateMode <> 1
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
   ${EndIf}
 !macroend
 

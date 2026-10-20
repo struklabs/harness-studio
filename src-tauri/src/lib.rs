@@ -143,6 +143,13 @@ pub fn run() {
                 None => app.path().app_data_dir()?,
             };
             paths::init(data_dir.clone());
+            secrets::init_service(&app.config().identifier);
+            if std::env::var_os("HARNESS_MEMORY_SECRETS").is_some_and(|v| v == "1") {
+                secrets::use_memory_store();
+            }
+            if data_dir_override.is_some() {
+                std::fs::write(data_dir.join(".harness-owned"), &app.config().identifier)?;
+            }
             // Enumerating GPUs loads the display driver: not on the path to the first window.
             tauri::async_runtime::spawn(async move {
                 let adapters = tauri::async_runtime::spawn_blocking(gpu::list_adapters)
@@ -345,6 +352,8 @@ pub fn run() {
             estimate_definition_load_fit,
             get_backend_status,
             get_app_settings,
+            get_cleanup_plan,
+            prepare_uninstall,
             save_app_settings,
             set_audio_cpp_enabled,
             get_network_overview,

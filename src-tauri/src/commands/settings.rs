@@ -3,6 +3,37 @@ pub(crate) fn get_app_settings() -> AppSettings {
     AppSettings::load()
 }
 
+#[tauri::command]
+pub(crate) fn get_cleanup_plan(app: tauri::AppHandle, delete_data: bool) -> Result<harness_core::cleanup::CleanupPlan, String> {
+    harness_core::cleanup::plan(&paths::data_root(), &app.config().identifier, delete_data)
+}
+
+#[tauri::command]
+pub(crate) async fn prepare_uninstall(app: tauri::AppHandle, delete_data: bool, external_models: Vec<PathBuf>) -> Result<(), String> {
+    // Validate selections before quitting. The offline worker validates them again.
+    let plan = harness_core::cleanup::plan(&paths::data_root(), &app.config().identifier, delete_data)?;
+    if (!delete_data && !external_models.is_empty()) || external_models.iter().any(|p| !plan.external_models.contains(p)) {
+        return Err("Unapproved external model directory".into());
+    }
+    set_launch_at_login(app.clone(), false)?;
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let cli = exe.with_file_name(if cfg!(windows) { "harness.exe" } else { "harness" });
+    let mut command = std::process::Command::new(cli);
+    command.arg("cleanup").arg("--yes").arg("--data-dir").arg(paths::data_root())
+        .arg("--identifier").arg(&app.config().identifier)
+        .arg("--wait-pid").arg(std::process::id().to_string());
+    if delete_data { command.arg("--delete-data"); }
+    for path in external_models { command.arg("--external-model").arg(path); }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x0800_0000);
+    }
+    command.spawn().map_err(|e| e.to_string())?;
+    app.exit(0);
+    Ok(())
+}
+
 /// Write-only: stores a new Hugging Face token in the OS keychain. The token is never
 /// returned to the frontend (settings only carry `hf_token_set`).
 #[tauri::command]

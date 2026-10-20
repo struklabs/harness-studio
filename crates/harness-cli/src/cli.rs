@@ -79,6 +79,18 @@ pub enum Command {
     /// strings stop at 1024 characters, a developer PATH is often longer).
     #[command(hide = true, name = "remove-from-path")]
     RemoveFromPath,
+    /// Offline cleanup used by Settings and the Windows uninstaller. Keeps user data by default.
+    #[command(hide = true)]
+    Cleanup {
+        #[arg(long, default_value = "com.harnessstudio.app")]
+        identifier: String,
+        #[arg(long)]
+        delete_data: bool,
+        #[arg(long)]
+        wait_pid: Option<u32>,
+        #[arg(long)]
+        external_model: Vec<PathBuf>,
+    },
     /// Check the installation: runtime, data directory, ports, GPU devices.
     Doctor,
     /// List local models (and the model definitions built on them).

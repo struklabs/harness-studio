@@ -15,6 +15,7 @@
   import { cn } from '#lib/utils.js';
   import ImportModal from '../ImportModal.svelte';
   import HfAccountSettings from './HfAccountSettings.svelte';
+  import UninstallHelper from './UninstallHelper.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
   import SwitchRow from './SwitchRow.svelte';
@@ -228,6 +229,8 @@
       <Button variant="outline" size="sm" onclick={() => (showImportModal = true)}>{t('settings.import_open')}</Button>
     </SettingRow>
   </SettingGroup>
+
+  <UninstallHelper />
 </div>
 
 <div hidden={page !== 'storage-hf'}><HfAccountSettings {settings} {onSettingsUpdated} /></div>

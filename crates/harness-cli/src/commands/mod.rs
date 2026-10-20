@@ -90,7 +90,9 @@ pub async fn dispatch(cli: Cli, data_dir: &Path, out: &Out) -> CliResult<()> {
                 completion(*shell);
                 Ok(())
             }
-            Command::RemoveFromPath => unreachable!("handled before the data directory"),
+            Command::RemoveFromPath | Command::Cleanup { .. } => {
+                unreachable!("handled before dispatch")
+            }
             Command::Service { command } => {
                 let (action, args) = match command {
                     ServiceCommand::Install(a) => (crate::service::Action::Install, a),
@@ -423,6 +425,7 @@ async fn run_with(session: &Session, command: Command, out: &Out) -> CliResult<(
         | Command::Mcp(_)
         | Command::Completion { .. }
         | Command::RemoveFromPath
+        | Command::Cleanup { .. }
         | Command::Service { .. }
         | Command::Speak(_)
         | Command::Tts { .. }
