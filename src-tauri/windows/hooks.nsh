@@ -103,9 +103,22 @@ FunctionEnd
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
+  ; The standard installer stays simple: what to set up is chosen in the app's own Setup window,
+  ; which opens on the first launch. A silent install (/S, scripted) skips it: this marker tells
+  ; the app. Updates keep their state and never write it.
+  ${If} ${Silent}
+  ${AndIf} $UpdateMode <> 1
+    Push $R0
+    FileOpen $R0 "$INSTDIR\setup-skipped" w
+    FileClose $R0
+    Pop $R0
+  ${EndIf}
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
+  ${If} $UpdateMode <> 1
+    Delete "$INSTDIR\setup-skipped"
+  ${EndIf}
   ; Interactive uninstall: the app's own uninstall window asks what to remove (everything, or
   ; item by item), removes it, and exits with 0 (continue) or 2 (the user cancelled). Silent runs
   ; (including the one the window itself starts for the app files), updates and a window that

@@ -3,7 +3,7 @@ import type { TKey } from '#lib/i18n.svelte.js';
 /** Field labels and help, grouped by the page that owns them (including unvisited pages). */
 export const SETTINGS_SEARCH_KEYS: Record<string, TKey[]> = {
   'runtime-installed': [
-    'settings.group_engine', 'settings.wizard_label', 'settings.wizard_hint',
+    'settings.group_engine', 'settings.setup_label', 'settings.setup_hint',
     'settings.group_managed', 'settings.installed_version_label', 'settings.recommended_backend_hint',
     'settings.backend_label', 'settings.backend_installed', 'settings.backend_none',
     'settings.backend_other_build', 'settings.check_updates', 'settings.check_updates_hint',

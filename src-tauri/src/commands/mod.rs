@@ -94,3 +94,4 @@ include!("otel.rs");
 include!("automations.rs");
 
 include!("modules.rs");
+include!("setup.rs");

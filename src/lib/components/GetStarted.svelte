@@ -136,7 +136,7 @@
     {/each}
     <div class="flex flex-wrap gap-2">
       <Button variant="outline" size="sm" disabled={refreshing} onclick={() => void refresh()}>{t('gs.refresh')}</Button>
-      {#if onReopenWizard}<Button variant="ghost" size="sm" onclick={onReopenWizard}>{t('gs.wizard')}</Button>{/if}
+      {#if onReopenWizard}<Button variant="ghost" size="sm" onclick={onReopenWizard}>{t('gs.setup')}</Button>{/if}
     </div>
   </section>
 {/if}
