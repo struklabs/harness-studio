@@ -64,6 +64,7 @@
   import { loadAudio, AudioError, MAX_AUDIO_BYTES, MAX_AUDIO_PER_MESSAGE, type PgAudio } from './playground/audio';
   import TranscribePanel from './playground/TranscribePanel.svelte';
   import ImagePanel from './playground/ImagePanel.svelte';
+  import ComfyPanel from './playground/ComfyPanel.svelte';
   import { imageSession } from './playground/image.svelte';
   import TtsPanel from './playground/TtsPanel.svelte';
   import AudioProcessPanel from '#lib/components/playground/AudioProcessPanel.svelte';
@@ -2939,7 +2940,26 @@
             <AudioProcessPanel />
           </AdvancedOnly>
         {:else if pgTab === 'image'}
-          <ImagePanel />
+          <div class="mx-auto flex w-full max-w-[960px] px-4 pt-4">
+            <ToggleGroup.Root
+              type="single"
+              variant="outline"
+              size="sm"
+              value={imageSession.source}
+              onValueChange={(v) => {
+                if (v) imageSession.source = v as 'builtin' | 'comfyui';
+              }}
+              aria-label={t('comfy.source_label')}
+            >
+              <ToggleGroup.Item value="builtin" class="h-7 px-2 text-xs">{t('comfy.source_builtin')}</ToggleGroup.Item>
+              <ToggleGroup.Item value="comfyui" class="h-7 px-2 text-xs">{t('comfy.source_comfyui')}</ToggleGroup.Item>
+            </ToggleGroup.Root>
+          </div>
+          {#if imageSession.source === 'comfyui'}
+            <ComfyPanel />
+          {:else}
+            <ImagePanel />
+          {/if}
         {:else if pgTab === 'pipeline'}
           <PipelinePanel model={modeModels.pipeline} task={pipelineTask} />
         {:else}

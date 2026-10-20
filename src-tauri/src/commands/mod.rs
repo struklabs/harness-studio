@@ -92,5 +92,6 @@ include!("convert.rs");
 include!("pyenv.rs");
 include!("otel.rs");
 include!("automations.rs");
+include!("comfyui.rs");
 
 include!("modules.rs");

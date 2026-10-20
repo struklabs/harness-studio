@@ -13,6 +13,7 @@ pub mod benchmark;
 pub mod capabilities;
 pub mod changes;
 pub mod chat_template;
+pub mod comfyui;
 pub mod cleanup;
 pub mod compaction;
 pub mod config;

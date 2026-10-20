@@ -47,6 +47,10 @@ const ERROR_LOCALES: &[(&str, &str)] = &[
         "errorsAutomations.ts",
         include_str!("../../../src/lib/locales/errorsAutomations.ts"),
     ),
+    (
+        "errorsComfyui.ts",
+        include_str!("../../../src/lib/locales/errorsComfyui.ts"),
+    ),
 ];
 
 /// English template of a core error key from [`ERROR_LOCALES`].
