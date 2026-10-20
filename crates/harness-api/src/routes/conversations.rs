@@ -55,6 +55,7 @@ pub async fn list(Q(q): Q<ListParams>) -> ApiResult<Json<Vec<ConversationSummary
         query: q.query,
         limit: Some(q.limit.unwrap_or(50).clamp(1, 500)),
         offset: q.offset,
+        project_id: None,
     };
     let rows = blocking(move || db.list_conversations(&query))
         .await?

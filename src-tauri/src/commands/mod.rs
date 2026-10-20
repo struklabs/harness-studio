@@ -63,6 +63,7 @@ include!("link.rs");
 include!("cloud.rs");
 include!("modelfile.rs");
 include!("conversations.rs");
+include!("projects.rs");
 include!("compaction.rs");
 include!("rag.rs");
 include!("knowledge.rs");

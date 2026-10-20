@@ -4,6 +4,7 @@
   import {
     LayoutDashboard,
     MessageSquare,
+    FolderKanban,
     Server,
     Compass,
     Library,
@@ -63,6 +64,7 @@
     { id: 'hub', key: 'nav.hub', icon: Compass },
     { id: 'modules', key: 'modules.title', icon: Compass },
     { id: 'playground', key: 'nav.playground', icon: MessageSquare },
+    { id: 'projects', key: 'nav.projects', icon: FolderKanban },
     { id: 'connections', key: 'nav.connections', icon: Cable },
     { id: 'performance', key: 'nav.performance', icon: Activity },
     { id: 'analytics', key: 'nav.analytics', icon: ChartColumn },
