@@ -1493,3 +1493,68 @@ fn edited_user_message_keeps_its_audio() {
     let again = db.edit_user_message(&edited.id, "Translate", None).unwrap();
     assert_eq!(again.variant.meta, edited.variant.meta);
 }
+
+#[test]
+fn v7_database_upgrades_to_knowledge_bases_without_losing_data() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("state.db");
+    {
+        // A file written by the previous release (schema v7) with a conversation, a message
+        // and a conversation document with chunks.
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        for sql in &schema::MIGRATIONS[..7] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 7).unwrap();
+        conn.execute_batch(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c1', 'eski sohbet', 1, 1);
+             INSERT INTO rag_documents (id, conversation_id, name, status, created_at, updated_at)
+             VALUES ('d1', 'c1', 'not.md', 'ready', 1, 1);",
+        )
+        .unwrap();
+    }
+    let db = StateDb::open(&path).unwrap();
+    assert_eq!(db.user_version().unwrap(), SCHEMA_VERSION);
+    assert_eq!(
+        db.get_conversation("c1").unwrap().conversation.title,
+        "eski sohbet"
+    );
+    assert_eq!(db.rag_documents("c1").unwrap().len(), 1);
+    assert!(db.kb_list().unwrap().is_empty());
+    // Opening again is a no-op, and the new tables work.
+    drop(db);
+    let db = StateDb::open(&path).unwrap();
+    assert_eq!(db.user_version().unwrap(), SCHEMA_VERSION);
+    let kb = db.kb_create("Notlar", None).unwrap();
+    db.kb_attach("c1", &kb.id).unwrap();
+    assert_eq!(db.kb_attached("c1").unwrap().len(), 1);
+}
+
+#[test]
+fn knowledge_base_row_stays_out_of_lists_and_search() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = StateDb::open(&dir.path().join("state.db")).unwrap();
+    let kb = db.kb_create("Zebra Notes", None).unwrap();
+    let chat = db
+        .create_conversation(&NewConversation {
+            title: Some("Sohbet".into()),
+            ..Default::default()
+        })
+        .unwrap();
+    let ids = |q: ListQuery| -> Vec<String> {
+        db.list_conversations(&q)
+            .unwrap()
+            .into_iter()
+            .map(|c| c.id)
+            .collect()
+    };
+    assert_eq!(ids(ListQuery::default()), vec![chat.id.clone()]);
+    // The title of the hidden row is in the search index, but never in the results.
+    let found = ids(ListQuery {
+        query: Some("Zebra".into()),
+        ..Default::default()
+    });
+    assert!(found.is_empty(), "{found:?}");
+    db.kb_delete(&kb.id).unwrap();
+    assert!(db.kb_list().unwrap().is_empty());
+}

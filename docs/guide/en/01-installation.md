@@ -20,9 +20,16 @@ Harness Studio 0.1.2 is distributed as platform-specific packages on the project
 2. If Windows SmartScreen shows a warning, choose **More info**, then **Run anyway**. The warning appears because the installer is not code-signed yet.
 3. Open Harness Studio from the Start menu.
 
-Uninstalling keeps your data unless you tick **Delete the application data** in the uninstaller. That option deletes the application's data folders, including models stored there; models in an external model folder stay. Without it, your data stays in the folder described [below](#model-folder-and-data-folder). The installer may leave an entry under `HKCU\Software\struklabs\Harness Studio` that only remembers the install location and language; it is harmless and can be deleted (an older `HKCU\Software\harnessstudio` key may come from an earlier version).
+**Uninstalling.** When you uninstall from Windows (Settings > Apps, or the Start menu), Harness Studio opens an **Uninstall Harness Studio** window before anything is removed. The app files are always removed; you choose what happens to your data:
 
-**Cleaning up without uninstalling.** Open **Settings > Storage** and use **Reset / Uninstall Helper**. It lists what it will delete: engines, managed environments, caches, and logs. Your models, chats, and settings stay unless you tick **Also delete my data**; external model folders are deleted only if you select them one by one. The app quits first, then the cleanup runs.
+- **Remove Everything** deletes the app and all of its data on this computer, including models, conversations, and saved keys.
+- **Choose Items** lets you tick items one by one: **Models**, **Conversations & Projects**, **MCP Servers**, **Skills**, **Tools**, **Agents**, **Engines & Runtimes**, **Python Environments**, **Caches & Logs**, and **Settings**. Each item shows its size. By default your own content (models, conversations, skills, tools, MCP servers, settings) is kept, and re-downloadable items (engines, Python environments, caches, logs, agents) are removed.
+
+A summary screen then lists what will be deleted and what will be kept, with the space it frees. Press **Uninstall** to start; it normally finishes in a few seconds, longer if you delete very large models. Folders you added as external model folders are deleted only if you select them one by one. If the window cannot start, the classic uninstaller dialog appears instead; it keeps your data unless you tick **Delete the application data**.
+
+The installer may leave an entry under `HKCU\Software\struklabs\Harness Studio` that only remembers the install location and language; it is harmless and can be deleted (an older `HKCU\Software\harnessstudio` key may come from an earlier version).
+
+**Uninstalling from inside the app.** Open **Settings > Storage** and use **Uninstall Harness Studio** > **Open Uninstall Window**. The app quits and the same window opens. After your data is cleaned up, its last screen finishes the job for your system: on Windows it removes the app files, on macOS it moves the app to the Trash, for the Linux `.deb` it runs `apt remove` after asking for your administrator password (or you can run `sudo apt remove harness-studio` yourself), and for an AppImage it deletes the AppImage file when you press the button. A portable copy can simply be deleted.
 
 On Linux, removing the server `.deb` keeps `/var/lib/harness`, `/etc/harness`, and the `harness` account; purging the package (`apt purge`) deletes them.
 

@@ -113,6 +113,7 @@ struct Running {
     task: tokio::task::JoinHandle<()>,
     maintenance: tokio::task::JoinHandle<()>,
     links: tokio::task::JoinHandle<()>,
+    clouds: tokio::task::JoinHandle<()>,
     /// The listener on the Ollama port, when bound.
     ollama: Option<(oneshot::Sender<()>, tokio::task::JoinHandle<()>)>,
 }
@@ -389,6 +390,7 @@ impl GatewayServer {
         });
         let maintenance = tokio::spawn(scheduler.clone().maintenance_loop());
         let links = tokio::spawn(harness_core::link::refresh_loop());
+        let clouds = tokio::spawn(harness_core::cloud::refresh_loop());
         tokio::spawn(scheduler.clone().warm_pinned());
         gateway::set_running(
             &addr.ip().to_string(),
@@ -430,6 +432,7 @@ impl GatewayServer {
             task,
             maintenance,
             links,
+            clouds,
             ollama,
         });
         Ok(gateway::status())
@@ -443,6 +446,7 @@ impl GatewayServer {
         };
         running.maintenance.abort();
         running.links.abort();
+        running.clouds.abort();
         if let Some((stop, mut task)) = running.ollama {
             let _ = stop.send(());
             if tokio::time::timeout(std::time::Duration::from_secs(2), &mut task)
@@ -880,7 +884,8 @@ async fn guard_tts_routes(
         .and_then(|v| v.get("model").and_then(|m| m.as_str()).map(String::from))
     {
         if let Ok(def) = state.scheduler.resolve(Some(&model)).await {
-            if harness_core::link::parse_model(&def.id).is_some()
+            let cloud = harness_core::cloud::parse_model(&def.id).is_some();
+            if (harness_core::link::parse_model(&def.id).is_some()
                 && !matches!(
                     path.as_str(),
                     "/v1/chat/completions"
@@ -889,7 +894,8 @@ async fn guard_tts_routes(
                         | "/v1/embeddings"
                         | "/v1/rerank"
                         | "/v1/messages"
-                )
+                ))
+                || (cloud && path != "/v1/chat/completions")
             {
                 let caller = match auth::check(
                     &state,
@@ -903,6 +909,10 @@ async fn guard_tts_routes(
                 };
                 if let Err(e) = caller.check_model(&def.alias) {
                     return e.into_response();
+                }
+                if cloud {
+                    return errors::GatewayError::cloud("cloud.unsupported_endpoint")
+                        .into_response();
                 }
                 return errors::GatewayError::remote("link.unsupported_endpoint").into_response();
             }

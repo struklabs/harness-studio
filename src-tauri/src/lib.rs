@@ -8,6 +8,7 @@ pub mod push;
 #[cfg(all(windows, debug_assertions, feature = "qa-cdp"))]
 mod qa_cdp;
 pub mod startup;
+pub mod uninstall;
 
 // Core services live in `harness-core`; re-exported so `crate::<module>` paths keep working.
 pub use harness_core::{
@@ -82,6 +83,11 @@ pub(crate) async fn stop_lemonade_and_mcp() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // One copy of the embedded frontend serves both the app and the uninstall window.
+    let context = tauri::generate_context!();
+    if let Some(options) = uninstall::parse_args() {
+        return uninstall::run(options, context);
+    }
     let registry = Arc::new(ServerRegistry::default());
     let runtime_mgr = Arc::new(RuntimeManager::default());
     let model_mgr = Arc::new(ModelManager);
@@ -352,8 +358,7 @@ pub fn run() {
             estimate_definition_load_fit,
             get_backend_status,
             get_app_settings,
-            get_cleanup_plan,
-            prepare_uninstall,
+            launch_uninstaller,
             save_app_settings,
             set_audio_cpp_enabled,
             get_network_overview,
@@ -556,6 +561,13 @@ pub fn run() {
             link_update,
             link_remove,
             link_test,
+            cloud_list,
+            cloud_models,
+            cloud_add,
+            cloud_update,
+            cloud_remove,
+            cloud_test,
+            cloud_test_model,
             set_gateway_settings,
             unload_gateway_model,
             queue_gateway_load_override,
@@ -685,6 +697,22 @@ pub fn run() {
             rag_delete_document,
             rag_set_document_mode,
             rag_prepare,
+            // Knowledge bases
+            kb_list,
+            kb_create,
+            kb_rename,
+            kb_delete,
+            kb_documents,
+            kb_scan_folder,
+            kb_index,
+            kb_cancel,
+            kb_attach,
+            kb_detach,
+            kb_attached,
+            embedder_status,
+            embedder_install,
+            embedder_sync,
+            embedder_remove,
             // Integrations
             detect_installed_clients,
             list_integrations,
@@ -762,7 +790,7 @@ pub fn run() {
             set_analytics_settings,
             clear_analytics,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building tauri application")
         .run(move |app, event| {
             // macOS: clicking the Dock icon with the window hidden in the menu bar (or its
