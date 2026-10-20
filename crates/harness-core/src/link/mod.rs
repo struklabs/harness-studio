@@ -163,7 +163,7 @@ pub fn parse_model(id: &str) -> Option<(&str, &str)> {
         .then_some((link, model))
 }
 
-fn private_ip(ip: IpAddr) -> bool {
+pub(crate) fn private_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(ip) => {
             ip.is_loopback()

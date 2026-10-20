@@ -1364,7 +1364,7 @@
           <Button variant="ghost" onclick={onGoToConnections}>{t('uiLevel.connect')}</Button>
         </div>
       {/if}
-      <GetStarted modelCount={launchableModels.length} {onGoToHub} onChooseModel={() => section.select('model')} {onReopenWizard} />
+      <GetStarted {active} modelCount={launchableModels.length} {onGoToHub} onChooseModel={() => section.select('model')} {onReopenWizard} />
       <AdvancedOnly>
       <div class="flex flex-col gap-2.5 border-b border-border pb-4" role="group" aria-label={t('srv.card_aria')}>
         <div class="flex flex-wrap items-center justify-between gap-2">
