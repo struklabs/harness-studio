@@ -96,6 +96,17 @@ Approval lets the tool run on your computer. For file writes and commands, check
 
 The **Use** choice next to a document decides how it is used. With **Auto**, a document that fits comfortably in the context is added as full text, and for large documents the relevant parts are searched for on every question. You can change this with **Full Text** and **Search**. If no **Embedding model** is selected on **Session Settings > RAG**, only keyword search is used; for semantic search, download a small embedding model (for example nomic-embed-text) from Model Hub. Optional **Reranking** orders results more accurately with a reranker model at a small cost in speed. **Chunks per question** is the number of quotes added to the answer in search mode. Document processing and indexes run locally. Document search is not used in the comparison view.
 
+## Knowledge Bases
+
+A knowledge base is a named set of documents you can reuse in any chat.
+
+1. Open **Knowledge Bases** above the message box and choose **New from Folder** (supported files in the folder and its subfolders; hidden, build, and dependency folders are skipped) or **New from Files**.
+2. If no embedding model is installed, **Install Embedding Model** downloads a small multilingual one (about 126 MB). It runs on the CPU, so indexing does not keep your GPU busy. Make sure the gateway is on.
+3. Watch the progress under the base; **Stop** cancels it and **Resume** continues later. When indexing ends, the base shows how long it took.
+4. Choose **Use in This Chat**. On every question, only the best matching passages are added (a quarter of the context at most, 2,000 tokens at the very most), and the answer shows them as source chips.
+
+A base remembers which embedding model built its index. If you switch to another embedding model, the base is marked **Stale**; **Rebuild** re-reads and re-indexes it. Until then, searches fall back to keywords and a notice says why. Deleting a base removes its index only, never your files.
+
 ## Embedding and Rerank
 
 **Embedding** turns text into a numeric vector, used for search and similarity. Start a server with a suitable embedding model (a server whose model type is embedding starts in this mode on its own), fill in the **Texts** boxes on the **Embedding** tab, and press **Get Embeddings**. A similarity matrix needs at least two non-empty texts.

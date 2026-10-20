@@ -31,8 +31,10 @@ export function resourceOverrides(
   return null;
 }
 
-/** Remote IDs are stable even when the link cache is unavailable. */
-export function executionLocation(model: string): { key: 'setup.this_pc' | 'setup.remote'; device?: string } {
+/** Remote and cloud IDs are stable even when the link or provider cache is unavailable. */
+export function executionLocation(model: string): { key: 'setup.this_pc' | 'setup.remote' | 'setup.cloud'; device?: string } {
   const remote = /^remote:([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\/.+/.exec(model);
-  return remote ? { key: 'setup.remote', device: remote[1] } : { key: 'setup.this_pc' };
+  if (remote) return { key: 'setup.remote', device: remote[1] };
+  const cloud = /^cloud:([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)\/.+/.exec(model);
+  return cloud ? { key: 'setup.cloud', device: cloud[1] } : { key: 'setup.this_pc' };
 }

@@ -11,7 +11,7 @@
 //! this build knows is opened read-only: reads are attempted, every write returns
 //! [`StateError::ReadOnly`] and nothing is downgraded or rewritten.
 //!
-//! # Schema (v1–v8)
+//! # Schema (v1–v9)
 //! - `folders(id, name, parent_id → folders, sort, created_at)`. Deleting a folder
 //!   moves its conversations and sub-folders to the parent (see [`StateDb::delete_folder`]).
 //! - `conversations(rid, id uuid UNIQUE, title, title_source, folder_id → folders,
@@ -49,6 +49,9 @@
 //! - `rag_documents`, `rag_chunks`, `rag_fts` (v5): documents attached to a conversation for
 //!   local RAG, their chunks with f32 embeddings (BLOB) and a keyword index (see `crate::rag`,
 //!   [`StateDb::rag_documents`]). Deleting a conversation deletes its documents.
+//! - `rag_kbs`, `rag_conversation_kbs` (v8): named knowledge bases (their documents are
+//!   `rag_documents` of a hidden conversation row with the same id) and their attachment to
+//!   conversations (see [`StateDb::kb_list`]).
 //! - `gateway_responses(rid, id UNIQUE, scope, previous_id, model, created_at, last_used_at,
 //!   input_json, response_json, bytes)` (v6): stored `/v1/responses` of the gateway
 //!   (`store`, `previous_response_id`; see `crate::gateway::responses`). Rows are scoped to
@@ -57,7 +60,7 @@
 //! - `projects(rid, id UNIQUE, name, description, folder, settings_json, archived, created_at,
 //!   updated_at)`, `conversations.project_id → projects` and `project_outputs(id, project_id →
 //!   projects, path, kind, source, model, conversation_id → conversations, agent_task_id, tool,
-//!   size, created_at)` (v8): projects, their chats and the files made for them (see
+//!   size, created_at)` (v9): projects, their chats and the files made for them (see
 //!   [`StateDb::projects`], `crate::projects`). Deleting a project keeps its chats, unassigned.
 //! - `search_index`: FTS5 (`unicode61`, diacritics removed) over conversation titles
 //!   (rowid = `-conversations.rid`) and variant contents (rowid = `message_variants.rid`),
@@ -79,6 +82,7 @@ mod export;
 mod models;
 mod projects;
 mod rag;
+mod rag_kb;
 mod responses;
 mod schema;
 #[cfg(test)]
@@ -90,6 +94,7 @@ pub use export::*;
 pub use models::*;
 pub use projects::*;
 pub use rag::*;
+pub use rag_kb::*;
 pub use responses::*;
 
 use crate::error_key::{err, ErrorKey};

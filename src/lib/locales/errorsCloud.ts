@@ -1,0 +1,51 @@
+// Backend error keys of BYOK cloud providers (harness_core::cloud, gateway cloud proxy).
+// Texts are single quoted literals (the CLI compiles the English half in); {name} = parameter.
+const tr = {
+  'cloud.keychain_unavailable': 'Sistem anahtar zincirine erişilemiyor; API anahtarı okunamadı veya kaydedilemedi.',
+  'cloud.invalid_url': 'Geçersiz adres. https:// ile başlayan, sorgu veya kullanıcı bilgisi içermeyen bir temel URL girin.',
+  'cloud.insecure_not_allowed': 'Şifresiz HTTP yalnızca bu bilgisayardaki veya yerel ağdaki bir sunucu için kullanılabilir.',
+  'cloud.unreachable': 'Bulut sağlayıcıya ulaşılamıyor.',
+  'cloud.tls_failed': 'Bulut sağlayıcıyla TLS bağlantısı kurulamadı.',
+  'cloud.dns_failed': 'Bulut sağlayıcının adresi çözümlenemedi.',
+  'cloud.timeout': 'Bulut sağlayıcı zamanında yanıt vermedi.',
+  'cloud.unauthorized': 'Bulut sağlayıcı API anahtarını reddetti. Anahtarı ve yetkilerini kontrol edin.',
+  'cloud.payment_required': 'Bulut sağlayıcı ödeme veya kredi istiyor. Hesabınızın bakiyesini kontrol edin.',
+  'cloud.not_found_upstream': 'Bulut sağlayıcı bu adreste model listesi bulamadı. Temel URL’yi kontrol edin.',
+  'cloud.rate_limited': 'Bulut sağlayıcının istek veya kota sınırına ulaşıldı. Biraz sonra yeniden deneyin.',
+  'cloud.invalid_response': 'Bulut sağlayıcının yanıtı anlaşılamadı.',
+  'cloud.key_missing': 'Bu sağlayıcı için kayıtlı API anahtarı yok.',
+  'cloud.provider_not_found': 'Bu modelin bulut sağlayıcısı bulunamadı veya devre dışı.',
+  'cloud.invalid_name': 'Ad yalnızca küçük Latin harfleri, rakamlar ve kısa çizgi içerebilir.',
+  'cloud.not_found': 'Bulut sağlayıcı bulunamadı.',
+  'cloud.name_taken': 'Bu adla bir bulut sağlayıcı zaten var.',
+  'cloud.invalid_key': 'API anahtarı geçersiz karakterler içeriyor.',
+  'cloud.key_required_for_new_address': 'Adresi değiştirirken API anahtarını yeniden girin.',
+  'cloud.removed_key_left': 'Sağlayıcı kaldırıldı ancak anahtar zincirine erişilemediği için kayıtlı anahtar kalmış olabilir.',
+  'cloud.unsupported_endpoint': 'Bulut sağlayıcı modelleri yalnızca sohbet tamamlama (/v1/chat/completions) ile kullanılabilir.',
+};
+
+const en: Record<keyof typeof tr, string> = {
+  'cloud.keychain_unavailable': 'The system keychain is unavailable; the API key could not be read or saved.',
+  'cloud.invalid_url': 'Invalid address. Enter a base URL that starts with https:// and has no query or user info.',
+  'cloud.insecure_not_allowed': 'Unencrypted HTTP is only allowed for a server on this computer or the local network.',
+  'cloud.unreachable': 'The cloud provider is unreachable.',
+  'cloud.tls_failed': 'Could not establish a TLS connection to the cloud provider.',
+  'cloud.dns_failed': 'Could not resolve the cloud provider address.',
+  'cloud.timeout': 'The cloud provider did not answer in time.',
+  'cloud.unauthorized': 'The cloud provider rejected the API key. Check the key and its permissions.',
+  'cloud.payment_required': 'The cloud provider requires payment or credits. Check your account balance.',
+  'cloud.not_found_upstream': 'The cloud provider has no model list at this address. Check the base URL.',
+  'cloud.rate_limited': 'The cloud provider rate or quota limit was reached. Try again later.',
+  'cloud.invalid_response': 'The cloud provider sent an answer Harness could not read.',
+  'cloud.key_missing': 'No API key is saved for this provider.',
+  'cloud.provider_not_found': 'The cloud provider of this model was not found or is disabled.',
+  'cloud.invalid_name': 'Use only lowercase Latin letters, digits and hyphens in the name.',
+  'cloud.not_found': 'Cloud provider not found.',
+  'cloud.name_taken': 'A cloud provider with this name already exists.',
+  'cloud.invalid_key': 'The API key contains invalid characters.',
+  'cloud.key_required_for_new_address': 'Re-enter the API key when you change the address.',
+  'cloud.removed_key_left': 'The provider was removed, but the keychain was unavailable, so the saved key may remain.',
+  'cloud.unsupported_endpoint': 'Cloud provider models only work with chat completions (/v1/chat/completions).',
+};
+
+export default { tr, en };

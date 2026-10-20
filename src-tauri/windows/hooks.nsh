@@ -1,5 +1,6 @@
-; User data contract: the uninstaller keeps models and user content by default. The
-; `harness cleanup` helper removes only app-owned files (engines, environments, caches, logs,
+; User data contract: the uninstaller keeps models and user content by default. The app's
+; uninstall window (`harness-studio --uninstall --installer`) lets the user choose; the
+; `harness cleanup` helper (fallback) removes only app-owned files (engines, environments, caches, logs,
 ; WebView2 data) and deletes data only when the user ticks the data checkbox. It refuses
 ; redirected roots and never follows junctions. No script recursively deletes APPDATA itself.
 ; Kaldırıcı kancası: uygulamanın "PATH'e Ekle" ile kullanıcı PATH'ine (HKCU\Environment\Path)
@@ -105,6 +106,23 @@ FunctionEnd
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
+  ; Interactive uninstall: the app's own uninstall window asks what to remove (everything, or
+  ; item by item), removes it, and exits with 0 (continue) or 2 (the user cancelled). Silent runs
+  ; (including the one the window itself starts for the app files), updates and a window that
+  ; cannot start fall back to the plain cleanup below: models and user content stay unless the
+  ; "Delete the application data" checkbox is ticked.
+  StrCpy $R7 "fallback"
+  ; The window starts the silent uninstaller for the app files with HARNESS_UNINSTALL_DONE=1: the
+  ; user already chose what to keep, so the plain cleanup must not delete anything more.
+  ReadEnvStr $R6 "HARNESS_UNINSTALL_DONE"
+  ${If} $UpdateMode <> 1
+  ${AndIfNot} ${Silent}
+  ${AndIf} ${FileExists} "$INSTDIR\harness-studio.exe"
+    ExecWait '"$INSTDIR\harness-studio.exe" --uninstall --installer' $R7
+    ${If} $R7 == "2"
+      Quit
+    ${EndIf}
+  ${EndIf}
   ; Güncellemede (eski sürümü kaldırıp yenisini kuran akış) kullanıcının PATH girdisi kalmalı.
   ; Asıl yol: dosyalar silinmeden CLI girdiyi Rust tarafında siler (uzun PATH'te de çalışır;
   ; NSIS dizgileri 1024 karakterde kesilir, 10.10 testinde PATH 1534 karakterdi).
@@ -114,12 +132,14 @@ FunctionEnd
     nsExec::Exec '"$INSTDIR\harness.exe" remove-from-path'
     Pop $R9
   ${EndIf}
-  ; Uygulamaya ait dosyaları temizle: motorlar, ortamlar, önbellek, günlükler, WebView2 verisi.
-  ; Varsayılan: modeller ve kullanıcı içeriği kalır; yalnızca "Delete the application data"
-  ; kutusu işaretliyse veri de silinir. Yardımcı, kök dizini kimlikle doğrular ve
-  ; bağlantıları izlemeden siler.
+  ; Fallback: remove only app-owned files (engines, environments, caches, logs, WebView2 data).
+  ; The helper validates the root by its identifier and never follows junctions. It is skipped
+  ; when the data folder is already gone, so it cannot recreate it.
   ${If} $UpdateMode <> 1
+  ${AndIf} $R7 != "0"
+  ${AndIf} $R6 != "1"
   ${AndIf} ${FileExists} "$INSTDIR\harness.exe"
+  ${AndIf} ${FileExists} "$APPDATA\com.harnessstudio.app\*.*"
     ${If} $DeleteAppDataCheckboxState = 1
       nsExec::Exec '"$INSTDIR\harness.exe" cleanup --yes --delete-data'
     ${Else}

@@ -1495,22 +1495,109 @@ fn edited_user_message_keeps_its_audio() {
 }
 
 #[test]
-fn v7_database_upgrades_to_v8_with_projects() {
+fn v7_database_upgrades_to_knowledge_bases_without_losing_data() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("state.db");
     {
+        // A file written by the previous release (schema v7) with a conversation, a message
+        // and a conversation document with chunks.
         let conn = rusqlite::Connection::open(&path).unwrap();
         for sql in &schema::MIGRATIONS[..7] {
             conn.execute_batch(sql).unwrap();
         }
         conn.pragma_update(None, "user_version", 7).unwrap();
         conn.execute_batch(
-            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c1', 'old', 1, 1);",
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c1', 'eski sohbet', 1, 1);
+             INSERT INTO rag_documents (id, conversation_id, name, status, created_at, updated_at)
+             VALUES ('d1', 'c1', 'not.md', 'ready', 1, 1);",
         )
         .unwrap();
     }
     let db = StateDb::open(&path).unwrap();
     assert_eq!(db.user_version().unwrap(), SCHEMA_VERSION);
+    assert_eq!(
+        db.get_conversation("c1").unwrap().conversation.title,
+        "eski sohbet"
+    );
+    assert_eq!(db.rag_documents("c1").unwrap().len(), 1);
+    assert!(db.kb_list().unwrap().is_empty());
+    // Opening again is a no-op, and the new tables work.
+    drop(db);
+    let db = StateDb::open(&path).unwrap();
+    assert_eq!(db.user_version().unwrap(), SCHEMA_VERSION);
+    let kb = db.kb_create("Notlar", None).unwrap();
+    db.kb_attach("c1", &kb.id).unwrap();
+    assert_eq!(db.kb_attached("c1").unwrap().len(), 1);
+}
+
+#[test]
+fn knowledge_base_row_stays_out_of_lists_and_search() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = StateDb::open(&dir.path().join("state.db")).unwrap();
+    let kb = db.kb_create("Zebra Notes", None).unwrap();
+    let chat = db
+        .create_conversation(&NewConversation {
+            title: Some("Sohbet".into()),
+            ..Default::default()
+        })
+        .unwrap();
+    let ids = |q: ListQuery| -> Vec<String> {
+        db.list_conversations(&q)
+            .unwrap()
+            .into_iter()
+            .map(|c| c.id)
+            .collect()
+    };
+    assert_eq!(ids(ListQuery::default()), vec![chat.id.clone()]);
+    // The title of the hidden row is in the search index, but never in the results.
+    let found = ids(ListQuery {
+        query: Some("Zebra".into()),
+        ..Default::default()
+    });
+    assert!(found.is_empty(), "{found:?}");
+    db.kb_delete(&kb.id).unwrap();
+    assert!(db.kb_list().unwrap().is_empty());
+}
+
+#[test]
+fn v7_database_upgrades_through_knowledge_bases_to_projects_without_losing_data() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("state.db");
+    {
+        // A file written by the release before both (schema v7).
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        for sql in &schema::MIGRATIONS[..7] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 7).unwrap();
+        conn.execute_batch(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c1', 'old', 1, 1);
+             INSERT INTO rag_documents (id, conversation_id, name, status, created_at, updated_at)
+             VALUES ('d1', 'c1', 'note.md', 'ready', 1, 1);",
+        )
+        .unwrap();
+    }
+    // The release in between (schema v8: knowledge bases) writes a base and an attachment.
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(schema::MIGRATIONS[7]).unwrap();
+        conn.pragma_update(None, "user_version", 8).unwrap();
+        conn.execute_batch(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('kb1', 'Knowledge base: Notes', 1, 1);
+             INSERT INTO rag_kbs (id, name, created_at, updated_at) VALUES ('kb1', 'Notes', 1, 1);
+             INSERT INTO rag_conversation_kbs (conversation_id, kb_id, created_at) VALUES ('c1', 'kb1', 1);",
+        )
+        .unwrap();
+    }
+    let db = StateDb::open(&path).unwrap();
+    assert_eq!(db.user_version().unwrap(), SCHEMA_VERSION);
+    assert_eq!(schema::MIGRATIONS.len(), 9);
+    // v7 and v8 data is intact.
+    assert_eq!(db.get_conversation("c1").unwrap().conversation.title, "old");
+    assert_eq!(db.rag_documents("c1").unwrap().len(), 1);
+    assert_eq!(db.kb_list().unwrap().len(), 1);
+    assert_eq!(db.kb_attached("c1").unwrap().len(), 1);
+    // The v9 tables work next to them.
     assert_eq!(db.conversation_project("c1").unwrap(), None);
     let project = db
         .create_project(&ProjectInput {
@@ -1527,6 +1614,11 @@ fn v7_database_upgrades_to_v8_with_projects() {
         })
         .unwrap();
     assert_eq!(listed.len(), 1);
+    // The hidden knowledge base row is not a chat.
+    assert_eq!(
+        db.list_conversations(&ListQuery::default()).unwrap().len(),
+        1
+    );
     // Deleting the project keeps the chat, without a project.
     db.delete_project(&project.id).unwrap();
     assert_eq!(db.conversation_project("c1").unwrap(), None);

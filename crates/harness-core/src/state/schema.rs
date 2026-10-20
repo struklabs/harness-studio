@@ -1,7 +1,7 @@
 //! Ordered SQL migrations for `state.db`. Migration `i` (0-based) upgrades the schema
 //! from `user_version = i` to `i + 1`. Never edit a released migration; append a new one.
 
-pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8];
+pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9];
 
 const V1: &str = r#"
 CREATE TABLE folders (
@@ -246,11 +246,39 @@ CREATE INDEX gateway_response_events_response
     ON gateway_response_events(response_id, sequence_number);
 "#;
 
-/// v8: projects. A project groups conversations (`conversations.project_id`; deleting a project
+/// v8: knowledge bases for RAG (see `crate::rag::kb`). A knowledge base is a named, reusable set
+/// of documents. Its documents are ordinary `rag_documents` of a hidden conversation row whose id
+/// is the knowledge base id (so extraction, chunks, vectors, keyword index and indexing jobs are
+/// shared with conversation documents; the row is left out of the conversation list). Deleting
+/// the knowledge base deletes that conversation and with it every document and chunk.
+/// `embed_model` / `embed_dims` record the embedding model of the index: another model than the
+/// one in use marks the index stale. `index_ms` is the total time spent indexing,
+/// `rag_conversation_kbs` attaches knowledge bases to a conversation.
+const V8: &str = r#"
+CREATE TABLE rag_kbs (
+    id           TEXT PRIMARY KEY NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    name         TEXT NOT NULL,
+    folder       TEXT,
+    embed_model  TEXT,
+    embed_dims   INTEGER,
+    index_ms     INTEGER NOT NULL DEFAULT 0,
+    indexed_at   INTEGER,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL
+);
+CREATE TABLE rag_conversation_kbs (
+    conversation_id  TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    kb_id            TEXT NOT NULL REFERENCES rag_kbs(id) ON DELETE CASCADE,
+    created_at       INTEGER NOT NULL,
+    PRIMARY KEY (conversation_id, kb_id)
+);
+"#;
+
+/// v9: projects. A project groups conversations (`conversations.project_id`; deleting a project
 /// keeps its chats, unassigned) and the files made for it (`project_outputs`, metadata only: the
 /// file stays where it was written). `settings_json` holds the folders tools and agents may use
 /// and the attached tools, skills and MCP servers (see `crate::projects`).
-const V8: &str = r#"
+const V9: &str = r#"
 CREATE TABLE projects (
     rid            INTEGER PRIMARY KEY,
     id             TEXT NOT NULL UNIQUE,

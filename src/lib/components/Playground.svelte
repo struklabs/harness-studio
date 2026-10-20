@@ -56,7 +56,8 @@
   import ConversationSidebar from './playground/ConversationSidebar.svelte';
   import ModelPicker from './playground/ModelPicker.svelte';
   import { gatewayModelStates, type GatewayModelEntry, type ModelLoadState } from './playground/gatewayModels';
-  import { isRemoteModel, type RemoteModel } from './playground/remoteModels';
+  import { type RemoteModel } from './playground/remoteModels';
+  import { isExternalModel } from './playground/cloudModels';
   import EmbeddingPanel from './playground/EmbeddingPanel.svelte';
   import RerankPanel from './playground/RerankPanel.svelte';
   import PipelinePanel from './playground/PipelinePanel.svelte';
@@ -149,6 +150,8 @@
   import { panes } from '#lib/stores/panes.svelte.js';
   import ResizablePane from './common/ResizablePane.svelte';
   import DocumentsBar from './playground/DocumentsBar.svelte';
+  import KnowledgeBar from './playground/KnowledgeBar.svelte';
+  import { kbUsable, type KnowledgeBase } from './playground/knowledge';
   import McpResourcesButton from './playground/McpResourcesButton.svelte';
   import CompactionDivider from './playground/CompactionDivider.svelte';
   import CompactButton from './playground/CompactButton.svelte';
@@ -269,7 +272,7 @@
     return def ? definitionFile(def, library.models)?.task : undefined;
   });
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
-  let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isRemoteModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
+  let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isExternalModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
   let pickerModel = $derived(pgTab === 'chat' ? settings.model : pgTab === 'image' ? imageSession.model : modeModels[pgTab]);
   $effect(() => {
     void library.version;
@@ -296,7 +299,7 @@
     pgTab = tab;
     const alias = app.requestedPlaygroundModel;
     app.requestedPlaygroundModel = null;
-    if (alias && tab === 'chat' && isRemoteModel(alias)) useModel(app.selectedServerId, alias);
+    if (alias && tab === 'chat' && isExternalModel(alias)) useModel(app.selectedServerId, alias);
     else if (alias && (tab === 'embedding' || tab === 'rerank' || tab === 'pipeline')) modeModels[tab] = alias;
   });
   // Embedding / Rerank list definitions: library files found by a scan get their default one first.
@@ -673,7 +676,7 @@
 
   /** Switches the conversation (or the open tab's model) to `alias` on `serverId`. */
   function useModel(serverId: string, alias: string) {
-    if (app.gatewayRunning && isRemoteModel(alias) && !models.includes(alias)) models = [...models, alias];
+    if (app.gatewayRunning && isExternalModel(alias) && !models.includes(alias)) models = [...models, alias];
     app.selectServer(serverId);
     if (pgTab !== 'chat') {
       modeModels[pgTab] = alias;
@@ -1198,7 +1201,9 @@
   let countHistory = $derived(withoutImages(historyWithImages));
   let imageEstimate = $derived((countImageParts(historyWithImages) + pendingImages.length) * IMAGE_TOKEN_ESTIMATE);
   let countTools = $derived(wireToolDefs());
-  let ragEstimate = $derived.by(() => ragDocs.filter(doc => doc.status === 'ready').reduce((total, doc) =>
+  /** Excerpts of attached knowledge bases: a quarter of the context, 300 to 2000 tokens (harness_core::rag::kb::token_budget). */
+  let kbEstimate = $derived.by(() => attachedKbs.some(kbUsable) ? Math.min(2000, Math.max(300, Math.floor((ragContext ?? 4096) * 0.25))) : 0);
+  let ragEstimate = $derived.by(() => kbEstimate + ragDocs.filter(doc => doc.status === 'ready').reduce((total, doc) =>
     total + (doc.mode === 'retrieval' ? Math.min(doc.tokens, settings.ragTopK * 512) : doc.tokens), 0));
   let promptBudget = $derived(estimatePromptBudget(withToolGuidance(countHistory, countTools), countTools, input));
   $effect(() => {
@@ -1290,6 +1295,8 @@
   // ---- Documents (local RAG, see playground/rag.ts) ----
   let ragDocs = $state<RagDocument[]>([]);
   let ragModels = $state<RagModels | null>(null);
+  /** Knowledge bases attached to the open conversation. */
+  let attachedKbs = $state<KnowledgeBase[]>([]);
   /** Documents are being searched for the next answer. */
   let ragSearching = $state(false);
   /** Files are dragged over the window. */
@@ -1514,7 +1521,7 @@
 
   /** Searches the conversation's documents for the last user message (before the answer). */
   async function prepareRag(convId: string | null): Promise<RagPrepared | null> {
-    if (!convId || !ragDocs.some((d) => d.status === 'ready')) return null;
+    if (!convId || (!ragDocs.some((d) => d.status === 'ready') && !attachedKbs.some(kbUsable))) return null;
     const query = [...messages].reverse().find((m) => m.role === 'user')?.content ?? '';
     ragSearching = true;
     try {
@@ -3116,6 +3123,15 @@
 
     <div class="shrink-0 px-4 pt-2 pb-4" class:hidden={pgTab !== 'chat'}>
       <div class={cn('mx-auto w-full', splitOn ? 'max-w-[1200px]' : 'max-w-[760px]')}>
+        <KnowledgeBar
+          conversationId={conv?.id ?? null}
+          ensureConversation={(title) => ensureConversation(title)}
+          embedAlias={resolveEmbedModel(settings.ragEmbedModel, ragModels?.embedding ?? [])}
+          models={ragModels}
+          readOnly={!persistEnabled}
+          bind:attached={attachedKbs}
+          onUseEmbedder={(alias) => (settings.ragEmbedModel = alias)}
+        />
         <DocumentsBar
           docs={ragDocs}
           bind:settings
