@@ -92,4 +92,5 @@ try {
   }
   rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
 }
-process.exit(code);
+// Let pending fetch/child-process handles close before Node tears down libuv on Windows.
+process.exitCode = code;

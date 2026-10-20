@@ -1,0 +1,76 @@
+#!/usr/bin/python3
+"""Fixed root-owned service operations; no caller paths, URLs, commands or environment."""
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import urllib.request
+
+os.environ.clear()
+os.environ.update(PATH="/usr/sbin:/usr/bin:/sbin:/bin", HOME="/root", LANG="C.UTF-8")
+
+
+def run(*args, check=True):
+    return subprocess.run(args, check=check)
+
+
+def fetch(url, limit):
+    request = urllib.request.Request(url, headers={"User-Agent": "HarnessStudio"})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        data = response.read(limit + 1)
+    if len(data) > limit:
+        raise ValueError("Download exceeds limit")
+    return data
+
+
+def main():
+    if os.geteuid() != 0:
+        raise ValueError("Root required")
+    args = sys.argv[1:]
+    if args == ["logs"]:
+        run("journalctl", "-u", "harness-server.service", "-n", "500", "--no-pager", "--output=short-iso")
+    elif args == ["is-enabled"]:
+        run("systemctl", "is-enabled", "harness-server.service", check=False)
+    elif args in (["enable"], ["disable"]):
+        run("systemctl", args[0], "harness-server.service")
+    elif args == ["restart"]:
+        # Return the HTTP response before systemd ends the current process tree.
+        run("systemd-run", "--quiet", "--on-active=2", "/usr/bin/systemctl", "restart", "harness-server.service")
+    elif len(args) == 2 and args[0] == "update" and re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args[1]):
+        version = args[1]
+        arch = os.uname().machine
+        if arch not in ("x86_64", "aarch64"):
+            raise ValueError("Unsupported architecture")
+        name = f"harness-server-{version}-linux-{arch}.deb"
+        release = json.loads(fetch(f"https://api.github.com/repos/struklabs/harness-studio/releases/tags/v{version}", 4 * 1024 * 1024))
+        if release["draft"] or release["prerelease"] or release["tag_name"] != f"v{version}":
+            raise ValueError("Stable release required")
+        asset = next(a for a in release["assets"] if a["name"] == name)
+        url = f"https://github.com/struklabs/harness-studio/releases/download/v{version}/{name}"
+        if asset["browser_download_url"] != url or not re.fullmatch(r"sha256:[0-9a-f]{64}", asset.get("digest") or ""):
+            raise ValueError("Official asset digest required")
+        data = fetch(url, 256 * 1024 * 1024)
+        if "sha256:" + hashlib.sha256(data).hexdigest() != asset["digest"]:
+            raise ValueError("Digest mismatch")
+        # A separate transient unit survives the package's restart of this service.
+        cache = Path("/var/cache/harness-updates")
+        cache.mkdir(mode=0o700, exist_ok=True)
+        fd, filename = tempfile.mkstemp(suffix=".deb", dir=cache)
+        with os.fdopen(fd, "wb") as package:
+            package.write(data)
+        run("systemd-run", "--quiet", "--collect", "--on-active=2", "/bin/sh", "-c",
+            'dpkg -i "$1"; result=$?; rm -f -- "$1"; exit "$result"', "harness-update", filename)
+    else:
+        raise ValueError("Unsupported service operation")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(1)

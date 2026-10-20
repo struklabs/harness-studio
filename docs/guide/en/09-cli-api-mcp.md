@@ -27,7 +27,7 @@ On the **CLI** page (**Settings > Developer > CLI**), **Use in a Terminal** show
 
 ## Use the API from Code
 
-The repository has ready-made clients for the Control API in [`sdk/`](../../../sdk/README.md): a TypeScript package and a Python package. They are generated from the OpenAPI schema, so every endpoint, parameter and answer has a type. Install TypeScript with `npm install @struklabs/harness-studio-sdk`; install Python from the repository folder (PyPI publication is planned).
+The repository has ready-made clients for the Control API in [`sdk/`](../../../sdk/README.md): a TypeScript package and a Python package. The source clients are generated from the current OpenAPI schema; the published npm 0.1.0 client predates the new W5 browser/server operations. Build from source for those operations. Install TypeScript with `npm install @struklabs/harness-studio-sdk`; install Python from the repository folder (PyPI returned 404 when checked October 20, 2026; publication is planned). See the [Linux server guide](10-server-mode.md) for systemd, Docker, browser operations, and backup recovery.
 
 Both find the running Harness Studio by themselves: the app, or `harness serve`, writes its address to `instance.json` in its data folder, and the session token is in `api-token` next to it. On another computer, give the address and a named token instead.
 

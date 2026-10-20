@@ -2,7 +2,13 @@
 
 Typed client of the [Harness Studio](https://github.com/struklabs/harness-studio) Control API. Every path, parameter, request body and answer comes from the API's OpenAPI document; requests go through [openapi-fetch](https://openapi-ts.dev/openapi-fetch/).
 
-Not on npm yet. Build it from the repository:
+Published on npm as **0.1.0** (registry checked October 20, 2026):
+
+```bash
+npm install @struklabs/harness-studio-sdk
+```
+
+For new API operations in this checkout, including W5 browser administration, build from source until the next SDK release:
 
 ```bash
 cd sdk/typescript

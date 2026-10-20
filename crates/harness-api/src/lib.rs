@@ -15,6 +15,7 @@ pub mod auth;
 pub mod browser;
 pub mod error;
 mod mcp;
+pub mod operations;
 mod routes;
 
 use std::net::SocketAddr;

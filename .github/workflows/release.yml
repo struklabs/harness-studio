@@ -31,6 +31,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
     inputs:
+      server:
+        description: 'Also build optional Linux headless packages and Docker images'
+        type: boolean
+        default: false
       tag:
         description: 'Existing tag to build and release (for example v0.2.0); empty uses the selected ref'
         type: string
@@ -41,6 +45,45 @@ permissions:
   contents: read
 
 jobs:
+  server:
+    if: github.event_name == 'workflow_dispatch' && inputs.server
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build headless packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev libdbus-1-dev
+          npm ci
+          npm run build
+          cargo build --locked --release -p harness-cli
+          version=$(node -p "require('./package.json').version")
+          python3 packaging/server/package.py --binary target/release/harness --ui build --output target/server --version "$version"
+      - name: Build CPU and Vulkan images locally
+        run: |
+          docker build -f packaging/server/Dockerfile --target cpu -t harness-server:cpu .
+          docker build -f packaging/server/Dockerfile --target vulkan -t harness-server:vulkan .
+          docker save harness-server:cpu harness-server:vulkan | gzip > target/server/harness-server-docker.tar.gz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: harness-server-linux
+          path: target/server/*
+      - name: Attach packages to the selected release
+        if: inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" target/server/* --clobber
   build:
     name: ${{ matrix.target && format('{0} ({1})', matrix.platform, matrix.target) || matrix.platform }}
     permissions:

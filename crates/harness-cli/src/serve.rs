@@ -79,7 +79,18 @@ pub async fn run(args: &ServeArgs, data_dir: &Path, out: &Out) -> CliResult<()> 
 
     if let Some(code) = &instance.setup_code {
         // This is a one-time pairing secret: terminal stderr only, never ready JSON/log events.
-        eprintln!("Browser Admin Setup Code (Valid for 15 Minutes): {code}");
+        if std::env::var("HARNESS_SERVICE").as_deref() == Ok("systemd") {
+            harness_core::instance::write_private_file(
+                &data_dir.join("setup-code"),
+                code.as_bytes(),
+            )
+            .map_err(crate::error::CliError::core)?;
+        } else {
+            eprintln!("Browser Admin Setup Code (Valid for 15 Minutes): {code}");
+        }
+    }
+    if instance.setup_code.is_none() {
+        let _ = std::fs::remove_file(data_dir.join("setup-code"));
     }
     if browser_enabled {
         out.info(format!(

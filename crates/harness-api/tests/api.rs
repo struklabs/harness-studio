@@ -478,6 +478,11 @@ async fn openapi_document_is_valid_and_lists_every_route() {
     );
     let paths = doc["paths"].as_object().unwrap();
     let expected: &[(&str, &[&str])] = &[
+        ("/browser/backup", &["post"]),
+        ("/browser/restore", &["post"]),
+        ("/browser/service", &["get", "post"]),
+        ("/browser/logs", &["get"]),
+        ("/browser/update", &["get", "post"]),
         ("/health", &["get"]),
         ("/browser/session", &["get"]),
         ("/browser/login", &["post"]),

@@ -1,0 +1,24 @@
+[Unit]
+Description=Harness Headless Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=harness
+Group=harness
+StateDirectory=harness
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/harness
+Environment=HARNESS_SERVICE=systemd
+Environment=HOME=/var/lib/harness
+ExecStart=/usr/lib/harness/harness --data-dir /var/lib/harness serve --port 11500 --serve-config /etc/harness/serve.json
+Restart=always
+RestartSec=3
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,27 @@
+#!/bin/sh
+set -eu
+if ! getent passwd harness >/dev/null; then
+  adduser --system --group --home /var/lib/harness --no-create-home harness
+fi
+install -d -o harness -g harness -m 0700 /var/lib/harness
+install -d -o root -g harness -m 0750 /etc/harness
+if [ ! -f /etc/harness/serve.json ]; then
+  printf '%s\n' '{"ui_dir":"/usr/lib/harness/web"}' > /etc/harness/serve.json
+  chown root:harness /etc/harness/serve.json
+  chmod 0640 /etc/harness/serve.json
+fi
+systemctl daemon-reload
+# Preserve an existing administrator's start-on-boot choice during upgrades.
+if [ -z "${2:-}" ]; then systemctl enable harness-server.service; fi
+systemctl restart harness-server.service
+printf '\nBrowser URL: http://localhost:11500/ (remote: use an SSH tunnel or configure TLS)\n'
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  if [ -s /var/lib/harness/setup-code ]; then
+    printf 'One-Time Setup Code (15 Minutes): '
+    cat /var/lib/harness/setup-code
+    printf '\n'
+    exit 0
+  fi
+  sleep 1
+done
+printf 'Existing administrator: sign in with your password. For startup errors: journalctl -u harness-server\n'

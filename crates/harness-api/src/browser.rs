@@ -48,6 +48,7 @@ struct Inner {
 }
 
 pub struct BrowserAuth {
+    pub(crate) started: Instant,
     inner: Mutex<Inner>,
     password_path: PathBuf,
     pub config: BrowserConfig,
@@ -89,6 +90,7 @@ impl BrowserAuth {
         };
         Ok((
             Arc::new(Self {
+                started: Instant::now(),
                 tls: config.tls_cert.is_some(),
                 config,
                 password_path,

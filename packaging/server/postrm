@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+systemctl daemon-reload || true
+# Deliberately preserve /var/lib/harness and its dedicated account, even on purge.

@@ -3,17 +3,18 @@
   import { Button } from '#lib/components/ui/button/index.js';
   import { Input } from '#lib/components/ui/input/index.js';
   import { t, setLanguage, type TKey } from '#lib/i18n.svelte.js';
+  import ServerOperations from './ServerOperations.svelte';
   import { hideSplash } from '#lib/splash.js';
   import { browserSession, browserLogin, browserLogout, control, controlEvents, ControlError } from '#lib/transport.js';
 
-  type Page = 'dashboard' | 'library' | 'downloads' | 'settings' | 'tokens';
+  type Page = 'dashboard' | 'library' | 'downloads' | 'settings' | 'tokens' | 'operations';
   type Status = string | { error?: string; Error?: string };
   interface Server { id: string; name: string; status: Status; endpoint?: string; failure?: { message?: string; code?: string } }
   interface Model { model: { id: string; name: string; size_bytes: number; path: string; source?: string } }
   interface Definition { id: string; name: string; alias: string; base?: { kind: string; path?: string } }
   interface Download { id: number; repo_id: string; variant_name: string; downloaded_bytes: number; total_bytes: number; status: Status }
   interface Token { id: string; name: string; scopes: string[] }
-  const pages: Page[] = ['dashboard', 'library', 'downloads', 'settings', 'tokens'];
+  const pages: Page[] = ['dashboard', 'library', 'downloads', 'settings', 'tokens', 'operations'];
   const availableScopes = ['read', 'inference', 'models:write', 'downloads:write', 'servers:write', 'servers:control', 'conversations', 'tools', 'admin'];
   let page = $state<Page>('dashboard');
   let authenticated = $state(false);
@@ -177,7 +178,9 @@
     </nav>
     <main class="panel">
       <div class="heading"><h2>{t(`browser.${page}` as TKey)}</h2><span role="status">{t(connected ? 'browser.connected' : 'browser.connecting')}</span><Button variant="outline" onclick={refresh}>{t('browser.refresh')}</Button></div>
-      {#if page === 'dashboard'}
+      {#if page === 'operations'}
+        <ServerOperations />
+      {:else if page === 'dashboard'}
         {#each servers as server (server.id)}
           <article class="row">
             <div><h3>{server.name}</h3><p>{status(server.status)}</p>{#if server.endpoint}<code>{server.endpoint}</code>{/if}{#if server.failure}<p class="error">{server.failure.code ?? server.failure.message ?? JSON.stringify(server.failure)}</p>{/if}</div>

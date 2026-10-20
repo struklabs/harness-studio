@@ -97,6 +97,13 @@ impl Modify for BearerAuth {
 
 fn api_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
+        .routes(routes!(crate::operations::service_status))
+        .routes(routes!(crate::operations::service_action))
+        .routes(routes!(crate::operations::logs))
+        .routes(routes!(crate::operations::backup))
+        .routes(routes!(crate::operations::restore))
+        .routes(routes!(crate::operations::update_check))
+        .routes(routes!(crate::operations::update_apply))
         .routes(routes!(crate::browser::session))
         .routes(routes!(crate::browser::login))
         .routes(routes!(crate::browser::logout))
