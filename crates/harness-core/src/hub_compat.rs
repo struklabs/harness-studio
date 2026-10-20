@@ -836,9 +836,7 @@ pub fn mflux_compatibility_on(
     apple_silicon: bool,
     os_too_old: bool,
 ) -> Option<Compatibility> {
-    let Some(name) = mflux_base_of(tags) else {
-        return None;
-    };
+    let name = mflux_base_of(tags)?;
     if !apple_silicon || !matches!(task, Some("text-to-image" | "image-to-image") | None) {
         return None;
     }
