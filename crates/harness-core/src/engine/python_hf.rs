@@ -68,6 +68,29 @@ pub fn is_liquid_audio_dir(dir: &Path) -> bool {
             .is_some_and(|cfg| archs(&cfg).contains(&LIQUID_ARCHITECTURE))
 }
 
+/// Whether `dir` is a CTranslate2 Whisper export (faster-whisper: `Systran/faster-whisper-*` and
+/// fine-tunes): `model.bin`, a tokenizer or vocabulary and a `config.json` that has no
+/// transformers `model_type` / `architectures` but carries Whisper's `alignment_heads`,
+/// `lang_ids` or `suppress_ids`. Transformers weights next to it win (the folder is then an
+/// ordinary Whisper checkpoint). Other CTranslate2 models (translation, NLLB...) are not served.
+pub fn is_ct2_whisper_dir(dir: &Path) -> bool {
+    let has = |name: &str| dir.join(name).is_file();
+    dir.is_dir()
+        && has("model.bin")
+        && (has("tokenizer.json") || has("vocabulary.json") || has("vocabulary.txt"))
+        && !weight_files(dir)
+            .iter()
+            .any(|p| p.extension().is_some_and(|e| e == "safetensors"))
+        && read_json(&dir.join("config.json")).is_some_and(|cfg| {
+            cfg.is_object()
+                && cfg.get("model_type").is_none()
+                && cfg.get("architectures").is_none()
+                && ["alignment_heads", "lang_ids", "suppress_ids"]
+                    .iter()
+                    .any(|k| cfg.get(*k).is_some())
+        })
+}
+
 /// Whether a Hub repo (a listing item or `/api/models/<id>`) is an LFM2-Audio repo in Liquid's
 /// own format: library `liquid-audio` with the audio detokenizer next to the weights. Its GGUF
 /// sibling repos are llama.cpp's (speech recognition only) and are not this.
@@ -620,6 +643,10 @@ pub fn detect(dir: &Path) -> Option<String> {
     // a task the transformers worker does not know).
     if is_liquid_audio_dir(dir) {
         return Some("text-to-speech".into());
+    }
+    // A CTranslate2 Whisper export (faster-whisper) is served by the worker's faster-whisper.
+    if is_ct2_whisper_dir(dir) {
+        return Some("automatic-speech-recognition".into());
     }
     let index = dir.join("model_index.json");
     if index.is_file() && asks_for_code(dir) {
@@ -1306,6 +1333,60 @@ mod tests {
             std::fs::write(path, body).unwrap();
         }
         dir
+    }
+
+    #[test]
+    fn detects_a_ctranslate2_whisper_export_as_speech_recognition() {
+        let ct2 = r#"{"alignment_heads":[[1,2]],"lang_ids":[50259],"suppress_ids":[1]}"#;
+        let export = folder(&[
+            ("config.json", ct2),
+            ("model.bin", "x"),
+            ("tokenizer.json", "{}"),
+            ("vocabulary.txt", "a"),
+        ]);
+        assert!(is_ct2_whisper_dir(export.path()));
+        assert_eq!(
+            detect(export.path()).as_deref(),
+            Some("automatic-speech-recognition")
+        );
+        // A vocabulary alone is enough; the older exports have no tokenizer.json.
+        let old = folder(&[
+            ("config.json", ct2),
+            ("model.bin", "x"),
+            ("vocabulary.json", "[]"),
+        ]);
+        assert!(is_ct2_whisper_dir(old.path()));
+        // Other CTranslate2 models (no Whisper keys), transformers configs, a missing
+        // vocabulary and transformers weights next to the export are not served this way.
+        let nllb = folder(&[
+            (
+                "config.json",
+                r#"{"add_source_bos":false,"unk_token":"<unk>"}"#,
+            ),
+            ("model.bin", "x"),
+            ("shared_vocabulary.json", "[]"),
+            ("tokenizer.json", "{}"),
+        ]);
+        assert!(!is_ct2_whisper_dir(nllb.path()));
+        assert_eq!(detect(nllb.path()), None);
+        let transformers = folder(&[
+            (
+                "config.json",
+                r#"{"model_type":"whisper","alignment_heads":[[1,2]]}"#,
+            ),
+            ("model.bin", "x"),
+            ("tokenizer.json", "{}"),
+        ]);
+        assert!(!is_ct2_whisper_dir(transformers.path()));
+        let bare = folder(&[("config.json", ct2), ("model.bin", "x")]);
+        assert!(!is_ct2_whisper_dir(bare.path()));
+        let both = folder(&[
+            ("config.json", ct2),
+            ("model.bin", "x"),
+            ("tokenizer.json", "{}"),
+            ("model.safetensors", "x"),
+        ]);
+        assert!(!is_ct2_whisper_dir(both.path()));
     }
 
     #[test]

@@ -640,6 +640,15 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
             crate::hub_compat::mlx_compatibility(&id, format, task, &sibling_files(item), &tags)
         })
         .or_else(|| {
+            crate::hub_compat::ct2_whisper_compatibility(
+                &id,
+                format,
+                task,
+                &tags,
+                &sibling_files(item),
+            )
+        })
+        .or_else(|| {
             crate::hub_compat::python_hf_compatibility(
                 format,
                 item.get("library_name").and_then(|v| v.as_str()),
@@ -9144,11 +9153,39 @@ mod refusal_reason_tests {
     }
 
     #[test]
-    fn faster_whisper_is_a_ctranslate2_export() {
-        assert_eq!(
-            reason("Systran/faster-whisper-small"),
-            Some(NotRunnable::Ctranslate2Export)
-        );
+    fn ct2_whisper_listing_is_python_engine_speech_recognition() {
+        let item = |id: &str| {
+            serde_json::json!({
+                "id": id,
+                "pipeline_tag": "automatic-speech-recognition",
+                "library_name": "ctranslate2",
+                "tags": ["ctranslate2", "audio", "automatic-speech-recognition"],
+                "config": {},
+                "siblings": [
+                    {"rfilename": "config.json"},
+                    {"rfilename": "model.bin"},
+                    {"rfilename": "tokenizer.json"},
+                    {"rfilename": "vocabulary.txt"}
+                ]
+            })
+        };
+        let whisper = parse_search_item(&item("Systran/faster-whisper-tiny")).unwrap();
+        assert!(matches!(
+            whisper.compatibility,
+            crate::hub_compat::Compatibility::Runnable { ref runtime }
+                | crate::hub_compat::Compatibility::NeedsRuntime { ref runtime }
+                if runtime == crate::hub_compat::PYTHON_HF_FAMILY
+        ));
+        assert_eq!(whisper.not_runnable, None);
+        // Other CTranslate2 repos keep their refusal.
+        let other = parse_search_item(&item("Systran/nllb-200-distilled-600M-ct2")).unwrap();
+        assert_eq!(other.not_runnable, Some(NotRunnable::Ctranslate2Export));
+    }
+
+    #[test]
+    fn faster_whisper_runs_on_the_python_engine() {
+        // A CTranslate2 Whisper export is the Python engine's (faster-whisper): no refusal.
+        assert_eq!(reason("Systran/faster-whisper-small"), None);
     }
 
     #[test]

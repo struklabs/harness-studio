@@ -907,6 +907,39 @@ pub fn python_hf_compatibility(
     })
 }
 
+/// The Python engine's verdict on a CTranslate2 Whisper export (faster-whisper): a repo of the
+/// `ctranslate2` library for speech recognition whose name says Whisper, with `model.bin`, a
+/// tokenizer or vocabulary and a `config.json` at the root. Every other CTranslate2 repo
+/// (translation models, NLLB...) is `None` and stays refused. A listing without file names is
+/// taken by its name and tags.
+pub fn ct2_whisper_compatibility(
+    repo_id: &str,
+    format: ModelFormat,
+    task: Option<&str>,
+    tags: &[String],
+    files: &[String],
+) -> Option<Compatibility> {
+    if format != ModelFormat::Ctranslate2
+        || task != Some("automatic-speech-recognition")
+        || !repo_id.to_ascii_lowercase().contains("whisper")
+        || tags.iter().any(|t| t.eq_ignore_ascii_case("custom_code"))
+    {
+        return None;
+    }
+    let root = |f: &&String| !f.contains('/') && !f.contains('\\');
+    let has = |name: &str| files.iter().filter(root).any(|f| f == name);
+    (files.is_empty()
+        || (has("model.bin")
+            && has("config.json")
+            && (has("tokenizer.json") || has("vocabulary.json") || has("vocabulary.txt"))
+            && !files
+                .iter()
+                .any(|f| f.to_ascii_lowercase().ends_with(".safetensors"))))
+    .then(|| Compatibility::Runnable {
+        runtime: PYTHON_HF_FAMILY.to_string(),
+    })
+}
+
 /// Whether a diffusers pipeline's download would hold PyTorch `.bin` weights: a component
 /// folder with a `.bin` and no safetensors (`segmind/tiny-sd`).
 pub fn diffusers_pickle_weights(files: &[String]) -> bool {
@@ -964,6 +997,56 @@ mod tests {
 
     fn s(items: &[&str]) -> Vec<String> {
         items.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn ct2_whisper_goes_to_the_python_engine_and_other_ct2_repos_stay_refused() {
+        let asr = Some("automatic-speech-recognition");
+        let files = s(&[
+            "config.json",
+            "model.bin",
+            "tokenizer.json",
+            "vocabulary.txt",
+        ]);
+        let verdict = |id: &str, format, task, files: &[String]| {
+            ct2_whisper_compatibility(id, format, task, &s(&["ctranslate2"]), files)
+        };
+        let python = Some(Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.to_string(),
+        });
+        let ct2 = ModelFormat::Ctranslate2;
+        assert_eq!(
+            verdict("Systran/faster-whisper-tiny", ct2, asr, &files),
+            python
+        );
+        assert_eq!(
+            verdict("deepdml/faster-whisper-large-v3-turbo-ct2", ct2, asr, &[]),
+            python
+        );
+        // Another CTranslate2 model, another task, another format, an incomplete repo.
+        assert_eq!(verdict("Systran/nllb-200-ct2", ct2, asr, &files), None);
+        assert_eq!(
+            verdict(
+                "Systran/faster-whisper-tiny",
+                ct2,
+                Some("translation"),
+                &files
+            ),
+            None
+        );
+        assert_eq!(
+            verdict("openai/whisper-tiny", ModelFormat::Safetensors, asr, &files),
+            None
+        );
+        assert_eq!(
+            verdict(
+                "Systran/faster-whisper-tiny",
+                ct2,
+                asr,
+                &s(&["config.json", "model.bin"])
+            ),
+            None
+        );
     }
 
     #[test]
