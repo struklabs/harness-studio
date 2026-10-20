@@ -71,6 +71,8 @@ class AppState {
   requestedRegistryKind = $state<'skill' | 'mcp' | 'tool' | null>(null);
   requestedModelResources = $state<string | null>(null);
   requestedConnectionPage = $state<string | null>(null);
+  /** Bumped by the title bar Logs button: the Dashboard opens its log console. */
+  logsRequest = $state(0);
   requestedTab = $state<string | null>(null);
   /** Search the Model Hub should run when it is shown (consumed by the Hub, which resets it to null). */
   requestedHubSearch = $state<string | null>(null);

@@ -7,11 +7,14 @@
   import { applyTheme, baseMode, schemeOf, themeFromSettings, type ThemeId } from '#lib/theme.js';
   import Check from '@lucide/svelte/icons/check';
   import { applyScale, normalizeScale } from '#lib/uiScale.js';
-  import { setLanguage, getLanguage, t, type Language } from '#lib/i18n.svelte.js';
+  import { setLanguage, getLanguage, t, type Language, type TKey } from '#lib/i18n.svelte.js';
   import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import { cn } from '#lib/utils.js';
   import type { SettingsDraft } from './form.svelte';
   import { app } from '#lib/stores/app.svelte.js';
+  import { toolbarPrefs } from '#lib/stores/toolbar.svelte.js';
+  import { TOOLBAR_ITEMS } from '#lib/toolbarLayout.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import UiLevelToggle from '../common/UiLevelToggle.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
@@ -286,6 +289,17 @@
         <ToggleGroup.Item value="en" aria-label="English">English</ToggleGroup.Item>
       </ToggleGroup.Root>
     </SettingRow>
+  </SettingGroup>
+
+  <SettingGroup title={t('toolbar.settings_title')} hint={t('toolbar.settings_desc')}>
+    {#each TOOLBAR_ITEMS.filter((i) => uiLevel.advanced || !i.advanced) as item (item.id)}
+      <SwitchRow
+        id={`toolbar-${item.id}`}
+        label={t(`toolbar.${item.id}` as TKey)}
+        checked={toolbarPrefs.isShown(item.id)}
+        onchange={(v) => toolbarPrefs.set(item.id, v)}
+      />
+    {/each}
   </SettingGroup>
 
   <SettingGroup title={t('settings.startup_title')} hint={t('settings.startup_desc')}>

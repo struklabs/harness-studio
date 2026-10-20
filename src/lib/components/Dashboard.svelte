@@ -1310,6 +1310,16 @@
     if (failed || error !== null) logsOpen = true;
   });
 
+  // The title bar's Logs button asks for the console.
+  let seenLogsRequest = untrack(() => app.logsRequest);
+  $effect(() => {
+    const r = app.logsRequest;
+    if (r !== seenLogsRequest) {
+      seenLogsRequest = r;
+      logsOpen = true;
+    }
+  });
+
   async function clearLogs() {
     try {
       await serverLogs.clear(shownLogIds);

@@ -15,6 +15,7 @@
   import ServerPicker from './common/ServerPicker.svelte';
   import BrandLogo from './common/BrandLogo.svelte';
   import WindowControls from './common/WindowControls.svelte';
+  import TitleBarToolbar from './common/TitleBarToolbar.svelte';
   import type { Tab } from './Sidebar.svelte';
 
   interface Props {
@@ -169,6 +170,10 @@
         {/if}
       </div>
     </div>
+  {/if}
+
+  {#if !minimal}
+    <TitleBarToolbar serverKind={kind} {onOpenCommand} />
   {/if}
 
   {#if !isMac}
