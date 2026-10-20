@@ -36,41 +36,43 @@ Harness Studio manages local text, image, speech, and tool workloads in one plac
 
 ## 0.2
 
+Status: W1–W4 done, W5 in progress. Partial bullets below retain their remaining scope.
+
 Deliver vertical slices in order: each wave includes setup, use, permissions, and recovery. Every third wave (W3, W6, …) improves delivered flows. Module foundations do not move Later features into 0.2.
 
 ### W1 — Discover and Install a Module
 
-- [ ] Keep the core lightweight; distinguish Modules (functional areas), shared Components, Skills, MCP servers, Connectors, Tools, and Client Integrations. Plan optional Training, Agents, Automations, Paperclip, and REA areas with clear navigation.
-- [ ] Let users inspect a module's functions, dependencies, permissions, and disk estimate, approve installation, and open its workspace from the same menu. Separate first-run onboarding, module installation, and reusable job setup.
-- [ ] Use versioned manifests, API/IPC boundaries, and isolated backend processes with compatibility checks. Ship module UI with the app; download only backends/dependencies, without downloaded screens or external JavaScript UI.
-- [ ] Extend the existing `struklabs/harness-registry` for official StrukLabs Skills, MCP servers, and Tools only. Verify existing content; provide search, sorting, filters, descriptions, version details, and CI checks via a versioned index and maintainer PRs, without waiting for a website or automatic publishing.
+- [x] Keep the core lightweight; distinguish Modules (functional areas), shared Components, Skills, MCP servers, Connectors, Tools, and Client Integrations. Plan optional Training, Agents, Automations, Paperclip, and REA areas with clear navigation ([PR #307](https://github.com/struklabs/harness-studio/pull/307)).
+- [x] Let users inspect a module's functions, dependencies, permissions, and disk estimate, approve installation, and open its workspace from the same menu. Separate first-run onboarding, module installation, and reusable job setup ([PR #307](https://github.com/struklabs/harness-studio/pull/307)).
+- [x] Use versioned manifests, API/IPC boundaries, and isolated backend processes with compatibility checks. Ship module UI with the app; download only backends/dependencies, without downloaded screens or external JavaScript UI ([PR #307](https://github.com/struklabs/harness-studio/pull/307)).
+- [x] Extend the existing `struklabs/harness-registry` for official StrukLabs Skills, MCP servers, and Tools only. Verify existing content; provide search, sorting, filters, descriptions, version details, and CI checks via a versioned index and maintainer PRs, without waiting for a website or automatic publishing ([PR #308](https://github.com/struklabs/harness-studio/pull/308), [Registry PR #1](https://github.com/struklabs/harness-registry/pull/1)).
 
 ### W2 — Connect an Agent and Complete a Task
 
-Delivered slices: [Hermes Agent connection, tasks, scoped read permissions, history/audit, and existing Paperclip model handoff](HERMES_AGENT.md). The broader OpenClaw, upstream update, and Tool Builder items below remain open.
+Delivered slices: [Hermes Agent connection, tasks, scoped read permissions, history/audit, and existing Paperclip model handoff](HERMES_AGENT.md) (#309, #311), plus Tool Builder and Agent Skills (#310). OpenClaw and upstream release tracking remain open; managed Hermes updates use bundled pins (#312).
 
-- [ ] Install OpenClaw or Hermes Agent on demand, or connect existing installations; manage upstream versions, setup, start/update, missing dependencies, and first-run tests while preserving external interfaces.
-- [ ] Supply local or Harness Link models to OpenClaw, Hermes Agent, and an existing Paperclip instance; recommend models for task/hardware needs and configure endpoints/keys securely. Paperclip lifecycle management remains Later.
-- [ ] Manage agent tasks/sessions, model connections, status, performance, errors, and scoped tool permissions with approval, audit, and stop controls; do not grant blanket access by default.
-- [ ] Improve the existing Automatic Tool Builder's create/test/save flow and permission display; distinguish user-created and installed Tools, support Agent Skills/`SKILL.md`, and share Harness tools with external coding agents instead of duplicating their workflows.
+- [ ] Install OpenClaw or Hermes Agent on demand, or connect existing installations; manage upstream versions, setup, start/update, missing dependencies, and first-run tests while preserving external interfaces ([PR #309](https://github.com/struklabs/harness-studio/pull/309), [PR #312](https://github.com/struklabs/harness-studio/pull/312)). Remaining: OpenClaw and upstream release tracking.
+- [ ] Supply local or Harness Link models to OpenClaw, Hermes Agent, and an existing Paperclip instance; recommend models for task/hardware needs and configure endpoints/keys securely. Paperclip lifecycle management remains Later ([PR #309](https://github.com/struklabs/harness-studio/pull/309), [PR #311](https://github.com/struklabs/harness-studio/pull/311)). Remaining: OpenClaw model handoff.
+- [x] Manage agent tasks/sessions, model connections, status, performance, errors, and scoped tool permissions with approval, audit, and stop controls; do not grant blanket access by default ([PR #311](https://github.com/struklabs/harness-studio/pull/311)).
+- [x] Improve the existing Automatic Tool Builder's create/test/save flow and permission display; distinguish user-created and installed Tools, support Agent Skills/`SKILL.md`, and share Harness tools with external coding agents instead of duplicating their workflows ([PR #310](https://github.com/struklabs/harness-studio/pull/310)).
 
 ### W3 — Improvement Wave: Reliable Installation and Agent Use
 
-First slice: [Module Lifecycle](MODULE_LIFECYCLE.md) covers the existing Speech Recognition and Hermes Agent modules; the broader security and licensing work below remains open.
+Delivered slices: [Module Lifecycle](MODULE_LIFECYCLE.md) covers Speech Recognition and Hermes Agent (#312); trust levels, process containment, and licensing review are delivered (#313). Fully offline installation and OS security sandboxing remain open.
 
-- [ ] Complete module enable/disable, update, repair, and removal with shared-component ownership, disk accounting, compatibility checks, rollback, and practical offline install/removal. Prevent removal of components still in use.
-- [ ] Separate deletion of jobs, conversations, models, and physical files; preserve datasets, models, projects, and valuable outputs during module removal and app uninstall, with explicit deletion choices.
-- [ ] Extend the existing Security Model with trust levels for MCP, agent runtimes, trainers, and Tools; explain file/folder, network, shell, service, account, and external-data permissions at grant/revocation. Use OS sandboxing where available and document Windows/macOS/Linux isolation limits.
-- [ ] Make states, dependencies, progress, errors, and recovery consistent; check disk space and process cleanup so modules do not freeze the app. Review third-party licensing, redistribution, commercial use, embedding, hosting, and attribution before shipping integrations.
+- [ ] Complete module enable/disable, update, repair, and removal with shared-component ownership, disk accounting, compatibility checks, rollback, and practical offline install/removal. Prevent removal of components still in use ([PR #312](https://github.com/struklabs/harness-studio/pull/312)). Remaining: fully offline installation.
+- [x] Separate deletion of jobs, conversations, models, and physical files; preserve datasets, models, projects, and valuable outputs during module removal and app uninstall, with explicit deletion choices ([PR #312](https://github.com/struklabs/harness-studio/pull/312)).
+- [ ] Extend the existing Security Model with trust levels for MCP, agent runtimes, trainers, and Tools; explain file/folder, network, shell, service, account, and external-data permissions at grant/revocation. Use OS sandboxing where available and document Windows/macOS/Linux isolation limits ([PR #313](https://github.com/struklabs/harness-studio/pull/313)). Remaining: OS security sandboxing.
+- [x] Make states, dependencies, progress, errors, and recovery consistent; check disk space and process cleanup so modules do not freeze the app. Review third-party licensing, redistribution, commercial use, embedding, hosting, and attribution before shipping integrations ([PR #312](https://github.com/struklabs/harness-studio/pull/312), [PR #313](https://github.com/struklabs/harness-studio/pull/313)).
 
 ### W4 — Choose a Model and Use Relevant Tools
 
 Discovery and setup slice: [Discover and Model Setup](MODEL_SETUP.md) connects the existing Registry, Modules, MCP settings, Playground, and Library; dedicated Connector catalogs and provider model connections remain outside this slice.
 
-- [ ] Show the selected model's chat, vision, image, STT, TTS, video, embedding, reranking, and tool-calling capabilities; clearly label experimental or incompatible model/runtime combinations.
-- [ ] Route requests to relevant Tools/MCP capabilities through on-demand discovery and schema loading instead of attaching every schema to every request; expose routing errors and permission needs.
-- [ ] Provide distinct Discover categories for Skills, MCP servers, Connectors, Tools, and bundled Modules; keep module/backend installation metadata separate from the official Skills/MCP/Tools Registry.
-- [ ] Clarify first-model setup, resource selection, model switching, and execution location; distinguish models, providers, agents, workflows, and devices throughout the flow.
+- [x] Show the selected model's chat, vision, image, STT, TTS, video, embedding, reranking, and tool-calling capabilities; clearly label experimental or incompatible model/runtime combinations ([PR #315](https://github.com/struklabs/harness-studio/pull/315)).
+- [x] Route requests to relevant Tools/MCP capabilities through on-demand discovery and schema loading instead of attaching every schema to every request; expose routing errors and permission needs ([PR #315](https://github.com/struklabs/harness-studio/pull/315)).
+- [x] Provide distinct Discover categories for Skills, MCP servers, Connectors, Tools, and bundled Modules; keep module/backend installation metadata separate from the official Skills/MCP/Tools Registry ([PR #316](https://github.com/struklabs/harness-studio/pull/316)).
+- [x] Clarify first-model setup, resource selection, model switching, and execution location; distinguish models, providers, agents, workflows, and devices throughout the flow ([PR #316](https://github.com/struklabs/harness-studio/pull/316)).
 
 ### W5 — Manage an Existing Harness Server
 
