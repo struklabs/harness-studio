@@ -4,31 +4,85 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-type DiskCache = BTreeMap<PathBuf, (Instant, u64)>;
+/// Folder sizes for the module list. A walk can take seconds (an external agent install is a
+/// whole Python environment), so it runs on its own thread and the list never waits for more
+/// than [`SIZE_WAIT`]. A size that merely aged is served at once while a refresh runs; one
+/// invalidated by an install or removal waits briefly for the new walk and falls back to the
+/// last known value (0 when none) if it is not done, so the next list shows the real size.
+#[derive(Default)]
+struct DiskCache {
+    sizes: BTreeMap<PathBuf, Measured>,
+    measuring: BTreeSet<PathBuf>,
+}
+#[derive(Clone, Copy)]
+struct Measured {
+    at: Instant,
+    bytes: u64,
+    changed: bool,
+}
 static DISK_CACHE: OnceLock<Mutex<DiskCache>> = OnceLock::new();
+const SIZE_FRESH: Duration = Duration::from_secs(15);
+const SIZE_WAIT: Duration = Duration::from_millis(250);
+fn disk_cache() -> &'static Mutex<DiskCache> {
+    DISK_CACHE.get_or_init(Default::default)
+}
 fn cached_size(path: &Path) -> u64 {
-    let cache = DISK_CACHE.get_or_init(|| Mutex::new(BTreeMap::new()));
-    if let Some((_, bytes)) = cache
-        .lock()
-        .unwrap()
-        .get(path)
-        .filter(|(at, _)| at.elapsed() < Duration::from_secs(15))
-    {
-        return *bytes;
+    cached_size_with(disk_cache(), path, SIZE_WAIT, size)
+}
+fn cached_size_with(
+    cache: &'static Mutex<DiskCache>,
+    path: &Path,
+    wait: Duration,
+    measure: fn(&Path) -> u64,
+) -> u64 {
+    let mut waiting = None;
+    let known = {
+        let mut guard = cache.lock().unwrap();
+        let known = guard.sizes.get(path).copied();
+        if known.is_some_and(|m| !m.changed && m.at.elapsed() < SIZE_FRESH) {
+            return known.unwrap().bytes;
+        }
+        if guard.measuring.insert(path.to_path_buf()) {
+            let target = path.to_path_buf();
+            let (tx, rx) = std::sync::mpsc::channel();
+            waiting = Some(rx);
+            std::thread::spawn(move || {
+                let bytes = measure(&target);
+                let mut guard = cache.lock().unwrap();
+                guard.measuring.remove(&target);
+                guard.sizes.insert(
+                    target,
+                    Measured {
+                        at: Instant::now(),
+                        bytes,
+                        changed: false,
+                    },
+                );
+                let _ = tx.send(bytes);
+            });
+        }
+        known
+    };
+    match known {
+        Some(m) if !m.changed => m.bytes,
+        _ => waiting
+            .and_then(|rx| rx.recv_timeout(wait).ok())
+            .or(known.map(|m| m.bytes))
+            .unwrap_or(0),
     }
-    let bytes = size(path);
-    cache
-        .lock()
-        .unwrap()
-        .insert(path.to_path_buf(), (Instant::now(), bytes));
-    bytes
+}
+/// Marks every size as outdated after a change.
+fn invalidate_disk_cache() {
+    if let Some(cache) = DISK_CACHE.get() {
+        for m in cache.lock().unwrap().sizes.values_mut() {
+            m.changed = true;
+        }
+    }
 }
 struct RefreshDisk;
 impl Drop for RefreshDisk {
     fn drop(&mut self) {
-        if let Some(cache) = DISK_CACHE.get() {
-            cache.lock().unwrap().clear();
-        }
+        invalidate_disk_cache();
     }
 }
 
@@ -225,9 +279,7 @@ pub(super) fn recover(data: &mut ModuleStore) -> Result<(), String> {
                 return Ok(());
             };
             rollback(data)?;
-            if let Some(cache) = DISK_CACHE.get() {
-                cache.lock().unwrap().clear();
-            }
+            invalidate_disk_cache();
         }
     }
     Ok(())
@@ -996,5 +1048,97 @@ mod shared_repair_tests {
                 "{path}"
             );
         }
+    }
+}
+#[cfg(test)]
+mod disk_cache_tests {
+    use super::*;
+    fn slow(_: &Path) -> u64 {
+        std::thread::sleep(Duration::from_millis(600));
+        7
+    }
+    #[test]
+    fn slow_measurement_never_blocks_the_list_and_lands_for_the_next_one() {
+        static CACHE: OnceLock<Mutex<DiskCache>> = OnceLock::new();
+        let cache = CACHE.get_or_init(Default::default);
+        let path = Path::new("big-runtime");
+        let started = Instant::now();
+        assert_eq!(
+            cached_size_with(cache, path, Duration::from_millis(20), slow),
+            0
+        );
+        // A second list while the walk runs returns at once too, without a second walk.
+        assert_eq!(
+            cached_size_with(cache, path, Duration::from_millis(20), slow),
+            0
+        );
+        assert!(started.elapsed() < Duration::from_millis(400));
+        std::thread::sleep(Duration::from_millis(700));
+        assert_eq!(
+            cached_size_with(cache, path, Duration::from_millis(20), slow),
+            7
+        );
+    }
+    #[test]
+    fn stale_size_is_served_while_it_refreshes() {
+        static CACHE: OnceLock<Mutex<DiskCache>> = OnceLock::new();
+        let cache = CACHE.get_or_init(Default::default);
+        let path = Path::new("old-runtime");
+        let long_ago = Instant::now()
+            .checked_sub(SIZE_FRESH * 2)
+            .unwrap_or_else(Instant::now);
+        cache.lock().unwrap().sizes.insert(
+            path.to_path_buf(),
+            Measured {
+                at: long_ago,
+                bytes: 3,
+                changed: false,
+            },
+        );
+        let started = Instant::now();
+        assert_eq!(
+            cached_size_with(cache, path, Duration::from_millis(20), slow),
+            3
+        );
+        assert!(started.elapsed() < Duration::from_millis(400));
+        std::thread::sleep(Duration::from_millis(700));
+        assert_eq!(
+            cached_size_with(cache, path, Duration::from_millis(20), slow),
+            7
+        );
+    }
+    #[test]
+    fn invalidated_size_waits_briefly_then_shows_the_new_number() {
+        fn quick(_: &Path) -> u64 {
+            9
+        }
+        static CACHE: OnceLock<Mutex<DiskCache>> = OnceLock::new();
+        let cache = CACHE.get_or_init(Default::default);
+        let path = Path::new("changed-runtime");
+        cache.lock().unwrap().sizes.insert(
+            path.to_path_buf(),
+            Measured {
+                at: Instant::now(),
+                bytes: 3,
+                changed: true,
+            },
+        );
+        assert_eq!(
+            cached_size_with(cache, path, Duration::from_secs(5), quick),
+            9
+        );
+        let slow_changed = Path::new("slow-changed-runtime");
+        cache.lock().unwrap().sizes.insert(
+            slow_changed.to_path_buf(),
+            Measured {
+                at: Instant::now(),
+                bytes: 3,
+                changed: true,
+            },
+        );
+        assert_eq!(
+            cached_size_with(cache, slow_changed, Duration::from_millis(20), slow),
+            3
+        );
     }
 }
