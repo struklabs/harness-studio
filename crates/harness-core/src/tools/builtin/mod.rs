@@ -24,6 +24,7 @@ mod files;
 pub(crate) mod http;
 mod info;
 mod shell;
+mod skills;
 mod weather;
 mod web_search;
 
@@ -168,6 +169,10 @@ pub fn register(reg: &ToolRegistry) {
     add(reg, "write_file", Dangerous, true, files::write_file);
     add(reg, "edit_file", Dangerous, true, files::edit_file);
     add(reg, "get_info", Restricted, true, info::get_info);
+    reg.register(Arc::new(BlockingTool {
+        def: skills::def(),
+        run: skills::run,
+    }));
     reg.register(Arc::new(SimpleTool {
         def: datetime::def(),
         run: datetime::run,

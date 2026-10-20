@@ -19,6 +19,19 @@ fn example_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/tools/url-title")
 }
 
+#[test]
+fn builder_origin_survives_reload_and_package_replacement() {
+    let root = tempfile::tempdir().unwrap();
+    let registry = ToolRegistry::new();
+    let info = install_with_origin(root.path(), &example_dir(), &registry, true).unwrap();
+    assert!(info.user_created);
+    assert!(list(root.path())[0].user_created);
+    set_enabled(root.path(), &info.name, false).unwrap();
+    assert!(list(root.path())[0].user_created);
+    install(root.path(), &example_dir(), &registry).unwrap();
+    assert!(!list(root.path())[0].user_created);
+}
+
 /// A server that answers `GET /page` with a titled page, `/untitled` without a title,
 /// `/missing` with 404 and `/hop` with a redirect to another host name.
 async fn serve() -> u16 {

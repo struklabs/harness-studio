@@ -11,7 +11,7 @@
     <p class="font-medium">{t('create.attempt_history')}</p>
     {#each history as attempt, i (i)}
       <div class="rounded-md border border-border p-2">
-        <p class="font-num">{t('create.attempt_number', { number: attempt.number })} · {t('create.failed_cases', { count: attempt.failed_cases })} · {attempt.usage.estimated ? '≈ ' : ''}↑{fmt(attempt.usage.prompt_tokens)} ↓{fmt(attempt.usage.completion_tokens)}</p>
+        <p class="font-num">{t('create.attempt_number', { number: attempt.number })} · {attempt.feedback && attempt.failed_cases === 0 ? t(attempt.total_cases === 0 ? 'tools.builder_test_unavailable' : 'tools.builder_validation_failed') : t('create.failed_cases', { count: attempt.failed_cases })} · {attempt.usage.estimated ? '≈ ' : ''}↑{fmt(attempt.usage.prompt_tokens)} ↓{fmt(attempt.usage.completion_tokens)}</p>
         <p class="mt-1 break-words">{attempt.change || t('create.change_missing')}</p>
         {#if attempt.feedback}<details class="mt-1"><summary class="cursor-pointer text-muted-foreground">{t('create.attempt_feedback')}</summary><pre class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words">{localizeError(attempt.feedback)}</pre></details>{/if}
         {#if showRepetitionWarning(attempt)}<p class="text-warning">{t('create.repeated')}</p>{/if}

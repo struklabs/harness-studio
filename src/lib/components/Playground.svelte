@@ -44,7 +44,8 @@
   import InfoTip from './common/InfoTip.svelte';
   import SettingsPanel from './playground/SettingsPanel.svelte';
   import ToolGeneratorDialog from './playground/ToolGeneratorDialog.svelte';
-  import { COMPACT_TOOLS_PARAMS, compactToolDefinitions, withToolGuidance } from './playground/toolGuidance';
+  import { COMPACT_TOOLS_PARAMS, compactToolDefinitions, withToolGuidance as baseToolGuidance } from './playground/toolGuidance';
+  import { withSkillGuidance, type SkillMetadata } from './playground/skillGuidance';
   import { warmBody, warmKey } from './playground/promptWarm';
   import { salvageToolCalls, TextCallStreamBuffer } from './playground/textToolCalls';
   import { chatRequest } from './playground/chatRequest';
@@ -233,6 +234,10 @@
   // ---- Agent tools: the core's registry (built-ins and the MCP servers' tools, `tools_*`) ----
   /** The core's registry: built-in tools and the tools of MCP servers (Harness's own MCP client). */
   let coreTools = $state<ServerTool[]>([]);
+  let skills = $state<SkillMetadata[]>([]);
+  function withToolGuidance(messages: Record<string, unknown>[], tools: { function?: { name?: string } }[]) {
+    return withSkillGuidance(baseToolGuidance(messages, tools), tools.some(t => t.function?.name === 'load_skill') ? skills : []);
+  }
   /** Rounds, per-call time and result size from the core (shared with the CLI and the API). */
   let toolLimits = $state<ToolLimits | null>(null);
   let toolsState = $state<ToolsState>('idle');
@@ -1149,8 +1154,9 @@
     toolsState = 'loading';
     toolsError = '';
     try {
-      const listing = await listCoreTools();
+      const [listing, catalog] = await Promise.all([listCoreTools(), invoke<SkillMetadata[]>('skills_list')]);
       if (toolsAbort !== c) return;
+      skills = catalog;
       if (listing.policy === 'off') {
         coreTools = [];
         toolLimits = null;

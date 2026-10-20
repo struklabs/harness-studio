@@ -1,4 +1,36 @@
 use super::*;
+
+#[tokio::test]
+async fn directory_builder_reports_runner_failure_instead_of_failed_zero() {
+    // Generated directory tests used unsupported setup/fixtures. No cases ran, so
+    // counting failed cases alone reported the misleading "failed: 0".
+    let report = crate::tools::package_test::run(
+        "function run(a) { return harness.fs.list(a.path); }".into(),
+        "const cases = [{args:{path:'.'}, setup: () => {}, expect:{equals:[]}}];".into(),
+        Default::default(),
+    )
+    .await;
+    assert!(!report.passed);
+    assert!(report.cases.is_empty());
+    let attempt = generator::Attempt {
+        number: 1,
+        total_cases: 0,
+        failed_cases: 0,
+        feedback: report.feedback(),
+        ..Default::default()
+    };
+    let outcome = attempt_outcome(&attempt);
+    assert!(
+        outcome.contains("setup callbacks are unsupported"),
+        "{outcome}"
+    );
+    assert!(!outcome.contains("failed: 0"));
+    assert!(attempt_outcome(&generator::Attempt {
+        total_cases: 2,
+        ..Default::default()
+    })
+    .contains("2 cases passed"));
+}
 fn proposal(name: &str) -> Proposal {
     Proposal {
         name: name.into(),

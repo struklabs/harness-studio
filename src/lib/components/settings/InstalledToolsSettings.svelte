@@ -27,6 +27,7 @@
   } from '#lib/tools-client.js';
   import ToolTestReport from '#lib/components/tools/ToolTestReport.svelte';
   import OfficialRegistry from '#lib/components/tools/OfficialRegistry.svelte';
+  import SkillsSettings from '#lib/components/tools/SkillsSettings.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
 
@@ -36,6 +37,7 @@
   const inspect = (name: string) => act(async () => { if (files[name]) delete files[name]; else files[name] = await invoke('installed_tools_files', { name }); });
 
   let items = $state<InstalledTool[]>([]);
+  let skillsRevision = $state(0);
   let pending = $state<{ path: string; tool: InstalledTool } | null>(null);
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -136,7 +138,8 @@
   }
 </script>
 
-<OfficialRegistry installed={items} reviewing={pending !== null} onTool={async path => { pending = { path, tool: await inspectInstalledTool(path) }; }} />
+<SkillsSettings revision={skillsRevision} onChanged={() => skillsRevision++} />
+<OfficialRegistry installed={items} {skillsRevision} onSkill={() => skillsRevision++} reviewing={pending !== null} onTool={async path => { pending = { path, tool: await inspectInstalledTool(path) }; }} />
 
 <SettingGroup title={t('tools.inst_title')} {showTitle} hint={t('tools.inst_desc')}>
   {#if error}
@@ -166,7 +169,7 @@
 
   {#each items as tool (tool.name)}
     <SettingRow
-      label={tool.name + (tool.version ? ` ${tool.version}` : '')}
+      label={tool.name + (tool.version ? ` ${tool.version}` : '') + ' · ' + t(tool.user_created ? 'tools.origin_created' : 'tools.origin_installed')}
       note={tool.error ? t('tools.inst_broken', { error: localizeError(tool.error) }) : `${tool.description} · ${permissionLines(tool).join(' · ')}`}
       for="inst-tool-{tool.name}"
     >

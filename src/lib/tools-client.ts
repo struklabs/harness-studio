@@ -230,6 +230,7 @@ export function newRunId(): string {
 
 /** A package under `<data dir>/tools/` (`harness_core::tools::installed::InstalledTool`). */
 export interface InstalledTool {
+  user_created: boolean;
   category: string;
   name: string;
   version: string;

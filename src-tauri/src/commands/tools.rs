@@ -311,6 +311,7 @@ pub(crate) type RegistryStaging = std::sync::Mutex<Option<tempfile::TempDir>>;
 pub(crate) struct RegistryPrepared {
     path: Option<String>,
     config: Option<harness_core::mcp::McpConfig>,
+    skill: Option<String>,
 }
 
 #[tauri::command]
@@ -323,11 +324,38 @@ pub(crate) async fn official_registry_prepare(commit: String, id: String, staged
             let path = dir.path().to_string_lossy().into_owned();
             // One review at a time; keep its staging folder alive until the next review.
             *staged.lock().map_err(|e| registry_error(e.to_string()))? = Some(dir);
-            Ok(RegistryPrepared { path: Some(path), config: None })
+            Ok(RegistryPrepared { path: Some(path), config: None, skill: None })
         }
-        Kind::Mcp => Ok(RegistryPrepared { path: None, config: Some(official_registry::prepare_mcp(&snapshot, &entry).await.map_err(registry_error)?) }),
-        Kind::Skill => Err("tools.registry_soon".into()),
+        Kind::Mcp => Ok(RegistryPrepared { path: None, config: Some(official_registry::prepare_mcp(&snapshot, &entry).await.map_err(registry_error)?), skill: None }),
+        Kind::Skill => Ok(RegistryPrepared { path: None, config: None, skill: Some(official_registry::prepare_skill(&snapshot, &entry).await.map_err(registry_error)?) }),
     }
+}
+
+#[tauri::command]
+pub(crate) async fn skills_list() -> Result<Vec<harness_core::skills::Skill>, String> {
+    blocking(|| harness_core::skills::list(&harness_core::skills::root())).await
+}
+
+#[tauri::command]
+pub(crate) async fn skills_set_enabled(name: String, enabled: bool) -> Result<(), String> {
+    blocking(move || harness_core::skills::set_enabled(&harness_core::skills::root(), &name, enabled).map_err(registry_error)).await?
+}
+
+#[tauri::command]
+pub(crate) async fn skills_remove(name: String) -> Result<(), String> {
+    blocking(move || harness_core::skills::remove(&harness_core::skills::root(), &name).map_err(registry_error)).await?
+}
+
+#[tauri::command]
+pub(crate) async fn skills_folder() -> Result<String, String> {
+    blocking(|| { let root = harness_core::skills::root(); std::fs::create_dir_all(&root).map_err(|e| registry_error(e.to_string()))?; Ok(root.to_string_lossy().into_owned()) }).await?
+}
+
+#[tauri::command]
+pub(crate) async fn official_skill_install(commit: String, id: String) -> Result<harness_core::skills::Skill, String> {
+    let (snapshot, entry) = harness_core::tools::official_registry::selected(&commit, &id).map_err(registry_error)?;
+    let text = harness_core::tools::official_registry::prepare_skill(&snapshot, &entry).await.map_err(registry_error)?;
+    blocking(move || harness_core::skills::install(&harness_core::skills::root(), &text).map_err(registry_error)).await?
 }
 
 /// Validates the package folder `path` and returns what it asks for, without installing it:

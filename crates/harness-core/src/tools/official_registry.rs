@@ -358,6 +358,34 @@ pub async fn prepare_mcp(
     parse_mcp(&text, entry)
 }
 
+pub async fn prepare_skill(snapshot: &Snapshot, entry: &Entry) -> Result<String, String> {
+    prepare_skill_from(snapshot, entry, RAW).await
+}
+
+async fn prepare_skill_from(
+    snapshot: &Snapshot,
+    entry: &Entry,
+    raw: &str,
+) -> Result<String, String> {
+    if entry.kind != Kind::Skill || !commit_valid(&snapshot.commit) {
+        return Err("Invalid skill registry selection".into());
+    }
+    let text = body(
+        client()?
+            .get(format!("{raw}/{}/{}", snapshot.commit, entry.artifact))
+            .send()
+            .await
+            .map_err(|e| e.to_string())?,
+        LIMIT,
+    )
+    .await?;
+    let (name, description, _) = crate::skills::parse(&text)?;
+    if entry.id != format!("struklabs.skill.{name}") || description != entry.description.en {
+        return Err("Skill does not match declared registry metadata".into());
+    }
+    Ok(text)
+}
+
 fn parse_mcp(text: &str, entry: &Entry) -> Result<crate::mcp::McpConfig, String> {
     #[derive(Deserialize)]
     #[serde(deny_unknown_fields)]
@@ -425,6 +453,42 @@ mod tests {
 
     const FIXTURE: &str = include_str!("fixtures/registry-index.json");
     const SHA: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    #[tokio::test]
+    async fn skill_download_is_pinned_validated_and_installable() {
+        let index = parse(FIXTURE).unwrap();
+        let entry = index
+            .entries
+            .iter()
+            .find(|e| e.kind == Kind::Skill)
+            .unwrap()
+            .clone();
+        let snapshot = Snapshot {
+            commit: SHA.into(),
+            etag: None,
+            index,
+            offline: false,
+        };
+        let text = format!(
+            "---\nname: release-notes\ndescription: {:?}\n---\nWrite notes from supplied evidence.",
+            entry.description.en
+        );
+        let (base, task) = server(vec![(200, text.clone())]).await;
+        let prepared = prepare_skill_from(&snapshot, &entry, &base).await.unwrap();
+        assert_eq!(prepared, text);
+        assert!(task.await.unwrap()[0]
+            .starts_with(&format!("GET /{SHA}/skills/release-notes/SKILL.md ")));
+        let root = tempfile::tempdir().unwrap();
+        crate::skills::install(root.path(), &prepared).unwrap();
+        assert_eq!(crate::skills::list(root.path())[0].name, "release-notes");
+        let (base, task) = server(vec![(
+            200,
+            text.replace("name: release-notes", "name: other"),
+        )])
+        .await;
+        assert!(prepare_skill_from(&snapshot, &entry, &base).await.is_err());
+        task.await.unwrap();
+    }
 
     #[test]
     fn parses_all_schema_fields_and_filters_platform_and_semver() {

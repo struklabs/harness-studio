@@ -365,10 +365,15 @@ pub(super) fn case_workspace(case: &Value) -> Result<(tempfile::TempDir, Workspa
                 .get("path")
                 .and_then(Value::as_str)
                 .ok_or_else(|| invalid("path must be a relative string"))?;
+            let directory = file.get("dir").and_then(Value::as_bool).unwrap_or(false);
             let content = file
                 .get("content")
                 .and_then(Value::as_str)
+                .or(if directory { Some("") } else { None })
                 .ok_or_else(|| invalid("content must be a UTF-8 string"))?;
+            if directory && file.get("content").is_some() {
+                return Err(invalid("directory fixtures cannot have content"));
+            }
             // Reject both Windows and Unix absolute/traversing paths on every host.
             let normalized = path.replace('\\', "/");
             if normalized
@@ -389,6 +394,10 @@ pub(super) fn case_workspace(case: &Value) -> Result<(tempfile::TempDir, Workspa
                 return Err(invalid("total fixture content exceeds 1 MiB"));
             }
             let target = ws.resolve_new(&normalized)?;
+            if directory {
+                std::fs::create_dir_all(target).map_err(|e| ToolError::failed(e.to_string()))?;
+                continue;
+            }
             if let Some(parent) = target.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| ToolError::failed(e.to_string()))?;
             }
@@ -485,6 +494,22 @@ pub async fn run_package(dir: &Path) -> Result<TestReport, String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[tokio::test]
+    async fn read_directory_accepts_empty_and_nested_directory_fixtures() {
+        let report = run(
+            "function run(a) { return harness.fs.list(a.path).map(e => e.name + (e.dir ? '/' : '')).join(','); }".into(),
+            r#"const cases = [
+              {args:{path:'.'}, fs:[{path:'empty',dir:true},{path:'nested/a.txt',content:'A'},{path:'b.txt',content:'B'}], expect:{equals:'b.txt,empty/,nested/'}},
+              {args:{path:'empty'}, fs:[{path:'empty',dir:true}], expect:{equals:''}},
+              {args:{path:'.'}, expect:{equals:''}},
+              {args:{path:'missing'}, expect:{error:'path does not exist'}},
+              {args:{path:'../outside'}, expect:{error:true}}
+            ];"#.into(),
+            Permissions { fs: package::FsScope { read: vec![".".into()], write: vec![] }, ..Default::default() }
+        ).await;
+        assert!(report.passed, "{}", report.feedback());
+    }
 
     #[tokio::test]
     async fn csv_file_fixtures_are_created_and_isolated_per_case() {

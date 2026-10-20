@@ -79,6 +79,7 @@ pub mod serve_mode;
 pub mod server_logs;
 pub mod servers;
 pub mod shared_libs;
+pub mod skills;
 pub mod slots;
 pub mod state;
 pub mod storage;
