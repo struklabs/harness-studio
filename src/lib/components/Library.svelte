@@ -316,7 +316,7 @@
         <Empty.Header>
           <Empty.Media variant="icon"><LibraryIcon /></Empty.Media>
           <Empty.Title>{t('lib.empty_title')}</Empty.Title>
-          <Empty.Description>{t('lib.empty_desc')}</Empty.Description>
+          <Empty.Description>{t('setup.first_hint')}</Empty.Description>
         </Empty.Header>
         <Empty.Content>
           <Button size="sm" onclick={() => (app.requestedTab = 'hub')}><Compass />{t('lib.go_hub')}</Button>
@@ -377,7 +377,7 @@
           <div class="flex items-center justify-between gap-3 border-t border-border px-3 py-1.5">
             <div class="min-w-0">
               <p class="truncate font-mono text-xs">{model.model}</p>
-              <p class={cn('truncate text-xs', model.state === 'online' ? 'text-success' : 'text-muted-foreground')}>{model.link} · {t(model.state === 'online' ? 'link.online' : model.state === 'unauthorized' ? 'link.token_rejected' : 'link.offline')}</p>
+              <p class={cn('truncate text-xs', model.state === 'online' ? 'text-success' : 'text-muted-foreground')}>{t('setup.remote', { device: model.link })} · {t(model.state === 'online' ? 'link.online' : model.state === 'unauthorized' ? 'link.token_rejected' : 'link.offline')}</p>
             </div>
             <Button variant="outline" size="xs" disabled={model.state !== 'online'} onclick={() => openRemote(model)}>{t('lib.open_in_playground')}</Button>
           </div>

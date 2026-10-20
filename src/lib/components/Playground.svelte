@@ -3034,6 +3034,11 @@
               <div class="flex flex-col gap-1">
                 <h3 class="text-base font-semibold text-foreground">{t('pg.empty_title')}</h3>
                 <p class="text-xs text-muted-foreground">{t('pg.empty_desc')}</p>
+                {#if library.models.length === 0 && !pickerModel}
+                  <h4 class="mt-3 text-sm font-medium">{t('setup.first')}</h4>
+                  <p class="max-w-md text-xs text-muted-foreground">{t('setup.first_hint')}</p>
+                  <Button size="sm" variant="outline" class="mt-2 self-center" onclick={() => app.requestedTab = 'hub'}>{t('setup.discover')}</Button>
+                {/if}
               </div>
               <div class="grid w-full max-w-xl grid-cols-[repeat(2,minmax(0,1fr))] gap-2 text-left">
                 {#each EXAMPLES as key (key)}
