@@ -1,5 +1,6 @@
 //! Bundled module contracts and lifecycle. Only backend dependencies are downloaded.
 pub mod agents;
+pub mod bundle;
 mod lifecycle;
 mod openclaw;
 pub mod paperclip;

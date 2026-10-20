@@ -160,6 +160,13 @@
     return o.tool ? `${t(key)} · ${o.tool}` : t(key);
   }
 
+  /** Source, model, chat, time and size on one line (built here: Svelte trims the space a
+      `{#if}` block starts with). */
+  function outputMeta(o: ProjectOutput): string {
+    const parts = [sourceLabel(o), o.model, chatTitle(o.conversation_id), new Date(o.created_at).toLocaleString(), formatSize(o.size)];
+    return parts.filter(Boolean).join(' · ');
+  }
+
   function chatTitle(id: string | null): string | null {
     if (!id) return null;
     return chats.find((c) => c.id === id)?.title || t('proj.untitled_chat');
@@ -177,7 +184,7 @@
       {#each visible as p (p.id)}
         <button type="button" class="flex flex-col rounded-md px-2 py-1.5 text-left hover:bg-muted/60 {selectedId === p.id ? 'bg-muted/60' : ''}" aria-current={selectedId === p.id ? 'page' : undefined} onclick={() => (selectedId = p.id)}>
           <span class="flex items-center gap-1.5 truncate text-sm">{p.name}{#if projects.activeId === p.id}<Badge variant="secondary" class="text-[10px]">{t('proj.active')}</Badge>{/if}</span>
-          <span class="text-xs text-muted-foreground">{t('proj.counts', { chats: p.chat_count, outputs: p.output_count })}{#if p.archived} · {t('proj.archived')}{/if}</span>
+          <span class="text-xs text-muted-foreground">{[t('proj.counts', { chats: p.chat_count, outputs: p.output_count }), p.archived ? t('proj.archived') : ''].filter(Boolean).join(' · ')}</span>
         </button>
       {:else}
         <p class="px-2 text-xs text-muted-foreground">{t('proj.empty')}</p>
@@ -247,7 +254,7 @@
               <div class="flex min-w-0 flex-1 flex-col">
                 <span class="truncate font-mono text-xs" title={o.path}>{fileName(o.path)}</span>
                 <span class="text-xs text-muted-foreground">
-                  {sourceLabel(o)}{#if o.model} · {o.model}{/if}{#if chatTitle(o.conversation_id)} · {chatTitle(o.conversation_id)}{/if} · {new Date(o.created_at).toLocaleString()} · {formatSize(o.size)}
+                  {outputMeta(o)}
                 </span>
               </div>
               {#if o.exists === false}<Badge variant="outline">{t('proj.missing')}</Badge>{/if}

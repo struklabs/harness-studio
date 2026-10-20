@@ -126,7 +126,7 @@ fn invalidate_disk_cache() {
     }
     super::invalidate_agent_probe();
 }
-struct RefreshDisk;
+pub(super) struct RefreshDisk;
 impl Drop for RefreshDisk {
     fn drop(&mut self) {
         invalidate_disk_cache();
@@ -142,9 +142,9 @@ pub struct Transaction {
     shared: Vec<SharedRuntime>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct SharedRuntime {
-    relative: PathBuf,
-    existed: bool,
+pub(super) struct SharedRuntime {
+    pub(super) relative: PathBuf,
+    pub(super) existed: bool,
 }
 fn shared_path(root: &Path, entry: &SharedRuntime) -> Result<PathBuf, String> {
     let parts: Vec<_> = entry.relative.components().collect();
@@ -170,7 +170,7 @@ fn shared_path(root: &Path, entry: &SharedRuntime) -> Result<PathBuf, String> {
     }
     Ok(root.join(&entry.relative))
 }
-fn shared_backup(path: &Path) -> PathBuf {
+pub(super) fn shared_backup(path: &Path) -> PathBuf {
     let mut name = path.file_name().unwrap().to_os_string();
     name.push(".module-rollback");
     path.with_file_name(name)
@@ -190,17 +190,17 @@ pub struct DataChoice {
     pub disk_bytes: u64,
     pub path: String,
 }
-fn runtime(id: &str) -> PathBuf {
+pub(super) fn runtime(id: &str) -> PathBuf {
     if id == "agents" {
         agents::managed_root()
     } else {
         envs::env_dir_in(&envs::root(), ENV)
     }
 }
-fn backup(id: &str) -> PathBuf {
+pub(super) fn backup(id: &str) -> PathBuf {
     runtime(id).with_extension("rollback")
 }
-fn erase(path: &Path) -> Result<(), String> {
+pub(super) fn erase(path: &Path) -> Result<(), String> {
     match std::fs::symlink_metadata(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.to_string()),
@@ -230,7 +230,7 @@ fn begin_with_shared(
         shared,
     )
 }
-fn begin_at(
+pub(super) fn begin_at(
     data: &mut ModuleStore,
     id: &str,
     path: &Path,
@@ -283,7 +283,7 @@ fn restore_runtime(path: &Path, backup: &Path, had_runtime: bool) -> Result<(), 
     Ok(())
 }
 
-fn rollback(data: &mut ModuleStore) -> Result<(), String> {
+pub(super) fn rollback(data: &mut ModuleStore) -> Result<(), String> {
     let Some(tx) = data.transaction.clone() else {
         return Ok(());
     };
@@ -301,7 +301,7 @@ fn rollback(data: &mut ModuleStore) -> Result<(), String> {
         &envs::root(),
     )
 }
-fn rollback_at(
+pub(super) fn rollback_at(
     data: &mut ModuleStore,
     path: &Path,
     backup: &Path,
@@ -359,13 +359,13 @@ pub fn ensure_not_disabled(id: &str) -> Result<(), String> {
     }
     Ok(())
 }
-fn unused(id: &str) -> Result<(), String> {
+pub(super) fn unused(id: &str) -> Result<(), String> {
     if id == "agents" && agents::task_status().status == "running" {
         return Err("modules.in_use".into());
     }
     ensure_path_unused(&runtime(id))
 }
-fn ensure_path_unused(dir: &Path) -> Result<(), String> {
+pub(super) fn ensure_path_unused(dir: &Path) -> Result<(), String> {
     let mut system = sysinfo::System::new();
     system.refresh_processes_specifics(
         sysinfo::ProcessesToUpdate::All,
@@ -786,7 +786,7 @@ async fn broken_shared() -> Result<Vec<SharedRuntime>, String> {
     Ok(damaged)
 }
 
-async fn verify(id: &str) -> Result<(), String> {
+pub(super) async fn verify(id: &str) -> Result<(), String> {
     if id == "agents" {
         return agents::verify();
     }

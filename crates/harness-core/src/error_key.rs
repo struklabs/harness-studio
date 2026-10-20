@@ -153,6 +153,10 @@ pub fn http_status(code: &str) -> u16 {
         // The tool policy refuses the call (Control API: it cannot ask the user).
         "tools.disabled" | "tools.approval_required" | "tools.install_approval_required" => 403,
         "tools.workdir_invalid" => 400,
+        // The training backend (and any other placeholder) takes no grants yet.
+        "permissions.not_available" => 409,
+        "permissions.paths_invalid" | "permissions.capability_unsupported" => 400,
+        "permissions.folder_not_granted" | "permissions.trust_too_low" => 403,
         // n8n answered, but not as expected (the Control API is a gateway to it here).
         "automations.n8n_unauthorized"
         | "automations.n8n_forbidden"

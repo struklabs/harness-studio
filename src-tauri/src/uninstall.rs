@@ -63,6 +63,22 @@ fn mac_bundle() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+/// Moves the app bundle to the Trash with NSFileManager. Asking Finder through `osascript` needs
+/// the Automation permission: macOS prompts for it, and the move fails when it is denied.
+#[cfg(target_os = "macos")]
+fn move_to_trash(path: &std::path::Path) -> Result<(), String> {
+    use objc2_foundation::{NSFileManager, NSString, NSURL};
+    let url = NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()));
+    NSFileManager::defaultManager()
+        .trashItemAtURL_resultingItemURL_error(&url, None)
+        .map_err(|e| format!("Moving to Trash failed: {}", e.localizedDescription()))
+}
+
+#[cfg(not(target_os = "macos"))]
+fn move_to_trash(_path: &std::path::Path) -> Result<(), String> {
+    Err("Moving to Trash is only done on macOS".into())
+}
+
 fn install_kind() -> InstallKind {
     if cfg!(windows) {
         let uninstaller = install_dir().map(|d| d.join("uninstall.exe"));
@@ -193,24 +209,7 @@ async fn uninstall_finish() -> Result<(), String> {
 
 fn finish() -> Result<(), String> {
     match install_kind() {
-        InstallKind::MacApp => {
-            let bundle = mac_bundle().ok_or("App bundle not found")?;
-            let path = bundle.to_string_lossy().into_owned();
-            if path.contains('"') || path.contains('\\') {
-                return Err("Unsupported app path".into());
-            }
-            let status = std::process::Command::new("osascript")
-                .arg("-e")
-                .arg(format!(
-                    "tell application \"Finder\" to delete POSIX file \"{path}\""
-                ))
-                .status()
-                .map_err(|e| e.to_string())?;
-            status
-                .success()
-                .then_some(())
-                .ok_or("Moving to Trash failed".into())
-        }
+        InstallKind::MacApp => move_to_trash(&mac_bundle().ok_or("App bundle not found")?),
         InstallKind::LinuxDeb => {
             let exe = std::env::current_exe().map_err(|e| e.to_string())?;
             let found = std::process::Command::new("dpkg")
