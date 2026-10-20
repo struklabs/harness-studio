@@ -1797,7 +1797,9 @@ mod tests {
         link_dir(&b, &link).unwrap();
         assert!(!link.join("marker").exists());
         // Removing the link never touches the target.
-        std::fs::remove_dir(&link).unwrap();
+        std::fs::remove_dir(&link)
+            .or_else(|_| std::fs::remove_file(&link))
+            .unwrap();
         assert!(a.join("marker").is_file());
         let real = temp.path().join("real");
         std::fs::create_dir_all(&real).unwrap();
