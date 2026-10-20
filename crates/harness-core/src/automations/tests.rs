@@ -403,10 +403,23 @@ fn key_goes_to_the_keychain_not_to_settings() {
     assert!(!file.contains("s3cret-key"));
 
     // `None` keeps the key, an invalid address changes nothing.
-    save("https://n8n2.example.com", None).unwrap();
+    save("https://n8n.example.com", None).unwrap();
     assert!(view().unwrap().key_set);
     assert_eq!(save("not a url", None).unwrap_err(), ERR_URL_INVALID);
+    assert_eq!(view().unwrap().url, "https://n8n.example.com");
+
+    // A key is never carried over to another address, neither by save nor by a test call.
+    assert_eq!(
+        N8nClient::from_form(Some("https://evil.example.com"), None)
+            .err()
+            .as_deref(),
+        Some(ERR_KEY_MISSING)
+    );
+    assert!(N8nClient::from_form(Some("https://n8n.example.com/"), None).is_ok());
+    save("https://n8n2.example.com", None).unwrap();
+    assert!(!view().unwrap().key_set);
     assert_eq!(view().unwrap().url, "https://n8n2.example.com");
+    save("https://n8n2.example.com", Some("s3cret-key")).unwrap();
 
     // An empty address disconnects and removes the key.
     let off = save("", None).unwrap();

@@ -168,7 +168,8 @@ pub fn view() -> Result<N8nView, String> {
 }
 
 /// Saves the address and key. `api_key`: `None` keeps the saved key, `Some("")` removes it,
-/// anything else replaces it. An empty address disconnects (the key is removed too).
+/// anything else replaces it; `None` with a changed address also removes it (a key is never
+/// reused for another host). An empty address disconnects (the key is removed too).
 pub fn save(url: &str, api_key: Option<&str>) -> Result<N8nView, String> {
     let mut all = crate::config::AppSettings::load();
     if url.trim().is_empty() {
@@ -178,8 +179,11 @@ pub fn save(url: &str, api_key: Option<&str>) -> Result<N8nView, String> {
         return view();
     }
     let url = normalize_url(url)?;
-    if let Some(key) = api_key {
-        crate::secrets::n8n_key_set(Some(key))?;
+    match api_key {
+        Some(key) => crate::secrets::n8n_key_set(Some(key))?,
+        // A saved key belongs to the saved address: it is not carried over to another host.
+        None if url != all.n8n.url => crate::secrets::n8n_key_set(None)?,
+        None => {}
     }
     all.n8n = N8nSettings { url };
     all.save()?;
@@ -238,6 +242,8 @@ impl N8nClient {
         }
         let key = match key.map(str::trim).filter(|k| !k.is_empty()) {
             Some(k) => k.to_string(),
+            // The saved key is only ever sent to the saved address.
+            None if normalize_url(url)? != saved => return Err(err(ERR_KEY_MISSING).into()),
             None => {
                 crate::secrets::n8n_key_get()?.ok_or_else(|| String::from(err(ERR_KEY_MISSING)))?
             }
@@ -437,8 +443,16 @@ impl N8nClient {
             .trim()
             .trim_matches('/')
             .to_string();
-        // Paths with `:parameters` need a caller-specific URL; not a plain "run".
-        if path.is_empty() || path.contains(':') || path.contains('{') {
+        // Paths with `:parameters` need a caller-specific URL; not a plain "run". Anything that
+        // could change the URL's meaning (query, fragment, `..`, spaces) is refused as well.
+        if path.is_empty()
+            || path.contains(|c: char| {
+                c.is_whitespace()
+                    || c.is_control()
+                    || matches!(c, ':' | '{' | '?' | '#' | '\\' | '%')
+            })
+            || path.split('/').any(|seg| seg == "..")
+        {
             return None;
         }
         let method = params
