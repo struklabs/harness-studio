@@ -158,6 +158,9 @@ pub struct NewConversation {
     pub system_prompt: Option<String>,
     pub settings: Option<Value>,
     pub metadata: Option<Value>,
+    /// The project the chat is filed under (see [`StateDb::set_conversation_project`]).
+    #[serde(default)]
+    pub project_id: Option<String>,
 }
 
 /// Partial update; `None` leaves a field unchanged, `Some("")` clears a nullable text.
@@ -183,6 +186,8 @@ pub struct ListQuery {
     pub query: Option<String>,
     pub limit: Option<u32>,
     pub offset: Option<u32>,
+    /// Only the chats of this project.
+    pub project_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -813,6 +818,16 @@ fn insert_conversation(conn: &Connection, id: &str, n: &NewConversation) -> Stat
     Ok(())
 }
 
+/// A copy (duplicate or fork) stays in its source's project.
+fn copy_project(conn: &Connection, from: &str, to: &str) -> StateResult<()> {
+    conn.execute(
+        "UPDATE conversations SET project_id = \
+         (SELECT project_id FROM conversations WHERE id = ?1) WHERE id = ?2",
+        params![from, to],
+    )?;
+    Ok(())
+}
+
 fn ensure_folder(conn: &Connection, id: &str) -> StateResult<()> {
     let exists: bool = conn
         .query_row("SELECT 1 FROM folders WHERE id = ?1", [id], |_| Ok(true))
@@ -978,6 +993,15 @@ impl StateDb {
         self.write(|tx| {
             let id = new_id();
             insert_conversation(tx, &id, n)?;
+            if let Some(p) = n.project_id.as_deref().filter(|p| !p.is_empty()) {
+                if super::projects::load_project(tx, p)?.archived {
+                    return Err(StateError::invalid(err("projects.archived").with("id", p)));
+                }
+                tx.execute(
+                    "UPDATE conversations SET project_id = ?2 WHERE id = ?1",
+                    params![id, p],
+                )?;
+            }
             load_conversation(tx, &id)
         })
     }
@@ -994,6 +1018,7 @@ impl StateDb {
                     "SELECT {CONV_COLS} FROM conversations \
                      WHERE (?1 IS NULL OR folder_id = ?1) AND (?2 = 0 OR folder_id IS NULL) \
                        AND (?3 = 0 OR pinned = 1) AND (?4 = 0 OR favorite = 1) \
+                       AND (?7 IS NULL OR project_id = ?7) \
                      ORDER BY pinned DESC, updated_at DESC, rid DESC LIMIT ?5 OFFSET ?6"
                 ))?;
                 let rows = stmt
@@ -1004,7 +1029,8 @@ impl StateDb {
                             q.pinned_only as i64,
                             q.favorites_only as i64,
                             limit as i64,
-                            offset as i64
+                            offset as i64,
+                            q.project_id
                         ],
                         conversation_from_row,
                     )?
@@ -1020,9 +1046,23 @@ impl StateDb {
                     Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
+            let in_project = match &q.project_id {
+                Some(p) => {
+                    let mut stmt =
+                        c.prepare("SELECT id FROM conversations WHERE project_id = ?1")?;
+                    let ids = stmt
+                        .query_map([p], |r| r.get::<_, String>(0))?
+                        .collect::<rusqlite::Result<HashSet<_>>>()?;
+                    Some(ids)
+                }
+                None => None,
+            };
             let mut seen = HashSet::new();
             let mut out = Vec::new();
             for (id, snippet) in hits {
+                if in_project.as_ref().is_some_and(|ids| !ids.contains(&id)) {
+                    continue;
+                }
                 if !seen.insert(id.clone()) {
                     continue;
                 }
@@ -1220,6 +1260,7 @@ impl StateDb {
                     forked_from: None,
                 },
             )?;
+            copy_project(tx, id, &new_id)?;
             load_conversation(tx, &new_id)
         })
     }
@@ -1243,6 +1284,7 @@ impl StateDb {
                     forked_from: Some((conv.clone(), message_id.to_string())),
                 },
             )?;
+            copy_project(tx, &conv, &new_id)?;
             load_conversation(tx, &new_id)
         })
     }

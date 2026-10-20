@@ -43,6 +43,10 @@ const ERROR_LOCALES: &[(&str, &str)] = &[
         "errorsLink.ts",
         include_str!("../../../src/lib/locales/errorsLink.ts"),
     ),
+    (
+        "errorsProjects.ts",
+        include_str!("../../../src/lib/locales/errorsProjects.ts"),
+    ),
 ];
 
 /// English template of a core error key from [`ERROR_LOCALES`].

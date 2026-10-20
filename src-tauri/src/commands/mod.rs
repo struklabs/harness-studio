@@ -62,6 +62,7 @@ include!("gateway.rs");
 include!("link.rs");
 include!("modelfile.rs");
 include!("conversations.rs");
+include!("projects.rs");
 include!("compaction.rs");
 include!("rag.rs");
 include!("tools.rs");

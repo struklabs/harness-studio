@@ -48,6 +48,8 @@
   import { withSkillGuidance, type SkillMetadata } from './playground/skillGuidance';
   import { salvageToolCalls, TextCallStreamBuffer } from './playground/textToolCalls';
   import { chatRequest } from './playground/chatRequest';
+  import { projects } from '#lib/stores/projects.svelte.js';
+  import { projectAllowsSkill, projectAllowsTool } from '#lib/projects.js';
   import { notifyRoutingFallback } from './playground/routingNotice';
   import { parseChoiceLogprobs, rememberLogprobs, type TokenLogprob } from './playground/logprobs';
   import { parseTextToolCalls } from '#lib/tools-client.js';
@@ -467,6 +469,7 @@
           server_id: app.selectedServerId,
           preset_id: snap.presetId || null,
           metadata: compare.enabled ? { compare: $state.snapshot(compare) } : undefined,
+          project_id: projects.activeId,
         })
       );
       conv = c;
@@ -1045,6 +1048,21 @@
     verifiedTools === false ? t('pg.web_tools_unsupported') : verifiedTools === null ? t('pg.web_tools_unmeasured') : '',
   ].filter(Boolean).join(' '));
 
+  // The active project: its attached tools and skills, and a chat the Projects page asked for.
+  onMount(() => { if (!projects.loaded) void projects.load(); });
+  let toolsProject: string | null | undefined;
+  $effect(() => {
+    const id = projects.activeId;
+    if (toolsProject !== undefined && toolsProject !== id && untrack(() => settings.toolsEnabled)) void refreshTools();
+    toolsProject = id;
+  });
+  $effect(() => {
+    const id = projects.pendingConversation;
+    if (!id) return;
+    projects.pendingConversation = null;
+    void openConversation(id);
+  });
+
   onMount(() => {
     let disposed = false;
     let cleanup: (() => void) | undefined;
@@ -1067,7 +1085,7 @@
     try {
       const [listing, catalog] = await Promise.all([listCoreTools(), invoke<SkillMetadata[]>('skills_list')]);
       if (toolsAbort !== c) return;
-      skills = catalog;
+      skills = catalog.filter((s) => projectAllowsSkill(projects.active, s.name));
       if (listing.policy === 'off') {
         coreTools = [];
         toolLimits = null;
@@ -1075,7 +1093,7 @@
         toolsAbort = null;
         return;
       }
-      coreTools = listing.tools.map(coreToolAsServerTool);
+      coreTools = listing.tools.filter((tl) => projectAllowsTool(projects.active, tl)).map(coreToolAsServerTool);
       toolLimits = listing.limits;
       toolsState = 'ok';
       void pollMcpStarting();
@@ -2209,6 +2227,7 @@
               model: ep.model,
               latestUserMessage: history.findLast((m) => m.role === 'user')?.content,
               workdir: settings.workdir,
+              project: projects.activeId,
               broker,
               onProgress: () => splitView?.scrollToBottom(),
               approvalKey: (call) => `${side}:${call.id}`,
@@ -2416,6 +2435,7 @@
               model: settings.model,
               latestUserMessage: messages.findLast((m) => m.role === 'user')?.content,
               workdir: settings.workdir,
+              project: projects.activeId,
               broker,
               onProgress: () => scrollToBottom(),
             }),

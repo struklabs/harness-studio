@@ -2,7 +2,7 @@
 
 Türkçe: [../tr/04-playground.md](../tr/04-playground.md)
 
-**What you do here:** chat with a local model, organize chats, use documents and tools, compare two answers, work with embeddings and reranking, turn speech into text and text into speech, and generate images.
+**What you do here:** chat with a local model, organize chats, use documents and tools, compare two answers, work with embeddings and reranking, turn speech into text and text into speech, generate images, and group work into projects.
 
 ## How the Screen Is Laid Out
 
@@ -142,6 +142,20 @@ Only WAV is accepted: up to 32 MiB, 10 minutes, and two channels. Some models ne
 The **Image Generation** tab generates pictures from diffusion models through stable-diffusion.cpp or the Python engine (diffusers). Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it), or use one that is already in your folders: it appears in the **Model** list on its own, and **Open in Playground** on its library card opens this tab with it selected. If the list stays empty although the file is there, some of its extra files are missing; the tab says so and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; an empty **Seed** chooses a random seed on each request, while the other empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
 
 For image-to-image, add an optional **Start Image** and set **Strength** (how much it changes). Models that only edit images require a start image. Python diffusers models also open in this tab.
+
+## Projects and Outputs
+
+A project groups chats, the files they produce, and agent tasks under a name and a folder. Open **Projects** in the sidebar and press **New Project**.
+
+1. Give it a **Name**, an optional description, and a **Project Folder** (an existing folder). Outputs are written to the `outputs` folder inside it.
+2. **Extra Allowed Folders** (one per line) lets tools and agents use other folders too. Tools in the project's chats and its agent tasks work only inside the project folder and these folders; a file tool asked to work elsewhere is refused.
+3. **Attached Tools**, **Attached Skills**, and **Attached MCP Servers** narrow what the project's chats offer. With nothing picked, the global settings apply.
+
+Press **Use in Playground**, or pick the project in the list above the chats (**All Chats** shows every chat). While a project is active, new chats are filed into it, the chat list shows only its chats, generated images and speech are saved to its `outputs` folder, and files written by `write_file` or `edit_file` are recorded as outputs.
+
+On the project page, **Outputs** lists each file with its source (chat, tool, image generation, speech, or agent), model, and time. **Open** opens it with the default app, **Show in Folder** reveals it, and **Remove from List (Keep File)** forgets it without touching the disk. **Agent Tasks** runs a Hermes Agent task that can read only the project's folders; **Save as Output** keeps its answer as a Markdown file.
+
+**Archive** hides a project from the list and the Playground picker (**Show Archived** brings it back; **Unarchive** restores it). **Export as Zip** saves the project details, its chats as JSON, and its output files. **Delete Project** keeps the chats (they no longer belong to a project); tick the checkbox to also delete the output files in the project's folders from disk. The folders themselves always stay.
 
 ## Tasks (Advanced)
 

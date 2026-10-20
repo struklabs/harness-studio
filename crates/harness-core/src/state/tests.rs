@@ -1493,3 +1493,42 @@ fn edited_user_message_keeps_its_audio() {
     let again = db.edit_user_message(&edited.id, "Translate", None).unwrap();
     assert_eq!(again.variant.meta, edited.variant.meta);
 }
+
+#[test]
+fn v7_database_upgrades_to_v8_with_projects() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("state.db");
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        for sql in &schema::MIGRATIONS[..7] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 7).unwrap();
+        conn.execute_batch(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c1', 'old', 1, 1);",
+        )
+        .unwrap();
+    }
+    let db = StateDb::open(&path).unwrap();
+    assert_eq!(db.user_version().unwrap(), SCHEMA_VERSION);
+    assert_eq!(db.conversation_project("c1").unwrap(), None);
+    let project = db
+        .create_project(&ProjectInput {
+            name: "Report".into(),
+            ..Default::default()
+        })
+        .unwrap();
+    db.set_conversation_project("c1", Some(&project.id))
+        .unwrap();
+    let listed = db
+        .list_conversations(&ListQuery {
+            project_id: Some(project.id.clone()),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(listed.len(), 1);
+    // Deleting the project keeps the chat, without a project.
+    db.delete_project(&project.id).unwrap();
+    assert_eq!(db.conversation_project("c1").unwrap(), None);
+    assert!(db.get_conversation("c1").is_ok());
+}

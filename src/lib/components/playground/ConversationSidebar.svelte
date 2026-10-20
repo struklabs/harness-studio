@@ -28,6 +28,7 @@
     X,
   } from '@lucide/svelte';
   import { convApi, type ConversationSummary, type Folder } from './conversations';
+  import { projects } from '#lib/stores/projects.svelte.js';
   import SectionLoading from '#lib/components/common/SectionLoading.svelte';
 
   interface Props {
@@ -87,7 +88,7 @@
 
   async function load() {
     try {
-      const [list, f] = await Promise.all([convApi.list({ limit: 1000 }), convApi.folders()]);
+      const [list, f] = await Promise.all([convApi.list({ limit: 1000, project_id: projects.activeId }), convApi.folders()]);
       items = list;
       folders = f;
     } catch (e) {
@@ -99,6 +100,8 @@
 
   $effect(() => {
     void refreshKey;
+    // The active project filters the list (and the search).
+    void projects.activeId;
     untrack(() => {
       load();
       if (query.trim()) runSearch(query);
@@ -111,7 +114,7 @@
     const seq = ++searchSeq;
     searching = true;
     try {
-      const list = await convApi.list({ query: q, limit: 100 });
+      const list = await convApi.list({ query: q, limit: 100, project_id: projects.activeId });
       if (seq === searchSeq) results = list;
     } catch (e) {
       if (seq === searchSeq) fail(e);
@@ -534,6 +537,19 @@
 {/snippet}
 
 <nav class={cn('flex h-full min-h-0 flex-col bg-card', drag && 'select-none')} aria-label={t('pg.conv_sidebar')}>
+  {#if projects.list.length}
+    <div class="shrink-0 border-b border-border px-2 py-1.5">
+      <select
+        class="h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+        aria-label={t('proj.filter')}
+        value={projects.activeId ?? ''}
+        onchange={(e) => void projects.setActive((e.currentTarget as HTMLSelectElement).value || null)}
+      >
+        <option value="">{t('proj.all_chats')}</option>
+        {#each projects.list as p (p.id)}<option value={p.id}>{t('proj.option', { name: p.name })}</option>{/each}
+      </select>
+    </div>
+  {/if}
   <div class="flex h-11 shrink-0 items-center gap-1 border-b border-border px-2">
     <Button variant="ghost" size="sm" class="min-w-0 flex-1 justify-start" onclick={onNew}>
       <Plus />

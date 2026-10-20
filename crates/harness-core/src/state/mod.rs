@@ -11,7 +11,7 @@
 //! this build knows is opened read-only: reads are attempted, every write returns
 //! [`StateError::ReadOnly`] and nothing is downgraded or rewritten.
 //!
-//! # Schema (v1–v6)
+//! # Schema (v1–v8)
 //! - `folders(id, name, parent_id → folders, sort, created_at)`. Deleting a folder
 //!   moves its conversations and sub-folders to the parent (see [`StateDb::delete_folder`]).
 //! - `conversations(rid, id uuid UNIQUE, title, title_source, folder_id → folders,
@@ -53,6 +53,12 @@
 //!   input_json, response_json, bytes)` (v6): stored `/v1/responses` of the gateway
 //!   (`store`, `previous_response_id`; see `crate::gateway::responses`). Rows are scoped to
 //!   the caller and pruned by age since last use, count and bytes ([`StateDb::put_response`]).
+//! - `gateway_response_events` (v7): replayable SSE events of background streamed Responses.
+//! - `projects(rid, id UNIQUE, name, description, folder, settings_json, archived, created_at,
+//!   updated_at)`, `conversations.project_id → projects` and `project_outputs(id, project_id →
+//!   projects, path, kind, source, model, conversation_id → conversations, agent_task_id, tool,
+//!   size, created_at)` (v8): projects, their chats and the files made for them (see
+//!   [`StateDb::projects`], `crate::projects`). Deleting a project keeps its chats, unassigned.
 //! - `search_index`: FTS5 (`unicode61`, diacritics removed) over conversation titles
 //!   (rowid = `-conversations.rid`) and variant contents (rowid = `message_variants.rid`),
 //!   kept in sync by triggers (cascaded deletes fire them too).
@@ -71,6 +77,7 @@
 mod conversations;
 mod export;
 mod models;
+mod projects;
 mod rag;
 mod responses;
 mod schema;
@@ -81,6 +88,7 @@ pub mod vram;
 pub use conversations::*;
 pub use export::*;
 pub use models::*;
+pub use projects::*;
 pub use rag::*;
 pub use responses::*;
 

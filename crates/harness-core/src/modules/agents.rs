@@ -508,6 +508,8 @@ pub struct TaskStatus {
     pub status: String,
     pub output: String,
     pub error: Option<String>,
+    /// The project the task was started for (its folders are the read grants).
+    pub project_id: Option<String>,
 }
 /// Only bounded, read-only file tools are supported. Shell, writes and additional
 /// network access cannot be granted by this adapter.
@@ -664,7 +666,15 @@ pub fn shutdown() {
 pub fn start_task(prompt: String) -> Result<(), String> {
     start_task_with_grants(prompt, RunGrants::default())
 }
-pub fn start_task_with_grants(prompt: String, mut grants: RunGrants) -> Result<(), String> {
+pub fn start_task_with_grants(prompt: String, grants: RunGrants) -> Result<(), String> {
+    start_task_for_project(prompt, grants, None)
+}
+/// Starts a task filed under `project_id` (see `crate::projects::start_agent_task`).
+pub fn start_task_for_project(
+    prompt: String,
+    mut grants: RunGrants,
+    project_id: Option<String>,
+) -> Result<(), String> {
     grants.validate()?;
     let _operation = super::OPERATION.try_lock().map_err(|_| "modules.busy")?;
     super::ensure_enabled("agents")?;
@@ -704,6 +714,7 @@ pub fn start_task_with_grants(prompt: String, mut grants: RunGrants) -> Result<(
             grants,
             audit: vec!["granted".into(), "started".into()],
             status: "running".into(),
+            project_id,
             ..Default::default()
         }),
         cancel: Arc::new(AtomicBool::new(false)),

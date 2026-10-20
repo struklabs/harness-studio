@@ -1,7 +1,7 @@
 //! Ordered SQL migrations for `state.db`. Migration `i` (0-based) upgrades the schema
 //! from `user_version = i` to `i + 1`. Never edit a released migration; append a new one.
 
-pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7];
+pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8];
 
 const V1: &str = r#"
 CREATE TABLE folders (
@@ -244,4 +244,41 @@ CREATE TABLE gateway_response_events (
 );
 CREATE INDEX gateway_response_events_response
     ON gateway_response_events(response_id, sequence_number);
+"#;
+
+/// v8: projects. A project groups conversations (`conversations.project_id`; deleting a project
+/// keeps its chats, unassigned) and the files made for it (`project_outputs`, metadata only: the
+/// file stays where it was written). `settings_json` holds the folders tools and agents may use
+/// and the attached tools, skills and MCP servers (see `crate::projects`).
+const V8: &str = r#"
+CREATE TABLE projects (
+    rid            INTEGER PRIMARY KEY,
+    id             TEXT NOT NULL UNIQUE,
+    name           TEXT NOT NULL,
+    description    TEXT NOT NULL DEFAULT '',
+    folder         TEXT,
+    settings_json  TEXT NOT NULL DEFAULT '{}',
+    archived       INTEGER NOT NULL DEFAULT 0,
+    created_at     INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL
+);
+ALTER TABLE conversations ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+CREATE INDEX conversations_project ON conversations(project_id, updated_at);
+
+CREATE TABLE project_outputs (
+    rid              INTEGER PRIMARY KEY,
+    id               TEXT NOT NULL UNIQUE,
+    project_id       TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    path             TEXT NOT NULL,
+    kind             TEXT NOT NULL DEFAULT 'file',
+    source           TEXT NOT NULL DEFAULT 'manual',
+    model            TEXT,
+    conversation_id  TEXT REFERENCES conversations(id) ON DELETE SET NULL,
+    agent_task_id    TEXT,
+    tool             TEXT,
+    size             INTEGER NOT NULL DEFAULT 0,
+    created_at       INTEGER NOT NULL,
+    UNIQUE (project_id, path)
+);
+CREATE INDEX project_outputs_project ON project_outputs(project_id, created_at);
 "#;

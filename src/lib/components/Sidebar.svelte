@@ -1,11 +1,12 @@
 <script lang="ts" module>
-  export type Tab = 'dashboard' | 'playground' | 'servers' | 'library' | 'hub' | 'connections' | 'performance' | 'analytics' | 'settings' | 'create' | 'modules';
+  export type Tab = 'dashboard' | 'playground' | 'servers' | 'library' | 'hub' | 'connections' | 'performance' | 'analytics' | 'settings' | 'create' | 'modules' | 'projects';
 </script>
 
 <script lang="ts">
   import {
     LayoutDashboard,
     MessageSquare,
+    FolderKanban,
     Server,
     Compass,
     Library,
@@ -63,6 +64,7 @@
       labelKey: 'nav.group_use',
       items: [
         { id: 'playground', labelKey: 'nav.playground', icon: MessageSquare },
+        { id: 'projects', labelKey: 'nav.projects', icon: FolderKanban },
         { id: 'connections', labelKey: 'nav.connections', icon: Cable },
       ],
     },
@@ -82,6 +84,7 @@
     { id: 'modules', labelKey: 'modules.title', icon: SlidersHorizontal },
     { id: 'library', labelKey: 'nav.library', icon: Library },
     { id: 'playground', labelKey: 'uiLevel.use', icon: MessageSquare },
+    { id: 'projects', labelKey: 'nav.projects', icon: FolderKanban },
     { id: 'connections', labelKey: 'uiLevel.connect', icon: Cable },
   ];
   let visible = $derived(!uiLevel.advanced ? [{ labelKey: 'nav.group_use' as TKey, items: simpleItems }] : groups.map(group => ({ ...group, items: group.items.filter(item => isVisible(item.level, uiLevel.level)) })).filter(group => group.items.length));

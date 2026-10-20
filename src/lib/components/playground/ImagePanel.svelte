@@ -39,6 +39,7 @@
   } from './image';
   import type { ImageResult } from './image';
   import { addToGallery, imageSession as form, removeFromGallery, type GalleryItem } from './image.svelte';
+  import { fileToProject, outputName } from './projectOutputs';
 
   /** Image definitions: the gateway loads the diffusion model on the first request (JIT). */
   let models = $derived(domain.definitions.filter((d) => isImageDefinition(d, library.models)));
@@ -112,6 +113,9 @@
           ms,
         })),
       );
+      for (const image of images) {
+        void fileToProject(outputName(form.prompt, image.format === 'jpeg' ? 'jpg' : image.format || 'png', 'image'), image.data, { source: 'image', model: form.model });
+      }
     } catch (e) {
       if (!c.signal.aborted && e instanceof ImageOutOfMemory) {
         error = t('img.err_out_of_memory', { need: e.needMb, available: e.availableMb });
