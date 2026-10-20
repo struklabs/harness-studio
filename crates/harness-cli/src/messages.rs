@@ -79,6 +79,10 @@ pub fn locale_template(key: &str) -> Option<&'static str> {
             .chain(english_entries(include_str!(
                 "../../../src/lib/locales/browser.ts"
             )))
+            // Trust level and grant errors (`permissions.*`) live with the Permissions page.
+            .chain(english_entries(include_str!(
+                "../../../src/lib/locales/permissions.ts"
+            )))
             .collect()
     })
     .get(key)
@@ -231,6 +235,24 @@ pub fn base(code: &str) -> Option<&'static str> {
         "servers.exists" => "A server profile with this id already exists.",
         "benchmark.not_running" => "The benchmark is not running.",
         "runtime.not_available" => "No llama-server runtime is installed or configured.",
+        // Modules (`harness modules`).
+        "modules.bundle_unofficial" => "This bundle is not an official Harness Studio module bundle (its SHA-256 is not in the index shipped with this build, and this build may not record any yet). Community bundles are not supported.",
+        "modules.bundle_mismatch" => "This bundle does not match the official entry or the module version this build installs.",
+        "modules.bundle_corrupt" => "The bundle is damaged or was changed: a file does not match its recorded checksum. Nothing was installed.",
+        "modules.bundle_incompatible" => "This bundle was made by a newer or unknown bundle format.",
+        "modules.already_installed" => "This version of the module is already installed.",
+        "modules.export_external" => "This module uses a program installed outside Harness Studio, so it cannot be exported.",
+        "modules.export_missing" => "Files of the installed module are missing. Repair it first, then export again.",
+        "modules.not_installed" => "The module is not installed.",
+        "modules.unknown" => "Unknown module.",
+        "modules.planned" => "This module is planned and cannot be installed or exported yet.",
+        "modules.busy" => "A module operation is running. Try again when it finishes.",
+        "modules.in_use" => "Stop running module tasks and backends before changing this module.",
+        "modules.disk_space" => "Not enough free disk space, or the free space could not be determined.",
+        "modules.platform_incompatible" => "This platform is unsupported by the module or the bundle.",
+        "modules.shared_conflict" => "Another module uses a different version of a shared component. Update the other module first.",
+        "modules.rollback_failed" => "The previous installation could not be restored; the backup was kept. Restart the app and try again.",
+        "modules.unsafe_path" => "A linked folder cannot be changed. Use a physical installation folder.",
         // CLI.
         "cli.no_instance" => "No running Harness instance. Start one (`harness serve` or the GUI with the Control API on), or pass --headless to run a temporary one for this command.",
         "cli.owner_without_api" => "Another Harness process owns the data directory but its Control API is off. Turn it on in Settings > Developer > Control API (or close that process) and try again.",

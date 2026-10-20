@@ -1,0 +1,23 @@
+# Liquid Audio engine (LFM2.5-Audio speech output): Liquid's official `liquid-audio` package on
+# PyTorch. The worker (liquid_audio_worker.py) needs nothing else: the HTTP server and WAV
+# writing are the standard library's.
+#
+# liquid-audio itself is a pure-Python wheel (LFM Open License v1.0, see THIRD_PARTY_NOTICES) and
+# is added to the lock by hand, pinned by the SHA-256 of PyPI's wheel: `datasets`, which it lists
+# as a requirement, is used only by its fine-tuning tools, so it (and pyarrow, pandas...) stays
+# out. The rest of the lock is
+#   uv pip compile --universal --python-version 3.12 --generate-hashes --emit-index-url \
+#     --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple \
+#     --index-strategy unsafe-best-match python/liquid-audio.in
+# (CPU wheels of PyTorch on Windows and Linux; plain PyPI wheels on macOS, which use MPS).
+torch
+torchaudio
+transformers
+accelerate
+einops
+librosa
+sentencepiece
+soundfile
+safetensors
+huggingface-hub
+numpy

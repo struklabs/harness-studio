@@ -1,5 +1,6 @@
 //! Bundled module contracts and lifecycle. Only backend dependencies are downloaded.
 pub mod agents;
+pub mod bundle;
 mod lifecycle;
 mod openclaw;
 pub mod paperclip;
@@ -9,7 +10,7 @@ use crate::{
     store::JsonStore,
 };
 pub use lifecycle::{
-    action, ensure_enabled, ensure_not_disabled, remove_with_options as lifecycle_remove,
+    action, ensure_enabled, ensure_not_disabled, remove_with_options as lifecycle_remove, start,
     RemovalOptions,
 };
 use serde::{Deserialize, Serialize};
@@ -247,6 +248,18 @@ fn reconcile(data: &mut ModuleStore, manifest: &ModuleManifest, ready: bool, act
         let state = data.modules.get_mut(&manifest.id).unwrap();
         state.status = Status::Failed;
         state.error = Some("modules.interrupted".into());
+    } else if ready
+        && state.is_some_and(|state| {
+            state.status == Status::Failed
+                && state.installed_version.is_some()
+                && state.error.as_deref() == Some("modules.interrupted")
+        })
+    {
+        // A detection miss (for example a changed home folder) is not a failed install:
+        // once the module is detected again its state follows.
+        let state = data.modules.get_mut(&manifest.id).unwrap();
+        state.status = Status::Installed;
+        state.error = None;
     }
 }
 /// The agent probe spawns a process (about two seconds cold), so the list never waits for it:
@@ -435,6 +448,10 @@ pub fn list() -> Result<Vec<ModuleView>, String> {
 pub async fn install(id: &str) -> Result<(), String> {
     action(id, "install").await
 }
+/// Like [`install`], but a long install (the Hermes Agent) continues in the background.
+pub async fn start_install(id: &str) -> Result<(), String> {
+    start(id, "install").await
+}
 
 pub fn cancel(id: &str) -> Result<(), String> {
     installable(id)?;
@@ -516,6 +533,19 @@ mod tests {
         data.modules.get_mut("speech").unwrap().status = Status::Installed;
         reconcile(&mut data, &manifest, false, false);
         assert_eq!(data.modules["speech"].status, Status::Failed);
+        // A detection miss heals once the module is detected again ...
+        reconcile(&mut data, &manifest, true, false);
+        assert_eq!(data.modules["speech"].status, Status::Installed);
+        assert_eq!(data.modules["speech"].error, None);
+        // ... but a real failed install (no installed version) stays failed.
+        data.modules.insert(
+            "speech".into(),
+            ModuleState {
+                status: Status::Failed,
+                error: Some("agents.install_failed".into()),
+                ..Default::default()
+            },
+        );
         reconcile(&mut data, &manifest, true, false);
         assert_eq!(data.modules["speech"].status, Status::Failed);
         data.release("speech");

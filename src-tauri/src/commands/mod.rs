@@ -96,6 +96,7 @@ include!("convert.rs");
 include!("pyenv.rs");
 include!("otel.rs");
 include!("automations.rs");
+include!("permissions.rs");
 
 include!("modules.rs");
 include!("setup.rs");

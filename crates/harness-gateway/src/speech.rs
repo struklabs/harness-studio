@@ -506,6 +506,39 @@ fn is_mlx_speech(def: &harness_core::domain::ModelDefinition) -> bool {
         .is_some_and(harness_core::engine::mlx::is_tts_dir)
 }
 
+/// Whether a definition is an LFM2.5-Audio folder (Liquid's `liquid-audio` worker speaks it).
+fn is_liquid_speech(def: &harness_core::domain::ModelDefinition) -> bool {
+    def.base
+        .local_path()
+        .is_some_and(harness_core::engine::python_hf::is_liquid_audio_dir)
+}
+
+/// The worker's request of an LFM2.5-Audio speech call: the text and a voice of the model
+/// ([`harness_core::engine::python_hf::LIQUID_VOICES`]) or one of OpenAI's names, which the worker
+/// maps onto one. The model has no speed control (`speed` is accepted and ignored, like OpenAI's
+/// other fields it cannot use); the worker always answers WAV and the gateway encodes it.
+fn liquid_request(text: &str, voice: Option<&str>) -> Result<serde_json::Value, GatewayError> {
+    let mut request = serde_json::json!({ "input": text, "response_format": "wav" });
+    if let Some(voice) = voice.map(str::trim).filter(|v| !v.is_empty()) {
+        let key = voice.to_ascii_lowercase().replace(['-', ' '], "_");
+        let openai = [
+            "alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer",
+            "verse",
+        ];
+        if !harness_core::engine::python_hf::LIQUID_VOICES.contains(&key.as_str())
+            && !openai.contains(&key.as_str())
+        {
+            return Err(bad(format!(
+                "`{voice}` is not a voice of this model. Voices: {}.",
+                harness_core::engine::python_hf::LIQUID_VOICES.join(", ")
+            ))
+            .param("voice"));
+        }
+        request["voice"] = serde_json::json!(key);
+    }
+    Ok(request)
+}
+
 /// Speech from a Python engine or mlx-audio model: the worker's WAV, encoded to the asked
 /// format like sherpa-onnx's. The Python engine's models have one voice and one speed; an
 /// mlx-audio model takes `voice` (one of its speakers) and `speed`.
@@ -544,6 +577,9 @@ async fn python_speak(
         if let Some(voice) = voice {
             request["voice"] = serde_json::json!(voice);
         }
+    }
+    if is_liquid_speech(def) {
+        request = liquid_request(text, voice)?;
     }
     let body = serde_json::to_vec(&request)
         .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?;
@@ -693,6 +729,30 @@ mod tests {
             "type":"base64","data":STANDARD.encode(vec![0; 5 * 1024 * 1024])}}))
         .unwrap();
         assert!(rebuild_audio_cpp_body("pocket", &[], &req, true).is_ok());
+    }
+
+    #[test]
+    fn liquid_audio_requests_carry_the_text_and_a_known_voice_only() {
+        let r = liquid_request("Hello there.", None).unwrap();
+        assert_eq!(r["input"], "Hello there.");
+        assert_eq!(r["response_format"], "wav");
+        assert!(r.get("voice").is_none());
+        // A model voice, spelled loosely, and an OpenAI name pass in the worker's spelling.
+        assert_eq!(
+            liquid_request("x", Some("UK-Male")).unwrap()["voice"],
+            "uk_male"
+        );
+        assert_eq!(
+            liquid_request("x", Some("alloy")).unwrap()["voice"],
+            "alloy"
+        );
+        assert!(liquid_request("x", Some("  "))
+            .unwrap()
+            .get("voice")
+            .is_none());
+        let e = liquid_request("x", Some("bogus")).unwrap_err();
+        assert_eq!(e.status, 400);
+        assert!(e.message.contains("us_female"));
     }
 
     #[test]
