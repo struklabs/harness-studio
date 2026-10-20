@@ -306,12 +306,35 @@ pub(crate) async fn handle_with(
     body: Bytes,
     response_id: Option<String>,
 ) -> Response {
+    handle_recorded(state, api, api.path(), headers, body, response_id).await
+}
+
+/// [`handle`] for a route that is a shaped view of another API (`/v1/moderations` over the
+/// task pipelines): the request is recorded under the route the client called.
+pub(crate) async fn handle_routed(
+    state: GwState,
+    api: Api,
+    endpoint: &str,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    handle_recorded(state, api, endpoint, headers, body, None).await
+}
+
+async fn handle_recorded(
+    state: GwState,
+    api: Api,
+    endpoint: &str,
+    headers: HeaderMap,
+    body: Bytes,
+    response_id: Option<String>,
+) -> Response {
     let anthropic = api.anthropic();
     let mut guard = RecordGuard::new(
         RequestRecord {
             id: request_id(),
             started_at_ms: unix_ms(),
-            endpoint: api.path().to_string(),
+            endpoint: endpoint.to_string(),
             ..Default::default()
         },
         trace_context(&headers),

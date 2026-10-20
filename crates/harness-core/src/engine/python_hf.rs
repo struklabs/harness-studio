@@ -207,6 +207,20 @@ pub fn serves_model_type(task: Option<&str>, model_type: Option<&str>) -> bool {
     }
 }
 
+/// Whether the worker loads a model of `task` with these `config.json` `architectures`: a
+/// reranker (`text-ranking`) must be a sequence-classification model, the head a cross-encoder
+/// scores a (query, document) pair with. A decoder-only reranker (Qwen3-Reranker reads
+/// "yes" / "no" off its language-model head) would load with a random head and score noise. No
+/// architectures, or any other task, is left to the task.
+pub fn serves_architectures(task: Option<&str>, architectures: &[&str]) -> bool {
+    match task {
+        Some("text-ranking") if !architectures.is_empty() => architectures
+            .iter()
+            .any(|a| a.ends_with("ForSequenceClassification")),
+        _ => true,
+    }
+}
+
 /// The Python engine.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct PythonHfEngine;
@@ -530,11 +544,17 @@ pub fn detect(dir: &Path) -> Option<String> {
     if cfg.get("_diffusers_version").is_some() || weight_files(dir).is_empty() {
         return None;
     }
+    let from_config = config_task(&cfg, dir);
     if let Some(tag) = card_pipeline_tag(dir) {
+        // Most cross-encoder cards (BAAI/bge-reranker-v2-m3) say `text-classification`: a head
+        // with one label scores (query, document) pairs, and `/v1/rerank` needs that task.
+        if tag == "text-classification" && from_config == Some("text-ranking") {
+            return Some("text-ranking".into());
+        }
         // A chat or generation card (text-generation, image-text-to-text...) is not ours.
         return TASKS.contains(&tag.as_str()).then_some(tag);
     }
-    config_task(&cfg, dir).map(String::from)
+    from_config.map(String::from)
 }
 
 /// Whether `path` is a folder this engine runs.
@@ -1007,6 +1027,23 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn rerankers_must_be_sequence_classification_models() {
+        let ok = |task, archs: &[&str]| super::serves_architectures(Some(task), archs);
+        assert!(ok("text-ranking", &["XLMRobertaForSequenceClassification"]));
+        assert!(ok("text-ranking", &["Qwen3ForSequenceClassification"]));
+        // Qwen3-Reranker reads yes / no off its language-model head: no cross-encoder.
+        assert!(!ok("text-ranking", &["Qwen3ForCausalLM"]));
+        // No architectures in the listing: the files decide later.
+        assert!(ok("text-ranking", &[]));
+        assert!(ok("feature-extraction", &["Qwen3Model"]));
+        assert!(ok(
+            "text-classification",
+            &["BertForSequenceClassification"]
+        ));
+        assert!(super::serves_architectures(None, &["Qwen3ForCausalLM"]));
+    }
+
     use super::*;
 
     #[test]
@@ -1084,6 +1121,31 @@ mod tests {
             ("model.safetensors", "x"),
         ]);
         assert_eq!(detect(st.path()).as_deref(), Some("sentence-similarity"));
+        // A cross-encoder whose card says text-classification is still a reranker, and a real
+        // classifier with that card stays one.
+        let card = "---
+library_name: sentence-transformers
+pipeline_tag: text-classification
+---
+# x";
+        let bge = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["XLMRobertaForSequenceClassification"],"id2label":{"0":"LABEL_0"}}"#,
+            ),
+            ("README.md", card),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(detect(bge.path()).as_deref(), Some("text-ranking"));
+        let sst = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["BertForSequenceClassification"],"id2label":{"0":"NEG","1":"POS"}}"#,
+            ),
+            ("README.md", card),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(detect(sst.path()).as_deref(), Some("text-classification"));
         // The card wins over the architecture.
         let summ = folder(&[
             (

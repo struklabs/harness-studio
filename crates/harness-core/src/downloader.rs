@@ -639,12 +639,20 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     let compatibility = match &compatibility {
         crate::hub_compat::Compatibility::Runnable { runtime }
             if runtime == crate::engine::PYTHON_HF
-                && !crate::engine::python_hf::serves_model_type(
+                && (!crate::engine::python_hf::serves_model_type(
                     task,
                     item.get("config")
                         .and_then(|c| c.get("model_type"))
                         .and_then(|v| v.as_str()),
-                ) =>
+                ) || !crate::engine::python_hf::serves_architectures(
+                    task,
+                    &item
+                        .get("config")
+                        .and_then(|c| c.get("architectures"))
+                        .and_then(|a| a.as_array())
+                        .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+                        .unwrap_or_default(),
+                )) =>
         {
             crate::hub_compat::Compatibility::Unsupported { format }
         }
@@ -5243,6 +5251,77 @@ mod tests {
         ));
         assert_eq!(listed.not_runnable, None);
         assert_eq!(card_not_runnable(&item, analysis.not_runnable), None);
+    }
+
+    #[test]
+    fn safetensors_embedders_and_rerankers_without_onnx_run_on_the_python_engine() {
+        use crate::hub_compat::Compatibility::{Runnable, Unsupported};
+        let python = Runnable {
+            runtime: "python-hf".into(),
+        };
+        let verdict = |item: serde_json::Value| parse_search_item(&item).unwrap().compatibility;
+        let files = |names: &[&str]| -> Vec<serde_json::Value> {
+            names
+                .iter()
+                .map(|n| serde_json::json!({"rfilename": n}))
+                .collect()
+        };
+        // A sentence-transformers embedder with no `onnx/` folder.
+        assert_eq!(
+            verdict(serde_json::json!({"id": "x/granite-embed",
+                "pipeline_tag": "feature-extraction", "library_name": "sentence-transformers",
+                "tags": ["sentence-transformers", "safetensors", "feature-extraction"],
+                "config": {"architectures": ["ModernBertModel"], "model_type": "modernbert"},
+                "siblings": files(&["config.json", "modules.json", "model.safetensors",
+                    "tokenizer.json", "1_Pooling/config.json"])})),
+            python
+        );
+        // A cross-encoder whose card says text-classification.
+        assert_eq!(
+            verdict(serde_json::json!({"id": "x/reranker-v2",
+                "pipeline_tag": "text-classification", "library_name": "sentence-transformers",
+                "tags": ["sentence-transformers", "safetensors", "text-classification"],
+                "config": {"architectures": ["XLMRobertaForSequenceClassification"]},
+                "siblings": files(&["config.json", "model.safetensors", "tokenizer.json"])})),
+            python
+        );
+        let ranking = verdict(serde_json::json!({"id": "x/ce-tiny",
+            "pipeline_tag": "text-ranking", "library_name": "sentence-transformers",
+            "tags": ["sentence-transformers", "safetensors", "text-ranking"],
+            "config": {"architectures": ["BertForSequenceClassification"]},
+            "siblings": files(&["config.json", "model.safetensors", "tokenizer.json"])}));
+        assert_eq!(ranking, python);
+        // The same repo with an ONNX export stays with ONNX Runtime, which starts faster.
+        let both = verdict(
+            serde_json::json!({"id": "sentence-transformers/all-MiniLM-L6-v2",
+            "pipeline_tag": "sentence-similarity", "library_name": "sentence-transformers",
+            "tags": ["sentence-transformers", "onnx", "safetensors"],
+            "siblings": files(&["config.json", "modules.json", "model.safetensors",
+                "onnx/model.onnx", "tokenizer.json"])}),
+        );
+        assert_eq!(
+            both,
+            Runnable {
+                runtime: "onnxruntime".into()
+            }
+        );
+        // A decoder-based reranker reads yes / no off its language-model head: no cross-encoder.
+        assert!(matches!(
+            verdict(serde_json::json!({"id": "Qwen/Qwen3-Reranker-0.6B",
+                "pipeline_tag": "text-ranking", "library_name": "transformers",
+                "tags": ["transformers", "safetensors", "qwen3", "text-ranking"],
+                "config": {"architectures": ["Qwen3ForCausalLM"], "model_type": "qwen3"},
+                "siblings": files(&["config.json", "model.safetensors", "tokenizer.json"])})),
+            Unsupported { .. }
+        ));
+        // Custom-code embedders are never run.
+        assert!(!matches!(
+            verdict(serde_json::json!({"id": "x/nomic",
+                "pipeline_tag": "sentence-similarity", "library_name": "sentence-transformers",
+                "tags": ["sentence-transformers", "safetensors", "custom_code"],
+                "siblings": files(&["config.json", "modules.json", "model.safetensors"])})),
+            Runnable { .. }
+        ));
     }
 
     #[test]
