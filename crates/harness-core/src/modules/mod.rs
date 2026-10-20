@@ -1,4 +1,5 @@
 //! Bundled module contracts and lifecycle. Only backend dependencies are downloaded.
+pub mod agents;
 use crate::{
     paths,
     pyenv::{self, envs},
@@ -190,8 +191,10 @@ fn installable(id: &str) -> Result<ModuleManifest, String> {
         &format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
         env!("CARGO_PKG_VERSION"),
     )?;
-    if let Some(error) = envs::platform_refusal(&envs::TRANSCRIBE_CPP) {
-        return Err(error);
+    if id == "speech" {
+        if let Some(error) = envs::platform_refusal(&envs::TRANSCRIBE_CPP) {
+            return Err(error);
+        }
     }
     Ok(m)
 }
@@ -225,7 +228,9 @@ pub fn list() -> Result<Vec<ModuleView>, String> {
     let mut data = load()?;
     let backend = envs::status_in(&envs::root(), &envs::TRANSCRIBE_CPP);
     let active = OPERATION.try_lock().is_err() || backend.progress.is_some();
+    let agent = agents::detect()?;
     let previous = data.clone();
+    reconcile(&mut data, &selected("agents")?, agent.installed, active);
     reconcile(&mut data, &selected("speech")?, backend.ready, active);
     if data != previous {
         store().save(&data)?;
@@ -238,6 +243,9 @@ pub fn list() -> Result<Vec<ModuleView>, String> {
                 state.status = Status::Installing;
             }
 
+            if manifest.id == "agents" && agent.installed {
+                state.installed_version = agent.version.clone();
+            }
             let incompatibility = manifest
                 .compatibility(
                     &format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
@@ -273,7 +281,11 @@ pub async fn install(id: &str) -> Result<(), String> {
             data.modules.get_mut(&manifest.id).unwrap().error = None;
             store().save(&data)?;
         }
-        let result = envs::install(ENV).await;
+        let result = if manifest.id == "agents" {
+            agents::install().await
+        } else {
+            envs::install(ENV).await.map(|_| ())
+        };
         let _lock = STATE_LOCK.lock().unwrap();
         let mut data = load()?;
         match &result {
@@ -292,7 +304,11 @@ pub async fn install(id: &str) -> Result<(), String> {
 }
 pub fn cancel(id: &str) -> Result<(), String> {
     backend(id)?;
-    envs::cancel_install(ENV);
+    if id == "agents" {
+        agents::cancel_install();
+    } else {
+        envs::cancel_install(ENV);
+    }
     Ok(())
 }
 pub fn remove(id: &str) -> Result<(), String> {
@@ -302,6 +318,11 @@ pub fn remove(id: &str) -> Result<(), String> {
         .map_err(|_| "modules.busy".to_string())?;
     let _lock = STATE_LOCK.lock().unwrap();
     let mut data = load()?;
+    if id == "agents" {
+        agents::disconnect()?;
+        data.release(id);
+        return store().save(&data); // Upstream installations and user sessions are retained.
+    }
     // Refuse deletion while a backend worker uses this environment (also outside Modules).
     let dir = envs::env_dir_in(&envs::root(), ENV);
     let mut system = sysinfo::System::new();

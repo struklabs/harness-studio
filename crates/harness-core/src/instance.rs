@@ -256,6 +256,12 @@ pub fn write_private_file(path: &Path, data: &[u8]) -> Result<(), String> {
 }
 
 /// Whether only the current user may access `path` (see [`write_private_file`]).
+#[cfg(windows)]
+pub(crate) fn restrict_private_file(path: &Path) -> std::io::Result<()> {
+    win_acl::restrict_to_current_user(path).map_err(std::io::Error::other)
+}
+
+/// Whether only the current user may access `path` (see [`write_private_file`]).
 pub fn is_private_to_current_user(path: &Path) -> Result<bool, String> {
     #[cfg(unix)]
     {

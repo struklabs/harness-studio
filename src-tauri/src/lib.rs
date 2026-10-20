@@ -406,6 +406,12 @@ pub fn run() {
             install_convert_env,
             cancel_convert_env_install,
             remove_convert_env,
+            detect_agent,
+            connect_agent,
+            disconnect_agent,
+            agent_task_status,
+            start_agent_task,
+            stop_agent_task,
             list_modules,
             install_module,
             cancel_module_install,
@@ -748,6 +754,7 @@ pub fn run() {
             // Stop every llama-server on a normal exit (on Windows the job object
             // also covers crashes; on Unix this is the main cleanup path).
             if let tauri::RunEvent::Exit = event {
+                harness_core::modules::agents::shutdown();
                 let registry = app.state::<Arc<ServerRegistry>>().inner().clone();
                 tauri::async_runtime::block_on(registry.stop_all());
                 // The Lemonade engine's lemond and the backends it started.

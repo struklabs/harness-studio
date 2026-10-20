@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Agents from './Agents.svelte';
   import { onMount } from 'svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { invoke } from '#lib/ipc.js';
@@ -45,6 +46,7 @@
     }
   }
   function open() {
+    if (selected === 'agents') return;
     app.requestedPlaygroundTab = 'transcription';
     app.requestedTab = 'playground';
   }
@@ -107,9 +109,10 @@
             </div>
           {/if}
           {#if detail.state.error}<p role="alert" class="mt-4 text-sm text-destructive">{errorText(detail.state.error)}</p>{/if}
+          {#if manifest.id === 'agents'}<Agents />{/if}
           <div class="mt-5 flex flex-wrap gap-2">
             {#if actions.install}<Button onclick={() => action('install_module', manifest.id)}>{t(detail.state.status === 'failed' ? 'modules.retry' : 'modules.install')}</Button>{/if}
-            {#if actions.open}<Button onclick={open}>{t('modules.open')}</Button>{/if}
+            {#if actions.open && manifest.id !== 'agents'}<Button onclick={open}>{t('modules.open')}</Button>{/if}
             {#if actions.remove}<Button variant="outline" onclick={() => action('remove_module', manifest.id)}>{t('modules.remove')}</Button>{/if}
             {#if actions.cancel}<Button variant="outline" onclick={() => action('cancel_module_install', manifest.id)}>{t('modules.cancel')}</Button>{/if}
           </div>

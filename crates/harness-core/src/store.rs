@@ -167,6 +167,12 @@ impl JsonStore {
             }
         };
         let result = (|| {
+            // Protect the temporary file before any secret bytes are written. Moving it
+            // onto the destination preserves the private DACL on Windows too.
+            #[cfg(windows)]
+            if self.sensitive {
+                crate::instance::restrict_private_file(&temp)?;
+            }
             file.write_all(data)?;
             file.flush()?;
             file.sync_all()?;
@@ -888,6 +894,20 @@ mod tests {
             fs::read_to_string(dir.path().join("other.json.bak-v1")).unwrap(),
             "[42]"
         );
+    }
+
+    #[test]
+    fn sensitive_atomic_writes_stay_private_when_replaced() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("secret.json");
+        fs::write(&path, "previous").unwrap();
+        let store = JsonStore::sensitive(&path);
+        for bytes in [b"first".as_slice(), b"second".as_slice()] {
+            store.write_bytes(bytes).unwrap();
+            assert_eq!(fs::read(&path).unwrap(), bytes);
+            assert!(crate::instance::is_private_to_current_user(&path).unwrap());
+        }
+        assert_eq!(files_in(dir.path()).len(), 1);
     }
 
     #[test]
