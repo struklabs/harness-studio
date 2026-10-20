@@ -588,6 +588,8 @@ pub struct TimedLogLine {
 #[derive(Clone)]
 pub struct ProcessManager {
     child: Arc<Mutex<Option<GroupChild>>>,
+    #[cfg(windows)]
+    memory_job: Arc<Mutex<Option<crate::process_limits::MemoryJob>>>,
     status: Arc<Mutex<ServerStatus>>,
     ring_buffer: Arc<Mutex<VecDeque<TimedLogLine>>>,
     max_log_lines: usize,
@@ -756,6 +758,8 @@ impl Default for ProcessManager {
     fn default() -> Self {
         Self {
             child: Arc::new(Mutex::new(None)),
+            #[cfg(windows)]
+            memory_job: Arc::new(Mutex::new(None)),
             status: Arc::new(Mutex::new(ServerStatus::Stopped)),
             ring_buffer: Arc::new(Mutex::new(VecDeque::with_capacity(1000))),
             max_log_lines: 1000,
@@ -1905,6 +1909,11 @@ impl ProcessManager {
 
         // Process group / Windows Job Object. Windows uses KILL_ON_JOB_CLOSE and Linux uses
         // PR_SET_PDEATHSIG above, so llama-server also dies if Harness Studio crashes.
+        if let Err(e) = crate::process_limits::prepare(&mut cmd) {
+            self.stop_relay();
+            self.record_failure(crate::failure::spawn_failure(&e));
+            return Err(self.set_error(e.to_string()));
+        }
         let mut group = cmd.group();
         // Only Windows has kill-on-drop for a std command group (the Job Object); on Unix the
         // process group is stopped explicitly and Linux also uses PR_SET_PDEATHSIG.
@@ -1928,6 +1937,21 @@ impl ProcessManager {
             }
         };
 
+        #[cfg(windows)]
+        {
+            use std::os::windows::io::AsRawHandle;
+            let job = match crate::process_limits::memory_job(child_group.inner().as_raw_handle()) {
+                Ok(job) => job,
+                Err(e) => {
+                    let _ = child_group.kill();
+                    let _ = child_group.wait();
+                    self.stop_relay();
+                    self.record_failure(crate::failure::spawn_failure(&e));
+                    return Err(self.set_error(e.to_string()));
+                }
+            };
+            *self.memory_job.lock().unwrap() = job;
+        }
         use std::sync::atomic::Ordering::SeqCst;
         let readers_started = (|| -> std::io::Result<()> {
             if let Some(stdout) = child_group.inner().stdout.take() {

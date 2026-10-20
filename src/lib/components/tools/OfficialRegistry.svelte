@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TrustPermissions from "./TrustPermissions.svelte";
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
   import { invoke } from '#lib/ipc.js';
@@ -97,13 +98,17 @@
       <article class="flex flex-col gap-2 rounded-md border p-3">
         <div class="flex flex-wrap items-center gap-2"><h3 class="text-sm font-medium">{entry.name}</h3><span class="text-xs text-muted-foreground">{t(('tools.registry_' + entry.type) as TKey)} · {t('tools.registry_version')}: {entry.version} · {t('tools.registry_license')}: {entry.license}</span></div>
         <p class="text-xs text-muted-foreground">{entry.description[getLanguage()]}</p>
+        {#if entry.type === 'tool'}<TrustPermissions kind="scoped" />{/if}
+        {#if entry.type === 'mcp' && config.mcpServers[key(entry)]}
+          <TrustPermissions kind={config.mcpServers[key(entry)].command ? 'native' : 'remote'} />
+        {/if}
         <p class="text-xs font-medium">{t('tools.registry_permissions')}</p>
         <ul class="list-disc pl-4 text-xs text-muted-foreground">
           <li>{entry.permissions.network.length ? t('tools.inst_perm_network', { hosts: entry.permissions.network.join(', ') }) : t('tools.inst_perm_no_network')}</li>
           {#if entry.permissions.fs.read.length}<li>{t('tools.inst_perm_read', { folders: entry.permissions.fs.read.join(', ') })}</li>{/if}
           {#if entry.permissions.fs.write.length}<li>{t('tools.inst_perm_write', { folders: entry.permissions.fs.write.join(', ') })}</li>{/if}
           {#if !entry.permissions.fs.read.length && !entry.permissions.fs.write.length}<li>{t('tools.inst_perm_no_files')}</li>{/if}
-          <li>{t('tools.registry_no_shell')}</li>
+          {#if entry.type !== 'mcp'}<li>{t('tools.registry_no_shell')}</li>{/if}
         </ul>
         {#if entry.type === 'mcp'}<p class="text-xs text-warning">{t('tools.registry_mcp_warning')}</p>{/if}
         <div class="flex flex-wrap items-center gap-2">
@@ -125,7 +130,12 @@
           {@const removing = Object.keys(pending.config.mcpServers).length === 0}
           <div class="flex flex-col gap-2 rounded-md border p-3" role="group" aria-label={t('tools.registry_confirm')}>
             <p class="text-sm font-medium">{t('tools.registry_confirm')}</p>
-            {#if !removing}<pre class="overflow-auto text-xs whitespace-pre-wrap break-all">{JSON.stringify(pending.config, null, 2)}</pre>{/if}
+            {#if !removing}
+              {#each Object.entries(pending.config.mcpServers) as [name, server] (name)}
+                <p class="text-xs font-medium">{name}</p><TrustPermissions kind={server.command ? 'native' : 'remote'} />
+              {/each}
+              <pre class="overflow-auto text-xs whitespace-pre-wrap break-all">{JSON.stringify(pending.config, null, 2)}</pre>
+            {/if}
             <div class="flex gap-2"><Button size="sm" variant="ghost" disabled={busy} onclick={() => pending = null}>{t('tools.inst_cancel')}</Button><Button size="sm" disabled={busy} onclick={() => removing ? removeMcp(entry) : confirm()}>{removing ? t('tools.inst_remove') : t('tools.inst_confirm_ok')}</Button></div>
           </div>
         {/if}

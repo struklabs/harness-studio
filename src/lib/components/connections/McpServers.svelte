@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TrustPermissions from "#lib/components/tools/TrustPermissions.svelte";
   import HelpPopover from '../common/HelpPopover.svelte';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { onDestroy, onMount } from 'svelte';
@@ -271,6 +272,7 @@
               {/if}
             </div>
             <code class="truncate font-mono text-xs text-muted-foreground" title={describe(def)}>{describe(def)}</code>
+            <TrustPermissions kind={def.command ? "native" : "remote"} />
           </div>
           <div class="flex shrink-0 items-center gap-1">
             <Tooltip.Root>
@@ -337,6 +339,8 @@
       <Dialog.Title>{t('conn.mcp_raw_title')}</Dialog.Title>
       <Dialog.Description class="font-mono text-xs">{t('conn.mcp_raw_label')}</Dialog.Description>
     </Dialog.Header>
+    <TrustPermissions kind="native" />
+    <TrustPermissions kind="remote" />
     <FieldHelp text={t('help.mcp_raw')}><Textarea
       bind:value={rawText}
       rows={14}

@@ -919,6 +919,7 @@ fn build_app_menu(app: &AppHandle, language: &str) -> tauri::Result<Menu<Wry>> {
         name: Some(info.name.clone()),
         version: Some(info.version.to_string()),
         copyright: app.config().bundle.copyright.clone(),
+        credits: Some("transcribe.cpp - MIT, Copyright 2026 The transcribe.cpp authors.\nHermes Agent - MIT, Copyright 2025 Nous Research.\nhttps://github.com/struklabs/harness-studio/blob/main/docs/en/THIRD_PARTY.md".into()),
         ..Default::default()
     };
     let sep = || PredefinedMenuItem::separator(app);

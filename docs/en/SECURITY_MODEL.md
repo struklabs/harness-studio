@@ -122,7 +122,7 @@ Harness connects to the MCP servers in `mcp_servers.json` itself and offers thei
 - **Text coming from the server goes to the model:** An MCP server (or the web content it fetches) can embed instructions in a tool result (prompt injection). The policy is therefore applied to the call, not the tool result: dangerous tools ask for approval.
 - **The server cannot ask the client for anything:** `roots`, `sampling`, and `elicitation` are not offered; the server's requests are rejected with `Method not found` (only `ping` is answered). In the modern era an "input required" result ends with an explicit error.
 - **Secrets:** The server's environment variables and HTTP headers stay in the keychain (a placeholder in the file) and return masked to the UI; they are resolved only at connection time and given to the child process / request. For a protected remote server, either a token in a header or OAuth authorization is used (see [MCP.md](MCP.md)); the OAuth session is also stored in the keychain.
-- **Process control:** A stdio server runs in its own process group (a Job Object on Windows) without a console window; when the connection closes, stdin closes, and the whole process tree of a server that does not exit is killed; also when the application closes. Verified by tests: no orphan process remains after shutdown, a drop, removal from the configuration, and the server dying on its own.
+- **Process control:** A stdio server runs in its own process group (a Job Object on Windows) without a console window; when the connection closes, stdin closes, and the whole process tree of a server that does not exit is killed; on orderly shutdown. Forced host termination is covered by Windows Job Objects, not by Unix process groups. Verified by tests: no orphan process remains after shutdown, a drop, removal from the configuration, and the server dying on its own.
 
 ## Harness MCP Server
 
@@ -164,3 +164,32 @@ The rules live in one place, `harness_core::network`. Every launch path (the Das
 - **Refresh:** If less than 2 minutes remain before the access token expires, it is refreshed with the refresh token before the next Hub request or download (one refresh at a time within the process); if the refresh fails, the old token stays and the request ends with a keyed error (`hub.gated_*`, `hf.repo_not_accessible`); it does not silently fall back to an anonymous request.
 
 The application sends no telemetry; diagnostic reports are stored only locally.
+
+## Trust Levels and Revocation
+
+Trust describes execution authority, not publisher reputation. Official registry entries and user-created tools receive the same controls. Permission classes (`safe`, `restricted`, `dangerous`) govern call approval separately; they do not confine native code. Grant screens and Settings > Network & Security > Permissions show these distinctions and reuse the installed-item controls.
+
+| Trust Level | Files/Folders | Network, Shell, Services | Accounts and External Data | Revoke |
+| --- | --- | --- | --- | --- |
+| Scoped JavaScript (QuickJS; registry or user-created) | Manifest read/write folders, enforced by host APIs | Manifest public-host network scope; no shell or service API | No automatic keychain access; permitted HTTP can upload readable file data | Disable/remove under Installed Tools; reinstall for changed grants |
+| Native Program (stdio MCP, Hermes, module backends) | Anything the OS user can access | User authority; process limits below are not access controls | Inherited/supplied environment and user-readable credentials; can exfiltrate data | Disable/remove MCP; stop Hermes task and disconnect; stop/disable module |
+| Remote Service (HTTP MCP) | No direct local filesystem access through this client | Remote host authority; requests go to the configured endpoint | Tool arguments/results and configured headers/OAuth reach that service | Disable/remove connection; revoke OAuth/key with provider |
+| Future Trainer | No grants or executable trainer shipped | Not implemented | Future grant must name dataset roots, output roots, network/service endpoints and account scopes | Must support stop and revocation before shipping |
+
+Hermes task read-folder grants constrain the Harness task adapter, not Python or upstream code. A model-scoped inference token does not give admin authority. Disconnect revokes that token; stopping a task ends its process group. A folder edit affects the next task, not an already running one: stop first. Disable/remove prevents later calls; already running QuickJS calls may finish within their timeout. MCP removal closes the configured transport. Revocation does not undo writes, recall data, or revoke a separately issued upstream credential. Revoke provider keys/OAuth at the provider as well. Externally launched Hermes sessions are outside Harness process ownership.
+
+## Native Process Containment by OS
+
+No administrator rights, firewall edits, system settings, AppContainer, seccomp, namespaces, or macOS sandbox entitlement are requested. Native code retains the logged-in user's file, network, shell, service, and account authority. These are lifecycle/resource controls, **not a security sandbox**.
+
+| OS | Implemented Controls | Limits |
+| --- | --- | --- |
+| Windows | command-group creates a Job Object, launches suspended, assigns before resuming, enables kill-on-close, and does not enable breakaway. MCP, shell, Hermes, job backends and managed installer helpers kill their trees on stop/drop and host termination. ProcessManager service backends also use jobs. | No filesystem/network/token isolation. Services or work submitted to unrelated existing processes are not descendants. A restrictive enclosing job can reject assignment; errors are surfaced. |
+| Linux | Separate process groups; SIGKILL on stop and owned-operation drop, including normal shell completion. Pre-exec rlimits for core dumps (0), open files (at most 1024), and optional address space. | A descendant can escape using setsid/setpgid. Abrupt host termination does not run Rust cleanup and is not guaranteed to kill the tree. Existing Linux ProcessManager parent-death handling covers its direct child only. No namespace/seccomp sandbox. |
+| macOS | Same process-group cleanup and pre-exec rlimits as Unix above. | No App Sandbox/Seatbelt isolation. Escaped descendants and forced host termination have the same limitations; OS address-space enforcement varies and a rejected limit fails startup. |
+
+Set `HARNESS_CHILD_MEMORY_MIB` in the **Harness host environment** to a positive MiB integer to opt into a native workload memory ceiling. Unset means no additional memory cap. Invalid/overflowing values fail startup. Unix applies `RLIMIT_AS` before execution, retaining stricter inherited hard limits; this is virtual address space, not resident RAM or GPU memory. Windows adds a nested job with an aggregate committed-memory limit; assignment occurs just after the primary job starts execution, so early allocations/children can precede the supplemental memory limit. It is not a race-free memory boundary. Failure to apply an enabled limit fails the launch; the primary job still owns cleanup. Existing GPU/driver allocations are not capped. Limits apply to MCP, builtin shell, Hermes probes/tasks/installer, generic jobs, managed Python helpers and ProcessManager backends; other external integrations are not covered by this option.
+
+The Windows Rust test `tools::mcp_client::stdio::containment_tests::killing_host_kills_mcp_child_tree` starts a separate host using the actual MCP stdio transport and a Node server plus grandchild, forcibly terminates the host (no Drop), then waits on both OS process handles. Run with Node available on PATH. This tests the shared host-death mechanism; it is not an end-to-end packaged Tauri UI test. Unix behavior requires platform execution; a Windows run does not validate Unix rlimits.
+
+See [Third-Party Review](THIRD_PARTY.md) for integration licensing and attribution.

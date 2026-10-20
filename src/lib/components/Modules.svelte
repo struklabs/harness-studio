@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TrustPermissions from "./tools/TrustPermissions.svelte";
   import Agents from './Agents.svelte';
   import { onMount } from 'svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
@@ -110,6 +111,7 @@
           <p class="mt-3 text-sm">{t('modules.estimate')}: {bytes(manifest.components.reduce((sum, c) => sum + c.disk_bytes, 0))}</p>
           <p class="mt-2 text-sm">{t('modules.disk_used')}: {bytes(detail.disk_bytes)} · {t('modules.shared_disk')}: {bytes(detail.shared_disk_bytes)}</p>
           <h3 class="mt-5 font-medium">{t('modules.permissions')}</h3>
+          <TrustPermissions kind={manifest.id === "training" ? "trainer" : "native"} />
           <ul class="mt-2 list-inside list-disc space-y-1 text-sm">{#each manifest.permissions as permission}<li>{text(permission)}</li>{/each}</ul>
           <p class="mt-3 text-xs text-muted-foreground">{t('modules.approve')}</p>
           <p class="mt-2 text-xs text-muted-foreground">{t('modules.preserve')}</p>

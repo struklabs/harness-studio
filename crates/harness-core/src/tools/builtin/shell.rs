@@ -113,6 +113,8 @@ pub fn run_shell(
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
+    crate::process_limits::prepare(&mut cmd)
+        .map_err(|e| ToolError::new(ToolErrorCode::Io, e.to_string()))?;
     let mut group = cmd.group();
     // Windows: the Job Object closes with the handle and takes every descendant with it. Unix:
     // the process group is killed explicitly below.
@@ -122,6 +124,14 @@ pub fn run_shell(
         .spawn()
         .map_err(|e| ToolError::new(ToolErrorCode::Io, format!("failed to spawn process: {e}")))?;
 
+    #[cfg(windows)]
+    let _memory_job = {
+        use std::os::windows::io::AsRawHandle;
+        crate::process_limits::memory_job(child.inner().as_raw_handle())
+            .map_err(|e| ToolError::new(ToolErrorCode::Io, e.to_string()))?
+    };
+
+    let _group_guard = crate::process_limits::GroupGuard(child.id());
     // One buffer for both pipes, in the order the bytes arrive.
     let sink = Arc::new(Mutex::new(Sink::default()));
     let mut readers = Vec::new();
@@ -176,7 +186,8 @@ pub fn run_shell(
     #[cfg(windows)]
     drop(child);
     #[cfg(not(windows))]
-    if timed_out || cancelled {
+    {
+        let _ = child.kill();
         drop(child);
     }
 

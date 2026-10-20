@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TrustPermissions from "#lib/components/tools/TrustPermissions.svelte";
   import { t } from '#lib/i18n.svelte.js';
   let { network, fs_read, fs_write }: { network: string[]; fs_read: string[]; fs_write: string[] } = $props();
 </script>
@@ -11,3 +12,5 @@
     <li>{t('tools.inst_perm_shell')}</li>
   </ul>
 </div>
+
+<TrustPermissions kind="scoped" />
