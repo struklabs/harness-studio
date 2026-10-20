@@ -39,23 +39,23 @@ pub async fn run(args: &ServeArgs, data_dir: &Path, out: &Out) -> CliResult<()> 
     if let Some(dir) = &args.ui_dir {
         browser.ui_dir = dir.clone();
     }
+    let explicit = args.ui_dir.is_some() || args.serve_config.is_some();
     if browser.ui_dir.as_os_str().is_empty() {
         let packaged = std::env::current_exe()
             .ok()
-            .and_then(|p| p.parent().map(|p| p.join("web")));
-        browser.ui_dir = packaged
-            .filter(|p| p.join("index.html").is_file())
-            .unwrap_or_else(|| "build".into());
+            .and_then(|p| p.parent().map(|p| p.join("web")))
+            .filter(|p| p.join("index.html").is_file());
+        // The cwd `build` fallback is a developer convenience; releases only use the packaged UI.
+        browser.ui_dir = match packaged {
+            Some(p) => p,
+            None if cfg!(debug_assertions) => "build".into(),
+            None => std::path::PathBuf::new(),
+        };
     }
-    let browser = if browser.ui_dir.join("index.html").is_file() {
-        Some(browser)
-    } else {
-        if args.ui_dir.is_some() || args.serve_config.is_some() {
-            return Err(crate::error::CliError::core("browser.ui_missing"));
-        }
-        out.info("warning: browser UI build missing; run npm run build or pass --ui-dir. Only the Control API is available.");
-        None
-    };
+    let (browser, warning) = select_browser(browser, explicit)?;
+    if let Some(w) = warning {
+        out.info(w);
+    }
     if !harness_core::network::is_loopback_host(&settings.host)
         && !browser.as_ref().is_some_and(|b| b.tls_cert.is_some())
     {
@@ -262,5 +262,114 @@ async fn wait_for_stop(api: &tokio::sync::Notify) -> &'static str {
             _ = async { match logoff.as_mut() { Some(s) => { s.recv().await; } None => std::future::pending().await } } => "logoff",
             _ = api.notified() => "api",
         }
+    }
+}
+
+/// Decides whether the browser UI is served. An explicitly requested UI (`--ui-dir` or
+/// `--serve-config`) that is missing or stale is a hard error; the implicit fallback only
+/// yields a warning and disables the browser UI so the Control API and Gateway keep running.
+fn select_browser(
+    browser: harness_api::browser::BrowserConfig,
+    explicit: bool,
+) -> Result<(Option<harness_api::browser::BrowserConfig>, Option<String>), crate::error::CliError> {
+    if !browser.ui_dir.as_os_str().is_empty() && browser.ui_dir.join("index.html").is_file() {
+        return match check_ui_bundle(&browser.ui_dir) {
+            Ok(()) => Ok((Some(browser), None)),
+            Err(e) if explicit => Err(e),
+            Err(e) => Ok((
+                None,
+                Some(format!(
+                    "warning: {} Browser UI disabled; only the Control API is available.",
+                    e.message
+                )),
+            )),
+        };
+    }
+    if explicit {
+        return Err(crate::error::CliError::core("browser.ui_missing"));
+    }
+    Ok((
+        None,
+        Some("warning: browser UI build missing; run npm run build or pass --ui-dir. Only the Control API is available.".to_string()),
+    ))
+}
+
+/// `major.minor.patch` of a version string, ignoring pre-release and build suffixes.
+fn core_version(v: &str) -> &str {
+    v.split(['-', '+']).next().unwrap_or(v)
+}
+
+/// Refuses a browser UI bundle that was not built together with this binary, for
+/// example a leftover `build/` directory from an older checkout.
+fn check_ui_bundle(dir: &std::path::Path) -> Result<(), crate::error::CliError> {
+    let found = std::fs::read(dir.join("harness-ui.json"))
+        .ok()
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+        .and_then(|v| v.get("version").and_then(|v| v.as_str()).map(String::from));
+    let expected = env!("CARGO_PKG_VERSION");
+    if found.as_deref().map(core_version) == Some(core_version(expected)) {
+        return Ok(());
+    }
+    let found = found.map_or_else(
+        || "no version marker (harness-ui.json)".to_string(),
+        |v| format!("version {v}"),
+    );
+    Err(crate::error::CliError::general(
+        "browser.ui_stale",
+        format!(
+            "The browser UI bundle in {} is stale or incompatible: it has {found}, but this binary is {expected}. Rebuild it with `npm run build` or pass --ui-dir to a matching bundle.",
+            dir.display()
+        ),
+    ))
+}
+
+#[cfg(test)]
+mod ui_bundle_tests {
+    use super::*;
+
+    fn bundle(marker: Option<&str>) -> (tempfile::TempDir, harness_api::browser::BrowserConfig) {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(d.path().join("index.html"), "<html></html>").unwrap();
+        if let Some(v) = marker {
+            std::fs::write(
+                d.path().join("harness-ui.json"),
+                format!("{{\"version\":\"{v}\"}}"),
+            )
+            .unwrap();
+        }
+        let cfg = harness_api::browser::BrowserConfig {
+            ui_dir: d.path().to_path_buf(),
+            ..Default::default()
+        };
+        (d, cfg)
+    }
+
+    #[test]
+    fn implicit_stale_warns_and_disables_ui() {
+        let (_d, cfg) = bundle(None);
+        let (b, w) = select_browser(cfg, false).unwrap();
+        assert!(b.is_none());
+        assert!(w.unwrap().contains("Control API"));
+    }
+
+    #[test]
+    fn explicit_stale_is_an_error() {
+        let (_d, cfg) = bundle(Some("0.0.1"));
+        assert!(select_browser(cfg, true).is_err());
+    }
+
+    #[test]
+    fn matching_marker_serves_ui() {
+        let (_d, cfg) = bundle(Some(env!("CARGO_PKG_VERSION")));
+        let (b, w) = select_browser(cfg, false).unwrap();
+        assert!(b.is_some() && w.is_none());
+    }
+
+    #[test]
+    fn suffix_versions_compare_equal() {
+        let v = env!("CARGO_PKG_VERSION");
+        let (_d, cfg) = bundle(Some(&format!("{v}-beta.1+build5")));
+        assert!(select_browser(cfg, true).unwrap().0.is_some());
+        assert_eq!(core_version("1.2.3-rc.1"), core_version("1.2.3+x"));
     }
 }

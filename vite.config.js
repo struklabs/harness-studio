@@ -8,15 +8,31 @@ import { defineConfig } from "vite";
 import { sveltekit } from "@sveltejs/kit/vite";
 import tailwindcss from "@tailwindcss/vite";
 // @ts-expect-error type error without @types/node package
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 // @ts-expect-error type error without @types/node package
 import process from "node:process";
 const host = process.env.TAURI_DEV_HOST;
+const appVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
+
+// `harness serve` compares this marker with its own version and refuses a stale UI bundle.
+/** @returns {import("vite").Plugin} */
+const uiBuildMarker = () => ({
+  name: "harness-ui-build-marker",
+  apply: "build",
+  generateBundle() {
+    this.emitFile({
+      type: "asset",
+      fileName: "harness-ui.json",
+      source: JSON.stringify({ version: appVersion }) + "\n",
+    });
+  },
+});
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [
     tailwindcss(),
+    uiBuildMarker(),
     sveltekit({
       preprocess: vitePreprocess(),
       adapter: adapter({ fallback: "index.html" }),
