@@ -163,6 +163,10 @@ pub(crate) struct ToolRunRequest {
     pub conversation: Option<String>,
     #[serde(default)]
     pub model: Option<String>,
+    /// The project of the chat: its folders bound the working directory, and files the call
+    /// writes are recorded as the project's outputs.
+    #[serde(default)]
+    pub project: Option<String>,
     /// The user was asked (the decision was `ask`) and said yes. Counts for this call only and
     /// never overrides a policy of "off".
     #[serde(default)]
@@ -213,14 +217,39 @@ fn chat_workspace_settings(
 pub(crate) async fn tools_run(
     req: ToolRunRequest,
     runs: State<'_, ToolRuns>,
+    store: State<'_, ConversationStore>,
 ) -> Result<ToolRunResponse, String> {
+    let project_id = req.project.clone().filter(|p| !p.trim().is_empty());
+    let mut workdir = chat_workspace_path(req.workdir.as_deref());
+    let db = match &project_id {
+        Some(_) => Some(store.0.clone()?),
+        None => None,
+    };
+    if let (Some(db), Some(project_id)) = (&db, &project_id) {
+        // A project chat's tools run inside the project's folders (its folder by default).
+        let (db, project_id, requested) = (db.clone(), project_id.clone(), workdir.clone());
+        workdir = Some(
+            blocking(move || {
+                let project = db.project(&project_id).map_err(String::from)?;
+                harness_core::projects::tool_workdir(&project, requested.as_deref())
+            })
+            .await??,
+        );
+    }
+    let from = harness_core::projects::OutputSource {
+        source: "tool".into(),
+        model: req.model.clone(),
+        conversation_id: req.conversation.clone(),
+        agent_task_id: None,
+    };
+    let (tool, args) = (req.tool.clone(), req.args.clone());
     let mut origin = crate::tools::ToolOrigin::new("playground");
     origin.conversation = tool_label(req.conversation);
     origin.model = tool_label(req.model);
     let inv = crate::tools::ToolInvocation::new(req.tool, req.args, origin).with_id(req.call_id);
     let id = inv.id.clone();
     let opts = crate::tools::RunOptions {
-        workdir: chat_workspace_path(req.workdir.as_deref()),
+        workdir: workdir.clone(),
         // Only the reserved URI opts out; old clients sending "" follow the default.
         settings: chat_workspace_settings(
             req.workdir.as_deref(),
@@ -232,6 +261,14 @@ pub(crate) async fn tools_run(
     let result = crate::tools::ToolService::shared()
         .run_tracked(runs.inner(), inv, opts)
         .await;
+    if let (Some(db), Some(project_id), Some(dir), false) =
+        (db, project_id, workdir, result.is_error())
+    {
+        let _ = blocking(move || {
+            harness_core::projects::record_tool_output(&db, &project_id, &tool, &args, &dir, &from)
+        })
+        .await;
+    }
     Ok(ToolRunResponse { id, result })
 }
 

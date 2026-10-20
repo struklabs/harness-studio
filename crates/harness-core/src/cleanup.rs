@@ -457,18 +457,33 @@ pub fn is_owned_exe(exe: &Path, owned: &[PathBuf]) -> bool {
     !name.starts_with("uninst") && owned.iter().any(|dir| exe.starts_with(dir))
 }
 
+/// Processes to stop: owned executables, never this process and never threads. On Linux sysinfo
+/// lists every thread as a process of its own with the same executable; `kill` on such an id
+/// signals the whole thread group, so the uninstaller would otherwise kill itself.
+fn owned_targets(system: &sysinfo::System, owned: &[PathBuf]) -> Vec<sysinfo::Pid> {
+    let own = sysinfo::Pid::from_u32(std::process::id());
+    system
+        .processes()
+        .iter()
+        .filter(|(pid, process)| {
+            **pid != own
+                && process.thread_kind().is_none()
+                && process.exe().is_some_and(|exe| is_owned_exe(exe, owned))
+        })
+        .map(|(pid, _)| *pid)
+        .collect()
+}
+
 /// Stops Harness processes (the app, `harness serve`, engines under the data directory) and waits
 /// at most `timeout` for them to exit. Returns how many were still alive when it gave up.
 pub fn stop_processes(owned: &[PathBuf], timeout: std::time::Duration) -> usize {
-    let own = sysinfo::Pid::from_u32(std::process::id());
     let mut system = sysinfo::System::new();
     let deadline = std::time::Instant::now() + timeout;
-    let mut targets: Vec<sysinfo::Pid> = Vec::new();
     system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-    for (pid, process) in system.processes() {
-        if *pid != own && process.exe().is_some_and(|exe| is_owned_exe(exe, owned)) {
+    let targets = owned_targets(&system, owned);
+    for pid in &targets {
+        if let Some(process) = system.process(*pid) {
             process.kill();
-            targets.push(*pid);
         }
     }
     while std::time::Instant::now() < deadline {
@@ -871,6 +886,32 @@ mod tests {
             ..Default::default()
         };
         assert!(validate_external(&root, &unlisted, &plan).is_err());
+    }
+
+    /// Linux lists threads as processes; killing one id kills the whole group, so the uninstaller
+    /// must never target its own threads.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn process_stop_never_targets_own_threads() {
+        let (stop, wait) = std::sync::mpsc::channel::<()>();
+        let helper = std::thread::spawn(move || {
+            let _ = wait.recv();
+        });
+        let exe = std::env::current_exe().unwrap();
+        let owned = vec![exe.parent().unwrap().to_path_buf()];
+        let mut system = sysinfo::System::new();
+        system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+        let targets = owned_targets(&system, &owned);
+        let own_tasks: Vec<u32> = fs::read_dir("/proc/self/task")
+            .unwrap()
+            .filter_map(|e| e.ok()?.file_name().to_str()?.parse().ok())
+            .collect();
+        assert!(own_tasks.len() > 1);
+        for task in own_tasks {
+            assert!(!targets.contains(&sysinfo::Pid::from_u32(task)));
+        }
+        drop(stop);
+        helper.join().unwrap();
     }
 
     #[test]

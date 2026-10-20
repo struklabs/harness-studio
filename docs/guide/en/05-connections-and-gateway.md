@@ -102,7 +102,22 @@ On **Connections > Cloud Providers > API Keys**, press **Add Provider** and pick
 - **Test Model** sends one small chat request with a tool to the selected model. The provider may charge for it.
 - HTTPS is required, except for a server on this computer or the local network.
 
-With the gateway on, the provider's chat models appear in the Playground model picker under **Cloud: OpenAI** (or the provider you added), with IDs such as `cloud:openai/gpt-4o`. Requests go through the gateway to the provider, with streaming and tool calling where the provider supports them. Any client connected to the gateway can use these IDs too. Only chat completions (`/v1/chat/completions`) are routed to cloud models. Prompts sent to a cloud model leave your computer.
+With the gateway on, the provider's chat models appear in the Playground model picker under **Cloud: OpenAI** (or the provider you added), with IDs such as `cloud:openai/gpt-4o`. Requests go through the gateway to the provider, with streaming and tool calling where the provider supports them. Any client connected to the gateway can use these IDs too. Prompts sent to a cloud model leave your computer.
+
+Which endpoints a cloud model accepts depends on the provider:
+
+| Endpoint | OpenAI | Anthropic | Gemini | OpenRouter and Custom |
+| --- | --- | --- | --- | --- |
+| Chat completions (`/v1/chat/completions`) | Yes | Yes (translated to Anthropic Messages) | Yes (its OpenAI-compatible endpoint) | Yes |
+| Responses (`/v1/responses`) | Yes | No | No | Yes |
+| Messages (`/v1/messages`, `/v1/messages/count_tokens`) | No | Yes (sent unchanged) | No | No |
+| Embeddings (`/v1/embeddings`) | Yes | No | Yes | Yes |
+
+An endpoint the provider does not serve is refused with a clear error. Streaming and tool calls work on every endpoint a provider serves, and the provider's own errors (such as 429 with its `Retry-After`) reach your client. A rejected key is reported as a gateway error that never repeats the key.
+
+Embedding models (such as `cloud:openai/text-embedding-3-small`) are listed apart from the chat models. In a knowledge base you can pick one as the embedding model instead of a local model; the index is marked with that model ID, and changing the model re-embeds the documents. Document text is sent to the provider while it is indexed.
+
+The Control API manages providers too (admin scope): `GET/POST /cloud/providers`, `PUT/DELETE /cloud/providers/{id}`, `POST /cloud/providers/{id}/test` and `GET /cloud/models`. The key is accepted when you add or update a provider and is never returned.
 
 ## Connect a Coding Agent
 

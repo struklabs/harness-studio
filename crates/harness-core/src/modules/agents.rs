@@ -695,6 +695,8 @@ pub struct TaskStatus {
     pub status: String,
     pub output: String,
     pub error: Option<String>,
+    /// The project the task was started for (its folders are the read grants).
+    pub project_id: Option<String>,
 }
 /// Only bounded, read-only file tools are supported. Shell, writes and additional
 /// network access cannot be granted by this adapter.
@@ -856,7 +858,15 @@ pub fn start_task(prompt: String) -> Result<(), String> {
     start_task_with_grants(prompt, RunGrants::default())
 }
 pub fn start_task_with_grants(prompt: String, grants: RunGrants) -> Result<(), String> {
-    start_task_kind(AgentKind::Hermes, prompt, grants)
+    start_task_for_project(prompt, grants, None)
+}
+/// Starts a Hermes task filed under `project_id` (see `crate::projects::start_agent_task`).
+pub fn start_task_for_project(
+    prompt: String,
+    grants: RunGrants,
+    project_id: Option<String>,
+) -> Result<(), String> {
+    start_task_kind_for_project(AgentKind::Hermes, prompt, grants, project_id)
 }
 /// How a prepared task is launched; `extra` is added to the minimal inherited environment.
 struct Launch {
@@ -885,10 +895,16 @@ const INHERITED_ENV: [&str; 12] = [
 ];
 const PROFILE_ENV: [&str; 4] = ["HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA"];
 
-pub fn start_task_kind(
+pub fn start_task_kind(kind: AgentKind, prompt: String, grants: RunGrants) -> Result<(), String> {
+    start_task_kind_for_project(kind, prompt, grants, None)
+}
+
+/// [`start_task_kind`] for a task filed under `project_id`.
+pub fn start_task_kind_for_project(
     kind: AgentKind,
     prompt: String,
     mut grants: RunGrants,
+    project_id: Option<String>,
 ) -> Result<(), String> {
     grants.validate()?;
     if kind == AgentKind::OpenClaw && grants.read_folders.len() > 1 {
@@ -1017,6 +1033,7 @@ pub fn start_task_kind(
             grants,
             audit,
             status: "running".into(),
+            project_id,
             ..Default::default()
         }),
         cancel: Arc::new(AtomicBool::new(false)),

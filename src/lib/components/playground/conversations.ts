@@ -107,6 +107,8 @@ export interface ListQuery {
   query?: string | null;
   limit?: number;
   offset?: number;
+  /** Only the chats of this project. */
+  project_id?: string | null;
 }
 
 export interface DbStatus {
@@ -130,6 +132,7 @@ export const convApi = {
     settings?: Record<string, unknown>;
     preset_id?: string | null;
     metadata?: Record<string, unknown>;
+    project_id?: string | null;
   }) => invoke<Conversation>('create_conversation', { input }),
   open: (id: string) => invoke<ConversationView>('open_conversation', { id }),
   get: (id: string) => invoke<ConversationView>('get_conversation', { id }),

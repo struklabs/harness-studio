@@ -18,6 +18,7 @@
   import { Download, LoaderCircle, Power, Square, Volume2, TriangleAlert } from '@lucide/svelte';
   import { onDestroy, untrack } from 'svelte';
   import { library } from '#lib/stores/library.svelte.js';
+  import { blobToBase64, fileToProject, outputName } from './projectOutputs';
   import { fetchSpeech, pickTtsModel, pickTtsVoice, voicesOf, ttsRequirement, ttsRunBlocker, ttsSupportsSpeed, type SpeechResult } from './tts';
   import { readAloud, tts } from './tts.svelte';
   import { MAX_SPEECH_CHARS } from './ttsText';
@@ -83,6 +84,7 @@
         c.signal,
       );
       result = { url: URL.createObjectURL(info.blob), info };
+      void blobToBase64(info.blob).then((data) => fileToProject(outputName(text, 'wav', 'speech'), data, { source: 'speech', model: tts.model }));
     } catch (e) {
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
