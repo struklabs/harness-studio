@@ -9,6 +9,7 @@ import { guardToolCalls } from './toolLoopGuard';
 import type { InferencePreset, ServerSummary } from '#lib/types.js';
 import { salvageToolCalls, TextCallStreamBuffer } from './textToolCalls';
 import { chatRequest } from './chatRequest';
+import { notifyRoutingFallback } from './routingNotice';
 import { parseTextToolCalls } from '#lib/tools-client.js';
 import { invoke } from '#lib/ipc.js';
 import { requestBody, requestOf } from '../presets/request';
@@ -353,7 +354,7 @@ export async function streamInto(
     const request = await chatRequest(ep.baseUrl,
       { ...body, stream: true, stream_options: { include_usage: true } },
       { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...ep.headers }, local.signal);
-    if (request.routingFallback) toast.warning(`${t('w4.routing_fallback')} ${request.routingError}`);
+    if (request.routingFallback) notifyRoutingFallback(request.routingError);
     const res = request.response;
     names.splice(0, names.length, ...((request.body.tools ?? []) as { function: { name: string } }[]).map(tool => tool.function.name));
     if (!res.ok) {

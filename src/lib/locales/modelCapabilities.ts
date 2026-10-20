@@ -1,6 +1,7 @@
 const tr = {
   'w4.chat': "Sohbet",
   'w4.vision': "Görme",
+  'w4.audio': "Ses Girdisi",
   'w4.image_generation': "Görsel Üretimi",
   'w4.asr': "STT",
   'w4.tts': "TTS",
@@ -15,12 +16,15 @@ const tr = {
   'w4.experimental': "Deneysel",
   'w4.needs_runtime': "Çalışma Zamanı Gerekli",
   'w4.source': "Üst Veri ve Çalışma Zamanı Gözlemleri",
-  'w4.routing_fallback': "Araç Yönlendirme Sorunu; Güvenli Yedek Kullanılıyor. Araç İzinleri Geçerlidir.",
+  'w4.routing_fallback': "Araç Yönlendirme Başarısız; Tüm Araçlar Gönderiliyor. Araç İzinleri Geçerlidir.",
+  'w4.copy_details': "Ayrıntıları Kopyala",
+  'w4.copied': "Kopyalandı",
   'w4.permissions': "Çalıştırıldığında Araç İzinleri Uygulanır",
 };
 const en = {
   'w4.chat': "Chat",
   'w4.vision': "Vision",
+  'w4.audio': "Audio Input",
   'w4.image_generation': "Image Generation",
   'w4.asr': "STT",
   'w4.tts': "TTS",
@@ -35,7 +39,9 @@ const en = {
   'w4.experimental': "Experimental",
   'w4.needs_runtime': "Runtime Required",
   'w4.source': "Metadata and Runtime Observations",
-  'w4.routing_fallback': "Tool Routing Issue; Using Safe Fallback. Tool Permissions Still Apply.",
+  'w4.routing_fallback': "Tool Routing Failed; Sending All Tools. Tool Permissions Still Apply.",
+  'w4.copy_details': "Copy Details",
+  'w4.copied': "Copied",
   'w4.permissions': "Tool Permissions Apply When Run",
 };
 export default { tr, en };
