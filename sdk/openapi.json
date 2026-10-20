@@ -4098,6 +4098,69 @@
         }
       }
     },
+    "/api/harness/v1/modules/{id}/action": {
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "module_action",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModuleAction"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/modules/{id}/cancel": {
       "post": {
         "tags": [
@@ -4114,6 +4177,69 @@
             }
           }
         ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/modules/{id}/remove-data": {
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "remove_module_data",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemovalOptions"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "204": {
             "description": ""
@@ -10934,6 +11060,27 @@
           }
         }
       },
+      "DataChoice": {
+        "type": "object",
+        "required": [
+          "id",
+          "disk_bytes",
+          "path"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "disk_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
       "Decision": {
         "type": "string",
         "description": "What to do with one call.",
@@ -16067,6 +16214,18 @@
           }
         }
       },
+      "ModuleAction": {
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "install, update, repair, enable, or disable"
+          }
+        }
+      },
       "ModuleManifest": {
         "type": "object",
         "required": [
@@ -16179,7 +16338,11 @@
         "required": [
           "manifest",
           "state",
-          "components"
+          "components",
+          "disk_bytes",
+          "shared_disk_bytes",
+          "update_available",
+          "data_choices"
         ],
         "properties": {
           "manifest": {
@@ -16211,6 +16374,25 @@
             },
             "propertyNames": {
               "type": "string"
+            }
+          },
+          "disk_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "shared_disk_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "update_available": {
+            "type": "boolean"
+          },
+          "data_choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataChoice"
             }
           }
         }
@@ -16520,6 +16702,11 @@
               "type": "string"
             },
             "uniqueItems": true
+          },
+          "disk_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -17523,6 +17710,17 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "RemovalOptions": {
+        "type": "object",
+        "properties": {
+          "delete_history": {
+            "type": "boolean"
+          },
+          "delete_logs": {
+            "type": "boolean"
           }
         }
       },
@@ -19856,6 +20054,7 @@
           "not_installed",
           "installing",
           "installed",
+          "disabled",
           "failed"
         ]
       },

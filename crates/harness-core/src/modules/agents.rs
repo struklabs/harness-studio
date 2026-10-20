@@ -49,7 +49,7 @@ static CONNECTION_LOCK: Mutex<()> = Mutex::new(());
 static TASK: Mutex<Option<Arc<Run>>> = Mutex::new(None);
 static INSTALL_RUN: Mutex<Option<Arc<Run>>> = Mutex::new(None);
 
-fn home() -> Result<PathBuf, String> {
+pub(super) fn home() -> Result<PathBuf, String> {
     if let Some(p) = std::env::var_os("HERMES_HOME") {
         return Ok(p.into());
     }
@@ -64,7 +64,52 @@ fn home() -> Result<PathBuf, String> {
 fn executable_in(paths: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
     paths.into_iter().find(|p| p.is_file())
 }
+pub(super) const HERMES_REVISION: &str = "d923a5eb487a17c0a68801bba9ef0f56c81040a8";
+
+pub(super) fn managed_root() -> PathBuf {
+    crate::paths::bin_dir().join("modules/hermes")
+}
+fn managed_executable() -> Option<PathBuf> {
+    let root = managed_root();
+    executable_in(
+        [
+            "hermes-agent/.hermes/bin/hermes.exe",
+            "hermes-agent/.hermes/bin/hermes",
+            "hermes-agent/venv/Scripts/hermes.exe",
+            "hermes-agent/venv/bin/hermes",
+        ]
+        .map(|p| root.join(p)),
+    )
+}
+pub(super) fn external_runtime() -> Option<PathBuf> {
+    external_executable().and_then(|exe| library_runtime(&exe).ok().map(|(_, root)| root))
+}
+pub(super) fn verify() -> Result<(), String> {
+    *PROBE.lock().unwrap() = None;
+    let exe = managed_executable()
+        .or_else(executable)
+        .ok_or("agents.not_installed")?;
+    if probe(&exe).is_none() {
+        return Err("agents.runtime_broken".into());
+    }
+    let (mut c, source) = library_runtime(&exe)?;
+    let temporary = tempfile::tempdir().map_err(|e| e.to_string())?;
+    c.current_dir(temporary.path())
+        .env("HERMES_HOME", temporary.path())
+        .env("HARNESS_HERMES_SOURCE", source)
+        .env("HARNESS_HERMES_VERIFY", "1")
+        .env("PYTHONIOENCODING", "utf-8");
+    let (ok, _) = bounded_output(c, Duration::from_secs(30))?;
+    if ok {
+        Ok(())
+    } else {
+        Err("agents.runtime_broken".into())
+    }
+}
 fn executable() -> Option<PathBuf> {
+    managed_executable().or_else(external_executable)
+}
+fn external_executable() -> Option<PathBuf> {
     let mut candidates = Vec::new();
     if let Some(path) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&path) {
@@ -215,7 +260,13 @@ fn bounded_output(mut c: Command, timeout: Duration) -> Result<(bool, String), S
     c.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
-    let mut child = c.group_spawn().map_err(|e| e.to_string())?;
+    let mut group = c.group();
+    #[cfg(windows)]
+    {
+        group.kill_on_drop(true);
+        group.creation_flags(0x0800_0000);
+    }
+    let mut child = group.spawn().map_err(|e| e.to_string())?;
     let stdout = child.inner().stdout.take().unwrap();
     let reader = std::thread::spawn(move || {
         let mut s = String::new();
@@ -225,6 +276,7 @@ fn bounded_output(mut c: Command, timeout: Duration) -> Result<(bool, String), S
     let start = Instant::now();
     loop {
         if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+            let _ = child.kill(); // Reap descendants holding inherited pipes.
             return Ok((status.success(), reader.join().unwrap_or_default()));
         }
         if start.elapsed() > timeout {
@@ -292,6 +344,8 @@ fn connected_config(
         .map_err(|e| e.to_string())
 }
 pub fn connect(base: &str, model: &str) -> Result<(), String> {
+    let _operation = super::OPERATION.try_lock().map_err(|_| "modules.busy")?;
+    super::ensure_enabled("agents")?;
     let _lock = CONNECTION_LOCK.lock().unwrap();
     if executable().is_none() {
         return Err("agents.not_installed".into());
@@ -542,6 +596,9 @@ struct Run {
     status: Mutex<TaskStatus>,
     cancel: Arc<AtomicBool>,
 }
+pub(super) fn clear_history() {
+    *TASK.lock().unwrap() = None;
+}
 pub fn task_status() -> TaskStatus {
     TASK.lock()
         .unwrap()
@@ -583,6 +640,8 @@ pub fn start_task(prompt: String) -> Result<(), String> {
 }
 pub fn start_task_with_grants(prompt: String, mut grants: RunGrants) -> Result<(), String> {
     grants.validate()?;
+    let _operation = super::OPERATION.try_lock().map_err(|_| "modules.busy")?;
+    super::ensure_enabled("agents")?;
     let _connection = CONNECTION_LOCK.lock().unwrap();
     let mut task = TASK.lock().unwrap();
     if task
@@ -684,7 +743,13 @@ fn run_process(
     c.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = c.group_spawn().map_err(|e| e.to_string())?;
+    let mut group = c.group();
+    #[cfg(windows)]
+    {
+        group.kill_on_drop(true);
+        group.creation_flags(0x0800_0000);
+    }
+    let mut child = group.spawn().map_err(|e| e.to_string())?;
     let mut readers = Vec::new();
     for pipe in [
         child
@@ -765,6 +830,8 @@ fn run_process(
         }
         std::thread::sleep(Duration::from_millis(50));
     }
+    let _ = child.kill();
+    let _ = child.wait();
     for reader in readers {
         let _ = reader.join();
     }
@@ -779,10 +846,7 @@ fn trim_output(output: &mut String) {
         output.drain(..end);
     }
 }
-pub async fn install() -> Result<(), String> {
-    if detect()?.installed {
-        return Ok(());
-    }
+pub async fn install_managed() -> Result<(), String> {
     let run = Arc::new(Run {
         status: Mutex::new(TaskStatus {
             status: "running".into(),
@@ -844,31 +908,63 @@ async fn install_upstream(run: &Arc<Run>) -> Result<(), String> {
         .path()
         .join(if windows { "install.ps1" } else { "install.sh" });
     std::fs::write(&script, bytes).map_err(|e| e.to_string())?;
-    let mut c = command(if windows { "powershell" } else { "bash" });
-    if windows {
-        c.args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-        ])
-        .arg(&script)
-        .args(["-NonInteractive", "-SkipBrowser", "-SkipComputerUse"]);
-    } else {
-        c.arg(&script)
-            .args(["--non-interactive", "--skip-browser", "--skip-computer-use"]);
+    // Use upstream's staged protocol. Do not publish global commands, edit PATH,
+    // run setup, or install services. PM prepares the source launcher and runtime.
+    for stage in [
+        "prerequisites",
+        "repository",
+        "venv",
+        "python-deps",
+        "complete",
+    ] {
+        let mut c = command(if windows { "powershell" } else { "bash" });
+        c.env("HERMES_HOME", managed_root())
+            .env("HERMES_INSTALL_DIR", managed_root().join("hermes-agent"))
+            .env("UV_CACHE_DIR", managed_root().join("cache"))
+            .env("UV_PYTHON_INSTALL_DIR", managed_root().join("python"));
+        if windows {
+            c.args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+            ])
+            .arg(&script)
+            .args([
+                "-NonInteractive",
+                "-SkipBrowser",
+                "-SkipComputerUse",
+                "-Stage",
+                stage,
+            ])
+            .args(["-Commit", HERMES_REVISION])
+            .arg("-InstallDir")
+            .arg(managed_root().join("hermes-agent"));
+        } else {
+            c.arg(&script).args([
+                "--non-interactive",
+                "--skip-browser",
+                "--skip-computer-use",
+                "--stage",
+                stage,
+                "--commit",
+                HERMES_REVISION,
+            ]);
+        }
+        let run = run.clone();
+        let success = tokio::task::spawn_blocking(move || {
+            run_process(c, &run, "", Duration::from_secs(1800))
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+        if !success {
+            return Err("agents.install_failed".into());
+        }
     }
-    let run = run.clone();
-    let success =
-        tokio::task::spawn_blocking(move || run_process(c, &run, "", Duration::from_secs(1800)))
-            .await
-            .map_err(|e| e.to_string())??;
-    if !success {
-        return Err("agents.install_failed".into());
-    }
+
     *PROBE.lock().unwrap() = None;
-    if !detect()?.installed {
+    if managed_executable().is_none() {
         return Err("agents.not_installed".into());
     }
     Ok(())

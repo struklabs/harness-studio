@@ -1,16 +1,25 @@
 //! Bundled module contracts and lifecycle. Only backend dependencies are downloaded.
 pub mod agents;
+mod lifecycle;
 pub mod paperclip;
 use crate::{
     paths,
     pyenv::{self, envs},
     store::JsonStore,
 };
+pub use lifecycle::{
+    action, ensure_enabled, remove_with_options as lifecycle_remove, RemovalOptions,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Mutex,
 };
+
+/// Serialize managed Python startup with module filesystem mutations through process spawn.
+pub(crate) fn managed_start_guard() -> Result<tokio::sync::MutexGuard<'static, ()>, String> {
+    OPERATION.try_lock().map_err(|_| "modules.busy".into())
+}
 
 const ENV: &str = "transcribe-cpp";
 static STATE_LOCK: Mutex<()> = Mutex::new(());
@@ -113,6 +122,7 @@ pub enum Status {
     NotInstalled,
     Installing,
     Installed,
+    Disabled,
     Failed,
 }
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -128,14 +138,19 @@ pub struct ModuleState {
 pub struct OwnedComponent {
     pub version: String,
     pub owners: BTreeSet<String>,
+    #[serde(default)]
+    pub disk_bytes: u64,
 }
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModuleStore {
     pub modules: BTreeMap<String, ModuleState>,
     pub components: BTreeMap<String, OwnedComponent>,
+    #[serde(default)]
+    pub transaction: Option<lifecycle::Transaction>,
 }
 impl ModuleStore {
     pub fn claim(&mut self, manifest: &ModuleManifest) {
+        self.release(&manifest.id);
         for c in &manifest.components {
             let entry = self.components.entry(c.id.clone()).or_default();
             entry.version = c.version.clone();
@@ -207,6 +222,10 @@ pub struct ModuleView {
     pub incompatibility: Option<String>,
     pub progress: Option<pyenv::EnvProgress>,
     pub components: BTreeMap<String, OwnedComponent>,
+    pub disk_bytes: u64,
+    pub shared_disk_bytes: u64,
+    pub update_available: bool,
+    pub data_choices: Vec<lifecycle::DataChoice>,
 }
 /// Adopt legacy installs once; explicit removal stays removed if another module owns the backend.
 fn reconcile(data: &mut ModuleStore, manifest: &ModuleManifest, ready: bool, active: bool) {
@@ -214,11 +233,9 @@ fn reconcile(data: &mut ModuleStore, manifest: &ModuleManifest, ready: bool, act
         return;
     }
     let state = data.modules.get(&manifest.id);
-    if ready && state.is_none_or(|state| state.status != Status::NotInstalled) {
+    if ready && state.is_none() {
         data.claim(manifest);
-    } else if !ready
-        && state.is_some_and(|state| matches!(state.status, Status::Installing | Status::Installed))
-    {
+    } else if !ready && state.is_some_and(|state| state.status == Status::Installed) {
         let state = data.modules.get_mut(&manifest.id).unwrap();
         state.status = Status::Failed;
         state.error = Some("modules.interrupted".into());
@@ -227,11 +244,17 @@ fn reconcile(data: &mut ModuleStore, manifest: &ModuleManifest, ready: bool, act
 pub fn list() -> Result<Vec<ModuleView>, String> {
     let _lock = STATE_LOCK.lock().unwrap();
     let mut data = load()?;
+    lifecycle::recover(&mut data)?;
     let backend = envs::status_in(&envs::root(), &envs::TRANSCRIBE_CPP);
     let active = OPERATION.try_lock().is_err() || backend.progress.is_some();
     let agent = agents::detect()?;
     let previous = data.clone();
+    let adopting_agent = !data.modules.contains_key("agents") && agent.installed && !active;
     reconcile(&mut data, &selected("agents")?, agent.installed, active);
+    if adopting_agent {
+        data.components.get_mut("hermes-agent").unwrap().version =
+            format!("external:{}", agent.version.as_deref().unwrap_or("unknown"));
+    }
     reconcile(&mut data, &selected("speech")?, backend.ready, active);
     if data != previous {
         store().save(&data)?;
@@ -244,9 +267,6 @@ pub fn list() -> Result<Vec<ModuleView>, String> {
                 state.status = Status::Installing;
             }
 
-            if manifest.id == "agents" && agent.installed {
-                state.installed_version = agent.version.clone();
-            }
             let incompatibility = manifest
                 .compatibility(
                     &format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
@@ -259,52 +279,34 @@ pub fn list() -> Result<Vec<ModuleView>, String> {
                 None
             };
             ModuleView {
-                manifest,
                 state,
                 incompatibility,
                 progress,
-                components: data.components.clone(),
+                disk_bytes: lifecycle::module_bytes(&manifest),
+                shared_disk_bytes: lifecycle::shared_bytes(&manifest),
+                update_available: lifecycle::update_available(&data, &manifest),
+                data_choices: lifecycle::data_choices(&manifest.id),
+                components: manifest
+                    .components
+                    .iter()
+                    .map(|spec| {
+                        let mut c = data.components.get(&spec.id).cloned().unwrap_or_default();
+                        c.disk_bytes = lifecycle::component_bytes(&spec.id);
+                        (spec.id.clone(), c)
+                    })
+                    .collect(),
+                manifest,
             }
         })
         .collect())
 }
 /// The job survives a disconnected API client; cancellation uses the installer's process-tree cleanup.
 pub async fn install(id: &str) -> Result<(), String> {
-    let manifest = installable(id)?;
-    tokio::spawn(async move {
-        let _operation = OPERATION
-            .try_lock()
-            .map_err(|_| "modules.busy".to_string())?;
-        {
-            let _lock = STATE_LOCK.lock().unwrap();
-            let mut data = load()?;
-            data.modules.entry(manifest.id.clone()).or_default().status = Status::Installing;
-            data.modules.get_mut(&manifest.id).unwrap().error = None;
-            store().save(&data)?;
-        }
-        let result = if manifest.id == "agents" {
-            agents::install().await
-        } else {
-            envs::install(ENV).await.map(|_| ())
-        };
-        let _lock = STATE_LOCK.lock().unwrap();
-        let mut data = load()?;
-        match &result {
-            Ok(_) => data.claim(&manifest),
-            Err(error) => {
-                let state = data.modules.entry(manifest.id).or_default();
-                state.status = Status::Failed;
-                state.error = Some(error.clone());
-            }
-        }
-        store().save(&data)?;
-        result.map(|_| ())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    action(id, "install").await
 }
+
 pub fn cancel(id: &str) -> Result<(), String> {
-    backend(id)?;
+    installable(id)?;
     if id == "agents" {
         agents::cancel_install();
     } else {
@@ -313,45 +315,7 @@ pub fn cancel(id: &str) -> Result<(), String> {
     Ok(())
 }
 pub fn remove(id: &str) -> Result<(), String> {
-    let manifest = backend(id)?;
-    let _operation = OPERATION
-        .try_lock()
-        .map_err(|_| "modules.busy".to_string())?;
-    let _lock = STATE_LOCK.lock().unwrap();
-    let mut data = load()?;
-    if id == "agents" {
-        agents::disconnect()?;
-        data.release(id);
-        return store().save(&data); // Upstream installations and user sessions are retained.
-    }
-    // Refuse deletion while a backend worker uses this environment (also outside Modules).
-    let dir = envs::env_dir_in(&envs::root(), ENV);
-    let mut system = sysinfo::System::new();
-    system.refresh_processes_specifics(
-        sysinfo::ProcessesToUpdate::All,
-        true,
-        sysinfo::ProcessRefreshKind::nothing()
-            .with_exe(sysinfo::UpdateKind::Always)
-            .with_cmd(sysinfo::UpdateKind::Always),
-    );
-    if system.processes().values().any(|p| {
-        p.exe().is_some_and(|exe| exe.starts_with(&dir))
-            || p.cmd()
-                .iter()
-                .any(|arg| std::path::Path::new(arg).starts_with(&dir))
-    }) {
-        return Err("modules.in_use".into());
-    }
-    // Preview ownership release; commit only after the backend removal succeeds.
-    let other_owners = data
-        .components
-        .get(ENV)
-        .is_some_and(|c| c.owners.iter().any(|owner| owner != id));
-    if !other_owners {
-        envs::remove(ENV)?;
-    }
-    data.release(&manifest.id);
-    store().save(&data)
+    lifecycle::remove_with_options(id, &RemovalOptions::default())
 }
 
 #[cfg(test)]
@@ -418,13 +382,27 @@ mod tests {
         data.modules.get_mut("speech").unwrap().status = Status::Installing;
         reconcile(&mut data, &manifest, false, true);
         assert_eq!(data.modules["speech"].status, Status::Installing);
+        data.modules.get_mut("speech").unwrap().status = Status::Installed;
         reconcile(&mut data, &manifest, false, false);
         assert_eq!(data.modules["speech"].status, Status::Failed);
         reconcile(&mut data, &manifest, true, false);
-        assert_eq!(data.modules["speech"].status, Status::Installed);
+        assert_eq!(data.modules["speech"].status, Status::Failed);
         data.release("speech");
         reconcile(&mut data, &manifest, true, false);
         assert_eq!(data.modules["speech"].status, Status::NotInstalled);
+    }
+    #[test]
+    fn listing_preserves_disabled_state_and_installed_versions() {
+        let manifest = bundled().remove(0);
+        let mut data = ModuleStore::default();
+        data.claim(&manifest);
+        data.modules.get_mut("speech").unwrap().status = Status::Disabled;
+        data.modules.get_mut("speech").unwrap().installed_version = Some("0.0.1".into());
+        data.components.get_mut(ENV).unwrap().version = "old-lock".into();
+        let expected = data.clone();
+        reconcile(&mut data, &manifest, true, false);
+        reconcile(&mut data, &manifest, false, false);
+        assert_eq!(data, expected);
     }
     #[test]
     fn shared_components_are_reference_counted_and_store_round_trips() {

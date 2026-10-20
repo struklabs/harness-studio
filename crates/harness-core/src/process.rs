@@ -1255,6 +1255,16 @@ impl ProcessManager {
             config.port = crate::engine::audio_cpp::random_port()?;
             config.port_auto = false;
         }
+        let module_engine = crate::engine::server_for(&config);
+        let _module_operation = if module_engine.worker_env("").is_some() {
+            let guard = crate::modules::managed_start_guard()?;
+            if module_engine.family() == crate::engine::TRANSCRIBE_CPP {
+                crate::modules::ensure_enabled("speech")?;
+            }
+            Some(guard)
+        } else {
+            None
+        };
         let _lifecycle = self.lifecycle.lock().await;
         // 1. Atomically claim the "Starting" state so two concurrent starts can't both proceed.
         {

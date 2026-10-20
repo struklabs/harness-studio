@@ -491,6 +491,8 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/modules", &["get"]),
         ("/modules/{id}", &["post", "delete"]),
         ("/modules/{id}/cancel", &["post"]),
+        ("/modules/{id}/action", &["post"]),
+        ("/modules/{id}/remove-data", &["post"]),
         ("/runtimes", &["get", "post"]),
         ("/runtimes/{id}", &["get", "delete"]),
         ("/runtimes/{id}/verify", &["post"]),

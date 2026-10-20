@@ -419,6 +419,8 @@ pub fn run() {
             stop_agent_task,
             list_modules,
             install_module,
+            module_action,
+            remove_module_data,
             cancel_module_install,
             remove_module,
             list_python_envs,

@@ -10,8 +10,8 @@ test('module actions permit recovery and protect planned, incompatible, and acti
   assert.equal(moduleActions(view('installed')).install, false);
   assert.equal(moduleActions(view('not_installed'), true).install, false);
   assert.equal(moduleActions(view('not_installed', { incompatibility: 'platform' })).install, false);
-  assert.deepEqual(moduleActions(view('not_installed', { manifest: { planned: true } })), { install: false, open: false, remove: false, cancel: false });
-  assert.deepEqual(moduleActions(view('installing')), { install: false, open: false, remove: false, cancel: true });
+  assert.deepEqual(moduleActions(view('not_installed', { manifest: { planned: true } })), { install: false, open: false, enable: false, disable: false, repair: false, remove: false, cancel: false });
+  assert.deepEqual(moduleActions(view('installing')), { install: false, open: false, enable: false, disable: false, repair: false, remove: false, cancel: true });
   assert.equal(moduleActions(view('installed', { progress: {} })).remove, false);
 });
 test('unknown progress stays indeterminate and byte progress is bounded', () => {
@@ -35,4 +35,38 @@ test('every bundled module has translated metadata and future areas stay planned
     }
   }
   assert.equal(locales.tr['modules.title'], 'Modüller');
+});
+
+test('disabled modules retain recovery actions and cannot be opened or reinstalled', () => {
+  const actions = moduleActions(view('disabled'));
+  assert.equal(actions.install, false);
+  assert.equal(actions.open, false);
+  assert.equal(actions.enable, true);
+  assert.equal(actions.disable, false);
+  assert.equal(actions.repair, true);
+  assert.equal(actions.remove, true);
+  assert.equal(moduleActions(view('disabled'), true).enable, false);
+  assert.equal(moduleActions(view('installed', { incompatibility: 'contract' })).remove, false);
+});
+
+test('uninstall hooks preserve data and module removal choices default to keeping it', () => {
+  const hooks = readFileSync(new URL('../src-tauri/windows/hooks.nsh', import.meta.url), 'utf8');
+  assert.doesNotMatch(hooks, /^\s*(?:RMDir|Delete)\s/im);
+  const ui = readFileSync(new URL('../src/lib/components/Modules.svelte', import.meta.url), 'utf8');
+  assert.match(ui, /deleteHistory = \$state\(false\)/);
+  assert.match(ui, /deleteLogs = \$state\(false\)/);
+  assert.match(ui, /choice\.disk_bytes/);
+  for (const key of ['modules.disabled', 'modules.enable', 'modules.delete_history', 'modules.delete_logs']) {
+    assert.ok(locales.en[key]); assert.ok(locales.tr[key]);
+    assert.ok(!locales.tr[key].includes('?'), key);
+  }
+});
+
+test('Hermes manifest pin matches the staged backend checkout', () => {
+  const source = readFileSync(new URL('../crates/harness-core/src/modules/agents.rs', import.meta.url), 'utf8');
+  const modules = JSON.parse(readFileSync(new URL('../crates/harness-core/src/modules/bundled.json', import.meta.url), 'utf8'));
+  const pin = modules.find(m => m.id === 'agents').components[0].version;
+  assert.match(pin, /^[a-f0-9]{40}$/);
+  assert.ok(source.includes(`HERMES_REVISION: &str = "${pin}"`));
+  assert.match(source, /\.args\(\["-Commit", HERMES_REVISION\]\)/);
 });

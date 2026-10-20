@@ -8,6 +8,10 @@ import time
 sys.path.insert(0, os.environ["HARNESS_HERMES_SOURCE"])
 from run_agent import AIAgent
 
+# Repair verifies the same imports as a task without reading user configuration or running inference.
+if os.environ.get("HARNESS_HERMES_VERIFY") == "1":
+    raise SystemExit(0)
+
 home = Path(os.environ["HERMES_HOME"])
 request = json.loads((home / "harness-task.json").read_text(encoding="utf-8"))
 model = request["model"]

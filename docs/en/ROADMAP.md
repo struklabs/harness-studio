@@ -56,6 +56,8 @@ Delivered slices: [Hermes Agent connection, tasks, scoped read permissions, hist
 
 ### W3 — Improvement Wave: Reliable Installation and Agent Use
 
+First slice: [Module Lifecycle](MODULE_LIFECYCLE.md) covers the existing Speech Recognition and Hermes Agent modules; the broader security and licensing work below remains open.
+
 - [ ] Complete module enable/disable, update, repair, and removal with shared-component ownership, disk accounting, compatibility checks, rollback, and practical offline install/removal. Prevent removal of components still in use.
 - [ ] Separate deletion of jobs, conversations, models, and physical files; preserve datasets, models, projects, and valuable outputs during module removal and app uninstall, with explicit deletion choices.
 - [ ] Extend the existing Security Model with trust levels for MCP, agent runtimes, trainers, and Tools; explain file/folder, network, shell, service, account, and external-data permissions at grant/revocation. Use OS sandboxing where available and document Windows/macOS/Linux isolation limits.

@@ -316,7 +316,7 @@ pub fn status_all() -> Vec<EnvStatus> {
 
 static PROGRESS: Mutex<Option<HashMap<String, EnvProgress>>> = Mutex::new(None);
 static CANCELS: Mutex<Option<HashMap<String, Cancel>>> = Mutex::new(None);
-static BUILD_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+pub(crate) static BUILD_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn progress(name: &str) -> Option<EnvProgress> {
     PROGRESS.lock().unwrap().as_ref()?.get(name).cloned()
@@ -342,6 +342,17 @@ pub async fn ensure_in(
         return Err(refusal);
     }
     let _one_at_a_time = BUILD_LOCK.lock().await;
+    ensure_locked_in(root, spec, cancel, report).await
+}
+async fn ensure_locked_in(
+    root: &Path,
+    spec: &EnvSpec,
+    cancel: &Cancel,
+    report: &Progress,
+) -> Result<(), String> {
+    if let Some(refusal) = platform_refusal(spec) {
+        return Err(refusal);
+    }
     if status_in(root, spec).ready {
         return Ok(());
     }
@@ -508,6 +519,13 @@ fn begin(name: &str) -> Result<Cancel, String> {
 
 /// Builds the env `name` with progress Settings can poll ([`status_all`]).
 pub async fn install(name: &str) -> Result<EnvStatus, String> {
+    let _build = BUILD_LOCK
+        .try_lock()
+        .map_err(|_| String::from(err("pyenv.env_in_use").with("name", name)))?;
+    install_locked(name).await
+}
+/// Caller holds BUILD_LOCK across filesystem preparation and the complete build.
+pub(crate) async fn install_locked(name: &str) -> Result<EnvStatus, String> {
     let spec =
         spec(name).ok_or_else(|| String::from(err("pyenv.unknown_env").with("name", name)))?;
     let cancel = begin(name)?;
@@ -515,7 +533,7 @@ pub async fn install(name: &str) -> Result<EnvStatus, String> {
     let key = name.to_string();
     let report = Progress::new(move |p| set_progress(&key, Some(p.clone())));
     let root = root();
-    let result = ensure_in(&root, spec, &cancel, &report).await;
+    let result = ensure_locked_in(&root, spec, &cancel, &report).await;
     set_progress(name, None);
     if let Some(map) = CANCELS.lock().unwrap().as_mut() {
         map.remove(name);
@@ -536,6 +554,9 @@ pub fn cancel_install(name: &str) {
 
 /// Deletes the env `name` (refused while it is being built).
 pub fn remove_in(root: &Path, name: &str) -> Result<(), String> {
+    let _build = BUILD_LOCK
+        .try_lock()
+        .map_err(|_| String::from(err("pyenv.env_in_use").with("name", name)))?;
     let installing = CANCELS
         .lock()
         .unwrap()
