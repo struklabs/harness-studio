@@ -246,11 +246,11 @@ async fn cloud_provider_models_route_through_the_gateway() {
     let text = response.text().await.unwrap();
     assert!(text.contains("\"hi\"") && text.contains("[DONE]"));
 
-    // Only chat completions are routed to cloud models.
+    // OpenRouter has no Messages API: only chat, Responses and embeddings are routed.
     let response = http
-        .post(format!("{base}/v1/embeddings"))
+        .post(format!("{base}/v1/messages"))
         .bearer_auth(&session)
-        .json(&json!({"model": "cloud:router/org/chat-model", "input": "x"}))
+        .json(&json!({"model": "cloud:router/org/chat-model", "max_tokens": 8, "messages": [{"role": "user", "content": "x"}]}))
         .send()
         .await
         .unwrap();

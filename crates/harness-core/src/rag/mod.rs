@@ -149,9 +149,15 @@ pub struct EmbedModel {
 }
 
 impl EmbedModel {
-    /// For a definition: its alias and the prefixes of its model family.
+    /// For a definition: its alias and the prefixes of its model family. A cloud embedding
+    /// model (`cloud:<provider>/<model>`, BYOK) has no local family: no prefixes, and the
+    /// index is marked with that id.
     pub fn for_definition(endpoint: Endpoint, def: &crate::domain::ModelDefinition) -> Self {
-        let (q, d) = models::prefixes_for(def);
+        let (q, d) = if crate::cloud::parse_model(&def.id).is_some() {
+            ("", "")
+        } else {
+            models::prefixes_for(def)
+        };
         let context = def
             .base
             .local_path()

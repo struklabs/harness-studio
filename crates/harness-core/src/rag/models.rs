@@ -31,6 +31,22 @@ pub struct RetrievalModel {
     pub context_length: Option<u64>,
 }
 
+/// The BYOK cloud embedding models (`cloud:<provider>/<model>`): the knowledge bases may embed
+/// with them instead of a local model. They need no file; the id marks the index.
+pub fn cloud_embedding_models() -> Vec<RetrievalModel> {
+    crate::cloud::embedding_models()
+        .into_iter()
+        .map(|m| RetrievalModel {
+            definition_id: m.id.clone(),
+            alias: m.id,
+            role: RetrievalRole::Embedding,
+            file: m.model,
+            dims: None,
+            context_length: m.info.context_length,
+        })
+        .collect()
+}
+
 /// Embedding and rerank definitions, in definition order.
 pub fn retrieval_models(defs: &[ModelDefinition]) -> Vec<RetrievalModel> {
     defs.iter()
