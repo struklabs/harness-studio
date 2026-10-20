@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { untrack } from 'svelte';
   import { invoke } from '#lib/ipc.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { app } from '#lib/stores/app.svelte.js';
@@ -14,8 +14,10 @@
     onGoToHub: () => void;
     onChooseModel: () => void;
     onReopenWizard?: () => void;
+    /** The Dashboard is the visible page (it stays mounted while other pages are open). */
+    active?: boolean;
   }
-  let { modelCount, onGoToHub, onChooseModel, onReopenWizard }: Props = $props();
+  let { modelCount, onGoToHub, onChooseModel, onReopenWizard, active = true }: Props = $props();
 
   let agentInstalled = $state(false);
   let agentConnected = $state(false);
@@ -48,8 +50,10 @@
     }
   }
 
-  onMount(() => {
-    void refresh();
+  // The Dashboard stays mounted while other pages are open: read the real state again each time
+  // it is shown (a link added or an agent installed elsewhere), not only on first mount.
+  $effect(() => {
+    if (active) untrack(() => void refresh());
   });
 
   const engineReady = $derived(runtimesStore.list.some((r) => r.available));
@@ -136,7 +140,7 @@
     {/each}
     <div class="flex flex-wrap gap-2">
       <Button variant="outline" size="sm" disabled={refreshing} onclick={() => void refresh()}>{t('gs.refresh')}</Button>
-      {#if onReopenWizard}<Button variant="ghost" size="sm" onclick={onReopenWizard}>{t('gs.wizard')}</Button>{/if}
+      {#if onReopenWizard}<Button variant="ghost" size="sm" onclick={onReopenWizard}>{t('gs.setup')}</Button>{/if}
     </div>
   </section>
 {/if}

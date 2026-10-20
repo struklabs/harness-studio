@@ -20,6 +20,7 @@
 //!
 //! Auth: [`auth`]. Tool compatibility (Codex/Responses): [`compat`]. Errors: [`errors`].
 
+mod anthropic_chat;
 pub mod audio;
 pub mod audio_llm;
 pub mod audio_process;
@@ -113,6 +114,7 @@ struct Running {
     task: tokio::task::JoinHandle<()>,
     maintenance: tokio::task::JoinHandle<()>,
     links: tokio::task::JoinHandle<()>,
+    clouds: tokio::task::JoinHandle<()>,
     /// The listener on the Ollama port, when bound.
     ollama: Option<(oneshot::Sender<()>, tokio::task::JoinHandle<()>)>,
 }
@@ -389,6 +391,7 @@ impl GatewayServer {
         });
         let maintenance = tokio::spawn(scheduler.clone().maintenance_loop());
         let links = tokio::spawn(harness_core::link::refresh_loop());
+        let clouds = tokio::spawn(harness_core::cloud::refresh_loop());
         tokio::spawn(scheduler.clone().warm_pinned());
         gateway::set_running(
             &addr.ip().to_string(),
@@ -430,6 +433,7 @@ impl GatewayServer {
             task,
             maintenance,
             links,
+            clouds,
             ollama,
         });
         Ok(gateway::status())
@@ -443,6 +447,7 @@ impl GatewayServer {
         };
         running.maintenance.abort();
         running.links.abort();
+        running.clouds.abort();
         if let Some((stop, mut task)) = running.ollama {
             let _ = stop.send(());
             if tokio::time::timeout(std::time::Duration::from_secs(2), &mut task)
@@ -791,6 +796,7 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
             state.clone(),
             guard_tts_routes,
         ))
+        .layer(axum::middleware::from_fn(schedule_priority))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .layer(cors(cors_origins))
         // Outermost: a foreign browser origin is answered before CORS (which would answer a
@@ -798,6 +804,86 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
         // gateway port and the Ollama-compatible port (both are built by this function).
         .layer(axum::middleware::from_fn_with_state(allowed, origin_guard))
         .with_state(state)
+}
+
+/// Apply one load priority across text, image, audio and Ollama routes. The
+/// task-local follows awaited engine starts without changing model definitions.
+async fn schedule_priority(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response {
+    let priority = request_priority(request.headers(), request.uri().path());
+    harness_core::jobs::JOB_PRIORITY
+        .scope(priority, next.run(request))
+        .await
+}
+
+fn request_priority(headers: &HeaderMap, path: &str) -> harness_core::jobs::Priority {
+    use harness_core::jobs::Priority;
+    let value = |key: &str| headers.get(key).and_then(|value| value.to_str().ok());
+    if matches!(
+        path,
+        "/v1/embeddings" | "/v1/rerank" | "/api/embeddings" | "/api/embed"
+    ) || value("x-harness-purpose") == Some("warmup")
+    {
+        return Priority::Background;
+    }
+    match value("x-harness-priority") {
+        Some("background") => Priority::Background,
+        Some("interactive") => Priority::Interactive,
+        Some("agent") => Priority::Agent,
+        _ if value("x-harness-client") == Some("harness-playground") => Priority::Interactive,
+        _ => Priority::Agent,
+    }
+}
+
+#[cfg(test)]
+mod job_priority_tests {
+    use super::*;
+    use harness_core::jobs::Priority;
+
+    #[test]
+    fn chat_agents_and_background_routes_share_priority_rules() {
+        let mut headers = HeaderMap::new();
+        assert_eq!(
+            request_priority(&headers, "/v1/chat/completions"),
+            Priority::Agent
+        );
+        headers.insert(
+            "x-harness-client",
+            HeaderValue::from_static("harness-playground"),
+        );
+        for path in [
+            "/v1/chat/completions",
+            "/v1/audio/speech",
+            "/v1/images/generations",
+        ] {
+            assert_eq!(request_priority(&headers, path), Priority::Interactive);
+        }
+        headers.insert(
+            "x-harness-priority",
+            HeaderValue::from_static("interactive"),
+        );
+        assert_eq!(
+            request_priority(&headers, "/v1/embeddings"),
+            Priority::Background
+        );
+        assert_eq!(
+            request_priority(&headers, "/api/embed"),
+            Priority::Background
+        );
+        headers.insert("x-harness-purpose", HeaderValue::from_static("warmup"));
+        assert_eq!(
+            request_priority(&headers, "/v1/chat/completions"),
+            Priority::Background
+        );
+        headers.remove("x-harness-purpose");
+        headers.insert("x-harness-priority", HeaderValue::from_static("background"));
+        assert_eq!(
+            request_priority(&headers, "/v1/audio/speech"),
+            Priority::Background
+        );
+    }
 }
 
 /// `403 forbidden_origin` for browser requests from a page that is neither the Harness window
@@ -880,7 +966,8 @@ async fn guard_tts_routes(
         .and_then(|v| v.get("model").and_then(|m| m.as_str()).map(String::from))
     {
         if let Ok(def) = state.scheduler.resolve(Some(&model)).await {
-            if harness_core::link::parse_model(&def.id).is_some()
+            let cloud = harness_core::cloud::parse_model(&def.id).is_some();
+            if (harness_core::link::parse_model(&def.id).is_some()
                 && !matches!(
                     path.as_str(),
                     "/v1/chat/completions"
@@ -889,7 +976,9 @@ async fn guard_tts_routes(
                         | "/v1/embeddings"
                         | "/v1/rerank"
                         | "/v1/messages"
-                )
+                ))
+                || (cloud
+                    && harness_core::cloud::kind_of(&def.id).is_some_and(|k| !k.accepts(&path)))
             {
                 let caller = match auth::check(
                     &state,
@@ -903,6 +992,11 @@ async fn guard_tts_routes(
                 };
                 if let Err(e) = caller.check_model(&def.alias) {
                     return e.into_response();
+                }
+                if cloud {
+                    return errors::GatewayError::cloud("cloud.unsupported_endpoint")
+                        .anthropic(path.starts_with("/v1/messages"))
+                        .into_response();
                 }
                 return errors::GatewayError::remote("link.unsupported_endpoint").into_response();
             }

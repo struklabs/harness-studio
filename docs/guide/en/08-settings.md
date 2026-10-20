@@ -19,7 +19,7 @@ The floating section menu stays open after selecting a page. Use **Collapse** or
 
 | Setting | Path |
 | --- | --- |
-| Engine (llama.cpp) source, version, update, setup wizard | **Runtime > Installed Runtime** |
+| Engine (llama.cpp) source, version, update, Setup | **Runtime > Installed Runtime** |
 | Optional speech, image, Python, MLX, and mistral.rs engines | **Runtime > Installed Runtime > Other Runtimes** |
 | Extra llama.cpp builds, ONNX Runtime, Lemonade, GGUF conversion | **Runtime > Registry** |
 | Ollama-compatible API | **Runtime > Ollama** |
@@ -50,7 +50,7 @@ The floating section menu stays open after selecting a page. Use **Collapse** or
 - With **Managed (recommended)** selected you see **Installed Version**, **Check for Updates**, and **Update Automatically**. Automatic updating downloads and verifies a new version in the background and activates it when servers are stopped. You can also download and test a new version by hand, and the old version keeps running until you press **Activate New Version**. If an update causes trouble and a backup exists, you can use **Roll Back to Previous Version**.
 - With **Custom Binary** selected, enter the **Llama-server Path** or look for it with **Auto-Detect**, and try it with **Verify**. A custom binary is never updated or rolled back automatically.
 - The **Backend** row shows which build (CUDA, Vulkan, ROCm, Metal, CPU) is installed and recommended for your hardware; if the installed build cannot see your graphics card you can install another one.
-- **Setup wizard > Open Wizard** reruns the first-launch wizard.
+- **Setup > Run Setup Again** reopens the first-launch Setup window.
 
 **Other Runtimes** on **Settings > Runtime > Installed Runtime** manages whisper.cpp, sherpa-onnx, stable-diffusion.cpp, mistral.rs, Python (`python-hf`, CPU/CUDA), MLX (chat, vision, audio; Apple Silicon, macOS 14+), CrispASR, and experimental audio.cpp (off by default; risk confirmation required). On Windows, Python environment installation checks the projected package paths before downloading. If the data folder would exceed `MAX_PATH` and Windows long paths are disabled or their status is unknown, installation is refused; choose a shorter data folder or enable Windows long paths.
 
@@ -138,11 +138,17 @@ The **Updates** page shows the app version and has an **Application** section wi
 
 ## Privacy
 
-**Privacy** chooses what local diagnostic reports contain: **Crash Reports**, **App errors**, **Server errors (llama.cpp)**, **Hardware Info**, and **Performance Metrics**. Reports are kept only on this device and are never sent anywhere automatically. Prompts, model responses, file contents, and API request bodies do not go into these reports. Chat history and the optional analytics content capture are separate functions; also read the plain-text content capture explanation in the [analytics section](07-performance-and-analytics.md#analytics-and-the-request-log).
+**Crash Reports** in **Settings > Privacy** is off by default and enables local reports for Rust panics, unexpected desktop exits, and engine process failures. **Retention period (days)** defaults to 30 days (1-365); expired reports are removed on startup, when reports are opened or created, when settings are saved, and every minute while the app runs.
+
+Reports include the app version, OS, engine, optional GPU/driver summary (**Hardware Info**), compiled stack frames, a normalized panic/error category, and up to 40 recent engine log lines. Free text, chat, model and file contents are omitted; log lines keep only recognized error categories. Home paths are replaced with `~` and known token formats are redacted.
+
+A forced shutdown is detected on the next launch as an unexpected exit; native crashes cannot provide a stack trace. While enabled, a local snapshot of sanitized engine log categories is refreshed every minute for recovery on the next launch. No report is created while collection is disabled.
+
+**Privacy** also offers category preferences: **Crash Reports**, **App errors**, **Hardware Info**, and **Performance Metrics**. Reports are kept only on this device and are never sent anywhere automatically. Prompts, model responses, file contents, and API request bodies do not go into these reports. Chat history and the optional analytics content capture are separate functions; also read the plain-text content capture explanation in the [analytics section](07-performance-and-analytics.md#analytics-and-the-request-log).
 
 ## Diagnostics
 
-On **Diagnostics > Health**, **Run Checks** checks your setup, runtime compatibility, GPU libraries, and ports; results are marked **OK**, **Warning**, or **Error**, and **Copy JSON** adds them to a report. **Diagnostics > Reports** is where you review (**Review**), copy, and delete (**Delete Reports**) local diagnostic records. For a problem, first read the explanation of the failed check, then continue with the [troubleshooting chapter](10-troubleshooting.md).
+On **Diagnostics > Health**, **Run Checks** checks your setup, runtime compatibility, GPU libraries, and ports; results are marked **OK**, **Warning**, or **Error**, and **Copy JSON** adds them to a report. **Diagnostics > Reports** is where you review (**Review**), copy, export an individual report with **Export as ZIP**, delete individual reports with **Delete Report**, or delete all reports with **Delete Reports**. ZIP export contains only the selected sanitized JSON report. Sharing is manual: no network upload endpoint is configured or called. Upload is reserved for a future version; enabling local collection does not authorize future uploads. For a problem, first read the explanation of the failed check, then continue with the [troubleshooting chapter](10-troubleshooting.md).
 
 ## Leaving the Window Open in the Tray
 

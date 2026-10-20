@@ -86,11 +86,38 @@ The sections of **Connections** in the left menu:
 | --- | --- | --- |
 | **Tools and Clients** | **Automatic Setup**, **Step-by-Step Setup**, **SDKs and Code Samples**, **Add Harness MCP** | Connecting coding tools and code snippets. |
 | **Harness Link** | **Harness Link** | Remote Harness models and connection status. |
+| **Cloud Providers** | **API Keys** | Cloud providers you use with your own API key, their models, and connection tests. |
 | **Endpoints** | **Endpoint List**, **Ollama Endpoint**, **Port Notes** | Addresses of the servers and the gateway; copyable. |
 | **MCP Servers** | **Server List**, import, **Status and Live Tools** | Servers that Harness Studio connects to with its own MCP client. |
 | **Test** | **Tool-Calling Workbench**, **Connection Tests** | Connection and tool-calling trials. |
 
-In **Simple**, open **Connect an App**: **Automatic Setup**, **Step-by-Step Setup**, **Harness Link**, and **Endpoint List** are visible. A fresh visit starts on Automatic Setup. In **Advanced**, the screen is called **Connections** and all groups are available; gateway settings are Advanced pages that links can also open from Simple. The section groups follow this order: Tools and Clients, Harness Link, Endpoints, MCP Servers, Test.
+In **Simple**, open **Connect an App**: **Automatic Setup**, **Step-by-Step Setup**, **Harness Link**, **API Keys**, and **Endpoint List** are visible. A fresh visit starts on Automatic Setup. In **Advanced**, the screen is called **Connections** and all groups are available; gateway settings are Advanced pages that links can also open from Simple. The section groups follow this order: Tools and Clients, Harness Link, Cloud Providers, Endpoints, MCP Servers, Test.
+
+## Use a Cloud Provider With Your Own Key
+
+On **Connections > Cloud Providers > API Keys**, press **Add Provider** and pick OpenAI, Gemini, Anthropic, OpenRouter, or **Custom (OpenAI-Compatible)**. Enter your API key; leave **Base URL** blank to use the provider's default address. A custom endpoint needs its base URL (for example `http://localhost:8000/v1`) and, if the server asks for none, no key.
+
+- The key is stored only in this device's system keychain (macOS Keychain, Windows Credential Manager, or Secret Service on Linux). It is never written to settings files or logs. **Remove Saved Key** in **Edit Provider** deletes it; **Remove** deletes the provider and its key.
+- **Test Connection** reads the provider's model list with the key and shows the state, the response time, and, for OpenRouter, the credits used. Under **Models**, each model shows what the provider's API reports: context length, price per million tokens, tool calling, and image input. Most providers report only some of these.
+- **Test Model** sends one small chat request with a tool to the selected model. The provider may charge for it.
+- HTTPS is required, except for a server on this computer or the local network.
+
+With the gateway on, the provider's chat models appear in the Playground model picker under **Cloud: OpenAI** (or the provider you added), with IDs such as `cloud:openai/gpt-4o`. Requests go through the gateway to the provider, with streaming and tool calling where the provider supports them. Any client connected to the gateway can use these IDs too. Prompts sent to a cloud model leave your computer.
+
+Which endpoints a cloud model accepts depends on the provider:
+
+| Endpoint | OpenAI | Anthropic | Gemini | OpenRouter and Custom |
+| --- | --- | --- | --- | --- |
+| Chat completions (`/v1/chat/completions`) | Yes | Yes (translated to Anthropic Messages) | Yes (its OpenAI-compatible endpoint) | Yes |
+| Responses (`/v1/responses`) | Yes | No | No | Yes |
+| Messages (`/v1/messages`, `/v1/messages/count_tokens`) | No | Yes (sent unchanged) | No | No |
+| Embeddings (`/v1/embeddings`) | Yes | No | Yes | Yes |
+
+An endpoint the provider does not serve is refused with a clear error. Streaming and tool calls work on every endpoint a provider serves, and the provider's own errors (such as 429 with its `Retry-After`) reach your client. A rejected key is reported as a gateway error that never repeats the key.
+
+Embedding models (such as `cloud:openai/text-embedding-3-small`) are listed apart from the chat models. In a knowledge base you can pick one as the embedding model instead of a local model; the index is marked with that model ID, and changing the model re-embeds the documents. Document text is sent to the provider while it is indexed.
+
+The Control API manages providers too (admin scope): `GET/POST /cloud/providers`, `PUT/DELETE /cloud/providers/{id}`, `POST /cloud/providers/{id}/test` and `GET /cloud/models`. The key is accepted when you add or update a provider and is never returned.
 
 ## Connect a Coding Agent
 
@@ -121,6 +148,7 @@ Use **Test Connection** to try the client's own API format. A passing test does 
 | Hugging Face access token | Access to the model repository and downloads. It is not the chat server's key. |
 | Server API key | Protects the direct llama-server connection. Managed on the Dashboard's **Network** page in the **API key** field or in **Settings > Security > API Keys**. |
 | Named token | Scoped access given to the Control API or the gateway. Created in **Settings > Developer > Control API**. A model request needs the `inference` scope. |
+| Cloud provider API key | Your own key for OpenAI, Gemini, Anthropic, OpenRouter, or a custom endpoint. Saved in **Connections > Cloud Providers**; the gateway sends it only to that provider. |
 
 If **Require a Token on This Computer Too** is off on the gateway, local clients connect without a key. If it is on, use a named token with the `inference` scope. A named token's value is shown only when it is created, so copy it then.
 

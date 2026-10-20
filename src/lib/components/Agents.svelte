@@ -11,9 +11,11 @@
 
   let { enabled = true }: { enabled?: boolean } = $props();
 
-  interface Detection { installed: boolean; version: string | null; executable: string | null; config_path: string; missing_dependencies: string[]; connected: boolean; model: string | null; installation: Task }
-  interface Model { alias: string; chat: boolean | null; tools: string; model_path: string | null; file_bytes: number | null; context_size: number | null }
-  interface Task { status: string; output: string; error: string | null; id?: string; model?: string; prompt?: string; started_at?: number; finished_at?: number | null; tokens?: number | null; grants?: { read_folders: string[] }; audit?: string[] }
+  type AgentKind = 'hermes' | 'openclaw';
+  interface Detection { installed: boolean; version: string | null; executable: string | null; config_path: string; missing_dependencies: string[]; connected: boolean; model: string | null; installation: Task; managed: boolean }
+  interface Model { alias: string; chat: boolean | null; tools: string; model_path: string | null; file_bytes: number | null; context_size: number | null; remote?: boolean }
+  interface Task { status: string; output: string; error: string | null; id?: string; agent?: AgentKind; model?: string; prompt?: string; started_at?: number; finished_at?: number | null; tokens?: number | null; grants?: { read_folders: string[] }; audit?: string[] }
+  let agent = $state<AgentKind>('hermes');
   let detection = $state<Detection | null>(null);
   let models = $state<Model[]>([]);
   let selected = $state('');
@@ -39,14 +41,15 @@
     if (reading) return;
     reading = true;
     try {
-      const [d, s, h] = await Promise.all([invoke<Detection>('detect_agent'), invoke<Task>('agent_task_status'), invoke<Task[]>('agent_task_history')]);
-      if (!disposed) { detection = d; task = s; history = h; if (d.model) selected = d.model; }
+      const asked = agent;
+      const [d, s, h] = await Promise.all([invoke<Detection>('detect_agent', { agent: asked }), invoke<Task>('agent_task_status'), invoke<Task[]>('agent_task_history')]);
+      if (!disposed && asked === agent) { detection = d; task = s; history = h; if (d.model) selected = d.model; }
     } catch (e) { if (!disposed) error = errorText(e); }
     finally { reading = false; }
   }
   async function loadModels() {
     try {
-      const available = (await invoke<Model[]>('list_agent_models')).filter(m => m.chat !== false);
+      const available = (await invoke<Model[]>('list_agent_choices')).filter(m => m.chat !== false);
       const fits = await Promise.all(available.map(async m => {
         if (!m.model_path || !['verified', 'template_only'].includes(m.tools)) return null;
         try { return { model: m, fit: await defaultLoadFit({ model_path: m.model_path, model_size_bytes: m.file_bytes ?? 0, context_size: m.context_size ?? 8192, gpu_layers: 999, origin: 'gateway' }) }; }
@@ -77,11 +80,19 @@
     // The confirmation above is the user's grant for these folders: record it on the
     // Permissions page (revocable there) before the run, which only reads granted folders.
     if (read_folders.length) {
-      try { await invoke('permissions_grant', { kind: 'agent', id: 'hermes', capability: 'file', paths: read_folders }); }
+      try { await invoke('permissions_grant', { kind: 'agent', id: agent, capability: 'file', paths: read_folders }); }
       catch (e) { error = errorText(e); return; }
     }
-    await action('start_agent_task', { prompt, grants: { read_folders } });
+    await action('start_agent_task', { prompt, grants: { read_folders }, agent });
   }
+  function pick(kind: AgentKind) {
+    if (kind === agent) return;
+    agent = kind; detection = null; selected = ''; granted = false; error = '';
+    void refresh().then(() => { if (!selected) selected = recommended || models[0]?.alias || ''; });
+  }
+  const label = (kind: AgentKind | undefined) => t(kind === 'openclaw' ? 'agents.openclaw' : 'agents.hermes');
+  const modelLabel = (m: Model) => `${m.alias}${m.remote ? ` · ${t('agents.remote')}` : ''}${m.alias === recommended ? ` · ${t('agents.recommended')}` : ''}`;
+  const installing = $derived(detection?.installation.status === 'running');
   async function paperclip(command: 'generate' | 'copy' | 'apply' | 'revoke') {
     pending = true; error = ''; notice = '';
     try {
@@ -95,15 +106,27 @@
 </script>
 
 <section class="mt-6 space-y-4 border-t pt-5" aria-label={t('modules.agents')}>
-  <h3 class="font-semibold">Hermes Agent</h3>
+  <h3 class="font-semibold">{t('agents.title')}</h3>
   <p class="text-sm text-muted-foreground">{t('agents.function')}</p>
   <TrustPermissions kind="agent" />
+  <div class="flex flex-wrap items-center gap-2" role="radiogroup" aria-label={t('agents.agent')}>
+    {#each ['hermes', 'openclaw'] as const as kind (kind)}
+      <Button variant={agent === kind ? 'default' : 'outline'} role="radio" aria-checked={agent === kind} disabled={pending || task.status === 'running'} onclick={() => pick(kind)}>{label(kind)}</Button>
+    {/each}
+  </div>
   {#if error}<p role="alert" class="text-sm text-destructive">{error}</p>{/if}
   {#if pending}<p role="status" aria-live="polite" class="text-sm text-muted-foreground">{t('modules.working')}</p>{/if}
   {#if !enabled && task.status === 'running'}<Button variant="outline" onclick={() => action('stop_agent_task')}>{t('agents.stop')}</Button>{/if}
   {#if !enabled}<p role="status" class="text-sm text-muted-foreground">{t('modules.agent_unavailable')}</p>{/if}
   {#if detection}
-    <p class="text-sm">{t('modules.version')}: {detection.version ?? t('modules.not_installed')}</p>
+    <p class="text-sm">{label(agent)} · {t('modules.version')}: {detection.version ?? t('modules.not_installed')}</p>
+    {#if agent === 'openclaw' && !detection.installed && enabled}
+      <p class="text-sm text-muted-foreground">{t('agents.openclaw_install_permission')}</p>
+      <div class="flex flex-wrap gap-2">
+        <Button disabled={pending || installing || detection.missing_dependencies.length > 0} onclick={() => { void invoke('install_openclaw').then(refresh).catch(e => { error = errorText(e); }); }}>{t('agents.install_openclaw')}</Button>
+        {#if installing}<Button variant="outline" onclick={() => action('cancel_openclaw_install')}>{t('agents.cancel_install')}</Button>{/if}
+      </div>
+    {/if}
     {#if detection.installation.output && (uiLevel.advanced || detection.installation.status === 'failed')}
       <pre class="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 text-xs" aria-label={t('agents.install_output')}>{detection.installation.output}</pre>
     {/if}
@@ -116,26 +139,30 @@
       </dl>
     {/if}
     {#if detection.installed && enabled}
-      <p class="text-sm">{t('agents.connect_permission')}</p>
+      <p class="text-sm">{t(agent === 'openclaw' ? 'agents.openclaw_connect_permission' : 'agents.connect_permission')}</p>
       {#if app.gateway?.status.running && !app.gateway.status.require_token}<p class="text-xs text-muted-foreground">{t('agents.open_gateway')}</p>{/if}
       <label class="block text-sm" for="agent-model">{t('agents.model')}</label>
       <select id="agent-model" class="w-full rounded border bg-background p-2" bind:value={selected} disabled={pending || detection.connected}>
-        {#each models as model (model.alias)}<option value={model.alias}>{model.alias}{model.alias === recommended ? ` · ${t('agents.recommended')}` : ''}</option>{/each}
+        {#each models as model (model.alias)}<option value={model.alias}>{modelLabel(model)}</option>{/each}
       </select>
+      {#if models.find(m => m.alias === selected)?.remote}<p class="text-xs text-muted-foreground">{t('agents.remote_help')}</p>{/if}
       <p class="text-xs text-muted-foreground">{recommended ? t('agents.recommendation') : t('agents.no_recommendation')}</p>
       <p class="break-all text-xs text-muted-foreground">{t('agents.preview')}: {app.gateway?.status.endpoint?.base_url ?? t('agents.gateway_required')} · {selected}</p>
       <div class="flex flex-wrap gap-2">
         {#if detection.connected}
-          <Button variant="outline" disabled={pending || task.status === 'running'} onclick={() => action('disconnect_agent')}>{t('agents.disconnect')}</Button>
+          <Button variant="outline" disabled={pending || task.status === 'running'} onclick={() => action('disconnect_agent', { agent })}>{t('agents.disconnect')}</Button>
         {:else}
-          <Button disabled={pending || !selected} onclick={() => action('connect_agent', { model: selected })}>{t('agents.connect')}</Button>
+          <Button disabled={pending || !selected} onclick={() => action('connect_agent', { model: selected, agent })}>{t('agents.connect')}</Button>
         {/if}
         <Button variant="outline" disabled={pending} onclick={() => { void refresh(); void loadModels(); }}>{t('modules.refresh')}</Button>
+        {#if agent === 'openclaw' && detection.managed}
+          <Button variant="outline" disabled={pending || installing || task.status === 'running'} onclick={() => action('remove_openclaw')}>{t('agents.remove_openclaw')}</Button>
+        {/if}
       </div>
-      <p class="text-sm text-muted-foreground">{t('agents.task_permission')}</p>
+      <p class="text-sm text-muted-foreground">{t(agent === 'openclaw' ? 'agents.openclaw_task_permission' : 'agents.task_permission')}</p>
       <label class="block text-sm" for="agent-folders">{t('agents.read_folders')}</label>
       <textarea id="agent-folders" class="w-full rounded border bg-background p-2" bind:value={folders} oninput={() => granted = false} disabled={task.status === 'running'}></textarea>
-      <p class="text-xs text-muted-foreground">{t('agents.scope_limits')}</p>
+      <p class="text-xs text-muted-foreground">{t(agent === 'openclaw' ? 'agents.openclaw_scope_limits' : 'agents.scope_limits')}</p>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={granted} disabled={task.status === 'running'} />{t('agents.grant_run')}</label>
       <label class="block text-sm" for="agent-prompt">{t('agents.task')}</label>
       <textarea id="agent-prompt" class="min-h-24 w-full rounded border bg-background p-2" bind:value={prompt} placeholder={t('agents.example')} maxlength="16384" disabled={task.status === 'running'}></textarea>
@@ -153,7 +180,7 @@
   {#each history as entry (entry.id)}
     <div class="space-y-2 rounded border p-3 text-sm">
       <p class="break-words">{entry.prompt}</p>
-      <p>{entry.model} · {t(('agents.' + entry.status) as TKey)} · {entry.started_at ? new Date(entry.started_at).toLocaleString() : '—'}</p>
+      <p>{label(entry.agent)} · {entry.model} · {t(('agents.' + entry.status) as TKey)} · {entry.started_at ? new Date(entry.started_at).toLocaleString() : '—'}</p>
       <p>{t('agents.duration')}: {Math.max(0, Math.round(((entry.finished_at ?? Date.now()) - (entry.started_at ?? Date.now())) / 1000))} s · {t('agents.tokens')}: {entry.tokens ?? t('agents.unavailable')}</p>
       {#if entry.error}<p class="text-destructive">{errorText(entry.error)}</p>{/if}
       <Button variant="outline" onclick={() => opened = opened === entry.id ? '' : entry.id ?? ''}>{t('agents.reopen')}</Button>
@@ -169,8 +196,9 @@
   <p class="text-sm text-muted-foreground">{t('agents.paperclip_help')}</p>
   <label class="block text-sm" for="paperclip-model">{t('agents.model')}</label>
   <select id="paperclip-model" class="w-full rounded border bg-background p-2" bind:value={paperclipModel} disabled={pending || !!handoff}>
-    {#each models as model (model.alias)}<option value={model.alias}>{model.alias}</option>{/each}
+    {#each models as model (model.alias)}<option value={model.alias}>{modelLabel(model)}</option>{/each}
   </select>
+  {#if models.find(m => m.alias === paperclipModel)?.remote}<p class="text-xs text-muted-foreground">{t('agents.remote_help')}</p>{/if}
   <Button disabled={pending || !paperclipModel || !!handoff} onclick={() => paperclip('generate')}>{t('agents.generate_config')}</Button>
   {#if handoff}
     <p class="break-all text-sm">{handoff.endpoint}</p>

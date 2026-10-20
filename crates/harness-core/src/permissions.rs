@@ -383,7 +383,7 @@ impl Permissions {
             SubjectKind::Agent,
             AGENT_OPENCLAW,
             "OpenClaw",
-            false,
+            true,
             PermissionClass::Dangerous,
             vec![Capability::File],
         ));

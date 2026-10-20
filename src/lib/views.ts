@@ -9,6 +9,7 @@ export const views = {
   modules: (() => import('#lib/components/Modules.svelte')) as ViewLoader,
   create: (() => import('#lib/components/Create.svelte')) as ViewLoader,
   playground: (() => import('#lib/components/Playground.svelte')) as ViewLoader,
+  projects: (() => import('#lib/components/Projects.svelte')) as ViewLoader,
   servers: (() => import('#lib/components/Servers.svelte')) as ViewLoader,
   library: (() => import('#lib/components/Library.svelte')) as ViewLoader,
   hub: (() => import('#lib/components/ModelHub.svelte')) as ViewLoader,
@@ -16,7 +17,7 @@ export const views = {
   performance: (() => import('#lib/components/PerformanceTab.svelte')) as ViewLoader,
   analytics: (() => import('#lib/components/Analytics.svelte')) as ViewLoader,
   settings: (() => import('#lib/components/Settings.svelte')) as ViewLoader,
-  onboarding: (() => import('#lib/components/OnboardingWizard.svelte')) as ViewLoader,
+  setup: (() => import('#lib/components/SetupWindow.svelte')) as ViewLoader,
   presets: (() => import('#lib/components/presets/PresetManager.svelte')) as ViewLoader,
 };
 
@@ -25,6 +26,7 @@ const tabViews: Record<string, ViewLoader> = {
   modules: views.modules,
   create: views.create,
   playground: views.playground,
+  projects: views.projects,
   servers: views.servers,
   library: views.library,
   hub: views.hub,

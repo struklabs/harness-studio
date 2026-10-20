@@ -7,6 +7,7 @@ Harness Studio runs local models on your computer. Downloads, remote models, HTT
 ## Credentials and Network Access
 
 - Hugging Face credentials and llama-server API keys are stored in the OS keychain. Signing out removes local Hugging Face credentials; revoke access at Hugging Face to fully disconnect the account.
+- Cloud provider API keys (OpenAI, Gemini, Anthropic, OpenRouter, custom endpoints) are stored only in the OS keychain of the device where you add them, never in settings files or logs. The Gateway sends a key only to its own provider's address, does not follow redirects, and never returns the provider's message for a rejected key. Requests to a cloud model leave your computer; any client allowed to use the Gateway can use these models and spend your provider credits, so restrict models with named tokens when you share the Gateway.
 - The Control API and Gateway are off by default. Enable them in Settings only when needed. Use named tokens with the narrowest scopes and revoke unused tokens.
 - The Gateway accepts local requests without a token by default. Enable **Require a Token on This Computer Too** to enforce token restrictions for every local client. Otherwise, requests without a token bypass model and endpoint restrictions.
 - Sharing the Gateway over a network requires a token. Review bind addresses and allowed browser origins before sharing. Harness does not configure your firewall.

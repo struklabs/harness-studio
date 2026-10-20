@@ -765,6 +765,7 @@ impl Scheduler {
                 // Models of the Lemonade engine (downloaded in its registry), by their name.
                 external.extend(lemonade_definitions(&defs).await);
                 external.extend(crate::link::definitions());
+                external.extend(crate::cloud::definitions());
                 if let Some(d) = external
                     .iter()
                     .find(|d| d.alias.eq_ignore_ascii_case(model))
@@ -826,6 +827,7 @@ impl Scheduler {
         external.extend(self.router_externals(&defs).await);
         external.extend(lemonade_definitions(&defs).await);
         external.extend(crate::link::definitions());
+        external.extend(crate::cloud::definitions());
         Ok(external)
     }
 
@@ -992,6 +994,16 @@ impl Scheduler {
                 });
             }
             return self.acquire_remote(def).await;
+        }
+        if crate::cloud::parse_model(&def.id).is_some() {
+            if route != Route::General {
+                return Err(SchedError::LoadFailed {
+                    alias: def.alias.clone(),
+                    code: "cloud_provider".into(),
+                    message: "cloud.unsupported_endpoint".into(),
+                });
+            }
+            return self.acquire_cloud(def).await;
         }
         if def
             .base
@@ -1160,6 +1172,43 @@ impl Scheduler {
             server_id: name,
             upstream,
             api_key: Some(key),
+            queue_wait: Duration::ZERO,
+            load: None,
+            ctx_size: None,
+            template_tools: None,
+            reasoning_control: Default::default(),
+            backend: None,
+            entry,
+            started: Instant::now(),
+            slots: 0,
+            waited: None,
+            reserved_tokens: 0,
+            _activity: None,
+            _permit: permit,
+            _tokens: None,
+        })
+    }
+
+    /// A BYOK cloud model: no local load or slot; the provider does its own queueing.
+    async fn acquire_cloud(self: &Arc<Self>, def: &ModelDefinition) -> Result<Lease, SchedError> {
+        let (upstream, key, name) =
+            crate::cloud::endpoint(&def.id).map_err(|message| SchedError::LoadFailed {
+                alias: def.alias.clone(),
+                code: "cloud_provider".into(),
+                message,
+            })?;
+        let entry = self.entry(def);
+        let permit = Arc::new(Semaphore::new(1))
+            .acquire_owned()
+            .await
+            .map_err(|e| SchedError::Internal(e.to_string()))?;
+        entry.state().in_flight += 1;
+        Ok(Lease {
+            definition_id: def.id.clone(),
+            alias: def.alias.clone(),
+            server_id: name,
+            upstream,
+            api_key: key,
             queue_wait: Duration::ZERO,
             load: None,
             ctx_size: None,
@@ -2700,7 +2749,13 @@ impl Scheduler {
                 entry.state().waiting += 1;
             }
             let waiting = Waiting(entry.clone());
-            if let Err(e) = self.ensure_ready(&entry, &def).await {
+            if let Err(e) = crate::jobs::JOB_PRIORITY
+                .scope(
+                    crate::jobs::Priority::Background,
+                    self.ensure_ready(&entry, &def),
+                )
+                .await
+            {
                 eprintln!(
                     "[Harness Gateway] Pinned model {} could not be loaded: {}",
                     def.alias,

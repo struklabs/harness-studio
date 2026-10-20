@@ -57,7 +57,7 @@
   function takeRestoreTab(): Tab {
     try {
       const tab = localStorage.getItem(RESTORE_TAB_KEY);
-      const tabs: Tab[] = ['modules', 'settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'library', 'hub', 'connections', 'performance', 'analytics', 'settings', 'create'];
+      const tabs: Tab[] = ['modules', 'settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'library', 'hub', 'connections', 'performance', 'analytics', 'settings', 'create', 'projects'];
       if (tabs.includes(tab as Tab)) return tab as Tab;
     } catch {
       // storage unavailable
@@ -120,7 +120,7 @@
     const navigateSections = () => {
       const url = new URL(location.href);
       const screen = url.hash.match(/^#([^/]+)(?:\/|$)/)?.[1] ?? url.searchParams.get('screen') ?? url.searchParams.get('tab');
-      if (['settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'create', 'connections', 'hub'].includes(screen ?? '')) currentTab = screen as Tab;
+      if (['settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'create', 'connections', 'hub', 'projects'].includes(screen ?? '')) currentTab = screen as Tab;
     };
     navigateSections();
     window.addEventListener('hashchange', navigateSections);
@@ -277,12 +277,12 @@
   /** True from the wizard's completion until the first tab is chosen (the Dashboard tour waits). */
   let landingAfterWizard = $state<boolean>(false);
 
-  /** After the first-run wizard: the Model Hub when no model exists yet, else the Playground. A page remembered from an earlier session is dropped. */
-  async function landAfterWizard() {
+  /** After first-run Setup: the Get Started checklist (Dashboard) when asked, else the Model Hub when no model exists yet, else the Playground. A page remembered from an earlier session is dropped. */
+  async function landAfterWizard(dashboard = false) {
     forgetRestoreTab();
     try {
       const models = await library.refresh();
-      const tab: Tab = models.length === 0 ? 'hub' : 'playground';
+      const tab: Tab = dashboard ? 'dashboard' : models.length === 0 ? 'hub' : 'playground';
       currentTab = tab;
     } finally {
       landingAfterWizard = false;
@@ -339,15 +339,16 @@
   <Tooltip.Provider delayDuration={250}>
     {#if !settings.privacy.onboarding_completed || showWizardManually}
       <LazyView
-        load={views.onboarding}
+        load={views.setup}
         {settings}
         {hardware}
-        onComplete={(updated: AppSettings) => {
+        onComplete={(updated: AppSettings, opts?: { dashboard?: boolean }) => {
           const firstRun = !settings.privacy.onboarding_completed;
           showWizardManually = false;
           if (firstRun) landingAfterWizard = true;
           handleSettingsUpdated(updated);
-          if (firstRun) void landAfterWizard();
+          if (firstRun) void landAfterWizard(opts?.dashboard);
+          else if (opts?.dashboard) currentTab = 'dashboard';
         }}
         onClose={settings.privacy.onboarding_completed
           ? () => {
@@ -414,6 +415,8 @@
             <LazyView load={views.create} fallback />
           {:else if currentTab === 'connections'}
             <LazyView load={views.connections} fallback {settings} {serverStatus} />
+          {:else if currentTab === 'projects'}
+            <LazyView load={views.projects} fallback />
           {/if}
           {#if libraryOpened}<div class="h-full" hidden={currentTab !== 'library'}><LazyView load={views.library} fallback /></div>{/if}
           {#if analyticsOpened}<div class="h-full" hidden={currentTab !== 'analytics'}><LazyView load={views.analytics} fallback /></div>{/if}

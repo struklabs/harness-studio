@@ -19,6 +19,7 @@
   import type { ChatMessage as Msg } from './types';
   import type { ModelLoadState } from './gatewayModels';
   import { isRemoteModel } from './remoteModels';
+  import { isCloudModel } from './cloudModels';
   import {
     SIDES,
     chatServers,
@@ -116,6 +117,7 @@
 
   function stateLabel(alias: string): string {
     if (isRemoteModel(alias)) return t('link.remote');
+    if (isCloudModel(alias)) return t('cloud.location', { provider: alias.slice(6, alias.indexOf('/')) });
     const st = modelStates[alias];
     return st === 'loaded' ? t('pgs.state_loaded') : st === 'loading' ? t('pgs.state_loading') : t('pgs.state_jit');
   }

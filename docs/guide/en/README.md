@@ -22,12 +22,14 @@ Names in **bold** are labels you will see in the app. Model Hub and engine downl
 10. [Troubleshooting and FAQ](10-troubleshooting.md)
 11. [Setup Scenarios: First Model, First Agent, Remote Server](11-setup-scenarios.md)
 
+For public skills and MCP repositories, see [GitHub Discovery](github-discovery.md).
+
 ## Get Started in Five Steps
 
 Five minutes is a goal for getting to know the steps. Engine and model downloads take as long as their size and your connection require.
 
 1. **Download and install.** Get the Windows installer (`.exe`, NSIS) from the project's [GitHub Releases](https://github.com/struklabs/harness-studio/releases) page and run it. The installer is not code-signed yet, so Windows SmartScreen may warn you the first time; the steps are in [Installation](01-installation.md). Signed, Apple-notarized DMGs are available for Apple Silicon and Intel (macOS 13.3+); Linux `.deb` and AppImage packages are previews.
-2. **Finish the setup wizard.** In the **Setup wizard**, go through **Hardware**, **Storage**, **Engine**, **Purpose**, and **Privacy**. For the managed engine, choose **Download and Install the Latest**. In the **Purpose** step you also pick your interface level (**Simple** is recommended for a first run). Finish with **Finish Setup**.
+2. **Finish the Setup window.** On **Welcome**, pick your interface level (**Simple** is recommended for a first run). On **Choose**, keep the preselected engine and first model, or tick more, then press **Install**. **Done** takes you to the **Get Started** checklist.
 3. **Download a model.** In **Find a Model** (**Model Hub** in Advanced), search for a chat model and open **Files and quants**. Read the **Hardware fit** column and press **Download** on one file. Wait for **Completed** in the **Download Queue**.
 4. **Start the server.** In **Dashboard**, pick the model you downloaded (and a **Model definition**, if you have one). Check the memory estimate and press **Start Server**. Wait for **Server active**.
 5. **Chat.** In **Chat and Media** (**Playground** in Advanced), open **Chat**, check the model, type "Write me a three-item plan for today." into **Your message**, and press **Send**.

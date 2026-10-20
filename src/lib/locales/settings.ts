@@ -35,9 +35,6 @@ const tr = {
   'settings.group_engine': 'Motor Kaynağı',
   'settings.group_managed': 'Yönetilen Sürüm',
   'settings.group_custom': 'Özel İkili',
-  'settings.wizard_label': 'Kurulum Sihirbazı',
-  'settings.wizard_hint': 'Donanım, klasör ve motor adımlarını yeniden çalıştırır.',
-  'settings.wizard_btn': 'Sihirbazı Aç',
   'settings.managed_runtime_label': 'Yönetilen (önerilen)',
   'settings.managed_runtime_desc': 'Harness Studio resmi sürümü indirir, doğrular ve güncel tutar.',
   'settings.custom_binary_label': 'Özel İkili',
@@ -233,10 +230,15 @@ const tr = {
   'settings.app_install_progress_label': 'Güncelleme İndirme İlerlemesi',
 
   // Privacy and diagnostics
+  'settings.retention_days': 'Saklama süresi (gün)',
+  'settings.retention_days_hint': 'Raporlar varsayılan olarak 30 gün saklanır (1–365 gün). Süresi dolan raporlar otomatik silinir.',
+  'settings.export_report_zip': 'ZIP Olarak Dışa Aktar',
+  'settings.delete_report': 'Raporu Sil',
+  'settings.report_export_failed': 'Rapor dışa aktarılamadı: {error}',
   'settings.privacy_title': 'Rapor İçeriği',
-  'settings.privacy_desc': 'Raporlar yalnızca bu cihazda saklanır ve hiçbir yere gönderilmez. Paylaşmak isterseniz aşağıdan inceleyip kopyalayabilirsiniz.',
+  'settings.privacy_desc': 'Raporlar yalnızca bu cihazda saklanır ve hiçbir yere gönderilmez. Tanılama > Raporlar sayfasından inceleyebilir, ZIP olarak dışa aktarabilir veya silebilirsiniz.',
   'settings.crash_reports_label': 'Çökme Raporları',
-  'settings.crash_reports_desc': 'Uygulama beklenmedik kapandığında hata yığını.',
+  'settings.crash_reports_desc': 'Varsayılan olarak kapalıdır. Uygulama ve motor çökmeleri için anonim yerel raporlar kaydedilir; otomatik gönderim yapılmaz.',
   'settings.app_errors_label': 'Uygulama hataları',
   'settings.app_errors_desc': 'Arayüz veya çekirdek servis hataları.',
   'settings.llama_errors_label': 'Sunucu hataları (llama.cpp)',
@@ -294,13 +296,6 @@ const tr = {
   'backend.reason_no_gpu': "Kullanılabilir GPU bulunamadı; CPU build'i kullanılır.",
   'backend.reason_apple_silicon': "Apple Silicon: macOS build'i Metal ile birleşik belleği kullanır.",
   'backend.reason_intel_mac': "Intel Mac: llama.cpp burada Metal desteklemez; CPU build'i kullanılır.",
-  'settings.reset_title': 'Sıfırlama ve Kaldırma Yardımcısı',
-  'settings.reset_desc': 'Model motorlarını, yönetilen ortamları, önbellekleri ve günlükleri siler, sonra uygulamayı kapatır. Modelleriniz ve içerikleriniz varsayılan olarak kalır.',
-  'settings.reset_delete_data': 'Verilerimi de sil (modeller, sohbetler, ayarlar, kayıtlı anahtarlar)',
-  'settings.reset_external': 'Harici Model Klasörleri (seçilenler de silinir)',
-  'settings.reset_start': 'Temizliği Başlat',
-  'settings.reset_confirm': 'Sil ve Kapat',
-  'settings.reset_cancel': 'Vazgeç',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -339,9 +334,6 @@ const en: Record<keyof typeof tr, string> = {
   'settings.group_engine': 'Engine Source',
   'settings.group_managed': 'Managed Version',
   'settings.group_custom': 'Custom Binary',
-  'settings.wizard_label': 'Setup Wizard',
-  'settings.wizard_hint': 'Runs the hardware, folder and engine steps again.',
-  'settings.wizard_btn': 'Open Wizard',
   'settings.managed_runtime_label': 'Managed (recommended)',
   'settings.managed_runtime_desc': 'Harness Studio downloads, verifies and updates the official build.',
   'settings.custom_binary_label': 'Custom Binary',
@@ -537,10 +529,15 @@ const en: Record<keyof typeof tr, string> = {
   'settings.app_install_progress_label': 'Update Download Progress',
 
   // Privacy and diagnostics
+  'settings.retention_days': 'Retention period (days)',
+  'settings.retention_days_hint': 'Reports are kept for 30 days by default (1–365 days). Expired reports are deleted automatically.',
+  'settings.export_report_zip': 'Export as ZIP',
+  'settings.delete_report': 'Delete Report',
+  'settings.report_export_failed': 'Could not export the report: {error}',
   'settings.privacy_title': 'Report Contents',
-  'settings.privacy_desc': 'Reports are stored on this device only and are never sent anywhere. You can review and copy them below if you want to share them.',
+  'settings.privacy_desc': 'Reports stay on this device and are never sent anywhere. Review, export as ZIP or delete them in Diagnostics > Reports.',
   'settings.crash_reports_label': 'Crash Reports',
-  'settings.crash_reports_desc': 'Stack traces when the app closes unexpectedly.',
+  'settings.crash_reports_desc': 'Off by default. Save anonymous local reports for app panics, unexpected exits and engine crashes. Nothing is sent automatically.',
   'settings.app_errors_label': 'App errors',
   'settings.app_errors_desc': 'UI or core service errors.',
   'settings.llama_errors_label': 'Server errors (llama.cpp)',
@@ -598,13 +595,6 @@ const en: Record<keyof typeof tr, string> = {
   'backend.reason_no_gpu': 'No usable GPU found; the CPU build is used.',
   'backend.reason_apple_silicon': 'Apple Silicon: the macOS build uses Metal and unified memory.',
   'backend.reason_intel_mac': 'Intel Mac: llama.cpp has no Metal support here; the CPU build is used.',
-  'settings.reset_title': 'Reset / Uninstall Helper',
-  'settings.reset_desc': 'Removes engines, managed environments, caches, and logs, then quits the app. Your models and content stay by default.',
-  'settings.reset_delete_data': 'Also delete my data (models, chats, settings, saved keys)',
-  'settings.reset_external': 'External Model Folders (selected ones are deleted too)',
-  'settings.reset_start': 'Start Cleanup',
-  'settings.reset_confirm': 'Delete and Quit',
-  'settings.reset_cancel': 'Cancel',
 };
 
 export default { tr, en };

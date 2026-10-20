@@ -2,7 +2,7 @@
 
 Türkçe: [../tr/04-playground.md](../tr/04-playground.md)
 
-**What you do here:** chat with a local model, organize chats, use documents and tools, compare two answers, work with embeddings and reranking, turn speech into text and text into speech, and generate images.
+**What you do here:** chat with a local model, organize chats, use documents and tools, compare two answers, work with embeddings and reranking, turn speech into text and text into speech, generate images, and group work into projects.
 
 ## How the Screen Is Laid Out
 
@@ -96,6 +96,17 @@ Approval lets the tool run on your computer. For file writes and commands, check
 
 The **Use** choice next to a document decides how it is used. With **Auto**, a document that fits comfortably in the context is added as full text, and for large documents the relevant parts are searched for on every question. You can change this with **Full Text** and **Search**. If no **Embedding model** is selected on **Session Settings > RAG**, only keyword search is used; for semantic search, download a small embedding model (for example nomic-embed-text) from Model Hub. Optional **Reranking** orders results more accurately with a reranker model at a small cost in speed. **Chunks per question** is the number of quotes added to the answer in search mode. Document processing and indexes run locally. Document search is not used in the comparison view.
 
+## Knowledge Bases
+
+A knowledge base is a named set of documents you can reuse in any chat.
+
+1. Open **Knowledge Bases** above the message box and choose **New from Folder** (supported files in the folder and its subfolders; hidden, build, and dependency folders are skipped) or **New from Files**.
+2. If no embedding model is installed, **Install Embedding Model** downloads a small multilingual one (about 126 MB). It runs on the CPU, so indexing does not keep your GPU busy. Make sure the gateway is on.
+3. Watch the progress under the base; **Stop** cancels it and **Resume** continues later. When indexing ends, the base shows how long it took.
+4. Choose **Use in This Chat**. On every question, only the best matching passages are added (a quarter of the context at most, 2,000 tokens at the very most), and the answer shows them as source chips.
+
+A base remembers which embedding model built its index. If you switch to another embedding model, the base is marked **Stale**; **Rebuild** re-reads and re-indexes it. Until then, searches fall back to keywords and a notice says why. Deleting a base removes its index only, never your files.
+
 ## Embedding and Rerank
 
 **Embedding** turns text into a numeric vector, used for search and similarity. Start a server with a suitable embedding model (a server whose model type is embedding starts in this mode on its own), fill in the **Texts** boxes on the **Embedding** tab, and press **Get Embeddings**. A similarity matrix needs at least two non-empty texts.
@@ -142,6 +153,20 @@ Only WAV is accepted: up to 32 MiB, 10 minutes, and two channels. Some models ne
 The **Image Generation** tab generates pictures from diffusion models through stable-diffusion.cpp or the Python engine (diffusers). Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it), or use one that is already in your folders: it appears in the **Model** list on its own, and **Open in Playground** on its library card opens this tab with it selected. If the list stays empty although the file is there, some of its extra files are missing; the tab says so and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; an empty **Seed** chooses a random seed on each request, while the other empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
 
 For image-to-image, add an optional **Start Image** and set **Strength** (how much it changes). Models that only edit images require a start image. Python diffusers models also open in this tab.
+
+## Projects and Outputs
+
+A project groups chats, the files they produce, and agent tasks under a name and a folder. Open **Projects** in the sidebar and press **New Project**.
+
+1. Give it a **Name**, an optional description, and a **Project Folder** (an existing folder). Outputs are written to the `outputs` folder inside it.
+2. **Extra Allowed Folders** (one per line) lets tools and agents use other folders too. Tools in the project's chats and its agent tasks work only inside the project folder and these folders; a file tool asked to work elsewhere is refused.
+3. **Attached Tools**, **Attached Skills**, and **Attached MCP Servers** narrow what the project's chats offer. With nothing picked, the global settings apply.
+
+Press **Use in Playground**, or pick the project in the list above the chats (**All Chats** shows every chat). While a project is active, new chats are filed into it, the chat list shows only its chats, generated images and speech are saved to its `outputs` folder, and files written by `write_file` or `edit_file` are recorded as outputs.
+
+On the project page, **Outputs** lists each file with its source (chat, tool, image generation, speech, or agent), model, and time. **Open** opens it with the default app, **Show in Folder** reveals it, and **Remove from List (Keep File)** forgets it without touching the disk. **Agent Tasks** runs a Hermes Agent task that can read only the project's folders; **Save as Output** keeps its answer as a Markdown file.
+
+**Archive** hides a project from the list and the Playground picker (**Show Archived** brings it back; **Unarchive** restores it). **Export as Zip** saves the project details, its chats as JSON, and its output files. **Delete Project** keeps the chats (they no longer belong to a project); tick the checkbox to also delete the output files in the project's folders from disk. The folders themselves always stay.
 
 ## Tasks (Advanced)
 

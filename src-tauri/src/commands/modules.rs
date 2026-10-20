@@ -16,11 +16,34 @@ pub(crate) async fn remove_module(id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub(crate) async fn detect_agent() -> Result<harness_core::modules::agents::Detection, String> {
-    blocking(harness_core::modules::agents::detect).await?
+pub(crate) async fn detect_agent(agent: Option<String>) -> Result<harness_core::modules::agents::Detection, String> {
+    let kind = agent_kind(agent)?;
+    blocking(move || harness_core::modules::agents::detect_kind(kind)).await?
+}
+fn agent_kind(agent: Option<String>) -> Result<harness_core::modules::agents::AgentKind, String> {
+    agent.as_deref().map_or(Ok(Default::default()), harness_core::modules::agents::AgentKind::parse)
+}
+/// Installs Harness's own pinned OpenClaw with npm (the official method).
+#[tauri::command]
+pub(crate) async fn install_openclaw() -> Result<(), String> {
+    harness_core::modules::agents::install_openclaw().await
 }
 #[tauri::command]
-pub(crate) async fn connect_agent(gw: State<'_, GatewayState>, model: String) -> Result<(), String> {
+pub(crate) fn cancel_openclaw_install() {
+    harness_core::modules::agents::cancel_install_kind(harness_core::modules::agents::AgentKind::OpenClaw);
+}
+#[tauri::command]
+pub(crate) async fn remove_openclaw() -> Result<(), String> {
+    blocking(harness_core::modules::agents::remove_openclaw).await?
+}
+/// Chat models for agents and Paperclip: local models plus Harness Link models.
+#[tauri::command]
+pub(crate) async fn list_agent_choices() -> Result<Vec<harness_core::integrations::agent_models::AgentModel>, String> {
+    blocking(harness_core::integrations::agent_models::list_with_link).await?
+}
+#[tauri::command]
+pub(crate) async fn connect_agent(gw: State<'_, GatewayState>, model: String, agent: Option<String>) -> Result<(), String> {
+    let kind = agent_kind(agent)?;
     let status = gw.server.status().await;
     if !status.running { return Err("agents.gateway_required".into()); }
     let port = status.port.ok_or("agents.gateway_required")?;
@@ -29,19 +52,21 @@ pub(crate) async fn connect_agent(gw: State<'_, GatewayState>, model: String) ->
         Some("::1" | "::") => "[::1]",
         _ => return Err("agents.gateway_required".into()),
     };
-    blocking(move || harness_core::modules::agents::connect(&format!("http://{host}:{port}/v1"), &model)).await?
+    blocking(move || harness_core::modules::agents::connect_kind(kind, &format!("http://{host}:{port}/v1"), &model)).await?
 }
 #[tauri::command]
-pub(crate) async fn disconnect_agent() -> Result<(), String> {
-    blocking(harness_core::modules::agents::disconnect).await?
+pub(crate) async fn disconnect_agent(agent: Option<String>) -> Result<(), String> {
+    let kind = agent_kind(agent)?;
+    blocking(move || harness_core::modules::agents::disconnect_kind(kind)).await?
 }
 #[tauri::command]
 pub(crate) fn agent_task_status() -> harness_core::modules::agents::TaskStatus {
     harness_core::modules::agents::task_status()
 }
 #[tauri::command]
-pub(crate) async fn start_agent_task(prompt: String, grants: harness_core::modules::agents::RunGrants) -> Result<(), String> {
-    blocking(move || harness_core::modules::agents::start_task_with_grants(prompt, grants)).await?
+pub(crate) async fn start_agent_task(prompt: String, grants: harness_core::modules::agents::RunGrants, agent: Option<String>) -> Result<(), String> {
+    let kind = agent_kind(agent)?;
+    blocking(move || harness_core::modules::agents::start_task_kind(kind, prompt, grants)).await?
 }
 #[tauri::command]
 pub(crate) fn stop_agent_task() { harness_core::modules::agents::stop(); }

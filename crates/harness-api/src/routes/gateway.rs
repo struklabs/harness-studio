@@ -37,3 +37,10 @@ pub async fn gateway() -> ApiResult<Json<GatewayView>> {
         models,
     }))
 }
+
+/// Read-only central GPU queue, including resident engine reservations.
+#[utoipa::path(get, operation_id = "get_jobs", path = "/jobs", tag = "system",
+    responses((status = 200, body = Vec<harness_core::jobs::JobStatus>), (status = 401, body = ErrorBody)))]
+pub async fn jobs() -> Json<Vec<harness_core::jobs::JobStatus>> {
+    Json(harness_core::jobs::global().snapshot())
+}
