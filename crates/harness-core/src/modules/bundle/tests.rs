@@ -605,9 +605,11 @@ fn removal_and_reinstall_from_a_bundle_work_without_a_network() {
         load().unwrap().modules["speech"].status,
         Status::NotInstalled
     );
-    // Shared uv and Python stay by policy; take them away too to install everything again.
-    std::fs::remove_dir_all(l.pyroot().join("uv")).unwrap();
-    std::fs::remove_dir_all(l.pyroot().join("python")).unwrap();
+    // Removal reclaims shared uv and Python when nothing else needs them; make sure both are
+    // gone either way, to install everything again.
+    for shared in ["uv", "python"] {
+        let _ = std::fs::remove_dir_all(l.pyroot().join(shared));
+    }
 
     let resolve = |id: &str| installable(id);
     let before = |_: &str, _: bool| Ok(());
