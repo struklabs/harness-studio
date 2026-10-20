@@ -345,6 +345,20 @@ pub fn ensure_enabled(id: &str) -> Result<(), String> {
     }
     Ok(())
 }
+/// Like [`ensure_enabled`] for features that do not need the module installed itself: only a
+/// disabled or changing module blocks them.
+pub fn ensure_not_disabled(id: &str) -> Result<(), String> {
+    let data = load()?;
+    if data.transaction.as_ref().is_some_and(|tx| tx.id == id)
+        || data
+            .modules
+            .get(id)
+            .is_some_and(|s| matches!(s.status, Status::Disabled | Status::Installing))
+    {
+        return Err("modules.disabled".into());
+    }
+    Ok(())
+}
 fn unused(id: &str) -> Result<(), String> {
     if id == "agents" && agents::task_status().status == "running" {
         return Err("modules.in_use".into());
@@ -538,6 +552,7 @@ async fn run(id: &str, action: &str) -> Result<(), String> {
         }
         if action == "disable" && id == "agents" {
             agents::disconnect()?;
+            agents::disconnect_kind(agents::AgentKind::OpenClaw)?;
         }
         state.status = if action == "enable" {
             Status::Installed
@@ -793,6 +808,7 @@ pub fn remove_with_options(id: &str, options: &RemovalOptions) -> Result<(), Str
             }
         }
         agents::disconnect()?;
+        agents::disconnect_kind(agents::AgentKind::OpenClaw)?;
     }
     let mut next = data.clone();
     let unused = next.release(id);
