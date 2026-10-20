@@ -294,6 +294,13 @@ const tr = {
   'backend.reason_no_gpu': "Kullanılabilir GPU bulunamadı; CPU build'i kullanılır.",
   'backend.reason_apple_silicon': "Apple Silicon: macOS build'i Metal ile birleşik belleği kullanır.",
   'backend.reason_intel_mac': "Intel Mac: llama.cpp burada Metal desteklemez; CPU build'i kullanılır.",
+  'settings.reset_title': 'Sıfırlama ve Kaldırma Yardımcısı',
+  'settings.reset_desc': 'Model motorlarını, yönetilen ortamları, önbellekleri ve günlükleri siler, sonra uygulamayı kapatır. Modelleriniz ve içerikleriniz varsayılan olarak kalır.',
+  'settings.reset_delete_data': 'Verilerimi de sil (modeller, sohbetler, ayarlar, kayıtlı anahtarlar)',
+  'settings.reset_external': 'Harici Model Klasörleri (seçilenler de silinir)',
+  'settings.reset_start': 'Temizliği Başlat',
+  'settings.reset_confirm': 'Sil ve Kapat',
+  'settings.reset_cancel': 'Vazgeç',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -591,6 +598,13 @@ const en: Record<keyof typeof tr, string> = {
   'backend.reason_no_gpu': 'No usable GPU found; the CPU build is used.',
   'backend.reason_apple_silicon': 'Apple Silicon: the macOS build uses Metal and unified memory.',
   'backend.reason_intel_mac': 'Intel Mac: llama.cpp has no Metal support here; the CPU build is used.',
+  'settings.reset_title': 'Reset / Uninstall Helper',
+  'settings.reset_desc': 'Removes engines, managed environments, caches, and logs, then quits the app. Your models and content stay by default.',
+  'settings.reset_delete_data': 'Also delete my data (models, chats, settings, saved keys)',
+  'settings.reset_external': 'External Model Folders (selected ones are deleted too)',
+  'settings.reset_start': 'Start Cleanup',
+  'settings.reset_confirm': 'Delete and Quit',
+  'settings.reset_cancel': 'Cancel',
 };
 
 export default { tr, en };

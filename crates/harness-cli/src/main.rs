@@ -86,6 +86,30 @@ fn run(cli: cli::Cli, out: &Out) -> Result<(), CliError> {
     }
     let data_dir = session::resolve_data_dir(&cli.global)?;
     harness_core::paths::init(data_dir.clone());
+    if let cli::Command::Cleanup {
+        identifier,
+        delete_data,
+        wait_pid,
+        external_model,
+    } = &cli.command
+    {
+        if !out.yes {
+            return Err(CliError::usage(
+                "cli.invalid_argument",
+                "Cleanup requires --yes after reviewing the paths in Settings",
+            ));
+        }
+        harness_core::secrets::init_service(identifier);
+        if let Some(pid) = wait_pid {
+            harness_core::cleanup::wait_for_exit(*pid)
+                .map_err(|e| CliError::general("cli.io", e))?;
+        }
+        return harness_core::cleanup::remove_platform_caches(identifier, &data_dir)
+            .and_then(|()| {
+                harness_core::cleanup::execute(&data_dir, identifier, *delete_data, external_model)
+            })
+            .map_err(|e| CliError::general("cli.io", e));
+    }
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

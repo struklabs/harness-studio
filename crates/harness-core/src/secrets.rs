@@ -5,6 +5,16 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 const SERVICE: &str = "com.harnessstudio.app";
+static SERVICE_OVERRIDE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Desktop test builds have their own credential namespace as well as their own data root.
+pub fn init_service(identifier: &str) {
+    let _ = SERVICE_OVERRIDE.set(identifier.to_string());
+}
+
+fn service() -> &'static str {
+    SERVICE_OVERRIDE.get().map_or(SERVICE, String::as_str)
+}
 const HF_ACCOUNT: &str = "huggingface_token";
 /// OAuth session of "Sign in with Hugging Face" (JSON: tokens, expiry, client id, profile).
 const HF_OAUTH_ACCOUNT: &str = "huggingface_oauth";
@@ -26,7 +36,7 @@ pub struct KeyringStore;
 
 impl KeyringStore {
     fn entry(account: &str) -> Result<keyring::Entry, String> {
-        keyring::Entry::new(SERVICE, account).map_err(|e| e.to_string())
+        keyring::Entry::new(service(), account).map_err(|e| e.to_string())
     }
 }
 
@@ -40,6 +50,17 @@ impl SecretStore for KeyringStore {
     }
 
     fn set(&self, account: &str, value: &str) -> Result<(), String> {
+        // Record the account before writing, so even a crash cannot leave an untracked secret.
+        // No secret values go into this ledger. Keep deleted accounts for idempotent cleanup.
+        static LEDGER: Mutex<()> = Mutex::new(());
+        let _guard = LEDGER.lock().map_err(|e| e.to_string())?;
+        let ledger =
+            crate::store::JsonStore::new(crate::paths::config_dir().join("secret-accounts.json"));
+        let mut accounts: Vec<String> = ledger.load_or_default();
+        if !accounts.iter().any(|a| a == account) {
+            accounts.push(account.to_string());
+            ledger.save(&accounts)?;
+        }
         Self::entry(account)?
             .set_password(value)
             .map_err(|e| e.to_string())
@@ -51,6 +72,92 @@ impl SecretStore for KeyringStore {
             Err(e) => Err(e.to_string()),
         }
     }
+}
+
+/// Removes credentials before deleting settings. Windows also enumerates old/orphaned
+/// accounts from versions predating the ledger, using the exact keyring service suffix.
+pub fn delete_all_owned() -> Result<(), String> {
+    let mut accounts: Vec<String> =
+        crate::store::JsonStore::new(crate::paths::config_dir().join("secret-accounts.json"))
+            .load_or_default();
+    accounts.extend([HF_ACCOUNT, HF_OAUTH_ACCOUNT, OTEL_HEADERS_ACCOUNT].map(str::to_string));
+    // Legacy accounts still referenced by saved settings, profiles and presets.
+    fn refs(value: &serde_json::Value, accounts: &mut Vec<String>) {
+        match value {
+            serde_json::Value::Object(map) => {
+                for (key, value) in map {
+                    if key == "api_key_ref" {
+                        if let Some(r) = value.as_str().filter(|r| valid_ref(r)) {
+                            accounts.push(api_account(r));
+                        }
+                    }
+                    refs(value, accounts);
+                }
+            }
+            serde_json::Value::Array(values) => {
+                for value in values {
+                    refs(value, accounts);
+                }
+            }
+            _ => {}
+        }
+    }
+    if let Ok(entries) = std::fs::read_dir(crate::paths::config_dir()) {
+        for entry in entries.flatten() {
+            if entry.path().extension().is_some_and(|e| e == "json") {
+                if let Ok(text) = std::fs::read_to_string(entry.path()) {
+                    if let Ok(value) = serde_json::from_str(&text) {
+                        refs(&value, &mut accounts);
+                    }
+                }
+            }
+        }
+    }
+    let settings = crate::config::AppSettings::load();
+    for link in &settings.links {
+        accounts.push(link_account(&link.id));
+    }
+    for provider in ["brave", "tavily", "exa", "serper"] {
+        accounts.push(format!("{WEB_SEARCH_PREFIX}{provider}"));
+    }
+    #[cfg(windows)]
+    if MEMORY_OVERRIDE.get().is_none() && !cfg!(test) {
+        accounts.extend(windows_accounts()?);
+    }
+    accounts.sort();
+    accounts.dedup();
+    for account in accounts {
+        store().delete(&account)?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn windows_accounts() -> Result<Vec<String>, String> {
+    use windows::Win32::Security::Credentials::{CredEnumerateW, CredFree, CREDENTIALW};
+    let mut count = 0;
+    let mut credentials: *mut *mut CREDENTIALW = std::ptr::null_mut();
+    let result = unsafe { CredEnumerateW(None, None, &mut count, &mut credentials) };
+    if let Err(e) = result {
+        if e.code().0 as u32 == 0x80070490 {
+            return Ok(Vec::new());
+        }
+        return Err(e.to_string());
+    }
+    let mut accounts = Vec::new();
+    let suffix = format!(".{}", service());
+    // The API owns this allocation until CredFree; no credential values are read.
+    unsafe {
+        for credential in std::slice::from_raw_parts(credentials, count as usize) {
+            if let Ok(target) = (**credential).TargetName.to_string() {
+                if let Some(account) = target.strip_suffix(&suffix) {
+                    accounts.push(account.to_string());
+                }
+            }
+        }
+        CredFree(credentials.cast());
+    }
+    Ok(accounts)
 }
 
 /// In-memory store (unit tests; integration tests and isolated instances via

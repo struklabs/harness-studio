@@ -1,4 +1,14 @@
 #!/bin/sh
 set -eu
 systemctl daemon-reload || true
-# Deliberately preserve /var/lib/harness and its dedicated account, even on purge.
+# Remove keeps /var/lib/harness, /etc/harness and the dedicated account.
+# Purge deletes only these app-owned locations and the dedicated system account.
+if [ "${1:-}" = purge ]; then
+  rm -rf /var/lib/harness /etc/harness
+  if getent passwd harness >/dev/null; then
+    deluser --system harness >/dev/null 2>&1 || true
+  fi
+  if getent group harness >/dev/null; then
+    delgroup --system harness >/dev/null 2>&1 || true
+  fi
+fi

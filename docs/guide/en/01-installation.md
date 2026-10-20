@@ -22,6 +22,10 @@ Harness Studio 0.1.2 is distributed as platform-specific packages on the project
 
 Uninstalling keeps your data unless you tick **Delete the application data** in the uninstaller. That option deletes the application's data folders, including models stored there; models in an external model folder stay. Without it, your data stays in the folder described [below](#model-folder-and-data-folder). The installer may leave an entry under `HKCU\Software\struklabs\Harness Studio` that only remembers the install location and language; it is harmless and can be deleted (an older `HKCU\Software\harnessstudio` key may come from an earlier version).
 
+**Cleaning up without uninstalling.** Open **Settings > Storage** and use **Reset / Uninstall Helper**. It lists what it will delete: engines, managed environments, caches, and logs. Your models, chats, and settings stay unless you tick **Also delete my data**; external model folders are deleted only if you select them one by one. The app quits first, then the cleanup runs.
+
+On Linux, removing the server `.deb` keeps `/var/lib/harness`, `/etc/harness`, and the `harness` account; purging the package (`apt purge`) deletes them.
+
 ### Updating the App
 
 Use **Settings > Updates > Check for Updates**, then **Install Update** to download, install, and restart. You can also run the latest package from GitHub Releases. The llama.cpp engine updates separately under **Settings > Runtime > Installed Runtime**.

@@ -12,6 +12,7 @@ pub mod benchmark;
 pub mod capabilities;
 pub mod changes;
 pub mod chat_template;
+pub mod cleanup;
 pub mod compaction;
 pub mod config;
 pub mod control_api;
