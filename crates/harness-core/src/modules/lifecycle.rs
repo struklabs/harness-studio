@@ -126,7 +126,7 @@ fn invalidate_disk_cache() {
     }
     super::invalidate_agent_probe();
 }
-struct RefreshDisk;
+pub(super) struct RefreshDisk;
 impl Drop for RefreshDisk {
     fn drop(&mut self) {
         invalidate_disk_cache();
@@ -142,9 +142,9 @@ pub struct Transaction {
     shared: Vec<SharedRuntime>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct SharedRuntime {
-    relative: PathBuf,
-    existed: bool,
+pub(super) struct SharedRuntime {
+    pub(super) relative: PathBuf,
+    pub(super) existed: bool,
 }
 fn shared_path(root: &Path, entry: &SharedRuntime) -> Result<PathBuf, String> {
     let parts: Vec<_> = entry.relative.components().collect();
@@ -170,7 +170,7 @@ fn shared_path(root: &Path, entry: &SharedRuntime) -> Result<PathBuf, String> {
     }
     Ok(root.join(&entry.relative))
 }
-fn shared_backup(path: &Path) -> PathBuf {
+pub(super) fn shared_backup(path: &Path) -> PathBuf {
     let mut name = path.file_name().unwrap().to_os_string();
     name.push(".module-rollback");
     path.with_file_name(name)
@@ -190,17 +190,17 @@ pub struct DataChoice {
     pub disk_bytes: u64,
     pub path: String,
 }
-fn runtime(id: &str) -> PathBuf {
+pub(super) fn runtime(id: &str) -> PathBuf {
     if id == "agents" {
         agents::managed_root()
     } else {
         envs::env_dir_in(&envs::root(), ENV)
     }
 }
-fn backup(id: &str) -> PathBuf {
+pub(super) fn backup(id: &str) -> PathBuf {
     runtime(id).with_extension("rollback")
 }
-fn erase(path: &Path) -> Result<(), String> {
+pub(super) fn erase(path: &Path) -> Result<(), String> {
     match std::fs::symlink_metadata(path) {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.to_string()),
@@ -230,7 +230,7 @@ fn begin_with_shared(
         shared,
     )
 }
-fn begin_at(
+pub(super) fn begin_at(
     data: &mut ModuleStore,
     id: &str,
     path: &Path,
@@ -283,7 +283,7 @@ fn restore_runtime(path: &Path, backup: &Path, had_runtime: bool) -> Result<(), 
     Ok(())
 }
 
-fn rollback(data: &mut ModuleStore) -> Result<(), String> {
+pub(super) fn rollback(data: &mut ModuleStore) -> Result<(), String> {
     let Some(tx) = data.transaction.clone() else {
         return Ok(());
     };
@@ -301,7 +301,7 @@ fn rollback(data: &mut ModuleStore) -> Result<(), String> {
         &envs::root(),
     )
 }
-fn rollback_at(
+pub(super) fn rollback_at(
     data: &mut ModuleStore,
     path: &Path,
     backup: &Path,
@@ -359,13 +359,13 @@ pub fn ensure_not_disabled(id: &str) -> Result<(), String> {
     }
     Ok(())
 }
-fn unused(id: &str) -> Result<(), String> {
+pub(super) fn unused(id: &str) -> Result<(), String> {
     if id == "agents" && agents::task_status().status == "running" {
         return Err("modules.in_use".into());
     }
     ensure_path_unused(&runtime(id))
 }
-fn ensure_path_unused(dir: &Path) -> Result<(), String> {
+pub(super) fn ensure_path_unused(dir: &Path) -> Result<(), String> {
     let mut system = sysinfo::System::new();
     system.refresh_processes_specifics(
         sysinfo::ProcessesToUpdate::All,
@@ -387,13 +387,8 @@ fn ensure_path_unused(dir: &Path) -> Result<(), String> {
 pub(super) fn component_bytes(id: &str) -> u64 {
     let path = match id {
         "transcribe-cpp" => runtime("speech"),
-        "hermes-agent" => {
-            if runtime("agents").exists() || backup("agents").exists() {
-                runtime("agents")
-            } else {
-                agents::external_runtime().unwrap_or_else(|| runtime("agents"))
-            }
-        }
+        // Only the managed folder is ours; an external install is never counted or removed.
+        "hermes-agent" => runtime("agents"),
         "managed-uv" => envs::root().join("uv"),
         "managed-python" => envs::root().join("python"),
         _ => return 0,
@@ -510,6 +505,39 @@ pub async fn action(id: &str, action: &str) -> Result<(), String> {
     tokio::task::spawn_blocking(move || handle.block_on(run(&id, &action)))
         .await
         .map_err(|e| e.to_string())?
+}
+/// Starts a lifecycle action. The managed Hermes Agent install takes minutes, so it runs as a
+/// background job: this returns once the job has started (the module reads `installing`) or
+/// failed early, and progress and the final state come from the module list. Other actions
+/// are quick and return when done.
+pub async fn start(id: &str, name: &str) -> Result<(), String> {
+    if !(id == "agents" && matches!(name, "install" | "update" | "repair")) {
+        return action(id, name).await;
+    }
+    installable(id)?;
+    if OPERATION.try_lock().is_err() {
+        return Err("modules.busy".into());
+    }
+    let (job_id, job_name) = (id.to_string(), name.to_string());
+    let job = tokio::spawn(async move { action(&job_id, &job_name).await });
+    loop {
+        if job.is_finished() {
+            return job.await.map_err(|e| e.to_string())?;
+        }
+        let installing = tokio::task::spawn_blocking(|| load().ok())
+            .await
+            .ok()
+            .flatten()
+            .is_some_and(|data| {
+                data.modules
+                    .get("agents")
+                    .is_some_and(|state| state.status == Status::Installing)
+            });
+        if installing {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 async fn run(id: &str, action: &str) -> Result<(), String> {
     let manifest = installable(id)?;
@@ -758,7 +786,7 @@ async fn broken_shared() -> Result<Vec<SharedRuntime>, String> {
     Ok(damaged)
 }
 
-async fn verify(id: &str) -> Result<(), String> {
+pub(super) async fn verify(id: &str) -> Result<(), String> {
     if id == "agents" {
         return agents::verify();
     }
@@ -820,7 +848,7 @@ pub fn remove_with_options(id: &str, options: &RemovalOptions) -> Result<(), Str
             return Err(error);
         }
     }
-    // Shared Python and uv also support non-module engines; retain them even with zero module owners.
+    // Shared Python and uv are kept while a module or a Python engine environment still uses them.
     if let Err(error) = store().save(&next) {
         if removing_runtime {
             rollback(&mut data)?;
@@ -829,6 +857,12 @@ pub fn remove_with_options(id: &str, options: &RemovalOptions) -> Result<(), Str
     }
     if removing_runtime {
         erase(&backup(id))?;
+    }
+    if unused
+        .iter()
+        .any(|c| c == "managed-uv" || c == "managed-python")
+    {
+        reclaim_shared_runtime(&next, &envs::root());
     }
     if id == "agents" {
         if options.delete_history {
@@ -846,9 +880,46 @@ pub fn remove_with_options(id: &str, options: &RemovalOptions) -> Result<(), Str
     Ok(())
 }
 
+/// Removes the shared uv and Python once nothing needs them: no module owns them and no
+/// engine environment (`envs/<name>`) is left under the Python root. Best effort: a
+/// leftover only costs disk space and the next install repairs or reuses it.
+fn reclaim_shared_runtime(data: &ModuleStore, root: &Path) {
+    let owned = ["managed-uv", "managed-python"]
+        .iter()
+        .any(|c| data.components.contains_key(*c));
+    let envs_left = std::fs::read_dir(root.join("envs"))
+        .map(|mut entries| entries.next().is_some())
+        .unwrap_or(false);
+    if owned || envs_left || ensure_path_unused(root).is_err() {
+        return;
+    }
+    for name in ["uv", "python"] {
+        let _ = erase(&root.join(name));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn shared_runtime_is_reclaimed_only_when_nothing_needs_it() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("pyenv");
+        for dir in ["uv/1.0.0", "python/cpython-3.12.1", "envs/other"] {
+            std::fs::create_dir_all(root.join(dir)).unwrap();
+        }
+        let mut data = ModuleStore::default();
+        reclaim_shared_runtime(&data, &root); // another engine environment remains
+        assert!(root.join("uv").exists() && root.join("python").exists());
+        std::fs::remove_dir(root.join("envs/other")).unwrap();
+        data.claim(&bundled().remove(0));
+        reclaim_shared_runtime(&data, &root); // a module still owns them
+        assert!(root.join("uv").exists() && root.join("python").exists());
+        data.release("speech");
+        reclaim_shared_runtime(&data, &root);
+        assert!(!root.join("uv").exists() && !root.join("python").exists());
+        assert!(root.join("envs").exists());
+    }
     #[test]
     fn failed_replacement_restores_runtime_and_first_install_leaves_no_partial_files() {
         let temp = tempfile::tempdir().unwrap();

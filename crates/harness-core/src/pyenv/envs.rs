@@ -150,16 +150,35 @@ pub const TRANSCRIBE_CPP_CUDA: EnvSpec = EnvSpec {
     gpu_build_of: Some("transcribe-cpp"),
 };
 
+/// The environment of Liquid's LFM2.5-Audio (speech output): the `liquid-audio` package on PyTorch
+/// (CPU wheels on Windows and Linux, plain PyPI wheels with MPS on macOS), served by
+/// `python/liquid_audio_worker.py` under the `python-hf` engine ([`crate::engine::python_hf`]).
+/// `python/liquid-audio.in` says how the lock is compiled.
+pub const LIQUID_AUDIO: EnvSpec = EnvSpec {
+    name: "liquid-audio",
+    lock: include_str!("../../python/liquid-audio.lock"),
+    verify: "import torch, torchaudio, transformers, liquid_audio, soundfile, einops, librosa",
+    estimated_size_bytes: 950 * 1024 * 1024,
+    min_macos: None,
+    gpu_build_of: None,
+};
+
 /// The environments engines can ask for.
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-pub const ENVS: &[EnvSpec] = &[HF_CPU, MLX, MLX_VLM, MFLUX, TRANSCRIBE_CPP];
+pub const ENVS: &[EnvSpec] = &[HF_CPU, MLX, MLX_VLM, MFLUX, TRANSCRIBE_CPP, LIQUID_AUDIO];
 #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
-pub const ENVS: &[EnvSpec] = &[HF_CPU, HF_CUDA, TRANSCRIBE_CPP, TRANSCRIBE_CPP_CUDA];
+pub const ENVS: &[EnvSpec] = &[
+    HF_CPU,
+    HF_CUDA,
+    TRANSCRIBE_CPP,
+    TRANSCRIBE_CPP_CUDA,
+    LIQUID_AUDIO,
+];
 #[cfg(not(any(
     all(target_os = "macos", target_arch = "aarch64"),
     all(any(windows, target_os = "linux"), target_arch = "x86_64")
 )))]
-pub const ENVS: &[EnvSpec] = &[HF_CPU, TRANSCRIBE_CPP];
+pub const ENVS: &[EnvSpec] = &[HF_CPU, TRANSCRIBE_CPP, LIQUID_AUDIO];
 
 /// Whether a CUDA build can run here: an NVIDIA GPU with a CUDA driver.
 pub fn cuda_present() -> bool {

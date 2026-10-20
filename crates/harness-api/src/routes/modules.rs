@@ -11,7 +11,7 @@ pub async fn list_modules() -> ApiResult<Json<Vec<ModuleView>>> {
 #[utoipa::path(post, path = "/modules/{id}", tag = "modules", params(("id" = String, Path)),
     responses((status = 204), (status = 422, body = ErrorBody), (status = 403, body = ErrorBody)))]
 pub async fn install_module(P(id): P<String>) -> ApiResult<StatusCode> {
-    modules::install(&id).await?;
+    modules::start_install(&id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 #[utoipa::path(post, path = "/modules/{id}/cancel", tag = "modules", params(("id" = String, Path)),
@@ -38,7 +38,7 @@ pub async fn module_action(
     P(id): P<String>,
     Json(body): Json<ModuleAction>,
 ) -> ApiResult<StatusCode> {
-    modules::action(&id, &body.action).await?;
+    modules::start(&id, &body.action).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 #[utoipa::path(post, path = "/modules/{id}/remove-data", tag = "modules", params(("id" = String, Path)), request_body = modules::RemovalOptions,
@@ -49,6 +49,31 @@ pub async fn remove_module_data(
 ) -> ApiResult<StatusCode> {
     blocking(move || modules::lifecycle_remove(&id, &options)).await??;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub struct BundlePath {
+    /// A `.hsmod` file on the machine that runs the Control API.
+    path: String,
+}
+#[utoipa::path(post, path = "/modules/{id}/export", tag = "modules", params(("id" = String, Path)), request_body = BundlePath,
+    responses((status = 200, body = modules::bundle::ExportReport), (status = 422, body = ErrorBody), (status = 403, body = ErrorBody)))]
+pub async fn export_module(
+    P(id): P<String>,
+    Json(body): Json<BundlePath>,
+) -> ApiResult<Json<modules::bundle::ExportReport>> {
+    Ok(Json(
+        blocking(move || modules::bundle::export(&id, std::path::Path::new(&body.path))).await??,
+    ))
+}
+#[utoipa::path(post, path = "/modules/import", tag = "modules", request_body = BundlePath,
+    responses((status = 200, body = modules::bundle::ImportReport), (status = 422, body = ErrorBody), (status = 403, body = ErrorBody)))]
+pub async fn import_module(
+    Json(body): Json<BundlePath>,
+) -> ApiResult<Json<modules::bundle::ImportReport>> {
+    Ok(Json(
+        modules::bundle::import(std::path::Path::new(&body.path)).await?,
+    ))
 }
 
 #[cfg(test)]

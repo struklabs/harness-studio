@@ -4,7 +4,7 @@ pub(crate) async fn list_modules() -> Result<Vec<harness_core::modules::ModuleVi
 }
 #[tauri::command]
 pub(crate) async fn install_module(id: String) -> Result<(), String> {
-    harness_core::modules::install(&id).await
+    harness_core::modules::start_install(&id).await
 }
 #[tauri::command]
 pub(crate) fn cancel_module_install(id: String) -> Result<(), String> {
@@ -96,9 +96,29 @@ pub(crate) async fn apply_paperclip_config(instance: String, agent: String, cred
 }
 #[tauri::command]
 pub(crate) async fn module_action(id: String, action: String) -> Result<(), String> {
-    harness_core::modules::action(&id, &action).await
+    harness_core::modules::start(&id, &action).await
 }
 #[tauri::command]
 pub(crate) async fn remove_module_data(id: String, options: harness_core::modules::RemovalOptions) -> Result<(), String> {
     blocking(move || harness_core::modules::lifecycle_remove(&id, &options)).await?
+}
+
+/// Opens a file dialog for an offline module bundle; `None` when cancelled.
+#[tauri::command]
+pub(crate) async fn pick_module_bundle_file(app: tauri::AppHandle, label: String) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    blocking(move || {
+        app.dialog()
+            .file()
+            .add_filter(label, &[harness_core::modules::bundle::EXTENSION])
+            .blocking_pick_file()
+            .and_then(|p| p.into_path().ok())
+            .map(|p| p.to_string_lossy().to_string())
+    })
+    .await
+}
+/// Installs an official `.hsmod` bundle; no network is used.
+#[tauri::command]
+pub(crate) async fn import_module_bundle(path: String) -> Result<harness_core::modules::bundle::ImportReport, String> {
+    harness_core::modules::bundle::import(std::path::Path::new(&path)).await
 }

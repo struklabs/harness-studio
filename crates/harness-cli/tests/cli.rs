@@ -735,3 +735,48 @@ fn runtime_managed_status_and_rollback_offline() {
     assert_ne!(r.code, 0);
     assert_eq!(r.error()["code"], "runtime.no_backup", "{}", r.stderr);
 }
+
+#[test]
+fn modules_list_export_and_import_refusals_need_no_network() {
+    let dir = data_dir(None, 18500);
+    let r = run(dir.path(), &["modules", "ls", "--json"]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let list = r.json();
+    let speech = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["manifest"]["id"] == "speech")
+        .expect("the speech module is listed");
+    assert_eq!(speech["state"]["status"], "not_installed");
+
+    // Nothing installed: nothing to export, and no file appears.
+    let out = dir.path().join("speech.hsmod");
+    let r = run(
+        dir.path(),
+        &[
+            "--json",
+            "modules",
+            "export",
+            "speech",
+            "--out",
+            out.to_str().unwrap(),
+        ],
+    );
+    assert_ne!(r.code, 0);
+    assert_eq!(r.error()["code"], "modules.not_installed");
+    assert!(!out.exists());
+
+    // A file that is not an official bundle is refused before it is even opened as an archive.
+    let junk = dir.path().join("community.hsmod");
+    std::fs::write(&junk, b"PK not an official bundle").unwrap();
+    let r = run(
+        dir.path(),
+        &["--json", "modules", "import", junk.to_str().unwrap()],
+    );
+    assert_ne!(r.code, 0);
+    assert_eq!(r.error()["code"], "modules.bundle_unofficial");
+    let r = run(dir.path(), &["modules", "import", junk.to_str().unwrap()]);
+    assert!(r.stderr.contains("not an official"), "{}", r.stderr);
+    assert!(!dir.path().join("bin").join("modules").exists());
+}

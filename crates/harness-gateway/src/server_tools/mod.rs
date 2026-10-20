@@ -195,6 +195,7 @@ async fn check_policy(
             .await;
     }
     let policy = serde_json::to_value(settings.policy).unwrap_or(Value::Null);
+    let perms = harness_core::permissions::Permissions::shared().snapshot();
     for name in offered {
         let Some(tool) = service.registry().get(name) else {
             return Err(GatewayError::new(
@@ -206,7 +207,8 @@ async fn check_policy(
             )
             .details(json!({"tool": name})));
         };
-        let class = settings.class_for(tool.def());
+        let (judged, decision) = service.judge(settings, &perms, tool.def());
+        let class = judged.class;
         // Writing files, shells and processes are never run for whoever can reach a network
         // bind, whatever the policy says: the policy is the owner's choice for their own
         // clients on this machine.
@@ -221,7 +223,7 @@ async fn check_policy(
             .param("tools")
             .details(json!({"tool": name, "class": class.as_str(), "loopback": false})));
         }
-        match settings.decide(name, class) {
+        match decision {
             Decision::Run => {}
             decision => {
                 let why = if decision == Decision::Refuse {

@@ -238,6 +238,12 @@ pub enum Command {
         #[command(subcommand)]
         command: RuntimeCommand,
     },
+    /// Optional modules: list them, pack an installed one into an offline `.hsmod` bundle,
+    /// install an official bundle with no network, remove a module.
+    Modules {
+        #[command(subcommand)]
+        command: ModulesCommand,
+    },
     /// Named Control API tokens: scopes, allowed models/endpoints, rate limits.
     #[command(name = "api-token", visible_alias = "token")]
     ApiToken {
@@ -254,6 +260,12 @@ pub enum Command {
     Tools {
         #[command(subcommand)]
         command: ToolsCommand,
+    },
+    /// Trust levels and grants of MCP servers, agent runtimes and the training backend
+    /// (nothing is granted by default; every change is written to the tool log).
+    Permissions {
+        #[command(subcommand)]
+        command: PermissionsCommand,
     },
     /// Agent Skills: list, switch on or off, remove, or install an official one.
     Skills {
@@ -949,6 +961,29 @@ pub enum BenchmarkCommand {
 }
 
 #[derive(Subcommand, Debug)]
+pub enum ModulesCommand {
+    /// List the modules with installed and bundled version and status.
+    Ls,
+    /// Pack an installed module (components, manifest, SHA-256 per file) into a `.hsmod` bundle.
+    /// Prints the bundle's SHA-256, which a maintainer records in the official index.
+    Export {
+        /// Module id (see `harness modules ls`).
+        id: String,
+        /// Bundle file to write (use the .hsmod extension).
+        #[arg(long, short = 'o', value_name = "FILE")]
+        out: PathBuf,
+    },
+    /// Install a module from an official `.hsmod` bundle. Uses no network. Bundles that are not
+    /// in the official index shipped with this build are refused.
+    Import {
+        /// Bundle file.
+        file: PathBuf,
+    },
+    /// Remove an installed module (models and your data stay). Needs no network.
+    Rm { id: String },
+}
+
+#[derive(Subcommand, Debug)]
 pub enum RuntimeCommand {
     /// List runtimes (official first) with version, backend and capability summary.
     Ls,
@@ -1227,6 +1262,45 @@ pub enum ToolsCommand {
         /// Brave/Tavily API key; stored in the OS keychain, never settings.json.
         #[arg(long)]
         api_key: Option<String>,
+    },
+}
+
+const SUBJECT_KINDS: [&str; 3] = ["mcp_server", "agent", "trainer"];
+const CAPABILITIES: [&str; 6] = ["file", "network", "shell", "service", "account", "device"];
+
+#[derive(Subcommand, Debug)]
+pub enum PermissionsCommand {
+    /// Every subject with its trust level and grants.
+    #[command(visible_alias = "ls")]
+    List,
+    /// Grant one capability. The training backend takes none; agents take `file` only.
+    Grant {
+        #[arg(value_parser = SUBJECT_KINDS)]
+        kind: String,
+        /// MCP server name, or the agent (`hermes`, `openclaw`).
+        id: String,
+        #[arg(value_parser = CAPABILITIES)]
+        capability: String,
+        /// Existing absolute folder (`file` only; repeat for up to eight).
+        #[arg(long = "path")]
+        paths: Vec<String>,
+    },
+    /// Revoke one grant (`--grant <id>`), or every grant and the trust level of the subject.
+    Revoke {
+        #[arg(value_parser = SUBJECT_KINDS)]
+        kind: String,
+        id: String,
+        /// The grant id shown by `permissions list`.
+        #[arg(long)]
+        grant: Option<String>,
+    },
+    /// Set the trust level (safe, restricted, dangerous) or return to the default.
+    Trust {
+        #[arg(value_parser = SUBJECT_KINDS)]
+        kind: String,
+        id: String,
+        #[arg(value_parser = ["default", "safe", "restricted", "dangerous"])]
+        level: String,
     },
 }
 

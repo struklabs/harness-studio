@@ -14,7 +14,25 @@ export interface GalleryItem {
 /** Pictures kept in the gallery (older ones drop out). */
 export const GALLERY_LIMIT = 24;
 
+/** A picture a ComfyUI run saved to the outputs folder. */
+export interface ComfyItem {
+  id: number;
+  path: string;
+  /** Set when the picture went into a project's outputs. */
+  outputId: string | null;
+  image: ImageResult;
+  prompt: string;
+  workflow: string;
+  seed: number;
+}
+
 export const imageSession = $state({
+  /** Which engine the Image tab uses: Harness's own (gateway) or the user's ComfyUI. */
+  source: 'builtin' as 'builtin' | 'comfyui',
+  /** ComfyUI workflow choice (`comfyui.ts` `sourceKey`) and checkpoint for the built-in graph. */
+  comfyWorkflow: 'builtin',
+  comfyCheckpoint: '',
+  comfyResults: [] as ComfyItem[],
   model: '',
   prompt: '',
   negative: '',
@@ -34,6 +52,12 @@ let nextId = 1;
 export function addToGallery(items: Omit<GalleryItem, 'id'>[]): void {
   const added = items.map((i) => ({ ...i, id: nextId++ }));
   imageSession.gallery = [...added.reverse(), ...imageSession.gallery].slice(0, GALLERY_LIMIT);
+}
+
+/** Adds saved ComfyUI pictures (newest first), within the gallery's limit. */
+export function addComfyResults(items: Omit<ComfyItem, 'id'>[]): void {
+  const added = items.map((i) => ({ ...i, id: nextId++ }));
+  imageSession.comfyResults = [...added.reverse(), ...imageSession.comfyResults].slice(0, GALLERY_LIMIT);
 }
 
 export function removeFromGallery(id: number): void {

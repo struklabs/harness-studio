@@ -21,6 +21,8 @@ command-group = { version = "5.0", features = ["with-tokio"] }
 # features add zstd, bzip2, xz and AES in C/Rust that no archive here uses.
 zip = { version = "9.0.5", default-features = false, features = ["deflate", "deflate64"] }
 futures-util = "0.3"
+# ComfyUI progress socket (`comfyui`): plain `ws://` only, no TLS stack of its own.
+tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect"] }
 bytes = "1"
 base64 = "0.22"
 regex = "1.10"
@@ -79,7 +81,7 @@ otel = ["dep:opentelemetry", "dep:opentelemetry_sdk", "dep:opentelemetry-otlp", 
 otel-grpc = ["otel", "opentelemetry-otlp/grpc-tonic", "opentelemetry-otlp/tls-ring", "opentelemetry-otlp/tls-roots"]
 
 [dev-dependencies]
-axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "ws"] }
 # The OTLP/gRPC test (`tests/otel_grpc.rs`, feature `otel-grpc`) runs a real gRPC receiver
 # built from the official OTLP service definitions.
 opentelemetry-proto = { version = "0.33", default-features = false, features = ["gen-tonic", "trace", "metrics", "logs"] }

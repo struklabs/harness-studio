@@ -69,7 +69,7 @@ fn probe(exe: &Path) -> Option<String> {
         command(exe)
     };
     c.arg("--version");
-    let output = bounded_output(c, Duration::from_secs(15))
+    let output = bounded_output(c, Duration::from_secs(60))
         .ok()
         .and_then(|(ok, s)| ok.then_some(s));
     slots.retain(|p| p.executable != exe);
@@ -102,19 +102,29 @@ fn executable_in(paths: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
 }
 pub(super) const HERMES_REVISION: &str = "d923a5eb487a17c0a68801bba9ef0f56c81040a8";
 
-pub(super) fn managed_root() -> PathBuf {
+pub fn managed_root() -> PathBuf {
     crate::paths::bin_dir().join("modules/hermes")
 }
+/// Launchers an upstream install publishes under `<install>/.hermes/bin`. A source install
+/// without distlib gets a command file (`hermes.cmd`) instead of `hermes.exe`.
+const LAUNCHERS: [&str; 3] = [
+    ".hermes/bin/hermes.exe",
+    ".hermes/bin/hermes.cmd",
+    ".hermes/bin/hermes",
+];
 fn managed_executable() -> Option<PathBuf> {
     let root = managed_root();
     executable_in(
-        [
-            "hermes-agent/.hermes/bin/hermes.exe",
-            "hermes-agent/.hermes/bin/hermes",
-            "hermes-agent/venv/Scripts/hermes.exe",
-            "hermes-agent/venv/bin/hermes",
-        ]
-        .map(|p| root.join(p)),
+        LAUNCHERS
+            .iter()
+            .map(|p| root.join("hermes-agent").join(p))
+            .chain(
+                [
+                    "hermes-agent/venv/Scripts/hermes.exe",
+                    "hermes-agent/venv/bin/hermes",
+                ]
+                .map(|p| root.join(p)),
+            ),
     )
 }
 /// Key files of a Harness-managed install that are gone. Empty for an external install (not
@@ -127,7 +137,116 @@ pub(super) fn missing_files() -> Vec<String> {
     }
 }
 pub(super) fn external_runtime() -> Option<PathBuf> {
-    external_executable().and_then(|exe| library_runtime(&exe).ok().map(|(_, root)| root))
+    external_executable().and_then(|exe| library_entry(&exe).ok().map(|(_, root)| root))
+}
+/// The data root that holds a new-style external install's dependency environment: the folder
+/// with an `installs/<key>/facts.json`. Upstream puts the checkout at `<root>/hermes-agent`, so
+/// that parent is tried first, then the platform default home. `None` for an old-style install
+/// (a `venv` inside the checkout), which needs no such root.
+fn installs_owner(checkout: &Path, default_home: Option<&Path>) -> Option<PathBuf> {
+    let has_environment = |root: &Path| {
+        std::fs::read_dir(root.join("installs"))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|entry| entry.path().join("facts.json").is_file())
+    };
+    checkout
+        .parent()
+        .into_iter()
+        .chain(default_home)
+        .find(|root| has_environment(root))
+        .map(Path::to_path_buf)
+}
+/// Links `link` to the directory `target` (an NTFS junction on Windows, which needs no
+/// privilege; a symlink elsewhere). An existing link to another target is replaced.
+fn link_dir(target: &Path, link: &Path) -> Result<(), String> {
+    if let Ok(meta) = std::fs::symlink_metadata(link) {
+        if std::fs::canonicalize(link).ok() == std::fs::canonicalize(target).ok() {
+            return Ok(());
+        }
+        // Only a link is ever replaced; a real folder is not ours to remove.
+        if !meta.file_type().is_symlink() && !is_junction(link) {
+            return Err("agents.home_unavailable".into());
+        }
+        std::fs::remove_dir(link)
+            .or_else(|_| std::fs::remove_file(link))
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(windows)]
+    {
+        let done = command("cmd")
+            .arg("/C")
+            .arg("mklink")
+            .arg("/J")
+            // `mklink` reads a forward slash as an option, so both paths use backslashes.
+            .arg(link.to_string_lossy().replace('/', "\\"))
+            .arg(target.to_string_lossy().replace('/', "\\"))
+            .stdin(std::process::Stdio::null())
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !done.status.success() {
+            return Err("agents.home_unavailable".into());
+        }
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    std::os::unix::fs::symlink(target, link).map_err(|e| e.to_string())
+}
+fn is_junction(path: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        std::fs::symlink_metadata(path).is_ok_and(|m| m.file_attributes() & 0x400 != 0)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        false
+    }
+}
+/// A Harness-owned profile root for an external new-style install. Upstream maps
+/// `<root>/profiles/<name>` back to `<root>` to find `<root>/installs`, so the root here only
+/// holds a link to the install's `installs` folder and the throwaway profiles; the user's own
+/// home (config, sessions, credentials) is never used as the task home.
+fn external_profiles(owner: &Path) -> Result<PathBuf, String> {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    owner.hash(&mut hasher);
+    let root = crate::paths::data_root()
+        .join("agents/hermes-external")
+        .join(format!("{:016x}", hasher.finish()));
+    let profiles = root.join("profiles");
+    std::fs::create_dir_all(&profiles).map_err(|e| e.to_string())?;
+    link_dir(&owner.join("installs"), &root.join("installs"))?;
+    Ok(profiles)
+}
+/// A clean, throwaway Hermes home. Upstream keeps the dependency environment under
+/// `<root>/installs`, so a home that is not a root or one of its profiles cannot find it
+/// ("No module named dotenv"). The managed install uses a profile folder of its own root, a
+/// new-style external install one under a Harness-owned root that links to its `installs`; an
+/// old-style install gets a plain temporary folder.
+fn isolated_home(exe: &Path) -> Result<tempfile::TempDir, String> {
+    let profiles = if managed_executable().is_some_and(|m| m == exe) {
+        let profiles = managed_root().join("profiles");
+        std::fs::create_dir_all(&profiles).map_err(|e| e.to_string())?;
+        Some(profiles)
+    } else {
+        match library_entry(exe) {
+            Ok((_, checkout)) => match installs_owner(&checkout, home().ok().as_deref()) {
+                Some(owner) => Some(external_profiles(&owner)?),
+                None => None,
+            },
+            Err(_) => None,
+        }
+    };
+    match profiles {
+        Some(dir) => tempfile::Builder::new()
+            .prefix("task-")
+            .tempdir_in(dir)
+            .map_err(|e| e.to_string()),
+        None => tempfile::tempdir().map_err(|e| e.to_string()),
+    }
 }
 pub(super) fn verify() -> Result<(), String> {
     PROBE.lock().unwrap().clear();
@@ -138,13 +257,13 @@ pub(super) fn verify() -> Result<(), String> {
         return Err("agents.runtime_broken".into());
     }
     let (mut c, source) = library_runtime(&exe)?;
-    let temporary = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let temporary = isolated_home(&exe)?;
     c.current_dir(temporary.path())
         .env("HERMES_HOME", temporary.path())
         .env("HARNESS_HERMES_SOURCE", source)
         .env("HARNESS_HERMES_VERIFY", "1")
         .env("PYTHONIOENCODING", "utf-8");
-    let (ok, _) = bounded_output(c, Duration::from_secs(30))?;
+    let (ok, _) = bounded_output(c, Duration::from_secs(120))?;
     if ok {
         Ok(())
     } else {
@@ -158,20 +277,25 @@ fn external_executable() -> Option<PathBuf> {
     let mut candidates = Vec::new();
     if let Some(path) = std::env::var_os("PATH") {
         for dir in std::env::split_paths(&path) {
-            candidates.push(dir.join(if cfg!(windows) {
-                "hermes.exe"
+            if cfg!(windows) {
+                candidates.push(dir.join("hermes.exe"));
+                candidates.push(dir.join("hermes.cmd"));
             } else {
-                "hermes"
-            }));
+                candidates.push(dir.join("hermes"));
+            }
         }
     }
     if let Ok(dir) = home() {
         for name in [
             "bin/hermes.exe",
+            "bin/hermes.cmd",
             "hermes-agent/venv/Scripts/hermes.exe",
             "hermes-agent/venv/bin/hermes",
         ] {
             candidates.push(dir.join(name));
+        }
+        for name in LAUNCHERS {
+            candidates.push(dir.join("hermes-agent").join(name));
         }
     }
     if let Some(dir) = dirs::home_dir() {
@@ -179,13 +303,20 @@ fn external_executable() -> Option<PathBuf> {
     }
     executable_in(candidates)
 }
-/// Use upstream's source launcher (PM bootstrap) or its legacy virtual environment.
-/// The Python API stays in-process; modern `hermes chat` may detach a gateway daemon.
-fn library_runtime(exe: &Path) -> Result<(Command, PathBuf), String> {
+enum Entry {
+    Launcher(PathBuf),
+    Python(PathBuf),
+}
+/// Finds the upstream checkout (the folder with `run_agent.py`) and the way to start its
+/// Python: the published source launcher or a legacy virtual environment.
+fn library_entry(exe: &Path) -> Result<(Entry, PathBuf), String> {
     let mut roots: Vec<PathBuf> = exe.ancestors().skip(1).map(Path::to_path_buf).collect();
     if let Some(output) = probe(exe) {
         for line in output.lines() {
-            if let Some(path) = line.strip_prefix("Project: ") {
+            if let Some(path) = line
+                .strip_prefix("Project: ")
+                .or_else(|| line.strip_prefix("Install directory: "))
+            {
                 roots.push(PathBuf::from(path.trim()));
             }
         }
@@ -202,12 +333,10 @@ fn library_runtime(exe: &Path) -> Result<(Command, PathBuf), String> {
         .into_iter()
         .filter(|r| r.join("run_agent.py").is_file())
     {
-        for name in [".hermes/bin/hermes.exe", ".hermes/bin/hermes"] {
+        for name in LAUNCHERS {
             let launcher = root.join(name);
             if launcher.is_file() {
-                let mut c = command(launcher);
-                c.args(["--run-module", "code", "-c", include_str!("hermes_task.py")]);
-                return Ok((c, root));
+                return Ok((Entry::Launcher(launcher), root));
             }
         }
         for name in [
@@ -218,13 +347,91 @@ fn library_runtime(exe: &Path) -> Result<(Command, PathBuf), String> {
         ] {
             let python = root.join(name);
             if python.is_file() {
-                let mut c = command(python);
-                c.args(["-c", include_str!("hermes_task.py")]);
-                return Ok((c, root));
+                return Ok((Entry::Python(python), root));
             }
         }
     }
     Err("agents.library_missing".into())
+}
+type SourceCommand = (PathBuf, Option<std::time::SystemTime>, Vec<String>);
+static SOURCE_COMMANDS: Mutex<Vec<SourceCommand>> = Mutex::new(Vec::new());
+/// The interpreter command of a source launcher, from its `--print-runtime-command` boundary,
+/// with the module entry replaced by the task adapter. Cached per launcher file. Upstream's
+/// Windows command file cannot carry a multi-line `-c` script through `%*`, so the adapter
+/// goes in as one base64 line.
+fn source_command(launcher: &Path) -> Option<Command> {
+    use base64::Engine;
+    const MODULE: &str = "harness_task";
+    let modified = std::fs::metadata(launcher).and_then(|m| m.modified()).ok();
+    let cached = SOURCE_COMMANDS
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|(p, m, _)| p == launcher && *m == modified)
+        .map(|(_, _, args)| args.clone());
+    let args = match cached {
+        Some(args) => args,
+        None => {
+            let mut c = command(launcher);
+            c.args(["--print-runtime-command", "--module", MODULE]);
+            let (ok, output) = bounded_output(c, Duration::from_secs(60)).ok()?;
+            let printed: Vec<String> = serde_json::from_str(output.lines().last()?.trim())
+                .ok()
+                .filter(|_| ok)?;
+            let entry =
+                format!("runpy.run_module('{MODULE}', run_name='__main__', alter_sys=True)");
+            let [python, flag, code, bootstrap] = <[String; 4]>::try_from(printed).ok()?;
+            if flag != "-I" || code != "-c" || !bootstrap.ends_with(&entry) {
+                return None;
+            }
+            let args = vec![
+                python,
+                bootstrap[..bootstrap.len() - entry.len()].to_string(),
+            ];
+            let mut slot = SOURCE_COMMANDS.lock().unwrap();
+            slot.retain(|(p, ..)| p != launcher);
+            slot.push((launcher.to_path_buf(), modified, args.clone()));
+            args
+        }
+    };
+    let script = base64::engine::general_purpose::STANDARD.encode(include_str!("hermes_task.py"));
+    let mut c = command(&args[0]);
+    c.args([
+        "-I".to_string(),
+        "-c".to_string(),
+        format!(
+            "{}exec(__import__('base64').b64decode('{script}'))",
+            args[1]
+        ),
+    ]);
+    Some(c)
+}
+/// Use upstream's source launcher (PM bootstrap) or its legacy virtual environment.
+/// The Python API stays in-process; modern `hermes chat` may detach a gateway daemon.
+fn library_runtime(exe: &Path) -> Result<(Command, PathBuf), String> {
+    let (entry, root) = library_entry(exe)?;
+    match entry {
+        Entry::Launcher(launcher) => {
+            if let Some(c) = source_command(&launcher) {
+                return Ok((c, root));
+            }
+            // Older launchers take the adapter as an inline script; a command file cannot.
+            if launcher
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("cmd"))
+            {
+                return Err("agents.library_missing".into());
+            }
+            let mut c = command(launcher);
+            c.args(["--run-module", "code", "-c", include_str!("hermes_task.py")]);
+            Ok((c, root))
+        }
+        Entry::Python(python) => {
+            let mut c = command(python);
+            c.args(["-c", include_str!("hermes_task.py")]);
+            Ok((c, root))
+        }
+    }
 }
 pub(super) fn command(path: impl AsRef<std::ffi::OsStr>) -> Command {
     let c = Command::new(path);
@@ -258,7 +465,7 @@ pub fn detect() -> Result<Detection, String> {
         .and_then(|text| text.lines().next().map(str::to_string));
     let mut missing = Vec::new();
     if let Some(exe) = &exe {
-        if library_runtime(exe).is_err() {
+        if library_entry(exe).is_err() {
             missing.push("agents.library_missing".into());
         }
     }
@@ -911,6 +1118,13 @@ pub fn start_task_kind_for_project(
         // OpenClaw's read tool is confined to one workspace folder.
         return Err("agents.openclaw_one_folder".into());
     }
+    // A folder is only readable when the user granted it to this agent (Permissions page):
+    // revoking the grant stops the next run, whatever asked for it.
+    let subject = match kind {
+        AgentKind::Hermes => crate::permissions::AGENT_HERMES,
+        AgentKind::OpenClaw => crate::permissions::AGENT_OPENCLAW,
+    };
+    crate::permissions::Permissions::shared().check_agent_run(subject, &grants.read_folders)?;
     let _operation = super::OPERATION.try_lock().map_err(|_| "modules.busy")?;
     ensure_kind_enabled(kind)?;
     let _connection = CONNECTION_LOCK.lock().unwrap();
@@ -937,7 +1151,10 @@ pub fn start_task_kind_for_project(
     }
     let value = parse_config(kind, &bytes)?;
     // A clean upstream home avoids user hooks, MCP servers, skills and credential fallbacks.
-    let isolated = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let isolated = match kind {
+        AgentKind::Hermes => isolated_home(&exe)?,
+        AgentKind::OpenClaw => tempfile::tempdir().map_err(|e| e.to_string())?,
+    };
     let (launch, secret) = match (kind, hermes_source) {
         (AgentKind::Hermes, Some((mut c, source))) => {
             JsonStore::sensitive(isolated.path().join("config.yaml")).write_bytes(serde_norway::to_string(&json!({"model": value["model"], "toolsets": [], "agent": {"max_turns": 2}, "skills": {"auto_load": []}})).map_err(|e| e.to_string())?.as_bytes())?;
@@ -1304,6 +1521,10 @@ pub async fn install_managed() -> Result<(), String> {
         *slot = Some(run.clone());
     }
     let result = install_upstream(&run).await;
+    if let Err(error) = &result {
+        // The module transaction erases the partial files next; keep what explains the failure.
+        keep_install_log(&run, error);
+    }
     let mut status = run.status.lock().unwrap();
     status.status = if run.cancel.load(Ordering::SeqCst) {
         "stopped"
@@ -1315,6 +1536,30 @@ pub async fn install_managed() -> Result<(), String> {
     .into();
     status.error = result.as_ref().err().cloned();
     result
+}
+/// Saves the installer output (and upstream's own install.log) as
+/// `<logs>/agents-install.log`, replacing the previous one. Best effort.
+fn keep_install_log(run: &Arc<Run>, error: &str) {
+    let mut text = format!(
+        "error: {error}
+revision: {HERMES_REVISION}
+
+--- installer output ---
+"
+    );
+    text.push_str(&run.status.lock().unwrap().output);
+    if let Ok(upstream) = std::fs::read(managed_root().join("logs/install.log")) {
+        text.push_str(
+            "
+--- upstream install.log ---
+",
+        );
+        text.push_str(&String::from_utf8_lossy(&upstream));
+    }
+    let dir = crate::paths::logs_dir();
+    if std::fs::create_dir_all(&dir).is_ok() {
+        let _ = std::fs::write(dir.join("agents-install.log"), text);
+    }
 }
 pub fn cancel_install() {
     cancel_install_kind(AgentKind::Hermes);
@@ -1469,7 +1714,9 @@ async fn install_upstream(run: &Arc<Run>) -> Result<(), String> {
         c.env("HERMES_HOME", managed_root())
             .env("HERMES_INSTALL_DIR", managed_root().join("hermes-agent"))
             .env("UV_CACHE_DIR", managed_root().join("cache"))
-            .env("UV_PYTHON_INSTALL_DIR", managed_root().join("python"));
+            .env("UV_PYTHON_INSTALL_DIR", managed_root().join("python"))
+            // Stream every child command's output so a failure reaches agents-install.log.
+            .env("HERMES_INSTALL_VERBOSE", "1");
         if windows {
             c.args([
                 "-NoProfile",
@@ -1522,6 +1769,72 @@ async fn install_upstream(run: &Arc<Run>) -> Result<(), String> {
 mod tests {
     use super::*;
     #[test]
+    fn installs_owner_detects_both_layouts() {
+        let temp = tempfile::tempdir().unwrap();
+        // New style: <root>/hermes-agent with <root>/installs/<key>/facts.json.
+        let root = temp.path().join("root");
+        let checkout = root.join("hermes-agent");
+        std::fs::create_dir_all(&checkout).unwrap();
+        assert_eq!(installs_owner(&checkout, None), None);
+        std::fs::create_dir_all(root.join("installs/abc")).unwrap();
+        assert_eq!(installs_owner(&checkout, None), None, "no facts.json yet");
+        std::fs::write(root.join("installs/abc/facts.json"), "{}").unwrap();
+        assert_eq!(installs_owner(&checkout, None), Some(root.clone()));
+        // A checkout elsewhere falls back to the platform default home.
+        let elsewhere = temp.path().join("src/hermes-agent");
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        assert_eq!(installs_owner(&elsewhere, Some(&root)), Some(root.clone()));
+        assert_eq!(installs_owner(&elsewhere, None), None);
+        // Old style: a venv in the checkout and no installs folder.
+        let old = temp.path().join("old/hermes-agent");
+        std::fs::create_dir_all(old.join("venv")).unwrap();
+        assert_eq!(installs_owner(&old, Some(&temp.path().join("old"))), None);
+    }
+    #[test]
+    fn link_dir_links_replaces_links_and_keeps_real_folders() {
+        let temp = tempfile::tempdir().unwrap();
+        let (a, b) = (temp.path().join("a"), temp.path().join("b"));
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        std::fs::write(a.join("marker"), "a").unwrap();
+        let link = temp.path().join("link");
+        link_dir(&a, &link).unwrap();
+        assert!(link.join("marker").is_file());
+        link_dir(&a, &link).unwrap();
+        link_dir(&b, &link).unwrap();
+        assert!(!link.join("marker").exists());
+        // Removing the link never touches the target.
+        std::fs::remove_dir(&link)
+            .or_else(|_| std::fs::remove_file(&link))
+            .unwrap();
+        assert!(a.join("marker").is_file());
+        let real = temp.path().join("real");
+        std::fs::create_dir_all(&real).unwrap();
+        assert!(link_dir(&a, &real).is_err());
+        assert!(real.is_dir());
+    }
+    #[test]
+    fn source_install_with_a_command_file_launcher_is_found() {
+        // Upstream publishes hermes.cmd (no hermes.exe) when distlib is unavailable.
+        let temp = tempfile::tempdir().unwrap();
+        let install = temp.path().join("hermes-agent");
+        std::fs::create_dir_all(install.join(".hermes/bin")).unwrap();
+        std::fs::write(install.join("run_agent.py"), "").unwrap();
+        let launcher = install.join(".hermes/bin/hermes.cmd");
+        std::fs::write(&launcher, "@echo off").unwrap();
+        assert_eq!(
+            executable_in(LAUNCHERS.iter().map(|p| install.join(p))),
+            Some(launcher.clone())
+        );
+        match library_entry(&launcher) {
+            Ok((Entry::Launcher(found), root)) => {
+                assert_eq!(found, launcher);
+                assert_eq!(root, install);
+            }
+            _ => panic!("the source launcher must be recognised"),
+        }
+    }
+    #[test]
     fn grants_fail_closed_and_history_deletion_preserves_agent_data() {
         let temp = tempfile::tempdir().unwrap();
         let external = temp.path().join("agent-session.json");
@@ -1544,6 +1857,9 @@ mod tests {
         }
         assert!(serde_json::from_value::<RunGrants>(json!({"shell": true})).is_err());
         assert!(RunGrants::default().read_folders.is_empty());
+        // Without a standing grant for the folder, a run is refused before anything starts.
+        let err = start_task_with_grants("hello".into(), grants.clone()).unwrap_err();
+        assert!(err.starts_with("permissions.folder_not_granted"), "{err}");
         let entry = TaskStatus {
             id: uuid::Uuid::new_v4().to_string(),
             model: "chat".into(),
