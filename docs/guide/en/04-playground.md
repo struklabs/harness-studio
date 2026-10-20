@@ -47,7 +47,7 @@ Answers render full Markdown (lists, tables, headings), and `mermaid` code block
 
 ## Tables, Charts, and UI Blocks
 
-Structured JSON tool results appear as key-value cards or sortable tables; **Raw JSON** shows the underlying result. Markdown tables scroll horizontally and offer **Copy as CSV**. A complete `chart` block can show a bar, line, or pie chart. A complete `ui` block can show a card, list, steps, callout, progress bar, or key-value view. These use a limited declarative JSON schema: model HTML and JavaScript are never executed. Invalid or incomplete blocks remain readable code. See the [supported schemas](../../en/FEATURES.md#rich-blocks-in-playground-chat).
+Structured JSON tool results appear as key-value cards or sortable tables; **Raw JSON** shows the underlying result. Markdown tables scroll horizontally and offer **Copy as CSV**. A complete `chart` block can show a bar, line, or pie chart. A complete `ui` block can show a card, list, steps, callout, progress bar, or key-value view. These use a limited declarative JSON schema: model HTML and JavaScript are never executed. Invalid or incomplete blocks remain readable code. See the [supported schemas](../../en/FEATURES.md).
 
 ## System Prompt, Presets, and Sampling
 
@@ -62,7 +62,7 @@ A **Preset** collects these request parameters (sampling, penalties, reasoning, 
 
 To see how confident the model was in each word, turn on **Token probabilities** in a preset's sampling settings (you can also set how many **Alternatives per token** to return). Answers then offer **Show token probabilities**: each token is tinted (faint means confident, strong means uncertain) and hovering shows the chosen token and its alternatives. **Back to normal view** returns to plain text. Probabilities are kept for the current session only.
 
-When the context fills, the model may forget old messages or the request may be rejected. Start a new chat or use context compression on the **History and Compaction** page: when a chat gets close to filling the context, older messages are replaced by a summary the model writes, recent turns stay as they are, the original messages are not deleted, and compaction can be undone with **Undo**. You can also compact by hand by typing `/compact` in the message box; see the [compaction reference](../../en/COMPACTION.md). For a bigger context, change the server's load settings, which needs more memory.
+When the context fills, the model may forget old messages or the request may be rejected. Start a new chat or use context compression on the **History and Compaction** page: when a chat gets close to filling the context, older messages are replaced by a summary the model writes, recent turns stay as they are, the original messages are not deleted, and compaction can be undone with **Undo**. You can also compact by hand by typing `/compact` in the message box; see the [Features](../../en/FEATURES.md). For a bigger context, change the server's load settings, which needs more memory.
 
 ## Compare Two Answers
 

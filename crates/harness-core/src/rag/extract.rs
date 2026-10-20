@@ -625,7 +625,7 @@ mod tests {
 
     /// Real files printed by Microsoft Edge (`--print-to-pdf`) and saved by Microsoft Word
     /// (`SaveAs2`, .docx) from one HTML page: the `state.db` schema section of
-    /// docs/en/ARCHITECTURE.md, v1 tables on page 1 and the v2–v4 migrations on page 2.
+    /// private hs-internal architecture notes, v1 tables on page 1 and the v2–v4 migrations on page 2.
     pub(crate) fn fixture(name: &str) -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/data/rag")

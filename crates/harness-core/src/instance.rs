@@ -1,4 +1,4 @@
-//! Single-owner rule for the data directory (ARCHITECTURE §13.1).
+//! Single-owner rule for the data directory (private hs-internal architecture notes).
 //!
 //! One process manages a data directory at a time: the GUI or a future headless
 //! `harness serve`. The owner holds an OS file lock on `<data>/instance.lock` for its whole

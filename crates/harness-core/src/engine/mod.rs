@@ -1,4 +1,4 @@
-//! Engine abstraction (ARCHITECTURE §13.8).
+//! Engine abstraction (private hs-internal architecture notes).
 //!
 //! A runtime family (llama.cpp today; whisper.cpp, stable-diffusion.cpp later) is one
 //! [`Engine`]. It names its binaries and release source, detects a build's capabilities,

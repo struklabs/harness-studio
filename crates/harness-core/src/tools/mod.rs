@@ -25,7 +25,7 @@
 //! * [`agent_stream`]: the streaming agent loop: tokens to a sink, `tool_calls` collected
 //!   from the deltas, policy → run → result → next round, cancellation, a hook before each next
 //!   round. The gateway's server-side tools run on it; the Playground keeps its own loop (see
-//!   `docs/en/ARCHITECTURE.md`, "Tool loop").
+//!   `private hs-internal architecture notes`, "Tool loop").
 //!
 //! * [`package`], [`js_engine`], [`installed`]: the tool package format, the embedded JS
 //!   runtime whose only reach into the world is `harness.http` / `harness.fs` under the

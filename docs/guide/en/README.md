@@ -64,4 +64,4 @@ The guide uses the English interface. The app also runs in Turkish; change the l
 
 ## More Detailed References
 
-[Features](../../en/FEATURES.md), [CLI](../../en/CLI.md), [MCP](../../en/MCP.md), [Integrations](../../en/INTEGRATIONS.md), [Security model](../../en/SECURITY_MODEL.md), [Tools](../../en/TOOLS.md), [Performance](../../en/PERFORMANCE.md), and [Comparison with LM Studio and Ollama](../../en/COMPARISON.md).
+[Features](../../en/FEATURES.md), [CLI](../../en/CLI.md), [MCP](../../en/MCP.md), [Integrations](../../en/INTEGRATIONS.md), [Security and Privacy](../../en/SECURITY_MODEL.md), and [Tools](../../en/TOOLS.md).

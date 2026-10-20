@@ -2,6 +2,9 @@
 
 - Harness Studio is a Tauri + Svelte 5 desktop app: `src/` is the frontend,
   `crates/` contains Rust services, and `src-tauri/` is the desktop shell.
+- This public repository contains only user-facing usage and informational docs.
+  Internal designs, decisions, specifications, diagnostics, and measurement reports
+  belong in the private `hs-internal` repository, never in this repository.
 - English docs under `docs/en/` and root `README.md` are the single source of truth.
   Read only English documentation; the English user guide is in `docs/guide/en/`.
 - Never load `docs/tr/`, `docs/guide/tr/`, `README.tr.md`, or other Turkish

@@ -23,7 +23,7 @@
 #   value_fallbacks  for binaries without any of `flags`: value -> args (legacy mappings)
 #   harness_default  int sent when the user set neither the param nor its flag in custom
 #                 args, and the runtime has the flag (lower memory than llama-server's own
-#                 default; see docs/en/PERFORMANCE.md)
+#                 default; see private hs-internal performance notes)
 
 schema_version = 1
 

@@ -67,6 +67,6 @@ Bir Aracı katalogla aynı Git revizyonundan indirmek için **İncele ve Kur** s
 
 MCP sunucularının araçları **Bağlantılar > MCP Sunucuları** altından eklenir. Yerel komut kullanan bir MCP sunucusu, kullanıcı yetkilerinizle program çalıştırır. Harness Studio'nun kendi araçlarını başka bir MCP istemcisine açmak ayrı bir ayardır; [CLI, Control API ve MCP](09-cli-api-mcp.md) bölümüne bakın.
 
-Paket biçimi, testler ve üretimin nasıl çalıştığı için [Araçlar başvurusunu](../../tr/TOOLS.md) kullanın. Bir model araçları doğru çağırmıyorsa [araç tanılama notlarına](../../tr/TOOL-DIAGNOSIS.md) bakın.
+Paket biçimi, testler ve üretimin nasıl çalıştığı için [Araçlar başvurusunu](../../tr/TOOLS.md) kullanın. Bir model araçları doğru çağırmıyorsa [Usage Reference](../../tr/TOOLS.md) bakın.
 
 Sıradaki bölüm: [Performans ve Analitik](07-performans-ve-analitik.md).

@@ -26,7 +26,7 @@ export interface CompactionSettings {
 }
 
 /**
- * Defaults (see docs/en/ARCHITECTURE.md, "Context compaction"): 80 % leaves the summary request
+ * Defaults (see private hs-internal architecture notes, "Context compaction"): 80 % leaves the summary request
  * room in the same context (local models summarize with the model they chat with) and the
  * next answer room before llama-server's limit; two kept turns keep the thread of the
  * conversation verbatim; tool results are the cheapest thing to drop.

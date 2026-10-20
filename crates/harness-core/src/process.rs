@@ -3029,7 +3029,7 @@ impl ProcessManager {
         values.remove(crate::serve_mode::SERVE_MODE);
         values.remove(LOAD_TIMEOUT);
         // Lower memory ceilings than llama-server's own (prompt cache 8 GiB, 32 context
-        // checkpoints per slot) unless the user chose them; docs/en/PERFORMANCE.md has the numbers.
+        // checkpoints per slot) unless the user chose them; private hs-internal performance notes has the numbers.
         crate::params::with_harness_defaults(
             crate::params::catalog(),
             runtime,

@@ -47,7 +47,7 @@ Yanıtlar Markdown'ı tam olarak (listeler, tablolar, başlıklar) işler; `merm
 
 ## Tablolar, Grafikler ve Arayüz Blokları
 
-Yapılandırılmış JSON araç sonuçları anahtar-değer kartları veya sıralanabilir tablolarla gösterilir; **Ham JSON** asıl sonucu gösterir. Markdown tabloları yatay kaydırılır ve **CSV Olarak Kopyala** sunar. Tamamlanmış bir `chart` bloğu çubuk, çizgi veya pasta grafiği gösterebilir. Tamamlanmış bir `ui` bloğu kart, liste, adımlar, uyarı, ilerleme çubuğu veya anahtar-değer görünümü gösterebilir. Bunlar sınırlı bir bildirimsel JSON şeması kullanır; modelin HTML veya JavaScript kodu çalıştırılmaz. Geçersiz veya eksik bloklar okunabilir kod olarak kalır. [Desteklenen şemalara](../../tr/FEATURES.md#playground-sohbetinde-zengin-bloklar) bakın.
+Yapılandırılmış JSON araç sonuçları anahtar-değer kartları veya sıralanabilir tablolarla gösterilir; **Ham JSON** asıl sonucu gösterir. Markdown tabloları yatay kaydırılır ve **CSV Olarak Kopyala** sunar. Tamamlanmış bir `chart` bloğu çubuk, çizgi veya pasta grafiği gösterebilir. Tamamlanmış bir `ui` bloğu kart, liste, adımlar, uyarı, ilerleme çubuğu veya anahtar-değer görünümü gösterebilir. Bunlar sınırlı bir bildirimsel JSON şeması kullanır; modelin HTML veya JavaScript kodu çalıştırılmaz. Geçersiz veya eksik bloklar okunabilir kod olarak kalır. [Desteklenen şemalara](../../tr/FEATURES.md) bakın.
 
 ## Sistem İstemi, Presetler ve Örnekleme
 
@@ -62,7 +62,7 @@ Ne işe yaradıkları: **Sıcaklık** yükseldikçe yanıtlar daha çeşitli ve 
 
 Modelin her kelimede ne kadar emin olduğunu görmek için bir presetin örnekleme ayarlarında **Olasılık günlüğü** seçeneğini açın (kaç **Alternatif sayısı** döndürüleceğini de ayarlayabilirsiniz). Yanıtlarda **Belirteç olasılıklarını göster** seçeneği belirir: her token renklendirilir (soluk renk emin, belirgin renk emin değil anlamına gelir) ve üzerine gelince seçilen token ile alternatifleri görünür. **Normal görünüme dön** düz metne döndürür. Olasılıklar yalnızca geçerli oturum boyunca saklanır.
 
-Bağlam dolduğunda model eski mesajları unutabilir veya istek reddedilebilir. Yeni bir sohbet başlatın ya da **Geçmiş ve Compaction** sayfasındaki bağlam sıkıştırmayı kullanın: bir sohbet bağlamı doldurmaya yaklaştığında eski mesajlar modelin yazdığı bir özetle değiştirilir, son turlar olduğu gibi kalır, asıl mesajlar silinmez ve sıkıştırma **Geri Al** ile geri alınabilir. Mesaj kutusuna `/compact` yazarak elle de sıkıştırabilirsiniz; ayrıntılar için [sıkıştırma başvurusuna](../../tr/COMPACTION.md) bakın. Daha büyük bir bağlam için sunucunun yükleme ayarlarını değiştirin; bu daha fazla bellek ister.
+Bağlam dolduğunda model eski mesajları unutabilir veya istek reddedilebilir. Yeni bir sohbet başlatın ya da **Geçmiş ve Compaction** sayfasındaki bağlam sıkıştırmayı kullanın: bir sohbet bağlamı doldurmaya yaklaştığında eski mesajlar modelin yazdığı bir özetle değiştirilir, son turlar olduğu gibi kalır, asıl mesajlar silinmez ve sıkıştırma **Geri Al** ile geri alınabilir. Mesaj kutusuna `/compact` yazarak elle de sıkıştırabilirsiniz; ayrıntılar için [Features](../../tr/FEATURES.md) bakın. Daha büyük bir bağlam için sunucunun yükleme ayarlarını değiştirin; bu daha fazla bellek ister.
 
 ## İki Yanıtı Karşılaştırma
 

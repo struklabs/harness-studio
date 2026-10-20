@@ -1,7 +1,7 @@
 //! User state and conversations in SQLite (`<data root>/state.db`).
 //!
 //! Configuration stays in JSON files (see `config`, `store`); everything that is
-//! relational, grows without bound or needs search lives here (ARCHITECTURE §13.10).
+//! relational, grows without bound or needs search lives here (private hs-internal architecture notes).
 //!
 //! # Opening and migrations
 //! [`StateDb::open`] enables WAL, foreign keys and a busy timeout, then applies the

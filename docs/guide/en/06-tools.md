@@ -67,6 +67,6 @@ On **Settings > Tools > Installed Tools** you can manage package activity, **Run
 
 Tools from MCP servers are added under **Connections > MCP Servers**. An MCP server that uses a local command runs programs with your user permissions. Exposing Harness Studio's own tools to another MCP client is a separate setting; see [CLI, Control API, and MCP](09-cli-api-mcp.md).
 
-For the package format, tests, and how generation works, use the [Tools reference](../../en/TOOLS.md). If a model does not call tools correctly, see the [tool diagnosis notes](../../en/TOOL-DIAGNOSIS.md).
+For the package format, tests, and how generation works, use the [Tools reference](../../en/TOOLS.md). If tool calling fails, check the selected model and template, use Test Tool Calling in Connections, and inspect the request details in Analytics.
 
 Next: [Performance and Analytics](07-performance-and-analytics.md).
