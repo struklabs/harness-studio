@@ -75,6 +75,16 @@ const tr = {
   "modules.step_source": "Arka Uç Hazırlanıyor",
   "modules.owners": "Sahipler",
   "modules.version": "Sürüm",
+  "modules.install_from_file": "Dosyadan Yükle…",
+  "modules.install_from_file_hint": "Resmî bir modül paketini (.hsmod) ağ bağlantısı olmadan yükler.",
+  "modules.bundle_filter": "Harness Studio Modül Paketi",
+  "modules.bundle_unofficial": "Bu, resmî bir Harness Studio modül paketi değil. Yalnızca SHA-256 değeri bu sürüme kayıtlı paketler yüklenebilir; bu sürümde henüz kayıtlı paket olmayabilir. Topluluk paketleri desteklenmiyor.",
+  "modules.bundle_mismatch": "Paket, bu sürümün yüklediği resmî modül kaydı veya sürümüyle eşleşmiyor.",
+  "modules.bundle_corrupt": "Paket bozuk veya değiştirilmiş: bir dosya kayıtlı sağlama toplamıyla eşleşmiyor. Hiçbir şey yüklenmedi.",
+  "modules.bundle_incompatible": "Paket daha yeni veya bilinmeyen bir paket biçiminde hazırlanmış.",
+  "modules.already_installed": "Modülün bu sürümü zaten yüklü.",
+  "modules.export_external": "Bu modül Harness Studio dışında kurulmuş bir program kullanıyor; dışa aktarılamaz.",
+  "modules.export_missing": "Yüklü modülün bazı dosyaları eksik. Önce onarın, sonra yeniden dışa aktarın.",
   "modules.loading": "Modüller Yükleniyor…"
 };
 
@@ -155,6 +165,16 @@ const en: Record<keyof typeof tr, string> = {
   "modules.step_source": "Preparing Backend",
   "modules.owners": "Owners",
   "modules.version": "Version",
+  "modules.install_from_file": "Install from File…",
+  "modules.install_from_file_hint": "Installs an official module bundle (.hsmod) without a network connection.",
+  "modules.bundle_filter": "Harness Studio Module Bundle",
+  "modules.bundle_unofficial": "This is not an official Harness Studio module bundle. Only bundles whose SHA-256 is recorded in this build can be installed, and this build may not include any yet. Community bundles are not supported.",
+  "modules.bundle_mismatch": "The bundle does not match the official entry or the module version this app installs.",
+  "modules.bundle_corrupt": "The bundle is damaged or was changed: a file does not match its recorded checksum. Nothing was installed.",
+  "modules.bundle_incompatible": "This bundle uses a newer or unknown bundle format.",
+  "modules.already_installed": "This version of the module is already installed.",
+  "modules.export_external": "This module uses a program installed outside Harness Studio, so it cannot be exported.",
+  "modules.export_missing": "Files of the installed module are missing. Repair it first, then export again.",
   "modules.loading": "Loading Modules…"
 };
 

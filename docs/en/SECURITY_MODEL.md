@@ -21,6 +21,18 @@ Harness Studio runs local models on your computer. Downloads, remote models, HTT
 - Stop active tasks before changing grants. Disable or remove connections to prevent future use; revoke provider credentials separately. Revocation cannot undo writes or recall data already sent.
 - Hermes connections use model-scoped inference tokens. Disconnect revokes the connection token and restores configuration when it has not been changed externally. See the [agent guide](HERMES_AGENT.md) for recovery and limits.
 
+## Trust Levels and Grants
+
+MCP servers, agent runtimes (Hermes Agent, OpenClaw), and the training backend each have a trust level and per-capability grants. They extend the tool policy: the level is the same `safe` / `restricted` / `dangerous` class that tools have. Manage them in **Settings > Security > Permissions**, with `harness permissions`, or through the Control API (`/permissions`, `admin` scope).
+
+- **Default is nothing.** No grant exists until you create one, and a missing or unreadable `permissions.json` (in the data directory) means no grants. An MCP server without a level keeps the class its tools already have.
+- **Capabilities:** `file` (with up to eight existing folders), `network`, `shell`, `service`, `account`, `device`. Agent runtimes take `file` only; the Hermes adapter reads files read-only and cannot be handed shell, writes, or extra network.
+- **MCP servers:** a level you set replaces the class of the server's tools, except a tool you classed individually. The tool policy then decides each call as before. Any grant marks the server as trusted for the "allow trusted" policy. Grants are your declaration of what the server may do; Harness cannot see inside a server process, so they are not an OS sandbox.
+- **Agent runtimes:** a run may only read folders covered by a `file` grant of that agent; anything else is refused before the run starts. A level of `safe` allows no folder at all (inference only). Starting a task in the Agents screen with folders records the confirmed folders as a grant, which you can revoke on the Permissions page.
+- **Training backend:** shown as "Not Available Yet". It has no runtime, so grants and levels are refused (and logged). Future trainers must show dataset, output folder, network, and account access here before they run.
+- **Revoking** a grant or a whole subject takes effect at the next agent run or MCP call; it does not stop a task that is already running (stop it first) and cannot recall data already sent.
+- **Audit:** every grant, revoke, level change, and refused attempt is a row in the existing tool log (tool `permissions.*`, source `permissions`; read it with `GET /tools/log`), including who asked (`ui`, `cli`, `api`). A grant or level is only saved once its row is written; a revoke is never blocked by a failing log. These rows are written even when analytics recording is off, and they follow the tool log's raw retention and **Delete All**.
+
 ## Saved Content
 
 - Gateway analytics record request metadata by default, without prompts or responses. Optional per-definition content recording saves plaintext content locally. Give analytics readers access only to content you intend to share.

@@ -166,6 +166,16 @@ async fn real_openclaw_install_connect_task_stop_disconnect() {
         let folder = tempfile::tempdir().unwrap();
         let input = folder.path().join("input.txt");
         std::fs::write(&input, "HARNESS_SCOPED_FILE_OK").unwrap();
+        // Folder reads need a standing grant (Permissions page).
+        harness_core::permissions::Permissions::shared()
+            .grant(
+                "test",
+                harness_core::permissions::SubjectKind::Agent,
+                harness_core::permissions::AGENT_OPENCLAW,
+                harness_core::permissions::Capability::File,
+                vec![folder.path().to_string_lossy().into_owned()],
+            )
+            .unwrap();
         agents::start_task_kind(
             AgentKind::OpenClaw,
             "Use the read tool on input.txt and return its exact content.".into(),
