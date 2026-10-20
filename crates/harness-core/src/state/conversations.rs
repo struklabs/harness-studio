@@ -1027,6 +1027,15 @@ impl StateDb {
                 if !seen.insert(id.clone()) {
                     continue;
                 }
+                // The hidden conversation of a knowledge base is not a chat (its title is
+                // indexed like any other).
+                let is_kb: bool = c
+                    .query_row("SELECT 1 FROM rag_kbs WHERE id = ?1", [&id], |_| Ok(true))
+                    .optional()?
+                    .unwrap_or(false);
+                if is_kb {
+                    continue;
+                }
                 let Ok(conv) = load_conversation(c, &id) else {
                     continue;
                 };

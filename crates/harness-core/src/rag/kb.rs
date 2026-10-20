@@ -175,6 +175,17 @@ pub struct FolderScan {
     pub truncated: bool,
 }
 
+/// Whether the start of a file holds NUL bytes (a binary file with a text extension would
+/// only ever fail its document and keep the base "incomplete").
+fn looks_binary(path: &Path) -> bool {
+    use std::io::Read;
+    let mut buf = [0u8; 4096];
+    std::fs::File::open(path)
+        .and_then(|mut f| f.read(&mut buf))
+        .map(|n| buf[..n].contains(&0))
+        .unwrap_or(false)
+}
+
 fn generated(name: &str) -> bool {
     let n = name.to_lowercase();
     n.ends_with(".lock")
@@ -235,7 +246,7 @@ fn walk(dir: &Path, depth: usize, scan: &mut FolderScan) {
                 .metadata()
                 .map(|m| m.len() > super::extract::MAX_FILE_BYTES || m.len() == 0)
                 .unwrap_or(true);
-            if too_large || generated(&name) {
+            if too_large || generated(&name) || looks_binary(&path) {
                 scan.skipped += 1;
             } else {
                 scan.files.push(path);
