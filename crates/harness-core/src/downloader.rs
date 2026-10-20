@@ -531,6 +531,22 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
             task,
         )
     };
+    // An ONNX speech repo in a sherpa-onnx layout (Piper / Kokoro / Matcha / Kitten voices,
+    // transducer / Paraformer / Whisper / Moonshine recognisers): the files are the evidence, the
+    // repos usually carry no task. CTC exports and native speech packages keep their own path.
+    let sherpa = (format == crate::hub_compat::ModelFormat::Onnx
+        && !ctc_export
+        && native_speech.is_none()
+        && !refiner)
+        .then(|| crate::sherpa_layout::classify_repo(&id, &sibling_files(item)))
+        .flatten();
+    if let Some(kind) = sherpa {
+        if task.is_none() {
+            analysis.inferred_task = Some(kind.task());
+            analysis.source = Some(crate::hub_tasks::TaskSource::Files);
+        }
+    }
+    let task = task.or(sherpa.map(|k| k.task()));
     // An MLX speech recognition repo without a task (the card shows what was inferred).
     let mlx_stt = crate::hub_compat::mlx_stt_task(&id, format, task, &tags);
     if mlx_stt.is_some() {
@@ -589,6 +605,11 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         }
     } else if ctc_export {
         format.compatibility()
+    } else if sherpa.is_some() {
+        // Not the ONNX encoder family: sherpa-onnx's own tools run these.
+        crate::hub_compat::Compatibility::Runnable {
+            runtime: crate::hub_compat::SHERPA_FAMILY.into(),
+        }
     } else if diffusion_adapter {
         // sd.cpp LoRA usage is not wired in Harness.
         crate::hub_compat::Compatibility::Unsupported { format }
@@ -1682,6 +1703,18 @@ impl DownloadManager {
             params.push(("filter", "onnx".to_string()));
             jobs.push(params);
         }
+        // The sherpa-onnx speech repos carry no `pipeline_tag`: the listing is by name and ONNX
+        // tag, and what is kept is what the file layout says is speech (below).
+        let speech =
+            task.filter(|t| matches!(*t, "text-to-speech" | "automatic-speech-recognition"));
+        if speech.is_some() {
+            let mut params = search_params(&HfSearchOptions {
+                pipeline_tag: None,
+                ..wide.clone()
+            });
+            params.push(("filter", "onnx".to_string()));
+            jobs.push(params);
+        }
         if task.is_none_or(|t| matches!(t, "text-to-image" | "image-to-image")) {
             let image = HfSearchOptions {
                 pipeline_tag: Some(task.unwrap_or("text-to-image").to_string()),
@@ -1702,6 +1735,11 @@ impl DownloadManager {
             .filter(|m| {
                 m.format != ModelFormat::Gguf
                     && !matches!(m.compatibility, Compatibility::Unsupported { .. })
+                    // A speech search keeps the speech repos (tagged or by layout), not every
+                    // ONNX encoder the name matched.
+                    && speech.is_none_or(|t| {
+                        m.pipeline_tag.as_deref().or(m.inferred_task.as_deref()) == Some(t)
+                    })
             })
             .collect()
     }
@@ -2199,6 +2237,14 @@ impl DownloadManager {
         }
         if crate::hub_compat::is_sdxl_refiner(repo_id, &paths) {
             return diffusers_variants(repo_id, &items);
+        }
+        // An ONNX speech repo in a sherpa-onnx layout: the model's files in the repo layout
+        // (one download per precision), run by the sherpa-onnx tools.
+        if !paths.iter().any(|p| p.ends_with(".gguf")) {
+            let sherpa = sherpa_variants(repo_id, &items)?;
+            if !sherpa.is_empty() {
+                return Ok(sherpa);
+            }
         }
         // A FLUX.2 [klein] conversion in mflux's format: its folders, kept as they are.
         if crate::hub_compat::is_mflux_layout(&paths) {
@@ -3018,6 +3064,7 @@ impl DownloadManager {
             Self::client()?
         };
         let mut done_before = 0u64;
+        let mut listings: HashMap<String, Result<Vec<serde_json::Value>, String>> = HashMap::new();
 
         for (index, item) in items.iter().enumerate() {
             if job.cancelled() {
@@ -3076,9 +3123,17 @@ impl DownloadManager {
                 Some(hash) => Some(hash),
                 None => match repo_from_hf_url(&item.url) {
                     Some(repo) => {
-                        let current_token = crate::hf_auth::current_token().await;
-                        Self::refresh_file_sha256(&repo, item, current_token.as_deref(), HF_API)
-                            .await
+                        // One listing per repo for the whole job (a speech repo has hundreds
+                        // of files; a listing per file made the download quadratic).
+                        if !listings.contains_key(&repo) {
+                            let current_token = crate::hf_auth::current_token().await;
+                            let listing =
+                                Self::list_repo_files_from(&repo, current_token.as_deref(), HF_API)
+                                    .await;
+                            listings.insert(repo.clone(), listing);
+                        }
+                        let listing = listings[&repo].as_ref().map_err(String::as_str);
+                        Self::sha256_from_listing(&repo, item, listing)
                     }
                     None => None,
                 },
@@ -3348,6 +3403,7 @@ impl DownloadManager {
         Ok(downloaded)
     }
 
+    #[cfg(test)]
     async fn refresh_file_sha256(
         repo: &str,
         item: &DownloadItem,
@@ -3355,25 +3411,38 @@ impl DownloadManager {
         api: &str,
     ) -> Option<String> {
         let result = Self::list_repo_files_from(repo, token, api).await;
-        let hash = result.as_ref().ok().and_then(|items| {
-            items.iter().find_map(|entry| {
-                if entry.get("path").and_then(|v| v.as_str()) != Some(&item.filename) {
-                    return None;
-                }
-                entry
-                    .get("lfs")?
-                    .get("oid")?
-                    .as_str()
-                    .and_then(valid_sha256)
+        Self::sha256_from_listing(repo, item, result.as_ref().map_err(String::as_str))
+    }
+
+    /// The SHA-256 of `item` in a repo listing (`Err`: the listing could not be read). A file
+    /// the repo stores outside LFS has none: the size check is its verification, and that is
+    /// nothing to report for a repo with hundreds of small files.
+    fn sha256_from_listing(
+        repo: &str,
+        item: &DownloadItem,
+        listing: Result<&Vec<serde_json::Value>, &str>,
+    ) -> Option<String> {
+        let entry = listing.as_ref().ok().and_then(|items| {
+            items.iter().find(|entry| {
+                entry.get("path").and_then(|v| v.as_str()) == Some(item.filename.as_str())
             })
         });
-        if hash.is_none() {
+        let hash = entry.and_then(|entry| {
+            entry
+                .get("lfs")?
+                .get("oid")?
+                .as_str()
+                .and_then(valid_sha256)
+        });
+        let stored_in_git = entry.is_some_and(|e| e.get("lfs").is_none());
+        if hash.is_none() && !stored_in_git {
             eprintln!(
                 "SHA-256 alınamadı, boyut kontrolüyle devam ediliyor: {}/{} ({})",
                 repo,
                 item.filename,
-                result
+                listing
                     .err()
+                    .map(String::from)
                     .unwrap_or_else(|| "özet eksik veya maskeli".into())
             );
         }
@@ -3997,6 +4066,72 @@ fn encoder_onnx_variants(
         return Ok(Vec::new());
     }
     onnx_variants(repo_id, items)
+}
+
+/// The variants of an ONNX speech repo in a sherpa-onnx layout
+/// ([`crate::sherpa_layout::plan_variants`]): the graphs of one precision, the tokens, voices,
+/// lexicons and (text to speech) the `espeak-ng-data` folder, in the repo's layout so that the
+/// folder is a model the library scan recognises. Empty for any other repo.
+fn sherpa_variants(
+    repo_id: &str,
+    items: &[serde_json::Value],
+) -> Result<Vec<HfModelVariant>, String> {
+    let paths: Vec<String> = items
+        .iter()
+        .filter_map(|i| i.get("path").and_then(|v| v.as_str()).map(String::from))
+        .collect();
+    let plan = crate::sherpa_layout::plan_variants(repo_id, &paths);
+    let many = plan.len() > 1;
+    let base = repo_id.rsplit('/').next().unwrap_or(repo_id);
+    plan.into_iter()
+        .map(|variant| {
+            let total = variant.files.len() as u32;
+            let shards = variant
+                .files
+                .iter()
+                .enumerate()
+                .map(|(i, path)| {
+                    let item = items
+                        .iter()
+                        .find(|it| it.get("path").and_then(|v| v.as_str()) == Some(path));
+                    let size = item
+                        .and_then(|it| {
+                            it.get("lfs")
+                                .and_then(|l| l.get("size"))
+                                .and_then(|v| v.as_u64())
+                                .or_else(|| it.get("size").and_then(|v| v.as_u64()))
+                        })
+                        .unwrap_or(0);
+                    let sha256 = item
+                        .and_then(|it| it.get("lfs"))
+                        .and_then(|l| l.get("oid"))
+                        .and_then(|v| v.as_str())
+                        .and_then(valid_sha256);
+                    Ok(HfShardInfo {
+                        download_url: DownloadManager::hf_file_url(repo_id, "resolve", path)?
+                            .to_string(),
+                        filename: path.clone(),
+                        size_bytes: size,
+                        shard_index: i as u32 + 1,
+                        total_shards: total,
+                        sha256,
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(HfModelVariant {
+                not_runnable: None,
+                name: if many {
+                    format!("{base}-{}", variant.quantization.to_ascii_lowercase())
+                } else {
+                    base.to_string()
+                },
+                quantization: variant.quantization.to_string(),
+                total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
+                is_split: false,
+                shards,
+            })
+        })
+        .collect()
 }
 
 fn onnx_variants(
@@ -5894,6 +6029,162 @@ mod tests {
 
     /// Speech repos made for their own package are not offered for the Python engine; a
     /// transformers model type of the same task still is (listing shapes of 2026-10-14).
+    /// A Hub listing item of an ONNX repo with `files` (no task, only the `onnx` tag).
+    fn sherpa_item(id: &str, files: &[&str]) -> serde_json::Value {
+        serde_json::json!({
+            "id": id,
+            "tags": ["onnx", "region:us"],
+            "siblings": files.iter().map(|f| serde_json::json!({"rfilename": f})).collect::<Vec<_>>(),
+        })
+    }
+
+    #[test]
+    fn sherpa_onnx_speech_repos_are_runnable_with_their_task() {
+        let sherpa = crate::hub_compat::Compatibility::Runnable {
+            runtime: crate::hub_compat::SHERPA_FAMILY.into(),
+        };
+        let cases: [(&str, &[&str], &str); 4] = [
+            (
+                "csukuangfj/vits-piper-en_US-amy-low",
+                &[
+                    "en_US-amy-low.onnx",
+                    "en_US-amy-low.onnx.json",
+                    "tokens.txt",
+                    "espeak-ng-data/en_dict",
+                ],
+                "text-to-speech",
+            ),
+            (
+                "csukuangfj/sherpa-onnx-whisper-tiny.en",
+                &[
+                    "tiny.en-decoder.onnx",
+                    "tiny.en-encoder.onnx",
+                    "tiny.en-tokens.txt",
+                ],
+                "automatic-speech-recognition",
+            ),
+            (
+                "csukuangfj/sherpa-onnx-moonshine-tiny-en-int8",
+                &[
+                    "preprocess.onnx",
+                    "encode.int8.onnx",
+                    "uncached_decode.int8.onnx",
+                    "cached_decode.int8.onnx",
+                    "tokens.txt",
+                ],
+                "automatic-speech-recognition",
+            ),
+            (
+                "csukuangfj/sherpa-onnx-zipformer-small-en-2023-06-26",
+                &[
+                    "encoder-epoch-99-avg-1.onnx",
+                    "decoder-epoch-99-avg-1.onnx",
+                    "joiner-epoch-99-avg-1.onnx",
+                    "tokens.txt",
+                ],
+                "automatic-speech-recognition",
+            ),
+        ];
+        for (id, files, task) in cases {
+            let listed = parse_search_item(&sherpa_item(id, files)).unwrap();
+            assert_eq!(listed.compatibility, sherpa, "{id}");
+            assert_eq!(listed.format, crate::hub_compat::ModelFormat::Onnx, "{id}");
+            assert_eq!(listed.inferred_task.as_deref(), Some(task), "{id}");
+            assert!(listed.not_runnable.is_none(), "{id}");
+            let cap = if task == "text-to-speech" {
+                crate::model_registry::Capability::Tts
+            } else {
+                crate::model_registry::Capability::Asr
+            };
+            assert!(listed.capabilities.contains(&cap), "{id}");
+        }
+        // A tagged repo keeps its tag.
+        let mut tagged = sherpa_item(
+            "csukuangfj/sherpa-onnx-whisper-tiny.en",
+            &[
+                "tiny.en-decoder.onnx",
+                "tiny.en-encoder.onnx",
+                "tiny.en-tokens.txt",
+            ],
+        );
+        tagged["pipeline_tag"] = "automatic-speech-recognition".into();
+        let listed = parse_search_item(&tagged).unwrap();
+        assert_eq!(listed.compatibility, sherpa);
+        assert_eq!(
+            listed.pipeline_tag.as_deref(),
+            Some("automatic-speech-recognition")
+        );
+    }
+
+    #[test]
+    fn onnx_speech_exports_for_other_runtimes_stay_unsupported() {
+        for (id, files) in [
+            // Optimum / transformers.js Whisper.
+            (
+                "Xenova/whisper-tiny.en",
+                vec![
+                    "config.json",
+                    "tokenizer.json",
+                    "onnx/encoder_model.onnx",
+                    "onnx/decoder_model_merged.onnx",
+                ],
+            ),
+            // Matcha without its vocoder, Pocket TTS.
+            (
+                "csukuangfj/matcha-icefall-en_US-ljspeech",
+                vec!["model-steps-3.onnx", "tokens.txt", "espeak-ng-data/en_dict"],
+            ),
+            (
+                "csukuangfj/sherpa-onnx-pocket-tts-int8",
+                vec!["lm_main.int8.onnx", "tokens.txt"],
+            ),
+        ] {
+            let mut item = sherpa_item(id, &files);
+            item["pipeline_tag"] = "automatic-speech-recognition".into();
+            let listed = parse_search_item(&item).unwrap();
+            assert!(
+                matches!(
+                    listed.compatibility,
+                    crate::hub_compat::Compatibility::Unsupported { .. }
+                ),
+                "{id}: {:?}",
+                listed.compatibility
+            );
+        }
+    }
+
+    #[test]
+    fn sherpa_variants_keep_the_repo_layout_and_one_precision() {
+        let item = |path: &str, size: u64| serde_json::json!({"path": path, "size": size});
+        let items = vec![
+            item("README.md", 10),
+            item("tiny.en-decoder.int8.onnx", 100),
+            item("tiny.en-decoder.onnx", 400),
+            item("tiny.en-encoder.int8.onnx", 200),
+            item("tiny.en-encoder.onnx", 800),
+            item("tiny.en-tokens.txt", 5),
+            item("test_wavs/0.wav", 99),
+        ];
+        let v = sherpa_variants("csukuangfj/sherpa-onnx-whisper-tiny.en", &items).unwrap();
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[0].quantization, "INT8");
+        assert_eq!(v[0].name, "sherpa-onnx-whisper-tiny.en-int8");
+        assert_eq!(v[0].total_size_bytes, 305);
+        let names: Vec<_> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "tiny.en-decoder.int8.onnx",
+                "tiny.en-encoder.int8.onnx",
+                "tiny.en-tokens.txt"
+            ]
+        );
+        assert_eq!(v[1].quantization, "FP32");
+        assert!(sherpa_variants("a/encoder", &[item("model.onnx", 1)])
+            .unwrap()
+            .is_empty());
+    }
+
     #[test]
     fn speech_repos_need_a_model_type_transformers_loads() {
         let item = |id: &str, task: &str, model_type: &str| {

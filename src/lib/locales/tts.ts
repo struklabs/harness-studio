@@ -48,7 +48,7 @@ const tr = {
   'lib.kind_asr_mlx': 'Konuşma tanıma (MLX)',
   'lib.cap_tts': 'Seslendirme',
   'rt.sherpa_title': 'Seslendirme (sherpa-onnx)',
-  'rt.sherpa_desc': 'sherpa-onnx, metni sese çevirir (OpenAI uyumlu /v1/audio/speech). Kokoro ve Piper ses modelleriyle çalışır; kendi ONNX Runtime’ını getirir. Windows ve Linux’ta CPU sürümü kurulur.',
+  'rt.sherpa_desc': 'sherpa-onnx, metni sese çevirir (OpenAI uyumlu /v1/audio/speech). Kokoro, Piper, Matcha ve KittenTTS ses modelleriyle çalışır; kendi ONNX Runtime’ını getirir. Windows ve Linux’ta CPU sürümü kurulur.',
   'rt.sherpa_fill': 'sherpa-onnx Deposunu Doldur',
 };
 
@@ -99,7 +99,7 @@ const en: Record<keyof typeof tr, string> = {
   'lib.kind_asr_mlx': 'Speech recognition (MLX)',
   'lib.cap_tts': 'Speech synthesis',
   'rt.sherpa_title': 'Text to Speech (sherpa-onnx)',
-  'rt.sherpa_desc': 'sherpa-onnx turns text into speech (OpenAI-compatible /v1/audio/speech). It runs Kokoro and Piper voice models and brings its own ONNX Runtime. The CPU build is installed on Windows and Linux.',
+  'rt.sherpa_desc': 'sherpa-onnx turns text into speech (OpenAI-compatible /v1/audio/speech). It runs Kokoro, Piper, Matcha and KittenTTS voice models and brings its own ONNX Runtime. The CPU build is installed on Windows and Linux.',
   'rt.sherpa_fill': 'Fill in the sherpa-onnx Repository',
 };
 
