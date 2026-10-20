@@ -115,7 +115,7 @@ pub const MLX_VLM: EnvSpec = EnvSpec {
 pub const MFLUX: EnvSpec = EnvSpec {
     name: "mflux",
     lock: include_str!("../../python/mflux.lock"),
-    verify: "import mlx.core, mflux.models.flux2.variants, uvicorn, PIL",
+    verify: "import mlx.core, mflux.models.flux2.variants, mflux.models.z_image.variants, mflux.models.flux.variants.fill.flux_fill, mflux.models.qwen.variants.txt2img.qwen_image, uvicorn, PIL",
     estimated_size_bytes: 1_100 * 1024 * 1024,
     min_macos: Some(14),
     gpu_build_of: None,

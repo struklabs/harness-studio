@@ -74,9 +74,9 @@ const VLM_WORKER: &str = include_str!("../../python/mlx_vlm_worker.py");
 const AUDIO_WORKER: &str = include_str!("../../python/mlx_audio_worker.py");
 const IMAGE_WORKER: &str = include_str!("../../python/mflux_worker.py");
 
-/// The FLUX.2 [klein] models the image engine runs: the base model a conversion's card names
-/// (lower case) and mflux's name for it (`ModelConfig.from_name`). The worker has the same table
-/// (`MODELS` in `python/mflux_worker.py`).
+/// The models the image engine runs: the base model a conversion's card names (lower case) and
+/// mflux's name for it (`ModelConfig.from_name`). The worker has the same table (`MODELS` in
+/// `python/mflux_worker.py`, with each family's defaults in `KINDS`).
 pub const MFLUX_MODELS: &[(&str, &str)] = &[
     ("black-forest-labs/flux.2-klein-4b", "flux2-klein-4b"),
     (
@@ -89,11 +89,50 @@ pub const MFLUX_MODELS: &[(&str, &str)] = &[
         "black-forest-labs/flux.2-klein-base-9b",
         "flux2-klein-base-9b",
     ),
+    ("tongyi-mai/z-image-turbo", "z-image-turbo"),
+    ("tongyi-mai/z-image", "z-image"),
+    ("black-forest-labs/flux.1-schnell", "schnell"),
+    ("black-forest-labs/flux.1-dev", "dev"),
+    ("black-forest-labs/flux.1-krea-dev", "krea-dev"),
+    ("black-forest-labs/flux.1-fill-dev", "dev-fill"),
+    ("qwen/qwen-image", "qwen-image"),
 ];
 
+/// mflux models that only inpaint (an image and a mask; nothing from text alone).
+pub const MFLUX_INPAINT_MODELS: &[&str] = &["dev-fill"];
+
+/// mflux models with FLUX.1's second text encoder (T5: `text_encoder_2/`, `tokenizer_2/`).
+const MFLUX_TWO_ENCODERS: &[&str] = &["schnell", "dev", "krea-dev", "dev-fill"];
+
 /// The weight folders of an mflux folder, each safetensors shards with their index; the
-/// tokenizer is in `tokenizer/`.
+/// tokenizer is in `tokenizer/`. FLUX.1 has a second text encoder ([`MFLUX_EXTRA_PARTS`]).
 pub const MFLUX_PARTS: &[&str] = &["transformer", "text_encoder", "vae"];
+
+/// Whether an mflux model has FLUX.1's second text encoder (`text_encoder_2/`, `tokenizer_2/`).
+pub fn mflux_has_second_encoder(name: &str) -> bool {
+    MFLUX_TWO_ENCODERS.contains(&name)
+}
+
+/// FLUX.1's second text encoder.
+pub const MFLUX_EXTRA_PARTS: &[&str] = &["text_encoder_2"];
+
+/// The weight folders of an mflux model ([`MFLUX_PARTS`], and FLUX.1's second text encoder).
+pub fn mflux_parts(name: &str) -> Vec<&'static str> {
+    let mut parts = MFLUX_PARTS.to_vec();
+    if MFLUX_TWO_ENCODERS.contains(&name) {
+        parts.extend_from_slice(MFLUX_EXTRA_PARTS);
+    }
+    parts
+}
+
+/// The tokenizer folders of an mflux model.
+fn mflux_tokenizers(name: &str) -> &'static [&'static str] {
+    if MFLUX_TWO_ENCODERS.contains(&name) {
+        &["tokenizer", "tokenizer_2"]
+    } else {
+        &["tokenizer"]
+    }
+}
 
 /// mlx-audio text-to-speech architectures Harness runs (see [`tts_type`]): the ones checked end
 /// to end. OuteTTS, Orpheus, Dia and CSM (`sesame`) load a codec (and CSM its text tokenizer and
@@ -1166,8 +1205,8 @@ pub fn is_any_model_dir(path: &Path) -> bool {
     mlx_vision(path).is_some() || is_audio_dir(path) || is_mflux_dir(path)
 }
 
-/// mflux's name of a FLUX.2 [klein] base model repo (`black-forest-labs/FLUX.2-klein-4B` ->
-/// `flux2-klein-4b`), `None` for any other repo.
+/// mflux's name of a base model repo it runs (`black-forest-labs/FLUX.2-klein-4B` ->
+/// `flux2-klein-4b`, `Tongyi-MAI/Z-Image-Turbo` -> `z-image-turbo`), `None` for any other repo.
 pub fn mflux_model_for_base(base: &str) -> Option<&'static str> {
     let base = base.trim().to_ascii_lowercase();
     MFLUX_MODELS
@@ -1183,10 +1222,11 @@ pub fn mflux_model(dir: &Path) -> Option<&'static str> {
         .find_map(|b| mflux_model_for_base(b))
 }
 
-/// The safetensors of an mflux folder's weight folders ([`MFLUX_PARTS`]).
+/// The safetensors of an mflux folder's weight folders ([`mflux_parts`]).
 pub fn mflux_weight_files(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = MFLUX_PARTS
         .iter()
+        .chain(MFLUX_EXTRA_PARTS)
         .flat_map(|part| {
             std::fs::read_dir(dir.join(part))
                 .into_iter()
@@ -1213,16 +1253,19 @@ fn mflux_quantization(dir: &Path) -> Option<String> {
     })
 }
 
-/// Whether `path` is a folder the `mflux` engine runs: a FLUX.2 [klein] model ([`mflux_model`])
-/// saved by mflux (`transformer/`, `text_encoder/` and `vae/` with an index each, mflux's
-/// metadata in the transformer's, and `tokenizer/`), not a diffusers pipeline.
+/// Whether `path` is a folder the `mflux` engine runs: a model of [`MFLUX_MODELS`]
+/// ([`mflux_model`]) saved by mflux (its [`mflux_parts`] with an index each, mflux's metadata in
+/// the transformer's, and its tokenizers), not a diffusers pipeline.
 pub fn is_mflux_dir(path: &Path) -> bool {
-    path.is_dir()
-        && !path.join("model_index.json").exists()
-        && mflux_model(path).is_some()
+    let Some(name) = mflux_model(path).filter(|_| path.is_dir()) else {
+        return false;
+    };
+    !path.join("model_index.json").exists()
         && mflux_quantization(path).is_some()
-        && path.join("tokenizer").join("tokenizer.json").is_file()
-        && MFLUX_PARTS.iter().all(|part| {
+        && mflux_tokenizers(name)
+            .iter()
+            .all(|t| path.join(t).join("tokenizer.json").is_file())
+        && mflux_parts(name).iter().all(|part| {
             let dir = path.join(part);
             dir.join("model.safetensors.index.json").is_file()
                 && std::fs::read_dir(&dir)
@@ -1292,8 +1335,8 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
     Some(model)
 }
 
-/// The library's view of an mflux folder: a text-to-image pipeline model (it edits images too)
-/// with mflux's bits as its quantization (`4bit`).
+/// The library's view of an mflux folder: a text-to-image pipeline model (it edits images too;
+/// an inpainting model is image-to-image) with mflux's bits as its quantization (`4bit`).
 fn mflux_local_model(dir: &Path, root: &Path) -> crate::models::LocalModel {
     let weights = mflux_weight_files(dir);
     let info = super::mistralrs::ModelDirInfo {
@@ -1310,7 +1353,15 @@ fn mflux_local_model(dir: &Path, root: &Path) -> crate::models::LocalModel {
     let mut model = super::mistralrs::to_local_model(dir, &info, root);
     model.kind = crate::domain::ModelKind::Pipeline;
     model.context_length = None;
-    model.task = Some("text-to-image".into());
+    let inpaints = mflux_model(dir).is_some_and(|n| MFLUX_INPAINT_MODELS.contains(&n));
+    model.task = Some(
+        if inpaints {
+            "image-to-image"
+        } else {
+            "text-to-image"
+        }
+        .into(),
+    );
     model.quantization = match mflux_quantization(dir).as_deref() {
         Some(q) if !q.is_empty() && q.chars().all(|c| c.is_ascii_digit()) => format!("{q}bit"),
         _ => String::new(),
@@ -1751,6 +1802,20 @@ fn build_args(
     } else if flavour == Flavour::Audio && is_sts_dir(&config.model_path) {
         args.push("--task".into());
         args.push("separate".into());
+    }
+    if flavour == Flavour::Image {
+        if let Some(lora) = config
+            .lora_path
+            .as_ref()
+            .filter(|p| !p.as_os_str().is_empty())
+        {
+            args.push("--lora".into());
+            args.push(lora.to_string_lossy().to_string());
+            if let Some(scale) = config.lora_scale {
+                args.push("--lora-scale".into());
+                args.push(scale.to_string());
+            }
+        }
     }
     if flavour == Flavour::Audio && !companions_of(&config.model_path).is_empty() {
         let libraries = crate::config::AppSettings::load().all_models_dirs();
@@ -4441,6 +4506,88 @@ print("resampled", resampled)
     const KLEIN_CARD: &str = "---\nlicense: apache-2.0\npipeline_tag: image-to-image\ntags:\n- flux\n- diffusion-single-file\nbase_model:\n- black-forest-labs/FLUX.2-klein-4B\n---\n\n3-bit\n";
 
     #[test]
+    fn mflux_runs_z_image_flux1_and_qwen_image_folders() {
+        const INDEX: &str =
+            r#"{"metadata":{"quantization_level":"4","mflux_version":"0.22.0"},"weight_map":{}}"#;
+        let t5 = [
+            ("text_encoder_2/0.safetensors", "t5"),
+            ("text_encoder_2/model.safetensors.index.json", INDEX),
+            ("tokenizer_2/tokenizer.json", "{}"),
+        ];
+        let z = mflux_folder(
+            "---\nbase_model: Tongyi-MAI/Z-Image-Turbo\nlibrary_name: mflux\n---\n",
+            &[],
+        );
+        assert_eq!(mflux_model(z.path()), Some("z-image-turbo"));
+        assert!(is_mflux_dir(z.path()));
+        let m = to_local_model(z.path(), z.path().parent().unwrap()).unwrap();
+        assert_eq!(m.task.as_deref(), Some("text-to-image"));
+        let qwen = mflux_folder("---\nbase_model: Qwen/Qwen-Image\n---\n", &[]);
+        assert!(is_mflux_dir(qwen.path()));
+
+        // FLUX.1 loads its T5 encoder too: without it the folder is not runnable; with it its
+        // weights count.
+        let schnell_card = "---\nbase_model: black-forest-labs/FLUX.1-schnell\n---\n";
+        assert!(!is_mflux_dir(mflux_folder(schnell_card, &[]).path()));
+        let schnell = mflux_folder(schnell_card, &t5);
+        assert!(is_mflux_dir(schnell.path()));
+        assert_eq!(mflux_weight_files(schnell.path()).len(), 4);
+        assert!(!is_mflux_dir(mflux_folder(schnell_card, &t5[..2]).path()));
+
+        // FLUX.1 Fill only inpaints: the library lists it as image to image.
+        let fill = mflux_folder(
+            "---\nbase_model: black-forest-labs/FLUX.1-Fill-dev\n---\n",
+            &t5,
+        );
+        assert_eq!(mflux_model(fill.path()), Some("dev-fill"));
+        let m = to_local_model(fill.path(), fill.path().parent().unwrap()).unwrap();
+        assert_eq!(m.task.as_deref(), Some("image-to-image"));
+        assert_eq!(m.architecture.as_deref(), Some("dev-fill"));
+    }
+
+    #[test]
+    fn mflux_launches_take_a_lora_adapter() {
+        let klein = mflux_folder(KLEIN_CARD, &[]);
+        let mut config = LaunchConfig {
+            model_path: klein.path().to_path_buf(),
+            host: "127.0.0.1".into(),
+            port: 11450,
+            lora_path: Some(PathBuf::from("/loras/pixel art.safetensors")),
+            ..Default::default()
+        };
+        let args = build_args(&config, Path::new("w.py"), Flavour::Image)
+            .unwrap()
+            .args;
+        let at = |args: &[String], flag: &str| {
+            args.iter()
+                .position(|a| a == flag)
+                .map(|i| args[i + 1].clone())
+        };
+        assert_eq!(
+            at(&args, "--lora").as_deref(),
+            Some("/loras/pixel art.safetensors")
+        );
+        assert!(at(&args, "--lora-scale").is_none());
+        config.lora_scale = Some(0.75);
+        let args = build_args(&config, Path::new("w.py"), Flavour::Image)
+            .unwrap()
+            .args;
+        assert_eq!(at(&args, "--lora-scale").as_deref(), Some("0.75"));
+        // The catalog says the engine takes one (the definition's LoRA field is shown).
+        assert!(catalog(Flavour::Image)
+            .params
+            .iter()
+            .any(|p| p.id == "lora_path" && p.flags == ["--lora"]));
+        // Other flavours never get it.
+        let text = folder(&[("config.json", MLX_CONFIG), ("model.safetensors", "x")]);
+        config.model_path = text.path().to_path_buf();
+        let args = build_args(&config, Path::new("w.py"), Flavour::Text)
+            .unwrap()
+            .args;
+        assert!(at(&args, "--lora").is_none());
+    }
+
+    #[test]
     fn mflux_klein_folders_are_the_image_engines() {
         let klein = mflux_folder(KLEIN_CARD, &[]);
         let dir = klein.path();
@@ -4579,7 +4726,7 @@ print("sizes", w.image_size(png(640, 480)), w.image_size(jpeg(320, 200)), w.imag
 def check(raw, edit=False):
     try:
         r = w.image_request(json.dumps(raw).encode(), edit)
-        return {{k: v for k, v in r.items() if k != "images"}} | {{"images": [s for _, s in r["images"]]}}
+        return {{k: v for k, v in r.items() if k not in ("images", "mask")}} | {{"images": [s for _, s in r["images"]]}} | {{"mask": r["mask"] and r["mask"][1]}}
     except w.Refused as e:
         return "refused: " + str(e)
 
@@ -4620,8 +4767,8 @@ calls, folders = [], []
 class Image:
     def save(self, buf, format):
         buf.write(b"PNG")
-def render(models, req, seed, size, paths):
-    calls.append((seed, size, req["steps"], [os.path.basename(p) for p in paths]))
+def render(models, req, seed, size, paths, mask=None):
+    calls.append((seed, size, req["steps"], [os.path.basename(p) for p in paths]) + ((req["strength"], os.path.basename(mask) if mask else None),) * (req["strength"] is not None or mask is not None))
     folders.extend(os.path.dirname(p) for p in paths)
     for _ in range(req["steps"]):
         models.stop.call_in_loop(0, None)
@@ -4636,11 +4783,45 @@ calls.clear()
 req = w.image_request(json.dumps({{"prompt": "x", "image": b64(png(600, 400)), "steps": 1, "seed": 1}}).encode(), True)
 print("edited", gen(req, True, gone), calls, all(not os.path.exists(f) for f in folders))
 calls.clear()
-base = w.make_generate(models, weights, budget, "flux2-klein-base-4b", 100, render, clock, base_steps=True)
+base = w.make_generate(models, weights, budget, "flux2-klein-base-4b", 100, render, clock)
 try:
     base(w.image_request(b'{{"prompt": "x", "size": "256x256"}}', False), False, gone)
 except w.TooSlow:
     print("base too slow after", len(calls), "image(s) of", calls[0][2], "steps at", now[0])
+# Other families: image to image from one image (default strength), FLUX.1 Fill inpaints with a mask.
+calls.clear(); now[0] = 0
+z = w.make_generate(models, weights, budget, "z-image-turbo", 1000, render, clock)
+print("z draws", z(w.image_request(b'{{"prompt": "x", "size": "256x256", "seed": 3}}', False), False, gone), calls[-1])
+z(w.image_request(json.dumps({{"prompt": "x", "image": b64(png(600, 400)), "seed": 3}}).encode(), True), True, gone)
+print("z img2img", calls[-1])
+fill = w.make_generate(models, weights, budget, "dev-fill", 10 ** 6, render, clock)
+for label, raw, edit in [("z two images", {{"prompt": "x", "image": [b64(png(64, 64))] * 2}}, True),
+                         ("z mask", {{"prompt": "x", "image": b64(png(64, 64)), "mask": b64(png(64, 64))}}, True),
+                         ("fill draw", {{"prompt": "x"}}, False),
+                         ("fill no mask", {{"prompt": "x", "image": b64(png(64, 64))}}, True),
+                         ("fill mask size", {{"prompt": "x", "image": b64(png(64, 64)), "mask": b64(png(32, 32))}}, True)]:
+    try:
+        (z if label.startswith("z") else fill)(w.image_request(json.dumps(raw).encode(), edit), edit, gone)
+        print(label, "drawn")
+    except w.Refused as e:
+        print(label, "refused:", e)
+fill(w.image_request(json.dumps({{"prompt": "x", "image": b64(png(256, 256)), "mask": b64(png(256, 256)), "seed": 5, "steps": 2}}).encode(), True), gone=gone, edit=True)
+print("fill", calls[-1], all(not os.path.exists(f) for f in folders))
+print("mask parsed", check({{"prompt": "x", "image": b64(png(64, 64)), "mask": b64(png(64, 64))}}, True)["mask"])
+print("kinds", sorted(set(w.MODELS.values())) == sorted(w.KINDS))
+
+# LoRA adapters: existing safetensors files, a scale each.
+lora = os.path.join({:?}, "style.safetensors")
+open(lora, "wb").write(b"x")
+print("lora", w.lora_files([lora], []), w.lora_files([lora, lora], [0.5]))
+for label, paths, scales in [("lora missing", ["/nope.safetensors"], []), ("lora ext", [__file__ if "__file__" in dir() else "/etc/hosts"], []),
+                             ("lora scale", [lora], [9.0]), ("lora many", [lora] * 5, []), ("lora scales", [lora], [1.0, 1.0])]:
+    try:
+        w.lora_files(paths, scales)
+    except ValueError as e:
+        print(label, "refused:", e)
+print("args", w.parser().parse_args(["--model", "m", "--port", "1", "--lora", "a", "--lora", "b", "--lora-scale", "0.7"]).lora_scale)
+
 gone.set()
 try:
     gen(w.image_request(b'{{"prompt": "x", "size": "256x256"}}', False), False, gone)
@@ -4685,6 +4866,7 @@ async def main():
 asyncio.run(main())
 "#,
             dir.path().to_string_lossy(),
+            dir.path().to_string_lossy(),
         );
         let out = std::process::Command::new(python)
             .args(["-I", "-c", &script])
@@ -4696,8 +4878,8 @@ asyncio.run(main())
         assert!(out.status.success(), "{text}");
         for line in [
             "sizes (640, 480) (320, 200) (512, 768) None",
-            "plain {'prompt': 'a fox', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': None, 'images': []}",
-            "full {'prompt': 'x', 'n': 4, 'seed': 9, 'steps': 50, 'size': (768, 512), 'guidance': 1.5, 'strength': None, 'images': []}",
+            "plain {'prompt': 'a fox', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': None, 'images': [], 'mask': None}",
+            "full {'prompt': 'x', 'n': 4, 'seed': 9, 'steps': 50, 'size': (768, 512), 'guidance': 1.5, 'strength': None, 'images': [], 'mask': None}",
             "auto None",
             "steps refused: steps must be a whole number from 1 to 50",
             "n refused: n must be a whole number from 1 to 4",
@@ -4707,7 +4889,7 @@ asyncio.run(main())
             "empty refused: prompt is required",
             "bool refused: steps must be a whole number",
             "image on generation refused: unsupported field(s) for this model: image",
-            "edit {'prompt': 'x', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': 0.5, 'images': [(600, 400), (64, 64)]}",
+            "edit {'prompt': 'x', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': 0.5, 'images': [(600, 400), (64, 64)], 'mask': None}",
             "edit none refused: image (the picture to edit) is required",
             "edit five refused: an edit takes at most 4 images",
             "edit huge refused: image 1 is 5000x64; an edit takes at most 4096 pixels a side",
@@ -4720,6 +4902,22 @@ asyncio.run(main())
             "drawn [b'PNG', b'PNG'] [(4294967295, (512, 512), 4, []), (0, (512, 512), 4, [])] None",
             "edited [b'PNG'] [(1, (592, 400), 1, ['image-0.img'])] True",
             "base too slow after 1 image(s) of 28 steps at",
+            "z draws [b'PNG'] (3, (256, 256), 9, [])",
+            "z img2img (3, (592, 400), 9, ['image-0.img'], (0.6, None))",
+            "z two images refused: this model takes one image to start from",
+            "z mask refused: this model does not inpaint with a mask",
+            "fill draw refused: this model inpaints: send an image and a mask to /v1/images/edits",
+            "fill no mask refused: mask (white where the image is redrawn) is required",
+            "fill mask size refused: the mask must be the size of the image",
+            "fill (5, (256, 256), 2, ['image-0.img'], (None, 'mask.img')) True",
+            "mask parsed (64, 64)",
+            "kinds True",
+            "lora missing refused: a LoRA adapter must be a .safetensors file",
+            "lora ext refused: a LoRA adapter must be a .safetensors file",
+            "lora scale refused: a LoRA scale must be from -4 to 4",
+            "lora many refused: at most 4 LoRA adapters",
+            "lora scales refused: more --lora-scale than --lora",
+            "args [0.7]",
             "gone",
             "refused before drawing: an image of 1024x1024 needs about 16.2",
             "health (200, {'status': 'ok'})",

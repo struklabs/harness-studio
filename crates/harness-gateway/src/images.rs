@@ -449,9 +449,14 @@ pub const MFLUX_MAX_EDIT_IMAGES: usize = 4;
 pub const MFLUX_MAX_SIDE: u64 = 2048;
 
 /// The mflux worker's body of a checked request (`plan`'s `img_gen` body; `size` only when the
-/// request set one): what mflux has no use for (a negative prompt, a sampler, a mask,
-/// classifier-free guidance) and values beyond its limits are refused here.
-pub fn mflux_body(img_gen: &Value, size: Option<&str>) -> Result<Value, GatewayError> {
+/// request set one): what mflux has no use for (a negative prompt, a sampler, classifier-free
+/// guidance, a mask unless the model `inpaints`: FLUX.1 Fill) and values beyond its limits are
+/// refused here. The mask goes as `plan_edit` made it (white = repaint, mflux's convention too).
+pub fn mflux_body(
+    img_gen: &Value,
+    size: Option<&str>,
+    inpaints: bool,
+) -> Result<Value, GatewayError> {
     let unsupported = |field: &str, why: &str| {
         bad(format!("{field} is not available for this model ({why}).")).param(field)
     };
@@ -459,13 +464,13 @@ pub fn mflux_body(img_gen: &Value, size: Option<&str>) -> Result<Value, GatewayE
     if img_gen.get("negative_prompt").is_some() {
         return Err(unsupported(
             "negative_prompt",
-            "FLUX.2 [klein] has no negative prompt",
+            "mflux takes no negative prompt",
         ));
     }
-    if img_gen.get("mask_image").is_some() {
+    if img_gen.get("mask_image").is_some() && !inpaints {
         return Err(unsupported(
             "mask",
-            "mflux edits the whole image by the prompt",
+            "only an inpainting model (FLUX.1 Fill) takes one",
         ));
     }
     if sample.and_then(|s| s.get("sample_method")).is_some() {
@@ -545,6 +550,9 @@ pub fn mflux_body(img_gen: &Value, size: Option<&str>) -> Result<Value, GatewayE
         out.insert("image".into(), Value::Array(images.clone()));
         if let Some(strength) = img_gen.get("strength") {
             out.insert("strength".into(), strength.clone());
+        }
+        if let Some(mask) = img_gen.get("mask_image") {
+            out.insert("mask".into(), mask.clone());
         }
     }
     Ok(Value::Object(out))
@@ -880,7 +888,12 @@ async fn run(
     GatewayError::reject_remote(&def)?;
     // An mflux worker answers its own body.
     if is_mflux_model(&def) {
-        let body = mflux_body(&plan.body, asked_size.as_deref())?;
+        let inpaints = def
+            .base
+            .local_path()
+            .and_then(harness_core::engine::mlx::mflux_model)
+            .is_some_and(|m| harness_core::engine::mlx::MFLUX_INPAINT_MODELS.contains(&m));
+        let body = mflux_body(&plan.body, asked_size.as_deref(), inpaints)?;
         return python_generate(state, &def, kind, body, &plan, guard).await;
     }
     // A diffusers pipeline of the Python engine answers OpenAI's request itself.
@@ -1547,18 +1560,18 @@ Content-Type: image/png"#,
                                "guidance": 1.5, "size": "768x512"}))
         .unwrap();
         assert_eq!(
-            mflux_body(&gen.body, Some("768x512")).unwrap(),
+            mflux_body(&gen.body, Some("768x512"), false).unwrap(),
             json!({"prompt": "a fox", "n": 2, "seed": 3, "steps": 8, "guidance": 1.5,
                    "size": "768x512"})
         );
         // No seed: random (the worker picks one); no size: the worker picks the largest that fits.
         let bare = plan(&json!({"prompt": "a fox"})).unwrap();
         assert_eq!(
-            mflux_body(&bare.body, None).unwrap(),
+            mflux_body(&bare.body, None, false).unwrap(),
             json!({"prompt": "a fox", "n": 1})
         );
         assert_eq!(
-            mflux_body(&bare.body, Some("auto")).unwrap(),
+            mflux_body(&bare.body, Some("auto"), false).unwrap(),
             json!({"prompt": "a fox", "n": 1})
         );
 
@@ -1570,14 +1583,14 @@ Content-Type: image/png"#,
         )
         .unwrap();
         assert_eq!(
-            mflux_body(&edit.body, None).unwrap(),
+            mflux_body(&edit.body, None, false).unwrap(),
             json!({"prompt": "add a hat", "n": 1, "image": [image.clone(), image.clone()],
                    "strength": 0.6})
         );
 
         let refused = |request: Value, size: Option<&str>| {
             let p = plan(&request).unwrap();
-            mflux_body(&p.body, size).unwrap_err()
+            mflux_body(&p.body, size, false).unwrap_err()
         };
         for (request, size, field) in [
             (
@@ -1613,12 +1626,25 @@ Content-Type: image/png"#,
         }
         let masked = plan_edit(json!({"prompt": "x", "image": image.clone(), "mask": B64.encode(alpha_png(&[0, 255]))})).unwrap();
         assert_eq!(
-            mflux_body(&masked.body, None).unwrap_err().param.as_deref(),
+            mflux_body(&masked.body, None, false)
+                .unwrap_err()
+                .param
+                .as_deref(),
             Some("mask")
+        );
+        // FLUX.1 Fill inpaints: the mask goes along, as white = repaint.
+        let filled = mflux_body(&masked.body, None, true).unwrap();
+        assert_eq!(filled["image"], json!([image.clone()]));
+        assert_eq!(
+            filled["mask"],
+            json!(B64.encode(sd_mask(&alpha_png(&[0, 255])).unwrap()))
         );
         let five = plan_edit(json!({"prompt": "x", "image": vec![image; 5]})).unwrap();
         assert_eq!(
-            mflux_body(&five.body, None).unwrap_err().param.as_deref(),
+            mflux_body(&five.body, None, false)
+                .unwrap_err()
+                .param
+                .as_deref(),
             Some("image")
         );
     }

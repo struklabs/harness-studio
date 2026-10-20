@@ -4725,7 +4725,8 @@ fn safetensors_variants(
 
 /// The variant of a repo in mflux's saved layout ([`crate::hub_compat::is_mflux_layout`]): one
 /// download of the model card (the mflux engine reads its `base_model`) and every file of
-/// `transformer/`, `text_encoder/`, `vae/` and `tokenizer/`, in the repo layout. Nothing else
+/// `transformer/`, `text_encoder/`, `vae/` and `tokenizer/` (FLUX.1's `text_encoder_2/` and
+/// `tokenizer_2/` too), in the repo layout. Nothing else
 /// (nested folders, other root files) is fetched.
 fn mflux_variants(
     repo_id: &str,
@@ -4737,7 +4738,10 @@ fn mflux_variants(
             let path = item.get("path").and_then(|v| v.as_str())?;
             let wanted = path == "README.md"
                 || path.split_once('/').is_some_and(|(dir, name)| {
-                    (crate::engine::mlx::MFLUX_PARTS.contains(&dir) || dir == "tokenizer")
+                    (crate::engine::mlx::MFLUX_PARTS.contains(&dir)
+                        || crate::engine::mlx::MFLUX_EXTRA_PARTS.contains(&dir)
+                        || dir == "tokenizer"
+                        || dir == "tokenizer_2")
                         && !name.is_empty()
                         && !name.contains(['/', '\\'])
                         && !name.starts_with('.')

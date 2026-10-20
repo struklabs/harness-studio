@@ -784,8 +784,9 @@ pub fn mflux_compatibility(
     )
 }
 
-/// The FLUX.2 [klein] base model a repo's tags name (`base_model:black-forest-labs/FLUX.2-klein-4B`,
-/// also `base_model:quantized:...` / `base_model:finetune:...`), as mflux's model name.
+/// The base model of [`crate::engine::mlx::MFLUX_MODELS`] a repo's tags name
+/// (`base_model:black-forest-labs/FLUX.2-klein-4B`, also `base_model:quantized:...` /
+/// `base_model:finetune:...`), as mflux's model name.
 pub fn mflux_base_of(tags: &[String]) -> Option<&'static str> {
     tags.iter().find_map(|t| {
         let rest = t.strip_prefix("base_model:")?;
@@ -795,8 +796,10 @@ pub fn mflux_base_of(tags: &[String]) -> Option<&'static str> {
 }
 
 /// Whether a repo's files are mflux's saved layout: `transformer/`, `text_encoder/` and `vae/`
-/// each with numbered safetensors shards (`0.safetensors`) and `model.safetensors.index.json`,
-/// `tokenizer/tokenizer.json`, and no `model_index.json` (a diffusers pipeline's).
+/// (and FLUX.1's `text_encoder_2/` when there is one) each with numbered safetensors shards
+/// (`0.safetensors`) and `model.safetensors.index.json`, `tokenizer/tokenizer.json` (and
+/// `tokenizer_2/tokenizer.json` with a second encoder), and no `model_index.json` (a diffusers
+/// pipeline's).
 pub fn is_mflux_layout(files: &[String]) -> bool {
     let shard = |part: &str| {
         files.iter().any(|f| {
@@ -808,12 +811,21 @@ pub fn is_mflux_layout(files: &[String]) -> bool {
     };
     !files.iter().any(|f| f == "model_index.json")
         && files.iter().any(|f| f == "tokenizer/tokenizer.json")
-        && crate::engine::mlx::MFLUX_PARTS.iter().all(|part| {
-            shard(part)
-                && files
+        && crate::engine::mlx::MFLUX_PARTS
+            .iter()
+            .chain(
+                crate::engine::mlx::MFLUX_EXTRA_PARTS
                     .iter()
-                    .any(|f| *f == format!("{part}/model.safetensors.index.json"))
-        })
+                    .filter(|part| files.iter().any(|f| f.starts_with(&format!("{part}/")))),
+            )
+            .all(|part| {
+                shard(part)
+                    && files
+                        .iter()
+                        .any(|f| *f == format!("{part}/model.safetensors.index.json"))
+            })
+        && (!files.iter().any(|f| f.starts_with("text_encoder_2/"))
+            || files.iter().any(|f| f == "tokenizer_2/tokenizer.json"))
 }
 
 /// [`mflux_compatibility`] with the platform facts given.
@@ -824,13 +836,15 @@ pub fn mflux_compatibility_on(
     apple_silicon: bool,
     os_too_old: bool,
 ) -> Option<Compatibility> {
-    if !apple_silicon
-        || !matches!(task, Some("text-to-image" | "image-to-image") | None)
-        || mflux_base_of(tags).is_none()
-    {
+    let Some(name) = mflux_base_of(tags) else {
+        return None;
+    };
+    if !apple_silicon || !matches!(task, Some("text-to-image" | "image-to-image") | None) {
         return None;
     }
-    if !is_mflux_layout(files) {
+    // FLUX.1 has its second text encoder; the others have none.
+    let second = files.iter().any(|f| f.starts_with("text_encoder_2/"));
+    if !is_mflux_layout(files) || crate::engine::mlx::mflux_has_second_encoder(name) != second {
         return None;
     }
     Some(if os_too_old {
@@ -2250,6 +2264,40 @@ mod mflux_tests {
         let kontext = s(&["base_model:quantized:black-forest-labs/FLUX.1-Kontext-dev"]);
         assert_eq!(on(Some("image-to-image"), &q4_files(), &kontext), None);
         assert_eq!(on(Some("text-generation"), &q4_files(), &tags), None);
+        // Z-Image and Qwen-Image have klein's layout; FLUX.1 adds its T5 encoder and tokenizer.
+        let zimage = s(&["base_model:Tongyi-MAI/Z-Image-Turbo"]);
+        assert_eq!(mflux_base_of(&zimage), Some("z-image-turbo"));
+        assert_eq!(on(Some("text-to-image"), &q4_files(), &zimage), runnable);
+        let qwen_image = s(&["base_model:Qwen/Qwen-Image"]);
+        assert_eq!(
+            on(Some("text-to-image"), &q4_files(), &qwen_image),
+            runnable
+        );
+        let mut flux1 = q4_files();
+        flux1.extend(s(&[
+            "text_encoder_2/0.safetensors",
+            "text_encoder_2/model.safetensors.index.json",
+            "tokenizer_2/tokenizer.json",
+        ]));
+        for base in [
+            "FLUX.1-schnell",
+            "FLUX.1-dev",
+            "FLUX.1-Krea-dev",
+            "FLUX.1-Fill-dev",
+        ] {
+            let tags = s(&[&format!("base_model:black-forest-labs/{base}")]);
+            assert_eq!(on(Some("text-to-image"), &flux1, &tags), runnable, "{base}");
+            // Without the second encoder (or klein with one) the folder would not load.
+            assert_eq!(
+                on(Some("text-to-image"), &q4_files(), &tags),
+                None,
+                "{base}"
+            );
+        }
+        assert_eq!(on(Some("text-to-image"), &flux1, &tags), None);
+        let mut no_t5_tokenizer = flux1.clone();
+        no_t5_tokenizer.retain(|f| !f.starts_with("tokenizer_2/"));
+        assert!(!is_mflux_layout(&no_t5_tokenizer));
         // BFL's own diffusers repo: `model_index.json` and diffusers' weight names.
         let diffusers = s(&[
             "model_index.json",

@@ -43,6 +43,7 @@ export const imageSession = $state({
   count: 1,
   init: null as ImageResult | null,
   strength: '',
+  mask: null as ImageResult | null,
   gallery: [] as GalleryItem[],
 });
 
