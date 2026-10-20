@@ -110,7 +110,7 @@ Configure `main` with: pull request required, at least one approving review (cod
 
 ### CI
 
-`.github/workflows/ci.yml` runs on pull requests and pushes to `main` (Windows, Linux, macOS: type check, locale parity, frontend build, `rustfmt`, `clippy`, tests; plus `cargo audit`). It needs **no secrets**, uses read-only permissions, and pull requests from forks run without access to any secret.
+`.github/workflows/ci.yml` runs only the jobs that match the changed paths: on pull requests on Linux, on pushes to `main` and weekly with the Rust job on Windows, Linux and macOS (type check, locale parity, frontend build and tests, `rustfmt`, `clippy`, tests, SDK, registry fixtures, `cargo audit`). The `ci-ok` job reports the overall result. It needs **no secrets**, uses read-only permissions, and pull requests from forks run without access to any secret.
 
 ### Releases
 
