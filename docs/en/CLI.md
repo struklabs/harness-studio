@@ -328,6 +328,10 @@ Harness's own tool engine (`harness_core::tools`): `read_file`, `file_glob_searc
 | `tools installed` | The installed tools: name, version, class, state (`on`, `off`, `invalid`) | `GET /tools/installed` |
 | `tools enable <name>` / `tools disable <name>` | Switches an installed tool on or off | `POST /tools/installed/{name}/enable`, `/disable` |
 | `tools remove <name>` | Removes an installed tool (asks; `--yes` skips the question) | `DELETE /tools/installed/{name}` |
+| `permissions list` (`permissions ls`) | Every MCP server, agent runtime (Hermes, OpenClaw) and the training backend with its trust level and grants (needs `admin`) | `GET /permissions` |
+| `permissions grant <mcp_server|agent|trainer> <id> <file|network|shell|service|account|device> [--path DIR]...` | Grants one capability; `file` needs existing absolute folders (at most eight). Agents take `file` only; the training backend takes nothing | `POST /permissions/grants` |
+| `permissions revoke <kind> <id> [--grant GRANT_ID]` | Revokes one grant, or every grant and the trust level of the subject | `DELETE /permissions/{kind}/{id}[/grants/{grant_id}]` |
+| `permissions trust <kind> <id> <default|safe|restricted|dangerous>` | Sets the trust level | `PUT /permissions/{kind}/{id}/trust` |
 | `skills list` (`skills ls`) | The installed skills and whether each is on | `GET /skills` |
 | `skills enable <name>` / `skills disable <name>` | Switches a skill on or off | `POST /skills/{name}/enable`, `/disable` |
 | `skills remove <name>` | Removes a skill (asks; `--yes` skips the question) | `DELETE /skills/{name}` |

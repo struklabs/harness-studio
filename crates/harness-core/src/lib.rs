@@ -64,6 +64,7 @@ pub mod otel;
 pub mod params;
 pub mod paths;
 pub mod perf;
+pub mod permissions;
 pub mod ports;
 pub mod prepare;
 pub mod process;

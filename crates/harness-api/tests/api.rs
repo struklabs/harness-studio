@@ -620,6 +620,11 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/tools/mcp/{server}/authorize", &["post"]),
         ("/tools/mcp/{server}/logout", &["post"]),
         ("/tools/{name}/run", &["post"]),
+        ("/permissions", &["get"]),
+        ("/permissions/grants", &["post"]),
+        ("/permissions/{kind}/{id}", &["delete"]),
+        ("/permissions/{kind}/{id}/grants/{grant_id}", &["delete"]),
+        ("/permissions/{kind}/{id}/trust", &["put"]),
     ];
     for (path, methods) in expected {
         let full = format!("{}{}", control_api::BASE_PATH, path);

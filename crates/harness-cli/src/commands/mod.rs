@@ -9,6 +9,7 @@ pub mod hf;
 pub mod lemonade;
 pub mod models;
 pub mod modules;
+pub mod permissions;
 pub mod resolve;
 pub mod runtimes;
 pub mod servers;
@@ -431,6 +432,7 @@ async fn run_with(session: &Session, command: Command, out: &Out) -> CliResult<(
                 .await
             }
         },
+        Command::Permissions { command } => permissions::run(client, command, out).await,
         Command::Skills { command } => match command {
             SkillsCommand::List => tools::skills_list(client, out).await,
             SkillsCommand::Enable { name } => tools::skill_enabled(client, &name, true, out).await,

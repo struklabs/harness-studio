@@ -74,6 +74,12 @@
     if (!granted) return;
     const read_folders = folders.split('\n').map(s => s.trim()).filter(Boolean);
     granted = false;
+    // The confirmation above is the user's grant for these folders: record it on the
+    // Permissions page (revocable there) before the run, which only reads granted folders.
+    if (read_folders.length) {
+      try { await invoke('permissions_grant', { kind: 'agent', id: 'hermes', capability: 'file', paths: read_folders }); }
+      catch (e) { error = errorText(e); return; }
+    }
     await action('start_agent_task', { prompt, grants: { read_folders } });
   }
   async function paperclip(command: 'generate' | 'copy' | 'apply' | 'revoke') {

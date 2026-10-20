@@ -372,3 +372,69 @@ fn skills_can_be_listed_switched_and_removed() {
     let r = run(dir.path(), &["skills", "enable", "cli-demo-skill"]);
     assert_eq!(r.code, 3, "{}", r.stderr);
 }
+
+#[test]
+fn permissions_grant_revoke_and_the_training_placeholder() {
+    let dir = data_dir(None, 18549);
+    let work = work();
+    let w = work.path().to_string_lossy().to_string();
+    let r = run(dir.path(), &["permissions", "list", "--json"]);
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let list = r.json();
+    let hermes = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["id"] == "hermes")
+        .unwrap();
+    assert!(hermes["grants"].as_array().unwrap().is_empty());
+
+    let r = run(
+        dir.path(),
+        &[
+            "permissions",
+            "grant",
+            "agent",
+            "hermes",
+            "file",
+            "--path",
+            &w,
+            "--json",
+        ],
+    );
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let grant = r.json()["id"].as_str().unwrap().to_string();
+    let r = run(dir.path(), &["permissions", "list"]);
+    assert!(
+        r.stdout.contains("hermes") && r.stdout.contains("file("),
+        "{}",
+        r.stdout
+    );
+    let r = run(
+        dir.path(),
+        &[
+            "permissions",
+            "revoke",
+            "agent",
+            "hermes",
+            "--grant",
+            &grant,
+        ],
+    );
+    assert_eq!(r.code, 0, "{}", r.stderr);
+    let r = run(dir.path(), &["permissions", "list", "--json"]);
+    let list = r.json();
+    assert!(list
+        .as_array()
+        .unwrap()
+        .iter()
+        .all(|s| s["grants"].as_array().unwrap().is_empty()));
+
+    // The training backend is modelled but takes nothing.
+    let r = run(
+        dir.path(),
+        &["permissions", "grant", "trainer", "training", "network"],
+    );
+    assert_ne!(r.code, 0);
+    assert!(r.stderr.contains("no runtime yet"), "{}", r.stderr);
+}

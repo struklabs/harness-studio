@@ -63,6 +63,10 @@ pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Sc
     {
         return Some(Scope::Admin);
     }
+    // Trust levels and grants decide what MCP servers and agents may touch.
+    if route == "/permissions" || route.starts_with("/permissions/") {
+        return Some(Scope::Admin);
+    }
     // The n8n connection uses a stored API key and can start workflows.
     if route.starts_with("/automations/") {
         return Some(Scope::Admin);

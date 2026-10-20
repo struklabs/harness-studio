@@ -261,6 +261,12 @@ pub enum Command {
         #[command(subcommand)]
         command: ToolsCommand,
     },
+    /// Trust levels and grants of MCP servers, agent runtimes and the training backend
+    /// (nothing is granted by default; every change is written to the tool log).
+    Permissions {
+        #[command(subcommand)]
+        command: PermissionsCommand,
+    },
     /// Agent Skills: list, switch on or off, remove, or install an official one.
     Skills {
         #[command(subcommand)]
@@ -1256,6 +1262,45 @@ pub enum ToolsCommand {
         /// Brave/Tavily API key; stored in the OS keychain, never settings.json.
         #[arg(long)]
         api_key: Option<String>,
+    },
+}
+
+const SUBJECT_KINDS: [&str; 3] = ["mcp_server", "agent", "trainer"];
+const CAPABILITIES: [&str; 6] = ["file", "network", "shell", "service", "account", "device"];
+
+#[derive(Subcommand, Debug)]
+pub enum PermissionsCommand {
+    /// Every subject with its trust level and grants.
+    #[command(visible_alias = "ls")]
+    List,
+    /// Grant one capability. The training backend takes none; agents take `file` only.
+    Grant {
+        #[arg(value_parser = SUBJECT_KINDS)]
+        kind: String,
+        /// MCP server name, or the agent (`hermes`, `openclaw`).
+        id: String,
+        #[arg(value_parser = CAPABILITIES)]
+        capability: String,
+        /// Existing absolute folder (`file` only; repeat for up to eight).
+        #[arg(long = "path")]
+        paths: Vec<String>,
+    },
+    /// Revoke one grant (`--grant <id>`), or every grant and the trust level of the subject.
+    Revoke {
+        #[arg(value_parser = SUBJECT_KINDS)]
+        kind: String,
+        id: String,
+        /// The grant id shown by `permissions list`.
+        #[arg(long)]
+        grant: Option<String>,
+    },
+    /// Set the trust level (safe, restricted, dangerous) or return to the default.
+    Trust {
+        #[arg(value_parser = SUBJECT_KINDS)]
+        kind: String,
+        id: String,
+        #[arg(value_parser = ["default", "safe", "restricted", "dangerous"])]
+        level: String,
     },
 }
 

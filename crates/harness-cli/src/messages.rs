@@ -71,6 +71,10 @@ pub fn locale_template(key: &str) -> Option<&'static str> {
             .chain(english_entries(include_str!(
                 "../../../src/lib/locales/browser.ts"
             )))
+            // Trust level and grant errors (`permissions.*`) live with the Permissions page.
+            .chain(english_entries(include_str!(
+                "../../../src/lib/locales/permissions.ts"
+            )))
             .collect()
     })
     .get(key)

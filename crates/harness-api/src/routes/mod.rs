@@ -14,6 +14,7 @@ mod models;
 mod modules;
 mod onnx_runtime;
 mod otel;
+mod permissions;
 mod runtimes;
 mod servers;
 mod system;
@@ -61,6 +62,7 @@ the Secure HttpOnly session cookie; cookie writes need same-origin Origin and X-
         (name = "conversations", description = "Stored chats: list, read, export, documents, context compaction (scope `conversations`)"),
         (name = "analytics", description = "Gateway request log, statistics and Prometheus metrics"),
         (name = "automations", description = "The user's own n8n instance: connection, workflows, executions, webhook runs (admin)"),
+        (name = "permissions", description = "Trust levels and capability grants of MCP servers, agent runtimes and the training backend (admin)"),
         (name = "tools", description = "Tool engine: list and run tools (file read/write/search, shell), the tool policy and the tool log (running needs scope `admin`)")
     )
 )]
@@ -251,6 +253,11 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(analytics::request))
         .routes(routes!(analytics::queue_hints))
         .routes(routes!(analytics::metrics))
+        .routes(routes!(permissions::list))
+        .routes(routes!(permissions::grant))
+        .routes(routes!(permissions::revoke_grant))
+        .routes(routes!(permissions::revoke_subject))
+        .routes(routes!(permissions::set_trust))
         .routes(routes!(tools::list_tools))
         .routes(routes!(tools::inventory))
         .routes(routes!(tools::auto_state))
