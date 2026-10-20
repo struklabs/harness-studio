@@ -595,6 +595,16 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/tools/policy", &["get", "put"]),
         ("/tools/search-provider", &["get", "put"]),
         ("/tools/log", &["get"]),
+        ("/tools/registry", &["get"]),
+        ("/tools/registry/install", &["post"]),
+        ("/tools/installed", &["get"]),
+        ("/tools/installed/{name}", &["delete"]),
+        ("/tools/installed/{name}/enable", &["post"]),
+        ("/tools/installed/{name}/disable", &["post"]),
+        ("/skills", &["get"]),
+        ("/skills/{name}", &["delete"]),
+        ("/skills/{name}/enable", &["post"]),
+        ("/skills/{name}/disable", &["post"]),
         ("/tools/mcp", &["get"]),
         ("/tools/mcp/{server}/resources", &["get"]),
         ("/tools/mcp/{server}/resource", &["get"]),
@@ -647,6 +657,16 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         .is_some());
     assert!(schemas.contains_key("ProfileView"));
     assert!(schemas.contains_key("CoreEvent"));
+    // Registry installs must not replace ONNX's Installed schema. Their enum variants also
+    // need a distinct prefix so Python SDK generation cannot collide with InstalledTool.
+    assert!(schemas["Installed"]["properties"].get("variant").is_some());
+    assert!(schemas["RegistryInstalled"]["oneOf"].is_array());
+    let registry_install = &paths[&format!("{}/tools/registry/install", control_api::BASE_PATH)]
+        ["post"]["responses"]["200"]["content"]["application/json"]["schema"];
+    assert_eq!(
+        registry_install["$ref"],
+        "#/components/schemas/RegistryInstalled"
+    );
     // Same document as the library function.
     let lib_doc: serde_json::Value =
         serde_json::from_str(&harness_api::openapi_document().to_json().unwrap()).unwrap();

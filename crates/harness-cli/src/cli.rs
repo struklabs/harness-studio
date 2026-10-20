@@ -243,6 +243,11 @@ pub enum Command {
         #[command(subcommand)]
         command: ToolsCommand,
     },
+    /// Agent Skills: list, switch on or off, remove, or install an official one.
+    Skills {
+        #[command(subcommand)]
+        command: SkillsCommand,
+    },
     /// Run `harness serve` at login as an OS service (systemd --user, launchd, Task Scheduler).
     Service {
         #[command(subcommand)]
@@ -1153,6 +1158,35 @@ pub enum ToolsCommand {
         /// Server name from `mcp_servers.json`.
         server: String,
     },
+    /// The official registry: the tools, skills and MCP entries this version can install.
+    Registry {
+        /// Only this kind: tool, skill or mcp.
+        #[arg(long, value_parser = ["tool", "skill", "mcp"])]
+        kind: Option<String>,
+    },
+    /// Install an official tool or skill from the registry. Shows the permissions it declares;
+    /// they need your yes (`--yes` approves them), and the API refuses any other set.
+    Install {
+        /// Registry id (`struklabs.tool.json_format`) or its short name (`json_format`).
+        id: String,
+    },
+    /// The installed tools with their permissions and whether they are on.
+    Installed,
+    /// Switch an installed tool on.
+    Enable {
+        /// Installed tool name (see `harness tools installed`).
+        name: String,
+    },
+    /// Switch an installed tool off; it stays installed.
+    Disable {
+        /// Installed tool name (see `harness tools installed`).
+        name: String,
+    },
+    /// Remove an installed tool (asks first; `--yes` skips the question).
+    Remove {
+        /// Installed tool name (see `harness tools installed`).
+        name: String,
+    },
     /// Run one tool. A tool the policy asks about (every file and shell tool under the
     /// default "ask every time" policy) needs your approval: a y/N question on a terminal,
     /// `--yes` without one.
@@ -1181,6 +1215,33 @@ pub enum ToolsCommand {
         /// Brave/Tavily API key; stored in the OS keychain, never settings.json.
         #[arg(long)]
         api_key: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SkillsCommand {
+    /// The installed skills and whether they are on.
+    #[command(visible_alias = "ls")]
+    List,
+    /// Switch a skill on.
+    Enable {
+        /// Skill name (see `harness skills list`).
+        name: String,
+    },
+    /// Switch a skill off; it stays installed.
+    Disable {
+        /// Skill name (see `harness skills list`).
+        name: String,
+    },
+    /// Remove a skill (asks first; `--yes` skips the question).
+    Remove {
+        /// Skill name (see `harness skills list`).
+        name: String,
+    },
+    /// Install an official skill from the registry; same approval as `harness tools install`.
+    Install {
+        /// Registry id (`struklabs.skill.release-notes`) or its short name (`release-notes`).
+        id: String,
     },
 }
 

@@ -47,6 +47,7 @@ const MAX_DOMAINS: usize = 32;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct FsScope {
     #[serde(default)]
     pub read: Vec<String>,
@@ -56,6 +57,7 @@ pub struct FsScope {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Permissions {
     /// Empty = none; `["*"]` = any public host; otherwise listed domains only.
     #[serde(default)]

@@ -427,3 +427,195 @@ async fn automatic_state_is_admin_and_inventory_is_readable() {
     assert_eq!(state["version"], 1);
     assert!(state.get("endpoint").is_none());
 }
+
+const REGISTRY_COMMIT: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+fn registry_entry(kind: &str, dir: &str, network: &[&str]) -> Value {
+    json!({
+        "id": format!("struklabs.{kind}.{dir}"),
+        "type": kind,
+        "publisher": "StrukLabs",
+        "name": dir,
+        "description": {"en": "An entry.", "tr": "Bir girdi."},
+        "version": "1.0.0",
+        "license": "MIT",
+        "homepage": "https://github.com/struklabs/harness-registry",
+        "source": "https://github.com/struklabs/harness-registry",
+        "platforms": ["windows", "macos", "linux"],
+        "permissions": {"network": network, "fs": {"read": [], "write": []}, "shell": false},
+        "tags": ["test"],
+        "min_harness_version": "0.1.0",
+        "artifact": match kind {
+            "skill" => format!("skills/{dir}/SKILL.md"),
+            "mcp" => format!("mcp/{dir}/config.json"),
+            _ => format!("tools/{dir}"),
+        },
+    })
+}
+
+#[tokio::test]
+async fn installed_tools_and_skills_can_be_switched_and_removed_over_the_api() {
+    let _one = ONE_AT_A_TIME.lock().await;
+    let api = start().await;
+    let root = harness_core::tools::installed::tools_root();
+    let tool = root.join("api_demo");
+    std::fs::create_dir_all(&tool).unwrap();
+    std::fs::write(
+        tool.join("manifest.json"),
+        json!({"name": "api_demo", "version": "1.0.0", "description": "Demo", "input_schema": {"type": "object"},
+            "output": "text", "runtime": "js", "entry": "index.js",
+            "permissions": {"network": [], "fs": {"read": [], "write": []}, "shell": false}})
+        .to_string(),
+    )
+    .unwrap();
+    std::fs::write(tool.join("index.js"), "function run(args) { return 'ok'; }").unwrap();
+    let skill = harness_core::skills::root().join("api-demo-skill");
+    std::fs::create_dir_all(&skill).unwrap();
+    std::fs::write(
+        skill.join("SKILL.md"),
+        "---\nname: api-demo-skill\ndescription: A demo skill.\n---\nDo the demo.",
+    )
+    .unwrap();
+
+    let (status, body) = json(api.get("/tools/installed").await).await;
+    assert_eq!(status, 200, "{body}");
+    let listed = body
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["name"] == "api_demo")
+        .unwrap();
+    assert_eq!(listed["enabled"], true);
+
+    let (status, body) = json(
+        api.post("/tools/installed/api_demo/disable", json!({}))
+            .await,
+    )
+    .await;
+    assert_eq!((status, &body["enabled"]), (200, &json!(false)), "{body}");
+    let (status, body) = json(
+        api.post("/tools/installed/api_demo/enable", json!({}))
+            .await,
+    )
+    .await;
+    assert_eq!((status, &body["enabled"]), (200, &json!(true)), "{body}");
+    let (status, body) = json(api.post("/tools/installed/nope/enable", json!({})).await).await;
+    assert_eq!(status, 422, "{body}");
+    assert_eq!(body["error"]["code"], "tools.package.not_installed");
+
+    let (status, body) = json(api.get("/skills").await).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|s| s["name"] == "api-demo-skill" && s["enabled"] == true));
+    let (status, body) = json(api.post("/skills/api-demo-skill/disable", json!({})).await).await;
+    assert_eq!((status, &body["enabled"]), (200, &json!(false)), "{body}");
+    let (status, body) = json(api.post("/skills/api-demo-skill/enable", json!({})).await).await;
+    assert_eq!((status, &body["enabled"]), (200, &json!(true)), "{body}");
+    let (status, body) = json(api.post("/skills/missing/enable", json!({})).await).await;
+    assert_eq!(status, 404, "{body}");
+
+    // A `tools` token runs tools but cannot install, switch or remove anything.
+    let (_, body) = json(
+        api.post("/tokens", json!({"name": "runner", "scopes": ["tools"]}))
+            .await,
+    )
+    .await;
+    let runner = body["token"].as_str().unwrap().to_string();
+    for (method, path) in [
+        (Method::POST, "/tools/installed/api_demo/disable"),
+        (Method::DELETE, "/tools/installed/api_demo"),
+        (Method::POST, "/skills/api-demo-skill/disable"),
+        (Method::DELETE, "/skills/api-demo-skill"),
+        (Method::POST, "/tools/registry/install"),
+    ] {
+        let (status, body) = json(api.send(method, path, &runner, Some(json!({}))).await).await;
+        assert_eq!(status, 403, "{path}: {body}");
+        assert_eq!(body["error"]["code"], "api.insufficient_scope");
+    }
+
+    let resp = api
+        .send(
+            Method::DELETE,
+            "/tools/installed/api_demo",
+            &api.token,
+            None,
+        )
+        .await;
+    assert_eq!(resp.status(), 204);
+    let resp = api
+        .send(Method::DELETE, "/skills/api-demo-skill", &api.token, None)
+        .await;
+    assert_eq!(resp.status(), 204);
+    assert!(!tool.exists() && !skill.exists());
+    let resp = api
+        .send(Method::DELETE, "/skills/api-demo-skill", &api.token, None)
+        .await;
+    assert_eq!(resp.status(), 404);
+}
+
+#[tokio::test]
+async fn registry_install_is_never_silent_and_leaves_mcp_to_the_app() {
+    let _one = ONE_AT_A_TIME.lock().await;
+    let api = start().await;
+    let snapshot = json!({
+        "commit": REGISTRY_COMMIT,
+        "etag": null,
+        "offline": false,
+        "index": {"schema_version": 1, "entries": [
+            registry_entry("skill", "api-demo", &["example.com"]),
+            registry_entry("mcp", "api-demo", &["example.com"]),
+        ]},
+    });
+    let cache = harness_core::paths::data_root().join("registry/index.json");
+    std::fs::create_dir_all(cache.parent().unwrap()).unwrap();
+    std::fs::write(&cache, snapshot.to_string()).unwrap();
+    let skill = "struklabs.skill.api-demo";
+    let declared =
+        json!({"network": ["example.com"], "fs": {"read": [], "write": []}, "shell": false});
+
+    // No approval, or a different one: refused before anything is downloaded, with the
+    // declaration in the error so the caller can show it.
+    for approved in [
+        None,
+        Some(json!({"network": [], "fs": {"read": [], "write": []}, "shell": false})),
+    ] {
+        let mut request = json!({"commit": REGISTRY_COMMIT, "id": skill});
+        if let Some(approved) = approved {
+            request["approved_permissions"] = approved;
+        }
+        let (status, body) = json(api.post("/tools/registry/install", request).await).await;
+        assert_eq!(status, 403, "{body}");
+        assert_eq!(body["error"]["code"], "tools.install_approval_required");
+        let shown: Value =
+            serde_json::from_str(body["error"]["params"]["permissions"].as_str().unwrap()).unwrap();
+        assert_eq!(shown, declared);
+    }
+    assert!(!harness_core::skills::root().join("api-demo").exists());
+
+    // MCP entries change the server list, which stays in the app.
+    let (status, body) = json(
+        api.post(
+            "/tools/registry/install",
+            json!({"commit": REGISTRY_COMMIT, "id": "struklabs.mcp.api-demo", "approved_permissions": declared}),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 422, "{body}");
+    assert_eq!(body["error"]["code"], "tools.registry_kind_unsupported");
+
+    // A stale listing or an unknown entry is a registry error, not an install.
+    let (status, body) = json(
+        api.post(
+            "/tools/registry/install",
+            json!({"commit": "cccccccccccccccccccccccccccccccccccccccc", "id": skill, "approved_permissions": declared}),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 422, "{body}");
+    assert_eq!(body["error"]["code"], "tools.registry_failed");
+}

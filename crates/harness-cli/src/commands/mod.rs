@@ -20,7 +20,7 @@ use std::path::Path;
 use crate::cli::{
     BenchmarkCommand, Cli, Command, ConversationCommand, ImportCommand, LoraCommand,
     ManagedCommand, OtelCommand, ProfileCommand, RouterCommand, RuntimeCommand, ServiceCommand,
-    TokenCommand, ToolsCommand,
+    SkillsCommand, TokenCommand, ToolsCommand,
 };
 use crate::error::CliResult;
 use crate::output::Out;
@@ -389,6 +389,16 @@ async fn run_with(session: &Session, command: Command, out: &Out) -> CliResult<(
                 tools::mcp_authorize(client, &server, out).await
             }
             ToolsCommand::McpLogout { server } => tools::mcp_logout(client, &server, out).await,
+            ToolsCommand::Registry { kind } => tools::registry(client, kind.as_deref(), out).await,
+            ToolsCommand::Install { id } => tools::install(client, &id, out).await,
+            ToolsCommand::Installed => tools::installed(client, out).await,
+            ToolsCommand::Enable { name } => {
+                tools::installed_enabled(client, &name, true, out).await
+            }
+            ToolsCommand::Disable { name } => {
+                tools::installed_enabled(client, &name, false, out).await
+            }
+            ToolsCommand::Remove { name } => tools::installed_remove(client, &name, out).await,
             ToolsCommand::Run {
                 name,
                 args,
@@ -409,6 +419,15 @@ async fn run_with(session: &Session, command: Command, out: &Out) -> CliResult<(
                 )
                 .await
             }
+        },
+        Command::Skills { command } => match command {
+            SkillsCommand::List => tools::skills_list(client, out).await,
+            SkillsCommand::Enable { name } => tools::skill_enabled(client, &name, true, out).await,
+            SkillsCommand::Disable { name } => {
+                tools::skill_enabled(client, &name, false, out).await
+            }
+            SkillsCommand::Remove { name } => tools::skill_remove(client, &name, out).await,
+            SkillsCommand::Install { id } => tools::install(client, &id, out).await,
         },
         Command::Otel { command } => match command {
             OtelCommand::Status => tokens::otel_status(client, out).await,

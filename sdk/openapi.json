@@ -7867,6 +7867,239 @@
         }
       }
     },
+    "/api/harness/v1/skills": {
+      "get": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "The installed skills (`<data dir>/skills/`) and whether each is switched on.",
+        "operationId": "list_skills",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Skill"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/skills/{name}": {
+      "delete": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "Removes an installed skill. Needs `admin`.",
+        "operationId": "remove_skill",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Skill name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/skills/{name}/disable": {
+      "post": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "Switches an installed skill off (it stays installed). Needs `admin`.",
+        "operationId": "disable_skill",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Skill name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/skills/{name}/enable": {
+      "post": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "Switches an installed skill on (a skill that no longer validates cannot be). Needs `admin`.",
+        "operationId": "enable_skill",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Skill name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Skill"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/status": {
       "get": {
         "tags": [
@@ -8381,6 +8614,229 @@
           },
           "403": {
             "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/tools/installed": {
+      "get": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "The installed tools (`<data dir>/tools/`) with their permissions and whether they are\nswitched on; a package that no longer validates carries its keyed `error`.",
+        "operationId": "list_installed_tools",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InstalledTool"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/tools/installed/{name}": {
+      "delete": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "Removes an installed tool. Needs `admin`.",
+        "operationId": "remove_installed_tool",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Installed tool name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/tools/installed/{name}/disable": {
+      "post": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "Switches an installed tool off (it stays installed). Needs `admin`.",
+        "operationId": "disable_installed_tool",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Installed tool name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstalledTool"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/tools/installed/{name}/enable": {
+      "post": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "Switches an installed tool on. Needs `admin`.",
+        "operationId": "enable_installed_tool",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Installed tool name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstalledTool"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
@@ -8961,6 +9417,118 @@
             }
           },
           "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/tools/registry": {
+      "get": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "The official registry (`struklabs/harness-registry`) as of its newest revision, narrowed to\nthe entries this app version and platform can install. Falls back to the cached snapshot\n(`offline: true`) when GitHub cannot be reached. Pass `commit` and an entry `id` back to\n`POST /tools/registry/install`.",
+        "operationId": "list_registry",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Snapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/tools/registry/install": {
+      "post": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "Installs one official tool or skill after the caller approved its declared permissions\n(`403 tools.install_approval_required` otherwise). MCP entries are refused\n(`422 tools.registry_kind_unsupported`). Needs `admin`.",
+        "operationId": "install_registry_entry",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistryInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistryInstalled"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
             "description": "",
             "content": {
               "application/json": {
@@ -11744,6 +12312,22 @@
           }
         }
       },
+      "Description": {
+        "type": "object",
+        "required": [
+          "en",
+          "tr"
+        ],
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "tr": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
       "Device": {
         "type": "object",
         "description": "A backend device from `--list-devices`.",
@@ -12363,6 +12947,76 @@
           "managed",
           "direct"
         ]
+      },
+      "Entry": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "publisher",
+          "name",
+          "description",
+          "version",
+          "license",
+          "homepage",
+          "source",
+          "platforms",
+          "permissions",
+          "tags",
+          "min_harness_version",
+          "artifact"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/Kind"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "$ref": "#/components/schemas/Description"
+          },
+          "version": {
+            "type": "string"
+          },
+          "license": {
+            "type": "string"
+          },
+          "homepage": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "platforms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "permissions": {
+            "$ref": "#/components/schemas/Permissions"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "min_harness_version": {
+            "type": "string"
+          },
+          "artifact": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
       },
       "EnvProgress": {
         "type": "object",
@@ -13051,6 +13705,24 @@
             "type": "string"
           }
         }
+      },
+      "FsScope": {
+        "type": "object",
+        "properties": {
+          "read": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "write": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
       },
       "GatewayEndpoint": {
         "type": "string",
@@ -14152,6 +14824,27 @@
           }
         }
       },
+      "Index": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "entries"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
       "InferencePreset": {
         "type": "object",
         "required": [
@@ -14384,6 +15077,83 @@
           }
         }
       },
+      "InstalledTool": {
+        "type": "object",
+        "description": "One folder under the root, valid or not.",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "output",
+          "network",
+          "fs_read",
+          "fs_write",
+          "class",
+          "enabled",
+          "has_test"
+        ],
+        "properties": {
+          "user_created": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string",
+            "description": "The folder name (the tool name when the package is valid)."
+          },
+          "version": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "output": {
+            "type": "string"
+          },
+          "network": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fs_read": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fs_write": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "class": {
+            "$ref": "#/components/schemas/PermissionClass"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "has_test": {
+            "type": "boolean"
+          },
+          "readme": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Keyed error when the package is no longer valid (it is then not registered)."
+          }
+        }
+      },
       "InstanceKind": {
         "type": "string",
         "description": "Which program owns the data directory.",
@@ -14464,6 +15234,14 @@
           }
         ],
         "description": "Ollama `keep_alive` of the last Ollama-API request for a definition (overrides the idle\nTTL of a gateway-loaded model; pinned definitions are never unloaded)."
+      },
+      "Kind": {
+        "type": "string",
+        "enum": [
+          "tool",
+          "skill",
+          "mcp"
+        ]
       },
       "KvChoice": {
         "type": "object",
@@ -16962,7 +17740,9 @@
           "disk_bytes",
           "shared_disk_bytes",
           "update_available",
-          "data_choices"
+          "data_choices",
+          "needs_repair",
+          "measuring"
         ],
         "properties": {
           "manifest": {
@@ -17014,6 +17794,17 @@
             "items": {
               "$ref": "#/components/schemas/DataChoice"
             }
+          },
+          "needs_repair": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Key files of an installed module that are gone (deleted by hand): the module needs the\nRepair action. Empty when nothing is missing."
+          },
+          "measuring": {
+            "type": "boolean",
+            "description": "Some numbers (folder sizes, the agent probe) are still being measured in the\nbackground: the list is complete in shape, ask again shortly for the final values."
           }
         }
       },
@@ -17443,6 +18234,26 @@
           "restricted",
           "dangerous"
         ]
+      },
+      "Permissions": {
+        "type": "object",
+        "properties": {
+          "network": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Empty = none; `[\"*\"]` = any public host; otherwise listed domains only."
+          },
+          "fs": {
+            "$ref": "#/components/schemas/FsScope"
+          },
+          "shell": {
+            "type": "boolean",
+            "description": "Always `false` for the JS engine."
+          }
+        },
+        "additionalProperties": false
       },
       "Phase": {
         "type": "object",
@@ -18168,6 +18979,81 @@
             "minimum": 0
           }
         }
+      },
+      "RegistryInstallRequest": {
+        "type": "object",
+        "required": [
+          "commit",
+          "id"
+        ],
+        "properties": {
+          "commit": {
+            "type": "string",
+            "description": "The `commit` of the listing the entry came from (the revision is pinned)."
+          },
+          "id": {
+            "type": "string",
+            "description": "Entry id, e.g. `struklabs.tool.json_format` or `struklabs.skill.release-notes`."
+          },
+          "approved_permissions": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Permissions",
+                "description": "The permissions the user approved: must equal the entry `permissions`. Without them\n(or with different ones) nothing is installed and the answer is\n`403 tools.install_approval_required`."
+              }
+            ]
+          }
+        }
+      },
+      "RegistryInstalled": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InstalledTool"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "tool"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Skill"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "skill"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "description": "What an approved install put on disk."
       },
       "ReleasePick": {
         "type": "object",
@@ -20599,6 +21485,31 @@
           }
         }
       },
+      "Skill": {
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "enabled"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "SlotAdvice": {
         "type": "object",
         "description": "How many concurrent requests a server serves, and why.",
@@ -20699,6 +21610,31 @@
           "ready",
           "draining"
         ]
+      },
+      "Snapshot": {
+        "type": "object",
+        "required": [
+          "commit",
+          "index",
+          "offline"
+        ],
+        "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "etag": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "index": {
+            "$ref": "#/components/schemas/Index"
+          },
+          "offline": {
+            "type": "boolean"
+          }
+        }
       },
       "SplitSuggestion": {
         "type": "object",

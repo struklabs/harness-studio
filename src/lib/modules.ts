@@ -11,24 +11,34 @@ export interface ModuleView {
   disk_bytes: number; shared_disk_bytes: number; update_available: boolean;
   data_choices: { id: string; disk_bytes: number; path: string }[];
   incompatibility: string | null;
+  /** Key files of an installed module that were deleted by hand; empty when intact. */
+  needs_repair?: string[];
+  /** Sizes or the agent probe are still being measured in the background; ask again soon. */
+  measuring?: boolean;
   progress: { step: string; detail: string; downloaded_bytes: number; total_bytes: number } | null;
   components: Record<string, { version: string; owners: string[]; disk_bytes: number }>;
 }
 /** Keep planned/incompatible entries inspectable while preventing backend actions. */
-export function moduleActions(module: Pick<ModuleView, 'manifest' | 'state' | 'incompatibility' | 'progress'>, busy = false) {
+export function moduleActions(module: Pick<ModuleView, 'manifest' | 'state' | 'incompatibility' | 'progress'> & { needs_repair?: string[] }, busy = false) {
   const planned = module.manifest.planned;
   const installing = module.state.status === 'installing' || module.progress !== null;
   const installed = module.state.status === 'installed' || module.state.status === 'disabled';
   const available = !planned && !module.incompatibility && !installing && !busy;
+  const broken = installed && (module.needs_repair?.length ?? 0) > 0;
   return {
     install: !planned && !module.incompatibility && !installing && !installed && !busy,
-    open: available && module.state.status === 'installed',
-    enable: available && module.state.status === 'disabled',
-    disable: available && module.state.status === 'installed',
+    open: available && !broken && module.state.status === 'installed',
+    enable: available && !broken && module.state.status === 'disabled',
+    disable: available && !broken && module.state.status === 'installed',
     repair: available && (installed || module.state.status === 'failed'),
     remove: available && (installed || module.state.status === 'failed'),
     cancel: !planned && installing,
   };
+}
+/** The status label key: a module with missing files reads "Needs Repair", not "Installed". */
+export function moduleStatusKey(module: Pick<ModuleView, 'state'> & { needs_repair?: string[] }): ModuleStatus | 'needs_repair' {
+  const installed = module.state.status === 'installed' || module.state.status === 'disabled';
+  return installed && (module.needs_repair?.length ?? 0) > 0 ? 'needs_repair' : module.state.status;
 }
 export function progressPercent(downloaded: number, total: number): number | undefined {
   if (!Number.isFinite(downloaded) || !Number.isFinite(total) || total <= 0) return undefined;

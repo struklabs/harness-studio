@@ -256,6 +256,16 @@ fn api_routes() -> OpenApiRouter<AppState> {
             tools::put_search_provider
         ))
         .routes(routes!(tools::tool_log))
+        .routes(routes!(tools::registry_list))
+        .routes(routes!(tools::registry_install))
+        .routes(routes!(tools::installed_list))
+        .routes(routes!(tools::installed_remove))
+        .routes(routes!(tools::installed_enable))
+        .routes(routes!(tools::installed_disable))
+        .routes(routes!(tools::skills_list))
+        .routes(routes!(tools::skill_remove))
+        .routes(routes!(tools::skill_enable))
+        .routes(routes!(tools::skill_disable))
         .routes(routes!(tools::run_tool))
 }
 

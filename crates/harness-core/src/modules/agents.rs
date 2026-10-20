@@ -81,6 +81,15 @@ fn managed_executable() -> Option<PathBuf> {
         .map(|p| root.join(p)),
     )
 }
+/// Key files of a Harness-managed install that are gone. Empty for an external install (not
+/// ours to judge) and for a folder that was never created.
+pub(super) fn missing_files() -> Vec<String> {
+    if managed_root().is_dir() && managed_executable().is_none() {
+        vec!["hermes".into()]
+    } else {
+        vec![]
+    }
+}
 pub(super) fn external_runtime() -> Option<PathBuf> {
     external_executable().and_then(|exe| library_runtime(&exe).ok().map(|(_, root)| root))
 }
@@ -192,7 +201,7 @@ fn command(path: impl AsRef<std::ffi::OsStr>) -> Command {
     };
     c
 }
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct Detection {
     pub installed: bool,
     pub version: Option<String>,

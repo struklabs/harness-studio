@@ -5,10 +5,11 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 /// Folder sizes for the module list. A walk can take seconds (an external agent install is a
-/// whole Python environment), so it runs on its own thread and the list never waits for more
-/// than [`SIZE_WAIT`]. A size that merely aged is served at once while a refresh runs; one
-/// invalidated by an install or removal waits briefly for the new walk and falls back to the
-/// last known value (0 when none) if it is not done, so the next list shows the real size.
+/// whole Python environment), so it runs on its own thread and the list never waits for it
+/// except briefly for a size that an install or removal just invalidated. Sizes are kept in
+/// `module-sizes.json`, so the first list after a restart already shows the last known numbers
+/// (served as aged while a refresh runs); a folder never measured reads 0 until its walk ends.
+/// [`sizes_pending`] tells the list whether any number may still change.
 #[derive(Default)]
 struct DiskCache {
     sizes: BTreeMap<PathBuf, Measured>,
@@ -16,15 +17,50 @@ struct DiskCache {
 }
 #[derive(Clone, Copy)]
 struct Measured {
-    at: Instant,
+    /// `None`: restored from disk, so its age is unknown and a refresh always runs.
+    at: Option<Instant>,
     bytes: u64,
     changed: bool,
 }
 static DISK_CACHE: OnceLock<Mutex<DiskCache>> = OnceLock::new();
 const SIZE_FRESH: Duration = Duration::from_secs(15);
 const SIZE_WAIT: Duration = Duration::from_millis(250);
+fn sizes_file() -> PathBuf {
+    paths::config_dir().join("module-sizes.json")
+}
 fn disk_cache() -> &'static Mutex<DiskCache> {
-    DISK_CACHE.get_or_init(Default::default)
+    DISK_CACHE.get_or_init(|| {
+        let saved: BTreeMap<PathBuf, u64> = JsonStore::new(sizes_file()).load().unwrap_or_default();
+        Mutex::new(DiskCache {
+            sizes: saved
+                .into_iter()
+                .map(|(path, bytes)| {
+                    (
+                        path,
+                        Measured {
+                            at: None,
+                            bytes,
+                            changed: false,
+                        },
+                    )
+                })
+                .collect(),
+            measuring: BTreeSet::new(),
+        })
+    })
+}
+fn persist_sizes(cache: &DiskCache) {
+    let saved: BTreeMap<&PathBuf, u64> = cache.sizes.iter().map(|(p, m)| (p, m.bytes)).collect();
+    let _ = JsonStore::new(sizes_file()).save(&saved);
+}
+/// Set whenever a listing served a size that may still change (never measured, aged, or
+/// invalidated with its walk unfinished). The list reports it so the UI asks again soon.
+static PROVISIONAL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+pub(super) fn begin_listing() {
+    PROVISIONAL.store(false, std::sync::atomic::Ordering::SeqCst);
+}
+pub(super) fn listing_provisional() -> bool {
+    PROVISIONAL.load(std::sync::atomic::Ordering::SeqCst)
 }
 fn cached_size(path: &Path) -> u64 {
     cached_size_with(disk_cache(), path, SIZE_WAIT, size)
@@ -39,9 +75,10 @@ fn cached_size_with(
     let known = {
         let mut guard = cache.lock().unwrap();
         let known = guard.sizes.get(path).copied();
-        if known.is_some_and(|m| !m.changed && m.at.elapsed() < SIZE_FRESH) {
+        if known.is_some_and(|m| !m.changed && m.at.is_some_and(|at| at.elapsed() < SIZE_FRESH)) {
             return known.unwrap().bytes;
         }
+        PROVISIONAL.store(true, std::sync::atomic::Ordering::SeqCst);
         if guard.measuring.insert(path.to_path_buf()) {
             let target = path.to_path_buf();
             let (tx, rx) = std::sync::mpsc::channel();
@@ -53,11 +90,17 @@ fn cached_size_with(
                 guard.sizes.insert(
                     target,
                     Measured {
-                        at: Instant::now(),
+                        at: Some(Instant::now()),
                         bytes,
                         changed: false,
                     },
                 );
+                if DISK_CACHE
+                    .get()
+                    .is_some_and(|global| std::ptr::eq(global, cache))
+                {
+                    persist_sizes(&guard);
+                }
                 let _ = tx.send(bytes);
             });
         }
@@ -65,10 +108,13 @@ fn cached_size_with(
     };
     match known {
         Some(m) if !m.changed => m.bytes,
-        _ => waiting
-            .and_then(|rx| rx.recv_timeout(wait).ok())
-            .or(known.map(|m| m.bytes))
-            .unwrap_or(0),
+        // Invalidated by an install or removal: give the new walk a moment to finish.
+        Some(m) => match waiting.and_then(|rx| rx.recv_timeout(wait).ok()) {
+            Some(bytes) => bytes,
+            None => m.bytes,
+        },
+        // Never measured: the list does not wait for it; the walk lands for the next one.
+        None => 0,
     }
 }
 /// Marks every size as outdated after a change.
@@ -78,6 +124,7 @@ fn invalidate_disk_cache() {
             m.changed = true;
         }
     }
+    super::invalidate_agent_probe();
 }
 struct RefreshDisk;
 impl Drop for RefreshDisk {
@@ -473,7 +520,7 @@ async fn run(id: &str, action: &str) -> Result<(), String> {
     }
     unused(id)?;
     if id == "speech"
-        && envs::status_in(&envs::root(), &envs::TRANSCRIBE_CPP)
+        && envs::status_in_quick(&envs::root(), &envs::TRANSCRIBE_CPP)
             .progress
             .is_some()
     {
@@ -731,7 +778,7 @@ pub fn remove_with_options(id: &str, options: &RemovalOptions) -> Result<(), Str
     rollback(&mut data)?;
     unused(id)?;
     if id == "speech"
-        && envs::status_in(&envs::root(), &envs::TRANSCRIBE_CPP)
+        && envs::status_in_quick(&envs::root(), &envs::TRANSCRIBE_CPP)
             .progress
             .is_some()
     {
@@ -1090,7 +1137,7 @@ mod disk_cache_tests {
         cache.lock().unwrap().sizes.insert(
             path.to_path_buf(),
             Measured {
-                at: long_ago,
+                at: Some(long_ago),
                 bytes: 3,
                 changed: false,
             },
@@ -1118,7 +1165,7 @@ mod disk_cache_tests {
         cache.lock().unwrap().sizes.insert(
             path.to_path_buf(),
             Measured {
-                at: Instant::now(),
+                at: Some(Instant::now()),
                 bytes: 3,
                 changed: true,
             },
@@ -1131,7 +1178,7 @@ mod disk_cache_tests {
         cache.lock().unwrap().sizes.insert(
             slow_changed.to_path_buf(),
             Measured {
-                at: Instant::now(),
+                at: Some(Instant::now()),
                 bytes: 3,
                 changed: true,
             },
@@ -1139,6 +1186,61 @@ mod disk_cache_tests {
         assert_eq!(
             cached_size_with(cache, slow_changed, Duration::from_millis(20), slow),
             3
+        );
+    }
+}
+#[cfg(test)]
+mod first_list_tests {
+    use super::*;
+    fn quick(_: &Path) -> u64 {
+        9
+    }
+    fn slow(_: &Path) -> u64 {
+        std::thread::sleep(Duration::from_millis(600));
+        7
+    }
+    #[test]
+    fn never_measured_folder_does_not_hold_the_first_list() {
+        static CACHE: OnceLock<Mutex<DiskCache>> = OnceLock::new();
+        let cache = CACHE.get_or_init(Default::default);
+        let path = Path::new("cold-runtime");
+        // Even with a generous wait the first answer is immediate (0) while the walk runs.
+        let started = Instant::now();
+        assert_eq!(
+            cached_size_with(cache, path, Duration::from_secs(5), slow),
+            0
+        );
+        assert!(started.elapsed() < Duration::from_millis(400));
+        assert!(PROVISIONAL.load(std::sync::atomic::Ordering::SeqCst));
+        std::thread::sleep(Duration::from_millis(700));
+        assert_eq!(
+            cached_size_with(cache, path, Duration::from_secs(5), quick),
+            7
+        );
+    }
+    #[test]
+    fn persisted_size_is_served_at_once_and_refreshed() {
+        static CACHE: OnceLock<Mutex<DiskCache>> = OnceLock::new();
+        let cache = CACHE.get_or_init(Default::default);
+        let path = Path::new("restored-runtime");
+        cache.lock().unwrap().sizes.insert(
+            path.to_path_buf(),
+            Measured {
+                at: None,
+                bytes: 5,
+                changed: false,
+            },
+        );
+        let started = Instant::now();
+        assert_eq!(
+            cached_size_with(cache, path, Duration::from_secs(5), slow),
+            5
+        );
+        assert!(started.elapsed() < Duration::from_millis(400));
+        std::thread::sleep(Duration::from_millis(700));
+        assert_eq!(
+            cached_size_with(cache, path, Duration::from_secs(5), quick),
+            7
         );
     }
 }

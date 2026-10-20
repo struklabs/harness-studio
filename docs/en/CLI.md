@@ -312,9 +312,18 @@ Harness's own tool engine (`harness_core::tools`): `read_file`, `file_glob_searc
 | `tools mcp-resources <server> [--read <uri>]` | The resources and resource templates of an MCP server; `--read` prints a resource's content | `GET /tools/mcp/{server}/resources`, `/resource?uri=` |
 | `tools mcp-authorize <server>` | Authorizes a remote MCP server with OAuth: the browser opens on the machine where `harness` runs, approval is awaited, and the token is stored in the keychain (the CLI client times out in 3 minutes) | `POST /tools/mcp/{server}/authorize` |
 | `tools mcp-logout <server>` | Deletes the server's OAuth session | `POST /tools/mcp/{server}/logout` |
+| `tools registry [--kind tool\|skill\|mcp]` | The official registry entries this app version and platform can install (id, type, version, description); `(offline, cached)` when GitHub could not be reached | `GET /tools/registry` |
+| `tools install <id>` | Installs an official tool or skill. The permissions it declares (network, read and write folders, shell) are shown and need your yes (a y/N question, or `--yes`); the API installs only when `approved_permissions` equals the declaration, otherwise `403 tools.install_approval_required`. MCP entries are added from the app (`tools.registry_kind_unsupported`) | `POST /tools/registry/install` |
+| `tools installed` | The installed tools: name, version, class, state (`on`, `off`, `invalid`) | `GET /tools/installed` |
+| `tools enable <name>` / `tools disable <name>` | Switches an installed tool on or off | `POST /tools/installed/{name}/enable`, `/disable` |
+| `tools remove <name>` | Removes an installed tool (asks; `--yes` skips the question) | `DELETE /tools/installed/{name}` |
+| `skills list` (`skills ls`) | The installed skills and whether each is on | `GET /skills` |
+| `skills enable <name>` / `skills disable <name>` | Switches a skill on or off | `POST /skills/{name}/enable`, `/disable` |
+| `skills remove <name>` | Removes a skill (asks; `--yes` skips the question) | `DELETE /skills/{name}` |
+| `skills install <id>` | Same as `tools install` for an official skill | `POST /tools/registry/install` |
 | `tools run <name> [--args '<json>'] [--workdir DIR] [--timeout SEC]` | Runs a tool; the output is the tool's text. Without `--workdir`, the current directory. If the decision is `ask`, a y/N question on the terminal; with no terminal, `--yes` (`-y`) is needed (exit 2, `cli.confirmation_required`). If the policy is `off`, `tools.disabled` even with `--yes` (exit 1). If the tool runs and errors (outside the path, an unmatched edit, a timeout), exit 1 with the message on stderr; `--json` also writes the result to stdout | `POST /tools/{name}/run` (`RunToolResponse`) |
 
-The same surface in the Control API: `GET /tools`, `POST /tools/{name}/run`, `GET /tools/policy`, `PUT /tools/policy`, `GET /tools/log`. Running, changing the policy, and the log require the `admin` scope. Because the API cannot ask the user, a call the policy says to "ask" about returns `403 tools.approval_required`; a client that does ask (the CLI) sends `"approved": true` in the body after getting a yes from the user.
+The same surface in the Control API: `GET /tools`, `POST /tools/{name}/run`, `GET /tools/policy`, `PUT /tools/policy`, `GET /tools/log`. Running, changing the policy, and the log require the `admin` scope. Listing the registry, installed tools, and skills needs `read`; installing, switching, and removing them needs `admin`. Because the API cannot ask the user, a call the policy says to "ask" about returns `403 tools.approval_required`; a client that does ask (the CLI) sends `"approved": true` in the body after getting a yes from the user.
 
 ### MCP
 
