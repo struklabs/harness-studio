@@ -316,6 +316,7 @@ pub async fn refresh_catalog(ep: &Endpoint) -> Result<Catalog, String> {
 
 struct Running {
     child: command_group::GroupChild,
+    stopping: bool,
     endpoint: Endpoint,
     port: u16,
     websocket_port: u16,
@@ -353,7 +354,17 @@ fn is_running() -> bool {
         None => return false,
     };
     if !alive {
-        guard.take();
+        let unexpected = guard.take().is_some_and(|r| !r.stopping);
+        drop(guard);
+        if unexpected {
+            crate::diagnostics::DiagnosticsManager::record_engine(
+                "llama_error",
+                "Unexpected Lemonade process exit".into(),
+                None,
+                LEMONADE_FAMILY,
+                &log_tail(40),
+            );
+        }
     }
     alive
 }
@@ -388,6 +399,7 @@ fn new_key() -> String {
 }
 
 fn push_tail(line: String) {
+    crate::diagnostics::DiagnosticsManager::note_log(&line);
     let mut tail = service().log_tail.lock().unwrap();
     if tail.len() >= LOG_TAIL {
         tail.pop_front();
@@ -587,6 +599,7 @@ async fn start_locked() -> Result<Endpoint, String> {
     };
     *service().running.lock().unwrap() = Some(Running {
         child,
+        stopping: false,
         endpoint: endpoint.clone(),
         port,
         websocket_port,
@@ -633,6 +646,9 @@ pub async fn stop() -> Result<(), String> {
     let Some(ep) = endpoint() else {
         return Ok(());
     };
+    if let Some(running) = service().running.lock().unwrap().as_mut() {
+        running.stopping = true;
+    }
     let _ = client::shutdown(&ep).await;
     let deadline = Instant::now() + Duration::from_secs(15);
     while is_running() && Instant::now() < deadline {
