@@ -719,10 +719,8 @@ fn run_process(
                             status.output.push_str(value["text"].as_str().unwrap_or(""));
                             status.output.push('\n');
                             trim_output(&mut status.output);
-                        } else {
-                            if status.audit.len() < 256 {
-                                status.audit.push(value.to_string());
-                            }
+                        } else if status.audit.len() < 256 {
+                            status.audit.push(value.to_string());
                         }
                         if !status.id.is_empty() {
                             if let Err(e) = save_task(&status) {
@@ -923,6 +921,41 @@ mod tests {
         std::fs::remove_file(crate::paths::data_root().join("agents/history.json")).unwrap();
         std::fs::remove_dir(crate::paths::data_root().join("agents")).unwrap();
     }
+    #[test]
+    fn process_audit_events_respect_the_entry_limit() {
+        let event = json!({"kind": "audit", "text": "recorded"});
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            temp.path().join("event.json"),
+            format!("HARNESS_EVENT:{event}\n"),
+        )
+        .unwrap();
+        for initial_len in [0, 255, 256] {
+            let run = Arc::new(Run {
+                status: Mutex::new(TaskStatus {
+                    audit: vec!["existing".into(); initial_len],
+                    ..Default::default()
+                }),
+                cancel: Arc::new(AtomicBool::new(false)),
+            });
+            let mut c = command(if cfg!(windows) { "cmd" } else { "sh" });
+            c.current_dir(temp.path());
+            if cfg!(windows) {
+                c.args(["/C", "type event.json"]);
+            } else {
+                c.args(["-c", "cat event.json"]);
+            }
+            assert!(run_process(c, &run, "", Duration::from_secs(10)).unwrap());
+            let status = run.status.lock().unwrap();
+            assert_eq!(status.audit.len(), (initial_len + 1).min(256));
+            assert!(status.audit[..initial_len].iter().all(|e| e == "existing"));
+            if initial_len < 256 {
+                assert_eq!(status.audit[initial_len], event.to_string());
+            }
+            assert!(status.output.is_empty());
+        }
+    }
+
     #[test]
     fn process_errors_redact_secrets_and_stop_is_bounded() {
         let run = Arc::new(Run {
