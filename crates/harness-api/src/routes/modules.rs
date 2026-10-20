@@ -11,7 +11,7 @@ pub async fn list_modules() -> ApiResult<Json<Vec<ModuleView>>> {
 #[utoipa::path(post, path = "/modules/{id}", tag = "modules", params(("id" = String, Path)),
     responses((status = 204), (status = 422, body = ErrorBody), (status = 403, body = ErrorBody)))]
 pub async fn install_module(P(id): P<String>) -> ApiResult<StatusCode> {
-    modules::install(&id).await?;
+    modules::start_install(&id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 #[utoipa::path(post, path = "/modules/{id}/cancel", tag = "modules", params(("id" = String, Path)),
@@ -38,7 +38,7 @@ pub async fn module_action(
     P(id): P<String>,
     Json(body): Json<ModuleAction>,
 ) -> ApiResult<StatusCode> {
-    modules::action(&id, &body.action).await?;
+    modules::start(&id, &body.action).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 #[utoipa::path(post, path = "/modules/{id}/remove-data", tag = "modules", params(("id" = String, Path)), request_body = modules::RemovalOptions,

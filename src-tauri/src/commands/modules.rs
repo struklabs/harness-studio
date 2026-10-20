@@ -4,7 +4,7 @@ pub(crate) async fn list_modules() -> Result<Vec<harness_core::modules::ModuleVi
 }
 #[tauri::command]
 pub(crate) async fn install_module(id: String) -> Result<(), String> {
-    harness_core::modules::install(&id).await
+    harness_core::modules::start_install(&id).await
 }
 #[tauri::command]
 pub(crate) fn cancel_module_install(id: String) -> Result<(), String> {
@@ -96,7 +96,7 @@ pub(crate) async fn apply_paperclip_config(instance: String, agent: String, cred
 }
 #[tauri::command]
 pub(crate) async fn module_action(id: String, action: String) -> Result<(), String> {
-    harness_core::modules::action(&id, &action).await
+    harness_core::modules::start(&id, &action).await
 }
 #[tauri::command]
 pub(crate) async fn remove_module_data(id: String, options: harness_core::modules::RemovalOptions) -> Result<(), String> {
