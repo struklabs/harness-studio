@@ -153,9 +153,23 @@ pub fn http_status(code: &str) -> u16 {
         // The tool policy refuses the call (Control API: it cannot ask the user).
         "tools.disabled" | "tools.approval_required" | "tools.install_approval_required" => 403,
         "tools.workdir_invalid" => 400,
+        // n8n answered, but not as expected (the Control API is a gateway to it here).
+        "automations.n8n_unauthorized"
+        | "automations.n8n_forbidden"
+        | "automations.n8n_api_missing"
+        | "automations.n8n_redirect"
+        | "automations.n8n_server_error"
+        | "automations.n8n_http_error"
+        | "automations.n8n_invalid_response" => 502,
         c if c.ends_with(".not_found") || c.ends_with("_not_found") => 404,
         c if c.ends_with(".exists") || c.ends_with(".already_exists") => 409,
-        c if c.starts_with("network.") || c.starts_with("api.") || c.starts_with("otel.") => 400,
+        c if c.starts_with("network.")
+            || c.starts_with("api.")
+            || c.starts_with("otel.")
+            || c.starts_with("automations.") =>
+        {
+            400
+        }
         _ => 422,
     }
 }

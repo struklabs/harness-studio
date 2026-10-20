@@ -21,6 +21,7 @@
   import SecuritySettings from './settings/SecuritySettings.svelte';
   import DeveloperApiSettings from './settings/DeveloperApiSettings.svelte';
   import OtelSettings from './settings/OtelSettings.svelte';
+  import AutomationsSettings from './settings/AutomationsSettings.svelte';
   import GatewaySettings from './settings/GatewaySettings.svelte';
   import ToolsSettings from './settings/ToolsSettings.svelte';
   import DiagnosticsSettings from './settings/DiagnosticsSettings.svelte';
@@ -189,6 +190,11 @@
         <div class:hidden={activeRoot !== 'otel'}>
           {#if visited.otel}
             <OtelSettings />
+          {/if}
+        </div>
+        <div class:hidden={activeRoot !== 'automations'}>
+          {#if visited.automations}
+            <AutomationsSettings />
           {/if}
         </div>
         <div class:hidden={activeRoot !== 'appearance'}>

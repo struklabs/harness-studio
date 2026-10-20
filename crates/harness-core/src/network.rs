@@ -357,6 +357,8 @@ pub fn sanitize_settings(incoming: &mut AppSettings, stored: &AppSettings) -> Re
     incoming.audio_cpp_enabled = stored.audio_cpp_enabled;
     // And the OpenTelemetry block (its header values live in the keychain).
     incoming.otel = stored.otel.clone();
+    // And the n8n connection (its key lives in the keychain).
+    incoming.n8n = stored.n8n.clone();
     Ok(())
 }
 
