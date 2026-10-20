@@ -119,6 +119,8 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(modules::cancel_module))
         .routes(routes!(modules::module_action))
         .routes(routes!(modules::remove_module_data))
+        .routes(routes!(modules::export_module))
+        .routes(routes!(modules::import_module))
         .routes(routes!(system::health))
         .routes(routes!(system::status))
         .routes(routes!(system::hardware))

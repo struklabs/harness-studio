@@ -20,7 +20,7 @@ Harness Studio manages local AI models, servers, tools, and connected applicatio
 | Remote Models | Use Harness Link to connect another Harness instance and select its models locally. |
 | CLI and Control API | Manage models, servers, conversations, and tools from scripts; run headless serving and use the published API schema and SDKs. |
 | Performance and Analytics | Run your own benchmarks, inspect request timing and errors, monitor RAM/VRAM, and use optional metrics export. |
-| Modules and Agents | Install optional capabilities and connect Hermes Agent to a selected model with task, stop, history, and permission controls. |
+| Modules and Agents | Install optional capabilities (also offline from an official `.hsmod` bundle, see [Modules](MODULES.md)) and connect Hermes Agent to a selected model with task, stop, history, and permission controls. |
 
 ## Simple and Advanced Navigation
 

@@ -429,6 +429,8 @@ pub fn run() {
             list_modules,
             install_module,
             module_action,
+            pick_module_bundle_file,
+            import_module_bundle,
             remove_module_data,
             cancel_module_install,
             remove_module,

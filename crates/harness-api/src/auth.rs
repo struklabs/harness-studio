@@ -248,7 +248,12 @@ mod tests {
             required_scope(&del, "/modules/{id}", true),
             Some(Scope::Admin)
         );
-        for path in ["/modules/{id}/action", "/modules/{id}/remove-data"] {
+        for path in [
+            "/modules/{id}/action",
+            "/modules/{id}/remove-data",
+            "/modules/{id}/export",
+            "/modules/import",
+        ] {
             assert_eq!(required_scope(&post, path, true), Some(Scope::Admin));
         }
         // Tools: listing and the policy are readable; running needs `tools`; changing the policy

@@ -60,6 +60,22 @@
       if (!disposed) { pending = false; await refresh(); if (failure) error = failure; }
     }
   }
+  /** Offline install: pick an official .hsmod bundle; nothing is downloaded. */
+  async function installFromFile() {
+    pending = true;
+    error = '';
+    let failure = '';
+    try {
+      const path = await invoke<string | null>('pick_module_bundle_file', { label: t('modules.bundle_filter') });
+      if (path) {
+        const report = await invoke<{ id: string }>('import_module_bundle', { path });
+        selected = report.id;
+      }
+    } catch (e) { failure = errorText(e); }
+    finally {
+      if (!disposed) { pending = false; await refresh(); if (failure) error = failure; }
+    }
+  }
   function open() {
     if (selected === 'agents') return;
     app.requestedPlaygroundTab = 'transcription';
@@ -70,7 +86,10 @@
 <div class="flex h-full min-h-0 flex-col overflow-y-auto p-4 md:p-6">
   <div class="mb-5 flex items-start justify-between gap-4">
     <div><h1 class="text-xl font-semibold">{t('modules.title')}</h1><p class="mt-1 text-sm text-muted-foreground">{t('modules.intro')}</p><p class="mt-2 text-xs text-muted-foreground">{t('discover.registry_scope')}</p></div>
-    <Button variant="outline" onclick={() => { error = ''; void refresh(); }}>{t('modules.refresh')}</Button>
+    <div class="flex flex-wrap justify-end gap-2">
+      <Button variant="outline" disabled={busy} title={t('modules.install_from_file_hint')} onclick={() => void installFromFile()}>{t('modules.install_from_file')}</Button>
+      <Button variant="outline" onclick={() => { error = ''; void refresh(); }}>{t('modules.refresh')}</Button>
+    </div>
   </div>
   {#if error}<p role="alert" class="mb-4 rounded-md border border-destructive p-3 text-sm text-destructive">{error}</p>{/if}
   {#if pending}<p role="status" aria-live="polite" class="mb-3 text-sm text-muted-foreground">{t('modules.working')}</p>{/if}

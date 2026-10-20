@@ -238,6 +238,12 @@ pub enum Command {
         #[command(subcommand)]
         command: RuntimeCommand,
     },
+    /// Optional modules: list them, pack an installed one into an offline `.hsmod` bundle,
+    /// install an official bundle with no network, remove a module.
+    Modules {
+        #[command(subcommand)]
+        command: ModulesCommand,
+    },
     /// Named Control API tokens: scopes, allowed models/endpoints, rate limits.
     #[command(name = "api-token", visible_alias = "token")]
     ApiToken {
@@ -946,6 +952,29 @@ pub enum BenchmarkCommand {
     Ls,
     /// One run.
     Show { id: String },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ModulesCommand {
+    /// List the modules with installed and bundled version and status.
+    Ls,
+    /// Pack an installed module (components, manifest, SHA-256 per file) into a `.hsmod` bundle.
+    /// Prints the bundle's SHA-256, which a maintainer records in the official index.
+    Export {
+        /// Module id (see `harness modules ls`).
+        id: String,
+        /// Bundle file to write (use the .hsmod extension).
+        #[arg(long, short = 'o', value_name = "FILE")]
+        out: PathBuf,
+    },
+    /// Install a module from an official `.hsmod` bundle. Uses no network. Bundles that are not
+    /// in the official index shipped with this build are refused.
+    Import {
+        /// Bundle file.
+        file: PathBuf,
+    },
+    /// Remove an installed module (models and your data stay). Needs no network.
+    Rm { id: String },
 }
 
 #[derive(Subcommand, Debug)]

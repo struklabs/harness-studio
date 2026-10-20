@@ -4989,6 +4989,66 @@
         }
       }
     },
+    "/api/harness/v1/modules/import": {
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "import_module",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BundlePath"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/modules/{id}": {
       "post": {
         "tags": [
@@ -5175,6 +5235,76 @@
         "responses": {
           "204": {
             "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/modules/{id}/export": {
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "export_module",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BundlePath"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportReport"
+                }
+              }
+            }
           },
           "401": {
             "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
@@ -11181,6 +11311,18 @@
           "system"
         ]
       },
+      "BundlePath": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "A `.hsmod` file on the machine that runs the Control API."
+          }
+        }
+      },
       "CancelCompactResponse": {
         "type": "object",
         "required": [
@@ -13684,6 +13826,41 @@
           }
         }
       },
+      "ExportReport": {
+        "type": "object",
+        "description": "What `export` wrote. `sha256` is the hash to record in `official_bundles.json`.",
+        "required": [
+          "id",
+          "version",
+          "path",
+          "bytes",
+          "files",
+          "sha256"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "files": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string"
+          }
+        }
+      },
       "ExportedChunk": {
         "type": "object",
         "properties": {
@@ -15348,6 +15525,37 @@
               "null"
             ],
             "description": "SHA-256 of the file as published by Hugging Face (LFS oid), when known."
+          }
+        }
+      },
+      "ImportReport": {
+        "type": "object",
+        "description": "What `import` did.",
+        "required": [
+          "id",
+          "version",
+          "installed_components",
+          "reused_components"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "installed_components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reused_components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Shared components that were already installed: only their owner list changed."
           }
         }
       },

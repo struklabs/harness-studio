@@ -260,6 +260,17 @@ The old name of the `token` command, `api-token`, also works.
 | `otel test [--endpoint URL] [--protocol http\|grpc]` | Sends a real test span to the saved (or given) collector; exit 1 if the collector rejects it. `grpc` only in an instance built with `otel-grpc`; in others exit 2 (`otel.grpc_not_built`) | `{ok, url, protocol, elapsed_ms, trace_id, error}` |
 | `completion <bash\|zsh\|fish\|powershell\|elvish>` | A shell completion script | |
 
+### Modules
+
+Optional modules and their offline bundles (see [Modules](MODULES.md)). Commands that change anything require the `admin` scope. `export` and `import` take a path on the computer that runs the Control API; the CLI makes relative paths absolute first. Nothing here uses the network.
+
+| Command | What it does | `--json` |
+|---|---|---|
+| `modules ls` | Every module with installed version, bundled version, and status | `ModuleView[]` (`GET /modules`) |
+| `modules export <id> --out FILE.hsmod` | Packs an installed module (all components, manifest, SHA-256 per file) into a deterministic bundle and prints the bundle's SHA-256, the value a maintainer records in the official index. `modules.not_installed` if it is not installed, `modules.export_external` for an agent installed outside Harness Studio | `ExportReport {id, version, path, bytes, files, sha256}` (`POST /modules/{id}/export`) |
+| `modules import FILE.hsmod` | Installs a module from an official bundle with no network. Refused with `modules.bundle_unofficial` (hash not in the index of this build), `modules.bundle_mismatch` (module id or version differs), `modules.bundle_corrupt` (a file does not match its checksum), `modules.already_installed`; a failure leaves the previous state untouched | `ImportReport {id, version, installed_components, reused_components}` (`POST /modules/import`) |
+| `modules rm <id> [-y]` | Removes the module; models and your data stay, shared Python and uv stay while another module owns them | `{removed}` (`DELETE /modules/{id}`) |
+
 ### Runtimes
 
 Named llama-server builds other than the official llama.cpp (for example the PrismML fork) are registered; a model definition (`load.runtime`) or a server profile (`serve_overrides.runtime`) selects one of them. If none is selected, the official runtime in Settings > Runtime is used. `--family` can be `llama.cpp`, `whisper.cpp`, or `stable-diffusion.cpp` for image generation (selected automatically if the GitHub repository name is one of these: `runtime add --github leejet/stable-diffusion.cpp`; if `--backend` is not given, the build suited to the machine: Vulkan on AMD, CUDA on NVIDIA, CPU otherwise). `official` and (if a llama-server was found on PATH/WinGet) `system` are virtual entries and cannot be added or deleted. Commands that make changes require the `admin` scope.

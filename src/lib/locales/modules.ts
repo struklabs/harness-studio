@@ -75,6 +75,16 @@ const tr = {
   "modules.step_source": "Arka Uç Hazırlanıyor",
   "modules.owners": "Sahipler",
   "modules.version": "Sürüm",
+  "modules.install_from_file": "Dosyadan Yükle…",
+  "modules.install_from_file_hint": "Resmî Bir Modül Paketini (.hsmod) Ağ Bağlantısı Olmadan Yükler.",
+  "modules.bundle_filter": "Harness Studio Modül Paketi",
+  "modules.bundle_unofficial": "Bu Paket Resmî Bir Harness Studio Modül Paketi Değil. Topluluk Paketleri Desteklenmiyor.",
+  "modules.bundle_mismatch": "Paket, Bu Sürümün Yüklediği Resmî Modül Kaydı veya Sürümüyle Eşleşmiyor.",
+  "modules.bundle_corrupt": "Paket Bozuk veya Değiştirilmiş: Bir Dosya Kayıtlı Sağlama Toplamıyla Eşleşmiyor. Hiçbir Şey Yüklenmedi.",
+  "modules.bundle_incompatible": "Paket Daha Yeni veya Bilinmeyen Bir Paket Biçiminde Hazırlanmış.",
+  "modules.already_installed": "Modülün Bu Sürümü Zaten Yüklü.",
+  "modules.export_external": "Bu Modül Harness Studio Dışında Kurulmuş Bir Program Kullanıyor; Dışa Aktarılamaz.",
+  "modules.export_missing": "Yüklü Modülün Bazı Dosyaları Eksik. Önce Onarın, Sonra Yeniden Dışa Aktarın.",
   "modules.loading": "Modüller Yükleniyor…"
 };
 
@@ -155,6 +165,16 @@ const en: Record<keyof typeof tr, string> = {
   "modules.step_source": "Preparing Backend",
   "modules.owners": "Owners",
   "modules.version": "Version",
+  "modules.install_from_file": "Install from File…",
+  "modules.install_from_file_hint": "Installs an Official Module Bundle (.hsmod) without a Network Connection.",
+  "modules.bundle_filter": "Harness Studio Module Bundle",
+  "modules.bundle_unofficial": "This Is Not an Official Harness Studio Module Bundle. Community Bundles Are Not Supported.",
+  "modules.bundle_mismatch": "The Bundle Does Not Match the Official Entry or the Module Version This App Installs.",
+  "modules.bundle_corrupt": "The Bundle Is Damaged or Was Changed: A File Does Not Match Its Recorded Checksum. Nothing Was Installed.",
+  "modules.bundle_incompatible": "This Bundle Uses a Newer or Unknown Bundle Format.",
+  "modules.already_installed": "This Version of the Module Is Already Installed.",
+  "modules.export_external": "This Module Uses a Program Installed Outside Harness Studio, so It Cannot Be Exported.",
+  "modules.export_missing": "Files of the Installed Module Are Missing. Repair It First, Then Export Again.",
   "modules.loading": "Loading Modules…"
 };
 
