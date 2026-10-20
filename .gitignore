@@ -1,3 +1,4 @@
+CLAUDE.md
 # OS / editor
 .DS_Store
 Thumbs.db
@@ -41,8 +42,6 @@ vite.config.ts.timestamp-*
 
 # Local tooling files
 .claude/
-CLAUDE.md
-AGENTS.md
 
 # Benchmark suite virtualenv
 /bench/compare/.venv/

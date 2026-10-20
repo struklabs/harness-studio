@@ -9,7 +9,7 @@ Thank you for your interest in Harness Studio, an open-source project by [strukl
 - **Report a bug or request a feature** through [GitHub Issues](https://github.com/struklabs/harness-studio/issues/new/choose). Please search first, and include your OS, GPU, backend (CUDA, ROCm, Vulkan, Metal, CPU), and Harness Studio version.
 - **Ask a question or share an idea** in [GitHub Discussions](https://github.com/struklabs/harness-studio/discussions).
 - **Report a security problem** privately. Do not open a public issue; see [SECURITY.md](SECURITY.md).
-- **Improve the docs or translations** (English and Turkish are both first-class).
+- **Improve the English docs.** English is the source of truth; Turkish translations are synced in one batch at release time, not per PR. Agents follow [AGENTS.md](AGENTS.md).
 - **Send code.** For anything larger than a small fix, open an issue or a discussion first so we can agree on the approach before you invest time.
 
 By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
@@ -83,7 +83,7 @@ Tests use real components rather than mocks wherever possible. Add or update a t
 
 We use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): short description`, for example `feat(ui): add download queue filters` or `fix(core): handle missing mmproj`. Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `chore`, `ci`. English or Turkish messages are both fine.
 
-Add user-facing changes to the `[Unreleased]` section of [docs/CHANGELOG.md](docs/CHANGELOG.md). Planned work lives in [docs/en/ROADMAP.md](docs/en/ROADMAP.md).
+Put proposed user-facing changelog lines in the PR body; do not edit [docs/CHANGELOG.md](docs/CHANGELOG.md) in PRs. Maintainers consolidate entries at release time. Planned work lives in [docs/en/ROADMAP.md](docs/en/ROADMAP.md).
 
 ### Sign-off and licensing
 
@@ -93,7 +93,7 @@ Harness Studio is released under the [MIT License](LICENSE). By submitting a con
 
 1. Fork the repository and create a branch from `main` (for example `fix/gateway-timeout`).
 2. Make focused changes. Keep unrelated cleanups in separate pull requests.
-3. Run the checks above and update documentation and both locales where relevant.
+3. Run the relevant checks above and update English documentation and both UI locales where relevant. Turkish documentation translations are batched at release time.
 4. Open a pull request and fill in the template. Link the issue it addresses.
 5. A maintainer reviews it. All changes go through pull requests: nobody, including maintainers, pushes directly to `main`. At least one maintainer approval and passing CI are required to merge.
 6. Maintainers squash or merge once feedback is addressed. Please be patient; this is a small team.
@@ -112,9 +112,9 @@ Configure `main` with: pull request required, at least one approving review (cod
 
 ### Releases
 
-1. Bump the version in `package.json`, `src-tauri/tauri.conf.json`, and the `Cargo.toml` files, and move the `[Unreleased]` changelog entries under the new version.
+1. Bump the version in `package.json`, `src-tauri/tauri.conf.json`, and the `Cargo.toml` files, and consolidate changelog lines from merged PR bodies under the new version. Sync Turkish documentation translations in the same release batch.
 2. Merge to `main`, then push a tag such as `v0.2.0`.
-3. `.github/workflows/release.yml` builds the Windows NSIS installer and uploads it to a **draft** GitHub release, together with the updater signature and `latest.json`. Review the draft and publish it.
+3. `.github/workflows/release.yml` builds the Windows NSIS installer, macOS DMGs, and Linux AppImage and `.deb`, and uploads them to a **draft** GitHub release, together with the updater signature and `latest.json`. Review the draft and publish it.
 
 Repository secrets used by the release workflow (Settings > Secrets and variables > Actions):
 
@@ -123,7 +123,7 @@ Repository secrets used by the release workflow (Settings > Secrets and variable
 | `TAURI_SIGNING_PRIVATE_KEY` | Contents of the updater signing key (generated with `npm run tauri signer generate`). Without it, no updater artifacts or `latest.json` are produced. The public key lives in `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`. |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password of that key (empty if generated with `--ci`). |
 
-The workflow also accepts optional Apple signing secrets (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`) for the macOS build, which is not published yet. Windows code signing is not configured; the installer is unsigned for now. Never commit signing keys (`*.key` is git-ignored).
+The workflow also accepts optional Apple signing secrets (`APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_P8`) to sign and notarize the macOS DMGs; see `.github/workflows/release.yml` for details. Windows code signing is not configured; the installer is unsigned for now. Never commit signing keys (`*.key` is git-ignored).
 
 ---
 
