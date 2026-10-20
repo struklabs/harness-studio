@@ -23,6 +23,7 @@ export interface DraftShape {
   restore_last_session: boolean;
   keep_window_in_tray: boolean;
   crash_reports: boolean;
+  retention_days: number;
   app_errors: boolean;
   llama_errors: boolean;
   hardware_info: boolean;
@@ -93,6 +94,7 @@ const ACCESSORS: { [K in DraftKey]: Accessor<K> } = {
     read: (s) => startup(s).keep_window_in_tray ?? false,
     write: (s, v) => (startup(s).keep_window_in_tray = v),
   },
+  retention_days: { read: (s) => s.privacy.retention_days ?? 30, write: (s, v) => (s.privacy.retention_days = v) },
   crash_reports: { read: (s) => s.privacy.crash_reports, write: (s, v) => (s.privacy.crash_reports = v) },
   app_errors: { read: (s) => s.privacy.app_errors, write: (s, v) => (s.privacy.app_errors = v) },
   llama_errors: { read: (s) => s.privacy.llama_errors, write: (s, v) => (s.privacy.llama_errors = v) },

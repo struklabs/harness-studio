@@ -108,6 +108,7 @@ export interface ServerConfig {
 export interface PrivacySettings {
   onboarding_completed: boolean;
   crash_reports: boolean;
+  retention_days?: number;
   app_errors: boolean;
   llama_errors: boolean;
   hardware_info: boolean;
@@ -1347,6 +1348,11 @@ export interface DiagnosticEvent {
 }
 
 export interface DiagnosticPayload {
+  id: string;
+  version: string;
+  os: string;
+  engine: string;
+  log_lines: string[];
   event_type: string;
   sanitized_message: string;
   sanitized_stack_trace: string | null;
