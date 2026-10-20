@@ -89,6 +89,11 @@ test('little free disk unticks the model; unknown disk keeps it', () => {
   assert.ok(defaultSelection(p, { ...none, freeDiskBytes: null }).has('model'));
 });
 
+test('almost no free disk ticks nothing', () => {
+  const p = profileOf(machines.cpuOffice);
+  assert.equal(defaultSelection(p, { ...none, freeDiskBytes: 0.5 * GIB }).size, 0);
+});
+
 test('finished items are not ticked again; unavailable ones are not ticked', () => {
   const p = profileOf(machines.nvidia24);
   const done = defaultSelection(p, { ...none, installed: { engine: true } });

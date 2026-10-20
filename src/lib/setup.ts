@@ -141,6 +141,8 @@ export interface SetupFacts {
 
 /** Free space the first model needs on top of its own size (temporary files, the engine). */
 export const DISK_HEADROOM = 2 * GIB;
+/** Below this much free space nothing is ticked by default (the engine alone needs a few hundred MB). */
+export const MIN_FREE_DISK = 1 * GIB;
 
 /**
  * Minimal and safe: the engine and one small first model, and only where the machine and the disk
@@ -150,6 +152,8 @@ export const DISK_HEADROOM = 2 * GIB;
 export function defaultSelection(profile: HardwareProfile, facts: SetupFacts, tier?: ModelTierId): Set<SetupItemId> {
   const selected = new Set<SetupItemId>();
   const open = (id: SetupItemId) => !facts.installed[id] && !facts.unavailable[id];
+  // Almost no free space: tick nothing, the user decides what still fits.
+  if (facts.freeDiskBytes !== null && facts.freeDiskBytes < MIN_FREE_DISK) return selected;
   if (open('engine')) selected.add('engine');
   if (open('model') && profile.ramBytes >= 4 * GIB) {
     const size = modelTier(tier ?? recommendedModelTier(profile)).approxBytes;

@@ -43,7 +43,6 @@ const tr = {
   'gs.remote.r2': 'Yetkisiz hatası alırsanız: sunucuda adlandırılmış bir token oluşturun ve bağlantıya yeniden girin.',
   'gs.remote.r3': 'Tarayıcı yönetimi için sunucuda http://localhost:11500/ adresini açın; ayrıntılar Kullanım Kılavuzu’ndaki Sunucu Modu bölümündedir.',
   'cmd.get_started': 'Başlangıç Listesini Aç',
-  'onboarding.wizard_next_hint': 'Sihirbaz bittikten sonra Gösterge Paneli’ndeki Başlangıç Listesi ilk model, ilk ajan ve uzak sunucu adımlarında size eşlik eder.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -90,7 +89,6 @@ const en: Record<keyof typeof tr, string> = {
   'gs.remote.r2': 'If you get an unauthorized error, create a named token on the server and enter it in the link again.',
   'gs.remote.r3': 'For browser administration, open http://localhost:11500/ on the server; see Server Mode in the User Guide for details.',
   'cmd.get_started': 'Open Get Started',
-  'onboarding.wizard_next_hint': 'After the wizard, the Get Started list on the Dashboard walks you through the first model, first agent, and remote server setups.',
 };
 
 export default { tr, en };
