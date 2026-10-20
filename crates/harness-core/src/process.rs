@@ -1117,6 +1117,7 @@ impl ProcessManager {
     }
 
     fn push_log(&self, line: String) {
+        crate::diagnostics::DiagnosticsManager::note_log(&line);
         let mut buffer = self.ring_buffer.lock().unwrap();
         if buffer.len() >= self.max_log_lines {
             buffer.pop_front();
@@ -2206,9 +2207,15 @@ impl ProcessManager {
                     .into();
                     self.record_failure(failure.clone());
                     self.set_error(msg.clone());
-                    // Keep the tail of the log with the crash report (sanitized on processing).
-                    let tail = self.get_logs(Some(40)).join("\n");
-                    crate::diagnostics::DiagnosticsManager::record("llama_error", msg, Some(tail));
+                    // Consent and scrubbing apply before the engine log tail reaches disk.
+                    let tail = self.get_logs(Some(40));
+                    crate::diagnostics::DiagnosticsManager::record_engine(
+                        "llama_error",
+                        msg,
+                        None,
+                        engine.family(),
+                        &tail,
+                    );
                     self.schedule_restart(generation, &failure);
                     return;
                 }
