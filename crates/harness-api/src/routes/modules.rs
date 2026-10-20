@@ -50,3 +50,27 @@ pub async fn remove_module_data(
     blocking(move || modules::lifecycle_remove(&id, &options)).await??;
     Ok(StatusCode::NO_CONTENT)
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn openapi_documents_module_lifecycle_routes() {
+        let doc = serde_json::to_value(crate::openapi_document()).unwrap();
+        for (route, schema) in [
+            ("action", "ModuleAction"),
+            ("remove-data", "RemovalOptions"),
+        ] {
+            let path = format!(
+                "{}/modules/{{id}}/{route}",
+                harness_core::control_api::BASE_PATH
+            );
+            let operation = &doc["paths"][&path]["post"];
+            assert!(operation["responses"]["204"].is_object(), "{path}");
+            assert_eq!(
+                operation["requestBody"]["content"]["application/json"]["schema"]["$ref"],
+                format!("#/components/schemas/{schema}"),
+                "{path}"
+            );
+        }
+    }
+}
