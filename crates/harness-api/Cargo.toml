@@ -12,7 +12,10 @@ edition = "2021"
 harness-core = { path = "../harness-core", features = ["openapi"] }
 harness-mcp = { path = "../harness-mcp" }
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "matched-path", "query", "tokio"] }
-tower-http = { version = "0.6", features = ["cors"] }
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+argon2 = "0.5"
+axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 tower = { version = "0.5", default-features = false, features = ["util"] }
 utoipa = { version = "5", features = ["axum_extras", "preserve_order"] }
 utoipa-axum = "0.2"

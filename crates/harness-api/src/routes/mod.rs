@@ -26,7 +26,7 @@ use axum::middleware::from_fn_with_state;
 use axum::Router;
 use harness_core::control_api::BASE_PATH;
 use tower_http::cors::{AllowOrigin, CorsLayer};
-use utoipa::openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme};
+use utoipa::openapi::security::{ApiKey, ApiKeyValue, HttpAuthScheme, HttpBuilder, SecurityScheme};
 use utoipa::{Modify, OpenApi};
 use utoipa_axum::router::OpenApiRouter;
 use utoipa_axum::routes;
@@ -38,10 +38,12 @@ use crate::AppState;
     info(
         title = "Harness Control API",
         description = "Local management API of Harness Studio (llama.cpp control center). Every \
-endpoint except /health needs `Authorization: Bearer <token>`: the session token \
+protected endpoint accepts `Authorization: Bearer <token>`: the local owner token \
 (`<data dir>/api-token`, full access) or a named token with scopes (read, inference, \
 models:write, downloads:write, servers:write, servers:control, conversations, admin); a token's gateway policy \
-(allowed models and endpoints, rate limits) is part of it. Errors: `{\"error\": {\"code\", \"message_key\", \"params\"}}`.",
+(allowed models and endpoints, rate limits) is part of it. Headless browser administrators may instead use \
+the Secure HttpOnly session cookie; cookie writes need same-origin Origin and X-Harness-CSRF. \
+/health and browser login/session bootstrap are public. Errors: `{\"error\": {\"code\", \"message_key\", \"params\"}}`.",
         license(name = "MIT")
     ),
     modifiers(&BearerAuth),
@@ -76,15 +78,33 @@ impl Modify for BearerAuth {
                     .build(),
             ),
         );
-        openapi.security = Some(vec![utoipa::openapi::security::SecurityRequirement::new(
-            "bearer",
-            Vec::<String>::new(),
-        )]);
+        components.add_security_scheme(
+            "browser_cookie",
+            SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::with_description(
+                "__Host-harness",
+                "Serve-only administrator session. Writes also require same-origin Origin and X-Harness-CSRF from /browser/session. Secure, HttpOnly, SameSite=Strict.",
+            ))),
+        );
+        openapi.security = Some(vec![
+            utoipa::openapi::security::SecurityRequirement::new("bearer", Vec::<String>::new()),
+            utoipa::openapi::security::SecurityRequirement::new(
+                "browser_cookie",
+                Vec::<String>::new(),
+            ),
+        ]);
     }
 }
 
 fn api_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
+        .routes(routes!(crate::browser::session))
+        .routes(routes!(crate::browser::login))
+        .routes(routes!(crate::browser::logout))
+        .routes(routes!(crate::browser::revoke))
+        .routes(routes!(
+            crate::browser::settings,
+            crate::browser::save_settings
+        ))
         .routes(routes!(modules::list_modules))
         .routes(routes!(modules::install_module, modules::remove_module))
         .routes(routes!(modules::cancel_module))
@@ -294,6 +314,7 @@ pub fn openapi_document() -> utoipa::openapi::OpenApi {
 
 /// The HTTP application for one listener.
 pub fn router(state: AppState, cors_origins: &[String]) -> Router {
+    let browser = state.browser.clone();
     let (router, _) = split();
     let router = router
         // MCP over streamable HTTP; behind the same auth guard.
@@ -307,7 +328,12 @@ pub fn router(state: AppState, cors_origins: &[String]) -> Router {
         .fallback(|| async {
             crate::error::ApiError::new(axum::http::StatusCode::NOT_FOUND, "api.no_route")
         })
-        .with_state(state);
+        .with_state(state.clone());
+    let router = if let Some(browser) = &browser {
+        crate::browser::static_routes(router, &browser.config)
+    } else {
+        router
+    };
     let allowed: Arc<[String]> = cors_origins.to_vec().into();
     let origins: Vec<HeaderValue> = cors_origins
         .iter()
@@ -332,23 +358,36 @@ pub fn router(state: AppState, cors_origins: &[String]) -> Router {
     // Outermost, on every request including preflights: a foreign browser origin gets 403
     // before any route (and before CORS answers a preflight). Requests without an `Origin`
     // header (the CLI, SDKs, curl) are untouched.
-    router.layer(axum::middleware::from_fn_with_state(allowed, origin_guard))
+    router
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::browser::guard,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            (allowed, state),
+            origin_guard,
+        ))
 }
 
 /// `403 api.forbidden_origin` unless the request has no `Origin` or comes from the Harness
 /// window or an allowed CORS origin (see [`harness_core::network::check_browser_origin`]).
 async fn origin_guard(
-    axum::extract::State(allowed): axum::extract::State<Arc<[String]>>,
+    axum::extract::State((allowed, state)): axum::extract::State<(Arc<[String]>, AppState)>,
     req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
     use axum::response::IntoResponse;
-    if harness_core::network::check_browser_headers(
-        req.headers().get("origin").map(|v| v.as_bytes()),
-        req.headers().get("sec-fetch-site").map(|v| v.as_bytes()),
-        &allowed,
-    )
-    .is_err()
+    let same_origin = state
+        .browser
+        .as_ref()
+        .is_some_and(|b| b.same_origin(&state, req.headers(), false));
+    if !same_origin
+        && harness_core::network::check_browser_headers(
+            req.headers().get("origin").map(|v| v.as_bytes()),
+            req.headers().get("sec-fetch-site").map(|v| v.as_bytes()),
+            &allowed,
+        )
+        .is_err()
     {
         return crate::error::ApiError::new(
             axum::http::StatusCode::FORBIDDEN,

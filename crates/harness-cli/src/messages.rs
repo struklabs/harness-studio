@@ -64,6 +64,9 @@ pub fn locale_template(key: &str) -> Option<&'static str> {
             .chain(english_entries(include_str!(
                 "../../../src/lib/locales/mistralrs.ts"
             )))
+            .chain(english_entries(include_str!(
+                "../../../src/lib/locales/browser.ts"
+            )))
             .collect()
     })
     .get(key)

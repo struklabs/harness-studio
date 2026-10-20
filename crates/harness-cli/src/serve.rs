@@ -28,11 +28,47 @@ pub async fn run(args: &ServeArgs, data_dir: &Path, out: &Out) -> CliResult<()> 
     if let Some(port) = args.port {
         settings.port = port;
     }
+    let mut browser: harness_api::browser::BrowserConfig = match &args.serve_config {
+        Some(path) => serde_json::from_slice(
+            &std::fs::read(path)
+                .map_err(|e| crate::error::CliError::general("cli.io", e.to_string()))?,
+        )
+        .map_err(|e| crate::error::CliError::general("cli.io", e.to_string()))?,
+        None => Default::default(),
+    };
+    if let Some(dir) = &args.ui_dir {
+        browser.ui_dir = dir.clone();
+    }
+    if browser.ui_dir.as_os_str().is_empty() {
+        let packaged = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.join("web")));
+        browser.ui_dir = packaged
+            .filter(|p| p.join("index.html").is_file())
+            .unwrap_or_else(|| "build".into());
+    }
+    let browser = if browser.ui_dir.join("index.html").is_file() {
+        Some(browser)
+    } else {
+        if args.ui_dir.is_some() || args.serve_config.is_some() {
+            return Err(crate::error::CliError::core("browser.ui_missing"));
+        }
+        out.info("warning: browser UI build missing; run npm run build or pass --ui-dir. Only the Control API is available.");
+        None
+    };
+    if !harness_core::network::is_loopback_host(&settings.host)
+        && !browser.as_ref().is_some_and(|b| b.tls_cert.is_some())
+    {
+        out.info("WARNING: plain HTTP on a non-loopback address exposes API traffic. Browser password login requires HTTPS. Configure tls_cert and tls_key.");
+    }
+    let browser_enabled = browser.is_some();
+    let browser_origin = browser.as_ref().and_then(|b| b.public_origin.clone());
     harness_api::enable_mcp_follow();
     let stop = Arc::new(tokio::sync::Notify::new());
     let instance = Instance::start(
         data_dir,
         InstanceOptions {
+            browser,
             settings,
             ephemeral_port: false,
             strict_port: args.port.is_some(),
@@ -40,6 +76,19 @@ pub async fn run(args: &ServeArgs, data_dir: &Path, out: &Out) -> CliResult<()> 
         },
     )
     .await?;
+
+    if let Some(code) = &instance.setup_code {
+        // This is a one-time pairing secret: terminal stderr only, never ready JSON/log events.
+        eprintln!("Browser Admin Setup Code (Valid for 15 Minutes): {code}");
+    }
+    if browser_enabled {
+        out.info(format!(
+            "Browser Management: {}",
+            browser_origin.as_deref().unwrap_or_else(|| instance
+                .base_url
+                .trim_end_matches(harness_core::control_api::BASE_PATH))
+        ));
+    }
 
     // Same one-time work as the GUI's startup (both are owners).
     tokio::task::spawn_blocking(|| {

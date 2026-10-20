@@ -818,6 +818,12 @@ pub struct ChatArgs {
 
 #[derive(Args, Debug)]
 pub struct ServeArgs {
+    /// JSON serve configuration (ui_dir, public_origin, tls_cert, tls_key).
+    #[arg(long, value_name = "FILE")]
+    pub serve_config: Option<PathBuf>,
+    /// Static Svelte build directory (default: web beside the executable, then ./build).
+    #[arg(long, value_name = "DIR")]
+    pub ui_dir: Option<PathBuf>,
     /// Address the Control API binds (default: settings, 127.0.0.1).
     #[arg(long, value_name = "HOST")]
     pub listen: Option<String>,

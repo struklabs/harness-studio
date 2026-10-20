@@ -759,6 +759,12 @@ mod key_tests {
             },
             scopes: vec![harness_core::control_api::Scope::Admin],
         };
+        let browser = Caller {
+            principal: Principal::Browser,
+            scopes: vec![harness_core::control_api::Scope::Admin],
+        };
+        assert!(!may_read_server_key(&browser, true));
+        assert!(!may_read_server_key(&browser, false));
         assert!(may_read_server_key(&session, true));
         assert!(!may_read_server_key(&session, false), "network bind");
         assert!(!may_read_server_key(&named, true));
