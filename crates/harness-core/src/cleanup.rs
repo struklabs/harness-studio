@@ -603,9 +603,22 @@ pub fn wait_for_exit(pid: u32) -> Result<(), String> {
     Err("Harness is still running; cleanup was cancelled".into())
 }
 
-/// Web storage and OS caches use the bundle identifier, independently of HARNESS_DATA_DIR.
+/// The per-user app data directory of the installed app (`<data dir>/<identifier>`). Only for this
+/// root do the OS-level caches below belong to it; an isolated HARNESS_DATA_DIR copy shares the
+/// bundle identifier with the real install and must never remove the real install's web view data.
+pub fn is_default_root(root: &Path, identifier: &str) -> bool {
+    dirs::data_dir().is_some_and(|dir| {
+        crate::paths::normalize(&dir.join(identifier)) == crate::paths::normalize(root)
+    })
+}
+
+/// Web storage and OS caches use the bundle identifier. Skipped unless `root` is the installed
+/// app's own data directory.
 pub fn remove_platform_caches(identifier: &str, root: &Path) -> Result<(), String> {
     validate_root(root, identifier)?;
+    if !is_default_root(root, identifier) {
+        return Ok(());
+    }
     let mut paths = Vec::new();
     #[cfg(windows)]
     if let Some(local) = dirs::data_local_dir() {
@@ -899,5 +912,26 @@ mod tests {
             .find(|c| c.category == Category::Skills)
             .unwrap();
         assert!(skills.bytes.is_none() && !pending.complete);
+    }
+
+    #[test]
+    fn isolated_roots_never_touch_the_installed_apps_platform_caches() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = base(&temp).join("com.harnessstudio.isolated-test");
+        fs::create_dir_all(&root).unwrap();
+        assert!(!is_default_root(&root, "com.harnessstudio.isolated-test"));
+        if let Some(data) = dirs::data_dir() {
+            assert!(is_default_root(
+                &data.join("com.harnessstudio.app"),
+                "com.harnessstudio.app"
+            ));
+            assert!(!is_default_root(
+                &data.join("com.harnessstudio.app"),
+                "com.harnessstudio.other"
+            ));
+        }
+        // Same identifier as the real app, but a marked custom root: nothing outside it is removed.
+        fs::write(root.join(".harness-owned"), "com.harnessstudio.app").unwrap();
+        assert!(remove_platform_caches("com.harnessstudio.app", &root).is_ok());
     }
 }

@@ -248,6 +248,8 @@ fn finish() -> Result<(), String> {
             let mut command = std::process::Command::new(uninstaller);
             // Silent: this window already asked what to remove; the uninstaller only removes files.
             command.arg("/S");
+            // Tells the NSIS hook to skip its plain cleanup: the user already chose what to remove.
+            command.env("HARNESS_UNINSTALL_DONE", "1");
             #[cfg(windows)]
             {
                 use std::os::windows::process::CommandExt;
