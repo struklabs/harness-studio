@@ -97,6 +97,7 @@ pub fn display_name(family: &str) -> &str {
         "mlx-audio" => "MLX Audio",
         "mflux" => "mflux",
         "python-hf" => "Python (Transformers)",
+        "liquid-audio" => "Liquid Audio",
         "audio.cpp" => "audio.cpp",
         "crispasr" => "CrispASR",
         "transcribe.cpp" => "transcribe.cpp",

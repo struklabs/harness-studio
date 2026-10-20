@@ -15,7 +15,7 @@ export interface EngineSpec {
   /** Managed Python environment of `pyenv` families (its CPU build when it has a GPU one). */
   env?: string;
   /** Locale key of the one-line description shown on the Installed Runtime page. */
-  descKey: 'eng.desc_audio_cpp' | 'eng.desc_transcribe_cpp' | 'eng.desc_crispasr' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio' | 'eng.desc_mflux';
+  descKey: 'eng.desc_audio_cpp' | 'eng.desc_transcribe_cpp' | 'eng.desc_crispasr' | 'eng.desc_whisper' | 'eng.desc_sdcpp' | 'eng.desc_sherpa' | 'eng.desc_lemonade' | 'eng.desc_onnx' | 'eng.desc_mistralrs' | 'eng.desc_pyhf' | 'eng.desc_liquid_audio' | 'eng.desc_mlx' | 'eng.desc_mlx_vlm' | 'eng.desc_mlx_audio' | 'eng.desc_mflux';
 }
 
 export const ENGINES: readonly EngineSpec[] = [
@@ -31,6 +31,8 @@ export const ENGINES: readonly EngineSpec[] = [
   { family: 'lemonade', method: 'lemonade', descKey: 'eng.desc_lemonade' },
   { family: 'mistral.rs', method: 'manual', descKey: 'eng.desc_mistralrs' },
   { family: 'python-hf', method: 'pyenv', env: 'hf-cpu', descKey: 'eng.desc_pyhf' },
+  // Speech output of Liquid's LFM2.5-Audio with its liquid-audio package (its own environment).
+  { family: 'liquid-audio', method: 'pyenv', env: 'liquid-audio', descKey: 'eng.desc_liquid_audio' },
   { family: 'mlx', method: 'pyenv', env: 'mlx', descKey: 'eng.desc_mlx' },
   { family: 'mlx-vlm', method: 'pyenv', env: 'mlx-vlm', descKey: 'eng.desc_mlx_vlm' },
   // Text to speech with mlx-audio: it runs in the mlx-vlm environment (one install for both).
@@ -128,6 +130,7 @@ const ENGINE_LABELS: Record<string, string> = {
   'mlx-audio': 'MLX Audio',
   mflux: 'mflux',
   'python-hf': 'Python (Transformers)',
+  'liquid-audio': 'Liquid Audio',
   'audio.cpp': 'audio.cpp',
   crispasr: 'CrispASR',
   'transcribe.cpp': 'transcribe.cpp',

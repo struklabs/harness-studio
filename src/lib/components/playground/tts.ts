@@ -42,16 +42,18 @@ export interface TtsCatalogRow {
   installed: boolean;
 }
 
-/** A text-to-speech model of an engine (mlx-audio), served by the gateway under its definition alias. */
+/** A text-to-speech model of an engine (mlx-audio, Liquid Audio), served by the gateway under its definition alias. */
 export interface EngineTtsModel {
   id: string;
   /** Definition alias: what a request's `model` names. */
   name: string;
-  family: 'mlx-audio';
+  family: 'mlx-audio' | 'liquid-audio';
   size_bytes: number;
   voices: string[];
   /** It speaks at a chosen speed (Qwen3-TTS, Spark-TTS); the others at one. */
   supports_speed?: boolean;
+  /** The engine's runtime is installed (absent: it is). */
+  runtime_installed?: boolean;
 }
 
 export interface TtsOverview {
@@ -72,7 +74,7 @@ export function allTtsModels(o: TtsOverview | null): TtsModelInfo[] {
       family: m.family,
       engine: m.family,
       // The engine's own runtime serves it; sherpa-onnx is not needed.
-      runtime_installed: true,
+      runtime_installed: m.runtime_installed ?? true,
       languages: [],
       quantization: '',
       sample_rate: null,
