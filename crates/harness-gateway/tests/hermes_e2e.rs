@@ -102,6 +102,16 @@ async fn real_hermes_gateway_connect_task_stop_disconnect() {
         let file_scope = tempfile::tempdir().unwrap();
         let input = file_scope.path().join("input.txt");
         std::fs::write(&input, "HARNESS_SCOPED_FILE_OK").unwrap();
+        // Folder reads need a standing grant (Permissions page).
+        harness_core::permissions::Permissions::shared()
+            .grant(
+                "test",
+                harness_core::permissions::SubjectKind::Agent,
+                harness_core::permissions::AGENT_HERMES,
+                harness_core::permissions::Capability::File,
+                vec![file_scope.path().to_string_lossy().into_owned()],
+            )
+            .unwrap();
         agents::start_task_with_grants(
             format!(
                 "Use harness_read_file to read {} and return its exact content.",

@@ -63,6 +63,10 @@ pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Sc
     {
         return Some(Scope::Admin);
     }
+    // Trust levels and grants decide what MCP servers and agents may touch.
+    if route == "/permissions" || route.starts_with("/permissions/") {
+        return Some(Scope::Admin);
+    }
     // The n8n connection uses a stored API key and can start workflows.
     if route.starts_with("/automations/") {
         return Some(Scope::Admin);
@@ -252,7 +256,12 @@ mod tests {
             required_scope(&del, "/modules/{id}", true),
             Some(Scope::Admin)
         );
-        for path in ["/modules/{id}/action", "/modules/{id}/remove-data"] {
+        for path in [
+            "/modules/{id}/action",
+            "/modules/{id}/remove-data",
+            "/modules/{id}/export",
+            "/modules/import",
+        ] {
             assert_eq!(required_scope(&post, path, true), Some(Scope::Admin));
         }
         // Tools: listing and the policy are readable; running needs `tools`; changing the policy

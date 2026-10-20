@@ -5401,6 +5401,66 @@
         }
       }
     },
+    "/api/harness/v1/modules/import": {
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "import_module",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BundlePath"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/modules/{id}": {
       "post": {
         "tags": [
@@ -5587,6 +5647,76 @@
         "responses": {
           "204": {
             "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/modules/{id}/export": {
+      "post": {
+        "tags": [
+          "modules"
+        ],
+        "operationId": "export_module",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BundlePath"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportReport"
+                }
+              }
+            }
           },
           "401": {
             "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
@@ -6136,6 +6266,335 @@
             }
           },
           "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/permissions": {
+      "get": {
+        "tags": [
+          "permissions"
+        ],
+        "summary": "Every subject with its trust level and grants.",
+        "operationId": "list_permissions",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubjectView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/permissions/grants": {
+      "post": {
+        "tags": [
+          "permissions"
+        ],
+        "summary": "Grants one capability to a subject. The training backend takes none (`409`).",
+        "operationId": "grant_permission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Grant"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/permissions/{kind}/{id}": {
+      "delete": {
+        "tags": [
+          "permissions"
+        ],
+        "summary": "Revokes every grant of a subject and resets its trust level to the default.",
+        "operationId": "revoke_permission_subject",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SubjectKind"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/permissions/{kind}/{id}/grants/{grant_id}": {
+      "delete": {
+        "tags": [
+          "permissions"
+        ],
+        "summary": "Revokes one grant; it stops applying at the next agent run or MCP call.",
+        "operationId": "revoke_permission_grant",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SubjectKind"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "grant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/permissions/{kind}/{id}/trust": {
+      "put": {
+        "tags": [
+          "permissions"
+        ],
+        "summary": "Sets (or, with `null`, clears) a subject's trust level.",
+        "operationId": "set_permission_trust",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SubjectKind"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "",
             "content": {
               "application/json": {
@@ -11593,6 +12052,18 @@
           "system"
         ]
       },
+      "BundlePath": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "A `.hsmod` file on the machine that runs the Control API."
+          }
+        }
+      },
       "CancelCompactResponse": {
         "type": "object",
         "required": [
@@ -11607,17 +12078,13 @@
       },
       "Capability": {
         "type": "string",
-        "description": "What a model can do. A model has several (a VLM chats and sees).",
         "enum": [
-          "chat",
-          "vision",
-          "audio",
-          "embedding",
-          "rerank",
-          "asr",
-          "tts",
-          "image_generation",
-          "video"
+          "file",
+          "network",
+          "shell",
+          "service",
+          "account",
+          "device"
         ]
       },
       "Catalog": {
@@ -14180,6 +14647,41 @@
           }
         }
       },
+      "ExportReport": {
+        "type": "object",
+        "description": "What `export` wrote. `sha256` is the hash to record in `official_bundles.json`.",
+        "required": [
+          "id",
+          "version",
+          "path",
+          "bytes",
+          "files",
+          "sha256"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "files": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string"
+          }
+        }
+      },
       "ExportedChunk": {
         "type": "object",
         "properties": {
@@ -15701,6 +16203,60 @@
           }
         ]
       },
+      "Grant": {
+        "type": "object",
+        "description": "One granted capability. `paths` are canonical folders and only used by `file`.",
+        "required": [
+          "id",
+          "capability",
+          "granted_at_ms"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "capability": {
+            "$ref": "#/components/schemas/Capability"
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "granted_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "GrantRequest": {
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "capability"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SubjectKind"
+          },
+          "id": {
+            "type": "string"
+          },
+          "capability": {
+            "$ref": "#/components/schemas/Capability"
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Existing absolute folders (`file` only)."
+          }
+        }
+      },
       "HardwareDevicesResponse": {
         "allOf": [
           {
@@ -15861,6 +16417,37 @@
               "null"
             ],
             "description": "SHA-256 of the file as published by Hugging Face (LFS oid), when known."
+          }
+        }
+      },
+      "ImportReport": {
+        "type": "object",
+        "description": "What `import` did.",
+        "required": [
+          "id",
+          "version",
+          "installed_components",
+          "reused_components"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "installed_components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reused_components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Shared components that were already installed: only their owner list changed."
           }
         }
       },
@@ -23132,6 +23719,71 @@
           }
         }
       },
+      "SubjectKind": {
+        "type": "string",
+        "enum": [
+          "mcp_server",
+          "agent",
+          "trainer"
+        ]
+      },
+      "SubjectView": {
+        "type": "object",
+        "description": "A subject as the Permissions page shows it.",
+        "required": [
+          "kind",
+          "id",
+          "label",
+          "available",
+          "inherent",
+          "grantable",
+          "grants"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SubjectKind"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "description": "Display name."
+          },
+          "available": {
+            "type": "boolean",
+            "description": "`false`: modelled, but nothing runs yet (the training backend, OpenClaw) or the\nconfigured server was removed (only its stored grants remain, to be revoked)."
+          },
+          "trust": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PermissionClass",
+                "description": "The user's level; `None` = default."
+              }
+            ]
+          },
+          "inherent": {
+            "$ref": "#/components/schemas/PermissionClass",
+            "description": "The class the subject has by itself, when the user sets nothing: stdio MCP servers and\nagent runtimes run with the user's authority (`dangerous`), HTTP MCP servers send data\nout (`restricted`)."
+          },
+          "grantable": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Capability"
+            },
+            "description": "Capabilities that can be granted to this subject (empty: none)."
+          },
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Grant"
+            }
+          }
+        }
+      },
       "Support": {
         "type": "string",
         "enum": [
@@ -24215,6 +24867,22 @@
           }
         }
       },
+      "TrustRequest": {
+        "type": "object",
+        "properties": {
+          "trust": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PermissionClass",
+                "description": "`safe`, `restricted`, `dangerous`; `null` = the default."
+              }
+            ]
+          }
+        }
+      },
       "UndoBody": {
         "type": "object",
         "required": [
@@ -24781,6 +25449,10 @@
     {
       "name": "automations",
       "description": "The user's own n8n instance: connection, workflows, executions, webhook runs (admin)"
+    },
+    {
+      "name": "permissions",
+      "description": "Trust levels and capability grants of MCP servers, agent runtimes and the training backend (admin)"
     },
     {
       "name": "tools",

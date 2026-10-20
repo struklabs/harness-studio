@@ -224,8 +224,35 @@ impl ToolService {
             .unwrap_or_else(|| AppSettings::load().tools)
     }
 
+    /// `def` as the user's settings and permissions judge it: the class in force and what a
+    /// call does. An MCP tool is also judged by its server's trust level and grants
+    /// (`crate::permissions`); a class the user gave this very tool wins over the server's.
+    pub fn judge(
+        &self,
+        settings: &ToolSettings,
+        perms: &crate::permissions::Snapshot,
+        def: &ToolDef,
+    ) -> (ToolDef, Decision) {
+        let mut eff = settings.effective(def);
+        let mut trusted = settings.is_trusted(&def.name);
+        if def.source == ToolSource::Mcp {
+            if let Some(server) = self.mcp.server_of(&def.name) {
+                let by_hand = settings
+                    .mcp_classes
+                    .as_ref()
+                    .is_some_and(|m| m.contains_key(&def.name));
+                let (class, granted) = perms.judge_mcp(&server, eff.class, by_hand);
+                eff.class = class;
+                trusted |= granted;
+            }
+        }
+        let decision = super::policy::decide(settings.policy, eff.class, trusted);
+        (eff, decision)
+    }
+
     /// The tools with the decision each would get under `settings`.
     pub fn listing(&self, settings: &ToolSettings) -> ToolListing {
+        let perms = crate::permissions::Permissions::shared().snapshot();
         ToolListing {
             policy: settings.policy,
             trusted: settings.trusted.clone(),
@@ -246,10 +273,10 @@ impl ToolService {
                 .into_iter()
                 .map(|def| {
                     let default_class = Some(def.class);
-                    let def = settings.effective(&def);
+                    let (def, decision) = self.judge(settings, &perms, &def);
                     ToolEntry {
                         default_class,
-                        decision: settings.decide(&def.name, def.class),
+                        decision,
                         server: self.mcp.server_of(&def.name),
                         def,
                     }
@@ -266,7 +293,8 @@ impl ToolService {
     /// What a call of `tool` would do right now (`None` = no such tool).
     pub fn decision(&self, tool: &str, settings: &ToolSettings) -> Option<Decision> {
         let t = self.registry.get(tool)?;
-        Some(settings.decide(tool, settings.class_for(t.def())))
+        let perms = crate::permissions::Permissions::shared().snapshot();
+        Some(self.judge(settings, &perms, t.def()).1)
     }
 
     /// Runs one call: policy, working directory, limits, log. Every outcome is a
@@ -279,18 +307,20 @@ impl ToolService {
         if self.registry.get(&inv.tool).is_none() {
             self.mcp.sync(false).await;
         }
-        let def = self
+        let perms = crate::permissions::Permissions::shared().snapshot();
+        let judged = self
             .registry
             .get(&inv.tool)
-            .map(|t| settings.effective(t.def()));
+            .map(|t| self.judge(&settings, &perms, t.def()));
+        let def = judged.as_ref().map(|(d, _)| d.clone());
         let mut approved = false;
-        let result = match &def {
+        let result = match &judged {
             None => ToolResult::failure(
                 ToolErrorCode::UnknownTool,
                 format!("unknown tool: {}", inv.tool),
                 0,
             ),
-            Some(def) => match settings.decide(&def.name, def.class) {
+            Some((def, decision)) => match *decision {
                 Decision::Refuse => ToolResult::failure(
                     ToolErrorCode::PolicyOff,
                     "tools are turned off (tool policy: off); the user can turn them on in Settings",
