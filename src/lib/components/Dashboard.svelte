@@ -13,6 +13,7 @@
   import { t } from '#lib/i18n.svelte.js';
   import { localizeError } from '#lib/network.js';
   import CoachMarks from './CoachMarks.svelte';
+  import GetStarted from './GetStarted.svelte';
   import ModelSelector from './dashboard/ModelSelector.svelte';
   import { isSpeechDefinition, isOnnxCtcDefinition } from './playground/transcribe';
   import LaunchParams from './dashboard/LaunchParams.svelte';
@@ -74,11 +75,13 @@
     onGoToServers: () => void;
     /** Opens the Connections tab (MCP servers are configured there). */
     onGoToConnections: () => void;
+    /** Reopens the setup wizard (the Get Started checklist offers it). */
+    onReopenWizard?: () => void;
     /** The Dashboard is the shown tab (it stays mounted while hidden); the tour waits for this. */
     active?: boolean;
   }
 
-  let { settings, serverStatus, hardware, onGoToHub, onGoToConnections, active = true }: Props = $props();
+  let { settings, serverStatus, hardware, onGoToHub, onGoToConnections, onReopenWizard, active = true }: Props = $props();
 
   let models = $state<LocalModel[]>([]);
   let selectedModelId = $state<string>('');
@@ -1361,6 +1364,7 @@
           <Button variant="ghost" onclick={onGoToConnections}>{t('uiLevel.connect')}</Button>
         </div>
       {/if}
+      <GetStarted modelCount={launchableModels.length} {onGoToHub} onChooseModel={() => section.select('model')} {onReopenWizard} />
       <AdvancedOnly>
       <div class="flex flex-col gap-2.5 border-b border-border pb-4" role="group" aria-label={t('srv.card_aria')}>
         <div class="flex flex-wrap items-center justify-between gap-2">

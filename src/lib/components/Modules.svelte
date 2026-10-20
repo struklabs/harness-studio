@@ -11,7 +11,8 @@
   import { Button } from '#lib/components/ui/button/index.js';
 
   let modules = $state<ModuleView[]>([]);
-  let selected = $state('speech');
+  let selected = $state(app.requestedModule ?? 'speech');
+  app.requestedModule = null;
   let error = $state('');
   let pending = $state(false);
   let removing = $state(false);

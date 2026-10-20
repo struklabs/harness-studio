@@ -175,6 +175,7 @@
       <div class:hidden={step !== 5}>
         <StepPrivacy bind:crashReports={optCrashReports} bind:hardwareInfo={optHardware} />
         <div class="mt-4"><CliPathOption bind:enabled={optCliPath} /></div>
+        <p class="mt-4 text-xs text-muted-foreground">{t('onboarding.wizard_next_hint')}</p>
       </div>
     </div>
   </main>

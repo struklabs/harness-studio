@@ -20,6 +20,7 @@ Names in **bold** are labels you will see in the app. Model Hub and engine downl
 8. [Settings](08-settings.md)
 9. [CLI, Control API, and MCP](09-cli-api-mcp.md)
 10. [Troubleshooting and FAQ](10-troubleshooting.md)
+11. [Setup Scenarios: First Model, First Agent, Remote Server](11-setup-scenarios.md)
 
 ## Get Started in Five Steps
 
@@ -30,6 +31,8 @@ Five minutes is a goal for getting to know the steps. Engine and model downloads
 3. **Download a model.** In **Find a Model** (**Model Hub** in Advanced), search for a chat model and open **Files and quants**. Read the **Hardware fit** column and press **Download** on one file. Wait for **Completed** in the **Download Queue**.
 4. **Start the server.** In **Dashboard**, pick the model you downloaded (and a **Model definition**, if you have one). Check the memory estimate and press **Start Server**. Wait for **Server active**.
 5. **Chat.** In **Chat and Media** (**Playground** in Advanced), open **Chat**, check the model, type "Write me a three-item plan for today." into **Your message**, and press **Send**.
+
+The **Get Started** list on the **Dashboard** repeats these steps and adds the first-agent and remote-server setups; see [Setup Scenarios](11-setup-scenarios.md).
 
 If the model does not load, go to the [memory recovery steps](03-dashboard-and-servers.md#when-memory-runs-out-oom) and the [troubleshooting chapter](10-troubleshooting.md).
 
