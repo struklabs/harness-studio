@@ -111,6 +111,8 @@ export interface ToolRunRequest {
   workdir?: string;
   conversation?: string | null;
   model?: string | null;
+  /** The chat's project: its folders bound the working directory and written files become its outputs. */
+  project?: string | null;
   /** The user was asked (the decision was `ask`) and said yes: this call only. */
   approved?: boolean;
 }

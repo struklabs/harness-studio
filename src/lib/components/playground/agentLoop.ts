@@ -79,6 +79,8 @@ export interface ExecuteContext {
   latestUserMessage?: string;
   /** Working directory of the Harness file/shell tools ('' = the default from Settings > Tools). */
   workdir?: string;
+  /** The chat's project (see `ToolRunRequest.project`). */
+  project?: string | null;
   broker: ApprovalBroker;
   /** Called after visible state changes (used to keep the list scrolled down). */
   onProgress?: () => void;
@@ -107,6 +109,7 @@ async function runCoreCall(call: PgToolCall, args: Record<string, unknown>, sign
     workdir: ctx.workdir ?? '',
     conversation: ctx.conversationId ?? null,
     model: ctx.model ?? null,
+    project: ctx.project ?? null,
   };
   let approved = false;
   if (decision === 'ask') {

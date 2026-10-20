@@ -1558,3 +1558,69 @@ fn knowledge_base_row_stays_out_of_lists_and_search() {
     db.kb_delete(&kb.id).unwrap();
     assert!(db.kb_list().unwrap().is_empty());
 }
+
+#[test]
+fn v7_database_upgrades_through_knowledge_bases_to_projects_without_losing_data() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("state.db");
+    {
+        // A file written by the release before both (schema v7).
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        for sql in &schema::MIGRATIONS[..7] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 7).unwrap();
+        conn.execute_batch(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('c1', 'old', 1, 1);
+             INSERT INTO rag_documents (id, conversation_id, name, status, created_at, updated_at)
+             VALUES ('d1', 'c1', 'note.md', 'ready', 1, 1);",
+        )
+        .unwrap();
+    }
+    // The release in between (schema v8: knowledge bases) writes a base and an attachment.
+    {
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch(schema::MIGRATIONS[7]).unwrap();
+        conn.pragma_update(None, "user_version", 8).unwrap();
+        conn.execute_batch(
+            "INSERT INTO conversations (id, title, created_at, updated_at) VALUES ('kb1', 'Knowledge base: Notes', 1, 1);
+             INSERT INTO rag_kbs (id, name, created_at, updated_at) VALUES ('kb1', 'Notes', 1, 1);
+             INSERT INTO rag_conversation_kbs (conversation_id, kb_id, created_at) VALUES ('c1', 'kb1', 1);",
+        )
+        .unwrap();
+    }
+    let db = StateDb::open(&path).unwrap();
+    assert_eq!(db.user_version().unwrap(), SCHEMA_VERSION);
+    assert_eq!(schema::MIGRATIONS.len(), 9);
+    // v7 and v8 data is intact.
+    assert_eq!(db.get_conversation("c1").unwrap().conversation.title, "old");
+    assert_eq!(db.rag_documents("c1").unwrap().len(), 1);
+    assert_eq!(db.kb_list().unwrap().len(), 1);
+    assert_eq!(db.kb_attached("c1").unwrap().len(), 1);
+    // The v9 tables work next to them.
+    assert_eq!(db.conversation_project("c1").unwrap(), None);
+    let project = db
+        .create_project(&ProjectInput {
+            name: "Report".into(),
+            ..Default::default()
+        })
+        .unwrap();
+    db.set_conversation_project("c1", Some(&project.id))
+        .unwrap();
+    let listed = db
+        .list_conversations(&ListQuery {
+            project_id: Some(project.id.clone()),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(listed.len(), 1);
+    // The hidden knowledge base row is not a chat.
+    assert_eq!(
+        db.list_conversations(&ListQuery::default()).unwrap().len(),
+        1
+    );
+    // Deleting the project keeps the chat, without a project.
+    db.delete_project(&project.id).unwrap();
+    assert_eq!(db.conversation_project("c1").unwrap(), None);
+    assert!(db.get_conversation("c1").is_ok());
+}

@@ -42,6 +42,7 @@
   const tabTitleKeys: Record<Tab, TKey> = {
     dashboard: 'nav.dashboard',
     playground: 'nav.playground',
+    projects: 'nav.projects',
     servers: 'nav.servers',
     library: 'nav.library',
     hub: 'nav.hub',

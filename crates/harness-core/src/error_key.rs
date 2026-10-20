@@ -161,11 +161,22 @@ pub fn http_status(code: &str) -> u16 {
         | "automations.n8n_server_error"
         | "automations.n8n_http_error"
         | "automations.n8n_invalid_response" => 502,
+        // A provider outside this machine answered badly: the key, the plan or the network.
+        "cloud.unauthorized"
+        | "cloud.payment_required"
+        | "cloud.rate_limited"
+        | "cloud.unreachable"
+        | "cloud.timeout"
+        | "cloud.tls_failed"
+        | "cloud.dns_failed"
+        | "cloud.invalid_response" => 502,
+        "cloud.name_taken" => 409,
         c if c.ends_with(".not_found") || c.ends_with("_not_found") => 404,
         c if c.ends_with(".exists") || c.ends_with(".already_exists") => 409,
         c if c.starts_with("network.")
             || c.starts_with("api.")
             || c.starts_with("otel.")
+            || c.starts_with("cloud.")
             || c.starts_with("automations.") =>
         {
             400

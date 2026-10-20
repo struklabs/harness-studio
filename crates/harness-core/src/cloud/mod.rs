@@ -27,10 +27,12 @@ use std::{
 const MODELS_LIMIT: usize = 16 * 1024 * 1024;
 const QUOTA_LIMIT: usize = 64 * 1024;
 const REFRESH_EVERY: Duration = Duration::from_secs(15 * 60);
-const ANTHROPIC_VERSION: &str = "2023-06-01";
+/// The `anthropic-version` the gateway sends when the client names none.
+pub const ANTHROPIC_VERSION: &str = "2023-06-01";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum Kind {
     Openai,
     Gemini,
@@ -65,6 +67,18 @@ impl Kind {
         self != Kind::Custom
     }
 
+    /// Whether the provider serves a gateway path (`/v1/...`) through the gateway. Chat
+    /// completions go to every provider; the others only to the providers that speak them.
+    pub fn accepts(self, path: &str) -> bool {
+        match path {
+            "/v1/chat/completions" => true,
+            "/v1/responses" => matches!(self, Kind::Openai | Kind::Openrouter | Kind::Custom),
+            "/v1/messages" | "/v1/messages/count_tokens" => self == Kind::Anthropic,
+            "/v1/embeddings" => self != Kind::Anthropic,
+            _ => false,
+        }
+    }
+
     /// OpenRouter lists its models without a key.
     fn public_models(self) -> bool {
         matches!(self, Kind::Openrouter | Kind::Custom)
@@ -72,6 +86,7 @@ impl Kind {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CloudProvider {
     pub id: String,
     /// Short name in model ids (`cloud:<name>/<model>`).
@@ -86,6 +101,7 @@ pub struct CloudProvider {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub enum State {
     Online,
     #[default]
@@ -97,6 +113,7 @@ pub enum State {
 
 /// Spending information where the API exposes it (OpenRouter credits, in USD).
 #[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Quota {
     pub limit: Option<f64>,
     pub usage: Option<f64>,
@@ -104,6 +121,7 @@ pub struct Quota {
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ProviderStatus {
     pub state: State,
     pub model_count: usize,
@@ -114,6 +132,7 @@ pub struct ProviderStatus {
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ProviderView {
     #[serde(flatten)]
     pub provider: CloudProvider,
@@ -124,6 +143,7 @@ pub struct ProviderView {
 
 /// A model and what the provider says about it; `None` = not exposed by its API.
 #[derive(Debug, Clone, Serialize, Default, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CloudModel {
     /// The provider's model id; [`ModelView::model`] carries it (`id` there is the gateway id).
     #[serde(skip_serializing)]
@@ -136,9 +156,13 @@ pub struct CloudModel {
     pub output_price: Option<f64>,
     pub tools: Option<bool>,
     pub vision: Option<bool>,
+    /// An embedding model (`/v1/embeddings`); listed apart from the chat models.
+    #[serde(default)]
+    pub embedding: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ModelView {
     pub id: String,
     pub model: String,
@@ -387,6 +411,15 @@ fn openai_chat_model(id: &str) -> bool {
     .any(|s| id.contains(s))
 }
 
+/// Embedding models: listed for OpenAI, Gemini and custom endpoints (Anthropic has none).
+fn embedding_model(kind: Kind, id: &str) -> bool {
+    match kind {
+        Kind::Openai | Kind::Gemini => id.contains("embedding"),
+        Kind::Custom => id.contains("embed"),
+        Kind::Openrouter | Kind::Anthropic => false,
+    }
+}
+
 /// The models of a `/models` answer, with what each provider exposes about them.
 pub fn parse_models(kind: Kind, body: &Value) -> Result<Vec<CloudModel>, String> {
     let data = body["data"]
@@ -402,10 +435,11 @@ pub fn parse_models(kind: Kind, body: &Value) -> Result<Vec<CloudModel>, String>
                 _ => raw,
             };
             let id = clean(id)?;
-            if kind == Kind::Openai && !openai_chat_model(&id) {
+            let embedding = embedding_model(kind, &id);
+            if !embedding && kind == Kind::Openai && !openai_chat_model(&id) {
                 return None;
             }
-            if kind == Kind::Gemini && (id.contains("embedding") || id.contains("aqa")) {
+            if kind == Kind::Gemini && id.contains("aqa") {
                 return None;
             }
             let mut model = CloudModel {
@@ -419,6 +453,7 @@ pub fn parse_models(kind: Kind, body: &Value) -> Result<Vec<CloudModel>, String>
                     .or_else(|| v["context_window"].as_u64())
                     .or_else(|| v["max_input_tokens"].as_u64())
                     .or_else(|| v["inputTokenLimit"].as_u64()),
+                embedding,
                 ..Default::default()
             };
             if kind == Kind::Openrouter {
@@ -601,8 +636,25 @@ pub fn list() -> Vec<ProviderView> {
         .collect()
 }
 
-/// The models the gateway serves: those of enabled providers that answered with a usable key.
+/// The chat models the gateway serves: those of enabled providers that answered with a usable
+/// key.
 pub fn models() -> Vec<ModelView> {
+    all_models()
+        .into_iter()
+        .filter(|m| !m.info.embedding)
+        .collect()
+}
+
+/// The embedding models of those providers (`/v1/embeddings`, knowledge bases).
+pub fn embedding_models() -> Vec<ModelView> {
+    all_models()
+        .into_iter()
+        .filter(|m| m.info.embedding)
+        .collect()
+}
+
+/// Chat and embedding models.
+pub fn all_models() -> Vec<ModelView> {
     let list = providers();
     let cached = cache().lock().unwrap();
     list.into_iter()
@@ -631,11 +683,11 @@ pub fn models() -> Vec<ModelView> {
 }
 
 pub fn model_info(id: &str) -> Option<ModelView> {
-    models().into_iter().find(|m| m.id == id)
+    all_models().into_iter().find(|m| m.id == id)
 }
 
 pub fn definitions() -> Vec<ModelDefinition> {
-    models()
+    all_models()
         .into_iter()
         .map(|m| {
             let mut def = ModelDefinition::new(
@@ -676,6 +728,15 @@ pub fn endpoint(id: &str) -> Result<(String, Option<String>, String), String> {
     Ok((provider.base_url, key, name.to_string()))
 }
 
+/// The kind of the provider a `cloud:` model id belongs to.
+pub fn kind_of(id: &str) -> Option<Kind> {
+    let (name, _) = parse_model(id)?;
+    providers()
+        .into_iter()
+        .find(|p| p.enabled && p.name == name)
+        .map(|p| p.kind)
+}
+
 pub fn rewrite_model(id: &str, body: &[u8]) -> Option<Vec<u8>> {
     let (_, model) = parse_model(id)?;
     let mut value: Value = serde_json::from_slice(body).ok()?;
@@ -713,16 +774,30 @@ fn valid_key(key: &str) -> bool {
 }
 
 /// New provider settings; `key`: `None` keeps the saved key, `""` removes it.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ProviderInput {
     pub name: String,
     pub kind: Kind,
     #[serde(default)]
     pub base_url: String,
+    /// Accepted when adding or updating; never returned.
     #[serde(default)]
     pub key: Option<String>,
     #[serde(default = "enabled_default")]
     pub enabled: bool,
+}
+
+impl std::fmt::Debug for ProviderInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProviderInput")
+            .field("name", &self.name)
+            .field("kind", &self.kind)
+            .field("base_url", &self.base_url)
+            .field("key", &self.key.as_ref().map(|_| "<redacted>"))
+            .field("enabled", &self.enabled)
+            .finish()
+    }
 }
 
 fn enabled_default() -> bool {

@@ -80,19 +80,22 @@ fn provider_lists_are_filtered_and_normalized() {
         {"id": "whisper-1"},
         {"id": "gpt-4o"}
     ]});
-    let ids: Vec<_> = parse_models(Kind::Openai, &openai)
-        .unwrap()
-        .into_iter()
-        .map(|m| m.id)
+    let models = parse_models(Kind::Openai, &openai).unwrap();
+    let ids: Vec<_> = models
+        .iter()
+        .map(|m| (m.id.as_str(), m.embedding))
         .collect();
-    assert_eq!(ids, ["gpt-4o"]);
+    assert_eq!(ids, [("gpt-4o", false), ("text-embedding-3-small", true)]);
     let gemini = json!({"data": [
         {"id": "models/gemini-2.5-flash", "object": "model"},
         {"id": "models/text-embedding-004"}
     ]});
     let models = parse_models(Kind::Gemini, &gemini).unwrap();
-    assert_eq!(models.len(), 1);
+    assert_eq!(models.len(), 2);
     assert_eq!(models[0].id, "gemini-2.5-flash");
+    assert!(!models[0].embedding);
+    assert_eq!(models[1].id, "text-embedding-004");
+    assert!(models[1].embedding);
     let anthropic = json!({"data": [
         {"id": "claude-x", "display_name": "Claude X", "type": "model"}
     ], "has_more": false});
@@ -149,4 +152,34 @@ fn model_view_keeps_the_gateway_id() {
     assert_eq!(json["id"], "cloud:router/a/b");
     assert_eq!(json["model"], "a/b");
     assert_eq!(json["context_length"], 8);
+}
+
+#[test]
+fn providers_accept_only_the_protocols_they_speak() {
+    for kind in [
+        Kind::Openai,
+        Kind::Gemini,
+        Kind::Anthropic,
+        Kind::Openrouter,
+        Kind::Custom,
+    ] {
+        assert!(kind.accepts("/v1/chat/completions"));
+        assert!(!kind.accepts("/v1/completions"));
+    }
+    assert!(Kind::Openai.accepts("/v1/responses"));
+    assert!(!Kind::Gemini.accepts("/v1/responses"));
+    assert!(!Kind::Anthropic.accepts("/v1/responses"));
+    assert!(Kind::Anthropic.accepts("/v1/messages"));
+    assert!(Kind::Anthropic.accepts("/v1/messages/count_tokens"));
+    assert!(!Kind::Openai.accepts("/v1/messages"));
+    assert!(Kind::Gemini.accepts("/v1/embeddings"));
+    assert!(!Kind::Anthropic.accepts("/v1/embeddings"));
+}
+
+#[test]
+fn the_key_is_not_in_the_debug_output_of_an_input() {
+    let input: ProviderInput =
+        serde_json::from_value(json!({"name": "p", "kind": "openai", "key": "sk-secret-value"}))
+            .unwrap();
+    assert!(!format!("{input:?}").contains("sk-secret-value"));
 }
