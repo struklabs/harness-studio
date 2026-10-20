@@ -37,6 +37,66 @@ use crate::vram::{
 /// Family id of the Python engine.
 pub const PYTHON_HF: &str = "python-hf";
 
+/// Runtime family of Liquid's LFM2.5-Audio folders: the same Python worker engine, run in its own
+/// managed environment ([`crate::pyenv::envs::LIQUID_AUDIO`]) with Liquid's `liquid-audio` package
+/// and its own worker ([`LIQUID_WORKER`]). The model library and the gateway see an ordinary
+/// text-to-speech model of the Python engine; only the interpreter and the script differ.
+pub const LIQUID_AUDIO: &str = "liquid-audio";
+
+/// The architecture of an LFM2-Audio `config.json` (`Lfm2AudioForConditionalGeneration`).
+const LIQUID_ARCHITECTURE: &str = "Lfm2AudioForConditionalGeneration";
+
+/// Voices of the model (its four system prompts), the names the worker takes.
+pub const LIQUID_VOICES: &[&str] = &["us_female", "us_male", "uk_female", "uk_male"];
+
+/// The Liquid worker script, written next to its environment ([`worker_script_for`]).
+const LIQUID_WORKER: &str = include_str!("../../python/liquid_audio_worker.py");
+
+/// Whether `dir` is an LFM2-Audio model folder in Liquid's own format (`liquid-audio` loads it):
+/// a `config.json` of the Lfm2Audio architecture, the audio detokenizer and safetensors weights.
+pub fn is_liquid_audio_dir(dir: &Path) -> bool {
+    dir.is_dir()
+        && dir.join("model.safetensors").is_file()
+        && dir
+            .join("audio_detokenizer")
+            .join("model.safetensors")
+            .is_file()
+        && read_json(&dir.join("config.json"))
+            .is_some_and(|cfg| archs(&cfg).contains(&LIQUID_ARCHITECTURE))
+}
+
+/// Whether a Hub repo (a listing item or `/api/models/<id>`) is an LFM2-Audio repo in Liquid's
+/// own format: library `liquid-audio` with the audio detokenizer next to the weights. Its GGUF
+/// sibling repos are llama.cpp's (speech recognition only) and are not this.
+pub fn is_liquid_audio_repo(item: &serde_json::Value) -> bool {
+    let library = item
+        .get("library_name")
+        .and_then(|l| l.as_str())
+        .is_some_and(|l| l.eq_ignore_ascii_case(LIQUID_AUDIO));
+    let files: Vec<&str> = item
+        .get("siblings")
+        .and_then(|s| s.as_array())
+        .map(|s| {
+            s.iter()
+                .filter_map(|f| f.get("rfilename")?.as_str())
+                .collect()
+        })
+        .unwrap_or_default();
+    library
+        && files.contains(&"model.safetensors")
+        && files.contains(&"audio_detokenizer/model.safetensors")
+}
+
+/// The environment a model folder's worker runs in: Liquid's for an LFM2-Audio folder, else the
+/// Python engine's ([`env`]).
+pub fn env_for(model: &Path) -> &'static crate::pyenv::envs::EnvSpec {
+    if is_liquid_audio_dir(model) {
+        &crate::pyenv::envs::LIQUID_AUDIO
+    } else {
+        env()
+    }
+}
+
 /// The managed environment the worker runs in: the CUDA build when it is ready for this
 /// version, else the CPU build (the worker picks `cuda` itself when torch has it).
 pub fn env() -> &'static crate::pyenv::envs::EnvSpec {
@@ -484,6 +544,11 @@ pub fn detect(dir: &Path) -> Option<String> {
     {
         return None;
     }
+    // Liquid's LFM2.5-Audio: speech output through `liquid-audio` (its card says audio-to-audio,
+    // a task the transformers worker does not know).
+    if is_liquid_audio_dir(dir) {
+        return Some("text-to-speech".into());
+    }
     let index = dir.join("model_index.json");
     if index.is_file() && asks_for_code(dir) {
         return None;
@@ -701,6 +766,55 @@ pub fn binary() -> Result<PathBuf, String> {
     Ok(crate::pyenv::envs::python_in(&root, spec.name))
 }
 
+/// The worker script of the model at `model`, written next to its environment: the Liquid worker
+/// for an LFM2-Audio folder, else [`worker_script`].
+pub fn worker_script_for(model: &Path) -> Result<PathBuf, String> {
+    if !is_liquid_audio_dir(model) {
+        return worker_script();
+    }
+    let dir = crate::pyenv::envs::env_dir_in(
+        &crate::pyenv::envs::root(),
+        crate::pyenv::envs::LIQUID_AUDIO.name,
+    );
+    let path = dir.join("liquid_audio_worker.py");
+    if std::fs::read_to_string(&path).ok().as_deref() == Some(LIQUID_WORKER) {
+        return Ok(path);
+    }
+    std::fs::create_dir_all(&dir)
+        .and_then(|_| std::fs::write(&path, LIQUID_WORKER))
+        .map_err(|e| {
+            String::from(
+                err("fs.write_failed")
+                    .with("path", path.display())
+                    .with("error", e),
+            )
+        })?;
+    Ok(path)
+}
+
+/// The interpreter a launch of the model at `model` runs: [`binary`], or Liquid's environment's
+/// for an LFM2-Audio folder (`runtime.family_not_installed: liquid-audio` while it is missing).
+pub fn binary_for(model: &Path) -> Result<PathBuf, String> {
+    if !is_liquid_audio_dir(model) {
+        return binary();
+    }
+    liquid_binary()
+}
+
+/// The interpreter of Liquid's environment, when it is ready.
+pub fn liquid_binary() -> Result<PathBuf, String> {
+    let root = crate::pyenv::envs::root();
+    let spec = &crate::pyenv::envs::LIQUID_AUDIO;
+    if !crate::pyenv::envs::status_in(&root, spec).ready {
+        return Err(format!(
+            "{}: {}",
+            crate::runtimes::ERR_FAMILY_NOT_INSTALLED,
+            LIQUID_AUDIO
+        ));
+    }
+    Ok(crate::pyenv::envs::python_in(&root, spec.name))
+}
+
 /// Environment variables of a worker run: [`crate::pyenv::python_env`], the API key, and
 /// `torch.load` limited to tensors (`weights_only`) for every caller, so no pickle in a model
 /// folder runs code.
@@ -812,6 +926,9 @@ impl ServerEngine for PythonHfEngine {
         let task = detect(&config.model_path).ok_or_else(|| {
             String::from(err("pyhf.model_unsupported").with("path", config.model_path.display()))
         })?;
+        if is_liquid_audio_dir(&config.model_path) {
+            return build_liquid_args(config, &worker_script_for(&config.model_path)?);
+        }
         build_args(config, &worker_script()?, &task)
     }
 
@@ -918,6 +1035,36 @@ impl ServerEngine for PythonHfEngine {
             kv: None,
         }
     }
+}
+
+/// The command line of an LFM2-Audio launch: the Liquid worker takes the model folder, the
+/// address and an alias only (its device is chosen by the worker; custom arguments are not taken,
+/// the worker has no flags to tune).
+fn build_liquid_args(config: &LaunchConfig, script: &Path) -> Result<BuildOutput, String> {
+    if config
+        .custom_args
+        .as_deref()
+        .is_some_and(|s| !s.trim().is_empty())
+    {
+        return Err(err("liquid_audio.custom_args_unsupported").into());
+    }
+    let mut args: Vec<String> = vec![
+        script.to_string_lossy().to_string(),
+        "--model".into(),
+        config.model_path.to_string_lossy().to_string(),
+        "--host".into(),
+        config.host.clone(),
+        "--port".into(),
+        config.port.to_string(),
+    ];
+    if let Some(alias) = crate::process::served_alias(config) {
+        args.push("--alias".into());
+        args.push(alias);
+    }
+    Ok(BuildOutput {
+        args,
+        skipped: Vec::new(),
+    })
 }
 
 /// The command line of a launch: the worker script first (the program is the interpreter).
@@ -1247,6 +1394,103 @@ mod tests {
             "{:?}",
             out.args
         );
+    }
+
+    fn liquid_folder() -> tempfile::TempDir {
+        folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["Lfm2AudioForConditionalGeneration"],"codebooks":8}"#,
+            ),
+            ("model.safetensors", "x"),
+            ("audio_detokenizer/model.safetensors", "x"),
+            (
+                "README.md",
+                "---
+pipeline_tag: audio-to-audio
+library_name: liquid-audio
+---
+",
+            ),
+        ])
+    }
+
+    #[test]
+    fn lfm2_audio_folders_are_text_to_speech_in_their_own_environment() {
+        let dir = liquid_folder();
+        assert!(is_liquid_audio_dir(dir.path()));
+        // The card says audio-to-audio, a task the transformers worker does not know: the folder
+        // is still detected, as speech output.
+        assert_eq!(detect(dir.path()).as_deref(), Some("text-to-speech"));
+        assert_eq!(env_for(dir.path()).name, "liquid-audio");
+        // Without the audio detokenizer (a llama.cpp conversion, a partial download) it is not.
+        std::fs::remove_file(dir.path().join("audio_detokenizer/model.safetensors")).unwrap();
+        assert!(!is_liquid_audio_dir(dir.path()));
+        assert_eq!(detect(dir.path()), None);
+        assert_ne!(env_for(dir.path()).name, "liquid-audio");
+    }
+
+    #[test]
+    fn lfm2_audio_launches_the_liquid_worker_without_task_or_custom_args() {
+        let dir = liquid_folder();
+        let config = LaunchConfig {
+            model_path: dir.path().to_path_buf(),
+            host: "127.0.0.1".into(),
+            port: 8124,
+            ..Default::default()
+        };
+        let out = build_liquid_args(&config, Path::new("/w/liquid_audio_worker.py")).unwrap();
+        assert_eq!(out.args[0], "/w/liquid_audio_worker.py");
+        assert!(out.args.windows(2).any(|w| w == ["--port", "8124"]));
+        assert!(out.args.windows(2).any(|w| w == ["--host", "127.0.0.1"]));
+        assert!(!out.args.iter().any(|a| a == "--task" || a == "--threads"));
+        let mut args = out.args.clone();
+        listen_on_socket(&mut args, Path::new("/run/l.sock"));
+        assert!(args.windows(2).any(|w| w == ["--uds", "/run/l.sock"]));
+        assert!(!args.iter().any(|a| a == "--port"));
+        let custom = LaunchConfig {
+            custom_args: Some("--device cpu".into()),
+            ..config
+        };
+        let e = build_liquid_args(&custom, Path::new("/w/x.py")).unwrap_err();
+        assert!(e.starts_with("liquid_audio.custom_args_unsupported"));
+    }
+
+    #[test]
+    fn lfm2_audio_hub_repos_are_told_from_their_gguf_siblings() {
+        let repo = serde_json::json!({
+            "id": "LiquidAI/LFM2.5-Audio-1.5B",
+            "library_name": "liquid-audio",
+            "siblings": [
+                {"rfilename": "model.safetensors"},
+                {"rfilename": "audio_detokenizer/model.safetensors"},
+                {"rfilename": "config.json"}
+            ]
+        });
+        assert!(is_liquid_audio_repo(&repo));
+        let gguf = serde_json::json!({
+            "id": "LiquidAI/LFM2.5-Audio-1.5B-GGUF",
+            "library_name": "liquid-audio",
+            "siblings": [{"rfilename": "LFM2.5-Audio-1.5B-Q4_0.gguf"}]
+        });
+        assert!(!is_liquid_audio_repo(&gguf));
+    }
+
+    #[test]
+    fn the_liquid_lock_pins_the_package_by_hash() {
+        let lock = crate::pyenv::envs::LIQUID_AUDIO.lock;
+        assert!(lock.contains("liquid-audio==1.3.0"));
+        assert!(lock.contains("--index-url https://download.pytorch.org/whl/cpu"));
+        assert!(!lock.contains("+cu"));
+        let pins = lock
+            .lines()
+            .filter(|l| l.contains("==") && !l.trim_start().starts_with('#'))
+            .count();
+        assert!(pins > 40 && lock.matches("--hash=sha256:").count() >= pins);
+        // The worker script ships and answers the voices the gateway maps.
+        for voice in LIQUID_VOICES {
+            assert!(LIQUID_WORKER.contains(&format!("\"{voice}\"")), "{voice}");
+        }
     }
 
     #[test]

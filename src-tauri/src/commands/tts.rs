@@ -28,6 +28,9 @@ pub(crate) struct EngineTtsModel {
     voices: Vec<String>,
     /// It speaks at a chosen speed (Qwen3-TTS, Spark-TTS); the others at one.
     supports_speed: bool,
+    /// The engine that serves it is installed (mlx-audio ships with the app's own runtime
+    /// check at launch, so it reads true; Liquid Audio needs its environment).
+    runtime_installed: bool,
 }
 
 /// The library's ready folders `keep` accepts, each with the alias of its definition (made once,
@@ -65,9 +68,9 @@ pub(crate) fn engine_folders(
         .collect()
 }
 
-/// The library's mlx-audio text-to-speech folders.
+/// The library's text-to-speech folders of an engine: mlx-audio's and Liquid's LFM2.5-Audio.
 fn engine_tts_models() -> Vec<EngineTtsModel> {
-    engine_folders(harness_core::engine::mlx::is_tts_dir)
+    let mlx = engine_folders(harness_core::engine::mlx::is_tts_dir)
         .into_iter()
         .map(|(m, name)| EngineTtsModel {
             id: m.id.clone(),
@@ -76,8 +79,24 @@ fn engine_tts_models() -> Vec<EngineTtsModel> {
             size_bytes: m.size_bytes,
             voices: harness_core::engine::mlx::tts_voices(&m.path),
             supports_speed: harness_core::engine::mlx::tts_supports_speed(&m.path),
-        })
-        .collect()
+            runtime_installed: true,
+        });
+    let liquid_ready = harness_core::engine::python_hf::liquid_binary().is_ok();
+    let liquid = engine_folders(harness_core::engine::python_hf::is_liquid_audio_dir)
+        .into_iter()
+        .map(|(m, name)| EngineTtsModel {
+            id: m.id.clone(),
+            name,
+            family: harness_core::engine::python_hf::LIQUID_AUDIO,
+            size_bytes: m.size_bytes,
+            voices: harness_core::engine::python_hf::LIQUID_VOICES
+                .iter()
+                .map(|v| v.to_string())
+                .collect(),
+            supports_speed: false,
+            runtime_installed: liquid_ready,
+        });
+    mlx.chain(liquid).collect()
 }
 
 #[derive(serde::Serialize)]
