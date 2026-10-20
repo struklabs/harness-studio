@@ -571,6 +571,11 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         crate::hub_compat::Compatibility::Runnable {
             runtime: crate::engine::TRANSCRIBE_CPP.into(),
         }
+    } else if crate::engine::python_hf::is_liquid_audio_repo(item) {
+        // LFM2.5-Audio in Liquid's own format: speech output through `liquid-audio`.
+        crate::hub_compat::Compatibility::Runnable {
+            runtime: crate::engine::python_hf::LIQUID_AUDIO.into(),
+        }
     } else if format == crate::hub_compat::ModelFormat::Gguf
         && (crate::engine::crispasr::supports_repo(&id, task)
             || crate::engine::crispasr_tts::supports_repo(&id, task))
