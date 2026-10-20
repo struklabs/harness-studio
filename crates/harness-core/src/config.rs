@@ -64,7 +64,7 @@ pub struct ServerConfig {
     /// can set its own (`load_timeout` param).
     pub load_timeout_secs: u32,
     /// Restart a server automatically after it crashed while running (off by default: a
-    /// crash loop would keep taking GPU memory; see docs/en/ARCHITECTURE.md).
+    /// crash loop would keep taking GPU memory; see private hs-internal architecture notes).
     pub auto_restart: bool,
     /// Restarts before giving up; the delay doubles from 2 s (2, 4, 8... at most 60 s). A run
     /// that stays up for 5 minutes resets the count.

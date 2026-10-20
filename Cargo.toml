@@ -13,7 +13,7 @@ strip = true
 # Size over speed for code that is not on a hot path (HTTP routing glue, CLI parsing,
 # OpenAPI, OTLP export, UI shell): `opt-level = "s"` per package. Hashing (sha2), GGUF and
 # RAG code (harness-core), PDF/zip decoding, JSON, SQLite, tokio and hyper stay at 3.
-# Measured in docs/en/PERFORMANCE.md (idle footprint section).
+# Measured in private hs-internal performance notes (idle footprint section).
 
 [profile.release.package.axum]
 opt-level = "s"

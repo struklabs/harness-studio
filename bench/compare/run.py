@@ -3,7 +3,7 @@
     python run.py --backends harness,lmstudio,ollama,llamacpp --modes out_of_box,equal
     python run.py --backends ollama --modes equal --metrics speed,tools   # re-run a slice
 
-Raw JSON per (backend, mode, metric) goes to docs/benchmarks/2026-10-11/raw/. Use summarize.py afterwards.
+Raw JSON per (backend, mode, metric) goes to scratch/benchmarks/<date>/raw/. Use summarize.py afterwards.
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from common import Endpoint, complete, filler, gpu_mem, median, nonce, stream_ch
 from tools_suite import CASES, MANY38, SYSTEM, score_case  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
-OUT = REPO / "docs" / "benchmarks" / os.environ.get("BENCH_RESULTS", "2026-10-11") / "raw"
+OUT = REPO / "scratch" / "benchmarks" / os.environ.get("BENCH_RESULTS", "2026-10-11") / "raw"
 ALL_METRICS = ["speed", "needle", "tools", "agent", "concurrency", "memory", "switch"]
 NEEDLE = "amber-falcon-7421"
 

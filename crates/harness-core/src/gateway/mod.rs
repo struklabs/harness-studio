@@ -1,4 +1,4 @@
-//! Gateway (ARCHITECTURE §13.4): one optional, in-process endpoint for every
+//! Gateway (private hs-internal architecture notes): one optional, in-process endpoint for every
 //! model definition, with a scheduler that loads models on demand.
 //!
 //! This module holds everything that does not need an HTTP server, so every front end can use

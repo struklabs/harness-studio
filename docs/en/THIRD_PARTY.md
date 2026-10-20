@@ -1,10 +1,10 @@
-# Third-Party Review
+# Third-Party Notices
 
-[Türkçe](../tr/THIRD_PARTY.md) - Reviewed 2026-10-20 for the 0.2 W3 security/licensing slice.
+[Türkçe](../tr/THIRD_PARTY.md)
 
 Harness Studio core is MIT. This review distinguishes code shipped inside the desktop build from optional components downloaded to the user's machine. On-demand installation does not waive license terms. The table records upstream code licenses, not model-weight, dataset, trademark, API-service, or GPU-driver rights. Recheck the exact revision and all transitive binary notices before changing distribution mode or shipping a release.
 
-| Component / Source License | Delivery | Attribution / Review Decision |
+| Component / Source License | Delivery | Attribution and License Notes |
 | --- | --- | --- |
 | [transcribe.cpp v0.4.0](https://github.com/handy-computer/transcribe.cpp/blob/v0.4.0/LICENSE), MIT | Optional hash-pinned Python/native wheels, downloaded on demand; Harness worker source ships | © 2026 The transcribe.cpp authors. Retain MIT notice; CPU/Vulkan/Metal and CUDA wheels are separate artifacts. CUDA runtime/cuBLAS wheels carry NVIDIA terms; upstream MIT does not authorize arbitrary NVIDIA redistribution. |
 | [Hermes Agent](https://github.com/NousResearch/hermes-agent/blob/main/LICENSE), MIT | User-approved upstream installer or existing local installation; not embedded in the app | © 2025 Nous Research. Retain MIT notice. Installer follows upstream stable, not a Harness-pinned dependency closure; recheck the installed revision/dependencies before bundling. Connecting existing Hermes does not redistribute it. |

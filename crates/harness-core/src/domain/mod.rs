@@ -1,4 +1,4 @@
-//! Domain model (ARCHITECTURE §13.3): four separate concepts that are never used in place of
+//! Domain model (private hs-internal architecture notes): four separate concepts that are never used in place of
 //! each other.
 //!
 //! * [`LocalModel`] (`models::LocalModel`): a physical artifact on disk, derived by scanning.

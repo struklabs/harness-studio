@@ -51,7 +51,7 @@
  *   data-theme  = dark | light | oled | night | hc-dark | hc-light   (the palette)
  *   data-scheme = dark | light                                       (`dark:` variant, color-scheme)
  *   data-cvd    = on                                                 (colour-vision-safe statuses)
- * Contrast of every pair is measured in docs/en/ARCHITECTURE.md (Tema token sistemi).
+ * Contrast of every pair is measured in private hs-internal architecture notes (Tema token sistemi).
  *
  * Token groups
  *   surfaces   background < card < popover; secondary / muted / accent (hover); sidebar-*

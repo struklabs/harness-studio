@@ -41,7 +41,7 @@ The default is the same as the GUI's (Tauri `app_data_dir`):
 | macOS | `~/Library/Application Support/com.harnessstudio.app` |
 | Linux | `$XDG_DATA_HOME/com.harnessstudio.app` (default `~/.local/share/...`) |
 
-It is changed with `--data-dir` / `HARNESS_DATA_DIR`. Tests always use a temporary directory.
+It is changed with `--data-dir` / `HARNESS_DATA_DIR`.
 
 ## Global options
 
@@ -73,16 +73,9 @@ stdout carries data only; progress, warnings, and errors go to stderr. Progress 
 
 HTTP statuses map as follows: 400 → 2, 404 → 3, 409 → 4, 401/403/422/500 → 1, connection error → 6.
 
-## Error messages and language
+## Error Messages and Language
 
-CLI output is in English. Core and API errors return an i18n key (`models.in_use`, `api.not_found`...):
-
-- For the keys the GUI knows (`src/lib/network.ts` → `ERROR_KEYS`), the CLI text is **identical** to the GUI's English translation; a unit test compares it against `src/lib/locales/*.ts`, so the texts cannot drift apart.
-- Only the API's and the CLI's own codes (`api.unauthorized`, `cli.no_instance`...) are in `crates/harness-cli/src/messages.rs`.
-- The core's other errors are keys too (`harness_core::error_key`: `key {"name": "value"}`); the English text is taken from the GUI's error locale files (`src/lib/locales/errors*.ts`, embedded in the build), and `{name}` placeholders are filled with the parameters. Parameters carry technical detail (a path, an operating system error text) untranslated; a parameter can itself be a nested keyed error, which is translated too. A test checks that every `err("…")` key in the core has a text.
-- Raw operating system/library errors with no context are still free text (`core.error`, `params.message`) and are written as they are.
-- An unknown key is never left empty: the key itself and its parameters are written.
-- In `--json`, `code` is always the machine code; do not branch on the text.
+CLI messages are in English. Error codes and structured JSON output help scripts identify failures. Messages can include technical details such as file paths and operating system errors; review output before sharing it.
 
 ## Commands
 
@@ -161,7 +154,7 @@ harness transcribe speech.mp3 -m parakeet
 
 ### Lemonade (Ryzen AI NPU and its own llama.cpp builds)
 
-No instance needed: the commands run inside this process. Lemonade is an optional engine ([ARCHITECTURE.md](ARCHITECTURE.md) 14.5): it runs models on Ryzen AI NPUs with FastFlowLM and offers its own ROCm / Vulkan llama.cpp builds. Once installed, downloaded models appear on the gateway under their Lemonade names; the gateway starts `lemond` itself when needed. The `pull`, `rm`, `backend`, and `models --refresh` commands start their own `lemond` for the duration of the command and stop it at the end (separate from the `lemond` of an open Harness window). Commands that make changes ask for confirmation (`-y`).
+No instance needed: the commands run inside this process. Lemonade is an optional engine (see Settings > Runtime): it runs models on Ryzen AI NPUs with FastFlowLM and offers its own ROCm / Vulkan llama.cpp builds. Once installed, downloaded models appear on the gateway under their Lemonade names; the gateway starts `lemond` itself when needed. The `pull`, `rm`, `backend`, and `models --refresh` commands start their own `lemond` for the duration of the command and stop it at the end (separate from the `lemond` of an open Harness window). Commands that make changes ask for confirmation (`-y`).
 
 | Command | What it does | `--json` |
 |---|---|---|
@@ -185,7 +178,7 @@ curl http://127.0.0.1:11435/v1/chat/completions -H "content-type: application/js
 
 ### Converting safetensors to GGUF
 
-No running instance needed; the commands run inside this process. It downloads a safetensors LLM repository from Hugging Face (text generation or vision chat, on architectures llama.cpp recognizes), converts it to GGUF with llama.cpp's official `convert_hf_to_gguf.py` script, quantizes it with the managed runtime's `llama-quantize`, and puts it under `<models>/<owner>/<repo>-GGUF/` (the library sees it like any download). Python runs only at conversion time, in a temporary environment that Harness itself sets up on first use (uv + Python + torch CPU, ~700 MB; for details and licenses see [ARCHITECTURE.md](ARCHITECTURE.md) 14.5). A managed llama.cpp runtime must be installed; for gated repositories, use `harness hf login`.
+No running instance needed; the commands run inside this process. It downloads a safetensors LLM repository from Hugging Face (text generation or vision chat, on architectures llama.cpp recognizes), converts it to GGUF with llama.cpp's official `convert_hf_to_gguf.py` script, quantizes it with the managed runtime's `llama-quantize`, and puts it under `<models>/<owner>/<repo>-GGUF/` (the library sees it like any download). Python runs only at conversion time, in a temporary environment that Harness itself sets up on first use (uv + Python + torch CPU, ~700 MB; for licensing see [Third-Party Notices](THIRD_PARTY.md)). A managed llama.cpp runtime must be installed; for gated repositories, use `harness hf login`.
 
 | Command | What it does | `--json` |
 |---|---|---|
@@ -305,7 +298,7 @@ The record of requests that pass through the gateway (the managed endpoint) (`an
 | Command | What it does | `--json` |
 |---|---|---|
 | `analytics [--range 24h\|7d\|30d\|90d\|all]` | Per model: requests, tokens, average generation t/s, TTFT and latency P50/P95, VRAM peak, error and OOM rate, last use; the client breakdown; the last llama-bench result vs. actual speed. The default is `7d`. Days older than the raw-row retention period come from daily totals (no percentiles). An invalid range: `api.invalid_range` (exit 2) | `GET /analytics/summary` (`AnalyticsSummary`) |
-| `requests [--model A] [--client C] [--status ok\|error\|oom\|cancelled] [--tool-issue] [--tool-category runtime\|context\|model\|client] [-n N]` | The last N requests (default 20): time, model, client, endpoint, status (`tool:<category>/<code>` is added if there is a tool diagnosis), tokens, TTFT, total duration, generation t/s. `--tool-issue` returns only requests with a tool-call finding ([TOOL-DIAGNOSIS.md](TOOL-DIAGNOSIS.md)) | `GET /analytics/requests` (`RequestPage`) |
+| `requests [--model A] [--client C] [--status ok\|error\|oom\|cancelled] [--tool-issue] [--tool-category runtime\|context\|model\|client] [-n N]` | The last N requests (default 20): time, model, client, endpoint, status (`tool:<category>/<code>` is added if there is a tool diagnosis), tokens, TTFT, total duration, generation t/s. `--tool-issue` returns only requests with a tool-call finding (see the request details in Analytics) | `GET /analytics/requests` (`RequestPage`) |
 | `requests <id>` | A single request: all fields, the timeline (load → queue → prompt → generation → other), error detail, tool diagnosis (category, code, evidence); the content, if it was recorded, is in the `--json` output | `GET /analytics/requests/{id}` (`RequestDetail`) |
 
 ### Tools
@@ -338,7 +331,7 @@ codex mcp add harness -- harness mcp --scope read,servers:write,models:write
 
 | Command | What it does | `--json` |
 |---|---|---|
-| `launch <claude\|codex\|opencode\|aider\|goose> [--model M] [--prepare \| --no-prepare] [--direct] [--api-key K] [--timeout S] [--dry-run] [-- ARGS]` | Starts the tool connected to Harness; only the tool's process environment and temporary files are used, and global configuration such as `~/.claude` and `~/.codex` is not written. Without `--model`, the list of definitions is asked on a terminal (with no terminal, the only running model, and if there is none, 2). If the context is below the tool's minimum or unknown, "Prepare Server" is asked: the definition is written with the largest context the model supports and that fits this machine's GPU (within the tool's limits), Flash Attention, `f16` KV (if it does not fit, in order K `q8_0`, `q8_0`/`q8_0`, K `q8_0` + V `q4_0`; see ARCHITECTURE "KV cache precision"), and 1 slot, and running instances are stopped; the choice, the reason, and the alternatives are printed first. When it does not fit entirely on the GPU (the minimum context), `--prepare` is not enough: partial CPU spill is accepted only with explicit confirmation/`--yes`, and if no option fits, 5 (`cli.launch_context`); on a remote instance, since the hardware is different, a fixed recommendation (65,536, q8_0) is used; with no terminal, `--prepare` or `--no-prepare` is required (otherwise `cli.launch_context`, 2). If the gateway is running, the managed endpoint and the gateway client token are used, and if the model is not loaded a one-token warm-up request is sent (OOM: 5); with `--direct` or if there is no gateway, the model is loaded with `/load`. Arguments after `--` go to the tool (in Claude for example `-p "..."`, in Codex `exec ...`). Ctrl+C is left to the tool; when the tool exits, the temporary folder is deleted. The exit code is the tool's; 3 if the tool is not on PATH (`cli.launch_not_installed`). Details: [INTEGRATIONS.md](INTEGRATIONS.md) | `--dry-run`: `{tool, model, definition_id, endpoint: {kind, base_url, token: "***"\|null}, context: {per_request, min, recommended, check}, prepare: {definition_load, plan}, load, program_path, plan: {program, args, env, env_remove, files, ...}}`; token values are `***` |
+| `launch <claude\|codex\|opencode\|aider\|goose> [--model M] [--prepare \| --no-prepare] [--direct] [--api-key K] [--timeout S] [--dry-run] [-- ARGS]` | Starts the tool connected to Harness; only the tool's process environment and temporary files are used, and global configuration such as `~/.claude` and `~/.codex` is not written. Without `--model`, the list of definitions is asked on a terminal (with no terminal, the only running model, and if there is none, 2). If the context is below the tool's minimum or unknown, "Prepare Server" is asked: the definition is written with the largest context the model supports and that fits this machine's GPU (within the tool's limits), Flash Attention, `f16` KV (if it does not fit, in order K `q8_0`, `q8_0`/`q8_0`, K `q8_0` + V `q4_0`), and 1 slot, and running instances are stopped; the choice, the reason, and the alternatives are printed first. When it does not fit entirely on the GPU (the minimum context), `--prepare` is not enough: partial CPU spill is accepted only with explicit confirmation/`--yes`, and if no option fits, 5 (`cli.launch_context`); on a remote instance, since the hardware is different, a fixed recommendation (65,536, q8_0) is used; with no terminal, `--prepare` or `--no-prepare` is required (otherwise `cli.launch_context`, 2). If the gateway is running, the managed endpoint and the gateway client token are used, and if the model is not loaded a one-token warm-up request is sent (OOM: 5); with `--direct` or if there is no gateway, the model is loaded with `/load`. Arguments after `--` go to the tool (in Claude for example `-p "..."`, in Codex `exec ...`). Ctrl+C is left to the tool; when the tool exits, the temporary folder is deleted. The exit code is the tool's; 3 if the tool is not on PATH (`cli.launch_not_installed`). Details: [INTEGRATIONS.md](INTEGRATIONS.md) | `--dry-run`: `{tool, model, definition_id, endpoint: {kind, base_url, token: "***"\|null}, context: {per_request, min, recommended, check}, prepare: {definition_load, plan}, load, program_path, plan: {program, args, env, env_remove, files, ...}}`; token values are `***` |
 
 ```sh
 harness launch claude --model Qwen3-4B-Instruct-2507-Q4_K_M
@@ -367,18 +360,6 @@ harness retry qwen14b --set context_size=16384 --set cache_type_k=q8_0 --save
 # Remote instance (named token)
 HARNESS_HOST=192.168.1.20:11500 HARNESS_TOKEN=hs_... harness ps
 ```
-
-## Tests
-
-- Unit tests: `cargo test -p harness-cli` (error mapping, text equality with the GUI translation, service unit/plist/task contents, argument parsing).
-- Integration (`tests/cli.rs`): the real `harness` binary is run with temporary data directories; `--json` schemas and exit codes, the temporary instance releasing the lock, rejection of a second owner (4), a busy port (4), remote token scopes, the `serve` + `shutdown` lifecycle.
-- `import modelfile` (`tests/cli.rs`): `--dry-run` saves nothing, a real import creates the definition and preset, an alias conflict and a conflict between `FILE` and `--ollama` give errors.
-- `transcribe` / `asr` (`src/commands/asr.rs`): argument parsing, output formats, `need()` = no instance needed, the English text of keyed errors. Real recognition is in `asr/e2e.rs` and the gateway end-to-end test ([ARCHITECTURE.md](ARCHITECTURE.md)).
-- `speak` / `tts` (`src/commands/tts.rs`): argument parsing, stdin/argument text, output target and format validation, `need()` = no instance needed, the English text of keyed errors. Real audio generation is in the gateway end-to-end test ([ARCHITECTURE.md](ARCHITECTURE.md)).
-- MCP (`tests/mcp.rs`): the real `harness mcp` binary with line-by-line JSON-RPC; handshake, scopes, tool errors, modern/legacy era. `#[ignore]` end to end: `load_model` → `get_endpoint` → a real chat → `unload_model` → benchmark; configuration checks with the real `claude mcp list` and `codex mcp get` (a temporary `CLAUDE_CONFIG_DIR` / `CODEX_HOME`).
-- `launch` (`tests/launch.rs`, `#[ignore]`, ports 19120+): the `--dry-run` plan of five tools with `serve --gateway` (token hidden), connection tests (`/v1/messages`, `/v1/responses`, chat; a tool call), the real Claude Code with `HS_TEST_LAUNCH_CLAUDE=1` (a temporary `CLAUDE_CONFIG_DIR`, `--prepare`, `-p`), the real Codex with `HS_TEST_LAUNCH_CODEX=1` (a temporary `CODEX_HOME`, `exec`). Usage errors are in `tests/cli.rs`.
-- End to end (`tests/e2e.rs`, `#[ignore]`): `HS_LLAMA_SERVER=<llama-server> HS_TEST_MODEL=<gguf> cargo test -p harness-cli --test e2e -- --ignored --test-threads=1`. `serve` → `run` (a definition from a file path) → reuse by alias → `chat` (two turns, history) → `logs` → `benchmark run` → `unload` → `load` → `shutdown` (ports close); nothing stays open after `--headless run`. With `HS_TEST_OOM=1`, exit 5 and `servers.out_of_memory` (stage `kv_cache`) are verified on a real VRAM allocation failure; `e2e_oom_recovery_retry` verifies that the server really opens with `harness retry --option lower_context` and that it starts without `-ngl` with `enable_fit`; `e2e_crash_auto_restart` verifies that a crashed llama-server is restarted with exponential backoff and that `stop` cancels the attempt while waiting. `e2e_serve_gateway_run_uses_managed_endpoint` verifies the `serve --gateway` ready line, the gateway information in `status`, and that `run` goes through the gateway (ports 18800+). `e2e_serve_gateway_request_log_and_analytics` verifies that the gateway request of `run` is written to `analytics.db` and read back with `requests`, `requests <id>`, and `analytics` (ports 19010+).
-
 ## Browser Management
 
 The first 0.2 W5 slice adds browser administration to the existing headless owner. Build the existing UI with `npm ci` and `npm run build`, then run:

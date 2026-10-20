@@ -67,7 +67,7 @@ const GEMMA4_12B: &str = "gemma-4-12B-it-Q4_K_M.gguf";
 const QWEN36_27B: &str = "Qwen3.6-27B-Q4_K_M.gguf";
 
 /// The load logs of b11312 (Vulkan, RX 7900 GRE, `-c 32768 -fa on`): Gemma 4 12B with
-/// llama-server's automatic 4 slots and with `-np 1` (docs/en/PERFORMANCE.md).
+/// llama-server's automatic 4 slots and with `-np 1` (private hs-internal performance notes).
 #[test]
 fn gemma4_swa_cache_matches_real_loads() {
     let (size, meta) = shape_of(GEMMA4_12B);

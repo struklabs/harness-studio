@@ -2,7 +2,7 @@
 //!
 //! Field names and shapes follow the official Ollama API reference
 //! (`github.com/ollama/ollama/blob/main/docs/api.md`, `docs.ollama.com/api`) and its Go types
-//! (`api/types.go`); see `docs/en/ARCHITECTURE.md` §13.4 for the table of decisions.
+//! (`api/types.go`); see `private hs-internal architecture notes` §13.4 for the table of decisions.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -32,7 +32,7 @@ pub fn ollama_name(alias: &str) -> String {
     }
 }
 
-/// Parses a requested name. Rule (documented in ARCHITECTURE §13.4):
+/// Parses a requested name. Rule (documented in private hs-internal architecture notes):
 /// 1. the name as sent is an alias (case-insensitive; aliases may contain `:`, so `qwen3:4b`
 ///    matches a definition named `qwen3:4b`);
 /// 2. `name:latest` also matches the alias `name` (Ollama's default tag);

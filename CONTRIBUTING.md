@@ -39,7 +39,7 @@ Repository layout:
 | `src-tauri/` | Tauri shell (desktop integration, commands) |
 | `crates/harness-core` | Core services: servers, downloads, runtimes, tools, storage |
 | `crates/harness-gateway`, `harness-api`, `harness-mcp`, `harness-cli`, `harness-onnx` | Gateway, Control API, MCP server, CLI, ONNX sidecar |
-| `docs/` | Documentation ([architecture](docs/en/ARCHITECTURE.md), [security model](docs/en/SECURITY_MODEL.md), guides) |
+| `docs/` | User-facing documentation ([features](docs/en/FEATURES.md), [security and privacy](docs/en/SECURITY_MODEL.md), guides) |
 | `bench/compare/` | Benchmark suite against other local-AI tools |
 | `scripts/` | Frontend checks and UI test scripts |
 
@@ -73,9 +73,11 @@ HS_LLAMA_SERVER=/path/to/llama-server HS_TEST_MODEL=/path/to/model.gguf \
 
 Tests use real components rather than mocks wherever possible. Add or update a test for every behavior change. The `scripts/test-*.mjs` files that drive the user interface launch the application; run them one at a time, and do not run them with a glob.
 
+Public documentation covers product usage and information. Internal designs, decisions, specifications, diagnostics, and measurement reports belong in the private `hs-internal` repository.
+
 ## Interface and translations
 
-- The UI uses shadcn-svelte and Tailwind v4. Palette, spacing, and component rules are in [DESIGN.md](docs/en/DESIGN.md).
+- The UI uses shadcn-svelte and Tailwind v4. Follow existing components for palette, spacing, and interaction patterns.
 - Every user-visible string goes through `t('key')`; do not hard-code text. Add each new key to `src/lib/locales/` for **both** Turkish and English. `npm run check:locales` verifies parity.
 - Use Title Case for navigation, headings, and buttons in English.
 

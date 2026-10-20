@@ -47,6 +47,6 @@ Bir model tanımında **İstek içeriğini kaydet (analitik)** açılırsa ağ g
 
 **Araç Çağrıları** günlüğünde araç adını, istemciyi, sonucu ve onay durumunu inceleyebilirsiniz. Reddedilen çağrılar da kaydedilir.
 
-Ölçüm koşulları için [performans başvurusuna](../../tr/PERFORMANCE.md) ve [LM Studio ile Ollama karşılaştırmasına](../../tr/COMPARISON.md), özellik kapsamı için [Özellikler başvurusuna](../../tr/FEATURES.md) bakın.
+Ölçüm koşulları için [Features](../../tr/FEATURES.md) ve [Features](../../tr/FEATURES.md), özellik kapsamı için [Özellikler başvurusuna](../../tr/FEATURES.md) bakın.
 
 Sıradaki bölüm: [Ayarlar](08-ayarlar.md).

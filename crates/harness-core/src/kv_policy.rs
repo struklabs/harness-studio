@@ -1,6 +1,6 @@
 //! Conversation-memory precision (KV cache types, `--cache-type-k` / `--cache-type-v`).
 //!
-//! Policy (measured on this project's reference machine, see `docs/en/PERFORMANCE.md`
+//! Policy (measured on this project's reference machine, see `private hs-internal performance notes`
 //! "KV cache precision"):
 //! - **Automatic** (the definition sets no cache type): f16 while the requested context fits
 //!   in memory. Only when it does not, the cache steps down, one rung at a time, to the first
@@ -19,13 +19,13 @@
 //!   The default CUDA build has no flash-attention vector kernel for mixed pairs: it converts K
 //!   and V to f16 on every token (slow, and it needs a temporary f16 buffer that can overflow
 //!   VRAM). Measured on an RTX 3050 Ti Laptop (b11327): generation is 27-38 % slower with
-//!   q8_0 / f16 and q8_0 / q4_0, the matching pairs keep f16's speed (`docs/en/PERFORMANCE.md`
+//!   q8_0 / f16 and q8_0 / q4_0, the matching pairs keep f16's speed (`private hs-internal performance notes`
 //!   "CUDA"). Mixed pairs stay available when the user chooses them explicitly; the memory
 //!   estimate then counts the conversion buffer ([`cuda_convert_buffer_bytes`]).
 //! - On **Metal** (Apple Silicon, unified memory) the ladder is the same: measured on an M1
 //!   (b11344, Qwen3-4B at depth 4096), the mixed pairs fall to a slow path, prompt processing
 //!   87-90 % and generation 57-60 % slower than f16, while q8_0 / q8_0 and q4_0 / q4_0 are as
-//!   fast as f16 or faster (`docs/en/PERFORMANCE.md` "Metal").
+//!   fast as f16 or faster (`private hs-internal performance notes` "Metal").
 //! - On **ROCm** the ladder also uses equal pairs only (decision 06.10): mixed pairs lose
 //!   20-33 % generation speed at depth 16k; q4_0 / q4_0 keeps speed but lowers K precision.
 //! - On **Apple unified memory** a rung must also leave macOS its share of RAM and, on Macs up
@@ -156,7 +156,7 @@ pub struct KvChoice {
 
 /// Worst prompt-processing slowdown vs f16 measured with `llama-bench` (b11312, Vulkan, RX
 /// 7900 GRE; Qwen3-4B, gpt-oss-20b and Qwen2.5-Coder-14B at depth 0 and 16k, the worst case is
-/// gpt-oss at 16k; dense models are as fast or faster at depth), see `docs/en/PERFORMANCE.md`.
+/// gpt-oss at 16k; dense models are as fast or faster at depth), see `private hs-internal performance notes`.
 /// ROCm (b11320, same card, Qwen3-4B and gpt-oss-20b at depth 0 and 16k): prompt processing
 /// loses at most 5 % with every level. Generation is another matter there: the mixed pairs
 /// (q8_0/f16, q8_0/q4_0) run 20-33 % slower than f16 at 16k of context, only the matching

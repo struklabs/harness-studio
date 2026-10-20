@@ -107,15 +107,15 @@ Use **Best for My Hardware** in Model Hub to rank loaded results by estimated fi
 - **Model Hub:** search Hugging Face with filters, read model cards, see whether a model fits your hardware, and download through a resumable queue that verifies SHA-256 checksums.
 - **Playground:** a chat window with saved conversations, side-by-side model comparison, Markdown and Mermaid diagrams, image input for vision models, documents with local search and citations (RAG), speech to text, read-aloud, and image generation.
 - **Tools in chat:** models can use built-in file, web, and weather tools, with an approval step before anything risky runs.
-- **Harness Link:** use the models of another Harness instance (address and inference token) in the Playground, My Models, and the gateway; see [Harness Link](docs/en/FEATURES.md#harness-link).
-- **Simple and Advanced levels:** Simple shows only what a first-time user needs; Advanced reveals every setting. Switching never loses a setting ([details](docs/en/UI_LEVELS.md)).
+- **Harness Link:** use the models of another Harness instance (address and inference token) in the Playground, My Models, and the gateway; see [Harness Link](docs/en/FEATURES.md).
+- **Simple and Advanced levels:** Simple shows only what a first-time user needs; Advanced reveals every setting. Switching never loses a setting ([guide](docs/guide/en/08-settings.md)).
 - **Comfortable to use:** English and Turkish interface, light and dark themes, high-contrast and color-blind-friendly options, system tray, and launch at login.
 
 ### For Developers and Tool Users
 
 - **One local endpoint for many models** (the *gateway*): speaks the OpenAI, Anthropic, and Ollama APIs. Models load on first use and unload when idle. It is opt-in.
 - **Guided setup for your tools:** Claude Code, Codex, OpenCode, Aider, Goose, Continue, Zed, VS Code, Cline, JetBrains, Open WebUI, and more, with a diff preview, backups, and one-click undo. `harness launch` starts a tool with the right settings and changes nothing global.
-- **Tool calling that works with local models:** text-formatted tool calls are turned into real OpenAI-style `tool_calls`, so coding tools get usable results ([measurements](docs/en/COMPARISON.md)).
+- **Tool calling that works with local models:** text-formatted tool calls are turned into real OpenAI-style `tool_calls`, so coding tools get usable results ([tools guide](docs/guide/en/06-tools.md)).
 - **MCP both ways:** connect MCP servers to your chats, and let other tools use Harness itself as an MCP server.
 - **Custom tools:** describe a tool and let a local model generate it as sandboxed JavaScript.
 
@@ -131,25 +131,9 @@ Use **Best for My Hardware** in Model Hub to rank loaded results by estimated fi
 
 There are good tools already, and Harness Studio does not replace all of them for everyone. It aims to do what [LM Studio](https://lmstudio.ai) and [Ollama](https://ollama.com) do **without hiding llama.cpp's advanced controls**, while being stronger at observability and at working with coding tools, and staying fully open source.
 
-### Measured against LM Studio, Ollama, and llama.cpp
-
-Same GGUF files on one Windows PC (AMD RX 7900 GRE 16 GB, Vulkan), each tool at its own defaults:
-
-| Out of the box | Harness Studio | LM Studio | Ollama | llama.cpp |
-|---|---|---|---|---|
-| Qwen3-4B decode (tok/s) | 140.9 | 142.0 | 128.9 | 114.5 |
-| Qwen2.5-Coder-14B decode (tok/s) | 48.6 | 42.0 | 49.0 | 40.9 |
-| 4 concurrent requests, total (tok/s) | **344** | 157 | 126 | 152 |
-| 14B tool calling (38 cases) | **36/38** | 5/38 | 4/38 | 5/38 |
-| 20k-token prompt | correct | context error | context error | correct |
-| 14B at 65k context: spill to shared memory | **98 MiB** | 12.4 GB | 10.3 GB | 5.2 GB |
-| Switch models through one endpoint | 6.5 s | wrong model answered | 5.6 s | restart needed |
-
-The others win some rows too: Ollama processed long prompts faster, and at 65k context LM Studio and Ollama decoded about 3x faster by spilling into shared memory, while Harness keeps the model in video memory. Methodology, caveats, and the full tables: [COMPARISON.md](docs/en/COMPARISON.md).
-
 ### Feature Comparison
 
-✓ available · ✗ not available · partial = limited. Sourced from the audited matrix in [FEATURES.md](docs/en/FEATURES.md); competitor columns reflect the versions listed there.
+✓ available · ✗ not available · partial = limited. See [Features](docs/en/FEATURES.md) for Harness capabilities. Third-party support varies by version.
 
 | Feature | Harness Studio | LM Studio | Ollama | llama.cpp (`llama-server`) |
 |---|---|---|---|---|
@@ -185,7 +169,7 @@ The others win some rows too: Ollama processed long prompts faster, and at 65k c
 - **Built for several models and several users.** Concurrency, model switching through one endpoint, per-token limits, and per-client analytics.
 - **Observability built in.** Request analytics, a trace view, Prometheus, and OpenTelemetry.
 - **One core, many doors.** The app, the CLI, the Control API, and MCP all use the same Rust services.
-- **Honest limits.** Harness Studio is an early public release (0.1.2) with a small team. LM Studio and Ollama have larger user bases, catalogs, macOS support, and SDKs. See [Where the competitors lead](docs/en/COMPARISON.md#where-the-competitors-lead).
+- **Honest limits.** Harness Studio is an early public release (0.1.2) with a small team. LM Studio and Ollama have larger user bases, catalogs, macOS support, and SDKs. See the [feature overview](docs/en/FEATURES.md).
 
 ## Privacy
 
@@ -229,7 +213,7 @@ print(reply.choices[0].message.content)
 
 Anthropic-style (`/v1/messages`) and Ollama-style (`/api/chat`) clients work on the same gateway. `harness mcp` exposes Harness as an MCP server over stdio. One-shot use without a running owner: `harness --headless run ./model.gguf "2+2?" --json`.
 
-Reference: [CLI.md](docs/en/CLI.md) · [MCP.md](docs/en/MCP.md) · [INTEGRATIONS.md](docs/en/INTEGRATIONS.md) · [ARCHITECTURE.md](docs/en/ARCHITECTURE.md) · [PERFORMANCE.md](docs/en/PERFORMANCE.md)
+Reference: [CLI](docs/en/CLI.md), [MCP](docs/en/MCP.md), [Integrations](docs/en/INTEGRATIONS.md), and [Features](docs/en/FEATURES.md).
 
 ## FAQ
 
@@ -320,7 +304,7 @@ No. There is no telemetry and no account. See [Privacy](#privacy).
 <details>
 <summary><b>How do I use it from my phone or another computer?</b></summary>
 
-In **Settings > Gateway**, enable **Allow Network Access** and create a named token with the `inference` scope. Keyless network access is not allowed. You must set your firewall yourself. To use models from another Harness instance, add it under **Connections > Harness Link** (see [Harness Link](docs/en/FEATURES.md#harness-link)).
+In **Settings > Gateway**, enable **Allow Network Access** and create a named token with the `inference` scope. Keyless network access is not allowed. You must set your firewall yourself. To use models from another Harness instance, add it under **Connections > Harness Link** (see [Harness Link](docs/en/FEATURES.md)).
 </details>
 
 <details>
@@ -365,9 +349,8 @@ Harness Studio is built in the open and every bit of help counts.
 | [CLI](docs/en/CLI.md) | Commands, services, JSON output, exit codes |
 | [Integrations](docs/en/INTEGRATIONS.md) | Coding tools: launch and configuration formats, rollback |
 | [MCP](docs/en/MCP.md) · [Tools](docs/en/TOOLS.md) | Harness as MCP server and client; built-in and custom tools |
-| [Performance](docs/en/PERFORMANCE.md) · [Comparison](docs/en/COMPARISON.md) | Measurements and methodology |
-| [Architecture](docs/en/ARCHITECTURE.md) · [Security model](docs/en/SECURITY_MODEL.md) | Services, gateway, trust boundaries |
-| [Features](docs/en/FEATURES.md) · [UI levels](docs/en/UI_LEVELS.md) | Feature-by-feature matrix; Simple and Advanced levels |
+| [Security and Privacy](docs/en/SECURITY_MODEL.md) | Credentials, network access, permissions, and saved data |
+| [Features](docs/en/FEATURES.md) | Product capabilities and Simple and Advanced navigation |
 | [Roadmap](docs/en/ROADMAP.md) · [Changelog](docs/CHANGELOG.md) | Open work; what changed in each version |
 
 ## Build from Source

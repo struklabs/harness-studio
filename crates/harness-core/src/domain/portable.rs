@@ -1,4 +1,4 @@
-//! Portable model definitions: `*.harness.toml` (ARCHITECTURE §13.3).
+//! Portable model definitions: `*.harness.toml` (private hs-internal architecture notes).
 //!
 //! A definition travels without machine-specific paths where possible:
 //! * a file inside one of the models directories is written relative to it

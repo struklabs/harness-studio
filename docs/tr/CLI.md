@@ -73,17 +73,6 @@ stdout yalnız veri taşır; ilerleme, uyarı ve hata stderr'e gider. İlerleme 
 
 HTTP durumları şöyle eşlenir: 400 → 2, 404 → 3, 409 → 4, 401/403/422/500 → 1, bağlantı hatası → 6.
 
-## Hata mesajları ve dil
-
-CLI çıktısı İngilizcedir. Çekirdek ve API hataları i18n anahtarı döndürür (`models.in_use`, `api.not_found`...):
-
-- GUI'nin bildiği anahtarların (`src/lib/network.ts` → `ERROR_KEYS`) CLI metni GUI'nin İngilizce çevirisiyle **aynıdır**; bir birim testi `src/lib/locales/*.ts` ile karşılaştırır, metinler ayrışamaz.
-- Yalnız API'nin ve CLI'ın kodları (`api.unauthorized`, `cli.no_instance`...) `crates/harness-cli/src/messages.rs` içinde.
-- Çekirdeğin diğer hataları da anahtardır (`harness_core::error_key`: `anahtar {"ad": "değer"}`); İngilizce metin GUI'nin hata locale dosyalarından (`src/lib/locales/errors*.ts`, derlemeye gömülü) alınır, `{ad}` yerleri parametrelerle doldurulur. Parametreler teknik ayrıntıyı (yol, işletim sistemi hata metni) çevrilmeden taşır; bir parametre iç içe bir anahtarlı hata olabilir, o da çevrilir. Bir test çekirdekteki her `err("…")` anahtarının metni olduğunu denetler.
-- Bağlamı olmayan ham işletim sistemi/kütüphane hataları hâlâ serbest metindir (`core.error`, `params.message`) ve olduğu gibi yazılır.
-- Bilinmeyen bir anahtar hiçbir zaman boş kalmaz: anahtarın kendisi ve parametreleri yazılır.
-- `--json`'da `code` her zaman makine kodudur; metne göre dallanmayın.
-
 ## Komutlar
 
 `--json` çıktısı, aksi yazılmadıkça ilgili Control API yanıtının kendisidir; şema `GET /api/harness/v1/openapi.json`'dadır.
@@ -161,7 +150,7 @@ harness transcribe konusma.mp3 -m parakeet
 
 ### Lemonade (Ryzen AI NPU ve kendi llama.cpp yapıları)
 
-Örnek gerekmez: komutlar bu süreçte çalışır. Lemonade isteğe bağlı bir motordur ([ARCHITECTURE.md](ARCHITECTURE.md) 14.5): Ryzen AI NPU'larında FastFlowLM ile model çalıştırır ve kendi ROCm / Vulkan llama.cpp yapılarını sunar. Kurulduktan sonra indirilen modelleri gateway'de Lemonade adlarıyla görünür; gateway `lemond`'u gerektiğinde kendisi başlatır. `pull`, `rm`, `backend` ve `models --refresh` komutları kendi `lemond`'unu komutun süresince başlatır ve sonunda durdurur (açık bir Harness penceresinin `lemond`'undan ayrıdır). Değişiklik yapan komutlar onay ister (`-y`).
+Örnek gerekmez: komutlar bu süreçte çalışır. Lemonade isteğe bağlı bir motordur ([Features](FEATURES.md) 14.5): Ryzen AI NPU'larında FastFlowLM ile model çalıştırır ve kendi ROCm / Vulkan llama.cpp yapılarını sunar. Kurulduktan sonra indirilen modelleri gateway'de Lemonade adlarıyla görünür; gateway `lemond`'u gerektiğinde kendisi başlatır. `pull`, `rm`, `backend` ve `models --refresh` komutları kendi `lemond`'unu komutun süresince başlatır ve sonunda durdurur (açık bir Harness penceresinin `lemond`'undan ayrıdır). Değişiklik yapan komutlar onay ister (`-y`).
 
 | Komut | Ne yapar | `--json` |
 |---|---|---|
@@ -184,7 +173,7 @@ curl http://127.0.0.1:11435/v1/chat/completions -H "content-type: application/js
 
 ### Safetensors'tan GGUF'a dönüştürme
 
-Çalışan örnek gerekmez; komutlar bu süreçte çalışır. Hugging Face'teki bir safetensors LLM deposunu (metin üretimi ya da görüntülü sohbet, llama.cpp'nin tanıdığı mimariler) indirir, llama.cpp'nin resmi `convert_hf_to_gguf.py` betiğiyle GGUF'a çevirir, yönetilen çalışma zamanının `llama-quantize`'ıyla nicemler ve `<modeller>/<sahip>/<depo>-GGUF/` altına koyar (kitaplık onu her indirme gibi görür). Python yalnızca dönüştürme anında, ilk kullanımda Harness'in kendi kurduğu geçici ortamda çalışır (uv + Python + torch CPU, ~700 MB; ayrıntı ve lisanslar için [ARCHITECTURE.md](ARCHITECTURE.md) 14.5). Yönetilen bir llama.cpp çalışma zamanı kurulu olmalıdır; gated depolar için `harness hf login`.
+Çalışan örnek gerekmez; komutlar bu süreçte çalışır. Hugging Face'teki bir safetensors LLM deposunu (metin üretimi ya da görüntülü sohbet, llama.cpp'nin tanıdığı mimariler) indirir, llama.cpp'nin resmi `convert_hf_to_gguf.py` betiğiyle GGUF'a çevirir, yönetilen çalışma zamanının `llama-quantize`'ıyla nicemler ve `<modeller>/<sahip>/<depo>-GGUF/` altına koyar (kitaplık onu her indirme gibi görür). Python yalnızca dönüştürme anında, ilk kullanımda Harness'in kendi kurduğu geçici ortamda çalışır (uv + Python + torch CPU, ~700 MB; ayrıntı ve lisanslar için [Features](FEATURES.md) 14.5). Yönetilen bir llama.cpp çalışma zamanı kurulu olmalıdır; gated depolar için `harness hf login`.
 
 | Komut | Ne yapar | `--json` |
 |---|---|---|
@@ -305,7 +294,7 @@ Gateway'den (managed endpoint) geçen isteklerin kaydı (`analytics.db`). Doğru
 | Komut | Ne yapar | `--json` |
 |---|---|---|
 | `analytics [--range 24h\|7d\|30d\|90d\|all]` | Model bazında istek, token, ortalama üretim t/s, TTFT ve gecikme P50/P95, VRAM tepe, hata ve OOM oranı, son kullanım; istemci dağılımı; son llama-bench sonucu ile gerçek hız. Varsayılan `7d`. Ham satır saklama süresinden eski günler günlük toplamlardan gelir (yüzdelik yok). Geçersiz aralık: `api.invalid_range` (çıkış 2) | `GET /analytics/summary` (`AnalyticsSummary`) |
-| `requests [--model A] [--client C] [--status ok\|error\|oom\|cancelled] [--tool-issue] [--tool-category runtime\|context\|model\|client] [-n N]` | Son N istek (varsayılan 20): zaman, model, istemci, uç nokta, durum (araç teşhisi varsa `tool:<kategori>/<kod>` eklenir), token, TTFT, toplam süre, üretim t/s. `--tool-issue` yalnız araç çağrısı bulgusu olan istekleri getirir ([TOOL-DIAGNOSIS.md](TOOL-DIAGNOSIS.md)) | `GET /analytics/requests` (`RequestPage`) |
+| `requests [--model A] [--client C] [--status ok\|error\|oom\|cancelled] [--tool-issue] [--tool-category runtime\|context\|model\|client] [-n N]` | Son N istek (varsayılan 20): zaman, model, istemci, uç nokta, durum (araç teşhisi varsa `tool:<kategori>/<kod>` eklenir), token, TTFT, toplam süre, üretim t/s. `--tool-issue` yalnız araç çağrısı bulgusu olan istekleri getirir ([Usage Reference](TOOLS.md)) | `GET /analytics/requests` (`RequestPage`) |
 | `requests <id>` | Tek istek: tüm alanlar, zaman çizelgesi (yükleme → kuyruk → istem → üretim → diğer), hata ayrıntısı, araç teşhisi (kategori, kod, kanıt); içerik kaydedildiyse `--json` çıktısında | `GET /analytics/requests/{id}` (`RequestDetail`) |
 
 ### Araçlar
@@ -367,14 +356,3 @@ harness retry qwen14b --set context_size=16384 --set cache_type_k=q8_0 --save
 # Uzak örnek (isimli token)
 HARNESS_HOST=192.168.1.20:11500 HARNESS_TOKEN=hs_... harness ps
 ```
-
-## Testler
-
-- Birim testleri: `cargo test -p harness-cli` (hata eşlemesi, GUI çevirisiyle metin eşitliği, servis birim/plist/görev içeriği, argüman ayrıştırma).
-- Entegrasyon (`tests/cli.rs`): gerçek `harness` ikilisi geçici veri dizinleriyle çalıştırılır; `--json` şemaları ve çıkış kodları, geçici örneğin kilidi bırakması, ikinci sahibin reddi (4), dolu port (4), uzak token kapsamları, `serve` + `shutdown` yaşam döngüsü.
-- `import modelfile` (`tests/cli.rs`): `--dry-run` hiçbir şey kaydetmez, gerçek içe aktarma tanımı ve preset'i oluşturur, alias çakışması ve `FILE` ile `--ollama` çakışması hata verir.
-- `transcribe` / `asr` (`src/commands/asr.rs`): argüman ayrıştırma, çıktı biçimleri, `need()` = örnek gerekmez, anahtarlı hataların İngilizce metni. Gerçek tanıma `asr/e2e.rs` ve gateway uçtan uca testinde ([ARCHITECTURE.md](ARCHITECTURE.md)).
-- `speak` / `tts` (`src/commands/tts.rs`): argüman ayrıştırma, stdin/argüman metni, çıktı hedefi ve biçim doğrulama, `need()` = örnek gerekmez, anahtarlı hataların İngilizce metni. Gerçek ses üretimi gateway uçtan uca testinde ([ARCHITECTURE.md](ARCHITECTURE.md)).
-- MCP (`tests/mcp.rs`): gerçek `harness mcp` ikilisi satır satır JSON-RPC ile; el sıkışma, kapsamlar, araç hataları, modern/eski dönem. `#[ignore]` uçtan uca: `load_model` → `get_endpoint` → gerçek sohbet → `unload_model` → benchmark; gerçek `claude mcp list` ve `codex mcp get` ile yapılandırma denetimi (geçici `CLAUDE_CONFIG_DIR` / `CODEX_HOME`).
-- `launch` (`tests/launch.rs`, `#[ignore]`, portlar 19120+): `serve --gateway` ile beş aracın `--dry-run` planı (token gizli), bağlantı testi (`/v1/messages`, `/v1/responses`, chat; araç çağrısı), `HS_TEST_LAUNCH_CLAUDE=1` ile gerçek Claude Code (geçici `CLAUDE_CONFIG_DIR`, `--prepare`, `-p`), `HS_TEST_LAUNCH_CODEX=1` ile gerçek Codex (geçici `CODEX_HOME`, `exec`). Kullanım hataları `tests/cli.rs`'de.
-- Uçtan uca (`tests/e2e.rs`, `#[ignore]`): `HS_LLAMA_SERVER=<llama-server> HS_TEST_MODEL=<gguf> cargo test -p harness-cli --test e2e -- --ignored --test-threads=1`. `serve` → `run` (dosya yolundan tanım) → alias ile yeniden kullanım → `chat` (iki tur, geçmiş) → `logs` → `benchmark run` → `unload` → `load` → `shutdown` (portlar kapanır); `--headless run` sonrası hiçbir şey açık kalmaz. `HS_TEST_OOM=1` ile gerçek bir VRAM ayırma hatasında çıkış 5 ve `servers.out_of_memory` (aşama `kv_cache`) doğrulanır; `e2e_oom_recovery_retry` `harness retry --option lower_context` ile sunucunun gerçekten açıldığını ve `enable_fit` ile `-ngl`'siz başladığını, `e2e_crash_auto_restart` çöken llama-server'ın üstel beklemeyle yeniden başlatıldığını ve beklerken `stop`'un denemeyi iptal ettiğini doğrular. `e2e_serve_gateway_run_uses_managed_endpoint` `serve --gateway` hazır satırını, `status` gateway bilgisini ve `run`'ın gateway üzerinden gittiğini doğrular (portlar 18800+). `e2e_serve_gateway_request_log_and_analytics` `run`'ın gateway isteğinin `analytics.db`'ye yazıldığını ve `requests`, `requests <id>` ve `analytics` ile geri okunduğunu doğrular (portlar 19010+).

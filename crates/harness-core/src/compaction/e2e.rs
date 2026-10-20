@@ -666,7 +666,7 @@ async fn compaction_in_the_middle_of_a_tool_loop() {
         .unwrap()
         .id;
     let question = "Use the read_file tool to read these three files, one call at a time and each in its own step: \
-        docs/en/ROADMAP.md, docs/en/ARCHITECTURE.md and docs/en/FEATURES.md. When you have read all three, \
+        docs/en/ROADMAP.md, docs/en/CLI.md and docs/en/FEATURES.md. When you have read all three, \
         reply with the title (the first line) of each file.";
     let user = db
         .append_message(AppendMessage {

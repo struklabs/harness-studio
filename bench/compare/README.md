@@ -1,9 +1,10 @@
 # Comparison benchmark: Harness Studio vs LM Studio vs Ollama vs llama.cpp
 
 A reproducible suite that measures the same GGUF files through four products' OpenAI-compatible APIs on one
-Windows machine. Results of the 2026-10-11 run (Harness rows re-measured on the release build; rows of the earlier build are kept): `docs/benchmarks/2026-10-11/summary.md` (tables). The runner writes its raw JSON (one file per backend, mode, model and
-metric, including the effective settings each tool ended up with) to `docs/benchmarks/<date>/raw/` locally; raw files are
-not kept in the repository.
+Windows machine. The runner writes local results to `scratch/benchmarks/<date>/`.
+Results and measurement reports are not published in this repository; internal reports
+belong in the private `hs-internal` repository. The ignored scratch directory keeps
+raw JSON and generated summaries out of Git.
 
 ## What is compared
 

@@ -47,6 +47,6 @@ If **Capture Request Content (Analytics)** is turned on in a model definition, p
 
 The **Tool Calls** log lets you inspect the tool name, client, result, and approval status. Denied calls are logged too.
 
-For measurement conditions, see the [performance reference](../../en/PERFORMANCE.md) and the [comparison with LM Studio and Ollama](../../en/COMPARISON.md); for feature coverage, see the [Features reference](../../en/FEATURES.md).
+Benchmark results depend on your model, runtime, settings, and hardware. Run benchmarks on your own machine to compare configurations. See [Features](../../en/FEATURES.md) for supported capabilities.
 
 Next: [Settings](08-settings.md).

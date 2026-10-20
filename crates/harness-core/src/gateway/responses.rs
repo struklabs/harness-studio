@@ -166,8 +166,8 @@ pub fn chain_context(chain: &[Link<'_>]) -> Vec<Value> {
     out
 }
 
-/// Context compaction of stored Responses chains (`gateway.responses.compaction`; see
-/// ARCHITECTURE §9.1): when the conversation a `previous_response_id` continues no longer fits
+/// Context compaction of stored Responses chains (`gateway.responses.compaction`):
+/// when the conversation a `previous_response_id` continues no longer fits
 /// the model comfortably, its older links are replaced, in the request, by a summary the model
 /// writes. The summary is stored on the new response (`harness_compaction`), so later turns
 /// start from it instead of the whole chain. Always opt-in: a request asks for it with

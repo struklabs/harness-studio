@@ -214,7 +214,7 @@ fn gpt_oss_uses_its_sliding_window_and_is_limited_by_the_model() {
     let c = chosen(&p);
     assert_eq!(p.verdict, Verdict::Recommended);
     // 128k is the model's own limit; the SWA layers keep the KV cache small enough to stay
-    // f16 (gpt-oss is the most KV-sensitive model measured, see PERFORMANCE.md).
+    // f16 (gpt-oss is the most KV-sensitive model measured, see private hs-internal performance notes).
     assert_eq!((c.context_size, c.kv_level), (131_072, KvLevel::Full));
     assert_eq!(p.limit, Limit::Model);
     assert!(within_budget(c, &b));

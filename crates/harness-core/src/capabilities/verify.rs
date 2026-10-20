@@ -310,7 +310,7 @@ pub fn parse_metric_names(text: &str) -> Vec<String> {
 
 /// The K/V pair of llama.cpp's CUDA warning `no FlashAttention vector kernel compiled for K/V
 /// types q8_0-f16, converting K and V to f16 instead (slow)`: the default CUDA build has no
-/// kernel for mixed cache types (measured on b11327, `docs/en/PERFORMANCE.md` "CUDA").
+/// kernel for mixed cache types (measured on b11327, `private hs-internal performance notes` "CUDA").
 pub fn kv_fa_fallback(line: &str) -> Option<String> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| {

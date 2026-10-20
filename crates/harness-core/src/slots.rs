@@ -1,6 +1,6 @@
 //! Concurrent requests of a llama-server (`-np` slots): the "Auto" rule and what Harness
-//! passes for a set value. docs/en/ARCHITECTURE.md ("Concurrent requests") has the reasoning,
-//! docs/en/PERFORMANCE.md the measurements.
+//! passes for a set value. private hs-internal architecture notes ("Concurrent requests") has the reasoning,
+//! private hs-internal performance notes the measurements.
 //!
 //! llama-server's own default (`-np -1`) is 4 slots sharing one unified KV pool of `-c`
 //! tokens: any request may use the whole context, the slots share it. For full-attention

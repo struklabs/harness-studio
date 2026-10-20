@@ -19,7 +19,7 @@
 //!   worth enabling.
 //! * [`CallIndex`] links a tool result in a later request to the request that made the call.
 //!
-//! Design notes and the rules in words: `docs/en/TOOL-DIAGNOSIS.md`.
+//! Design notes and the rules in words: `private hs-internal tool-diagnosis notes`.
 
 pub mod classify;
 pub mod level;
