@@ -72,6 +72,33 @@ pub struct HfModelSearchResult {
     /// (a component without safetensors): they load as weights only, never as code.
     #[serde(default)]
     pub pickle_weights: bool,
+    /// A safetensors chat repo the Python engine runs with transformers when mistral.rs is not
+    /// registered ([`HfModelSearchResult::resolve_installed`] switches `compatibility`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub python_chat: bool,
+}
+
+impl HfModelSearchResult {
+    /// Settles which installed runtime family runs the repo ([`crate::hub_compat::resolve_installed`]).
+    /// Order: GGUF (llama.cpp), then mistral.rs, then the Python engine: a safetensors chat repo
+    /// whose mistral.rs verdict has no registered runtime falls back to the Python engine.
+    pub fn resolve_installed(&mut self, installed: &[String]) {
+        if self.python_chat
+            && matches!(
+                &self.compatibility,
+                crate::hub_compat::Compatibility::Runnable { runtime }
+                    if runtime == crate::hub_compat::MISTRALRS_FAMILY
+            )
+            && !installed
+                .iter()
+                .any(|f| f == crate::hub_compat::MISTRALRS_FAMILY)
+        {
+            self.compatibility = crate::hub_compat::Compatibility::Runnable {
+                runtime: crate::hub_compat::PYTHON_HF_FAMILY.to_string(),
+            };
+        }
+        crate::hub_compat::resolve_installed(&mut self.compatibility, installed);
+    }
 }
 
 /// Hugging Face search filters. Empty/None fields are not sent.
@@ -614,6 +641,7 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
                 task,
                 &tags,
                 &sibling_files(item),
+                item.get("config"),
             )
         })
         .unwrap_or_else(|| crate::hub_compat::hub_compatibility_for(format, task, genai))
@@ -725,6 +753,17 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
                 if runtime == crate::hub_compat::PYTHON_HF_FAMILY
         )
         && crate::hub_compat::diffusers_pickle_weights(&sibling_files(item));
+    let python_chat = format == crate::hub_compat::ModelFormat::Safetensors
+        && task.is_some_and(|t| crate::engine::python_hf::CHAT_TASKS.contains(&t))
+        && crate::hub_compat::python_hf_compatibility(
+            format,
+            item.get("library_name").and_then(|v| v.as_str()),
+            task,
+            &tags,
+            &sibling_files(item),
+            item.get("config"),
+        )
+        .is_some();
     Some(HfModelSearchResult {
         id,
         author: str_field("author"),
@@ -746,6 +785,7 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         quants: quants_from_siblings(item),
         created_at: str_field("createdAt"),
         pickle_weights,
+        python_chat,
     })
 }
 
@@ -5951,6 +5991,103 @@ mod tests {
         }
     }
 
+    /// Order for a safetensors chat repo: GGUF (llama.cpp), then mistral.rs, then the Python
+    /// engine. mistral.rs is the user's own build, so without it the Python engine's
+    /// transformers runs the repo; the Python engine alone takes what mistral.rs cannot.
+    #[test]
+    fn safetensors_chat_repos_fall_back_to_the_python_engine() {
+        use crate::hub_compat::{Compatibility, ModelFormat};
+        let repo = |id: &str, task: &str, arch: &str, extra: &[&str]| {
+            let mut siblings = vec![
+                serde_json::json!({"rfilename": "config.json"}),
+                serde_json::json!({"rfilename": "model.safetensors"}),
+            ];
+            siblings.extend(extra.iter().map(|f| serde_json::json!({"rfilename": f})));
+            parse_search_item(&serde_json::json!({
+                "id": id,
+                "pipeline_tag": task,
+                "library_name": "transformers",
+                "tags": ["transformers", "safetensors", task],
+                "config": {"architectures": [arch]},
+                "siblings": siblings,
+            }))
+            .unwrap()
+        };
+        let runnable = |runtime: &str| Compatibility::Runnable {
+            runtime: runtime.into(),
+        };
+        // mistral.rs first: it answers the architectures it loads, and keeps them when registered.
+        let mut qwen = repo(
+            "Qwen/Qwen2.5-0.5B-Instruct",
+            "text-generation",
+            "Qwen2ForCausalLM",
+            &[],
+        );
+        assert_eq!(qwen.format, ModelFormat::Safetensors);
+        assert_eq!(qwen.compatibility, runnable("mistral.rs"));
+        assert!(qwen.python_chat);
+        let mut with_mistral = qwen.clone();
+        with_mistral.resolve_installed(&["mistral.rs".to_string(), "python-hf".to_string()]);
+        assert_eq!(with_mistral.compatibility, runnable("mistral.rs"));
+        // Without it the Python engine takes over: installed, or to be installed.
+        let mut python = qwen.clone();
+        python.resolve_installed(&["python-hf".to_string()]);
+        assert_eq!(python.compatibility, runnable("python-hf"));
+        qwen.resolve_installed(&["llama.cpp".to_string()]);
+        assert_eq!(
+            qwen.compatibility,
+            Compatibility::NeedsRuntime {
+                runtime: "python-hf".into()
+            }
+        );
+        assert_eq!(qwen.not_runnable, None);
+        // A vision chat model too.
+        let vlm = repo(
+            "HuggingFaceTB/SmolVLM-256M-Instruct",
+            "image-text-to-text",
+            "Idefics3ForConditionalGeneration",
+            &[],
+        );
+        assert!(vlm.python_chat);
+        assert!(vlm
+            .capabilities
+            .contains(&crate::model_registry::Capability::Vision));
+        // An architecture mistral.rs does not load is the Python engine's from the start.
+        let gpt2 = repo(
+            "openai-community/gpt2",
+            "text-generation",
+            "GPT2LMHeadModel",
+            &[],
+        );
+        assert_eq!(gpt2.compatibility, runnable("python-hf"));
+        assert_eq!(gpt2.not_runnable, None);
+        // A GGUF next to the weights stays llama.cpp's.
+        let both = repo(
+            "x/Qwen2.5-0.5B-Instruct-GGUF",
+            "text-generation",
+            "Qwen2ForCausalLM",
+            &["qwen2.5-0.5b-instruct-q4_k_m.gguf"],
+        );
+        assert_eq!(both.format, ModelFormat::Gguf);
+        assert_eq!(both.compatibility, runnable("llama.cpp"));
+        assert!(!both.python_chat);
+        // Quantized weights need packages the environment does not ship: not offered.
+        let awq = parse_search_item(&serde_json::json!({
+            "id": "x/Qwen2.5-0.5B-Instruct-AWQ",
+            "pipeline_tag": "text-generation",
+            "library_name": "transformers",
+            "tags": ["transformers", "safetensors", "text-generation"],
+            "config": {"architectures": ["Qwen2ForCausalLM"], "quantization_config": {"quant_method": "awq"}},
+            "siblings": [{"rfilename": "config.json"}, {"rfilename": "model.safetensors"}],
+        }))
+        .unwrap();
+        assert!(!awq.python_chat);
+        // A repo that is not a chat model keeps its own verdict.
+        let bert = repo("x/bert", "fill-mask", "BertForMaskedLM", &[]);
+        assert_eq!(bert.compatibility, runnable("python-hf"));
+        assert!(!bert.python_chat);
+    }
+
     #[test]
     fn safetensors_chat_repos_need_the_mistralrs_runtime() {
         use crate::hub_compat::{resolve_installed, Compatibility, ModelFormat};
@@ -9046,11 +9183,12 @@ mod refusal_reason_tests {
 
     #[test]
     fn transformers_language_model_with_safetensors_only_is_convertible() {
+        // Remote code: neither mistral.rs nor the Python engine runs it as it is.
         let item = serde_json::json!({
             "id": "someone/Odd-LM-7B",
             "pipeline_tag": "text-generation",
             "library_name": "transformers",
-            "tags": ["transformers", "safetensors", "text-generation"],
+            "tags": ["transformers", "safetensors", "text-generation", "custom_code"],
             "config": {"model_type": "oddlm", "architectures": ["OddLMForCausalLM"]},
             "siblings": [
                 {"rfilename": "config.json"},

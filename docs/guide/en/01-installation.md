@@ -79,8 +79,8 @@ Other kinds of models use optional engines that you install when you need them, 
 | ONNX embeddings, reranking, and chat | ONNX Runtime and ONNX Runtime GenAI (through the bundled `harness-onnx` helper) |
 | Converting safetensors models to GGUF | A small conversion environment, built on first use |
 | AMD Ryzen AI NPU and extra llama.cpp builds | Lemonade (optional) |
-| Safetensors models without conversion | mistral.rs (optional, add your own build) |
-| Hugging Face task models | Python (`python-hf`, CPU or CUDA) |
+| Safetensors models without conversion | mistral.rs (optional, add your own build); without it, Python (`python-hf`) runs safetensors chat and vision models |
+| Hugging Face task models, safetensors chat models | Python (`python-hf`, CPU or CUDA) |
 | MLX chat, vision, and audio | Optional MLX engines (Apple Silicon, macOS 14+) |
 
 These are covered in [Model Hub and My Models](02-model-hub-and-library.md), [Playground](04-playground.md), and [Settings](08-settings.md).

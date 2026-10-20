@@ -87,7 +87,7 @@ pub use whisper_cpp::{
 /// Family id of llama.cpp builds (official, system, GitHub forks such as PrismML).
 pub const LLAMA_CPP: &str = "llama.cpp";
 
-/// Display name of an engine family in messages ("MLX", "Python (HF)"); an unknown family is
+/// Display name of an engine family in messages ("MLX", "Python (Transformers)"); an unknown family is
 /// shown as it is. The GUI's `engineLabel` uses the same names.
 pub fn display_name(family: &str) -> &str {
     match family {
@@ -96,7 +96,7 @@ pub fn display_name(family: &str) -> &str {
         "mlx-vlm" => "MLX-VLM",
         "mlx-audio" => "MLX Audio",
         "mflux" => "mflux",
-        "python-hf" => "Python (HF)",
+        "python-hf" => "Python (Transformers)",
         "audio.cpp" => "audio.cpp",
         "crispasr" => "CrispASR",
         "transcribe.cpp" => "transcribe.cpp",
@@ -451,6 +451,43 @@ pub fn model_on_disk(path: &Path) -> bool {
         || mlx::is_any_model_dir(path)
 }
 
+/// Whether a mistral.rs runtime is registered (`runtimes.json`). Unit tests of this crate see
+/// it registered unless a test says otherwise ([`tests::without_mistralrs`]), so no test reads
+/// the registry of the machine it runs on.
+pub fn mistralrs_registered() -> bool {
+    registered_family(MISTRALRS)
+}
+
+#[cfg(test)]
+fn registered_family(_family: &str) -> bool {
+    tests::MISTRALRS_REGISTERED.with(|c| c.get())
+}
+
+#[cfg(not(test))]
+fn registered_family(family: &str) -> bool {
+    crate::runtimes::RuntimeRegistry::global()
+        .entries()
+        .map(|entries| entries.iter().any(|e| e.family == family))
+        .unwrap_or(false)
+}
+
+/// The engine of a safetensors chat checkpoint folder ([`is_mistralrs_dir`]): mistral.rs, which
+/// is the user's own build and so optional; without it the Python engine runs the folder with
+/// transformers when it can ([`python_hf::chat_task`]).
+fn chat_checkpoint_engine(path: &Path) -> &'static dyn ServerEngine {
+    if !mistralrs_registered() && python_hf::chat_task(path).is_some() {
+        &PYHF
+    } else {
+        &MISTRAL
+    }
+}
+
+/// Whether mistral.rs is the engine that serves `path` (a checkpoint folder it runs, with the
+/// runtime registered), as opposed to the Python engine's transformers fallback.
+pub fn runs_on_mistralrs(path: &Path) -> bool {
+    is_mistralrs_dir(path) && chat_checkpoint_engine(path).family() == MISTRALRS
+}
+
 /// The engine of a family id; `None` for families this build does not know (a newer
 /// `runtimes.json`).
 pub fn engine(family: &str) -> Option<&'static dyn Engine> {
@@ -474,7 +511,7 @@ pub fn server_for(config: &LaunchConfig) -> &'static dyn ServerEngine {
         return &TRANSCRIBE;
     }
     if is_mistralrs_dir(&config.model_path) {
-        return &MISTRAL;
+        return chat_checkpoint_engine(&config.model_path);
     }
     if python_hf::is_model_dir(&config.model_path) {
         return &PYHF;
@@ -582,7 +619,7 @@ pub fn server_for_model(path: &Path) -> Option<&'static dyn ServerEngine> {
         return Some(&TRANSCRIBE);
     }
     if is_mistralrs_dir(path) {
-        return Some(&MISTRAL);
+        return Some(chat_checkpoint_engine(path));
     }
     if python_hf::is_model_dir(path) {
         return Some(&PYHF);
@@ -617,6 +654,19 @@ pub fn host_url(host: &str, port: u16) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    thread_local! {
+        /// What [`mistralrs_registered`] says in this test thread (registered by default).
+        pub(super) static MISTRALRS_REGISTERED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+    }
+
+    /// Runs `f` as if no mistral.rs runtime were registered.
+    pub(crate) fn without_mistralrs<T>(f: impl FnOnce() -> T) -> T {
+        MISTRALRS_REGISTERED.with(|c| c.set(false));
+        let out = f();
+        MISTRALRS_REGISTERED.with(|c| c.set(true));
+        out
+    }
 
     #[test]
     fn families_resolve_and_old_records_are_llama_cpp() {
@@ -750,6 +800,69 @@ mod tests {
         );
         assert_eq!(engine(MLX_VLM).unwrap().family(), MLX_VLM);
         assert_eq!(engine(MLX).unwrap().family(), MLX);
+    }
+
+    /// Without a registered mistral.rs the Python engine runs a safetensors chat checkpoint
+    /// (text or vision) with transformers; a folder it cannot run (remote code) stays mistral.rs's.
+    #[test]
+    fn chat_checkpoints_fall_back_to_the_python_engine() {
+        let root = tempfile::Builder::new()
+            .prefix(&crate::paths::test_dir_prefix("pyhf-chat-route"))
+            .tempdir()
+            .unwrap();
+        let make = |name: &str, config: &str| {
+            let dir = root.path().join(name);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(dir.join("config.json"), config).unwrap();
+            std::fs::write(dir.join("model.safetensors"), [0u8; 16]).unwrap();
+            dir
+        };
+        let text = make(
+            "qwen",
+            r#"{"architectures":["Qwen2ForCausalLM"],"model_type":"qwen2"}"#,
+        );
+        let vision = make(
+            "smolvlm",
+            r#"{"architectures":["Idefics3ForConditionalGeneration"],"model_type":"idefics3","vision_config":{}}"#,
+        );
+        let remote = make(
+            "remote",
+            r#"{"architectures":["OddForCausalLM"],"auto_map":{"AutoModel":"x.Y"}}"#,
+        );
+        let launch = |dir: &Path| {
+            server_for(&LaunchConfig {
+                model_path: dir.to_path_buf(),
+                ..Default::default()
+            })
+            .family()
+        };
+        // Registered: mistral.rs keeps every chat checkpoint.
+        for dir in [&text, &vision, &remote] {
+            assert_eq!(launch(dir), MISTRALRS);
+            assert!(runs_on_mistralrs(dir));
+        }
+        without_mistralrs(|| {
+            assert_eq!(launch(&text), PYTHON_HF);
+            assert_eq!(launch(&vision), PYTHON_HF);
+            assert_eq!(server_for_model(&text).unwrap().family(), PYTHON_HF);
+            assert!(!runs_on_mistralrs(&text));
+            // Remote code is never run: the folder stays with mistral.rs (which then asks to be set up).
+            assert_eq!(launch(&remote), MISTRALRS);
+            assert!(!is_llama_server(&text, false));
+            assert!(model_on_disk(&text));
+            assert_eq!(python_hf::chat_task(&text), Some("text-generation"));
+            assert_eq!(python_hf::chat_task(&vision), Some("image-text-to-text"));
+            assert_eq!(python_hf::chat_task(&remote), None);
+            assert_eq!(
+                python_hf::serve_mode(&text),
+                crate::serve_mode::ServeMode::Chat
+            );
+            // A chat model, not a pipeline: the library keeps it a language model.
+            assert_eq!(
+                python_hf::kind_of("text-generation"),
+                crate::domain::ModelKind::Llm
+            );
+        });
     }
 
     #[test]

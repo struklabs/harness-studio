@@ -29,6 +29,7 @@
   import { formatName, isPreciseRefusal, notRunnableKey } from './inference';
   import { canConvert, speechNeedsConversion } from './convertible';
   import { needsPrismFork } from './forkQuants';
+  import { isPythonChat, pythonChatMemory } from './pythonChat';
   import ConvertPanel from './ConvertPanel.svelte';
   import EngineNeeded from '../common/EngineNeeded.svelte';
   import ModelCard from './ModelCard.svelte';
@@ -107,6 +108,10 @@
 
   /** A safetensors chat model whose mistral.rs runtime is not registered (no managed install). */
   let needsMistralrs = $derived(repo?.compatibility.status === 'needs_runtime' && repo.compatibility.runtime === 'mistral.rs');
+  /** A safetensors chat repo that runs on the Python engine (transformers): its weights are one download. */
+  let pythonChat = $derived(!!repo && isPythonChat(repo));
+  let pythonChatBytes = $derived(variants.find((v) => !v.not_runnable)?.total_size_bytes ?? 0);
+  let pythonChatFit = $derived(pythonChatMemory(pythonChatBytes, hardware?.available_ram_bytes));
   /** A variant of this repo uses a PrismML-fork quant (PQ2_0 / PTQ1_0): the official llama.cpp can't load it. */
   let needsPrism = $derived(variants.some((v) => needsPrismFork(v.quantization, ...v.shards.map((s) => s.filename))));
   function openRuntimeSettings() {
@@ -599,6 +604,23 @@
                   <Button variant="outline" size="xs" class="shrink-0" onclick={openRuntimeSettings}>
                     {t('hub.compat_open_runtime_settings')}
                   </Button>
+                </div>
+              {/if}
+
+              {#if pythonChat}
+                <div
+                  class={cn('flex items-center gap-2 rounded-lg border px-3 py-2 text-xs', pythonChatFit.fits === false ? 'border-warning/30 bg-warning/10 text-warning' : 'border-info/30 bg-info/10 text-info')}
+                  role="status"
+                >
+                  <Info class="size-3.5 shrink-0" />
+                  <span class="min-w-0 flex-1">
+                    {pythonChatBytes > 0
+                      ? t('hub.pyhf_chat_drawer', { size: formatBytes(pythonChatBytes), need: formatBytes(pythonChatFit.needBytes) })
+                      : t('hub.compat_pyhf_chat_title')}
+                    {#if pythonChatFit.fits === false}
+                      {t('hub.pyhf_chat_ram_warning', { available: formatBytes(hardware?.available_ram_bytes ?? 0) })}
+                    {/if}
+                  </span>
                 </div>
               {/if}
 
