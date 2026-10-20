@@ -88,7 +88,12 @@
       "en": "modules.agents_description",
       "tr": "modules.agents_description"
     },
-    "functions": [],
+    "functions": [
+      {
+        "en": "agents.function",
+        "tr": "agents.function"
+      }
+    ],
     "platforms": [
       "windows-x86_64",
       "linux-x86_64",
@@ -98,11 +103,34 @@
       "en": "modules.cpu",
       "tr": "modules.cpu"
     },
-    "components": [],
-    "permissions": [],
+    "components": [
+      {
+        "id": "hermes-agent",
+        "version": "upstream-stable",
+        "sources": [
+          "https://hermes-agent.nousresearch.com/docs/getting-started/installation"
+        ],
+        "download_bytes": 524288000,
+        "disk_bytes": 1572864000
+      }
+    ],
+    "permissions": [
+      {
+        "en": "agents.install_permission",
+        "tr": "agents.install_permission"
+      },
+      {
+        "en": "agents.connect_permission",
+        "tr": "agents.connect_permission"
+      },
+      {
+        "en": "agents.task_permission",
+        "tr": "agents.task_permission"
+      }
+    ],
     "shared_component_ids": [],
     "min_app_version": "0.1.2",
-    "planned": true
+    "planned": false
   },
   {
     "id": "automations",

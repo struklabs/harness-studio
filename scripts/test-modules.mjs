@@ -22,10 +22,12 @@ test('unknown progress stays indeterminate and byte progress is bounded', () => 
   assert.equal(progressPercent(NaN, 100), undefined);
 });
 import { readFileSync } from 'node:fs';
-import locales from '../src/lib/locales/modules.ts';
+import moduleLocales from '../src/lib/locales/modules.ts';
+import agentLocales from '../src/lib/locales/agents.ts';
+const locales = { en: { ...moduleLocales.en, ...agentLocales.en }, tr: { ...moduleLocales.tr, ...agentLocales.tr } };
 test('every bundled module has translated metadata and future areas stay planned', () => {
   const modules = JSON.parse(readFileSync(new URL('../crates/harness-core/src/modules/bundled.json', import.meta.url), 'utf8'));
-  assert.deepEqual(modules.filter(m => !m.planned).map(m => m.id), ['speech']);
+  assert.deepEqual(modules.filter(m => !m.planned).map(m => m.id), ['speech', 'agents']);
   for (const manifest of modules) {
     for (const field of [manifest.name, manifest.description, manifest.hardware, ...manifest.functions, ...manifest.permissions]) {
       assert.equal(typeof locales.en[field.en], 'string');
