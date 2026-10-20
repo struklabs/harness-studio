@@ -22,6 +22,8 @@ Names in **bold** are labels you will see in the app. Model Hub and engine downl
 10. [Troubleshooting and FAQ](10-troubleshooting.md)
 11. [Setup Scenarios: First Model, First Agent, Remote Server](11-setup-scenarios.md)
 
+For public skills and MCP repositories, see [GitHub Discovery](github-discovery.md).
+
 ## Get Started in Five Steps
 
 Five minutes is a goal for getting to know the steps. Engine and model downloads take as long as their size and your connection require.

@@ -30,6 +30,7 @@ pub mod failure;
 pub mod full_offload;
 pub mod gateway;
 pub mod gguf;
+pub mod github_discovery;
 pub mod gpu;
 pub mod hardware;
 pub mod hex;

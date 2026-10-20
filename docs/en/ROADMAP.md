@@ -18,4 +18,11 @@ Harness Studio brings local models, tools, and optional engines into one desktop
 - More remote-device and cloud-provider connections.
 - Better context management and document retrieval.
 
+## Open Source Discovery
+
+Discover includes a separate GitHub search and repository URL view. Public
+repository discovery is distinct from installability and the official catalog:
+skills require a pinned commit and manual script confirmation, while MCP servers
+provide configuration for manual setup. See the [GitHub discovery guide](../guide/en/github-discovery.md).
+
 See [Features](FEATURES.md) for current capabilities and the [changelog](../CHANGELOG.md) for shipped changes. Share suggestions in [Discussions](https://github.com/struklabs/harness-studio/discussions) or [Issues](https://github.com/struklabs/harness-studio/issues).

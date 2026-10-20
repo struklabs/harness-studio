@@ -12,6 +12,13 @@ Harness Studio yerel modelleri, araçları ve isteğe bağlı motorları tek bir
 - Linux uyumluluğunu, uygulama güncellemelerini, erişilebilirliği ve ilk kurulumu iyileştirmek.
 - SDK erişimini ve desteklenen motor seçeneklerini genişletmek.
 
+## Açık Kaynak Keşfi
+
+Keşfet, ayrı bir GitHub araması ve depo URL’si görünümü içerir. Herkese açık
+depoları keşfetmek, kurulabilirlikten ve resmî katalogdan ayrıdır: beceriler için
+sabitlenmiş commit ve elle betik onayı gerekir; MCP sunucuları ise elle kurulum
+için yapılandırma sunar. [GitHub keşif kılavuzuna](../guide/en/github-discovery.md) bakın.
+
 ## Daha Sonra
 
 - İsteğe bağlı eğitim, otomasyon ve daha zengin proje iş akışları.
