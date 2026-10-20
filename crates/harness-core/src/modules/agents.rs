@@ -1024,6 +1024,13 @@ pub fn start_task_kind_for_project(
         // OpenClaw's read tool is confined to one workspace folder.
         return Err("agents.openclaw_one_folder".into());
     }
+    // A folder is only readable when the user granted it to this agent (Permissions page):
+    // revoking the grant stops the next run, whatever asked for it.
+    let subject = match kind {
+        AgentKind::Hermes => crate::permissions::AGENT_HERMES,
+        AgentKind::OpenClaw => crate::permissions::AGENT_OPENCLAW,
+    };
+    crate::permissions::Permissions::shared().check_agent_run(subject, &grants.read_folders)?;
     let _operation = super::OPERATION.try_lock().map_err(|_| "modules.busy")?;
     ensure_kind_enabled(kind)?;
     let _connection = CONNECTION_LOCK.lock().unwrap();
@@ -1711,6 +1718,9 @@ mod tests {
         }
         assert!(serde_json::from_value::<RunGrants>(json!({"shell": true})).is_err());
         assert!(RunGrants::default().read_folders.is_empty());
+        // Without a standing grant for the folder, a run is refused before anything starts.
+        let err = start_task_with_grants("hello".into(), grants.clone()).unwrap_err();
+        assert!(err.starts_with("permissions.folder_not_granted"), "{err}");
         let entry = TaskStatus {
             id: uuid::Uuid::new_v4().to_string(),
             model: "chat".into(),

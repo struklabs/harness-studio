@@ -38,6 +38,13 @@ pub fn engine_name(def: &ModelDefinition) -> &'static str {
     if def
         .base
         .local_path()
+        .is_some_and(harness_core::engine::python_hf::is_liquid_audio_dir)
+    {
+        return "Liquid Audio";
+    }
+    if def
+        .base
+        .local_path()
         .is_some_and(harness_core::engine::mlx::is_audio_dir)
     {
         "mlx-audio"

@@ -326,7 +326,13 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
         } else {
             ModelFormat::Pytorch
         };
-        let runtime = crate::engine::PYTHON_HF.to_string();
+        // An LFM2-Audio folder runs in Liquid's own environment (its own installable family).
+        let runtime = if crate::engine::python_hf::is_liquid_audio_dir(dir) {
+            crate::engine::python_hf::LIQUID_AUDIO
+        } else {
+            crate::engine::PYTHON_HF
+        }
+        .to_string();
         let mut capabilities = local_capabilities(caps);
         if model
             .task
@@ -389,6 +395,9 @@ pub fn installed_families() -> Vec<String> {
     }
     if crate::engine::python_hf::binary().is_ok() {
         families.push(crate::engine::PYTHON_HF.to_string());
+    }
+    if crate::engine::python_hf::liquid_binary().is_ok() {
+        families.push(crate::engine::python_hf::LIQUID_AUDIO.to_string());
     }
     if crate::engine::transcribe_cpp::binary().is_ok() {
         families.push(crate::engine::TRANSCRIBE_CPP.to_string());

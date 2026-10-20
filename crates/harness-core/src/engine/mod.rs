@@ -98,6 +98,7 @@ pub fn display_name(family: &str) -> &str {
         "mlx-embed" => "MLX Embeddings",
         "mflux" => "mflux",
         "python-hf" => "Python (HF)",
+        "liquid-audio" => "Liquid Audio",
         "audio.cpp" => "audio.cpp",
         "crispasr" => "CrispASR",
         "transcribe.cpp" => "transcribe.cpp",
