@@ -15,6 +15,8 @@
   import { shownItems, splitItems, type ToolbarId } from '#lib/toolbarLayout.js';
   import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
   import * as Tooltip from '#lib/components/ui/tooltip/index.js';
+  import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import DownloadQueuePanel from '#lib/components/hub/DownloadQueuePanel.svelte';
   import { cn } from '#lib/utils.js';
 
   type Kind = 'running' | 'starting' | 'stopping' | 'stopped' | 'error';
@@ -24,6 +26,7 @@
   }
 
   let { serverKind, onOpenCommand }: Props = $props();
+  let downloadsOpen = $state(false);
 
   const isMac = typeof navigator !== 'undefined' && /Mac/i.test(navigator.userAgent + navigator.platform);
   const mod = isMac ? '⌘' : 'Ctrl';
@@ -67,7 +70,7 @@
 
   function run(id: ToolbarId) {
     if (id === 'sidebar') panes.nav.toggle();
-    else if (id === 'downloads') app.openTab('hub');
+    else if (id === 'downloads') downloadsOpen = true;
     else if (id === 'server') app.openTab('dashboard');
     else if (id === 'logs') {
       app.openTab('dashboard');
@@ -140,3 +143,12 @@
     </DropdownMenu.Content>
   </DropdownMenu.Root>
 </div>
+
+<Dialog.Root bind:open={downloadsOpen}>
+  <Dialog.Content class="max-h-[80vh] overflow-y-auto sm:max-w-xl">
+    <Dialog.Header>
+      <Dialog.Title>{t('toolbar.downloads')}</Dialog.Title>
+    </Dialog.Header>
+    <DownloadQueuePanel queue={downloads} showEmpty />
+  </Dialog.Content>
+</Dialog.Root>
