@@ -138,6 +138,9 @@ pub async fn run_job(
     if let Some(dir) = &cmd.cwd {
         command.current_dir(dir);
     }
+    if crate::process_limits::prepare(command.as_std_mut()).is_err() {
+        return failed("jobs.spawn_failed", None, &tail);
+    }
     let mut group = command.group();
     group.kill_on_drop(true);
     #[cfg(windows)]
@@ -146,6 +149,13 @@ pub async fn run_job(
         Ok(c) => c,
         Err(_) => return failed("jobs.spawn_failed", None, &tail),
     };
+    #[cfg(windows)]
+    let _memory_job =
+        match crate::process_limits::memory_job(child.inner().raw_handle().unwrap() as _) {
+            Ok(job) => job,
+            Err(_) => return failed("jobs.spawn_failed", None, &tail),
+        };
+    let _group_guard = crate::process_limits::GroupGuard(child.id().unwrap());
     let mut out = BufReader::new(child.inner().stdout.take().unwrap()).lines();
     let mut err = BufReader::new(child.inner().stderr.take().unwrap()).lines();
     let (mut out_open, mut err_open) = (true, true);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TrustPermissions from "#lib/components/tools/TrustPermissions.svelte";
   // Settings > Tools > Installed tools: packages kept in
   // `<data dir>/tools/`. Installing shows what the manifest asks for and waits for the user's
   // confirmation; the core validates the package again when it installs it. Switching and
@@ -138,6 +139,7 @@
   }
 </script>
 
+<TrustPermissions kind="scoped" />
 <SkillsSettings revision={skillsRevision} onChanged={() => skillsRevision++} />
 <OfficialRegistry installed={items} {skillsRevision} onSkill={() => skillsRevision++} reviewing={pending !== null} onTool={async path => { pending = { path, tool: await inspectInstalledTool(path) }; }} />
 
@@ -150,6 +152,7 @@
     <div class="flex flex-col gap-2 border-b p-4" role="group" aria-label={t('tools.inst_confirm_title', { name: pending.tool.name, version: pending.tool.version })}>
       <p class="text-sm font-medium">{t('tools.inst_confirm_title', { name: pending.tool.name, version: pending.tool.version })}</p>
       <p class="text-xs text-muted-foreground">{pending.tool.description}</p>
+      <TrustPermissions kind="scoped" />
       <p class="text-xs text-muted-foreground">{t('tools.inst_confirm_asks')}</p>
       <ul class="list-disc pl-5 text-xs">
         {#each permissionLines(pending.tool) as line (line)}

@@ -8,7 +8,7 @@
   import { Check, TriangleAlert } from '@lucide/svelte';
   import type { AppUpdateInfo, AppUpdateProgress } from '#lib/types.js';
   import { formatBytes, formatBytesPairText } from '#lib/format.js';
-  import { t, locale } from '#lib/i18n.svelte.js';
+  import { t, locale, getLanguage } from '#lib/i18n.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Progress } from '#lib/components/ui/progress/index.js';
   import * as Collapsible from '#lib/components/ui/collapsible/index.js';
@@ -188,3 +188,11 @@
     </SettingRow>
   </SettingGroup>
 </div>
+
+<SettingGroup title={t('trust.about')}>
+  <div class="space-y-2 p-4 text-xs">
+    <h3 class="font-medium">{t('trust.third')}</h3>
+    <p>{t('trust.credits')}</p>
+    <Button variant="link" size="sm" onclick={() => openUrl(`https://github.com/struklabs/harness-studio/blob/main/docs/${getLanguage()}/THIRD_PARTY.md`)}>{t('trust.review')}</Button>
+  </div>
+</SettingGroup>

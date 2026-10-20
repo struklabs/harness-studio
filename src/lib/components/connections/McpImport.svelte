@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TrustPermissions from "#lib/components/tools/TrustPermissions.svelte";
   import HelpPopover from '../common/HelpPopover.svelte';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { onMount } from 'svelte';
@@ -167,6 +168,9 @@
         </label>
       {/each}
     </fieldset>
+    {#each preview.filter(([n]) => selected[n]) as [name, def] (name)}
+      <p class="text-xs font-medium">{name}</p><TrustPermissions kind={def.command ? "native" : "remote"} />
+    {/each}
     {#if preview.some(([n, d]) => selected[n] && d.command)}
       <p class="flex items-start gap-1.5 text-xs text-warning"><ShieldAlert class="mt-0.5 size-3 shrink-0" /> {t('conn.mcp_stdio_notice')}</p>
     {/if}

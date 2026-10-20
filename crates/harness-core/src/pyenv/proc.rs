@@ -1,6 +1,7 @@
 //! Runs a helper process (uv, the converter, `llama-quantize`) and follows its output line by
 //! line: progress bars rewrite their line with `\r`, so both `\r` and `\n` end a line.
 
+use command_group::AsyncCommandGroup;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -72,13 +73,23 @@ pub async fn run(
         .kill_on_drop(true);
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    let mut child = cmd.spawn()?;
+    crate::process_limits::prepare(cmd.as_std_mut())?;
+    let mut group = cmd.group();
+    group.kill_on_drop(true);
+    #[cfg(windows)]
+    group.creation_flags(0x0800_0000);
+    let mut child = group.spawn()?;
+    #[cfg(windows)]
+    let _memory_job = crate::process_limits::memory_job(child.inner().raw_handle().unwrap() as _)?;
+    let _group_guard = crate::process_limits::GroupGuard(child.id().unwrap());
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let out = child
+        .inner()
         .stdout
         .take()
         .map(|r| tokio::spawn(pump(r, tx.clone())));
     let err = child
+        .inner()
         .stderr
         .take()
         .map(|r| tokio::spawn(pump(r, tx.clone())));

@@ -36,6 +36,8 @@ pub struct StdioTransport {
     child: Mutex<Option<command_group::AsyncGroupChild>>,
     closed: Arc<AtomicBool>,
     pid: Option<u32>,
+    #[cfg(windows)]
+    _memory_job: Option<crate::process_limits::MemoryJob>,
     stderr_tail: Arc<Mutex<VecDeque<String>>>,
 }
 
@@ -75,6 +77,8 @@ impl StdioTransport {
         if let Some(dir) = &spec.cwd {
             cmd.current_dir(dir);
         }
+        crate::process_limits::prepare(cmd.as_std_mut())
+            .map_err(|e| McpError::Transport(e.to_string()))?;
         let mut group = cmd.group();
         group.kill_on_drop(true);
         #[cfg(windows)]
@@ -82,6 +86,11 @@ impl StdioTransport {
         let mut child = group.spawn().map_err(|e| {
             McpError::Transport(format!("could not start \"{}\": {e}", spec.command))
         })?;
+        #[cfg(windows)]
+        let memory_job = {
+            crate::process_limits::memory_job(child.inner().raw_handle().unwrap() as _)
+                .map_err(|e| McpError::Transport(e.to_string()))?
+        };
         let pid = child.id();
         let stdin = child
             .inner()
@@ -209,6 +218,8 @@ impl StdioTransport {
             child: Mutex::new(Some(child)),
             closed,
             pid,
+            #[cfg(windows)]
+            _memory_job: memory_job,
             stderr_tail,
         })
     }
@@ -288,9 +299,11 @@ impl StdioTransport {
             .take();
         let child = self.child.lock().unwrap_or_else(|e| e.into_inner()).take();
         let Some(mut child) = child else { return };
+        let _group_guard = self.pid.map(crate::process_limits::GroupGuard);
         let deadline = tokio::time::Instant::now() + grace;
         while tokio::time::Instant::now() < deadline {
             if matches!(child.try_wait(), Ok(Some(_))) {
+                let _ = child.start_kill();
                 return;
             }
             tokio::time::sleep(Duration::from_millis(20)).await;
@@ -306,6 +319,82 @@ impl Drop for StdioTransport {
             // Windows: dropping the child closes the Job Object, which kills every descendant.
             // Unix: kill the process group explicitly.
             let _ = child.start_kill();
+        }
+    }
+}
+
+#[cfg(all(test, windows))]
+mod containment_tests {
+    use super::*;
+    use std::process::{Command, Stdio};
+    use std::time::Instant;
+
+    // A separate host uses the actual MCP transport. Killing it bypasses every Rust Drop.
+    #[test]
+    fn mcp_host_fixture() {
+        let Ok(marker) = std::env::var("HARNESS_MCP_HOST_FIXTURE") else {
+            return;
+        };
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        runtime.block_on(async {
+            let script = "const cp=require('child_process'),fs=require('fs');const c=cp.spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});fs.writeFileSync(process.argv[1],JSON.stringify([process.pid,c.pid]));setInterval(()=>{},1000)";
+            let (tx, _rx) = mpsc::unbounded_channel();
+            let _transport = StdioTransport::spawn(&StdioSpec {
+                command: "node".into(), args: vec!["-e".into(), script.into(), marker],
+                env: vec![], cwd: None,
+            }, tx).unwrap();
+            std::future::pending::<()>().await;
+        });
+    }
+
+    #[test]
+    fn killing_host_kills_mcp_child_tree() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("pids.json");
+        let mut host = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "tools::mcp_client::stdio::containment_tests::mcp_host_fixture",
+                "--nocapture",
+            ])
+            .env("HARNESS_MCP_HOST_FIXTURE", &marker)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let pids: Vec<u32> = loop {
+            if let Ok(bytes) = std::fs::read(&marker) {
+                if let Ok(pids) = serde_json::from_slice(&bytes) {
+                    break pids;
+                }
+            }
+            if Instant::now() >= deadline {
+                let _ = host.kill();
+                let _ = host.wait();
+                panic!("MCP host did not start its descendants");
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        };
+        assert_eq!(pids.len(), 2);
+        use windows::Win32::{Foundation::*, System::Threading::*};
+        // Hold process handles before killing, so PID reuse cannot invalidate the check.
+        let handles: Vec<_> = pids
+            .iter()
+            .map(|pid| unsafe { OpenProcess(PROCESS_SYNCHRONIZE, false, *pid).unwrap() })
+            .collect();
+        host.kill().unwrap();
+        host.wait().unwrap();
+        for handle in handles {
+            let result = unsafe { WaitForSingleObject(handle, 10000) };
+            unsafe {
+                CloseHandle(handle).unwrap();
+            }
+            assert_eq!(
+                result, WAIT_OBJECT_0,
+                "MCP descendant survived host termination"
+            );
         }
     }
 }

@@ -1,4 +1,8 @@
 <script lang="ts">
+  import McpServers from '../connections/McpServers.svelte';
+  import InstalledToolsSettings from './InstalledToolsSettings.svelte';
+  import Agents from '../Agents.svelte';
+  import TrustPermissions from "#lib/components/tools/TrustPermissions.svelte";
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { onMount, untrack } from 'svelte';
   import { invoke } from '#lib/ipc.js';
@@ -18,6 +22,8 @@
   import type { SettingsDraft } from './form.svelte';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
+
+  let overviewMcpPage = $state<'servers' | 'import' | 'status'>('servers');
 
   interface Props {
     page?: string;
@@ -359,6 +365,13 @@
 
 </div>
 <div hidden={page !== 'security-permissions'} class="flex flex-col gap-3">
+  {#if page === 'security-permissions'}
+    <h3 class="font-medium">{t('trust.overview')}</h3>
+    <details><summary>{t('trust.mcp')}</summary><McpServers page={overviewMcpPage} onNavigate={(next) => { if (next === 'servers' || next === 'import' || next === 'status') overviewMcpPage = next; }} /></details>
+    <details><summary>{t('trust.tools')}</summary><InstalledToolsSettings /></details>
+    <details><summary>{t('trust.agents')}</summary><Agents /></details>
+    <TrustPermissions kind="trainer" />
+  {/if}
   <SettingGroup title={t('sec.acks_title')} note={t('sec.acks_desc')}>
     {#each acks as [id, ack] (id)}
       <SettingRow label={app.serverLabel(id)} hint={t('sec.ack_at', { date: fmtDate(ack.acknowledged_at), host: ack.host })}>

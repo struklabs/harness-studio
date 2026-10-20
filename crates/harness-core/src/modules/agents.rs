@@ -260,6 +260,7 @@ fn bounded_output(mut c: Command, timeout: Duration) -> Result<(bool, String), S
     c.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
+    crate::process_limits::prepare(&mut c).map_err(|e| e.to_string())?;
     let mut group = c.group();
     #[cfg(windows)]
     {
@@ -267,6 +268,13 @@ fn bounded_output(mut c: Command, timeout: Duration) -> Result<(bool, String), S
         group.creation_flags(0x0800_0000);
     }
     let mut child = group.spawn().map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    let _memory_job = {
+        use std::os::windows::io::AsRawHandle;
+        crate::process_limits::memory_job(child.inner().as_raw_handle())
+            .map_err(|e| e.to_string())?
+    };
+    let _group_guard = crate::process_limits::GroupGuard(child.id());
     let stdout = child.inner().stdout.take().unwrap();
     let reader = std::thread::spawn(move || {
         let mut s = String::new();
@@ -276,8 +284,17 @@ fn bounded_output(mut c: Command, timeout: Duration) -> Result<(bool, String), S
     let start = Instant::now();
     loop {
         if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
-            let _ = child.kill(); // Reap descendants holding inherited pipes.
-            return Ok((status.success(), reader.join().unwrap_or_default()));
+            let _ = child.kill();
+            let drain = Instant::now();
+            while !reader.is_finished() && drain.elapsed() < Duration::from_millis(1500) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            let output = if reader.is_finished() {
+                reader.join().unwrap_or_default()
+            } else {
+                String::new()
+            };
+            return Ok((status.success(), output));
         }
         if start.elapsed() > timeout {
             let _ = child.kill();
@@ -743,6 +760,7 @@ fn run_process(
     c.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    crate::process_limits::prepare(&mut c).map_err(|e| e.to_string())?;
     let mut group = c.group();
     #[cfg(windows)]
     {
@@ -750,6 +768,13 @@ fn run_process(
         group.creation_flags(0x0800_0000);
     }
     let mut child = group.spawn().map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    let _memory_job = {
+        use std::os::windows::io::AsRawHandle;
+        crate::process_limits::memory_job(child.inner().as_raw_handle())
+            .map_err(|e| e.to_string())?
+    };
+    let _group_guard = crate::process_limits::GroupGuard(child.id());
     let mut readers = Vec::new();
     for pipe in [
         child
@@ -833,7 +858,9 @@ fn run_process(
     let _ = child.kill();
     let _ = child.wait();
     for reader in readers {
-        let _ = reader.join();
+        if reader.is_finished() {
+            let _ = reader.join();
+        }
     }
     result
 }

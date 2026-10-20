@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TrustPermissions from "#lib/components/tools/TrustPermissions.svelte";
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import HelpPopover from '../common/HelpPopover.svelte';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
@@ -86,6 +87,7 @@
   const existingHelpId = $props.id();
 </script>
 
+<TrustPermissions kind={kind === "stdio" ? "native" : "remote"} />
 <form class="flex min-w-0 flex-col gap-4" onsubmit={submit} novalidate>
   <Dialog.Header>
     <Dialog.Title>{initial ? t('conn.mcp_edit_title', { name: initial.name }) : t('conn.mcp_add_title')}</Dialog.Title>

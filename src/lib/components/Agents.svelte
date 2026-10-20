@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TrustPermissions from "#lib/components/tools/TrustPermissions.svelte";
   import { onMount } from 'svelte';
   import { invoke } from '#lib/ipc.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
@@ -90,6 +91,7 @@
 <section class="mt-6 space-y-4 border-t pt-5" aria-label={t('modules.agents')}>
   <h3 class="font-semibold">Hermes Agent</h3>
   <p class="text-sm text-muted-foreground">{t('agents.function')}</p>
+  <TrustPermissions kind="agent" />
   {#if error}<p role="alert" class="text-sm text-destructive">{error}</p>{/if}
   {#if pending}<p role="status" aria-live="polite" class="text-sm text-muted-foreground">{t('modules.working')}</p>{/if}
   {#if !enabled && task.status === 'running'}<Button variant="outline" onclick={() => action('stop_agent_task')}>{t('agents.stop')}</Button>{/if}
