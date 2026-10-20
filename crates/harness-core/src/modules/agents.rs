@@ -1368,6 +1368,8 @@ async fn install_openclaw_run(run: &Arc<Run>) -> Result<(), String> {
         .arg(&root)
         .arg(format!("openclaw@{}", openclaw::OPENCLAW_VERSION))
         .args(["--no-fund", "--no-audit", "--no-update-notifier"])
+        // A large package on a flaky connection: retry instead of failing on one reset.
+        .args(["--fetch-retries=5", "--fetch-retry-mintimeout=2000"])
         .env("npm_config_cache", root.join("cache"));
     if openclaw::npm_allows_scripts_flag(&npm) {
         // Upstream's documented flag lets the package run its own install scripts.
