@@ -47,6 +47,7 @@ jobs:
       sdk: ${{ steps.out.outputs.sdk }}
       registry: ${{ steps.out.outputs.registry }}
       audit: ${{ steps.out.outputs.audit }}
+      mobile: ${{ steps.out.outputs.mobile }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -77,6 +78,7 @@ jobs:
               - 'vite.config.js'
               - 'tsconfig.json'
               - 'components.json'
+              - 'mobile/**'
               - 'crates/harness-core/src/tools/fixtures/**'
             sdk:
               - 'sdk/**'
@@ -87,6 +89,8 @@ jobs:
               - 'crates/harness-core/src/tools/fixtures/**'
               - 'src/lib/components/tools/**'
               - 'scripts/test-official-registry.mjs'
+            mobile:
+              - 'mobile/src-tauri/**'
             audit:
               - 'Cargo.toml'
               - 'Cargo.lock'
@@ -103,10 +107,11 @@ jobs:
           SDK: ${{ steps.filter.outputs.sdk }}
           REGISTRY: ${{ steps.filter.outputs.registry }}
           AUDIT: ${{ steps.filter.outputs.audit }}
+          MOBILE: ${{ steps.filter.outputs.mobile }}
         run: |
           all=false
           if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ] || [ "$WORKFLOW" = true ]; then all=true; fi
-          for area in rust frontend sdk registry audit; do
+          for area in rust frontend sdk registry audit mobile; do
             var=$(echo "$area" | tr a-z A-Z)
             value=${!var}
             if [ "$all" = true ]; then value=true; fi
@@ -317,13 +322,46 @@ jobs:
       - name: Audit dependencies
         run: cargo audit --file Cargo.lock
 
+  # The mobile client's native side (mobile/src-tauri, its own Cargo workspace): rustfmt and
+  # clippy for the Android target, with the NDK the runner image ships. The Kotlin plugin and
+  # the APK are built by `npm run mobile:android -- build` (see mobile/README.md), not here.
+  mobile:
+    name: Mobile (Android target)
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mobile/src-tauri
+
+      - name: rustfmt
+        run: cargo fmt --manifest-path mobile/src-tauri/Cargo.toml --check
+
+      - name: clippy (aarch64-linux-android)
+        run: |
+          bin="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CC_aarch64_linux_android="$bin/aarch64-linux-android24-clang"
+          export AR_aarch64_linux_android="$bin/llvm-ar"
+          cargo clippy --manifest-path mobile/src-tauri/Cargo.toml --target aarch64-linux-android -- -D warnings
+
   # Always reports, so a required check on `ci-ok` works for every pull request: jobs that
   # were skipped because their paths did not change count as passed; failures and
   # cancellations fail it.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, frontend, rust, registry, sdk, audit, dogfood]
+    needs: [changes, frontend, rust, registry, sdk, audit, dogfood, mobile]
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:

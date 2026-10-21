@@ -16,7 +16,7 @@ use std::{
     sync::{Mutex, OnceLock},
     time::Duration,
 };
-use tauri::ipc::Channel;
+use tauri::{ipc::Channel, AppHandle, Manager, Runtime};
 
 /// A whole answer (models lists, job lists, status): at most this many bytes.
 const BODY_LIMIT: usize = 16 * 1024 * 1024;
@@ -103,7 +103,7 @@ fn origin_of(raw: &str) -> Result<(url::Url, String), String> {
     Ok((url, origin))
 }
 
-fn build(req: &Request) -> Result<reqwest::RequestBuilder, String> {
+fn build<R: Runtime>(app: &AppHandle<R>, req: &Request) -> Result<reqwest::RequestBuilder, String> {
     let (url, origin) = origin_of(&req.url)?;
     let method = reqwest::Method::from_bytes(req.method.as_bytes())
         .map_err(|_| "mobile.invalid_request".to_string())?;
@@ -120,7 +120,7 @@ fn build(req: &Request) -> Result<reqwest::RequestBuilder, String> {
         builder = builder.header(name, value);
     }
     if let Some(secret) = &req.secret {
-        let key = secrets::key_for(&secret.account, &origin)?;
+        let key = secrets::key_for(app, &secret.account, &origin)?;
         builder = match secret.scheme {
             Scheme::Bearer => builder.bearer_auth(key),
             Scheme::XApiKey => builder.header("x-api-key", key),
@@ -151,12 +151,12 @@ fn headers_of(response: &reqwest::Response) -> Vec<(String, String)> {
 }
 
 #[tauri::command]
-async fn http_request(request: Request) -> Result<Response, String> {
+async fn http_request<R: Runtime>(app: AppHandle<R>, request: Request) -> Result<Response, String> {
     let timeout = request
         .timeout_ms
         .map(Duration::from_millis)
         .unwrap_or(DEFAULT_TIMEOUT);
-    let response = build(&request)?
+    let response = build(&app, &request)?
         .timeout(timeout)
         .send()
         .await
@@ -208,7 +208,8 @@ fn take_utf8(buffer: &mut Vec<u8>) -> String {
 /// Starts a streamed request; its events go to `on_event` until `End` or `Error`. `id` names it
 /// for [`http_cancel`].
 #[tauri::command]
-async fn http_stream(
+async fn http_stream<R: Runtime>(
+    app: AppHandle<R>,
     id: u32,
     request: Request,
     on_event: Channel<StreamEvent>,
@@ -217,7 +218,7 @@ async fn http_stream(
         .timeout_ms
         .map(Duration::from_millis)
         .unwrap_or(Duration::from_secs(300));
-    let builder = build(&request)?;
+    let builder = build(&app, &request)?;
     let events = on_event.clone();
     let task = tauri::async_runtime::spawn(async move {
         let result: Result<(), String> = async {
@@ -266,21 +267,28 @@ fn http_cancel(id: u32) {
     }
 }
 
-/// Debug builds only: a scripted run for the simulator end-to-end test, passed by
-/// `xcrun simctl launch` as `SIMCTL_CHILD_HARNESS_MOBILE_E2E` (see `mobile/README.md`). Release
-/// builds never read it.
+/// Debug builds only: a scripted run for the emulator/simulator end-to-end test (see
+/// `mobile/README.md`): the `HARNESS_MOBILE_E2E` environment (`xcrun simctl launch` passes
+/// `SIMCTL_CHILD_HARNESS_MOBILE_E2E`), or `e2e.json` in the app's data folder (written with
+/// `adb shell run-as` on Android), which is deleted once read. Release builds never read either.
 #[tauri::command]
-fn e2e_script() -> Option<String> {
-    if cfg!(debug_assertions) {
-        std::env::var("HARNESS_MOBILE_E2E").ok()
-    } else {
-        None
+fn e2e_script<R: Runtime>(app: AppHandle<R>) -> Option<String> {
+    if !cfg!(debug_assertions) {
+        return None;
     }
+    if let Ok(script) = std::env::var("HARNESS_MOBILE_E2E") {
+        return Some(script);
+    }
+    let file = app.path().app_data_dir().ok()?.join("e2e.json");
+    let script = std::fs::read_to_string(&file).ok()?;
+    let _ = std::fs::remove_file(&file);
+    Some(script)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(secrets::plugin())
         .invoke_handler(tauri::generate_handler![
             http_request,
             http_stream,
@@ -330,7 +338,8 @@ mod tests {
                 secret: None,
                 timeout_ms: None,
             };
-            assert!(build(&req).is_err(), "{name}");
+            let app = tauri::test::mock_app();
+            assert!(build(app.handle(), &req).is_err(), "{name}");
         }
     }
 
