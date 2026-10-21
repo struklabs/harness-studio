@@ -1,0 +1,36 @@
+{
+  "speech": {
+    "category": "speech",
+    "tags": ["transcription", "whisper", "audio", "offline"],
+    "license": "MIT",
+    "capabilities": ["transcribe"],
+    "updated_at": "2026-10-15",
+    "featured": true
+  },
+  "agents": {
+    "category": "agents",
+    "tags": ["hermes", "openclaw", "tasks", "automation"],
+    "license": "MIT",
+    "capabilities": ["agent"],
+    "updated_at": "2026-10-18",
+    "featured": true
+  },
+  "training": {
+    "category": "training",
+    "tags": ["fine-tuning", "lora", "datasets"],
+    "capabilities": ["train"],
+    "updated_at": "2026-10-01"
+  },
+  "automations": {
+    "category": "automation",
+    "tags": ["schedules", "workflows"],
+    "capabilities": ["automate"],
+    "updated_at": "2026-10-01"
+  },
+  "rea": {
+    "category": "agents",
+    "tags": ["reasoning", "planning"],
+    "capabilities": ["reason"],
+    "updated_at": "2026-10-01"
+  }
+}

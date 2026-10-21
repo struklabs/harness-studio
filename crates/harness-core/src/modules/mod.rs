@@ -224,10 +224,65 @@ fn installable(id: &str) -> Result<ModuleManifest, String> {
     }
     Ok(m)
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct ChangelogEntry {
+    pub version: String,
+    pub notes: LocaleKeys,
+}
+/// Catalog metadata of a module, kept apart from the manifest so the manifest schema and the
+/// frozen API contract stay unchanged. Every field is optional; a module without an entry is
+/// an official one with no extra metadata.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct ModuleCatalog {
+    /// Catalog category id, for example `speech`, `agents`, `training`.
+    #[serde(default)]
+    pub category: Option<String>,
+    /// Free search keywords.
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// Publisher; absent for official modules (shown as Harness Studio).
+    #[serde(default)]
+    pub author: Option<String>,
+    /// SPDX license identifier.
+    #[serde(default)]
+    pub license: Option<String>,
+    /// Source repository URL.
+    #[serde(default)]
+    pub repository: Option<String>,
+    /// True for a third-party module. Community entries are never presented as official.
+    #[serde(default)]
+    pub community: bool,
+    /// Capability ids the module provides, for example `transcribe`, `agent`.
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    /// Ids of other modules this one needs.
+    #[serde(default)]
+    pub requires: Vec<String>,
+    /// Release notes, newest first.
+    #[serde(default)]
+    pub changelog: Vec<ChangelogEntry>,
+    /// ISO date (`YYYY-MM-DD`) of the latest release.
+    #[serde(default)]
+    pub updated_at: Option<String>,
+    /// Editorial recommendation, listed first under "Recommended".
+    #[serde(default)]
+    pub featured: bool,
+    /// Relative popularity for sorting, filled by a registry; 0 for bundled modules.
+    #[serde(default)]
+    pub popularity: u32,
+}
+/// Catalog metadata of the bundled modules, by module id.
+pub fn bundled_catalog() -> std::collections::BTreeMap<String, ModuleCatalog> {
+    serde_json::from_str(include_str!("catalog.json")).expect("bundled module catalog")
+}
 #[derive(Debug, Serialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct ModuleView {
     pub manifest: ModuleManifest,
+    /// Catalog metadata (category, tags, author, license, community flag, changelog).
+    pub catalog: ModuleCatalog,
     pub state: ModuleState,
     pub incompatibility: Option<String>,
     pub progress: Option<pyenv::EnvProgress>,
@@ -398,6 +453,7 @@ pub fn list() -> Result<Vec<ModuleView>, String> {
     if data != previous {
         store().save(&data)?;
     }
+    let catalog = bundled_catalog();
     let mut views: Vec<ModuleView> = bundled()
         .into_iter()
         .map(|manifest| {
@@ -423,6 +479,7 @@ pub fn list() -> Result<Vec<ModuleView>, String> {
                 None
             };
             ModuleView {
+                catalog: catalog.get(&manifest.id).cloned().unwrap_or_default(),
                 state,
                 incompatibility,
                 progress,
@@ -693,5 +750,28 @@ mod tests {
         }
         std::thread::sleep(std::time::Duration::from_millis(500));
         assert!(agent_probe_with(&SLOT, found).is_none());
+    }
+}
+#[cfg(test)]
+mod catalog_tests {
+    use super::*;
+    #[test]
+    fn every_bundled_module_has_catalog_metadata_and_is_official() {
+        let catalog = bundled_catalog();
+        for m in bundled() {
+            let c = catalog
+                .get(&m.id)
+                .unwrap_or_else(|| panic!("{} has no catalog entry", m.id));
+            assert!(c.category.is_some() && !c.tags.is_empty(), "{}", m.id);
+            assert!(!c.community, "{} is official", m.id);
+        }
+        assert!(catalog
+            .keys()
+            .all(|id| bundled().iter().any(|m| &m.id == id)));
+    }
+    #[test]
+    fn a_module_without_metadata_deserializes_as_official_defaults() {
+        let c: ModuleCatalog = serde_json::from_str("{}").unwrap();
+        assert!(!c.community && c.tags.is_empty() && c.category.is_none());
     }
 }

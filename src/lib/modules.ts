@@ -1,5 +1,11 @@
 export type ModuleStatus = 'not_installed' | 'installing' | 'installed' | 'disabled' | 'failed';
 export interface LocaleKeys { en: string; tr: string }
+export interface ModuleCatalog {
+  category?: string | null; tags?: string[]; author?: string | null; license?: string | null; repository?: string | null;
+  community?: boolean; capabilities?: string[]; requires?: string[];
+  changelog?: { version: string; notes: LocaleKeys }[];
+  updated_at?: string | null; featured?: boolean; popularity?: number;
+}
 export interface Component { id: string; version: string; sources: string[]; download_bytes: number; disk_bytes: number }
 export interface ModuleView {
   manifest: {
@@ -7,6 +13,8 @@ export interface ModuleView {
     functions: LocaleKeys[]; platforms: string[]; hardware: LocaleKeys; components: Component[];
     permissions: LocaleKeys[]; shared_component_ids: string[]; min_app_version: string; planned: boolean;
   };
+  /** Catalog metadata; absent on an older backend. */
+  catalog?: ModuleCatalog;
   state: { status: ModuleStatus; installed_version: string | null; error: string | null; components: string[] };
   disk_bytes: number; shared_disk_bytes: number; update_available: boolean;
   data_choices: { id: string; disk_bytes: number; path: string }[];

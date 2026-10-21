@@ -61,6 +61,8 @@ Every module manifest carries `manifest_version`. The rules:
 - A new `manifest_version` is introduced together with the app that reads it. The previous manifest version is still installed for the deprecation window above, so a module written for version 1 keeps installing after version 2 appears.
 - `min_app_version` in the manifest is checked as well, together with the platform list; an older app refuses a module that needs a newer one.
 
+Catalog details shown on the Modules page (category, tags, author, license, repository, the Community flag, capabilities, required modules, release notes, update date) are not part of the manifest. `GET /modules` returns them in a separate optional `catalog` object next to each `manifest`, so the manifest schema and the frozen v1 contract do not change. Entries marked `community` are third-party modules and are always shown with a Community badge and their author, repository and license.
+
 A module developer can validate a manifest against the schema file, read the supported versions from `capabilities`, and compare `app_version` with the module's `min_app_version` before offering an install.
 
 ## For contributors

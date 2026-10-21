@@ -13686,6 +13686,21 @@
           }
         }
       },
+      "ChangelogEntry": {
+        "type": "object",
+        "required": [
+          "version",
+          "notes"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "notes": {
+            "$ref": "#/components/schemas/LocaleKeys"
+          }
+        }
+      },
       "ClientEndpoint": {
         "type": "object",
         "description": "An OpenAI/Anthropic-compatible address for clients.",
@@ -21488,6 +21503,89 @@
           }
         }
       },
+      "ModuleCatalog": {
+        "type": "object",
+        "description": "Catalog metadata of a module, kept apart from the manifest so the manifest schema and the\nfrozen API contract stay unchanged. Every field is optional; a module without an entry is\nan official one with no extra metadata.",
+        "properties": {
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Catalog category id, for example `speech`, `agents`, `training`."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Free search keywords."
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Publisher; absent for official modules (shown as Harness Studio)."
+          },
+          "license": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SPDX license identifier."
+          },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Source repository URL."
+          },
+          "community": {
+            "type": "boolean",
+            "description": "True for a third-party module. Community entries are never presented as official."
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Capability ids the module provides, for example `transcribe`, `agent`."
+          },
+          "requires": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of other modules this one needs."
+          },
+          "changelog": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChangelogEntry"
+            },
+            "description": "Release notes, newest first."
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ISO date (`YYYY-MM-DD`) of the latest release."
+          },
+          "featured": {
+            "type": "boolean",
+            "description": "Editorial recommendation, listed first under \"Recommended\"."
+          },
+          "popularity": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Relative popularity for sorting, filled by a registry; 0 for bundled modules.",
+            "minimum": 0
+          }
+        }
+      },
       "ModuleManifest": {
         "type": "object",
         "required": [
@@ -21599,6 +21697,7 @@
         "type": "object",
         "required": [
           "manifest",
+          "catalog",
           "state",
           "components",
           "disk_bytes",
@@ -21611,6 +21710,10 @@
         "properties": {
           "manifest": {
             "$ref": "#/components/schemas/ModuleManifest"
+          },
+          "catalog": {
+            "$ref": "#/components/schemas/ModuleCatalog",
+            "description": "Catalog metadata (category, tags, author, license, community flag, changelog)."
           },
           "state": {
             "$ref": "#/components/schemas/ModuleState"
