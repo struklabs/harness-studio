@@ -11,7 +11,7 @@ import { familyFromError } from '#lib/engines.js';
 import type { RuntimeDownloadProgress } from '#lib/types.js';
 import { allTtsModels, fetchSpeech, pickTtsModel, pickTtsVoice, ttsRequirement, ttsSupportsSpeed, type TtsModelInfo, type TtsOverview } from './tts';
 import { chunkSpeechText, plainSpeechText } from './ttsText';
-import { readSpeakReplies, writeSpeakReplies } from './speakReplies';
+import { readSpeakReplies, speakBlocker, writeSpeakReplies } from './speakReplies';
 
 const FAMILY = 'sherpa-onnx';
 
@@ -111,8 +111,10 @@ class ReadAloud {
     this.preparing = false;
   }
 
-  /** Starts reading `markdown` as message `id`, or stops when that message is already playing. */
-  async toggle(id: string, markdown: string): Promise<void> {
+  /** Starts reading `markdown` as message `id`, or stops when that message is already playing.
+   *  `auto` (Speak Replies) stays quiet when speech is not set up: the switch shows why inline,
+   *  so every reply does not add another toast. */
+  async toggle(id: string, markdown: string, auto = false): Promise<void> {
     if (this.activeId === id) {
       this.stop();
       return;
@@ -123,18 +125,15 @@ class ReadAloud {
       toast.error(t('speak.nothing_to_read'));
       return;
     }
-    if (!app.gatewayRunning) {
-      toast.error(t('speak.need_gateway'));
-      return;
-    }
     if (!tts.overview) await tts.load();
-    if (tts.models.length === 0) {
-      toast.error(t('speak.no_model_chat'));
-      return;
-    }
     const missing = tts.overview ? ttsRequirement(tts.models, tts.model, tts.overview.runtime_installed) : null;
-    if (missing) {
-      toast.error(t('speak.engine_missing', { family: missing }));
+    const blocker = speakBlocker(tts.models.length > 0, !missing, app.gatewayRunning);
+    if (blocker) {
+      if (!auto) {
+        toast.error(blocker === 'no_model' ? t('speak.no_model_chat')
+          : blocker === 'engine' ? t('speak.engine_missing', { family: missing ?? '' })
+          : t('speak.need_gateway'));
+      }
       return;
     }
     const c = new AbortController();

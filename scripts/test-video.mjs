@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { fileVideoTask, isVideoTask, videoQuestion } from '../src/lib/components/playground/video.ts';
+import { fileVideoTask, isVideoTask, videoFormatsFor, videoQuestion } from '../src/lib/components/playground/video.ts';
 test('video tasks use the video surface; image and other pipelines do not', () => {
   for (const task of ['text-to-video', 'image-to-video', 'video-text-to-text']) assert.equal(isVideoTask(task), true);
   for (const task of [undefined, 'text-to-image', 'image-to-text']) assert.equal(isVideoTask(task), false);
@@ -26,4 +26,11 @@ test('sd.cpp video GGUFs get a video task; image GGUFs and LLMs do not', () => {
   assert.equal(fileVideoTask({ kind: 'pipeline', task: 'image-to-video' }), 'image-to-video');
   assert.equal(fileVideoTask({ kind: 'pipeline', task: 'text-to-image' }), undefined);
   assert.equal(fileVideoTask(undefined), undefined);
+});
+
+test('the format list holds only what the model engine writes', () => {
+  const wan = { kind: 'image', name: 'Wan2.1-T2V-1.3B-Q8_0', gguf: { architecture: 'wan' } };
+  assert.deepEqual(videoFormatsFor(wan), ['webm', 'webp', 'avi']);
+  assert.deepEqual(videoFormatsFor({ kind: 'pipeline', task: 'text-to-video' }), ['mp4', 'webm']);
+  assert.deepEqual(videoFormatsFor(undefined), ['mp4', 'webm']);
 });

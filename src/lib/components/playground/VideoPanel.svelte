@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { videoQuestion, VIDEO_FORMATS, videoMime, videoPreview, waitForVideo } from './video';
+  import { videoQuestion, videoFormatsFor, videoMime, videoPreview, waitForVideo } from './video';
+  import { definitionFile } from './modelModes';
+  import { domain } from '#lib/stores/domain.svelte.js';
+  import { library } from '#lib/stores/library.svelte.js';
   import { onDestroy } from 'svelte';
   import { t } from '#lib/i18n.svelte.js';
   import { app } from '#lib/stores/app.svelte.js';
@@ -14,6 +17,12 @@
   let prompt = $state('');
   let media = $state('');
   let format = $state('mp4');
+  /** Only the containers this model's engine writes (sd.cpp has no mp4). */
+  let formats = $derived.by(() => {
+    const def = domain.definitions.find((d) => d.alias === model);
+    return videoFormatsFor(def ? definitionFile(def, library.models) : undefined);
+  });
+  $effect(() => { if (!formats.includes(format as never)) format = formats[0]; });
   let steps = $state(20);
   let busy = $state(false);
   let progress = $state(0);
@@ -85,7 +94,7 @@
   <input id="video-media" type="file" accept={understanding ? 'video/mp4,video/webm' : 'image/png,image/jpeg,image/webp'} onchange={pick} disabled={busy} />
   {#if !understanding}
     <div class="flex flex-wrap gap-3">
-      <Label>{t('vid.format')} <select bind:value={format} disabled={busy}>{#each VIDEO_FORMATS as f (f)}<option>{f}</option>{/each}</select></Label>
+      <Label>{t('vid.format')} <select bind:value={format} disabled={busy}>{#each formats as f (f)}<option>{f}</option>{/each}</select></Label>
       <Label for="video-frames">{t('vid.frames')}</Label><Input id="video-frames" type="number" min={1} max={129} bind:value={frames} disabled={busy} />
       <Label for="video-steps">{t('vid.steps')}</Label><Input id="video-steps" type="number" min={1} max={500} bind:value={steps} disabled={busy} />
       <Label for="video-size">{t('vid.size')}</Label><Input id="video-size" bind:value={size} disabled={busy} />

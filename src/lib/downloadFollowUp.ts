@@ -29,7 +29,15 @@ export function shouldAutoLoad(
   jobs: readonly Pick<DownloadProgress, 'id' | 'repo_id' | 'status'>[],
 ): boolean {
   if (!enabled || !model || !isChatLoadable(model)) return false;
-  return !jobs.some((j) => j.id !== job.id && j.repo_id === job.repo_id && pending(j.status));
+  return !repoJobsPending(job, jobs);
+}
+
+/** Another job of the same repo is still queued or running: its projector or a second quant. */
+export function repoJobsPending(
+  job: Pick<DownloadProgress, 'id' | 'repo_id'>,
+  jobs: readonly Pick<DownloadProgress, 'id' | 'repo_id' | 'status'>[],
+): boolean {
+  return jobs.some((j) => j.id !== job.id && j.repo_id === job.repo_id && pending(j.status));
 }
 
 /**

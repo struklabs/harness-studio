@@ -33,7 +33,7 @@ const mocks = {
   queue: 'export class DownloadQueue { jobs = []; }',
   domain: `export const domain = globalThis.__libraryRegression.domain;
     export const samePath = (a, b) => a.replaceAll(String.fromCharCode(92), '/').toLowerCase() === b.replaceAll(String.fromCharCode(92), '/').toLowerCase();`,
-  follow: 'export const defaultLoadTarget = () => null; export const isChatLoadable = () => false; export const shouldAutoLoad = () => false;',
+  follow: 'export const defaultLoadTarget = () => null; export const isChatLoadable = () => false; export const shouldAutoLoad = () => false; export const repoJobsPending = () => false;',
   image: 'export const isImageDefinition = () => false;',
   imageSession: 'export const imageSession = globalThis.__libraryRegression.imageSession;',
   speech: 'export const speech = globalThis.__libraryRegression.speech;',

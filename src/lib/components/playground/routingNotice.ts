@@ -1,10 +1,13 @@
 import { toast } from 'svelte-sonner';
 import { t } from '#lib/i18n.svelte.js';
 import { ACTION_TOAST_DURATION } from '#lib/toast.js';
-import { redactDetail } from './toolRouting';
+import { firstNotice, redactDetail } from './toolRouting';
 
-/** Concise localized warning; the redacted, bounded upstream detail is only a copy away. */
-export function notifyRoutingFallback(error: string) {
+const warned = new Set<string>();
+
+/** Concise localized warning, once per model; the redacted, bounded upstream detail is only a copy away. */
+export function notifyRoutingFallback(error: string, model: unknown) {
+  if (!firstNotice(warned, String(model ?? ''))) return;
   const detail = redactDetail(error);
   toast.warning(t('w4.routing_fallback'), {
     description: detail ? redactDetail(detail, 160) : undefined,
