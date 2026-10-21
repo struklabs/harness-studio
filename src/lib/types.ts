@@ -265,9 +265,13 @@ export interface AnalyticsSummary {
   retention_days: number;
   recorder: RecorderStatus;
   direct?: DirectUsage;
+  /** What BYOK cloud models cost in the range (USD, raw rows only). */
+  cost?: { total_usd: number; models: { alias: string; requests: number; cost_usd: number }[] };
 }
 
 export interface RequestRow {
+  /** USD at a BYOK cloud provider; absent for local models. */
+  cost_usd?: number | null;
   id: string;
   started_at_ms: number;
   endpoint: string;

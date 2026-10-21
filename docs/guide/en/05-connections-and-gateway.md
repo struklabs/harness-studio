@@ -151,10 +151,14 @@ In **Simple**, open **Connect an App**: **Automatic Setup**, **Step-by-Step Setu
 
 ## Use a Cloud Provider With Your Own Key
 
-On **Connections > Cloud Providers > API Keys**, press **Add Provider** and pick OpenAI, Gemini, Anthropic, OpenRouter, or **Custom (OpenAI-Compatible)**. Enter your API key; leave **Base URL** blank to use the provider's default address. A custom endpoint needs its base URL (for example `http://localhost:8000/v1`) and, if the server asks for none, no key.
+On **Connections > Cloud Providers > API Keys**, press **Add Provider** and pick OpenAI, Gemini, Anthropic, OpenRouter, **Custom (OpenAI-Compatible)** or **Custom (Anthropic-Compatible)**. Enter your API key and press **Test Connection** before you save: Harness lists the provider's models with the key you typed (nothing is stored yet) and shows how many it found. A custom endpoint needs its base URL (for example `http://localhost:8000/v1`) and, if the server asks for none, no key.
+
+In **Simple** the form has only the provider, the key (and the base URL for a custom endpoint). **Advanced** adds the provider **Name** (used in model IDs), the **Base URL** (leave blank for the provider's default address) and **Extra Headers**, one `Name: value` per line, for gateways that need an organization or project header. Header values are stored in the keychain next to the key and are never shown again; `Authorization`, `X-Api-Key`, `Host` and `x-harness-*` cannot be overridden.
 
 - The key is stored only in this device's system keychain (macOS Keychain, Windows Credential Manager, or Secret Service on Linux). It is never written to settings files or logs. **Remove Saved Key** in **Edit Provider** deletes it; **Remove** deletes the provider and its key.
-- **Test Connection** reads the provider's model list with the key and shows the state, the response time, and, for OpenRouter, the credits used. Under **Models**, each model shows what the provider's API reports: context length, price per million tokens, tool calling, and image input. Most providers report only some of these.
+- **Test Connection** reads the provider's model list with the key and shows the state, the response time, and, for OpenRouter, the credits used. Under **Models**, each model shows what the provider's API reports: context length, price per million tokens, and the tags **Tools**, **Vision** and **Reasoning**. Providers report only some of these (Anthropic lists image input and thinking, OpenRouter lists tools, images, reasoning and prices); a missing tag means unknown, not unsupported.
+- **Model Prices** lets you set your own input and output price (USD per million tokens) for any model; it wins over the provider's. Harness multiplies the tokens of every cloud request by the price and records the cost with the request, so the cost shows in the request log and under each provider as the cost of the last 30 days. Requests without any known price are not costed.
+- Errors are explained and say when to retry: a rejected key (401, 403), no credit or quota (402, or 429 with a quota message; waiting does not help), a rate limit (429, with the provider's `Retry-After`), and a provider outage (5xx).
 - **Test Model** sends one small chat request with a tool to the selected model. The provider may charge for it.
 - HTTPS is required, except for a server on this computer or the local network.
 
@@ -166,14 +170,14 @@ Which endpoints a cloud model accepts depends on the provider:
 | --- | --- | --- | --- | --- |
 | Chat completions (`/v1/chat/completions`) | Yes | Yes (translated to Anthropic Messages) | Yes (its OpenAI-compatible endpoint) | Yes |
 | Responses (`/v1/responses`) | Yes | No | No | Yes |
-| Messages (`/v1/messages`, `/v1/messages/count_tokens`) | No | Yes (sent unchanged) | No | No |
-| Embeddings (`/v1/embeddings`) | Yes | No | Yes | Yes |
+| Messages (`/v1/messages`, `/v1/messages/count_tokens`) | No | Yes (sent unchanged) | No | Custom (Anthropic-Compatible) only |
+| Embeddings (`/v1/embeddings`) | Yes | No | Yes | Yes (not Anthropic-compatible) |
 
 An endpoint the provider does not serve is refused with a clear error. Streaming and tool calls work on every endpoint a provider serves, and the provider's own errors (such as 429 with its `Retry-After`) reach your client. A rejected key is reported as a gateway error that never repeats the key.
 
 Embedding models (such as `cloud:openai/text-embedding-3-small`) are listed apart from the chat models. In a knowledge base you can pick one as the embedding model instead of a local model; the index is marked with that model ID, and changing the model re-embeds the documents. Document text is sent to the provider while it is indexed.
 
-The Control API manages providers too (admin scope): `GET/POST /cloud/providers`, `PUT/DELETE /cloud/providers/{id}`, `POST /cloud/providers/{id}/test` and `GET /cloud/models`. The key is accepted when you add or update a provider and is never returned.
+The Control API manages providers too (admin scope): `GET/POST /cloud/providers`, `PUT/DELETE /cloud/providers/{id}`, `POST /cloud/providers/{id}/test`, `PUT /cloud/providers/{id}/prices`, `POST /cloud/test` (checks provider settings before they are saved) and `GET /cloud/models`. The key and header values are accepted when you add or update a provider and are never returned.
 
 ## Connect a Coding Agent
 

@@ -638,6 +638,8 @@ pub fn run() {
             cloud_remove,
             cloud_test,
             cloud_test_model,
+            cloud_probe,
+            cloud_set_prices,
             set_gateway_settings,
             unload_gateway_model,
             queue_gateway_load_override,

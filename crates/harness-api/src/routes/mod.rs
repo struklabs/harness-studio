@@ -296,6 +296,8 @@ fn api_routes() -> OpenApiRouter<AppState> {
             cloud::remove_cloud_provider
         ))
         .routes(routes!(cloud::test_cloud_provider))
+        .routes(routes!(cloud::probe_cloud_provider))
+        .routes(routes!(cloud::set_cloud_prices))
         .routes(routes!(cloud::list_cloud_models))
         .routes(routes!(otel::get_otel, otel::put_otel))
         .routes(routes!(otel::test_otel))

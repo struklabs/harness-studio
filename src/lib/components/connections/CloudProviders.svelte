@@ -6,12 +6,14 @@
   import { t } from '#lib/i18n.svelte.js';
   import { errorText } from '#lib/errors.js';
   import { app } from '#lib/stores/app.svelte.js';
+  import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Input } from '#lib/components/ui/input/index.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
   import * as Dialog from '#lib/components/ui/dialog/index.js';
   import { TriangleAlert } from '@lucide/svelte';
   import { filterCloudModels, formatPrice, type CloudModel } from '../playground/cloudModels';
+  import type { AnalyticsSummary } from '#lib/types.js';
 
   type Kind = CloudModel['kind'];
   interface Provider {
@@ -22,6 +24,8 @@
     base_url: string;
     enabled: boolean;
     key_set: boolean;
+    headers?: string[];
+    prices?: Record<string, { input: number | null; output: number | null }>;
     state: CloudModel['state'];
     model_count: number;
     last_error: string | null;
@@ -29,6 +33,7 @@
     latency_ms: number | null;
     quota: { limit: number | null; usage: number | null; remaining: number | null } | null;
   }
+  interface Probe { state: Provider['state']; latency_ms: number | null; model_count: number; models: CloudModel[]; error: string | null }
   interface ModelTest { ok: boolean; latency_ms: number; tool_called: boolean; model: string | null; detail: string }
 
   const KINDS: { kind: Kind; label: string; url: string }[] = [
@@ -37,7 +42,9 @@
     { kind: 'anthropic', label: 'Anthropic', url: 'https://api.anthropic.com/v1' },
     { kind: 'openrouter', label: 'OpenRouter', url: 'https://openrouter.ai/api/v1' },
     { kind: 'custom', label: '', url: 'http://localhost:8000/v1' },
+    { kind: 'custom_anthropic', label: '', url: 'http://localhost:8000/v1' },
   ];
+  const isCustom = (k: Kind) => k === 'custom' || k === 'custom_anthropic';
 
   let providers = $state<Provider[]>([]);
   let models = $state<CloudModel[]>([]);
@@ -54,6 +61,13 @@
   let removeKey = $state(false);
   let enabled = $state(true);
   let formError = $state('');
+  let headersText = $state('');
+  let removeHeaders = $state(false);
+  let probe = $state<Probe | null>(null);
+  let probing = $state(false);
+  let costs = $state<Record<string, { usd: number; requests: number }>>({});
+  let priceEdit = $state<Record<string, { model: string; input: string; output: string }>>({});
+  let priceMessage = $state<Record<string, string>>({});
   let expanded = $state<Record<string, boolean>>({});
   let filters = $state<Record<string, string>>({});
   let testModel = $state<Record<string, string>>({});
@@ -66,9 +80,11 @@
     try { return new URL(address.trim() || kindInfo.url).origin !== new URL(editing.base_url).origin; }
     catch { return false; }
   });
-  const needsKey = $derived(kind !== 'custom' && (!editing || !editing.key_set || addressChanged) && !removeKey);
+  const needsKey = $derived(!isCustom(kind) && (!editing || !editing.key_set || addressChanged) && !removeKey);
 
-  function kindLabel(k: Kind): string { return k === 'custom' ? t('cloud.kind_custom') : KINDS.find((i) => i.kind === k)!.label; }
+  function kindLabel(k: Kind): string {
+    return k === 'custom' ? t('cloud.kind_custom') : k === 'custom_anthropic' ? t('cloud.kind_custom_anthropic') : KINDS.find((i) => i.kind === k)!.label;
+  }
   function stateLabel(state: Provider['state']): string {
     return t(state === 'online' ? 'cloud.online' : state === 'unauthorized' ? 'cloud.unauthorized_state' : state === 'key_missing' ? 'cloud.key_missing_state' : 'cloud.offline');
   }
@@ -78,7 +94,24 @@
     try {
       const [list, rows] = await Promise.all([invoke<Provider[]>('cloud_list'), invoke<CloudModel[]>('cloud_models')]);
       if (alive) { providers = list; models = rows; error = ''; }
+      void loadCosts();
     } catch (e) { if (alive) error = errorText(e); }
+  }
+
+  async function loadCosts() {
+    try {
+      const summary = await invoke<AnalyticsSummary>('get_analytics_summary', { fromMs: Date.now() - 30 * 86_400_000, toMs: null });
+      const next: Record<string, { usd: number; requests: number }> = {};
+      for (const m of summary.cost?.models ?? []) {
+        const provider = m.alias.startsWith('cloud:') ? m.alias.slice(6).split('/')[0] : '';
+        if (!provider) continue;
+        const c = next[provider] ?? { usd: 0, requests: 0 };
+        c.usd += m.cost_usd;
+        c.requests += m.requests;
+        next[provider] = c;
+      }
+      if (alive) costs = next;
+    } catch { /* cost tracking is optional here */ }
   }
 
   onMount(() => {
@@ -96,6 +129,9 @@
     removeKey = false;
     enabled = provider?.enabled ?? true;
     formError = '';
+    headersText = '';
+    removeHeaders = false;
+    probe = null;
     open = true;
   }
 
@@ -105,11 +141,46 @@
     kind = value;
   }
 
+  /** The “Name: value” lines of Advanced settings; `undefined` keeps the saved headers. */
+  function parseHeaders(): { name: string; value: string }[] | undefined {
+    if (removeHeaders) return [];
+    const lines = headersText.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) return editing?.headers?.length ? undefined : [];
+    return lines.map((line) => {
+      const at = line.indexOf(':');
+      if (at < 1 || !line.slice(at + 1).trim()) throw new Error(t('cloud.headers_invalid'));
+      return { name: line.slice(0, at).trim(), value: line.slice(at + 1).trim() };
+    });
+  }
+
+  function formInput() {
+    const headers = parseHeaders();
+    return { name: uniqueName(), kind, base_url: address, key: removeKey ? '' : key || null, enabled, ...(headers === undefined ? {} : { headers }) };
+  }
+
+  /** Simple level has no name field: the provider is named after its preset (`openai`, `openai-2`...). */
+  function uniqueName(): string {
+    if (uiLevel.advanced || editing) return name;
+    let candidate = name || kind.replace('_', '-');
+    let n = 2;
+    while (providers.some((p) => p.name === candidate)) candidate = `${name || kind.replace('_', '-')}-${n++}`;
+    return candidate;
+  }
+
+  async function probeForm() {
+    probing = true;
+    formError = '';
+    probe = null;
+    try { probe = await invoke<Probe>('cloud_probe', { input: formInput(), providerId: editing?.id ?? null }); }
+    catch (e) { formError = errorText(e); }
+    finally { probing = false; }
+  }
+
   async function save() {
     busy = true;
     formError = '';
     try {
-      const input = { name, kind, base_url: address, key: removeKey ? '' : key || null, enabled };
+      const input = formInput();
       editing = editing
         ? await invoke<Provider>('cloud_update', { id: editing.id, input })
         : await invoke<Provider>('cloud_add', { input });
@@ -133,6 +204,33 @@
     busy = true;
     try { modelResults[provider.id] = await invoke<ModelTest>('cloud_test_model', { id: provider.id, model }); }
     catch (e) { modelResults[provider.id] = errorText(e); }
+    finally { busy = false; }
+  }
+
+  function pickPriceModel(provider: Provider, model: string) {
+    const own = provider.prices?.[model];
+    priceEdit[provider.id] = {
+      model,
+      input: own?.input != null ? String(own.input) : '',
+      output: own?.output != null ? String(own.output) : '',
+    };
+    priceMessage[provider.id] = '';
+  }
+
+  async function savePrice(provider: Provider, clear: boolean) {
+    const edit = priceEdit[provider.id];
+    if (!edit?.model) return;
+    const num = (v: string) => (v.trim() === '' ? null : Number(v));
+    const prices = { ...(provider.prices ?? {}) };
+    if (clear) delete prices[edit.model];
+    else prices[edit.model] = { input: num(edit.input), output: num(edit.output) };
+    busy = true;
+    priceMessage[provider.id] = '';
+    try {
+      await invoke('cloud_set_prices', { id: provider.id, prices });
+      if (clear) priceEdit[provider.id] = { model: edit.model, input: '', output: '' };
+      await load();
+    } catch (e) { priceMessage[provider.id] = errorText(e); }
     finally { busy = false; }
   }
 
@@ -173,6 +271,7 @@
         {#if provider.latency_ms !== null}<span class="text-xs text-muted-foreground">{t('cloud.latency', { ms: provider.latency_ms })}</span>{/if}
       </div>
       <p class="break-all font-mono text-xs text-muted-foreground">{provider.base_url}</p>
+      {#if costs[provider.name]}<p class="text-xs text-muted-foreground">{t('cloud.cost', { cost: Math.round(costs[provider.name].usd * 10000) / 10000, count: costs[provider.name].requests })}</p>{/if}
       {#if provider.quota}<p class="text-xs text-muted-foreground">{t('cloud.quota', { usage: provider.quota.usage ?? 0, limit: usd(provider.quota.limit) })}</p>{/if}
       {#if provider.last_error}<p class="text-xs text-destructive">{errorText(provider.last_error)}</p>{/if}
       {#if provider.last_ok}<p class="text-xs text-muted-foreground">{t('cloud.last_ok', { time: new Date(provider.last_ok * 1000).toLocaleString() })}</p>{/if}
@@ -194,6 +293,8 @@
                   {#if m.input_price !== null && m.output_price !== null}<span>{t('cloud.price', { input: formatPrice(m.input_price), output: formatPrice(m.output_price) })}</span>{/if}
                   {#if m.tools}<span>{t('cloud.tools')}</span>{/if}
                   {#if m.vision}<span>{t('cloud.vision')}</span>{/if}
+                  {#if m.reasoning}<span>{t('cloud.reasoning')}</span>{/if}
+                  {#if m.price_custom}<span>{t('cloud.price_custom')}</span>{/if}
                 </span>
               </li>
             {:else}
@@ -208,6 +309,25 @@
             <Button variant="outline" size="sm" disabled={busy || !testModel[provider.id]} onclick={() => tryModel(provider)}>{t('cloud.test_model')}</Button>
           </div>
           <p class="text-xs text-muted-foreground">{t('cloud.test_model_hint')}</p>
+          <div class="flex flex-col gap-2 border-t border-border pt-3">
+            <h3 class="text-xs font-semibold">{t('cloud.prices')}</h3>
+            <p class="text-xs text-muted-foreground">{t('cloud.prices_hint')}</p>
+            <div class="flex flex-wrap items-end gap-2">
+              <label class="flex flex-col gap-1 text-xs">{t('cloud.price_model')}
+                <select class="h-8 max-w-full rounded-md border border-input bg-background px-2 text-xs" value={priceEdit[provider.id]?.model ?? ''} onchange={(e) => pickPriceModel(provider, (e.currentTarget as HTMLSelectElement).value)}>
+                  <option value=""></option>
+                  {#each rows as m (m.id)}<option value={m.model}>{m.model}</option>{/each}
+                </select>
+              </label>
+              {#if priceEdit[provider.id]?.model}
+                <label class="flex flex-col gap-1 text-xs">{t('cloud.price_input')}<Input class="h-8 w-32" type="number" min="0" step="any" bind:value={priceEdit[provider.id].input} /></label>
+                <label class="flex flex-col gap-1 text-xs">{t('cloud.price_output')}<Input class="h-8 w-32" type="number" min="0" step="any" bind:value={priceEdit[provider.id].output} /></label>
+                <Button variant="outline" size="sm" disabled={busy} onclick={() => savePrice(provider, false)}>{t('cloud.price_save')}</Button>
+                <Button variant="outline" size="sm" disabled={busy} onclick={() => savePrice(provider, true)}>{t('cloud.price_clear')}</Button>
+              {/if}
+            </div>
+            {#if priceMessage[provider.id]}<p class="text-xs text-destructive" role="alert">{priceMessage[provider.id]}</p>{/if}
+          </div>
           {#if typeof result === 'string'}
             <p class="text-xs text-destructive" role="alert">{result}</p>
           {:else if result}
@@ -225,7 +345,7 @@
   <Dialog.Content class="sm:max-w-lg">
     <Dialog.Header>
       <Dialog.Title>{t(editing ? 'cloud.edit' : 'cloud.add')}</Dialog.Title>
-      <Dialog.Description>{t(editing ? 'cloud.edit_description' : 'cloud.description')}</Dialog.Description>
+      <Dialog.Description>{t(editing ? 'cloud.edit_description' : 'cloud.simple_hint')}</Dialog.Description>
     </Dialog.Header>
     <form class="flex flex-col gap-4" onsubmit={(event) => { event.preventDefault(); void save(); }}>
       <label class="flex flex-col gap-1 text-sm">{t('cloud.kind')}
@@ -233,17 +353,51 @@
           {#each KINDS as k (k.kind)}<option value={k.kind}>{kindLabel(k.kind)}</option>{/each}
         </select>
       </label>
-      <label class="flex flex-col gap-1 text-sm">{t('cloud.name')}<Input bind:value={name} required maxlength={64} disabled={busy} /></label>
-      <p class="text-xs text-muted-foreground">{t('cloud.name_hint')}</p>
-      <label class="flex flex-col gap-1 text-sm">{t('cloud.address')}<Input type="url" bind:value={address} required={kind === 'custom'} disabled={busy} placeholder={kindInfo.url} /></label>
-      {#if kind !== 'custom'}<p class="text-xs text-muted-foreground">{t('cloud.address_hint')}</p>{/if}
+      {#if uiLevel.advanced}
+        <label class="flex flex-col gap-1 text-sm">{t('cloud.name')}<Input bind:value={name} required maxlength={64} disabled={busy} /></label>
+        <p class="text-xs text-muted-foreground">{t('cloud.name_hint')}</p>
+      {/if}
+      {#if uiLevel.advanced || isCustom(kind)}
+        <label class="flex flex-col gap-1 text-sm">{t('cloud.address')}<Input type="url" bind:value={address} required={isCustom(kind)} disabled={busy} placeholder={kindInfo.url} /></label>
+        {#if !isCustom(kind)}<p class="text-xs text-muted-foreground">{t('cloud.address_hint')}</p>{/if}
+      {/if}
+      {#if uiLevel.advanced && isCustom(kind)}<p class="text-xs text-muted-foreground">{t('cloud.protocol_hint')}</p>{/if}
       <label class="flex flex-col gap-1 text-sm">{t('cloud.key')}<Input type="password" bind:value={key} autocomplete="new-password" required={needsKey} disabled={busy || removeKey} /></label>
       {#if editing?.key_set}<p class="text-xs text-muted-foreground">{t('cloud.key_hint')}</p>{/if}
-      {#if kind === 'custom'}<p class="text-xs text-muted-foreground">{t('cloud.key_optional')}</p>{/if}
+      {#if isCustom(kind)}<p class="text-xs text-muted-foreground">{t('cloud.key_optional')}</p>{/if}
+      {#if uiLevel.advanced}
+        <label class="flex flex-col gap-1 text-sm">{t('cloud.headers')}<textarea class="min-h-16 rounded-md border border-input bg-background px-2 py-1 font-mono text-xs" bind:value={headersText} disabled={busy || removeHeaders} rows="3" autocomplete="off" spellcheck="false"></textarea></label>
+        <p class="text-xs text-muted-foreground">{t('cloud.headers_hint')}</p>
+        {#if editing?.headers?.length}
+          <p class="text-xs text-muted-foreground">{t('cloud.headers_saved', { names: editing.headers.join(', ') })}</p>
+          <label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={removeHeaders} disabled={busy} />{t('cloud.remove_headers')}</label>
+        {/if}
+      {/if}
       {#if editing?.key_set}<label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={removeKey} disabled={busy} />{t('cloud.remove_key')}</label>{/if}
       {#if editing}<label class="flex items-center gap-2 text-sm"><input type="checkbox" bind:checked={enabled} disabled={busy} />{t('cloud.enabled')}</label>{/if}
       {#if formError}<p class="text-sm text-destructive" role="alert">{formError}</p>{/if}
+      {#if probe}
+        {#if probe.error}
+          <p class="text-sm text-destructive" role="alert">{errorText(probe.error)}</p>
+        {:else}
+          <div class="flex flex-col gap-1 text-xs" role="status">
+            <p class="text-success">{t('cloud.probe_ok', { count: probe.model_count, ms: probe.latency_ms ?? 0 })}</p>
+            <p class="text-muted-foreground">{t('cloud.probe_models')}</p>
+            <ul class="flex flex-col gap-0.5">
+              {#each probe.models as m (m.model ?? m.id)}
+                <li class="flex flex-wrap gap-x-3"><span class="font-mono">{m.model ?? m.id}</span>
+                  {#if m.tools}<span class="text-muted-foreground">{t('cloud.tools')}</span>{/if}
+                  {#if m.vision}<span class="text-muted-foreground">{t('cloud.vision')}</span>{/if}
+                  {#if m.reasoning}<span class="text-muted-foreground">{t('cloud.reasoning')}</span>{/if}
+                  {#if m.context_length}<span class="text-muted-foreground">{t('cloud.context', { count: m.context_length.toLocaleString() })}</span>{/if}
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+      {/if}
       <Dialog.Footer>
+        <Button type="button" variant="outline" disabled={busy || probing || (needsKey && !key)} onclick={probeForm}>{t('cloud.test')}</Button>
         <Button type="button" variant="outline" disabled={busy} onclick={() => { open = false; key = ''; }}>{t('cloud.cancel')}</Button>
         <Button type="submit" disabled={busy || (needsKey && !key)}>{t('cloud.save')}</Button>
       </Dialog.Footer>

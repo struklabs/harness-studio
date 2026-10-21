@@ -126,6 +126,10 @@ pub struct RequestRecord {
     /// Slots (concurrent requests) of the server that answered.
     #[serde(default)]
     pub slots: Option<u32>,
+    /// USD this request cost at a BYOK provider (provider or user prices x tokens); `None` for
+    /// local models and when no price is known.
+    #[serde(default)]
+    pub cost_usd: Option<f64>,
     /// Why the request waited for its turn: `slots` (all busy) or `tokens` (the shared KV pool
     /// had no room yet); `None` = it ran at once. Feeds the slot recommendation.
     #[serde(default)]

@@ -424,6 +424,8 @@ mod tests {
             (&Method::PUT, "/cloud/providers/{id}"),
             (&del, "/cloud/providers/{id}"),
             (&post, "/cloud/providers/{id}/test"),
+            (&Method::PUT, "/cloud/providers/{id}/prices"),
+            (&post, "/cloud/test"),
             (&get, "/cloud/models"),
         ] {
             assert_eq!(

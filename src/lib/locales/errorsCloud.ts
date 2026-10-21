@@ -21,7 +21,13 @@ const tr = {
   'cloud.invalid_key': 'API anahtarı geçersiz karakterler içeriyor.',
   'cloud.key_required_for_new_address': 'Adresi değiştirirken API anahtarını yeniden girin.',
   'cloud.removed_key_left': 'Sağlayıcı kaldırıldı ancak anahtar zincirine erişilemediği için kayıtlı anahtar kalmış olabilir.',
-  'cloud.unsupported_endpoint': 'Bulut sağlayıcı modelleri yalnızca sohbet tamamlama (/v1/chat/completions) ile kullanılabilir.',
+  'cloud.unsupported_endpoint': 'Bu bulut sağlayıcı bu uç noktayı desteklemiyor. Sohbet tamamlama her sağlayıcıda çalışır; Responses, Messages ve gömme yalnızca bunları sunan sağlayıcılarda.',
+  'cloud.server_error': 'Bulut sağlayıcıda geçici bir sorun var (HTTP {status}). Biraz sonra yeniden deneyin.',
+  'cloud.server_error_retry': 'Bulut sağlayıcıda geçici bir sorun var (HTTP {status}). {retry_after} saniye sonra yeniden deneyin.',
+  'cloud.rate_limited_retry': 'Bulut sağlayıcının istek sınırına ulaşıldı. {retry_after} saniye sonra yeniden deneyin.',
+  'cloud.quota_exceeded': 'Bulut sağlayıcı hesabının kotası veya kredisi bitti. Beklemek işe yaramaz; sağlayıcının panelinden bakiyeyi veya planı kontrol edin.',
+  'cloud.invalid_headers': 'Ek başlıklar geçersiz. En çok 16 benzersiz “Ad: değer” satırı girin; Authorization, X-Api-Key, Host ve x-harness-* başlıkları kullanılamaz.',
+  'cloud.invalid_price': 'Fiyat geçersiz. 0 ile 1.000.000 arasında, milyon token başına USD girin.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -45,7 +51,13 @@ const en: Record<keyof typeof tr, string> = {
   'cloud.invalid_key': 'The API key contains invalid characters.',
   'cloud.key_required_for_new_address': 'Re-enter the API key when you change the address.',
   'cloud.removed_key_left': 'The provider was removed, but the keychain was unavailable, so the saved key may remain.',
-  'cloud.unsupported_endpoint': 'Cloud provider models only work with chat completions (/v1/chat/completions).',
+  'cloud.unsupported_endpoint': 'This cloud provider does not support this endpoint. Chat completions work with every provider; Responses, Messages and embeddings only with providers that offer them.',
+  'cloud.server_error': 'The cloud provider has a temporary problem (HTTP {status}). Try again in a moment.',
+  'cloud.server_error_retry': 'The cloud provider has a temporary problem (HTTP {status}). Try again in {retry_after} seconds.',
+  'cloud.rate_limited_retry': 'The cloud provider rate limit was reached. Try again in {retry_after} seconds.',
+  'cloud.quota_exceeded': 'The cloud provider account is out of quota or credit. Waiting will not help; check the balance or plan in the provider’s dashboard.',
+  'cloud.invalid_headers': 'The extra headers are invalid. Enter at most 16 unique “Name: value” lines; Authorization, X-Api-Key, Host and x-harness-* headers are not allowed.',
+  'cloud.invalid_price': 'The price is invalid. Enter USD per million tokens between 0 and 1,000,000.',
 };
 
 export default { tr, en };

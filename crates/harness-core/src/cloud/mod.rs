@@ -17,7 +17,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     net::IpAddr,
     path::PathBuf,
     sync::{Mutex, OnceLock},
@@ -38,7 +38,11 @@ pub enum Kind {
     Gemini,
     Anthropic,
     Openrouter,
+    /// A custom OpenAI-compatible endpoint (Chat Completions, Responses, embeddings).
     Custom,
+    /// A custom Anthropic-compatible endpoint (Messages).
+    #[serde(rename = "custom_anthropic")]
+    CustomAnthropic,
 }
 
 impl Kind {
@@ -48,7 +52,7 @@ impl Kind {
             Kind::Gemini => Some("https://generativelanguage.googleapis.com/v1beta/openai"),
             Kind::Anthropic => Some("https://api.anthropic.com/v1"),
             Kind::Openrouter => Some("https://openrouter.ai/api/v1"),
-            Kind::Custom => None,
+            Kind::Custom | Kind::CustomAnthropic => None,
         }
     }
 
@@ -59,12 +63,18 @@ impl Kind {
             Kind::Anthropic => "Anthropic",
             Kind::Openrouter => "OpenRouter",
             Kind::Custom => "Custom",
+            Kind::CustomAnthropic => "Custom (Anthropic)",
         }
     }
 
     /// Custom endpoints (a local or self-hosted server) may run without a key.
     pub fn key_required(self) -> bool {
-        self != Kind::Custom
+        !matches!(self, Kind::Custom | Kind::CustomAnthropic)
+    }
+
+    /// Speaks the Anthropic Messages protocol (`x-api-key`, `anthropic-version`).
+    pub fn anthropic_wire(self) -> bool {
+        matches!(self, Kind::Anthropic | Kind::CustomAnthropic)
     }
 
     /// Whether the provider serves a gateway path (`/v1/...`) through the gateway. Chat
@@ -73,19 +83,41 @@ impl Kind {
         match path {
             "/v1/chat/completions" => true,
             "/v1/responses" => matches!(self, Kind::Openai | Kind::Openrouter | Kind::Custom),
-            "/v1/messages" | "/v1/messages/count_tokens" => self == Kind::Anthropic,
-            "/v1/embeddings" => self != Kind::Anthropic,
+            "/v1/messages" | "/v1/messages/count_tokens" => self.anthropic_wire(),
+            "/v1/embeddings" => !self.anthropic_wire(),
             _ => false,
         }
     }
 
     /// OpenRouter lists its models without a key.
     fn public_models(self) -> bool {
-        matches!(self, Kind::Openrouter | Kind::Custom)
+        matches!(
+            self,
+            Kind::Openrouter | Kind::Custom | Kind::CustomAnthropic
+        )
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+/// A price the user set for a model, USD per million tokens; `None` keeps the provider's own.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct ModelPrice {
+    #[serde(default)]
+    pub input: Option<f64>,
+    #[serde(default)]
+    pub output: Option<f64>,
+}
+
+impl ModelPrice {
+    fn valid(&self) -> bool {
+        [self.input, self.output]
+            .into_iter()
+            .flatten()
+            .all(|p| p.is_finite() && (0.0..=1_000_000.0).contains(&p))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct CloudProvider {
     pub id: String,
@@ -97,6 +129,13 @@ pub struct CloudProvider {
     pub enabled: bool,
     #[serde(default)]
     pub key_set: bool,
+    /// Names of the extra request headers a custom endpoint needs; the values are kept with the
+    /// API key in the system keychain and never returned.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub headers: Vec<String>,
+    /// Prices the user set per provider model id (cost tracking).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub prices: BTreeMap<String, ModelPrice>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -156,6 +195,11 @@ pub struct CloudModel {
     pub output_price: Option<f64>,
     pub tools: Option<bool>,
     pub vision: Option<bool>,
+    /// Reasoning (thinking) model.
+    pub reasoning: Option<bool>,
+    /// The prices above are the user's own, not the provider's.
+    #[serde(default)]
+    pub price_custom: bool,
     /// An embedding model (`/v1/embeddings`); listed apart from the chat models.
     #[serde(default)]
     pub embedding: bool,
@@ -283,7 +327,7 @@ pub fn validate_url(raw: &str, kind: Kind) -> Result<String, String> {
         _ => return Err(err("cloud.invalid_url").into()),
     }
     let path = url.path().trim_end_matches('/').to_string();
-    if path.is_empty() && kind == Kind::Custom {
+    if path.is_empty() && matches!(kind, Kind::Custom | Kind::CustomAnthropic) {
         url.set_path("/v1");
     } else {
         url.set_path(&path);
@@ -342,18 +386,171 @@ pub fn status_error(status: u16) -> &'static str {
         402 => "cloud.payment_required",
         404 => "cloud.not_found_upstream",
         429 => "cloud.rate_limited",
+        500..=599 => "cloud.server_error",
         _ => "cloud.unreachable",
     }
 }
 
+/// `Retry-After` as seconds (the HTTP-date form is not used by the providers).
+pub fn retry_after_secs(headers: &reqwest::header::HeaderMap) -> Option<u64> {
+    headers
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()
+        .filter(|s| (1..=86_400).contains(s))
+}
+
+/// A provider says the account is out of credit or quota (not just a momentary rate limit).
+fn quota_exhausted(body: &[u8]) -> bool {
+    let text = String::from_utf8_lossy(&body[..body.len().min(8 * 1024)]).to_ascii_lowercase();
+    [
+        "insufficient_quota",
+        "exceeded your current quota",
+        "billing",
+        "credit balance",
+        "resource_exhausted",
+        "out of credits",
+    ]
+    .iter()
+    .any(|m| text.contains(m))
+}
+
+/// The keyed error for a non-success answer: 401/403 key rejected, 402 and quota-exhausted 429
+/// payment or credits, other 429 and 5xx retryable (with the provider's `Retry-After` when it
+/// sent one), 404 wrong address.
+pub fn http_error(status: u16, retry_after: Option<u64>, body: &[u8]) -> String {
+    let key = match (status, retry_after) {
+        (429, _) if quota_exhausted(body) => "cloud.quota_exceeded",
+        (429, Some(_)) => "cloud.rate_limited_retry",
+        (500..=599, Some(_)) => "cloud.server_error_retry",
+        _ => status_error(status),
+    };
+    let mut e = err(key).num("status", status);
+    if let Some(secs) = retry_after {
+        e = e.num("retry_after", secs);
+    }
+    e.into()
+}
+
 fn auth(req: reqwest::RequestBuilder, kind: Kind, key: Option<&str>) -> reqwest::RequestBuilder {
-    match (kind, key) {
-        (Kind::Anthropic, Some(key)) => req
+    match (kind.anthropic_wire(), key) {
+        (true, Some(key)) => req
             .header("x-api-key", key)
             .header("anthropic-version", ANTHROPIC_VERSION),
-        (_, Some(key)) => req.bearer_auth(key),
-        (_, None) => req,
+        (true, None) => req.header("anthropic-version", ANTHROPIC_VERSION),
+        (false, Some(key)) => req.bearer_auth(key),
+        (false, None) => req,
     }
+}
+
+/// Request headers a custom endpoint needs besides the key. Authentication, framing and routing
+/// headers stay under Harness' control.
+const RESERVED_HEADERS: &[&str] = &[
+    "authorization",
+    "x-api-key",
+    "host",
+    "content-length",
+    "content-type",
+    "connection",
+    "transfer-encoding",
+    "upgrade",
+    "te",
+    "trailer",
+    "proxy-authorization",
+    "cookie",
+];
+const MAX_HEADERS: usize = 16;
+
+/// One extra header as typed in Advanced settings.
+#[derive(Clone, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct HeaderInput {
+    pub name: String,
+    pub value: String,
+}
+
+fn check_headers(input: &[HeaderInput]) -> Result<Vec<(String, String)>, String> {
+    if input.len() > MAX_HEADERS {
+        return Err(err("cloud.invalid_headers").into());
+    }
+    let mut out: Vec<(String, String)> = Vec::new();
+    for h in input {
+        let name = h.name.trim().to_ascii_lowercase();
+        let value = h.value.trim().to_string();
+        let ok = reqwest::header::HeaderName::from_bytes(name.as_bytes()).is_ok()
+            && reqwest::header::HeaderValue::from_str(&value).is_ok()
+            && !RESERVED_HEADERS.contains(&name.as_str())
+            && !name.starts_with("proxy-")
+            && !name.starts_with("x-harness-")
+            && !value.is_empty()
+            && value.len() <= 2048;
+        if !ok || out.iter().any(|(n, _)| *n == name) {
+            return Err(err("cloud.invalid_headers").into());
+        }
+        out.push((name, value));
+    }
+    Ok(out)
+}
+
+fn headers_account(id: &str) -> String {
+    format!("{id}.headers")
+}
+
+type HeaderList = Vec<(String, String)>;
+
+fn headers_cache() -> &'static Mutex<HashMap<String, HeaderList>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, HeaderList>>> = OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+fn read_headers(id: &str) -> Result<Vec<(String, String)>, String> {
+    Ok(secrets::cloud_key_get(&headers_account(id))?
+        .and_then(|json| serde_json::from_str::<Vec<(String, String)>>(&json).ok())
+        .unwrap_or_default())
+}
+
+/// The extra headers of a provider (read from the keychain once, then cached).
+pub fn extra_headers_of(provider: &CloudProvider) -> Vec<(String, String)> {
+    if provider.headers.is_empty() {
+        return Vec::new();
+    }
+    if let Some(h) = headers_cache().lock().unwrap().get(&provider.id) {
+        return h.clone();
+    }
+    let loaded = read_headers(&provider.id).unwrap_or_default();
+    headers_cache()
+        .lock()
+        .unwrap()
+        .insert(provider.id.clone(), loaded.clone());
+    loaded
+}
+
+/// The extra headers for a proxied request to the `cloud:` model `id`.
+pub fn extra_headers(id: &str) -> Vec<(String, String)> {
+    let Some((name, _)) = parse_model(id) else {
+        return Vec::new();
+    };
+    providers()
+        .into_iter()
+        .find(|p| p.enabled && p.name == name)
+        .map(|p| extra_headers_of(&p))
+        .unwrap_or_default()
+}
+
+fn with_headers(
+    mut req: reqwest::RequestBuilder,
+    headers: &[(String, String)],
+) -> reqwest::RequestBuilder {
+    for (name, value) in headers {
+        if let Ok(mut value) = reqwest::header::HeaderValue::from_str(value) {
+            value.set_sensitive(true);
+            req = req.header(name.as_str(), value);
+        }
+    }
+    req
 }
 
 async fn read_limited(mut response: reqwest::Response, limit: usize) -> Result<Vec<u8>, String> {
@@ -416,7 +613,7 @@ fn embedding_model(kind: Kind, id: &str) -> bool {
     match kind {
         Kind::Openai | Kind::Gemini => id.contains("embedding"),
         Kind::Custom => id.contains("embed"),
-        Kind::Openrouter | Kind::Anthropic => false,
+        Kind::Openrouter | Kind::Anthropic | Kind::CustomAnthropic => false,
     }
 }
 
@@ -453,10 +650,26 @@ pub fn parse_models(kind: Kind, body: &Value) -> Result<Vec<CloudModel>, String>
                     .or_else(|| v["context_window"].as_u64())
                     .or_else(|| v["max_input_tokens"].as_u64())
                     .or_else(|| v["inputTokenLimit"].as_u64()),
+                // Gemini's native list says `thinking`; OpenAI-style lists say nothing.
+                reasoning: v["thinking"].as_bool(),
                 embedding,
                 ..Default::default()
             };
+            if kind.anthropic_wire() {
+                // Anthropic lists what a model can do (`capabilities`).
+                if let Some(vision) = v["capabilities"]["image_input"]["supported"].as_bool() {
+                    model.vision = Some(vision);
+                }
+                if let Some(thinking) = v["capabilities"]["thinking"]["supported"].as_bool() {
+                    model.reasoning = Some(thinking);
+                }
+            }
             if kind == Kind::Openrouter {
+                model.reasoning = v["supported_parameters"].as_array().map(|params| {
+                    params
+                        .iter()
+                        .any(|p| p == "reasoning" || p == "include_reasoning")
+                });
                 model.input_price = per_million(&v["pricing"]["prompt"]);
                 model.output_price = per_million(&v["pricing"]["completion"]);
                 if let Some(params) = v["supported_parameters"].as_array() {
@@ -494,20 +707,26 @@ fn key_of(provider: &CloudProvider) -> Result<Option<String>, String> {
 async fn discover(
     provider: &CloudProvider,
     key: Option<&str>,
+    headers: &[(String, String)],
 ) -> Result<(Vec<CloudModel>, Option<Quota>), String> {
     let base = provider.base_url.as_str();
-    let url = match provider.kind {
-        Kind::Anthropic => format!("{base}/models?limit=1000"),
-        _ => format!("{base}/models"),
+    let url = if provider.kind.anthropic_wire() {
+        format!("{base}/models?limit=1000")
+    } else {
+        format!("{base}/models")
     };
-    let response = auth(client().get(url), provider.kind, key)
+    let response = with_headers(auth(client().get(url), provider.kind, key), headers)
         .timeout(Duration::from_secs(20))
         .send()
         .await
         .map_err(|e| transport_error(e, key))?;
     let status = response.status().as_u16();
     if !response.status().is_success() {
-        return Err(err(status_error(status)).num("status", status).into());
+        let retry = retry_after_secs(response.headers());
+        let body = read_limited(response, QUOTA_LIMIT)
+            .await
+            .unwrap_or_default();
+        return Err(http_error(status, retry, &body));
     }
     let body = read_limited(response, MODELS_LIMIT).await?;
     let value: Value =
@@ -557,7 +776,7 @@ pub async fn refresh(provider: &CloudProvider) -> ProviderStatus {
         Ok(None) if provider.kind.key_required() && !provider.kind.public_models() => {
             Err(String::from(err("cloud.key_missing")))
         }
-        Ok(key) => discover(provider, key.as_deref())
+        Ok(key) => discover(provider, key.as_deref(), &extra_headers_of(provider))
             .await
             .map(|found| (found, key.is_some())),
         Err(e) => Err(e),
@@ -675,11 +894,52 @@ pub fn all_models() -> Vec<ModelView> {
                     kind: p.kind,
                     label: p.kind.label(),
                     state: c.status.state,
-                    info: m.clone(),
+                    info: priced(m, p.prices.get(&m.id)),
                 })
                 .collect()
         })
         .collect()
+}
+
+/// The model with the user's prices over the provider's.
+fn priced(model: &CloudModel, custom: Option<&ModelPrice>) -> CloudModel {
+    let mut m = model.clone();
+    if let Some(price) = custom {
+        m.price_custom = price.input.is_some() || price.output.is_some();
+        m.input_price = price.input.or(m.input_price);
+        m.output_price = price.output.or(m.output_price);
+    }
+    m
+}
+
+/// USD for one request to the `cloud:` model `id`; `None` when no price is known (neither the
+/// provider's nor the user's) or the request used no tokens.
+pub fn request_cost(
+    id: &str,
+    prompt_tokens: Option<u64>,
+    completion_tokens: Option<u64>,
+) -> Option<f64> {
+    let info = model_info(id)?;
+    let (input, output) = (info.info.input_price, info.info.output_price);
+    if input.is_none() && output.is_none() {
+        return None;
+    }
+    cost_of(input, output, prompt_tokens, completion_tokens)
+}
+
+/// USD for token counts at per-million prices.
+pub fn cost_of(
+    input: Option<f64>,
+    output: Option<f64>,
+    prompt_tokens: Option<u64>,
+    completion_tokens: Option<u64>,
+) -> Option<f64> {
+    let (p, c) = (prompt_tokens.unwrap_or(0), completion_tokens.unwrap_or(0));
+    if (input.is_none() && output.is_none()) || p + c == 0 {
+        return None;
+    }
+    let cost = (p as f64 * input.unwrap_or(0.0) + c as f64 * output.unwrap_or(0.0)) / 1_000_000.0;
+    Some((cost * 1e8).round() / 1e8)
 }
 
 pub fn model_info(id: &str) -> Option<ModelView> {
@@ -789,6 +1049,10 @@ pub struct ProviderInput {
     pub key: Option<String>,
     #[serde(default = "enabled_default")]
     pub enabled: bool,
+    /// Extra request headers (custom endpoints). `None` keeps the saved ones, `[]` removes them;
+    /// the values are kept in the keychain and never returned.
+    #[serde(default)]
+    pub headers: Option<Vec<HeaderInput>>,
 }
 
 impl std::fmt::Debug for ProviderInput {
@@ -799,6 +1063,7 @@ impl std::fmt::Debug for ProviderInput {
             .field("base_url", &self.base_url)
             .field("key", &self.key.as_ref().map(|_| "<redacted>"))
             .field("enabled", &self.enabled)
+            .field("headers", &self.headers.as_ref().map(Vec::len))
             .finish()
     }
 }
@@ -856,6 +1121,23 @@ async fn save_provider(id: Option<String>, input: ProviderInput) -> Result<Provi
     {
         return Err(err("cloud.key_required_for_new_address").into());
     }
+    let new_headers = match &input.headers {
+        Some(h) => Some(check_headers(h)?),
+        None => None,
+    };
+    let old_headers = match &prior {
+        Some(p) if !p.headers.is_empty() => read_headers(&id)?,
+        _ => Vec::new(),
+    };
+    // Saved headers may carry credentials: like the key, they never follow an edit to another
+    // host.
+    let moved = prior
+        .as_ref()
+        .is_some_and(|p| !same_origin(&p.base_url, &base_url));
+    if new_headers.is_none() && moved && !old_headers.is_empty() {
+        return Err(err("cloud.key_required_for_new_address").into());
+    }
+    let headers = new_headers.unwrap_or_else(|| old_headers.clone());
     let key = match new_key {
         Some("") => None,
         Some(k) => Some(k.to_string()),
@@ -866,6 +1148,29 @@ async fn save_provider(id: Option<String>, input: ProviderInput) -> Result<Provi
         None if old_key.is_some() => secrets::cloud_key_delete(&id)?,
         _ => {}
     }
+    if headers != old_headers {
+        let result = if headers.is_empty() {
+            secrets::cloud_key_delete(&headers_account(&id))
+        } else {
+            secrets::cloud_key_set(
+                &headers_account(&id),
+                &serde_json::to_string(&headers).unwrap_or_default(),
+            )
+        };
+        if let Err(e) = result {
+            // The key written above must not outlive a failed save.
+            match &old_key {
+                Some(old) => {
+                    let _ = secrets::cloud_key_set(&id, old);
+                }
+                None if key.is_some() => {
+                    let _ = secrets::cloud_key_delete(&id);
+                }
+                None => {}
+            }
+            return Err(e);
+        }
+    }
     let provider = CloudProvider {
         id: id.clone(),
         name,
@@ -873,6 +1178,8 @@ async fn save_provider(id: Option<String>, input: ProviderInput) -> Result<Provi
         base_url,
         enabled: input.enabled,
         key_set: key.is_some(),
+        headers: headers.iter().map(|(n, _)| n.clone()).collect(),
+        prices: prior.as_ref().map(|p| p.prices.clone()).unwrap_or_default(),
     };
     list.retain(|p| p.id != id);
     list.push(provider.clone());
@@ -885,8 +1192,19 @@ async fn save_provider(id: Option<String>, input: ProviderInput) -> Result<Provi
                 let _ = secrets::cloud_key_delete(&id);
             }
         }
+        if headers != old_headers {
+            if old_headers.is_empty() {
+                let _ = secrets::cloud_key_delete(&headers_account(&id));
+            } else {
+                let _ = secrets::cloud_key_set(
+                    &headers_account(&id),
+                    &serde_json::to_string(&old_headers).unwrap_or_default(),
+                );
+            }
+        }
         return Err(e);
     }
+    headers_cache().lock().unwrap().insert(id.clone(), headers);
     set_providers(list);
     {
         let mut cached = cache().lock().unwrap();
@@ -925,6 +1243,8 @@ pub async fn remove(id: &str) -> Result<Option<String>, String> {
     }
     let old = secrets::cloud_key_get(id).ok().flatten();
     let deleted = secrets::cloud_key_delete(id).is_ok();
+    let _ = secrets::cloud_key_delete(&headers_account(id));
+    headers_cache().lock().unwrap().remove(id);
     list.retain(|p| p.id != id);
     if let Err(e) = save(&list) {
         if let (true, Some(old)) = (deleted, old) {
@@ -957,18 +1277,154 @@ pub async fn test_model(id: &str, model: &str) -> Result<conntest::ConnectionTes
     if key.is_none() && provider.kind.key_required() {
         return Err(err("cloud.key_missing").into());
     }
-    let mut result = conntest::test_connection(
-        WireApi::Chat,
+    let headers = extra_headers_of(&provider);
+    let wire = if provider.kind.anthropic_wire() {
+        WireApi::Anthropic
+    } else {
+        WireApi::Chat
+    };
+    let mut result = conntest::test_connection_with(
+        wire,
         &provider.base_url,
         key.as_deref(),
         model,
         "harness-studio",
+        &conntest::Options {
+            x_api_key: provider.kind.anthropic_wire(),
+            headers: &headers,
+        },
     )
     .await;
     if let Some(key) = &key {
         result.detail = crate::integrations::launch::redact_text(&result.detail, vec![key]);
     }
     Ok(result)
+}
+
+/// What a connection check found, before anything is saved.
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct ProbeResult {
+    pub state: State,
+    pub latency_ms: Option<u64>,
+    pub model_count: usize,
+    /// Chat models first, a few at most: enough to see the key works.
+    pub models: Vec<CloudModel>,
+    pub quota: Option<Quota>,
+    /// The keyed error when the check failed.
+    pub error: Option<String>,
+}
+
+/// "Test Connection" in the add flow: lists the models with the typed (unsaved) key. `id`
+/// names the provider being edited, whose saved key is used when none is typed and the address
+/// stays on the same host. Nothing is stored.
+pub async fn probe(input: ProviderInput, id: Option<String>) -> Result<ProbeResult, String> {
+    let base_url = validate_url(&input.base_url, input.kind)?;
+    let prior = match &id {
+        Some(id) => Some(find(id)?),
+        None => None,
+    };
+    let typed = input
+        .key
+        .as_deref()
+        .map(str::trim)
+        .filter(|k| !k.is_empty());
+    if typed.is_some_and(|k| !valid_key(k)) {
+        return Err(err("cloud.invalid_key").into());
+    }
+    let same_host = prior
+        .as_ref()
+        .is_some_and(|p| same_origin(&p.base_url, &base_url));
+    let key = match (typed, &prior) {
+        (Some(k), _) => Some(k.to_string()),
+        (None, Some(p)) if same_host && p.key_set => key_of(p)?,
+        _ => None,
+    };
+    let headers = match (&input.headers, &prior) {
+        (Some(h), _) => check_headers(h)?,
+        (None, Some(p)) if same_host => extra_headers_of(p),
+        _ => Vec::new(),
+    };
+    let provider = CloudProvider {
+        id: "probe".into(),
+        name: "probe".into(),
+        kind: input.kind,
+        base_url,
+        enabled: true,
+        key_set: key.is_some(),
+        headers: Vec::new(),
+        prices: BTreeMap::new(),
+    };
+    let missing = key.is_none() && provider.kind.key_required();
+    let started = Instant::now();
+    let found = if missing {
+        Err(String::from(err("cloud.key_missing")))
+    } else {
+        discover(&provider, key.as_deref(), &headers).await
+    };
+    let latency = started.elapsed().as_millis() as u64;
+    Ok(match found {
+        Ok((mut models, quota)) => {
+            let model_count = models.len();
+            models.sort_by_key(|m| m.embedding);
+            models.truncate(8);
+            ProbeResult {
+                state: State::Online,
+                latency_ms: Some(latency),
+                model_count,
+                models,
+                quota,
+                error: None,
+            }
+        }
+        Err(error) => ProbeResult {
+            state: match crate::error_key::parse(&error).map(|(k, _)| k) {
+                Some("cloud.unauthorized") => State::Unauthorized,
+                Some("cloud.key_missing") => State::KeyMissing,
+                _ => State::Offline,
+            },
+            latency_ms: None,
+            model_count: 0,
+            models: Vec::new(),
+            quota: None,
+            error: Some(error),
+        },
+    })
+}
+
+/// Sets or clears (an entry with no prices) the prices of provider models, used for cost
+/// tracking. Prices are USD per million tokens.
+pub async fn set_prices(
+    id: &str,
+    prices: BTreeMap<String, ModelPrice>,
+) -> Result<ProviderView, String> {
+    let _lock = mutations().lock().await;
+    if prices.len() > 4096 || prices.iter().any(|(m, p)| clean(m).is_none() || !p.valid()) {
+        return Err(err("cloud.invalid_price").into());
+    }
+    let mut list = load();
+    let provider = list
+        .iter_mut()
+        .find(|p| p.id == id)
+        .ok_or_else(|| String::from(err("cloud.not_found")))?;
+    provider.prices = prices
+        .into_iter()
+        .filter(|(_, p)| p.input.is_some() || p.output.is_some())
+        .collect();
+    let provider = provider.clone();
+    save(&list)?;
+    set_providers(list);
+    let status = cache()
+        .lock()
+        .unwrap()
+        .get(id)
+        .map(|c| c.status.clone())
+        .unwrap_or_default();
+    Ok(ProviderView {
+        label: provider.kind.label(),
+        provider,
+        status,
+    })
 }
 
 #[cfg(test)]

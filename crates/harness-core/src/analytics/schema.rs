@@ -1,7 +1,13 @@
 //! Ordered SQL migrations for `analytics.db`. Migration `i` (0-based) upgrades the schema
 //! from `user_version = i` to `i + 1`. Never edit a released migration; append a new one.
 
-pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6];
+pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7];
+
+/// Cost of a request at a BYOK cloud provider, USD (NULL for local models).
+const V7: &str = r#"
+ALTER TABLE requests ADD COLUMN cost_usd REAL;
+CREATE INDEX requests_cost ON requests(started_at_ms DESC) WHERE cost_usd IS NOT NULL;
+"#;
 
 /// Tool-call diagnosis on `requests` (T4 · Araç çağrısı teşhisi, `gateway::tool_diag`). Added
 /// with ALTER TABLE so existing rows keep their data (they read as "no tools").

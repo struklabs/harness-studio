@@ -2455,6 +2455,87 @@
         }
       }
     },
+    "/api/harness/v1/cloud/providers/{id}/prices": {
+      "put": {
+        "tags": [
+          "cloud"
+        ],
+        "summary": "Sets the prices Harness uses to track what cloud requests cost (the provider's own prices\napply where none is set).",
+        "operationId": "set_cloud_prices",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricesInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/cloud/providers/{id}/test": {
       "post": {
         "tags": [
@@ -2504,6 +2585,67 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/cloud/test": {
+      "post": {
+        "tags": [
+          "cloud"
+        ],
+        "summary": "Connection test for provider settings that are not saved yet: lists the models with the\ngiven key (never stored) and returns what the provider says about them.",
+        "operationId": "probe_cloud_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProbeInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "",
             "content": {
               "application/json": {
@@ -15116,6 +15258,10 @@
           "direct": {
             "$ref": "#/components/schemas/DirectUsage",
             "description": "Token totals of the llama-server ports that bypass the gateway (aggregate only; see\n`analytics::direct`)."
+          },
+          "cost": {
+            "$ref": "#/components/schemas/CostSummary",
+            "description": "What BYOK cloud models cost in the range (raw rows only: rollups do not keep prices)."
           }
         }
       },
@@ -16218,6 +16364,17 @@
               "null"
             ]
           },
+          "reasoning": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Reasoning (thinking) model."
+          },
+          "price_custom": {
+            "type": "boolean",
+            "description": "The prices above are the user's own, not the provider's."
+          },
           "embedding": {
             "type": "boolean",
             "description": "An embedding model (`/v1/embeddings`); listed apart from the chat models."
@@ -16253,6 +16410,23 @@
           },
           "key_set": {
             "type": "boolean"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Names of the extra request headers a custom endpoint needs; the values are kept with the\nAPI key in the system keychain and never returned."
+          },
+          "prices": {
+            "type": "object",
+            "description": "Prices the user set per provider model id (cost tracking).",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelPrice"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           }
         }
       },
@@ -17528,6 +17702,27 @@
           }
         ],
         "description": "One state change. Serialized with a `type` tag (`server_status`, `download`, ...)."
+      },
+      "CostSummary": {
+        "type": "object",
+        "description": "Cost of the cloud-provider requests in a range, USD.",
+        "required": [
+          "total_usd",
+          "models"
+        ],
+        "properties": {
+          "total_usd": {
+            "type": "number",
+            "format": "double"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModelCost"
+            },
+            "description": "Per gateway model, most expensive first."
+          }
+        }
       },
       "CreateBody": {
         "type": "object",
@@ -21115,6 +21310,22 @@
           }
         }
       },
+      "HeaderInput": {
+        "type": "object",
+        "description": "One extra header as typed in Advanced settings.",
+        "required": [
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
       "Health": {
         "type": "object",
         "required": [
@@ -23790,6 +24001,29 @@
           }
         }
       },
+      "ModelCost": {
+        "type": "object",
+        "required": [
+          "alias",
+          "requests",
+          "cost_usd"
+        ],
+        "properties": {
+          "alias": {
+            "type": "string"
+          },
+          "requests": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Requests with a known cost.",
+            "minimum": 0
+          },
+          "cost_usd": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "ModelDefinition": {
         "type": "object",
         "description": "A logical model: what clients ask for by `alias`.",
@@ -23966,6 +24200,26 @@
           "library",
           "linked"
         ]
+      },
+      "ModelPrice": {
+        "type": "object",
+        "description": "A price the user set for a model, USD per million tokens; `None` keeps the provider's own.",
+        "properties": {
+          "input": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "output": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
       },
       "ModelRecord": {
         "type": "object",
@@ -26202,6 +26456,95 @@
           }
         }
       },
+      "PricesInput": {
+        "type": "object",
+        "description": "Body of `PUT /cloud/providers/{id}/prices`.",
+        "required": [
+          "prices"
+        ],
+        "properties": {
+          "prices": {
+            "type": "object",
+            "description": "USD per million tokens by provider model id; replaces the saved prices.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ModelPrice"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ProbeInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ProviderInput"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "provider_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The provider being edited: its saved key and headers are used when none are sent and the\naddress stays on the same host."
+              }
+            }
+          }
+        ],
+        "description": "Body of `POST /cloud/test`: provider settings to check before they are saved."
+      },
+      "ProbeResult": {
+        "type": "object",
+        "description": "What a connection check found, before anything is saved.",
+        "required": [
+          "state",
+          "model_count",
+          "models"
+        ],
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "latency_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "model_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CloudModel"
+            },
+            "description": "Chat models first, a few at most: enough to see the key works."
+          },
+          "quota": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Quota"
+              }
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The keyed error when the check failed."
+          }
+        }
+      },
       "ProfileView": {
         "type": "object",
         "description": "A server profile in the shape the GUI uses (`list_server_profiles` & co.): the effective\nlaunch config of a `domain::ServerProfile` and its `ModelDefinition`.",
@@ -26291,6 +26634,16 @@
           },
           "enabled": {
             "type": "boolean"
+          },
+          "headers": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/HeaderInput"
+            },
+            "description": "Extra request headers (custom endpoints). `None` keeps the saved ones, `[]` removes them;\nthe values are kept in the keychain and never returned."
           }
         }
       },
@@ -27854,6 +28207,14 @@
             "description": "Slots (concurrent requests) of the server that answered.",
             "minimum": 0
           },
+          "cost_usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "USD this request cost at a BYOK provider (provider or user prices x tokens); `None` for\nlocal models and when no price is known."
+          },
           "waited": {
             "type": [
               "string",
@@ -28210,6 +28571,14 @@
               "null"
             ],
             "description": "Evidence as JSON text (tool name, excerpt, schema path, linked request...)."
+          },
+          "cost_usd": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "USD at a BYOK cloud provider (its or the user's prices); `None` for local models."
           }
         }
       },
