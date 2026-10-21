@@ -13,6 +13,7 @@
     N8nExecution,
     N8nExecutionError,
     N8nOpenAiConnection,
+    N8nPermission,
     N8nTriggerResult,
     N8nView,
     N8nWorkflow,
@@ -23,6 +24,8 @@
   import { Badge } from '#lib/components/ui/badge/index.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Input } from '#lib/components/ui/input/index.js';
+  import * as RadioGroup from '#lib/components/ui/radio-group/index.js';
+  import { cn } from '#lib/utils.js';
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
 
@@ -48,6 +51,11 @@
   let tokenBusy = $state(false);
   let tokenError = $state<string | null>(null);
 
+  const PERMISSIONS: N8nPermission[] = ['read_only', 'draft', 'write', 'trigger'];
+  let permission = $state<N8nPermission>('read_only');
+  let permissionBusy = $state(false);
+  const uid = $props.id();
+
   let connected = $derived(!!view?.url && view.key_set);
   let dirty = $derived(!!view && (url.trim() !== view.url || apiKey.trim() !== ''));
   let names = $derived(Object.fromEntries(workflows.map((w) => [w.id, w.name])));
@@ -56,6 +64,7 @@
     try {
       view = await invoke<N8nView>('n8n_get_settings');
       url = view.url;
+      permission = view.permission;
     } catch (e) {
       error = localizeError(e);
     }
@@ -92,6 +101,7 @@
     try {
       view = await invoke<N8nView>('n8n_save_settings', { url, apiKey: apiKey.trim() ? apiKey : null });
       url = view.url;
+      permission = view.permission;
       apiKey = '';
       testOk = null;
       toast.success(t('n8nui.saved'));
@@ -100,6 +110,22 @@
       error = localizeError(e);
     } finally {
       busy = false;
+    }
+  }
+
+  async function savePermission(next: N8nPermission) {
+    const previous = view?.permission ?? 'read_only';
+    permission = next;
+    permissionBusy = true;
+    try {
+      view = await invoke<N8nView>('n8n_set_permission', { permission: next });
+      permission = view.permission;
+      toast.success(t('n8nui.permission_saved'));
+    } catch (e) {
+      permission = previous;
+      toast.error(localizeError(e));
+    } finally {
+      permissionBusy = false;
     }
   }
 
@@ -247,6 +273,35 @@
   </SettingGroup>
 
   {#if connected}
+    <SettingGroup title={t('n8nui.permission_title')} hint={t('n8nui.permission_desc')}>
+      <div class="flex flex-col gap-2 px-4 py-3">
+        <RadioGroup.Root
+          class="grid grid-cols-2 gap-1.5 max-[640px]:grid-cols-1"
+          aria-label={t('n8nui.permission')}
+          value={permission}
+          disabled={permissionBusy}
+          onValueChange={(v) => savePermission(v as N8nPermission)}
+        >
+          {#each PERMISSIONS as level (level)}
+            <label
+              for="{uid}-perm-{level}"
+              class={cn(
+                'flex min-w-0 cursor-pointer items-start gap-2 rounded-md border px-2.5 py-2 text-xs transition-colors hover:bg-muted/50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50',
+                permission === level ? 'border-primary/40 bg-primary/5' : 'border-border'
+              )}
+            >
+              <RadioGroup.Item id="{uid}-perm-{level}" value={level} class="mt-0.5" />
+              <span class="flex min-w-0 flex-col gap-0.5">
+                <span class="text-sm font-medium">{t(`n8nui.perm_${level}` as TKey)}</span>
+                <span class="text-muted-foreground">{t(`n8nui.perm_${level}_hint` as TKey)}</span>
+              </span>
+            </label>
+          {/each}
+        </RadioGroup.Root>
+        <p class="text-xs text-muted-foreground">{t('n8nui.permission_hint')} {t('n8nui.perm_note')}</p>
+      </div>
+    </SettingGroup>
+
     <SettingGroup title={t('n8nui.workflows_title')} hint={t('n8nui.workflows_desc')}>
       {#snippet actions()}
         <Button variant="outline" size="sm" disabled={loading} onclick={loadData}>

@@ -11,6 +11,9 @@ use serde_json::json;
 
 const KEY: &str = "test-key-123";
 
+/// Tests that save the n8n connection share one settings file: they take turns.
+pub(super) static SAVED: Mutex<()> = Mutex::new(());
+
 #[derive(Default)]
 struct Seen {
     /// `(path, query, key header present and correct)` of every API request.
@@ -386,6 +389,7 @@ async fn redirects_are_not_followed() {
 
 #[test]
 fn key_goes_to_the_keychain_not_to_settings() {
+    let _guard = SAVED.lock().unwrap_or_else(|e| e.into_inner());
     save("https://n8n.example.com/", Some("  s3cret-key  ")).unwrap();
     let v = view().unwrap();
     assert_eq!(v.url, "https://n8n.example.com");

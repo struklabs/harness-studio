@@ -80,6 +80,8 @@ export interface PgToolCall {
   errorCode?: string;
   /** Approved automatically via "always allow in this session". */
   autoApproved?: boolean;
+  /** Id of the core run (`tools_run` call id): what a tool that waits for the user is matched by. */
+  runId?: string;
 }
 
 export interface ChatMessage {

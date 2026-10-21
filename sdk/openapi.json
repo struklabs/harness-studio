@@ -623,6 +623,334 @@
         }
       }
     },
+    "/api/harness/v1/automations/n8n/permission": {
+      "put": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "Sets what the model may do on the saved n8n connection.",
+        "operationId": "put_n8n_permission",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPermissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/N8nView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/automations/n8n/proposals": {
+      "get": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "Proposals the Playground model staged on the n8n instance, newest first.",
+        "operationId": "n8n_proposals",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/N8nProposal"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/automations/n8n/proposals/{id}": {
+      "get": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "One proposal with its diff, warnings and (once decided) its result.",
+        "operationId": "n8n_proposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/N8nProposal"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/automations/n8n/proposals/{id}/apply": {
+      "post": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "Approves a proposal: writes it to n8n (create/update/activate, or the webhook run) and\nreturns it with the result. Needs an admin token like every automations call.",
+        "operationId": "apply_n8n_proposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/N8nProposal"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/automations/n8n/proposals/{id}/reject": {
+      "post": {
+        "tags": [
+          "automations"
+        ],
+        "summary": "Declines a proposal.",
+        "operationId": "reject_n8n_proposal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/N8nProposal"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/automations/n8n/test": {
       "post": {
         "tags": [
@@ -12532,6 +12860,18 @@
           }
         }
       },
+      "ApplyProposalRequest": {
+        "type": "object",
+        "required": [
+          "confirm"
+        ],
+        "properties": {
+          "confirm": {
+            "type": "boolean",
+            "description": "Must be `true`: writing to n8n is a deliberate act."
+          }
+        }
+      },
       "AutoActionRequest": {
         "type": "object",
         "required": [
@@ -21274,6 +21614,55 @@
           }
         }
       },
+      "N8nApplyResult": {
+        "type": "object",
+        "description": "What an approved proposal did.",
+        "required": [
+          "steps"
+        ],
+        "properties": {
+          "workflow": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Workflow",
+                "description": "The workflow as n8n holds it after the change."
+              }
+            ]
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`created`, `updated`, `activated`, `deactivated`, `triggered`."
+          },
+          "trigger": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TriggerResult",
+                "description": "The webhook's answer (runs only)."
+              }
+            ]
+          },
+          "execution": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/N8nExecutionReport",
+                "description": "The execution the webhook started (runs only; `None` when n8n stored none)."
+              }
+            ]
+          }
+        }
+      },
       "N8nConnection": {
         "type": "object",
         "description": "Result of the connection test.",
@@ -21296,12 +21685,326 @@
           }
         }
       },
+      "N8nDiffLine": {
+        "type": "object",
+        "required": [
+          "op",
+          "text"
+        ],
+        "properties": {
+          "op": {
+            "$ref": "#/components/schemas/N8nLineOp"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "N8nExecutionReport": {
+        "type": "object",
+        "required": [
+          "id",
+          "workflow_id",
+          "status",
+          "mode",
+          "nodes",
+          "editor_url"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workflow_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`success`, `error`, `crashed`, `running`, `waiting`, `canceled`, `new` or `unknown`."
+          },
+          "mode": {
+            "type": "string"
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stopped_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExecutionError"
+              }
+            ]
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/N8nNodeRun"
+            },
+            "description": "Nodes in the order they started."
+          },
+          "output": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Start of the last node's first output item (JSON text)."
+          },
+          "editor_url": {
+            "type": "string"
+          }
+        }
+      },
+      "N8nLineOp": {
+        "type": "string",
+        "enum": [
+          "keep",
+          "add",
+          "remove",
+          "gap"
+        ]
+      },
+      "N8nNodeChange": {
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "node_type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/N8nNodeChangeKind"
+          },
+          "node_type": {
+            "type": "string",
+            "description": "Full node type (`n8n-nodes-base.httpRequest`)."
+          }
+        }
+      },
+      "N8nNodeChangeKind": {
+        "type": "string",
+        "enum": [
+          "added",
+          "removed",
+          "changed"
+        ]
+      },
+      "N8nNodeRun": {
+        "type": "object",
+        "description": "What one node did in an execution.",
+        "required": [
+          "name",
+          "status"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`success` or `error` (n8n's own word for the node's run)."
+          },
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Items the node produced on its first output.",
+            "minimum": 0
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "N8nPermission": {
+        "type": "string",
+        "description": "What the model (through approved proposals) may do on one n8n connection. A ladder: every\nlevel includes the ones below. It limits the Playground's n8n tools and the proposals;\nthe user's own buttons in Settings are not affected.",
+        "enum": [
+          "read_only",
+          "draft",
+          "write",
+          "trigger"
+        ]
+      },
+      "N8nProposal": {
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "created_at_ms",
+          "connection_url",
+          "workflow_name",
+          "node_changes",
+          "warnings",
+          "diff",
+          "required_permission"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "call_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The tool call that staged it (the Playground matches its tool card by this)."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/N8nProposalKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/N8nProposalStatus"
+          },
+          "created_at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "decided_at_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "connection_url": {
+            "type": "string",
+            "description": "The n8n address it was staged for."
+          },
+          "workflow_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workflow_name": {
+            "type": "string"
+          },
+          "activate": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "`Some(true)`: go live, `Some(false)`: switch off, `None`: leave as it is."
+          },
+          "node_changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/N8nNodeChange"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/N8nWarning"
+            }
+          },
+          "diff": {
+            "$ref": "#/components/schemas/N8nWorkflowDiff"
+          },
+          "webhook": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/WebhookTrigger",
+                "description": "Runs: the webhook that will be called."
+              }
+            ]
+          },
+          "payload": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Runs: the body sent to it."
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model's one-line reason."
+          },
+          "required_permission": {
+            "$ref": "#/components/schemas/N8nPermission",
+            "description": "The lowest connection permission that allows it."
+          },
+          "result": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/N8nApplyResult"
+              }
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Keyed error text when `status` is `failed`."
+          }
+        }
+      },
+      "N8nProposalKind": {
+        "type": "string",
+        "enum": [
+          "create_workflow",
+          "update_workflow",
+          "run_workflow"
+        ]
+      },
+      "N8nProposalStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "applying",
+          "applied",
+          "rejected",
+          "failed",
+          "expired"
+        ]
+      },
       "N8nView": {
         "type": "object",
         "description": "What Settings shows: the saved URL and whether a key is stored (never the key).",
         "required": [
           "url",
-          "key_set"
+          "key_set",
+          "permission"
         ],
         "properties": {
           "url": {
@@ -21309,6 +22012,56 @@
           },
           "key_set": {
             "type": "boolean"
+          },
+          "permission": {
+            "$ref": "#/components/schemas/N8nPermission"
+          }
+        }
+      },
+      "N8nWarning": {
+        "type": "object",
+        "description": "Something the reviewer should look at twice. `code` is a stable identifier the UI\ntranslates; `node` names the node it is about.",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "node": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "N8nWorkflowDiff": {
+        "type": "object",
+        "required": [
+          "lines",
+          "added",
+          "removed",
+          "truncated"
+        ],
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/N8nDiffLine"
+            }
+          },
+          "added": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "removed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "The diff was cut at the line limit."
           }
         }
       },
@@ -25366,6 +26119,18 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "SetPermissionRequest": {
+        "type": "object",
+        "required": [
+          "permission"
+        ],
+        "properties": {
+          "permission": {
+            "$ref": "#/components/schemas/N8nPermission",
+            "description": "What the Playground's model may do on this connection."
           }
         }
       },

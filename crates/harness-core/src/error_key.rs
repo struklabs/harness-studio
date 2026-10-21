@@ -168,7 +168,13 @@ pub fn http_status(code: &str) -> u16 {
         | "automations.n8n_redirect"
         | "automations.n8n_server_error"
         | "automations.n8n_http_error"
+        | "automations.n8n_rejected"
         | "automations.n8n_invalid_response" => 502,
+        // The connection's permission (Settings > Automations) does not allow it.
+        "automations.n8n_permission_denied" => 403,
+        "automations.n8n_proposal_closed"
+        | "automations.n8n_proposal_stale"
+        | "automations.n8n_connection_changed" => 409,
         // A provider outside this machine answered badly: the key, the plan or the network.
         "cloud.unauthorized"
         | "cloud.payment_required"

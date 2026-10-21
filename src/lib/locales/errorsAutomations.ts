@@ -16,6 +16,14 @@ const tr = {
   'automations.n8n_workflow_inactive': 'İş akışı etkin değil. n8n’de etkinleştirin ve yeniden deneyin.',
   'automations.n8n_confirm_required': 'Çalıştırmak için onay gerekir.',
   'automations.keychain_unavailable': 'Sistem anahtar zincirine erişilemedi: {error}',
+  'automations.n8n_permission_denied': 'Bu n8n bağlantısı buna izin vermiyor: “{need}” düzeyi gerekir. Ayarlar > Otomasyonlar bölümünden verebilirsiniz.',
+  'automations.n8n_workflow_invalid': 'İş akışı geçerli değil: {reason}',
+  'automations.n8n_rejected': 'n8n isteği reddetti (HTTP {status}): {message}',
+  'automations.n8n_workflow_not_found': 'Bu kimlikle bir iş akışı bulunamadı.',
+  'automations.n8n_proposal_not_found': 'Öneri bulunamadı. Süresi dolmuş veya uygulama yeniden başlatılmış olabilir.',
+  'automations.n8n_proposal_closed': 'Bu öneri zaten karara bağlandı ({status}).',
+  'automations.n8n_proposal_stale': 'İş akışı, öneri yapıldıktan sonra n8n’de değişti. Onayladığınız fark artık geçerli değil; modelden yeniden önermesini isteyin.',
+  'automations.n8n_connection_changed': 'Öneri yapıldıktan sonra n8n bağlantısı değişti. Önerinin yeniden yapılması gerekir.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -34,6 +42,14 @@ const en: Record<keyof typeof tr, string> = {
   'automations.n8n_workflow_inactive': 'The workflow is not active. Activate it in n8n and try again.',
   'automations.n8n_confirm_required': 'Confirmation is required to run it.',
   'automations.keychain_unavailable': 'The system keychain is unavailable: {error}',
+  'automations.n8n_permission_denied': 'This n8n connection does not allow that: it needs the "{need}" level. You can grant it in Settings > Automations.',
+  'automations.n8n_workflow_invalid': 'The workflow is not valid: {reason}',
+  'automations.n8n_rejected': 'n8n refused the request (HTTP {status}): {message}',
+  'automations.n8n_workflow_not_found': 'No workflow with this id was found.',
+  'automations.n8n_proposal_not_found': 'The proposal was not found. It may have expired or the app was restarted.',
+  'automations.n8n_proposal_closed': 'This proposal was already decided ({status}).',
+  'automations.n8n_proposal_stale': 'The workflow changed in n8n after the proposal was made. The diff you approved no longer applies; ask the model to propose again.',
+  'automations.n8n_connection_changed': 'The n8n connection changed after the proposal was made. It has to be proposed again.',
 };
 
 export default { tr, en };
