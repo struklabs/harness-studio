@@ -21,9 +21,11 @@ names. This worker serves only what Harness needs, itself:
 * Browsers: only the origins in HARNESS_WORKER_ORIGINS (the Harness window and the user's CORS
   origins) get CORS headers; their preflight is answered here (it carries no key). A request
   with any other Origin is refused (403) before anything else, so no web page can drive it.
-* The model is the folder given here, loaded at start. Voice cloning (a reference audio) is not
-  offered and the audio to transcribe comes in the body (decoded in memory), so a request
-  never names a file.
+* The model is the folder given here, loaded at start. Audio comes in the body only (decoded in
+  memory), so a request never names a file: the audio to transcribe, and the reference
+  recording of a voice to clone (`voice_ref` {"type": "base64", "data"}, with its transcript in
+  `voice_ref_text`) for the families in CLONES. The gateway checks the speaker's consent
+  (`voice_consent`); the reference is never written anywhere.
 * It listens on 127.0.0.1 only; remote code is never trusted; Hugging Face Hub access is off;
   proxy variables are cleared. A codec the model's loader asks the Hub for by name (OuteTTS,
   Orpheus, Dia) is given with --companion owner/repo=folder (a library folder Harness
@@ -71,10 +73,20 @@ MAX_PROCESS_BODY = 48 * 1024 * 1024
 # Separation runs at the model's rate in stereo; two stems of five minutes (about 53 MB each as
 # 16-bit WAV) stay under the gateway's output limit (128 MiB).
 SEPARATE_MAX_AUDIO_SECONDS = 300.0
-FIELDS = {"model", "input", "voice", "speed", "language", "response_format"}
+FIELDS = {"model", "input", "voice", "speed", "language", "response_format", "voice_ref",
+          "voice_ref_text", "voice_consent"}
 FORM_FIELDS = {"file", "model", "language", "task", "response_format"}
 LABEL = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 MAX_BODY = 1024 * 1024
+# A speech request with a reference recording: 30 s of 48 kHz 16-bit WAV in base64 is ~3.9 MB.
+MAX_CLONE_BODY = 8 * 1024 * 1024
+# The reference: at most this long, and its transcript at most this many characters.
+REF_MAX_SECONDS = 30
+REF_MAX_TEXT = 1000
+# Families that clone a voice from a reference recording (mlx-audio's `ref_audio`), and whether
+# they need its transcript: Qwen3-TTS Base (the in-context mode) and CSM (the recording is the
+# conversation's first turn) do; Chatterbox takes the recording alone.
+CLONES = {"qwen3_tts": True, "sesame": True, "chatterbox": False, "chatterbox_turbo": False}
 # OpenAI's own upload limit for a transcription.
 MAX_AUDIO_BODY = 25 * 1024 * 1024
 # What the recognition models take: 16 kHz mono.
@@ -155,7 +167,8 @@ class Refused(Exception):
 
 
 def speech_request(raw, max_chars):
-    """The checked fields of a speech request: (text, voice or None, speed, language or None)."""
+    """The checked fields of a speech request: (text, voice or None, speed, language or None,
+    reference or None); a reference is (audio bytes, transcript or None)."""
     try:
         body = json.loads(raw or b"{}")
     except ValueError:
@@ -182,7 +195,37 @@ def speech_request(raw, max_chars):
     fmt = body.get("response_format", "wav")
     if fmt != "wav":
         raise Refused("the worker answers WAV only")
-    return text, labels[0], float(speed), labels[1]
+    return text, labels[0], float(speed), labels[1], voice_reference(body)
+
+
+def voice_reference(body):
+    """(audio bytes, transcript or None) of a request's `voice_ref`, or None without one. Only
+    inline base64 audio is taken: an object naming anything else (a path, a URL) is refused."""
+    import base64
+    import binascii
+
+    ref, ref_text = body.get("voice_ref"), body.get("voice_ref_text")
+    if ref is None:
+        if ref_text is not None:
+            raise Refused("'voice_ref_text' needs a 'voice_ref'")
+        return None
+    if not isinstance(ref, dict) or set(ref) != {"type", "data"} or ref["type"] != "base64" \
+            or not isinstance(ref["data"], str):
+        raise Refused("'voice_ref' must be {\"type\": \"base64\", \"data\": \"...\"}")
+    data = ref["data"]
+    if data.startswith("data:"):
+        data = data.partition(",")[2]
+    try:
+        audio = base64.b64decode(data, validate=True)
+    except (binascii.Error, ValueError):
+        raise Refused("'voice_ref' data is not base64")
+    if not audio:
+        raise Refused("'voice_ref' is empty")
+    if ref_text is not None and not (isinstance(ref_text, str) and ref_text.strip()
+                                     and len(ref_text) <= REF_MAX_TEXT):
+        raise Refused("'voice_ref_text' must be the reference's transcript (at most %d characters)"
+                      % REF_MAX_TEXT)
+    return audio, ref_text.strip() if ref_text else None
 
 
 def form_fields(content_type, raw):
@@ -266,7 +309,7 @@ def audio_format(audio):
     return None
 
 
-def decode_capped(audio, max_seconds, miniaudio, resample):
+def decode_capped(audio, max_seconds, miniaudio, resample, to_rate=SAMPLE_RATE):
     """16 kHz mono float32 samples of uploaded audio, never more than `max_seconds` of them: a
     length the container declares over the limit is refused before decoding, and decoding (mono,
     at the file's own rate) stops one step past the limit whatever the header says, so a small
@@ -305,8 +348,8 @@ def decode_capped(audio, max_seconds, miniaudio, resample):
         if close:
             close()
     samples = np.concatenate(parts) if parts else np.zeros(0, dtype=np.float32)
-    if rate != SAMPLE_RATE and len(samples):
-        samples = np.asarray(resample(samples, rate, SAMPLE_RATE), dtype=np.float32)
+    if rate != to_rate and len(samples):
+        samples = np.asarray(resample(samples, rate, to_rate), dtype=np.float32)
     return samples
 
 
@@ -589,28 +632,41 @@ def sentences(text, limit=MAX_SENTENCE_CHARS):
 
 
 def make_speak(model, voices, rate, max_seconds, encode, clock=time.monotonic,
-               family="qwen3_tts", instruct=None):
-    """`speak(text, voice, speed, language)` -> (WAV bytes, truncated). Generation is capped at
+               family="qwen3_tts", instruct=None, clone=None, decode_ref=None):
+    """`speak(text, voice, speed, language, ref=None)` -> (WAV bytes, truncated). Generation is capped at
     `frame_budget` tokens of `family` and stopped after `max_seconds`: between streamed chunks
     when the model can stream, between sentences (each a call of its own) when it cannot.
     `truncated` is None, "time" (the time limit stopped it) or "frames" (a call made all the
     audio its budget allows: the sampler missed the end token and kept talking, or the text was
     longer than one call can say, so its end may be missing or garbled).
     `encode(chunks, rate)` makes the WAV of the audio chunks. A speed other than 1 is refused by
-    a model that has no `speed`. `instruct` (a voice description) goes to every call."""
+    a model that has no `speed`. `instruct` (a voice description) goes to every call.
+    `clone` (None: the model clones no voice; else whether it needs the transcript) and
+    `decode_ref(audio bytes)` -> samples at the model's rate take a request's reference
+    recording `ref` (audio bytes, transcript or None) to every call as `ref_audio`/`ref_text`."""
     params = inspect.signature(model.generate).parameters
     takes = lambda name: name in params or any(
         p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
     can_stream = "stream" in params
     token_rate, lead = TOKEN_RATES.get(family, TOKEN_RATES["qwen3_tts"])
 
-    def speak(text, voice, speed, language):
+    def speak(text, voice, speed, language, ref=None):
         kwargs = {}
+        if ref is not None:
+            if clone is None:
+                raise Refused("this model does not clone voices; leave out 'voice_ref'")
+            if clone and ref[1] is None:
+                raise Refused("this model needs the reference's transcript in 'voice_ref_text'")
+            if voice is not None:
+                raise Refused("give either 'voice' or 'voice_ref', not both")
+            kwargs["ref_audio"] = decode_ref(ref[0])
+            if ref[1] is not None:
+                kwargs["ref_text"] = ref[1]
         if "speed" in params:
             kwargs["speed"] = speed
         elif speed != 1.0:
             raise Refused("this model speaks at one speed; use speed 1")
-        if voice is not None or voices:
+        if ref is None and (voice is not None or voices):
             kwargs["voice"] = voice or voices[0]
         if language is not None:
             kwargs["lang_code"] = language
@@ -789,9 +845,9 @@ def app_with(path, handle, model_entry, max_body):
     return app
 
 
-def app_for(speak, alias, voices, max_chars):
-    """The speech app; `speak(text, voice, speed, language)` returns (WAV bytes, truncated)
-    (blocking)."""
+def app_for(speak, alias, voices, max_chars, clones=False):
+    """The speech app; `speak(text, voice, speed, language, ref)` returns (WAV bytes, truncated)
+    (blocking). `clones`: the model takes a reference recording (a larger body is allowed)."""
     one_at_a_time = threading.Lock()
 
     def run(*args):
@@ -800,7 +856,7 @@ def app_for(speak, alias, voices, max_chars):
 
     async def handle(raw, _content_type):
         try:
-            text, voice, speed, language = speech_request(raw, max_chars)
+            text, voice, speed, language, ref = speech_request(raw, max_chars)
             if voice in OPENAI_VOICES and voice not in voices:
                 voice = None
             if voice is not None and voices and voice not in voices:
@@ -809,7 +865,7 @@ def app_for(speak, alias, voices, max_chars):
             return 400, error(str(e) + ".", "invalid_request_error", "invalid_request"), \
                 b"application/json", []
         try:
-            audio, truncated = await on_model_thread(run, text, voice, speed, language)
+            audio, truncated = await on_model_thread(run, text, voice, speed, language, ref)
         except Refused as e:
             return 400, error(str(e) + ".", "invalid_request_error", "invalid_request"), \
                 b"application/json", []
@@ -823,8 +879,8 @@ def app_for(speak, alias, voices, max_chars):
             [(b"x-harness-truncated", truncated.encode())] if truncated else []
 
     entry = {"id": alias or "default_model", "object": "model", "owned_by": "harness",
-             "voices": voices}
-    return app_with(SPEECH_PATH, handle, entry, MAX_BODY)
+             "voices": voices, "voice_cloning": clones}
+    return app_with(SPEECH_PATH, handle, entry, MAX_CLONE_BODY if clones else MAX_BODY)
 
 
 def transcription_app_for(transcribe, decode, alias):
@@ -1161,11 +1217,37 @@ def main(argv=None):
     def encode(parts, rate):
         return wav_bytes(np.concatenate([np.asarray(p).reshape(-1) for p in parts]), rate)
 
-    designed = getattr(getattr(model, "config", None), "tts_model_type", None) == "voice_design"
+    kind = getattr(getattr(model, "config", None), "tts_model_type", None)
+    designed = kind == "voice_design"
+    clone = clone_mode(family, kind, model)
+    decode_ref = None
+    if clone is not None:
+        import miniaudio
+        from mlx_audio.stt.utils import resample_audio
+
+        def decode_ref(audio):
+            return mx.array(decode_capped(audio, REF_MAX_SECONDS, miniaudio, resample_audio,
+                                          to_rate=rate))
+
     speak = make_speak(model, voices, rate, args.max_seconds, encode, family=family,
-                       instruct=DESIGNED_VOICE if designed else None)
-    uvicorn.run(cors(app_for(speak, args.alias, voices, args.max_chars)), host=HOST, port=args.port,
-                log_level="info", access_log=True)
+                       instruct=DESIGNED_VOICE if designed else None, clone=clone,
+                       decode_ref=decode_ref)
+    app = app_for(speak, args.alias, voices, args.max_chars, clones=clone is not None)
+    uvicorn.run(cors(app), host=HOST, port=args.port, log_level="info", access_log=True)
+
+
+def clone_mode(family, kind, model):
+    """None when the model clones no voice, else whether it needs the reference's transcript:
+    the families in CLONES whose `generate` takes `ref_audio` (of Qwen3-TTS, the Base model with
+    its speech tokenizer's encoder only: CustomVoice speaks its own speakers, VoiceDesign a
+    described voice, and without the encoder the reference would be ignored)."""
+    if family not in CLONES:
+        return None
+    if family == "qwen3_tts" and (kind not in (None, "base") or not getattr(
+            getattr(model, "speech_tokenizer", None), "has_encoder", False)):
+        return None
+    params = inspect.signature(model.generate).parameters
+    return CLONES[family] if "ref_audio" in params else None
 
 
 if __name__ == "__main__":

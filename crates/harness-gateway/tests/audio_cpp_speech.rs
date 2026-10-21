@@ -129,9 +129,14 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
                 let audio = audio.clone();
                 async move {
                     if v["input"] == "MLX" {
-                        assert_eq!(v["speed"], 1.25);
-                        assert_eq!(v["voice"], "ryan");
-                        assert!(v.get("voice_ref").is_none());
+                        if v.get("voice_ref").is_none() {
+                            assert_eq!(v["speed"], 1.25);
+                            assert_eq!(v["voice"], "ryan");
+                        }
+                        // A reference goes through untouched (the MLX worker checks it).
+                        if let Some(reference) = v.get("voice_ref") {
+                            assert_eq!(reference["type"], "base64");
+                        }
                         seen.lock().unwrap().push(v);
                         return ([("content-type", "audio/wav")], audio).into_response();
                     }
@@ -273,8 +278,10 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
         assert_eq!(response.status(), 200);
         assert_eq!(response.headers()["x-harness-model"], "mlx-voice");
         assert_eq!(response.bytes().await.unwrap().as_ref(), expected);
-        assert_eq!(calls.lock().unwrap().pop().unwrap()["input"], "MLX");
-        // Reference audio: consent comes first, then an engine without cloning refuses it.
+        let plain = calls.lock().unwrap().pop().unwrap();
+        assert_eq!(plain["input"], "MLX");
+        assert!(plain.get("voice_ref").is_none());
+        // Reference audio: consent comes first, then mlx-audio gets the reference.
         for consent in [None, Some(false)] {
             let mut request = json!({"model":"mlx-voice","input":"MLX","response_format":"wav",
                 "voice_ref":{"type":"base64","data":"AAAA"}});
@@ -289,9 +296,11 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
         let response = http.post(&url).json(&json!({"model":"mlx-voice","input":"MLX",
             "response_format":"wav","voice_consent":true,
             "voice_ref":{"type":"base64","data":"AAAA"}})).send().await.unwrap();
-        assert_eq!(response.status(), 400);
-        let error: Value = response.json().await.unwrap();
-        assert_eq!(error["error"]["param"], "voice_ref");
+        // mlx-audio reads the inline reference itself: the call reaches the worker with it.
+        assert_eq!(response.status(), 200);
+        let forwarded = calls.lock().unwrap().pop().unwrap();
+        assert_eq!(forwarded["voice_consent"], true);
+        assert_eq!(forwarded["voice_ref"]["data"], "AAAA");
         assert!(calls.lock().unwrap().is_empty());
         // A sherpa voice still selects the native runtime, before the audio.cpp fallback.
         let response = http.post(&url).json(&json!({

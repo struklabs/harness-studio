@@ -363,9 +363,9 @@ async fn serve(
             // of mlx-audio may have it (sherpa-onnx comes first, the workers are the fallback).
             if let Some(def) = python_speech_model(state, wanted.as_deref()).await {
                 caller.check_model(&def.alias)?;
-                // audio.cpp reads `voice_ref` itself (consent was checked above); the other
-                // Python engines speak in their own voices.
-                if wants_clone && !is_audio_cpp_speech(&def) {
+                // audio.cpp and mlx-audio read `voice_ref` themselves (consent was checked
+                // above); the other Python engines speak in their own voices.
+                if wants_clone && !is_audio_cpp_speech(&def) && !is_mlx_speech(&def) {
                     return Err(cannot_clone(&def.alias));
                 }
                 return python_speak(state, &def, &text, &req, speed, format, guard).await;
@@ -611,6 +611,30 @@ fn liquid_request(text: &str, voice: Option<&str>) -> Result<serde_json::Value, 
     Ok(request)
 }
 
+/// The fields of an mlx-audio speech call besides the text. The reference recording and its
+/// transcript go to the worker untouched: it takes only an inline base64 `voice_ref` (never a
+/// path) and refuses it on a model that clones no voice.
+fn mlx_request(
+    request: &mut serde_json::Value,
+    req: &SpeechRequest,
+    voice: Option<&str>,
+    speed: f32,
+) {
+    request["speed"] = serde_json::json!(speed);
+    if let Some(voice) = voice {
+        request["voice"] = serde_json::json!(voice);
+    }
+    if let Some(value) = &req.voice_ref {
+        request["voice_ref"] = value.clone();
+    }
+    if let Some(text) = &req.voice_ref_text {
+        request["voice_ref_text"] = serde_json::json!(text);
+    }
+    if let Some(consent) = req.voice_consent {
+        request["voice_consent"] = serde_json::json!(consent);
+    }
+}
+
 /// Speech from a Python engine or mlx-audio model: the worker's WAV, encoded to the asked
 /// format like sherpa-onnx's. The Python engine's models have one voice and one speed; an
 /// mlx-audio model takes `voice` (one of its speakers) and `speed`.
@@ -645,10 +669,7 @@ async fn python_speak(
         }
     }
     if is_mlx_speech(def) {
-        request["speed"] = serde_json::json!(speed);
-        if let Some(voice) = voice {
-            request["voice"] = serde_json::json!(voice);
-        }
+        mlx_request(&mut request, req, voice, speed);
     }
     if is_liquid_speech(def) {
         request = liquid_request(text, voice)?;
@@ -682,6 +703,29 @@ async fn python_speak(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mlx_speech_passes_the_voice_reference_through() {
+        let req: SpeechRequest = serde_json::from_value(serde_json::json!({
+            "input": "Hi", "voice_ref": {"type": "base64", "data": "UklGRg=="},
+            "voice_ref_text": "Hello there", "voice_consent": true, "model": "m"
+        }))
+        .unwrap();
+        let mut request = serde_json::json!({"input": "Hi"});
+        mlx_request(&mut request, &req, None, 1.0);
+        assert_eq!(
+            request,
+            serde_json::json!({"input": "Hi", "speed": 1.0,
+                "voice_ref": {"type": "base64", "data": "UklGRg=="},
+                "voice_ref_text": "Hello there", "voice_consent": true})
+        );
+        let mut plain = serde_json::json!({"input": "Hi"});
+        mlx_request(&mut plain, &SpeechRequest::default(), Some("ryan"), 1.5);
+        assert_eq!(
+            plain,
+            serde_json::json!({"input": "Hi", "speed": 1.5, "voice": "ryan"})
+        );
+    }
 
     #[test]
     fn audio_cpp_omits_default_speed_and_rejects_unsupported_speed() {

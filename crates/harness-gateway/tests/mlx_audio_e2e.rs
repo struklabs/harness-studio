@@ -13,11 +13,16 @@
 //! With `HS_MLX_STT_MODEL=<an MLX Whisper folder in the same models folder>` the first answer
 //! is also transcribed back and must say what was asked.
 //!
+//! With `HS_MLX_TTS_CLONES=1` the model must clone a voice from a reference recording (the first
+//! answer, sent inline with its transcript): e.g. Qwen3-TTS-12Hz-0.6B-Base-8bit,
+//! chatterbox-turbo-4bit. Without it, a cloning request must be refused.
+//!
 //! `HS_MLX_E2E_ROOT=<folder>` keeps the data root (and the environment) between runs; by
 //! default it is a temporary folder (uv, Python and the packages: about 800 MB).
 
 #![cfg(all(target_os = "macos", target_arch = "aarch64"))]
 
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -242,6 +247,47 @@ async fn an_mlx_audio_model_speaks_through_the_gateway() {
         eprintln!("words heard back: {score}/{}", words.len());
         assert!(score >= 5, "{heard}");
     }
+
+    // The first answer, sent back inline as a reference recording with its transcript, clones
+    // its voice on a model that clones (HS_MLX_TTS_CLONES=1); another model refuses it. A
+    // reference that names a file is refused either way.
+    let clone = |reference: serde_json::Value| {
+        http.post(format!("{base}/v1/audio/speech")).json(&json!({
+            "model": "mlx-tts-e2e",
+            "input": "This voice was cloned from a short recording.",
+            "voice_ref": reference,
+            "voice_ref_text": "Harness speaks with MLX audio on this Mac.",
+            "voice_consent": true
+        }))
+    };
+    let t = Instant::now();
+    let res = clone(json!({"type": "base64", "data": STANDARD.encode(&audio)}))
+        .send()
+        .await
+        .unwrap();
+    let code = res.status();
+    let cloned = res.bytes().await.unwrap();
+    eprintln!(
+        "cloned answer in {:?}: {code} {} bytes",
+        t.elapsed(),
+        cloned.len()
+    );
+    if std::env::var_os("HS_MLX_TTS_CLONES").is_some() {
+        assert_eq!(code, 200, "{}", String::from_utf8_lossy(&cloned));
+        assert!(cloned.starts_with(b"RIFF"), "not a WAV");
+        let seconds = (cloned.len() - 44) as f64 / bytes_per_second;
+        eprintln!("{seconds:.2} s of cloned audio");
+        assert!(seconds > 1.5, "{seconds} s of cloned audio");
+    } else {
+        let text = String::from_utf8_lossy(&cloned);
+        assert_eq!(code, 400, "{text}");
+        assert!(text.contains("does not clone voices"), "{text}");
+    }
+    let res = clone(json!({"type": "path", "data": "/etc/hosts"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 400);
 
     // An OpenAI client's voice name gets the model's default voice; another speaker is refused
     // by a model that has named ones.
