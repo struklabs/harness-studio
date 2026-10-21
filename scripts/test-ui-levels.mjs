@@ -36,9 +36,9 @@ test('Advanced retains every declared page; filtering never mutates the menu', (
 test('Simple keeps core journeys and removes technical library categories', () => {
   assert.deepEqual(ids(visibleGroups(menus.DASHBOARD_GROUPS, 'simple')), ['overview', 'model', 'context']);
   assert.deepEqual(ids(visibleGroups(menus.LIBRARY_GROUPS, 'simple')), ['all', 'llm', 'vlm', 'asr', 'image', 'tts', 'import']);
-  assert.deepEqual(ids(visibleGroups(CONNECTION_GROUPS, 'simple')), ['config', 'guide', 'harness-link', 'endpoints']);
-  assert.deepEqual(ids(visibleGroups(SETTINGS_GROUPS, 'simple')), ['runtime-installed', 'storage-directories', 'storage-hf', 'appearance', 'updates', 'privacy']);
-  assert.deepEqual(PLAYGROUND_MODES.filter(mode => !mode.level).map(mode => mode.id), ['chat', 'transcription', 'image']);
+  assert.deepEqual(ids(visibleGroups(CONNECTION_GROUPS, 'simple')), ['config', 'guide', 'harness-link', 'cloud-providers', 'endpoints']);
+  assert.deepEqual(ids(visibleGroups(SETTINGS_GROUPS, 'simple')), ['runtime-installed', 'storage-directories', 'storage-hf', 'tools-installed', 'automations', 'appearance', 'updates', 'privacy']);
+  assert.deepEqual(PLAYGROUND_MODES.filter(mode => !mode.level).map(mode => mode.id), ['chat', 'studio', 'transcription', 'image', 'ocr']);
   for (const tab of ['dashboard', 'hub', 'library', 'playground', 'connections', 'settings']) assert.equal(tabLevel(tab), undefined);
   for (const tab of ['servers', 'create', 'performance', 'analytics']) assert.equal(tabLevel(tab), 'advanced');
 });
