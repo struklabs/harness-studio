@@ -80,7 +80,7 @@ The **Network > Listening** page has three groups:
 | --- | --- | --- |
 | **Server Defaults** | **Port**, **GPU layers (-ngl)**, **Context Size (-c)** | Starting values for newly created servers. Port `0` (Automatic) picks a free port from 11440 to 11499. A server that was started before uses its own saved values. |
 | **Server Start** | **Load timeout (s)**, **Restart Automatically After a Crash**, **Maximum Attempts** | If a server is not ready within this time, the start ends with an error (increase it for large models). A server that stops unexpectedly while running is restarted with waits of 2, 4, 8... seconds; load errors (memory, a damaged file, a port) are not retried. |
-| **Default Bind Address** | **This computer only**, **Local network**, **Custom address** | `127.0.0.1` is open only to this computer (recommended). **Local network** (`0.0.0.0`) lets devices on the same network connect and requires an API key; if you want to open it without a key the app asks for an **Open Anyway** confirmation (these confirmations are listed on **Security > Permissions**). |
+| **Default Bind Address** | **This Computer Only**, **Local Network**, **Custom Address** | `127.0.0.1` is open only to this computer (recommended). **Local Network** (`0.0.0.0`) lets devices on the same network connect and requires an API key; if you want to open it without a key the app asks for an **Open Anyway** confirmation (these confirmations are listed on **Security > Permissions**). |
 
 **Network > Access** decides which web apps running in a browser can reach the servers (**Allowed Browser Origins (CORS)**). Desktop clients and command-line tools are not affected. Harness Studio does not change your firewall by itself; Windows Firewall may ask for permission on first start, and allowing only "Private networks" is recommended.
 
@@ -138,7 +138,7 @@ The **Updates** page shows the app version and has an **Application** section wi
 
 ## Privacy
 
-**Crash Reports** in **Settings > Privacy** is off by default and enables local reports for Rust panics, unexpected desktop exits, and engine process failures. **Retention period (days)** defaults to 30 days (1-365); expired reports are removed on startup, when reports are opened or created, when settings are saved, and every minute while the app runs.
+**Crash Reports** in **Settings > Privacy** is off by default and enables local reports for Rust panics, unexpected desktop exits, and engine process failures. **Retention Period (Days)** defaults to 30 days (1-365); expired reports are removed on startup, when reports are opened or created, when settings are saved, and every minute while the app runs.
 
 Reports include the app version, OS, engine, optional GPU/driver summary (**Hardware Info**), compiled stack frames, a normalized panic/error category, and up to 40 recent engine log lines. Free text, chat, model and file contents are omitted; log lines keep only recognized error categories. Home paths are replaced with `~` and known token formats are redacted.
 

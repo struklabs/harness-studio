@@ -230,7 +230,7 @@ const tr = {
   'settings.app_install_progress_label': 'Güncelleme İndirme İlerlemesi',
 
   // Privacy and diagnostics
-  'settings.retention_days': 'Saklama süresi (gün)',
+  'settings.retention_days': 'Saklama Süresi (Gün)',
   'settings.retention_days_hint': 'Raporlar varsayılan olarak 30 gün saklanır (1–365 gün). Süresi dolan raporlar otomatik silinir.',
   'settings.export_report_zip': 'ZIP Olarak Dışa Aktar',
   'settings.delete_report': 'Raporu Sil',
@@ -529,7 +529,7 @@ const en: Record<keyof typeof tr, string> = {
   'settings.app_install_progress_label': 'Update Download Progress',
 
   // Privacy and diagnostics
-  'settings.retention_days': 'Retention period (days)',
+  'settings.retention_days': 'Retention Period (Days)',
   'settings.retention_days_hint': 'Reports are kept for 30 days by default (1–365 days). Expired reports are deleted automatically.',
   'settings.export_report_zip': 'Export as ZIP',
   'settings.delete_report': 'Delete Report',

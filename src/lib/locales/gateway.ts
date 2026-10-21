@@ -95,7 +95,7 @@ const tr = {
   'gw.ignores_desc':
     'Yerel sunucunun çalıştıramadığı araçlar (ör. web_search) istekte varsa gateway isteği açık bir 400 hatasıyla reddeder; hiçbir araç sessizce düşürülmez. Burada bir model için izin verdiğiniz araçlar istekten çıkarılır ve bu durum X-Harness-Compat yanıt başlığına ve günlüğe yazılır.',
   'gw.ignores_model': 'Model',
-  'gw.ignores_tools': 'Araç türleri veya adları',
+  'gw.ignores_tools': 'Araç Türleri veya Adları',
   'gw.ignores_placeholder': 'web_search, image_generation',
   'gw.ignores_add': 'Ekle',
   'gw.ignores_none': 'İzin verilmiş araç yok.',
@@ -233,7 +233,7 @@ const en: Record<keyof typeof tr, string> = {
   'gw.ignores_desc':
     'If a request contains tools the local server cannot run (e.g. web_search), the gateway rejects it with an explicit 400 error; no tool is dropped silently. Tools you allow here for a model are removed from its requests, and this is recorded in the X-Harness-Compat response header and the log.',
   'gw.ignores_model': 'Model',
-  'gw.ignores_tools': 'Tool types or names',
+  'gw.ignores_tools': 'Tool Types or Names',
   'gw.ignores_placeholder': 'web_search, image_generation',
   'gw.ignores_add': 'Add',
   'gw.ignores_none': 'No tools allowed.',
