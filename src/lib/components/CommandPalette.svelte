@@ -67,6 +67,7 @@
     { id: 'playground', key: 'nav.playground', icon: MessageSquare },
     { id: 'projects', key: 'nav.projects', icon: FolderKanban },
     { id: 'connections', key: 'nav.connections', icon: Cable },
+    { id: 'office', key: 'office.title', icon: FolderKanban },
     { id: 'training', key: 'nav.training', icon: GraduationCap },
     { id: 'performance', key: 'nav.performance', icon: Activity },
     { id: 'analytics', key: 'nav.analytics', icon: ChartColumn },

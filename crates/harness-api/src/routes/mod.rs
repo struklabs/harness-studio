@@ -14,6 +14,7 @@ mod gateway;
 mod lemonade;
 mod models;
 mod modules;
+mod office;
 mod onnx_runtime;
 mod otel;
 mod permissions;
@@ -62,6 +63,7 @@ the Secure HttpOnly session cookie; cookie writes need same-origin Origin and X-
         (name = "definitions", description = "Model definitions and inference presets"),
         (name = "servers", description = "Server instances and profiles, load/unload, metrics, logs"),
         (name = "benchmarks", description = "llama-bench runs"),
+        (name = "offices", description = "Agent Office scenes, presets and live activity"),
         (name = "events", description = "Server-sent event streams"),
         (name = "tokens", description = "Named API tokens (admin)"),
         (name = "cloud", description = "BYOK cloud providers (OpenAI, Gemini, Anthropic, OpenRouter, custom): add, test and remove; the key is write-only (admin)"),
@@ -118,6 +120,20 @@ impl Modify for BearerAuth {
 
 fn api_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
+        .routes(routes!(office::list_offices))
+        .routes(routes!(
+            office::get_offices,
+            office::save_offices,
+            office::delete_offices
+        ))
+        .routes(routes!(office::list_presets))
+        .routes(routes!(
+            office::get_presets,
+            office::save_presets,
+            office::delete_presets
+        ))
+        .routes(routes!(office::activity))
+        .routes(routes!(office::run))
         .routes(routes!(crate::operations::service_status))
         .routes(routes!(crate::operations::service_action))
         .routes(routes!(crate::operations::logs))

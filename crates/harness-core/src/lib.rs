@@ -63,6 +63,7 @@ pub mod netns_bridge;
 pub mod network;
 #[cfg(any(windows, target_os = "linux"))]
 pub mod nvml;
+pub mod office;
 pub mod onnx_runtime;
 pub mod operation_gate;
 pub mod orchestrator;

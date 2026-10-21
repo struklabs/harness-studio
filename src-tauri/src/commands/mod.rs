@@ -55,6 +55,7 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> 
     })
 }
 
+include!("office.rs");
 include!("analytics.rs");
 include!("benchmark.rs");
 include!("control_api.rs");

@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  export type Tab = 'dashboard' | 'playground' | 'servers' | 'library' | 'hub' | 'connections' | 'performance' | 'analytics' | 'settings' | 'create' | 'modules' | 'projects' | 'training';
+  export type Tab = 'dashboard' | 'playground' | 'servers' | 'library' | 'hub' | 'connections' | 'performance' | 'analytics' | 'settings' | 'create' | 'modules' | 'projects' | 'training' | 'office';
 </script>
 
 <script lang="ts">
@@ -68,6 +68,10 @@
         { id: 'projects', labelKey: 'nav.projects', icon: FolderKanban },
         { id: 'connections', labelKey: 'nav.connections', icon: Cable },
       ],
+    },
+    {
+      labelKey: 'office.agents_group',
+      items: [{ level: tabLevel('office'), id: 'office', labelKey: 'office.title', icon: FolderKanban }],
     },
     {
       labelKey: 'nav.create',

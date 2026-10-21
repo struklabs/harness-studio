@@ -520,6 +520,12 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/browser/service", &["get", "post"]),
         ("/browser/logs", &["get"]),
         ("/browser/update", &["get", "post"]),
+        ("/offices", &["get"]),
+        ("/offices/{id}", &["get", "put", "delete"]),
+        ("/offices/activity", &["get"]),
+        ("/offices/runs/{id}", &["get"]),
+        ("/office-presets", &["get"]),
+        ("/office-presets/{id}", &["get", "put", "delete"]),
         ("/health", &["get"]),
         ("/capabilities", &["get"]),
         ("/browser/session", &["get"]),
@@ -2509,4 +2515,100 @@ fn jobs_schema_preserves_module_status() {
         schemas["JobStatus"]["properties"]["status"]["$ref"],
         "#/components/schemas/GpuJobState"
     );
+}
+
+#[tokio::test]
+async fn office_collections_validate_persist_and_enforce_scopes() {
+    let api = start().await;
+    let (status, presets) = json(api.get("/office-presets").await).await;
+    assert_eq!(status, 200);
+    assert_eq!(presets.as_array().unwrap().len(), 4);
+    let mut scene = presets[0].clone();
+    scene["id"] = json!("my-office");
+    let (status, saved) = json(
+        api.send(
+            Method::PUT,
+            "/offices/my-office",
+            &api.token,
+            Some(scene.clone()),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{saved}");
+    assert_eq!(saved, scene);
+    let (_, loaded) = json(api.get("/offices/my-office").await).await;
+    assert_eq!(loaded, scene);
+    let (_, saved_preset) = json(
+        api.send(
+            Method::PUT,
+            "/office-presets/my-office",
+            &api.token,
+            Some(scene.clone()),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(saved_preset, scene);
+    scene["rooms"][0]["width"] = json!(999);
+    assert_eq!(
+        api.send(Method::PUT, "/offices/my-office", &api.token, Some(scene))
+            .await
+            .status(),
+        422
+    );
+    let (_, reader) = json(
+        api.post("/tokens", json!({"name":"office-reader","scopes":["read"]}))
+            .await,
+    )
+    .await;
+    let token = reader["token"].as_str().unwrap();
+    assert_eq!(
+        api.send(Method::GET, "/offices", token, None)
+            .await
+            .status(),
+        200
+    );
+    assert_eq!(
+        api.send(Method::DELETE, "/offices/my-office", token, None)
+            .await
+            .status(),
+        403
+    );
+    assert_eq!(
+        api.send(Method::GET, "/offices/runs/private", token, None)
+            .await
+            .status(),
+        403
+    );
+    assert_eq!(
+        api.send(
+            Method::DELETE,
+            "/office-presets/builtin-studio",
+            &api.token,
+            None
+        )
+        .await
+        .status(),
+        422
+    );
+    assert_eq!(
+        api.send(Method::DELETE, "/offices/my-office", &api.token, None)
+            .await
+            .status(),
+        204
+    );
+    assert_eq!(api.get("/offices/my-office").await.status(), 404);
+    assert_eq!(
+        api.send(
+            Method::DELETE,
+            "/office-presets/my-office",
+            &api.token,
+            None
+        )
+        .await
+        .status(),
+        204
+    );
+    api.server.stop().await;
 }
