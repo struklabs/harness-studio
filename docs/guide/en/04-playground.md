@@ -45,6 +45,14 @@ To get a different answer, choose **Regenerate Response**; this works for an ans
 
 Answers render full Markdown (lists, tables, headings), and `mermaid` code blocks appear as diagrams you can switch to source, copy, or save as SVG. **Read Aloud** on an answer reads it out (see [Text to Speech](#text-to-speech)).
 
+### Audio Input and Spoken Replies
+
+When the selected model hears audio (a GGUF model loaded with an audio projector, such as LFM2.5-Audio, Ultravox, or Voxtral), the composer shows **Attach Audio** and **Record Audio**. Attach up to two WAV, MP3, or FLAC clips of at most 4 MiB each, or record one from the microphone, and send them with or without text: the clip appears in your message and the model answers it. Models without audio input hide both buttons.
+
+Switch on **Speak Replies** (the speaker button beside the composer actions) to hear every finished answer. Choose the voice model next to it from your installed text-to-speech models (see [Text to Speech](#text-to-speech)). Together with an audio clip this makes a spoken conversation: your voice goes to the audio model, and the answer text is turned into speech by the text-to-speech model you picked. The setting is remembered, and **Read Aloud** on a single answer still works when it is off. Replies in split comparison, failed or stopped answers, and tool-call turns are not spoken.
+
+Some models speak by themselves: Qwen2.5-Omni (safetensors, on the Python engine) and Liquid's LFM2.5-Audio (its own `liquid-audio` runtime) take audio, text (and, for Omni, pictures) and answer with text and their own voice. With **Speak Replies** on, the Playground asks such a model for speech (`modalities: ["text", "audio"]`) and plays the recording that comes back with the answer; the button then says **Model Speaks Natively** and no voice model is needed. The Hub lists these any-to-any models as supported when either runtime is installed. Over the API, `/v1/chat/completions` returns the recording in `choices[0].message.audio` (`id`, `data` as base64 WAV, `transcript`); streamed answers carry it in a final `delta.audio`.
+
 ## Tables, Charts, and UI Blocks
 
 Structured JSON tool results appear as key-value cards or sortable tables; **Raw JSON** shows the underlying result. Markdown tables scroll horizontally and offer **Copy as CSV**. A complete `chart` block can show a bar, line, or pie chart. A complete `ui` block can show a card, list, steps, callout, progress bar, or key-value view. These use a limited declarative JSON schema: model HTML and JavaScript are never executed. Invalid or incomplete blocks remain readable code. See the [supported schemas](../../en/FEATURES.md).

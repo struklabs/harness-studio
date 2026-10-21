@@ -67,6 +67,9 @@
   import { ensureLibraryDefinitions, loadAndChat } from '#lib/stores/downloads.svelte.js';
   import { isChatLoadable } from '#lib/downloadFollowUp.js';
   import { kindsForTab, servedModelName } from '#lib/libraryDefinitions.js';
+  import SpeakRepliesControl from '#lib/components/playground/SpeakRepliesControl.svelte';
+  import { replyAudio, replySpeechSource } from './playground/speakReplies';
+  import { readAloud, tts } from './playground/tts.svelte';
   import { loadAudio, AudioError, MAX_AUDIO_BYTES, MAX_AUDIO_PER_MESSAGE, type PgAudio } from './playground/audio';
   import TranscribePanel from './playground/TranscribePanel.svelte';
   import ImagePanel from './playground/ImagePanel.svelte';
@@ -219,6 +222,8 @@
   let pendingImages = $state<PgImage[]>([]);
   let pendingAudio = $state<PgAudio[]>([]);
   let libraryAudio = $state(false);
+  /** The selected model answers with speech of its own (Qwen2.5-Omni, LFM2.5-Audio). */
+  let librarySpeaks = $state(false);
   let audioAliases = $state<Record<string, boolean>>({});
   let libraryVision = $state<boolean | null>(null);
   let streaming = $state(false);
@@ -1026,6 +1031,7 @@
     verifiedTools = null;
     reasoningControl = NO_REASONING;
     libraryAudio = false;
+    librarySpeaks = false;
     audioAliases = {};
     libraryVision = null;
     if (!path && definition?.base.kind !== 'hf') return;
@@ -1043,6 +1049,7 @@
       const projector = definition?.mmproj ? view.entries.find(e => normalize(e.model.path) === normalize(definition.mmproj!)) : undefined;
       libraryAudio = !!(projector?.caps.audio_input ?? entry?.caps.audio_input);
       libraryVision = projector?.caps.vision ?? entry?.caps.vision ?? null;
+      librarySpeaks = !!entry?.caps.speech_output;
       audioAliases = Object.fromEntries(domain.definitions.map(d => [d.alias.toLowerCase(), !!d.mmproj &&
         !!view.entries.find(e => normalize(e.model.path) === normalize(d.mmproj!))?.caps.audio_input]));
     }).catch(() => {});
@@ -1424,7 +1431,7 @@
     const own = app.isRunning && (!app.gatewayRunning || aliasOfServer(app.selectedServerId)?.toLowerCase() === settings.model.toLowerCase());
     if (own && propsAudio !== null) return propsAudio;
     const def = domain.definitions.find(d => d.alias.toLowerCase() === settings.model.toLowerCase());
-    return !!def?.mmproj && libraryAudio;
+    return (!!def?.mmproj && libraryAudio) || (librarySpeaks && libraryAudio);
   });
   async function addAudioFiles(files: File[]) {
     if (!audioEnabled) return;
@@ -2575,6 +2582,8 @@
     let sentTools = toolDefs.length > 0;
     // Wait for a complete candidate before rendering tool-call JSON as ordinary text.
     const contentBuffer = new TextCallStreamBuffer();
+    // A model that speaks natively answers aloud itself; the reply voice model is not needed.
+    const nativeSpeech = !splitOn && tts.speakReplies && librarySpeaks;
     const body: Record<string, unknown> = {
       messages: withToolGuidance(apiMessages, toolDefs),
       stream: true,
@@ -2583,6 +2592,11 @@
     };
     if (model) body.model = model;
     if (sentTools) body.tools = toolDefs;
+    if (nativeSpeech) {
+      body.modalities = ['text', 'audio'];
+      body.audio = { format: 'wav' };
+    }
+    let speech: Blob | null = null;
 
     const started = performance.now();
     let ttftMs: number | undefined;
@@ -2622,6 +2636,7 @@
           const content = typeof delta.content === 'string' ? delta.content : '';
           const hasCalls = Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0;
           if ((reasoning || content || hasCalls) && ttftMs === undefined) ttftMs = performance.now() - started;
+          if (nativeSpeech) speech = speech ?? replyAudio(delta.audio);
           if (reasoning) msg.reasoning = (msg.reasoning ?? '') + reasoning;
           if (content) {
             if (sentTools) msg.content += contentBuffer.push(content);
@@ -2731,6 +2746,11 @@
       }
       msg.streaming = false;
       scrollToBottom();
+      if (speech && !msg.error && !msg.stopped) void readAloud.playClip(msg.id, speech);
+      else {
+        const spoken = splitOn ? null : replySpeechSource(tts.speakReplies, msg);
+        if (spoken) void readAloud.toggle(msg.id, spoken);
+      }
     }
     return msg;
   }
@@ -3218,6 +3238,7 @@
             {#if persistEnabled}
               <McpResourcesButton disabled={streaming || compacting} onAttachFile={async (path) => attachFiles([path])} />
             {/if}
+            <SpeakRepliesControl disabled={compacting} native={librarySpeaks} />
             <WorkspacePicker conversationKey={workspaceVersion} bind:value={settings.workdir} disabled={streaming || compacting} />
             {#if uiLevel.advanced && !splitOn && persistEnabled}
               <CompactButton

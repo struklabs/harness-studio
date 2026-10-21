@@ -909,6 +909,16 @@ pub fn python_hf_compatibility(
     {
         return None;
     }
+    // Any-to-any is one architecture here: Qwen2.5-Omni (audio, pictures and text in; text and
+    // speech out). Other "any-to-any" repos need classes the worker does not carry.
+    if task == "any-to-any"
+        && config
+            .and_then(|c| c.get("model_type"))
+            .and_then(|v| v.as_str())
+            != Some("qwen2_5_omni")
+    {
+        return None;
+    }
     if !matches!(
         library.map(str::to_ascii_lowercase).as_deref(),
         None | Some("transformers") | Some("sentence-transformers")
@@ -1191,6 +1201,35 @@ mod tests {
             verdict(Some("diffusers"), Some("text-to-image"), &[], &tiny[1..]),
             None
         );
+    }
+
+    #[test]
+    fn only_qwen2_5_omni_is_an_any_to_any_repo_of_the_python_engine() {
+        let files = s(&["config.json", "model-00001-of-00003.safetensors"]);
+        let tf = Some("transformers");
+        let omni = serde_json::json!({"model_type": "qwen2_5_omni"});
+        let other = serde_json::json!({"model_type": "gemma3n"});
+        let verdict = |config: Option<&serde_json::Value>| {
+            python_hf_compatibility(
+                ModelFormat::Safetensors,
+                tf,
+                Some("any-to-any"),
+                &[],
+                &files,
+                config,
+            )
+        };
+        assert_eq!(
+            verdict(Some(&omni)),
+            Some(Compatibility::Runnable {
+                runtime: PYTHON_HF_FAMILY.into()
+            })
+        );
+        assert_eq!(verdict(Some(&other)), None);
+        assert_eq!(verdict(None), None);
+        let quantized =
+            serde_json::json!({"model_type": "qwen2_5_omni", "quantization_config": {}});
+        assert_eq!(verdict(Some(&quantized)), None);
     }
 
     /// Safetensors chat repos (text and vision) are the Python engine's last resort: GGUF is

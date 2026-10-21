@@ -53,6 +53,10 @@ pub struct ModelCaps {
     /// Audio content parts accepted by the model, independent of vision.
     #[serde(default)]
     pub audio_input: bool,
+    /// Answers with speech of its own on chat completions (`modalities: ["text", "audio"]`):
+    /// Qwen2.5-Omni, LFM2.5-Audio. Chat's "Speak Replies" needs no voice model for these.
+    #[serde(default)]
+    pub speech_output: bool,
     pub embedding: bool,
     pub rerank: bool,
     /// Speech recognition (Whisper, sherpa-onnx or an ONNX CTC package).
@@ -488,6 +492,18 @@ pub fn build_entries(
 fn caps_of(model: &LocalModel, vision: bool, audio: bool) -> ModelCaps {
     let g = model.gguf.as_ref();
     let llm = model.kind == ModelKind::Llm;
+    // Qwen2.5-Omni and LFM2.5-Audio folders (Python engine): hear audio, speak back.
+    if llm && g.is_none() && crate::engine::python_hf::speaks_natively(&model.path) {
+        let omni = crate::engine::python_hf::is_omni_dir(&model.path);
+        return ModelCaps {
+            chat: true,
+            vision: omni,
+            audio: true,
+            audio_input: true,
+            speech_output: true,
+            ..Default::default()
+        };
+    }
     // A safetensors checkpoint (mistral.rs, MLX): its folder tells the template and the vision
     // tower.
     if llm && g.is_none() {
@@ -520,6 +536,7 @@ fn caps_of(model: &LocalModel, vision: bool, audio: bool) -> ModelCaps {
         vision: (llm && vision) || proj_vision,
         audio: (llm && audio) || proj_audio,
         audio_input: (llm && audio) || proj_audio,
+        speech_output: false,
         embedding: model.kind == ModelKind::Embedding,
         rerank: model.kind == ModelKind::Reranker,
         asr: model.kind == ModelKind::Asr,

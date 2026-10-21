@@ -974,6 +974,14 @@ const T2I_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes), (crate::engine::PYTH
 /// Text / image to video: stable-diffusion.cpp's Wan through `/v1/videos`.
 const VIDEO_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes), (crate::engine::PYTHON_HF, Yes)];
 
+/// Any-to-any: Qwen2.5-Omni on the Python engine, LFM2.5-Audio on Liquid's; both take audio (and
+/// pictures) and answer in text and speech on `/v1/chat/completions`. llama-server alone answers
+/// in text only.
+const ANY_ALTS: &[(&str, Support)] = &[
+    (crate::engine::PYTHON_HF, Yes),
+    (crate::engine::python_hf::LIQUID_AUDIO, Yes),
+];
+
 use Support::{No, Partial, Yes};
 
 /// Baseline per task for llama-server. Multimodal rows need the projector flag; embeddings and
@@ -982,9 +990,9 @@ use Support::{No, Partial, Yes};
 /// `No` while none of them is installed.
 const TABLE: &[Row] = &[
     row("image-text-to-text", Yes, Some("vision")),
-    row("audio-text-to-text", Partial, Some("audio_input")),
+    row("audio-text-to-text", Yes, Some("audio_input")),
     row("visual-question-answering", Partial, Some("vision")),
-    row("any-to-any", Partial, Some("vision")),
+    row_alt("any-to-any", Partial, Some("vision"), ANY_ALTS),
     row_alt(
         "document-question-answering",
         Partial,
@@ -1171,7 +1179,7 @@ mod tests {
     }
 
     #[test]
-    fn audio_mmproj_tasks_are_conditional_chat_support() {
+    fn audio_mmproj_tasks_are_chat_support_that_needs_the_projector_flag() {
         let files = tags(&["Ultravox-Q8_0.gguf", "mmproj-Ultravox-F16.gguf"]);
         assert_eq!(
             infer_task("org/Ultravox-7B-GGUF", &[], &files),
@@ -1181,11 +1189,32 @@ mod tests {
         let features = feature_status(&caps, FeatureContext::default());
         let list = task_support(Some(&caps), &features, &[]);
         let row = support_of(&list, "audio-text-to-text");
-        assert_eq!(row.support, Partial);
+        assert_eq!(row.support, Yes);
         assert_eq!(row.feature.as_deref(), Some("audio_input"));
         assert_eq!(row.flag.as_deref(), Some("--mmproj"));
         let asr = support_of(&list, "automatic-speech-recognition");
         assert_eq!(asr.feature.as_deref(), Some("audio_input"));
+        // A llama-server without the projector flag cannot take audio in: the verdict drops.
+        let mut lacking = features.clone();
+        for f in lacking.iter_mut().filter(|f| f.id == "audio_input") {
+            f.level = CapabilityLevel::Unsupported;
+            f.available = Some(false);
+        }
+        let list = task_support(Some(&caps), &lacking, &[]);
+        assert_eq!(support_of(&list, "audio-text-to-text").support, No);
+        // Any-to-any is llama-server's text answer, until an engine that speaks is installed.
+        let any = support_of(&list, "any-to-any");
+        assert_eq!(any.support, Partial);
+        assert_eq!(any.needs_runtime.as_deref(), Some(crate::engine::PYTHON_HF));
+        for family in [
+            crate::engine::PYTHON_HF,
+            crate::engine::python_hf::LIQUID_AUDIO,
+        ] {
+            let list = task_support(Some(&caps), &features, &[family.to_string()]);
+            let any = support_of(&list, "any-to-any");
+            assert_eq!(any.support, Yes, "{family}");
+            assert_eq!(any.runtime.as_deref(), Some(family));
+        }
     }
 
     #[test]

@@ -91,6 +91,26 @@ pub fn is_ct2_whisper_dir(dir: &Path) -> bool {
         })
 }
 
+/// `model_type` of the Qwen2.5-Omni checkpoints the worker runs as `any-to-any`: audio, image and
+/// text in; text and speech out (`Qwen2_5OmniForConditionalGeneration`).
+const OMNI_MODEL_TYPE: &str = "qwen2_5_omni";
+
+/// Whether `dir` is a Qwen2.5-Omni checkpoint folder (safetensors weights, no remote code).
+pub fn is_omni_dir(dir: &Path) -> bool {
+    dir.is_dir()
+        && !weight_files(dir).is_empty()
+        && read_json(&dir.join("config.json")).is_some_and(|cfg| {
+            cfg.get("model_type").and_then(|v| v.as_str()) == Some(OMNI_MODEL_TYPE)
+        })
+        && !asks_for_code(dir)
+}
+
+/// Whether the model folder answers with speech of its own on `/v1/chat/completions` (OpenAI's
+/// `modalities: ["text", "audio"]`): Qwen2.5-Omni on the Python engine, LFM2.5-Audio on Liquid's.
+pub fn speaks_natively(dir: &Path) -> bool {
+    is_liquid_audio_dir(dir) || is_omni_dir(dir)
+}
+
 /// Whether a Hub repo (a listing item or `/api/models/<id>`) is an LFM2-Audio repo in Liquid's
 /// own format: library `liquid-audio` with the audio detokenizer next to the weights. Its GGUF
 /// sibling repos are llama.cpp's (speech recognition only) and are not this.
@@ -163,12 +183,13 @@ const PROTECTED_FLAGS: &[&str] = &[
 /// `AutoModelForImageTextToText`, served on `/v1/chat/completions`). They are the fallback of a
 /// safetensors chat repo when neither a GGUF nor mistral.rs runs it, so a model card that says
 /// one of them is not a task folder of [`detect`]: [`chat_task`] decides.
-pub const CHAT_TASKS: [&str; 2] = ["text-generation", "image-text-to-text"];
+pub const CHAT_TASKS: [&str; 3] = ["text-generation", "image-text-to-text", "any-to-any"];
 
 /// Tasks the worker serves (`hf_worker.py` `TASKS`).
 pub const TASKS: &[&str] = &[
     "text-generation",
     "image-text-to-text",
+    "any-to-any",
     "text-classification",
     "token-classification",
     "zero-shot-classification",
@@ -663,8 +684,10 @@ pub fn detect(dir: &Path) -> Option<String> {
     }
     // Liquid's LFM2.5-Audio: speech output through `liquid-audio` (its card says audio-to-audio,
     // a task the transformers worker does not know).
-    if is_liquid_audio_dir(dir) {
-        return Some("text-to-speech".into());
+    // Both it and Qwen2.5-Omni hear, think and speak: `any-to-any`, chatting on /v1/chat/completions
+    // (Liquid's keeps /v1/audio/speech too).
+    if is_liquid_audio_dir(dir) || is_omni_dir(dir) {
+        return Some("any-to-any".into());
     }
     // A CTranslate2 Whisper export (faster-whisper) is served by the worker's faster-whisper.
     if is_ct2_whisper_dir(dir) {
@@ -1715,18 +1738,58 @@ library_name: liquid-audio
     }
 
     #[test]
-    fn lfm2_audio_folders_are_text_to_speech_in_their_own_environment() {
+    fn lfm2_audio_folders_chat_and_speak_in_their_own_environment() {
         let dir = liquid_folder();
         assert!(is_liquid_audio_dir(dir.path()));
         // The card says audio-to-audio, a task the transformers worker does not know: the folder
-        // is still detected, as speech output.
-        assert_eq!(detect(dir.path()).as_deref(), Some("text-to-speech"));
+        // is still detected, as an any-to-any chat model that speaks (and keeps /v1/audio/speech).
+        assert_eq!(detect(dir.path()).as_deref(), Some("any-to-any"));
+        assert_eq!(launch_task(dir.path()).as_deref(), Some("any-to-any"));
+        assert_eq!(kind_of("any-to-any"), ModelKind::Llm);
+        assert!(speaks_natively(dir.path()));
         assert_eq!(env_for(dir.path()).name, "liquid-audio");
         // Without the audio detokenizer (a llama.cpp conversion, a partial download) it is not.
         std::fs::remove_file(dir.path().join("audio_detokenizer/model.safetensors")).unwrap();
         assert!(!is_liquid_audio_dir(dir.path()));
         assert_eq!(detect(dir.path()), None);
         assert_ne!(env_for(dir.path()).name, "liquid-audio");
+    }
+
+    #[test]
+    fn qwen2_5_omni_folders_run_as_any_to_any_in_the_transformers_environment() {
+        let config = r#"{"architectures":["Qwen2_5OmniModel"],"model_type":"qwen2_5_omni"}"#;
+        let dir = folder(&[
+            ("config.json", config),
+            ("model-00001-of-00003.safetensors", "x"),
+            (
+                "README.md",
+                "---
+pipeline_tag: any-to-any
+library_name: transformers
+---
+",
+            ),
+        ]);
+        assert!(is_omni_dir(dir.path()));
+        assert!(speaks_natively(dir.path()));
+        assert!(!is_liquid_audio_dir(dir.path()));
+        assert_eq!(detect(dir.path()).as_deref(), Some("any-to-any"));
+        assert_eq!(launch_task(dir.path()).as_deref(), Some("any-to-any"));
+        assert_ne!(env_for(dir.path()).name, "liquid-audio");
+        // Remote code is never run, and a plain Qwen2.5 chat model does not speak.
+        let remote = folder(&[
+            (
+                "config.json",
+                r#"{"model_type":"qwen2_5_omni","auto_map":{"AutoModel":"x.Y"}}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        assert!(!is_omni_dir(remote.path()));
+        let qwen = folder(&[
+            ("config.json", r#"{"model_type":"qwen2"}"#),
+            ("model.safetensors", "x"),
+        ]);
+        assert!(!speaks_natively(qwen.path()));
     }
 
     #[test]
@@ -1897,6 +1960,38 @@ library_name: liquid-audio
         std::fs::write(&worker, WORKER).unwrap();
         let script = dir.path().join("test_hf_worker_chat.py");
         std::fs::write(&script, include_str!("../../python/test_hf_worker_chat.py")).unwrap();
+        let out = std::process::Command::new(python)
+            .arg("-I")
+            .arg(&script)
+            .arg(&worker)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            out.status.success() && stdout.contains("PASS"),
+            "{stdout}
+{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    /// The Liquid worker's chat helpers (request checking, OpenAI answer and SSE shaping) need no
+    /// torch: `python/test_liquid_audio_worker.py` runs with any Python 3.
+    #[test]
+    fn liquid_chat_helpers_shape_requests_and_answers() {
+        let Some(python) = crate::engine::mlx::tests::system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let worker = dir.path().join("liquid_audio_worker.py");
+        std::fs::write(&worker, LIQUID_WORKER).unwrap();
+        let script = dir.path().join("test_liquid_audio_worker.py");
+        std::fs::write(
+            &script,
+            include_str!("../../python/test_liquid_audio_worker.py"),
+        )
+        .unwrap();
         let out = std::process::Command::new(python)
             .arg("-I")
             .arg(&script)

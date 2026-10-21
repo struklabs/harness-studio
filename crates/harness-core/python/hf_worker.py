@@ -11,8 +11,10 @@ Endpoints
   GET  /health                     {"status":"ok"} | 503 {"status":"loading"} | 500 {"status":"error"}
   GET  /v1/models
   POST /hf                         Hugging Face Inference API: {"inputs": ..., "parameters": {...}}
-  POST /v1/chat/completions        text-generation, image-text-to-text (OpenAI shape, SSE streaming,
-                                   tools, images as data: or http(s) URLs)
+  POST /v1/chat/completions        text-generation, image-text-to-text, any-to-any (OpenAI shape, SSE
+                                   streaming, tools, images as data: or http(s) URLs; any-to-any
+                                   (Qwen2.5-Omni) also takes input_audio parts and answers with
+                                   speech in message.audio when modalities ["text", "audio"] ask)
   POST /v1/embeddings              feature-extraction, sentence-similarity (OpenAI shape)
   POST /v1/rerank                  text-ranking (cross-encoders)
   POST /v1/audio/transcriptions    automatic-speech-recognition (multipart "file", OpenAI shape; a
@@ -88,7 +90,7 @@ AUDIO_TASKS = {
 VIDEO_TASKS = {"text-to-video", "image-to-video"}
 DIFFUSERS_TASKS = {"text-to-image", "image-to-image"} | VIDEO_TASKS
 # Chat checkpoints (transformers Auto classes, OpenAI /v1/chat/completions).
-CHAT_TASKS = {"text-generation", "image-text-to-text"}
+CHAT_TASKS = {"text-generation", "image-text-to-text", "any-to-any"}
 TASKS = TEXT_TASKS | IMAGE_TASKS | AUDIO_TASKS | DIFFUSERS_TASKS | CHAT_TASKS | {"video-text-to-text"}
 
 # Largest request body (an image or a few minutes of audio fit easily).
@@ -295,7 +297,8 @@ class Model:
             elif task == "automatic-speech-recognition" and is_ct2_whisper(folder):
                 self.ct2 = load_ct2_whisper(folder, self.device(), self.args.threads)
             elif task in CHAT_TASKS:
-                self.pipe = ChatRunner(task, folder, self.device(), self.dtype(), trust)
+                runner = OmniRunner if task == "any-to-any" else ChatRunner
+                self.pipe = runner(task, folder, self.device(), self.dtype(), trust)
             elif task == "video-text-to-text":
                 from transformers import AutoProcessor, AutoModelForImageTextToText
 
@@ -1054,6 +1057,12 @@ DEFAULT_NEW_TOKENS = 2048
 MAX_NEW_TOKENS = 32768
 MAX_STOP_STRINGS = 4
 MAX_IMAGES = 8
+MAX_CLIPS = 4
+MAX_CLIP_SECONDS = 300
+CLIP_RATE = 16000  # what the Omni audio encoder reads
+OMNI_VOICES = {"chelsie": "Chelsie", "ethan": "Ethan"}
+OMNI_DEFAULT_VOICE = "Chelsie"
+OMNI_RATE = 24000
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 IMAGE_FETCH_SECONDS = 15
 CHAT_ROLES = {"system", "developer", "user", "assistant", "tool"}
@@ -1169,8 +1178,10 @@ def _parts(content):
             image = part.get("image_url", part.get("url"))
             url = image.get("url") if isinstance(image, dict) else image
             out.append(("image", url))
+        elif kind == "input_audio":
+            out.append(("audio", part.get("input_audio")))
         else:
-            raise BadRequest(f"content part type {kind!r} is not supported (text and image_url are)")
+            raise BadRequest(f"content part type {kind!r} is not supported (text, image_url and input_audio are)")
     return out
 
 
@@ -1184,10 +1195,29 @@ def _tool_arguments(value):
     return value if isinstance(value, dict) else {}
 
 
-def normalize_messages(messages, vision, load_image=load_chat_image):
-    """OpenAI chat messages as `(template messages, images)`. A vision model gets every content as
-    a list of `{"type": "text"|"image"}` parts and the PIL images in order; a text model gets
-    strings (and refuses images)."""
+def load_chat_clip(value):
+    """A mono float32 clip at `CLIP_RATE` from an `input_audio` part (`{"data": base64, "format"}`)."""
+    import numpy as np
+    from types import SimpleNamespace
+
+    if not isinstance(value, dict) or not isinstance(value.get("data"), str) or not value["data"]:
+        raise BadRequest("input_audio needs base64 data")
+    fmt = str(value.get("format") or "wav").lower()
+    if fmt not in ("wav", "mp3", "flac", "ogg"):
+        raise BadRequest(f"input_audio format {fmt!r} is not supported (wav, mp3, flac)")
+    wanted = SimpleNamespace(feature_extractor=SimpleNamespace(sampling_rate=CLIP_RATE))
+    clip = to_audio(value["data"], wanted)["raw"]
+    if clip.size == 0:
+        raise BadRequest("input_audio is empty")
+    if clip.size > MAX_CLIP_SECONDS * CLIP_RATE:
+        raise BadRequest(f"input_audio is longer than {MAX_CLIP_SECONDS} seconds")
+    return np.ascontiguousarray(clip, dtype="float32")
+
+
+def normalize_messages(messages, vision, load_image=load_chat_image, audio=False, clips=None, load_clip=load_chat_clip):
+    """OpenAI chat messages as `(template messages, images)`. A vision (or audio) model gets every
+    content as a list of `{"type": "text"|"image"|"audio"}` parts, the PIL images in order and the
+    clips (appended to `clips`) in order; a text model gets strings (and refuses media)."""
     if not isinstance(messages, list) or not messages:
         raise BadRequest('"messages" must be a non-empty list')
     out, images = [], []
@@ -1201,7 +1231,12 @@ def normalize_messages(messages, vision, load_image=load_chat_image):
                 raise BadRequest("this model does not take images")
             if role != "user":
                 raise BadRequest("images are only accepted in user messages")
-        if vision and role != "tool":
+        if any(kind == "audio" for kind, _ in parts):
+            if not audio:
+                raise BadRequest("this model does not take audio")
+            if role != "user":
+                raise BadRequest("audio is only accepted in user messages")
+        if (vision or audio) and role != "tool":
             content = []
             for kind, value in parts:
                 if kind == "image":
@@ -1209,6 +1244,11 @@ def normalize_messages(messages, vision, load_image=load_chat_image):
                         raise BadRequest(f"at most {MAX_IMAGES} images per request")
                     images.append(load_image(value))
                     content.append({"type": "image"})
+                elif kind == "audio":
+                    if clips is None or len(clips) >= MAX_CLIPS:
+                        raise BadRequest(f"at most {MAX_CLIPS} audio clips per request")
+                    clips.append(load_clip(value))
+                    content.append({"type": "audio"})
                 else:
                     content.append({"type": "text", "text": value})
         else:
@@ -1423,7 +1463,9 @@ class ChatRunner:
         import torch
         import transformers as tf
 
-        self.vision = task == "image-text-to-text"
+        self.vision = task in ("image-text-to-text", "any-to-any")
+        self.audio = self.speaks = task == "any-to-any"
+        self.audio_out = None
         self.device = device
         if dtype == "auto":
             stored = config_dtype(folder)
@@ -1436,7 +1478,9 @@ class ChatRunner:
             else:
                 dtype = torch.float32
         kw = {"trust_remote_code": trust, "dtype": dtype}
-        if self.vision:
+        if task == "any-to-any":
+            self.load_omni(folder, kw["dtype"])
+        elif self.vision:
             self.proc = tf.AutoProcessor.from_pretrained(folder, trust_remote_code=trust)
             self.tok = getattr(self.proc, "tokenizer", None) or tf.AutoTokenizer.from_pretrained(folder, trust_remote_code=trust)
             self.model = tf.AutoModelForImageTextToText.from_pretrained(folder, **kw)
@@ -1451,7 +1495,22 @@ class ChatRunner:
         text_cfg = cfg.get_text_config() if hasattr(cfg, "get_text_config") else cfg
         self.max_context = getattr(text_cfg, "max_position_embeddings", None) or getattr(cfg, "max_position_embeddings", None)
 
-    def prepare(self, messages, images, tools, max_new_tokens):
+    def load_omni(self, folder, dtype):
+        """Qwen2.5-Omni: the processor, and the thinker + talker + vocoder model (speech out)."""
+        import transformers as tf
+
+        self.proc = tf.AutoProcessor.from_pretrained(folder)
+        self.tok = self.proc.tokenizer
+        self.model = tf.Qwen2_5OmniForConditionalGeneration.from_pretrained(folder, dtype=dtype)
+
+    def extra_generate(self, speech):
+        """Generation arguments of the model family (`speech`: the voice, when speech is asked)."""
+        return {}
+
+    def split_output(self, out):
+        return out
+
+    def prepare(self, messages, images, tools, max_new_tokens, clips=None):
         """Prompt tensors for the messages (tools only when the template mentions them), the
         prompt's length and the number of tokens that may be generated."""
         owner = self.proc if self.vision else self.tok
@@ -1466,7 +1525,8 @@ class ChatRunner:
         else:
             text = plain_prompt(messages)
         if self.vision:
-            inputs = self.proc(text=text, images=images or None, return_tensors="pt")
+            extra = {"audio": clips} if clips else {}
+            inputs = self.proc(text=text, images=images or None, return_tensors="pt", **extra)
         else:
             inputs = self.tok(text, return_tensors="pt", add_special_tokens=not self.template)
         tensors = {}
@@ -1483,7 +1543,7 @@ class ChatRunner:
             raise BadRequest(f"the prompt has {prompt_tokens} tokens; the model's context is {self.max_context}")
         return tensors, prompt_tokens, min(max_new_tokens or DEFAULT_NEW_TOKENS, room)
 
-    def generate(self, tensors, prompt_tokens, max_new_tokens, p, streamer=None, cancel=None):
+    def generate(self, tensors, prompt_tokens, max_new_tokens, p, streamer=None, cancel=None, speech=None):
         """Runs generation; returns `(generated token ids, number of tokens generated)`."""
         import torch
         from transformers import StoppingCriteria, StoppingCriteriaList
@@ -1501,6 +1561,7 @@ class ChatRunner:
 
         watch = Watch()
         kw = dict(tensors, max_new_tokens=max_new_tokens, stopping_criteria=StoppingCriteriaList([watch]))
+        kw.update(self.extra_generate(speech))
         eos = self.tok.eos_token_id
         pad = self.tok.pad_token_id
         kw["pad_token_id"] = pad if pad is not None else (eos[0] if isinstance(eos, list) else eos)
@@ -1522,7 +1583,7 @@ class ChatRunner:
         if p["seed"] is not None:
             torch.manual_seed(p["seed"])
         with torch.inference_mode():
-            out = self.model.generate(**kw)
+            out = self.split_output(self.model.generate(**kw))
         return out[0][prompt_tokens:], watch.generated
 
     def decode(self, ids):
@@ -1537,23 +1598,83 @@ class ChatRunner:
         return int(ids[-1]) in {int(e) for e in eos if e is not None}
 
 
+class OmniRunner(ChatRunner):
+    """Qwen2.5-Omni: audio, pictures and text in; text out, and (when asked) speech out."""
+
+    def extra_generate(self, speech):
+        self.audio_out = None
+        if not speech:
+            return {"return_audio": False}
+        return {"return_audio": True, "speaker": speech["voice"]}
+
+    def split_output(self, out):
+        if isinstance(out, tuple):
+            out, wave = out
+            self.audio_out = wave
+        return out
+
+    def speech_wav(self):
+        """The WAV (24 kHz) of the last speech output, `None` when there was none."""
+        wave = self.audio_out
+        self.audio_out = None
+        if wave is None:
+            return None
+        return wav_bytes(wave.float().cpu().numpy(), OMNI_RATE)
+
+
+def speech_request(body, runner):
+    """`{"voice": ...}` when the request asks for speech (`modalities` has "audio"), else `None`."""
+    modalities = body.get("modalities")
+    if modalities is None:
+        return None
+    if not isinstance(modalities, list) or not all(m in ("text", "audio") for m in modalities):
+        raise BadRequest('"modalities" must be a list of "text" and "audio"')
+    if "audio" not in modalities:
+        return None
+    if not getattr(runner, "speaks", False):
+        raise BadRequest("this model does not answer with speech")
+    options = body.get("audio")
+    if options is not None and not isinstance(options, dict):
+        raise BadRequest('"audio" must be an object')
+    options = options or {}
+    fmt = str(options.get("format") or "wav").lower()
+    if fmt != "wav":
+        raise BadRequest(f"audio format {fmt!r} is not served (wav)")
+    voice = OMNI_VOICES.get(str(options.get("voice") or OMNI_DEFAULT_VOICE).lower(), OMNI_DEFAULT_VOICE)
+    return {"voice": voice}
+
+
+def audio_message(wav, transcript):
+    """OpenAI's `message.audio`: the answer's speech and what it says."""
+    return {
+        "id": "audio_" + uuid.uuid4().hex[:24],
+        "data": base64.b64encode(wav).decode(),
+        "transcript": transcript,
+        "expires_at": int(time.time()) + 3600,
+    }
+
+
 def chat_request(model, body):
     """The checked pieces of a chat request: `(parameters, messages, images, tools, tool names)`."""
     p = chat_params(body)
-    messages, images = normalize_messages(body.get("messages"), model.pipe.vision)
+    clips = []
+    messages, images = normalize_messages(
+        body.get("messages"), model.pipe.vision, audio=getattr(model.pipe, "audio", False), clips=clips
+    )
+    speech = speech_request(body, model.pipe)
     tools = body.get("tools") if body.get("tool_choice") != "none" else None
     if tools is not None and (not isinstance(tools, list) or not all(isinstance(t, dict) for t in tools)):
         raise BadRequest('"tools" must be a list of tool definitions')
     names = {(t.get("function") or {}).get("name") for t in tools or []} - {None}
-    return p, messages, images, tools or None, names
+    return p, messages, images, tools or None, names, {"clips": clips, "speech": speech}
 
 
 def run_chat(model, body):
     """A whole answer: the OpenAI chat completion."""
     runner = model.pipe
-    p, messages, images, tools, names = chat_request(model, body)
-    tensors, prompt_tokens, budget = runner.prepare(messages, images, tools, p["max_new_tokens"])
-    ids, _ = runner.generate(tensors, prompt_tokens, budget, p)
+    p, messages, images, tools, names, media = chat_request(model, body)
+    tensors, prompt_tokens, budget = runner.prepare(messages, images, tools, p["max_new_tokens"], media["clips"])
+    ids, _ = runner.generate(tensors, prompt_tokens, budget, p, speech=media["speech"])
     text = runner.decode(ids)
     finish = "stop" if runner.ended(ids) else "length"
     if p["stop"]:
@@ -1562,6 +1683,9 @@ def run_chat(model, body):
         if trimmer.done:
             finish = "stop"
     message = {"role": "assistant", "content": text}
+    wav = runner.speech_wav() if media["speech"] else None
+    if wav:
+        message["audio"] = audio_message(wav, text)
     if tools:
         content, calls = parse_tool_calls(text, names)
         if calls:
@@ -1579,9 +1703,9 @@ def stream_chat(model, body):
     from transformers import TextIteratorStreamer
 
     runner = model.pipe
-    p, messages, images, tools, names = chat_request(model, body)
+    p, messages, images, tools, names, media = chat_request(model, body)
     cid, created, alias = "chatcmpl-" + uuid.uuid4().hex[:24], int(time.time()), model.args.alias
-    tensors, prompt_tokens, budget = runner.prepare(messages, images, tools, p["max_new_tokens"])
+    tensors, prompt_tokens, budget = runner.prepare(messages, images, tools, p["max_new_tokens"], media["clips"])
 
     def events():
         cancel = threading.Event()
@@ -1592,7 +1716,7 @@ def stream_chat(model, body):
             def work():
                 try:
                     result["ids"], result["generated"] = runner.generate(
-                        tensors, prompt_tokens, budget, p, streamer, cancel
+                        tensors, prompt_tokens, budget, p, streamer, cancel, media["speech"]
                     )
                 except Exception as e:
                     log(traceback.format_exc())
@@ -1635,6 +1759,9 @@ def stream_chat(model, body):
                         finish = "tool_calls"
                     elif text:
                         yield sse(chunk(cid, created, alias, {"content": text}))
+                wav = runner.speech_wav() if media["speech"] and not trimmer.done else None
+                if wav:
+                    yield sse(chunk(cid, created, alias, {"audio": audio_message(wav, text)}))
                 yield sse(chunk(cid, created, alias, {}, finish))
                 if p["include_usage"]:
                     yield sse(chunk(cid, created, alias, None, usage=usage_of(prompt_tokens, result.get("generated", 0))))
