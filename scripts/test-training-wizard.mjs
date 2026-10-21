@@ -80,6 +80,12 @@ test('a recipe round-trips and rejects broken input by naming the field', () => 
   assert.equal(parsed.state.loraAlpha, 16);
   assert.equal(parsed.state.batchSize, 4);
   assert.equal(parsed.state.checkpointSteps, 10);
+  const withPrompts = { ...config, sample_prompts: ['First question', 'Second question'] };
+  const restored = w.parseRecipe(w.recipeFromConfig(withPrompts));
+  assert.equal(restored.ok, true);
+  assert.deepEqual(w.buildRequest(restored.state).sample_prompts, withPrompts.sample_prompts);
+  assert.equal(w.parseRecipe('{"recipe":1,"sample_prompts":[4]}').error, 'field');
+  assert.equal(w.settingsError({ ...w.defaultState(), samplePrompts: 'p\n'.repeat(9) }), 'sample_prompts');
   assert.equal(w.parseRecipe('nope').error, 'json');
   assert.equal(w.parseRecipe('{"recipe": 2}').error, 'version');
   assert.deepEqual(w.parseRecipe('{"recipe":1,"rank":"x"}'), { ok: false, error: 'field', field: 'rank' });

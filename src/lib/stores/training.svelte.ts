@@ -11,6 +11,7 @@ import type {
   TrainingMetric,
 } from '#lib/training-types.js';
 import { library } from '#lib/stores/library.svelte.js';
+import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
 
 export const isTrainingActive = (j: TrainingJob) => j.status === 'queued' || j.status === 'running';
 
@@ -30,6 +31,7 @@ export class TrainingStore {
   selectedId = $state<number | null>(null);
   metrics = $state<TrainingMetric[]>([]);
   actionError = $state<string | null>(null);
+  compareJobId = $state<number | null>(null);
 
   selected = $derived(this.jobs.find((j) => j.id === this.selectedId) ?? null);
   activeCount = $derived(this.jobs.filter(isTrainingActive).length);
@@ -127,8 +129,7 @@ export class TrainingStore {
     try {
       const list = await invoke<TrainingMetric[]>('training_metrics', { jobId: id });
       if (id !== this.selectedId) return;
-      const last = list[list.length - 1];
-      const key = `${list.length}:${last?.step ?? ''}:${last?.loss ?? ''}:${last?.eval_loss ?? ''}`;
+      const key = JSON.stringify(list);
       if (key === this.metricsKey) return;
       this.metricsKey = key;
       this.metrics = list;
@@ -211,11 +212,17 @@ export class TrainingStore {
   cancel(jobId: number) {
     return this.act(() => invoke('training_cancel', { jobId }));
   }
+  pause(jobId: number) {
+    return this.act(() => invoke('training_pause', { jobId }));
+  }
   remove(jobId: number) {
     return this.act(() => invoke('training_remove', { jobId }));
   }
   exportJob(jobId: number, request: import('#lib/training-types.js').TrainingExportRequest) {
-    return this.act(() => invoke<TrainingJob>('training_export', { jobId, request }));
+    return this.act(async () => {
+      if (!(await this.ensureEnv(this.deviceOf(jobId)))) throw new Error(this.installError ?? 'training.env_required');
+      return engineInstall.runWithEngine(() => invoke<TrainingJob>('training_export', { jobId, request }));
+    });
   }
 }
 

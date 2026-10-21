@@ -7,11 +7,41 @@ import argparse
 import json
 import os
 import shutil
+import math
 from pathlib import Path
 
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("HF_DATASETS_OFFLINE", "1")
 os.environ.setdefault("WANDB_DISABLED", "true")
+
+
+def generate_samples(model, tokenizer, prompts, max_length=512):
+    """Greedy, bounded generations; preserve training mode even if generation fails."""
+    import torch
+    was_training = model.training
+    model.eval()
+    try:
+        config = getattr(model, "config", None)
+        context = getattr(config, "max_position_embeddings", None) or getattr(config, "n_positions", None)
+        output_limit = 128
+        input_limit = max_length
+        if isinstance(context, int) and context > 1:
+            output_limit = min(output_limit, max(1, context // 2))
+            input_limit = min(input_limit, context - output_limit)
+        samples = []
+        for prompt in prompts:
+            text = tokenizer.apply_chat_template([{"role": "user", "content": prompt}],
+                                                  tokenize=False, add_generation_prompt=True)
+            inputs = tokenizer(text, return_tensors="pt", truncation=True,
+                               max_length=input_limit).to(model.device)
+            with torch.inference_mode():
+                output = model.generate(**inputs, max_new_tokens=output_limit, do_sample=False,
+                                        pad_token_id=tokenizer.pad_token_id)
+            answer = tokenizer.decode(output[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True)
+            samples.append({"prompt": prompt, "text": answer})
+        return samples
+    finally:
+        model.train(was_training)
 
 
 def probe():
@@ -101,11 +131,23 @@ def train(root, cfg, resume):
             logs = logs or {}
             metric = {"step": state.global_step}
             for key in ("loss", "eval_loss"):
-                if key in logs:
+                if key in logs and math.isfinite(float(logs[key])):
                     metric[key] = float(logs[key])
+            if device == "cuda":
+                free, total = torch.cuda.mem_get_info()
+                metric.update(vram_bytes=total - free, vram_total_bytes=total)
+            elif device == "mps":
+                metric["vram_bytes"] = torch.mps.current_allocated_memory()
             if len(metric) > 1:
                 # The Rust service persists these lines (metrics.jsonl) and shows them live.
                 print("HS_METRIC " + json.dumps(metric, allow_nan=False), flush=True)
+
+        def on_save(self, args, state, control, **kwargs):
+            prompts = cfg.get("sample_prompts", [])
+            if prompts and not (root / "cancel").exists():
+                samples = generate_samples(kwargs["model"], tokenizer, prompts, cfg["sequence_length"])
+                print("HS_METRIC " + json.dumps({"step": state.global_step, "samples": samples},
+                                               allow_nan=False), flush=True)
 
         def on_step_end(self, args, state, control, **kwargs):
             if (root / "cancel").exists():
@@ -178,19 +220,41 @@ def export(root, cfg, output):
     export_tokenizer(cfg["model"], output)
 
 
+def compare(root, cfg):
+    import torch
+    from peft import PeftModel
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    prompts = json.loads((root / "prompts.json").read_text(encoding="utf-8"))
+    tokenizer = AutoTokenizer.from_pretrained(cfg["model"], local_files_only=True, trust_remote_code=False)
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    # Sequential CPU inference avoids holding two models or requiring extra VRAM.
+    model = AutoModelForCausalLM.from_pretrained(cfg["model"], local_files_only=True,
+                                                trust_remote_code=False, dtype=torch.float32)
+    base = generate_samples(model, tokenizer, prompts, cfg["sequence_length"])
+    model = PeftModel.from_pretrained(model, str(root / "adapter"), local_files_only=True)
+    trained = generate_samples(model, tokenizer, prompts, cfg["sequence_length"])
+    rows = [{"prompt": a["prompt"], "base": a["text"], "trained": b["text"]}
+            for a, b in zip(base, trained)]
+    print("HS_COMPARE " + json.dumps(rows, allow_nan=False), flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--probe", action="store_true")
     parser.add_argument("--job")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--export")
+    parser.add_argument("--compare", action="store_true")
     args = parser.parse_args()
     if args.probe:
         print(json.dumps(probe()))
         return
     root = Path(args.job)
     cfg = json.loads((root / "job.json").read_text(encoding="utf-8"))["config"]
-    if args.export:
+    if args.compare:
+        compare(root, cfg)
+    elif args.export:
         export(root, cfg, args.export)
     else:
         train(root, cfg, args.resume)

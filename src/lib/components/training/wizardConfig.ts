@@ -31,6 +31,7 @@ export interface WizardState {
   validationFraction: number;
   checkpointSteps: number | null;
   evalSteps: number | null;
+  samplePrompts: string;
 }
 
 /** Fields a preset decides; everything else (name, model, dataset, split) is the user's. */
@@ -71,6 +72,7 @@ export function defaultState(): WizardState {
     validationFraction: 0.1,
     checkpointSteps: null,
     evalSteps: null,
+    samplePrompts: '',
   };
 }
 
@@ -133,11 +135,14 @@ export function buildRequest(state: WizardState): TrainingCreateRequest {
     validation_fraction: state.validationFraction,
     checkpoint_steps: state.checkpointSteps || undefined,
     eval_steps: state.evalSteps || undefined,
+    sample_prompts: state.samplePrompts.split('\n').map(p => p.trim()).filter(Boolean),
   };
 }
 
 /** Why a settings page cannot continue (`null` when it can). Mirrors the backend's limits. */
 export function settingsError(s: WizardState): string | null {
+  const prompts = s.samplePrompts.split('\n').map(p => p.trim()).filter(Boolean);
+  if (prompts.length > 8 || prompts.some(p => [...p].length > 2000)) return 'sample_prompts';
   const within = (v: number, lo: number, hi: number) => Number.isFinite(v) && v >= lo && v <= hi;
   if (!within(s.steps, 1, 100000)) return 'steps';
   if (!(s.learningRate > 0 && s.learningRate < 1)) return 'learning_rate';
@@ -212,6 +217,7 @@ export function recipeFromConfig(config: TrainingConfig): string {
       validation_fraction: config.validation_fraction,
       checkpoint_steps: config.checkpoint_steps,
       eval_steps: config.eval_steps,
+      sample_prompts: config.sample_prompts ?? [],
     },
     null,
     2,
@@ -236,6 +242,12 @@ export function parseRecipe(text: string): RecipeResult {
   const r = raw as Record<string, unknown>;
   if (r.recipe !== RECIPE_VERSION) return { ok: false, error: 'version' };
   const state = defaultState();
+  if ('sample_prompts' in r) {
+    if (!Array.isArray(r.sample_prompts) || r.sample_prompts.some(p => typeof p !== 'string' || p.includes('\n'))) {
+      return { ok: false, error: 'field', field: 'sample_prompts' };
+    }
+    state.samplePrompts = r.sample_prompts.join('\n');
+  }
   const num = (key: string, set: (v: number) => void): string | null => {
     if (!(key in r)) return null;
     const v = r[key];

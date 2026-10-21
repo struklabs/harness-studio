@@ -4,6 +4,7 @@
   import type { TrainingJob, TrainingQuant } from '#lib/training-types.js';
   import { formatBytes } from '#lib/format.js';
   import { estimateGgufBytes } from './trainingFormat';
+  import { EXPORT_QUANTS, exportPlan } from './runActions';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Input } from '#lib/components/ui/input/index.js';
   import * as Dialog from '#lib/components/ui/dialog/index.js';
@@ -17,6 +18,7 @@
   let name = $state('');
   let gguf = $state(false);
   let quant = $state<TrainingQuant>('Q4_K_M');
+  let quants = $state<TrainingQuant[]>(['Q4_K_M']);
   let adapterOnly = $state(false);
   let busy = $state(false);
 
@@ -24,8 +26,9 @@
   $effect(() => {
     if (job) {
       name = job.config.name;
-      gguf = false;
+      gguf = true;
       quant = 'Q4_K_M';
+      quants = ['Q4_K_M'];
       adapterOnly = false;
     }
   });
@@ -33,7 +36,9 @@
   async function run() {
     if (!job) return;
     busy = true;
-    const done = await training.exportJob(job.id, { name: name.trim() || null, gguf, quant, adapter_only: adapterOnly });
+    const request = gguf && !adapterOnly ? exportPlan(name, quants) : { name: name.trim() || null, gguf, quant, adapter_only: adapterOnly };
+    if (!request) { busy = false; return; }
+    const done = await training.exportJob(job.id, request);
     busy = false;
     if (done) onClose();
   }
@@ -59,18 +64,20 @@
         </span>
       </label>
       {#if gguf && !adapterOnly}
-        <label class="flex flex-col gap-1">{t('training.export_quant')}
-          <select class="rounded-md border bg-background p-2" bind:value={quant} disabled={busy}>
-            {#each ['Q4_K_M', 'Q5_K_M', 'Q8_0', 'F16'] as q}<option value={q}>{q}</option>{/each}
-          </select>
-        </label>
-        <p class="text-xs text-muted-foreground">{t('training.export_size', { size: formatBytes(estimateGgufBytes(job?.estimate.params ?? 0, quant), 1) })}</p>
+        <fieldset class="flex flex-wrap gap-3">
+          <legend>{t('training.export_quant')}</legend>
+          {#each EXPORT_QUANTS as q}
+            <label class="flex items-center gap-1"><input type="checkbox" bind:group={quants} value={q} disabled={busy} />{q}
+              <span class="text-xs text-muted-foreground">{formatBytes(estimateGgufBytes(job?.estimate.params ?? 0, q), 1)}</span>
+            </label>
+          {/each}
+        </fieldset>
       {/if}
       {#if training.actionError}<p class="text-xs text-destructive" role="alert">{training.actionError}</p>{/if}
     </div>
     <Dialog.Footer>
       <Button variant="outline" disabled={busy} onclick={onClose}>{t('training.cancel')}</Button>
-      <Button disabled={busy || !name.trim()} onclick={run}>{t('training.export_start')}</Button>
+      <Button disabled={busy || !name.trim() || (gguf && !adapterOnly && !quants.length)} onclick={run}>{t('training.export_start')}</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

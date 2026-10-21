@@ -17,6 +17,7 @@
   import LogTail from './training/LogTail.svelte';
   import ExportDialog from './training/ExportDialog.svelte';
   import { showsTorchEnv } from './training/wizardConfig';
+  import { formatBytes } from '#lib/format.js';
 
   let wizardOpen = $state(false);
   let exporting = $state<TrainingJob | null>(null);
@@ -25,6 +26,8 @@
   // Newest first.
   let jobs = $derived([...training.jobs].sort((a, b) => b.id - a.id));
   let selected = $derived(training.selected);
+  let memory = $derived(training.metrics.findLast(m => m.vram_bytes != null));
+  let samples = $derived(training.metrics.filter(m => m.samples?.length));
 
   onMount(() => {
     void training.refresh();
@@ -78,6 +81,20 @@
       </h3>
       {#if selected}
         <LossChart metrics={training.metrics} totalSteps={selected.total_steps} />
+        <p class="text-xs text-muted-foreground">{t('training.live_vram')}: {memory?.vram_bytes != null ? formatBytes(memory.vram_bytes) : t('training.memory_unavailable')}{#if memory?.vram_total_bytes} / {formatBytes(memory.vram_total_bytes)}{/if}</p>
+        <section class="flex flex-col gap-2" aria-label={t('training.checkpoint_samples')}>
+          <h4 class="text-sm font-semibold">{t('training.checkpoint_samples')}</h4>
+          {#if !samples.length}<p class="text-xs text-muted-foreground">{t('training.samples_empty')}</p>{/if}
+          {#each samples as metric (metric.step)}
+            <details class="rounded-md border p-2 text-sm">
+              <summary class="cursor-pointer">{t('training.step_of', { step: metric.step, total: selected.total_steps })}</summary>
+              {#each metric.samples ?? [] as sample}
+                <p class="mt-3 whitespace-pre-wrap font-medium">{sample.prompt}</p>
+                <p class="mt-1 whitespace-pre-wrap">{sample.text}</p>
+              {/each}
+            </details>
+          {/each}
+        </section>
         <LogTail job={selected} />
       {:else}
         <p class="text-sm text-muted-foreground">{t('training.chart_select')}</p>

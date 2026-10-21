@@ -522,6 +522,12 @@
           {/if}
           <p class="text-xs text-muted-foreground">{t('training.name_library_hint')}</p>
         </div>
+        <label class="flex flex-col gap-1 text-sm">
+          {t('training.sample_prompts')}
+          <textarea class="min-h-20 rounded-md border bg-background p-2" bind:value={s.samplePrompts} oninput={() => { preview = null; }}></textarea>
+          <span class="text-xs text-muted-foreground">{t('training.sample_prompts_hint')}</span>
+        </label>
+        {#if !preview && !previewing}<Button variant="outline" onclick={loadPreview}>{t('training.review_refresh')}</Button>{/if}
         {#if previewing}
           <p class="text-muted-foreground">{t('training.estimating')}</p>
         {:else if preview}

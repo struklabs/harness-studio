@@ -97,6 +97,16 @@ pub(crate) fn training_cancel(job_id: u64) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub(crate) fn training_pause(job_id: u64) -> Result<(), String> {
+    training::pause(job_id)
+}
+
+#[tauri::command]
+pub(crate) async fn training_compare(job_id: u64, request: training::TrainingCompareRequest) -> Result<Vec<training::TrainingComparisonRow>, String> {
+    training::compare(job_id, &request).await
+}
+
+#[tauri::command]
 pub(crate) async fn training_remove(job_id: u64) -> Result<(), String> {
     blocking(move || training::remove(job_id)).await?
 }

@@ -4,6 +4,11 @@
   import { errorText } from '#lib/errors.js';
   import { invoke } from '#lib/ipc.js';
   import { training } from '#lib/stores/training.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
+  import { library } from '#lib/stores/library.svelte.js';
+  import { samePath } from '#lib/stores/domain.svelte.js';
+  import { loadAndChat } from '#lib/stores/downloads.svelte.js';
+  import { canCompare } from './runActions';
   import type { TrainingJob } from '#lib/training-types.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Input } from '#lib/components/ui/input/index.js';
@@ -24,6 +29,24 @@
   let renameText = $state('');
   let renameError = $state<string | null>(null);
   let copiedId = $state<number | null>(null);
+  let loading = $state<string | null>(null);
+
+  async function chat(path: string) {
+    loading = path;
+    try {
+      library.markChanged();
+      await library.refresh();
+      const model = library.models.find(m => samePath(m.path, path));
+      if (!model) throw new Error(t('training.export_model_missing'));
+      await loadAndChat(model);
+    } catch (e) { training.actionError = errorText(e); }
+    finally { loading = null; }
+  }
+
+  function compare(job: TrainingJob) {
+    training.compareJobId = job.id;
+    app.openPlaygroundTab('chat');
+  }
 
   async function commitRename(job: TrainingJob) {
     renameError = null;
@@ -80,7 +103,7 @@
           {:else}
             <span class="min-w-0 flex-1 truncate text-sm font-medium">{job.config.name}</span>
           {/if}
-          <span class="rounded-full px-2 py-0.5 text-xs font-medium {STATUS_CLASS[job.status]}">{t(STATUS_KEY[job.status])}</span>
+          <span class="rounded-full px-2 py-0.5 text-xs font-medium {STATUS_CLASS[job.status]}">{job.paused && job.status === 'cancelled' ? t('training.paused') : job.paused && job.status === 'running' ? t('training.pausing') : t(STATUS_KEY[job.status])}</span>
         </div>
         <p class="text-xs text-muted-foreground">
           {t(`training.method_${job.config.method}` as TKey)} · {t(`training.device_${job.config.device}` as TKey)}
@@ -116,7 +139,14 @@
               {t('training.export_status')}: {t(`training.export_${job.export.status}` as TKey)}
             </p>
             {#if job.export.dir}<p class="break-all text-muted-foreground">{t('training.export_folder')}: {job.export.dir}</p>{/if}
-            {#if job.export.gguf}<p class="break-all text-muted-foreground">{t('training.export_gguf_file')}: {job.export.gguf}</p>{/if}
+            {#each job.export.ggufs?.length ? job.export.ggufs : job.export.gguf ? [job.export.gguf] : [] as path}
+              <div class="flex flex-wrap items-center gap-2">
+                <p class="break-all text-muted-foreground">{t('training.export_gguf_file')}: {path}</p>
+                {#if !job.export.adapter_only}
+                  <Button size="sm" disabled={loading !== null} onclick={(e) => { e.stopPropagation(); void chat(path); }}>{t('training.load_chat')}</Button>
+                {/if}
+              </div>
+            {/each}
             {#if job.export.warning}<p class="text-amber-700 dark:text-amber-400">{errorText(job.export.warning)}</p>{/if}
             {#if job.export.error}<p class="text-destructive">{errorText(job.export.error)}</p>{/if}
           </div>
@@ -148,6 +178,9 @@
             </Button>
           {/if}
           {#if canCancel(job)}
+            {#if job.status === 'running' && job.training}
+              <Button size="sm" variant="outline" disabled={job.paused} onclick={(e) => { e.stopPropagation(); void training.pause(job.id); }}>{t('training.pause')}</Button>
+            {/if}
             <Button size="sm" variant="outline" onclick={(e) => { e.stopPropagation(); void training.cancel(job.id); }}>
               <Square class="size-3.5" aria-hidden="true" />{t('training.cancel_job')}
             </Button>
@@ -165,6 +198,9 @@
             <Button size="sm" variant="secondary" onclick={(e) => { e.stopPropagation(); onExport(job); }}>
               <PackageOpen class="size-3.5" aria-hidden="true" />{t('training.export_to_library')}
             </Button>
+          {/if}
+          {#if canCompare(job)}
+            <Button size="sm" variant="outline" onclick={(e) => { e.stopPropagation(); compare(job); }}>{t('training.compare_title')}</Button>
           {/if}
           {#if removing === job.id}
             <Button size="sm" variant="destructive" onclick={(e) => { e.stopPropagation(); removing = null; void training.remove(job.id); }}>{t('training.delete_confirm')}</Button>
