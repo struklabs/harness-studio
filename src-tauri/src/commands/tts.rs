@@ -28,6 +28,8 @@ pub(crate) struct EngineTtsModel {
     voices: Vec<String>,
     /// It speaks at a chosen speed (Qwen3-TTS, Spark-TTS); the others at one.
     supports_speed: bool,
+    /// It clones a voice from a reference recording (the Speech panel's clone section).
+    voice_cloning: bool,
     /// The engine that serves it is installed (mlx-audio ships with the app's own runtime
     /// check at launch, so it reads true; Liquid Audio needs its environment).
     runtime_installed: bool,
@@ -79,6 +81,7 @@ fn engine_tts_models() -> Vec<EngineTtsModel> {
             size_bytes: m.size_bytes,
             voices: harness_core::engine::mlx::tts_voices(&m.path),
             supports_speed: harness_core::engine::mlx::tts_supports_speed(&m.path),
+            voice_cloning: harness_core::engine::mlx::tts_clones_voice(&m.path),
             runtime_installed: true,
         });
     let liquid_ready = harness_core::engine::python_hf::liquid_binary().is_ok();
@@ -94,6 +97,7 @@ fn engine_tts_models() -> Vec<EngineTtsModel> {
                 .map(|v| v.to_string())
                 .collect(),
             supports_speed: false,
+            voice_cloning: false,
             runtime_installed: liquid_ready,
         });
     mlx.chain(liquid).collect()
