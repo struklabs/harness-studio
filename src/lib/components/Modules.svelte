@@ -236,7 +236,6 @@
     <div class="min-w-0">
       <h1 class="text-xl font-semibold">{t('modules.title')}</h1>
       <p class="mt-1 text-sm text-muted-foreground">{t('modules.intro')}</p>
-      <p class="mt-1 text-xs text-muted-foreground">{t('discover.registry_scope')}</p>
     </div>
     <div class="flex flex-wrap justify-end gap-2">
       {#if pendingUpdates.length}

@@ -27,6 +27,8 @@
   } = $props();
 
   const text = (keys: LocaleKeys) => t(keys[getLanguage()] as TKey);
+  /** Catalog dates are `YYYY-MM-DD`; shown in the UI language (UTC, so the day never shifts). */
+  const day = (iso: string) => { const d = new Date(`${iso}T00:00:00Z`); return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(getLanguage(), { dateStyle: 'medium', timeZone: 'UTC' }); };
   let removing = $state(false);
   let deleteHistory = $state(false);
   let deleteLogs = $state(false);
@@ -119,7 +121,7 @@
             <dt class="text-muted-foreground">{t('modules.license')}</dt><dd>{view.catalog?.license ?? t('modules.unknown_value')}</dd>
             <dt class="text-muted-foreground">{t('modules.repository')}</dt>
             <dd class="break-all">{#if view.catalog?.repository}<a class="text-primary underline" href={view.catalog?.repository} onclick={link(view.catalog?.repository)}>{view.catalog?.repository}</a>{:else}{t('modules.unknown_value')}{/if}</dd>
-            <dt class="text-muted-foreground">{t('modules.updated')}</dt><dd>{view.catalog?.updated_at ?? t('modules.unknown_value')}</dd>
+            <dt class="text-muted-foreground">{t('modules.updated')}</dt><dd>{view.catalog?.updated_at ? day(view.catalog.updated_at) : t('modules.unknown_value')}</dd>
             <dt class="text-muted-foreground">{t('modules.version')}</dt><dd>{view.state.installed_version ?? manifest.version}</dd>
           </dl>
         </section>

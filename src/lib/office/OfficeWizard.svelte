@@ -25,7 +25,7 @@
   {:else if step===2}
     <p>{t('office.assignments_hint')}</p>
     {#each characters as c}<label>{c.name}<select value={agentRooms[c.id]??''} onchange={e=>agentRooms[c.id]=e.currentTarget.value}><option value="">{t('office.unassigned')}</option>{#each names as n}<option value={n}>{n}</option>{/each}</select></label>{/each}
-    {#each names as n}<label>{n} ? {t('office.project')}<select value={roomProjects[n]??''} onchange={e=>roomProjects[n]=e.currentTarget.value}><option value="">{t('office.unassigned')}</option>{#each projects as p}<option value={p.id}>{p.name}</option>{/each}</select></label>{/each}
+    {#each names as n}<label>{n} &middot; {t('office.project')}<select value={roomProjects[n]??''} onchange={e=>roomProjects[n]=e.currentTarget.value}><option value="">{t('office.unassigned')}</option>{#each projects as p}<option value={p.id}>{p.name}</option>{/each}</select></label>{/each}
   {:else if step===3}
     <label>{t('office.theme')}<select bind:value={theme}>{#each ['classic','pixel','night'] as th}<option value={th}>{t(`office.theme_${th}` as Parameters<typeof t>[0])}</option>{/each}</select></label>
   {:else}

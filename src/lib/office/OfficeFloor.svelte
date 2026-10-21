@@ -42,7 +42,7 @@
       <svg viewBox="0 0 40 48" aria-hidden="true">
         {#if c.kind==='device'}<rect x="8" y="12" width="24" height="27" rx="4" fill="#7993a3"/><path d="M14 20h12m-12 6h12m-12 6h5" stroke="#d9e9ed" stroke-width="2"/>
         {:else}<ellipse cx="20" cy="43" rx="14" ry="4" fill="#182b3a" opacity=".15"/><path d="M10 37 Q10 22 20 22 Q30 22 30 37 Z" fill={c.kind==='job'?'#bd986b':'#6b91b0'}/><circle cx="20" cy="16" r="9" fill="#d9bda4"/><path d="M11 16Q9 3 22 6Q31 6 29 17L25 12L13 13Z" fill="#5d5960"/><circle cx="17" cy="17" r="1" fill="#35434d"/><circle cx="23" cy="17" r="1" fill="#35434d"/>{/if}
-      </svg><span class="badge">{c.status==='waiting_for_approval'?'?':c.status==='error'?'!':c.status==='sleeping'?'z':'?'}</span>
+      </svg><span class="badge">{c.status==='waiting_for_approval'?'?':c.status==='error'?'!':c.status==='sleeping'?'z':c.status==='thinking'?'…':c.status==='running_tool'?'•':''}</span>
     </button>
   {/each}
 </div>
