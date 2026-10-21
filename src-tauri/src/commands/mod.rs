@@ -65,6 +65,7 @@ include!("cloud.rs");
 include!("modelfile.rs");
 include!("conversations.rs");
 include!("projects.rs");
+include!("taskruns.rs");
 include!("compaction.rs");
 include!("rag.rs");
 include!("knowledge.rs");

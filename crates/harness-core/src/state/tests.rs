@@ -1591,7 +1591,7 @@ fn v7_database_upgrades_through_knowledge_bases_to_projects_without_losing_data(
     }
     let db = StateDb::open(&path).unwrap();
     assert_eq!(db.user_version().unwrap(), SCHEMA_VERSION);
-    assert_eq!(schema::MIGRATIONS.len(), 10);
+    assert_eq!(schema::MIGRATIONS.len(), 11);
     // v7 and v8 data is intact.
     assert_eq!(db.get_conversation("c1").unwrap().conversation.title, "old");
     assert_eq!(db.rag_documents("c1").unwrap().len(), 1);

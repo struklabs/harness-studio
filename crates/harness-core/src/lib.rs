@@ -98,6 +98,7 @@ pub mod slots;
 pub mod state;
 pub mod storage;
 pub mod store;
+pub mod taskflow;
 pub mod telemetry;
 pub mod token_policy;
 pub mod tools;

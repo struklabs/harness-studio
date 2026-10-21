@@ -85,6 +85,7 @@ mod rag;
 mod rag_kb;
 mod responses;
 mod schema;
+mod taskruns;
 #[cfg(test)]
 mod tests;
 pub mod vram;
@@ -96,6 +97,7 @@ pub use projects::*;
 pub use rag::*;
 pub use rag_kb::*;
 pub use responses::*;
+pub use taskruns::*;
 
 use crate::error_key::{err, ErrorKey};
 use rusqlite::{Connection, OpenFlags, Transaction, TransactionBehavior};
@@ -103,6 +105,9 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+/// A running task run whose heartbeat is older than this lost its process.
+pub const HEARTBEAT_STALE_MS: i64 = 20_000;
 
 /// Schema version this build writes (`PRAGMA user_version`).
 pub const SCHEMA_VERSION: i64 = schema::MIGRATIONS.len() as i64;
