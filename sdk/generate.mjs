@@ -14,7 +14,7 @@
 // Needs: cargo (not with --from-snapshot); `npm ci` in sdk/typescript; uv (`uv`/`uvx` on PATH
 // or UV=<path to uv>) for Python.
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,6 +79,18 @@ function pythonSpec(spec) {
     for (const k of ['oneOf', 'anyOf', 'allOf']) s[k]?.forEach(visit);
     if (s.items) visit(s.items);
   };
+  // A union in a response may gain a variant (a new event type, a new status): a last `{}`
+  // variant makes the client return such a value as received instead of failing to parse.
+  const tolerate = (s) => {
+    if (!s || typeof s !== 'object') return;
+    for (const k of ['oneOf', 'anyOf']) {
+      if (Array.isArray(s[k]) && !s[k].some((m) => Object.keys(m).length === 0)) s[k].push({});
+      s[k]?.forEach(tolerate);
+    }
+    for (const p of Object.values(s.properties ?? {})) tolerate(p);
+    if (s.items) tolerate(s.items);
+    if (s.allOf) s.allOf.forEach(tolerate);
+  };
   const pascal = (v) => String(v).replace(/(^|[_\-\s])(\w)/g, (_, __, c) => c.toUpperCase());
   for (const [name, schema] of Object.entries({ ...schemas })) {
     visit(schema);
@@ -93,7 +105,28 @@ function pythonSpec(spec) {
       });
     }
   }
+  for (const schema of Object.values(schemas)) tolerate(schema);
   return spec;
+}
+
+/**
+ * A field enum (two or more values) in a response may gain a value: its generated
+ * `check_<enum>` returns an unknown value as received instead of raising. Single-value enums
+ * stay strict: they are the tags that pick a union variant (`{"type": "download", ...}`).
+ */
+function tolerateEnumValues(models) {
+  for (const name of readdirSync(models)) {
+    const file = join(models, name);
+    const text = readFileSync(file, 'utf8');
+    const values = /_VALUES: set\[\w+\] = \{\n((?:[^\n]+,\n)+)\}/.exec(text);
+    if (!values || values[1].trim().split('\n').length < 2) continue;
+    const lenient = text.replace(
+      /\n    if value in \w+:\n        return value\n    raise TypeError\(f"Unexpected value[^\n]*\n/,
+      '\n    return value  # a value from a newer server (docs/guide/en/12-api-stability.md)\n',
+    );
+    if (lenient === text) throw new Error(`${name}: check function not recognised`);
+    writeFileSync(file, lenient);
+  }
 }
 
 const work = mkdtempSync(join(tmpdir(), 'harness-sdk-'));
@@ -139,6 +172,7 @@ try {
       run(cmd, [...prefix, RUFF, 'check', '--fix-only', '--quiet', '--select', 'I,F401,UP', '--target-version', 'py311', out]);
       run(cmd, [...prefix, RUFF, 'format', '--quiet', '--line-length', '100', out]);
       writeFileSync(join(out, 'py.typed'), ''); // PEP 561: the package ships its types
+      tolerateEnumValues(join(out, 'models'));
       const target = join(sdk, 'python', 'src', 'harness_studio_api');
       rmSync(target, { recursive: true, force: true });
       cpSync(out, target, { recursive: true });

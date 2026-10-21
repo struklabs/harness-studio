@@ -17,7 +17,7 @@ SSE endpoints have generated HTTP signatures but streaming uses the hand-written
 
 ## Versioning and the frozen v1 contract
 
-The Control API is versioned in its path (`/api/harness/v1`), every response carries `X-Harness-API-Version`, and `GET /api/harness/v1/capabilities` (the gateway has `GET /v1/harness/capabilities`) lists the supported versions, module manifest versions and feature flags. `sdk/contract/openapi.v1.json` is the frozen v1 contract: `node sdk/check-breaking.mjs` fails (in the SDK CI job) when `openapi.json` removes or retypes anything in it; additions are fine. A breaking change needs a new API major version. The module manifest has its own schema version, with the schema in [`module-manifest.v1.schema.json`](module-manifest.v1.schema.json). Stability policy and deprecation window: [API Stability and Versioning](../docs/guide/en/12-api-stability.md).
+The Control API is versioned in its path (`/api/harness/v1`), every response carries `X-Harness-API-Version`, and `GET /api/harness/v1/capabilities` (the gateway has `GET /v1/harness/capabilities`) lists the supported versions, module manifest versions and feature flags. `sdk/contract/openapi.v1.json` is the frozen v1 contract: `node sdk/check-breaking.mjs` fails (in the SDK CI job) when `openapi.json` removes or retypes anything in it; additions (also new response enum values and event types) are fine. A breaking change needs a new API major version. The module manifest has its own schema version, with the schema in [`module-manifest.v1.schema.json`](module-manifest.v1.schema.json). Stability policy and deprecation window: [API Stability and Versioning](../docs/guide/en/12-api-stability.md).
 
 ## What is generated
 

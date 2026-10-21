@@ -108,3 +108,16 @@ test('readServerSentEvents splits events and multi-line data', async () => {
     { event: 'message', data: 'one\ntwo' },
   ]);
 });
+
+test('streamEvents passes on event types newer than this SDK', async () => {
+  const body = 'event: newer_event\ndata: {"type":"newer_event","x":1}\n\nevent: tools_changed\ndata: {"type":"tools_changed"}\n\n';
+  const client = createHarnessClient({
+    fetch: async () => new Response(body, { headers: { 'content-type': 'text/event-stream' } }),
+  });
+  const events = [];
+  for await (const e of streamEvents(client)) events.push(e);
+  assert.deepEqual(events, [
+    { type: 'newer_event', event: { type: 'newer_event', x: 1 } },
+    { type: 'tools_changed', event: { type: 'tools_changed' } },
+  ]);
+});

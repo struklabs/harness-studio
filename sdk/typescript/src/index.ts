@@ -125,7 +125,8 @@ export type CoreEvent = components['schemas']['CoreEvent'];
 /**
  * The core event bus (`GET /events`): server status, download and benchmark progress, as
  * `{ type, event }`. `type` is `lagged` (with the number of skipped events) when the client
- * fell behind. Stop it with `signal`.
+ * fell behind. Stop it with `signal`. A newer server can send event types this SDK does not
+ * list in `CoreEvent` (new event types are additive in API v1): skip the ones you do not handle.
  */
 export async function* streamEvents(
   client: HarnessClient,

@@ -26,17 +26,19 @@ The gateway's model-facing endpoints (`/v1/chat/completions` and the others) fol
 - A new endpoint, method, or optional query parameter.
 - A new optional request field.
 - A new field in a response, a new error code, or a new value for an open-ended string.
+- A new value of an enum in a response (a new status, a new reason), and a new event type on `GET /events`.
 - A new scope that nothing existing needs.
 - A new optional feature flag in `capabilities`.
 - Bug fixes that make the API behave the way its description already says.
 
-Write clients that ignore response fields they do not know.
+Write clients that ignore response fields, enum values, and event types they do not know. A newer server inside v1 can send all three. The SDKs pass them on as received: the Python client keeps an unknown value instead of raising, and `stream_events` / `streamEvents` yield unknown event types like any other.
 
 **Breaking (not allowed inside v1; the CI check fails):**
 
 - Removing or renaming a path, a method, or an `operationId` (the SDK method name).
 - Removing a parameter or a response field, changing a type, or making a response field optional or nullable.
-- Adding a required parameter, request field, or request body, narrowing the accepted values of a request field, or making a field required.
+- Removing or renaming a value of a response enum, or an event type (clients may wait for it).
+- Adding a required parameter, request field, or request body, narrowing the accepted values of a request field (removing an enum value), or making a field required.
 - Removing a documented success response.
 
 A breaking change needs a new major version: a new base path (`/api/harness/v2`), a new `x-harness-api-version` in the description, and a new frozen file next to the old one (`node sdk/check-breaking.mjs --freeze`). The frozen v1 file is never rewritten.

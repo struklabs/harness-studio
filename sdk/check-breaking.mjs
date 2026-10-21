@@ -8,8 +8,9 @@
 // A change is breaking when a client written against the frozen contract could stop working:
 // a removed path, method, operationId, parameter or response property, a new required
 // parameter, request field or body, a narrowed request type or enum, a response type that
-// became wider or optional, a removed 2xx response. Additions (new paths, new optional
-// fields, new response properties) are allowed.
+// became wider or optional, a removed response enum value or event type, a removed 2xx
+// response. Additions (new paths, new optional fields, new response properties, new response
+// enum values, new event types: clients ignore values they do not know) are allowed.
 //
 // A breaking change is only allowed together with a new API major version (`/v2`, a new
 // `x-harness-api-version`): the frozen v1 file stays, `--freeze` writes the v2 one. See
@@ -57,6 +58,22 @@ function flatten(doc, schema) {
   return merged;
 }
 
+/**
+ * The value that names a variant of a tagged union: its own single enum value (`"Stopped"`),
+ * or the single value of one of its properties (`{"type": "download", ...}`). `undefined`
+ * when the variant has none.
+ */
+function tagOf(doc, schema) {
+  const s = flatten(doc, schema);
+  const single = (p) => (p.const !== undefined ? p.const : p.enum?.length === 1 ? p.enum[0] : undefined);
+  if (single(s) !== undefined) return JSON.stringify(single(s));
+  for (const [name, p] of Object.entries(s.properties ?? {})) {
+    const v = single(flatten(doc, p));
+    if (v !== undefined) return `${name}=${JSON.stringify(v)}`;
+  }
+  return undefined;
+}
+
 const typesOf = (s) => {
   const t = s.type ?? (s.properties ? 'object' : s.items ? 'array' : undefined);
   return t === undefined ? null : new Set(Array.isArray(t) ? t : [t]);
@@ -83,6 +100,21 @@ function subset(ctx, sub, sup, path, seen = new Set()) {
   const aVariants = a.oneOf ?? a.anyOf;
   const bVariants = b.oneOf ?? b.anyOf;
   if (aVariants) {
+    if (ctx.sub === 'new' && bVariants) {
+      // A response union (an event type, a status): a variant with a new tag is an addition
+      // clients skip; every old tag must still be sent, and a kept tag must stay readable.
+      const oldTags = new Set(bVariants.map((v) => tagOf(ctx.supDoc, v)));
+      const newTags = new Set(aVariants.map((v) => tagOf(ctx.subDoc, v)));
+      const problems = [];
+      for (const tag of oldTags) {
+        if (tag !== undefined && !newTags.has(tag)) problems.push(`${path}: variant ${tag} removed`);
+      }
+      aVariants.forEach((v, i) => {
+        const tag = tagOf(ctx.subDoc, v);
+        if (tag === undefined || oldTags.has(tag)) problems.push(...withDocs(v, sup, `${path}|${i}`));
+      });
+      return problems;
+    }
     return aVariants.flatMap((v, i) => withDocs(v, sup, `${path}|${i}`));
   }
   if (bVariants) {
@@ -105,9 +137,16 @@ function subset(ctx, sub, sup, path, seen = new Set()) {
       return problems;
     }
   }
-  if (b.enum) {
+  const same = (v, w) => JSON.stringify(v) === JSON.stringify(w);
+  if (b.enum && ctx.sub === 'new') {
+    // Response: new values are allowed (clients ignore them); every old value must stay.
     const values = a.enum ?? (a.const !== undefined ? [a.const] : null);
-    if (!values || values.some((v) => !b.enum.some((w) => JSON.stringify(w) === JSON.stringify(v)))) {
+    if (values && b.enum.some((w) => !values.some((v) => same(v, w)))) {
+      problems.push(`${path}: enum value removed`);
+    }
+  } else if (b.enum) {
+    const values = a.enum ?? (a.const !== undefined ? [a.const] : null);
+    if (!values || values.some((v) => !b.enum.some((w) => same(v, w)))) {
       problems.push(`${path}: enum values differ`);
     }
   }
@@ -260,9 +299,25 @@ function selfTest() {
     responses: { 200: { description: '', content: { 'application/json': { schema: { $ref: '#/components/schemas/Out' } } } } },
     ...extra,
   });
-  const doc = (paths, out = { type: 'object', required: ['a'], properties: { a: { type: 'string' }, b: { type: 'integer' } } }) => ({
+  const event = (type, extra = {}) => ({
+    type: 'object',
+    required: ['type', ...Object.keys(extra)],
+    properties: { type: { type: 'string', enum: [type] }, ...extra },
+  });
+  const out0 = {
+    type: 'object',
+    required: ['a'],
+    properties: {
+      a: { type: 'string' },
+      b: { type: 'integer' },
+      kind: { type: 'string', enum: ['x', 'y'] },
+      status: { oneOf: [{ type: 'string', enum: ['Stopped'] }, { type: 'string', enum: ['Running'] }] },
+      event: { oneOf: [event('started', { n: { type: 'integer' } }), event('stopped')] },
+    },
+  };
+  const doc = (paths, out = out0) => ({
     paths,
-    components: { schemas: { Out: out, In: { type: 'object', required: ['x'], properties: { x: { type: 'string' }, y: { type: 'string' } } } } },
+    components: { schemas: { Out: out, In: { type: 'object', required: ['x'], properties: { x: { type: 'string' }, y: { type: 'string' }, mode: { type: 'string', enum: ['p', 'q'] } } } } },
   });
   const body = (required = true) => ({
     required,
@@ -287,6 +342,18 @@ function selfTest() {
   d = clone();
   d.paths['/a'].post.parameters.push({ name: 'n', in: 'query', schema: { type: 'integer' } });
   expectOk('new optional parameter', d);
+  d = clone();
+  d.components.schemas.Out.properties.kind.enum.push('z');
+  expectOk('new response enum value', d);
+  d = clone();
+  d.components.schemas.Out.properties.status.oneOf.push({ type: 'string', enum: ['Paused'] });
+  expectOk('new value of a response union of single values', d);
+  d = clone();
+  d.components.schemas.Out.properties.event.oneOf.push(event('restarted', { at: { type: 'string' } }));
+  expectOk('new event type', d);
+  d = clone();
+  d.components.schemas.In.properties.mode.enum.push('r');
+  expectOk('new request enum value', d);
 
   d = clone();
   delete d.paths['/a'];
@@ -325,6 +392,24 @@ function selfTest() {
   d = clone();
   d.components.schemas.In.properties.x = { type: 'string', enum: ['one'] };
   expectBreaking('request enum narrowed', d);
+  d = clone();
+  d.components.schemas.Out.properties.kind.enum = ['x'];
+  expectBreaking('response enum value removed', d);
+  d = clone();
+  d.components.schemas.In.properties.mode.enum = ['p'];
+  expectBreaking('request enum value removed', d);
+  d = clone();
+  d.components.schemas.Out.properties.status.oneOf.pop();
+  expectBreaking('response union value removed', d);
+  d = clone();
+  d.components.schemas.Out.properties.event.oneOf.pop();
+  expectBreaking('event type removed', d);
+  d = clone();
+  d.components.schemas.Out.properties.event.oneOf[0] = event('started');
+  expectBreaking('field of a kept event type removed', d);
+  d = clone();
+  d.components.schemas.Out.properties.event.oneOf[1] = event('halted');
+  expectBreaking('event type renamed', d);
 
   let failed = 0;
   for (const [name, candidate, shouldBreak] of cases) {
