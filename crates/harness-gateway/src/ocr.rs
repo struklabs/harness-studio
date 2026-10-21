@@ -10,6 +10,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::{errors::GatewayError, Api, GwState};
+use harness_core::domain::ModelDefinition;
 use harness_core::rag::ocr::{self, Limits};
 use harness_core::token_policy::GatewayEndpoint;
 
@@ -239,6 +240,16 @@ fn paged_text(pages: &[(usize, String)]) -> String {
         .join("\n\n")
 }
 
+/// Whether a chat model sees the page images: a GGUF with its multimodal projector, or an MLX
+/// vision-language folder (the `mlx-vlm` engine takes images in OpenAI chat messages).
+pub fn reads_images(def: &ModelDefinition) -> bool {
+    def.mmproj.is_some()
+        || def
+            .base
+            .local_path()
+            .is_some_and(harness_core::engine::mlx::is_vlm_dir)
+}
+
 pub async fn handle(state: GwState, qa: bool, headers: HeaderMap, body: Bytes) -> Response {
     match run(state, qa, headers, body).await {
         Ok(r) => r,
@@ -280,11 +291,11 @@ async fn run(
             )
             .param("model"));
         }
-    } else if def.mmproj.is_none() {
+    } else if !reads_images(&def) {
         return Err(GatewayError::new(
             400,
             "model_task_mismatch",
-            "Select a vision model with a multimodal projector",
+            "Select a vision model: a GGUF with a multimodal projector or an MLX vision model",
         )
         .param("model"));
     }
@@ -434,6 +445,36 @@ async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use harness_core::domain::ModelRef;
+
+    #[test]
+    fn gguf_with_projector_and_mlx_vision_folders_read_page_images() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = |name: &str, config: &str| {
+            let path = dir.path().join(name);
+            std::fs::create_dir_all(&path).unwrap();
+            std::fs::write(path.join("config.json"), config).unwrap();
+            std::fs::write(path.join("model.safetensors"), "x").unwrap();
+            ModelDefinition::new(name, ModelRef::Local { path })
+        };
+        // `mlx-community/SmolVLM-256M-Instruct-8bit` (config trimmed).
+        let vlm = folder(
+            "smolvlm",
+            r#"{"architectures":["Idefics3ForConditionalGeneration"],"model_type":"idefics3","vision_config":{"hidden_size":768},"quantization":{"group_size":64,"bits":8}}"#,
+        );
+        assert!(reads_images(&vlm));
+        let text = folder(
+            "qwen3",
+            r#"{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","quantization":{"group_size":64,"bits":4}}"#,
+        );
+        assert!(!reads_images(&text));
+        let gguf = dir.path().join("vlm.gguf");
+        let mut with_projector = ModelDefinition::new("gguf", ModelRef::Local { path: gguf });
+        assert!(!reads_images(&with_projector));
+        with_projector.mmproj = Some(dir.path().join("mmproj.gguf"));
+        assert!(reads_images(&with_projector));
+    }
+
     fn limits() -> Limits {
         Limits::parse(None, None, MAX_PAGES)
     }

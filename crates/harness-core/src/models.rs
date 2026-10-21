@@ -188,6 +188,10 @@ pub struct LocalModel {
     /// (`text-classification`, `token-classification`...).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub task: Option<String>,
+    /// It reads images on its own, with no projector file: an MLX vision-language folder
+    /// (the `mlx-vlm` engine). GGUF vision models name their projector in `mmproj_path`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub vision: bool,
 }
 
 /// A native decision model (`<arch>.decision.type` in its GGUF header, see
@@ -326,6 +330,7 @@ fn vision_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
         kind: crate::domain::ModelKind::Pipeline,
         origin: crate::domain::ModelOrigin::Library,
         task: Some(task.to_string()),
+        vision: false,
     })
 }
 
@@ -380,6 +385,7 @@ fn onnx_entry(path: &Path, root_dir: &str) -> Option<LocalModel> {
         kind: onnx_task_kind(package.task),
         origin: crate::domain::ModelOrigin::Library,
         task: package.pipeline_task().map(String::from),
+        vision: false,
     })
 }
 
@@ -418,6 +424,7 @@ fn genai_entry(
         kind: crate::domain::ModelKind::Llm,
         origin: crate::domain::ModelOrigin::Library,
         task: None,
+        vision: false,
     })
 }
 
@@ -559,6 +566,7 @@ impl ModelManager {
                     origin: crate::domain::ModelOrigin::Linked,
                     task: None,
                     path: e.path,
+                    vision: false,
                 }
             })
             .collect()
@@ -747,6 +755,7 @@ impl ModelManager {
                 gguf: metadata,
                 source: None,
                 mmproj_path: None,
+                vision: false,
             });
         }
 
@@ -779,6 +788,7 @@ impl ModelManager {
                 source: None,
                 mmproj_path: None,
                 path,
+                vision: false,
             });
         }
 
@@ -811,6 +821,7 @@ impl ModelManager {
                 source: None,
                 mmproj_path: None,
                 path,
+                vision: false,
             });
         }
         // ONNX encoders (embedding / reranking), with their tokenizer next to them.
@@ -871,6 +882,7 @@ impl ModelManager {
                 gguf: metadata,
                 source: None,
                 mmproj_path: None,
+                vision: false,
             });
         }
         all_models.sort_by(|a, b| a.name.cmp(&b.name));

@@ -89,7 +89,7 @@
   let maskRequired = $derived(maskKind === 'required');
   /** A LoRA per request: Python engine diffusers pipelines only. */
   let loraShown = $derived(takesLora(form.model, domain.definitions, library.models));
-  let loraError = $derived(loraShown && !loraOk(form.lora));
+  let loraError = $derived(loraShown && !loraOk(form.lora, mflux));
   let loraScaleError = $derived(loraShown && form.lora.trim() !== '' && !loraScaleOk(form.loraScale));
   let canRun = $derived(
     !busy &&
@@ -340,7 +340,7 @@
           <Input
             id="img-lora"
             bind:value={form.lora}
-            placeholder={t('img.lora_placeholder')}
+            placeholder={t(mflux ? 'img.lora_placeholder_file' : 'img.lora_placeholder')}
             disabled={busy}
             aria-label={t('img.lora_label')}
             aria-invalid={loraError}
@@ -363,7 +363,7 @@
           {/if}
         </div>
         <span class="text-xs {loraError || loraScaleError ? 'text-destructive' : 'text-muted-foreground'}">
-          {loraError ? t('img.lora_invalid') : loraScaleError ? t('img.lora_scale_invalid') : t('img.lora_note')}
+          {loraError ? t(mflux ? 'img.lora_invalid_file' : 'img.lora_invalid') : loraScaleError ? t('img.lora_scale_invalid') : t(mflux ? 'img.lora_note_mflux' : 'img.lora_note')}
         </span>
       </div>
     {/if}

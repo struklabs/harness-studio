@@ -861,6 +861,8 @@ export interface LocalModel {
   origin?: 'library' | 'linked';
   /** Hugging Face pipeline task of a `pipeline` model ("text-classification", "fill-mask", ...). */
   task?: string;
+  /** Reads images with no projector file: an MLX vision-language folder (mlx-vlm). */
+  vision?: boolean;
 }
 
 export type ModelKind =

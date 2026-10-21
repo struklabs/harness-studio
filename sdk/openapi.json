@@ -19844,6 +19844,10 @@
               "null"
             ],
             "description": "Hugging Face pipeline task of a [`crate::domain::ModelKind::Pipeline`] model\n(`text-classification`, `token-classification`...)."
+          },
+          "vision": {
+            "type": "boolean",
+            "description": "It reads images on its own, with no projector file: an MLX vision-language folder\n(the `mlx-vlm` engine). GGUF vision models name their projector in `mmproj_path`."
           }
         }
       },

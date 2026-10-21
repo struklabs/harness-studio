@@ -377,6 +377,7 @@ pub fn to_local_model(model: &AsrModel, root: &Path) -> crate::models::LocalMode
         kind: crate::domain::ModelKind::Asr,
         origin: crate::domain::ModelOrigin::Library,
         task: None,
+        vision: false,
     }
 }
 

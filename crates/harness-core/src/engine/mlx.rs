@@ -779,6 +779,7 @@ const PROTECTED_FLAGS: &[&str] = &[
     "--draft-model",
     "--allowed-origins",
     "--task",
+    "--request-lora-dir",
 ];
 
 /// What a launch without a `max_tokens` parameter gets: mlx-lm's own default (512) cuts
@@ -1479,6 +1480,8 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
     {
         model.architecture = Some(family);
     }
+    // An MLX vision-language folder reads images itself (no projector file to pair).
+    model.vision = is_vlm_dir(dir);
     Some(model)
 }
 
@@ -1929,6 +1932,20 @@ impl ServerEngine for MlxEngine {
     }
 }
 
+/// `--request-lora-dir <folder>` for each model library: where the mflux worker accepts a
+/// request's LoRA file from (after resolving links).
+fn request_lora_dirs(libraries: &[PathBuf]) -> Vec<String> {
+    libraries
+        .iter()
+        .flat_map(|dir| {
+            [
+                "--request-lora-dir".to_string(),
+                dir.to_string_lossy().into_owned(),
+            ]
+        })
+        .collect()
+}
+
 /// `--companion owner/repo=folder` for each codec a text-to-speech folder's family loads, found
 /// in `libraries`; a codec that is not downloaded fails the launch with its repo named.
 fn companion_args(model: &Path, libraries: &[PathBuf]) -> Result<Vec<String>, String> {
@@ -2063,6 +2080,13 @@ fn build_args(
         args.push("--max-seconds".into());
         args.push(audio_max_seconds(gateway).to_string());
     }
+    if flavour == Flavour::Image {
+        // A request's own LoRA (the Image tab's field) must be a file in a model library; the
+        // worker refuses any other path.
+        args.extend(request_lora_dirs(
+            &crate::config::AppSettings::load().all_models_dirs(),
+        ));
+    }
     if matches!(flavour, Flavour::Text | Flavour::Vision)
         && !args
             .iter()
@@ -2168,6 +2192,13 @@ pub(crate) mod tests {
         let m = to_local_model(vlm.path(), vlm.path().parent().unwrap()).unwrap();
         assert_eq!(m.kind, crate::domain::ModelKind::Llm);
         assert_eq!(m.quantization, "4bit");
+        // It reads images itself (Read Document offers it), with no projector.
+        assert!(m.vision && m.mmproj_path.is_none());
+        assert!(
+            !to_local_model(quantized.path(), quantized.path().parent().unwrap())
+                .unwrap()
+                .vision
+        );
         // ...and the text folder is not a vision one.
         assert!(!is_vlm_dir(quantized.path()));
         assert!(!inspect(quantized.path()).unwrap().vision);
@@ -5024,6 +5055,20 @@ print("resampled", resampled)
             .unwrap()
             .args;
         assert_eq!(at(&args, "--lora-scale").as_deref(), Some("0.75"));
+        // A request's own LoRA may come only from the model libraries, which custom
+        // arguments cannot widen.
+        assert!(at(&args, "--request-lora-dir").is_some());
+        assert_eq!(
+            request_lora_dirs(&[PathBuf::from("/lib/a"), PathBuf::from("/lib/b")]),
+            [
+                "--request-lora-dir",
+                "/lib/a",
+                "--request-lora-dir",
+                "/lib/b"
+            ]
+        );
+        assert!(is_protected("--request-lora-dir=/tmp"));
+        assert!(!is_protected("--lora"));
         // The catalog says the engine takes one (the definition's LoRA field is shown).
         assert!(catalog(Flavour::Image)
             .params
@@ -5272,6 +5317,26 @@ for label, paths, scales in [("lora missing", ["/nope.safetensors"], []), ("lora
     except ValueError as e:
         print(label, "refused:", e)
 print("args", w.parser().parse_args(["--model", "m", "--port", "1", "--lora", "a", "--lora", "b", "--lora-scale", "0.7"]).lora_scale)
+# A request's own LoRA: only with --request-lora-dir, only a file whose real path is in one.
+import tempfile
+roots = (os.path.realpath(os.path.dirname(lora)),)
+print("req lora", w.image_request(json.dumps({{"prompt": "x", "lora": lora, "lora_scale": 0.5}}).encode(), False, roots)["lora"] == (os.path.realpath(lora), 0.5))
+outside = os.path.join(tempfile.mkdtemp(), "out.safetensors")
+open(outside, "wb").write(b"x")
+link = os.path.join(roots[0], "link.safetensors")
+os.symlink(outside, link)
+for label, raw, rts in [("req lora no dirs", {{"prompt": "x", "lora": lora}}, ()),
+                        ("req lora outside", {{"prompt": "x", "lora": outside}}, roots),
+                        ("req lora link out", {{"prompt": "x", "lora": link}}, roots),
+                        ("req lora not file", {{"prompt": "x", "lora": roots[0]}}, roots),
+                        ("req lora scale alone", {{"prompt": "x", "lora_scale": 1}}, roots),
+                        ("req lora scale", {{"prompt": "x", "lora": lora, "lora_scale": 9}}, roots)]:
+    try:
+        w.image_request(json.dumps(raw).encode(), False, rts)
+        print(label, "accepted")
+    except w.Refused as e:
+        print(label, "refused:", e)
+print("req dirs", w.parser().parse_args(["--model", "m", "--port", "1", "--request-lora-dir", "/a", "--request-lora-dir", "/b"]).request_lora_dir)
 
 gone.set()
 try:
@@ -5329,8 +5394,8 @@ asyncio.run(main())
         assert!(out.status.success(), "{text}");
         for line in [
             "sizes (640, 480) (320, 200) (512, 768) None",
-            "plain {'prompt': 'a fox', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': None, 'images': [], 'mask': None}",
-            "full {'prompt': 'x', 'n': 4, 'seed': 9, 'steps': 50, 'size': (768, 512), 'guidance': 1.5, 'strength': None, 'images': [], 'mask': None}",
+            "plain {'prompt': 'a fox', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': None, 'lora': None, 'images': [], 'mask': None}",
+            "full {'prompt': 'x', 'n': 4, 'seed': 9, 'steps': 50, 'size': (768, 512), 'guidance': 1.5, 'strength': None, 'lora': None, 'images': [], 'mask': None}",
             "auto None",
             "steps refused: steps must be a whole number from 1 to 50",
             "n refused: n must be a whole number from 1 to 4",
@@ -5340,7 +5405,7 @@ asyncio.run(main())
             "empty refused: prompt is required",
             "bool refused: steps must be a whole number",
             "image on generation refused: unsupported field(s) for this model: image",
-            "edit {'prompt': 'x', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': 0.5, 'images': [(600, 400), (64, 64)], 'mask': None}",
+            "edit {'prompt': 'x', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': 0.5, 'lora': None, 'images': [(600, 400), (64, 64)], 'mask': None}",
             "edit none refused: image (the picture to edit) is required",
             "edit five refused: an edit takes at most 4 images",
             "edit huge refused: image 1 is 5000x64; an edit takes at most 4096 pixels a side",
@@ -5369,6 +5434,14 @@ asyncio.run(main())
             "lora many refused: at most 4 LoRA adapters",
             "lora scales refused: more --lora-scale than --lora",
             "args [0.7]",
+            "req lora True",
+            "req lora no dirs refused: unsupported field(s) for this model: lora",
+            "req lora outside refused: lora must be a file in one of Harness's model libraries",
+            "req lora link out refused: lora must be a file in one of Harness's model libraries",
+            "req lora not file refused: lora must be an existing .safetensors file",
+            "req lora scale alone refused: lora_scale needs a lora",
+            "req lora scale refused: lora_scale must be a number from -4 to 4",
+            "req dirs ['/a', '/b']",
             "gone",
             "refused before drawing: an image of 1024x1024 needs about 16.2",
             "health (200, {'status': 'ok'})",

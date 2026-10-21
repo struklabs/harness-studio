@@ -1,7 +1,7 @@
 """Harness mflux worker: text to image, image editing and inpainting with one local mflux folder.
 
     <env python> mflux_worker.py --model <dir> --port <port> [--alias <name>] [--max-seconds N]
-        [--lora <file.safetensors> [--lora-scale N]]...
+        [--lora <file.safetensors> [--lora-scale N]]... [--request-lora-dir <dir>]...
 
 mflux has no server of its own; this worker serves what Harness needs, itself:
 
@@ -24,9 +24,13 @@ mflux has no server of its own; this worker serves what Harness needs, itself:
   - FLUX.1 Fill: inpainting one image where its "mask" is white (it draws nothing without an
     image: /v1/images/generations is a 400).
 * LoRA adapters (--lora, local safetensors files Harness names; --lora-scale per adapter, 1 by
-  default) are applied to the transformer at load. It listens on 127.0.0.1 only; Hugging Face Hub access is off; proxy
-  variables are cleared; a request never names a file (edit images are written to a private
-  temporary folder and removed after the request).
+  default) are applied to the transformer at load. With --request-lora-dir, a request may add
+  one LoRA of its own ("lora": a .safetensors file, "lora_scale" -4 to 4): its real path (links
+  resolved) must be inside one of those folders (Harness passes its model libraries), anything
+  else is a 400. The pipeline is rebuilt with it on the model thread and kept until a request
+  asks for another set. It listens on 127.0.0.1 only; Hugging Face Hub access is off; proxy
+  variables are cleared; no other request field names a file (edit images are written to a
+  private temporary folder and removed after the request).
 * A request cannot run away or swamp the Mac:
   - steps (MAX_STEPS), images per request (MAX_IMAGES), sides (SIDE_RANGE, a multiple of 16),
     edit images (MAX_EDIT_IMAGES, each at most MAX_EDIT_SIDE pixels a side and MAX_EDIT_BYTES)
@@ -70,6 +74,8 @@ GENERATIONS_PATH = "/v1/images/generations"
 EDITS_PATH = "/v1/images/edits"
 GENERATION_FIELDS = {"model", "prompt", "n", "seed", "steps", "size", "guidance"}
 EDIT_FIELDS = {"image", "strength", "mask"}
+# What a request may add when the worker was given --request-lora-dir.
+LORA_FIELDS = {"lora", "lora_scale"}
 LABEL = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 SIZE = re.compile(r"^(\d{2,5})x(\d{2,5})$")
 # The card's base model -> mflux's model name (the Rust side has the same table:
@@ -149,6 +155,7 @@ def parser():
     p.add_argument("--max-seconds", type=float, default=DEFAULT_MAX_SECONDS)
     p.add_argument("--lora", action="append", default=[])
     p.add_argument("--lora-scale", action="append", type=float, default=[])
+    p.add_argument("--request-lora-dir", action="append", default=[])
     return p
 
 
@@ -169,6 +176,21 @@ def lora_files(paths, scales):
     if any(not -4.0 <= s <= 4.0 for s in scales):
         raise ValueError("a LoRA scale must be from -4 to 4")
     return files, scales
+
+
+def request_lora(value, scale, roots):
+    """A request's own LoRA -> (real path, scale): a .safetensors file whose real path is inside
+    one of `roots` (already real paths); Refused otherwise. The message never echoes the path."""
+    if not isinstance(value, str) or not value.strip() or len(value) > 4096:
+        raise Refused("lora must be the path of a .safetensors file in a model library")
+    real = os.path.realpath(value.strip())
+    inside = any(os.path.commonpath([real, root]) == root for root in roots)
+    if not inside:
+        raise Refused("lora must be a file in one of Harness's model libraries")
+    if not real.lower().endswith(".safetensors") or not os.path.isfile(real):
+        raise Refused("lora must be an existing .safetensors file")
+    scale = 1.0 if scale is None else number(scale, "lora_scale", -4.0, 4.0)
+    return real, scale
 
 
 # ---- the model folder ------------------------------------------------------------------------
@@ -368,16 +390,18 @@ def decode_image(v, i):
     return raw, size
 
 
-def image_request(raw, edit):
-    """Checks a request body -> dict(prompt, n, seed, steps, size, guidance, images, strength)
-    (`size` None: the worker picks it; `images`: [(bytes, (w, h))])."""
+def image_request(raw, edit, lora_roots=()):
+    """Checks a request body -> dict(prompt, n, seed, steps, size, guidance, images, strength,
+    mask, lora) (`size` None: the worker picks it; `images`: [(bytes, (w, h))]; `lora`: None or
+    (real path, scale), only with `lora_roots`)."""
     try:
         body = json.loads(raw)
     except (ValueError, UnicodeDecodeError):
         raise Refused("the body must be JSON") from None
     if not isinstance(body, dict):
         raise Refused("the body must be a JSON object")
-    allowed = GENERATION_FIELDS | (EDIT_FIELDS if edit else set())
+    allowed = GENERATION_FIELDS | (EDIT_FIELDS if edit else set()) | \
+        (LORA_FIELDS if lora_roots else set())
     unknown = sorted(set(body) - allowed)
     if unknown:
         raise Refused("unsupported field(s) for this model: %s" % ", ".join(unknown))
@@ -402,7 +426,12 @@ def image_request(raw, edit):
         "images": [],
         "strength": None,
         "mask": None,
+        "lora": None,
     }
+    if body.get("lora") is not None:
+        out["lora"] = request_lora(body["lora"], body.get("lora_scale"), lora_roots)
+    elif body.get("lora_scale") is not None:
+        raise Refused("lora_scale needs a lora")
     if edit:
         images = body.get("image")
         images = [images] if isinstance(images, str) else images
@@ -461,16 +490,23 @@ def make_generate(models, weights, budget, name, max_seconds, render, clock=time
 
     def generate(req, edit, gone):
         check_kind(req, edit, kind)
+        lora = req.get("lora")
+        # The request's LoRA is loaded with the weights (and counted with them).
+        loaded = weights + (os.path.getsize(lora[0]) if lora else 0)
+        if getattr(models, "use", None) is not None:
+            models.use(lora)
+        elif lora:
+            raise Refused("this worker takes no LoRA per request")
         sizes = [size for _, size in req["images"]]
         # FLUX.2 [klein] conditions on its images (tokens of their own); the others start from
         # theirs, at the size asked for.
         refs = sizes if kind == "flux2" else []
         size = req["size"]
         if size is None:
-            size = fit_size(weights, budget, name, refs, sizes[0] if edit else None)
+            size = fit_size(loaded, budget, name, refs, sizes[0] if edit else None)
             if size is None:
                 raise Refused("this model does not fit this Mac's memory at any size")
-        check_fits(weights, budget, name, size[0], size[1], refs)
+        check_fits(loaded, budget, name, size[0], size[1], refs)
         stop = Stop(clock() + max_seconds, gone, clock)
         models.stop = stop
         seed = req["seed"] if req["seed"] is not None else secrets.randbelow(2 ** 31)
@@ -555,7 +591,7 @@ def cors(inner):
     return app
 
 
-def app_for(generate, alias, run=None, clock=time.time):
+def app_for(generate, alias, run=None, clock=time.time, lora_roots=()):
     """The ASGI app. `generate(request, edit, gone)` (blocking) runs on the model thread (`run`
     replaces that in tests); `gone` is set when the client disconnects meanwhile."""
     expected = ("Bearer %s" % KEY).encode()
@@ -612,7 +648,7 @@ def app_for(generate, alias, run=None, clock=time.time):
             more = message.get("more_body", False)
         edit = route == EDITS_PATH
         try:
-            req = image_request(b"".join(chunks), edit)
+            req = image_request(b"".join(chunks), edit, lora_roots)
         except Refused as e:
             return await respond(send, 400, error(str(e) + ".", "invalid_request_error",
                                                   "invalid_request"))
@@ -667,15 +703,15 @@ def main(argv=None):
     except ValueError as e:
         sys.exit("mflux_worker: %s" % e)
     kind = KINDS[name][0]
+    roots = tuple(os.path.realpath(d) for d in args.request_lora_dir if os.path.isdir(d))
 
+    import gc
     import mlx.core as mx
     import uvicorn
     from mflux.models.common.config import ModelConfig
     import mlx.nn as nn
 
     config = ModelConfig.from_name(name)
-    load = dict(model_path=model_dir, model_config=config, lora_paths=loras or None,
-                lora_scales=scales or None)
 
     class Models:
         """The model's pipelines on one copy of the weights. FLUX.2 [klein]: the edit one is
@@ -685,6 +721,28 @@ def main(argv=None):
 
         def __init__(self):
             self.stop = None
+            self.extra = None
+            self.build(())
+
+        def use(self, lora):
+            """Rebuilds the pipelines when a request asks for another LoRA than the loaded one
+            (none: the definition's own set again)."""
+            extra = (lora,) if lora else ()
+            if extra == self.extra:
+                return
+            if len(loras) + len(extra) > MAX_LORAS:
+                raise Refused("at most %d LoRA adapters" % MAX_LORAS)
+            self.build(extra)
+
+        def build(self, extra):
+            paths = loras + [p for p, _ in extra]
+            strengths = scales + [s for _, s in extra]
+            load = dict(model_path=model_dir, model_config=config, lora_paths=paths or None,
+                        lora_scales=strengths or None)
+            # The old copy goes before the new one loads: two would not fit an 8 GB Mac.
+            self.editor = self.drawer = None
+            gc.collect()
+            (mx.clear_cache if hasattr(mx, "clear_cache") else mx.metal.clear_cache)()
             if kind == "flux2":
                 from mflux.models.flux2.variants import Flux2Klein, Flux2KleinEdit
 
@@ -704,6 +762,7 @@ def main(argv=None):
                     from mflux.models.qwen.variants.txt2img.qwen_image import QwenImage as Pipeline
                 self.editor = self.drawer = Pipeline(**load)
             self.editor.callbacks.register(self)
+            self.extra = extra
 
         def call_in_loop(self, *a, **kw):
             if self.stop is not None:
@@ -735,7 +794,7 @@ def main(argv=None):
     lora_bytes = sum(os.path.getsize(f) for f in loras)
     generate = make_generate(models, weights_bytes(model_dir) + lora_bytes, budget, name,
                              args.max_seconds, render)
-    uvicorn.run(cors(app_for(generate, args.alias)), host=HOST, port=args.port,
+    uvicorn.run(cors(app_for(generate, args.alias, lora_roots=roots)), host=HOST, port=args.port,
                 log_level="info", access_log=True)
 
 

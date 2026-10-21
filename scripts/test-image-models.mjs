@@ -64,11 +64,11 @@ test('Python engine pipelines: inpainting checkpoints need a mask, text-to-image
   assert.deepEqual(['sd-inpaint', 'flux-fill'].map((a) => takesStrength(a, defsAll, all)), [true, false]);
 });
 
-test('a LoRA per request is for Python engine diffusers pipelines only', () => {
+test('a LoRA per request is for Python engine diffusers pipelines and mflux folders', () => {
   const klein = file('klein', 'text-to-image', 'flux2-klein-4b');
   const all = [...files, klein];
   const defsAll = [...defs, def('klein')];
-  assert.deepEqual(['tiny-sd', 'pix2pix', 'qwen-edit', 'klein', 'ner', 'unknown'].map((a) => takesLora(a, defsAll, all)), [true, true, true, false, false, false]);
+  assert.deepEqual(['tiny-sd', 'pix2pix', 'qwen-edit', 'klein', 'ner', 'unknown'].map((a) => takesLora(a, defsAll, all)), [true, true, true, true, false, false]);
 });
 
 test('LoRA fields: an absolute .safetensors path or a repo id; the scale from -4 to 4', () => {
@@ -78,6 +78,8 @@ test('LoRA fields: an absolute .safetensors path or a repo id; the scale from -4
   for (const bad of ['style.safetensors', 'C:\\loras\\style.bin', '/home/me/style', 'owner', 'a/b/c', '../x/y', 'owner/name:x.bin', 'owner/name:../x.safetensors', '-owner/name']) {
     assert.equal(loraOk(bad), false, bad);
   }
+  // mflux reads local files only.
+  assert.deepEqual(['', '/home/me/style.safetensors', 'owner/name', 'owner/name:x.safetensors'].map((v) => loraOk(v, true)), [true, true, false, false]);
   assert.deepEqual(['', '1', '-4', '4', '0.5'].map(loraScaleOk), [true, true, true, true, true]);
   assert.deepEqual(['4.5', '-5', 'x'].map(loraScaleOk), [false, false, false]);
 });

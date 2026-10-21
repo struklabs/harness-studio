@@ -43,6 +43,7 @@ fn real_models() -> Vec<LocalModel> {
                 gguf: Some(meta),
                 source: None,
                 mmproj_path: None,
+                vision: false,
             }
         })
         .collect()

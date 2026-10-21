@@ -531,9 +531,9 @@ async fn forward(
             body = b;
         }
     }
-    if up.has_images && def.mmproj.is_none() && !def.id.starts_with(EXTERNAL_PREFIX) {
+    if up.has_images && !crate::ocr::reads_images(def) && !def.id.starts_with(EXTERNAL_PREFIX) {
         return Err(bad_request(format!(
-            "model \"{}\" does not support images: its model definition has no multimodal projector (mmproj)",
+            "model \"{}\" does not support images: it is neither a GGUF with a multimodal projector (mmproj) nor an MLX vision model",
             name
         )));
     }
