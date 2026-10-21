@@ -1,6 +1,6 @@
 {
   "name": "harness-studio",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Lightweight desktop control center for llama.cpp (llama-server): model hub, runtime manager, launcher and live telemetry.",
   "private": true,
   "type": "module",

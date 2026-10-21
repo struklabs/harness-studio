@@ -746,7 +746,7 @@ fn set_progress(f: impl FnOnce(&mut InstallProgress)) {
 
 fn client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
-        .user_agent("HarnessStudio/0.1.2")
+        .user_agent("HarnessStudio/0.2.0")
         .build()
         .map_err(|e| crate::http_error::transport(&e, "HTTP client"))
 }

@@ -535,7 +535,7 @@ async fn download_all(
 ) -> Result<(), String> {
     let token = crate::hf_auth::current_token().await;
     let client = reqwest::Client::builder()
-        .user_agent("HarnessStudio/0.1.2")
+        .user_agent("HarnessStudio/0.2.0")
         .connect_timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| crate::http_error::transport(&e, "HTTP client"))?;

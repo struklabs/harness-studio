@@ -6,6 +6,8 @@ Release notes with system requirements and known limitations (English and Turkis
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-22
+
 - Modules: a new Modules screen; speech recognition is an optional module you can install, enable, disable, update, repair, roll back and remove, with disk usage shown and your data kept on removal. (#307, #312)
 - Modüller: yeni Modüller ekranı; konuşma tanıma kurulup açılıp kapatılabilen, güncellenebilen, onarılabilen, geri alınabilen ve kaldırılabilen isteğe bağlı bir modül; disk kullanımı gösterilir, kaldırmada verileriniz korunur. (#307, #312)
 - Official Harness Registry: browse and install official Tools, MCP servers and Skills. (#308, #310)
