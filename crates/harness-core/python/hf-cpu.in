@@ -20,3 +20,4 @@ num2words
 docopt-ng  # wheel-only replacement for num2words CLI dependency docopt
 faster-whisper
 pypdfium2
+trl

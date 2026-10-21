@@ -22,6 +22,7 @@ mod settings;
 mod system;
 mod tokens;
 mod tools;
+mod training;
 
 use std::sync::Arc;
 
@@ -63,6 +64,7 @@ the Secure HttpOnly session cookie; cookie writes need same-origin Origin and X-
         (name = "tokens", description = "Named API tokens (admin)"),
         (name = "cloud", description = "BYOK cloud providers (OpenAI, Gemini, Anthropic, OpenRouter, custom): add, test and remove; the key is write-only (admin)"),
         (name = "conversations", description = "Stored chats: list, read, export, documents, context compaction (scope `conversations`)"),
+        (name = "training", description = "Training jobs: LoRA / QLoRA fine-tuning of a library model on a JSONL dataset, with loss history, checkpoints, resume and export to the library (admin to create, run and export)"),
         (name = "analytics", description = "Gateway request log, statistics and Prometheus metrics"),
         (name = "automations", description = "The user's own n8n instance: connection, workflows, executions, webhook runs (admin)"),
         (name = "permissions", description = "Trust levels and capability grants of MCP servers, agent runtimes and the training backend (admin)"),
@@ -190,6 +192,18 @@ fn api_routes() -> OpenApiRouter<AppState> {
         ))
         .routes(routes!(convert::get_one, convert::remove))
         .routes(routes!(convert::cancel))
+        .routes(routes!(training::check_dataset))
+        .routes(routes!(training::preview))
+        .routes(routes!(training::compatibility))
+        .routes(routes!(training::env_status, training::env_install))
+        .routes(routes!(training::list, training::create))
+        .routes(routes!(training::get_one, training::remove))
+        .routes(routes!(training::metrics))
+        .routes(routes!(training::log))
+        .routes(routes!(training::start))
+        .routes(routes!(training::cancel))
+        .routes(routes!(training::resume))
+        .routes(routes!(training::export))
         .routes(routes!(models::list_downloads))
         .routes(routes!(models::get_download, models::remove_download))
         .routes(routes!(models::pause_download))

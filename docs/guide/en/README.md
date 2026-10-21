@@ -22,6 +22,7 @@ Names in **bold** are labels you will see in the app. Model Hub and engine downl
 10. [Troubleshooting and FAQ](10-troubleshooting.md)
 11. [Setup Scenarios: First Model, First Agent, Remote Server](11-setup-scenarios.md)
 12. [API Stability and Versioning](12-api-stability.md)
+13. [Training: Fine-Tune a Model on Your Own Data](13-training.md)
 
 For public skills and MCP repositories, see [GitHub Discovery](github-discovery.md).
 

@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  export type Tab = 'dashboard' | 'playground' | 'servers' | 'library' | 'hub' | 'connections' | 'performance' | 'analytics' | 'settings' | 'create' | 'modules' | 'projects';
+  export type Tab = 'dashboard' | 'playground' | 'servers' | 'library' | 'hub' | 'connections' | 'performance' | 'analytics' | 'settings' | 'create' | 'modules' | 'projects' | 'training';
 </script>
 
 <script lang="ts">
@@ -15,6 +15,7 @@
     ChartColumn,
     Settings,
     Hammer,
+    GraduationCap,
     SlidersHorizontal,
     PanelLeftClose,
     PanelLeftOpen,
@@ -68,7 +69,13 @@
         { id: 'connections', labelKey: 'nav.connections', icon: Cable },
       ],
     },
-    { labelKey: 'nav.create', items: [{ level: tabLevel('create'), id: 'create', labelKey: 'create.tools', icon: Hammer }] },
+    {
+      labelKey: 'nav.create',
+      items: [
+        { level: tabLevel('create'), id: 'create', labelKey: 'create.tools', icon: Hammer },
+        { level: tabLevel('training'), id: 'training', labelKey: 'nav.training', icon: GraduationCap },
+      ],
+    },
     {
       labelKey: 'nav.group_monitor',
       items: [

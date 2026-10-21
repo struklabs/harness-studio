@@ -146,6 +146,10 @@ pub fn http_status(code: &str) -> u16 {
         | "convert.already_running"
         | "convert.job_active"
         | "convert.env_in_use"
+        | "training.job_active"
+        | "training.not_draft"
+        | "training.not_resumable"
+        | "training.export_active"
         | "compaction.busy"
         | "compaction.stale_path"
         | "compaction.gateway_required" => 409,

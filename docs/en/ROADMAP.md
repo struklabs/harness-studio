@@ -27,7 +27,7 @@ Harness Studio brings local models, tools, and optional engines into one desktop
 
 ## Later
 
-- Optional training and richer project workflows.
+- Training: LoRA and QLoRA fine-tuning is available in the Training page (see the [guide](../guide/en/13-training.md)); next are DPO, other backends and richer project workflows.
 - More remote-device and cloud-provider connections.
 - Better context management and document retrieval.
 

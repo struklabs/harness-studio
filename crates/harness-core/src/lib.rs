@@ -98,6 +98,7 @@ pub mod store;
 pub mod telemetry;
 pub mod token_policy;
 pub mod tools;
+pub mod training;
 pub mod tts;
 pub mod vram;
 pub mod watchdog;

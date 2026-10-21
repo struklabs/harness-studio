@@ -244,6 +244,19 @@ mod tests {
         assert_eq!(required_scope(&get, "/models", true), Some(Scope::Read));
         assert_eq!(required_scope(&get, "/tokens", true), Some(Scope::Admin));
         assert_eq!(required_scope(&get, "/modules", true), Some(Scope::Read));
+        // Training: reading jobs is `read`; creating, running and exporting them is admin.
+        assert_eq!(
+            required_scope(&get, "/training/{id}/metrics", true),
+            Some(Scope::Read)
+        );
+        assert_eq!(
+            required_scope(&post, "/training/{id}/start", true),
+            Some(Scope::Admin)
+        );
+        assert_eq!(
+            required_scope(&post, "/training/dataset", true),
+            Some(Scope::Admin)
+        );
         assert_eq!(
             required_scope(&post, "/modules/{id}", true),
             Some(Scope::Admin)
