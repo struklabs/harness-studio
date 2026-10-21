@@ -270,7 +270,7 @@ const tr = {
   'pg.delete': 'Sil',
   'pg.open_link_failed': 'Bağlantı açılamadı: {error}',
   'pg.code_block_aria': 'Kod Bloğu',
-  'pg.auto_title': 'Otomatik başlık',
+  'pg.auto_title': 'Otomatik Başlık',
   'pg.auto_title_hint': 'İlk yanıttan sonra modelden kısa bir sohbet başlığı ister (küçük, ayrı bir istek). Kapalıyken başlık ilk mesajdan alınır.',
 
   // Context meter
@@ -305,7 +305,7 @@ const tr = {
   'pg.conv_duplicate': 'Kopyasını Oluştur',
   'pg.conv_copy_title': '{title} (kopya)',
   'pg.conv_move': 'Klasöre Taşı',
-  'pg.conv_no_folder': 'Klasör yok',
+  'pg.conv_no_folder': 'Klasör Yok',
   'pg.conv_drop_root': 'Klasörden çıkarmak için buraya bırakın',
   'pg.conv_moved_to': '“{title}” → {folder}',
   'pg.conv_export': 'Dışa Aktar',
@@ -606,7 +606,7 @@ const en: Record<keyof typeof tr, string> = {
   'pg.delete': 'Delete',
   'pg.open_link_failed': 'Could not open link: {error}',
   'pg.code_block_aria': 'Code Block',
-  'pg.auto_title': 'Automatic title',
+  'pg.auto_title': 'Automatic Title',
   'pg.auto_title_hint': 'After the first answer, asks the model for a short chat title (a small, separate request). When off, the title comes from the first message.',
 
   // Context meter
@@ -641,7 +641,7 @@ const en: Record<keyof typeof tr, string> = {
   'pg.conv_duplicate': 'Duplicate',
   'pg.conv_copy_title': '{title} (copy)',
   'pg.conv_move': 'Move to Folder',
-  'pg.conv_no_folder': 'No folder',
+  'pg.conv_no_folder': 'No Folder',
   'pg.conv_drop_root': 'Drop here to remove from its folder',
   'pg.conv_moved_to': '“{title}” → {folder}',
   'pg.conv_export': 'Export',

@@ -21,7 +21,7 @@ const tr = {
   'ui.off_starting_title': 'Sunucu başlatılıyor',
   'ui.off_starting_desc': 'Model belleğe yükleniyor. Ölçümler sunucu hazır olunca burada görünür.',
   'ui.off_start': 'Sunucuyu Başlat',
-  'ui.off_open_dashboard': 'Dashboard’da başlat',
+  'ui.off_open_dashboard': 'Dashboard’da Başlat',
   'ui.off_dash_desc': 'Başlattığınızda üretim hızı, bağlam önbelleği ve slotlar burada canlı görünür.',
   'ui.off_dash_desc_left': '“Model ve Model Motoru”ndan bir model seçip “Sunucuyu Başlat”a basın; üretim hızı, bağlam önbelleği ve slotlar burada canlı görünür.',
   'ui.off_perf_desc': 'Performans ölçümleri sunucu çalışırken toplanır. Başlattığınızda üretim hızı, bellek, slotlar ve istekler burada görünür.',
