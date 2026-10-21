@@ -211,7 +211,7 @@ const tr = {
   // LogConsole
   'dash.lc_title': 'Canlı sunucu logları',
   'dash.lc_title_tip': 'llama-server sürecinden gelen anlık çalışma adımları, donanım yüklemeleri ve olası hata bildirimleri.',
-  'dash.lc_autoscroll': 'Oto kaydır',
+  'dash.lc_autoscroll': 'Oto Kaydır',
   'dash.lc_autoscroll_tip': 'Yeni log satırları geldikçe konsolu otomatik olarak en alt satıra kaydırır.',
   'dash.lc_clear_btn': 'Temizle',
   'dash.lc_clear_tip': 'Konsoldaki mevcut log geçmişini ekrandan temizler (sunucu çalışmasını etkilemez).',
@@ -273,7 +273,7 @@ const tr = {
   'dash.lc_copy_label': 'Görünen satırları panoya kopyala',
   'dash.lc_copied': '{count} satır panoya kopyalandı.',
   'dash.lc_copy_failed': 'Panoya kopyalanamadı.',
-  'dash.lc_export_btn': 'Dışa aktar',
+  'dash.lc_export_btn': 'Dışa Aktar',
   'dash.lc_export_title': 'Logu dışa aktar',
   'dash.lc_export_live': 'Canlı log',
   'dash.lc_export_run': 'Görüntülenen çalıştırma ({date})',
@@ -576,7 +576,7 @@ const en: Record<keyof typeof tr, string> = {
   // LogConsole
   'dash.lc_title': 'Live server logs',
   'dash.lc_title_tip': 'Live runtime steps, hardware loading, and any error notices from the llama-server process.',
-  'dash.lc_autoscroll': 'Auto-scroll',
+  'dash.lc_autoscroll': 'Auto-Scroll',
   'dash.lc_autoscroll_tip': 'Automatically scrolls the console to the bottom as new log lines arrive.',
   'dash.lc_clear_btn': 'Clear',
   'dash.lc_clear_tip': "Clears the current log history from the screen (does not affect the running server).",

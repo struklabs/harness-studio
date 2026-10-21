@@ -2,6 +2,7 @@
 // image, /v1/images/edits (sd-server or a Python engine diffusers worker behind it; nothing is simulated).
 import { describeErrorBody } from './sse';
 import { BackendError } from '#lib/errors.js';
+import { loraScaleOk } from './imageModels';
 
 /** Largest side the gateway accepts (`images::SIDE_RANGE`). */
 export const MAX_SIDE = 4096;
@@ -24,6 +25,10 @@ export interface ImageParams {
   strength?: string;
   /** Inpainting mask (white = redraw), the start image's size; null = none. */
   mask?: ImageResult | null;
+  /** One LoRA for this request: an absolute `.safetensors` path or a Hugging Face repo id already in the cache; empty = none. */
+  lora?: string;
+  /** Its scale, -4..4; empty = 1. */
+  loraScale?: string;
 }
 
 export interface ImageResult {
@@ -32,7 +37,24 @@ export interface ImageResult {
   format: string;
 }
 
-export { DIFFUSERS_IMAGE_TASKS, imageModel, isImageDefinition, isMflux, needsStartImage, takesMask, takesStrength } from './imageModels';
+export {
+  DIFFUSERS_IMAGE_TASKS,
+  imageModel,
+  isImageDefinition,
+  isMflux,
+  isUpscaleDefinition,
+  LORA_SCALE_MAX,
+  LORA_SCALE_MIN,
+  loraOk,
+  loraScaleOk,
+  maskMode,
+  needsMask,
+  needsStartImage,
+  takesLora,
+  takesMask,
+  takesStrength,
+  upscaleModel,
+} from './imageModels';
 
 /** `512x768` -> [512, 768]; null when it is not a size the gateway takes (multiple of 8, 64..4096). */
 export function parseSize(size: string): [number, number] | null {
@@ -60,6 +82,11 @@ export function requestBody(model: string, p: ImageParams): Record<string, unkno
   if (p.cfgScale.trim() && Number.isFinite(cfg) && cfg >= 0) body.cfg_scale = cfg;
   const seed = Number(p.seed);
   if (p.seed.trim() && Number.isInteger(seed)) body.seed = seed;
+  if (p.lora?.trim()) {
+    body.lora = p.lora.trim();
+    const scale = Number(p.loraScale ?? '');
+    if (p.loraScale?.trim() && loraScaleOk(p.loraScale)) body.lora_scale = scale;
+  }
   if (p.init) {
     body.image = dataUrl(p.init);
     const strength = Number(p.strength ?? '');
@@ -116,6 +143,38 @@ export function outOfMemory(body: string): ImageOutOfMemory | null {
   }
 }
 
+/** The error of a failed answer: the gateway's error key, its out-of-memory error, or its message. */
+function failure(res: Response, text: string): Error {
+  let key: unknown;
+  try { key = JSON.parse(text)?.error?.harness?.error_key; } catch { /* plain text */ }
+  if (typeof key === 'string') return new BackendError(key);
+  return outOfMemory(text) ?? new Error(`HTTP ${res.status}: ${describeErrorBody(text) || res.statusText}`);
+}
+
+/** POST {baseUrl}/images/upscale: the picture enlarged by a super-resolution model (Swin2SR). */
+export async function upscaleImage(
+  baseUrl: string,
+  model: string,
+  image: ImageResult,
+  headers: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<{ image: ImageResult; ms: number; width: number; height: number }> {
+  const started = performance.now();
+  const res = await fetch(`${baseUrl}/images/upscale`, {
+    method: 'POST',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, image: dataUrl(image), response_format: 'b64_json' }),
+    signal,
+  });
+  const text = await res.text();
+  const ms = performance.now() - started;
+  if (!res.ok) throw failure(res, text);
+  const json = JSON.parse(text) as { data?: { b64_json?: string }[]; width?: number; height?: number };
+  const data = json.data?.[0]?.b64_json;
+  if (typeof data !== 'string') throw new Error('The gateway answered without an image.');
+  return { image: { data, format: 'png' }, ms, width: Number(json.width) || 0, height: Number(json.height) || 0 };
+}
+
 /** POST {baseUrl}/images/generations, or /images/edits with a start image. Throws the gateway's message on a failed request. */
 export async function fetchImages(
   baseUrl: string,
@@ -133,12 +192,7 @@ export async function fetchImages(
   });
   const text = await res.text();
   const ms = performance.now() - started;
-  if (!res.ok) {
-    let key: unknown;
-    try { key = JSON.parse(text)?.error?.harness?.error_key; } catch { /* plain text */ }
-    if (typeof key === 'string') throw new BackendError(key);
-    throw outOfMemory(text) ?? new Error(`HTTP ${res.status}: ${describeErrorBody(text) || res.statusText}`);
-  }
+  if (!res.ok) throw failure(res, text);
   const json = JSON.parse(text) as { data?: { b64_json?: string }[]; output_format?: string };
   const format = typeof json.output_format === 'string' ? json.output_format : 'png';
   const images = (json.data ?? []).flatMap((d) => (typeof d.b64_json === 'string' ? [{ data: d.b64_json, format }] : []));

@@ -100,6 +100,25 @@ curl http://127.0.0.1:11435/v1/entities -H "Content-Type: application/json" -d '
 }'
 ```
 
+### Image Inpainting, LoRA, and Upscaling
+
+`/v1/images/edits` and `/v1/images/generations` serve diffusers pipelines of the Python engine as well as stable-diffusion.cpp models. For the Python engine they also take:
+
+- `mask` (edits): OpenAI's mask (a PNG whose transparent pixels mark the area to redraw) or a black and white image (white is redrawn). It must have the image's size (HTTP 400, `param: mask`, otherwise). A Stable Diffusion inpainting checkpoint requires it; a text-to-image pipeline takes it optionally. `strength` (0 to 1) sets how much the masked area, or the whole start image without a mask, is redrawn.
+- `lora` and `lora_scale`: one LoRA adapter for this request only. `lora` is the absolute path of a `.safetensors` file inside one of Harness's model folders (other paths are refused), or a Hugging Face repository id (`owner/name`, `owner/name:file.safetensors`) that is already in the local Hugging Face cache (the engine does not download); `lora_scale` is -4 to 4 and 1 by default. The adapter is unloaded when the request ends. stable-diffusion.cpp models refuse `lora` (400); mflux models take their LoRA from the model's definition.
+
+`POST /v1/images/upscale` enlarges an image with a super-resolution model (Swin2SR on the Python engine). It is a task route like the ones above: it uses the **Task pipelines** endpoint group of a token.
+
+| Path | Model task | Request | Answer |
+| --- | --- | --- | --- |
+| `/v1/images/upscale` | Super-resolution (`image-super-resolution`) | `image` (a data URL or base64, up to 20 MiB; URLs are not fetched), optional `scale` (must be the model's factor), optional `response_format` (`b64_json` or `url`, a data URL) | `data[0].b64_json` (a PNG), `width`, `height`, `scale` |
+
+```bash
+curl http://127.0.0.1:11435/v1/images/upscale -H "Content-Type: application/json" -d '{
+  "model": "my-swin2sr", "image": "data:image/png;base64,..."
+}'
+```
+
 ## The Connections Page
 
 The sections of **Connections** in the left menu:

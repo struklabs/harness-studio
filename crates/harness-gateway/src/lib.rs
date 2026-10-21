@@ -785,6 +785,12 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
             }),
         )
         .route(
+            "/v1/images/upscale",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
+                pipelines::handle(s, pipelines::Task::Upscale, h, b)
+            }),
+        )
+        .route(
             "/v1/audio/transcriptions",
             post(
                 |State(s): State<GwState>,

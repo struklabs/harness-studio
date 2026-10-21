@@ -4,6 +4,7 @@ diffusers
 sentence-transformers
 accelerate
 safetensors
+peft  # LoRA adapters of diffusers pipelines
 pillow
 soundfile
 numpy

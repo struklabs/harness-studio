@@ -41,7 +41,7 @@ const tr = {
   'tools.workspace_follow_default': 'Varsayılanı Kullan',
   'tools.workspace_default_suffix': 'varsayılan',
   'tools.workspaces_title': 'Çalışma Klasörleri',
-  'tools.workspace_none': 'Klasör yok',
+  'tools.workspace_none': 'Klasör Yok',
   'tools.workspaces_manage': 'Çalışma Klasörlerini Yönet',
   'tools.workspace_missing': 'Klasör bulunamadı; taşınmış veya silinmiş olabilir.',
   'tools.workspace_selected': 'Seçili',
@@ -73,7 +73,7 @@ const tr = {
   'tools.class_restricted': 'Kısıtlı',
   'tools.class_dangerous': 'Tehlikeli',
 
-  'tools.workdir_title': 'Çalışma klasörü',
+  'tools.workdir_title': 'Çalışma Klasörü',
   'tools.mcp_title': 'MCP İstemcilerine Aç',
   'tools.mcp_desc': 'Harness MCP sunucusu (“harness mcp” ve Developer API /mcp) model yönetimi araçlarının yanında bu sayfadaki araçları da sunabilir. Aynı politika geçerli; MCP onay soramadığı için yalnız politikanın sormadan çalıştırdığı araçlar çalışır.',
   'tools.mcp_label': 'Araçları MCP İstemcilerine Sun',
@@ -180,7 +180,7 @@ const tr = {
 
   // Playground settings panel / tool card
   'pg.tools_group_harness': 'Harness Araçları',
-  'pg.tools_workdir': 'Çalışma klasörü',
+  'pg.tools_workdir': 'Çalışma Klasörü',
   'pg.tools_workdir_none': 'Seçilmedi',
   'pg.tools_workdir_pick': 'Klasör seç',
   'pg.tools_workdir_clear': 'Bu sohbetin klasörünü temizle',
@@ -304,7 +304,7 @@ const en: Record<keyof typeof tr, string> = {
   'tools.workspaces_title': 'Working Folders',
   'tools.workspace_follow_default': 'Use Default',
   'tools.workspace_default_suffix': 'default',
-  'tools.workspace_none': 'No folder',
+  'tools.workspace_none': 'No Folder',
   'tools.workspaces_manage': 'Manage Working Folders',
   'tools.workspace_missing': 'Folder not found; it may have moved or been deleted.',
   'tools.workspace_selected': 'Selected',
@@ -335,7 +335,7 @@ const en: Record<keyof typeof tr, string> = {
   'tools.class_restricted': 'Restricted',
   'tools.class_dangerous': 'Dangerous',
 
-  'tools.workdir_title': 'Working folder',
+  'tools.workdir_title': 'Working Folder',
   'tools.mcp_title': 'Offer to MCP Clients',
   'tools.mcp_desc': 'The Harness MCP server (“harness mcp” and the Developer API /mcp) can offer the tools on this page next to its model management tools. The same policy applies; MCP cannot ask for approval, so only tools the policy lets through without asking run.',
   'tools.mcp_label': 'Offer Tools to MCP Clients',
@@ -441,7 +441,7 @@ const en: Record<keyof typeof tr, string> = {
   'tools.gen_close': 'Close',
 
   'pg.tools_group_harness': 'Harness Tools',
-  'pg.tools_workdir': 'Working folder',
+  'pg.tools_workdir': 'Working Folder',
   'pg.tools_workdir_none': 'Not set',
   'pg.tools_workdir_pick': 'Choose folder',
   'pg.tools_workdir_clear': "Clear this conversation's folder",

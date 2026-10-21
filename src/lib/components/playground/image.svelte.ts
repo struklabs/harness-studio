@@ -44,6 +44,10 @@ export const imageSession = $state({
   init: null as ImageResult | null,
   strength: '',
   mask: null as ImageResult | null,
+  lora: '',
+  loraScale: '',
+  /** The model the Upscale action uses. */
+  upscaleModel: '',
   gallery: [] as GalleryItem[],
 });
 

@@ -19,7 +19,7 @@
   import { Label } from '#lib/components/ui/label/index.js';
   import { Textarea } from '#lib/components/ui/textarea/index.js';
   import { holdReleaseWhile } from '#lib/windowActivity.js';
-  import { Compass, Image as ImageIcon, ImagePlus, LoaderCircle, Power, Save, Square, Trash2, TriangleAlert, X } from '@lucide/svelte';
+  import { Compass, FolderOpen, Image as ImageIcon, ImagePlus, LoaderCircle, Maximize2, Paintbrush, Power, Save, Square, Trash2, TriangleAlert, X } from '@lucide/svelte';
   import {
     dataUrl,
     fetchImages,
@@ -27,8 +27,12 @@
     imageModel,
     isImageDefinition,
     isMflux,
+    isUpscaleDefinition,
+    loraOk,
+    loraScaleOk,
+    maskMode,
     needsStartImage,
-    takesMask,
+    takesLora,
     takesStrength,
     parseSize,
     pngSize,
@@ -37,14 +41,19 @@
     SIZE_PRESETS,
     START_IMAGE_TYPES,
     strengthOk,
+    upscaleImage,
+    upscaleModel,
   } from './image';
   import type { ImageResult } from './image';
   import { addToGallery, imageSession as form, removeFromGallery, type GalleryItem } from './image.svelte';
   import { fileToProject, outputName } from './projectOutputs';
+  import MaskEditor from './MaskEditor.svelte';
 
   /** Image definitions: the gateway loads the diffusion model on the first request (JIT). */
   let models = $derived(domain.definitions.filter((d) => isImageDefinition(d, library.models)));
   /** Image files of the library that still have no definition after the default ones were made: their companion files are missing. */
+  /** Super-resolution definitions (Swin2SR): the Upscale action runs on one of them. */
+  let upscalers = $derived(domain.definitions.filter((d) => isUpscaleDefinition(d, library.models)));
   let incomplete = $derived(filesNeedingDefinition(library.models, domain.definitions, ['image']));
   let busy = $state(false);
   let error = $state('');
@@ -60,6 +69,9 @@
     form.model = imageModel(form.model, domain.definitions, library.models);
   });
   $effect(() => {
+    form.upscaleModel = upscaleModel(form.upscaleModel, domain.definitions, library.models);
+  });
+  $effect(() => {
     void domain.refreshDefinitions();
   });
 
@@ -70,13 +82,73 @@
   let editsOnly = $derived(needsStartImage(form.model, domain.definitions, library.models));
   /** mflux (FLUX.2 [klein], Z-Image, FLUX.1, Qwen-Image): no negative prompt or CFG; an empty size is the largest that fits. */
   let mflux = $derived(isMflux(form.model, domain.definitions, library.models));
-  /** FLUX.1 Fill: it redraws the start image where its mask is white. */
-  let inpaints = $derived(takesMask(form.model, domain.definitions, library.models));
+  /** What a mask does here: FLUX.1 Fill and inpainting checkpoints need one, text-to-image diffusers pipelines may take one. */
+  let maskKind = $derived(maskMode(form.model, domain.definitions, library.models));
+  let inpaints = $derived(maskKind !== 'none');
+  let maskRequired = $derived(maskKind === 'required');
+  /** A LoRA per request: Python engine diffusers pipelines only. */
+  let loraShown = $derived(takesLora(form.model, domain.definitions, library.models));
+  let loraError = $derived(loraShown && !loraOk(form.lora));
+  let loraScaleError = $derived(loraShown && form.lora.trim() !== '' && !loraScaleOk(form.loraScale));
   let canRun = $derived(
-    !busy && app.gatewayRunning && !!form.model && form.prompt.trim() !== '' && !sizeError && !strengthError && (!editsOnly || !!form.init) && (!inpaints || !!form.mask),
+    !busy &&
+      app.gatewayRunning &&
+      !!form.model &&
+      form.prompt.trim() !== '' &&
+      !sizeError &&
+      !strengthError &&
+      !loraError &&
+      !loraScaleError &&
+      (!editsOnly || !!form.init) &&
+      (!maskRequired || !!form.mask),
   );
+  let drawingMask = $state(false);
+  let upscaling = $state(false);
   let fileInput = $state<HTMLInputElement | null>(null);
   let maskInput = $state<HTMLInputElement | null>(null);
+
+  async function pickLora() {
+    try {
+      const path = await invoke<string | null>('pick_lora_file', { label: t('img.lora_filter') });
+      if (path) form.lora = path;
+    } catch (e) {
+      toast.error(localizeError(e));
+    }
+  }
+
+  /** Enlarges a picture with the chosen super-resolution model; the result joins the gallery. */
+  async function upscale(item: ImageResult, label: string) {
+    if (busy || upscaling || !form.upscaleModel || !app.gatewayRunning) return;
+    controller?.abort();
+    const c = new AbortController();
+    controller = c;
+    upscaling = true;
+    error = '';
+    needFamily = null;
+    try {
+      const out = await upscaleImage(app.inferenceUrl, form.upscaleModel, item, app.inferenceHeaders(), c.signal);
+      lastMs = out.ms;
+      addToGallery([
+        {
+          image: out.image,
+          prompt: label,
+          model: form.upscaleModel,
+          size: pngSize(out.image) || (out.width && out.height ? `${out.width}x${out.height}` : t('img.model_size')),
+          ms: out.ms,
+        },
+      ]);
+      void fileToProject(outputName(label, 'png', 'image'), out.image.data, { source: 'image', model: form.upscaleModel });
+    } catch (e) {
+      if (!c.signal.aborted) {
+        const msg = e instanceof Error ? e.message : String(e);
+        needFamily = familyFromError(msg);
+        error = needFamily ? '' : msg;
+      }
+    } finally {
+      if (controller === c) controller = null;
+      upscaling = false;
+    }
+  }
 
   async function pickMask(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
@@ -86,7 +158,10 @@
     const image = await readStartImage(file);
     if (image === 'type') toast.error(t('img.init_bad_type'));
     else if (image === 'size') toast.error(t('img.init_too_big', { mb: MAX_START_IMAGE_BYTES / 1024 / 1024 }));
-    else form.mask = image;
+    else {
+      form.mask = image;
+      drawingMask = false;
+    }
   }
 
   async function pickStartImage(e: Event) {
@@ -104,6 +179,8 @@
   function useAsStart(image: ImageResult) {
     form.init = image;
     form.size = '';
+    form.mask = null;
+    drawingMask = false;
   }
 
   async function run() {
@@ -117,7 +194,8 @@
     needFamily = null;
     try {
       const base = inpaints ? form : { ...form, mask: null };
-      const params = mflux ? { ...base, negative: '', cfgScale: '' } : base;
+      const withLora = loraShown ? base : { ...base, lora: '', loraScale: '' };
+      const params = mflux ? { ...withLora, negative: '', cfgScale: '' } : withLora;
       const { images, ms } = await fetchImages(app.inferenceUrl, form.model, params, app.inferenceHeaders(), c.signal);
       lastMs = ms;
       addToGallery(
@@ -155,6 +233,7 @@
     controller?.abort();
     controller = null;
     busy = false;
+    upscaling = false;
   }
 
   async function save(item: GalleryItem) {
@@ -248,6 +327,40 @@
         }}
       />
     </div>
+    {#if loraShown}
+      <div class="flex flex-col gap-1.5">
+        <span class="text-sm font-semibold text-foreground">{t('img.lora_label')}</span>
+        <div class="flex flex-wrap items-start gap-2">
+          <Input
+            id="img-lora"
+            bind:value={form.lora}
+            placeholder={t('img.lora_placeholder')}
+            disabled={busy}
+            aria-label={t('img.lora_label')}
+            aria-invalid={loraError}
+            class="min-w-0 flex-1 basis-64"
+          />
+          <Button variant="outline" size="sm" disabled={busy} onclick={pickLora}><FolderOpen />{t('img.lora_pick')}</Button>
+          <Input
+            id="img-lora-scale"
+            bind:value={form.loraScale}
+            inputmode="decimal"
+            placeholder="1"
+            disabled={busy}
+            aria-label={t('img.lora_scale_label')}
+            aria-invalid={loraScaleError}
+            title={t('img.lora_scale_label')}
+            class="w-20"
+          />
+          {#if form.lora}
+            <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.lora = '')}><X />{t('img.lora_remove')}</Button>
+          {/if}
+        </div>
+        <span class="text-xs {loraError || loraScaleError ? 'text-destructive' : 'text-muted-foreground'}">
+          {loraError ? t('img.lora_invalid') : loraScaleError ? t('img.lora_scale_invalid') : t('img.lora_note')}
+        </span>
+      </div>
+    {/if}
     <AdvancedOnly collapsible invalid={sizeError}>
     {#if !mflux}
       <div class="flex flex-col gap-1.5">
@@ -294,18 +407,36 @@
             </Field>
           {/if}
           <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.init = null)}><X />{t('img.init_remove')}</Button>
+          {#if form.upscaleModel}
+            <Button variant="outline" size="sm" disabled={busy || upscaling || !app.gatewayRunning} onclick={() => form.init && upscale(form.init, t('img.upscale_label'))} title={t('img.upscale_hint')}>
+              {#if upscaling}<LoaderCircle class="animate-spin" />{:else}<Maximize2 />{/if}{t('img.upscale')}
+            </Button>
+          {/if}
         </div>
         {#if inpaints}
           <input bind:this={maskInput} type="file" accept={START_IMAGE_TYPES.join(',')} class="hidden" onchange={pickMask} />
-          <div class="flex flex-wrap items-end gap-3">
-            {#if form.mask}
-              <img src={dataUrl(form.mask)} alt={t('img.mask_label')} class="size-24 rounded-md border border-border bg-muted object-contain" />
-              <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.mask = null)}><X />{t('img.mask_remove')}</Button>
-            {:else}
-              <Button variant="outline" size="sm" disabled={busy} onclick={() => maskInput?.click()}><ImagePlus />{t('img.mask_pick')}</Button>
-            {/if}
-            <span class="text-xs text-muted-foreground">{t('img.mask_note')}</span>
-          </div>
+          {#if drawingMask}
+            <MaskEditor
+              image={form.init}
+              onapply={(mask) => {
+                form.mask = mask;
+                drawingMask = false;
+              }}
+              oncancel={() => (drawingMask = false)}
+            />
+          {:else}
+            <div class="flex flex-wrap items-end gap-3">
+              {#if form.mask}
+                <img src={dataUrl(form.mask)} alt={t('img.mask_label')} class="size-24 rounded-md border border-border bg-muted object-contain" />
+                <Button variant="outline" size="sm" disabled={busy} onclick={() => (drawingMask = true)}><Paintbrush />{t('img.mask_draw')}</Button>
+                <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.mask = null)}><X />{t('img.mask_remove')}</Button>
+              {:else}
+                <Button variant="outline" size="sm" disabled={busy} onclick={() => (drawingMask = true)}><Paintbrush />{t('img.mask_draw')}</Button>
+                <Button variant="outline" size="sm" disabled={busy} onclick={() => maskInput?.click()}><ImagePlus />{t('img.mask_pick')}</Button>
+              {/if}
+              <span class="text-xs text-muted-foreground">{t(maskRequired ? 'img.mask_note' : 'img.mask_note_optional')}</span>
+            </div>
+          {/if}
         {/if}
       {:else}
         <div class="flex flex-wrap items-center gap-2">
@@ -353,6 +484,35 @@
         <AdvancedOnly><span class="font-num text-xs text-muted-foreground">{t('emb.stat_time', { value: Math.round(lastMs) })}</span></AdvancedOnly>
       {/if}
     </div>
+    {#if upscalers.length > 0}
+      <div class="flex flex-wrap items-center gap-2">
+        <Label for="img-upscaler" class="text-xs text-muted-foreground">{t('img.upscale_model')}</Label>
+        <select
+          id="img-upscaler"
+          bind:value={form.upscaleModel}
+          disabled={busy || upscaling}
+          class="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+        >
+          {#each upscalers as d (d.id)}
+            <option value={d.alias}>{d.alias}</option>
+          {/each}
+        </select>
+      </div>
+    {:else if form.gallery.length > 0}
+      <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span>{t('img.upscale_none')}</span>
+        <Button
+          variant="outline"
+          size="sm"
+          onclick={() => {
+            app.requestedHubSearch = 'swin2SR';
+            app.requestedTab = 'hub';
+          }}
+        >
+          <Compass />{t('img.find_model')}
+        </Button>
+      </div>
+    {/if}
     {#if form.gallery.length === 0}
       <p class="text-sm text-muted-foreground">{t('img.gallery_empty')}</p>
     {:else}
@@ -368,6 +528,11 @@
                 <Button variant="ghost" size="sm" disabled={busy} onclick={() => useAsStart(item.image)} title={t('img.use_as_init_hint')}>
                   <ImagePlus />{t('img.use_as_init')}
                 </Button>
+                {#if form.upscaleModel}
+                  <Button variant="ghost" size="sm" disabled={busy || upscaling || !app.gatewayRunning} onclick={() => upscale(item.image, item.prompt)} title={t('img.upscale_hint')}>
+                    {#if upscaling}<LoaderCircle class="animate-spin" />{:else}<Maximize2 />{/if}{t('img.upscale')}
+                  </Button>
+                {/if}
                 <Button variant="ghost" size="icon-sm" onclick={() => removeFromGallery(item.id)} aria-label={t('img.remove')} title={t('img.remove')}>
                   <Trash2 />
                 </Button>

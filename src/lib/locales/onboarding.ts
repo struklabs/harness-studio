@@ -22,7 +22,7 @@ const tr = {
   'onboarding.coach_step5_title': '5. Adım: Canlı Sunucu Logları',
   'onboarding.coach_step5_desc':
     'Arka planda çalışan llama-server motorunun başlama adımlarını, katmanların belleğe yüklenişini ve olası uyarıları buradan canlı takip edebilirsiniz.',
-  'onboarding.coach_step5_hint': 'İpucu: Dilediğinizde "Oto kaydır"ı kapatabilir veya ekranı temizleyebilirsiniz.',
+  'onboarding.coach_step5_hint': 'İpucu: Dilediğinizde "Oto Kaydır"ı kapatabilir veya ekranı temizleyebilirsiniz.',
   'onboarding.coach_badge': 'Rehber · {current} / {total}',
   'onboarding.coach_prev': 'Geri',
   'onboarding.coach_skip': 'Turu Bitir',
@@ -70,7 +70,7 @@ const en: Record<keyof typeof tr, string> = {
   'onboarding.coach_step5_title': 'Step 5: Live Server Logs',
   'onboarding.coach_step5_desc':
     'Follow the background llama-server engine\'s startup steps, layers loading into memory, and any warnings live from here.',
-  'onboarding.coach_step5_hint': 'Tip: You can turn off "Auto-scroll" or clear the screen at any time.',
+  'onboarding.coach_step5_hint': 'Tip: You can turn off "Auto-Scroll" or clear the screen at any time.',
   'onboarding.coach_badge': 'Guide · {current} / {total}',
   'onboarding.coach_prev': 'Back',
   'onboarding.coach_skip': 'Skip Tour',

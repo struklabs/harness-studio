@@ -213,6 +213,7 @@ pub const TASKS: &[&str] = &[
     "document-question-answering",
     "visual-question-answering",
     "mask-generation",
+    "image-super-resolution",
     "automatic-speech-recognition",
     "audio-classification",
     "zero-shot-audio-classification",
@@ -522,6 +523,9 @@ fn config_task(cfg: &serde_json::Value, dir: &Path) -> Option<&'static str> {
     if has("ForDepthEstimation") {
         return Some("depth-estimation");
     }
+    if has("ForImageSuperResolution") {
+        return Some("image-super-resolution");
+    }
     if has("ForAudioClassification") {
         return Some("audio-classification");
     }
@@ -537,6 +541,16 @@ fn config_task(cfg: &serde_json::Value, dir: &Path) -> Option<&'static str> {
     None
 }
 
+/// Whether a transformers `config.json` is a super-resolution model (Swin2SR: `*ForImageSuperResolution`).
+/// The Hub tags these `image-to-image` like the diffusers editors; the worker serves them as
+/// its own `image-super-resolution` task (`/v1/images/upscale`).
+pub fn is_super_resolution(cfg: &serde_json::Value) -> bool {
+    archs(cfg)
+        .iter()
+        .any(|a| a.ends_with("ForImageSuperResolution"))
+        || cfg.get("model_type").and_then(|v| v.as_str()) == Some("swin2sr")
+}
+
 fn archs(cfg: &serde_json::Value) -> Vec<&str> {
     cfg.get("architectures")
         .and_then(|a| a.as_array())
@@ -545,8 +559,9 @@ fn archs(cfg: &serde_json::Value) -> Vec<&str> {
 }
 
 /// Libraries a diffusers `model_index.json` component may come from; anything else is a module
-/// of the repo itself.
-const INDEX_LIBRARIES: [&str; 2] = ["diffusers", "transformers"];
+/// of the repo itself. `stable_diffusion` is diffusers' own sub-package, the library the Stable
+/// Diffusion safety checker is listed under (every original SD 1.x / 2.x repo).
+const INDEX_LIBRARIES: [&str; 3] = ["diffusers", "transformers", "stable_diffusion"];
 
 /// Whether a folder asks for code of its own (the worker refuses it too): an `auto_map` in any
 /// JSON file at the top or one level down (the model's, a component's, the tokenizer's config),
@@ -702,10 +717,17 @@ pub fn detect(dir: &Path) -> Option<String> {
             .get("_class_name")
             .and_then(|v| v.as_str())
             .map(str::to_string)?;
+        // An inpainting checkpoint (Stable Diffusion, FLUX.1 Fill) is an image-to-image model
+        // that needs a mask; the other inpainting pipelines (Kandinsky...) take components of
+        // their own.
+        let inpaints = (class.contains("Inpaint")
+            && (class.starts_with("StableDiffusion") || class.starts_with("Flux")))
+            || class == "FluxFillPipeline";
         if !class.ends_with("Pipeline")
-            || ["Inpaint", "Audio", "Upscale", "Depth2Img", "ControlNet"]
+            || ["Audio", "Upscale", "Depth2Img", "ControlNet"]
                 .iter()
                 .any(|w| class.contains(w))
+            || (class.contains("Inpaint") && !inpaints)
             || weight_files(dir).is_empty()
         {
             return None;
@@ -723,9 +745,10 @@ pub fn detect(dir: &Path) -> Option<String> {
         // A pipeline that needs a start image (InstructPix2Pix, Qwen-Image-Edit, SDXL refiner).
         // FLUX.2 klein and FLUX.1 Kontext also draw from text alone: text-to-image, and the
         // worker edits with the same pipeline.
-        let edits = ["Img2Img", "InstructPix2Pix", "Edit"]
-            .iter()
-            .any(|w| class.contains(w));
+        let edits = inpaints
+            || ["Img2Img", "InstructPix2Pix", "Edit"]
+                .iter()
+                .any(|w| class.contains(w));
         return Some(
             if edits {
                 "image-to-image"
@@ -743,6 +766,10 @@ pub fn detect(dir: &Path) -> Option<String> {
         return None;
     }
     let from_config = config_task(&cfg, dir);
+    // Swin2SR's card says `image-to-image`, the diffusers editors' task.
+    if from_config == Some("image-super-resolution") {
+        return Some("image-super-resolution".into());
+    }
     if cfg.get("model_type").and_then(|v| v.as_str()) == Some("smolvlm") {
         return Some("video-text-to-text".into());
     }
@@ -1014,8 +1041,17 @@ pub fn worker_env(api_key: &str) -> Vec<(&'static str, std::ffi::OsString)> {
     let mut env = crate::pyenv::python_env(&crate::pyenv::envs::root());
     env.push((API_KEY_ENV, api_key.into()));
     env.push(("TORCH_FORCE_WEIGHTS_ONLY_LOAD", "1".into()));
+    // A request's LoRA file must sit inside the Harness model folders (the worker checks the
+    // real path against these).
+    let roots = crate::config::AppSettings::load().all_models_dirs();
+    if let Ok(joined) = std::env::join_paths(roots) {
+        env.push((LORA_ROOTS_ENV, joined));
+    }
     env
 }
+
+/// The model folders a request's LoRA file may come from, `os.pathsep`-separated.
+pub const LORA_ROOTS_ENV: &str = "HARNESS_LORA_ROOTS";
 
 /// Replaces `--host <h> --port <p>` of a launch with `--uds <socket>` (an isolated run listens
 /// on a Unix socket; Harness relays the port to it).
@@ -1752,6 +1788,15 @@ pipeline_tag: text-classification
             ("unet/diffusion_pytorch_model.safetensors", "x"),
         ]);
         assert_eq!(detect(sd.path()), None);
+        // The safety checker of the original Stable Diffusion repos is diffusers' own.
+        let checker = folder(&[
+            (
+                "model_index.json",
+                r#"{"_class_name":"StableDiffusionInpaintPipeline","safety_checker":["stable_diffusion","StableDiffusionSafetyChecker"]}"#,
+            ),
+            ("unet/diffusion_pytorch_model.safetensors", "x"),
+        ]);
+        assert_eq!(detect(checker.path()).as_deref(), Some("image-to-image"));
         let empty = folder(&[("config.json", r#"{"architectures":["BertForMaskedLM"]}"#)]);
         assert_eq!(detect(empty.path()), None);
     }
@@ -1783,8 +1828,20 @@ pipeline_tag: text-classification
             ),
             ("unet/diffusion_pytorch_model.safetensors", "x"),
         ]);
-        assert_eq!(detect(inpaint.path()), None);
+        // An inpainting checkpoint edits an image under a mask: an image-to-image model; the
+        // inpainting pipelines with components of their own are not served.
+        assert_eq!(detect(inpaint.path()).as_deref(), Some("image-to-image"));
+        let kandinsky = folder(&[
+            (
+                "model_index.json",
+                r#"{"_class_name":"KandinskyInpaintPipeline"}"#,
+            ),
+            ("unet/diffusion_pytorch_model.safetensors", "x"),
+        ]);
+        assert_eq!(detect(kandinsky.path()), None);
         for (class, task) in [
+            ("StableDiffusionXLInpaintPipeline", "image-to-image"),
+            ("FluxFillPipeline", "image-to-image"),
             ("StableDiffusionInstructPix2PixPipeline", "image-to-image"),
             ("StableDiffusionXLImg2ImgPipeline", "image-to-image"),
             ("QwenImageEditPlusPipeline", "image-to-image"),
@@ -2080,6 +2137,52 @@ library_name: transformers
             "test_hf_worker_img2img.py",
             include_str!("../../python/test_hf_worker_img2img.py"),
         );
+    }
+
+    /// Inpainting (an inpainting checkpoint and a text-to-image one), a LoRA for one request and
+    /// Swin2SR super-resolution, on tiny random models: `python/test_hf_worker_inpaint.py`, with
+    /// `HS_PYHF_PYTHON` as above (the LoRA part needs PEFT in that environment).
+    #[test]
+    fn inpaint_lora_and_super_resolution() {
+        run_worker_script(
+            "test_hf_worker_inpaint.py",
+            include_str!("../../python/test_hf_worker_inpaint.py"),
+        );
+    }
+
+    /// Swin2SR folders are `image-super-resolution` whatever their card says (the Hub tags them
+    /// `image-to-image` like the diffusers editors); the Hub verdict is made from the config.
+    #[test]
+    fn super_resolution_is_its_own_task() {
+        let swin = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["Swin2SRForImageSuperResolution"],"model_type":"swin2sr","upscale":2}"#,
+            ),
+            ("model.safetensors", "x"),
+            (
+                "README.md",
+                "---
+pipeline_tag: image-to-image
+---
+",
+            ),
+        ]);
+        assert_eq!(
+            detect(swin.path()).as_deref(),
+            Some("image-super-resolution")
+        );
+        assert_eq!(kind_of("image-super-resolution"), ModelKind::Pipeline);
+        assert!(is_super_resolution(
+            &serde_json::json!({"architectures": ["Swin2SRForImageSuperResolution"]})
+        ));
+        assert!(is_super_resolution(
+            &serde_json::json!({"model_type": "swin2sr"})
+        ));
+        assert!(!is_super_resolution(
+            &serde_json::json!({"architectures": ["ViTModel"], "model_type": "vit"})
+        ));
+        assert!(TASKS.contains(&"image-super-resolution"));
     }
 
     /// The worker's chat helpers (request checking, message conversion, tool-call parsing, stop

@@ -244,6 +244,10 @@ fn typed_routes(model: &str) -> Vec<(&'static str, Value)> {
             json!({"model": model, "image": "data:image/png;base64,AQID"}),
         ),
         ("/v1/moderations", json!({"model": model, "input": "hello"})),
+        (
+            "/v1/images/upscale",
+            json!({"model": model, "image": "data:image/png;base64,AQID"}),
+        ),
     ]
 }
 

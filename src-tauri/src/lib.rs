@@ -540,6 +540,7 @@ pub fn run() {
             save_chat_template,
             read_model_chat_template,
             pick_chat_template_file,
+            pick_lora_file,
             get_definition_refs,
             get_definition_form,
             get_dashboard_definition,

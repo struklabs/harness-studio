@@ -101,7 +101,7 @@ A profile is a named record of a model and a set of run settings (port included)
 
 ## Using the Logs
 
-**Server Logs** at the lower right of the Dashboard shows loading steps and error lines live. Use search and filters to find a problem, and turn off **Auto-scroll** to read lines at your own pace. **Export** opens the **Export log** window; use **Save...** to save the output for support. Review the content before you share it. To see which port a running server actually uses, read it from the address shown in the app.
+**Server Logs** at the lower right of the Dashboard shows loading steps and error lines live. Use search and filters to find a problem, and turn off **Auto-Scroll** to read lines at your own pace. **Export** opens the **Export log** window; use **Save...** to save the output for support. Review the content before you share it. To see which port a running server actually uses, read it from the address shown in the app.
 
 For advanced settings and limits, see the [Features reference](../../en/FEATURES.md) and the [security model](../../en/SECURITY_MODEL.md).
 

@@ -388,6 +388,24 @@ pub(crate) async fn read_model_chat_template(path: String) -> Result<Option<Stri
         .await?
 }
 
+/// Opens a file dialog for a LoRA adapter (`.safetensors`) of the Image tab; `None` when cancelled.
+#[tauri::command]
+pub(crate) async fn pick_lora_file(
+    app: tauri::AppHandle,
+    label: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    blocking(move || {
+        app.dialog()
+            .file()
+            .add_filter(label, &["safetensors"])
+            .blocking_pick_file()
+            .and_then(|p| p.into_path().ok())
+            .map(|p| p.to_string_lossy().to_string())
+    })
+    .await
+}
+
 /// Opens a file dialog for a Jinja chat template; `None` when cancelled.
 #[tauri::command]
 pub(crate) async fn pick_chat_template_file(
