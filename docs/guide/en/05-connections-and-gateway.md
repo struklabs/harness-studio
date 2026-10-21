@@ -207,9 +207,17 @@ Python `document-question-answering` pipeline supplies one. VLMs use chat and su
 both routes with a configured projector. Python DQA accepts one image per question.
 A Python OCR model and a DQA model can be selected separately for the two calls.
 
-PDFs are extracted using the local per-page text extractor. There is no PDF rasterizer:
-scanned pages without a text layer return HTTP 400 with instructions to supply images.
-PDF OCR returns text without inference; PDF QA sends extracted text to the chosen VLM.
+PDF pages with a text layer are extracted locally, page by page, without inference.
+Pages without one (scans) are rendered to PNG at 150 dpi by the Python engine's
+rasterizer (the `python-hf` environment must be installed; otherwise the call returns
+HTTP 503 with `rasterizer_unavailable` and an install hint) and read by the chosen model;
+their `source` is `vlm` or `pipeline`, the others stay `pdf_text`. Pages keep their PDF
+page numbers. For QA with a VLM, text-layer pages are sent as text and scanned pages as
+images. At most 16 PDF pages are accepted per request (`HARNESS_OCR_MAX_PAGES`, up to
+1000, and `HARNESS_OCR_DPI`, 72 to 300, change the limits); a rendered page may be
+12 MiB and all rendered pages together 20 MiB. A Python DQA pipeline still takes one
+page image per question, not a PDF.
+
 Invalid inputs or task mismatches return 400, decoded uploads over 20 MiB return 413,
 token policy denials return 403, and inference limits return 429. OpenAPI definitions
 for these gateway-listener routes are included in `sdk/openapi.json`.

@@ -20853,6 +20853,15 @@
             ],
             "format": "int64"
           },
+          "ocr_pages": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "Pages of a PDF whose text came from the knowledge base OCR model (1-based, ascending);\nempty when the text layer was used throughout."
+          },
           "created_at": {
             "type": "integer",
             "format": "int64"

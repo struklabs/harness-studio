@@ -286,6 +286,7 @@ pub(crate) async fn rag_add_files(
                 document_id: doc.id.clone(),
                 source: Some(p),
                 embed: embed.clone(),
+                ocr: None,
             },
             flag,
         );
@@ -343,6 +344,7 @@ pub(crate) async fn rag_reindex(
                 document_id: d.id.clone(),
                 source: None,
                 embed: embed.clone(),
+                ocr: None,
             },
             flag,
         );

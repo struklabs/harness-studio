@@ -1,5 +1,6 @@
 //! Typed document routes. Images go to chat or the existing HF pipeline; PDFs use the
-//! local text extractor. No URL fetching or native PDF rasterizer is involved.
+//! local text extractor for pages with a text layer and the Python engine's rasterizer for scanned
+//! pages (`harness_core::rag::ocr`). No URL fetching is involved.
 use axum::body::to_bytes;
 use axum::http::{header, HeaderMap, HeaderValue};
 use axum::response::{IntoResponse, Response};
@@ -9,6 +10,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::{errors::GatewayError, Api, GwState};
+use harness_core::rag::ocr::{self, Limits};
 use harness_core::token_policy::GatewayEndpoint;
 
 pub const MAX_DOCUMENT_BYTES: usize = 20 * 1024 * 1024;
@@ -150,23 +152,91 @@ pub fn shape(answer: &Value, qa: bool, python: bool) -> Result<Value, GatewayErr
     }
 }
 
-fn extract_pdf(bytes: &[u8]) -> Result<harness_core::rag::extract::Extracted, GatewayError> {
-    let extract = || -> Result<_, String> {
-        let mut file = tempfile::Builder::new()
-            .suffix(".pdf")
-            .tempfile()
-            .map_err(|e| e.to_string())?;
-        std::io::Write::write_all(&mut file, bytes).map_err(|e| e.to_string())?;
-        harness_core::rag::extract::extract_file(file.path())
+/// Decoded pages of a PDF: the text layers and the page images of the scanned pages.
+#[derive(Debug)]
+struct PdfParts {
+    /// `(page number, text)` of the pages with a text layer.
+    text: Vec<(usize, String)>,
+    /// `(page number, PNG data URL)` of the pages that need OCR.
+    images: Vec<(usize, String)>,
+}
+
+/// The gateway's answer to an error of the shared OCR code (keyed core strings). The key goes
+/// to `details.error_key` so the Harness window shows it in its own language.
+fn core_error(e: &str) -> GatewayError {
+    let keyed = |status, code: &str, message: String| {
+        GatewayError::new(status, code, message)
+            .param("document")
+            .details(json!({"error_key": e}))
     };
-    let pages = extract().map_err(|e| invalid(format!("PDF text extraction failed: {e}. Scanned PDFs need page images; no rasterizer is installed."), "document"))?;
-    if pages.pages.len() > MAX_PAGES {
-        return Err(invalid("PDF exceeds 16 pages", "document"));
+    if e.starts_with("ocr.rasterizer_unavailable") {
+        keyed(503, "rasterizer_unavailable", "This PDF has pages without a text layer. Turning them into images needs the Python engine; install it in Settings > Runtime, then try again.".into())
+    } else if e.starts_with("ocr.page_too_large") {
+        keyed(
+            413,
+            "invalid_request",
+            format!("A rendered page is too large: {e}"),
+        )
+    } else {
+        keyed(500, "gateway_error", e.to_string())
     }
-    if pages.pages.iter().any(|p| p.text.trim().is_empty()) {
-        return Err(invalid("A PDF page has no text layer. Supply page images for OCR; PDF rasterization is unavailable.", "document"));
+}
+
+/// Reads a PDF: pages with a text layer are used as text, the others are rendered for OCR
+/// (`harness_core::rag::ocr`). Blocking: it starts the PDF and rasterizer child processes.
+fn prepare_pdf(bytes: &[u8], limits: &Limits) -> Result<PdfParts, GatewayError> {
+    let mut file = tempfile::Builder::new()
+        .suffix(".pdf")
+        .tempfile()
+        .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?;
+    std::io::Write::write_all(&mut file, bytes)
+        .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?;
+    let doc = harness_core::rag::extract::extract_file_raw(file.path())
+        .map_err(|e| invalid(format!("PDF text extraction failed: {e}"), "document"))?;
+    if doc.pages.len() > limits.max_pages {
+        return Err(invalid(
+            format!("PDF exceeds {} pages", limits.max_pages),
+            "document",
+        ));
     }
-    Ok(pages)
+    let plan = ocr::plan_pages(&doc.pages);
+    let wanted = ocr::ocr_page_numbers(&plan);
+    let rendered = ocr::rasterize(file.path(), &wanted, limits).map_err(|e| core_error(&e))?;
+    let total: usize = rendered.iter().map(|p| p.png.len()).sum();
+    if total > MAX_DOCUMENT_BYTES {
+        return Err(GatewayError::new(
+            413,
+            "invalid_request",
+            "The rendered pages exceed 20 MiB; lower HARNESS_OCR_DPI or send fewer pages",
+        ));
+    }
+    let text = doc
+        .pages
+        .iter()
+        .zip(&plan)
+        .enumerate()
+        .filter(|(_, (_, source))| **source == ocr::PageSource::TextLayer)
+        .map(|(i, (p, _))| (i + 1, p.text.clone()))
+        .collect();
+    let images = rendered
+        .into_iter()
+        .map(|p| {
+            (
+                p.number as usize,
+                format!("data:image/png;base64,{}", STANDARD.encode(p.png)),
+            )
+        })
+        .collect();
+    Ok(PdfParts { text, images })
+}
+
+/// `[Page N]` blocks of PDF pages, the shape of `Extracted::full_text`.
+fn paged_text(pages: &[(usize, String)]) -> String {
+    pages
+        .iter()
+        .map(|(n, t)| format!("[Page {n}]\n{}", t.trim_end()))
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 pub async fn handle(state: GwState, qa: bool, headers: HeaderMap, body: Bytes) -> Response {
@@ -239,37 +309,51 @@ async fn run(
         }
     }
     let endpoint = if qa { "/v1/document/qa" } else { "/v1/ocr" };
-    let mut extracted = None;
+    // Pages to send to the model, each with its page number in the document.
+    let mut text_pages: Vec<(usize, String)> = Vec::new();
+    let mut images: Vec<(usize, String)> = supplied
+        .iter()
+        .enumerate()
+        .filter(|(_, d)| !d.starts_with("data:application/pdf"))
+        .map(|(i, d)| (i + 1, (*d).clone()))
+        .collect();
+    let from_pdf = pdf.is_some();
     if let Some(bytes) = pdf {
-        // The existing extractor isolates release-build parser crashes in a child process.
+        // The existing extractor isolates release-build parser crashes in a child process;
+        // pages without a text layer are rendered by the Python engine's rasterizer.
         let _permit = if qa { None } else { caller.admit(&state)? };
-        let pages = tokio::task::spawn_blocking(move || extract_pdf(&bytes))
+        let parts = tokio::task::spawn_blocking(move || prepare_pdf(&bytes, &Limits::from_env()))
             .await
             .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))??;
-        if !qa {
-            return Ok(axum::Json(json!({"model":def.alias, "pages":pages.pages.iter().enumerate().map(|(i,p)| page(i+1, &p.text, "pdf_text")).collect::<Vec<_>>(), "markdown":pages.full_text()})).into_response());
+        if !qa && parts.images.is_empty() {
+            let pages = parts
+                .text
+                .iter()
+                .map(|(n, t)| page(*n, t, "pdf_text"))
+                .collect::<Vec<_>>();
+            return Ok(axum::Json(
+                json!({"model":def.alias, "pages":pages, "markdown":paged_text(&parts.text)}),
+            )
+            .into_response());
         }
-        if python_task.is_some() {
+        if qa && python_task.is_some() {
             return Err(invalid(
                 "PDF questions require a VLM; supply a page image for the DQA pipeline",
                 "document",
             ));
         }
-        extracted = Some(pages.full_text());
+        text_pages = parts.text;
+        images = parts.images;
     }
-    if qa && python_task.is_some() && supplied.len() != 1 {
+    if qa && python_task.is_some() && images.len() != 1 {
         return Err(invalid(
             "The DQA pipeline accepts one page image per question",
             "pages",
         ));
     }
-    let images = if extracted.is_some() {
-        vec![]
-    } else {
-        supplied.into_iter().cloned().collect::<Vec<_>>()
-    };
+    let extracted = (qa && from_pdf && !text_pages.is_empty()).then(|| paged_text(&text_pages));
     // OCR transcribes each image independently to retain page boundaries; QA sees all pages.
-    let batches = if qa {
+    let batches: Vec<Vec<(usize, String)>> = if qa {
         vec![images]
     } else {
         images.into_iter().map(|i| vec![i]).collect()
@@ -278,10 +362,11 @@ async fn run(
     let mut response_parts = None;
     for batch in batches {
         let python = python_task.is_some();
+        let urls = batch.iter().map(|(_, u)| u.clone()).collect::<Vec<_>>();
         let payload = if python {
-            json!({"model":r.model, "inputs":if qa { json!({"image":batch[0], "question":r.question}) } else { json!(batch[0]) }})
+            json!({"model":r.model, "inputs":if qa { json!({"image":urls[0], "question":r.question}) } else { json!(urls[0]) }})
         } else {
-            chat_body(&r, &batch, extracted.as_deref())
+            chat_body(&r, &urls, extracted.as_deref())
         };
         let upstream = crate::proxy::handle_routed(
             state.clone(),
@@ -302,7 +387,7 @@ async fn run(
             .map_err(|e| GatewayError::new(502, "upstream_error", e.to_string()))?;
         let mut shaped = shape(&value, qa, python)?;
         if !qa {
-            shaped["page"] = json!(out.len() + 1);
+            shaped["page"] = json!(batch[0].0);
         }
         out.push(shaped);
         response_parts = Some(parts);
@@ -312,11 +397,26 @@ async fn run(
         v["model"] = json!(def.alias);
         v
     } else {
-        let markdown = out
-            .iter()
-            .filter_map(|p| p["markdown"].as_str())
-            .collect::<Vec<_>>()
-            .join("\n\n");
+        // Text-layer pages and recognized pages of a mixed PDF, in page order.
+        out.extend(text_pages.iter().map(|(n, t)| page(*n, t, "pdf_text")));
+        out.sort_by_key(|p| p["page"].as_u64());
+        let markdown = if from_pdf {
+            let pages = out
+                .iter()
+                .map(|p| {
+                    (
+                        p["page"].as_u64().unwrap_or(0) as usize,
+                        p["markdown"].as_str().unwrap_or_default().to_string(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            paged_text(&pages)
+        } else {
+            out.iter()
+                .filter_map(|p| p["markdown"].as_str())
+                .collect::<Vec<_>>()
+                .join("\n\n")
+        };
         json!({"model":def.alias, "markdown":markdown, "pages":out})
     };
     let mut parts = response_parts.expect("at least one page validated");
@@ -334,14 +434,21 @@ async fn run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn limits() -> Limits {
+        Limits::parse(None, None, MAX_PAGES)
+    }
     #[test]
     fn pdf_text_preserves_pages_and_malformed_pdf_is_rejected() {
         let pdf = include_bytes!("../../harness-core/tests/data/rag/state-db-schema.pdf");
-        let doc = extract_pdf(pdf).unwrap();
-        assert!(!doc.pages.is_empty());
-        assert_eq!(doc.pages[0].number, Some(1));
-        assert!(!doc.pages[0].text.trim().is_empty());
-        assert_eq!(extract_pdf(b"%PDF-invalid").unwrap_err().status, 400);
+        let doc = prepare_pdf(pdf, &limits()).unwrap();
+        assert!(!doc.text.is_empty());
+        assert_eq!(doc.text[0].0, 1);
+        assert!(!doc.text[0].1.trim().is_empty());
+        assert!(doc.images.is_empty());
+        assert_eq!(
+            prepare_pdf(b"%PDF-invalid", &limits()).unwrap_err().status,
+            400
+        );
     }
     // A minimal PDF keeps blank/mixed/page-limit cases independent of external tools.
     fn pdf_fixture(texts: &[&str]) -> Vec<u8> {
@@ -383,17 +490,29 @@ mod tests {
         pdf.into_bytes()
     }
     #[test]
-    fn scanned_mixed_and_oversized_pdfs_require_images_or_fewer_pages() {
-        for texts in [
-            vec![""],
-            vec!["Total 42", ""],
-            vec!["Total 42"; MAX_PAGES + 1],
-        ] {
-            assert_eq!(extract_pdf(&pdf_fixture(&texts)).unwrap_err().status, 400);
+    fn scanned_mixed_and_oversized_pdfs() {
+        // Too many pages: refused before anything is rendered.
+        let e = prepare_pdf(&pdf_fixture(&vec!["Total 42"; MAX_PAGES + 1]), &limits()).unwrap_err();
+        assert_eq!(e.status, 400);
+        // Pages without a text layer need the rasterizer; the test data folder has no Python
+        // engine, so the error says so (and offers the install) instead of falling back.
+        for texts in [vec![""], vec!["Total 42", ""]] {
+            let e = prepare_pdf(&pdf_fixture(&texts), &limits()).unwrap_err();
+            assert_eq!(e.status, 503);
+            assert_eq!(e.code, "rasterizer_unavailable");
+            assert!(e.message.contains("Python engine"));
         }
-        let doc = extract_pdf(&pdf_fixture(&["FIRST", "SECOND"])).unwrap();
-        assert!(doc.pages[0].text.contains("FIRST"));
-        assert!(doc.pages[1].text.contains("SECOND"));
+        let doc = prepare_pdf(&pdf_fixture(&["FIRST", "SECOND"]), &limits()).unwrap();
+        assert_eq!(doc.text.len(), 2);
+        assert!(doc.text[0].1.contains("FIRST") && doc.text[1].1.contains("SECOND"));
+        assert_eq!(
+            paged_text(&doc.text),
+            format!(
+                "[Page 1]\n{}\n\n[Page 2]\n{}",
+                doc.text[0].1.trim_end(),
+                doc.text[1].1.trim_end()
+            )
+        );
     }
     #[test]
     fn validates_documents_and_limits() {

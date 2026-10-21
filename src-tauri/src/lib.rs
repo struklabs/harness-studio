@@ -754,6 +754,7 @@ pub fn run() {
             // Knowledge bases
             kb_list,
             kb_create,
+            kb_set_ocr_model,
             kb_rename,
             kb_delete,
             kb_documents,

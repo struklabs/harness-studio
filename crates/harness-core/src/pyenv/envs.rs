@@ -45,7 +45,8 @@ pub struct EnvSpec {
 }
 
 /// The CPU build of the `python-hf` engine: PyTorch (CPU wheels; plain PyPI wheels on macOS,
-/// which use Metal through MPS), transformers, diffusers, sentence-transformers, timm and the
+/// which use Metal through MPS), transformers, diffusers, sentence-transformers, timm, pypdfium2
+/// (PDF pages to images for OCR; Apache-2.0, pdfium inside the wheel) and the
 /// worker's HTTP server. `python/hf-cpu.in` lists the direct requirements; the lock is
 /// `uv pip compile --universal --python-version 3.12 --generate-hashes --emit-index-url
 /// --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
@@ -53,8 +54,8 @@ pub struct EnvSpec {
 pub const HF_CPU: EnvSpec = EnvSpec {
     name: "hf-cpu",
     lock: include_str!("../../python/hf-cpu.lock"),
-    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper",
-    estimated_size_bytes: 1_500 * 1024 * 1024,
+    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper, pypdfium2",
+    estimated_size_bytes: 1_504 * 1024 * 1024,
     min_macos: None,
     gpu_build_of: None,
 };
@@ -73,7 +74,7 @@ pub const HF_CUDA: EnvSpec = EnvSpec {
     lock: include_str!("../../python/hf-cuda-windows.lock"),
     #[cfg(target_os = "linux")]
     lock: include_str!("../../python/hf-cuda-linux.lock"),
-    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper; assert torch.version.cuda, 'not a CUDA build of torch'",
+    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper, pypdfium2; assert torch.version.cuda, 'not a CUDA build of torch'",
     #[cfg(windows)]
     estimated_size_bytes: 3_050 * 1024 * 1024,
     #[cfg(target_os = "linux")]

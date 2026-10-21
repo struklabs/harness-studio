@@ -19,6 +19,8 @@ pub struct KnowledgeBaseRow {
     pub embed_model: Option<String>,
     /// Vector size of the index.
     pub embed_dims: Option<i64>,
+    /// OCR model (alias) that reads the PDF pages without a text layer; `None` = no OCR.
+    pub ocr_model: Option<String>,
     /// Total milliseconds spent indexing this base.
     pub index_ms: i64,
     pub indexed_at: Option<i64>,
@@ -27,7 +29,7 @@ pub struct KnowledgeBaseRow {
 }
 
 const KB_COLS: &str =
-    "id, name, folder, embed_model, embed_dims, index_ms, indexed_at, created_at, updated_at";
+    "id, name, folder, embed_model, embed_dims, index_ms, indexed_at, created_at, updated_at, ocr_model";
 
 fn kb_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<KnowledgeBaseRow> {
     Ok(KnowledgeBaseRow {
@@ -40,6 +42,7 @@ fn kb_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<KnowledgeBaseRow> {
         indexed_at: r.get(6)?,
         created_at: r.get(7)?,
         updated_at: r.get(8)?,
+        ocr_model: r.get(9)?,
     })
 }
 
@@ -88,6 +91,23 @@ impl StateDb {
             let _ = self.delete_conversation(&conv.id);
         }
         made
+    }
+
+    /// Sets the OCR model of the base (`None` or an empty alias = no OCR).
+    pub fn kb_set_ocr_model(&self, id: &str, alias: Option<&str>) -> StateResult<KnowledgeBaseRow> {
+        let alias = alias.map(str::trim).filter(|a| !a.is_empty());
+        self.write(|tx| {
+            let n = tx.execute(
+                "UPDATE rag_kbs SET ocr_model = ?2, updated_at = ?3 WHERE id = ?1",
+                params![id, alias, now_ms()],
+            )?;
+            if n == 0 {
+                return Err(StateError::not_found(
+                    err("rag.kb_not_found").with("id", id),
+                ));
+            }
+            get_kb(tx, id)
+        })
     }
 
     pub fn kb_get(&self, id: &str) -> StateResult<KnowledgeBaseRow> {
@@ -209,7 +229,7 @@ impl StateDb {
         self.read(|c| {
             let mut st = c.prepare(
                 "SELECT k.id, k.name, k.folder, k.embed_model, k.embed_dims, k.index_ms,
-                        k.indexed_at, k.created_at, k.updated_at
+                        k.indexed_at, k.created_at, k.updated_at, k.ocr_model
                  FROM rag_conversation_kbs a JOIN rag_kbs k ON k.id = a.kb_id
                  WHERE a.conversation_id = ?1 ORDER BY a.created_at, k.rowid",
             )?;

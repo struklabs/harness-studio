@@ -1,7 +1,7 @@
 //! Ordered SQL migrations for `state.db`. Migration `i` (0-based) upgrades the schema
 //! from `user_version = i` to `i + 1`. Never edit a released migration; append a new one.
 
-pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9];
+pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10];
 
 const V1: &str = r#"
 CREATE TABLE folders (
@@ -309,4 +309,11 @@ CREATE TABLE project_outputs (
     UNIQUE (project_id, path)
 );
 CREATE INDEX project_outputs_project ON project_outputs(project_id, created_at);
+"#;
+
+const V10: &str = r#"
+-- OCR for scanned PDFs: the knowledge base's OCR model (alias; NULL = none) and the pages of a
+-- document that were recognized with it (comma separated page numbers; NULL = none).
+ALTER TABLE rag_kbs ADD COLUMN ocr_model TEXT;
+ALTER TABLE rag_documents ADD COLUMN ocr_pages TEXT;
 "#;

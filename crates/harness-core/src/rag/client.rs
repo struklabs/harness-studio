@@ -104,6 +104,23 @@ pub(crate) fn parse_embeddings(v: &Value, expected: usize) -> Option<Vec<Vec<f32
         .then(|| rows.into_iter().map(|(_, v)| v).collect())
 }
 
+/// Text of one page image (PNG) through the gateway's `/v1/ocr` by model alias: the same
+/// route and the same transcription prompt as the Read Document panel.
+pub async fn ocr(ep: &Endpoint, model: &str, png: &[u8]) -> Result<String, String> {
+    use base64::Engine;
+    let page = format!(
+        "data:image/png;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(png)
+    );
+    let v = post(ep, "ocr", json!({ "model": model, "pages": [page] })).await?;
+    v["markdown"].as_str().map(str::to_string).ok_or_else(|| {
+        err("rag.request_failed")
+            .with("endpoint", "ocr")
+            .with("error", "no text in the answer")
+            .into()
+    })
+}
+
 /// Rerank scores of `documents` for `query`, as `(index, score)` best first.
 pub async fn rerank(
     ep: &Endpoint,

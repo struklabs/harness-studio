@@ -33,6 +33,23 @@ pub(crate) async fn kb_create(
     .await?
 }
 
+/// Sets the OCR model of a knowledge base (an alias of the library; `None` = no OCR). It reads
+/// the PDF pages without a text layer the next time the base is indexed.
+#[tauri::command]
+pub(crate) async fn kb_set_ocr_model(
+    store: State<'_, ConversationStore>,
+    kb_id: String,
+    ocr_model: Option<String>,
+) -> Result<harness_core::rag::kb::KnowledgeBase, String> {
+    let db = store.0.clone()?;
+    blocking(move || -> Result<_, String> {
+        db.kb_set_ocr_model(&kb_id, ocr_model.as_deref())
+            .map_err(String::from)?;
+        harness_core::rag::kb::get(&db, &kb_id, None)
+    })
+    .await?
+}
+
 #[tauri::command]
 pub(crate) async fn kb_rename(
     store: State<'_, ConversationStore>,
@@ -105,7 +122,7 @@ pub(crate) async fn kb_index(
     if harness_core::rag::kb::kb_jobs().is_running(&kb_id) {
         return Err(harness_core::error_key::err("rag.kb_busy").into());
     }
-    let (files, root) = {
+    let (files, root, ocr_alias) = {
         let db = db.clone();
         let kb_id = kb_id.clone();
         blocking(move || -> Result<_, String> {
@@ -121,9 +138,19 @@ pub(crate) async fn kb_index(
                 root = Some(f);
             }
             files.extend(paths.unwrap_or_default().into_iter().map(PathBuf::from));
-            Ok((files, root))
+            Ok((files, root, kb.ocr_model.clone()))
         })
         .await??
+    };
+    // The base's OCR model reads the PDF pages without a text layer (`rag::ocr`).
+    let ocr = match ocr_alias.as_deref().filter(|a| !a.is_empty()) {
+        Some(alias) => Some(harness_core::rag::ocr::OcrModel::gateway(
+            rag_endpoint(&gw)
+                .await
+                .ok_or_else(|| String::from(harness_core::error_key::err("rag.gateway_required")))?,
+            alias.to_string(),
+        )),
+        None => None,
     };
     let flag = harness_core::rag::kb::kb_jobs().register(&kb_id);
     tauri::async_runtime::spawn(async move {
@@ -135,6 +162,7 @@ pub(crate) async fn kb_index(
                 files,
                 root,
                 embed,
+                ocr,
                 rebuild,
             },
             flag,
