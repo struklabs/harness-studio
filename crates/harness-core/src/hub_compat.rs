@@ -903,6 +903,16 @@ pub fn python_hf_compatibility(
     if !crate::engine::python_hf::TASKS.contains(&task) {
         return None;
     }
+    // A transformers `image-to-image` repo is runnable only as a super-resolution model (Swin2SR:
+    // `/v1/images/upscale`); the diffusers editors are `ModelFormat::Diffusers` above.
+    if task == "image-to-image"
+        && !config.map_or_else(
+            || tags.iter().any(|t| t.eq_ignore_ascii_case("swin2sr")),
+            crate::engine::python_hf::is_super_resolution,
+        )
+    {
+        return None;
+    }
     if crate::engine::python_hf::CHAT_TASKS.contains(&task)
         && (format != ModelFormat::Safetensors
             || config.is_some_and(|c| c.get("quantization_config").is_some()))
@@ -1201,6 +1211,52 @@ mod tests {
             verdict(Some("diffusers"), Some("text-to-image"), &[], &tiny[1..]),
             None
         );
+    }
+
+    /// Swin2SR repos (Hub task `image-to-image`, library transformers) are the Python engine's
+    /// super-resolution models; any other transformers `image-to-image` repo is not offered, and
+    /// a diffusers inpainting pipeline is an image-to-image pipeline like the editors.
+    #[test]
+    fn python_hf_takes_super_resolution_repos() {
+        let python = Some(Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.into(),
+        });
+        let files = s(&[
+            "config.json",
+            "model.safetensors",
+            "preprocessor_config.json",
+        ]);
+        let verdict = |tags: &[&str], files: &[String], config: Option<&serde_json::Value>| {
+            python_hf_compatibility(
+                ModelFormat::Safetensors,
+                Some("transformers"),
+                Some("image-to-image"),
+                &s(tags),
+                files,
+                config,
+            )
+        };
+        let swin = serde_json::json!({
+            "architectures": ["Swin2SRForImageSuperResolution"], "model_type": "swin2sr"
+        });
+        assert_eq!(verdict(&[], &files, Some(&swin)), python);
+        // A listing without a config is taken by its tags.
+        assert_eq!(verdict(&["swin2sr"], &[], None), python);
+        assert_eq!(verdict(&[], &[], None), None);
+        let other = serde_json::json!({"architectures": ["SomeImageToImage"], "model_type": "x"});
+        assert_eq!(verdict(&[], &files, Some(&other)), None);
+        let inpaint = python_hf_compatibility(
+            ModelFormat::Diffusers,
+            Some("diffusers"),
+            Some("image-to-image"),
+            &[],
+            &s(&[
+                "model_index.json",
+                "unet/diffusion_pytorch_model.safetensors",
+            ]),
+            None,
+        );
+        assert_eq!(inpaint, python);
     }
 
     #[test]

@@ -764,7 +764,11 @@ fn operation(endpoint: &str) -> &'static str {
         "/v1/embeddings" | "/api/embed" | "/api/embeddings" => "embeddings",
         "/v1/rerank" => "rerank",
         "/v1/moderations" => "moderation",
-        "/v1/classifications" | "/v1/entities" | "/v1/zero-shot" | "/v1/detections" => "pipeline",
+        "/v1/classifications"
+        | "/v1/entities"
+        | "/v1/zero-shot"
+        | "/v1/detections"
+        | "/v1/images/upscale" => "pipeline",
         "/v1/completions" | "/api/generate" => "text_completion",
         "/v1/messages/count_tokens" => "count_tokens",
         _ => "chat",

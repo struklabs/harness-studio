@@ -54,8 +54,8 @@ pub enum GatewayEndpoint {
     /// `GET /metrics` (Prometheus).
     Metrics,
     /// `/v1/hf/{model}`: Hugging Face pipeline tasks (classification, NER, QA...), and their
-    /// typed routes: `/v1/classifications`, `/v1/entities`, `/v1/zero-shot`, `/v1/detections`
-    /// and `/v1/moderations`.
+    /// typed routes: `/v1/classifications`, `/v1/entities`, `/v1/zero-shot`, `/v1/detections`,
+    /// `/v1/moderations` and `/v1/images/upscale`.
     Pipelines,
     /// `/v1/videos` and `/v1/videos/{id}[/content]` (video generation jobs).
     Videos,
@@ -125,7 +125,8 @@ impl GatewayEndpoint {
             | "/v1/detections"
             | "/v1/moderations"
             | "/v1/ocr"
-            | "/v1/document/qa" => Self::Pipelines,
+            | "/v1/document/qa"
+            | "/v1/images/upscale" => Self::Pipelines,
             _ if p == "/v1/hf" || p.starts_with("/v1/hf/") => Self::Pipelines,
             _ => return None,
         })
@@ -319,6 +320,7 @@ mod tests {
             "/v1/moderations/",
             "/v1/ocr",
             "/v1/document/qa",
+            "/v1/images/upscale",
         ] {
             assert_eq!(GatewayEndpoint::of_path(typed), Some(Pipelines), "{typed}");
         }

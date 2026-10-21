@@ -1,5 +1,6 @@
 //! Task routes over the pipeline models (`/v1/hf`): `/v1/classifications`, `/v1/entities`,
-//! `/v1/zero-shot`, `/v1/detections` and the OpenAI-shaped `/v1/moderations`.
+//! `/v1/zero-shot`, `/v1/detections`, the OpenAI-shaped `/v1/moderations` and
+//! `/v1/images/upscale` (super-resolution; the answer is an image in the shape of the images routes).
 //!
 //! Each route is a typed view of the same upstream call as `/v1/hf/{model}` (`harness-onnx` or
 //! the Python engine, `POST /hf`): the request becomes a Hugging Face Inference API body, runs
@@ -19,8 +20,8 @@ use crate::{Api, GwState};
 /// Texts of one classification, entity or moderation request (the engines' own limit).
 pub const MAX_TEXTS: usize = 256;
 
-/// Largest upstream answer reshaped here (these answers are label lists, never files).
-const MAX_ANSWER: usize = 16 << 20;
+/// Largest upstream answer reshaped here (label lists, and the one image of an upscale).
+const MAX_ANSWER: usize = 64 << 20;
 
 /// Default score from which a moderation category counts as flagged.
 pub const DEFAULT_THRESHOLD: f64 = 0.5;
@@ -38,6 +39,8 @@ pub enum Task {
     Detect,
     /// `/v1/moderations`: OpenAI-shaped moderation by a text-classification model.
     Moderate,
+    /// `/v1/images/upscale`: an image enlarged by a super-resolution model (Swin2SR).
+    Upscale,
 }
 
 impl Task {
@@ -48,6 +51,7 @@ impl Task {
             Task::ZeroShot => "/v1/zero-shot",
             Task::Detect => "/v1/detections",
             Task::Moderate => "/v1/moderations",
+            Task::Upscale => "/v1/images/upscale",
         }
     }
 }
@@ -60,9 +64,13 @@ impl Task {
             Task::Entities => "token-classification",
             Task::ZeroShot => "zero-shot-classification",
             Task::Detect => "object-detection",
+            Task::Upscale => "image-super-resolution",
         }
     }
 }
+
+/// Largest image (as sent, before base64) an upscale request takes.
+pub const MAX_UPSCALE_IMAGE_BYTES: usize = 20 * 1024 * 1024;
 
 fn invalid(message: impl Into<String>, param: &str) -> GatewayError {
     GatewayError::new(400, "invalid_request", message).param(param)
@@ -137,6 +145,7 @@ fn python_tasks(task: Task) -> &'static [&'static str] {
         Task::Entities => &["token-classification"],
         Task::ZeroShot => &["zero-shot-classification"],
         Task::Detect => &["object-detection"],
+        Task::Upscale => &["image-super-resolution"],
     }
 }
 
@@ -181,6 +190,8 @@ pub struct Request {
     /// Texts sent (one per input).
     pub inputs: usize,
     pub threshold: f64,
+    /// `response_format: "url"` (a data URL instead of `b64_json`), upscale only.
+    pub as_url: bool,
 }
 
 /// The `/hf` body of a route's request, and what the answer needs of it.
@@ -234,6 +245,40 @@ pub fn request(task: Task, body: &[u8]) -> Result<(Bytes, Request), GatewayError
                     .filter(|t| (0.0..=1.0).contains(t))
                     .ok_or_else(|| invalid("`threshold` must be between 0 and 1", "threshold"))?;
                 params.insert("threshold".into(), json!(t));
+            }
+            (Value::String(image.to_string()), 1)
+        }
+        Task::Upscale => {
+            let image = obj
+                .get("image")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| {
+                    invalid("`image` is required: a data URL or base64 image", "image")
+                })?;
+            if image.starts_with("http://") || image.starts_with("https://") {
+                return Err(invalid(
+                    "`image` must be a data URL or base64 text: the gateway does not fetch URLs",
+                    "image",
+                ));
+            }
+            if image.len() > MAX_UPSCALE_IMAGE_BYTES.div_ceil(3) * 4 + 64 {
+                return Err(GatewayError::new(
+                    413,
+                    "invalid_request",
+                    "`image` is larger than 20 MiB; make it smaller first",
+                )
+                .param("image"));
+            }
+            if let Some(scale) = obj.get("scale").filter(|t| !t.is_null()) {
+                let scale = scale
+                    .as_u64()
+                    .filter(|s| (1..=8).contains(s))
+                    .ok_or_else(|| {
+                        invalid("`scale` must be a whole number from 1 to 8", "scale")
+                    })?;
+                params.insert("scale".into(), json!(scale));
             }
             (Value::String(image.to_string()), 1)
         }
@@ -324,6 +369,16 @@ pub fn request(task: Task, body: &[u8]) -> Result<(Bytes, Request), GatewayError
             .ok_or_else(|| invalid("`threshold` must be between 0 and 1", "threshold"))?,
         _ => DEFAULT_THRESHOLD,
     };
+    let as_url = match obj.get("response_format").and_then(Value::as_str) {
+        None | Some("b64_json") => false,
+        Some("url") if task == Task::Upscale => true,
+        Some(other) => {
+            return Err(invalid(
+                format!("`response_format` {other} is not supported; use b64_json or url"),
+                "response_format",
+            ))
+        }
+    };
     let mut hf = Map::new();
     hf.insert("model".into(), json!(model));
     hf.insert("inputs".into(), inputs);
@@ -338,6 +393,7 @@ pub fn request(task: Task, body: &[u8]) -> Result<(Bytes, Request), GatewayError
             model,
             inputs: count,
             threshold,
+            as_url,
         },
     ))
 }
@@ -489,6 +545,29 @@ pub fn shape(task: Task, request: &Request, model: &str, answer: &Value) -> Resu
                 })
                 .collect::<Result<Vec<_>, String>>()?;
             Ok(json!({"object": "list", "model": model, "data": data}))
+        }
+        Task::Upscale => {
+            let image = answer
+                .get("image")
+                .and_then(Value::as_str)
+                .filter(|i| !i.is_empty())
+                .ok_or("expected an image")?;
+            let dim = |k: &str| answer.get(k).and_then(Value::as_u64);
+            let item = if request.as_url {
+                json!({"url": format!("data:image/png;base64,{image}")})
+            } else {
+                json!({"b64_json": image})
+            };
+            Ok(json!({
+                "created": std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_or(0, |d| d.as_secs()),
+                "model": model,
+                "data": [item],
+                "width": dim("width"),
+                "height": dim("height"),
+                "scale": dim("scale"),
+            }))
         }
         Task::Moderate => {
             let rows = label_rows(answer, request.inputs)?;
@@ -678,6 +757,7 @@ mod tests {
             model: "m".into(),
             inputs: 1,
             threshold: 0.5,
+            as_url: false,
         };
         let nested = json!([[{"label": "NEG", "score": 0.1}, {"label": "POS", "score": 0.9}]]);
         let flat = json!([{"label": "NEG", "score": 0.1}, {"label": "POS", "score": 0.9}]);
@@ -706,6 +786,7 @@ mod tests {
             model: "m".into(),
             inputs: 1,
             threshold: 0.5,
+            as_url: false,
         };
         let ner =
             json!([{"entity_group": "PER", "word": "Ada", "score": 0.99, "start": 0, "end": 3}]);
@@ -771,6 +852,7 @@ mod tests {
             model: "m".into(),
             inputs: 1,
             threshold: 0.5,
+            as_url: false,
         };
         let labels = json!([[{"label": "POS", "score": 0.9}]]);
         let entities =
@@ -788,6 +870,7 @@ mod tests {
             model: "tox".into(),
             inputs: 2,
             threshold: 0.5,
+            as_url: false,
         };
         let answer = json!([
             [{"label": "toxic", "score": 0.9}, {"label": "non-toxic", "score": 0.1}],
@@ -801,6 +884,66 @@ mod tests {
     }
 
     #[test]
+    fn an_upscale_request_becomes_an_hf_body_and_its_answer_an_image_list() {
+        let (hf, req) = request(
+            Task::Upscale,
+            br#"{"model": "swin", "image": "data:image/png;base64,AQID", "scale": 2,
+                "response_format": "url"}"#,
+        )
+        .unwrap();
+        let v: Value = serde_json::from_slice(&hf).unwrap();
+        assert_eq!(v["model"], "swin");
+        assert_eq!(v["inputs"], "data:image/png;base64,AQID");
+        assert_eq!(v["parameters"], json!({"scale": 2}));
+        assert!(req.as_url);
+        let answer = json!({"image": "QUJD", "width": 40, "height": 24, "scale": 2});
+        let out = shape(Task::Upscale, &req, "alias", &answer).unwrap();
+        assert_eq!(out["data"][0]["url"], "data:image/png;base64,QUJD");
+        assert_eq!(
+            (
+                out["width"].as_u64(),
+                out["height"].as_u64(),
+                out["scale"].as_u64()
+            ),
+            (Some(40), Some(24), Some(2))
+        );
+        assert_eq!(out["model"], "alias");
+        let (_, plain) = request(Task::Upscale, br#"{"model": "m", "image": "AQID"}"#).unwrap();
+        assert!(!plain.as_url);
+        let out = shape(Task::Upscale, &plain, "m", &answer).unwrap();
+        assert_eq!(out["data"][0]["b64_json"], "QUJD");
+        // Another task's answer is not an image.
+        assert!(shape(Task::Upscale, &plain, "m", &json!([{"label": "x"}])).is_err());
+        let err = |body: Value| {
+            let e = request(Task::Upscale, body.to_string().as_bytes()).unwrap_err();
+            (e.status, e.param)
+        };
+        assert_eq!(err(json!({"model": "m"})), (400, Some("image".into())));
+        assert_eq!(
+            err(json!({"model": "m", "image": "http://example.com/a.png"})),
+            (400, Some("image".into()))
+        );
+        assert_eq!(
+            err(json!({"model": "m", "image": "AQID", "scale": 9})),
+            (400, Some("scale".into()))
+        );
+        assert_eq!(
+            err(json!({"model": "m", "image": "AQID", "response_format": "xml"})),
+            (400, Some("response_format".into()))
+        );
+        // Only the upscale route answers a data URL; the other typed routes know b64_json only.
+        assert_eq!(
+            err(json!({"model": "m", "input": "x", "response_format": "url"})).0,
+            400
+        );
+        let huge = "A".repeat(MAX_UPSCALE_IMAGE_BYTES * 2);
+        assert_eq!(
+            err(json!({"model": "m", "image": huge})),
+            (413, Some("image".into()))
+        );
+    }
+
+    #[test]
     fn python_tasks_are_tasks_of_the_worker() {
         for task in [
             Task::Classify,
@@ -808,6 +951,7 @@ mod tests {
             Task::ZeroShot,
             Task::Detect,
             Task::Moderate,
+            Task::Upscale,
         ] {
             assert!(python_tasks(task).contains(&task.model_task()));
             for t in python_tasks(task) {
@@ -824,6 +968,7 @@ mod tests {
             Task::ZeroShot,
             Task::Detect,
             Task::Moderate,
+            Task::Upscale,
         ] {
             assert_eq!(
                 harness_core::token_policy::GatewayEndpoint::of_path(task.endpoint()),
