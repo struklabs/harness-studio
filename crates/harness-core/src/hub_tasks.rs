@@ -41,6 +41,12 @@ pub const INFERABLE: &[&str] = &[
 /// `pipeline_tag` says.
 pub const DECISION_TASK: &str = "decision-model";
 
+/// The Hub's "voice conversion" task (speech in, the same speech in another voice out). Like
+/// [`DECISION_TASK`] it is a Hugging Face tag (`voice-conversion`), not a `pipeline_tag` (those
+/// repos say `audio-to-audio`). No Harness engine converts a voice yet, so the row is unsupported
+/// whatever runtime is installed; text-to-speech with a reference voice is the cloning route.
+pub const VOICE_CONVERSION_TASK: &str = "voice-conversion";
+
 /// A repo tagged as a decision model ([`DECISION_TASK`]).
 pub fn is_decision_repo(tags: &[String]) -> bool {
     tags.iter().any(|t| t.eq_ignore_ascii_case(DECISION_TASK))
@@ -85,6 +91,7 @@ pub const KNOWN_TASKS: &[&str] = &[
     "image-feature-extraction",
     "zero-shot-object-detection",
     DECISION_TASK,
+    VOICE_CONVERSION_TASK,
 ];
 
 /// Lower-case alphanumeric words of a repo name (`Qwen3-VL-8B_Instruct` -> qwen3, vl, 8b, ...).
@@ -1047,6 +1054,8 @@ const TABLE: &[Row] = &[
     // Native decision models on llama-server's /v1/systemone (the gateway also answers
     // /v1/decisions with them).
     row(DECISION_TASK, Yes, None),
+    // Speech-to-speech voice conversion (RVC, OpenVoice...): no engine runs it here.
+    row(VOICE_CONVERSION_TASK, No, None),
 ];
 
 /// One task's support on the installed runtime.
@@ -1594,6 +1603,28 @@ mod tests {
         assert_eq!(ids, KNOWN_TASKS);
         for t in INFERABLE {
             assert!(KNOWN_TASKS.contains(t));
+        }
+    }
+
+    #[test]
+    fn voice_conversion_is_unsupported_whatever_is_installed() {
+        let everything: Vec<String> = [
+            crate::engine::AUDIO_CPP,
+            crate::engine::PYTHON_HF,
+            crate::engine::CRISPASR,
+            SHERPA_FAMILY,
+            WHISPER_FAMILY,
+        ]
+        .iter()
+        .map(|f| f.to_string())
+        .collect();
+        for installed in [Vec::new(), everything] {
+            let row = task_support(None, &[], &installed)
+                .into_iter()
+                .find(|r| r.task == VOICE_CONVERSION_TASK)
+                .unwrap();
+            assert_eq!(row.support, No);
+            assert!(row.runtime.is_none() && row.needs_runtime.is_none());
         }
     }
 

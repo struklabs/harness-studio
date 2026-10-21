@@ -104,10 +104,22 @@ pub fn ffmpeg_path() -> Option<PathBuf> {
 
 /// Converts any audio ffmpeg reads to 16 kHz mono 16-bit WAV (what whisper works on).
 pub async fn to_wav(input: Vec<u8>) -> Result<Vec<u8>, String> {
+    to_wav_with(input, 16_000, None).await
+}
+
+/// [`to_wav`] at `rate` Hz, decoding at most `max_secs` seconds of the input when given (a
+/// longer input is cut there, so a caller can reject it by the result's duration).
+pub async fn to_wav_with(
+    input: Vec<u8>,
+    rate: u32,
+    max_secs: Option<u32>,
+) -> Result<Vec<u8>, String> {
     use tokio::io::AsyncWriteExt;
     let ffmpeg = ffmpeg_path().ok_or_else(|| String::from(err("audio.ffmpeg_missing")))?;
     let mut cmd = tokio::process::Command::new(ffmpeg);
-    cmd.args([
+    let rate = rate.to_string();
+    let limit = max_secs.map(|s| s.to_string());
+    let mut args = vec![
         "-hide_banner",
         "-loglevel",
         "error",
@@ -116,19 +128,21 @@ pub async fn to_wav(input: Vec<u8>) -> Result<Vec<u8>, String> {
         "pipe:0",
         "-vn",
         "-ar",
-        "16000",
+        rate.as_str(),
         "-ac",
         "1",
         "-c:a",
         "pcm_s16le",
-        "-f",
-        "wav",
-        "pipe:1",
-    ])
-    .stdin(std::process::Stdio::piped())
-    .stdout(std::process::Stdio::piped())
-    .stderr(std::process::Stdio::piped())
-    .kill_on_drop(true);
+    ];
+    if let Some(limit) = &limit {
+        args.extend(["-t", limit.as_str()]);
+    }
+    args.extend(["-f", "wav", "pipe:1"]);
+    cmd.args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000);
     crate::orphans::protect(cmd.as_std_mut());

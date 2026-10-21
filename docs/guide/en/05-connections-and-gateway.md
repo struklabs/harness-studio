@@ -17,6 +17,21 @@ The big advantage of the gateway is one fixed address: even if you change the mo
 
 For a model loaded with an audio projector, `/v1/chat/completions` accepts OpenAI `input_audio` message parts (`{"type": "input_audio", "input_audio": {"data": "<base64>", "format": "wav"}}`, WAV or MP3), streamed or not. To make the answer speech, send its text to `/v1/audio/speech` with an installed text-to-speech model.
 
+Voice cloning on `/v1/audio/speech`: a model with voice cloning (Pocket TTS with the cloning encoder) takes a reference recording in the request body, as JSON or as multipart form data, together with the speaker's consent:
+
+```json
+{
+  "model": "pocket-tts",
+  "input": "Hello there.",
+  "voice_ref": {"type": "base64", "data": "<base64 of a wav, mp3, flac or ogg file>"},
+  "voice_ref_text": "What the sample says (optional)",
+  "voice_consent": true
+}
+```
+
+In a multipart request send the recording as the `voice_ref` file and the other fields as form fields (`voice_consent=true`). `voice_consent: true` is required with any `voice_ref`, for every model that reads one (this includes audio.cpp models); without it the request fails with `400`. The recording comes only from the request: a `type` other than `base64`, or a field that names a server path (`path`, `ref_audio` and similar), is a `400`. The sample may be at most 30 seconds (and at least 1 second) and 10 MiB; mp3, flac and ogg need ffmpeg. It is used for the request and not stored. Models that cannot clone refuse `voice_ref` with a clear `400`. The model list marks capable models with `voice_cloning`.
+
+
 ### Turn the Gateway on
 
 1. Check that a [model definition exists in My Models](02-model-hub-and-library.md#my-models-and-model-definitions); the name your client uses is the definition's alias.

@@ -2,6 +2,7 @@
 // sherpa-onnx run behind it; nothing is simulated) and the shapes of the Tauri commands.
 import { describeErrorBody } from './sse';
 import { truncationOf, type Truncation } from './speechHeaders';
+import { cloneFields, type VoiceRef } from './voiceClone';
 
 export { truncationOf, type Truncation };
 
@@ -20,6 +21,8 @@ export interface TtsModelInfo {
   languages: string[];
   engine?: string;
   supports_speed?: boolean;
+  /** It can speak in a voice cloned from a reference recording. */
+  voice_cloning?: boolean;
   runtime_installed?: boolean;
   quantization: string;
   sample_rate: number | null;
@@ -105,6 +108,8 @@ export interface SpeechRequest {
   input: string;
   voice: string;
   speed: number;
+  /** Reference recording to clone (the caller ticked the consent box before building this). */
+  clone?: VoiceRef;
 }
 
 /** POST {baseUrl}/audio/speech; answers a WAV (the one format that needs no ffmpeg). */
@@ -117,7 +122,8 @@ export async function fetchSpeech(
   const body: Record<string, unknown> = { input: req.input, response_format: 'wav' };
   if (req.speed !== 1) body.speed = req.speed;
   if (req.model) body.model = req.model;
-  if (req.voice) body.voice = req.voice;
+  if (req.clone) Object.assign(body, cloneFields(req.clone));
+  else if (req.voice) body.voice = req.voice;
   const started = performance.now();
   const res = await fetch(`${baseUrl}/audio/speech`, {
     method: 'POST',

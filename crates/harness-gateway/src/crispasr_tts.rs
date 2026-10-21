@@ -1,4 +1,5 @@
-//! Closed speech surface: preset voices only; no cloning, paths, or worker control fields.
+//! Closed speech surface: preset voices, or one cloned voice the gateway itself placed in the
+//! engine's voice folder for this request; never a client path or a worker control field.
 use crate::errors::GatewayError;
 use harness_core::domain::ModelDefinition;
 use serde_json::{json, Value};
@@ -12,6 +13,18 @@ pub fn body(
     method: &str,
     path: &str,
     bytes: &[u8],
+) -> Result<Value, GatewayError> {
+    body_with(def, method, path, bytes, None)
+}
+
+/// [`body`] for a request that speaks in a cloned voice: `clone` is the name of the temporary
+/// voice file the gateway wrote for it ([`crate::voice_clone::TempVoice`]).
+pub fn body_with(
+    def: &ModelDefinition,
+    method: &str,
+    path: &str,
+    bytes: &[u8],
+    clone: Option<&str>,
 ) -> Result<Value, GatewayError> {
     if method != "POST" || path != "/v1/audio/speech" {
         return Err(bad("CrispASR TTS only accepts POST /v1/audio/speech"));
@@ -40,11 +53,15 @@ pub fn body(
             .to_string()));
         }
     }
-    let mut out = rebuild(
+    if clone.is_some() && !harness_core::engine::crispasr_tts::supports_cloning(model) {
+        return Err(bad("This model cannot clone a voice"));
+    }
+    let mut out = rebuild_with(
         &def.alias,
         &voices,
         harness_core::engine::crispasr_tts::backend(model) == Some("kokoro"),
         bytes,
+        clone,
     )?;
     // v0.8.43 advertises the loaded model path as its model id. This path comes solely
     // from the saved definition, never from the request; only this final object is sent.
@@ -58,6 +75,16 @@ pub fn rebuild(
     kokoro: bool,
     bytes: &[u8],
 ) -> Result<Value, GatewayError> {
+    rebuild_with(alias, voices, kokoro, bytes, None)
+}
+
+pub fn rebuild_with(
+    alias: &str,
+    voices: &[String],
+    kokoro: bool,
+    bytes: &[u8],
+    clone: Option<&str>,
+) -> Result<Value, GatewayError> {
     if bytes.len() > 32 * 1024 {
         return Err(bad("Speech JSON exceeds 32 KiB"));
     }
@@ -70,9 +97,7 @@ pub fn rebuild(
         .keys()
         .any(|k| !["model", "input", "voice", "response_format", "speed"].contains(&k.as_str()))
     {
-        return Err(bad(
-            "Unknown speech field; voice cloning and consent fields are not supported",
-        ));
+        return Err(bad("Unknown speech field"));
     }
     if let Some(model) = object.get("model") {
         let model = model
@@ -89,7 +114,13 @@ pub fn rebuild(
     if input.trim().is_empty() || input.chars().count() > 4000 || input.contains('\0') {
         return Err(bad("input must contain 1 to 4000 characters"));
     }
+    // A cloned voice replaces the preset: the request names no other voice.
+    let named = value.get("voice").filter(|v| !v.is_null());
+    if clone.is_some() && named.is_some_and(|v| v.as_str() != Some("default")) {
+        return Err(bad("Send either `voice` or `voice_ref`, not both"));
+    }
     let voice = match value.get("voice") {
+        _ if clone.is_some() => clone.unwrap(),
         None => voices
             .first()
             .map(String::as_str)
@@ -98,10 +129,12 @@ pub fn rebuild(
             .as_str()
             .ok_or_else(|| bad("voice must be a preset name; inline audio is not supported"))?,
     };
-    if voice.contains(['/', '\\', ':'])
-        || voice.contains("..")
-        || voice.chars().any(char::is_control)
-        || !voices.iter().any(|v| v == voice)
+    let cloned = clone == Some(voice);
+    if !cloned
+        && (voice.contains(['/', '\\', ':'])
+            || voice.contains("..")
+            || voice.chars().any(char::is_control)
+            || !voices.iter().any(|v| v == voice))
     {
         return Err(bad("voice must be one of this model's verified presets"));
     }
@@ -126,6 +159,9 @@ pub fn rebuild(
     // omitting voice inherits --voice. Pocket resolves its verified bare name in --voice-dir.
     if !kokoro {
         out["voice"] = json!(voice);
+    }
+    if cloned {
+        out["consent_attestation"] = json!(crate::voice_clone::ATTESTATION);
     }
     if speed != 1.0 {
         out["speed"] = json!(speed);

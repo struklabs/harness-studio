@@ -68,6 +68,10 @@ pub struct ModelCaps {
     /// Speech synthesis (a Kokoro or Piper folder run by sherpa-onnx).
     #[serde(default)]
     pub tts: bool,
+    /// Speech synthesis that can speak in a voice cloned from a reference recording (Pocket TTS
+    /// with the cloning encoder); a request needs the speaker's consent (`voice_consent`).
+    #[serde(default)]
+    pub voice_cloning: bool,
     /// What `/props` of a real run of this file reported; `None` until it was loaded once.
     /// Without it `tools` / `reasoning` come from the chat template text.
     #[serde(default)]
@@ -542,6 +546,7 @@ fn caps_of(model: &LocalModel, vision: bool, audio: bool) -> ModelCaps {
         asr: model.kind == ModelKind::Asr,
         image: model.kind == ModelKind::Image,
         tts: model.kind == ModelKind::Tts,
+        voice_cloning: g.is_some() && crate::engine::crispasr_tts::supports_cloning(&model.path),
         verified: None,
     }
 }

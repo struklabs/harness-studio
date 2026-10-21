@@ -1,0 +1,43 @@
+<script lang="ts">
+  // "Clone a Voice": a short voice sample (uploaded or recorded), the permission box and an
+  // optional transcript. Shown only for models that can clone; the sample is sent with the
+  // request and not kept.
+  import { t } from '#lib/i18n.svelte.js';
+  import { Label } from '#lib/components/ui/label/index.js';
+  import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import AudioFilePicker from './AudioFilePicker.svelte';
+  import VoiceConsentCheckbox from '../common/VoiceConsentCheckbox.svelte';
+  import { MAX_SAMPLE_BYTES, MAX_SAMPLE_SECONDS, SAMPLE_RATE } from './voiceClone';
+  import { formatBytes } from '#lib/format.js';
+
+  let { file = $bindable(null), consent = $bindable(false), text = $bindable(''), busy = false }: {
+    file?: File | null; consent?: boolean; text?: string; busy?: boolean;
+  } = $props();
+  let recState = $state<'idle' | 'starting' | 'recording'>('idle');
+  let tooBig = $derived(!!file && file.size > MAX_SAMPLE_BYTES);
+</script>
+
+<section class="flex flex-col gap-3 rounded-md border border-border px-3 py-3" aria-labelledby="tts-clone-title">
+  <div class="flex flex-col gap-0.5">
+    <h4 id="tts-clone-title" class="text-sm font-semibold text-foreground">{t('voice.title')}</h4>
+    <p class="text-xs text-muted-foreground">{t('voice.desc', { seconds: MAX_SAMPLE_SECONDS, size: formatBytes(MAX_SAMPLE_BYTES) })}</p>
+  </div>
+  <div class="flex flex-col gap-1.5">
+    <Label for="tts-clone-file" class="text-sm font-semibold text-foreground">{t('voice.sample_label')}</Label>
+    <AudioFilePicker
+      id="tts-clone-file"
+      label={t('voice.sample_label')}
+      accept=".wav,.mp3,.flac,.ogg,audio/wav,audio/mpeg,audio/flac,audio/ogg"
+      bind:file
+      bind:recState
+      {busy}
+      sampleRate={SAMPLE_RATE}
+    />
+    {#if tooBig}<p class="text-xs text-destructive" role="alert">{t('voice.too_big', { size: formatBytes(MAX_SAMPLE_BYTES) })}</p>{/if}
+  </div>
+  <div class="flex flex-col gap-1.5">
+    <Label for="tts-clone-text" class="text-sm font-semibold text-foreground">{t('voice.text_label')}</Label>
+    <Textarea id="tts-clone-text" bind:value={text} rows={2} maxlength={1000} placeholder={t('voice.text_placeholder')} disabled={busy} />
+  </div>
+  <VoiceConsentCheckbox id="tts-clone-consent" bind:checked={consent} disabled={busy} />
+</section>

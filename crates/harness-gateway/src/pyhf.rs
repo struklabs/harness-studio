@@ -79,6 +79,20 @@ pub async fn post(
     content_type: &str,
     body: Vec<u8>,
 ) -> Result<Answer, GatewayError> {
+    post_with(state, def, guard, path, content_type, body, None).await
+}
+
+/// [`post`] for a CrispASR speech request in a cloned voice: `clone` names the temporary voice
+/// file the gateway wrote for it ([`crate::voice_clone::TempVoice`]).
+pub async fn post_with(
+    state: &GwState,
+    def: &ModelDefinition,
+    guard: &mut RecordGuard,
+    path: &str,
+    content_type: &str,
+    body: Vec<u8>,
+    clone: Option<&str>,
+) -> Result<Answer, GatewayError> {
     GatewayError::reject_remote(def)?;
     let audio_cpp = crate::speech::is_audio_cpp_model(def);
     let crisp_tts = crate::speech::is_crispasr_tts(def);
@@ -90,8 +104,10 @@ pub async fn post(
         engine_name(def)
     };
     let body = if crisp_tts {
-        serde_json::to_vec(&crate::crispasr_tts::body(def, "POST", path, &body)?)
-            .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?
+        serde_json::to_vec(&crate::crispasr_tts::body_with(
+            def, "POST", path, &body, clone,
+        )?)
+        .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))?
     } else if audio_cpp {
         crate::speech::check_audio_cpp_enabled()?;
         serde_json::to_vec(&crate::speech::audio_cpp_body(def, "POST", path, &body)?)

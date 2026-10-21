@@ -76,6 +76,11 @@ pub struct HfModelSearchResult {
     /// registered ([`HfModelSearchResult::resolve_installed`] switches `compatibility`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub python_chat: bool,
+    /// A text-to-speech repo Harness runs with voice cloning (a reference recording and the
+    /// speaker's consent in the request): Pocket TTS's cloning builds. A repo tagged
+    /// `voice-cloning` that no engine runs stays refused with its usual reason.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub voice_cloning: bool,
 }
 
 impl HfModelSearchResult {
@@ -352,6 +357,11 @@ pub fn search_params(options: &HfSearchOptions) -> Vec<(&'static str, String)> {
         Some(crate::hub_tasks::DECISION_TASK) => {
             params.push(("filter", crate::hub_tasks::DECISION_TASK.to_string()))
         }
+        // Voice conversion repos are found by their tag as well.
+        Some(crate::hub_tasks::VOICE_CONVERSION_TASK) => params.push((
+            "filter",
+            crate::hub_tasks::VOICE_CONVERSION_TASK.to_string(),
+        )),
         Some(tag) => params.push(("pipeline_tag", tag.to_string())),
         None => {}
     }
@@ -807,6 +817,13 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
             item.get("config"),
         )
         .is_some();
+    let voice_cloning = task == Some("text-to-speech")
+        && crate::engine::crispasr_tts::repo_clones(&id, &sibling_files(item))
+        && matches!(
+            &compatibility,
+            crate::hub_compat::Compatibility::Runnable { .. }
+                | crate::hub_compat::Compatibility::NeedsRuntime { .. }
+        );
     Some(HfModelSearchResult {
         id,
         author: str_field("author"),
@@ -829,6 +846,7 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         created_at: str_field("createdAt"),
         pickle_weights,
         python_chat,
+        voice_cloning,
     })
 }
 
@@ -9579,6 +9597,36 @@ mod refusal_reason_tests {
         ] {
             assert_eq!(reason(id), Some(NotRunnable::NeedsOwnPackage), "{id}");
         }
+    }
+
+    #[test]
+    fn voice_cloning_is_a_verdict_only_for_repos_an_engine_runs() {
+        // Chatterbox is tagged voice-cloning but needs its own package: refused, no badge.
+        let chatterbox = listed("ResembleAI/chatterbox");
+        assert!(!chatterbox.voice_cloning);
+        assert_eq!(chatterbox.not_runnable, Some(NotRunnable::NeedsOwnPackage));
+        let item = |files: &[&str]| {
+            serde_json::json!({
+                "id": "cstr/pocket-tts-GGUF",
+                "pipeline_tag": "text-to-speech",
+                "library_name": "ggml",
+                "tags": ["gguf", "text-to-speech", "voice-cloning", "pocket-tts", "crispasr"],
+                "gguf": {"architecture": "pocket-tts"},
+                "siblings": files.iter().map(|f| serde_json::json!({"rfilename": f})).collect::<Vec<_>>(),
+            })
+        };
+        let cloning = parse_search_item(&item(&[
+            "pocket-tts-english-q8_0.gguf",
+            "pocket-tts-english-novc-q8_0.gguf",
+        ]))
+        .unwrap();
+        assert!(cloning.voice_cloning, "{:?}", cloning.compatibility);
+        // Decoder-only builds do not clone; other repos with the tag are not marked here.
+        let novc = parse_search_item(&item(&["pocket-tts-english-novc-q8_0.gguf"])).unwrap();
+        assert!(!novc.voice_cloning);
+        let mut other = item(&["pocket-tts-english-q8_0.gguf"]);
+        other["id"] = serde_json::json!("someone/else-GGUF");
+        assert!(!parse_search_item(&other).unwrap().voice_cloning);
     }
 
     #[test]

@@ -272,3 +272,52 @@ async fn http_rejections_never_start_a_worker() {
     );
     gw.stop().await;
 }
+
+#[test]
+fn cloned_voice_is_the_gateways_temp_name_with_an_attestation() {
+    use harness_gateway::crispasr_tts::rebuild_with;
+    let voices = vec!["alba".to_string()];
+    let ok = rebuild_with(
+        "worker",
+        &voices,
+        false,
+        br#"{"input":"Hello","model":"alias"}"#,
+        Some("clone-abc_DEF-1"),
+    )
+    .unwrap();
+    assert_eq!(ok["voice"], "clone-abc_DEF-1");
+    assert!(ok["consent_attestation"]
+        .as_str()
+        .unwrap()
+        .contains("permission"));
+    // A client voice next to a reference is ambiguous; the default is fine.
+    for voice in ["alba", "../x", "/etc/hosts"] {
+        let body = serde_json::to_vec(&json!({"input":"Hello","voice":voice})).unwrap();
+        assert!(rebuild_with("w", &voices, false, &body, Some("clone-x")).is_err());
+    }
+    assert!(rebuild_with(
+        "w",
+        &voices,
+        false,
+        br#"{"input":"Hi","voice":"default"}"#,
+        Some("clone-x")
+    )
+    .is_ok());
+    // A client can never smuggle the attestation or a clone name in without a reference.
+    assert!(rebuild_with(
+        "w",
+        &voices,
+        false,
+        br#"{"input":"Hi","consent_attestation":"x"}"#,
+        None
+    )
+    .is_err());
+    assert!(rebuild_with(
+        "w",
+        &voices,
+        false,
+        br#"{"input":"Hi","voice":"clone-x"}"#,
+        None
+    )
+    .is_err());
+}

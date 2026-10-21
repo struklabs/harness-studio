@@ -18769,6 +18769,10 @@
             "type": "boolean",
             "description": "Speech synthesis (a Kokoro or Piper folder run by sherpa-onnx)."
           },
+          "voice_cloning": {
+            "type": "boolean",
+            "description": "Speech synthesis that can speak in a voice cloned from a reference recording (Pocket TTS\nwith the cloning encoder); a request needs the speaker's consent (`voice_consent`)."
+          },
           "verified": {
             "oneOf": [
               {

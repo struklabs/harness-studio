@@ -108,6 +108,8 @@
    */
   /** A decision model's pipeline_tag (text-classification...) does not say how Harness runs it. */
   let decision = $derived(isDecisionRepo(repo));
+  /** A repo tagged voice-conversion: speech in, another voice out; no engine runs it. */
+  let voiceConversion = $derived((repo.tags ?? []).some((x) => x.toLowerCase() === 'voice-conversion'));
   let task = $derived(taskInfo(decision ? 'decision-model' : (repo.pipeline_tag ?? repo.inferred_task)));
   // A decision repo's task comes from its tag, not from an inference.
   let videoTask = $derived((repo.pipeline_tag ?? repo.inferred_task ?? '').includes('video'));
@@ -243,6 +245,16 @@
     {/if}
     {#if videoTask}
       <span class="text-warning text-xs">{t('vid.memory')}</span>
+    {/if}
+    {#if repo.voice_cloning}
+      <span class="inline-flex items-center gap-1 text-info" title={t('hub.badge_voice_cloning_title')}>
+        <Info class="size-3" />{t('hub.badge_voice_cloning')}
+      </span>
+    {/if}
+    {#if voiceConversion}
+      <span class="inline-flex items-center gap-1 text-muted-foreground" title={t('hub.voice_conversion_reason')}>
+        <Info class="size-3" />{t('hub.voice_conversion_unsupported')}
+      </span>
     {/if}
     {#if repo.pickle_weights}
       <span class="inline-flex items-center gap-1 text-muted-foreground" title={t('hub.pickle_weights_title')}>
