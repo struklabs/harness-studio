@@ -42,6 +42,12 @@ pub enum CoreEvent {
     },
     /// A conversion job was removed from the list.
     ConvertRemoved { id: u64 },
+    /// A training job was created, changed status or progressed.
+    Training {
+        job: Box<crate::training::TrainingJob>,
+    },
+    /// A training job was deleted.
+    TrainingRemoved { id: u64 },
     /// A llama-bench run progressed.
     BenchmarkProgress {
         run_id: String,
@@ -100,6 +106,8 @@ impl CoreEvent {
             CoreEvent::DownloadRemoved { .. } => "download_removed",
             CoreEvent::Convert { .. } => "convert",
             CoreEvent::ConvertRemoved { .. } => "convert_removed",
+            CoreEvent::Training { .. } => "training",
+            CoreEvent::TrainingRemoved { .. } => "training_removed",
             CoreEvent::BenchmarkProgress { .. } => "benchmark_progress",
             CoreEvent::BenchmarkFinished { .. } => "benchmark_finished",
             CoreEvent::ServerFailed { .. } => "server_failed",

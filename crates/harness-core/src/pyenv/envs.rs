@@ -54,8 +54,8 @@ pub struct EnvSpec {
 pub const HF_CPU: EnvSpec = EnvSpec {
     name: "hf-cpu",
     lock: include_str!("../../python/hf-cpu.lock"),
-    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper, pypdfium2",
-    estimated_size_bytes: 1_504 * 1024 * 1024,
+    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper, pypdfium2, peft, trl, datasets",
+    estimated_size_bytes: 1_577 * 1024 * 1024,
     min_macos: None,
     gpu_build_of: None,
 };
@@ -74,7 +74,7 @@ pub const HF_CUDA: EnvSpec = EnvSpec {
     lock: include_str!("../../python/hf-cuda-windows.lock"),
     #[cfg(target_os = "linux")]
     lock: include_str!("../../python/hf-cuda-linux.lock"),
-    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper, pypdfium2; assert torch.version.cuda, 'not a CUDA build of torch'",
+    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper, pypdfium2, peft, trl, datasets; assert torch.version.cuda, 'not a CUDA build of torch'",
     #[cfg(windows)]
     estimated_size_bytes: 3_050 * 1024 * 1024,
     #[cfg(target_os = "linux")]

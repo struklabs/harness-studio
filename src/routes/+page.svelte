@@ -58,7 +58,7 @@
   function takeRestoreTab(): Tab {
     try {
       const tab = localStorage.getItem(RESTORE_TAB_KEY);
-      const tabs: Tab[] = ['modules', 'settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'library', 'hub', 'connections', 'performance', 'analytics', 'settings', 'create', 'projects'];
+      const tabs: Tab[] = ['modules', 'settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'library', 'hub', 'connections', 'performance', 'analytics', 'settings', 'create', 'projects', 'training'];
       if (tabs.includes(tab as Tab)) return tab as Tab;
     } catch {
       // storage unavailable
@@ -121,7 +121,7 @@
     const navigateSections = () => {
       const url = new URL(location.href);
       const screen = url.hash.match(/^#([^/]+)(?:\/|$)/)?.[1] ?? url.searchParams.get('screen') ?? url.searchParams.get('tab');
-      if (['settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'create', 'connections', 'hub', 'projects'].includes(screen ?? '')) currentTab = screen as Tab;
+      if (['settings', 'dashboard', 'playground', 'analytics', 'performance', 'library', 'servers', 'create', 'connections', 'hub', 'projects', 'training'].includes(screen ?? '')) currentTab = screen as Tab;
     };
     navigateSections();
     window.addEventListener('hashchange', navigateSections);
@@ -424,6 +424,8 @@
             <LazyView load={views.connections} fallback {settings} {serverStatus} />
           {:else if currentTab === 'projects'}
             <LazyView load={views.projects} fallback />
+          {:else if currentTab === 'training'}
+            <LazyView load={views.training} fallback />
           {/if}
           {#if libraryOpened}<div class="h-full" hidden={currentTab !== 'library'}><LazyView load={views.library} fallback /></div>{/if}
           {#if analyticsOpened}<div class="h-full" hidden={currentTab !== 'analytics'}><LazyView load={views.analytics} fallback /></div>{/if}

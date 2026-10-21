@@ -78,6 +78,9 @@ pub fn spawn(app: &AppHandle, registry: Arc<ServerRegistry>) {
             if changed.converts {
                 let _ = handle.emit("converts-changed", ());
             }
+            if changed.training {
+                let _ = handle.emit("training-changed", ());
+            }
             if changed.tools {
                 let _ = handle.emit("tools-changed", ());
             }
@@ -110,6 +113,8 @@ struct Changed {
     downloads: bool,
     /// A safetensors to GGUF conversion job changed.
     converts: bool,
+    /// A training job changed.
+    training: bool,
     gateway: bool,
     /// A gateway request finished (the analytics views list them).
     requests: bool,
@@ -125,6 +130,7 @@ impl Changed {
             definitions: true,
             downloads: true,
             converts: true,
+            training: true,
             gateway: true,
             requests: true,
             last_session: true,
@@ -137,6 +143,7 @@ impl Changed {
             || self.definitions
             || self.downloads
             || self.converts
+            || self.training
             || self.gateway
             || self.requests
             || self.last_session
@@ -149,6 +156,7 @@ impl Changed {
             CoreEvent::DefinitionsChanged => self.definitions = true,
             CoreEvent::Download { .. } | CoreEvent::DownloadRemoved { .. } => self.downloads = true,
             CoreEvent::Convert { .. } | CoreEvent::ConvertRemoved { .. } => self.converts = true,
+            CoreEvent::Training { .. } | CoreEvent::TrainingRemoved { .. } => self.training = true,
             CoreEvent::GatewayModel { .. } => self.gateway = true,
             // The record lands in analytics.db only after ENRICH_DELAY: reload then.
             CoreEvent::AnalyticsWritten { .. } => self.requests = true,

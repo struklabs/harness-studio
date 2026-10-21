@@ -21,6 +21,7 @@
     MessageSquarePlus,
     Boxes,
     Rocket,
+    GraduationCap,
   } from '@lucide/svelte';
   import { invoke } from '#lib/ipc.js';
   import { presetName } from '#lib/components/presets/presetText.js';
@@ -66,6 +67,7 @@
     { id: 'playground', key: 'nav.playground', icon: MessageSquare },
     { id: 'projects', key: 'nav.projects', icon: FolderKanban },
     { id: 'connections', key: 'nav.connections', icon: Cable },
+    { id: 'training', key: 'nav.training', icon: GraduationCap },
     { id: 'performance', key: 'nav.performance', icon: Activity },
     { id: 'analytics', key: 'nav.analytics', icon: ChartColumn },
     { id: 'settings', key: 'nav.settings', icon: Settings },

@@ -22,7 +22,7 @@ export function initialPage(groups: { level?: 'advanced'; pages: { id: string; l
   return pages.find(page => page.id === saved)?.id ?? pages[0]?.id ?? saved;
 }
 
-export const advancedTabs = ['servers', 'create', 'performance', 'analytics'] as const;
+export const advancedTabs = ['servers', 'create', 'training', 'performance', 'analytics'] as const;
 export function tabLevel(tab: string): 'advanced' | undefined {
   return advancedTabs.some(id => id === tab) ? 'advanced' : undefined;
 }

@@ -52,6 +52,7 @@
     analytics: 'nav.analytics',
     settings: 'nav.settings',
     create: 'nav.create',
+    training: 'nav.training',
   };
 
   let pageTitle = $derived(t(tabTitleKeys[currentTab] || 'nav.dashboard'));

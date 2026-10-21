@@ -11074,6 +11074,921 @@
         }
       }
     },
+    "/api/harness/v1/training": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "operationId": "list_training_jobs",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrainingJob"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Creates a draft job: the dataset is checked and snapshotted, nothing runs yet.",
+        "operationId": "create_training_job",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/compatibility": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Which tuning methods (LoRA, QLoRA, SFT, DPO, full fine-tuning) this machine can run, and why.",
+        "operationId": "training_compatibility",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Compatibility"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/dataset": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Checks a dataset file: chat (`messages`) or instruction (`instruction`/`output`) rows, the\ntrain/validation split, size and the licence field. Findings are in `issues`.",
+        "operationId": "check_training_dataset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetCheck"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DatasetReport"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/env": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "The Python environment training runs in (the `python-hf` one).",
+        "operationId": "get_training_env",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Builds the training environment (about 1.5 GB on CPU, 3 GB with CUDA). Returns when ready.",
+        "operationId": "install_training_env",
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/preview": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Validates a job request and returns its configuration, dataset report and estimate.",
+        "operationId": "preview_training",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingPreview"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/{id}": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "operationId": "get_training_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Deletes a job that is not running, with its checkpoints. An exported model stays.",
+        "operationId": "delete_training_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/{id}/cancel": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Cancels a job at any point. A running worker saves a checkpoint first.",
+        "operationId": "cancel_training_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/{id}/export": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Merges the LoRA into the base model and writes safetensors into the model library (and a\nGGUF when asked and the conversion environment is installed). Progress is the job's `export`.",
+        "operationId": "export_training_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/{id}/log": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "The tail of the worker's output.",
+        "operationId": "get_training_log",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/{id}/metrics": {
+      "get": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Loss and eval loss of every step (the loss chart).",
+        "operationId": "get_training_metrics",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Metric"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/{id}/resume": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Continues a failed or cancelled job from its last complete checkpoint.",
+        "operationId": "resume_training_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/{id}/start": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Queues a draft job: it waits for the training slot and the GPU scheduler, then runs.",
+        "operationId": "start_training_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/unload": {
       "post": {
         "tags": [
@@ -12761,93 +13676,35 @@
         ]
       },
       "Compatibility": {
-        "oneOf": [
-          {
-            "type": "object",
-            "description": "An installed (or always available) runtime family runs it.",
-            "required": [
-              "runtime",
-              "status"
-            ],
-            "properties": {
-              "runtime": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "runnable"
-                ]
-              }
-            }
+        "type": "object",
+        "required": [
+          "os",
+          "devices",
+          "probed",
+          "methods"
+        ],
+        "properties": {
+          "os": {
+            "type": "string"
           },
-          {
-            "type": "object",
-            "description": "The family that runs it is not installed yet.",
-            "required": [
-              "runtime",
-              "status"
-            ],
-            "properties": {
-              "runtime": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "needs_runtime"
-                ]
-              }
-            }
+          "devices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Devices a job can use here (`cpu`, `cuda`, `mps`)."
           },
-          {
-            "type": "object",
-            "description": "The family that runs it has no build for this OS / architecture (ONNX Runtime on an\nIntel Mac): nothing to install, the model cannot run here.",
-            "required": [
-              "runtime",
-              "os",
-              "arch",
-              "status"
-            ],
-            "properties": {
-              "runtime": {
-                "type": "string"
-              },
-              "os": {
-                "type": "string"
-              },
-              "arch": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "unsupported_platform"
-                ]
-              }
-            }
+          "probed": {
+            "type": "boolean",
+            "description": "The environment answered a probe (else the CUDA and QLoRA lines are inferred)."
           },
-          {
-            "type": "object",
-            "description": "No Harness runtime runs this format.",
-            "required": [
-              "format",
-              "status"
-            ],
-            "properties": {
-              "format": {
-                "$ref": "#/components/schemas/ModelFormat"
-              },
-              "status": {
-                "type": "string",
-                "enum": [
-                  "unsupported"
-                ]
-              }
+          "methods": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MethodSupport"
             }
           }
-        ],
-        "description": "Whether Harness can run a repo."
+        }
       },
       "Component": {
         "type": "object",
@@ -13545,6 +14402,46 @@
           },
           {
             "type": "object",
+            "description": "A training job was created, changed status or progressed.",
+            "required": [
+              "job",
+              "type"
+            ],
+            "properties": {
+              "job": {
+                "$ref": "#/components/schemas/TrainingJob"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "training"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A training job was deleted.",
+            "required": [
+              "id",
+              "type"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "format": "int64",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "training_removed"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
             "description": "A llama-bench run progressed.",
             "required": [
               "run_id",
@@ -13744,6 +14641,102 @@
         ],
         "description": "One state change. Serialized with a `type` tag (`server_status`, `download`, ...)."
       },
+      "CreateRequest": {
+        "type": "object",
+        "description": "Body of a new job; unset values take the defaults below.",
+        "required": [
+          "model",
+          "dataset"
+        ],
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "model": {
+            "type": "string"
+          },
+          "dataset": {
+            "type": "string"
+          },
+          "method": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Method"
+              }
+            ]
+          },
+          "device": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Device"
+              }
+            ]
+          },
+          "steps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "learning_rate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "rank": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "sequence_length": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "validation_fraction": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "checkpoint_steps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "eval_steps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
       "CreateTokenRequest": {
         "allOf": [
           {
@@ -13843,6 +14836,145 @@
           },
           "path": {
             "type": "string"
+          }
+        }
+      },
+      "DatasetCheck": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Path of a `.jsonl` file."
+          },
+          "validation_fraction": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Share of rows held out for validation (default 0.1)."
+          }
+        }
+      },
+      "DatasetFormat": {
+        "type": "string",
+        "enum": [
+          "chat",
+          "instruction"
+        ]
+      },
+      "DatasetIssue": {
+        "type": "object",
+        "description": "One finding: an i18n key (`training.dataset_*`), the line it is about and its values.",
+        "required": [
+          "level",
+          "key",
+          "params"
+        ],
+        "properties": {
+          "level": {
+            "$ref": "#/components/schemas/IssueLevel"
+          },
+          "key": {
+            "type": "string"
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DatasetReport": {
+        "type": "object",
+        "required": [
+          "path",
+          "rows",
+          "train_rows",
+          "val_rows",
+          "bytes",
+          "estimated_tokens",
+          "max_row_tokens",
+          "issues",
+          "ok"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "format": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DatasetFormat"
+              }
+            ]
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "train_rows": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "val_rows": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "estimated_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Rough token count (about four characters per token).",
+            "minimum": 0
+          },
+          "max_row_tokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Longest row, in estimated tokens.",
+            "minimum": 0
+          },
+          "license": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `license` field of the rows, a `<file>.meta.json` next to the file, else `None`."
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetIssue"
+            }
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "No error: the job can use it."
           }
         }
       },
@@ -13964,42 +15096,12 @@
         "additionalProperties": false
       },
       "Device": {
-        "type": "object",
-        "description": "A backend device from `--list-devices`.",
-        "required": [
-          "id",
-          "backend",
-          "name"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "`Vulkan0`, `CUDA1`, ..."
-          },
-          "backend": {
-            "type": "string",
-            "description": "`Vulkan`, `CUDA`, `ROCm`, `Metal`, `SYCL`, ..."
-          },
-          "name": {
-            "type": "string"
-          },
-          "total_mib": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "minimum": 0
-          },
-          "free_mib": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64",
-            "minimum": 0
-          }
-        }
+        "type": "string",
+        "enum": [
+          "cpu",
+          "cuda",
+          "mps"
+        ]
       },
       "DeviceReport": {
         "type": "object",
@@ -14801,34 +15903,39 @@
       },
       "EnvStatus": {
         "type": "object",
-        "description": "What Settings shows.",
+        "description": "What Settings shows for one env.",
         "required": [
+          "name",
           "supported",
           "installed",
           "ready",
           "size_bytes",
           "dir",
-          "estimated_size_bytes"
+          "estimated_size_bytes",
+          "preferred"
         ],
         "properties": {
+          "name": {
+            "type": "string"
+          },
           "supported": {
             "type": "boolean",
-            "description": "This platform can build the environment (uv has a build for it)."
+            "description": "This platform can build it (uv has a build for it, the OS is new enough)."
           },
-          "installed": {
-            "type": "boolean",
-            "description": "A complete environment exists (it may be for another llama.cpp tag)."
-          },
-          "ready": {
-            "type": "boolean",
-            "description": "It matches the managed runtime's tag, so a conversion can start at once."
-          },
-          "runtime_tag": {
+          "refusal": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Tag of the managed llama.cpp runtime (`None` when it is not installed)."
+            "description": "Why it can't (an error key with its values), when it can't."
+          },
+          "installed": {
+            "type": "boolean",
+            "description": "A complete environment exists (it may be from an older lock)."
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "It matches this version's lock, so the engine can start at once."
           },
           "manifest": {
             "oneOf": [
@@ -14851,7 +15958,6 @@
           "estimated_size_bytes": {
             "type": "integer",
             "format": "int64",
-            "description": "Rough size a first build adds.",
             "minimum": 0
           },
           "progress": {
@@ -14864,6 +15970,17 @@
                 "description": "Progress of the build running now."
               }
             ]
+          },
+          "gpu_build_of": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The CPU env this is a GPU build of ([`EnvSpec::gpu_build_of`])."
+          },
+          "preferred": {
+            "type": "boolean",
+            "description": "The one of a CPU / GPU pair to install on this machine ([`preferred`])."
           }
         }
       },
@@ -14897,6 +16014,56 @@
           "params": {
             "type": "object",
             "description": "Values for the message's `{name}` placeholders (`path`, `error`, `detail`, `message`,\n`scope`...). Technical detail (paths, OS error text) is untranslated; a string value may\nitself be a keyed error (`key {\"name\": \"value\"}` or `key: detail`), a nested cause."
+          }
+        }
+      },
+      "Estimate": {
+        "type": "object",
+        "required": [
+          "params",
+          "memory_bytes",
+          "available_bytes",
+          "fits",
+          "seconds",
+          "seconds_per_step",
+          "tokens_per_step"
+        ],
+        "properties": {
+          "params": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Parameters of the base model.",
+            "minimum": 0
+          },
+          "memory_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Memory the run needs on the training device.",
+            "minimum": 0
+          },
+          "available_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Memory free on that device now (RAM for CPU and Apple Silicon, VRAM for CUDA).",
+            "minimum": 0
+          },
+          "fits": {
+            "type": "boolean"
+          },
+          "seconds": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Training time of all steps, in seconds (plus a fixed start-up share).",
+            "minimum": 0
+          },
+          "seconds_per_step": {
+            "type": "number",
+            "format": "double"
+          },
+          "tokens_per_step": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -14968,6 +16135,44 @@
           }
         }
       },
+      "ExportInfo": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ExportStatus"
+          },
+          "dir": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The merged safetensors model folder in the library."
+          },
+          "gguf": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The GGUF file, when one was made."
+          },
+          "warning": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Keyed note that does not fail the export (`training.gguf_unavailable`)."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ExportReport": {
         "type": "object",
         "description": "What `export` wrote. `sha256` is the hash to record in `official_bundles.json`.",
@@ -15002,6 +16207,30 @@
             "type": "string"
           }
         }
+      },
+      "ExportRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Library name of the new model (default: the job's name)."
+          },
+          "gguf": {
+            "type": "boolean",
+            "description": "Also convert to GGUF (needs the conversion environment of Settings)."
+          }
+        }
+      },
+      "ExportStatus": {
+        "type": "string",
+        "enum": [
+          "running",
+          "done",
+          "failed"
+        ]
       },
       "ExportedChunk": {
         "type": "object",
@@ -17156,6 +18385,13 @@
           }
         }
       },
+      "IssueLevel": {
+        "type": "string",
+        "enum": [
+          "error",
+          "warning"
+        ]
+      },
       "JobStatus": {
         "type": "object",
         "required": [
@@ -18329,15 +19565,18 @@
       },
       "Manifest": {
         "type": "object",
-        "description": "`manifest.json` of the environment.",
+        "description": "`envs/<name>/manifest.json`.",
         "required": [
+          "name",
           "uv_version",
           "python",
-          "tag",
-          "requirements_sha256",
+          "lock_sha256",
           "installed_at"
         ],
         "properties": {
+          "name": {
+            "type": "string"
+          },
           "uv_version": {
             "type": "string"
           },
@@ -18345,13 +19584,9 @@
             "type": "string",
             "description": "`Python 3.12.13`."
           },
-          "tag": {
+          "lock_sha256": {
             "type": "string",
-            "description": "llama.cpp tag of the converter source the packages were installed for."
-          },
-          "requirements_sha256": {
-            "type": "string",
-            "description": "SHA-256 over the requirement files of that tag (a different set means a rebuild)."
+            "description": "SHA-256 of the lock the packages were installed from (another lock means a rebuild)."
           },
           "installed_at": {
             "type": "integer",
@@ -18766,6 +20001,72 @@
             "format": "int64"
           },
           "meta": {}
+        }
+      },
+      "Method": {
+        "type": "string",
+        "enum": [
+          "lora",
+          "qlora"
+        ]
+      },
+      "MethodSupport": {
+        "type": "object",
+        "required": [
+          "method",
+          "support",
+          "reason",
+          "params"
+        ],
+        "properties": {
+          "method": {
+            "type": "string",
+            "description": "`lora`, `qlora`, `sft`, `dpo`, `full`."
+          },
+          "support": {
+            "$ref": "#/components/schemas/Support"
+          },
+          "reason": {
+            "type": "string",
+            "description": "i18n key (`training.compat_*`) with its values."
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Metric": {
+        "type": "object",
+        "description": "One point of the loss chart.",
+        "required": [
+          "step"
+        ],
+        "properties": {
+          "step": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "loss": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "eval_loss": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
         }
       },
       "MetricsResponse": {
@@ -24130,8 +25431,8 @@
         "type": "string",
         "enum": [
           "supported",
-          "unsupported",
-          "unknown"
+          "limited",
+          "unsupported"
         ]
       },
       "SystemHardwareInfo": {
@@ -25171,6 +26472,228 @@
           "generated"
         ]
       },
+      "TrainingConfig": {
+        "type": "object",
+        "description": "What the worker trains with (the `config` of `job.json`).",
+        "required": [
+          "name",
+          "model",
+          "dataset",
+          "method",
+          "device",
+          "steps",
+          "learning_rate",
+          "rank",
+          "sequence_length",
+          "validation_fraction",
+          "checkpoint_steps",
+          "eval_steps"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string",
+            "description": "The base model folder (inside a models directory)."
+          },
+          "dataset": {
+            "type": "string",
+            "description": "The dataset file the job was created from (the job trains on its snapshot)."
+          },
+          "method": {
+            "$ref": "#/components/schemas/Method"
+          },
+          "device": {
+            "$ref": "#/components/schemas/Device"
+          },
+          "steps": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "learning_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "sequence_length": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "validation_fraction": {
+            "type": "number",
+            "format": "double"
+          },
+          "checkpoint_steps": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "eval_steps": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "TrainingJob": {
+        "type": "object",
+        "description": "One job as the page shows it.",
+        "required": [
+          "id",
+          "config",
+          "status",
+          "step",
+          "total_steps",
+          "training",
+          "dataset_report",
+          "estimate",
+          "resumed",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "config": {
+            "$ref": "#/components/schemas/TrainingConfig"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TrainingStatus"
+          },
+          "step": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Last step the worker reported.",
+            "minimum": 0
+          },
+          "total_steps": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "loss": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "eval_loss": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "checkpoint_step": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Step of the last complete checkpoint a resume would start from.",
+            "minimum": 0
+          },
+          "training": {
+            "type": "boolean",
+            "description": "The worker is training (not loading the model)."
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Keyed error of a failed job."
+          },
+          "dataset_report": {
+            "$ref": "#/components/schemas/DatasetReport"
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/Estimate"
+          },
+          "export": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExportInfo"
+              }
+            ]
+          },
+          "resumed": {
+            "type": "boolean",
+            "description": "The job was resumed at least once."
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "started_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "finished_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "TrainingPreview": {
+        "type": "object",
+        "description": "What the wizard shows before a job is created: the full configuration (defaults filled in),\nthe dataset report (format, split, size, licence) and the memory and time estimate.",
+        "required": [
+          "config",
+          "dataset",
+          "estimate"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/TrainingConfig"
+          },
+          "dataset": {
+            "$ref": "#/components/schemas/DatasetReport"
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/Estimate"
+          }
+        }
+      },
+      "TrainingStatus": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "queued",
+          "running",
+          "done",
+          "failed",
+          "cancelled"
+        ]
+      },
       "TriggerN8nRequest": {
         "type": "object",
         "required": [
@@ -25783,6 +27306,10 @@
     {
       "name": "conversations",
       "description": "Stored chats: list, read, export, documents, context compaction (scope `conversations`)"
+    },
+    {
+      "name": "training",
+      "description": "Training jobs: LoRA / QLoRA fine-tuning of a library model on a JSONL dataset, with loss history, checkpoints, resume and export to the library (admin to create, run and export)"
     },
     {
       "name": "analytics",

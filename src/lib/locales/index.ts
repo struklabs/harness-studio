@@ -75,6 +75,7 @@ import ocr from './ocr';
 import studios from './studios';
 import lemonade from './lemonade';
 import convert from './convert';
+import training from './training';
 import mistralrs from './mistralrs';
 import pyhf from './pyhf';
 import mlx from './mlx';
@@ -92,7 +93,7 @@ import mobile from './mobile';
 
 import modelCapabilities from './modelCapabilities';
 
-const namespaces = [github, jobs, browser, serverOperations, modelSetup, modelCapabilities, trust, permissions, agents, getStarted, modules, uiLevel, menus, help, create, common, fit, kv, hub, settings, connections, link, perf, onboarding, dashboard, playground, servers, benchmark, importNs, caps, params, security, presets, library, embed, developer, recovery, gateway, harnessMcp, integrations, agentModels, analytics, ollama, responses, loading, runtimes, split, compaction, shell, ui, hfAuth, errors, errorsDownloads, errorsIntegrations, errorsRuntime, errorsStore, rag, knowledge, errorsRag, errorsLink, cloud, errorsCloud, tools, toolDiag, whisper, sdcpp, tts, sherpaAsr, onnx, pipeline, ocr, studios, lemonade, convert, mistralrs, pyhf, mlx, engines, audioCpp, automations, errorsAutomations, uninstall, projects, errorsProjects, setup, comfyui, errorsComfyui, mobile] as const;
+const namespaces = [github, jobs, browser, serverOperations, modelSetup, modelCapabilities, trust, permissions, agents, getStarted, modules, uiLevel, menus, help, create, common, fit, kv, hub, settings, connections, link, perf, onboarding, dashboard, playground, servers, benchmark, importNs, caps, params, security, presets, library, embed, developer, recovery, gateway, harnessMcp, integrations, agentModels, analytics, ollama, responses, loading, runtimes, split, compaction, shell, ui, hfAuth, errors, errorsDownloads, errorsIntegrations, errorsRuntime, errorsStore, rag, knowledge, errorsRag, errorsLink, cloud, errorsCloud, tools, toolDiag, whisper, sdcpp, tts, sherpaAsr, onnx, pipeline, ocr, studios, lemonade, convert, training, mistralrs, pyhf, mlx, engines, audioCpp, automations, errorsAutomations, uninstall, projects, errorsProjects, setup, comfyui, errorsComfyui, mobile] as const;
 
 type UnionToIntersection<U> = (U extends unknown ? (value: U) => void : never) extends (value: infer I) => void ? I : never;
 export type Dictionary = UnionToIntersection<(typeof namespaces)[number]['tr']>;
