@@ -138,3 +138,20 @@ def test_error_without_json_body():
     with pytest.raises(HarnessError) as e:
         unwrap(Response(status_code=HTTPStatus(502), content=b"bad gateway", headers={}, parsed=None))
     assert (e.value.status, e.value.code) == (502, "http.502")
+
+
+def test_values_from_a_newer_server_are_kept():
+    """New enum values and union variants in responses are additive (API stability policy)."""
+    from harness_studio_api.models import ServerView
+    from harness_studio_api.models.kv_reason import check_kv_reason
+    from harness_studio_api.models.server_status_type_0 import check_server_status_type_0
+
+    assert check_kv_reason("too_big") == "too_big"
+    assert check_kv_reason("newer_reason") == "newer_reason"
+    # A union variant this client does not know comes back as received.
+    base = {"id": "a", "name": "A", "is_profile": False}
+    assert ServerView.from_dict({**base, "status": "Running"}).status == "Running"
+    assert ServerView.from_dict({**base, "status": "Paused"}).status == "Paused"
+    # Tags that pick a variant stay strict.
+    with pytest.raises(TypeError):
+        check_server_status_type_0("Running")
