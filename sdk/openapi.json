@@ -5465,6 +5465,15 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "delete_companions",
+            "in": "query",
+            "description": "Also delete its companion files (VAE, text encoders) that no other definition uses.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {

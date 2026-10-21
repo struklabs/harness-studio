@@ -28,6 +28,21 @@ pub(crate) async fn delete_model_definition(id: String) -> Result<(), String> {
     blocking(move || Domain::global().delete_definition(&id)).await?
 }
 
+/// Bytes of the companion files (VAE, text encoders) a definition loads with its model; the
+/// studios add them to the model file for their memory estimate.
+#[tauri::command]
+pub(crate) async fn definition_companion_bytes(id: String) -> Result<u64, String> {
+    blocking(move || {
+        let def = Domain::global().definition(&id)?;
+        Ok(harness_core::engine::sd_component_files(&def.load)
+            .iter()
+            .filter_map(|(_, p)| std::fs::metadata(p).ok())
+            .map(|m| m.len())
+            .sum())
+    })
+    .await?
+}
+
 #[tauri::command]
 pub(crate) async fn duplicate_model_definition(
     id: String,

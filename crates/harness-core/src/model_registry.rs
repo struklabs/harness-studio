@@ -141,6 +141,15 @@ pub fn hub_compatibility(format: ModelFormat, capabilities: &[Capability]) -> Co
     }
 }
 
+/// Adds the capabilities of `task` that `capabilities` lacks.
+fn with_task(capabilities: &mut Vec<Capability>, task: Option<&str>) {
+    for cap in task.map(task_capabilities).unwrap_or(&[]) {
+        if !capabilities.contains(cap) {
+            capabilities.push(*cap);
+        }
+    }
+}
+
 /// Capabilities of a local file from the library's caps (header, template, projector).
 pub fn local_capabilities(caps: &ModelCaps) -> Vec<Capability> {
     [
@@ -306,9 +315,18 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
     }
     if model.kind == ModelKind::Image {
         // The format alone says llama.cpp (a GGUF) or nothing (safetensors): an image model is
-        // stable-diffusion.cpp's whatever its container.
+        // stable-diffusion.cpp's whatever its container. A video architecture (Wan, LTX-Video)
+        // also makes video.
+        let mut capabilities = local_capabilities(caps);
+        if model
+            .architecture
+            .as_deref()
+            .is_some_and(crate::engine::is_video_arch)
+        {
+            with_task(&mut capabilities, Some("text-to-video"));
+        }
         return ModelRecord {
-            capabilities: local_capabilities(caps),
+            capabilities,
             format,
             runtime: Some(hub_compat::SDCPP_FAMILY.to_string()),
             compatibility: Some(Compatibility::Runnable {
@@ -321,9 +339,12 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
         .then(|| crate::engine::mlx::family_of(&model.path))
         .flatten()
     {
-        // An MLX folder: its MLX engine (chat, vision or speech) runs it.
+        // An MLX folder: its MLX engine (chat, vision, speech or mflux's images) runs it, with
+        // the capabilities of its task (an mflux folder has no GGUF caps to read).
+        let mut capabilities = local_capabilities(caps);
+        with_task(&mut capabilities, model.task.as_deref());
         return ModelRecord {
-            capabilities: local_capabilities(caps),
+            capabilities,
             format,
             runtime: Some(family.to_string()),
             compatibility: Some(Compatibility::Runnable {
@@ -791,6 +812,39 @@ mod tests {
             crate::engine::mlx::delete_model_dir(&path, &[dir.path().to_path_buf()]).unwrap();
             assert!(!path.exists(), "{name}");
         }
+    }
+
+    /// An mflux folder (no GGUF caps) generates images; an sd.cpp Wan GGUF also makes video.
+    #[test]
+    fn mflux_folders_and_video_ggufs_carry_their_task_capabilities() {
+        let dir = tempfile::tempdir().unwrap();
+        let model = |arch: &str, kind: ModelKind, task: Option<&str>| {
+            let info = crate::engine::mistralrs::ModelDirInfo {
+                architecture: Some(arch.into()),
+                complete: true,
+                ..Default::default()
+            };
+            let mut m = crate::engine::mistralrs::to_local_model(dir.path(), &info, dir.path());
+            m.kind = kind;
+            m.task = task.map(str::to_string);
+            m
+        };
+        let mut caps = Vec::new();
+        let klein = model("flux2-klein-4b", ModelKind::Pipeline, Some("text-to-image"));
+        with_task(&mut caps, klein.task.as_deref());
+        assert_eq!(caps, vec![Capability::ImageGeneration]);
+
+        let image = ModelCaps {
+            image: true,
+            ..Default::default()
+        };
+        let wan = local_record(&model("wan", ModelKind::Image, None), &image);
+        assert_eq!(
+            wan.capabilities,
+            vec![Capability::ImageGeneration, Capability::Video]
+        );
+        let flux = local_record(&model("flux", ModelKind::Image, None), &image);
+        assert_eq!(flux.capabilities, vec![Capability::ImageGeneration]);
     }
 
     #[test]

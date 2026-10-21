@@ -72,8 +72,9 @@ pub use sd_cpp::{
     component_files as sd_component_files, detect_main_role as sd_detect_main_role,
     footprint_bytes as sd_footprint_bytes, installed_build_has_gpu as sd_installed_build_has_gpu,
     is_image_arch, is_image_gguf, is_image_launch, is_image_path, is_image_safetensors,
-    main_role as sd_main_role, min_vram_need as sd_min_vram_need, vram_need as sd_vram_need,
-    weights_bytes as sd_weights_bytes, MainRole, SdCppEngine, COMPONENTS as SD_COMPONENTS, SD_CPP,
+    is_video_arch, main_role as sd_main_role, min_vram_need as sd_min_vram_need,
+    vram_need as sd_vram_need, weights_bytes as sd_weights_bytes, MainRole, SdCppEngine,
+    COMPONENTS as SD_COMPONENTS, SD_CPP,
 };
 pub use sherpa_onnx::{SherpaOnnxEngine, SHERPA_ONNX, SHERPA_ONNX_REPO};
 pub use transcribe_cpp::{TranscribeCppEngine, TRANSCRIBE_CPP};

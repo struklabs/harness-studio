@@ -323,7 +323,10 @@
       {/if}
       <h3 class="px-2 py-1.5 text-xs font-semibold">{t('setup.local_models')}</h3>
       {#if rows.length === 0}
-        <p class="px-3 py-4 text-xs text-muted-foreground">{t('pgm.empty')}</p>
+        <!-- Definitions exist but the search or this mode leaves none: say that, not "none yet". -->
+        <p class="px-3 py-4 text-xs text-muted-foreground">
+          {t(domain.definitions.length === 0 ? 'pgm.empty' : query.trim() ? 'pgm.empty_query' : 'pgm.empty_mode')}
+        </p>
         {#if domain.definitions.length === 0}<p class="px-3 text-xs text-muted-foreground">{t('setup.first_hint')}</p>{/if}
         <div class="flex flex-wrap gap-2 p-3"><Button size="xs" variant="outline" onclick={() => { open = false; app.requestedTab = 'hub'; }}>{t('setup.discover')}</Button><Button size="xs" variant="outline" onclick={() => { open = false; app.requestedTab = 'library'; }}>{t('setup.library')}</Button></div>
       {/if}

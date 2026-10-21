@@ -74,6 +74,7 @@ pub(crate) async fn get_model_delete_preview(
             &model,
             &domain.definitions()?,
             &domain.profiles()?,
+            &AppSettings::load().all_models_dirs(),
             running,
         ))
     })
@@ -88,8 +89,16 @@ pub(crate) async fn delete_library_model(
     gate: State<'_, Arc<OperationGate>>,
     model_id: String,
     delete_definitions: bool,
+    delete_companions: Option<bool>,
 ) -> Result<ops::DeleteReport, String> {
-    crate::orchestrator::delete_library_model(&registry, &gate, model_id, delete_definitions).await
+    crate::orchestrator::delete_library_model(
+        &registry,
+        &gate,
+        model_id,
+        delete_definitions,
+        delete_companions.unwrap_or(false),
+    )
+    .await
 }
 
 /// Groups of identical-looking models (same size, same first/last MiB).
