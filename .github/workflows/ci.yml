@@ -291,7 +291,8 @@ jobs:
 
   # Harness testing itself (a headless instance with a tiny GGUF, the official registry): weekly
   # and by hand only. Pull requests and pushes skip it (the job result is "skipped", which
-  # ci-ok counts as passed); release.yml runs the same workflow at release time.
+  # ci-ok counts as passed); release.yml runs the same workflow at release time, and
+  # dogfood.yml runs itself on pushes to release/** branches.
   dogfood:
     name: Dogfood
     needs: changes

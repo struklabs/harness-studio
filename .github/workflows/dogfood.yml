@@ -7,11 +7,20 @@ name: Dogfood
 # Not part of pull request CI. It runs
 #   - weekly, from the CI workflow's schedule (ci.yml calls this workflow), and by hand there;
 #   - at release time, from release.yml, next to the installer builds;
+#   - on every push to a release branch (`release/**`), so a release candidate is checked before
+#     it is tagged;
 #   - by hand from this workflow (Actions > Dogfood).
-# One Linux runner, about 10 minutes, no secrets.
+# One Linux runner, about 10 minutes, no secrets. Pull requests and pushes to `main` never run it.
 on:
   workflow_call:
   workflow_dispatch:
+  push:
+    branches: ['release/**']
+
+# A newer push to the same release branch replaces a run that is still going.
+concurrency:
+  group: dogfood-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 permissions:
   contents: read
@@ -26,7 +35,7 @@ jobs:
   dogfood:
     name: Dogfood (harness serve, tiny GGUF)
     runs-on: ubuntu-22.04
-    timeout-minutes: 40
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
