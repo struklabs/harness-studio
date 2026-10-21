@@ -251,6 +251,8 @@ export function navigate(index: number, key: string, count: number, columns: num
 /** Short human size; zero and unknown read as an em dash. */
 export function formatBytes(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return '—';
-  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toFixed(1)} GiB`;
+  // The page's `lang` is the UI language ("1,5 GiB" in Turkish); tests without a page get English.
+  const lang = globalThis.document?.documentElement.lang || 'en';
+  if (n >= 1024 ** 3) return `${(n / 1024 ** 3).toLocaleString(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false })} GiB`;
   return `${Math.max(1, Math.ceil(n / 1024 ** 2))} MiB`;
 }

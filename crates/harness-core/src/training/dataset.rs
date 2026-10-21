@@ -611,9 +611,10 @@ pub fn inspect(path: &Path, validation_fraction: f64) -> DatasetReport {
             &[("count", bad.to_string())],
         ));
     }
+    // Every row is normalized to chat messages for the snapshot, so mixed formats train fine.
     if mixed {
         report.issues.push(issue(
-            IssueLevel::Error,
+            IssueLevel::Warning,
             "training.dataset_mixed_formats",
             None,
             &[],
@@ -640,12 +641,22 @@ pub fn inspect(path: &Path, validation_fraction: f64) -> DatasetReport {
     let (train, val) = split(report.rows, validation_fraction);
     report.train_rows = train;
     report.val_rows = val;
+    // The license names stay as written; how they cover the rows is a (localized) warning.
+    let coverage = match licenses.len() {
+        0 => None,
+        1 if without_license == 0 => None,
+        1 => Some("training.dataset_license_partial"),
+        _ => Some("training.dataset_license_mixed"),
+    };
     report.license = match licenses.len() {
         0 => sidecar_license(path),
-        1 if without_license == 0 => licenses.pop(),
-        1 => licenses.pop().map(|l| format!("{l} (not on every row)")),
-        _ => Some(format!("mixed: {}", licenses.join(", "))),
+        _ => Some(licenses.join(", ")),
     };
+    if let Some(key) = coverage {
+        report
+            .issues
+            .push(issue(IssueLevel::Warning, key, None, &[]));
+    }
     if report.license.is_none() {
         report.issues.push(issue(
             IssueLevel::Warning,
@@ -747,10 +758,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let body = "{\"instruction\":\"a\",\"output\":\"b\"}\n{\"messages\":[{\"role\":\"user\",\"content\":\"x\"},{\"role\":\"assistant\",\"content\":\"y\"}]}\n";
         let p = write(dir.path(), "m.jsonl", body);
-        assert!(inspect(&p, 0.1)
+        let mixed = inspect(&p, 0.1);
+        assert!(mixed
             .issues
             .iter()
-            .any(|i| i.key == "training.dataset_mixed_formats"));
+            .any(|i| i.key == "training.dataset_mixed_formats" && i.level == IssueLevel::Warning));
         let one = write(
             dir.path(),
             "o.jsonl",
@@ -763,6 +775,39 @@ mod tests {
         assert!(!inspect(&dir.path().join("none.jsonl"), 0.1).ok);
         assert_eq!(split(50, 0.1), (45, 5));
         assert_eq!(split(3, 0.0), (2, 1));
+    }
+
+    #[test]
+    fn license_coverage_is_a_keyed_warning() {
+        let dir = tempfile::tempdir().unwrap();
+        let row = |l: &str| {
+            format!(
+                "{{\"prompt\":\"q\",\"completion\":\"a\"{l}}}
+"
+            )
+        };
+        let partial = write(
+            dir.path(),
+            "p.jsonl",
+            &(row(",\"license\":\"mit\"") + &row("")),
+        );
+        let r = inspect(&partial, 0.5);
+        assert_eq!(r.license.as_deref(), Some("mit"));
+        assert!(r
+            .issues
+            .iter()
+            .any(|i| i.key == "training.dataset_license_partial"));
+        let mixed = write(
+            dir.path(),
+            "m.jsonl",
+            &(row(",\"license\":\"mit\"") + &row(",\"license\":\"cc-by-4.0\"")),
+        );
+        let r = inspect(&mixed, 0.5);
+        assert_eq!(r.license.as_deref(), Some("mit, cc-by-4.0"));
+        assert!(r
+            .issues
+            .iter()
+            .any(|i| i.key == "training.dataset_license_mixed"));
     }
 
     fn user_assistant(r: &Row) -> (String, String) {

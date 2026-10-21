@@ -43,6 +43,8 @@ const IDLE: EngineState = { busy: false, pct: null, problem: null, error: null }
 
 class EngineInstaller {
   states = $state<Record<string, EngineState>>({});
+  /** Families whose running install began as an update (the old environment goes away meanwhile). */
+  private updating = $state<Record<string, boolean>>({});
   /** Bumped after each successful install, for views that re-read their data. */
   version = $state(0);
   onnxAvailable = $state(false);
@@ -142,6 +144,14 @@ class EngineInstaller {
     return familyInstalled(family, runtimesStore.list);
   }
 
+  /** A `pyenv` family whose environment exists but was built from an older lock: it needs an update. */
+  outdated(family: string): boolean {
+    if (engineSpec(family)?.method !== 'pyenv') return false;
+    if (this.updating[family]) return true;
+    const env = this.pyEnv(family);
+    return !!env?.installed && !env.ready;
+  }
+
   /** The family exists on this machine (ONNX Runtime and Lemonade are platform-bound). */
   offered(family: string): boolean {
     const spec = engineSpec(family);
@@ -176,7 +186,9 @@ class EngineInstaller {
       toast.error(t('eng.manual', { runtime: family }));
       return false;
     }
+    const update = this.outdated(family);
     this.states[family] = { busy: true, pct: null, problem: null, error: null };
+    this.updating[family] = update;
     try {
       if (spec.method === 'github') {
         if (!(await this.installGithub(family, spec.repo ?? ''))) return false;
@@ -187,15 +199,19 @@ class EngineInstaller {
       } else {
         await this.installLemonade();
       }
+      // Refresh first, so the notice does not flash its old state between busy and installed.
+      // The install itself succeeded, so a failed refresh is not reported as an install failure.
+      await this.refreshAvailability().catch(() => {});
       this.states[family] = IDLE;
-      toast.success(t('eng.installed_ok', { runtime: family }));
-      await this.refreshAvailability();
+      toast.success(t(update ? 'eng.updated_ok' : 'eng.installed_ok', { runtime: family }));
       return true;
     } catch (e) {
       const error = spec.method === 'github' ? runtimeInstallErrorText(e) : localizeError(e);
       this.states[family] = { busy: false, pct: null, problem: 'failed', error };
       toast.error(t('eng.failed', { runtime: family, error }));
       return false;
+    } finally {
+      this.updating[family] = false;
     }
   }
 

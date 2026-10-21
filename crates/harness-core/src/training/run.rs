@@ -333,7 +333,11 @@ async fn run(
             if line == "HS_READY" {
                 ready.store(true, Ordering::SeqCst);
                 ticket.loaded();
-                update(id, |j| j.training = true);
+                update(id, |j| {
+                    j.training = true;
+                    j.training_since = Some(crate::capabilities::now_secs());
+                    j.training_from_step = j.step;
+                });
             } else if let Some(json) = line.strip_prefix("HS_METRIC ") {
                 if let Ok(v) = serde_json::from_str::<Value>(json) {
                     let step = v.get("step").and_then(Value::as_u64).unwrap_or(0) as u32;

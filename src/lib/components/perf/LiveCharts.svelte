@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import type { TelemetryHistoryPoint, TelemetrySnapshot } from '#lib/types.js';
   import { t } from '#lib/i18n.svelte.js';
   import SparkChart from './SparkChart.svelte';
@@ -14,7 +15,7 @@
   let { page = 'speed', history, snapshot }: Props = $props();
 
   let pts = $derived(recent(history));
-  const tps = (v: number) => `${v.toFixed(v < 10 ? 1 : 0)} t/s`;
+  const tps = (v: number) => `${fixed(v, v < 10 ? 1 : 0)} t/s`;
   let totalSlots = $derived(Math.max(1, ...pts.map((p) => p.total_slots), snapshot?.total_slots ?? 0));
   let ctxNote = $derived(
     snapshot?.context_size != null && snapshot.context_used_tokens != null

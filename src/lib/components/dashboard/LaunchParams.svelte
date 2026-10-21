@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { cn } from '#lib/utils.js';
   import type { DeviceReport, RuntimeDeviceLive, SlotAdvice, SystemHardwareInfo } from '#lib/types.js';
@@ -38,7 +39,7 @@
     // An integrated GPU has no VRAM of its own: it borrows system RAM.
     if ((!bytes || bytes <= 0) && integrated) return t('dash.lp_gpu_shared_mem');
     if (!bytes || bytes <= 0) return '0 MB';
-    if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+    if (bytes >= 1024 * 1024 * 1024) return fixed(bytes / (1024 * 1024 * 1024), 1) + ' GB';
     return Math.round(bytes / (1024 * 1024)) + ' MB';
   }
 

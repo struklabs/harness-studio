@@ -1,6 +1,10 @@
 // My Models: tab membership, search, sorting and small formatters (pure; no Tauri calls).
 import type { LibraryEntry, ModelDefinition, ParamInfo } from '#lib/types.js';
 
+// Locale of the UI language (the page's `lang`), so this file stays free of app imports for its tests.
+const uiDecimals = (value: number, digits: number) =>
+  value.toLocaleString(globalThis.document?.documentElement.lang || 'en', { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+
 export type LibraryTab = 'all' | 'llm' | 'embedding' | 'vlm' | 'reranker' | 'asr' | 'tts' | 'image' | 'draft' | 'adapter' | 'mmproj';
 export type LibrarySort = 'name' | 'size' | 'last_used' | 'added';
 
@@ -75,7 +79,7 @@ export function formatParams(p: ParamInfo): string | null {
   if (p.count == null) return p.label ?? null;
   const n = p.count;
   const [v, unit] = n >= 1e12 ? [n / 1e12, 'T'] : n >= 1e9 ? [n / 1e9, 'B'] : n >= 1e6 ? [n / 1e6, 'M'] : [n / 1e3, 'K'];
-  const text = `${v >= 100 ? v.toFixed(0) : v.toFixed(1)}${unit}`;
+  const text = `${uiDecimals(v, v >= 100 ? 0 : 1)}${unit}`;
   return p.estimated ? `≈${text}` : text;
 }
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import GenerationStatus from '#lib/components/create/GenerationStatus.svelte';
   import { collectProgress, emptyProgress } from '../create/generatorProgress';
   let progress = $state(emptyProgress());
@@ -115,7 +116,7 @@
     if (!modelPath) return;
     try {
       const n = await modelParams(modelPath);
-      if (n && n < SMALL_MODEL_PARAMS) smallSize = n >= 1e9 ? `${(n / 1e9).toFixed(1)}B` : `${Math.round(n / 1e6)}M`;
+      if (n && n < SMALL_MODEL_PARAMS) smallSize = n >= 1e9 ? `${fixed(n / 1e9, 1)}B` : `${Math.round(n / 1e6)}M`;
     } catch {
       // no hint without a readable header
     }

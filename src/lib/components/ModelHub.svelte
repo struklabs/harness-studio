@@ -470,7 +470,7 @@
         {#each neededFamilies as family (family)}
           <div class="mb-2 flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-1.5 text-xs text-info" role="status">
             <Info class="mt-1 size-3.5 shrink-0" />
-            <EngineNeeded {family} hintText={t('eng.list_banner', { runtime: family })} class="flex-1" />
+            <EngineNeeded {family} hintText={t(engineInstall.outdated(family) ? 'eng.list_banner_update' : 'eng.list_banner', { runtime: family })} class="flex-1" />
           </div>
         {/each}
         <div

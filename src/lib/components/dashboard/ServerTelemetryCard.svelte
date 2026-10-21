@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   // Live numbers of one running server: speed, prompt speed, slots and KV cache, under a header
   // with its colour, name, model and port.
   import type { ServerSummary, TelemetrySnapshot } from '#lib/types.js';
@@ -59,18 +60,18 @@
         <span class="text-xs text-muted-foreground">{t('dash.tp_gen_speed_label')}</span>
         <div class="flex items-end justify-between gap-2">
           <div class="flex items-baseline gap-1">
-            <span class={cn('font-num leading-none font-semibold', compact ? 'text-xl' : 'text-2xl')}>{genTps.toFixed(1)}</span>
+            <span class={cn('font-num leading-none font-semibold', compact ? 'text-xl' : 'text-2xl')}>{fixed(genTps, 1)}</span>
             <span class="text-xs text-muted-foreground">t/s</span>
           </div>
           <Sparkline values={history} width={84} height={compact ? 22 : 26} color={slotColor(slot)} />
         </div>
-        <span class="font-num text-xs text-muted-foreground">{t('dash.tp_peak', { value: peak.toFixed(1) })}</span>
+        <span class="font-num text-xs text-muted-foreground">{t('dash.tp_peak', { value: fixed(peak, 1) })}</span>
       </div>
 
       <div class="flex flex-col gap-1 bg-card p-3" title={t('dash.tp_prompt_tip')}>
         <span class="text-xs text-muted-foreground">{t('dash.tp_prompt_label')}</span>
         <div class="flex items-baseline gap-1">
-          <span class="font-num text-lg leading-none font-semibold">{promptTps.toFixed(1)}</span>
+          <span class="font-num text-lg leading-none font-semibold">{fixed(promptTps, 1)}</span>
           <span class="text-xs text-muted-foreground">t/s</span>
         </div>
       </div>
@@ -89,7 +90,7 @@
         <span class="text-xs text-muted-foreground">{t('dash.tp_kv_cache_label')}</span>
         <div class="flex items-baseline gap-1">
           <span class="font-num text-lg leading-none font-semibold">
-            {live.kv_cache_available ? (live.kv_cache_usage_ratio * 100).toFixed(0) : '–'}
+            {live.kv_cache_available ? fixed(live.kv_cache_usage_ratio * 100, 0) : '–'}
           </span>
           {#if live.kv_cache_available}<span class="text-xs text-muted-foreground">%</span>{/if}
         </div>
@@ -100,7 +101,7 @@
     {#if live.spec_acceptance_rate != null}
       <div class="flex items-baseline justify-between gap-2 text-xs" title={t('spec.accept_tip')}>
         <span class="text-muted-foreground">{t('spec.accept_label')}</span>
-        <span class="font-num text-foreground">{t('spec.accept_value', { pct: (live.spec_acceptance_rate * 100).toFixed(0) })}</span>
+        <span class="font-num text-foreground">{t('spec.accept_value', { pct: fixed(live.spec_acceptance_rate * 100, 0) })}</span>
       </div>
     {/if}
   {/if}

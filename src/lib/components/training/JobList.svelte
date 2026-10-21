@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import { Play, Square, RotateCcw, PackageOpen, Trash2, Pencil, Copy } from '@lucide/svelte';
-  import { t } from '#lib/i18n.svelte.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
   import { errorText } from '#lib/errors.js';
   import { invoke } from '#lib/ipc.js';
   import { training } from '#lib/stores/training.svelte.js';
@@ -118,11 +119,11 @@
             <Progress value={percent(job)} />
             <div class="flex flex-wrap gap-x-4 text-xs text-muted-foreground">
               <span>{t('training.step_of', { step: job.step, total: job.total_steps })}</span>
-              <span>{t('training.loss')}: {fmtLoss(job.loss)}</span>
-              <span>{t('training.eval_loss')}: {fmtLoss(job.eval_loss)}</span>
+              <span>{t('training.loss')}: {fmtLoss(job.loss, locale())}</span>
+              <span>{t('training.eval_loss')}: {fmtLoss(job.eval_loss, locale())}</span>
               {#if job.status === 'running' && !job.training}<span>{t('training.loading_model')}</span>{/if}
               {#if live}
-                <span>{t('training.live_speed', { sps: live.stepsPerSecond.toFixed(2), tps: Math.round(live.tokensPerSecond).toLocaleString() })}</span>
+                <span>{t('training.live_speed', { sps: fixed(live.stepsPerSecond, 2), tps: Math.round(live.tokensPerSecond).toLocaleString() })}</span>
                 <span>{t('training.live_eta', { time: fmtDuration(live.etaSeconds) })}</span>
               {/if}
             </div>

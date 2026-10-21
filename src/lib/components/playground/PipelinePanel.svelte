@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import Field from '../dashboard/parts/Field.svelte';
   import { t } from '#lib/i18n.svelte.js';
   import { invoke } from '#lib/ipc.js';
@@ -305,7 +306,7 @@
             <li class="flex flex-col gap-1">
               <div class="flex items-center justify-between gap-3 text-xs">
                 <span class="min-w-0 truncate text-foreground">{item.label}</span>
-                <span class="font-num text-muted-foreground">{item.score.toFixed(3)}</span>
+                <span class="font-num text-muted-foreground">{fixed(item.score, 3)}</span>
               </div>
               <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
                 <div class="h-full rounded-full bg-primary" style:width={pct(item.score)}></div>
@@ -330,7 +331,7 @@
                 <tr class="border-t border-border first:border-t-0">
                   <td class="w-24 px-3 py-1.5 font-mono font-semibold text-foreground">{e.entity}</td>
                   <td class="px-3 py-1.5 text-foreground [overflow-wrap:anywhere]">{e.word}</td>
-                  <td class="w-20 px-3 py-1.5 text-right font-num text-muted-foreground">{e.score.toFixed(3)}</td>
+                  <td class="w-20 px-3 py-1.5 text-right font-num text-muted-foreground">{fixed(e.score, 3)}</td>
                 </tr>
               {/each}
             </tbody>
@@ -342,7 +343,7 @@
             <li class="flex flex-col gap-1 rounded-md border border-border px-3 py-2">
               <div class="flex items-center justify-between gap-3 text-xs">
                 <span class="font-mono font-semibold text-foreground">{f.token}</span>
-                <span class="font-num text-muted-foreground">{f.score.toFixed(3)}</span>
+                <span class="font-num text-muted-foreground">{fixed(f.score, 3)}</span>
               </div>
               <span class="text-xs text-muted-foreground [overflow-wrap:anywhere]">{f.sequence}</span>
             </li>
@@ -353,7 +354,7 @@
           {#each res.items as a, i (i)}
             <li class="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm">
               <span class="min-w-0 text-foreground [overflow-wrap:anywhere]"><span class="mr-2 text-xs text-muted-foreground">{t('pl.answer')}</span>{a.answer}</span>
-              <span class="shrink-0 font-num text-xs text-muted-foreground">{t('pl.score')} {a.score.toFixed(3)}</span>
+              <span class="shrink-0 font-num text-xs text-muted-foreground">{t('pl.score')} {fixed(a.score, 3)}</span>
             </li>
           {/each}
         </ul>
@@ -371,7 +372,7 @@
                 style:height={`${((d.box.ymax - d.box.ymin) / natural.h) * 100}%`}
               >
                 <!-- A box at the top edge keeps its label inside, over the image. -->
-                <span class={cn('absolute left-0 rounded-sm', d.box.ymin < natural.h * 0.05 ? 'top-0' : '-top-5', 'px-1 text-[10px] font-semibold text-white')} style:background-color={MASK_COLORS[i % MASK_COLORS.length]}>{d.label} {d.score.toFixed(2)}</span>
+                <span class={cn('absolute left-0 rounded-sm', d.box.ymin < natural.h * 0.05 ? 'top-0' : '-top-5', 'px-1 text-[10px] font-semibold text-white')} style:background-color={MASK_COLORS[i % MASK_COLORS.length]}>{d.label} {fixed(d.score, 2)}</span>
               </div>
             {/each}
           {/if}

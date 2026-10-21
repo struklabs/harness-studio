@@ -121,3 +121,12 @@ test('the PyTorch environment card stays away where MLX trains by default', () =
   assert.equal(w.showsTorchEnv(['cpu'], null), true);
   assert.equal(w.showsTorchEnv(undefined, null), true);
 });
+
+test('live stats leave out model loading and steps of an earlier run', () => {
+  // Loaded at 1030 after a resume from step 8; 12 steps in 20 s of training.
+  const job = { status: 'running', training: true, step: 20, total_steps: 32, started_at: 1000, finished_at: null, training_since: 1030, training_from_step: 8, estimate: { tokens_per_step: 100 } };
+  const s = liveStats(job, 1050);
+  assert.equal(s.stepsPerSecond, 0.6);
+  assert.equal(s.etaSeconds, 20);
+  assert.equal(liveStats({ ...job, step: 8 }, 1050), null);
+});

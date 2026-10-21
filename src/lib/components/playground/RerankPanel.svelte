@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import HelpPopover from '../common/HelpPopover.svelte';
   import Field from '../dashboard/parts/Field.svelte';
   import { t } from '#lib/i18n.svelte.js';
@@ -144,7 +145,7 @@
                 <td class="px-3 py-2 font-num text-muted-foreground">{rank + 1}</td>
                 <td class="px-3 py-2">
                   <div class="flex flex-col gap-1">
-                    <span class="font-num text-foreground">{item.score.toFixed(3)}</span>
+                    <span class="font-num text-foreground">{fixed(item.score, 3)}</span>
                     <div class="h-1 w-full overflow-hidden rounded-full bg-muted" aria-hidden="true">
                       <div class="h-full rounded-full bg-muted-foreground" style:width={`${width(item.score)}%`}></div>
                     </div>

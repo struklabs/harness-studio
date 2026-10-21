@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { t } from '#lib/i18n.svelte.js';
+  import { fixed } from '#lib/format.js';
+  import { t, locale } from '#lib/i18n.svelte.js';
   import type { TrainingMetric } from '#lib/training-types.js';
   import { fmtLoss } from './trainingFormat';
 
@@ -62,7 +63,7 @@
     <svg viewBox="0 0 {W} {H}" class="h-auto w-full" role="img" aria-label={t('training.chart_label')} onpointermove={move} onpointerleave={() => (hover = null)}>
       {#each yTicks as tick (tick)}
         <line x1={PAD.l} x2={W - PAD.r} y1={y(tick)} y2={y(tick)} stroke="var(--border)" stroke-width="1" />
-        <text x={PAD.l - 6} y={y(tick) + 3} text-anchor="end" font-size="10" fill="var(--muted-foreground)">{tick.toFixed(2)}</text>
+        <text x={PAD.l - 6} y={y(tick) + 3} text-anchor="end" font-size="10" fill="var(--muted-foreground)">{fixed(tick, 2)}</text>
       {/each}
       {#each xTicks as tick (tick)}
         <text x={x(tick)} y={H - 10} text-anchor="middle" font-size="10" fill="var(--muted-foreground)">{tick}</text>
@@ -89,7 +90,7 @@
       <span class="flex items-center gap-1"><span class="inline-block h-0.5 w-4" style="background: var(--chart-2)"></span>{t('training.eval_loss')}</span>
       {#if hovered}
         <span class="ml-auto text-foreground" aria-live="polite">
-          {t('training.chart_tooltip', { step: hovered.step, loss: fmtLoss(hovered.loss), eval: fmtLoss(hovered.eval_loss) })}
+          {t('training.chart_tooltip', { step: hovered.step, loss: fmtLoss(hovered.loss, locale()), eval: fmtLoss(hovered.eval_loss, locale()) })}
         </span>
       {/if}
     </div>

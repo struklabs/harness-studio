@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   // The window's title bar (the OS frame is off, see tauri.conf.json): brand over the nav column,
   // page title, command search, the one global server indicator, window controls.
   // Empty areas and plain text are drag regions; double-click toggles maximize (Tauri's drag script).
@@ -156,7 +157,7 @@
           {#if kind === 'running'}
             <span class="hidden shrink-0 items-center gap-1.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-primary xl:flex" title={t('header.gen_speed')}>
               <Sparkline values={app.tpsHistory} width={40} height={14} />
-              <span class="font-num text-xs">{tps.toFixed(1)}</span>
+              <span class="font-num text-xs">{fixed(tps, 1)}</span>
               <span class="text-xs opacity-70">{t('header.tps_unit')}</span>
             </span>
           {:else if statusKey[kind]}

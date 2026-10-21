@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import type { TelemetrySnapshot } from '#lib/types.js';
   import { t } from '#lib/i18n.svelte.js';
   import StatRow from './StatRow.svelte';
@@ -19,7 +20,7 @@
 
   const tps = (tokens: number, secs: number) => {
     const r = rate(tokens, secs);
-    return r == null ? NA : `${r.toFixed(1)} t/s`;
+    return r == null ? NA : `${fixed(r, 1)} t/s`;
   };
 </script>
 

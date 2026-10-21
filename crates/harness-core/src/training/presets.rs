@@ -354,8 +354,8 @@ pub async fn presets(req: &PresetRequest) -> Result<PresetSet, String> {
         }
         None => DataShape::default(),
     };
-    let qlora = super::compatibility()
-        .await
+    // Presets never wait for the environment probe (a cold one takes minutes).
+    let qlora = super::compatibility_now()
         .methods
         .iter()
         .any(|m| m.method == "qlora" && m.support != estimate::Support::Unsupported);

@@ -29268,6 +29268,21 @@
             "type": "boolean",
             "description": "The worker is training (not loading the model)."
           },
+          "training_since": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "When this run's worker finished loading; the live rate leaves the load time out.",
+            "minimum": 0
+          },
+          "training_from_step": {
+            "type": "integer",
+            "format": "int32",
+            "description": "The step this run started training from (the checkpoint's after a resume).",
+            "minimum": 0
+          },
           "error": {
             "type": [
               "string",

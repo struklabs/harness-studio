@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import { onMount } from 'svelte';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Input } from '#lib/components/ui/input/index.js';
@@ -52,7 +53,7 @@
   }
   function status(value: Status): string { return typeof value === 'string' ? value : value.error ?? value.Error ?? JSON.stringify(value); }
   function stopped(value: Status): boolean { return ['stopped', 'error'].includes(status(value).toLowerCase()) || typeof value !== 'string'; }
-  function bytes(n: number): string { return `${(n / 1024 ** 3).toFixed(2)} GiB`; }
+  function bytes(n: number): string { return `${fixed(n / 1024 ** 3, 2)} GiB`; }
 
   async function refresh() {
     if (!authenticated || disposed) return;

@@ -33,6 +33,8 @@ fn sample(id: u64, status: TrainingStatus) -> TrainingJob {
         eval_loss: None,
         checkpoint_step: None,
         training: true,
+        training_since: None,
+        training_from_step: 0,
         error: None,
         dataset_report: dataset::inspect(Path::new("/none"), 0.1),
         estimate: estimate::estimate(

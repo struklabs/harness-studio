@@ -16,7 +16,7 @@
     BackendStatus,
   } from '#lib/types.js';
   import { BACKEND_TOKEN, backendFallbackText, backendName, loadBackendFallback, normBackend, runtimeInstallErrorText } from '#lib/runtimeBackend.js';
-  import { formatBytes, formatBytesPairText } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText, fixed } from '#lib/format.js';
   import { errorCode } from '#lib/errors.js';
   import { localizeError } from '#lib/network.js';
   import { downloadRelease } from '#lib/stores/security.svelte.js';
@@ -504,10 +504,10 @@
               <span class="truncate font-num text-xs text-muted-foreground">
                 {#if uiLevel.advanced}
                   {runtimeProgress.current_asset}: {runtimeProgress.total_bytes > 0
-                    ? `${formatBytesPairText(runtimeProgress.downloaded_bytes, runtimeProgress.total_bytes)} (${progressPct.toFixed(0)}%)`
+                    ? `${formatBytesPairText(runtimeProgress.downloaded_bytes, runtimeProgress.total_bytes)} (${fixed(progressPct, 0)}%)`
                     : fmt(runtimeProgress.downloaded_bytes)}
                 {:else}
-                  {progressPct.toFixed(0)}%
+                  {fixed(progressPct, 0)}%
                 {/if}
               </span>
             </div>

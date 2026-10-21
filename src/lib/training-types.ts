@@ -164,6 +164,10 @@ export interface TrainingJob {
   eval_loss: number | null;
   checkpoint_step: number | null;
   training: boolean;
+  /** When this run's worker finished loading (unix seconds). */
+  training_since?: number | null;
+  /** The step this run started training from. */
+  training_from_step?: number;
   error: string | null;
   dataset_report: DatasetReport;
   estimate: TrainingEstimate;

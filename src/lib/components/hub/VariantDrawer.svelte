@@ -7,7 +7,7 @@
   import { invoke } from '#lib/ipc.js';
   import { openUrl } from '@tauri-apps/plugin-opener';
   import { toast } from 'svelte-sonner';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, fixed } from '#lib/format.js';
   import { defaultLoadFit, toHardwareFit } from '#lib/fit.js';
   import { fetchVariants } from './hardwareFit';
   import { t, type TKey } from '#lib/i18n.svelte.js';
@@ -658,8 +658,9 @@
               {#if neededFamily}
                 <div class="flex items-center gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info" role="status">
                   <Info class="size-3.5 shrink-0" />
-                  <span class="min-w-0 flex-1">{t('eng.drawer_note', { runtime: neededFamily })}</span>
-                  <EngineNeeded family={neededFamily} hint={false} />
+                  <!-- An outdated environment is updated as soon as its model is opened, without asking. -->
+                  <span class="min-w-0 flex-1">{t(engineInstall.outdated(neededFamily) ? 'eng.drawer_note_update' : 'eng.drawer_note', { runtime: neededFamily })}</span>
+                  <EngineNeeded family={neededFamily} hint={false} auto={engineInstall.outdated(neededFamily)} />
                 </div>
               {/if}
               {#if (isImageRepo || isCodecRepo) && bundlePlan && bundlePlan.components.length > 0}
@@ -893,7 +894,7 @@
                                     {:else if job && job.status === 'Queued'}
                                       {t('hub.variant_queued')}
                                     {:else if job && pending}
-                                      {progressPercent(job).toFixed(0)}%
+                                      {fixed(progressPercent(job), 0)}%
                                     {:else}
                                       <Download />{t(!local ? 'hub.download_short' : hasUpdate ? 'hub.update_short' : 'hub.redownload_short')}
                                     {/if}

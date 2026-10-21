@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
+  import { localParams } from './trainingFormat';
   import { training } from '#lib/stores/training.svelte.js';
   import type { SupportLevel } from '#lib/training-types.js';
 
@@ -32,7 +33,7 @@
           <tr class="border-t border-border align-top">
             <th scope="row" class="py-2 pr-2 text-left font-medium">{t(`training.method_name_${m.method}` as TKey)}</th>
             <td class="py-2 pr-2"><span class="rounded-full px-2 py-0.5 text-xs font-medium {CHIP[m.support]}">{t(`training.support_${m.support}` as TKey)}</span></td>
-            <td class="py-2 text-xs text-muted-foreground">{t(m.reason as TKey, m.params)}</td>
+            <td class="py-2 text-xs text-muted-foreground">{t(m.reason as TKey, localParams(m.params, locale()))}</td>
           </tr>
         {/each}
       </tbody>
