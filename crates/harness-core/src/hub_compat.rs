@@ -644,12 +644,18 @@ pub const MLX_VLM_FAMILY: &str = crate::engine::MLX_VLM;
 /// Silicon).
 pub const MLX_AUDIO_FAMILY: &str = crate::engine::MLX_AUDIO;
 
+/// Runtime family of the MLX retrieval engine (mlx-embeddings embedders, Qwen3-Reranker; Apple
+/// Silicon).
+pub const MLX_EMBED_FAMILY: &str = crate::engine::MLX_EMBED;
+
 /// The MLX engines' verdict on a Hub repo: an MLX repo (`library_name: mlx` or the `mlx` tag)
 /// with a `config.json` and safetensors at the root (a listing without file names is taken by
 /// its tags), `text-generation` or untagged for `mlx`, `image-text-to-text` for `mlx-vlm`,
 /// `text-to-speech` of a tested architecture (by the repo name: Qwen3-TTS, Chatterbox Turbo,
 /// Soprano, VoxCPM2, Spark-TTS) and `automatic-speech-recognition` of one (Whisper, Parakeet:
-/// [`crate::engine::mlx::is_stt_repo`]) for `mlx-audio`.
+/// [`crate::engine::mlx::is_stt_repo`]) for `mlx-audio`, `feature-extraction` /
+/// `sentence-similarity` of a tested embedder architecture and `text-ranking` of a Qwen3
+/// reranker ([`crate::engine::mlx::retrieval_repo_task`]) for `mlx-embed`.
 /// Runnable where MLX runs (Apple Silicon; installed or not is settled later by
 /// [`resolve_installed`]); on a Mac whose macOS is too old for the MLX wheels,
 /// [`Compatibility::UnsupportedPlatform`]; `None` elsewhere and for every other repo.
@@ -731,6 +737,10 @@ pub fn mlx_compatibility_on(
         }
         // Vocal separation (Mel-Band-RoFormer) behind `/v1/audio/process`.
         Some("audio-to-audio") if crate::engine::mlx::is_sts_repo(tags) => MLX_AUDIO_FAMILY,
+        // Embedders and rerankers behind `/v1/embeddings` and `/v1/rerank`.
+        Some(_) if crate::engine::mlx::retrieval_repo_task(task, tags).is_some() => {
+            MLX_EMBED_FAMILY
+        }
         Some(_) => return None,
     };
     if !apple_silicon || format != ModelFormat::Mlx {
@@ -1957,6 +1967,34 @@ mod tests {
             ),
             None
         );
+    }
+
+    #[test]
+    fn mlx_retrieval_repos_are_mlx_embed_on_apple_silicon() {
+        let files = s(&["config.json", "model.safetensors", "tokenizer.json"]);
+        let embed_tags = s(&["sentence-transformers", "bert", "feature-extraction", "mlx"]);
+        let format = detect_format(&embed_tags, Some("sentence-transformers"), &files);
+        assert_eq!(format, ModelFormat::Mlx);
+        let runnable = Some(Compatibility::Runnable {
+            runtime: MLX_EMBED_FAMILY.into(),
+        });
+        let on = |task, tags: &[String], apple| {
+            mlx_compatibility_on(
+                "mlx-community/x",
+                ModelFormat::Mlx,
+                Some(task),
+                &files,
+                tags,
+                apple,
+                false,
+            )
+        };
+        assert_eq!(on("feature-extraction", &embed_tags, true), runnable);
+        let rerank_tags = s(&["mlx", "qwen3", "text-ranking", "reranker"]);
+        assert_eq!(on("text-ranking", &rerank_tags, true), runnable);
+        assert_eq!(on("text-ranking", &rerank_tags, false), None);
+        // An architecture the worker does not run.
+        assert_eq!(on("feature-extraction", &s(&["mlx", "t5"]), true), None);
     }
 
     #[test]

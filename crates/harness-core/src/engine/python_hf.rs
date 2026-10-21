@@ -644,7 +644,12 @@ fn asks_for_code_in(dir: &Path, files: &[PathBuf]) -> bool {
 pub fn detect(dir: &Path) -> Option<String> {
     // An MLX speech folder (Whisper's MLX port has a transformers config) is mlx-audio's; a
     // Spark-TTS folder speaks too, though its config is a Qwen2 one.
-    if !dir.is_dir() || super::mlx::is_audio_dir(dir) || super::mlx::is_spark_dir(dir) {
+    // An MLX embedder or reranker (a transformers config, MLX's weights) is mlx-embed's.
+    if !dir.is_dir()
+        || super::mlx::is_audio_dir(dir)
+        || super::mlx::is_spark_dir(dir)
+        || super::mlx::is_retrieval_dir(dir)
+    {
         return None;
     }
     if dir

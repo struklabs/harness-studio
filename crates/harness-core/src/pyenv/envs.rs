@@ -102,8 +102,8 @@ pub const MLX: EnvSpec = EnvSpec {
 pub const MLX_VLM: EnvSpec = EnvSpec {
     name: "mlx-vlm",
     lock: include_str!("../../python/mlx-vlm.lock"),
-    verify: "import mlx.core, mlx_vlm.server.app, uvicorn",
-    estimated_size_bytes: 780 * 1024 * 1024,
+    verify: "import mlx.core, mlx_vlm.server.app, mlx_embeddings, mlx_lm, uvicorn",
+    estimated_size_bytes: 800 * 1024 * 1024,
     min_macos: Some(14),
     gpu_build_of: None,
 };

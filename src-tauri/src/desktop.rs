@@ -1014,6 +1014,26 @@ pub fn update_tray_language(app: &AppHandle, language: &str) {
     }
 }
 
+/// Set when WebKit's web content process died and the page was reloaded; the reloaded page reads
+/// it once to explain the reset.
+static DISPLAY_RECOVERED: AtomicBool = AtomicBool::new(false);
+
+/// WebKit's web content process ended (crash or memory pressure) and left a blank window:
+/// reload the page and remember it so the new page can say what happened.
+pub fn recover_web_content<R: tauri::Runtime>(webview: &tauri::Webview<R>) {
+    eprintln!("[Harness Studio] web content process terminated; reloading the window");
+    DISPLAY_RECOVERED.store(true, Ordering::SeqCst);
+    if let Err(e) = webview.reload() {
+        eprintln!("[Harness Studio] reload after web content termination failed: {e}");
+    }
+}
+
+/// Whether the window was reloaded after a display crash since the last call (read once).
+#[tauri::command]
+pub fn take_display_recovered() -> bool {
+    DISPLAY_RECOVERED.swap(false, Ordering::SeqCst)
+}
+
 /// Whether a tray icon exists (the Settings page explains why "hide to tray" does nothing).
 #[tauri::command]
 pub fn is_tray_available() -> bool {

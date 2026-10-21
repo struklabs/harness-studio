@@ -430,8 +430,9 @@ pub fn installed_families() -> Vec<String> {
     }
     if crate::engine::mlx::vlm_binary().is_ok() {
         families.push(crate::engine::MLX_VLM.to_string());
-        // The audio engine runs in the same environment.
+        // The audio and retrieval engines run in the same environment.
         families.push(crate::engine::MLX_AUDIO.to_string());
+        families.push(crate::engine::MLX_EMBED.to_string());
     }
     if crate::engine::mlx::mflux_binary().is_ok() {
         families.push(crate::engine::MFLUX.to_string());

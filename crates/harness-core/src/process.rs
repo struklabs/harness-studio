@@ -1485,6 +1485,12 @@ impl ProcessManager {
                 },
                 notes: Vec::new(),
             }
+        } else if engine.family() == crate::engine::MLX_EMBED {
+            // An MLX embedder or reranker keeps its OpenAI route.
+            crate::serve_mode::Prepared {
+                mode: crate::engine::mlx::serve_mode(&launch.model_path),
+                notes: Vec::new(),
+            }
         } else if engine.family() == crate::engine::PYTHON_HF {
             // Embedding and ranking models keep their OpenAI routes; other tasks are pipelines.
             crate::serve_mode::Prepared {
