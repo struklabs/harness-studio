@@ -79,13 +79,15 @@ pub(crate) async fn training_create(request: CreateRequest) -> Result<training::
     blocking(move || training::create(&request)).await?
 }
 
+// Async so the job and export tasks are spawned on the Tauri runtime: a sync command runs on
+// the main thread, where `tokio::spawn` panics and aborts the app.
 #[tauri::command]
-pub(crate) fn training_start(job_id: u64) -> Result<training::TrainingJob, String> {
+pub(crate) async fn training_start(job_id: u64) -> Result<training::TrainingJob, String> {
     training::start(job_id)
 }
 
 #[tauri::command]
-pub(crate) fn training_resume(job_id: u64) -> Result<training::TrainingJob, String> {
+pub(crate) async fn training_resume(job_id: u64) -> Result<training::TrainingJob, String> {
     training::resume(job_id)
 }
 
@@ -109,8 +111,9 @@ pub(crate) async fn training_log(job_id: u64) -> Result<String, String> {
     blocking(move || training::log_tail(job_id)).await?
 }
 
+// Async for the same reason as `training_start`.
 #[tauri::command]
-pub(crate) fn training_export(job_id: u64, request: ExportRequest) -> Result<training::TrainingJob, String> {
+pub(crate) async fn training_export(job_id: u64, request: ExportRequest) -> Result<training::TrainingJob, String> {
     training::export(job_id, &request)
 }
 
