@@ -165,6 +165,7 @@ pub fn remove_in(root: &Path) -> Result<(), String> {
 /// archive's top folder).
 pub fn is_converter_path(rel: &str) -> bool {
     rel == "convert_hf_to_gguf.py"
+        || rel == "convert_lora_to_gguf.py"
         || rel.starts_with("conversion/")
         || rel.starts_with("gguf-py/")
         || rel.starts_with("requirements/")
@@ -216,7 +217,10 @@ pub async fn ensure_source(
         return Err(err("convert.runtime_missing").into());
     }
     let dir = source_dir_in(root, tag);
-    if dir.join("convert_hf_to_gguf.py").is_file() && dir.join("requirements").is_dir() {
+    if dir.join("convert_hf_to_gguf.py").is_file()
+        && dir.join("convert_lora_to_gguf.py").is_file()
+        && dir.join("requirements").is_dir()
+    {
         return Ok(dir);
     }
     report.set("source", format!("llama.cpp {tag}"), 0);

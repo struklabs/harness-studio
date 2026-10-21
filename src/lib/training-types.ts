@@ -6,6 +6,13 @@ export type TrainingStatus = 'draft' | 'queued' | 'running' | 'done' | 'failed' 
 export type DatasetFormat = 'chat' | 'instruction';
 export type IssueLevel = 'error' | 'warning';
 export type ExportStatus = 'running' | 'done' | 'failed';
+export type TrainingQuant = 'F16' | 'Q8_0' | 'Q4_K_M' | 'Q5_K_M';
+export interface TrainingExportRequest {
+  name: string | null;
+  gguf: boolean;
+  quant: TrainingQuant;
+  adapter_only: boolean;
+}
 export type SupportLevel = 'supported' | 'limited' | 'unsupported';
 
 export interface TrainingConfig {
@@ -75,6 +82,7 @@ export interface TrainingExport {
   gguf: string | null;
   warning: string | null;
   error: string | null;
+  adapter_only: boolean;
 }
 
 export interface TrainingJob {

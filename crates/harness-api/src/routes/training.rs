@@ -164,7 +164,8 @@ pub async fn resume(P(id): P<u64>) -> ApiResult<(StatusCode, Json<TrainingJob>)>
 }
 
 /// Merges the LoRA into the base model and writes safetensors into the model library (and a
-/// GGUF when asked and the conversion environment is installed). Progress is the job's `export`.
+/// quantized GGUF when requested). Adapter-only exports preserve the base weights. Missing
+/// converter dependencies are installed automatically. Progress is the job's `export`.
 #[utoipa::path(post, operation_id = "export_training_job", path = "/training/{id}/export", tag = "training", params(("id" = u64, Path)),
     request_body = ExportRequest,
     responses((status = 202, body = TrainingJob), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody), (status = 422, body = ErrorBody)))]

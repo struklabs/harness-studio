@@ -9,6 +9,7 @@ import type {
   TrainingJob,
   TrainingMetric,
 } from '#lib/training-types.js';
+import { library } from '#lib/stores/library.svelte.js';
 
 export const isTrainingActive = (j: TrainingJob) => j.status === 'queued' || j.status === 'running';
 
@@ -68,6 +69,11 @@ export class TrainingStore {
     }
     const json = JSON.stringify(list);
     if (json === this.json) return;
+    if (list.some((job) => job.export?.dir && job.export.status !== 'running'
+      && JSON.stringify(this.jobs.find((old) => old.id === job.id)?.export) !== JSON.stringify(job.export))) {
+      library.markChanged();
+      void library.refresh();
+    }
     this.json = json;
     this.jobs = list;
     if (this.selectedId !== null && !list.some((j) => j.id === this.selectedId)) this.select(null);
@@ -179,8 +185,8 @@ export class TrainingStore {
   remove(jobId: number) {
     return this.act(() => invoke('training_remove', { jobId }));
   }
-  exportJob(jobId: number, name: string | null, gguf: boolean) {
-    return this.act(() => invoke<TrainingJob>('training_export', { jobId, name, gguf }));
+  exportJob(jobId: number, request: import('#lib/training-types.js').TrainingExportRequest) {
+    return this.act(() => invoke<TrainingJob>('training_export', { jobId, request }));
   }
 }
 

@@ -73,6 +73,11 @@ pub struct GlobalArgs {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Train a local model and export merged weights or LoRA adapters.
+    Training {
+        #[command(subcommand)]
+        command: TrainingCommand,
+    },
     /// Instance, runtime, hardware and server summary.
     Status,
     /// Removes this executable's folder from the user PATH (the uninstaller calls it: NSIS
@@ -365,6 +370,32 @@ pub enum Command {
         long_about = "Downloads a safetensors LLM repo (text-generation or image-text-to-text) from Hugging Face, converts it with llama.cpp's official converter, quantizes it with the managed runtime's llama-quantize and places the GGUF in <models>/<owner>/<repo>-GGUF/, where the library finds it. Python is used only for the conversion, from a throwaway environment Harness builds itself the first time (about 700 MB: uv, Python, torch CPU, transformers; see `harness convert env`). Needs the managed llama.cpp runtime. Gated repos need `harness hf login`. Disk need: about twice the weights plus the result (shown before it starts; --plan only shows it)."
     )]
     Convert(ConvertArgs),
+}
+
+#[derive(Subcommand, Debug)]
+pub enum TrainingCommand {
+    /// List persisted training jobs.
+    List,
+    /// Create and start a job from a JSON CreateRequest spec. Needs a running instance.
+    Start { spec: PathBuf },
+    /// Show a job, including export progress and output paths.
+    Status { id: u64 },
+    /// Cancel a running job, saving a checkpoint first.
+    Cancel { id: u64 },
+    /// Resume from the last complete checkpoint. Needs a running instance.
+    Resume { id: u64 },
+    /// Export weights to the Library. Needs a running instance.
+    Export {
+        id: u64,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        gguf: bool,
+        #[arg(long, default_value = "Q4_K_M", value_parser = ["F16", "Q8_0", "Q4_K_M", "Q5_K_M"])]
+        quant: String,
+        #[arg(long)]
+        adapter_only: bool,
+    },
 }
 
 #[derive(clap::Args, Debug)]

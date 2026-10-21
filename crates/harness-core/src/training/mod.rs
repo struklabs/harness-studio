@@ -20,7 +20,7 @@ mod run;
 
 pub use dataset::{DatasetFormat, DatasetReport};
 pub use estimate::{Compatibility, Estimate, MethodSupport, Probe, Support};
-pub use export::{ExportInfo, ExportRequest, ExportStatus};
+pub use export::{ExportInfo, ExportQuant, ExportRequest, ExportStatus};
 
 use crate::error_key::err;
 use crate::events::{self, CoreEvent};
@@ -178,6 +178,8 @@ pub(crate) struct Entry {
 
 static JOBS: OnceLock<Mutex<Vec<Entry>>> = OnceLock::new();
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
+// Serialize admission so resume, removal and export cannot pass each other's checks.
+static LIFECYCLE: Mutex<()> = Mutex::new(());
 /// One training worker at a time (each takes the whole device).
 pub(crate) static SLOT: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 const EMIT_INTERVAL: Duration = Duration::from_millis(400);
@@ -203,6 +205,12 @@ fn load_all(root: &Path) -> Vec<Entry> {
             job.status = TrainingStatus::Failed;
             job.training = false;
             job.error = Some(err("training.interrupted").into());
+        }
+        if let Some(export) = job.export.as_mut() {
+            if export.status == ExportStatus::Running {
+                export.status = ExportStatus::Failed;
+                export.error = Some(err("training.interrupted").into());
+            }
         }
         job.checkpoint_step = run::latest_checkpoint(&e.path());
         NEXT_ID.fetch_max(job.id + 1, Ordering::SeqCst);
@@ -510,6 +518,7 @@ fn not_found(id: u64) -> String {
 }
 
 fn queue(id: u64, resume: bool) -> Result<TrainingJob, String> {
+    let _admission = LIFECYCLE.lock().unwrap();
     ensure_env()?;
     {
         let mut jobs = store().lock().unwrap();
@@ -525,6 +534,13 @@ fn queue(id: u64, resume: bool) -> Result<TrainingJob, String> {
         } else {
             e.job.status == TrainingStatus::Draft
         };
+        if e.job
+            .export
+            .as_ref()
+            .is_some_and(|x| x.status == ExportStatus::Running)
+        {
+            return Err(err("training.export_active").with("id", id).into());
+        }
         if !ok {
             return Err(if resume {
                 err("training.not_resumable").with("id", id).into()
@@ -579,6 +595,7 @@ pub fn cancel(id: u64) -> Result<(), String> {
 
 /// Deletes a job that is not running, with its checkpoints (an exported model stays).
 pub fn remove(id: u64) -> Result<(), String> {
+    let _admission = LIFECYCLE.lock().unwrap();
     {
         let mut jobs = store().lock().unwrap();
         let pos = jobs

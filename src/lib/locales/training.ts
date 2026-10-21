@@ -1,6 +1,11 @@
 // Training page (LoRA / QLoRA fine-tuning jobs), its wizard, and the backend error, dataset
 // issue and compatibility keys (`training.*`).
 const tr = {
+  'training.export_adapter': 'Yalnızca LoRA adaptörünü aktar',
+  'training.export_adapter_hint': 'Temel ağırlıklar birleştirilmez. GGUF adaptörleri desteklenen mimarilerde F16 olarak aktarılır; aynı temel model gerekir.',
+  'training.export_quant': 'Nicemleme',
+  'training.export_size': 'Tahmini GGUF boyutu: {size}. Tensör karışımı ve belirteç ayırıcı nedeniyle gerçek boyut değişebilir.',
+
   'nav.training': 'Eğitim',
   'training.title': 'Model Eğitimi',
   'training.subtitle': 'Kitaplıktaki bir modeli kendi JSONL veri kümenizle LoRA veya QLoRA ile ince ayarlayın; sonucu kitaplığa aktarın.',
@@ -107,10 +112,10 @@ const tr = {
   'training.delete_confirm': 'Silmeyi Onayla',
   'training.export_to_library': 'Kitaplığa Aktar',
   'training.export_title': 'Kitaplığa Aktar',
-  'training.export_description': 'Eğitilen LoRA bağdaştırıcısı temel modelle birleştirilir ve safetensors olarak model kitaplığına yazılır.',
+  'training.export_description': 'Birleştirilmiş modeli veya yalnızca LoRA adaptörünü aktarın; isteğe bağlı GGUF çıktısı ekleyin.',
   'training.export_name': 'Kitaplıktaki model adı',
   'training.export_gguf': 'Ayrıca GGUF’a dönüştür',
-  'training.export_gguf_hint': 'Dönüştürme ortamı gerekir; Ayarlar’dan kurulur.',
+  'training.export_gguf_hint': 'Eksik dönüştürme ortamı otomatik kurulur. Yönetilen llama.cpp model motoru gerekir.',
   'training.export_start': 'Aktar',
   'training.export_status': 'Aktarım',
   'training.export_running': 'Sürüyor',
@@ -193,6 +198,11 @@ const tr = {
 };
 
 const en = {
+  'training.export_adapter': 'Export LoRA adapter only',
+  'training.export_adapter_hint': 'Base weights are not merged. GGUF adapters export as F16 on supported architectures and require the same base model.',
+  'training.export_quant': 'Quantization',
+  'training.export_size': 'Estimated GGUF size: {size}. Actual size varies with tensor mix and tokenizer.',
+
   'nav.training': 'Training',
   'training.title': 'Model Training',
   'training.subtitle': 'Fine-tune a library model on your own JSONL dataset with LoRA or QLoRA, then export the result to the library.',
@@ -299,10 +309,10 @@ const en = {
   'training.delete_confirm': 'Confirm Delete',
   'training.export_to_library': 'Export to Library',
   'training.export_title': 'Export to Library',
-  'training.export_description': 'The trained LoRA adapter is merged into the base model and written to the model library as safetensors.',
+  'training.export_description': 'Export the merged model or just the LoRA adapter, with optional GGUF output.',
   'training.export_name': 'Model name in the library',
   'training.export_gguf': 'Also convert to GGUF',
-  'training.export_gguf_hint': 'Needs the conversion environment, which you install in Settings.',
+  'training.export_gguf_hint': 'Missing conversion dependencies are installed automatically. Requires the managed llama.cpp engine.',
   'training.export_start': 'Export',
   'training.export_status': 'Export',
   'training.export_running': 'In progress',

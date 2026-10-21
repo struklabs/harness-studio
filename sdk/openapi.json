@@ -11716,7 +11716,7 @@
         "tags": [
           "training"
         ],
-        "summary": "Merges the LoRA into the base model and writes safetensors into the model library (and a\nGGUF when asked and the conversion environment is installed). Progress is the job's `export`.",
+        "summary": "Merges the LoRA into the base model and writes safetensors into the model library (and a\nquantized GGUF when requested). Adapter-only exports preserve the base weights. Missing\nconverter dependencies are installed automatically. Progress is the job's `export`.",
         "operationId": "export_training_job",
         "parameters": [
           {
@@ -16274,27 +16274,28 @@
               "string",
               "null"
             ],
-            "description": "The merged safetensors model folder in the library."
+            "description": "Merged model or adapter safetensors directory."
           },
           "gguf": {
             "type": [
               "string",
               "null"
-            ],
-            "description": "The GGUF file, when one was made."
+            ]
           },
           "warning": {
             "type": [
               "string",
               "null"
-            ],
-            "description": "Keyed note that does not fail the export (`training.gguf_unavailable`)."
+            ]
           },
           "error": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "adapter_only": {
+            "type": "boolean"
           }
         }
       },
@@ -16340,12 +16341,19 @@
             "type": [
               "string",
               "null"
-            ],
-            "description": "Library name of the new model (default: the job's name)."
+            ]
           },
           "gguf": {
             "type": "boolean",
-            "description": "Also convert to GGUF (needs the conversion environment of Settings)."
+            "description": "Also convert to GGUF; missing converter dependencies are installed automatically."
+          },
+          "quant": {
+            "$ref": "#/components/schemas/TrainingQuant",
+            "description": "Merged GGUF quantization. Adapter GGUFs always use F16."
+          },
+          "adapter_only": {
+            "type": "boolean",
+            "description": "Export only the adapter, without merging or copying the base weights."
           }
         }
       },
@@ -27057,6 +27065,15 @@
             "$ref": "#/components/schemas/Estimate"
           }
         }
+      },
+      "TrainingQuant": {
+        "type": "string",
+        "enum": [
+          "F16",
+          "Q8_0",
+          "Q4_K_M",
+          "Q5_K_M"
+        ]
       },
       "TrainingStatus": {
         "type": "string",

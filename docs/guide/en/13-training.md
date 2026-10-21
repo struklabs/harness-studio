@@ -44,7 +44,44 @@ One JSON object per line, in either format (not mixed in one file):
 
 ## Export to Library
 
-**Export to Library** merges the LoRA into the base model and writes safetensors to `<models folder>/training/<name>/`. The library lists it like any downloaded model. Tick **Also convert to GGUF** to get a 16-bit GGUF in `<name>-GGUF/` as well; this needs the conversion environment from **Settings** (the llama.cpp converter). Without it, the safetensors export still works and a note explains why no GGUF was made. Use the Model Hub's quantize flow or `llama-quantize` for smaller GGUF types.
+**Export to Library** merges the LoRA into the base model and writes safetensors to `<models folder>/training/<name>/`. The Library lists it like any downloaded model. Existing exports are preserved; repeated names receive a numeric suffix.
+
+Tick **Also convert to GGUF** and choose **Q4_K_M**, **Q5_K_M**, **Q8_0**, or **F16**. The dialog shows an approximate size; actual size depends on tensor shapes and tokenizer overhead. Q4_K_M is smallest, Q5_K_M retains more precision, and Q8_0 is larger. Export first makes an F16 GGUF, then uses the managed runtime's `llama-quantize` for quantized types. Allow space for the merged safetensors, F16 intermediate and final GGUF.
+
+Install the managed llama.cpp engine in **Settings** first. Export automatically installs any missing conversion scripts and Python dependencies in Harness's removable conversion environment, matched to that engine's release. The finished GGUF appears in `<name>-GGUF/`; select it in the Library and load it with llama.cpp, or run `harness load <path-to-gguf>`. It can also be served through the gateway like other Library models. If GGUF conversion fails, export shows a failure and keeps the merged safetensors folder so it can still be used.
+
+Choose **Export LoRA adapter only** to copy `adapter_model.safetensors` and `adapter_config.json` without merging or copying base weights. With GGUF enabled, Harness also attempts an F16 GGUF LoRA adapter in the export's `gguf/` subfolder. Support depends on the architecture and llama.cpp release; an unsupported conversion leaves the safetensors adapter and a warning. An adapter is not a standalone model: use the exact base model and attach the GGUF adapter through the model's LoRA settings (or `harness lora`). The export includes provenance in `harness-training.json`, including the base model path and dataset licence. Keep or distribute the base model separately according to its licence.
+
+## Training CLI
+
+Start `harness serve` (or enable the desktop Control API) before starting, resuming, cancelling or exporting a job. These commands use that instance so workers keep running after the CLI returns. `list` and `status` can also read persisted jobs when no instance is running.
+
+```sh
+harness training list
+harness training start training-spec.json
+harness training status 1
+harness training cancel 1
+harness training resume 1
+harness training export 1 --gguf --quant Q4_K_M
+harness training export 1 --adapter-only --gguf --name my-adapter
+```
+
+A JSON spec uses the same fields as `POST /training`. `model` must be a local safetensors folder in the Library; `dataset` is a JSONL path on the instance's computer. For example:
+
+```json
+{
+  "name": "My SmolLM2",
+  "model": "/models/HuggingFaceTB/SmolLM2-135M-Instruct",
+  "dataset": "/datasets/answers.jsonl",
+  "method": "lora",
+  "device": "cpu",
+  "steps": 5,
+  "rank": 8,
+  "sequence_length": 128
+}
+```
+
+`start`, `resume` and `export` return after accepting the action; poll `status` for the result. Export status is separate from training status. Use `--json` for machine-readable output. Install the training environment from the Training page or `POST /training/env` before starting a job. For a remote instance, pass `--host` and an admin token.
 
 ## What this machine can run
 
@@ -74,3 +111,5 @@ All endpoints are under `/api/harness/v1`. Reads need `read`; everything that ch
 | `POST /training/{id}/start`, `/cancel`, `/resume`, `/export` | Lifecycle and export |
 
 Job changes are also published on the events stream as `training` and `training_removed`.
+
+The export body accepts `name` (optional), `gguf` (default `false`), `quant` (`Q4_K_M` by default; also `Q5_K_M`, `Q8_0`, `F16`), and `adapter_only` (default `false`). Adapter GGUFs use F16 regardless of `quant`.
