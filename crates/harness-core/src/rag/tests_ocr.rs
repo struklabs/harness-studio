@@ -93,6 +93,7 @@ async fn index(
             embed: None,
             ocr,
             rebuild: false,
+            ..Default::default()
         },
         flag,
         |_| {},
@@ -142,6 +143,7 @@ async fn a_scanned_pdf_is_recognized_indexed_and_found() {
             context_tokens: Some(8192),
             embed: None,
             rerank: None,
+            ..Default::default()
         },
     )
     .await

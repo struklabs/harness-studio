@@ -14,6 +14,10 @@ export interface KnowledgeBase {
   embed_dims: number | null;
   /** OCR model (alias) that reads PDF pages without a text layer; null = none. */
   ocr_model: string | null;
+  /** Speech recognition model (alias) for audio and video; null = they are not indexed. */
+  asr_model: string | null;
+  /** Rerank model (alias); null = reranking is off. */
+  rerank_model: string | null;
   /** Total milliseconds spent indexing. */
   index_ms: number;
   indexed_at: number | null;
@@ -25,15 +29,62 @@ export interface KnowledgeBase {
   failed: number;
   /** Pages of its documents read with the OCR model. */
   ocr_pages: number;
+  /** Audio and video documents. */
+  media_documents: number;
+  disk: KbDisk;
+  stats: KbStats;
   state: KbState;
   stale_reason: 'model' | 'dims' | null;
 }
 
+export interface KbDisk {
+  source_bytes: number;
+  text_bytes: number;
+  vector_bytes: number;
+}
+
+export interface RunStats {
+  started_at: number;
+  elapsed_ms: number;
+  extract_ms: number;
+  embed_ms: number;
+  added: number;
+  changed: number;
+  removed: number;
+  unchanged: number;
+  processed: number;
+  failed: number;
+  /** Percent of one core; can exceed 100. */
+  cpu_avg_pct: number;
+  cpu_peak_pct: number;
+  rss_peak_bytes: number;
+  model: string | null;
+}
+
+export interface KbStats {
+  last_run: RunStats | null;
+  query_count: number;
+  query_ms_total: number;
+  query_ms_last: number | null;
+  query_ms_recent: number[];
+}
+
+export interface KbUpdate {
+  name?: string;
+  folder?: string;
+  ocr_model?: string;
+  asr_model?: string;
+  rerank_model?: string;
+}
+
 export interface KbProgress {
   kb_id: string;
-  status: 'indexing' | 'done' | 'cancelled';
+  status: 'indexing' | 'done' | 'cancelled' | 'failed';
+  /** Where the run is: scanning the folder, reading files, or embedding chunks. */
+  stage?: 'scan' | 'extract' | 'embed' | '';
   docs_done: number;
   docs_total: number;
+  /** The current document (the error text when status is 'failed'). */
   current: string | null;
   chunk_done: number;
   chunk_total: number;
@@ -63,6 +114,8 @@ export const kbApi = {
   list: (embedModel: string | null) => invoke<KnowledgeBase[]>('kb_list', { embedModel }),
   create: (name: string, folder: string | null) => invoke<KnowledgeBase>('kb_create', { name, folder }),
   setOcrModel: (kbId: string, ocrModel: string | null) => invoke<KnowledgeBase>('kb_set_ocr_model', { kbId, ocrModel }),
+  /** Changes fields of a base; an empty string clears a model, a missing field stays. */
+  update: (kbId: string, update: KbUpdate) => invoke<KnowledgeBase>('kb_update', { kbId, update }),
   rename: (kbId: string, name: string) => invoke<void>('kb_rename', { kbId, name }),
   remove: (kbId: string) => invoke<void>('kb_delete', { kbId }),
   documents: (kbId: string) => invoke<RagDocument[]>('kb_documents', { kbId }),

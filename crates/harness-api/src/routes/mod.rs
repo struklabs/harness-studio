@@ -11,6 +11,7 @@ mod conversations;
 mod convert;
 mod events;
 mod gateway;
+mod knowledge;
 mod lemonade;
 mod models;
 mod modules;
@@ -67,6 +68,7 @@ the Secure HttpOnly session cookie; cookie writes need same-origin Origin and X-
         (name = "events", description = "Server-sent event streams"),
         (name = "tokens", description = "Named API tokens (admin)"),
         (name = "cloud", description = "BYOK cloud providers (OpenAI, Gemini, Anthropic, OpenRouter, custom): add, test and remove; the key is write-only (admin)"),
+        (name = "knowledge", description = "Knowledge bases (local RAG): sources, change-aware indexing, questions with cited excerpts (scope `conversations`)"),
         (name = "conversations", description = "Stored chats: list, read, export, documents, context compaction (scope `conversations`)"),
         (name = "training", description = "Training jobs: LoRA / QLoRA fine-tuning of a library model on a JSONL dataset, with loss history, checkpoints, resume and export to the library (admin to create, run and export)"),
         (name = "analytics", description = "Gateway request log, statistics and Prometheus metrics"),
@@ -309,6 +311,18 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(automations::n8n_proposal))
         .routes(routes!(automations::apply_n8n_proposal))
         .routes(routes!(automations::reject_n8n_proposal))
+        .routes(routes!(knowledge::list, knowledge::create))
+        .routes(routes!(
+            knowledge::get_one,
+            knowledge::update,
+            knowledge::delete
+        ))
+        .routes(routes!(knowledge::documents))
+        .routes(routes!(knowledge::index))
+        .routes(routes!(knowledge::add_sources, knowledge::remove_sources))
+        .routes(routes!(knowledge::progress))
+        .routes(routes!(knowledge::cancel))
+        .routes(routes!(knowledge::query))
         .routes(routes!(conversations::list))
         .routes(routes!(conversations::get_one))
         .routes(routes!(conversations::export))

@@ -91,7 +91,12 @@ pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Sc
         return Some(Scope::Admin);
     }
     // Chats are private: their own scope for reading and compacting, not covered by `read`.
-    if route == "/conversations" || route.starts_with("/conversations/") {
+    // Knowledge bases hold the user's private documents: the same scope.
+    if route == "/conversations"
+        || route.starts_with("/conversations/")
+        || route == "/knowledge-bases"
+        || route.starts_with("/knowledge-bases/")
+    {
         return Some(Scope::Conversations);
     }
     if route.starts_with("/offices/runs/") {

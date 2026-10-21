@@ -19,8 +19,9 @@ use super::{
     KB_TOKEN_SHARE,
 };
 use crate::error_key::err;
-use crate::state::{KnowledgeBaseRow, RagDocument, StateDb};
+use crate::state::{DiskUsage, KnowledgeBaseRow, RagDocument, RunStats, StateDb};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -34,6 +35,7 @@ pub fn kb_jobs() -> &'static Jobs {
 
 /// Where the index of a knowledge base stands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum KbState {
     /// No documents yet.
@@ -50,6 +52,7 @@ pub enum KbState {
 
 /// A knowledge base with its index figures, for the UI.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct KnowledgeBase {
     #[serde(flatten)]
     pub row: KnowledgeBaseRow,
@@ -62,6 +65,10 @@ pub struct KnowledgeBase {
     pub state: KbState,
     /// Why the index is stale: `model` (another embedding model) or `dims` (vector size).
     pub stale_reason: Option<String>,
+    /// Documents that are audio, video or images.
+    pub media_documents: usize,
+    /// What the index takes in the database.
+    pub disk: DiskUsage,
 }
 
 /// State of a base given its documents and the embedding model in use (`None` = none).
@@ -124,6 +131,8 @@ pub fn summarize(
         embedded: docs.iter().map(|d| d.embedded).sum(),
         failed: docs.iter().filter(|d| d.status == "failed").count(),
         ocr_pages: docs.iter().map(|d| d.ocr_pages.len()).sum(),
+        media_documents: docs.iter().filter(|d| d.meta.is_some()).count(),
+        disk: DiskUsage::default(),
         stale_reason: reason.map(String::from),
         state,
         row,
@@ -138,7 +147,10 @@ pub fn list(db: &StateDb, current_model: Option<&str>) -> Result<Vec<KnowledgeBa
         db.rag_reconcile(&row.id, |id| running || jobs().is_running(id))
             .map_err(String::from)?;
         let docs = db.rag_documents(&row.id).map_err(String::from)?;
-        out.push(summarize(row, &docs, current_model));
+        let disk = db.kb_disk_usage(&row.id).unwrap_or_default();
+        let mut kb = summarize(row, &docs, current_model);
+        kb.disk = disk;
+        out.push(kb);
     }
     Ok(out)
 }
@@ -147,7 +159,9 @@ pub fn list(db: &StateDb, current_model: Option<&str>) -> Result<Vec<KnowledgeBa
 pub fn get(db: &StateDb, id: &str, current_model: Option<&str>) -> Result<KnowledgeBase, String> {
     let row = db.kb_get(id).map_err(String::from)?;
     let docs = db.rag_documents(id).map_err(String::from)?;
-    Ok(summarize(row, &docs, current_model))
+    let mut kb = summarize(row, &docs, current_model);
+    kb.disk = db.kb_disk_usage(id).unwrap_or_default();
+    Ok(kb)
 }
 
 // ---- folders ----
@@ -202,6 +216,28 @@ fn generated(name: &str) -> bool {
 /// build and dependency folders and symbolic links are not entered; generated files and files
 /// above [`super::extract::MAX_FILE_BYTES`] are counted as skipped.
 pub fn scan_folder(root: &Path) -> Result<FolderScan, String> {
+    scan_folder_media(root, MediaScan::default())
+}
+
+/// Which media files a scan takes: audio and video need a speech-recognition model, images an
+/// OCR model, so a base without them leaves those files out (counted as skipped).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MediaScan {
+    pub audio_video: bool,
+    pub images: bool,
+}
+
+impl MediaScan {
+    fn takes(self, kind: super::media::MediaKind) -> bool {
+        match kind {
+            super::media::MediaKind::Image => self.images,
+            _ => self.audio_video,
+        }
+    }
+}
+
+/// [`scan_folder`] that also takes the media files `media` allows.
+pub fn scan_folder_media(root: &Path, media: MediaScan) -> Result<FolderScan, String> {
     let meta = std::fs::metadata(root).map_err(|e| {
         String::from(
             err("fs.read_failed")
@@ -215,7 +251,7 @@ pub fn scan_folder(root: &Path) -> Result<FolderScan, String> {
             .into());
     }
     let mut scan = FolderScan::default();
-    walk(root, 0, &mut scan);
+    walk(root, 0, media, &mut scan);
     scan.files.sort();
     if scan.files.len() > KB_MAX_DOCUMENTS as usize {
         scan.files.truncate(KB_MAX_DOCUMENTS as usize);
@@ -224,7 +260,7 @@ pub fn scan_folder(root: &Path) -> Result<FolderScan, String> {
     Ok(scan)
 }
 
-fn walk(dir: &Path, depth: usize, scan: &mut FolderScan) {
+fn walk(dir: &Path, depth: usize, media: MediaScan, scan: &mut FolderScan) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -239,7 +275,23 @@ fn walk(dir: &Path, depth: usize, scan: &mut FolderScan) {
         }
         if kind.is_dir() {
             if depth < MAX_DEPTH && !name.starts_with('.') && !SKIP_DIRS.contains(&name.as_str()) {
-                walk(&path, depth + 1, scan);
+                walk(&path, depth + 1, media, scan);
+            }
+        } else if kind.is_file()
+            && !name.starts_with('.')
+            && super::media::media_kind(&path).is_some()
+        {
+            let k = super::media::media_kind(&path).expect("checked above");
+            let ok = media.takes(k)
+                && entry
+                    .metadata()
+                    .map(|m| m.len() > 0 && m.len() <= k.max_bytes())
+                    .unwrap_or(false);
+            if ok {
+                scan.files.push(path);
+            } else if media.takes(k) {
+                // Only a file the base could read but cannot (empty or too large) is skipped.
+                scan.skipped += 1;
             }
         } else if kind.is_file()
             && !name.starts_with('.')
@@ -280,10 +332,14 @@ pub fn doc_name(root: Option<&Path>, file: &Path) -> String {
 
 /// A progress report of a run (Tauri event `kb-progress`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct KbProgress {
     pub kb_id: String,
     /// `indexing`, `done` or `cancelled`.
     pub status: String,
+    /// `scan` (what changed), `extract` (text, transcripts, OCR) or `embed`.
+    #[serde(default)]
+    pub stage: String,
     pub docs_done: usize,
     pub docs_total: usize,
     /// Document being indexed.
@@ -294,25 +350,63 @@ pub struct KbProgress {
     pub elapsed_ms: u64,
 }
 
+const STAGES: [&str; 4] = ["scan", "extract", "embed", ""];
+
+/// The stage of a run, readable from the progress callbacks of several tasks.
+struct Stage(std::sync::atomic::AtomicUsize);
+
+impl Stage {
+    fn set(&self, s: &str) {
+        let i = STAGES.iter().position(|x| *x == s).unwrap_or(3);
+        self.0.store(i, Ordering::SeqCst);
+    }
+
+    fn get(&self) -> &'static str {
+        STAGES[self.0.load(Ordering::SeqCst).min(3)]
+    }
+}
+
+/// The newest progress report of each base (for callers that poll instead of listening).
+fn last_progress() -> &'static Mutex<HashMap<String, KbProgress>> {
+    static MAP: std::sync::OnceLock<Mutex<HashMap<String, KbProgress>>> =
+        std::sync::OnceLock::new();
+    MAP.get_or_init(Default::default)
+}
+
+/// The latest progress report of a base's run (the last run's final report once it ended).
+pub fn progress_of(kb_id: &str) -> Option<KbProgress> {
+    last_progress()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(kb_id)
+        .cloned()
+}
+
 /// What a run does.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct KbIndexRequest {
     pub kb_id: String,
-    /// Files to add (those the base already has are skipped).
+    /// Files of the sources; documents of the base that are not among them are compared with
+    /// the disk (see [`sync_sources`]).
     pub files: Vec<PathBuf>,
     /// Folder the document names are relative to.
     pub root: Option<PathBuf>,
+    /// The folder was read completely: documents of it whose file is gone are dropped.
+    pub prune: bool,
     /// Embed with this model; `None` = keyword search only.
     pub embed: Option<EmbedModel>,
-    /// Recognize scanned PDF pages with this model (the base's OCR model); `None` = no OCR.
+    /// Recognize scanned PDF pages and images with this model (the base's OCR model).
     pub ocr: Option<super::ocr::OcrModel>,
-    /// Extract every document again and re-embed it (otherwise only new, unfinished and
-    /// outdated documents are worked on).
+    /// Transcribe audio and video with this model (the base's speech-recognition model).
+    pub asr: Option<super::media::AsrModel>,
+    /// Extract every document again and re-embed it (otherwise only new, changed, unfinished
+    /// and outdated documents are worked on).
     pub rebuild: bool,
 }
 
 /// Result of a run.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct KbRun {
     pub kb_id: String,
     /// Documents worked on in this run.
@@ -327,6 +421,272 @@ pub struct KbRun {
     pub dims: Option<i64>,
     /// Files that could not be added (limit reached).
     pub not_added: usize,
+    /// New files, files whose content changed, files that were as before, documents dropped
+    /// because their file is gone.
+    pub added: usize,
+    pub changed: usize,
+    pub unchanged: usize,
+    pub removed: usize,
+    /// Time of the extraction (text, transcripts, OCR) and of the embedding stage.
+    pub extract_ms: u64,
+    pub embed_ms: u64,
+    pub cpu_avg_pct: f32,
+    pub cpu_peak_pct: f32,
+    pub rss_peak_bytes: u64,
+}
+
+/// Modification time of a file in milliseconds since the epoch.
+pub fn mtime_ms(path: &Path) -> Option<i64> {
+    std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis() as i64)
+}
+
+/// Path of `file` below `root` (`/` separators); `None` when it is not below it.
+fn rel_of(root: Option<&Path>, file: &Path) -> Option<String> {
+    let rel = file.strip_prefix(root?).ok()?;
+    let s = rel
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().to_string())
+        .collect::<Vec<_>>()
+        .join("/");
+    (!s.is_empty()).then_some(s)
+}
+
+/// Where the source file of a document is now: below the base's folder when the document has
+/// a relative path (so a moved folder keeps working), else its stored path.
+pub fn resolve_source(folder: Option<&str>, d: &RagDocument) -> Option<PathBuf> {
+    match (folder.filter(|f| !f.is_empty()), d.rel_path.as_deref()) {
+        (Some(f), Some(rel)) => Some(Path::new(f).join(rel)),
+        _ => d.source_path.as_ref().map(PathBuf::from),
+    }
+}
+
+/// What the sources look like compared with the index.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SyncResult {
+    pub added: usize,
+    pub changed: usize,
+    pub unchanged: usize,
+    pub removed: usize,
+    pub not_added: usize,
+    /// Documents whose file changed (or all of them on a rebuild): they are read again.
+    pub reextract: HashSet<String>,
+}
+
+enum FileState {
+    Unchanged,
+    /// Same content, other modification time: remember the new time.
+    Touched(i64),
+    Changed,
+}
+
+/// Compares a document with its file: size and modification time first (no reading), the
+/// SHA-256 only when the time differs but the size does not (a file that was copied or
+/// touched keeps its document).
+fn file_state(d: &RagDocument, file: &Path) -> FileState {
+    let Ok(meta) = std::fs::metadata(file) else {
+        return FileState::Changed;
+    };
+    if d.sha256.is_empty() {
+        // Never extracted: it is worked on anyway.
+        return FileState::Unchanged;
+    }
+    let mtime = mtime_ms(file);
+    if d.size != meta.len() as i64 {
+        return FileState::Changed;
+    }
+    if d.mtime_ms.is_some() && d.mtime_ms == mtime {
+        return FileState::Unchanged;
+    }
+    match super::media::sha256_file(file) {
+        Ok(h) if h == d.sha256 => mtime.map_or(FileState::Unchanged, FileState::Touched),
+        _ => FileState::Changed,
+    }
+}
+
+/// Brings the documents of a base in line with its sources: new files become pending
+/// documents, files that changed (size, modification time, then hash) are marked to be read
+/// again, documents whose file is gone are dropped. Nothing is read or embedded here except
+/// the hash of a file whose time changed.
+pub fn sync_sources(db: &StateDb, req: &KbIndexRequest) -> Result<SyncResult, String> {
+    let docs = db.rag_documents(&req.kb_id).map_err(String::from)?;
+    let mut by_rel: HashMap<&str, &RagDocument> = HashMap::new();
+    let mut by_path: HashMap<&str, &RagDocument> = HashMap::new();
+    for d in &docs {
+        if let Some(r) = d.rel_path.as_deref() {
+            by_rel.insert(r, d);
+        }
+        if let Some(p) = d.source_path.as_deref() {
+            by_path.insert(p, d);
+        }
+    }
+    let mut out = SyncResult::default();
+    let mut seen: HashSet<String> = HashSet::new();
+    for file in &req.files {
+        let abs = file.to_string_lossy().to_string();
+        let rel = rel_of(req.root.as_deref(), file);
+        let existing = rel
+            .as_deref()
+            .and_then(|r| by_rel.get(r).copied())
+            .or_else(|| by_path.get(abs.as_str()).copied());
+        let Some(d) = existing else {
+            let name = doc_name(req.root.as_deref(), file);
+            match db.rag_create_document_limited(&req.kb_id, &name, Some(&abs), KB_MAX_DOCUMENTS) {
+                Ok(created) => {
+                    out.added += 1;
+                    seen.insert(created.id.clone());
+                    if rel.is_some() {
+                        let _ = db.rag_set_source_stat(&created.id, None, rel.as_deref(), None);
+                    }
+                }
+                Err(_) => out.not_added += 1,
+            }
+            continue;
+        };
+        seen.insert(d.id.clone());
+        if d.source_path.as_deref() != Some(abs.as_str()) {
+            let _ = db.rag_set_source_path(&d.id, &abs);
+        }
+        if rel.is_some() && d.rel_path != rel {
+            let _ = db.rag_set_source_stat(&d.id, None, rel.as_deref(), None);
+        }
+        if req.rebuild {
+            out.changed += 1;
+            out.reextract.insert(d.id.clone());
+            continue;
+        }
+        match file_state(d, file) {
+            FileState::Unchanged => out.unchanged += 1,
+            FileState::Touched(m) => {
+                out.unchanged += 1;
+                let _ = db.rag_set_source_stat(&d.id, Some(m), None, None);
+            }
+            FileState::Changed => {
+                out.changed += 1;
+                out.reextract.insert(d.id.clone());
+                let _ = db.rag_set_status(&d.id, "pending", None);
+            }
+        }
+    }
+    // Documents whose file is gone. Those of the scanned folder are only dropped when the
+    // scan was complete; a file added on its own is dropped when it does not exist any more.
+    let in_folder = |d: &RagDocument| {
+        d.rel_path.is_some()
+            || req
+                .root
+                .as_deref()
+                .zip(d.source_path.as_deref())
+                .is_some_and(|(r, p)| Path::new(p).starts_with(r))
+    };
+    for d in &docs {
+        if seen.contains(&d.id) || jobs().is_running(&d.id) {
+            continue;
+        }
+        let missing = d
+            .source_path
+            .as_deref()
+            .is_some_and(|p| !Path::new(p).exists());
+        let gone = if in_folder(d) {
+            req.prune && (d.rel_path.is_some() || missing)
+        } else {
+            missing
+        };
+        if gone && db.rag_delete_document(&d.id).is_ok() {
+            out.removed += 1;
+        }
+    }
+    Ok(out)
+}
+
+/// The files and settings of a run for a base: its folder (or `folder`) is scanned, `paths` are
+/// added as they are; media files are taken when the base has the model that reads them.
+pub fn build_request(
+    db: &StateDb,
+    kb_id: &str,
+    folder: Option<&str>,
+    paths: Vec<String>,
+) -> Result<KbIndexRequest, String> {
+    let kb = db.kb_get(kb_id).map_err(String::from)?;
+    let folder = folder
+        .filter(|f| !f.is_empty())
+        .map(str::to_string)
+        .or(kb.folder.clone())
+        .map(PathBuf::from);
+    let media = MediaScan {
+        audio_video: kb.asr_model.is_some(),
+        images: kb.ocr_model.is_some(),
+    };
+    let mut req = KbIndexRequest {
+        kb_id: kb_id.to_string(),
+        ..Default::default()
+    };
+    if let Some(f) = folder.filter(|f| f.is_dir()) {
+        let scan = scan_folder_media(&f, media)?;
+        req.prune = !scan.truncated;
+        req.files = scan.files;
+        req.root = Some(f);
+    }
+    req.files.extend(paths.into_iter().map(PathBuf::from));
+    Ok(req)
+}
+
+/// Adds sources to a base: the first folder becomes the base's folder (its files are indexed
+/// with relative paths); another folder, and single files, are added file by file. The files
+/// are indexed by the next run.
+pub fn add_sources(
+    db: &StateDb,
+    kb_id: &str,
+    folder: Option<&str>,
+    paths: &[String],
+) -> Result<Vec<String>, String> {
+    let kb = db.kb_get(kb_id).map_err(String::from)?;
+    let mut extra: Vec<String> = paths.to_vec();
+    if let Some(f) = folder.filter(|f| !f.is_empty()) {
+        if !Path::new(f).is_dir() {
+            return Err(err("rag.kb_not_a_folder").with("path", f).into());
+        }
+        if kb.folder.is_none() {
+            db.kb_update(
+                kb_id,
+                &crate::state::KbUpdate {
+                    folder: Some(f.to_string()),
+                    ..Default::default()
+                },
+            )
+            .map_err(String::from)?;
+        } else if kb.folder.as_deref() != Some(f) {
+            let media = MediaScan {
+                audio_video: kb.asr_model.is_some(),
+                images: kb.ocr_model.is_some(),
+            };
+            let scan = scan_folder_media(Path::new(f), media)?;
+            extra.extend(scan.files.iter().map(|p| p.to_string_lossy().to_string()));
+        }
+    }
+    Ok(extra)
+}
+
+/// Removes documents from a base by id, name (path below the folder) or source path. Returns
+/// how many were removed.
+pub fn remove_sources(db: &StateDb, kb_id: &str, which: &[String]) -> Result<usize, String> {
+    db.kb_get(kb_id).map_err(String::from)?;
+    let docs = db.rag_documents(kb_id).map_err(String::from)?;
+    let mut removed = 0;
+    for d in docs {
+        let hit = which.iter().any(|w| {
+            *w == d.id
+                || *w == d.name
+                || d.rel_path.as_deref() == Some(w.as_str())
+                || d.source_path.as_deref() == Some(w.as_str())
+        });
+        if hit && !jobs().is_running(&d.id) && db.rag_delete_document(&d.id).is_ok() {
+            removed += 1;
+        }
+    }
+    Ok(removed)
 }
 
 /// Whether a document needs work in a run.
@@ -340,10 +700,20 @@ fn needs_work(d: &RagDocument, embed: Option<&EmbedModel>, rebuild: bool) -> boo
     }
 }
 
+/// Whether a stored document still has to be embedded with `embed`.
+fn needs_embedding(d: &RagDocument, embed: &EmbedModel) -> bool {
+    d.chunks > 0
+        && d.status != "failed"
+        && (d.embed_model.as_deref() != Some(embed.alias.as_str()) || d.embedded < d.chunks)
+}
+
 /// Runs the indexing of a knowledge base to its end. The run must have been registered with
 /// `kb_jobs().register(kb_id)`; `cancel` is its flag (all documents stop with it). One broken
-/// document does not stop the run (its status says `failed`). Measures the wall time, stores it
-/// in the base together with the embedding model and vector size, and logs one line.
+/// document does not stop the run (its status says `failed`). The stages run apart: first the
+/// sources are compared with the index, then every file that needs it is read (text, OCR,
+/// transcript), then all chunks are embedded, so the models are never swapped back and forth.
+/// Measures the wall time and the resources, stores them in the base together with the
+/// embedding model and vector size, and logs one line.
 pub async fn index_kb(
     db: Arc<StateDb>,
     req: KbIndexRequest,
@@ -351,8 +721,28 @@ pub async fn index_kb(
     on_progress: impl Fn(KbProgress) + Send + Sync,
 ) -> Result<KbRun, String> {
     let started = Instant::now();
-    let result = index_kb_inner(&db, &req, &cancel, &on_progress, started).await;
+    let report = |p: KbProgress| {
+        last_progress()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(p.kb_id.clone(), p.clone());
+        on_progress(p);
+    };
+    let result = index_kb_inner(&db, &req, &cancel, &report, started).await;
     kb_jobs().finish(&req.kb_id, &cancel);
+    if let Err(e) = &result {
+        report(KbProgress {
+            kb_id: req.kb_id.clone(),
+            status: "failed".into(),
+            stage: String::new(),
+            docs_done: 0,
+            docs_total: 0,
+            current: Some(e.clone()),
+            chunk_done: 0,
+            chunk_total: 0,
+            elapsed_ms: started.elapsed().as_millis() as u64,
+        });
+    }
     result
 }
 
@@ -364,11 +754,15 @@ async fn index_kb_inner(
     started: Instant,
 ) -> Result<KbRun, String> {
     let kb = db.kb_get(&req.kb_id).map_err(String::from)?;
+    let started_at = crate::analytics::now_ms() as i64;
+    let meter = super::usage::Meter::start();
+    let stage = Stage(std::sync::atomic::AtomicUsize::new(0));
     let emit =
         |status: &str, done: usize, total: usize, cur: Option<&str>, cd: usize, ct: usize| {
             on_progress(KbProgress {
                 kb_id: req.kb_id.clone(),
                 status: status.to_string(),
+                stage: stage.get().to_string(),
                 docs_done: done,
                 docs_total: total,
                 current: cur.map(String::from),
@@ -379,22 +773,14 @@ async fn index_kb_inner(
         };
     emit("indexing", 0, 0, None, 0, 0);
 
-    // 1. New files become pending documents.
-    let known = db.kb_source_paths(&req.kb_id).map_err(String::from)?;
-    let mut not_added = 0;
-    for file in &req.files {
-        let path = file.to_string_lossy().to_string();
-        if known.contains(&path) {
-            continue;
-        }
-        let name = doc_name(req.root.as_deref(), file);
-        if db
-            .rag_create_document_limited(&req.kb_id, &name, Some(&path), KB_MAX_DOCUMENTS)
-            .is_err()
-        {
-            not_added += 1;
-        }
-    }
+    // 1. What changed: new files become pending documents, changed files are marked, documents
+    //    of vanished files are dropped.
+    let synced = {
+        let (db, req) = (db.clone(), req.clone());
+        tokio::task::spawn_blocking(move || sync_sources(&db, &req))
+            .await
+            .map_err(|e| e.to_string())??
+    };
 
     // 2. The documents that need work.
     let docs = db.rag_documents(&req.kb_id).map_err(String::from)?;
@@ -402,21 +788,36 @@ async fn index_kb_inner(
         .into_iter()
         .filter(|d| !jobs().is_running(&d.id) && needs_work(d, req.embed.as_ref(), req.rebuild))
         .collect();
-    let total = work.len();
+    // Stage A reads what has no (or outdated) text; without an embedding model it also
+    // finishes documents that only wait for their status.
+    let read_list: Vec<RagDocument> = work
+        .iter()
+        .filter(|d| {
+            req.embed.is_none() || req.rebuild || d.chunks == 0 || synced.reextract.contains(&d.id)
+        })
+        .cloned()
+        .collect();
+    let mut total = read_list.len();
     emit("indexing", 0, total, None, 0, 0);
 
-    // 3. One document after the other (one embedding request stream, low memory).
     let mut failed = 0;
     let mut done = 0;
     let mut cancelled = false;
-    for d in &work {
+    let mut touched: HashSet<String> = HashSet::new();
+    // Documents that went through every stage they need (the progress counts these).
+    let mut finished: HashSet<String> = HashSet::new();
+
+    // 3a. Read: one document after the other (text, OCR, transcripts; low memory).
+    stage.set("extract");
+    let extract_started = Instant::now();
+    for d in &read_list {
         if cancel.load(Ordering::SeqCst) {
             cancelled = true;
             break;
         }
-        // A rebuild reads the file again; a resume keeps the stored chunks.
-        let source = (req.rebuild || d.chunks == 0)
-            .then(|| d.source_path.clone().map(PathBuf::from))
+        // A rebuild or a changed file reads the file again; a resume keeps the stored chunks.
+        let source = (req.rebuild || d.chunks == 0 || synced.reextract.contains(&d.id))
+            .then(|| resolve_source(kb.folder.as_deref(), d))
             .flatten()
             .filter(|p| p.is_file());
         jobs().register_shared(&d.id, cancel.clone());
@@ -427,8 +828,10 @@ async fn index_kb_inner(
             IndexJob {
                 document_id: d.id.clone(),
                 source,
-                embed: req.embed.clone(),
+                // Embedding is the next stage.
+                embed: None,
                 ocr: req.ocr.clone(),
+                asr: req.asr.clone(),
             },
             cancel.clone(),
             |p: Progress| {
@@ -440,7 +843,7 @@ async fn index_kb_inner(
             },
         )
         .await;
-        done += 1;
+        touched.insert(d.id.clone());
         if cancel.load(Ordering::SeqCst) {
             cancelled = true;
             break;
@@ -448,6 +851,71 @@ async fn index_kb_inner(
         if outcome.is_err() {
             failed += 1;
         }
+        // With an embedding model the document is not done before its vectors are.
+        if outcome.is_err() || req.embed.is_none() {
+            finished.insert(d.id.clone());
+        }
+        done = finished.len();
+    }
+    let extract_ms = extract_started.elapsed().as_millis() as u64;
+
+    // 3b. Embed: every document that still lacks vectors of the model in use.
+    let mut embed_ms = 0;
+    if let (Some(embed), false) = (req.embed.as_ref(), cancelled) {
+        stage.set("embed");
+        let embed_started = Instant::now();
+        let embed_list: Vec<RagDocument> = db
+            .rag_documents(&req.kb_id)
+            .map_err(String::from)?
+            .into_iter()
+            .filter(|d| !jobs().is_running(&d.id) && needs_embedding(d, embed))
+            .collect();
+        total = read_list
+            .iter()
+            .map(|d| &d.id)
+            .chain(embed_list.iter().map(|d| &d.id))
+            .collect::<HashSet<_>>()
+            .len();
+        emit("indexing", done, total, None, 0, 0);
+        for d in &embed_list {
+            if cancel.load(Ordering::SeqCst) {
+                cancelled = true;
+                break;
+            }
+            jobs().register_shared(&d.id, cancel.clone());
+            let state = Mutex::new((0usize, 0usize));
+            let name = d.name.clone();
+            let outcome = run_job(
+                db.clone(),
+                IndexJob {
+                    document_id: d.id.clone(),
+                    source: None,
+                    embed: req.embed.clone(),
+                    ocr: None,
+                    asr: None,
+                },
+                cancel.clone(),
+                |p: Progress| {
+                    let mut s = state.lock().unwrap_or_else(|e| e.into_inner());
+                    if p.total > 0 {
+                        *s = (p.done, p.total);
+                    }
+                    emit("indexing", done, total, Some(&name), s.0, s.1);
+                },
+            )
+            .await;
+            touched.insert(d.id.clone());
+            if cancel.load(Ordering::SeqCst) {
+                cancelled = true;
+                break;
+            }
+            if outcome.is_err() {
+                failed += 1;
+            }
+            finished.insert(d.id.clone());
+            done = finished.len();
+        }
+        embed_ms = embed_started.elapsed().as_millis() as u64;
     }
     if cancelled {
         // Documents that were never reached stay resumable.
@@ -460,7 +928,8 @@ async fn index_kb_inner(
         }
     }
 
-    // 4. Record the model, the size and the time.
+    // 4. Record the model, the size, the time and the resources.
+    let usage = meter.stop();
     let docs = db.rag_documents(&req.kb_id).map_err(String::from)?;
     // The model of the run is the model of the index even when the run stopped early (the
     // documents without vectors then make the base incomplete, not stale).
@@ -486,19 +955,44 @@ async fn index_kb_inner(
         elapsed_ms as i64,
     )
     .map_err(String::from)?;
+    let _ = db.kb_record_run(
+        &req.kb_id,
+        RunStats {
+            started_at,
+            elapsed_ms,
+            extract_ms,
+            embed_ms,
+            added: synced.added,
+            changed: synced.changed,
+            removed: synced.removed,
+            unchanged: synced.unchanged,
+            processed: touched.len(),
+            failed,
+            cpu_avg_pct: usage.cpu_avg_pct,
+            cpu_peak_pct: usage.cpu_peak_pct,
+            rss_peak_bytes: usage.rss_peak_bytes,
+            model: model.clone(),
+        },
+    );
     eprintln!(
-        "[rag] knowledge base \"{}\": {} of {} documents worked on ({} failed{}), {} chunks, {} embedded with {} ({} dims) in {} ms",
+        "[rag] knowledge base \"{}\": {} added, {} changed, {} unchanged, {} removed; {} documents worked on ({} failed{}), {} chunks, {} embedded with {} ({} dims) in {} ms (read {} ms, embed {} ms)",
         kb.name,
-        done,
-        total,
+        synced.added,
+        synced.changed,
+        synced.unchanged,
+        synced.removed,
+        touched.len(),
         failed,
         if cancelled { ", cancelled" } else { "" },
         chunks,
         embedded,
         model.as_deref().unwrap_or("keywords only"),
         dims.unwrap_or(0),
-        elapsed_ms
+        elapsed_ms,
+        extract_ms,
+        embed_ms
     );
+    stage.set("");
     emit(
         if cancelled { "cancelled" } else { "done" },
         done,
@@ -509,7 +1003,7 @@ async fn index_kb_inner(
     );
     Ok(KbRun {
         kb_id: req.kb_id.clone(),
-        processed: done,
+        processed: touched.len(),
         failed,
         cancelled,
         documents: docs.len(),
@@ -518,7 +1012,56 @@ async fn index_kb_inner(
         elapsed_ms,
         model,
         dims,
-        not_added,
+        not_added: synced.not_added,
+        added: synced.added,
+        changed: synced.changed,
+        unchanged: synced.unchanged,
+        removed: synced.removed,
+        extract_ms,
+        embed_ms,
+        cpu_avg_pct: usage.cpu_avg_pct,
+        cpu_peak_pct: usage.cpu_peak_pct,
+        rss_peak_bytes: usage.rss_peak_bytes,
+    })
+}
+
+/// The answer to a question about one base: the excerpts with their citations and what the
+/// question cost.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct KbAnswer {
+    pub kb_id: String,
+    pub query: String,
+    pub sources: Vec<super::Source>,
+    /// `hybrid` (vectors and keywords) or `keyword`.
+    pub retrieval: Option<String>,
+    /// Rerank model that reordered the excerpts.
+    pub reranked: Option<String>,
+    pub notices: Vec<String>,
+    /// Time of the whole question (embedding the question, searching, reranking).
+    pub latency_ms: u64,
+}
+
+/// Asks a base: the best excerpts of its documents for `opts.query`, numbered for citation
+/// (`[1]`...), with the page or the time span of each. Records the latency in the base's
+/// figures. The base's rerank model is used unless `opts` already has one or `no_rerank` is set.
+pub async fn ask(
+    db: &StateDb,
+    kb_id: &str,
+    opts: &super::RetrieveOptions,
+) -> Result<KbAnswer, String> {
+    let started = Instant::now();
+    let p = super::query_kb(db, kb_id, opts).await?;
+    let latency_ms = started.elapsed().as_millis() as u64;
+    let _ = db.kb_record_query(kb_id, latency_ms);
+    Ok(KbAnswer {
+        kb_id: kb_id.to_string(),
+        query: opts.query.clone(),
+        sources: p.sources,
+        retrieval: p.retrieval,
+        reranked: p.reranked,
+        notices: p.notices,
+        latency_ms,
     })
 }
 

@@ -40,6 +40,7 @@ async fn attach(db: &Arc<StateDb>, conv: &str, path: &Path) -> Result<RagDocumen
             source: Some(path.to_path_buf()),
             embed: None,
             ocr: None,
+            asr: None,
         },
         flag,
         |_| {},
@@ -65,6 +66,7 @@ async fn attach_extracts_chunks_and_searches_keywords() {
             source: Some(fixture("state-db-schema.pdf")),
             embed: None,
             ocr: None,
+            asr: None,
         },
         flag,
         move |p| s.lock().unwrap().push(p.status),
@@ -200,6 +202,7 @@ async fn duplicates_failures_cancel_and_delete() {
             source: Some(src),
             embed: None,
             ocr: None,
+            asr: None,
         },
         flag,
         |_| {},
@@ -245,6 +248,7 @@ fn embeddings_are_stored_per_model() {
             page_start: None,
             page_end: None,
             heading: None,
+            ..Default::default()
         })
         .collect();
     db.rag_store_extraction(
@@ -328,6 +332,9 @@ fn plan_splits_full_text_and_search() {
         embed_model: None,
         embed_dims: None,
         ocr_pages: Vec::new(),
+        mtime_ms: None,
+        rel_path: None,
+        meta: None,
         created_at: 0,
         updated_at: 0,
     };
@@ -358,6 +365,8 @@ fn prompts_number_excerpts_and_name_documents() {
         chunk_id: Some(n as i64),
         page_start: page,
         page_end: page.map(|p| p + (n as i64 - 1)),
+        t_start_ms: None,
+        t_end_ms: None,
         heading: heading.map(str::to_string),
         text: format!("parça {n}\n"),
         similarity: None,

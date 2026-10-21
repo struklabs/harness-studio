@@ -6,6 +6,7 @@ pub mod asr;
 pub mod conversations;
 pub mod convert;
 pub mod hf;
+pub mod kb;
 pub mod lemonade;
 pub mod models;
 pub mod modules;
@@ -21,7 +22,7 @@ pub mod tts;
 use std::path::Path;
 
 use crate::cli::{
-    BenchmarkCommand, Cli, Command, ConversationCommand, ImportCommand, LoraCommand,
+    BenchmarkCommand, Cli, Command, ConversationCommand, ImportCommand, KbCommand, LoraCommand,
     ManagedCommand, ModulesCommand, OtelCommand, ProfileCommand, RouterCommand, RuntimeCommand,
     ServiceCommand, SkillsCommand, TokenCommand, ToolsCommand,
 };
@@ -67,6 +68,14 @@ fn need(cmd: &Command) -> Option<Need> {
         // The summary is requested through a running instance's gateway.
         Conversations {
             command: ConversationCommand::Compact { .. },
+        } => Need::Existing,
+        // Indexing and questions go through the gateway's embedding, speech and OCR models.
+        Kb {
+            command:
+                KbCommand::Add { .. }
+                | KbCommand::Index { .. }
+                | KbCommand::Query { .. }
+                | KbCommand::Cancel { .. },
         } => Need::Existing,
         Pull { detach: true, .. } => Need::Existing,
         _ => Need::Library,
@@ -164,6 +173,109 @@ async fn run_with(session: &Session, command: Command, out: &Out) -> CliResult<(
             )
             .await
         }
+        Command::Kb { command } => match command {
+            KbCommand::Ls => kb::ls(client, out).await,
+            KbCommand::Create {
+                name,
+                folder,
+                ocr,
+                asr,
+                rerank,
+            } => {
+                kb::create(
+                    client,
+                    kb::CreateArgs {
+                        name,
+                        folder,
+                        ocr,
+                        asr,
+                        rerank,
+                    },
+                    out,
+                )
+                .await
+            }
+            KbCommand::Show {
+                kb: key,
+                embed_model,
+            } => kb::show(client, &key, embed_model.as_deref(), out).await,
+            KbCommand::Docs { kb: key } => kb::docs(client, &key, out).await,
+            KbCommand::Set {
+                kb: key,
+                name,
+                folder,
+                ocr,
+                asr,
+                rerank,
+            } => {
+                kb::set(
+                    client,
+                    &key,
+                    kb::SetArgs {
+                        name,
+                        folder,
+                        ocr,
+                        asr,
+                        rerank,
+                    },
+                    out,
+                )
+                .await
+            }
+            KbCommand::Rm { kb: key } => kb::rm(client, &key, out).await,
+            KbCommand::Add {
+                kb: key,
+                paths,
+                folder,
+                no_index,
+                embed_model,
+                wait,
+            } => {
+                kb::add(
+                    client,
+                    kb::AddArgs {
+                        key,
+                        folder,
+                        paths,
+                        no_index,
+                        embed_model,
+                        wait,
+                    },
+                    out,
+                )
+                .await
+            }
+            KbCommand::Remove { kb: key, sources } => kb::remove(client, &key, sources, out).await,
+            KbCommand::Index {
+                kb: key,
+                rebuild,
+                embed_model,
+                wait,
+            } => kb::index(client, &key, rebuild, embed_model, wait, out).await,
+            KbCommand::Cancel { kb: key } => kb::cancel(client, &key, out).await,
+            KbCommand::Query {
+                kb: key,
+                question,
+                top_k,
+                embed_model,
+                rerank,
+                no_rerank,
+            } => {
+                kb::query(
+                    client,
+                    kb::QueryArgs {
+                        key,
+                        question,
+                        top_k,
+                        embed_model,
+                        rerank,
+                        no_rerank,
+                    },
+                    out,
+                )
+                .await
+            }
+        },
         Command::Conversations { command } => match command {
             ConversationCommand::Ls {
                 query,

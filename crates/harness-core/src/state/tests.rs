@@ -862,6 +862,7 @@ fn v4_database_upgrades_to_v5_with_document_tables() {
         page_start: None,
         page_end: None,
         heading: Some("Başlık".into()),
+        ..Default::default()
     };
     db.rag_store_extraction(
         &doc.id,
@@ -1591,7 +1592,7 @@ fn v7_database_upgrades_through_knowledge_bases_to_projects_without_losing_data(
     }
     let db = StateDb::open(&path).unwrap();
     assert_eq!(db.user_version().unwrap(), SCHEMA_VERSION);
-    assert_eq!(schema::MIGRATIONS.len(), 11);
+    assert_eq!(schema::MIGRATIONS.len(), 12);
     // v7 and v8 data is intact.
     assert_eq!(db.get_conversation("c1").unwrap().conversation.title, "old");
     assert_eq!(db.rag_documents("c1").unwrap().len(), 1);

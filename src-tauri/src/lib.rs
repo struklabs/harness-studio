@@ -804,6 +804,7 @@ pub fn run() {
             kb_list,
             kb_create,
             kb_set_ocr_model,
+            kb_update,
             kb_rename,
             kb_delete,
             kb_documents,

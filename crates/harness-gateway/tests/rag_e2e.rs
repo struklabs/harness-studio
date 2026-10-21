@@ -195,6 +195,7 @@ async fn e2e_rag_pdf_retrieval_rerank_and_cited_answer() {
                 source: Some(f.clone()),
                 embed: Some(embed.clone()),
                 ocr: None,
+                asr: None,
             },
             flag,
             move |p| s.lock().unwrap().push((p.status, p.done, p.total)),
@@ -246,6 +247,7 @@ async fn e2e_rag_pdf_retrieval_rerank_and_cited_answer() {
             context_tokens: Some(2048),
             embed: Some(embed.clone()),
             rerank: Some((endpoint.clone(), "rag-rerank".into())),
+            ..Default::default()
         },
     )
     .await
@@ -337,6 +339,7 @@ async fn e2e_rag_pdf_retrieval_rerank_and_cited_answer() {
             context_tokens: Some(8192),
             embed: Some(embed.clone()),
             rerank: None,
+            ..Default::default()
         },
     )
     .await

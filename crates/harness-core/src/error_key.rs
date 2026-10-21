@@ -152,7 +152,9 @@ pub fn http_status(code: &str) -> u16 {
         | "training.export_active"
         | "compaction.busy"
         | "compaction.stale_path"
-        | "compaction.gateway_required" => 409,
+        | "compaction.gateway_required"
+        | "rag.kb_busy"
+        | "rag.gateway_required" => 409,
         "runtime.no_release" | "runtime.whisper_no_macos" => 404,
         // The tool policy refuses the call (Control API: it cannot ask the user).
         "tools.disabled" | "tools.approval_required" | "tools.install_approval_required" => 403,

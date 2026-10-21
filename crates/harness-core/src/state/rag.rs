@@ -41,13 +41,45 @@ pub struct RagDocument {
     /// empty when the text layer was used throughout.
     #[serde(default)]
     pub ocr_pages: Vec<u32>,
+    /// Modification time of the source file when it was indexed (ms since the epoch); with
+    /// `size` and `sha256` it tells whether the file changed.
+    #[serde(default)]
+    pub mtime_ms: Option<i64>,
+    /// Path of the source below the knowledge base's folder (`/` separators), so the index
+    /// survives moving the folder; `None` for a file added on its own.
+    #[serde(default)]
+    pub rel_path: Option<String>,
+    /// Details of media documents (audio, video, image).
+    #[serde(default)]
+    pub meta: Option<DocMeta>,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+/// What is known about a media document besides its text.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct DocMeta {
+    /// `audio`, `video` or `image`.
+    pub media: String,
+    /// Length of the recording in milliseconds.
+    pub duration_ms: Option<u64>,
+    /// Timed transcript segments.
+    pub segments: Option<usize>,
+    /// Language the speech recognition reported.
+    pub language: Option<String>,
+    /// Pixel size of an image.
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    /// Model (alias) that made the text: speech recognition or OCR.
+    pub text_model: Option<String>,
 }
 
 /// A chunk found by retrieval.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChunkHit {
+    pub t_start_ms: Option<i64>,
+    pub t_end_ms: Option<i64>,
     pub chunk_id: i64,
     pub document_id: String,
     pub document_name: String,
@@ -72,7 +104,7 @@ const DOC_COLS: &str = "d.id, d.conversation_id, d.name, d.kind, d.source_path, 
     d.pages, d.chars, d.status, d.error, d.mode, d.embed_model, d.embed_dims, d.created_at, \
     d.updated_at, \
     (SELECT COUNT(*) FROM rag_chunks c WHERE c.document_id = d.id), \
-    (SELECT COUNT(*) FROM rag_chunks c WHERE c.document_id = d.id AND c.embedding IS NOT NULL), \n    d.ocr_pages";
+    (SELECT COUNT(*) FROM rag_chunks c WHERE c.document_id = d.id AND c.embedding IS NOT NULL), \n    d.ocr_pages, d.mtime_ms, d.rel_path, d.meta_json";
 
 /// `"2,5"` -> `[2, 5]` (a stored list of page numbers).
 fn parse_pages(text: Option<&str>) -> Vec<u32> {
@@ -105,6 +137,11 @@ fn doc_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<RagDocument> {
         chunks: r.get(16)?,
         embedded: r.get(17)?,
         ocr_pages: parse_pages(r.get::<_, Option<String>>(18)?.as_deref()),
+        mtime_ms: r.get(19)?,
+        rel_path: r.get(20)?,
+        meta: r
+            .get::<_, Option<String>>(21)?
+            .and_then(|j| serde_json::from_str(&j).ok()),
     })
 }
 
@@ -248,6 +285,43 @@ impl StateDb {
         })
     }
 
+    /// Records where a document's text came from: the file's modification time, its path below
+    /// the knowledge base folder (`None` keeps the stored one) and the media details.
+    pub fn rag_set_source_stat(
+        &self,
+        id: &str,
+        mtime_ms: Option<i64>,
+        rel_path: Option<&str>,
+        meta: Option<&DocMeta>,
+    ) -> StateResult<()> {
+        let meta = meta.and_then(|m| serde_json::to_string(m).ok());
+        self.write(|tx| {
+            let n = tx.execute(
+                "UPDATE rag_documents SET mtime_ms = COALESCE(?2, mtime_ms),
+                     rel_path = COALESCE(?3, rel_path), meta_json = COALESCE(?4, meta_json)
+                 WHERE id = ?1",
+                params![id, mtime_ms, rel_path, meta],
+            )?;
+            if n == 0 {
+                return Err(StateError::not_found(
+                    err("rag.document_not_found").with("id", id),
+                ));
+            }
+            Ok(())
+        })
+    }
+
+    /// Points a document at a source file (the folder was moved or the file renamed).
+    pub fn rag_set_source_path(&self, id: &str, path: &str) -> StateResult<()> {
+        self.write(|tx| {
+            tx.execute(
+                "UPDATE rag_documents SET source_path = ?2 WHERE id = ?1",
+                params![id, path],
+            )?;
+            Ok(())
+        })
+    }
+
     pub fn rag_set_mode(&self, id: &str, mode: &str) -> StateResult<RagDocument> {
         if !matches!(mode, "auto" | "full" | "retrieval") {
             return Err(StateError::invalid(
@@ -329,8 +403,9 @@ impl StateDb {
             tx.execute("DELETE FROM rag_chunks WHERE document_id = ?1", [id])?;
             {
                 let mut ins = tx.prepare(
-                    "INSERT INTO rag_chunks (document_id, seq, text, page_start, page_end, heading)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    "INSERT INTO rag_chunks (document_id, seq, text, page_start, page_end, heading,
+                                             t_start_ms, t_end_ms)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 )?;
                 for (i, c) in chunks.iter().enumerate() {
                     ins.execute(params![
@@ -339,7 +414,9 @@ impl StateDb {
                         c.text,
                         c.page_start,
                         c.page_end,
-                        c.heading
+                        c.heading,
+                        c.t_start_ms.map(|t| t as i64),
+                        c.t_end_ms.map(|t| t as i64)
                     ])?;
                 }
             }
@@ -494,7 +571,8 @@ impl StateDb {
     pub fn rag_chunks(&self, ids: &[i64]) -> StateResult<Vec<ChunkHit>> {
         self.read(|c| {
             let mut st = c.prepare(
-                "SELECT c.rid, c.document_id, d.name, c.seq, c.text, c.page_start, c.page_end, c.heading
+                "SELECT c.rid, c.document_id, d.name, c.seq, c.text, c.page_start, c.page_end, c.heading,
+                        c.t_start_ms, c.t_end_ms
                  FROM rag_chunks c JOIN rag_documents d ON d.id = c.document_id WHERE c.rid = ?1",
             )?;
             let mut out = Vec::new();
@@ -510,6 +588,8 @@ impl StateDb {
                             page_start: r.get(5)?,
                             page_end: r.get(6)?,
                             heading: r.get(7)?,
+                            t_start_ms: r.get(8)?,
+                            t_end_ms: r.get(9)?,
                         })
                     })
                     .optional()?;

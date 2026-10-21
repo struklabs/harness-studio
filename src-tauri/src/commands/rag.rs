@@ -287,6 +287,7 @@ pub(crate) async fn rag_add_files(
                 source: Some(p),
                 embed: embed.clone(),
                 ocr: None,
+                asr: None,
             },
             flag,
         );
@@ -345,6 +346,7 @@ pub(crate) async fn rag_reindex(
                 source: None,
                 embed: embed.clone(),
                 ocr: None,
+                asr: None,
             },
             flag,
         );
@@ -418,6 +420,7 @@ pub(crate) async fn rag_prepare(
         context_tokens: input.context_tokens,
         embed,
         rerank,
+        no_rerank: false,
     };
     let mut prepared = harness_core::rag::prepare(&db, &input.conversation_id, &opts).await?;
     if prepared.retrieval.is_some() {

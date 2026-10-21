@@ -9,7 +9,7 @@ export interface RagDocument {
   id: string;
   conversation_id: string;
   name: string;
-  kind: 'pdf' | 'docx' | 'markdown' | 'code' | 'text';
+  kind: 'pdf' | 'docx' | 'markdown' | 'code' | 'text' | 'audio' | 'video' | 'image';
   source_path: string | null;
   size: number;
   sha256: string;
@@ -26,8 +26,21 @@ export interface RagDocument {
   embed_dims: number | null;
   /** Pages of a PDF read with the knowledge base OCR model; empty when the text layer was enough. */
   ocr_pages: number[];
+  mtime_ms?: number | null;
+  rel_path?: string | null;
+  meta?: RagDocumentMeta | null;
   created_at: number;
   updated_at: number;
+}
+
+export interface RagDocumentMeta {
+  media: 'audio' | 'video' | 'image';
+  duration_ms: number | null;
+  segments: number | null;
+  language: string | null;
+  width: number | null;
+  height: number | null;
+  text_model: string | null;
 }
 
 export interface RetrievalModel {
@@ -62,6 +75,9 @@ export interface RagSource {
   chunk_id: number | null;
   page_start: number | null;
   page_end: number | null;
+  /** Time span in an audio or video document, milliseconds. */
+  t_start_ms?: number | null;
+  t_end_ms?: number | null;
   heading: string | null;
   text: string;
   similarity: number | null;

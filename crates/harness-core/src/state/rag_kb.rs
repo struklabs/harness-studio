@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 /// A named, reusable set of documents (without its documents).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct KnowledgeBaseRow {
     pub id: String,
     pub name: String,
@@ -26,10 +27,67 @@ pub struct KnowledgeBaseRow {
     pub indexed_at: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// Speech-recognition model (alias) that transcribes audio and video; `None` = such files
+    /// are not indexed.
+    #[serde(default)]
+    pub asr_model: Option<String>,
+    /// Rerank model (alias) that reorders the best excerpts of a question; `None` = off.
+    #[serde(default)]
+    pub rerank_model: Option<String>,
+    /// Measured figures: the last run and the question latencies.
+    #[serde(default)]
+    pub stats: KbStats,
 }
 
-const KB_COLS: &str =
-    "id, name, folder, embed_model, embed_dims, index_ms, indexed_at, created_at, updated_at, ocr_model";
+/// Figures measured by this machine (the knowledge base detail view shows them).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct KbStats {
+    pub last_run: Option<RunStats>,
+    /// Questions asked (through the API, the CLI or a chat).
+    pub query_count: u64,
+    pub query_ms_total: u64,
+    pub query_ms_last: Option<u64>,
+    /// Latencies of the last 50 questions in milliseconds (oldest first).
+    pub query_ms_recent: Vec<u64>,
+}
+
+/// One indexing run, measured.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct RunStats {
+    pub started_at: i64,
+    pub elapsed_ms: u64,
+    /// Time of the extraction / transcription stage and of the embedding stage.
+    pub extract_ms: u64,
+    pub embed_ms: u64,
+    pub added: usize,
+    pub changed: usize,
+    pub removed: usize,
+    pub unchanged: usize,
+    pub processed: usize,
+    pub failed: usize,
+    /// CPU use of Harness and its model processes during the run, in percent of one core.
+    pub cpu_avg_pct: f32,
+    pub cpu_peak_pct: f32,
+    /// Largest memory (resident) of Harness and its model processes during the run.
+    pub rss_peak_bytes: u64,
+    pub model: Option<String>,
+}
+
+/// What a knowledge base takes on disk (the database rows; the source files stay where they are).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct DiskUsage {
+    /// Sum of the source files' sizes.
+    pub source_bytes: i64,
+    /// Extracted text and chunks.
+    pub text_bytes: i64,
+    /// Embedding vectors.
+    pub vector_bytes: i64,
+}
+
+const KB_COLS: &str = "id, name, folder, embed_model, embed_dims, index_ms, indexed_at, created_at, updated_at, ocr_model, asr_model, rerank_model, stats_json";
 
 fn kb_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<KnowledgeBaseRow> {
     Ok(KnowledgeBaseRow {
@@ -43,6 +101,12 @@ fn kb_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<KnowledgeBaseRow> {
         created_at: r.get(7)?,
         updated_at: r.get(8)?,
         ocr_model: r.get(9)?,
+        asr_model: r.get(10)?,
+        rerank_model: r.get(11)?,
+        stats: r
+            .get::<_, Option<String>>(12)?
+            .and_then(|j| serde_json::from_str(&j).ok())
+            .unwrap_or_default(),
     })
 }
 
@@ -54,6 +118,17 @@ fn get_kb(conn: &Connection, id: &str) -> StateResult<KnowledgeBaseRow> {
     )
     .optional()?
     .ok_or_else(|| StateError::not_found(err("rag.kb_not_found").with("id", id)))
+}
+
+/// Settings of a base to change ([`StateDb::kb_update`]).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct KbUpdate {
+    pub name: Option<String>,
+    pub folder: Option<String>,
+    pub ocr_model: Option<String>,
+    pub asr_model: Option<String>,
+    pub rerank_model: Option<String>,
 }
 
 /// Knowledge bases a user may have.
@@ -107,6 +182,118 @@ impl StateDb {
                 ));
             }
             get_kb(tx, id)
+        })
+    }
+
+    /// Changes settings of a base: `None` leaves a field alone, `Some("")` clears an optional one.
+    pub fn kb_update(&self, id: &str, u: &KbUpdate) -> StateResult<KnowledgeBaseRow> {
+        let clean = |v: &Option<String>| -> Option<Option<String>> {
+            v.as_ref().map(|s| {
+                let s = s.trim();
+                (!s.is_empty()).then(|| s.to_string())
+            })
+        };
+        if let Some(name) = &u.name {
+            if name.trim().is_empty() {
+                return Err(StateError::invalid(err("rag.kb_name_empty")));
+            }
+        }
+        self.write(|tx| {
+            let mut kb = get_kb(tx, id)?;
+            if let Some(n) = &u.name {
+                kb.name = n.trim().to_string();
+            }
+            if let Some(f) = clean(&u.folder) {
+                kb.folder = f;
+            }
+            if let Some(m) = clean(&u.ocr_model) {
+                kb.ocr_model = m;
+            }
+            if let Some(m) = clean(&u.asr_model) {
+                kb.asr_model = m;
+            }
+            if let Some(m) = clean(&u.rerank_model) {
+                kb.rerank_model = m;
+            }
+            tx.execute(
+                "UPDATE rag_kbs SET name = ?2, folder = ?3, ocr_model = ?4, asr_model = ?5,
+                     rerank_model = ?6, updated_at = ?7 WHERE id = ?1",
+                params![
+                    id,
+                    kb.name,
+                    kb.folder,
+                    kb.ocr_model,
+                    kb.asr_model,
+                    kb.rerank_model,
+                    now_ms()
+                ],
+            )?;
+            get_kb(tx, id)
+        })
+    }
+
+    /// Stores the measured figures of a finished indexing run.
+    pub fn kb_record_run(&self, id: &str, run: RunStats) -> StateResult<()> {
+        self.write(|tx| {
+            let mut kb = get_kb(tx, id)?;
+            kb.stats.last_run = Some(run);
+            let json = serde_json::to_string(&kb.stats).unwrap_or_default();
+            tx.execute(
+                "UPDATE rag_kbs SET stats_json = ?2 WHERE id = ?1",
+                params![id, json],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Adds the latency of one question to the base's figures.
+    pub fn kb_record_query(&self, id: &str, ms: u64) -> StateResult<()> {
+        self.write(|tx| {
+            let mut kb = get_kb(tx, id)?;
+            let s = &mut kb.stats;
+            s.query_count += 1;
+            s.query_ms_total += ms;
+            s.query_ms_last = Some(ms);
+            s.query_ms_recent.push(ms);
+            if s.query_ms_recent.len() > 50 {
+                s.query_ms_recent.remove(0);
+            }
+            let json = serde_json::to_string(&kb.stats).unwrap_or_default();
+            tx.execute(
+                "UPDATE rag_kbs SET stats_json = ?2 WHERE id = ?1",
+                params![id, json],
+            )?;
+            Ok(())
+        })
+    }
+
+    /// Bytes the base's documents take in the database.
+    pub fn kb_disk_usage(&self, id: &str) -> StateResult<DiskUsage> {
+        self.read(|c| {
+            let source_bytes: i64 = c.query_row(
+                "SELECT COALESCE(SUM(size), 0) FROM rag_documents WHERE conversation_id = ?1",
+                [id],
+                |r| r.get(0),
+            )?;
+            let content: i64 = c.query_row(
+                "SELECT COALESCE(SUM(length(CAST(content AS BLOB))), 0) FROM rag_documents
+                 WHERE conversation_id = ?1",
+                [id],
+                |r| r.get(0),
+            )?;
+            let (chunk_text, vectors): (i64, i64) = c.query_row(
+                "SELECT COALESCE(SUM(length(CAST(c.text AS BLOB))), 0),
+                        COALESCE(SUM(length(c.embedding)), 0)
+                 FROM rag_chunks c JOIN rag_documents d ON d.id = c.document_id
+                 WHERE d.conversation_id = ?1",
+                [id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )?;
+            Ok(DiskUsage {
+                source_bytes,
+                text_bytes: content + chunk_text,
+                vector_bytes: vectors,
+            })
         })
     }
 
@@ -229,7 +416,8 @@ impl StateDb {
         self.read(|c| {
             let mut st = c.prepare(
                 "SELECT k.id, k.name, k.folder, k.embed_model, k.embed_dims, k.index_ms,
-                        k.indexed_at, k.created_at, k.updated_at, k.ocr_model
+                        k.indexed_at, k.created_at, k.updated_at, k.ocr_model,
+                        k.asr_model, k.rerank_model, k.stats_json
                  FROM rag_conversation_kbs a JOIN rag_kbs k ON k.id = a.kb_id
                  WHERE a.conversation_id = ?1 ORDER BY a.created_at, k.rowid",
             )?;
