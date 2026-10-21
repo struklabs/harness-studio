@@ -740,6 +740,7 @@ huggingface-hub==2.2.0 \
     # via
     #   datasets
     #   mlx-audio
+    #   mlx-embeddings
     #   tokenizers
     #   transformers
 idna==3.20 \
@@ -753,7 +754,9 @@ idna==3.20 \
 jinja2==3.1.6 \
     --hash=sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d \
     --hash=sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67
-    # via mlx-vlm
+    # via
+    #   mlx-lm
+    #   mlx-vlm
 llguidance==1.9.1 \
     --hash=sha256:0ab9d2681c0fcb4389f3c1c79697f1e724771d74d366bb5a22edae155252dfed \
     --hash=sha256:151a615f3d871fc096984b705daa211faccc78ed2f9e3a2a80e57283e16e2898 \
@@ -1021,11 +1024,21 @@ mlx==0.32.3 \
     --hash=sha256:f5716b51fea3d06352d4d8c851fb6c5141b1a7de5a5164d44de5a6d368d84a7e
     # via
     #   mlx-audio
+    #   mlx-embeddings
+    #   mlx-lm
     #   mlx-vlm
 mlx-audio==0.5.9 \
     --hash=sha256:ad2862464d2d5b8ab4b9394a226d044e7022da594329427ef16ca8e93c08e6b5 \
     --hash=sha256:fa662cf24cbca69cdd912612cdb677e65f77c6329a95906cc80b50e5b4689d6b
     # via mlx-vlm
+mlx-embeddings==0.1.0 \
+    --hash=sha256:3fe1feaa786d3b546ccd8909f6b4c22bd3bcce097616fce83173ededd30e6630 \
+    --hash=sha256:f80c1e1be26ff7bd22b15c1fba4cc03afd44c86e00a431b5fa75ffd7500affb1
+    # via -r python/mlx-vlm.in
+mlx-lm==0.32.0 \
+    --hash=sha256:035ca44b08c3476630a205d2c9bdea26825a6a8359f974944d4985230e41859f \
+    --hash=sha256:9a0f3843135fd88d36ad791f0d82210cdc4130c5c1cb5416f5f0c4b56a135778
+    # via -r python/mlx-vlm.in
 mlx-metal==0.32.3 \
     --hash=sha256:34ae9b83ad2f0ccdd3e5d48ec35176e7119f57069eef187122916dc941a4ae1f \
     --hash=sha256:fdba88ed9131448cf163be2c7ad6374746d8818205f28657aa91b6c69050f691 \
@@ -1034,7 +1047,9 @@ mlx-metal==0.32.3 \
 mlx-vlm==0.7.8 \
     --hash=sha256:22a100477c932f3fd7fc667bc1e966fbc71dfb25a17b09f5f3506d63d8c3d288 \
     --hash=sha256:b731a2220c6f572a9948369ebec5daa834cb8306004af861ebeabc1ba2c1100a
-    # via -r python/mlx-vlm.in
+    # via
+    #   -r python/mlx-vlm.in
+    #   mlx-embeddings
 multidict==7.1.0 \
     --hash=sha256:0179698c3c913eb64f32397083747fad20ed0f0a2b7469a08cd1a8a95d14d90e \
     --hash=sha256:034b0dc1b7fb8279599c5d8563f86abb4d2454735b06544ecab23c54572ad2bd \
@@ -1298,6 +1313,7 @@ numpy==2.5.4 \
     # via
     #   datasets
     #   mlx-audio
+    #   mlx-lm
     #   mlx-vlm
     #   opencv-python
     #   pandas
@@ -1617,6 +1633,18 @@ propcache==0.5.4 \
     # via
     #   aiohttp
     #   yarl
+protobuf==7.36.2 \
+    --hash=sha256:497d0463ff3316681da6c0b9e8d06cb465d61abce00b613ab42226175644d1bb \
+    --hash=sha256:89f23aa53c24553a2416fd4fd1ec06f74fa42b14b546d8883128813f775bbfd2 \
+    --hash=sha256:912c1221170e16c08d1f086762f563dd61ff83c18b5fa6652952dfaded66f728 \
+    --hash=sha256:a300819d441e078a5608c0d3c709796bb548136058fda017ae51d425b44fd353 \
+    --hash=sha256:bdb3a345d48db958e6ce1f18e508beb0cc981d64f24088427549c866cd039f1e \
+    --hash=sha256:cbc70b17ee27e28894c7fee8bb04be1abead49e936bc70eb60052531eee2079e \
+    --hash=sha256:e11e1f0180583a2af89db6a2ecd9e8dc40aa6d2988ca175bfd0e6d12ea72d74e \
+    --hash=sha256:f4fee11ec330d238b34a05c9b675f693c20415d1c5bd7d5320cc2f8a798eb9cf
+    # via
+    #   mlx-lm
+    #   transformers
 pyarrow==26.0.0 \
     --hash=sha256:01c863a18bd9c8412453dd0d92de6d0ee7b2b3d6fb079d9734a4b2a3c8bd4453 \
     --hash=sha256:0cccd36e00ea3afeb52ded61f2721ce71f604853d70c45365c58324eb773d6ae \
@@ -1905,6 +1933,7 @@ pyyaml==6.0.3 \
     # via
     #   datasets
     #   huggingface-hub
+    #   mlx-lm
     #   transformers
 regex==2026.9.29 \
     --hash=sha256:01000ddf0e3ffef97f2413ceb514f6313040106b6d18a03ee00a4fe35c1eb1db \
@@ -2186,7 +2215,10 @@ sentencepiece==0.2.2 \
     --hash=sha256:f7c06c751c19d923435a54bff4f7e66e728fad160e8da28254f133abc9725820 \
     --hash=sha256:fa9f5ef0e2a82233dd0b8b32ea3f5710e0c44afbc07ed3620219f32601e56090 \
     --hash=sha256:fd523c4992041faa5c2b3cde62253d11a96c30d73a34afe48a486e8e2254cd1c
-    # via mlx-vlm
+    # via
+    #   mlx-lm
+    #   mlx-vlm
+    #   transformers
 shellingham==1.5.4 \
     --hash=sha256:7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686 \
     --hash=sha256:8dbca0739d487e5bd35ab3ca4b36e11c4078f3a234bfce294b0a0291363404de
@@ -2277,6 +2309,8 @@ transformers==5.19.0 \
     --hash=sha256:afcd2dd5f603ed28c1e1fcb00a338ccbb4ef5f878ed289635df8b58187afb518
     # via
     #   mlx-audio
+    #   mlx-embeddings
+    #   mlx-lm
     #   mlx-vlm
 truststore==0.10.5 \
     --hash=sha256:30d36967ccaded5cbb38d602c433f53600036c79d502f4533a49b60a03bbefcd \

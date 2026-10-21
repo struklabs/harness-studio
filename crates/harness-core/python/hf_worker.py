@@ -11,9 +11,13 @@ Endpoints
   GET  /health                     {"status":"ok"} | 503 {"status":"loading"} | 500 {"status":"error"}
   GET  /v1/models
   POST /hf                         Hugging Face Inference API: {"inputs": ..., "parameters": {...}}
+  POST /v1/chat/completions        text-generation, image-text-to-text (OpenAI shape, SSE streaming,
+                                   tools, images as data: or http(s) URLs)
   POST /v1/embeddings              feature-extraction, sentence-similarity (OpenAI shape)
   POST /v1/rerank                  text-ranking (cross-encoders)
-  POST /v1/audio/transcriptions    automatic-speech-recognition (multipart "file", OpenAI shape)
+  POST /v1/audio/transcriptions    automatic-speech-recognition (multipart "file", OpenAI shape; a
+                                   CTranslate2 Whisper export runs on faster-whisper and also answers
+                                   language, segments and word timestamps)
   POST /v1/audio/speech            text-to-speech / text-to-audio ({"input": ...} -> audio/wav)
   POST /v1/images/generations      text-to-image (diffusers; OpenAI shape, b64_json)
   POST /v1/images/edits            image-to-image, or inpainting with a mask, on the same pipeline
@@ -37,6 +41,7 @@ import sys
 import threading
 import time
 import traceback
+import uuid
 
 # torch.load's weights_only protection is not up to the environment: Harness spawns the worker
 # without these, and a worker started some other way drops them before torch is imported.
@@ -82,7 +87,9 @@ AUDIO_TASKS = {
 # image-to-image: a pipeline that starts from an image (InstructPix2Pix, an Img2Img or Edit class).
 VIDEO_TASKS = {"text-to-video", "image-to-video"}
 DIFFUSERS_TASKS = {"text-to-image", "image-to-image"} | VIDEO_TASKS
-TASKS = TEXT_TASKS | IMAGE_TASKS | AUDIO_TASKS | DIFFUSERS_TASKS | {"video-text-to-text"}
+# Chat checkpoints (transformers Auto classes, OpenAI /v1/chat/completions).
+CHAT_TASKS = {"text-generation", "image-text-to-text"}
+TASKS = TEXT_TASKS | IMAGE_TASKS | AUDIO_TASKS | DIFFUSERS_TASKS | CHAT_TASKS | {"video-text-to-text"}
 
 # Largest request body (an image or a few minutes of audio fit easily).
 MAX_BODY_BYTES = 64 * 1024 * 1024
@@ -187,6 +194,7 @@ class Model:
         self.exit_on_error = False
         self.pipe = None
         self.st = None  # sentence-transformers model (embeddings / rerank), when the folder is one
+        self.ct2 = None  # faster-whisper WhisperModel, when the folder is a CTranslate2 Whisper export
         self.lock = threading.Lock()  # pipelines are not thread-safe: one request at a time
         self.loaded_at = None
         # Diffusers: the folder's own scheduler, the samplers built from it and the image-to-image
@@ -284,6 +292,10 @@ class Model:
                     trust_remote_code=trust,
                     local_files_only=True,
                 )
+            elif task == "automatic-speech-recognition" and is_ct2_whisper(folder):
+                self.ct2 = load_ct2_whisper(folder, self.device(), self.args.threads)
+            elif task in CHAT_TASKS:
+                self.pipe = ChatRunner(task, folder, self.device(), self.dtype(), trust)
             elif task == "video-text-to-text":
                 from transformers import AutoProcessor, AutoModelForImageTextToText
 
@@ -326,6 +338,119 @@ class Model:
                 log(f"load failed: {self.error}")
                 sys.stderr.flush()
                 os._exit(3)
+
+
+# --- faster-whisper (CTranslate2 Whisper exports) -------------------------------------------------
+
+# Longest audio one request may carry (seconds of decoded audio).
+MAX_AUDIO_SECONDS = 2 * 60 * 60
+CT2_SAMPLE_RATE = 16000
+
+
+def is_ct2_whisper(folder):
+    """A CTranslate2 Whisper export (faster-whisper): `model.bin`, a vocabulary or tokenizer and a
+    `config.json` without a transformers `model_type` / `architectures` (the CTranslate2 converter
+    writes Whisper's `alignment_heads` / `lang_ids` / `suppress_ids` there). Original transformers
+    weights next to it win."""
+    try:
+        names = set(os.listdir(folder))
+        if "model.bin" not in names or "config.json" not in names:
+            return False
+        if any(n.endswith(".safetensors") for n in names):
+            return False
+        if not names & {"tokenizer.json", "vocabulary.json", "vocabulary.txt"}:
+            return False
+        with open(os.path.join(folder, "config.json"), encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        return False
+    return (
+        isinstance(cfg, dict)
+        and "model_type" not in cfg
+        and "architectures" not in cfg
+        and any(k in cfg for k in ("alignment_heads", "lang_ids", "suppress_ids"))
+    )
+
+
+def load_ct2_whisper(folder, device, threads):
+    """Loads the export with faster-whisper: int8 on the CPU, float16 on CUDA (int8_float16 then
+    int8 where the GPU lacks it, the CPU when CUDA cannot start). The folder is a local path, so
+    nothing is fetched."""
+    import ctranslate2
+    from faster_whisper import WhisperModel
+
+    attempts = [("cpu", "int8")]
+    if device == "cuda":
+        attempts = [("cuda", "float16"), ("cuda", "int8_float16"), ("cuda", "int8")] + attempts
+    last = None
+    for dev, compute in attempts:
+        try:
+            if dev == "cuda" and ctranslate2.get_cuda_device_count() == 0:
+                raise RuntimeError("CTranslate2 sees no CUDA device")
+            m = WhisperModel(folder, device=dev, compute_type=compute, cpu_threads=max(threads, 0), local_files_only=True)
+            log(f"faster-whisper on {dev} ({compute})")
+            return m
+        except Exception as e:
+            last = e
+            log(f"faster-whisper {dev}/{compute} failed: {type(e).__name__}: {e}")
+    raise last
+
+
+def language_name(code):
+    """OpenAI's `verbose_json` names the language ("english"), faster-whisper gives its code."""
+    try:
+        from transformers.models.whisper.tokenization_whisper import LANGUAGES
+
+        return LANGUAGES.get(code, code)
+    except Exception:
+        return code
+
+
+def ct2_transcribe(model, data, form):
+    """One OpenAI transcription / translation with faster-whisper: {text, language, duration,
+    segments: [{id, start, end, text, words?}], words?}."""
+    import numpy as np
+
+    class Rate:  # to_audio resamples to the rate its `pipe.feature_extractor` names
+        feature_extractor = type("F", (), {"sampling_rate": CT2_SAMPLE_RATE})()
+
+    audio = to_audio(data, Rate)["raw"].astype(np.float32, copy=False)
+    seconds = audio.size / CT2_SAMPLE_RATE
+    if seconds > MAX_AUDIO_SECONDS:
+        raise BadRequest(f"the audio is {int(seconds)} s long; the limit is {MAX_AUDIO_SECONDS} s")
+    words_wanted = str(form.get("word_timestamps", "")).lower() in ("1", "true", "yes")
+    kwargs = dict(
+        task="translate" if form.get("task") == "translate" else "transcribe",
+        beam_size=5,
+        condition_on_previous_text=False,
+        word_timestamps=words_wanted,
+        vad_filter=seconds > 30,
+    )
+    if form.get("language"):
+        kwargs["language"] = str(form.get("language")).strip().lower()
+    if form.get("prompt"):
+        kwargs["initial_prompt"] = form.get("prompt")
+    if form.get("temperature") not in (None, ""):
+        kwargs["temperature"] = float(form.get("temperature"))
+    seg_iter, info = model.ct2.transcribe(audio, **kwargs)
+    segments, words = [], []
+    for i, seg in enumerate(seg_iter):
+        item = {"id": i, "start": round(seg.start, 3), "end": round(seg.end, 3), "text": seg.text.strip()}
+        if words_wanted:
+            item["words"] = [
+                {"word": w.word.strip(), "start": round(w.start, 3), "end": round(w.end, 3)} for w in seg.words or []
+            ]
+            words.extend(item["words"])
+        segments.append(item)
+    out = {
+        "text": " ".join(s["text"] for s in segments if s["text"]).strip(),
+        "language": language_name(info.language),
+        "duration": round(seconds, 3),
+        "segments": segments,
+    }
+    if words_wanted:
+        out["words"] = words
+    return out
 
 
 class CustomCodeRefused(Exception):
@@ -673,6 +798,8 @@ class NativeRunner:
 def run_hf(model: Model, body: dict, raw: bytes | None):
     """POST /hf: the Hugging Face Inference API request and response shapes."""
     task = model.args.task
+    if task in CHAT_TASKS:
+        raise BadRequest("this model chats: use /v1/chat/completions")
     params = check_params(body.get("parameters") or {})
     inputs = body.get("inputs") if raw is None else raw
     if inputs is None:
@@ -734,6 +861,9 @@ def run_hf(model: Model, body: dict, raw: bytes | None):
         if task == "object-detection":
             return jsonable(sorted(out, key=lambda o: -o["score"]))
         return jsonable(out)
+    if model.ct2 is not None:
+        out = ct2_transcribe(model, inputs if isinstance(inputs, (bytes, bytearray)) else decode_bytes(inputs), params)
+        return {"text": out["text"]}
     if task in ("automatic-speech-recognition", "audio-classification", "zero-shot-audio-classification"):
         audio = to_audio(inputs, pipe)
         return jsonable(pipe(audio, **params))
@@ -912,6 +1042,610 @@ def takes(pipe, name):
     return name in inspect.signature(type(pipe).__call__).parameters
 
 
+# --- chat: text-generation and image-text-to-text ------------------------------------------------
+#
+# A transformers chat checkpoint (`AutoModelForCausalLM`, or `AutoModelForImageTextToText` with its
+# processor for a vision model) behind OpenAI's /v1/chat/completions. The model's own chat template
+# builds the prompt (tools included, when the template takes them), generation streams through a
+# `TextIteratorStreamer`. The helpers below use the standard library only (the unit tests run them
+# without torch).
+
+DEFAULT_NEW_TOKENS = 2048
+MAX_NEW_TOKENS = 32768
+MAX_STOP_STRINGS = 4
+MAX_IMAGES = 8
+MAX_IMAGE_BYTES = 20 * 1024 * 1024
+IMAGE_FETCH_SECONDS = 15
+CHAT_ROLES = {"system", "developer", "user", "assistant", "tool"}
+
+
+def _number(body, name, low, high, integer=False):
+    value = body.get(name)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise BadRequest(f"{name!r} must be a number")
+    if value < low or value > high:
+        raise BadRequest(f"{name!r} must be between {low} and {high}")
+    return int(value) if integer else float(value)
+
+
+def chat_params(body):
+    """The generation parameters of a chat request, checked. Limits are refused, not clamped."""
+    if body.get("n") not in (None, 1):
+        raise BadRequest('"n" must be 1: this engine returns one choice')
+    stop = body.get("stop")
+    if stop is None:
+        stop = []
+    elif isinstance(stop, str):
+        stop = [stop]
+    if not isinstance(stop, list) or not all(isinstance(s, str) and s for s in stop):
+        raise BadRequest('"stop" must be a string or a list of non-empty strings')
+    if len(stop) > MAX_STOP_STRINGS:
+        raise BadRequest(f'"stop" takes at most {MAX_STOP_STRINGS} strings')
+    limit = body.get("max_completion_tokens")
+    if limit is None:
+        limit = body.get("max_tokens")
+    if limit is not None:
+        limit = _number({"max_tokens": limit}, "max_tokens", 1, MAX_NEW_TOKENS, integer=True)
+    options = body.get("stream_options")
+    return {
+        "max_new_tokens": limit,
+        "temperature": _number(body, "temperature", 0, 5),
+        "top_p": _number(body, "top_p", 0, 1),
+        "top_k": _number(body, "top_k", 0, 100000, integer=True),
+        "repetition_penalty": _number(body, "repetition_penalty", 0.01, 10),
+        "seed": _number(body, "seed", -(2**63), 2**63 - 1, integer=True),
+        "stop": stop,
+        "stream": body.get("stream") is True,
+        "include_usage": isinstance(options, dict) and options.get("include_usage") is True,
+    }
+
+
+def _fetch_image_bytes(url):
+    """The bytes of an http(s) image URL: public addresses only (no loopback, private, link-local
+    or reserved ones, so a request cannot reach services on this machine or its network), no
+    redirects, no proxy, at most `MAX_IMAGE_BYTES`."""
+    import socket
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    parts = urllib.parse.urlsplit(url)
+    host = parts.hostname
+    if parts.scheme not in ("http", "https") or not host:
+        raise BadRequest("image_url must be a data: URL or an http(s) URL")
+    try:
+        addresses = {info[4][0] for info in socket.getaddrinfo(host, parts.port or 443)}
+    except OSError as e:
+        raise BadRequest(f"image_url: cannot resolve {host}: {e}")
+    for address in addresses:
+        ip = ipaddress.ip_address(address.split("%", 1)[0])
+        if not ip.is_global or ip.is_multicast:
+            raise BadRequest("image_url: only public addresses are fetched")
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *a, **k):
+            return None
+
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "harness-studio"})
+        with opener.open(request, timeout=IMAGE_FETCH_SECONDS) as r:
+            data = r.read(MAX_IMAGE_BYTES + 1)
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise BadRequest(f"image_url: could not fetch the image: {e}")
+    if len(data) > MAX_IMAGE_BYTES:
+        raise BadRequest(f"image_url: the image is larger than {MAX_IMAGE_BYTES} bytes")
+    return data
+
+
+def load_chat_image(url):
+    """A PIL image from an `image_url` (`data:` URL or public http(s) URL)."""
+    if not isinstance(url, str) or not url:
+        raise BadRequest("image_url needs a url")
+    if url.startswith("data:"):
+        return to_image(url)
+    return to_image(_fetch_image_bytes(url))
+
+
+def _parts(content):
+    """A message content as a list of ("text", str) / ("image", url)."""
+    if content is None:
+        return []
+    if isinstance(content, str):
+        return [("text", content)]
+    if not isinstance(content, list):
+        raise BadRequest("message content must be a string or a list of parts")
+    out = []
+    for part in content:
+        if isinstance(part, str):
+            out.append(("text", part))
+            continue
+        kind = part.get("type") if isinstance(part, dict) else None
+        if kind in ("text", "input_text"):
+            out.append(("text", str(part.get("text", ""))))
+        elif kind in ("image_url", "input_image"):
+            image = part.get("image_url", part.get("url"))
+            url = image.get("url") if isinstance(image, dict) else image
+            out.append(("image", url))
+        else:
+            raise BadRequest(f"content part type {kind!r} is not supported (text and image_url are)")
+    return out
+
+
+def _tool_arguments(value):
+    """Tool call arguments as the dict chat templates render (OpenAI sends a JSON string)."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value) if value.strip() else {}
+        except ValueError:
+            raise BadRequest("a tool call's arguments are not valid JSON")
+    return value if isinstance(value, dict) else {}
+
+
+def normalize_messages(messages, vision, load_image=load_chat_image):
+    """OpenAI chat messages as `(template messages, images)`. A vision model gets every content as
+    a list of `{"type": "text"|"image"}` parts and the PIL images in order; a text model gets
+    strings (and refuses images)."""
+    if not isinstance(messages, list) or not messages:
+        raise BadRequest('"messages" must be a non-empty list')
+    out, images = [], []
+    for message in messages:
+        if not isinstance(message, dict) or message.get("role") not in CHAT_ROLES:
+            raise BadRequest("each message needs a role: system, user, assistant or tool")
+        role = "system" if message["role"] == "developer" else message["role"]
+        parts = _parts(message.get("content"))
+        if any(kind == "image" for kind, _ in parts):
+            if not vision:
+                raise BadRequest("this model does not take images")
+            if role != "user":
+                raise BadRequest("images are only accepted in user messages")
+        if vision and role != "tool":
+            content = []
+            for kind, value in parts:
+                if kind == "image":
+                    if len(images) >= MAX_IMAGES:
+                        raise BadRequest(f"at most {MAX_IMAGES} images per request")
+                    images.append(load_image(value))
+                    content.append({"type": "image"})
+                else:
+                    content.append({"type": "text", "text": value})
+        else:
+            content = "".join(value for kind, value in parts if kind == "text")
+        item = {"role": role, "content": content}
+        calls = message.get("tool_calls")
+        if role == "assistant" and isinstance(calls, list) and calls:
+            item["tool_calls"] = [
+                {
+                    "id": c.get("id"),
+                    "type": "function",
+                    "function": {
+                        "name": c["function"]["name"],
+                        "arguments": _tool_arguments(c["function"].get("arguments")),
+                    },
+                }
+                for c in calls
+                if isinstance(c, dict) and isinstance(c.get("function"), dict) and c["function"].get("name")
+            ]
+        if role == "tool":
+            for key in ("tool_call_id", "name"):
+                if message.get(key):
+                    item[key] = message[key]
+        out.append(item)
+    return out, images
+
+
+def plain_prompt(messages):
+    """A prompt for a model without a chat template (a base model): `role: text` lines."""
+    lines = []
+    for m in messages:
+        content = m["content"]
+        if isinstance(content, list):
+            content = "".join(p.get("text", "") for p in content if p.get("type") == "text")
+        lines.append(f"{m['role']}: {content}")
+    return "\n".join(lines) + "\nassistant:"
+
+
+_TOOL_BLOCK = re.compile(r"<tool_call>\s*(.*?)\s*(?:</tool_call>|\Z)", re.S)
+
+
+def _as_call(obj, names):
+    """One tool call object in any of the common shapes -> {"name", "arguments"}, else None."""
+    if not isinstance(obj, dict):
+        return None
+    function = obj.get("function") if isinstance(obj.get("function"), dict) else obj
+    name = function.get("name")
+    if not isinstance(name, str) or (names and name not in names):
+        return None
+    arguments = function.get("arguments", function.get("parameters", {}))
+    if not isinstance(arguments, str):
+        arguments = json.dumps(arguments if arguments is not None else {}, ensure_ascii=False)
+    return {"name": name, "arguments": arguments}
+
+
+def _json_values(text):
+    """The JSON values (objects and arrays) a text holds back to back, as (start, end, value)."""
+    decoder = json.JSONDecoder()
+    pos, out = 0, []
+    while pos < len(text):
+        if text[pos] not in "{[":
+            pos += 1
+            continue
+        try:
+            value, end = decoder.raw_decode(text, pos)
+        except ValueError:
+            pos += 1
+            continue
+        out.append((pos, end, value))
+        pos = end
+    return out
+
+
+def parse_tool_calls(text, names=None):
+    """`(content, calls)` for a model's answer: the tool calls it wrote in the shapes chat templates
+    teach (`<tool_call>{json}</tool_call>` of Qwen and Hermes, `[TOOL_CALLS][...]` of Mistral,
+    `<|python_tag|>{json}` of Llama 3.1, or an answer that is only the call as JSON) as OpenAI
+    `tool_calls`, and the text left over. `names`: the offered tools; a call to another name is
+    not a call. Without a call the text is returned as it is."""
+    found, rest = [], text
+    for block in _TOOL_BLOCK.finditer(text):
+        values = _json_values(block.group(1))
+        call = _as_call(values[0][2], names) if values else None
+        if call:
+            found.append(call)
+            rest = rest.replace(block.group(0), "", 1)
+    if not found:
+        for marker in ("[TOOL_CALLS]", "<|python_tag|>"):
+            if marker in text:
+                head, _, tail = text.partition(marker)
+                values = _json_values(tail)
+                items = values[0][2] if values and isinstance(values[0][2], list) else [v for _, _, v in values]
+                calls = [_as_call(v, names) for v in items]
+                if calls and all(calls):
+                    found, rest = calls, head
+                break
+    if not found:
+        stripped = text.strip()
+        values = _json_values(stripped)
+        if values and values[0][0] == 0 and values[-1][1] == len(stripped):
+            items = values[0][2] if isinstance(values[0][2], list) else [v for _, _, v in values]
+            calls = [_as_call(v, names) for v in items]
+            if calls and all(calls):
+                found, rest = calls, ""
+    if not found:
+        return text, []
+    tool_calls = [
+        {
+            "id": "call_" + uuid.uuid4().hex[:24],
+            "type": "function",
+            "function": {"name": c["name"], "arguments": c["arguments"]},
+        }
+        for c in found
+    ]
+    return rest.strip(), tool_calls
+
+
+class StopTrimmer:
+    """Cuts a stream of text at the first stop string. `feed` returns the text that is safe to
+    send (a tail that could still become a stop string is held back); `done` is set once one was
+    seen; `flush` releases what is held at the end of the answer."""
+
+    def __init__(self, stops):
+        self.stops = [s for s in stops if s]
+        self.hold = max((len(s) for s in self.stops), default=1) - 1
+        self.pending = ""
+        self.done = False
+
+    def feed(self, text):
+        if self.done:
+            return ""
+        self.pending += text
+        cut = min((i for i in (self.pending.find(s) for s in self.stops) if i >= 0), default=-1)
+        if cut >= 0:
+            out, self.pending, self.done = self.pending[:cut], "", True
+            return out
+        keep = min(self.hold, len(self.pending))
+        out = self.pending[: len(self.pending) - keep]
+        self.pending = self.pending[len(self.pending) - keep :]
+        return out
+
+    def flush(self):
+        out, self.pending = ("" if self.done else self.pending), ""
+        return out
+
+
+def sse(payload):
+    """One server-sent event; `payload` None is OpenAI's end marker."""
+    if payload is None:
+        return b"data: [DONE]\n\n"
+    return b"data: " + json.dumps(payload, ensure_ascii=False).encode() + b"\n\n"
+
+
+def chunk(completion_id, created, alias, delta, finish=None, usage=None):
+    """A `chat.completion.chunk`; with `usage` it is the final usage-only chunk (no choices)."""
+    out = {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": alias,
+        "choices": [] if usage is not None else [{"index": 0, "delta": delta, "finish_reason": finish}],
+    }
+    if usage is not None:
+        out["usage"] = usage
+    return out
+
+
+def completion(completion_id, created, alias, message, finish, usage):
+    return {
+        "id": completion_id,
+        "object": "chat.completion",
+        "created": created,
+        "model": alias,
+        "choices": [{"index": 0, "message": message, "finish_reason": finish}],
+        "usage": usage,
+    }
+
+
+def usage_of(prompt_tokens, completion_tokens):
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
+
+
+def cpu_has_native_bf16():
+    """Whether this CPU multiplies bfloat16 natively (AVX512-BF16 or AMX): anything else runs it
+    far slower than float32."""
+    try:
+        import torch
+
+        native = getattr(torch._C, "_cpu", None)
+        return bool(native and (native._is_avx512_bf16_supported() or native._is_amx_tile_supported()))
+    except Exception:
+        return False
+
+
+def config_dtype(folder):
+    try:
+        with open(os.path.join(folder, "config.json"), encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return cfg.get("dtype") or cfg.get("torch_dtype") or (cfg.get("text_config") or {}).get("dtype")
+
+
+class ChatRunner:
+    """The chat model of this process: tokenizer or processor, and the generator."""
+
+    def __init__(self, task, folder, device, dtype, trust):
+        import torch
+        import transformers as tf
+
+        self.vision = task == "image-text-to-text"
+        self.device = device
+        if dtype == "auto":
+            stored = config_dtype(folder)
+            if device == "cuda":
+                dtype = "auto"
+            elif device == "mps":
+                dtype = torch.float16
+            elif stored in ("bfloat16", "float16") and cpu_has_native_bf16():
+                dtype = torch.bfloat16
+            else:
+                dtype = torch.float32
+        kw = {"trust_remote_code": trust, "dtype": dtype}
+        if self.vision:
+            self.proc = tf.AutoProcessor.from_pretrained(folder, trust_remote_code=trust)
+            self.tok = getattr(self.proc, "tokenizer", None) or tf.AutoTokenizer.from_pretrained(folder, trust_remote_code=trust)
+            self.model = tf.AutoModelForImageTextToText.from_pretrained(folder, **kw)
+        else:
+            self.proc = None
+            self.tok = tf.AutoTokenizer.from_pretrained(folder, trust_remote_code=trust)
+            self.model = tf.AutoModelForCausalLM.from_pretrained(folder, **kw)
+        self.model.to(device).eval()
+        template = getattr(self.proc if self.vision else self.tok, "chat_template", None)
+        self.template = template if isinstance(template, str) else (json.dumps(template) if template else "")
+        cfg = self.model.config
+        text_cfg = cfg.get_text_config() if hasattr(cfg, "get_text_config") else cfg
+        self.max_context = getattr(text_cfg, "max_position_embeddings", None) or getattr(cfg, "max_position_embeddings", None)
+
+    def prepare(self, messages, images, tools, max_new_tokens):
+        """Prompt tensors for the messages (tools only when the template mentions them), the
+        prompt's length and the number of tokens that may be generated."""
+        owner = self.proc if self.vision else self.tok
+        kw = {"add_generation_prompt": True, "tokenize": False}
+        if tools and "tools" in self.template:
+            kw["tools"] = tools
+        if self.template:
+            try:
+                text = owner.apply_chat_template(messages, **kw)
+            except Exception as e:
+                raise BadRequest(f"the chat template refused these messages: {e}")
+        else:
+            text = plain_prompt(messages)
+        if self.vision:
+            inputs = self.proc(text=text, images=images or None, return_tensors="pt")
+        else:
+            inputs = self.tok(text, return_tensors="pt", add_special_tokens=not self.template)
+        tensors = {}
+        for key, value in dict(inputs).items():
+            if hasattr(value, "to"):
+                if value.is_floating_point():
+                    value = value.to(self.device, dtype=self.model.dtype)
+                else:
+                    value = value.to(self.device)
+            tensors[key] = value
+        prompt_tokens = int(tensors["input_ids"].shape[-1])
+        room = (self.max_context - prompt_tokens) if self.max_context else MAX_NEW_TOKENS
+        if room < 1:
+            raise BadRequest(f"the prompt has {prompt_tokens} tokens; the model's context is {self.max_context}")
+        return tensors, prompt_tokens, min(max_new_tokens or DEFAULT_NEW_TOKENS, room)
+
+    def generate(self, tensors, prompt_tokens, max_new_tokens, p, streamer=None, cancel=None):
+        """Runs generation; returns `(generated token ids, number of tokens generated)`."""
+        import torch
+        from transformers import StoppingCriteria, StoppingCriteriaList
+
+        class Watch(StoppingCriteria):
+            """Counts the generated tokens and stops when `cancel` is set (a client left)."""
+
+            def __init__(self):
+                self.generated = 0
+
+            def __call__(self, input_ids, scores, **kwargs):
+                self.generated = int(input_ids.shape[-1]) - prompt_tokens
+                stop = bool(cancel and cancel.is_set())
+                return torch.full((input_ids.shape[0],), stop, dtype=torch.bool, device=input_ids.device)
+
+        watch = Watch()
+        kw = dict(tensors, max_new_tokens=max_new_tokens, stopping_criteria=StoppingCriteriaList([watch]))
+        eos = self.tok.eos_token_id
+        pad = self.tok.pad_token_id
+        kw["pad_token_id"] = pad if pad is not None else (eos[0] if isinstance(eos, list) else eos)
+        temperature = p["temperature"]
+        if temperature == 0:
+            kw.update(do_sample=False, temperature=None, top_p=None, top_k=None)
+        elif temperature is not None or p["top_p"] is not None or p["top_k"] is not None:
+            kw["do_sample"] = True
+            for key in ("temperature", "top_p", "top_k"):
+                if p[key] is not None:
+                    kw[key] = p[key]
+        if p["repetition_penalty"] is not None:
+            kw["repetition_penalty"] = p["repetition_penalty"]
+        if p["stop"]:
+            kw["stop_strings"] = p["stop"]
+            kw["tokenizer"] = self.tok
+        if streamer is not None:
+            kw["streamer"] = streamer
+        if p["seed"] is not None:
+            torch.manual_seed(p["seed"])
+        with torch.inference_mode():
+            out = self.model.generate(**kw)
+        return out[0][prompt_tokens:], watch.generated
+
+    def decode(self, ids):
+        return self.tok.decode(ids, skip_special_tokens=True)
+
+    def ended(self, ids):
+        """Whether generation ended on an end-of-sequence token (else it ran out of tokens)."""
+        if len(ids) == 0:
+            return True
+        eos = self.model.generation_config.eos_token_id
+        eos = eos if isinstance(eos, (list, tuple)) else [eos]
+        return int(ids[-1]) in {int(e) for e in eos if e is not None}
+
+
+def chat_request(model, body):
+    """The checked pieces of a chat request: `(parameters, messages, images, tools, tool names)`."""
+    p = chat_params(body)
+    messages, images = normalize_messages(body.get("messages"), model.pipe.vision)
+    tools = body.get("tools") if body.get("tool_choice") != "none" else None
+    if tools is not None and (not isinstance(tools, list) or not all(isinstance(t, dict) for t in tools)):
+        raise BadRequest('"tools" must be a list of tool definitions')
+    names = {(t.get("function") or {}).get("name") for t in tools or []} - {None}
+    return p, messages, images, tools or None, names
+
+
+def run_chat(model, body):
+    """A whole answer: the OpenAI chat completion."""
+    runner = model.pipe
+    p, messages, images, tools, names = chat_request(model, body)
+    tensors, prompt_tokens, budget = runner.prepare(messages, images, tools, p["max_new_tokens"])
+    ids, _ = runner.generate(tensors, prompt_tokens, budget, p)
+    text = runner.decode(ids)
+    finish = "stop" if runner.ended(ids) else "length"
+    if p["stop"]:
+        trimmer = StopTrimmer(p["stop"])
+        text = trimmer.feed(text) + trimmer.flush()
+        if trimmer.done:
+            finish = "stop"
+    message = {"role": "assistant", "content": text}
+    if tools:
+        content, calls = parse_tool_calls(text, names)
+        if calls:
+            message, finish = {"role": "assistant", "content": content or None, "tool_calls": calls}, "tool_calls"
+    return completion(
+        "chatcmpl-" + uuid.uuid4().hex[:24], int(time.time()), model.args.alias, message, finish,
+        usage_of(prompt_tokens, int(len(ids))),
+    )
+
+
+def stream_chat(model, body):
+    """The events of a streamed answer: a generator of SSE bytes that holds the model while it
+    runs. With tools offered the answer is read to its end first (a call is only known then) and
+    sent as one delta."""
+    from transformers import TextIteratorStreamer
+
+    runner = model.pipe
+    p, messages, images, tools, names = chat_request(model, body)
+    cid, created, alias = "chatcmpl-" + uuid.uuid4().hex[:24], int(time.time()), model.args.alias
+    tensors, prompt_tokens, budget = runner.prepare(messages, images, tools, p["max_new_tokens"])
+
+    def events():
+        cancel = threading.Event()
+        with model.lock:
+            streamer = TextIteratorStreamer(runner.tok, skip_prompt=True, skip_special_tokens=True)
+            result = {}
+
+            def work():
+                try:
+                    result["ids"], result["generated"] = runner.generate(
+                        tensors, prompt_tokens, budget, p, streamer, cancel
+                    )
+                except Exception as e:
+                    log(traceback.format_exc())
+                    result["error"] = f"{type(e).__name__}: {e}"
+                    streamer.end()
+
+            thread = threading.Thread(target=work, name="generate", daemon=True)
+            thread.start()
+            trimmer = StopTrimmer(p["stop"])
+            full = []
+            try:
+                yield sse(chunk(cid, created, alias, {"role": "assistant", "content": ""}))
+                for piece in streamer:
+                    out = trimmer.feed(piece)
+                    if out:
+                        full.append(out)
+                        if not tools:
+                            yield sse(chunk(cid, created, alias, {"content": out}))
+                    if trimmer.done:
+                        cancel.set()
+                        break
+                tail = trimmer.flush()
+                if tail:
+                    full.append(tail)
+                    if not tools:
+                        yield sse(chunk(cid, created, alias, {"content": tail}))
+                thread.join()
+                if "error" in result:
+                    yield sse({"error": {"message": result["error"], "type": "server_error", "code": None}})
+                    yield sse(None)
+                    return
+                ids = result.get("ids", [])
+                finish = "stop" if trimmer.done or runner.ended(ids) else "length"
+                text = "".join(full)
+                if tools:
+                    content, calls = parse_tool_calls(text, names)
+                    if calls:
+                        indexed = [dict(c, index=i) for i, c in enumerate(calls)]
+                        yield sse(chunk(cid, created, alias, {"tool_calls": indexed}))
+                        finish = "tool_calls"
+                    elif text:
+                        yield sse(chunk(cid, created, alias, {"content": text}))
+                yield sse(chunk(cid, created, alias, {}, finish))
+                if p["include_usage"]:
+                    yield sse(chunk(cid, created, alias, None, usage=usage_of(prompt_tokens, result.get("generated", 0))))
+                yield sse(None)
+            finally:
+                cancel.set()
+                thread.join(timeout=30)
+
+    return events()
+
+
 # --- HTTP --------------------------------------------------------------------------------------
 
 
@@ -1048,7 +1782,7 @@ def build_app(model: Model):
     from starlette.applications import Starlette
     from starlette.concurrency import run_in_threadpool
     from starlette.requests import Request
-    from starlette.responses import JSONResponse, Response
+    from starlette.responses import JSONResponse, Response, StreamingResponse
     from starlette.routing import Route
 
     def error(status, message, kind="invalid_request_error", code=None):
@@ -1119,6 +1853,26 @@ def build_app(model: Model):
             params = request.query_params.get("parameters")
             body = {"parameters": json.loads(params) if params else {}}
             r = await call(run_hf, model, body, raw)
+        return r if isinstance(r, Response) else JSONResponse(r)
+
+    async def chat(request: Request):
+        wrong = requires(*CHAT_TASKS)
+        if wrong:
+            return wrong
+        try:
+            body = await request.json()
+        except Exception:
+            return error(400, "the body is not JSON")
+        if not isinstance(body, dict):
+            return error(400, "the body must be a JSON object")
+        if body.get("stream") is True:
+            r = await call(stream_chat, model, body)
+            if isinstance(r, Response):
+                return r
+            return StreamingResponse(
+                r, media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+            )
+        r = await call(run_chat, model, body)
         return r if isinstance(r, Response) else JSONResponse(r)
 
     async def embeddings(request: Request):
@@ -1192,6 +1946,9 @@ def build_app(model: Model):
         if f is None:
             return error(400, 'multipart field "file" is required')
         data = await f.read()
+        if model.ct2 is not None:
+            r = await call(ct2_transcribe, model, data, form)
+            return r if isinstance(r, Response) else JSONResponse(r)
         gen = {}
         if form.get("language"):
             gen["language"] = form.get("language")
@@ -1333,6 +2090,7 @@ def build_app(model: Model):
         Route("/v1/models", models),
         Route("/models", models),
         Route("/hf", hf, methods=["POST"]),
+        Route("/v1/chat/completions", chat, methods=["POST"]),
         Route("/v1/embeddings", embeddings, methods=["POST"]),
         Route("/v1/rerank", rerank, methods=["POST"]),
         Route("/v1/audio/transcriptions", transcriptions, methods=["POST"]),

@@ -19,6 +19,7 @@
   import ExposureBanner from '#lib/components/common/ExposureBanner.svelte';
   import * as Tooltip from '#lib/components/ui/tooltip/index.js';
   import { Toaster } from '#lib/components/ui/sonner/index.js';
+  import { toast } from 'svelte-sonner';
   import { Button } from '#lib/components/ui/button/index.js';
   import { applyThemeSettings, currentScheme } from '#lib/theme.js';
   import { applyCachedScale, applyScale, normalizeScale, stepScale, zoomShortcut } from '#lib/uiScale.js';
@@ -131,6 +132,12 @@
     window.addEventListener('hashchange', navigateConnections);
     window.addEventListener('popstate', navigateConnections);
     initApp();
+    // macOS: WebKit's content process died and the backend reloaded the page; say so once.
+    invoke<boolean>('take_display_recovered')
+      .then((recovered) => {
+        if (recovered) toast.info(t('sl.display_recovered'), { description: t('sl.display_recovered_desc') });
+      })
+      .catch(() => {});
     // No polling: the backend pushes server, telemetry, log and download changes (and only
     // what a visible view shows). Hidden to the tray, the page may be released; remember the
     // tab so the rebuilt window opens where it was.

@@ -63,6 +63,27 @@ impl DirectoryTree {
         detect: impl Fn(&Path) -> Option<T>,
         key: impl Fn(&T) -> K,
     ) -> Vec<T> {
+        self.scan_where(
+            root,
+            |name| {
+                required_any
+                    .iter()
+                    .any(|required| name.eq_ignore_ascii_case(required))
+            },
+            detect,
+            key,
+        )
+    }
+
+    /// [`Self::scan`] with the prefilter as a predicate on a file name (a folder is tried when
+    /// one of its files satisfies it).
+    pub fn scan_where<T, K: Eq + std::hash::Hash>(
+        &self,
+        root: &Path,
+        required: impl Fn(&str) -> bool,
+        detect: impl Fn(&Path) -> Option<T>,
+        key: impl Fn(&T) -> K,
+    ) -> Vec<T> {
         let mut out = Vec::new();
         let mut seen = HashSet::new();
         let mut stack = vec![(root.to_path_buf(), 0usize)];
@@ -70,13 +91,10 @@ impl DirectoryTree {
             // Case insensitive everywhere: Windows and macOS (APFS by default) find `README.md`
             // as `readme.md`, and a broader prefilter only lets the detector decide.
             // If enumeration failed, let the original detector try its known paths.
-            let candidate = self.names.get(&dir).is_none_or(|names| {
-                names.iter().any(|name| {
-                    required_any
-                        .iter()
-                        .any(|required| name.eq_ignore_ascii_case(required))
-                })
-            });
+            let candidate = self
+                .names
+                .get(&dir)
+                .is_none_or(|names| names.iter().any(|name| required(&name.to_string_lossy())));
             if depth > 0 && candidate {
                 if let Some(model) = detect(&dir) {
                     if seen.insert(key(&model)) {

@@ -53,8 +53,8 @@ pub struct EnvSpec {
 pub const HF_CPU: EnvSpec = EnvSpec {
     name: "hf-cpu",
     lock: include_str!("../../python/hf-cpu.lock"),
-    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL",
-    estimated_size_bytes: 1_300 * 1024 * 1024,
+    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper",
+    estimated_size_bytes: 1_500 * 1024 * 1024,
     min_macos: None,
     gpu_build_of: None,
 };
@@ -73,11 +73,11 @@ pub const HF_CUDA: EnvSpec = EnvSpec {
     lock: include_str!("../../python/hf-cuda-windows.lock"),
     #[cfg(target_os = "linux")]
     lock: include_str!("../../python/hf-cuda-linux.lock"),
-    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL; assert torch.version.cuda, 'not a CUDA build of torch'",
+    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper; assert torch.version.cuda, 'not a CUDA build of torch'",
     #[cfg(windows)]
-    estimated_size_bytes: 2_900 * 1024 * 1024,
+    estimated_size_bytes: 3_050 * 1024 * 1024,
     #[cfg(target_os = "linux")]
-    estimated_size_bytes: 4_600 * 1024 * 1024,
+    estimated_size_bytes: 4_800 * 1024 * 1024,
     min_macos: None,
     gpu_build_of: Some("hf-cpu"),
 };
@@ -102,8 +102,8 @@ pub const MLX: EnvSpec = EnvSpec {
 pub const MLX_VLM: EnvSpec = EnvSpec {
     name: "mlx-vlm",
     lock: include_str!("../../python/mlx-vlm.lock"),
-    verify: "import mlx.core, mlx_vlm.server.app, uvicorn",
-    estimated_size_bytes: 780 * 1024 * 1024,
+    verify: "import mlx.core, mlx_vlm.server.app, mlx_embeddings, mlx_lm, uvicorn",
+    estimated_size_bytes: 800 * 1024 * 1024,
     min_macos: Some(14),
     gpu_build_of: None,
 };
@@ -115,7 +115,7 @@ pub const MLX_VLM: EnvSpec = EnvSpec {
 pub const MFLUX: EnvSpec = EnvSpec {
     name: "mflux",
     lock: include_str!("../../python/mflux.lock"),
-    verify: "import mlx.core, mflux.models.flux2.variants, uvicorn, PIL",
+    verify: "import mlx.core, mflux.models.flux2.variants, mflux.models.z_image.variants, mflux.models.flux.variants.fill.flux_fill, mflux.models.qwen.variants.txt2img.qwen_image, uvicorn, PIL",
     estimated_size_bytes: 1_100 * 1024 * 1024,
     min_macos: Some(14),
     gpu_build_of: None,

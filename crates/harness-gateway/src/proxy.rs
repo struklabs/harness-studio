@@ -219,7 +219,7 @@ pub(crate) fn upstream_body(def: &harness_core::domain::ModelDefinition, body: B
     if !def
         .base
         .local_path()
-        .is_some_and(harness_core::engine::is_mistralrs_dir)
+        .is_some_and(harness_core::engine::runs_on_mistralrs)
     {
         return body;
     }
@@ -306,12 +306,35 @@ pub(crate) async fn handle_with(
     body: Bytes,
     response_id: Option<String>,
 ) -> Response {
+    handle_recorded(state, api, api.path(), headers, body, response_id).await
+}
+
+/// [`handle`] for a route that is a shaped view of another API (`/v1/moderations` over the
+/// task pipelines): the request is recorded under the route the client called.
+pub(crate) async fn handle_routed(
+    state: GwState,
+    api: Api,
+    endpoint: &str,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    handle_recorded(state, api, endpoint, headers, body, None).await
+}
+
+async fn handle_recorded(
+    state: GwState,
+    api: Api,
+    endpoint: &str,
+    headers: HeaderMap,
+    body: Bytes,
+    response_id: Option<String>,
+) -> Response {
     let anthropic = api.anthropic();
     let mut guard = RecordGuard::new(
         RequestRecord {
             id: request_id(),
             started_at_ms: unix_ms(),
-            endpoint: api.path().to_string(),
+            endpoint: endpoint.to_string(),
             ..Default::default()
         },
         trace_context(&headers),
@@ -623,7 +646,7 @@ async fn run(
         && def
             .base
             .local_path()
-            .is_some_and(harness_core::engine::is_mistralrs_dir);
+            .is_some_and(harness_core::engine::runs_on_mistralrs);
     let body = upstream_body(
         &def,
         match prepared.body.take() {
@@ -1428,11 +1451,14 @@ mod tests {
             .prefix(&harness_core::paths::test_dir_prefix("gw-mrs"))
             .tempdir()
             .unwrap();
+        // Remote code is never run by the Python engine, so mistral.rs keeps this folder whether
+        // or not its runtime is registered; a plain checkpoint goes to the Python engine when it
+        // is not (the worker takes any `model`).
         let dir = root.path().join("Qwen2.5-0.5B-Instruct");
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
             dir.join("config.json"),
-            r#"{"architectures":["Qwen2ForCausalLM"]}"#,
+            r#"{"architectures":["Qwen2ForCausalLM"],"auto_map":{"AutoModel":"m.M"}}"#,
         )
         .unwrap();
         std::fs::write(dir.join("model.safetensors"), [0u8; 8]).unwrap();

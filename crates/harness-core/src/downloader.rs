@@ -72,6 +72,33 @@ pub struct HfModelSearchResult {
     /// (a component without safetensors): they load as weights only, never as code.
     #[serde(default)]
     pub pickle_weights: bool,
+    /// A safetensors chat repo the Python engine runs with transformers when mistral.rs is not
+    /// registered ([`HfModelSearchResult::resolve_installed`] switches `compatibility`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub python_chat: bool,
+}
+
+impl HfModelSearchResult {
+    /// Settles which installed runtime family runs the repo ([`crate::hub_compat::resolve_installed`]).
+    /// Order: GGUF (llama.cpp), then mistral.rs, then the Python engine: a safetensors chat repo
+    /// whose mistral.rs verdict has no registered runtime falls back to the Python engine.
+    pub fn resolve_installed(&mut self, installed: &[String]) {
+        if self.python_chat
+            && matches!(
+                &self.compatibility,
+                crate::hub_compat::Compatibility::Runnable { runtime }
+                    if runtime == crate::hub_compat::MISTRALRS_FAMILY
+            )
+            && !installed
+                .iter()
+                .any(|f| f == crate::hub_compat::MISTRALRS_FAMILY)
+        {
+            self.compatibility = crate::hub_compat::Compatibility::Runnable {
+                runtime: crate::hub_compat::PYTHON_HF_FAMILY.to_string(),
+            };
+        }
+        crate::hub_compat::resolve_installed(&mut self.compatibility, installed);
+    }
 }
 
 /// Hugging Face search filters. Empty/None fields are not sent.
@@ -531,6 +558,22 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
             task,
         )
     };
+    // An ONNX speech repo in a sherpa-onnx layout (Piper / Kokoro / Matcha / Kitten voices,
+    // transducer / Paraformer / Whisper / Moonshine recognisers): the files are the evidence, the
+    // repos usually carry no task. CTC exports and native speech packages keep their own path.
+    let sherpa = (format == crate::hub_compat::ModelFormat::Onnx
+        && !ctc_export
+        && native_speech.is_none()
+        && !refiner)
+        .then(|| crate::sherpa_layout::classify_repo(&id, &sibling_files(item)))
+        .flatten();
+    if let Some(kind) = sherpa {
+        if task.is_none() {
+            analysis.inferred_task = Some(kind.task());
+            analysis.source = Some(crate::hub_tasks::TaskSource::Files);
+        }
+    }
+    let task = task.or(sherpa.map(|k| k.task()));
     // An MLX speech recognition repo without a task (the card shows what was inferred).
     let mlx_stt = crate::hub_compat::mlx_stt_task(&id, format, task, &tags);
     if mlx_stt.is_some() {
@@ -589,6 +632,11 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         }
     } else if ctc_export {
         format.compatibility()
+    } else if sherpa.is_some() {
+        // Not the ONNX encoder family: sherpa-onnx's own tools run these.
+        crate::hub_compat::Compatibility::Runnable {
+            runtime: crate::hub_compat::SHERPA_FAMILY.into(),
+        }
     } else if diffusion_adapter {
         // sd.cpp LoRA usage is not wired in Harness.
         crate::hub_compat::Compatibility::Unsupported { format }
@@ -613,12 +661,22 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
             crate::hub_compat::mlx_compatibility(&id, format, task, &sibling_files(item), &tags)
         })
         .or_else(|| {
+            crate::hub_compat::ct2_whisper_compatibility(
+                &id,
+                format,
+                task,
+                &tags,
+                &sibling_files(item),
+            )
+        })
+        .or_else(|| {
             crate::hub_compat::python_hf_compatibility(
                 format,
                 item.get("library_name").and_then(|v| v.as_str()),
                 task,
                 &tags,
                 &sibling_files(item),
+                item.get("config"),
             )
         })
         .unwrap_or_else(|| crate::hub_compat::hub_compatibility_for(format, task, genai))
@@ -644,12 +702,20 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
     let compatibility = match &compatibility {
         crate::hub_compat::Compatibility::Runnable { runtime }
             if runtime == crate::engine::PYTHON_HF
-                && !crate::engine::python_hf::serves_model_type(
+                && (!crate::engine::python_hf::serves_model_type(
                     task,
                     item.get("config")
                         .and_then(|c| c.get("model_type"))
                         .and_then(|v| v.as_str()),
-                ) =>
+                ) || !crate::engine::python_hf::serves_architectures(
+                    task,
+                    &item
+                        .get("config")
+                        .and_then(|c| c.get("architectures"))
+                        .and_then(|a| a.as_array())
+                        .map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
+                        .unwrap_or_default(),
+                )) =>
         {
             crate::hub_compat::Compatibility::Unsupported { format }
         }
@@ -730,6 +796,17 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
                 if runtime == crate::hub_compat::PYTHON_HF_FAMILY
         )
         && crate::hub_compat::diffusers_pickle_weights(&sibling_files(item));
+    let python_chat = format == crate::hub_compat::ModelFormat::Safetensors
+        && task.is_some_and(|t| crate::engine::python_hf::CHAT_TASKS.contains(&t))
+        && crate::hub_compat::python_hf_compatibility(
+            format,
+            item.get("library_name").and_then(|v| v.as_str()),
+            task,
+            &tags,
+            &sibling_files(item),
+            item.get("config"),
+        )
+        .is_some();
     Some(HfModelSearchResult {
         id,
         author: str_field("author"),
@@ -751,6 +828,7 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
         quants: quants_from_siblings(item),
         created_at: str_field("createdAt"),
         pickle_weights,
+        python_chat,
     })
 }
 
@@ -1682,6 +1760,18 @@ impl DownloadManager {
             params.push(("filter", "onnx".to_string()));
             jobs.push(params);
         }
+        // The sherpa-onnx speech repos carry no `pipeline_tag`: the listing is by name and ONNX
+        // tag, and what is kept is what the file layout says is speech (below).
+        let speech =
+            task.filter(|t| matches!(*t, "text-to-speech" | "automatic-speech-recognition"));
+        if speech.is_some() {
+            let mut params = search_params(&HfSearchOptions {
+                pipeline_tag: None,
+                ..wide.clone()
+            });
+            params.push(("filter", "onnx".to_string()));
+            jobs.push(params);
+        }
         if task.is_none_or(|t| matches!(t, "text-to-image" | "image-to-image")) {
             let image = HfSearchOptions {
                 pipeline_tag: Some(task.unwrap_or("text-to-image").to_string()),
@@ -1702,6 +1792,11 @@ impl DownloadManager {
             .filter(|m| {
                 m.format != ModelFormat::Gguf
                     && !matches!(m.compatibility, Compatibility::Unsupported { .. })
+                    // A speech search keeps the speech repos (tagged or by layout), not every
+                    // ONNX encoder the name matched.
+                    && speech.is_none_or(|t| {
+                        m.pipeline_tag.as_deref().or(m.inferred_task.as_deref()) == Some(t)
+                    })
             })
             .collect()
     }
@@ -2199,6 +2294,14 @@ impl DownloadManager {
         }
         if crate::hub_compat::is_sdxl_refiner(repo_id, &paths) {
             return diffusers_variants(repo_id, &items);
+        }
+        // An ONNX speech repo in a sherpa-onnx layout: the model's files in the repo layout
+        // (one download per precision), run by the sherpa-onnx tools.
+        if !paths.iter().any(|p| p.ends_with(".gguf")) {
+            let sherpa = sherpa_variants(repo_id, &items)?;
+            if !sherpa.is_empty() {
+                return Ok(sherpa);
+            }
         }
         // A FLUX.2 [klein] conversion in mflux's format: its folders, kept as they are.
         if crate::hub_compat::is_mflux_layout(&paths) {
@@ -3018,6 +3121,7 @@ impl DownloadManager {
             Self::client()?
         };
         let mut done_before = 0u64;
+        let mut listings: HashMap<String, Result<Vec<serde_json::Value>, String>> = HashMap::new();
 
         for (index, item) in items.iter().enumerate() {
             if job.cancelled() {
@@ -3076,9 +3180,17 @@ impl DownloadManager {
                 Some(hash) => Some(hash),
                 None => match repo_from_hf_url(&item.url) {
                     Some(repo) => {
-                        let current_token = crate::hf_auth::current_token().await;
-                        Self::refresh_file_sha256(&repo, item, current_token.as_deref(), HF_API)
-                            .await
+                        // One listing per repo for the whole job (a speech repo has hundreds
+                        // of files; a listing per file made the download quadratic).
+                        if !listings.contains_key(&repo) {
+                            let current_token = crate::hf_auth::current_token().await;
+                            let listing =
+                                Self::list_repo_files_from(&repo, current_token.as_deref(), HF_API)
+                                    .await;
+                            listings.insert(repo.clone(), listing);
+                        }
+                        let listing = listings[&repo].as_ref().map_err(String::as_str);
+                        Self::sha256_from_listing(&repo, item, listing)
                     }
                     None => None,
                 },
@@ -3348,6 +3460,7 @@ impl DownloadManager {
         Ok(downloaded)
     }
 
+    #[cfg(test)]
     async fn refresh_file_sha256(
         repo: &str,
         item: &DownloadItem,
@@ -3355,25 +3468,38 @@ impl DownloadManager {
         api: &str,
     ) -> Option<String> {
         let result = Self::list_repo_files_from(repo, token, api).await;
-        let hash = result.as_ref().ok().and_then(|items| {
-            items.iter().find_map(|entry| {
-                if entry.get("path").and_then(|v| v.as_str()) != Some(&item.filename) {
-                    return None;
-                }
-                entry
-                    .get("lfs")?
-                    .get("oid")?
-                    .as_str()
-                    .and_then(valid_sha256)
+        Self::sha256_from_listing(repo, item, result.as_ref().map_err(String::as_str))
+    }
+
+    /// The SHA-256 of `item` in a repo listing (`Err`: the listing could not be read). A file
+    /// the repo stores outside LFS has none: the size check is its verification, and that is
+    /// nothing to report for a repo with hundreds of small files.
+    fn sha256_from_listing(
+        repo: &str,
+        item: &DownloadItem,
+        listing: Result<&Vec<serde_json::Value>, &str>,
+    ) -> Option<String> {
+        let entry = listing.as_ref().ok().and_then(|items| {
+            items.iter().find(|entry| {
+                entry.get("path").and_then(|v| v.as_str()) == Some(item.filename.as_str())
             })
         });
-        if hash.is_none() {
+        let hash = entry.and_then(|entry| {
+            entry
+                .get("lfs")?
+                .get("oid")?
+                .as_str()
+                .and_then(valid_sha256)
+        });
+        let stored_in_git = entry.is_some_and(|e| e.get("lfs").is_none());
+        if hash.is_none() && !stored_in_git {
             eprintln!(
                 "SHA-256 alınamadı, boyut kontrolüyle devam ediliyor: {}/{} ({})",
                 repo,
                 item.filename,
-                result
+                listing
                     .err()
+                    .map(String::from)
                     .unwrap_or_else(|| "özet eksik veya maskeli".into())
             );
         }
@@ -3997,6 +4123,72 @@ fn encoder_onnx_variants(
         return Ok(Vec::new());
     }
     onnx_variants(repo_id, items)
+}
+
+/// The variants of an ONNX speech repo in a sherpa-onnx layout
+/// ([`crate::sherpa_layout::plan_variants`]): the graphs of one precision, the tokens, voices,
+/// lexicons and (text to speech) the `espeak-ng-data` folder, in the repo's layout so that the
+/// folder is a model the library scan recognises. Empty for any other repo.
+fn sherpa_variants(
+    repo_id: &str,
+    items: &[serde_json::Value],
+) -> Result<Vec<HfModelVariant>, String> {
+    let paths: Vec<String> = items
+        .iter()
+        .filter_map(|i| i.get("path").and_then(|v| v.as_str()).map(String::from))
+        .collect();
+    let plan = crate::sherpa_layout::plan_variants(repo_id, &paths);
+    let many = plan.len() > 1;
+    let base = repo_id.rsplit('/').next().unwrap_or(repo_id);
+    plan.into_iter()
+        .map(|variant| {
+            let total = variant.files.len() as u32;
+            let shards = variant
+                .files
+                .iter()
+                .enumerate()
+                .map(|(i, path)| {
+                    let item = items
+                        .iter()
+                        .find(|it| it.get("path").and_then(|v| v.as_str()) == Some(path));
+                    let size = item
+                        .and_then(|it| {
+                            it.get("lfs")
+                                .and_then(|l| l.get("size"))
+                                .and_then(|v| v.as_u64())
+                                .or_else(|| it.get("size").and_then(|v| v.as_u64()))
+                        })
+                        .unwrap_or(0);
+                    let sha256 = item
+                        .and_then(|it| it.get("lfs"))
+                        .and_then(|l| l.get("oid"))
+                        .and_then(|v| v.as_str())
+                        .and_then(valid_sha256);
+                    Ok(HfShardInfo {
+                        download_url: DownloadManager::hf_file_url(repo_id, "resolve", path)?
+                            .to_string(),
+                        filename: path.clone(),
+                        size_bytes: size,
+                        shard_index: i as u32 + 1,
+                        total_shards: total,
+                        sha256,
+                    })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(HfModelVariant {
+                not_runnable: None,
+                name: if many {
+                    format!("{base}-{}", variant.quantization.to_ascii_lowercase())
+                } else {
+                    base.to_string()
+                },
+                quantization: variant.quantization.to_string(),
+                total_size_bytes: shards.iter().map(|s| s.size_bytes).sum(),
+                is_split: false,
+                shards,
+            })
+        })
+        .collect()
 }
 
 fn onnx_variants(
@@ -4725,7 +4917,8 @@ fn safetensors_variants(
 
 /// The variant of a repo in mflux's saved layout ([`crate::hub_compat::is_mflux_layout`]): one
 /// download of the model card (the mflux engine reads its `base_model`) and every file of
-/// `transformer/`, `text_encoder/`, `vae/` and `tokenizer/`, in the repo layout. Nothing else
+/// `transformer/`, `text_encoder/`, `vae/` and `tokenizer/` (FLUX.1's `text_encoder_2/` and
+/// `tokenizer_2/` too), in the repo layout. Nothing else
 /// (nested folders, other root files) is fetched.
 fn mflux_variants(
     repo_id: &str,
@@ -4737,7 +4930,10 @@ fn mflux_variants(
             let path = item.get("path").and_then(|v| v.as_str())?;
             let wanted = path == "README.md"
                 || path.split_once('/').is_some_and(|(dir, name)| {
-                    (crate::engine::mlx::MFLUX_PARTS.contains(&dir) || dir == "tokenizer")
+                    (crate::engine::mlx::MFLUX_PARTS.contains(&dir)
+                        || crate::engine::mlx::MFLUX_EXTRA_PARTS.contains(&dir)
+                        || dir == "tokenizer"
+                        || dir == "tokenizer_2")
                         && !name.is_empty()
                         && !name.contains(['/', '\\'])
                         && !name.starts_with('.')
@@ -5248,6 +5444,77 @@ mod tests {
         ));
         assert_eq!(listed.not_runnable, None);
         assert_eq!(card_not_runnable(&item, analysis.not_runnable), None);
+    }
+
+    #[test]
+    fn safetensors_embedders_and_rerankers_without_onnx_run_on_the_python_engine() {
+        use crate::hub_compat::Compatibility::{Runnable, Unsupported};
+        let python = Runnable {
+            runtime: "python-hf".into(),
+        };
+        let verdict = |item: serde_json::Value| parse_search_item(&item).unwrap().compatibility;
+        let files = |names: &[&str]| -> Vec<serde_json::Value> {
+            names
+                .iter()
+                .map(|n| serde_json::json!({"rfilename": n}))
+                .collect()
+        };
+        // A sentence-transformers embedder with no `onnx/` folder.
+        assert_eq!(
+            verdict(serde_json::json!({"id": "x/granite-embed",
+                "pipeline_tag": "feature-extraction", "library_name": "sentence-transformers",
+                "tags": ["sentence-transformers", "safetensors", "feature-extraction"],
+                "config": {"architectures": ["ModernBertModel"], "model_type": "modernbert"},
+                "siblings": files(&["config.json", "modules.json", "model.safetensors",
+                    "tokenizer.json", "1_Pooling/config.json"])})),
+            python
+        );
+        // A cross-encoder whose card says text-classification.
+        assert_eq!(
+            verdict(serde_json::json!({"id": "x/reranker-v2",
+                "pipeline_tag": "text-classification", "library_name": "sentence-transformers",
+                "tags": ["sentence-transformers", "safetensors", "text-classification"],
+                "config": {"architectures": ["XLMRobertaForSequenceClassification"]},
+                "siblings": files(&["config.json", "model.safetensors", "tokenizer.json"])})),
+            python
+        );
+        let ranking = verdict(serde_json::json!({"id": "x/ce-tiny",
+            "pipeline_tag": "text-ranking", "library_name": "sentence-transformers",
+            "tags": ["sentence-transformers", "safetensors", "text-ranking"],
+            "config": {"architectures": ["BertForSequenceClassification"]},
+            "siblings": files(&["config.json", "model.safetensors", "tokenizer.json"])}));
+        assert_eq!(ranking, python);
+        // The same repo with an ONNX export stays with ONNX Runtime, which starts faster.
+        let both = verdict(
+            serde_json::json!({"id": "sentence-transformers/all-MiniLM-L6-v2",
+            "pipeline_tag": "sentence-similarity", "library_name": "sentence-transformers",
+            "tags": ["sentence-transformers", "onnx", "safetensors"],
+            "siblings": files(&["config.json", "modules.json", "model.safetensors",
+                "onnx/model.onnx", "tokenizer.json"])}),
+        );
+        assert_eq!(
+            both,
+            Runnable {
+                runtime: "onnxruntime".into()
+            }
+        );
+        // A decoder-based reranker reads yes / no off its language-model head: no cross-encoder.
+        assert!(matches!(
+            verdict(serde_json::json!({"id": "Qwen/Qwen3-Reranker-0.6B",
+                "pipeline_tag": "text-ranking", "library_name": "transformers",
+                "tags": ["transformers", "safetensors", "qwen3", "text-ranking"],
+                "config": {"architectures": ["Qwen3ForCausalLM"], "model_type": "qwen3"},
+                "siblings": files(&["config.json", "model.safetensors", "tokenizer.json"])})),
+            Unsupported { .. }
+        ));
+        // Custom-code embedders are never run.
+        assert!(!matches!(
+            verdict(serde_json::json!({"id": "x/nomic",
+                "pipeline_tag": "sentence-similarity", "library_name": "sentence-transformers",
+                "tags": ["sentence-transformers", "safetensors", "custom_code"],
+                "siblings": files(&["config.json", "modules.json", "model.safetensors"])})),
+            Runnable { .. }
+        ));
     }
 
     #[test]
@@ -5894,6 +6161,162 @@ mod tests {
 
     /// Speech repos made for their own package are not offered for the Python engine; a
     /// transformers model type of the same task still is (listing shapes of 2026-10-14).
+    /// A Hub listing item of an ONNX repo with `files` (no task, only the `onnx` tag).
+    fn sherpa_item(id: &str, files: &[&str]) -> serde_json::Value {
+        serde_json::json!({
+            "id": id,
+            "tags": ["onnx", "region:us"],
+            "siblings": files.iter().map(|f| serde_json::json!({"rfilename": f})).collect::<Vec<_>>(),
+        })
+    }
+
+    #[test]
+    fn sherpa_onnx_speech_repos_are_runnable_with_their_task() {
+        let sherpa = crate::hub_compat::Compatibility::Runnable {
+            runtime: crate::hub_compat::SHERPA_FAMILY.into(),
+        };
+        let cases: [(&str, &[&str], &str); 4] = [
+            (
+                "csukuangfj/vits-piper-en_US-amy-low",
+                &[
+                    "en_US-amy-low.onnx",
+                    "en_US-amy-low.onnx.json",
+                    "tokens.txt",
+                    "espeak-ng-data/en_dict",
+                ],
+                "text-to-speech",
+            ),
+            (
+                "csukuangfj/sherpa-onnx-whisper-tiny.en",
+                &[
+                    "tiny.en-decoder.onnx",
+                    "tiny.en-encoder.onnx",
+                    "tiny.en-tokens.txt",
+                ],
+                "automatic-speech-recognition",
+            ),
+            (
+                "csukuangfj/sherpa-onnx-moonshine-tiny-en-int8",
+                &[
+                    "preprocess.onnx",
+                    "encode.int8.onnx",
+                    "uncached_decode.int8.onnx",
+                    "cached_decode.int8.onnx",
+                    "tokens.txt",
+                ],
+                "automatic-speech-recognition",
+            ),
+            (
+                "csukuangfj/sherpa-onnx-zipformer-small-en-2023-06-26",
+                &[
+                    "encoder-epoch-99-avg-1.onnx",
+                    "decoder-epoch-99-avg-1.onnx",
+                    "joiner-epoch-99-avg-1.onnx",
+                    "tokens.txt",
+                ],
+                "automatic-speech-recognition",
+            ),
+        ];
+        for (id, files, task) in cases {
+            let listed = parse_search_item(&sherpa_item(id, files)).unwrap();
+            assert_eq!(listed.compatibility, sherpa, "{id}");
+            assert_eq!(listed.format, crate::hub_compat::ModelFormat::Onnx, "{id}");
+            assert_eq!(listed.inferred_task.as_deref(), Some(task), "{id}");
+            assert!(listed.not_runnable.is_none(), "{id}");
+            let cap = if task == "text-to-speech" {
+                crate::model_registry::Capability::Tts
+            } else {
+                crate::model_registry::Capability::Asr
+            };
+            assert!(listed.capabilities.contains(&cap), "{id}");
+        }
+        // A tagged repo keeps its tag.
+        let mut tagged = sherpa_item(
+            "csukuangfj/sherpa-onnx-whisper-tiny.en",
+            &[
+                "tiny.en-decoder.onnx",
+                "tiny.en-encoder.onnx",
+                "tiny.en-tokens.txt",
+            ],
+        );
+        tagged["pipeline_tag"] = "automatic-speech-recognition".into();
+        let listed = parse_search_item(&tagged).unwrap();
+        assert_eq!(listed.compatibility, sherpa);
+        assert_eq!(
+            listed.pipeline_tag.as_deref(),
+            Some("automatic-speech-recognition")
+        );
+    }
+
+    #[test]
+    fn onnx_speech_exports_for_other_runtimes_stay_unsupported() {
+        for (id, files) in [
+            // Optimum / transformers.js Whisper.
+            (
+                "Xenova/whisper-tiny.en",
+                vec![
+                    "config.json",
+                    "tokenizer.json",
+                    "onnx/encoder_model.onnx",
+                    "onnx/decoder_model_merged.onnx",
+                ],
+            ),
+            // Matcha without its vocoder, Pocket TTS.
+            (
+                "csukuangfj/matcha-icefall-en_US-ljspeech",
+                vec!["model-steps-3.onnx", "tokens.txt", "espeak-ng-data/en_dict"],
+            ),
+            (
+                "csukuangfj/sherpa-onnx-pocket-tts-int8",
+                vec!["lm_main.int8.onnx", "tokens.txt"],
+            ),
+        ] {
+            let mut item = sherpa_item(id, &files);
+            item["pipeline_tag"] = "automatic-speech-recognition".into();
+            let listed = parse_search_item(&item).unwrap();
+            assert!(
+                matches!(
+                    listed.compatibility,
+                    crate::hub_compat::Compatibility::Unsupported { .. }
+                ),
+                "{id}: {:?}",
+                listed.compatibility
+            );
+        }
+    }
+
+    #[test]
+    fn sherpa_variants_keep_the_repo_layout_and_one_precision() {
+        let item = |path: &str, size: u64| serde_json::json!({"path": path, "size": size});
+        let items = vec![
+            item("README.md", 10),
+            item("tiny.en-decoder.int8.onnx", 100),
+            item("tiny.en-decoder.onnx", 400),
+            item("tiny.en-encoder.int8.onnx", 200),
+            item("tiny.en-encoder.onnx", 800),
+            item("tiny.en-tokens.txt", 5),
+            item("test_wavs/0.wav", 99),
+        ];
+        let v = sherpa_variants("csukuangfj/sherpa-onnx-whisper-tiny.en", &items).unwrap();
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[0].quantization, "INT8");
+        assert_eq!(v[0].name, "sherpa-onnx-whisper-tiny.en-int8");
+        assert_eq!(v[0].total_size_bytes, 305);
+        let names: Vec<_> = v[0].shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "tiny.en-decoder.int8.onnx",
+                "tiny.en-encoder.int8.onnx",
+                "tiny.en-tokens.txt"
+            ]
+        );
+        assert_eq!(v[1].quantization, "FP32");
+        assert!(sherpa_variants("a/encoder", &[item("model.onnx", 1)])
+            .unwrap()
+            .is_empty());
+    }
+
     #[test]
     fn speech_repos_need_a_model_type_transformers_loads() {
         let item = |id: &str, task: &str, model_type: &str| {
@@ -5954,6 +6377,103 @@ mod tests {
             let want = if runs { &python } else { &unsupported };
             assert_eq!(&repo.compatibility, want, "{id}");
         }
+    }
+
+    /// Order for a safetensors chat repo: GGUF (llama.cpp), then mistral.rs, then the Python
+    /// engine. mistral.rs is the user's own build, so without it the Python engine's
+    /// transformers runs the repo; the Python engine alone takes what mistral.rs cannot.
+    #[test]
+    fn safetensors_chat_repos_fall_back_to_the_python_engine() {
+        use crate::hub_compat::{Compatibility, ModelFormat};
+        let repo = |id: &str, task: &str, arch: &str, extra: &[&str]| {
+            let mut siblings = vec![
+                serde_json::json!({"rfilename": "config.json"}),
+                serde_json::json!({"rfilename": "model.safetensors"}),
+            ];
+            siblings.extend(extra.iter().map(|f| serde_json::json!({"rfilename": f})));
+            parse_search_item(&serde_json::json!({
+                "id": id,
+                "pipeline_tag": task,
+                "library_name": "transformers",
+                "tags": ["transformers", "safetensors", task],
+                "config": {"architectures": [arch]},
+                "siblings": siblings,
+            }))
+            .unwrap()
+        };
+        let runnable = |runtime: &str| Compatibility::Runnable {
+            runtime: runtime.into(),
+        };
+        // mistral.rs first: it answers the architectures it loads, and keeps them when registered.
+        let mut qwen = repo(
+            "Qwen/Qwen2.5-0.5B-Instruct",
+            "text-generation",
+            "Qwen2ForCausalLM",
+            &[],
+        );
+        assert_eq!(qwen.format, ModelFormat::Safetensors);
+        assert_eq!(qwen.compatibility, runnable("mistral.rs"));
+        assert!(qwen.python_chat);
+        let mut with_mistral = qwen.clone();
+        with_mistral.resolve_installed(&["mistral.rs".to_string(), "python-hf".to_string()]);
+        assert_eq!(with_mistral.compatibility, runnable("mistral.rs"));
+        // Without it the Python engine takes over: installed, or to be installed.
+        let mut python = qwen.clone();
+        python.resolve_installed(&["python-hf".to_string()]);
+        assert_eq!(python.compatibility, runnable("python-hf"));
+        qwen.resolve_installed(&["llama.cpp".to_string()]);
+        assert_eq!(
+            qwen.compatibility,
+            Compatibility::NeedsRuntime {
+                runtime: "python-hf".into()
+            }
+        );
+        assert_eq!(qwen.not_runnable, None);
+        // A vision chat model too.
+        let vlm = repo(
+            "HuggingFaceTB/SmolVLM-256M-Instruct",
+            "image-text-to-text",
+            "Idefics3ForConditionalGeneration",
+            &[],
+        );
+        assert!(vlm.python_chat);
+        assert!(vlm
+            .capabilities
+            .contains(&crate::model_registry::Capability::Vision));
+        // An architecture mistral.rs does not load is the Python engine's from the start.
+        let gpt2 = repo(
+            "openai-community/gpt2",
+            "text-generation",
+            "GPT2LMHeadModel",
+            &[],
+        );
+        assert_eq!(gpt2.compatibility, runnable("python-hf"));
+        assert_eq!(gpt2.not_runnable, None);
+        // A GGUF next to the weights stays llama.cpp's.
+        let both = repo(
+            "x/Qwen2.5-0.5B-Instruct-GGUF",
+            "text-generation",
+            "Qwen2ForCausalLM",
+            &["qwen2.5-0.5b-instruct-q4_k_m.gguf"],
+        );
+        assert_eq!(both.format, ModelFormat::Gguf);
+        assert_eq!(both.compatibility, runnable("llama.cpp"));
+        assert!(!both.python_chat);
+        // Quantized weights need packages the environment does not ship: not offered.
+        let awq = parse_search_item(&serde_json::json!({
+            "id": "x/Qwen2.5-0.5B-Instruct-AWQ",
+            "pipeline_tag": "text-generation",
+            "library_name": "transformers",
+            "tags": ["transformers", "safetensors", "text-generation"],
+            "config": {"architectures": ["Qwen2ForCausalLM"], "quantization_config": {"quant_method": "awq"}},
+            "siblings": [{"rfilename": "config.json"}, {"rfilename": "model.safetensors"}],
+        }))
+        .unwrap();
+        assert!(!awq.python_chat);
+        // A repo that is not a chat model keeps its own verdict.
+        let bert = repo("x/bert", "fill-mask", "BertForMaskedLM", &[]);
+        assert_eq!(bert.compatibility, runnable("python-hf"));
+        assert!(!bert.python_chat);
     }
 
     #[test]
@@ -9007,11 +9527,39 @@ mod refusal_reason_tests {
     }
 
     #[test]
-    fn faster_whisper_is_a_ctranslate2_export() {
-        assert_eq!(
-            reason("Systran/faster-whisper-small"),
-            Some(NotRunnable::Ctranslate2Export)
-        );
+    fn ct2_whisper_listing_is_python_engine_speech_recognition() {
+        let item = |id: &str| {
+            serde_json::json!({
+                "id": id,
+                "pipeline_tag": "automatic-speech-recognition",
+                "library_name": "ctranslate2",
+                "tags": ["ctranslate2", "audio", "automatic-speech-recognition"],
+                "config": {},
+                "siblings": [
+                    {"rfilename": "config.json"},
+                    {"rfilename": "model.bin"},
+                    {"rfilename": "tokenizer.json"},
+                    {"rfilename": "vocabulary.txt"}
+                ]
+            })
+        };
+        let whisper = parse_search_item(&item("Systran/faster-whisper-tiny")).unwrap();
+        assert!(matches!(
+            whisper.compatibility,
+            crate::hub_compat::Compatibility::Runnable { ref runtime }
+                | crate::hub_compat::Compatibility::NeedsRuntime { ref runtime }
+                if runtime == crate::hub_compat::PYTHON_HF_FAMILY
+        ));
+        assert_eq!(whisper.not_runnable, None);
+        // Other CTranslate2 repos keep their refusal.
+        let other = parse_search_item(&item("Systran/nllb-200-distilled-600M-ct2")).unwrap();
+        assert_eq!(other.not_runnable, Some(NotRunnable::Ctranslate2Export));
+    }
+
+    #[test]
+    fn faster_whisper_runs_on_the_python_engine() {
+        // A CTranslate2 Whisper export is the Python engine's (faster-whisper): no refusal.
+        assert_eq!(reason("Systran/faster-whisper-small"), None);
     }
 
     #[test]
@@ -9051,11 +9599,12 @@ mod refusal_reason_tests {
 
     #[test]
     fn transformers_language_model_with_safetensors_only_is_convertible() {
+        // Remote code: neither mistral.rs nor the Python engine runs it as it is.
         let item = serde_json::json!({
             "id": "someone/Odd-LM-7B",
             "pipeline_tag": "text-generation",
             "library_name": "transformers",
-            "tags": ["transformers", "safetensors", "text-generation"],
+            "tags": ["transformers", "safetensors", "text-generation", "custom_code"],
             "config": {"model_type": "oddlm", "architectures": ["OddLMForCausalLM"]},
             "siblings": [
                 {"rfilename": "config.json"},
