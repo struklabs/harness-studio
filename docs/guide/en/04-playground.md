@@ -146,6 +146,12 @@ ONNX CTC models (wav2vec2, HuBERT, WavLM) from Model Hub or library folders also
 
 The **Text to Speech** section of the **Speech** tab turns text into audio. Press **Install Engine** to install the sherpa-onnx engine (about 20 MB, verified), then download a voice under **Recommended Voice Models**: Kokoro (multilingual) and Piper voices, which are recommended for Turkish. Choose a **Model**, a **Voice**, and a **Speed**, type the **Text to read**, and press **Speak**. The audio plays in the app and can be downloaded. Once a voice model is installed, the **Read Aloud** button on a chat answer reads it with that voice; without a voice model the app points you to this section.
 
+### Clone a Voice
+
+Models that can clone a voice show a **Clone a Voice** section in **Text to Speech**. Today that is Pocket TTS (English) on the CrispASR engine: download a `pocket-tts-english` file that is not marked `novc` (for example `pocket-tts-english-q8_0.gguf` from `cstr/pocket-tts-GGUF`, which carries a **Voice Cloning** badge in Model Hub). Add a **Voice Sample** with **Choose File** (WAV, MP3, FLAC or Ogg, up to 30 seconds and 10 MiB) or record one with the microphone, optionally type what the sample says under **Sample Transcript**, and tick **I have the speaker's permission to clone this voice**. **Speak** stays off until the box is ticked. The model then speaks the text in the sampled voice.
+
+Cloning a real person's voice needs that person's permission; your own voice is fine. The sample is sent with the request only: Harness writes it to a temporary file for the engine and deletes it when the request ends, and never keeps it. The engine marks cloned speech as AI-generated: it adds a short spoken notice before the voice and an inaudible watermark. Reading an MP3, FLAC or Ogg sample needs ffmpeg on your computer; a WAV sample does not. The Model Hub also has a **Voice Conversion** task (speech in, another voice out); no engine in Harness runs it, so those models are marked as not supported.
+
 ### Process Audio (Experimental)
 
 The **Process Audio** section separates the sounds in a recording or improves its quality. It runs on the experimental audio.cpp engine, which is off by default.

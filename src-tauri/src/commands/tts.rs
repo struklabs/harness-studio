@@ -114,6 +114,8 @@ pub(crate) struct TtsPickerModel {
     family: String,
     engine: String,
     supports_speed: bool,
+    /// It can speak in a voice cloned from a reference recording (`voice_ref`, with consent).
+    voice_cloning: bool,
     runtime_installed: bool,
     languages: Vec<String>,
     quantization: String,
@@ -135,6 +137,7 @@ pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
                 family: m.family.as_str().into(),
                 engine: SHERPA_ONNX.into(),
                 supports_speed: true,
+                voice_cloning: false,
                 runtime_installed: sherpa_ready,
                 languages: m.languages,
                 quantization: m.quantization,
@@ -158,6 +161,7 @@ pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
                     family: "qwen3-tts".into(),
                     engine: harness_core::hub_compat::LLAMA_FAMILY.into(),
                     supports_speed: false,
+                    voice_cloning: false,
                     runtime_installed: true,
                     languages: harness_core::tts::llama::LANGUAGES.iter().map(|(c, _)| (*c).into()).collect(),
                     quantization: harness_core::gguf::read_gguf_metadata(path).map(|m| m.quantization).unwrap_or_default(),
@@ -173,6 +177,7 @@ pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
                 models.push(TtsPickerModel {
                     id: path.to_string_lossy().into_owned(), name: def.alias.clone(), family: family.into(),
                     engine: harness_core::engine::CRISPASR.into(), supports_speed: family == "kokoro",
+                    voice_cloning: harness_core::engine::crispasr_tts::supports_cloning(path),
                     runtime_installed: harness_core::runtimes::resolve_family_binary_in(
                         &harness_core::runtimes::RuntimeRegistry::global(), harness_core::engine::CRISPASR, None).is_ok(),
                     languages: vec!["en".into()], quantization: harness_core::gguf::read_gguf_metadata(path).map(|m| m.quantization).unwrap_or_default(),
@@ -189,6 +194,7 @@ pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
                 id: path.to_string_lossy().into_owned(),
                 name: def.alias.clone(),
                 supports_speed: audio_cpp::supports_speed(&family),
+                voice_cloning: false,
                 family,
                 engine: AUDIO_CPP.into(),
                 runtime_installed: audio_ready,

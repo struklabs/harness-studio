@@ -1113,6 +1113,8 @@ export interface HfModelSearchResult {
   pickle_weights?: boolean;
   /** A safetensors chat repo the Python engine runs with transformers when mistral.rs is not registered. */
   python_chat?: boolean;
+  /** A text-to-speech repo that runs here with voice cloning (reference recording and consent). */
+  voice_cloning?: boolean;
 }
 
 export type HfSortKey = 'downloads' | 'likes' | 'trendingScore' | 'lastModified' | 'createdAt';
@@ -2114,6 +2116,8 @@ export interface ModelCaps {
   image?: boolean;
   /** Speech synthesis (Kokoro / Piper folder run by sherpa-onnx). */
   tts?: boolean;
+  /** Speech synthesis that can clone a voice from a reference recording (needs consent). */
+  voice_cloning?: boolean;
   /** What `/props` of a real run reported; null until the model was loaded once. */
   verified?: VerifiedCaps | null;
 }

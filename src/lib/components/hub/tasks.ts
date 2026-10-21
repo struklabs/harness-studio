@@ -53,6 +53,8 @@ export const TASKS: HubTask[] = [
   { id: 'text-to-speech', hf: 'Text-to-Speech', key: 'hub.task_text_to_speech', group: 'audio' },
   { id: 'text-to-audio', hf: 'Text-to-Audio', key: 'hub.task_text_to_audio', group: 'audio' },
   { id: 'audio-to-audio', hf: 'Audio-to-Audio', key: 'hub.task_audio_to_audio', group: 'audio' },
+  // Not a pipeline_tag: voice conversion repos carry the `voice-conversion` tag; no engine runs them yet.
+  { id: 'voice-conversion', hf: 'Voice Conversion', key: 'hub.task_voice_conversion', group: 'audio' },
   { id: 'audio-classification', hf: 'Audio Classification', key: 'hub.task_audio_classification', group: 'audio' },
   // Computer vision: diffusion / detection GGUFs are for other runtimes (ComfyUI, stable-diffusion.cpp, ...).
   { id: 'image-to-text', hf: 'OCR / Image-to-Text', key: 'hub.task_image_to_text', group: 'cv' },

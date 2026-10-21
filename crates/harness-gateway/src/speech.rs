@@ -42,6 +42,12 @@ pub struct SpeechRequest {
     pub speed: Option<f64>,
     #[serde(default)]
     pub voice_ref: Option<serde_json::Value>,
+    /// Transcript of the `voice_ref` recording (optional).
+    #[serde(default)]
+    pub voice_ref_text: Option<String>,
+    /// The caller confirms the speaker's permission: required with reference audio.
+    #[serde(default)]
+    pub voice_consent: Option<bool>,
     /// Language of the text (an extension of OpenAI's fields): llama.cpp's Qwen3-TTS takes it.
     #[serde(default)]
     pub language: Option<String>,
@@ -61,6 +67,14 @@ impl SpeechRequest {
 
 fn bad(message: impl Into<String>) -> GatewayError {
     GatewayError::new(400, "invalid_request", message)
+}
+
+/// The refusal of reference audio by a model that cannot clone a voice.
+fn cannot_clone(model: &str) -> GatewayError {
+    bad(format!(
+        "`{model}` cannot clone a voice: it speaks in its own voices. Send no `voice_ref`, or pick a model with voice cloning (for example Pocket TTS with the cloning encoder)."
+    ))
+    .param("voice_ref")
 }
 
 /// The gateway's answer to a keyed error of the text-to-speech core.
@@ -190,8 +204,23 @@ async fn serve(
         header_str(headers, "x-harness-client"),
         caller.token_name.clone(),
     );
-    let req: SpeechRequest =
+    let is_form = headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.to_ascii_lowercase().starts_with("multipart/form-data"));
+    let body = if is_form {
+        crate::voice_clone::multipart_to_json(headers, body).await?
+    } else {
+        body
+    };
+    let raw: serde_json::Value =
         serde_json::from_slice(&body).map_err(|e| bad(format!("The body must be JSON ({e}).")))?;
+    let req: SpeechRequest = serde_json::from_value(raw.clone())
+        .map_err(|e| bad(format!("The body must be JSON ({e}).")))?;
+    // Path-like fields and a missing consent are refused whatever the model is.
+    crate::voice_clone::check_raw(&raw)?;
+    crate::voice_clone::require_consent(&req)?;
+    let wants_clone = crate::voice_clone::wants_reference(&req);
     guard.get().model = req.model.clone();
     if let Ok(def) = state.scheduler.resolve(req.model.as_deref()).await {
         caller.check_model(&def.alias)?;
@@ -199,6 +228,9 @@ async fn serve(
         // A Qwen3-TTS GGUF with its projector speaks through llama-tts; CrispASR also reads
         // `*tts*` architectures, so this comes first.
         if let Some(model) = harness_core::tts::llama::model_of(&def) {
+            if wants_clone {
+                return Err(cannot_clone(&def.alias));
+            }
             let checked = crate::llama_tts::check(&req, req.language.as_deref(), &def.alias)?;
             guard.admitted(caller.admit(state)?);
             guard.get().alias = Some(def.alias.clone());
@@ -207,7 +239,32 @@ async fn serve(
         }
         if is_crispasr_tts(&def) {
             caller.check_model(&def.alias)?;
-            crate::crispasr_tts::body(&def, "POST", "/v1/audio/speech", &body)?;
+            // Reference audio is checked and written out for this request only; the files go
+            // when `temp` drops, however the request ends.
+            let mut temp = None;
+            let mut worker_body = body.to_vec();
+            if wants_clone {
+                let model = def.base.local_path().unwrap_or(std::path::Path::new(""));
+                if !harness_core::engine::crispasr_tts::supports_cloning(model) {
+                    return Err(cannot_clone(&def.alias));
+                }
+                let reference = crate::voice_clone::prepare(&raw, &req)
+                    .await?
+                    .ok_or_else(|| bad("`voice_ref` is empty").param("voice_ref"))?;
+                temp = Some(crate::voice_clone::TempVoice::write(
+                    &harness_core::engine::crispasr_tts::voice_dir(model),
+                    &reference,
+                )?);
+                worker_body = crate::voice_clone::without_reference(&raw);
+            }
+            let clone_name = temp.as_ref().map(|t| t.name.as_str());
+            crate::crispasr_tts::body_with(
+                &def,
+                "POST",
+                "/v1/audio/speech",
+                &worker_body,
+                clone_name,
+            )?;
             let format = req
                 .response_format
                 .as_deref()
@@ -219,15 +276,18 @@ async fn serve(
             guard.admitted(caller.admit(state)?);
             guard.get().alias = Some(def.alias.clone());
             guard.get().definition_id = Some(def.id.clone());
-            let answer = crate::pyhf::post(
+            let answer = crate::pyhf::post_with(
                 state,
                 &def,
                 guard,
                 "/v1/audio/speech",
                 "application/json",
-                body.to_vec(),
+                worker_body,
+                clone_name,
             )
-            .await?;
+            .await;
+            drop(temp);
+            let answer = answer?;
             let audio = run::encode(answer.body.to_vec(), format)
                 .await
                 .map_err(|e| GatewayError::new(500, "encode_failed", e))?;
@@ -303,11 +363,19 @@ async fn serve(
             // of mlx-audio may have it (sherpa-onnx comes first, the workers are the fallback).
             if let Some(def) = python_speech_model(state, wanted.as_deref()).await {
                 caller.check_model(&def.alias)?;
+                // audio.cpp reads `voice_ref` itself (consent was checked above); the other
+                // Python engines speak in their own voices.
+                if wants_clone && !is_audio_cpp_speech(&def) {
+                    return Err(cannot_clone(&def.alias));
+                }
                 return python_speak(state, &def, &text, &req, speed, format, guard).await;
             }
             return Err(map_error(&e));
         }
     };
+    if wants_clone {
+        return Err(cannot_clone(&model.name));
+    }
     {
         let r = guard.get();
         r.alias = Some(model.name.clone());

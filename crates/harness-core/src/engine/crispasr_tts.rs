@@ -23,6 +23,29 @@ pub fn is_model(path: &Path) -> bool {
     backend(path).is_some()
 }
 
+/// Prefix of the one-request voice files the gateway writes for a cloned voice; anything with it
+/// left in the voice folder (a crash) is removed at the next launch.
+pub const CLONE_PREFIX: &str = "clone-";
+
+/// Whether the model can speak in a voice cloned from a reference recording: Pocket TTS builds
+/// that embed the Mimi encoder (the `novc` builds are decoder only).
+pub fn supports_cloning(path: &Path) -> bool {
+    backend(path) == Some("pocket-tts")
+        && path
+            .file_name()
+            .is_some_and(|n| !n.to_string_lossy().to_ascii_lowercase().contains("novc"))
+}
+
+/// Whether a Hub repo's Pocket TTS files include a cloning build (the repo is tagged
+/// `voice-cloning`; its `novc` files do not clone).
+pub fn repo_clones(repo: &str, files: &[String]) -> bool {
+    repo.eq_ignore_ascii_case("cstr/pocket-tts-GGUF")
+        && files.iter().any(|f| {
+            let f = f.to_ascii_lowercase();
+            f.ends_with(".gguf") && is_english_pocket(&f) && !f.contains("novc")
+        })
+}
+
 /// Known speech containers must never fall through to a language-model runtime.
 pub fn is_tts_arch(arch: &str) -> bool {
     arch.contains("tts")
@@ -113,6 +136,18 @@ pub fn launch_args(path: &Path) -> Result<Vec<String>, String> {
     }
     let dir = voice_dir(path);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // Reference voices of an interrupted request never outlive the next launch.
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            if entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(CLONE_PREFIX)
+            {
+                let _ = std::fs::remove_file(entry.path());
+            }
+        }
+    }
     let name = if backend == "kokoro" {
         "af_heart.gguf"
     } else {
@@ -162,6 +197,38 @@ mod tests {
         );
         assert!(ids("cstr/pocket-tts-GGUF", "pocket-tts-german-q8_0").is_empty());
         assert!(ids("other/kokoro", "kokoro-q8_0").is_empty());
+    }
+
+    #[test]
+    fn only_cloning_builds_of_the_pocket_repo_clone() {
+        let files = |names: &[&str]| names.iter().map(|n| n.to_string()).collect::<Vec<_>>();
+        assert!(repo_clones(
+            "cstr/pocket-tts-GGUF",
+            &files(&[
+                "pocket-tts-english-q8_0.gguf",
+                "pocket-tts-english-novc-q8_0.gguf"
+            ])
+        ));
+        assert!(!repo_clones(
+            "cstr/pocket-tts-GGUF",
+            &files(&["pocket-tts-english-novc-q4_k.gguf"])
+        ));
+        assert!(!repo_clones(
+            "cstr/pocket-tts-GGUF",
+            &files(&["pocket-tts-german-q8_0.gguf"])
+        ));
+        assert!(!repo_clones(
+            "cstr/kokoro-82M-GGUF",
+            &files(&["kokoro-q8_0.gguf"])
+        ));
+        assert!(!supports_cloning(Path::new(
+            "missing/pocket-tts-english-q8_0.gguf"
+        )));
+    }
+
+    #[test]
+    fn stale_clone_voices_are_removed_at_launch() {
+        assert!("clone-abc.wav".starts_with(CLONE_PREFIX));
     }
 
     #[test]

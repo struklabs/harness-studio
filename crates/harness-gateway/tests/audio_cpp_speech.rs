@@ -268,12 +268,31 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
         // With audio.cpp enabled, named MLX speech keeps its voice/speed forwarding.
         let response = http.post(&url).json(&json!({
             "model":"mlx-voice", "input":"MLX", "voice":"ryan", "speed":1.25,
-            "voice_ref":{"type":"path","path":"ignored-by-mlx.wav"}, "response_format":"wav"
+            "response_format":"wav"
         })).send().await.unwrap();
         assert_eq!(response.status(), 200);
         assert_eq!(response.headers()["x-harness-model"], "mlx-voice");
         assert_eq!(response.bytes().await.unwrap().as_ref(), expected);
         assert_eq!(calls.lock().unwrap().pop().unwrap()["input"], "MLX");
+        // Reference audio: consent comes first, then an engine without cloning refuses it.
+        for consent in [None, Some(false)] {
+            let mut request = json!({"model":"mlx-voice","input":"MLX","response_format":"wav",
+                "voice_ref":{"type":"base64","data":"AAAA"}});
+            if let Some(consent) = consent {
+                request["voice_consent"] = json!(consent);
+            }
+            let response = http.post(&url).json(&request).send().await.unwrap();
+            assert_eq!(response.status(), 400);
+            let error: Value = response.json().await.unwrap();
+            assert_eq!(error["error"]["param"], "voice_consent");
+        }
+        let response = http.post(&url).json(&json!({"model":"mlx-voice","input":"MLX",
+            "response_format":"wav","voice_consent":true,
+            "voice_ref":{"type":"base64","data":"AAAA"}})).send().await.unwrap();
+        assert_eq!(response.status(), 400);
+        let error: Value = response.json().await.unwrap();
+        assert_eq!(error["error"]["param"], "voice_ref");
+        assert!(calls.lock().unwrap().is_empty());
         // A sherpa voice still selects the native runtime, before the audio.cpp fallback.
         let response = http.post(&url).json(&json!({
             "model":"vits-mms-eng", "input":"Sherpa", "response_format":"wav"
@@ -301,11 +320,17 @@ async fn audio_cpp_tts_uses_resident_speech_endpoint_and_never_routes_other_task
             "model":"pocket", "input":"reference", "response_format":"wav",
             "voice_ref":{"type":"base64","data":reference}
         })).send().await.unwrap();
+        // audio.cpp's voice_ref needs the consent too.
+        assert_eq!(response.status(), 400);
+        let response = http.post(&url).json(&json!({
+            "model":"pocket", "input":"reference", "response_format":"wav", "voice_consent":true,
+            "voice_ref":{"type":"base64","data":reference}
+        })).send().await.unwrap();
         assert_eq!(response.status(), 200);
         // This path goes through python_speak -> pyhf::post: paths cannot reach the worker.
         let count = calls.lock().unwrap().len();
         let response = http.post(&url).json(&json!({
-            "model":"pocket", "input":"path", "response_format":"wav",
+            "model":"pocket", "input":"path", "response_format":"wav", "voice_consent":true,
             "voice_ref":{"type":"path","path":"secret.wav"}
         })).send().await.unwrap();
         assert_eq!(response.status(), 400);
