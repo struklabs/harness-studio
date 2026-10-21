@@ -173,11 +173,34 @@ export class TrainingStore {
     return job;
   }
 
+  /**
+   * Installs or updates the training environment when it is missing or out of date, without
+   * asking: starting a job is the consent. Resolves to whether it is ready afterwards.
+   */
+  async ensureEnv(): Promise<boolean> {
+    if (this.envReady) return true;
+    await this.installEnv();
+    return this.envReady;
+  }
+
   startJob(jobId: number) {
-    return this.act(() => invoke<TrainingJob>('training_start', { jobId }));
+    return this.act(async () => {
+      if (!(await this.ensureEnv())) throw new Error(this.installError ?? 'training.env_required');
+      return invoke<TrainingJob>('training_start', { jobId });
+    });
   }
   resume(jobId: number) {
-    return this.act(() => invoke<TrainingJob>('training_resume', { jobId }));
+    return this.act(async () => {
+      if (!(await this.ensureEnv())) throw new Error(this.installError ?? 'training.env_required');
+      return invoke<TrainingJob>('training_resume', { jobId });
+    });
+  }
+  /** Starts a failed or cancelled job that has no checkpoint over from step 0. */
+  restart(jobId: number) {
+    return this.act(async () => {
+      if (!(await this.ensureEnv())) throw new Error(this.installError ?? 'training.env_required');
+      return invoke<TrainingJob>('training_restart', { jobId });
+    });
   }
   cancel(jobId: number) {
     return this.act(() => invoke('training_cancel', { jobId }));

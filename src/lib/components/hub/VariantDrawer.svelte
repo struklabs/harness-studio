@@ -40,6 +40,7 @@
   import { isCompanionVariant, isCtcVariant, isWhisperVariant, pickProjectorVariant, recommendCrispasrVariant, recommendCtcVariant, recommendFloatVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
   import { security } from '#lib/stores/security.svelte.js';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
+  import { errorText } from '#lib/errors.js';
 
   interface Props {
     /** Selected repo; null closes the sheet. */
@@ -321,6 +322,21 @@
       return;
     }
     void enqueueVariant(variant);
+  }
+
+  let trainingBaseBusy = $state(false);
+  /** A safetensors repo: its weights, config and tokenizer as a training base model. */
+  async function downloadForTraining(id: string) {
+    trainingBaseBusy = true;
+    try {
+      await invoke<number>('training_download_base', { repoId: id });
+      await downloads.refresh();
+      toast.success(t('training.base_drawer_queued', { name: id }));
+    } catch (e) {
+      toast.error(errorText(e));
+    } finally {
+      trainingBaseBusy = false;
+    }
   }
 
   async function enqueueVariant(variant: HfModelVariant) {
@@ -702,6 +718,12 @@
               {/if}
 
               {#if convertible && repoId}
+                <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+                  <span class="min-w-0 flex-1 text-muted-foreground">{t('training.base_drawer_hint')}</span>
+                  <Button variant="outline" size="xs" disabled={trainingBaseBusy} onclick={() => downloadForTraining(repoId)}>
+                    <Download class="size-3.5" />{t('training.base_drawer_button')}
+                  </Button>
+                </div>
                 <ConvertPanel {repoId} />
               {:else if unsupportedFormat}
                 <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">

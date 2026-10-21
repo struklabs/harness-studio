@@ -16,11 +16,13 @@
 pub mod dataset;
 pub mod estimate;
 mod export;
+pub mod presets;
 mod run;
 
 pub use dataset::{DatasetFormat, DatasetReport};
 pub use estimate::{Compatibility, Estimate, MethodSupport, Probe, Support};
 pub use export::{ExportInfo, ExportQuant, ExportRequest, ExportStatus};
+pub use presets::{FitLevel, Preset, PresetRequest, PresetSet, PresetTier};
 
 use crate::error_key::err;
 use crate::events::{self, CoreEvent};
@@ -60,6 +62,26 @@ impl Device {
     }
 }
 
+/// Learning-rate schedule (after the warm-up).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = TrainingLrScheduler))]
+pub enum LrScheduler {
+    #[default]
+    Linear,
+    Cosine,
+    Constant,
+}
+
+fn one() -> u32 {
+    1
+}
+
+fn default_dropout() -> f64 {
+    0.05
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
@@ -96,6 +118,24 @@ pub struct TrainingConfig {
     pub validation_fraction: f64,
     pub checkpoint_steps: u32,
     pub eval_steps: u32,
+    /// Rows per device step.
+    #[serde(default = "one")]
+    pub batch_size: u32,
+    /// Device steps summed into one update (effective batch = `batch_size * grad_accum`).
+    #[serde(default = "one")]
+    pub grad_accum: u32,
+    /// LoRA scaling; `0` means twice the rank.
+    #[serde(default)]
+    pub lora_alpha: u32,
+    #[serde(default = "default_dropout")]
+    pub lora_dropout: f64,
+    /// Share of the steps spent warming the learning rate up.
+    #[serde(default)]
+    pub warmup_ratio: f64,
+    #[serde(default)]
+    pub lr_scheduler: LrScheduler,
+    #[serde(default)]
+    pub weight_decay: f64,
 }
 
 /// Body of a new job; unset values take the defaults below.
@@ -114,6 +154,13 @@ pub struct CreateRequest {
     pub validation_fraction: Option<f64>,
     pub checkpoint_steps: Option<u32>,
     pub eval_steps: Option<u32>,
+    pub batch_size: Option<u32>,
+    pub grad_accum: Option<u32>,
+    pub lora_alpha: Option<u32>,
+    pub lora_dropout: Option<f64>,
+    pub warmup_ratio: Option<f64>,
+    pub lr_scheduler: Option<LrScheduler>,
+    pub weight_decay: Option<f64>,
 }
 
 /// One job as the page shows it.
@@ -329,9 +376,9 @@ fn model_label(model: &Path) -> String {
         .unwrap_or_else(|| "model".into())
 }
 
-/// Checks a request and makes the full config (defaults filled in).
-pub fn build_config(req: &CreateRequest) -> Result<TrainingConfig, String> {
-    let model = crate::paths::normalize(Path::new(req.model.trim()));
+/// The model folder, which must be inside a models directory.
+fn resolve_model(model: &str) -> Result<PathBuf, String> {
+    let model = crate::paths::normalize(Path::new(model.trim()));
     let in_library = crate::config::AppSettings::load()
         .all_models_dirs()
         .iter()
@@ -341,8 +388,13 @@ pub fn build_config(req: &CreateRequest) -> Result<TrainingConfig, String> {
             .with("path", model.display())
             .into());
     }
+    Ok(model)
+}
+
+/// The requested device, or the best one this machine has (CUDA, then MPS, then CPU).
+fn resolve_device(requested: Option<Device>) -> Result<Device, String> {
     let devices = estimate::hardware_devices();
-    let device = req.device.unwrap_or_else(|| {
+    let device = requested.unwrap_or_else(|| {
         if devices.iter().any(|d| d == "cuda") {
             Device::Cuda
         } else if devices.iter().any(|d| d == "mps") {
@@ -356,6 +408,13 @@ pub fn build_config(req: &CreateRequest) -> Result<TrainingConfig, String> {
             .with("device", device.as_str())
             .into());
     }
+    Ok(device)
+}
+
+/// Checks a request and makes the full config (defaults filled in).
+pub fn build_config(req: &CreateRequest) -> Result<TrainingConfig, String> {
+    let model = resolve_model(&req.model)?;
+    let device = resolve_device(req.device)?;
     let method = req.method.unwrap_or(Method::Lora);
     if method == Method::Qlora && device != Device::Cuda {
         return Err(err("training.qlora_needs_cuda").into());
@@ -388,11 +447,46 @@ pub fn build_config(req: &CreateRequest) -> Result<TrainingConfig, String> {
     if eval_steps == 0 {
         return Err(bad("eval_steps", 0));
     }
+    let batch_size = req.batch_size.unwrap_or(1);
+    if !(1..=64).contains(&batch_size) {
+        return Err(bad("batch_size", batch_size));
+    }
+    let grad_accum = req.grad_accum.unwrap_or(1);
+    if !(1..=256).contains(&grad_accum) {
+        return Err(bad("grad_accum", grad_accum));
+    }
+    let lora_alpha = req.lora_alpha.unwrap_or(rank * 2);
+    if !(1..=1024).contains(&lora_alpha) {
+        return Err(bad("lora_alpha", lora_alpha));
+    }
+    let lora_dropout = req.lora_dropout.unwrap_or(0.05);
+    if !(0.0..=0.5).contains(&lora_dropout) {
+        return Err(bad("lora_dropout", lora_dropout));
+    }
+    let warmup_ratio = req.warmup_ratio.unwrap_or(0.0);
+    if !(0.0..=0.5).contains(&warmup_ratio) {
+        return Err(bad("warmup_ratio", warmup_ratio));
+    }
+    let weight_decay = req.weight_decay.unwrap_or(0.0);
+    if !(0.0..=1.0).contains(&weight_decay) {
+        return Err(bad("weight_decay", weight_decay));
+    }
     let name = match req.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
         Some(n) if n.chars().count() <= 80 && !n.chars().any(char::is_control) => n.to_string(),
         Some(n) => return Err(bad("name", n)),
-        None => format!("{} LoRA", model_label(&model)),
+        None => suggest_name(Some(&model.display().to_string()), Some(&req.dataset), None),
     };
+    if req
+        .name
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|n| !n.is_empty())
+    {
+        let check = check_name(Some(&name), None, None, None);
+        if !check.available {
+            return Err(err("training.name_taken").with("name", &name).into());
+        }
+    }
     Ok(TrainingConfig {
         name,
         model: model.display().to_string(),
@@ -406,6 +500,13 @@ pub fn build_config(req: &CreateRequest) -> Result<TrainingConfig, String> {
         validation_fraction,
         checkpoint_steps,
         eval_steps,
+        batch_size,
+        grad_accum,
+        lora_alpha,
+        lora_dropout,
+        warmup_ratio,
+        lr_scheduler: req.lr_scheduler.unwrap_or_default(),
+        weight_decay,
     })
 }
 
@@ -425,6 +526,8 @@ pub fn plan(config: &TrainingConfig) -> Result<(DatasetReport, Estimate), String
         config.sequence_length,
         config.steps,
         avg,
+        config.batch_size,
+        config.grad_accum,
     );
     Ok((report, est))
 }
@@ -451,13 +554,8 @@ pub fn create(req: &CreateRequest) -> Result<TrainingJob, String> {
                 .with("error", e),
         )
     })?;
-    std::fs::copy(&config.dataset, dir.join("dataset.jsonl")).map_err(|e| {
-        String::from(
-            err("fs.read_failed")
-                .with("path", &config.dataset)
-                .with("error", e),
-        )
-    })?;
+    // The snapshot is normalized to chat messages, whatever format the source has.
+    dataset::write_snapshot(Path::new(&config.dataset), &dir.join("dataset.jsonl"))?;
     let now = crate::capabilities::now_secs();
     let job = TrainingJob {
         id,
@@ -491,6 +589,142 @@ pub fn create(req: &CreateRequest) -> Result<TrainingJob, String> {
         job: Box::new(job.clone()),
     });
     Ok(job)
+}
+
+// --- names -------------------------------------------------------------------------------------
+
+/// Whether a name is free, and a free one to offer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct NameCheck {
+    /// The name that was checked (trimmed), or the suggestion when none was given.
+    pub name: String,
+    pub available: bool,
+    /// `job` (another training job has it) or `library` (a model folder with that name exists).
+    pub taken_by: Option<String>,
+    /// A free name derived from the model and dataset.
+    pub suggested: String,
+}
+
+/// Words of a file or folder name (`qwen2.5-0.5b_instruct` -> `qwen2.5 0.5b instruct`), with
+/// the first letter of each word capitalised.
+fn humanize(raw: &str) -> String {
+    raw.split(|c: char| c == '-' || c == '_' || c.is_whitespace())
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            let mut chars = w.chars();
+            match chars.next() {
+                Some(f) => f.to_uppercase().collect::<String>() + chars.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// A readable name from the model folder and the dataset file (`Qwen2.5 0.5b Instruct Support`),
+/// made unique with a numeric suffix.
+pub fn suggest_name(model: Option<&str>, dataset: Option<&str>, exclude: Option<u64>) -> String {
+    suggest_with(model, dataset, |n| name_taken(n, exclude).is_some())
+}
+
+fn suggest_with(
+    model: Option<&str>,
+    dataset: Option<&str>,
+    taken: impl Fn(&str) -> bool,
+) -> String {
+    let model_part = model
+        .map(|m| model_label(Path::new(m.trim())))
+        .filter(|m| !m.is_empty() && m != "model")
+        .map(|m| humanize(&m));
+    let data_part = dataset
+        .map(|d| Path::new(d.trim()))
+        .and_then(|p| p.file_stem().or_else(|| p.file_name()))
+        .map(|s| humanize(&s.to_string_lossy()))
+        .filter(|s| !s.is_empty());
+    let base = match (model_part, data_part) {
+        (Some(m), Some(d)) => format!("{m} {d}"),
+        (Some(m), None) => format!("{m} LoRA"),
+        (None, Some(d)) => d,
+        (None, None) => "New Model".to_string(),
+    };
+    let base = base.chars().take(70).collect::<String>().trim().to_string();
+    let mut candidate = base.clone();
+    let mut n = 2;
+    while taken(&candidate) {
+        candidate = format!("{base} {n}");
+        n += 1;
+    }
+    candidate
+}
+
+fn name_taken(name: &str, exclude: Option<u64>) -> Option<&'static str> {
+    let lower = name.trim().to_lowercase();
+    let in_jobs = store()
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|e| Some(e.job.id) != exclude && e.job.config.name.trim().to_lowercase() == lower);
+    if in_jobs {
+        return Some("job");
+    }
+    let slug = slug(name);
+    if !slug.is_empty() && export::models_dir().join(&slug).exists() {
+        // A job's own finished export holds its folder.
+        let own = exclude
+            .and_then(job)
+            .and_then(|j| j.export)
+            .and_then(|x| x.dir)
+            .is_some_and(|d| d.ends_with(&slug));
+        if !own {
+            return Some("library");
+        }
+    }
+    None
+}
+
+/// Checks `name` (when given) against the other jobs and the model library, and suggests a
+/// free one from `model` and `dataset`. `exclude` is a job that is being renamed.
+pub fn check_name(
+    name: Option<&str>,
+    model: Option<&str>,
+    dataset: Option<&str>,
+    exclude: Option<u64>,
+) -> NameCheck {
+    let suggested = suggest_name(model, dataset, exclude);
+    match name.map(str::trim).filter(|n| !n.is_empty()) {
+        Some(n) => {
+            let taken_by = name_taken(n, exclude).map(String::from);
+            NameCheck {
+                name: n.to_string(),
+                available: taken_by.is_none(),
+                taken_by,
+                suggested,
+            }
+        }
+        None => NameCheck {
+            name: suggested.clone(),
+            available: true,
+            taken_by: None,
+            suggested,
+        },
+    }
+}
+
+/// Renames a job (its exported model keeps its folder). The name must be free.
+pub fn rename(id: u64, name: &str) -> Result<TrainingJob, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() || name.chars().count() > 80 || name.chars().any(char::is_control) {
+        return Err(bad("name", &name));
+    }
+    if job(id).is_none() {
+        return Err(not_found(id));
+    }
+    if name_taken(&name, Some(id)).is_some() {
+        return Err(err("training.name_taken").with("name", &name).into());
+    }
+    update(id, |j| j.config.name = name.clone());
+    job(id).ok_or_else(|| not_found(id))
 }
 
 // --- the environment ---------------------------------------------------------------------------
@@ -570,6 +804,61 @@ pub fn start(id: u64) -> Result<TrainingJob, String> {
 /// Queues a failed or cancelled job to continue from its last complete checkpoint.
 pub fn resume(id: u64) -> Result<TrainingJob, String> {
     queue(id, true)
+}
+
+/// Starts a failed or cancelled job that has no checkpoint over from step 0 (its metrics and
+/// leftovers are cleared; the dataset snapshot and settings stay). Must run inside a tokio runtime.
+pub fn restart(id: u64) -> Result<TrainingJob, String> {
+    {
+        let jobs = store().lock().unwrap();
+        let e = jobs
+            .iter()
+            .find(|e| e.job.id == id)
+            .ok_or_else(|| not_found(id))?;
+        let busy = e
+            .job
+            .export
+            .as_ref()
+            .is_some_and(|x| x.status == ExportStatus::Running);
+        if busy {
+            return Err(err("training.export_active").with("id", id).into());
+        }
+        let ok = matches!(
+            e.job.status,
+            TrainingStatus::Failed | TrainingStatus::Cancelled
+        ) && e.job.checkpoint_step.is_none();
+        if !ok {
+            return Err(err("training.not_restartable").with("id", id).into());
+        }
+    }
+    let dir = job_dir(id);
+    for name in ["metrics.jsonl", "cancel"] {
+        let _ = std::fs::remove_file(dir.join(name));
+    }
+    let _ = std::fs::remove_dir_all(dir.join("adapter"));
+    if let Ok(read) = std::fs::read_dir(&dir) {
+        for entry in read.flatten() {
+            if entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("checkpoint-")
+            {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+    }
+    update(id, |j| {
+        j.status = TrainingStatus::Draft;
+        j.step = 0;
+        j.loss = None;
+        j.eval_loss = None;
+        j.error = None;
+        j.training = false;
+        j.resumed = false;
+        j.started_at = None;
+        j.finished_at = None;
+    });
+    queue(id, false)
 }
 
 /// Cancels a job at any point: a draft is closed, a queued one never starts, a running worker

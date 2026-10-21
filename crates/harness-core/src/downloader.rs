@@ -959,6 +959,102 @@ pub struct HfModelVariant {
     pub shards: Vec<HfShardInfo>,
 }
 
+/// Files a training base model needs: the safetensors weights, their index, the model
+/// config and the tokenizer files (not PyTorch `.bin`, GGUF, ONNX or other formats of the repo).
+fn is_training_base_file(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    if lower.contains('/') {
+        return lower.starts_with("chat_templates/") && lower.ends_with(".jinja");
+    }
+    lower.ends_with(".safetensors")
+        || lower.ends_with(".safetensors.index.json")
+        || lower.ends_with(".tiktoken")
+        || lower.ends_with(".model")
+        || matches!(
+            lower.as_str(),
+            "config.json"
+                | "generation_config.json"
+                | "tokenizer.json"
+                | "tokenizer_config.json"
+                | "special_tokens_map.json"
+                | "added_tokens.json"
+                | "vocab.json"
+                | "vocab.txt"
+                | "merges.txt"
+                | "chat_template.jinja"
+                | "chat_template.json"
+        )
+}
+
+/// One variant holding every file of a safetensors repo that training needs (`items` is the
+/// repo listing). Errors when the repo has no safetensors weights or no `config.json`.
+fn training_base_variant(
+    repo: &str,
+    items: &[serde_json::Value],
+) -> Result<HfModelVariant, String> {
+    let mut files: Vec<(String, u64, Option<String>)> = Vec::new();
+    for item in items {
+        if item
+            .get("type")
+            .and_then(|v| v.as_str())
+            .is_some_and(|t| t != "file")
+        {
+            continue;
+        }
+        let Some(path) = item.get("path").and_then(|v| v.as_str()) else {
+            continue;
+        };
+        if !is_training_base_file(path) {
+            continue;
+        }
+        let size = item
+            .get("lfs")
+            .and_then(|l| l.get("size"))
+            .and_then(|v| v.as_u64())
+            .or_else(|| item.get("size").and_then(|v| v.as_u64()))
+            .unwrap_or(0);
+        let sha = item
+            .get("lfs")
+            .and_then(|l| l.get("oid"))
+            .and_then(|v| v.as_str())
+            .and_then(valid_sha256);
+        files.push((path.to_string(), size, sha));
+    }
+    let has_weights = files
+        .iter()
+        .any(|f| f.0.to_ascii_lowercase().ends_with(".safetensors"));
+    let has_config = files
+        .iter()
+        .any(|f| f.0.eq_ignore_ascii_case("config.json"));
+    if !has_weights || !has_config {
+        return Err(err("training.base_no_safetensors")
+            .with("repo", repo)
+            .into());
+    }
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+    let total = files.len() as u32;
+    let mut shards = Vec::new();
+    for (i, (path, size, sha256)) in files.into_iter().enumerate() {
+        shards.push(HfShardInfo {
+            download_url: DownloadManager::hf_file_url(repo, "resolve", &path)?.to_string(),
+            filename: path,
+            size_bytes: size,
+            shard_index: i as u32 + 1,
+            total_shards: total,
+            sha256,
+        });
+    }
+    let total_size_bytes = shards.iter().map(|s| s.size_bytes).sum();
+    Ok(HfModelVariant {
+        name: format!("{}-safetensors", repo.rsplit('/').next().unwrap_or(repo)),
+        not_runnable: None,
+        quantization: "safetensors".into(),
+        total_size_bytes,
+        is_split: shards.len() > 1,
+        shards,
+    })
+}
+
 /// The single-file variant of exactly `file` in a repo listing (`items`), or `None` when the
 /// repo has no such file.
 fn companion_variant_from(
@@ -2627,6 +2723,20 @@ impl DownloadManager {
             ids.push(self.start_variant_download(c.repo.clone(), variant)?);
         }
         Ok(ids)
+    }
+
+    /// Queues the download of a safetensors repo as a training base model: weights, config and
+    /// tokenizer files into `<library>/<repo>`, where the Training page lists it. Returns the
+    /// download job id.
+    pub async fn pull_training_base(
+        &self,
+        repo_id: &str,
+        token: Option<&str>,
+    ) -> Result<u64, String> {
+        Self::validate_repo_id(repo_id)?;
+        let items = Self::list_repo_files(repo_id, token).await?;
+        let variant = training_base_variant(repo_id, &items)?;
+        self.start_variant_download(repo_id.to_string(), variant)
     }
 
     /// The download of one curated bundle companion: exactly `file` of `repo`. Companions often
@@ -5296,6 +5406,43 @@ fn recorded_hash(path: &Path) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn training_base_variant_takes_weights_config_and_tokenizer_only() {
+        use serde_json::json;
+        let items = vec![
+            json!({"type": "file", "path": "config.json", "size": 700}),
+            json!({"type": "file", "path": "tokenizer.json", "size": 2000}),
+            json!({"type": "file", "path": "model-00001-of-00002.safetensors", "size": 4000, "lfs": {"size": 4000, "oid": "a".repeat(64)}}),
+            json!({"type": "file", "path": "model-00002-of-00002.safetensors", "size": 3000}),
+            json!({"type": "file", "path": "pytorch_model.bin", "size": 9000}),
+            json!({"type": "file", "path": "model.gguf", "size": 9000}),
+            json!({"type": "file", "path": "onnx/model.onnx", "size": 9000}),
+            json!({"type": "directory", "path": "assets"}),
+            json!({"type": "file", "path": "chat_templates/tool.jinja", "size": 10}),
+        ];
+        let v = training_base_variant("org/tiny-model", &items).unwrap();
+        let names: Vec<&str> = v.shards.iter().map(|s| s.filename.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "chat_templates/tool.jinja",
+                "config.json",
+                "model-00001-of-00002.safetensors",
+                "model-00002-of-00002.safetensors",
+                "tokenizer.json"
+            ]
+        );
+        assert_eq!(v.total_size_bytes, 9710);
+        assert!(v.is_split);
+        assert_eq!(v.name, "tiny-model-safetensors");
+        assert!(v.shards.iter().all(|s| s.total_shards == 5));
+        assert!(v.shards[2].sha256.is_some());
+        let no_weights = vec![json!({"type": "file", "path": "config.json", "size": 1})];
+        assert!(training_base_variant("org/m", &no_weights).is_err());
+        let no_config = vec![json!({"type": "file", "path": "m.safetensors", "size": 1})];
+        assert!(training_base_variant("org/m", &no_config).is_err());
+    }
     use super::*;
 
     #[tokio::test]

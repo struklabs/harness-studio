@@ -11796,6 +11796,118 @@
         }
       }
     },
+    "/api/harness/v1/training/name": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Checks that a model name is free (other jobs and the model library) and suggests one.",
+        "operationId": "check_training_name",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NameCheck"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/presets": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Hardware-aware presets for a model (and optionally a dataset): method, sequence length, LoRA\nrank, batch size and gradient accumulation that fit the free memory of the training device,\nat three levels. The first one is the recommended start.",
+        "operationId": "training_presets",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingPresetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingPresetSet"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/training/preview": {
       "post": {
         "tags": [
@@ -12249,6 +12361,172 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/{id}/rename": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Renames a job. An exported model keeps its folder name.",
+        "operationId": "rename_training_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/{id}/restart": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Starts a failed or cancelled job that has no checkpoint over from the beginning.",
+        "operationId": "restart_training_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJob"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
             "description": "",
             "content": {
               "application/json": {
@@ -15184,6 +15462,61 @@
             ],
             "format": "int32",
             "minimum": 0
+          },
+          "batch_size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "grad_accum": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "lora_alpha": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "lora_dropout": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "warmup_ratio": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "lr_scheduler": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrainingLrScheduler"
+              }
+            ]
+          },
+          "weight_decay": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
           }
         }
       },
@@ -15313,7 +15646,9 @@
         "type": "string",
         "enum": [
           "chat",
-          "instruction"
+          "instruction",
+          "sharegpt",
+          "prompt_completion"
         ]
       },
       "DatasetIssue": {
@@ -15347,6 +15682,22 @@
             "propertyNames": {
               "type": "string"
             }
+          }
+        }
+      },
+      "DatasetMapping": {
+        "type": "object",
+        "description": "Which source field fills which role (`user`, `assistant`, `system`, or `messages`).",
+        "required": [
+          "role",
+          "field"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
           }
         }
       },
@@ -15425,6 +15776,67 @@
           "ok": {
             "type": "boolean",
             "description": "No error: the job can use it."
+          },
+          "histogram": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": "Rows per length bucket (`HISTOGRAM_EDGES`, then one bucket for longer rows)."
+          },
+          "samples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetSample"
+            },
+            "description": "The first rows as the model will be trained on them."
+          },
+          "mapping": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetMapping"
+            },
+            "description": "How the source fields map to roles (from the first valid row)."
+          }
+        }
+      },
+      "DatasetSample": {
+        "type": "object",
+        "description": "A row after format detection and mapping (long messages are shortened).",
+        "required": [
+          "messages",
+          "tokens"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DatasetSampleMessage"
+            }
+          },
+          "tokens": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Estimated tokens of the whole row.",
+            "minimum": 0
+          }
+        }
+      },
+      "DatasetSampleMessage": {
+        "type": "object",
+        "description": "One message of a sample row, as the model will see the roles.",
+        "required": [
+          "role",
+          "content"
+        ],
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
           }
         }
       },
@@ -22123,6 +22535,70 @@
           }
         }
       },
+      "NameCheck": {
+        "type": "object",
+        "description": "Whether a name is free, and a free one to offer.",
+        "required": [
+          "name",
+          "available",
+          "suggested"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name that was checked (trimmed), or the suggestion when none was given."
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "taken_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`job` (another training job has it) or `library` (a model folder with that name exists)."
+          },
+          "suggested": {
+            "type": "string",
+            "description": "A free name derived from the model and dataset."
+          }
+        }
+      },
+      "NameQuery": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The name to check (omit to only get a suggestion)."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Base model folder, used for the suggestion."
+          },
+          "dataset": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Dataset path, used for the suggestion."
+          },
+          "exclude_job": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "A job that is being renamed (its own name does not count as taken).",
+            "minimum": 0
+          }
+        }
+      },
       "NpuInfo": {
         "type": "object",
         "description": "What the NPU detection found.",
@@ -23952,6 +24428,17 @@
               "null"
             ],
             "description": "Set when the keychain could not be reached: the key may still be stored there."
+          }
+        }
+      },
+      "RenameRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
           }
         }
       },
@@ -27722,6 +28209,40 @@
             "type": "integer",
             "format": "int32",
             "minimum": 0
+          },
+          "batch_size": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Rows per device step.",
+            "minimum": 0
+          },
+          "grad_accum": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Device steps summed into one update (effective batch = `batch_size * grad_accum`).",
+            "minimum": 0
+          },
+          "lora_alpha": {
+            "type": "integer",
+            "format": "int32",
+            "description": "LoRA scaling; `0` means twice the rank.",
+            "minimum": 0
+          },
+          "lora_dropout": {
+            "type": "number",
+            "format": "double"
+          },
+          "warmup_ratio": {
+            "type": "number",
+            "format": "double",
+            "description": "Share of the steps spent warming the learning rate up."
+          },
+          "lr_scheduler": {
+            "$ref": "#/components/schemas/TrainingLrScheduler"
+          },
+          "weight_decay": {
+            "type": "number",
+            "format": "double"
           }
         }
       },
@@ -27731,6 +28252,14 @@
           "cpu",
           "cuda",
           "mps"
+        ]
+      },
+      "TrainingFitLevel": {
+        "type": "string",
+        "enum": [
+          "fits",
+          "tight",
+          "no"
         ]
       },
       "TrainingJob": {
@@ -27854,11 +28383,200 @@
           }
         }
       },
+      "TrainingLrScheduler": {
+        "type": "string",
+        "description": "Learning-rate schedule (after the warm-up).",
+        "enum": [
+          "linear",
+          "cosine",
+          "constant"
+        ]
+      },
       "TrainingMethod": {
         "type": "string",
         "enum": [
           "lora",
           "qlora"
+        ]
+      },
+      "TrainingPreset": {
+        "type": "object",
+        "description": "One set of values, ready to be sent as a job request, with what it costs on this machine.",
+        "required": [
+          "tier",
+          "method",
+          "device",
+          "batch_size",
+          "grad_accum",
+          "sequence_length",
+          "rank",
+          "lora_alpha",
+          "learning_rate",
+          "steps",
+          "warmup_ratio",
+          "lr_scheduler",
+          "lora_dropout",
+          "weight_decay",
+          "estimate",
+          "fit",
+          "recommended",
+          "notes"
+        ],
+        "properties": {
+          "tier": {
+            "$ref": "#/components/schemas/TrainingPresetTier"
+          },
+          "method": {
+            "$ref": "#/components/schemas/TrainingMethod"
+          },
+          "device": {
+            "$ref": "#/components/schemas/TrainingDevice"
+          },
+          "batch_size": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "grad_accum": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "sequence_length": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "lora_alpha": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "learning_rate": {
+            "type": "number",
+            "format": "double"
+          },
+          "steps": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "warmup_ratio": {
+            "type": "number",
+            "format": "double"
+          },
+          "lr_scheduler": {
+            "$ref": "#/components/schemas/TrainingLrScheduler"
+          },
+          "lora_dropout": {
+            "type": "number",
+            "format": "double"
+          },
+          "weight_decay": {
+            "type": "number",
+            "format": "double"
+          },
+          "estimate": {
+            "$ref": "#/components/schemas/Estimate"
+          },
+          "fit": {
+            "$ref": "#/components/schemas/TrainingFitLevel"
+          },
+          "recommended": {
+            "type": "boolean",
+            "description": "The preset to start with."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "i18n keys (`training.preset_note_*`) that explain a trade-off."
+          }
+        }
+      },
+      "TrainingPresetRequest": {
+        "type": "object",
+        "description": "Body of a preset request. The dataset is optional: without it a typical size is assumed.",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "dataset": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "device": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrainingDevice"
+              }
+            ]
+          },
+          "method": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TrainingMethod",
+                "description": "Only offer this method (default: the best of LoRA and QLoRA for this machine)."
+              }
+            ]
+          },
+          "validation_fraction": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "TrainingPresetSet": {
+        "type": "object",
+        "required": [
+          "device",
+          "available_bytes",
+          "presets"
+        ],
+        "properties": {
+          "device": {
+            "$ref": "#/components/schemas/TrainingDevice"
+          },
+          "available_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Memory free on the device now.",
+            "minimum": 0
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingPreset"
+            }
+          }
+        }
+      },
+      "TrainingPresetTier": {
+        "type": "string",
+        "enum": [
+          "light",
+          "balanced",
+          "quality"
         ]
       },
       "TrainingPreview": {

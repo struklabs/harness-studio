@@ -99,7 +99,8 @@ fn cpu_cores() -> u64 {
     crate::hardware::detect_hardware().cpu_cores.max(1) as u64
 }
 
-/// The estimate for one configuration.
+/// The estimate for one configuration (`batch` rows per device step, `accum` steps per update).
+#[allow(clippy::too_many_arguments)]
 pub fn estimate(
     shape: &ModelShape,
     method: Method,
@@ -108,7 +109,39 @@ pub fn estimate(
     sequence_length: u32,
     steps: u32,
     avg_row_tokens: u64,
+    batch: u32,
+    accum: u32,
 ) -> Estimate {
+    estimate_with(
+        shape,
+        method,
+        device,
+        rank,
+        sequence_length,
+        steps,
+        avg_row_tokens,
+        batch,
+        accum,
+        available_bytes(device),
+    )
+}
+
+/// [`estimate`] against a given amount of free memory (the preset search tries many).
+#[allow(clippy::too_many_arguments)]
+pub fn estimate_with(
+    shape: &ModelShape,
+    method: Method,
+    device: Device,
+    rank: u32,
+    sequence_length: u32,
+    steps: u32,
+    avg_row_tokens: u64,
+    batch: u32,
+    accum: u32,
+    available: u64,
+) -> Estimate {
+    let batch = f64::from(batch.max(1));
+    let accum = f64::from(accum.max(1));
     let params = shape.params as f64;
     // CPU trains in fp32; CUDA and MPS in fp16; QLoRA holds the base weights in 4 bits.
     let (weight_bytes, act_bytes) = match (method, device) {
@@ -123,8 +156,9 @@ pub fn estimate(
         * (11.0 * shape.hidden as f64 + 3.0 * shape.intermediate as f64);
     // fp32 adapter + gradient + two Adam moments.
     let adapter = lora_params * 16.0;
-    let activations = shape.layers as f64 * seq_max * shape.hidden as f64 * act_bytes * 18.0;
-    let logits = seq_max * shape.vocab as f64 * 4.0 * 3.0;
+    let activations =
+        shape.layers as f64 * seq_max * shape.hidden as f64 * act_bytes * 18.0 * batch;
+    let logits = seq_max * shape.vocab as f64 * 4.0 * 3.0 * batch;
     let overhead = match device {
         Device::Cpu => 512.0 * 1024.0 * 1024.0,
         _ => 1024.0 * 1024.0 * 1024.0,
@@ -133,7 +167,7 @@ pub fn estimate(
 
     // Forward 2N + backward through the activations 2N flops per token (LoRA has no weight
     // gradients of the base model).
-    let tokens_per_step = seq.max(1.0);
+    let tokens_per_step = seq.max(1.0) * batch * accum;
     let flops = 4.0 * params * tokens_per_step;
     let throughput = match device {
         Device::Cpu => cpu_cores() as f64 * 10e9,
@@ -143,7 +177,6 @@ pub fn estimate(
     let slowdown = if method == Method::Qlora { 1.5 } else { 1.0 };
     // Evaluation of the validation rows adds a share, the optimizer step a little more.
     let per_step = flops / throughput * slowdown * 1.2 + 0.05;
-    let available = available_bytes(device);
     Estimate {
         params: shape.params,
         memory_bytes: memory as u64,
@@ -339,12 +372,12 @@ mod tests {
 
     #[test]
     fn small_model_fits_and_cuda_beats_cpu() {
-        let cpu = estimate(&small(), Method::Lora, Device::Cpu, 8, 512, 10, 200);
+        let cpu = estimate(&small(), Method::Lora, Device::Cpu, 8, 512, 10, 200, 1, 1);
         assert!(cpu.memory_bytes > 800 * 1024 * 1024 && cpu.memory_bytes < 4 * 1024 * 1024 * 1024);
         assert!(cpu.seconds >= 21);
-        let gpu = estimate(&small(), Method::Lora, Device::Cuda, 8, 512, 10, 200);
+        let gpu = estimate(&small(), Method::Lora, Device::Cuda, 8, 512, 10, 200, 1, 1);
         assert!(gpu.seconds_per_step < cpu.seconds_per_step);
-        let q = estimate(&small(), Method::Qlora, Device::Cuda, 8, 512, 10, 200);
+        let q = estimate(&small(), Method::Qlora, Device::Cuda, 8, 512, 10, 200, 1, 1);
         assert!(q.memory_bytes < gpu.memory_bytes);
     }
 

@@ -6,8 +6,8 @@
 use axum::http::StatusCode;
 use axum::Json;
 use harness_core::training::{
-    self, Compatibility, CreateRequest, DatasetReport, Estimate, ExportRequest, Metric,
-    TrainingConfig, TrainingJob,
+    self, Compatibility, CreateRequest, DatasetReport, Estimate, ExportRequest, Metric, NameCheck,
+    PresetRequest, PresetSet, TrainingConfig, TrainingJob,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -174,5 +174,70 @@ pub async fn export(
     Body(req): Body<ExportRequest>,
 ) -> ApiResult<(StatusCode, Json<TrainingJob>)> {
     let job = training::export(id, &req).map_err(ApiError::core)?;
+    Ok((StatusCode::ACCEPTED, Json(job)))
+}
+
+/// Hardware-aware presets for a model (and optionally a dataset): method, sequence length, LoRA
+/// rank, batch size and gradient accumulation that fit the free memory of the training device,
+/// at three levels. The first one is the recommended start.
+#[utoipa::path(post, operation_id = "training_presets", path = "/training/presets", tag = "training", request_body = PresetRequest,
+    responses((status = 200, body = PresetSet), (status = 422, body = ErrorBody)))]
+pub async fn presets(Body(req): Body<PresetRequest>) -> ApiResult<Json<PresetSet>> {
+    training::presets::presets(&req)
+        .await
+        .map(Json)
+        .map_err(ApiError::core)
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct NameQuery {
+    /// The name to check (omit to only get a suggestion).
+    pub name: Option<String>,
+    /// Base model folder, used for the suggestion.
+    pub model: Option<String>,
+    /// Dataset path, used for the suggestion.
+    pub dataset: Option<String>,
+    /// A job that is being renamed (its own name does not count as taken).
+    pub exclude_job: Option<u64>,
+}
+
+/// Checks that a model name is free (other jobs and the model library) and suggests one.
+#[utoipa::path(post, operation_id = "check_training_name", path = "/training/name", tag = "training", request_body = NameQuery,
+    responses((status = 200, body = NameCheck)))]
+pub async fn check_name(Body(req): Body<NameQuery>) -> ApiResult<Json<NameCheck>> {
+    Ok(Json(
+        blocking(move || {
+            training::check_name(
+                req.name.as_deref(),
+                req.model.as_deref(),
+                req.dataset.as_deref(),
+                req.exclude_job,
+            )
+        })
+        .await?,
+    ))
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct RenameRequest {
+    pub name: String,
+}
+
+/// Renames a job. An exported model keeps its folder name.
+#[utoipa::path(post, operation_id = "rename_training_job", path = "/training/{id}/rename", tag = "training", params(("id" = u64, Path)),
+    request_body = RenameRequest,
+    responses((status = 200, body = TrainingJob), (status = 404, body = ErrorBody), (status = 422, body = ErrorBody)))]
+pub async fn rename(P(id): P<u64>, Body(req): Body<RenameRequest>) -> ApiResult<Json<TrainingJob>> {
+    blocking(move || training::rename(id, &req.name))
+        .await?
+        .map(Json)
+        .map_err(ApiError::core)
+}
+
+/// Starts a failed or cancelled job that has no checkpoint over from the beginning.
+#[utoipa::path(post, operation_id = "restart_training_job", path = "/training/{id}/restart", tag = "training", params(("id" = u64, Path)),
+    responses((status = 202, body = TrainingJob), (status = 404, body = ErrorBody), (status = 409, body = ErrorBody), (status = 422, body = ErrorBody)))]
+pub async fn restart(P(id): P<u64>) -> ApiResult<(StatusCode, Json<TrainingJob>)> {
+    let job = training::restart(id).map_err(ApiError::core)?;
     Ok((StatusCode::ACCEPTED, Json(job)))
 }

@@ -23,14 +23,14 @@
         <span class="text-sm">{env.refusal ? errorText(env.refusal) : t('training.env_unsupported')}</span>
       {:else}
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium">{t('training.env_title')}</p>
+          <p class="text-sm font-medium">{t(env.installed ? 'training.env_update' : 'training.env_title')}</p>
           <p class="text-xs text-muted-foreground">
             {t(env.installed ? 'training.env_outdated' : 'training.env_needed', { size: formatBytes(env.estimated_size_bytes, 1) })}
           </p>
         </div>
         <Button disabled={training.installing} onclick={() => training.installEnv()}>
           <Download class="size-4" aria-hidden="true" />
-          {t(training.installing ? 'training.env_installing' : 'training.env_install')}
+          {t(training.installing ? (env.installed ? 'training.env_updating' : 'training.env_installing') : env.installed ? 'training.env_update' : 'training.env_install')}
         </Button>
       {/if}
     </div>

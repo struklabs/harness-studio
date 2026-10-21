@@ -66,7 +66,7 @@ pub struct ExportRequest {
     pub adapter_only: bool,
 }
 
-fn models_dir() -> PathBuf {
+pub(super) fn models_dir() -> PathBuf {
     crate::config::AppSettings::load()
         .primary_models_dir()
         .join("training")
