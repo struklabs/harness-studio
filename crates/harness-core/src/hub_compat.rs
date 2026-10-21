@@ -856,12 +856,18 @@ pub const PYTHON_HF_FAMILY: &str = crate::engine::PYTHON_HF;
 /// a `custom_code` repo is not one; a text-to-image repo with a single-file checkpoint stays with
 /// stable-diffusion.cpp. `None` for every other repo. Whether the engine is installed is settled
 /// later ([`resolve_installed`]).
+///
+/// A safetensors chat repo (`text-generation`, `image-text-to-text`) is the Python engine's last
+/// resort: callers ask [`mistralrs_compatibility`] first (and a GGUF is llama.cpp's before
+/// either). Its `config` must not carry a `quantization_config` (bitsandbytes, GPTQ, AWQ... need
+/// packages the environment does not ship).
 pub fn python_hf_compatibility(
     format: ModelFormat,
     library: Option<&str>,
     task: Option<&str>,
     tags: &[String],
     files: &[String],
+    config: Option<&serde_json::Value>,
 ) -> Option<Compatibility> {
     if format == ModelFormat::Diffusers {
         return diffusers_pipeline(library, task, tags, files).then(|| Compatibility::Runnable {
@@ -873,6 +879,12 @@ pub fn python_hf_compatibility(
     }
     let task = task.filter(|t| *t != "text-to-image")?;
     if !crate::engine::python_hf::TASKS.contains(&task) {
+        return None;
+    }
+    if crate::engine::python_hf::CHAT_TASKS.contains(&task)
+        && (format != ModelFormat::Safetensors
+            || config.is_some_and(|c| c.get("quantization_config").is_some()))
+    {
         return None;
     }
     if !matches!(
@@ -991,7 +1003,7 @@ mod tests {
             "vae/diffusion_pytorch_model.safetensors",
         ]);
         let verdict = |library, task, tags: &[&str], files: &[String]| {
-            python_hf_compatibility(ModelFormat::Diffusers, library, task, &s(tags), files)
+            python_hf_compatibility(ModelFormat::Diffusers, library, task, &s(tags), files, None)
         };
         assert_eq!(
             verdict(Some("diffusers"), Some("text-to-image"), &[], &tiny),
@@ -1044,6 +1056,84 @@ mod tests {
         );
     }
 
+    /// Safetensors chat repos (text and vision) are the Python engine's last resort: GGUF is
+    /// llama.cpp's, mistral.rs comes before it, and a repo transformers cannot load as it is
+    /// (remote code, quantized weights, pickles, another library) is not offered.
+    #[test]
+    fn python_hf_is_the_last_resort_for_safetensors_chat_repos() {
+        let files = s(&["config.json", "model.safetensors", "tokenizer.json"]);
+        let python = Some(Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.into(),
+        });
+        let verdict = |format,
+                       library,
+                       task,
+                       tags: &[&str],
+                       files: &[String],
+                       config: Option<&serde_json::Value>| {
+            python_hf_compatibility(format, library, task, &s(tags), files, config)
+        };
+        let st = ModelFormat::Safetensors;
+        for task in ["text-generation", "image-text-to-text"] {
+            let tf = Some("transformers");
+            assert_eq!(
+                verdict(st, tf, Some(task), &[], &files, None),
+                python,
+                "{task}"
+            );
+            // Weights in several shards at the root, a listing without file names.
+            let shards = s(&[
+                "config.json",
+                "model-00001-of-00002.safetensors",
+                "model-00002-of-00002.safetensors",
+            ]);
+            assert_eq!(verdict(st, None, Some(task), &[], &shards, None), python);
+            assert_eq!(verdict(st, tf, Some(task), &[], &[], None), python);
+            // Pickles, remote code, other libraries and GGUF are not offered.
+            let bin = s(&["config.json", "pytorch_model.bin"]);
+            assert_eq!(
+                verdict(ModelFormat::Pytorch, tf, Some(task), &[], &bin, None),
+                None
+            );
+            assert_eq!(
+                verdict(st, tf, Some(task), &["custom_code"], &files, None),
+                None
+            );
+            assert_eq!(
+                verdict(st, Some("mlx"), Some(task), &[], &files, None),
+                None
+            );
+            assert_eq!(
+                verdict(ModelFormat::Gguf, tf, Some(task), &[], &files, None),
+                None
+            );
+        }
+        let tf = Some("transformers");
+        let awq = serde_json::json!({"quantization_config": {"quant_method": "awq"}});
+        assert_eq!(
+            verdict(st, tf, Some("text-generation"), &[], &files, Some(&awq)),
+            None
+        );
+        let gpt2 = serde_json::json!({"architectures": ["GPT2LMHeadModel"]});
+        assert_eq!(
+            verdict(st, tf, Some("text-generation"), &[], &files, Some(&gpt2)),
+            python
+        );
+        // Order: mistral.rs answers first for the architectures it loads...
+        let qwen = serde_json::json!({"architectures": ["Qwen2ForCausalLM"]});
+        assert_eq!(
+            mistralrs_compatibility(st, Some("text-generation"), &files, Some(&qwen)),
+            Some(Compatibility::Runnable {
+                runtime: MISTRALRS_FAMILY.into()
+            })
+        );
+        // ...and not for GPT-2, which is left to the Python engine.
+        assert_eq!(
+            mistralrs_compatibility(st, Some("text-generation"), &files, Some(&gpt2)),
+            None
+        );
+    }
+
     #[test]
     fn python_hf_takes_task_repos_without_remote_code() {
         let files = s(&["config.json", "model.safetensors", "tokenizer.json"]);
@@ -1051,7 +1141,7 @@ mod tests {
             runtime: PYTHON_HF_FAMILY.into(),
         });
         let verdict = |format, library, task, tags: &[&str], files: &[String]| {
-            python_hf_compatibility(format, library, task, &s(tags), files)
+            python_hf_compatibility(format, library, task, &s(tags), files, None)
         };
         assert_eq!(
             verdict(
@@ -1073,7 +1163,7 @@ mod tests {
             ),
             runnable
         );
-        // Remote code, chat models, other libraries and image generation are not its own.
+        // Remote code, other libraries and image generation are not its own.
         assert_eq!(
             verdict(
                 ModelFormat::Safetensors,
@@ -1089,7 +1179,7 @@ mod tests {
                 ModelFormat::Safetensors,
                 Some("transformers"),
                 Some("text-generation"),
-                &[],
+                &["custom_code"],
                 &files
             ),
             None
