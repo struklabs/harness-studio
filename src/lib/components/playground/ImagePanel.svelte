@@ -48,6 +48,7 @@
   import { addToGallery, imageSession as form, removeFromGallery, type GalleryItem } from './image.svelte';
   import { fileToProject, outputName } from './projectOutputs';
   import MaskEditor from './MaskEditor.svelte';
+  import JobWaitNote from '../JobWaitNote.svelte';
 
   /** Image definitions: the gateway loads the diffusion model on the first request (JIT). */
   let models = $derived(domain.definitions.filter((d) => isImageDefinition(d, library.models)));
@@ -453,6 +454,7 @@
         <span class="flex items-center gap-2 text-xs text-muted-foreground" role="status">
           <LoaderCircle class="size-3.5 animate-spin" />{t('img.running')}
         </span>
+        <JobWaitNote model={form.model} />
       {:else}
         <Button size="sm" onclick={run} disabled={!canRun}>
           <ImageIcon />{t('img.run')}

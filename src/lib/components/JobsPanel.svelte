@@ -2,15 +2,8 @@
   import { onMount } from 'svelte';
   import { invoke } from '#lib/ipc.js';
   import { t } from '#lib/i18n.svelte.js';
-  type Job = {
-    id: number;
-    label: string;
-    priority: 'interactive' | 'agent' | 'background';
-    status: 'queued' | 'loading' | 'running' | 'cancelling';
-    memory_bytes: number | null;
-    queue_wait_ms: number;
-    load_ms: number | null;
-  };
+  import { formatBytes } from '#lib/format.js';
+  import { waitLine, type Job } from './jobWait';
   let jobs = $state<Job[]>([]);
   let failed = $state(false);
   onMount(() => {
@@ -45,6 +38,9 @@
             <p class="truncate" title={job.label}>{job.label}</p>
             <p class="text-muted-foreground">{t(`jobs.status.${job.status}`)} · {t(`jobs.priority.${job.priority}`)}</p>
             <p class="text-muted-foreground">{job.memory_bytes !== null ? `${Math.ceil(job.memory_bytes / 1048576)} MiB` : t('jobs.unknown')} · {t('jobs.wait', { ms: job.queue_wait_ms })}</p>
+            {#if waitLine(job)}{@const line = waitLine(job)!}
+              <p class="text-muted-foreground">{t(line.key, { need: line.need === null ? t('jobs.unknown') : formatBytes(line.need, 1), free: formatBytes(line.free, 1), capacity: formatBytes(line.capacity, 1) })}</p>
+            {/if}
           </div>
           <button class="rounded border border-border px-2 py-1 disabled:opacity-50" disabled={job.status === 'cancelling'} onclick={() => cancel(job.id)}>{t('jobs.cancel')}</button>
         </li>

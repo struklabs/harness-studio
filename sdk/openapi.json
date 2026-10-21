@@ -18119,6 +18119,41 @@
           "cancelling"
         ]
       },
+      "GpuJobWait": {
+        "type": "object",
+        "description": "What a queued job waits for, with the numbers of the last admission check.",
+        "required": [
+          "reason",
+          "free_bytes",
+          "capacity_bytes"
+        ],
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/GpuJobWaitReason"
+          },
+          "free_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "GPU (or unified) memory free for it now, after the reserve and loads in progress.",
+            "minimum": 0
+          },
+          "capacity_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The budget for managed engines, after the reserve.",
+            "minimum": 0
+          }
+        }
+      },
+      "GpuJobWaitReason": {
+        "type": "string",
+        "description": "Why a queued job has not started yet.",
+        "enum": [
+          "queue",
+          "memory",
+          "alone"
+        ]
+      },
       "GpuMemory": {
         "type": "object",
         "description": "VRAM of one graphics adapter (a machine with several: discrete card plus integrated GPU).",
@@ -18903,6 +18938,17 @@
             "format": "int64",
             "description": "Time to engine readiness; one-shot binaries use their first output as the\nobservable startup boundary when they have no readiness protocol.",
             "minimum": 0
+          },
+          "wait": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/GpuJobWait",
+                "description": "Why it is still queued; absent once it has started (or before the first check)."
+              }
+            ]
           }
         }
       },

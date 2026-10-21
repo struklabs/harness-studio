@@ -1237,6 +1237,15 @@ impl ProcessManager {
         msg
     }
 
+    /// A start cancelled while it waited for memory: logged, and the server is Stopped again.
+    fn cancelled(&self) -> String {
+        self.push_log(
+            "[Harness Studio] Start cancelled while waiting in the job queue.".to_string(),
+        );
+        self.set_status(ServerStatus::Stopped);
+        "jobs.cancelled".to_string()
+    }
+
     /// Makes the instance look running (no process), for tests of what may stop it.
     #[cfg(test)]
     pub(crate) fn mark_running_for_tests(&self) {
@@ -1970,9 +1979,11 @@ impl ProcessManager {
             ticket: ticket.clone(),
             committed: false,
         };
-        ticket.wait().await.map_err(|error| self.set_error(error))?;
-        if ticket.is_cancelled() {
-            return Err(self.set_error("jobs.cancelled".into()));
+        // A cancel while queued (the Jobs list, the API) is the user's choice, not a failure: the
+        // server goes back to Stopped and the caller gets `jobs.cancelled`.
+        if ticket.wait().await.is_err() || ticket.is_cancelled() {
+            self.stop_relay();
+            return Err(self.cancelled());
         }
         let mut group = cmd.group();
         // Only Windows has kill-on-drop for a std command group (the Job Object); on Unix the
