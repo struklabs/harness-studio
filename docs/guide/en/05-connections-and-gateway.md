@@ -15,6 +15,8 @@ Another program (Claude Code, Codex, OpenCode, an editor extension, Open WebUI, 
 
 The big advantage of the gateway is one fixed address: even if you change the model or the port, the address in your client stays the same. The gateway can also serve models that run on the optional engines (speech, image, ONNX, Lemonade, mistral.rs) next to llama.cpp models, through the same address.
 
+For a model loaded with an audio projector, `/v1/chat/completions` accepts OpenAI `input_audio` message parts (`{"type": "input_audio", "input_audio": {"data": "<base64>", "format": "wav"}}`, WAV or MP3), streamed or not. To make the answer speech, send its text to `/v1/audio/speech` with an installed text-to-speech model.
+
 ### Turn the Gateway on
 
 1. Check that a [model definition exists in My Models](02-model-hub-and-library.md#my-models-and-model-definitions); the name your client uses is the definition's alias.

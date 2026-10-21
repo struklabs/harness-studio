@@ -64,6 +64,9 @@
   import { ensureLibraryDefinitions, loadAndChat } from '#lib/stores/downloads.svelte.js';
   import { isChatLoadable } from '#lib/downloadFollowUp.js';
   import { kindsForTab, servedModelName } from '#lib/libraryDefinitions.js';
+  import SpeakRepliesControl from '#lib/components/playground/SpeakRepliesControl.svelte';
+  import { replySpeechSource } from './playground/speakReplies';
+  import { readAloud, tts } from './playground/tts.svelte';
   import { loadAudio, AudioError, MAX_AUDIO_BYTES, MAX_AUDIO_PER_MESSAGE, type PgAudio } from './playground/audio';
   import TranscribePanel from './playground/TranscribePanel.svelte';
   import ImagePanel from './playground/ImagePanel.svelte';
@@ -2727,6 +2730,8 @@
       }
       msg.streaming = false;
       scrollToBottom();
+      const spoken = splitOn ? null : replySpeechSource(tts.speakReplies, msg);
+      if (spoken) void readAloud.toggle(msg.id, spoken);
     }
     return msg;
   }
@@ -3207,6 +3212,7 @@
             {#if persistEnabled}
               <McpResourcesButton disabled={streaming || compacting} onAttachFile={async (path) => attachFiles([path])} />
             {/if}
+            <SpeakRepliesControl disabled={compacting} />
             <WorkspacePicker conversationKey={workspaceVersion} bind:value={settings.workdir} disabled={streaming || compacting} />
             {#if uiLevel.advanced && !splitOn && persistEnabled}
               <CompactButton

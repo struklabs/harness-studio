@@ -21,6 +21,8 @@ const tr = {
   'pg.audio_remove': '{name} sesini kaldır',
   'pg.audio_picker_filter': 'Ses dosyaları',
   'pg.audio_needs_model': 'Seçili model ses girişini desteklemiyor.',
+  'pg.speak_replies': 'Yanıtları Sesli Oku',
+  'pg.speak_replies_voice': 'Yanıt Ses Modeli',
   'pg.web_tools': 'Web ve Araçlar',
   'pg.web_tools_on': 'Açık',
   'pg.web_tools_off': 'Kapalı',
@@ -339,6 +341,8 @@ const en: Record<keyof typeof tr, string> = {
   'pg.audio_remove': 'Remove audio {name}',
   'pg.audio_picker_filter': 'Audio files',
   'pg.audio_needs_model': 'The selected model does not support audio input.',
+  'pg.speak_replies': 'Speak Replies',
+  'pg.speak_replies_voice': 'Reply Voice Model',
 
   'pg.web_tools': 'Web and Tools',
   'pg.web_tools_on': 'On',

@@ -967,7 +967,7 @@ use Support::{No, Partial, Yes};
 /// `No` while none of them is installed.
 const TABLE: &[Row] = &[
     row("image-text-to-text", Yes, Some("vision")),
-    row("audio-text-to-text", Partial, Some("audio_input")),
+    row("audio-text-to-text", Yes, Some("audio_input")),
     row("visual-question-answering", Partial, Some("vision")),
     row("any-to-any", Partial, Some("vision")),
     row("document-question-answering", No, Some("vision")),
@@ -1103,7 +1103,7 @@ mod tests {
     }
 
     #[test]
-    fn audio_mmproj_tasks_are_conditional_chat_support() {
+    fn audio_mmproj_tasks_are_chat_support_that_needs_the_projector_flag() {
         let files = tags(&["Ultravox-Q8_0.gguf", "mmproj-Ultravox-F16.gguf"]);
         assert_eq!(
             infer_task("org/Ultravox-7B-GGUF", &[], &files),
@@ -1113,11 +1113,21 @@ mod tests {
         let features = feature_status(&caps, FeatureContext::default());
         let list = task_support(Some(&caps), &features, &[]);
         let row = support_of(&list, "audio-text-to-text");
-        assert_eq!(row.support, Partial);
+        assert_eq!(row.support, Yes);
         assert_eq!(row.feature.as_deref(), Some("audio_input"));
         assert_eq!(row.flag.as_deref(), Some("--mmproj"));
         let asr = support_of(&list, "automatic-speech-recognition");
         assert_eq!(asr.feature.as_deref(), Some("audio_input"));
+        // A llama-server without the projector flag cannot take audio in: the verdict drops.
+        let mut lacking = features.clone();
+        for f in lacking.iter_mut().filter(|f| f.id == "audio_input") {
+            f.level = CapabilityLevel::Unsupported;
+            f.available = Some(false);
+        }
+        let list = task_support(Some(&caps), &lacking, &[]);
+        assert_eq!(support_of(&list, "audio-text-to-text").support, No);
+        // Any-to-any models answer in text here (speech goes out through Speak Replies).
+        assert_eq!(support_of(&list, "any-to-any").support, Partial);
     }
 
     #[test]
