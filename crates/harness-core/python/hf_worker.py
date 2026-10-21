@@ -1983,7 +1983,7 @@ def build_app(model: Model):
         return r if isinstance(r, Response) else JSONResponse(r)
 
     async def chat(request: Request):
-        wrong = requires(*CHAT_TASKS)
+        wrong = requires(*CHAT_TASKS, "video-text-to-text")
         if wrong:
             return wrong
         try:
@@ -1992,6 +1992,11 @@ def build_app(model: Model):
             return error(400, "the body is not JSON")
         if not isinstance(body, dict):
             return error(400, "the body must be a JSON object")
+        if model.args.task == "video-text-to-text":
+            if body.get("stream"):
+                return error(400, "video chat currently requires stream: false")
+            r = await call(video_chat, model, body)
+            return r if isinstance(r, Response) else JSONResponse(r)
         if body.get("stream") is True:
             r = await call(stream_chat, model, body)
             if isinstance(r, Response):
@@ -2198,19 +2203,6 @@ def build_app(model: Model):
             job["cancel"].set()
         return JSONResponse({"status": "cancelled"})
 
-    async def video_chat_route(request: Request):
-        body = await request.json()
-        if body.get("stream"):
-            return error(400, "video chat currently requires stream: false")
-        r = await call(video_chat, model, body)
-        return r if isinstance(r, Response) else JSONResponse(r)
-
-    async def chat_route(request: Request):
-        # One route, by task: a second `chat` of the same name used to shadow the text one.
-        if model.args.task == "video-text-to-text":
-            return await video_chat_route(request)
-        return await chat(request)
-
     routes = [
         Route("/video/jobs", start_video, methods=["POST"]),
         Route("/video/jobs/{id}", poll_video),
@@ -2219,7 +2211,7 @@ def build_app(model: Model):
         Route("/v1/models", models),
         Route("/models", models),
         Route("/hf", hf, methods=["POST"]),
-        Route("/v1/chat/completions", chat_route, methods=["POST"]),
+        Route("/v1/chat/completions", chat, methods=["POST"]),
         Route("/v1/embeddings", embeddings, methods=["POST"]),
         Route("/v1/rerank", rerank, methods=["POST"]),
         Route("/v1/audio/transcriptions", transcriptions, methods=["POST"]),
