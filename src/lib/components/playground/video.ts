@@ -1,5 +1,17 @@
 export const VIDEO_TASKS = ['text-to-video', 'image-to-video', 'video-text-to-text'];
 export function isVideoTask(task?: string): boolean { return VIDEO_TASKS.includes(task ?? ''); }
+/** GGUF architectures of the video models stable-diffusion.cpp runs (`POST /v1/videos` through sd-server). */
+export const VIDEO_GGUF_ARCHS = ['wan', 'ltxv', 'hyvid', 'cosmos'];
+/**
+ * The video task of a library file: a Python pipeline's own task, or for an sd.cpp video GGUF
+ * (no task of its own) image-to-video when its name says I2V, text-to-video otherwise.
+ */
+export function fileVideoTask(file?: { kind?: string; task?: string; name?: string; path?: string; gguf?: { architecture?: string | null } | null }): string | undefined {
+  if (!file) return undefined;
+  if (isVideoTask(file.task)) return file.task;
+  if (file.kind !== 'image' || !VIDEO_GGUF_ARCHS.includes(file.gguf?.architecture ?? '')) return undefined;
+  return /(^|[^t])i2v/i.test(file.name ?? file.path ?? '') ? 'image-to-video' : 'text-to-video';
+}
 export function videoQuestion(model: string, prompt: string, media: string) {
   return { model, stream: false, max_tokens: 128, messages: [{ role: 'user', content: [
     { type: 'text', text: prompt }, { type: 'video_url', video_url: { url: media } },
