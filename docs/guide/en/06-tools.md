@@ -22,7 +22,7 @@ File and command tools need a working folder. Network tools send requests to out
 
 1. Open **Settings > Tools > Built-In Tools** (an Advanced page).
 2. Review the **Permission Policy**.
-3. Set a **Default folder** for file tools. Playground chats can also choose their own working folder.
+3. Set a **Default Folder** for file tools. Playground chats can also choose their own working folder.
 4. When a call arrives in a chat, read its name and parameters and then approve it.
 
 | Policy | Behavior |
