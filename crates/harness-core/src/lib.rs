@@ -69,6 +69,7 @@ pub mod operation_gate;
 pub mod orchestrator;
 pub mod orphans;
 pub mod otel;
+pub mod pairing;
 pub mod params;
 pub mod paths;
 pub mod perf;

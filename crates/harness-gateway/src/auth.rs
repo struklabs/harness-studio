@@ -290,6 +290,8 @@ fn authenticate(
     }
     match state.tokens.verify(&token) {
         Some((info, scopes)) if control_api::allows(&scopes, Scope::Inference) => {
+            // Presence of paired devices (memory only).
+            harness_core::pairing::hub_for(&state.tokens).touch(&info.id);
             if let Some(endpoint) = endpoint.filter(|e| !info.policy.allows_endpoint(*e)) {
                 return Err(GatewayError::new(
                     403,

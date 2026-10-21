@@ -9,6 +9,7 @@ mod checkpoints;
 mod cloud;
 mod conversations;
 mod convert;
+mod devices;
 mod events;
 mod gateway;
 mod knowledge;
@@ -67,6 +68,7 @@ the Secure HttpOnly session cookie; cookie writes need same-origin Origin and X-
         (name = "offices", description = "Agent Office scenes, presets and live activity"),
         (name = "events", description = "Server-sent event streams"),
         (name = "tokens", description = "Named API tokens (admin)"),
+        (name = "devices", description = "Paired devices: one-time offers, approval prompts, the registry, audit log, revocation (revoke all for a lost phone) and host suggestions (admin)"),
         (name = "cloud", description = "BYOK cloud providers (OpenAI, Gemini, Anthropic, OpenRouter, custom): add, test and remove; the key is write-only (admin)"),
         (name = "knowledge", description = "Knowledge bases (local RAG): sources, change-aware indexing, questions with cited excerpts (scope `conversations`)"),
         (name = "conversations", description = "Stored chats: list, read, export, documents, context compaction (scope `conversations`)"),
@@ -287,6 +289,19 @@ fn api_routes() -> OpenApiRouter<AppState> {
             tokens::update_token,
             tokens::revoke_token
         ))
+        .routes(routes!(devices::create_offer, devices::list_offers))
+        .routes(routes!(devices::cancel_offer))
+        .routes(routes!(devices::pending))
+        .routes(routes!(devices::approve))
+        .routes(routes!(devices::deny))
+        .routes(routes!(devices::connect))
+        .routes(routes!(devices::connect_poll))
+        .routes(routes!(devices::list_devices))
+        .routes(routes!(devices::update_device, devices::revoke_device))
+        .routes(routes!(devices::revoke_all))
+        .routes(routes!(devices::audit))
+        .routes(routes!(devices::roles))
+        .routes(routes!(devices::suggest))
         .routes(routes!(
             cloud::list_cloud_providers,
             cloud::add_cloud_provider

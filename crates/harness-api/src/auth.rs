@@ -82,6 +82,10 @@ pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Sc
     if route == "/cloud" || route.starts_with("/cloud/") {
         return Some(Scope::Admin);
     }
+    // Pairing mints tokens and decides which devices reach this computer.
+    if route == "/devices" || route.starts_with("/devices/") || route.starts_with("/pairing/") {
+        return Some(Scope::Admin);
+    }
     if route.starts_with("/browser/")
         || route == "/tokens"
         || route.starts_with("/tokens/")
@@ -258,6 +262,23 @@ mod tests {
         );
         assert_eq!(required_scope(&get, "/models", true), Some(Scope::Read));
         assert_eq!(required_scope(&get, "/tokens", true), Some(Scope::Admin));
+        for (method, path) in [
+            (&get, "/devices"),
+            (&get, "/devices/audit"),
+            (&get, "/devices/suggest"),
+            (&post, "/devices/revoke-all"),
+            (&del, "/devices/{id}"),
+            (&get, "/pairing/pending"),
+            (&post, "/pairing/offers"),
+            (&post, "/pairing/pending/{id}/approve"),
+            (&post, "/pairing/connect"),
+        ] {
+            assert_eq!(
+                required_scope(method, path, true),
+                Some(Scope::Admin),
+                "{path}"
+            );
+        }
         assert_eq!(required_scope(&get, "/modules", true), Some(Scope::Read));
         // Training: reading jobs is `read`; creating, running and exporting them is admin.
         assert_eq!(

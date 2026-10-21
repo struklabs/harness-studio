@@ -200,9 +200,13 @@ pub fn http_status(code: &str) -> u16 {
         | "cloud.server_error_retry"
         | "cloud.invalid_response" => 502,
         "cloud.name_taken" => 409,
+        "pairing.locked" => 429,
+        "pairing.invalid_code" | "pairing.pending_denied" => 403,
+        "pairing.expired" => 410,
         c if c.ends_with(".not_found") || c.ends_with("_not_found") => 404,
         c if c.ends_with(".exists") || c.ends_with(".already_exists") => 409,
         c if c.starts_with("network.")
+            || c.starts_with("pairing.")
             || c.starts_with("api.")
             || c.starts_with("otel.")
             || c.starts_with("cloud.")

@@ -36,6 +36,7 @@ pub mod llama_tts;
 mod model_name;
 pub mod ocr;
 pub mod ollama;
+pub mod pairing;
 pub mod pipelines;
 pub mod proxy;
 pub mod pyhf;
@@ -622,6 +623,7 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
     let allowed: Arc<[String]> = cors_origins.to_vec().into();
     Router::new()
         .merge(ollama::routes())
+        .merge(pairing::routes())
         .route("/health", get(health))
         .route(
             "/v1/harness/capabilities",

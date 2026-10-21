@@ -1,5 +1,5 @@
 // Legacy tab names resolve to the first related child page.
-export const CONNECTION_PAGE_IDS = ['harness-link', 'cloud-providers', 'endpoints', 'ollama', 'ports', 'config', 'guide', 'sdk', 'harness-mcp', 'servers', 'import', 'status', 'workbench', 'health'];
+export const CONNECTION_PAGE_IDS = ['harness-link', 'devices', 'cloud-providers', 'endpoints', 'ollama', 'ports', 'config', 'guide', 'sdk', 'harness-mcp', 'servers', 'import', 'status', 'workbench', 'health'];
 /** @param {string | null | undefined} value */
 export function resolveConnectionPage(value) {
   const id = value === 'clients' ? 'config' : value === 'mcp' ? 'servers' : value === 'test' ? 'workbench' : value;

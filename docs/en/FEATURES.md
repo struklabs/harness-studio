@@ -18,6 +18,7 @@ Harness Studio manages local AI models, servers, tools, and connected applicatio
 | Integrations | Configure compatible coding tools and apps, preview changes, test connections, and undo Harness configuration. |
 | Gateway | Use OpenAI-, Anthropic-, and Ollama-compatible endpoints, model aliases, on-demand loading, and optional named-token restrictions. Compatibility varies by endpoint and client. |
 | Remote Models | Use Harness Link to connect another Harness instance and select its models locally. |
+| Devices and Remote Access | Pair a phone or another computer with a one-time code and your approval, give it a scoped token (chat only, gateway models, or admin), chat from a phone browser, see each device's role, models, engines, disk and reachability, and unpair one device or all of them. See [Remote Access](REMOTE_ACCESS.md). |
 | Cloud Providers | Add OpenAI, Gemini, Anthropic, OpenRouter, or an OpenAI-compatible endpoint with your own API key, kept in the system keychain, and use its models through the gateway: chat, Responses, Messages and embeddings where the provider has them. |
 | CLI and Control API | Manage models, servers, conversations, and tools from scripts; run headless serving and use the published API schema and SDKs. |
 | Performance and Analytics | Run your own benchmarks, inspect request timing and errors, monitor RAM/VRAM, and use optional metrics export. |

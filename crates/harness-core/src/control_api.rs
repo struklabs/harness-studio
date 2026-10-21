@@ -211,13 +211,13 @@ pub fn ct_eq(a: &[u8], b: &[u8]) -> bool {
     a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-fn random_bytes<const N: usize>() -> Result<[u8; N], String> {
+pub(crate) fn random_bytes<const N: usize>() -> Result<[u8; N], String> {
     let mut buf = [0u8; N];
     getrandom::fill(&mut buf).map_err(|e| format!("{}: {}", ERR_RANDOM, e))?;
     Ok(buf)
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{:02x}", b)).collect()
 }
 
@@ -240,7 +240,7 @@ fn base64url(bytes: &[u8]) -> String {
 }
 
 /// A fresh 256-bit secret (43 base64url chars).
-fn new_secret() -> Result<String, String> {
+pub(crate) fn new_secret() -> Result<String, String> {
     Ok(base64url(&random_bytes::<32>()?))
 }
 
@@ -406,7 +406,7 @@ pub struct TokenStore {
     path: PathBuf,
 }
 
-fn now_secs() -> u64 {
+pub(crate) fn now_secs() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -418,6 +418,14 @@ impl TokenStore {
         Self {
             path: config_dir.join(TOKENS_SCHEMA.file),
         }
+    }
+
+    /// The config directory holding the token file (pairing state lives next to it).
+    pub fn dir(&self) -> PathBuf {
+        self.path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_default()
     }
 
     /// The token file of the app's data root.
