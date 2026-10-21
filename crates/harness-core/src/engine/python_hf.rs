@@ -883,6 +883,7 @@ fn to_local_model(dir: &Path, task: String, root: &Path) -> crate::models::Local
         kind: kind_of(&task),
         origin: crate::domain::ModelOrigin::Library,
         task: Some(task),
+        vision: false,
     }
 }
 

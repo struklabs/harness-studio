@@ -259,11 +259,34 @@ fn repo_part(s: &str, max: usize) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
 }
 
-/// The LoRA a request names: `lora` (an absolute path to a `.safetensors` file that exists, or a
-/// Hugging Face repository id `owner/name` / `owner/name:file.safetensors`, which must be in the
-/// local cache: the Python engine runs offline) and `lora_scale`. `None` without a `lora`; a
-/// scale without one, a scale outside [`LORA_SCALE_RANGE`] and any other value are refused.
+/// The LoRA a request names: `lora` (an absolute path to a `.safetensors` file that exists in
+/// one of the model libraries, or a Hugging Face repository id `owner/name` /
+/// `owner/name:file.safetensors`, which must be in the local cache: the Python engine runs
+/// offline) and `lora_scale`. `None` without a `lora`; a scale without one, a scale outside
+/// [`LORA_SCALE_RANGE`] and any other value are refused. A file comes back as its real path.
 pub fn lora_of(request: &Value) -> Result<Option<(String, Option<f64>)>, GatewayError> {
+    lora_in(
+        request,
+        &harness_core::config::AppSettings::load().all_models_dirs(),
+    )
+}
+
+/// The real path of a LoRA file when it is inside one of `libraries` (links resolved on both
+/// sides, so a link in a library that points out of it is refused too).
+fn confined_lora(path: &std::path::Path, libraries: &[std::path::PathBuf]) -> Option<String> {
+    let real = std::fs::canonicalize(path).ok()?;
+    libraries
+        .iter()
+        .filter_map(|dir| std::fs::canonicalize(dir).ok())
+        .any(|dir| real.starts_with(dir))
+        .then(|| real.to_string_lossy().into_owned())
+}
+
+/// [`lora_of`] with the model libraries given.
+fn lora_in(
+    request: &Value,
+    libraries: &[std::path::PathBuf],
+) -> Result<Option<(String, Option<f64>)>, GatewayError> {
     let scale = number(request, "lora_scale")?;
     let Some(lora) = text(request, "lora")? else {
         if scale.is_some() {
@@ -292,6 +315,12 @@ pub fn lora_of(request: &Value) -> Result<Option<(String, Option<f64>)>, Gateway
         if !path.is_file() {
             return Err(bad("The LoRA file was not found.").param("lora"));
         }
+        let Some(real) = confined_lora(path, libraries) else {
+            return Err(
+                bad("The LoRA file must be in one of Harness's model folders.").param("lora"),
+            );
+        };
+        return Ok(Some((real, scale)));
     } else {
         let (repo, file) = match lora.split_once(':') {
             Some((r, f)) => (r, Some(f)),
@@ -608,6 +637,20 @@ pub fn mflux_body(
         .param("n"));
     }
     out.insert("n".into(), json!(n));
+    // `lora_of` already resolved a file to its real path in a model library; mflux reads only
+    // local files (the worker checks the folder again).
+    if let Some(lora) = img_gen.get("lora").and_then(Value::as_str) {
+        if !std::path::Path::new(lora).is_absolute() {
+            return Err(bad(
+                "lora must be a .safetensors file in a model folder for this model (mflux reads no Hugging Face repository ids).",
+            )
+            .param("lora"));
+        }
+        out.insert("lora".into(), json!(lora));
+        if let Some(scale) = img_gen.get("lora_scale").filter(|v| !v.is_null()) {
+            out.insert("lora_scale".into(), scale.clone());
+        }
+    }
     if let Some(seed) = img_gen
         .get("seed")
         .and_then(Value::as_i64)
@@ -1008,12 +1051,6 @@ async fn run(
     GatewayError::reject_remote(&def)?;
     // An mflux worker answers its own body.
     if is_mflux_model(&def) {
-        if plan.body.get("lora").is_some() {
-            return Err(bad(
-                "lora is not available per request for this model: set the LoRA in the model's definition.",
-            )
-            .param("lora"));
-        }
         let inpaints = def
             .base
             .local_path()
@@ -1521,12 +1558,17 @@ mod tests {
         let file = dir.path().join("style.safetensors");
         std::fs::write(&file, b"x").unwrap();
         let file = file.to_string_lossy().to_string();
-        let ok = |v: Value| lora_of(&v).unwrap();
+        let libraries = vec![dir.path().to_path_buf()];
+        let real = std::fs::canonicalize(&file)
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        let ok = |v: Value| lora_in(&v, &libraries).unwrap();
         assert_eq!(ok(json!({"prompt": "x"})), None);
         assert_eq!(ok(json!({"lora": "  "})), None);
         assert_eq!(
             ok(json!({"lora": file, "lora_scale": 0.5})),
-            Some((file.clone(), Some(0.5)))
+            Some((real.clone(), Some(0.5)))
         );
         assert_eq!(
             ok(json!({"lora": "owner/name"})),
@@ -1537,7 +1579,7 @@ mod tests {
             Some(("owner/name:dir/style.safetensors".into(), Some(-4.0)))
         );
         let param = |v: Value| {
-            lora_of(&v)
+            lora_in(&v, &libraries)
                 .unwrap_err()
                 .param
                 .map(|p| p.to_string())
@@ -1563,6 +1605,17 @@ mod tests {
             "C:style.safetensors",
         ] {
             assert_eq!(param(json!({"lora": lora})), "lora", "{lora}");
+        }
+        // A file outside the model libraries, or a link in one that points out, is refused.
+        let outside = tempfile::tempdir().unwrap();
+        let elsewhere = outside.path().join("style.safetensors");
+        std::fs::write(&elsewhere, b"x").unwrap();
+        assert_eq!(param(json!({"lora": elsewhere.to_string_lossy()})), "lora");
+        #[cfg(unix)]
+        {
+            let link = dir.path().join("link.safetensors");
+            std::os::unix::fs::symlink(&elsewhere, &link).unwrap();
+            assert_eq!(param(json!({"lora": link.to_string_lossy()})), "lora");
         }
         assert_eq!(param(json!({"lora": 5})), "lora");
         assert_eq!(param(json!({"lora_scale": 1})), "lora_scale");
@@ -1888,6 +1941,24 @@ Content-Type: image/png"#,
                 .param
                 .as_deref(),
             Some("image")
+        );
+        // A request's LoRA file (already resolved by `lora_of`) goes to the worker with its
+        // scale; a Hugging Face repository id does not (mflux reads local files only).
+        let mut with_lora = plan(&json!({"prompt": "x"})).unwrap().body;
+        with_lora["lora"] = json!("/lib/style.safetensors");
+        with_lora["lora_scale"] = json!(0.8);
+        let body = mflux_body(&with_lora, None, false).unwrap();
+        assert_eq!(
+            (body["lora"].clone(), body["lora_scale"].clone()),
+            (json!("/lib/style.safetensors"), json!(0.8))
+        );
+        with_lora["lora"] = json!("owner/name");
+        assert_eq!(
+            mflux_body(&with_lora, None, false)
+                .unwrap_err()
+                .param
+                .as_deref(),
+            Some("lora")
         );
     }
 }

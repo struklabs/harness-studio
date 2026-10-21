@@ -753,6 +753,7 @@ pub fn to_local_model(model: &TtsModel, root: &Path) -> crate::models::LocalMode
         kind: crate::domain::ModelKind::Tts,
         origin: crate::domain::ModelOrigin::Library,
         task: None,
+        vision: false,
     }
 }
 

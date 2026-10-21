@@ -101,10 +101,10 @@ export function needsMask(alias: string, definitions: ModelDefinition[], files: 
   return maskMode(alias, definitions, files) === 'required';
 }
 
-/** Whether the model `alias` loads a LoRA per request (Python engine diffusers pipelines; mflux
- * takes one in its definition, stable-diffusion.cpp has none). */
+/** Whether the model `alias` loads a LoRA per request (Python engine diffusers pipelines and
+ * mflux folders; stable-diffusion.cpp has none). */
 export function takesLora(alias: string, definitions: ModelDefinition[], files: LocalModel[] = []): boolean {
-  return !!diffusersFile(alias, definitions, files);
+  return !!diffusersFile(alias, definitions, files) || !!mfluxFile(alias, definitions, files);
 }
 
 /** A definition that upscales: a super-resolution folder of the Python engine (Swin2SR). */
@@ -131,10 +131,12 @@ export function loraScaleOk(scale: string): boolean {
 
 /** Whether a LoRA field is empty, an absolute `.safetensors` path, or a repo id (`owner/name`,
  * `owner/name:file.safetensors`): what the gateway takes. */
-export function loraOk(lora: string): boolean {
+export function loraOk(lora: string, fileOnly = false): boolean {
   const v = lora.trim();
   if (v === '') return true;
   if (/^(?:[A-Za-z]:[\\/]|[\\/])/.test(v)) return /\.safetensors$/i.test(v);
+  // mflux reads local files only (no Hugging Face repository ids).
+  if (fileOnly) return false;
   const repo = /^[A-Za-z0-9][\w.-]{0,95}\/[A-Za-z0-9][\w.-]{0,95}(?::[A-Za-z0-9_][\w./-]{0,198}\.safetensors)?$/;
   return repo.test(v) && !v.includes('..');
 }

@@ -2,7 +2,7 @@ const tr = {
   'ocr.tab': 'Belge Oku',
   'ocr.pick': 'Belge Seç',
   'ocr.drop': 'Bir Görsel veya PDF Bırakın',
-  'ocr.hint': 'En fazla 20 MiB. Metin katmanı olmayan (taranmış) PDF sayfaları görüntüye çevrilip okunur; bunun için Python motoru gerekir. Okumak için görebilen bir model ya da OCR modeli, sorular için görebilen bir model ya da belge soru-cevap modeli seçin.',
+  'ocr.hint': 'En fazla 20 MiB. Metin katmanı olmayan (taranmış) PDF sayfaları görüntüye çevrilip okunur; bunun için Python motoru gerekir. Okumak için görebilen bir model (projektörlü GGUF ya da MLX) ya da OCR modeli, sorular için görebilen bir model ya da belge soru-cevap modeli seçin.',
   'ocr.read': 'Metni Oku',
   'ocr.question': 'Belge Hakkında Soru',
   'ocr.ask': 'Sor',
@@ -10,14 +10,14 @@ const tr = {
   'ocr.text': 'Belge Metni',
   'ocr.answer': 'Yanıt',
   'ocr.busy': 'Okunuyor…',
-  'ocr.need_model': 'Model seçiciden görebilen bir model (görme dosyasıyla) ya da OCR / belge soru-cevap modeli seçin.',
+  'ocr.need_model': 'Model seçiciden görebilen bir model (projektörlü GGUF ya da MLX) ya da OCR / belge soru-cevap modeli seçin.',
   'ocr.need_gateway': 'Belge okumak için Ayarlar > Gateway bölümünden gateway’i başlatın.',
 };
 const en: Record<keyof typeof tr, string> = {
   'ocr.tab': 'Read Document',
   'ocr.pick': 'Choose Document',
   'ocr.drop': 'Drop an Image or PDF',
-  'ocr.hint': 'Up to 20 MiB. PDF pages without a text layer (scans) are turned into images and read; this needs the Python engine. Choose a vision model or an OCR model to read, and a vision model or a document QA model for questions.',
+  'ocr.hint': 'Up to 20 MiB. PDF pages without a text layer (scans) are turned into images and read; this needs the Python engine. Choose a vision model (a GGUF with a projector, or MLX) or an OCR model to read, and a vision model or a document QA model for questions.',
   'ocr.read': 'Read Text',
   'ocr.question': 'Question About the Document',
   'ocr.ask': 'Ask',
@@ -25,7 +25,7 @@ const en: Record<keyof typeof tr, string> = {
   'ocr.text': 'Document Text',
   'ocr.answer': 'Answer',
   'ocr.busy': 'Reading…',
-  'ocr.need_model': 'Choose a vision model with a projector or an OCR / document QA model in the model picker.',
+  'ocr.need_model': 'Choose a vision model (a GGUF with a projector, or MLX) or an OCR / document QA model in the model picker.',
   'ocr.need_gateway': 'Start the gateway in Settings > Gateway to read documents.',
 };
 export default { tr, en };

@@ -274,6 +274,7 @@ mod tests {
             kind,
             origin: Default::default(),
             task: None,
+            vision: false,
         }
     }
 

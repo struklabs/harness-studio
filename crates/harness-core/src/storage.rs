@@ -442,6 +442,7 @@ mod tests {
             kind: Default::default(),
             origin: Default::default(),
             task: None,
+            vision: false,
         };
 
         // 2. Migrate to dest_dir
@@ -504,6 +505,7 @@ mod tests {
             kind: Default::default(),
             origin: Default::default(),
             task: None,
+            vision: false,
         };
 
         // Collision: an existing file at the destination must not be overwritten.

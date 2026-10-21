@@ -2,6 +2,7 @@ import type { LocalModel, ModelDefinition, PlaygroundMode, ServeMode } from '#li
 import { chatModelsOnly } from '../../chatModels';
 import { DIFFUSERS_IMAGE_TASKS } from './image';
 import { fileVideoTask } from './video';
+import { readsDocuments } from './documentModels';
 
 /** The library file a definition points at, when it is in `files`. */
 export function definitionFile(def: ModelDefinition, files: LocalModel[] = []): LocalModel | undefined {
@@ -25,12 +26,7 @@ export function definitionMode(def: ModelDefinition, files: LocalModel[] = []): 
 }
 
 export function definitionsForMode(definitions: ModelDefinition[], mode: PlaygroundMode, files: LocalModel[] = []): ModelDefinition[] {
-  if (mode === 'ocr') return definitions.filter(def => {
-    const file = definitionFile(def, files);
-    if (['image-to-text', 'document-question-answering'].includes(file?.task ?? '')) return true;
-    const projector = files.find(f => f.path.replace(/\\/g, '/').toLowerCase() === def.mmproj?.replace(/\\/g, '/').toLowerCase());
-    return !!def.mmproj && !(projector?.gguf?.has_audio_encoder && !projector.gguf.has_vision_encoder);
-  });
+  if (mode === 'ocr') return definitions.filter(def => readsDocuments(def, definitionFile(def, files), files));
   const rows = definitions.map(def => ({ def, mode: definitionMode(def, files), chat: definitionMode(def, files) === 'chat' }));
   // sd.cpp's video GGUFs (Wan...) draw single frames in the Image tab and run video jobs from
   // the Tasks tab and the Video studio.

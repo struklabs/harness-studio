@@ -144,7 +144,7 @@ pub fn capabilities(def: &ModelDefinition, info: &FileInfo) -> Vec<&'static str>
             if m.is_some_and(|m| m.template_supports_reasoning) {
                 caps.push("thinking");
             }
-            if def.mmproj.is_some() {
+            if crate::ocr::reads_images(def) {
                 caps.push("vision");
             }
             caps
