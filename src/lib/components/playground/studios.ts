@@ -4,6 +4,7 @@
 // memory estimate. Icons live in StudioPanel.
 import type { LocalModel, PlaygroundMode } from '#lib/types.js';
 import type { TKey } from '#lib/i18n.svelte.js';
+import { engineLabel } from '../../engines.ts';
 
 export type StudioId = 'image' | 'audio' | 'video' | 'voice' | 'document' | 'coding' | 'analysis' | 'agent';
 
@@ -81,14 +82,15 @@ export function engineOfFile(file: LocalModel | undefined): string | null {
 /**
  * `file` is the library file of the alias's definition (`definitionFile`), when it has one;
  * `companionBytes` the definition's VAE and text encoders, loaded with it (Wan's umt5 is larger
- * than the model).
+ * than the model); `runtime` the engine family the model registry gives the file (an MLX folder's
+ * kind and task look like llama.cpp's or diffusers').
  */
-export function studioResources(studio: StudioSpec, alias: string, file: LocalModel | undefined, opts: { frames?: number; size?: string; companionBytes?: number } = {}): StudioResources {
+export function studioResources(studio: StudioSpec, alias: string, file: LocalModel | undefined, opts: { frames?: number; size?: string; companionBytes?: number; runtime?: string | null } = {}): StudioResources {
   const location: StudioLocation = alias.startsWith('remote:') ? 'remote' : alias.startsWith('cloud:') ? 'cloud' : 'local';
   const sizeBytes = location === 'local' && file ? file.size_bytes + Math.max(0, opts.companionBytes ?? 0) : null;
   return {
     alias,
-    engine: location === 'local' ? engineOfFile(file) : null,
+    engine: location !== 'local' ? null : opts.runtime && file ? engineLabel(opts.runtime) : engineOfFile(file),
     location,
     sizeBytes,
     memoryBytes: location === 'local' ? studioMemoryEstimate(studio, sizeBytes, opts) : null,

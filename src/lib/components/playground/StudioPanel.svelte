@@ -10,6 +10,7 @@
   import { library } from '#lib/stores/library.svelte.js';
   import { projects } from '#lib/stores/projects.svelte.js';
   import { formatBytes } from '#lib/format.js';
+  import type { LibraryView } from '#lib/types.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import ImageSurface from './ImageSurface.svelte';
@@ -48,7 +49,20 @@
     invoke<number>('definition_companion_bytes', { id }).then((n) => { if (live) companionBytes = n; }).catch(() => {});
     return () => { live = false; };
   });
-  let resources = $derived(studioResources(spec, model, definition ? definitionFile(definition, library.models) : undefined, { frames, size, companionBytes }));
+  let file = $derived(definition ? definitionFile(definition, library.models) : undefined);
+  /** The engine family the model registry gives the file (MLX folders, mflux, mlx-vlm). */
+  let runtime = $state<string | null>(null);
+  $effect(() => {
+    const path = file?.path;
+    runtime = null;
+    if (!path) return;
+    let live = true;
+    invoke<LibraryView>('list_library').then((view) => {
+      if (live) runtime = view.entries.find(e => e.model.path === path)?.record.runtime ?? null;
+    }).catch(() => {});
+    return () => { live = false; };
+  });
+  let resources = $derived(studioResources(spec, model, file, { frames, size, companionBytes, runtime }));
   let chatStudio = $derived(spec.mode === 'chat');
 
   function openChat() {

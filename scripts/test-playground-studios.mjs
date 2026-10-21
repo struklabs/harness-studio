@@ -47,6 +47,10 @@ test('resources name the engine, where it runs and the estimate; remote and clou
   assert.equal(engineOfFile(file('pipeline', '/m/wan', 1, 'text-to-video')), 'Python (diffusers)');
   assert.equal(engineOfFile(file('pipeline', '/m/bert', 1, 'fill-mask')), 'Python (transformers)');
   assert.equal(engineOfFile(file('llm', '/m/q.gguf')), 'llama.cpp');
+  // The registry's runtime wins: an MLX folder's kind and task look like llama.cpp's or diffusers'.
+  assert.equal(studioResources(image, 'klein', file('pipeline', '/m/klein', MB, 'text-to-image'), { runtime: 'mflux' }).engine, 'mflux');
+  assert.equal(studioResources(image, 'vlm', file('llm', '/m/smolvlm', MB), { runtime: 'mlx-vlm' }).engine, 'MLX-VLM');
+  assert.equal(studioResources(image, 'q', file('llm', '/m/q.gguf', MB), { runtime: null }).engine, 'llama.cpp');
   assert.equal(engineOfFile(undefined), null);
 });
 
