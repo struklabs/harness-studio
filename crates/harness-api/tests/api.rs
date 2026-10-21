@@ -679,8 +679,10 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/training/{id}", &["get", "delete"]),
         ("/training/{id}/cancel", &["post"]),
         ("/training/{id}/export", &["post"]),
+        ("/training/{id}/compare", &["post"]),
         ("/training/{id}/log", &["get"]),
         ("/training/{id}/metrics", &["get"]),
+        ("/training/{id}/pause", &["post"]),
         ("/training/{id}/rename", &["post"]),
         ("/training/{id}/restart", &["post"]),
         ("/training/{id}/resume", &["post"]),
@@ -837,9 +839,49 @@ fn training_export_schema_exposes_quantization_and_adapter_mode() {
         "#/components/schemas/TrainingQuant"
     );
     assert_eq!(properties["adapter_only"]["type"], "boolean");
+    assert_eq!(
+        properties["quants"]["items"]["$ref"],
+        "#/components/schemas/TrainingQuant"
+    );
+    assert_eq!(
+        schemas["TrainingComparisonRow"]["properties"]["prompt"]["type"],
+        "string"
+    );
+    assert_eq!(
+        schemas["Metric"]["properties"]["samples"]["items"]["$ref"],
+        "#/components/schemas/TrainingCheckpointSample"
+    );
     assert!(
         doc["paths"]["/api/harness/v1/training/{id}/export"]["post"]["requestBody"].is_object()
     );
+    assert_eq!(
+        doc["paths"]["/api/harness/v1/training/{id}/compare"]["post"]["operationId"],
+        "compare_training_job"
+    );
+    assert_eq!(
+        doc["paths"]["/api/harness/v1/training/{id}/pause"]["post"]["operationId"],
+        "pause_training_job"
+    );
+}
+
+#[tokio::test]
+async fn training_compare_rejects_invalid_prompts_before_starting_a_worker() {
+    let api = start().await;
+    for prompts in [
+        json!([]),
+        json!([" "]),
+        json!(["a".repeat(2001)]),
+        json!(vec!["p"; 9]),
+    ] {
+        let (status, body) = json(
+            api.post("/training/0/compare", json!({"prompts": prompts}))
+                .await,
+        )
+        .await;
+        assert_eq!(status, 422, "{body}");
+        assert_error(&body, "training.prompts_invalid");
+    }
+    api.server.stop().await;
 }
 
 /// The analytics routes answer from the real (possibly empty) `analytics.db` with the read

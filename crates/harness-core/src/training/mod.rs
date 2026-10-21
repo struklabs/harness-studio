@@ -13,12 +13,14 @@
 //! [`export`] merges the adapter into the base model, writes safetensors into the model library
 //! and optionally converts them to GGUF.
 
+mod compare;
 pub mod dataset;
 pub mod estimate;
 mod export;
 pub mod presets;
 mod run;
 
+pub use compare::{compare, TrainingCompareRequest, TrainingComparisonRow};
 pub use dataset::{DatasetFormat, DatasetReport};
 pub use estimate::{Compatibility, Estimate, MethodSupport, Probe, Support};
 pub use export::{ExportInfo, ExportQuant, ExportRequest, ExportStatus};
@@ -150,6 +152,8 @@ pub struct TrainingConfig {
     pub lr_scheduler: LrScheduler,
     #[serde(default)]
     pub weight_decay: f64,
+    #[serde(default)]
+    pub sample_prompts: Vec<String>,
 }
 
 /// Body of a new job; unset values take the defaults below.
@@ -175,6 +179,7 @@ pub struct CreateRequest {
     pub warmup_ratio: Option<f64>,
     pub lr_scheduler: Option<LrScheduler>,
     pub weight_decay: Option<f64>,
+    pub sample_prompts: Option<Vec<String>>,
 }
 
 /// One job as the page shows it.
@@ -204,15 +209,42 @@ pub struct TrainingJob {
     pub updated_at: u64,
     pub started_at: Option<u64>,
     pub finished_at: Option<u64>,
+    /// Pause saves a checkpoint and releases the training slot; resume continues it.
+    #[serde(default)]
+    pub paused: bool,
 }
 
 /// One point of the loss chart.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Metric {
     pub step: u32,
     pub loss: Option<f64>,
     pub eval_loss: Option<f64>,
+    #[serde(default)]
+    pub vram_bytes: Option<u64>,
+    #[serde(default)]
+    pub vram_total_bytes: Option<u64>,
+    #[serde(default)]
+    pub samples: Vec<TrainingCheckpointSample>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct TrainingCheckpointSample {
+    pub prompt: String,
+    pub text: String,
+}
+
+fn validate_prompts(prompts: &[String]) -> Result<(), String> {
+    if prompts.len() > 8
+        || prompts
+            .iter()
+            .any(|p| p.trim().is_empty() || p.chars().count() > 2000)
+    {
+        return Err(err("training.prompts_invalid").into());
+    }
+    Ok(())
 }
 
 // --- paths -------------------------------------------------------------------------------------
@@ -428,6 +460,8 @@ fn resolve_device(requested: Option<Device>) -> Result<Device, String> {
 
 /// Checks a request and makes the full config (defaults filled in).
 pub fn build_config(req: &CreateRequest) -> Result<TrainingConfig, String> {
+    let sample_prompts = req.sample_prompts.clone().unwrap_or_default();
+    validate_prompts(&sample_prompts)?;
     let model = resolve_model(&req.model)?;
     let device = resolve_device(req.device)?;
     let method = req.method.unwrap_or(Method::Lora);
@@ -522,6 +556,7 @@ pub fn build_config(req: &CreateRequest) -> Result<TrainingConfig, String> {
         warmup_ratio,
         lr_scheduler: req.lr_scheduler.unwrap_or_default(),
         weight_decay,
+        sample_prompts,
     })
 }
 
@@ -591,6 +626,7 @@ pub fn create(req: &CreateRequest) -> Result<TrainingJob, String> {
         updated_at: now,
         started_at: None,
         finished_at: None,
+        paused: false,
     };
     save(&job);
     store().lock().unwrap().push(Entry {
@@ -811,6 +847,7 @@ fn queue(id: u64, resume: bool) -> Result<TrainingJob, String> {
         j.training = false;
         j.finished_at = None;
         j.resumed |= resume;
+        j.paused = false;
     });
     tokio::spawn(run::drive(id, resume));
     job(id).ok_or_else(|| not_found(id))
@@ -824,6 +861,16 @@ pub fn start(id: u64) -> Result<TrainingJob, String> {
 /// Queues a failed or cancelled job to continue from its last complete checkpoint.
 pub fn resume(id: u64) -> Result<TrainingJob, String> {
     queue(id, true)
+}
+
+/// Stops at the next step with a checkpoint. The slot is released after saving.
+pub fn pause(id: u64) -> Result<(), String> {
+    let _admission = LIFECYCLE.lock().unwrap();
+    let current = job(id).ok_or_else(|| not_found(id))?;
+    if current.status != TrainingStatus::Running || !current.training {
+        return Err(err("training.pause_unavailable").into());
+    }
+    stop(id, true)
 }
 
 /// Starts a failed or cancelled job that has no checkpoint over from step 0 (its metrics and
@@ -884,15 +931,21 @@ pub fn restart(id: u64) -> Result<TrainingJob, String> {
 /// Cancels a job at any point: a draft is closed, a queued one never starts, a running worker
 /// saves a checkpoint and stops (killed after a minute if it does not).
 pub fn cancel(id: u64) -> Result<(), String> {
+    stop(id, false)
+}
+
+fn stop(id: u64, paused: bool) -> Result<(), String> {
     let status = {
-        let jobs = store().lock().unwrap();
+        let mut jobs = store().lock().unwrap();
         let e = jobs
-            .iter()
+            .iter_mut()
             .find(|e| e.job.id == id)
             .ok_or_else(|| not_found(id))?;
+        e.job.paused = paused;
         e.soft.store(true, Ordering::SeqCst);
         e.job.status
     };
+    update(id, |_| {});
     if status == TrainingStatus::Draft {
         update(id, |j| {
             j.status = TrainingStatus::Cancelled;

@@ -206,6 +206,8 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(training::start))
         .routes(routes!(training::cancel))
         .routes(routes!(training::resume))
+        .routes(routes!(training::pause))
+        .routes(routes!(training::compare))
         .routes(routes!(training::restart))
         .routes(routes!(training::export))
         .routes(routes!(models::list_downloads))

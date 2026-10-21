@@ -21,6 +21,7 @@ fn sample(id: u64, status: TrainingStatus) -> TrainingJob {
         warmup_ratio: 0.0,
         lr_scheduler: LrScheduler::Linear,
         weight_decay: 0.0,
+        sample_prompts: vec![],
     };
     TrainingJob {
         id,
@@ -58,6 +59,7 @@ fn sample(id: u64, status: TrainingStatus) -> TrainingJob {
         updated_at: 1,
         started_at: None,
         finished_at: None,
+        paused: false,
     }
 }
 
@@ -117,16 +119,62 @@ fn metrics_merge_loss_and_eval_loss_per_step_and_later_runs_win() {
             Metric {
                 step: 1,
                 loss: Some(2.0),
-                eval_loss: Some(2.5)
+                eval_loss: Some(2.5),
+                ..Default::default()
             },
             Metric {
                 step: 2,
                 loss: Some(1.4),
-                eval_loss: None
+                eval_loss: None,
+                ..Default::default()
             },
         ]
     );
     assert!(run::read_metrics(&dir.path().join("none")).is_empty());
+}
+
+#[test]
+fn metrics_keep_checkpoint_samples_and_device_memory_at_the_same_step() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("metrics.jsonl");
+    std::fs::write(
+        &p,
+        concat!(
+            "{\"step\":5,\"loss\":1.2,\"vram_bytes\":100,\"vram_total_bytes\":200}\n",
+            "{\"step\":5,\"samples\":[{\"prompt\":\"Hello\",\"text\":\"Hi\"}]}\n",
+            "{\"step\":5,\"eval_loss\":1.3}\n",
+            "{\"step\":5,\"samples\":[{\"prompt\":\"Hello\",\"text\":\"Resumed\"}]}\n"
+        ),
+    )
+    .unwrap();
+    let metrics = run::read_metrics(&p);
+    assert_eq!(metrics.len(), 1);
+    let m = &metrics[0];
+    assert_eq!(m.loss, Some(1.2));
+    assert_eq!(m.eval_loss, Some(1.3));
+    assert_eq!(m.vram_bytes, Some(100));
+    assert_eq!(m.vram_total_bytes, Some(200));
+    assert_eq!(m.samples[0].text, "Resumed");
+}
+
+#[test]
+fn prompts_are_bounded_and_old_requests_remain_readable() {
+    let req: CreateRequest = serde_json::from_str(r#"{"model":"/m","dataset":"/d"}"#).unwrap();
+    assert!(req.sample_prompts.is_none());
+    assert!(validate_prompts(&[]).is_ok());
+    assert!(validate_prompts(&["Hello".into()]).is_ok());
+    assert!(validate_prompts(&[" ".into()]).is_err());
+    assert!(validate_prompts(&vec!["Hello".into(); 9]).is_err());
+    assert!(validate_prompts(&["a".repeat(2001)]).is_err());
+    let mut old = serde_json::to_value(sample(100, TrainingStatus::Done)).unwrap();
+    old.as_object_mut().unwrap().remove("paused");
+    old["config"]
+        .as_object_mut()
+        .unwrap()
+        .remove("sample_prompts");
+    let restored: TrainingJob = serde_json::from_value(old).unwrap();
+    assert!(!restored.paused);
+    assert!(restored.config.sample_prompts.is_empty());
 }
 
 #[test]
@@ -146,6 +194,7 @@ fn interrupted_export_recovers_without_losing_completed_training() {
         status: ExportStatus::Running,
         dir: None,
         gguf: None,
+        ggufs: vec![],
         warning: None,
         error: None,
         adapter_only: true,

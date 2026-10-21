@@ -15,6 +15,7 @@ export interface TrainingExportRequest {
   gguf: boolean;
   quant: TrainingQuant;
   adapter_only: boolean;
+  quants?: TrainingQuant[];
 }
 export type SupportLevel = 'supported' | 'limited' | 'unsupported';
 
@@ -38,6 +39,7 @@ export interface TrainingConfig {
   warmup_ratio: number;
   lr_scheduler: TrainingLrScheduler;
   weight_decay: number;
+  sample_prompts?: string[];
 }
 
 export interface TrainingCreateRequest {
@@ -60,6 +62,7 @@ export interface TrainingCreateRequest {
   warmup_ratio?: number;
   lr_scheduler?: TrainingLrScheduler;
   weight_decay?: number;
+  sample_prompts?: string[];
 }
 
 export interface DatasetIssue {
@@ -145,6 +148,7 @@ export interface TrainingExport {
   status: ExportStatus;
   dir: string | null;
   gguf: string | null;
+  ggufs?: string[];
   warning: string | null;
   error: string | null;
   adapter_only: boolean;
@@ -169,12 +173,22 @@ export interface TrainingJob {
   updated_at: number;
   started_at: number | null;
   finished_at: number | null;
+  paused?: boolean;
 }
 
 export interface TrainingMetric {
   step: number;
   loss: number | null;
   eval_loss: number | null;
+  vram_bytes?: number | null;
+  vram_total_bytes?: number | null;
+  samples?: { prompt: string; text: string }[];
+}
+
+export interface TrainingComparisonRow {
+  prompt: string;
+  base: string;
+  trained: string;
 }
 
 export interface MethodSupport {

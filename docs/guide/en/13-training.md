@@ -7,7 +7,7 @@
 ## Before you start
 
 - Switch to the **Advanced** interface level, then open **Training**.
-- The first time, press **Install Training Environment**. It adds PyTorch, transformers, peft, trl and datasets to the managed Python environment (about 1.5 GB on CPU, about 3 GB with CUDA). Nothing else on your computer is changed.
+- The training environment installs automatically when needed to start or resume a run. You can also prepare it with **Install Training Environment**. It adds PyTorch, transformers, peft, trl and datasets to the managed Python environment (about 1.5 GB on CPU, about 3 GB with CUDA).
 - The base model must be a Hugging Face folder (safetensors with a `config.json`) inside one of your model folders. GGUF files cannot be trained.
 - On an Apple Silicon Mac, jobs train with **MLX** by default (mlx-lm on the GPU). MLX needs none of the PyTorch environment: the first MLX job installs the MLX engine itself if it is missing. It trains MLX model folders (also 4-bit ones such as `mlx-community/...-4bit`) and Hugging Face folders of the architectures mlx-lm supports. **Apple Silicon (MPS)** stays available as the PyTorch device.
 
@@ -40,7 +40,7 @@ A switch at the top selects **Simple** or **Advanced** mode (remembered). Simple
 2. **Dataset:** as above.
 3. **Method** (Advanced only): **Automatic** (recommended), **LoRA** or **QLoRA**. Methods this machine or the training engine cannot run (full fine-tuning, DPO) are listed with the reason instead of being offered.
 4. **Settings:** three hardware-aware presets, **Light**, **Balanced** (recommended) and **Quality**. They are computed from the model, your dataset and the memory free on the training device (VRAM on a GPU, RAM on a CPU or with MPS, the unified-memory budget with MLX): method, sequence length (never longer than your data needs), LoRA rank, batch size and gradient accumulation, steps, and the memory and time estimate with a fits / tight / will-not-fit verdict. Advanced mode adds steps, learning rate, sequence length, rank, alpha, dropout, batch size, gradient accumulation, warm-up, learning-rate schedule, weight decay and checkpoint/evaluation intervals.
-5. **Review:** name the model (a name is suggested from the model and dataset, checked live against other runs and the model library; it is the name the finished model has in the Library), see the memory and time estimate, and copy the run's **recipe** (JSON) to reproduce or share it.
+5. **Review:** name the model (a name is suggested from the model and dataset, checked live against other runs and the model library; it is the name the finished model has in the Library), see the memory and time estimate, and copy the run's **recipe** (JSON) to reproduce or share it. Optionally add **checkpoint prompts**, one per line (up to eight, each up to 2000 characters), then refresh the summary. These prompts are kept in the recipe and generate sample answers at saved checkpoints.
 
 **Create and Start** queues the job (and installs the training engine first when it is missing, without asking); **Save as Draft** keeps it for later. A run can be **renamed** at any time from the job list, and **Copy Recipe** and the run's settings are on every job.
 
@@ -50,20 +50,26 @@ A switch at the top selects **Simple** or **Advanced** mode (remembered). Simple
 
 - Only one training worker runs at a time. A GPU job also waits in the shared GPU queue (the same one chat and image models use), so training never takes VRAM from a model that is loaded.
 - **Cancel** works at every stage. A running job saves a checkpoint first (killed after 90 seconds if it does not respond).
+- **Pause** saves a checkpoint at the next training step and releases the worker slot. Wait for **Paused**, then use **Resume** to continue. If saving fails or times out, the run may only have an older complete checkpoint.
 - **Resume** continues a failed or cancelled job from its last complete checkpoint, including optimizer state. A job interrupted by closing the app shows as failed and can be resumed.
 - Loss and eval loss are stored for every step; the chart reads them. Everything a job owns (dataset snapshot, metrics, log, checkpoints, adapter) is in `<data folder>/training/<id>/`. **Delete** removes it; an exported model stays.
+- Select a run to see its live loss/evaluation curves, device memory and checkpoint generations. CUDA reports used/total device VRAM; MPS reports memory allocated by the worker. CPU runs show that device memory measurement is unavailable. Expand a checkpoint to read each prompt and its answer.
 
 ## Export to Library
 
 **Export to Library** merges the LoRA into the base model and writes safetensors to `<models folder>/training/<name>/`. The Library lists it like any downloaded model. Existing exports are preserved; repeated names receive a numeric suffix.
 
-Tick **Also convert to GGUF** and choose **Q4_K_M**, **Q5_K_M**, **Q8_0**, or **F16**. The dialog shows an approximate size; actual size depends on tensor shapes and tokenizer overhead. Q4_K_M is smallest, Q5_K_M retains more precision, and Q8_0 is larger. Export first makes an F16 GGUF, then uses the managed runtime's `llama-quantize` for quantized types. Allow space for the merged safetensors, F16 intermediate and final GGUF.
+**Also convert to GGUF** is selected by default. Choose one or several of **Q4_K_M**, **Q5_K_M**, **Q8_0**, and **F16**, then start the export. The dialog shows an approximate size for each choice; actual size depends on tensor shapes and tokenizer overhead. Q4_K_M is smallest, Q5_K_M retains more precision, and Q8_0 is larger. Export merges once, converts once to F16, then uses the managed engine's `llama-quantize` for each selected quantized type. Allow space for the merged safetensors, F16 intermediate and all selected GGUFs.
 
-Install the managed llama.cpp engine in **Settings** first. Export automatically installs any missing conversion scripts and Python dependencies in Harness's removable conversion environment, matched to that engine's release. The finished GGUF appears in `<name>-GGUF/`; select it in the Library and load it with llama.cpp, or run `harness load <path-to-gguf>`. It can also be served through the gateway like other Library models. If GGUF conversion fails, export shows a failure and keeps the merged safetensors folder so it can still be used.
+The desktop export automatically installs a missing managed engine, conversion scripts and Python dependencies without a confirmation prompt. Conversion uses Harness's removable environment, matched to that engine's release. The finished GGUFs appear in `<name>-GGUF/` under the run's name, each as a Library model. Use **Load and Chat** beside a file to load that quant and open Playground, or run `harness load <path-to-gguf>`. If GGUF conversion fails, export shows a failure and keeps the merged safetensors folder so it can still be used; incomplete GGUF batches are not published.
 
 An MLX job's merged export is an MLX model folder (a 4-bit base stays 4-bit), which the MLX engine loads. With **Also convert to GGUF**, it is written in full precision first so llama.cpp's converter can read it.
 
 Choose **Export LoRA adapter only** to copy `adapter_model.safetensors` (MLX: `adapters.safetensors`) and `adapter_config.json` without merging or copying base weights. An MLX adapter cannot become a GGUF: llama.cpp's LoRA converter reads PEFT adapters, so export shows a warning and keeps the MLX adapter. With GGUF enabled, Harness also attempts an F16 GGUF LoRA adapter in the export's `gguf/` subfolder. Support depends on the architecture and llama.cpp release; an unsupported conversion leaves the safetensors adapter and a warning. An adapter is not a standalone model: use the exact base model and attach the GGUF adapter through the model's LoRA settings (or `harness lora`). The export includes provenance in `harness-training.json`, including the base model path and dataset licence. Keep or distribute the base model separately according to its licence.
+
+## Before and after
+
+Use **Before and After** on a finished run, or a stopped run with a complete checkpoint, to open its comparison in **Playground**. Enter one prompt per line and press **Compare**. The run's checkpoint prompts are filled in when available. Each prompt gets a base answer and a fine-tuned answer side by side, using the same chat template, context limit, greedy decoding and a 128-token output limit. Comparison uses the run's saved adapter, including before export. Both passes run sequentially on CPU, which can take time for larger models; the training slot is held during comparison. Answers remain in the panel until it closes or another comparison starts.
 
 ## Training CLI
 
@@ -122,7 +128,9 @@ All endpoints are under `/api/harness/v1`. Reads need `read`; everything that ch
 | `GET`, `DELETE /training/{id}` | One job; delete it |
 | `GET /training/{id}/metrics`, `GET /training/{id}/log` | Loss history; worker output tail |
 | `POST /training/{id}/start`, `/cancel`, `/resume`, `/export` | Lifecycle and export |
+| `POST /training/{id}/pause` | Save a checkpoint and release the worker slot; use `/resume` afterwards |
+| `POST /training/{id}/compare` | Before/after answers; body: `{"prompts":["Your prompt"]}` (admin required) |
 
 Job changes are also published on the events stream as `training` and `training_removed`.
 
-The export body accepts `name` (optional), `gguf` (default `false`), `quant` (`Q4_K_M` by default; also `Q5_K_M`, `Q8_0`, `F16`), and `adapter_only` (default `false`). Adapter GGUFs use F16 regardless of `quant`.
+The export body accepts `name` (optional), `gguf` (default `false`), `quant` (`Q4_K_M` by default; also `Q5_K_M`, `Q8_0`, `F16`), `quants` (optional array for multiple types), and `adapter_only` (default `false`). Empty or omitted `quants` preserves the single `quant` behavior. Adapter GGUFs always use F16. Export results include `ggufs` for the batch and keep `gguf` as its first file for existing clients. Job requests accept optional `sample_prompts`; metrics include optional device memory readings and checkpoint `samples`.

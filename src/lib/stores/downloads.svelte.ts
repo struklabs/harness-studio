@@ -8,6 +8,7 @@ import { defaultLoadTarget, isChatLoadable, repoJobsPending, shouldAutoLoad } fr
 import { library, repoRelative, isRepoFolder } from '#lib/stores/library.svelte.js';
 import { domain, samePath } from '#lib/stores/domain.svelte.js';
 import { invoke } from '#lib/ipc.js';
+import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
 import { holdReleaseWhile } from '#lib/windowActivity.js';
 import { suggestAlias } from '#lib/components/library/filters.js';
 import { isImageDefinition } from '#lib/components/playground/image.js';
@@ -166,7 +167,7 @@ export async function loadAndChat(model: LocalModel): Promise<void> {
       return;
     }
     const target = loadTarget();
-    const serverId = await invoke<string>('load_definition', { definitionId: def.id, target });
+    const serverId = await engineInstall.runWithEngine(() => invoke<string>('load_definition', { definitionId: def.id, target }));
     await app.refreshProfiles();
     toast.success(t('pgm.loading_toast', { alias, server: app.serverLabel(serverId) }));
     openChat(serverId, alias);

@@ -45,6 +45,8 @@ pub struct ExportInfo {
     /// Merged model or adapter safetensors directory.
     pub dir: Option<String>,
     pub gguf: Option<String>,
+    #[serde(default)]
+    pub ggufs: Vec<String>,
     pub warning: Option<String>,
     pub error: Option<String>,
     #[serde(default)]
@@ -64,6 +66,29 @@ pub struct ExportRequest {
     /// Export only the adapter, without merging or copying the base weights.
     #[serde(default)]
     pub adapter_only: bool,
+    /// Multiple merged GGUFs from one merge and one F16 conversion. Empty uses `quant`.
+    #[serde(default)]
+    pub quants: Vec<ExportQuant>,
+}
+
+fn export_plan(req: &ExportRequest) -> Vec<ExportQuant> {
+    if !req.gguf {
+        return vec![];
+    }
+    if req.adapter_only {
+        return vec![ExportQuant::F16];
+    }
+    let mut plan = Vec::new();
+    for q in if req.quants.is_empty() {
+        std::slice::from_ref(&req.quant)
+    } else {
+        &req.quants
+    } {
+        if !plan.contains(q) {
+            plan.push(*q);
+        }
+    }
+    plan
 }
 
 pub(super) fn models_dir() -> PathBuf {
@@ -111,13 +136,19 @@ pub fn export(id: u64, req: &ExportRequest) -> Result<super::TrainingJob, String
             .with("value", label)
             .into());
     }
-    let (gguf, quant, adapter_only) = (req.gguf, req.quant, req.adapter_only);
+    let quants = export_plan(req);
+    // Fail synchronously so the UI's automatic engine installer can retry admission.
+    if !quants.is_empty() && crate::convert::runtime_tag().is_none() {
+        return Err(err("runtime.not_installed").into());
+    }
+    let adapter_only = req.adapter_only;
     set(
         id,
         ExportInfo {
             status: ExportStatus::Running,
             dir: None,
             gguf: None,
+            ggufs: vec![],
             warning: None,
             error: None,
             adapter_only,
@@ -125,12 +156,13 @@ pub fn export(id: u64, req: &ExportRequest) -> Result<super::TrainingJob, String
     );
     tokio::spawn(async move {
         let _turn = QUEUE.lock().await;
-        let info = match do_export(id, &name, &label, gguf, quant, adapter_only).await {
+        let info = match do_export(id, &name, &label, &quants, adapter_only).await {
             Ok(info) => info,
             Err(e) => ExportInfo {
                 status: ExportStatus::Failed,
                 dir: None,
                 gguf: None,
+                ggufs: vec![],
                 warning: None,
                 error: Some(e),
                 adapter_only,
@@ -156,8 +188,7 @@ async fn do_export(
     id: u64,
     name: &str,
     label: &str,
-    gguf: bool,
-    quant: ExportQuant,
+    quants: &[ExportQuant],
     adapter_only: bool,
 ) -> Result<ExportInfo, String> {
     let _mutation = crate::models::LibraryMutation::begin();
@@ -197,7 +228,7 @@ async fn do_export(
         ];
         // MLX keeps a quantized base quantized in the merged folder (what its engine loads);
         // the GGUF converter reads full-precision weights.
-        if gguf && job.config.device == Device::Mlx {
+        if !quants.is_empty() && job.config.device == Device::Mlx {
             args.push("--dequantize".as_ref());
         }
         let cmd = run::worker_command(job.config.device, &args, &job_dir)?;
@@ -219,25 +250,29 @@ async fn do_export(
         status: ExportStatus::Done,
         dir: Some(target.display().to_string()),
         gguf: None,
+        ggufs: vec![],
         warning: None,
         error: None,
         adapter_only,
     };
-    if gguf && adapter_only && job.config.device == Device::Mlx {
+    if !quants.is_empty() && adapter_only && job.config.device == Device::Mlx {
         // llama.cpp's LoRA converter reads PEFT adapters, not mlx-lm's.
         info.warning = Some(err("training.gguf_adapter_mlx").into());
-    } else if gguf {
+    } else if !quants.is_empty() {
         match convert_gguf(
             &target,
             Path::new(&job.config.model),
             &name,
-            quant,
+            quants,
             adapter_only,
             staging.path(),
         )
         .await
         {
-            Ok(path) => info.gguf = Some(path.display().to_string()),
+            Ok(paths) => {
+                info.ggufs = paths.iter().map(|p| p.display().to_string()).collect();
+                info.gguf = info.ggufs.first().cloned();
+            }
             Err(e) if adapter_only => info.warning = Some(e),
             Err(e) => {
                 info.status = ExportStatus::Failed;
@@ -281,10 +316,10 @@ async fn convert_gguf(
     model: &Path,
     base_model: &Path,
     name: &str,
-    quant: ExportQuant,
+    quants: &[ExportQuant],
     adapter: bool,
     staging: &Path,
-) -> Result<PathBuf, String> {
+) -> Result<Vec<PathBuf>, String> {
     let tag = crate::convert::runtime_tag()
         .ok_or_else(|| String::from(err("convert.runtime_missing")))?;
     let root = crate::convert::env::root();
@@ -316,9 +351,12 @@ async fn convert_gguf(
         cmd.arg("--base").arg(base_model);
     }
     run_export_command(cmd, &f16, "training.gguf_failed").await?;
-    let produced = if adapter || quant == ExportQuant::F16 {
-        f16
-    } else {
+    let mut produced = Vec::new();
+    for &quant in quants {
+        if adapter || quant == ExportQuant::F16 {
+            produced.push(f16.clone());
+            continue;
+        }
         let output = out_dir.join(format!("{name}-{}.gguf", quant.as_str()));
         let bin = crate::convert::quantize_binary()?;
         let mut cmd = tokio::process::Command::new(&bin);
@@ -327,9 +365,11 @@ async fn convert_gguf(
             .arg(&output)
             .arg(quant.as_str());
         run_export_command(cmd, &output, "training.gguf_failed").await?;
+        produced.push(output);
+    }
+    if !quants.contains(&ExportQuant::F16) && !adapter {
         std::fs::remove_file(&f16).map_err(|e| e.to_string())?;
-        output
-    };
+    }
     // Publish only a complete GGUF, with provenance alongside it.
     std::fs::copy(
         model.join("harness-training.json"),
@@ -341,9 +381,12 @@ async fn convert_gguf(
     } else {
         models_dir().join(format!("{name}-GGUF"))
     };
-    let file = produced.file_name().unwrap().to_owned();
+    let files: Vec<_> = produced
+        .iter()
+        .map(|p| p.file_name().unwrap().to_owned())
+        .collect();
     crate::paths::rename_retrying(&out_dir, &dest).map_err(|e| e.to_string())?;
-    Ok(dest.join(file))
+    Ok(files.into_iter().map(|file| dest.join(file)).collect())
 }
 
 #[cfg(test)]
@@ -378,6 +421,25 @@ mod tests {
         assert_eq!(req.quant, ExportQuant::Q4_K_M);
         assert!(!req.gguf && !req.adapter_only);
         assert!(serde_json::from_str::<ExportRequest>(r#"{"quant":"Q1_BAD"}"#).is_err());
+    }
+    #[test]
+    fn export_plan_deduplicates_and_preserves_legacy_and_adapter_behavior() {
+        let mut req: ExportRequest = serde_json::from_str(r#"{"gguf":true}"#).unwrap();
+        assert_eq!(export_plan(&req), vec![ExportQuant::Q4_K_M]);
+        req.quants = vec![
+            ExportQuant::Q5_K_M,
+            ExportQuant::F16,
+            ExportQuant::Q5_K_M,
+            ExportQuant::Q8_0,
+        ];
+        assert_eq!(
+            export_plan(&req),
+            vec![ExportQuant::Q5_K_M, ExportQuant::F16, ExportQuant::Q8_0]
+        );
+        req.adapter_only = true;
+        assert_eq!(export_plan(&req), vec![ExportQuant::F16]);
+        req.gguf = false;
+        assert!(export_plan(&req).is_empty());
     }
     #[test]
     fn exports_never_overwrite_and_adapter_copy_excludes_checkpoint_state() {

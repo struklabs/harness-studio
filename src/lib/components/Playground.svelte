@@ -1,4 +1,6 @@
 <script lang="ts">
+  import TrainingCompare from './playground/TrainingCompare.svelte';
+  import { training } from '#lib/stores/training.svelte.js';
   import { NO_REASONING, observeThinking, type ReasoningControl } from './playground/thinking';
   import { guardToolCalls } from './playground/toolLoopGuard';
   import AdvancedOnly from './common/AdvancedOnly.svelte';
@@ -595,6 +597,7 @@
   }
 
   async function openConversation(id: string) {
+    training.compareJobId = null;
     openingConv = true;
     try {
       await stopAndWait();
@@ -612,6 +615,7 @@
   }
 
   async function newChat(presetId?: string) {
+    training.compareJobId = null;
     workspaceVersion++;
     await stopAndWait();
     conv = null;
@@ -3013,6 +3017,8 @@
           <RerankPanel model={modeModels.rerank} />
         {/if}
       </div>
+    {:else if training.compareJobId !== null}
+      <TrainingCompare />
     {:else if !canChat && messages.length === 0}
       <Empty.Root class="border-0" role="status">
         <Empty.Header>

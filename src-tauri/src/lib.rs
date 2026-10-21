@@ -457,6 +457,8 @@ pub fn run() {
             training_create,
             training_start,
             training_resume,
+            training_pause,
+            training_compare,
             training_cancel,
             training_remove,
             training_metrics,

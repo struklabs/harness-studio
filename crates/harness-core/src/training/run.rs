@@ -162,12 +162,24 @@ pub(super) fn read_metrics(path: &Path) -> Vec<Metric> {
             step: step as u32,
             loss: None,
             eval_loss: None,
+            ..Default::default()
         });
         if let Some(x) = v.get("loss").and_then(Value::as_f64) {
             m.loss = Some(x);
         }
         if let Some(x) = v.get("eval_loss").and_then(Value::as_f64) {
             m.eval_loss = Some(x);
+        }
+        if let Some(x) = v.get("vram_bytes").and_then(Value::as_u64) {
+            m.vram_bytes = Some(x);
+        }
+        if let Some(x) = v.get("vram_total_bytes").and_then(Value::as_u64) {
+            m.vram_total_bytes = Some(x);
+        }
+        if let Some(samples) = v.get("samples") {
+            if let Ok(samples) = serde_json::from_value(samples.clone()) {
+                m.samples = samples;
+            }
         }
     }
     by_step.into_values().collect()
@@ -210,6 +222,9 @@ pub(super) async fn drive(id: u64, resume: bool) {
                 j.status = TrainingStatus::Failed;
                 j.error = Some(e.clone());
             }
+        }
+        if j.status != TrainingStatus::Cancelled || checkpoint.is_none() {
+            j.paused = false;
         }
     });
 }

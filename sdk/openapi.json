@@ -12160,6 +12160,82 @@
         }
       }
     },
+    "/api/harness/v1/training/{id}/compare": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Greedy before/after generations with identical prompts and generation limits on CPU.",
+        "operationId": "compare_training_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingCompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrainingComparisonRow"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/training/{id}/export": {
       "post": {
         "tags": [
@@ -12370,6 +12446,62 @@
             }
           },
           "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/training/{id}/pause": {
+      "post": {
+        "tags": [
+          "training"
+        ],
+        "summary": "Saves a checkpoint and releases the worker slot. Resume continues from that checkpoint.",
+        "operationId": "pause_training_job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
             "description": "",
             "content": {
               "application/json": {
@@ -15541,6 +15673,15 @@
               "null"
             ],
             "format": "double"
+          },
+          "sample_prompts": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -17058,6 +17199,12 @@
               "null"
             ]
           },
+          "ggufs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "warning": {
             "type": [
               "string",
@@ -17130,6 +17277,13 @@
           "adapter_only": {
             "type": "boolean",
             "description": "Export only the adapter, without merging or copying the base weights."
+          },
+          "quants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingQuant"
+            },
+            "description": "Multiple merged GGUFs from one merge and one F16 conversion. Empty uses `quant`."
           }
         }
       },
@@ -21018,6 +21172,28 @@
               "null"
             ],
             "format": "double"
+          },
+          "vram_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "vram_total_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "samples": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TrainingCheckpointSample"
+            }
           }
         }
       },
@@ -28254,6 +28430,54 @@
           "generated"
         ]
       },
+      "TrainingCheckpointSample": {
+        "type": "object",
+        "required": [
+          "prompt",
+          "text"
+        ],
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "TrainingCompareRequest": {
+        "type": "object",
+        "required": [
+          "prompts"
+        ],
+        "properties": {
+          "prompts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TrainingComparisonRow": {
+        "type": "object",
+        "required": [
+          "prompt",
+          "base",
+          "trained"
+        ],
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "base": {
+            "type": "string"
+          },
+          "trained": {
+            "type": "string"
+          }
+        }
+      },
       "TrainingConfig": {
         "type": "object",
         "description": "What the worker trains with (the `config` of `job.json`).",
@@ -28355,6 +28579,12 @@
           "weight_decay": {
             "type": "number",
             "format": "double"
+          },
+          "sample_prompts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -28493,6 +28723,10 @@
             ],
             "format": "int64",
             "minimum": 0
+          },
+          "paused": {
+            "type": "boolean",
+            "description": "Pause saves a checkpoint and releases the training slot; resume continues it."
           }
         }
       },

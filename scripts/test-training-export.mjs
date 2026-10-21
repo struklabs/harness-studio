@@ -12,6 +12,9 @@ test('GGUF size choices are ordered and distinguish quantization from full preci
   for (let i = 1; i < sizes.length; i++) assert.ok(sizes[i] > sizes[i - 1]);
   assert.ok(sizes[0] > 80_000_000 && sizes[0] < 100_000_000);
   assert.ok(sizes[3] > 270_000_000);
+  const selected = ['Q4_K_M', 'Q8_0', 'F16'];
+  const batchBytes = selected.reduce((sum, q) => sum + estimateGgufBytes(params, q), 0);
+  assert.ok(batchBytes > sizes[3] + sizes[2]);
 });
 test('failed GGUF export can be retried, but running export and training cannot overlap', () => {
   const job = { status: 'done', checkpoint_step: 5, export: { status: 'running' } };

@@ -163,6 +163,28 @@ pub async fn resume(P(id): P<u64>) -> ApiResult<(StatusCode, Json<TrainingJob>)>
     Ok((StatusCode::ACCEPTED, Json(job)))
 }
 
+/// Saves a checkpoint and releases the worker slot. Resume continues from that checkpoint.
+#[utoipa::path(post, operation_id = "pause_training_job", path = "/training/{id}/pause", tag = "training", params(("id" = u64, Path)),
+    responses((status = 204), (status = 422, body = ErrorBody)))]
+pub async fn pause(P(id): P<u64>) -> ApiResult<StatusCode> {
+    training::pause(id).map_err(ApiError::core)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Greedy before/after generations with identical prompts and generation limits on CPU.
+#[utoipa::path(post, operation_id = "compare_training_job", path = "/training/{id}/compare", tag = "training", params(("id" = u64, Path)),
+    request_body = training::TrainingCompareRequest,
+    responses((status = 200, body = Vec<training::TrainingComparisonRow>), (status = 422, body = ErrorBody)))]
+pub async fn compare(
+    P(id): P<u64>,
+    Body(req): Body<training::TrainingCompareRequest>,
+) -> ApiResult<Json<Vec<training::TrainingComparisonRow>>> {
+    training::compare(id, &req)
+        .await
+        .map(Json)
+        .map_err(ApiError::core)
+}
+
 /// Merges the LoRA into the base model and writes safetensors into the model library (and a
 /// quantized GGUF when requested). Adapter-only exports preserve the base weights. Missing
 /// converter dependencies are installed automatically. Progress is the job's `export`.
