@@ -50,6 +50,22 @@ pub(crate) async fn kb_set_ocr_model(
     .await?
 }
 
+/// Changes the settings of a knowledge base: name, folder, OCR, speech and rerank models (an
+/// empty string clears a field; a missing field stays).
+#[tauri::command]
+pub(crate) async fn kb_update(
+    store: State<'_, ConversationStore>,
+    kb_id: String,
+    update: harness_core::state::KbUpdate,
+) -> Result<harness_core::rag::kb::KnowledgeBase, String> {
+    let db = store.0.clone()?;
+    blocking(move || -> Result<_, String> {
+        db.kb_update(&kb_id, &update).map_err(String::from)?;
+        harness_core::rag::kb::get(&db, &kb_id, None)
+    })
+    .await?
+}
+
 #[tauri::command]
 pub(crate) async fn kb_rename(
     store: State<'_, ConversationStore>,
@@ -122,54 +138,37 @@ pub(crate) async fn kb_index(
     if harness_core::rag::kb::kb_jobs().is_running(&kb_id) {
         return Err(harness_core::error_key::err("rag.kb_busy").into());
     }
-    let (files, root, ocr_alias) = {
+    // The files of the base's folder (or `folder`) and `paths`, the base's OCR and speech models.
+    let (mut req, kb_row) = {
         let db = db.clone();
         let kb_id = kb_id.clone();
         blocking(move || -> Result<_, String> {
-            let kb = db.kb_get(&kb_id).map_err(String::from)?;
-            let folder = folder
-                .filter(|f| !f.is_empty())
-                .or(kb.folder.clone())
-                .map(PathBuf::from);
-            let mut files: Vec<PathBuf> = Vec::new();
-            let mut root = None;
-            if let Some(f) = folder.filter(|f| f.is_dir()) {
-                files = harness_core::rag::kb::scan_folder(&f)?.files;
-                root = Some(f);
-            }
-            files.extend(paths.unwrap_or_default().into_iter().map(PathBuf::from));
-            Ok((files, root, kb.ocr_model.clone()))
+            let req = harness_core::rag::kb::build_request(
+                &db,
+                &kb_id,
+                folder.as_deref(),
+                paths.unwrap_or_default(),
+            )?;
+            Ok((req, db.kb_get(&kb_id).map_err(String::from)?))
         })
         .await??
     };
-    // The base's OCR model reads the PDF pages without a text layer (`rag::ocr`).
-    let ocr = match ocr_alias.as_deref().filter(|a| !a.is_empty()) {
-        Some(alias) => Some(harness_core::rag::ocr::OcrModel::gateway(
-            rag_endpoint(&gw)
-                .await
-                .ok_or_else(|| String::from(harness_core::error_key::err("rag.gateway_required")))?,
-            alias.to_string(),
-        )),
-        None => None,
-    };
+    if kb_row.ocr_model.is_some() || kb_row.asr_model.is_some() {
+        let endpoint = rag_endpoint(&gw)
+            .await
+            .ok_or_else(|| String::from(harness_core::error_key::err("rag.gateway_required")))?;
+        let (ocr, asr) = harness_core::rag::setup::run_models(&endpoint, &kb_row);
+        req.ocr = ocr;
+        req.asr = asr;
+    }
+    req.embed = embed;
+    req.rebuild = rebuild;
     let flag = harness_core::rag::kb::kb_jobs().register(&kb_id);
     tauri::async_runtime::spawn(async move {
         let emitter = app.clone();
-        let _ = harness_core::rag::kb::index_kb(
-            db,
-            harness_core::rag::kb::KbIndexRequest {
-                kb_id,
-                files,
-                root,
-                embed,
-                ocr,
-                rebuild,
-            },
-            flag,
-            move |p| {
-                let _ = emitter.emit("kb-progress", p);
-            },
-        )
+        let _ = harness_core::rag::kb::index_kb(db, req, flag, move |p| {
+            let _ = emitter.emit("kb-progress", p);
+        })
         .await;
     });
     Ok(())

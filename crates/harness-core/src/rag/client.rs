@@ -34,19 +34,87 @@ async fn post(ep: &Endpoint, path: &str, body: Value) -> Result<Value, String> {
     let mut req = http()
         .post(&url)
         .header("X-Harness-Client", CLIENT_LABEL)
+        // Indexing is background work: it queues behind chats and never takes the GPU first.
+        .header("X-Harness-Priority", "background")
         .json(&body);
     if let Some(t) = &ep.token {
         req = req.bearer_auth(t);
     }
+    send(req, &url, path).await
+}
+
+/// A multipart form with one file and text fields (the body of `/v1/audio/transcriptions`).
+fn multipart(filename: &str, file: &[u8], fields: &[(&str, &str)]) -> (String, Vec<u8>) {
+    let boundary = format!("harness-kb-{:016x}", rand_u64());
+    let mut body = Vec::with_capacity(file.len() + 512);
+    let name = filename.replace(['"', '\r', '\n'], "_");
+    body.extend_from_slice(
+        format!(
+            "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{name}\"\r\nContent-Type: application/octet-stream\r\n\r\n"
+        )
+        .as_bytes(),
+    );
+    body.extend_from_slice(file);
+    body.extend_from_slice(b"\r\n");
+    for (key, value) in fields {
+        body.extend_from_slice(
+            format!(
+                "--{boundary}\r\nContent-Disposition: form-data; name=\"{key}\"\r\n\r\n{value}\r\n"
+            )
+            .as_bytes(),
+        );
+    }
+    body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+    (format!("multipart/form-data; boundary={boundary}"), body)
+}
+
+fn rand_u64() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    std::collections::hash_map::RandomState::new()
+        .build_hasher()
+        .finish()
+}
+
+/// Timed transcript of an audio file through the gateway's `/v1/audio/transcriptions`
+/// (`verbose_json`: the text, the language and the segments with their times).
+pub async fn transcribe(
+    ep: &Endpoint,
+    model: &str,
+    filename: &str,
+    audio: &[u8],
+) -> Result<Value, String> {
+    let (content_type, body) = multipart(
+        filename,
+        audio,
+        &[
+            ("model", model),
+            ("response_format", "verbose_json"),
+            ("timestamp_granularities[]", "segment"),
+        ],
+    );
+    let url = format!("{}/audio/transcriptions", ep.base_url.trim_end_matches('/'));
+    let mut req = http()
+        .post(&url)
+        .header("X-Harness-Client", CLIENT_LABEL)
+        .header("X-Harness-Priority", "background")
+        .header("Content-Type", content_type)
+        .body(body);
+    if let Some(t) = &ep.token {
+        req = req.bearer_auth(t);
+    }
+    send(req, &url, "audio/transcriptions").await
+}
+
+async fn send(req: reqwest::RequestBuilder, url: &str, path: &str) -> Result<Value, String> {
     let res = req
         .send()
         .await
-        .map_err(|e| crate::http_error::transport(&e, &url))?;
+        .map_err(|e| crate::http_error::transport(&e, url))?;
     let status = res.status();
     let text = res
         .text()
         .await
-        .map_err(|e| crate::http_error::transport(&e, &url))?;
+        .map_err(|e| crate::http_error::transport(&e, url))?;
     if !status.is_success() {
         let detail = serde_json::from_str::<Value>(&text)
             .ok()
@@ -107,10 +175,20 @@ pub(crate) fn parse_embeddings(v: &Value, expected: usize) -> Option<Vec<Vec<f32
 /// Text of one page image (PNG) through the gateway's `/v1/ocr` by model alias: the same
 /// route and the same transcription prompt as the Read Document panel.
 pub async fn ocr(ep: &Endpoint, model: &str, png: &[u8]) -> Result<String, String> {
+    ocr_image(ep, model, png, "image/png").await
+}
+
+/// Like [`ocr`] for an image of another type (`image/jpeg`, `image/webp`, ...).
+pub async fn ocr_image(
+    ep: &Endpoint,
+    model: &str,
+    bytes: &[u8],
+    mime: &str,
+) -> Result<String, String> {
     use base64::Engine;
     let page = format!(
-        "data:image/png;base64,{}",
-        base64::engine::general_purpose::STANDARD.encode(png)
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
     );
     let v = post(ep, "ocr", json!({ "model": model, "pages": [page] })).await?;
     v["markdown"].as_str().map(str::to_string).ok_or_else(|| {

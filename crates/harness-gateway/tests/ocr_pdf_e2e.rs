@@ -168,6 +168,7 @@ async fn scanned_and_mixed_pdfs_through_ocr_and_a_knowledge_base() {
             embed: None,
             ocr: Some(model),
             rebuild: false,
+            ..Default::default()
         },
         flag,
         |_| {},
@@ -190,6 +191,7 @@ async fn scanned_and_mixed_pdfs_through_ocr_and_a_knowledge_base() {
             context_tokens: Some(8192),
             embed: None,
             rerank: None,
+            ..Default::default()
         },
     )
     .await

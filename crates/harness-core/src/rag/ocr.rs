@@ -296,6 +296,9 @@ pub fn parse_output(stdout: &str, dir: &Path) -> Result<Vec<RasterPage>, String>
 pub type Rasterizer =
     Arc<dyn Fn(&Path, &[u32], &Limits) -> Result<Vec<RasterPage>, String> + Send + Sync>;
 
+/// Recognizes an image file given its bytes and MIME type.
+type ImageRunner = Arc<dyn Fn(Vec<u8>, &'static str) -> OcrFuture + Send + Sync>;
+
 pub type OcrFuture = Pin<Box<dyn Future<Output = Result<String, String>> + Send>>;
 
 /// The OCR model of a knowledge base: recognizes one page image (PNG) at a time.
@@ -303,6 +306,8 @@ pub type OcrFuture = Pin<Box<dyn Future<Output = Result<String, String>> + Send>
 pub struct OcrModel {
     pub alias: String,
     run: Arc<dyn Fn(Vec<u8>) -> OcrFuture + Send + Sync>,
+    /// Recognizes an image file of any type (bytes, MIME type); falls back to `run`.
+    run_image: Option<ImageRunner>,
     render: Option<Rasterizer>,
 }
 
@@ -322,6 +327,7 @@ impl OcrModel {
         Self {
             alias: alias.into(),
             run: Arc::new(run),
+            run_image: None,
             render: None,
         }
     }
@@ -337,10 +343,28 @@ impl OcrModel {
     /// and the API use) on this machine, by the model's alias.
     pub fn gateway(endpoint: Endpoint, alias: String) -> Self {
         let model = alias.clone();
-        Self::new(alias, move |png| {
+        let (ep2, model2) = (endpoint.clone(), model.clone());
+        let mut this = Self::new(alias, move |png| {
             let (endpoint, model) = (endpoint.clone(), model.clone());
             Box::pin(async move { super::client::ocr(&endpoint, &model, &png).await })
-        })
+        });
+        this.run_image = Some(Arc::new(move |bytes, mime| {
+            let (endpoint, model) = (ep2.clone(), model2.clone());
+            Box::pin(async move { super::client::ocr_image(&endpoint, &model, &bytes, mime).await })
+        }));
+        this
+    }
+
+    /// Recognizes an image file (`mime` is its `image/...` type).
+    pub async fn recognize_image(
+        &self,
+        bytes: Vec<u8>,
+        mime: &'static str,
+    ) -> Result<String, String> {
+        match &self.run_image {
+            Some(run) => run(bytes, mime).await,
+            None => (self.run)(bytes).await,
+        }
     }
 
     pub async fn recognize(&self, png: Vec<u8>) -> Result<String, String> {

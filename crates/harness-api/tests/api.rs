@@ -643,6 +643,14 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/analytics/requests", &["get"]),
         ("/analytics/requests/{id}", &["get"]),
         ("/analytics/queue-hints", &["get"]),
+        ("/knowledge-bases", &["get", "post"]),
+        ("/knowledge-bases/{id}", &["get", "patch", "delete"]),
+        ("/knowledge-bases/{id}/documents", &["get"]),
+        ("/knowledge-bases/{id}/index", &["post"]),
+        ("/knowledge-bases/{id}/index/cancel", &["post"]),
+        ("/knowledge-bases/{id}/sources", &["post", "delete"]),
+        ("/knowledge-bases/{id}/progress", &["get"]),
+        ("/knowledge-bases/{id}/query", &["post"]),
         ("/conversations", &["get"]),
         ("/conversations/{id}", &["get"]),
         ("/conversations/{id}/export", &["get"]),
@@ -2182,6 +2190,168 @@ async fn managed_runtime_routes() {
             .unwrap();
         assert_eq!(resp.status(), 403, "{path}");
     }
+    api.server.stop().await;
+}
+
+/// Knowledge bases share the private scope of chats: create, change, add and remove sources,
+/// read the documents and the progress, delete. (Indexing and questions need the gateway; their
+/// own paths are covered in core and by the real end-to-end run.)
+#[tokio::test]
+async fn knowledge_bases_have_the_conversations_scope_and_manage_sources() {
+    let api = start().await;
+    let (reader, _) = named(&api, "kb-reader", json!(["read"])).await;
+    let (owner, _) = named(&api, "kb-owner", json!(["conversations"])).await;
+    let (status, body) = json(
+        api.send(Method::GET, "/knowledge-bases", &reader, None)
+            .await,
+    )
+    .await;
+    assert_eq!(status, 403, "{body}");
+    assert_error(&body, "api.insufficient_scope");
+
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("a.md"),
+        "# Cats\n\nCats purr and hunt mice.",
+    )
+    .unwrap();
+    let (status, kb) = json(
+        api.send(
+            Method::POST,
+            "/knowledge-bases",
+            &owner,
+            Some(json!({"name": "API Base", "folder": dir.path().to_string_lossy(), "asr_model": "whisper-x", "rerank_model": "rr"})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{kb}");
+    let id = kb["id"].as_str().unwrap().to_string();
+    assert_eq!(
+        (
+            kb["state"].as_str(),
+            kb["asr_model"].as_str(),
+            kb["rerank_model"].as_str()
+        ),
+        (Some("empty"), Some("whisper-x"), Some("rr"))
+    );
+    assert_eq!(kb["disk"]["vector_bytes"], 0);
+    let path = format!("/knowledge-bases/{id}");
+
+    // A folder that does not exist is refused; settings change and clear.
+    let (status, _) = json(
+        api.send(
+            Method::PATCH,
+            &path,
+            &owner,
+            Some(json!({"folder": "/definitely/not/here"})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 422);
+    let (status, kb) = json(
+        api.send(
+            Method::PATCH,
+            &path,
+            &owner,
+            Some(json!({"name": "Renamed", "rerank_model": ""})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{kb}");
+    assert_eq!(
+        (kb["name"].as_str(), kb["rerank_model"].is_null()),
+        (Some("Renamed"), true)
+    );
+
+    // Add a file without indexing, list the documents, remove it again.
+    let extra = dir.path().join("b.md");
+    std::fs::write(&extra, "# Rust\n\nOwnership and borrowing.").unwrap();
+    let (status, added) = json(
+        api.send(
+            Method::POST,
+            &format!("{path}/sources"),
+            &owner,
+            Some(json!({"paths": [extra.to_string_lossy()], "index": false})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{added}");
+    assert_eq!(added["files"], 1);
+    // Indexing without the gateway says so (409), nothing starts.
+    let (status, body) = json(
+        api.send(
+            Method::POST,
+            &format!("{path}/index"),
+            &owner,
+            Some(json!({})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 409, "{body}");
+    assert_error(&body, "rag.gateway_required");
+    let (status, prog) = json(
+        api.send(Method::GET, &format!("{path}/progress"), &owner, None)
+            .await,
+    )
+    .await;
+    assert_eq!((status, prog["running"].as_bool()), (200, Some(false)));
+    let (status, _) = json(
+        api.send(
+            Method::POST,
+            &format!("{path}/query"),
+            &owner,
+            Some(json!({"query": "  "})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 400);
+    let (status, removed) = json(
+        api.send(
+            Method::DELETE,
+            &format!("{path}/sources"),
+            &owner,
+            Some(json!({"sources": ["nothing.md"]})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!((status, removed["removed"].as_u64()), (200, Some(0)));
+
+    // Keyword search works without any model (no documents yet: an empty answer, with latency).
+    let (status, answer) = json(
+        api.send(
+            Method::POST,
+            &format!("{path}/query"),
+            &owner,
+            Some(json!({"query": "cats"})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{answer}");
+    assert!(answer["sources"].as_array().unwrap().is_empty());
+    assert!(answer["latency_ms"].is_number());
+
+    let (_, list) = json(
+        api.send(Method::GET, "/knowledge-bases", &owner, None)
+            .await,
+    )
+    .await;
+    assert!(list
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|k| k["id"] == id.as_str()));
+    let (status, _) = json(api.send(Method::DELETE, &path, &owner, None).await).await;
+    assert_eq!(status, 200);
+    let (status, body) = json(api.send(Method::GET, &path, &owner, None).await).await;
+    assert_eq!(status, 404, "{body}");
     api.server.stop().await;
 }
 

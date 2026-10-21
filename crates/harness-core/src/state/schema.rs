@@ -1,7 +1,7 @@
 //! Ordered SQL migrations for `state.db`. Migration `i` (0-based) upgrades the schema
 //! from `user_version = i` to `i + 1`. Never edit a released migration; append a new one.
 
-pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11];
+pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12];
 
 const V1: &str = r#"
 CREATE TABLE folders (
@@ -391,4 +391,19 @@ CREATE TABLE task_events (
     message   TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX task_events_run ON task_events(run_id, rid);
+"#;
+
+const V12: &str = r#"
+-- Knowledge bases, second step: per-file change detection (`mtime_ms`, with the size and SHA-256
+-- the document already had), portable sources (`rel_path` below the base's folder), media
+-- (`meta_json`: duration, size, transcript language; chunks of audio and video carry their time
+-- span), the base's speech-recognition and rerank models, and measured figures (`stats_json`).
+ALTER TABLE rag_kbs ADD COLUMN asr_model TEXT;
+ALTER TABLE rag_kbs ADD COLUMN rerank_model TEXT;
+ALTER TABLE rag_kbs ADD COLUMN stats_json TEXT;
+ALTER TABLE rag_documents ADD COLUMN mtime_ms INTEGER;
+ALTER TABLE rag_documents ADD COLUMN rel_path TEXT;
+ALTER TABLE rag_documents ADD COLUMN meta_json TEXT;
+ALTER TABLE rag_chunks ADD COLUMN t_start_ms INTEGER;
+ALTER TABLE rag_chunks ADD COLUMN t_end_ms INTEGER;
 "#;

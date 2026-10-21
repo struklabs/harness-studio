@@ -184,6 +184,7 @@ async fn e2e_knowledge_base_multilingual_cpu_index_and_retrieval() {
             embed: Some(embed.clone()),
             ocr: None,
             rebuild: false,
+            ..Default::default()
         },
         flag,
         move |p| ev.lock().unwrap().push(p),
@@ -241,6 +242,7 @@ async fn e2e_knowledge_base_multilingual_cpu_index_and_retrieval() {
                     context_tokens: Some(4096),
                     embed: Some(embed),
                     rerank: None,
+                    ..Default::default()
                 },
             )
             .await

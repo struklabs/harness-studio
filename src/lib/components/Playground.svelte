@@ -293,6 +293,7 @@
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
   let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isExternalModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
   let ocrAliases = $derived(definitionsForMode(domain.definitions, 'ocr', library.models).map(def => def.alias));
+  let asrAliases = $derived(definitionsForMode(domain.definitions, 'transcription', library.models).map(def => def.alias));
   let pickerModel = $derived(pickerMode === 'chat' ? settings.model : pickerMode === 'image' ? imageSession.model : modeModels[pickerMode]);
   $effect(() => {
     void library.version;
@@ -3185,6 +3186,7 @@
           embedAlias={resolveEmbedModel(settings.ragEmbedModel, ragModels?.embedding ?? [])}
           models={ragModels}
           ocrAliases={ocrAliases}
+          asrAliases={asrAliases}
           readOnly={!persistEnabled}
           bind:attached={attachedKbs}
           onUseEmbedder={(alias) => (settings.ragEmbedModel = alias)}

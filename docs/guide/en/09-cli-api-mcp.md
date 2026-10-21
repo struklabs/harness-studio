@@ -52,3 +52,20 @@ Offering the built-in file, command, and network tools to other MCP clients is o
 See also the [coding agent integrations](../../en/INTEGRATIONS.md) and the [security model](../../en/SECURITY_MODEL.md).
 
 Next: [Troubleshooting and FAQ](10-troubleshooting.md).
+
+## Knowledge Bases from the CLI and the API
+
+Knowledge bases are managed with `harness kb` and the `/knowledge-bases` routes. Both need the `conversations` scope (the documents are private). Indexing and questions need the gateway, because the embedding, rerank, OCR, and speech models are served by it.
+
+```bash
+harness kb create Docs --folder ~/notes --asr whisper-small --rerank bge-reranker
+harness kb add Docs --wait ~/Downloads/report.pdf   # add files and index what is new
+harness kb index Docs --wait                        # only changed files are read again
+harness kb index Docs --rebuild                     # read and embed everything again
+harness kb query Docs "when is the budget meeting?" -k 5
+harness kb show Docs                                # state, time, CPU, memory, disk, latency
+harness kb remove Docs report.pdf
+harness kb rm Docs
+```
+
+`kb query` prints numbered excerpts with their citation: the document, the page (`p. 3`) or the time span in a recording (`1:05-1:32`), the similarity, and how long the question took. Add `--json` for the raw answer. The same operations are the `list_knowledge_bases`, `create_knowledge_base`, `index_knowledge_base`, `query_knowledge_base`, and related operations of the API (`GET`/`POST /knowledge-bases`, `POST /knowledge-bases/{id}/index`, `POST /knowledge-bases/{id}/sources`, `POST /knowledge-bases/{id}/query`, ...); see `sdk/openapi.json`.

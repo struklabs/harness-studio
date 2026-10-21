@@ -4520,6 +4520,817 @@
         }
       }
     },
+    "/api/harness/v1/knowledge-bases": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Knowledge bases with their index state, document and chunk counts, disk use and measured\nfigures, newest first.",
+        "operationId": "list_knowledge_bases",
+        "parameters": [
+          {
+            "name": "embed_model",
+            "in": "query",
+            "description": "The embedding model (alias) in use now: a base built with another one is `stale`.\nDefault: no check.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KnowledgeBase"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Creates an empty knowledge base. Index it with `POST /knowledge-bases/{id}/index`.",
+        "operationId": "create_knowledge_base",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeBase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/knowledge-bases/{id}": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "One knowledge base: state (`empty`, `indexing`, `ready`, `incomplete`, `stale`), counts, what\nthe last run cost (time per stage, CPU, memory), question latency and disk use.",
+        "operationId": "get_knowledge_base",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Knowledge base id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "embed_model",
+            "in": "query",
+            "description": "The embedding model (alias) in use now: a base built with another one is `stale`.\nDefault: no check.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeBase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Deletes the knowledge base with its documents and chunks (the source files stay). A running\nindex run is stopped first.",
+        "operationId": "delete_knowledge_base",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Knowledge base id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Changes the name, folder or models of a knowledge base (an empty string clears a model).\nModels take effect on the next run; the rerank model on the next question.",
+        "operationId": "update_knowledge_base",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Knowledge base id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KnowledgeBase"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/knowledge-bases/{id}/documents": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "The documents of a knowledge base (metadata only): name (path below the folder), kind, size,\npages or duration, chunks, index state, the modification time and hash used for change\ndetection.",
+        "operationId": "list_knowledge_base_documents",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Knowledge base id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RagDocument"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/knowledge-bases/{id}/index": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Starts an index run in the background (poll `GET .../progress`). New files are added, files\nwhose size, modification time and hash changed are read and embedded again, documents of\nremoved files are dropped, and an unchanged file costs nothing. A base built with another\nembedding model is re-embedded (its text is kept). Audio and video are transcribed with the\nbase's speech model, images read with its OCR model. 409 `rag.kb_busy` while it runs.",
+        "operationId": "index_knowledge_base",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Knowledge base id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "All fields optional",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndexBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexStarted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/knowledge-bases/{id}/index/cancel": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Stops the base's index run (finished documents stay; the rest resume on the next run).",
+        "operationId": "cancel_knowledge_base_index",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Knowledge base id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cancelled"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/knowledge-bases/{id}/progress": {
+      "get": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Progress of the base's index run: stage (`scan`, `extract`, `embed`), documents done and\ntotal, the document in work, elapsed time.",
+        "operationId": "knowledge_base_progress",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Knowledge base id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgressView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/knowledge-bases/{id}/query": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "The best excerpts of the base for a question, numbered for citation (`[1]`...). Each source has\nthe document name, the page (PDF) or the time span (audio, video) of the excerpt, its text,\nthe similarity and the rerank score, and the answer carries the latency of the question.",
+        "operationId": "query_knowledge_base",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Knowledge base id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KbAnswer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/knowledge-bases/{id}/sources": {
+      "post": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Adds a folder or files to a knowledge base and (by default) indexes what is new.",
+        "operationId": "add_knowledge_base_sources",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Knowledge base id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddSourcesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcesAdded"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "knowledge"
+        ],
+        "summary": "Removes documents (and their chunks) from a knowledge base. A file that is still in the base's\nfolder comes back with the next run; take the folder out of the base to stop that.",
+        "operationId": "remove_knowledge_base_sources",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Knowledge base id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveSourcesBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcesRemoved"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/lemonade": {
       "get": {
         "tags": [
@@ -14184,6 +14995,43 @@
         ],
         "description": "Add request: a GitHub release (`github`) or a local folder (`local`)."
       },
+      "AddSourcesBody": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A folder. The first one becomes the base's folder (documents keep relative paths);\nanother one is added file by file.",
+            "default": null
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Single files.",
+            "default": []
+          },
+          "index": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Index right away (default true).",
+            "default": null
+          },
+          "embed_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Embedding model of that run (see `IndexBody`).",
+            "default": null
+          }
+        }
+      },
       "AnalyticsSummary": {
         "type": "object",
         "description": "`GET /analytics/summary`.",
@@ -15000,6 +15848,18 @@
           "cancelled": {
             "type": "boolean",
             "description": "`false` when no compaction was running."
+          }
+        }
+      },
+      "Cancelled": {
+        "type": "object",
+        "required": [
+          "cancelled"
+        ],
+        "properties": {
+          "cancelled": {
+            "type": "boolean",
+            "description": "`false` when no run was active."
           }
         }
       },
@@ -16669,6 +17529,45 @@
         ],
         "description": "One state change. Serialized with a `type` tag (`server_status`, `download`, ...)."
       },
+      "CreateBody": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "folder": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Folder whose files are indexed (and scanned again on every run)."
+          },
+          "ocr_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "OCR model (alias) for scanned PDF pages and images."
+          },
+          "asr_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Speech-recognition model (alias) for audio and video."
+          },
+          "rerank_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rerank model (alias) that reorders the best excerpts of a question."
+          }
+        }
+      },
       "CreateRequest": {
         "type": "object",
         "description": "Body of a new job; unset values take the defaults below.",
@@ -17250,6 +18149,17 @@
           }
         }
       },
+      "Deleted": {
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          }
+        }
+      },
       "Description": {
         "type": "object",
         "required": [
@@ -17469,6 +18379,93 @@
               "$ref": "#/components/schemas/DirectClient"
             },
             "default": []
+          }
+        }
+      },
+      "DiskUsage": {
+        "type": "object",
+        "description": "What a knowledge base takes on disk (the database rows; the source files stay where they are).",
+        "required": [
+          "source_bytes",
+          "text_bytes",
+          "vector_bytes"
+        ],
+        "properties": {
+          "source_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sum of the source files' sizes."
+          },
+          "text_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Extracted text and chunks."
+          },
+          "vector_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Embedding vectors."
+          }
+        }
+      },
+      "DocMeta": {
+        "type": "object",
+        "description": "What is known about a media document besides its text.",
+        "required": [
+          "media"
+        ],
+        "properties": {
+          "media": {
+            "type": "string",
+            "description": "`audio`, `video` or `image`."
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Length of the recording in milliseconds.",
+            "minimum": 0
+          },
+          "segments": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Timed transcript segments.",
+            "minimum": 0
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Language the speech recognition reported."
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Pixel size of an image.",
+            "minimum": 0
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "text_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Model (alias) that made the text: speech recognition or OCR."
           }
         }
       },
@@ -20264,6 +21261,46 @@
         },
         "additionalProperties": false
       },
+      "IndexBody": {
+        "type": "object",
+        "properties": {
+          "embed_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Embedding model (alias). Default: the model the base was built with, else the\nrecommended multilingual model when it is installed, else keyword search only.",
+            "default": null
+          },
+          "rebuild": {
+            "type": "boolean",
+            "description": "Read and embed every document again.",
+            "default": false
+          }
+        }
+      },
+      "IndexStarted": {
+        "type": "object",
+        "required": [
+          "kb_id",
+          "started"
+        ],
+        "properties": {
+          "kb_id": {
+            "type": "string"
+          },
+          "started": {
+            "type": "boolean"
+          },
+          "embed_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Embedding model of the run (`null` = keyword search only)."
+          }
+        }
+      },
       "InferencePreset": {
         "type": "object",
         "required": [
@@ -20694,6 +21731,172 @@
           }
         }
       },
+      "KbAnswer": {
+        "type": "object",
+        "description": "The answer to a question about one base: the excerpts with their citations and what the\nquestion cost.",
+        "required": [
+          "kb_id",
+          "query",
+          "sources",
+          "notices",
+          "latency_ms"
+        ],
+        "properties": {
+          "kb_id": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Source"
+            }
+          },
+          "retrieval": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`hybrid` (vectors and keywords) or `keyword`."
+          },
+          "reranked": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rerank model that reordered the excerpts."
+          },
+          "notices": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "latency_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Time of the whole question (embedding the question, searching, reranking).",
+            "minimum": 0
+          }
+        }
+      },
+      "KbProgress": {
+        "type": "object",
+        "description": "A progress report of a run (Tauri event `kb-progress`).",
+        "required": [
+          "kb_id",
+          "status",
+          "docs_done",
+          "docs_total",
+          "chunk_done",
+          "chunk_total",
+          "elapsed_ms"
+        ],
+        "properties": {
+          "kb_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`indexing`, `done` or `cancelled`."
+          },
+          "stage": {
+            "type": "string",
+            "description": "`scan` (what changed), `extract` (text, transcripts, OCR) or `embed`."
+          },
+          "docs_done": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "docs_total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "current": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Document being indexed."
+          },
+          "chunk_done": {
+            "type": "integer",
+            "description": "Chunks embedded / chunks of the current document.",
+            "minimum": 0
+          },
+          "chunk_total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "KbState": {
+        "type": "string",
+        "description": "Where the index of a knowledge base stands.",
+        "enum": [
+          "empty",
+          "indexing",
+          "ready",
+          "incomplete",
+          "stale"
+        ]
+      },
+      "KbStats": {
+        "type": "object",
+        "description": "Figures measured by this machine (the knowledge base detail view shows them).",
+        "required": [
+          "query_count",
+          "query_ms_total",
+          "query_ms_recent"
+        ],
+        "properties": {
+          "last_run": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RunStats"
+              }
+            ]
+          },
+          "query_count": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Questions asked (through the API, the CLI or a chat).",
+            "minimum": 0
+          },
+          "query_ms_total": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "query_ms_last": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "query_ms_recent": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": "Latencies of the last 50 questions in milliseconds (oldest first)."
+          }
+        }
+      },
       "KeepAlive": {
         "oneOf": [
           {
@@ -20728,6 +21931,155 @@
           "skill",
           "mcp"
         ]
+      },
+      "KnowledgeBase": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/KnowledgeBaseRow"
+          },
+          {
+            "type": "object",
+            "required": [
+              "documents",
+              "chunks",
+              "embedded",
+              "failed",
+              "ocr_pages",
+              "state",
+              "media_documents",
+              "disk"
+            ],
+            "properties": {
+              "documents": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "chunks": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "embedded": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "failed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ocr_pages": {
+                "type": "integer",
+                "description": "Pages of its documents whose text came from the OCR model.",
+                "minimum": 0
+              },
+              "state": {
+                "$ref": "#/components/schemas/KbState"
+              },
+              "stale_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Why the index is stale: `model` (another embedding model) or `dims` (vector size)."
+              },
+              "media_documents": {
+                "type": "integer",
+                "description": "Documents that are audio, video or images.",
+                "minimum": 0
+              },
+              "disk": {
+                "$ref": "#/components/schemas/DiskUsage",
+                "description": "What the index takes in the database."
+              }
+            }
+          }
+        ],
+        "description": "A knowledge base with its index figures, for the UI."
+      },
+      "KnowledgeBaseRow": {
+        "type": "object",
+        "description": "A named, reusable set of documents (without its documents).",
+        "required": [
+          "id",
+          "name",
+          "index_ms",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "folder": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Folder the base was made from (new files of it can be scanned again)."
+          },
+          "embed_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Embedding model (alias) of the index; `None` = keyword search only."
+          },
+          "embed_dims": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Vector size of the index."
+          },
+          "ocr_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "OCR model (alias) that reads the PDF pages without a text layer; `None` = no OCR."
+          },
+          "index_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total milliseconds spent indexing this base."
+          },
+          "indexed_at": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "updated_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "asr_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Speech-recognition model (alias) that transcribes audio and video; `None` = such files\nare not indexed."
+          },
+          "rerank_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Rerank model (alias) that reorders the best excerpts of a question; `None` = off."
+          },
+          "stats": {
+            "$ref": "#/components/schemas/KbStats",
+            "description": "Measured figures: the last run and the question latencies."
+          }
+        }
       },
       "KvChoice": {
         "type": "object",
@@ -24587,6 +25939,48 @@
           }
         }
       },
+      "PatchBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "folder": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "New folder (also how a moved folder is pointed at: documents keep their relative paths).\nAn empty string clears it.",
+            "default": null
+          },
+          "ocr_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "asr_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "rerank_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`\"\"` turns the rerank step off.",
+            "default": null
+          }
+        }
+      },
       "PathMessage": {
         "type": "object",
         "description": "A message on the current path, with its shown variant and navigation info.",
@@ -24846,6 +26240,28 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "ProgressView": {
+        "type": "object",
+        "required": [
+          "running"
+        ],
+        "properties": {
+          "running": {
+            "type": "boolean"
+          },
+          "progress": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/KbProgress",
+                "description": "The newest report of the current or last run (`null` before the first run of this\nprocess)."
+              }
+            ]
           }
         }
       },
@@ -25164,6 +26580,43 @@
           }
         }
       },
+      "QueryBody": {
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "top_k": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Excerpts to return (1-20, default 5).",
+            "minimum": 0
+          },
+          "embed_model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Embedding model (alias) of the question. Default: the model the base was built with\n(a base without vectors is searched by keywords)."
+          },
+          "rerank": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RerankChoice",
+                "description": "Rerank model (alias) for this question; default: the base's own. `false` for no rerank."
+              }
+            ]
+          }
+        }
+      },
       "QueueHint": {
         "type": "object",
         "description": "Queue behaviour of one definition over a time window and, when it keeps making requests\nwait for a free slot, how many slots to try at its next load (see\n[`AnalyticsDb::queue_hints`]).",
@@ -25362,6 +26815,32 @@
               "minimum": 0
             },
             "description": "Pages of a PDF whose text came from the knowledge base OCR model (1-based, ascending);\nempty when the text layer was used throughout."
+          },
+          "mtime_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Modification time of the source file when it was indexed (ms since the epoch); with\n`size` and `sha256` it tells whether the file changed."
+          },
+          "rel_path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Path of the source below the knowledge base's folder (`/` separators), so the index\nsurvives moving the folder; `None` for a file added on its own."
+          },
+          "meta": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/DocMeta",
+                "description": "Details of media documents (audio, video, image)."
+              }
+            ]
           },
           "created_at": {
             "type": "integer",
@@ -26063,6 +27542,21 @@
           }
         }
       },
+      "RemoveSourcesBody": {
+        "type": "object",
+        "required": [
+          "sources"
+        ],
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Document ids, names (paths below the folder) or source paths."
+          }
+        }
+      },
       "RemovedProvider": {
         "type": "object",
         "properties": {
@@ -26719,6 +28213,17 @@
           }
         }
       },
+      "RerankChoice": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          }
+        ],
+        "description": "A rerank model alias, or `false` to skip the base's rerank step for one question."
+      },
       "ResourceContent": {
         "type": "object",
         "description": "One piece of a resource read (`resources/read` returns a list of them).",
@@ -26995,6 +28500,92 @@
             "items": {
               "$ref": "#/components/schemas/RouterModel"
             }
+          }
+        }
+      },
+      "RunStats": {
+        "type": "object",
+        "description": "One indexing run, measured.",
+        "required": [
+          "started_at",
+          "elapsed_ms",
+          "extract_ms",
+          "embed_ms",
+          "added",
+          "changed",
+          "removed",
+          "unchanged",
+          "processed",
+          "failed",
+          "cpu_avg_pct",
+          "cpu_peak_pct",
+          "rss_peak_bytes"
+        ],
+        "properties": {
+          "started_at": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "extract_ms": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Time of the extraction / transcription stage and of the embedding stage.",
+            "minimum": 0
+          },
+          "embed_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "added": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "changed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "removed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unchanged": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "processed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cpu_avg_pct": {
+            "type": "number",
+            "format": "float",
+            "description": "CPU use of Harness and its model processes during the run, in percent of one core."
+          },
+          "cpu_peak_pct": {
+            "type": "number",
+            "format": "float"
+          },
+          "rss_peak_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Largest memory (resident) of Harness and its model processes during the run.",
+            "minimum": 0
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -28520,6 +30111,130 @@
           },
           "offline": {
             "type": "boolean"
+          }
+        }
+      },
+      "Source": {
+        "type": "object",
+        "description": "A source shown under the answer (an excerpt, or a whole document in full-text mode).",
+        "required": [
+          "n",
+          "document_id",
+          "document_name",
+          "text",
+          "full"
+        ],
+        "properties": {
+          "n": {
+            "type": "integer",
+            "description": "Citation number (`[n]`); 0 for full-text documents (cited by name).",
+            "minimum": 0
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "document_name": {
+            "type": "string"
+          },
+          "chunk_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "page_start": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "page_end": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "t_start_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Time span in an audio or video document (milliseconds)."
+          },
+          "t_end_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "heading": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "similarity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Cosine similarity to the question (dense match)."
+          },
+          "rerank_score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float",
+            "description": "Rerank relevance score."
+          },
+          "full": {
+            "type": "boolean",
+            "description": "The whole document was given (full-text mode)."
+          }
+        }
+      },
+      "SourcesAdded": {
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "properties": {
+          "files": {
+            "type": "integer",
+            "description": "Files taken from the folder or the list (the run decides which are new).",
+            "minimum": 0
+          },
+          "index": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IndexStarted"
+              }
+            ]
+          }
+        }
+      },
+      "SourcesRemoved": {
+        "type": "object",
+        "required": [
+          "removed"
+        ],
+        "properties": {
+          "removed": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },
@@ -31029,6 +32744,10 @@
     {
       "name": "cloud",
       "description": "BYOK cloud providers (OpenAI, Gemini, Anthropic, OpenRouter, custom): add, test and remove; the key is write-only (admin)"
+    },
+    {
+      "name": "knowledge",
+      "description": "Knowledge bases (local RAG): sources, change-aware indexing, questions with cited excerpts (scope `conversations`)"
     },
     {
       "name": "conversations",

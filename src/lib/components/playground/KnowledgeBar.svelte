@@ -14,8 +14,9 @@
   import * as Popover from '#lib/components/ui/popover/index.js';
   import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
   import { Progress } from '#lib/components/ui/progress/index.js';
-  import { BookOpen, Cpu, Download, FilePlus, FolderOpen, LoaderCircle, RotateCcw, Square, Trash2, TriangleAlert, X } from '@lucide/svelte';
+  import { BookOpen, ChevronRight, Cpu, Download, FilePlus, FolderOpen, LoaderCircle, RotateCcw, Square, Trash2, TriangleAlert, X } from '@lucide/svelte';
   import { ragApi, type RagModels } from './rag';
+  import { averageMs, formatPercentValue } from './kbFormat';
   import {
     baseNameOf,
     embedderApi,
@@ -38,6 +39,8 @@
     models: RagModels | null;
     /** Aliases of the library's OCR-capable models (for a base's OCR model). */
     ocrAliases?: string[];
+    /** Aliases of the library's speech recognition models (for a base's audio and video). */
+    asrAliases?: string[];
     readOnly: boolean;
     /** Bases attached to the open conversation. */
     attached: KnowledgeBase[];
@@ -45,7 +48,7 @@
     onUseEmbedder: (alias: string) => void;
   }
 
-  let { conversationId, ensureConversation, embedAlias, models, ocrAliases = [], readOnly, attached = $bindable(), onUseEmbedder }: Props = $props();
+  let { conversationId, ensureConversation, embedAlias, models, ocrAliases = [], asrAliases = [], readOnly, attached = $bindable(), onUseEmbedder }: Props = $props();
 
   let open = $state(false);
   let bases = $state<KnowledgeBase[]>([]);
@@ -53,6 +56,7 @@
   let embedder = $state<EmbedderStatus | null>(null);
   let confirmDelete = $state<string | null>(null);
   let busy = $state(false);
+  let detailsOpen = $state<string | null>(null);
 
   let hasEmbedding = $derived((models?.embedding.length ?? 0) > 0);
   let downloading = $derived(embedderBusy(embedder));
@@ -106,6 +110,7 @@
       const p = e.payload;
       progress = { ...progress, [p.kb_id]: p };
       if (p.status !== 'indexing') {
+        if (p.status === 'failed') toast.error(t('kb.failed_run', { error: p.current ?? '' }));
         void refresh();
         const { [p.kb_id]: _, ...rest } = progress;
         progress = rest;
@@ -177,7 +182,7 @@
   async function startIndex(kbId: string, opts: { folder?: string | null; paths?: string[]; rebuild?: boolean; embedModel?: string | null }) {
     try {
       await kbApi.index(kbId, { embedModel: embedAlias, ...opts });
-      progress = { ...progress, [kbId]: { kb_id: kbId, status: 'indexing', docs_done: 0, docs_total: 0, current: null, chunk_done: 0, chunk_total: 0, elapsed_ms: 0 } };
+      progress = { ...progress, [kbId]: { kb_id: kbId, status: 'indexing', stage: 'scan', docs_done: 0, docs_total: 0, current: null, chunk_done: 0, chunk_total: 0, elapsed_ms: 0 } };
     } catch (e) {
       toast.error(errorText(e));
     }
@@ -261,12 +266,47 @@
     }
   }
 
+  async function setAsrModel(kb: KnowledgeBase, alias: string) {
+    try {
+      await kbApi.update(kb.id, { asr_model: alias });
+      await refresh();
+    } catch (e) {
+      toast.error(errorText(e));
+    }
+  }
+
+  let rerankAliases = $derived((models?.rerank ?? []).map((m) => m.alias));
+
+  async function setRerankModel(kb: KnowledgeBase, alias: string) {
+    try {
+      await kbApi.update(kb.id, { rerank_model: alias });
+      await refresh();
+    } catch (e) {
+      toast.error(errorText(e));
+    }
+  }
+
+  function toggleRerank(kb: KnowledgeBase, on: boolean) {
+    void setRerankModel(kb, on ? (rerankAliases[0] ?? '') : '');
+  }
+
+  const STAGES = { scan: 'kb.stage_scan', extract: 'kb.stage_extract', embed: 'kb.stage_embed' } as const;
+  function stageLabel(run: KbProgress | undefined): string {
+    const key = run?.stage ? STAGES[run.stage as keyof typeof STAGES] : undefined;
+    return key ? t(key) : '';
+  }
+
+  function ms(v: number): string {
+    return formatIndexTime(v, locale());
+  }
+
   function stateLabel(kb: KnowledgeBase): string {
     return t(`kb.state_${kb.state}` as 'kb.state_ready');
   }
 
   function metaText(kb: KnowledgeBase): string {
     const parts = [t('kb.meta', { docs: fmt(kb.documents), chunks: fmt(kb.chunks) })];
+    if (kb.media_documents > 0) parts.push(t('kb.media_count', { count: fmt(kb.media_documents) }));
     if (kb.ocr_pages > 0) parts.push(t('kb.ocr_pages', { pages: fmt(kb.ocr_pages) }));
     if (kb.indexed_at) {
       parts.push(
@@ -353,11 +393,93 @@
                   {#each ocrAliases as alias (alias)}<option value={alias}>{alias}</option>{/each}
                 </select>
               </label>
+              <label class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground" title={t('kb.asr_hint')}>
+                <span class="shrink-0">{t('kb.asr_model')}</span>
+                <select
+                  class="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+                  value={kb.asr_model ?? ''}
+                  disabled={running || readOnly}
+                  onchange={(e) => void setAsrModel(kb, e.currentTarget.value)}
+                >
+                  <option value="">{t('kb.asr_none')}</option>
+                  {#if kb.asr_model && !asrAliases.includes(kb.asr_model)}<option value={kb.asr_model}>{kb.asr_model}</option>{/if}
+                  {#each asrAliases as alias (alias)}<option value={alias}>{alias}</option>{/each}
+                </select>
+              </label>
+              <p class="m-0 text-xs text-muted-foreground">{t('kb.asr_hint')}</p>
+
+              <div class="flex min-w-0 flex-col gap-1.5">
+                <label class="flex min-w-0 items-center gap-2 text-xs text-foreground">
+                  <input
+                    type="checkbox"
+                    class="size-3.5 shrink-0"
+                    checked={!!kb.rerank_model}
+                    disabled={running || readOnly || (rerankAliases.length === 0 && !kb.rerank_model)}
+                    onchange={(e) => toggleRerank(kb, e.currentTarget.checked)}
+                  />
+                  <span class="font-medium">{t('kb.rerank_title')}</span>
+                </label>
+                {#if kb.rerank_model}
+                  <label class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                    <span class="shrink-0">{t('kb.rerank_model')}</span>
+                    <select
+                      class="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+                      value={kb.rerank_model}
+                      disabled={running || readOnly}
+                      onchange={(e) => void setRerankModel(kb, e.currentTarget.value)}
+                    >
+                      {#if !rerankAliases.includes(kb.rerank_model)}<option value={kb.rerank_model}>{kb.rerank_model}</option>{/if}
+                      {#each rerankAliases as alias (alias)}<option value={alias}>{alias}</option>{/each}
+                    </select>
+                  </label>
+                {/if}
+                <p class="m-0 text-xs text-muted-foreground">{rerankAliases.length === 0 && !kb.rerank_model ? t('kb.rerank_missing') : t('kb.rerank_hint')}</p>
+              </div>
+
+              <button
+                type="button"
+                class="flex items-center gap-1.5 self-start rounded-sm text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50"
+                aria-expanded={detailsOpen === kb.id}
+                aria-label={detailsOpen === kb.id ? t('kb.details_close', { name: kb.name }) : t('kb.details_open', { name: kb.name })}
+                onclick={() => (detailsOpen = detailsOpen === kb.id ? null : kb.id)}
+              >
+                <ChevronRight class={cn('size-3.5 shrink-0 transition-transform', detailsOpen === kb.id && 'rotate-90')} aria-hidden="true" />
+                {t('kb.index_details')}
+              </button>
+              {#if detailsOpen === kb.id}
+                {@const last = kb.stats.last_run}
+                {@const q = kb.stats}
+                <dl class="m-0 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md bg-muted/40 p-2 text-xs">
+                  {#if last}
+                    <dt class="text-muted-foreground">{t('kb.d_last_run')}</dt>
+                    <dd class="m-0 text-foreground">{t('kb.d_last_run_value', { time: ms(last.elapsed_ms), read: ms(last.extract_ms), embed: ms(last.embed_ms) })}</dd>
+                    <dt class="text-muted-foreground">{t('kb.d_changes')}</dt>
+                    <dd class="m-0 text-foreground">{t('kb.d_changes_value', { added: fmt(last.added), changed: fmt(last.changed), unchanged: fmt(last.unchanged), removed: fmt(last.removed) })}</dd>
+                    <dt class="text-muted-foreground">{t('kb.d_cpu')}</dt>
+                    <dd class="m-0 text-foreground">{t('kb.d_cpu_value', { avg: formatPercentValue(last.cpu_avg_pct, locale()), peak: formatPercentValue(last.cpu_peak_pct, locale()) })}</dd>
+                    <dt class="text-muted-foreground">{t('kb.d_memory')}</dt>
+                    <dd class="m-0 text-foreground">{t('kb.d_memory_value', { peak: formatBytes(last.rss_peak_bytes, 1) })}</dd>
+                    {#if last.failed > 0}
+                      <dd class="col-span-2 m-0 text-warning">{t('kb.d_failed', { failed: fmt(last.failed) })}</dd>
+                    {/if}
+                  {:else}
+                    <dd class="col-span-2 m-0 text-muted-foreground">{t('kb.d_no_run')}</dd>
+                  {/if}
+                  <dt class="text-muted-foreground">{t('kb.d_disk')}</dt>
+                  <dd class="m-0 text-foreground">{t('kb.d_disk_value', { text: formatBytes(kb.disk.text_bytes, 1), vectors: formatBytes(kb.disk.vector_bytes, 1) })}</dd>
+                  <dt class="text-muted-foreground">{t('kb.d_latency')}</dt>
+                  {#if q.query_count > 0 && q.query_ms_last != null}
+                    <dd class="m-0 text-foreground">{t('kb.d_latency_value', { last: ms(q.query_ms_last), avg: ms(averageMs(q.query_ms_total, q.query_count) ?? 0), count: fmt(q.query_count) })}</dd>
+                  {:else}
+                    <dd class="m-0 text-muted-foreground">{t('kb.d_no_queries')}</dd>
+                  {/if}
+                </dl>
+              {/if}
 
               {#if running}
                 <Progress value={Math.round(runFraction(run) * 100)} />
                 <p class="m-0 text-xs text-muted-foreground [overflow-wrap:anywhere]" role="status">
-                  {t('kb.progress', { done: run?.docs_done ?? 0, total: run?.docs_total ?? 0 })}
+                  {#if stageLabel(run)}<span class="font-medium">{stageLabel(run)}</span> · {/if}{t('kb.progress', { done: run?.docs_done ?? 0, total: run?.docs_total ?? 0 })}
                   {#if run?.current}· {run.current}{#if run.chunk_total}&nbsp;({run.chunk_done}/{run.chunk_total}){/if}{/if}
                 </p>
               {:else if note}

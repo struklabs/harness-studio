@@ -22,12 +22,17 @@ pub const MAX_CHARS: usize = 1200;
 pub const MIN_CHARS: usize = 200;
 pub const OVERLAP_CHARS: usize = 150;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Chunk {
     pub text: String,
     pub page_start: Option<u32>,
     pub page_end: Option<u32>,
     pub heading: Option<String>,
+    /// Time span in the recording (audio and video transcripts), milliseconds.
+    #[serde(default)]
+    pub t_start_ms: Option<u64>,
+    #[serde(default)]
+    pub t_end_ms: Option<u64>,
 }
 
 struct Block {
@@ -183,6 +188,7 @@ impl Builder {
             page_start: self.first_page,
             page_end: self.last_page,
             heading: self.heading(),
+            ..Default::default()
         });
         self.fresh = 0;
         self.first_page = if carried.is_empty() {

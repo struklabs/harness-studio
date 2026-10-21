@@ -33,9 +33,12 @@ pub mod client;
 pub mod embedder;
 pub mod extract;
 pub mod kb;
+pub mod media;
 pub mod models;
 pub mod ocr;
 pub mod search;
+pub mod setup;
+pub mod usage;
 
 use crate::error_key::err;
 use crate::state::{ChunkHit, RagDocument, StateDb};
@@ -218,6 +221,9 @@ pub struct IndexJob {
     /// Recognize the pages of a PDF that have no text layer with this model (a knowledge
     /// base setting); `None` = a scanned PDF fails with `rag.pdf_no_text`.
     pub ocr: Option<ocr::OcrModel>,
+    /// Transcribe audio and video with this model (a knowledge base setting); `None` = such a
+    /// file fails with `rag.media_no_asr`.
+    pub asr: Option<media::AsrModel>,
 }
 
 /// Runs an indexing job to its end (the document's status records the outcome). The job
@@ -292,6 +298,13 @@ async fn blocking_or_cancel<T: Send + 'static>(
     }
 }
 
+/// Resolves when the cancel flag is set.
+async fn wait_cancelled(cancel: &AtomicBool) {
+    while !cancel.load(Ordering::SeqCst) {
+        tokio::time::sleep(CANCEL_POLL).await;
+    }
+}
+
 /// Whether an embedding error says the input was longer than the model's context.
 fn input_too_long(error: &str) -> bool {
     let e = error.to_lowercase();
@@ -342,50 +355,82 @@ async fn index_inner(
                 .flatten()
         }
     };
-    let max_chunks = match db.rag_document(id) {
-        Ok(d) if db.rag_is_kb(&d.conversation_id) => KB_MAX_CHUNKS,
-        _ => MAX_CHUNKS_PER_CONVERSATION,
+    let is_kb = db
+        .rag_document(id)
+        .map(|d| db.rag_is_kb(&d.conversation_id))
+        .unwrap_or(false);
+    let max_chunks = if is_kb {
+        KB_MAX_CHUNKS
+    } else {
+        MAX_CHUNKS_PER_CONVERSATION
     };
     if let Some(path) = source {
         db.rag_set_status(id, "extracting", None)
             .map_err(String::from)?;
         report("extracting", 0, 0, None);
-        let limits = ocr::Limits::kb_from_env();
-        let (doc, ocr_pages) =
-            ocr::extract_for_index(&path, job.ocr.as_ref(), &limits, cancel).await?;
-        let extracted = blocking_or_cancel(cancel, move || -> Result<_, String> {
-            let bytes = std::fs::read(&path).map_err(|e| {
-                String::from(
-                    err("fs.read_failed")
-                        .with("path", path.display())
-                        .with("error", e),
-                )
-            })?;
-            let sha = {
-                use sha2::{Digest, Sha256};
-                let h = Sha256::digest(&bytes);
-                h.iter().map(|b| format!("{b:02x}")).collect::<String>()
-            };
-            let chunks = chunk::chunk_pages(&doc.pages);
-            Ok((doc, bytes.len(), sha, chunks))
-        })
-        .await?;
-        if stop() {
-            return Err(CANCELLED.into());
+        let mtime = kb::mtime_ms(&path);
+        // Media files are a knowledge base feature; a chat attachment keeps its old errors.
+        if let Some(kind) = media::media_kind(&path).filter(|_| is_kb) {
+            // Audio, video, image: transcript or OCR text with times and details.
+            let m = media::extract_media(&path, kind, job.asr.as_ref(), job.ocr.as_ref(), cancel)
+                .await?;
+            if stop() {
+                return Err(CANCELLED.into());
+            }
+            db.rag_store_extraction(
+                id,
+                kind.as_str(),
+                m.size as i64,
+                &m.sha256,
+                None,
+                &m.content,
+                &m.chunks,
+                max_chunks,
+            )
+            .map_err(String::from)?;
+            db.rag_set_ocr_pages(id, &[]).map_err(String::from)?;
+            db.rag_set_source_stat(id, mtime, None, Some(&m.meta))
+                .map_err(String::from)?;
+        } else {
+            let limits = ocr::Limits::kb_from_env();
+            let (doc, ocr_pages) =
+                ocr::extract_for_index(&path, job.ocr.as_ref(), &limits, cancel).await?;
+            let extracted = blocking_or_cancel(cancel, move || -> Result<_, String> {
+                let bytes = std::fs::read(&path).map_err(|e| {
+                    String::from(
+                        err("fs.read_failed")
+                            .with("path", path.display())
+                            .with("error", e),
+                    )
+                })?;
+                let sha = {
+                    use sha2::{Digest, Sha256};
+                    let h = Sha256::digest(&bytes);
+                    h.iter().map(|b| format!("{b:02x}")).collect::<String>()
+                };
+                let chunks = chunk::chunk_pages(&doc.pages);
+                Ok((doc, bytes.len(), sha, chunks))
+            })
+            .await?;
+            if stop() {
+                return Err(CANCELLED.into());
+            }
+            let (doc, size, sha, chunks) = extracted;
+            db.rag_store_extraction(
+                id,
+                doc.kind.as_str(),
+                size as i64,
+                &sha,
+                doc.page_count().map(i64::from),
+                &doc.full_text(),
+                &chunks,
+                max_chunks,
+            )
+            .map_err(String::from)?;
+            db.rag_set_ocr_pages(id, &ocr_pages).map_err(String::from)?;
+            db.rag_set_source_stat(id, mtime, None, None)
+                .map_err(String::from)?;
         }
-        let (doc, size, sha, chunks) = extracted;
-        db.rag_store_extraction(
-            id,
-            doc.kind.as_str(),
-            size as i64,
-            &sha,
-            doc.page_count().map(i64::from),
-            &doc.full_text(),
-            &chunks,
-            max_chunks,
-        )
-        .map_err(String::from)?;
-        db.rag_set_ocr_pages(id, &ocr_pages).map_err(String::from)?;
     }
     let Some(embed) = &job.embed else {
         return Ok(());
@@ -439,10 +484,13 @@ pub struct RetrieveOptions {
     pub embed: Option<EmbedModel>,
     /// Rerank definition alias (same endpoint as `embed`, or its own).
     pub rerank: Option<(Endpoint, String)>,
+    /// Do not use the rerank model of a knowledge base (a question that asked for none).
+    pub no_rerank: bool,
 }
 
 /// A source shown under the answer (an excerpt, or a whole document in full-text mode).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Source {
     /// Citation number (`[n]`); 0 for full-text documents (cited by name).
     pub n: usize,
@@ -451,6 +499,11 @@ pub struct Source {
     pub chunk_id: Option<i64>,
     pub page_start: Option<i64>,
     pub page_end: Option<i64>,
+    /// Time span in an audio or video document (milliseconds).
+    #[serde(default)]
+    pub t_start_ms: Option<i64>,
+    #[serde(default)]
+    pub t_end_ms: Option<i64>,
     pub heading: Option<String>,
     pub text: String,
     /// Cosine similarity to the question (dense match).
@@ -503,6 +556,17 @@ pub fn plan(
     (full, search)
 }
 
+/// Where in the document an excerpt sits: a page range or, for audio and video, a time span.
+pub fn place_label(src: &Source) -> Option<String> {
+    if let Some(t) = src.t_start_ms {
+        return Some(media::format_span(
+            t.max(0) as u64,
+            src.t_end_ms.map(|e| e.max(0) as u64),
+        ));
+    }
+    page_label(src.page_start, src.page_end)
+}
+
 fn page_label(start: Option<i64>, end: Option<i64>) -> Option<String> {
     match (start, end) {
         (Some(a), Some(b)) if a != b => Some(format!("pp. {a}-{b}")),
@@ -539,7 +603,7 @@ pub fn excerpts_prompt(query: &str, sources: &[Source]) -> String {
     );
     for src in sources {
         let mut label = src.document_name.clone();
-        if let Some(p) = page_label(src.page_start, src.page_end) {
+        if let Some(p) = place_label(src) {
             label.push_str(&format!(", {p}"));
         }
         if let Some(h) = &src.heading {
@@ -560,6 +624,8 @@ fn hit_source(n: usize, h: ChunkHit, similarity: Option<f32>, rerank_score: Opti
         chunk_id: Some(h.chunk_id),
         page_start: h.page_start,
         page_end: h.page_end,
+        t_start_ms: h.t_start_ms,
+        t_end_ms: h.t_end_ms,
         heading: h.heading,
         text: h.text,
         similarity,
@@ -586,6 +652,61 @@ pub async fn prepare(
             docs.push(d);
         }
     }
+    let opts = with_kb_rerank(opts, &kbs);
+    let started = std::time::Instant::now();
+    let out = prepare_docs(db, docs, &kbs, &kb_docs, &opts).await;
+    if out.as_ref().is_ok_and(|p| p.retrieval.is_some()) {
+        let ms = started.elapsed().as_millis() as u64;
+        for kb in &kbs {
+            let _ = db.kb_record_query(&kb.id, ms);
+        }
+    }
+    out
+}
+
+/// `opts` with the rerank model of an attached knowledge base when the caller chose none: the
+/// base's setting is its toggle ("rerank the excerpts"), served by the same gateway.
+fn with_kb_rerank(
+    opts: &RetrieveOptions,
+    kbs: &[crate::state::KnowledgeBaseRow],
+) -> RetrieveOptions {
+    let mut opts = opts.clone();
+    if opts.rerank.is_none() && !opts.no_rerank {
+        if let (Some(alias), Some(e)) = (
+            kbs.iter().find_map(|k| k.rerank_model.clone()),
+            opts.embed.as_ref(),
+        ) {
+            opts.rerank = Some((e.endpoint.clone(), alias));
+        }
+    }
+    opts
+}
+
+/// The excerpts of one knowledge base for a question, with citations (always searched, never
+/// added whole). The same retrieval as a chat with the base attached.
+pub async fn query_kb(
+    db: &StateDb,
+    kb_id: &str,
+    opts: &RetrieveOptions,
+) -> Result<Prepared, String> {
+    let kb = db.kb_get(kb_id).map_err(String::from)?;
+    let mut docs = db.rag_documents(kb_id).map_err(String::from)?;
+    let mut kb_docs = std::collections::HashSet::new();
+    for d in &mut docs {
+        d.mode = "retrieval".into();
+        kb_docs.insert(d.id.clone());
+    }
+    let opts = with_kb_rerank(opts, std::slice::from_ref(&kb));
+    prepare_docs(db, docs, &[kb], &kb_docs, &opts).await
+}
+
+async fn prepare_docs(
+    db: &StateDb,
+    docs: Vec<RagDocument>,
+    kbs: &[crate::state::KnowledgeBaseRow],
+    kb_docs: &std::collections::HashSet<String>,
+    opts: &RetrieveOptions,
+) -> Result<Prepared, String> {
     let (full, search_docs) = plan(&docs, opts.context_tokens);
     let mut out = Prepared::default();
     if full.is_empty() && search_docs.is_empty() {
@@ -604,6 +725,8 @@ pub async fn prepare(
                 chunk_id: None,
                 page_start: d.pages.map(|_| 1),
                 page_end: d.pages,
+                t_start_ms: None,
+                t_end_ms: None,
                 heading: None,
                 text: String::new(),
                 similarity: None,
@@ -639,7 +762,7 @@ pub async fn prepare(
         if current.len() < search_docs.len() {
             out.notices.push(err("rag.notice_not_embedded").into());
         }
-        for kb in &kbs {
+        for kb in kbs {
             if kb.embed_model.as_deref() != Some(embed.alias.as_str()) {
                 out.notices
                     .push(err("rag.notice_kb_stale").with("name", &kb.name).into());
@@ -740,3 +863,6 @@ mod tests;
 mod tests_kb;
 #[cfg(test)]
 mod tests_ocr;
+
+#[cfg(test)]
+mod tests_sync;

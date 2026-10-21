@@ -5,6 +5,7 @@
   import { errorText } from '#lib/errors.js';
   import * as Collapsible from '#lib/components/ui/collapsible/index.js';
   import { ChevronRight, FileText } from '@lucide/svelte';
+  import { formatTimeSpan } from './kbFormat';
   import { citedNumbers, pageRange, type RagSource, type RagTurn } from './rag';
 
   interface Props {
@@ -22,6 +23,7 @@
   let whole = $derived(rag.sources.filter((s) => s.full));
 
   function pages(s: RagSource): string {
+    if (s.t_start_ms != null) return formatTimeSpan(s.t_start_ms, s.t_end_ms);
     const r = pageRange(s.page_start, s.page_end);
     if (!r) return '';
     return 'one' in r ? t('doc.page_one', { n: r.one }) : t('doc.page_range', { from: r.from, to: r.to });

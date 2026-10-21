@@ -324,6 +324,13 @@ pub enum Command {
         #[command(subcommand)]
         command: ConversationCommand,
     },
+    /// Knowledge bases (local RAG): create, list, delete, add and remove sources, index (only
+    /// what changed), rebuild, ask with cited excerpts (needs the `conversations` scope).
+    #[command(visible_alias = "knowledge")]
+    Kb {
+        #[command(subcommand)]
+        command: KbCommand,
+    },
     /// Start a coding agent (Claude Code, Codex, OpenCode, Aider, Goose) on a Harness model.
     Launch(LaunchArgs),
     /// Import from other tools.
@@ -598,6 +605,104 @@ pub enum LoraCommand {
         id: u32,
         /// New scale (the GUI offers 0 to 2).
         scale: f64,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum KbCommand {
+    /// List knowledge bases.
+    Ls,
+    /// Create an empty knowledge base.
+    Create {
+        name: String,
+        /// Folder whose files are indexed (scanned again on every run).
+        #[arg(long)]
+        folder: Option<String>,
+        /// OCR model (alias) for scanned PDF pages and images.
+        #[arg(long)]
+        ocr: Option<String>,
+        /// Speech-recognition model (alias) for audio and video.
+        #[arg(long)]
+        asr: Option<String>,
+        /// Rerank model (alias) that reorders the best excerpts.
+        #[arg(long)]
+        rerank: Option<String>,
+    },
+    /// Show a knowledge base: state, counts, the last run's time, CPU, memory, disk, latency.
+    Show {
+        /// Id or name.
+        kb: String,
+        /// Embedding model in use now (a base built with another one shows as stale).
+        #[arg(long)]
+        embed_model: Option<String>,
+    },
+    /// List the documents of a knowledge base.
+    Docs { kb: String },
+    /// Change the name, folder or models (an empty value clears a model; `--rerank ""` = off).
+    Set {
+        kb: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        folder: Option<String>,
+        #[arg(long)]
+        ocr: Option<String>,
+        #[arg(long)]
+        asr: Option<String>,
+        #[arg(long)]
+        rerank: Option<String>,
+    },
+    /// Delete a knowledge base with its index (the source files stay).
+    Rm { kb: String },
+    /// Add a folder (--folder) or files and index what is new (needs a running instance with
+    /// the gateway on).
+    Add {
+        kb: String,
+        /// Files to add.
+        paths: Vec<String>,
+        #[arg(long)]
+        folder: Option<String>,
+        /// Only add the sources; index later with `harness kb index`.
+        #[arg(long)]
+        no_index: bool,
+        /// Embedding model (alias); default: the base's, else the recommended one.
+        #[arg(long)]
+        embed_model: Option<String>,
+        /// Wait for the run to end.
+        #[arg(long)]
+        wait: bool,
+    },
+    /// Remove documents by id, name or source path.
+    Remove { kb: String, sources: Vec<String> },
+    /// Index: add new files, read changed files again, drop vanished ones; --rebuild reads
+    /// and embeds everything again.
+    Index {
+        kb: String,
+        #[arg(long)]
+        rebuild: bool,
+        #[arg(long)]
+        embed_model: Option<String>,
+        /// Wait for the run to end and print the result.
+        #[arg(long)]
+        wait: bool,
+    },
+    /// Stop a running index run.
+    Cancel { kb: String },
+    /// Ask a knowledge base: the best excerpts with citations (document, page or time span).
+    Query {
+        kb: String,
+        question: String,
+        /// Excerpts to return.
+        #[arg(long, short = 'k', default_value_t = 5)]
+        top_k: usize,
+        #[arg(long)]
+        embed_model: Option<String>,
+        /// Rerank model (alias) for this question; default: the base's own.
+        #[arg(long)]
+        rerank: Option<String>,
+        /// Skip the base's rerank step.
+        #[arg(long)]
+        no_rerank: bool,
     },
 }
 
