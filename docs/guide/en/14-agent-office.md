@@ -5,7 +5,7 @@ Agent Office is an Advanced page under **Agents**. It gives your agents, task ru
 ## Create an Office
 
 1. Switch to **Advanced** and open **Agents > Agent Office**.
-2. Choose **New Office**. Pick **Small**, **Medium** or **Large** for a 16 ? 12, 24 ? 16 or 32 ? 20 grid.
+2. Choose **New Office**. Pick **Small**, **Medium** or **Large** for a 16 × 12, 24 × 16 or 32 × 20 grid.
 3. Enter departments, one per line. Assign agents and projects to rooms.
 4. Choose **Classic**, **Pixel Art** or **Night** and finish the wizard.
 5. Press **Save**. The office name can be changed above the scene.
