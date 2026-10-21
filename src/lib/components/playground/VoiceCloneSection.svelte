@@ -9,9 +9,11 @@
   import VoiceConsentCheckbox from '../common/VoiceConsentCheckbox.svelte';
   import { MAX_SAMPLE_BYTES, MAX_SAMPLE_SECONDS, SAMPLE_RATE } from './voiceClone';
   import { formatBytes } from '#lib/format.js';
+  import { Button } from '#lib/components/ui/button/index.js';
+  import { security } from '#lib/stores/security.svelte.js';
 
-  let { file = $bindable(null), consent = $bindable(false), text = $bindable(''), needsText = false, busy = false }: {
-    file?: File | null; consent?: boolean; text?: string; needsText?: boolean; busy?: boolean;
+  let { file = $bindable(null), consent = $bindable(false), text = $bindable(''), needsText = false, busy = false, engineOff = false }: {
+    file?: File | null; consent?: boolean; text?: string; needsText?: boolean; busy?: boolean; engineOff?: boolean;
   } = $props();
   let recState = $state<'idle' | 'starting' | 'recording'>('idle');
   let tooBig = $derived(!!file && file.size > MAX_SAMPLE_BYTES);
@@ -22,6 +24,12 @@
     <h4 id="tts-clone-title" class="text-sm font-semibold text-foreground">{t('voice.title')}</h4>
     <p class="text-xs text-muted-foreground">{t('voice.desc', { seconds: MAX_SAMPLE_SECONDS, size: formatBytes(MAX_SAMPLE_BYTES) })}</p>
   </div>
+  {#if engineOff}
+    <div class="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 px-3 py-2 text-xs text-warning" role="status">
+      <span class="min-w-0 flex-1">{t('voice.engine_disabled')} {t('audio_cpp.needs_engine')}</span>
+      <Button type="button" variant="outline" size="xs" onclick={() => security.openSettings('runtime-installed')}>{t('audio_cpp.enable')}</Button>
+    </div>
+  {/if}
   <div class="flex flex-col gap-1.5">
     <Label for="tts-clone-file" class="text-sm font-semibold text-foreground">{t('voice.sample_label')}</Label>
     <AudioFilePicker

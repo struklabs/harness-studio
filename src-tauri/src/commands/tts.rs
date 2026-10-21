@@ -202,7 +202,7 @@ pub(crate) async fn get_tts_overview() -> Result<TtsOverview, String> {
                 id: path.to_string_lossy().into_owned(),
                 name: def.alias.clone(),
                 supports_speed: audio_cpp::supports_speed(&family),
-                voice_cloning: false,
+                voice_cloning: audio_cpp::supports_cloning(&family),
                 family,
                 engine: AUDIO_CPP.into(),
                 runtime_installed: audio_ready,

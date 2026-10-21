@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { canClone, cloneBlocker, cloneFields, cloneNeedsText, voiceRefOf, MAX_SAMPLE_BYTES } from '../src/lib/components/playground/voiceClone.ts';
+import { canClone, engineDisabled, cloneBlocker, cloneFields, cloneNeedsText, voiceRefOf, MAX_SAMPLE_BYTES } from '../src/lib/components/playground/voiceClone.ts';
 
 // tts.ts imports its neighbours without the `.ts` extension, as Vite allows.
 registerHooks({ resolve(specifier, context, next) {
@@ -72,4 +72,13 @@ test('the request carries the base64 sample, the transcript and consent', async 
     voice_ref_text: 'hello',
   });
   assert.equal('voice_ref_text' in cloneFields({ data: 'AA==', text: '' }), false);
+});
+
+test('an audio.cpp model needs the experimental engine switched on', () => {
+  const rows = [{ name: 'a', engine: 'audio.cpp', voice_cloning: true }, { name: 'm', engine: 'mlx-audio' }, { name: 's' }];
+  assert.equal(engineDisabled(rows, 'a', false), true);
+  assert.equal(engineDisabled(rows, 'a', true), false);
+  assert.equal(engineDisabled(rows, 'm', false), false);
+  assert.equal(engineDisabled(rows, 's', false), false);
+  assert.equal(engineDisabled(rows, 'missing', false), false);
 });
