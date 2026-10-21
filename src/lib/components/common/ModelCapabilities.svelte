@@ -3,6 +3,7 @@
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import { taskSupportStore } from '../hub/taskSupport.svelte';
+  import { engineLabel } from '#lib/engines.js';
   let { record, caps, task }: { record?: Partial<ModelRecord> | null; caps?: ModelCaps; task?: string | null } = $props();
   const kinds = ['chat', 'vision', 'audio', 'image_generation', 'asr', 'tts', 'video', 'embedding', 'rerank', 'tools'] as const;
   $effect(() => { void taskSupportStore.load(); });
@@ -30,5 +31,6 @@
   {#if blocked}<span class="text-destructive">{t('w4.unsupported')}</span>{/if}
   {#if experimental}<span class="text-warning">{t('w4.experimental')}</span>{/if}
   {#if record?.compatibility?.status === 'needs_runtime'}<span class="text-warning">{t('w4.needs_runtime')}</span>{/if}
+  {#if record?.runtime === 'python-hf' && has('chat')}<span class="text-muted-foreground" title={t('w4.source')}>{engineLabel('python-hf')}</span>{/if}
   {#if uiLevel.advanced && record?.runtime}<span class="text-muted-foreground">{record.runtime} · {t('w4.source')}</span>{/if}
 </div>

@@ -156,6 +156,8 @@ Only WAV is accepted: up to 32 MiB, 10 minutes, and two channels. Some models ne
 
 ## Generate Images
 
+Safetensors chat and vision models that run on the Python engine appear in the model picker like any other chat model, with **Python (Transformers)** shown as their engine. Chats stream, tool calls work when the model's chat template supports tools, and vision models accept pictures. The first message loads the model, which takes a while on a CPU.
+
 The **Image Generation** tab generates pictures from diffusion models through stable-diffusion.cpp or the Python engine (diffusers). Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it), or use one that is already in your folders: it appears in the **Model** list on its own, and **Open in Playground** on its library card opens this tab with it selected. If the list stays empty although the file is there, some of its extra files are missing; the tab says so and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; an empty **Seed** chooses a random seed on each request, while the other empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
 
 For image-to-image, add an optional **Start Image** and set **Strength** (how much it changes). Models that only edit images require a start image. Python diffusers models also open in this tab.
