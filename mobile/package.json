@@ -1,0 +1,14 @@
+{
+  "name": "harness-studio-mobile",
+  "version": "0.1.2",
+  "description": "Harness Studio mobile client (Tauri 2). Uses the desktop's node_modules; install at the repository root.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cd .. && svelte-kit sync && cd mobile && vite dev",
+    "build": "cd .. && svelte-kit sync && cd mobile && vite build",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "node --test tests/*.test.ts",
+    "tauri": "tauri"
+  }
+}

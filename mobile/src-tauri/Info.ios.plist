@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- A Harness at home is reached over the local network; iOS asks once with this text. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Harness Mobile connects to Harness Studio running on a computer on your network.</string>
+</dict>
+</plist>

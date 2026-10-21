@@ -144,6 +144,11 @@ jobs:
       - name: Frontend tests
         run: npm run test:text-tool-calls
 
+      - name: Mobile client (type check and tests)
+        run: |
+          npm run mobile:check
+          npm run mobile:test
+
   # Rust workspace: rustfmt, clippy and tests. The crates depend on harness-core (and
   # harness-onnx through it), so any crate change checks the whole workspace. Pull requests
   # use Linux only; pushes to main and scheduled runs use all three operating systems.
