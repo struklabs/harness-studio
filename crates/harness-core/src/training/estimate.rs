@@ -35,6 +35,9 @@ pub struct ModelShape {
     pub layers: u64,
     pub intermediate: u64,
     pub vocab: u64,
+    /// Bits of an MLX-quantized base (`quantization.bits`): its weights stay that small while
+    /// MLX trains on it.
+    pub quant_bits: Option<u32>,
 }
 
 pub fn model_shape(dir: &Path) -> Result<ModelShape, String> {
@@ -64,8 +67,23 @@ pub fn model_shape(dir: &Path) -> Result<ModelShape, String> {
         .or_else(|| cfg.get("dtype"))
         .and_then(Value::as_str)
         .unwrap_or("float32");
-    let bytes_per_param = if dtype.contains("32") { 4 } else { 2 };
-    let from_files = file_bytes / bytes_per_param;
+    let quant = cfg.get("quantization");
+    let quant_bits = quant
+        .and_then(|q| q.get("bits"))
+        .and_then(Value::as_u64)
+        .map(|b| b as u32);
+    let from_files = match quant_bits {
+        // A scale and a bias (16 bits each) per group ride along with the packed weights.
+        Some(bits) => {
+            let group = quant
+                .and_then(|q| q.get("group_size"))
+                .and_then(Value::as_u64)
+                .unwrap_or(64)
+                .max(1) as f64;
+            (file_bytes as f64 * 8.0 / (f64::from(bits) + 32.0 / group)) as u64
+        }
+        None => file_bytes / if dtype.contains("32") { 4 } else { 2 },
+    };
     // Without weight files (a hub stub) fall back to the architecture.
     let from_arch = layers * (4 * hidden * hidden + 3 * hidden * intermediate) + vocab * hidden;
     let params = if from_files > 0 {
@@ -84,13 +102,17 @@ pub fn model_shape(dir: &Path) -> Result<ModelShape, String> {
         layers,
         intermediate,
         vocab,
+        quant_bits,
     })
 }
 
-/// Free memory of the device the job trains on.
+/// Free memory of the device the job trains on. MLX gets the unified-memory budget the job
+/// scheduler admits a load against (it waits for other models to unload); the free RAM of
+/// the moment is often a few hundred MB on a busy Mac.
 pub fn available_bytes(device: Device) -> u64 {
     match device {
         Device::Cuda => crate::jobs::available_memory().free,
+        Device::Mlx => crate::jobs::available_memory().capacity,
         Device::Cpu | Device::Mps => crate::hardware::detect_hardware().available_ram_bytes,
     }
 }
@@ -143,10 +165,13 @@ pub fn estimate_with(
     let batch = f64::from(batch.max(1));
     let accum = f64::from(accum.max(1));
     let params = shape.params as f64;
-    // CPU trains in fp32; CUDA and MPS in fp16; QLoRA holds the base weights in 4 bits.
-    let (weight_bytes, act_bytes) = match (method, device) {
-        (_, Device::Cpu) => (4.0, 4.0),
-        (Method::Qlora, _) => (0.56, 2.0),
+    // CPU trains in fp32; CUDA, MPS and MLX in 16 bits; QLoRA holds the base weights in 4
+    // bits, and MLX trains an already quantized base at its own bits.
+    let mlx_bits = shape.quant_bits.filter(|_| device == Device::Mlx);
+    let (weight_bytes, act_bytes) = match (method, device, mlx_bits) {
+        (_, Device::Cpu, _) => (4.0, 4.0),
+        (_, _, Some(bits)) => ((f64::from(bits) + 0.5) / 8.0, 2.0),
+        (Method::Qlora, _, _) => (0.56, 2.0),
         _ => (2.0, 2.0),
     };
     let seq = u64::from(sequence_length).min(avg_row_tokens.max(8)) as f64;
@@ -173,6 +198,7 @@ pub fn estimate_with(
         Device::Cpu => cpu_cores() as f64 * 10e9,
         Device::Cuda => 8e12,
         Device::Mps => 2.5e12,
+        Device::Mlx => 1.5e12,
     };
     let slowdown = if method == Method::Qlora { 1.5 } else { 1.0 };
     // Evaluation of the validation rows adds a share, the optimizer step a little more.
@@ -225,7 +251,7 @@ pub struct MethodSupport {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Compatibility {
     pub os: String,
-    /// Devices a job can use here (`cpu`, `cuda`, `mps`).
+    /// Devices a job can use here (`cpu`, `cuda`, `mps`, `mlx`).
     pub devices: Vec<String>,
     /// The environment answered a probe (else the CUDA and QLoRA lines are inferred).
     pub probed: bool,
@@ -241,7 +267,17 @@ pub fn hardware_devices() -> Vec<String> {
     if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
         devices.push("mps".into());
     }
+    if mlx_supported() {
+        devices.push("mlx".into());
+    }
     devices
+}
+
+/// This Mac can have the MLX engine's environment (Apple Silicon, a recent enough macOS);
+/// it is installed when a job first needs it.
+fn mlx_supported() -> bool {
+    crate::pyenv::envs::spec(crate::engine::mlx::ENV)
+        .is_some_and(|spec| crate::pyenv::envs::platform_refusal(spec).is_none())
 }
 
 fn row(method: &str, support: Support, reason: &str, params: &[(&str, String)]) -> MethodSupport {
@@ -263,13 +299,25 @@ fn billions(params: f64) -> String {
 /// The compatibility table of this machine. `probe` is the environment's own answer when the
 /// Python environment is installed.
 pub fn compatibility(probe: Option<&Probe>) -> Compatibility {
-    let devices = probe
+    compatibility_with(probe, mlx_supported())
+}
+
+/// [`compatibility`] with whether this Mac can have the MLX engine.
+fn compatibility_with(probe: Option<&Probe>, mlx_here: bool) -> Compatibility {
+    let mut devices = probe
         .map(|p| p.devices.clone())
         .unwrap_or_else(hardware_devices);
+    // The PyTorch probe does not know MLX, which has its own environment.
+    if probe.is_some() && mlx_here && !devices.iter().any(|d| d == "mlx") {
+        devices.push("mlx".into());
+    }
     let cuda = devices.iter().any(|d| d == "cuda");
+    let mlx = devices.iter().any(|d| d == "mlx");
     let mac = cfg!(target_os = "macos");
     let accel = if cuda {
         Device::Cuda
+    } else if mlx {
+        Device::Mlx
     } else if devices.iter().any(|d| d == "mps") {
         Device::Mps
     } else {
@@ -299,6 +347,12 @@ pub fn compatibility(probe: Option<&Probe>) -> Compatibility {
             "qlora",
             Support::Limited,
             "training.compat_qlora_unverified",
+            &[],
+        ),
+        (_, false) if mlx => row(
+            "qlora",
+            Support::Supported,
+            "training.compat_qlora_mlx",
             &[],
         ),
         (_, false) if mac => row(
@@ -367,6 +421,7 @@ mod tests {
             layers: 30,
             intermediate: 1536,
             vocab: 49152,
+            quant_bits: None,
         }
     }
 
@@ -379,6 +434,39 @@ mod tests {
         assert!(gpu.seconds_per_step < cpu.seconds_per_step);
         let q = estimate(&small(), Method::Qlora, Device::Cuda, 8, 512, 10, 200, 1, 1);
         assert!(q.memory_bytes < gpu.memory_bytes);
+    }
+
+    /// An MLX 4-bit folder: the parameters come from the packed bits (scales and biases
+    /// included), and MLX trains it at that size; a PyTorch device would load it in 16 bits.
+    #[test]
+    fn mlx_quantized_base_reads_its_bits_and_trains_small() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("config.json"),
+            r#"{"hidden_size":64,"num_hidden_layers":2,"vocab_size":100,"quantization":{"group_size":64,"bits":4}}"#,
+        )
+        .unwrap();
+        std::fs::write(dir.path().join("model.safetensors"), vec![0u8; 4500]).unwrap();
+        let s = model_shape(dir.path()).unwrap();
+        assert_eq!((s.quant_bits, s.params), (Some(4), 8000));
+        let seven_b = ModelShape {
+            params: 7_000_000_000,
+            hidden: 4096,
+            layers: 32,
+            intermediate: 11008,
+            vocab: 32_000,
+            quant_bits: Some(4),
+        };
+        let mlx = estimate(&seven_b, Method::Lora, Device::Mlx, 8, 512, 10, 200, 1, 1);
+        let mps = estimate(&seven_b, Method::Lora, Device::Mps, 8, 512, 10, 200, 1, 1);
+        assert!(mlx.memory_bytes * 2 < mps.memory_bytes);
+        let full = ModelShape {
+            quant_bits: None,
+            ..seven_b
+        };
+        let qlora = estimate(&full, Method::Qlora, Device::Mlx, 8, 512, 10, 200, 1, 1);
+        let lora = estimate(&full, Method::Lora, Device::Mlx, 8, 512, 10, 200, 1, 1);
+        assert!(qlora.memory_bytes * 2 < lora.memory_bytes);
     }
 
     #[test]
@@ -402,7 +490,7 @@ mod tests {
             qlora: false,
             qlora_reason: "bitsandbytes_unavailable".into(),
         };
-        let c = compatibility(Some(&broken));
+        let c = compatibility_with(Some(&broken), false);
         let q = c.methods.iter().find(|m| m.method == "qlora").unwrap();
         assert_eq!(q.support, Support::Unsupported);
         let cpu_only = Probe {
@@ -410,10 +498,27 @@ mod tests {
             qlora: false,
             qlora_reason: "cuda_required".into(),
         };
-        let c = compatibility(Some(&cpu_only));
+        let c = compatibility_with(Some(&cpu_only), false);
         assert!(c.probed);
         let q = c.methods.iter().find(|m| m.method == "qlora").unwrap();
         assert_eq!(q.support, Support::Unsupported);
         assert_eq!(c.methods.len(), 5);
+    }
+
+    /// On an Apple Silicon Mac the PyTorch probe reports `mps`; MLX joins it and trains QLoRA.
+    #[test]
+    fn mlx_joins_the_probe_and_trains_qlora() {
+        let mac = Probe {
+            devices: vec!["cpu".into(), "mps".into()],
+            qlora: false,
+            qlora_reason: "cuda_required".into(),
+        };
+        let c = compatibility_with(Some(&mac), true);
+        assert_eq!(c.devices, ["cpu", "mps", "mlx"]);
+        let q = c.methods.iter().find(|m| m.method == "qlora").unwrap();
+        assert_eq!(
+            (q.support, q.reason.as_str()),
+            (Support::Supported, "training.compat_qlora_mlx")
+        );
     }
 }

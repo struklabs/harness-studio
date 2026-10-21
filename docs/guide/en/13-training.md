@@ -9,6 +9,7 @@
 - Switch to the **Advanced** interface level, then open **Training**.
 - The first time, press **Install Training Environment**. It adds PyTorch, transformers, peft, trl and datasets to the managed Python environment (about 1.5 GB on CPU, about 3 GB with CUDA). Nothing else on your computer is changed.
 - The base model must be a Hugging Face folder (safetensors with a `config.json`) inside one of your model folders. GGUF files cannot be trained.
+- On an Apple Silicon Mac, jobs train with **MLX** by default (mlx-lm on the GPU). MLX needs none of the PyTorch environment: the first MLX job installs the MLX engine itself if it is missing. It trains MLX model folders (also 4-bit ones such as `mlx-community/...-4bit`) and Hugging Face folders of the architectures mlx-lm supports. **Apple Silicon (MPS)** stays available as the PyTorch device.
 
 ## Dataset format
 
@@ -38,7 +39,7 @@ A switch at the top selects **Simple** or **Advanced** mode (remembered). Simple
 1. **Base model:** pick from the library (search by name; size and architecture shown), or type a folder path. You can also paste a recipe copied from an earlier run to start from its settings.
 2. **Dataset:** as above.
 3. **Method** (Advanced only): **Automatic** (recommended), **LoRA** or **QLoRA**. Methods this machine or the training engine cannot run (full fine-tuning, DPO) are listed with the reason instead of being offered.
-4. **Settings:** three hardware-aware presets, **Light**, **Balanced** (recommended) and **Quality**. They are computed from the model, your dataset and the memory free on the training device (VRAM on a GPU, RAM on a CPU or Apple Silicon): method, sequence length (never longer than your data needs), LoRA rank, batch size and gradient accumulation, steps, and the memory and time estimate with a fits / tight / will-not-fit verdict. Advanced mode adds steps, learning rate, sequence length, rank, alpha, dropout, batch size, gradient accumulation, warm-up, learning-rate schedule, weight decay and checkpoint/evaluation intervals.
+4. **Settings:** three hardware-aware presets, **Light**, **Balanced** (recommended) and **Quality**. They are computed from the model, your dataset and the memory free on the training device (VRAM on a GPU, RAM on a CPU or with MPS, the unified-memory budget with MLX): method, sequence length (never longer than your data needs), LoRA rank, batch size and gradient accumulation, steps, and the memory and time estimate with a fits / tight / will-not-fit verdict. Advanced mode adds steps, learning rate, sequence length, rank, alpha, dropout, batch size, gradient accumulation, warm-up, learning-rate schedule, weight decay and checkpoint/evaluation intervals.
 5. **Review:** name the model (a name is suggested from the model and dataset, checked live against other runs and the model library; it is the name the finished model has in the Library), see the memory and time estimate, and copy the run's **recipe** (JSON) to reproduce or share it.
 
 **Create and Start** queues the job (and installs the training engine first when it is missing, without asking); **Save as Draft** keeps it for later. A run can be **renamed** at any time from the job list, and **Copy Recipe** and the run's settings are on every job.
@@ -60,7 +61,9 @@ Tick **Also convert to GGUF** and choose **Q4_K_M**, **Q5_K_M**, **Q8_0**, or **
 
 Install the managed llama.cpp engine in **Settings** first. Export automatically installs any missing conversion scripts and Python dependencies in Harness's removable conversion environment, matched to that engine's release. The finished GGUF appears in `<name>-GGUF/`; select it in the Library and load it with llama.cpp, or run `harness load <path-to-gguf>`. It can also be served through the gateway like other Library models. If GGUF conversion fails, export shows a failure and keeps the merged safetensors folder so it can still be used.
 
-Choose **Export LoRA adapter only** to copy `adapter_model.safetensors` and `adapter_config.json` without merging or copying base weights. With GGUF enabled, Harness also attempts an F16 GGUF LoRA adapter in the export's `gguf/` subfolder. Support depends on the architecture and llama.cpp release; an unsupported conversion leaves the safetensors adapter and a warning. An adapter is not a standalone model: use the exact base model and attach the GGUF adapter through the model's LoRA settings (or `harness lora`). The export includes provenance in `harness-training.json`, including the base model path and dataset licence. Keep or distribute the base model separately according to its licence.
+An MLX job's merged export is an MLX model folder (a 4-bit base stays 4-bit), which the MLX engine loads. With **Also convert to GGUF**, it is written in full precision first so llama.cpp's converter can read it.
+
+Choose **Export LoRA adapter only** to copy `adapter_model.safetensors` (MLX: `adapters.safetensors`) and `adapter_config.json` without merging or copying base weights. An MLX adapter cannot become a GGUF: llama.cpp's LoRA converter reads PEFT adapters, so export shows a warning and keeps the MLX adapter. With GGUF enabled, Harness also attempts an F16 GGUF LoRA adapter in the export's `gguf/` subfolder. Support depends on the architecture and llama.cpp release; an unsupported conversion leaves the safetensors adapter and a warning. An adapter is not a standalone model: use the exact base model and attach the GGUF adapter through the model's LoRA settings (or `harness lora`). The export includes provenance in `harness-training.json`, including the base model path and dataset licence. Keep or distribute the base model separately according to its licence.
 
 ## Training CLI
 
@@ -99,8 +102,8 @@ The **Method Compatibility** card tells you, for this computer, what works and w
 
 | Method | What it is | Here |
 | --- | --- | --- |
-| LoRA | Trains small adapter matrices; the base model stays frozen | Works on CPU, CUDA and MPS. On CPU it is slow and only small models fit. |
-| QLoRA | LoRA on a 4-bit base model (bitsandbytes) | NVIDIA with CUDA only. Not on macOS, AMD or CPU. The card shows the cause when bitsandbytes does not load. |
+| LoRA | Trains small adapter matrices; the base model stays frozen | Works on CPU, CUDA, MPS and MLX. On CPU it is slow and only small models fit. With MLX a 4-bit MLX model trains at its 4 bits. |
+| QLoRA | LoRA on a 4-bit base model | NVIDIA with CUDA (bitsandbytes), or MLX on Apple Silicon (a full-precision model is quantized to 4 bits for training). Not with MPS, AMD or CPU. The card shows the cause when bitsandbytes does not load. |
 | SFT | Supervised fine-tuning on prompt and answer pairs | The objective every job uses. |
 | DPO | Preference tuning from chosen/rejected pairs | Not offered yet; needs a preference dataset and a reference model. |
 | Full fine-tuning | Updates every weight | Not offered. It needs about 16 bytes per parameter (weights, gradients, Adam state), far more than LoRA. |

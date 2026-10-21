@@ -1,6 +1,7 @@
 //! Running one training job: wait for the training slot and the GPU scheduler, start the
 //! worker, turn its `HS_METRIC` lines into the job's loss history, and end the job as done,
-//! failed or cancelled.
+//! failed or cancelled. PyTorch devices run `training_worker.py` in the Python engine's
+//! environment; MLX runs `mlx_training_worker.py` in the MLX engine's, with the same protocol.
 
 use super::{update, Device, Metric, Probe, TrainingStatus};
 use crate::error_key::err;
@@ -13,20 +14,33 @@ use std::sync::Arc;
 use std::time::Duration;
 
 const WORKER: &str = include_str!("../../python/training_worker.py");
+const MLX_WORKER: &str = include_str!("../../python/mlx_training_worker.py");
 const CANCELLED: &str = "training.cancelled";
 /// A cancelled worker gets this long to save its checkpoint before it is killed.
 const GRACE: Duration = Duration::from_secs(90);
 
-/// The worker script, written next to the environment (rewritten when this version's differs).
-pub(super) fn worker_script() -> Result<PathBuf, String> {
-    let spec = crate::engine::python_hf::env();
-    let dir = crate::pyenv::envs::env_dir_in(&crate::pyenv::envs::root(), spec.name);
-    let path = dir.join("training_worker.py");
-    if std::fs::read_to_string(&path).ok().as_deref() == Some(WORKER) {
+/// The worker script of a device, written next to its environment (rewritten when this
+/// version's differs).
+pub(super) fn worker_script(device: Device) -> Result<PathBuf, String> {
+    let (env, name, script) = match device {
+        Device::Mlx => (
+            crate::engine::mlx::ENV,
+            "mlx_training_worker.py",
+            MLX_WORKER,
+        ),
+        _ => (
+            crate::engine::python_hf::env().name,
+            "training_worker.py",
+            WORKER,
+        ),
+    };
+    let dir = crate::pyenv::envs::env_dir_in(&crate::pyenv::envs::root(), env);
+    let path = dir.join(name);
+    if std::fs::read_to_string(&path).ok().as_deref() == Some(script) {
         return Ok(path);
     }
     std::fs::create_dir_all(&dir)
-        .and_then(|_| std::fs::write(&path, WORKER))
+        .and_then(|_| std::fs::write(&path, script))
         .map_err(|e| {
             String::from(
                 err("fs.write_failed")
@@ -48,11 +62,15 @@ pub(super) fn worker_env() -> Vec<(&'static str, std::ffi::OsString)> {
 }
 
 pub(super) fn worker_command(
+    device: Device,
     args: &[&std::ffi::OsStr],
     cwd: &Path,
 ) -> Result<tokio::process::Command, String> {
-    let python = crate::engine::python_hf::binary()?;
-    let script = worker_script()?;
+    let python = match device {
+        Device::Mlx => crate::engine::mlx::binary()?,
+        _ => crate::engine::python_hf::binary()?,
+    };
+    let script = worker_script(device)?;
     let mut cmd = tokio::process::Command::new(python);
     cmd.arg(script)
         .args(args)
@@ -64,7 +82,7 @@ pub(super) fn worker_command(
 /// `devices` and QLoRA support of the environment; `None` when it is not installed or fails.
 pub(super) async fn run_probe() -> Option<Probe> {
     let cwd = std::env::temp_dir();
-    let cmd = worker_command(&["--probe".as_ref()], &cwd).ok()?;
+    let cmd = worker_command(Device::Cpu, &["--probe".as_ref()], &cwd).ok()?;
     let mut last = None;
     let cancel = Arc::new(AtomicBool::new(false));
     let outcome = tokio::time::timeout(
@@ -85,6 +103,14 @@ pub(super) async fn run_probe() -> Option<Probe> {
 
 // --- checkpoints and metrics -------------------------------------------------------------------
 
+/// Adapter weights in a folder: PEFT's `adapter_model.safetensors` or mlx-lm's
+/// `adapters.safetensors`.
+pub(super) const ADAPTER_FILES: [&str; 2] = ["adapter_model.safetensors", "adapters.safetensors"];
+
+pub(super) fn has_adapter(dir: &Path) -> bool {
+    ADAPTER_FILES.iter().any(|f| dir.join(f).is_file())
+}
+
 /// Step of the newest complete checkpoint of a job folder: `trainer_state.json` is written
 /// last, so a checkpoint that was cut off by a kill has none and is never resumed from.
 pub(super) fn latest_checkpoint(dir: &Path) -> Option<u32> {
@@ -95,11 +121,32 @@ pub(super) fn latest_checkpoint(dir: &Path) -> Option<u32> {
             let name = e.file_name().to_string_lossy().to_string();
             let step: u32 = name.strip_prefix("checkpoint-")?.parse().ok()?;
             let p = e.path();
-            (p.join("trainer_state.json").is_file()
-                && p.join("adapter_model.safetensors").is_file())
-            .then_some(step)
+            (p.join("trainer_state.json").is_file() && has_adapter(&p)).then_some(step)
         })
         .max()
+}
+
+/// The MLX engine's environment, installed now when it is missing (as any engine a request
+/// needs); its install log goes to the job's log.
+async fn ensure_mlx(dir: &Path) -> Result<(), String> {
+    if crate::engine::mlx::binary().is_ok() {
+        return Ok(());
+    }
+    let spec = crate::pyenv::envs::spec(crate::engine::mlx::ENV)
+        .ok_or_else(|| String::from(err("mlx.unsupported_platform")))?;
+    if let Some(refusal) = crate::pyenv::envs::platform_refusal(spec) {
+        return Err(refusal);
+    }
+    use std::io::Write;
+    if let Ok(mut log) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(dir.join("train.log"))
+    {
+        let _ = writeln!(log, "Installing the MLX engine...");
+    }
+    crate::pyenv::envs::install(spec.name).await?;
+    crate::engine::mlx::binary().map(|_| ())
 }
 
 pub(super) fn read_metrics(path: &Path) -> Vec<Metric> {
@@ -179,7 +226,12 @@ async fn run(
         _ = until_set(soft) => return Err(CANCELLED.into()),
     };
     cancelled()?;
-    let gpu_bytes = if job.config.device == Device::Cuda {
+    if job.config.device == Device::Mlx {
+        // Not raced against a cancel: an install stopped halfway would be redone from scratch.
+        ensure_mlx(&dir).await?;
+        cancelled()?;
+    }
+    let gpu_bytes = if job.config.device.holds_gpu_memory() {
         job.estimate.memory_bytes
     } else {
         0
@@ -200,7 +252,7 @@ async fn run(
     if resume {
         args.push("--resume".as_ref());
     }
-    let cmd = worker_command(&args, &dir)?;
+    let cmd = worker_command(job.config.device, &args, &dir)?;
     update(id, |j| {
         j.status = TrainingStatus::Running;
         j.started_at.get_or_insert(crate::capabilities::now_secs());

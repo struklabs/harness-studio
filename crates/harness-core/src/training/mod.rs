@@ -38,7 +38,7 @@ use std::time::{Duration, Instant};
 #[cfg_attr(feature = "openapi", schema(as = TrainingMethod))]
 pub enum Method {
     Lora,
-    /// LoRA on a 4-bit base model (bitsandbytes, CUDA only).
+    /// LoRA on a 4-bit base model (bitsandbytes on CUDA; MLX quantizes the base itself).
     Qlora,
 }
 
@@ -49,7 +49,10 @@ pub enum Method {
 pub enum Device {
     Cpu,
     Cuda,
+    /// PyTorch on Apple Silicon's GPU.
     Mps,
+    /// mlx-lm on Apple Silicon (the MLX engine's environment, its own worker).
+    Mlx,
 }
 
 impl Device {
@@ -58,7 +61,18 @@ impl Device {
             Device::Cpu => "cpu",
             Device::Cuda => "cuda",
             Device::Mps => "mps",
+            Device::Mlx => "mlx",
         }
+    }
+
+    /// QLoRA trains here: bitsandbytes on CUDA, a quantized base model on MLX.
+    pub fn trains_quantized(self) -> bool {
+        matches!(self, Device::Cuda | Device::Mlx)
+    }
+
+    /// The job holds GPU memory the job scheduler accounts for (unified memory on MLX).
+    pub fn holds_gpu_memory(self) -> bool {
+        matches!(self, Device::Cuda | Device::Mlx)
     }
 }
 
@@ -391,17 +405,18 @@ fn resolve_model(model: &str) -> Result<PathBuf, String> {
     Ok(model)
 }
 
-/// The requested device, or the best one this machine has (CUDA, then MPS, then CPU).
+/// The requested device, or the best one this machine has (CUDA, then MLX, MPS, CPU).
 fn resolve_device(requested: Option<Device>) -> Result<Device, String> {
     let devices = estimate::hardware_devices();
-    let device = requested.unwrap_or_else(|| {
-        if devices.iter().any(|d| d == "cuda") {
-            Device::Cuda
-        } else if devices.iter().any(|d| d == "mps") {
-            Device::Mps
-        } else {
-            Device::Cpu
-        }
+    let has = |d: &str| devices.iter().any(|x| x == d);
+    let device = requested.unwrap_or(if has("cuda") {
+        Device::Cuda
+    } else if has("mlx") {
+        Device::Mlx
+    } else if has("mps") {
+        Device::Mps
+    } else {
+        Device::Cpu
     });
     if !devices.iter().any(|d| d == device.as_str()) {
         return Err(err("training.device_unavailable")
@@ -416,7 +431,7 @@ pub fn build_config(req: &CreateRequest) -> Result<TrainingConfig, String> {
     let model = resolve_model(&req.model)?;
     let device = resolve_device(req.device)?;
     let method = req.method.unwrap_or(Method::Lora);
-    if method == Method::Qlora && device != Device::Cuda {
+    if method == Method::Qlora && !device.trains_quantized() {
         return Err(err("training.qlora_needs_cuda").into());
     }
     let steps = req.steps.unwrap_or(100);
@@ -741,8 +756,13 @@ pub async fn install_env() -> Result<crate::pyenv::envs::EnvStatus, String> {
     crate::pyenv::envs::install(name).await
 }
 
-fn ensure_env() -> Result<(), String> {
-    crate::engine::python_hf::binary().map(|_| ())
+/// The worker's environment is there. MLX's is installed by the run itself when it is missing
+/// (a missing engine installs without asking).
+fn ensure_env(device: Device) -> Result<(), String> {
+    match device {
+        Device::Mlx => Ok(()),
+        _ => crate::engine::python_hf::binary().map(|_| ()),
+    }
 }
 
 // --- lifecycle ---------------------------------------------------------------------------------
@@ -753,13 +773,13 @@ fn not_found(id: u64) -> String {
 
 fn queue(id: u64, resume: bool) -> Result<TrainingJob, String> {
     let _admission = LIFECYCLE.lock().unwrap();
-    ensure_env()?;
     {
         let mut jobs = store().lock().unwrap();
         let e = jobs
             .iter_mut()
             .find(|e| e.job.id == id)
             .ok_or_else(|| not_found(id))?;
+        ensure_env(e.job.config.device)?;
         let ok = if resume {
             matches!(
                 e.job.status,

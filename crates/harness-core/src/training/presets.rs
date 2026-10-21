@@ -160,7 +160,7 @@ fn candidates(
         (128, 4, 1),
     ];
     let mut methods = vec![Method::Lora];
-    if qlora && device == Device::Cuda {
+    if qlora && device.trains_quantized() {
         methods.push(Method::Qlora);
     }
     if let Some(m) = force {
@@ -359,7 +359,7 @@ pub async fn presets(req: &PresetRequest) -> Result<PresetSet, String> {
         .methods
         .iter()
         .any(|m| m.method == "qlora" && m.support != estimate::Support::Unsupported);
-    if req.method == Some(Method::Qlora) && !(qlora && device == Device::Cuda) {
+    if req.method == Some(Method::Qlora) && !(qlora && device.trains_quantized()) {
         return Err(crate::error_key::err("training.qlora_needs_cuda").into());
     }
     let available = estimate::available_bytes(device);
@@ -384,6 +384,7 @@ mod tests {
             layers: 24,
             intermediate: 4864,
             vocab: 151_000,
+            quant_bits: None,
         }
     }
 
@@ -394,6 +395,7 @@ mod tests {
             layers: 32,
             intermediate: 11008,
             vocab: 32_000,
+            quant_bits: None,
         }
     }
 
@@ -449,11 +451,15 @@ mod tests {
     }
 
     #[test]
-    fn qlora_is_never_offered_off_cuda() {
+    fn qlora_is_offered_only_where_it_trains() {
         for device in [Device::Cpu, Device::Mps] {
             let set = choose(&seven_b(), device, 16 * GB, &data(), true, None);
             assert!(set.iter().all(|p| p.method == Method::Lora));
         }
+        // MLX quantizes the base itself: a 7B fits an 8 GB Mac's budget only that way.
+        let set = choose(&seven_b(), Device::Mlx, 5 * GB, &data(), true, None);
+        assert_eq!(set[0].method, Method::Qlora);
+        assert!(set.iter().all(|p| p.device == Device::Mlx));
     }
 
     #[test]
