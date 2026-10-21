@@ -112,7 +112,7 @@ const tr = {
   'runtime.quant_unsupported': 'Seçili model motoru bu modelin kuant türünü yükleyemez',
   'runtime.bad_repo': 'Geçersiz GitHub deposu',
   'runtime.no_release': 'Uygun sürüm arşivi bulunamadı',
-  'runtime.whisper_no_macos': 'whisper.cpp macOS için sunucu arşivi yayınlamıyor (yalnız xcframework). whisper-server’ı kendiniz derleyip "Yerel Klasör Ekle" ile ekleyin.',
+  'runtime.whisper_no_macos': 'whisper.cpp macOS için sunucu arşivi yayınlamıyor ve Homebrew’un whisper-cpp paketinde whisper-server yok. Bir MLX Whisper ya da sherpa-onnx konuşma tanıma modeli kullanın ya da whisper-server’ı derleyip (komutlar Playground’un konuşma tanıma ekranında) "Yerel Klasör Ekle" ile ekleyin.',
   'runtime.github_error': 'GitHub’a ulaşılamadı',
 };
 
@@ -225,7 +225,7 @@ const en: Record<keyof typeof tr, string> = {
   'runtime.quant_unsupported': 'The selected runtime can’t load this model’s quant type',
   'runtime.bad_repo': 'Invalid GitHub repository',
   'runtime.no_release': 'No matching release archive found',
-  'runtime.whisper_no_macos': 'whisper.cpp publishes no server build for macOS (only an xcframework). Build whisper-server yourself and add it with "Add local folder".',
+  'runtime.whisper_no_macos': 'whisper.cpp publishes no server build for macOS, and Homebrew’s whisper-cpp has no whisper-server. Use an MLX Whisper or sherpa-onnx speech-to-text model, or build whisper-server (the commands are on the Playground’s speech-to-text screen) and add it with "Add local folder".',
   'runtime.github_error': 'Could not reach GitHub',
 };
 

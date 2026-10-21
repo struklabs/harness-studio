@@ -152,6 +152,9 @@ pub struct DeletePreview {
     /// Linked from Ollama / LM Studio: only the link can be removed, never the file.
     pub linked: bool,
     pub files: Vec<FileEntry>,
+    /// Companion files (VAE, text encoders) only this model's definitions use; deleted with it
+    /// on request.
+    pub companions: Vec<FileEntry>,
     pub definitions: Vec<DefinitionUse>,
     /// Profiles serving one of those definitions.
     pub profiles: Vec<crate::domain::store::ProfileRef>,
@@ -187,10 +190,69 @@ pub fn definitions_using(model: &LocalModel, defs: &[ModelDefinition]) -> Vec<De
     out
 }
 
+/// Files a definition reads: its base, draft, projector, adapters and image companions.
+fn files_of(d: &ModelDefinition) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = d
+        .base
+        .local_path()
+        .map(Path::to_path_buf)
+        .into_iter()
+        .collect();
+    out.extend(d.draft.as_ref().map(|x| x.model.clone()));
+    out.extend(d.mmproj.clone());
+    out.extend(d.adapters.iter().map(|a| a.path.clone()));
+    out.extend(
+        crate::engine::sd_component_files(&d.load)
+            .into_iter()
+            .map(|(_, p)| p),
+    );
+    out
+}
+
+/// The companion files (VAE, text encoders) the definitions based on `model` name, that no other
+/// definition uses and that are in a library folder: an image model's own, deletable with it.
+pub fn companions_of(
+    model: &LocalModel,
+    defs: &[ModelDefinition],
+    roots: &[PathBuf],
+) -> Vec<FileEntry> {
+    let files: HashSet<String> = model.shard_paths.iter().map(|p| norm(p)).collect();
+    let own = |d: &&ModelDefinition| {
+        d.base
+            .local_path()
+            .is_some_and(|p| files.contains(&norm(p)))
+    };
+    let elsewhere: HashSet<String> = defs
+        .iter()
+        .filter(|d| !own(d))
+        .flat_map(files_of)
+        .map(|p| norm(&p))
+        .collect();
+    let mut seen = HashSet::new();
+    defs.iter()
+        .filter(own)
+        .flat_map(|d| crate::engine::sd_component_files(&d.load))
+        .map(|(_, p)| p)
+        .filter(|p| {
+            let key = norm(p);
+            !files.contains(&key)
+                && !elsewhere.contains(&key)
+                && seen.insert(key)
+                && p.is_file()
+                && roots.iter().any(|r| crate::paths::is_within(p, r))
+        })
+        .map(|p| FileEntry {
+            size_bytes: std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0),
+            path: p,
+        })
+        .collect()
+}
+
 pub fn delete_preview(
     model: &LocalModel,
     defs: &[ModelDefinition],
     profiles: &[ServerProfile],
+    roots: &[PathBuf],
     running_on: Vec<String>,
 ) -> DeletePreview {
     let definitions = definitions_using(model, defs);
@@ -207,6 +269,11 @@ pub fn delete_preview(
                 path: p.clone(),
             })
             .collect(),
+        companions: if model.origin == ModelOrigin::Linked || model.source.is_some() {
+            Vec::new()
+        } else {
+            companions_of(model, defs, roots)
+        },
         profiles: profiles
             .iter()
             .filter(|p| p.id != crate::servers::DEFAULT_SERVER_ID)
@@ -285,17 +352,33 @@ pub struct DeleteReport {
     pub definition_errors: Vec<String>,
 }
 
-/// Deletes the files (see [`delete_files`]), optionally the definitions based on them, and
-/// forgets the model's library state. The caller checks [`servers_using`] first and holds
-/// the model's write lease.
+/// Deletes the files (see [`delete_files`]), optionally its own companions ([`companions_of`])
+/// and the definitions based on them, and forgets the model's library state. The caller checks
+/// [`servers_using`] first and holds the model's write lease.
 pub fn delete_model(
     model: &LocalModel,
     roots: &[PathBuf],
     domain: &crate::domain::store::Domain,
     delete_definitions: bool,
+    delete_companions: bool,
     db: Option<&crate::state::StateDb>,
 ) -> Result<DeleteReport, String> {
-    let files = delete_files(model, roots)?;
+    let companions = if delete_companions {
+        companions_of(model, &domain.definitions()?, roots)
+    } else {
+        Vec::new()
+    };
+    let mut files = delete_files(model, roots)?;
+    for c in companions {
+        std::fs::remove_file(&c.path).map_err(|e| {
+            String::from(
+                err("fs.remove_failed")
+                    .with("path", c.path.display())
+                    .with("error", e),
+            )
+        })?;
+        files.push(c.path);
+    }
     let mut report = DeleteReport {
         files,
         ..Default::default()

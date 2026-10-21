@@ -166,6 +166,9 @@ pub struct DeleteModelQuery {
     /// Also delete the model definitions based on this file.
     #[serde(default)]
     pub delete_definitions: bool,
+    /// Also delete its companion files (VAE, text encoders) that no other definition uses.
+    #[serde(default)]
+    pub delete_companions: bool,
 }
 
 /// Same rules as the library screen: refused while a server uses one of its files
@@ -184,6 +187,7 @@ pub async fn delete_model(
         &s.ctx.gate,
         id,
         q.delete_definitions,
+        q.delete_companions,
     )
     .await?;
     Ok(Json(report))

@@ -35,6 +35,10 @@ test('resources name the engine, where it runs and the estimate; remote and clou
   const local = studioResources(image, 'sdxl', file('image', '/m/sdxl.safetensors', 2000 * MB));
   assert.deepEqual([local.engine, local.location, local.sizeBytes], ['stable-diffusion.cpp', 'local', 2000 * MB]);
   assert.equal(local.memoryBytes, Math.round(2000 * MB * 1.3));
+  // A definition's companions (Wan's umt5 and VAE) load with it and count toward the estimate.
+  const wan = studioResources(studioById('video'), 'wan', file('image', '/m/wan.gguf', 1000 * MB), { companionBytes: 3000 * MB });
+  assert.equal(wan.sizeBytes, 4000 * MB);
+  assert.ok(wan.memoryBytes > 4000 * MB);
   const remote = studioResources(image, 'remote:box/sdxl', undefined);
   assert.deepEqual([remote.location, remote.engine, remote.memoryBytes], ['remote', null, null]);
   assert.equal(studioResources(image, 'cloud:x/y', undefined).location, 'cloud');

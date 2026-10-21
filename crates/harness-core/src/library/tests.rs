@@ -630,7 +630,7 @@ fn delete_removes_every_part_definitions_on_request_and_state() {
     let other = domain.save_definition(other).unwrap();
     let defs = domain.definitions().unwrap();
 
-    let preview = ops::delete_preview(&model, &defs, &[], vec![]);
+    let preview = ops::delete_preview(&model, &defs, &[], std::slice::from_ref(&lib), vec![]);
     assert!(!preview.linked);
     assert_eq!(preview.files.len(), 2);
     assert_eq!(preview.files.iter().map(|f| f.size_bytes).sum::<u64>(), 40);
@@ -645,8 +645,15 @@ fn delete_removes_every_part_definitions_on_request_and_state() {
     let db = StateDb::open(&dir.path().join("state.db")).unwrap();
     db.set_model_favorite(&state_key(&model.path), true)
         .unwrap();
-    let report =
-        ops::delete_model(&model, std::slice::from_ref(&lib), &domain, true, Some(&db)).unwrap();
+    let report = ops::delete_model(
+        &model,
+        std::slice::from_ref(&lib),
+        &domain,
+        true,
+        false,
+        Some(&db),
+    )
+    .unwrap();
     assert_eq!(report.files.len(), 2);
     assert!(model.shard_paths.iter().all(|p| !p.exists()));
     assert!(keep.exists());
@@ -655,6 +662,52 @@ fn delete_removes_every_part_definitions_on_request_and_state() {
     // A definition that only drafts with it stays (it will show the file as missing).
     assert!(domain.definition(&other.id).is_ok());
     assert!(db.model_state(&state_key(&model.path)).unwrap().is_none());
+}
+
+#[test]
+fn delete_takes_the_companions_only_its_own_definitions_use() {
+    use crate::params::ParamValue;
+    let dir = tempfile::tempdir().unwrap();
+    let lib = dir.path().join("lib");
+    let main = lib.join("o/wan/wan-Q4_K_M.gguf");
+    write_gguf(&main, 16, 4);
+    let other = lib.join("o/other/other-Q4_K_M.gguf");
+    write_gguf(&other, 16, 5);
+    let vae = lib.join("o/wan/wan_vae.safetensors");
+    let t5 = lib.join("o/umt5/umt5-Q3_K_S.gguf");
+    let outside = dir.path().join("elsewhere/clip_l.safetensors");
+    for f in [&vae, &t5, &outside] {
+        fs::create_dir_all(f.parent().unwrap()).unwrap();
+        fs::write(f, b"x").unwrap();
+    }
+    let model = local(&main, &lib);
+    let domain = crate::domain::store::Domain::at(dir.path().join("config"));
+    let text = |p: &std::path::Path| ParamValue::Text(p.to_string_lossy().into());
+    let mut wan = ModelDefinition::new("wan", ModelRef::Local { path: main.clone() });
+    wan.load.insert("vae".into(), text(&vae));
+    wan.load.insert("t5xxl".into(), text(&t5));
+    wan.load.insert("clip_l".into(), text(&outside));
+    domain.save_definition(wan).unwrap();
+    // Another model shares the text encoder: it stays.
+    let mut shared = ModelDefinition::new(
+        "other",
+        ModelRef::Local {
+            path: other.clone(),
+        },
+    );
+    shared.load.insert("t5xxl".into(), text(&t5));
+    domain.save_definition(shared).unwrap();
+    let defs = domain.definitions().unwrap();
+
+    let roots = std::slice::from_ref(&lib);
+    let preview = ops::delete_preview(&model, &defs, &[], roots, vec![]);
+    let companions: Vec<_> = preview.companions.iter().map(|c| c.path.clone()).collect();
+    assert_eq!(companions, vec![vae.clone()]);
+
+    let report = ops::delete_model(&model, roots, &domain, true, true, None).unwrap();
+    assert!(report.files.contains(&vae));
+    assert!(!main.exists() && !vae.exists());
+    assert!(t5.exists() && outside.exists() && other.exists());
 }
 
 #[test]

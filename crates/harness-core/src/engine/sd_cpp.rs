@@ -291,6 +291,14 @@ pub const IMAGE_ARCHS: &[&str] = &[
     "chroma",
 ];
 
+/// The [`IMAGE_ARCHS`] that generate video (`POST /v1/videos` through sd-server).
+pub const VIDEO_ARCHS: &[&str] = &["wan", "ltxv", "hyvid", "cosmos"];
+
+/// Whether a GGUF `general.architecture` names a video generator.
+pub fn is_video_arch(arch: &str) -> bool {
+    VIDEO_ARCHS.contains(&arch)
+}
+
 /// Whether a GGUF `general.architecture` names an image generator.
 pub fn is_image_arch(arch: &str) -> bool {
     IMAGE_ARCHS.contains(&arch)

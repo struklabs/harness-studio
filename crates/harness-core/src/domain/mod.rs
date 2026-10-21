@@ -114,6 +114,11 @@ pub fn detect_kind(meta: Option<&GgufMetadata>) -> ModelKind {
     {
         return ModelKind::Image;
     }
+    // An encoder-only text encoder (Wan's umt5-xxl, FLUX's t5xxl) is a diffusion model's
+    // companion, read by stable-diffusion.cpp: it generates no text, so it is no chat model.
+    if m.architecture.as_deref() == Some("t5encoder") {
+        return ModelKind::Unknown;
+    }
     if m.is_mmproj
         || general_type == Some("mmproj")
         || m.architecture.as_deref() == Some("clip")
@@ -469,6 +474,16 @@ pub(crate) fn new_id(prefix: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn text_encoder_ggufs_are_no_chat_models() {
+        let meta = |arch: &str| crate::gguf::GgufMetadata {
+            architecture: Some(arch.into()),
+            ..Default::default()
+        };
+        assert_eq!(detect_kind(Some(&meta("t5encoder"))), ModelKind::Unknown);
+        assert_eq!(detect_kind(Some(&meta("qwen3"))), ModelKind::Llm);
+    }
 
     #[test]
     fn alias_validation() {

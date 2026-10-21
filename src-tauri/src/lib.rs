@@ -549,6 +549,7 @@ pub fn run() {
             get_model_definition,
             save_model_definition,
             delete_model_definition,
+            definition_companion_bytes,
             duplicate_model_definition,
             list_inference_presets,
             get_inference_preset,

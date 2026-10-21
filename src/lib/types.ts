@@ -2189,6 +2189,8 @@ export interface DeletePreview {
   name: string;
   linked: boolean;
   files: { path: string; size_bytes: number }[];
+  /** Companion files (VAE, text encoders) only this model's definitions use. */
+  companions?: { path: string; size_bytes: number }[];
   definitions: { id: string; alias: string; role: UseRole }[];
   profiles: { id: string; name: string }[];
   running_on: string[];

@@ -17,6 +17,7 @@
   import { Label } from '#lib/components/ui/label/index.js';
   import { formatBytes } from '#lib/format.js';
   import { isMac } from '#lib/platform.js';
+
   import { holdReleaseWhile } from '#lib/windowActivity.js';
   import { AudioLines, Compass, Copy, LoaderCircle, MessageSquarePlus, Power, TriangleAlert } from '@lucide/svelte';
   import { Progress } from '#lib/components/ui/progress/index.js';
@@ -30,6 +31,14 @@
   import { asr } from './asr.svelte';
   import { tts } from './tts.svelte';
   import { library } from '#lib/stores/library.svelte.js';
+
+  /** Building whisper.cpp's server on a Mac (Homebrew's whisper-cpp has none); Metal is on by default. */
+  const WHISPER_SERVER_BUILD = [
+    'git clone https://github.com/ggml-org/whisper.cpp',
+    'cd whisper.cpp',
+    'cmake -B build -DWHISPER_BUILD_SERVER=ON',
+    'cmake --build build -j --config Release --target whisper-server',
+  ].join('\n');
 
   /** Speech definitions and llama.cpp chat models that hear: the gateway loads the selected model on
    *  the first request (JIT). */
@@ -173,7 +182,10 @@
          a self-built whisper-server is added as a local runtime. -->
     <div class="flex items-start gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-xs text-foreground" role="note">
       <TriangleAlert class="mt-px size-4 shrink-0 text-info" aria-hidden="true" />
-      <span class="min-w-0 flex-1">{t('asr.macos_note')}</span>
+      <span class="flex min-w-0 flex-1 flex-col gap-1.5">
+        <span>{t('asr.macos_note')}</span>
+        <pre class="overflow-x-auto rounded bg-muted px-2 py-1.5 font-mono text-xs select-all" aria-label={t('asr.macos_build_label')}>{WHISPER_SERVER_BUILD}</pre>
+      </span>
     </div>
   {/if}
   {#if !app.gatewayRunning}

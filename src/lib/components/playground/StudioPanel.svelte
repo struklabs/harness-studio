@@ -4,6 +4,7 @@
   // the Agents module, so no screen is built twice. The strip under the switcher shows what
   // the studio calls and what it costs: API, streaming, engine, where it runs, memory.
   import { t } from '#lib/i18n.svelte.js';
+  import { invoke } from '#lib/ipc.js';
   import { app } from '#lib/stores/app.svelte.js';
   import { domain } from '#lib/stores/domain.svelte.js';
   import { library } from '#lib/stores/library.svelte.js';
@@ -36,7 +37,18 @@
   let spec = $derived(studioById(studio) ?? STUDIOS[0]);
   let frames = $state(9);
   let size = $state('256x256');
-  let resources = $derived(studioResources(spec, model, (() => { const def = domain.definitions.find(d => d.alias === model); return def ? definitionFile(def, library.models) : undefined; })(), { frames, size }));
+  let definition = $derived(domain.definitions.find(d => d.alias === model));
+  /** The definition's VAE and text encoders, loaded with its model (sizes come from disk). */
+  let companionBytes = $state(0);
+  $effect(() => {
+    const id = definition?.id;
+    companionBytes = 0;
+    if (!id) return;
+    let live = true;
+    invoke<number>('definition_companion_bytes', { id }).then((n) => { if (live) companionBytes = n; }).catch(() => {});
+    return () => { live = false; };
+  });
+  let resources = $derived(studioResources(spec, model, definition ? definitionFile(definition, library.models) : undefined, { frames, size, companionBytes }));
   let chatStudio = $derived(spec.mode === 'chat');
 
   function openChat() {

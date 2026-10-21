@@ -983,6 +983,7 @@ pub async fn delete_library_model(
     gate: &OperationGate,
     model_id: String,
     delete_definitions: bool,
+    delete_companions: bool,
 ) -> Result<crate::library::ops::DeleteReport, String> {
     let _model_lease = gate.model_write(std::path::Path::new(&model_id)).await;
     let model = find_model(model_id).await?;
@@ -997,6 +998,7 @@ pub async fn delete_library_model(
             &AppSettings::load().all_models_dirs(),
             &crate::domain::store::Domain::global(),
             delete_definitions,
+            delete_companions,
             db.as_deref(),
         )
     })

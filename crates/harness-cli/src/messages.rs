@@ -220,7 +220,7 @@ pub fn base(code: &str) -> Option<&'static str> {
         "runtime.quant_unsupported" => "The selected runtime can’t load this model’s quant type",
         "runtime.bad_repo" => "Invalid GitHub repository",
         "runtime.no_release" => "No matching release archive found",
-        "runtime.whisper_no_macos" => "whisper.cpp publishes no server build for macOS (only an xcframework). Build whisper-server yourself and add it with \"Add local folder\".",
+        "runtime.whisper_no_macos" => "whisper.cpp publishes no server build for macOS, and Homebrew’s whisper-cpp has no whisper-server. Use an MLX Whisper or sherpa-onnx speech-to-text model, or build whisper-server (the commands are on the Playground’s speech-to-text screen) and add it with \"Add local folder\".",
         "runtime.github_error" => "Could not reach GitHub",
         "servers.port_in_use" => "Port in use",
         "servers.alias_in_use" => "The --alias in the custom arguments is already served by another running server; pick a different name",
