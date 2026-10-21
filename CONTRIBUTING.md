@@ -91,6 +91,10 @@ Put proposed user-facing changelog lines in the PR body; do not edit [docs/CHANG
 
 Harness Studio is released under the [MIT License](LICENSE). By submitting a contribution you confirm that you have the right to submit it and agree that it is licensed under the same terms. No Contributor License Agreement (CLA) is required. A [Developer Certificate of Origin](https://developercertificate.org/) sign-off (`git commit -s`) is welcome but optional.
 
+### Modules, adapters, and engines
+
+New engines, tool adapters, and modules are contributed upstream as pull requests to this repository, not as long-lived forks, so they are built and tested on every platform and get the security review described in [docs/en/SECURITY_MODEL.md](docs/en/SECURITY_MODEL.md). Open an issue or a discussion first. Official registry content (tools and skills) lives in the `struklabs/harness-registry` repository; send registry changes there. The module manifest is versioned (`sdk/module-manifest.v1.schema.json`). The wider picture, including SDK packages and community listings, is in [Open Source, Contributions, and Community Content](docs/guide/en/14-open-source-and-community.md).
+
 ## Pull request process
 
 1. Fork the repository and create a branch from `main` (for example `fix/gateway-timeout`).
@@ -110,7 +114,7 @@ Configure `main` with: pull request required, at least one approving review (cod
 
 ### CI
 
-`.github/workflows/ci.yml` runs only the jobs that match the changed paths: on pull requests on Linux, on pushes to `main` and weekly with the Rust job on Windows, Linux and macOS (type check, locale parity, frontend build and tests, `rustfmt`, `clippy`, tests, SDK, registry fixtures, `cargo audit`). The `ci-ok` job reports the overall result. It needs **no secrets**, uses read-only permissions, and pull requests from forks run without access to any secret.
+`.github/workflows/ci.yml` runs only the jobs that match the changed paths: on pull requests on Linux, on pushes to `main` and weekly with the Rust job on Windows, Linux and macOS (type check, locale parity, frontend build and tests, `rustfmt`, `clippy`, tests, SDK, registry fixtures, `cargo audit`). The `ci-ok` job reports the overall result. The **Dogfood** workflow (`.github/workflows/dogfood.yml`) is not part of pull request CI: it runs weekly, on pushes to `release/**` branches, for release tags, and by hand. It starts a headless `harness serve` on a throwaway data directory with a tiny GGUF and checks the API version header, one chat, one tool call, a skill install and listing, and a registry tool install (about 10 minutes, `node sdk/test-server.mjs -- node scripts/dogfood.mjs` locally). It needs **no secrets**, uses read-only permissions, and pull requests from forks run without access to any secret.
 
 ### Releases
 
