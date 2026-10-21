@@ -293,7 +293,7 @@
 
   {#if needFamily}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
-      <EngineNeeded family={needFamily} onInstalled={() => (needFamily = null)} />
+      <EngineNeeded family={needFamily} auto onInstalled={() => { needFamily = null; void run(); }} />
     </div>
   {:else if error}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">

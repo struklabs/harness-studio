@@ -118,6 +118,9 @@
   }
 
   /** Enlarges a picture with the chosen super-resolution model; the result joins the gallery. */
+  /** What to run again once an automatically installed engine is ready. */
+  let retryAction: (() => void) | null = null;
+
   async function upscale(item: ImageResult, label: string) {
     if (busy || upscaling || !form.upscaleModel || !app.gatewayRunning) return;
     controller?.abort();
@@ -143,6 +146,7 @@
       if (!c.signal.aborted) {
         const msg = e instanceof Error ? e.message : String(e);
         needFamily = familyFromError(msg);
+        retryAction = () => void upscale(item, label);
         error = needFamily ? '' : msg;
       }
     } finally {
@@ -219,6 +223,7 @@
         const msg = e instanceof Error ? e.message : String(e);
         // The gateway passes the load failure through as raw keys; say what is missing instead.
         needFamily = familyFromError(msg);
+        retryAction = () => void run();
         error = needFamily ? '' : msg;
       }
     } finally {
@@ -468,7 +473,7 @@
 
   {#if needFamily}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
-      <EngineNeeded family={needFamily} onInstalled={() => (needFamily = null)} />
+      <EngineNeeded family={needFamily} auto onInstalled={() => { needFamily = null; const again = retryAction; retryAction = null; again?.(); }} />
     </div>
   {:else if error}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">

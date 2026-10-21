@@ -39,7 +39,7 @@ Model yüklenmezse [bellek kurtarma adımlarına](03-dashboard-ve-sunucular.md#b
 | --- | --- |
 | Model | Yapay zekânın öğrendiklerini taşıyan dosya. Buradaki modellerin çoğu GGUF dosyasıdır, ancak Harness Studio isteğe bağlı motorlarla başka biçimleri de (ONNX, Whisper, difüzyon modelleri vb.) çalıştırır. |
 | Kuant | Model sayısal değerlerinin daha derli toplu saklanarak dosyanın daha az yer kaplaması. Daha küçük bir kuant (Q4) kaliteden küçük bir ödünle daha az bellek kullanır. |
-| Model motoru (runtime) | Modeli gerçekten çalıştıran program. Sohbet için llama.cpp'dir. Harness Studio onu sizin için indirir ve günceller. İsteğe bağlı motorlar konuşma, görsel üretimi, ONNX ve daha fazlasını ekler. |
+| Model motoru | Modeli gerçekten çalıştıran program. Sohbet için llama.cpp'dir. Harness Studio onu sizin için indirir ve günceller. İsteğe bağlı motorlar konuşma, görsel üretimi, ONNX ve daha fazlasını ekler. |
 | Sunucu | Bir modelin yüklü olduğu ve istek beklediği çalışan süreç. Dashboard'dan başlatılır. |
 | Ağ geçidi (gateway) | Birkaç modeli tek adresten sunan ve gerektiğinde yükleyen isteğe bağlı katman. Varsayılan olarak kapalıdır. |
 | Bağlam | Modelin aynı anda aklında tutabildiği metin miktarı (token cinsinden). Daha büyük bağlam daha çok bellek ister. |

@@ -14,6 +14,7 @@
   import { onnxUnsupportedText } from '#lib/engines.js';
   import { app } from '#lib/stores/app.svelte.js';
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
+  import { autoInstallFamily } from '#lib/engineAuto.js';
   import { downloads } from '#lib/stores/downloads.svelte.js';
   import { isRepoFolder, library, normPath, repoRelative } from '#lib/stores/library.svelte.js';
   import type { FitResult, HardwareFitResult, HfAccess, HfModelSearchResult, HfModelVariant, ImageBundlePlan, LocalModel, ModelArtifactUpdate, SystemHardwareInfo } from '#lib/types.js';
@@ -331,6 +332,10 @@
     try {
       await downloads.enqueueVariant(id, variant);
       toast.success(t('hub.announce_queued', { name: variant.name }));
+      // The engine this model runs on is installed together with the download: no question
+      // asked. The notice above the list shows the progress and, if it fails, the error with a retry.
+      const engine = repo ? autoInstallFamily(repo.compatibility, engineInstall) : null;
+      if (engine) void engineInstall.install(engine);
       // An image model of the curated list brings its VAE and text encoders with it.
       const file = variant.shards[0]?.filename;
       if (isImageRepo && file && variant.quantization !== 'component') {

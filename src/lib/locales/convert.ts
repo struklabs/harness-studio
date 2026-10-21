@@ -54,7 +54,7 @@ const tr = {
   'cvt.env_title': 'GGUF Dönüştürme Ortamı',
   'cvt.env_hint': 'Safetensors modellerini GGUF’a çeviren resmî dönüştürücü Python ister. Harness bunu yalnızca dönüştürme anında, kendi kurduğu geçici bir ortamda çalıştırır (uv, Python, torch CPU, transformers); sistem Python’una dokunmaz ve modelleri çalıştırmak Python gerektirmez. Ortam, modelin çalıştığı llama.cpp sürümüne göre kurulur ve burada silinebilir. uv: MIT/Apache-2.0, Python: PSF, PyTorch: BSD-3, Transformers: Apache-2.0.',
   'cvt.env_ready': 'Hazır · llama.cpp {tag} · {python}',
-  'cvt.env_stale': 'llama.cpp {tag} için kurulu; çalışma motoru {runtime}. Sonraki dönüştürmede yeniden kurulur.',
+  'cvt.env_stale': 'llama.cpp {tag} için kurulu; model motoru {runtime}. Sonraki dönüştürmede yeniden kurulur.',
   'cvt.env_missing': 'Kurulu değil (yaklaşık {size}).',
   'cvt.env_unsupported': 'Bu platformda dönüştürme ortamı yok.',
   'cvt.env_no_runtime': 'Önce resmî llama.cpp model motoru kurulmalı.',

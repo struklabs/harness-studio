@@ -122,7 +122,7 @@ Model Hub’da **Donanımıma Uygun**, yüklenen sonuçları tahmini sığmaya g
 ### Gelişmiş Kullanım (Komut Satırı ve API)
 
 - **Aynı anda birden çok sunucu:** profiller, otomatik portlar, bellek tahminleri, canlı telemetri ve açık hata yönlendirmesi (bellek yetmezliği, eksik kütüphane, port çakışması).
-- **llama.cpp üzerinde tam denetim:** bağlam, GPU katmanları, KV önbellek türü, slot sayısı, örnekleme ve daha fazlası; ayrıca SHA-256 doğrulamalı motorlardan oluşan bir çalışma zamanı kaydı ve sunucu başına motor seçimi. [CLI başvurusuna](docs/tr/CLI.md) bakın.
+- **llama.cpp üzerinde tam denetim:** bağlam, GPU katmanları, KV önbellek türü, slot sayısı, örnekleme ve daha fazlası; ayrıca SHA-256 doğrulamalı motorlardan oluşan bir motor kaydı ve sunucu başına motor seçimi. [CLI başvurusuna](docs/tr/CLI.md) bakın.
 - **Gözlemlenebilirlik:** karşılaştırmalı testler (benchmark), istek analitiği (P50/P95 gecikme, token, hata, istemci bazında), araç çağrısı teşhisi, aranabilir günlükler, Prometheus `/metrics` ve isteğe bağlı OpenTelemetry dışa aktarımı.
 - **CLI, Control API ve başsız kip:** `harness` komutu, OpenAPI şemalı yetkilendirmeli Control API ve pencere olmadan çalıştıran `harness serve`. Hepsi uygulamayla aynı Rust kodunu kullanır.
 - **Daha fazla motor:** whisper.cpp, sherpa-onnx, ONNX Runtime, CrispASR, deneysel audio.cpp (varsayılan olarak kapalı), stable-diffusion.cpp, Python (`python-hf`, CPU/CUDA; transformers ve diffusers), MLX (sohbet, görüntü, ses; Apple Silicon, macOS 14+), Lemonade ve mistral.rs. Safetensors modelleri Hub üzerinden GGUF biçimine dönüştürülebilir.

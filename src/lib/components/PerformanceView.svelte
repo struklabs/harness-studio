@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import * as Empty from '#lib/components/ui/empty/index.js';
   import { formatBytes } from '#lib/format.js';
@@ -126,9 +127,9 @@
     if (!profile) return;
     starting = true;
     try {
-      await invoke('start_server_profile', { profileId: profile.id });
+      await engineInstall.runWithEngine(() => invoke('start_server_profile', { profileId: profile.id }));
     } catch (e) {
-      toast.error(localizeError(e));
+      toast.error(engineInstall.autoFailureText(e) ?? localizeError(e));
     } finally {
       starting = false;
       await app.refreshServer();

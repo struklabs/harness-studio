@@ -126,7 +126,16 @@ class ReadAloud {
       return;
     }
     if (!tts.overview) await tts.load();
-    const missing = tts.overview ? ttsRequirement(tts.models, tts.model, tts.overview.runtime_installed) : null;
+    let missing = tts.overview ? ttsRequirement(tts.models, tts.model, tts.overview.runtime_installed) : null;
+    // A speaker the user asked for by hand: a missing engine with a one-click install is
+    // installed first (progress toast, the failure is reported by the installer), then reading goes on.
+    if (missing && !auto && engineInstall.canInstall(missing) && engineInstall.offered(missing)) {
+      const notice = toast.loading(t('eng.auto_installing', { runtime: missing }));
+      const ok = await tts.installRuntime(missing);
+      toast.dismiss(notice);
+      if (!ok) return;
+      missing = tts.overview ? ttsRequirement(tts.models, tts.model, tts.overview.runtime_installed) : null;
+    }
     const blocker = speakBlocker(tts.models.length > 0, !missing, app.gatewayRunning);
     if (blocker) {
       if (!auto) {
