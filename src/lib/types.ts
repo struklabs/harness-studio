@@ -2619,4 +2619,4 @@ export interface N8nOpenAiConnection {
 }
 
 /** Playground-only tools do not change a model's runtime serving mode. */
-export type PlaygroundMode = ServeMode | 'ocr';
+export type PlaygroundMode = ServeMode | 'ocr' | 'studio';
