@@ -927,12 +927,13 @@ fn diffusers_pipeline(
     tags: &[String],
     files: &[String],
 ) -> bool {
-    if !matches!(task, Some("text-to-image" | "image-to-image"))
-        || !matches!(
-            library.map(str::to_ascii_lowercase).as_deref(),
-            None | Some("diffusers")
-        )
-        || tags.iter().any(|t| t.eq_ignore_ascii_case("custom_code"))
+    if !matches!(
+        task,
+        Some("text-to-image" | "image-to-image" | "text-to-video" | "image-to-video")
+    ) || !matches!(
+        library.map(str::to_ascii_lowercase).as_deref(),
+        None | Some("diffusers")
+    ) || tags.iter().any(|t| t.eq_ignore_ascii_case("custom_code"))
     {
         return false;
     }
@@ -1018,7 +1019,7 @@ mod tests {
         // Other tasks, remote code, no weights in component folders, no model_index.json.
         assert_eq!(
             verdict(Some("diffusers"), Some("text-to-video"), &[], &tiny),
-            None
+            runnable
         );
         assert_eq!(
             verdict(
@@ -1040,6 +1041,60 @@ mod tests {
         );
         assert_eq!(
             verdict(Some("diffusers"), Some("text-to-image"), &[], &tiny[1..]),
+            None
+        );
+    }
+
+    #[test]
+    fn python_video_verdicts_require_native_weights_and_no_custom_code() {
+        let runnable = Some(Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.into(),
+        });
+        for task in ["text-to-video", "image-to-video"] {
+            let files = s(&[
+                "model_index.json",
+                "transformer/diffusion_pytorch_model.safetensors",
+            ]);
+            assert_eq!(
+                python_hf_compatibility(
+                    ModelFormat::Diffusers,
+                    Some("diffusers"),
+                    Some(task),
+                    &[],
+                    &files
+                ),
+                runnable
+            );
+            assert_eq!(
+                python_hf_compatibility(
+                    ModelFormat::Diffusers,
+                    Some("diffusers"),
+                    Some(task),
+                    &s(&["custom_code"]),
+                    &files
+                ),
+                None
+            );
+        }
+        let files = s(&["config.json", "model.safetensors"]);
+        assert_eq!(
+            python_hf_compatibility(
+                ModelFormat::Safetensors,
+                Some("transformers"),
+                Some("video-text-to-text"),
+                &[],
+                &files
+            ),
+            runnable
+        );
+        assert_eq!(
+            python_hf_compatibility(
+                ModelFormat::Onnx,
+                Some("transformers"),
+                Some("video-text-to-text"),
+                &[],
+                &files
+            ),
             None
         );
     }

@@ -165,6 +165,9 @@ pub const TASKS: &[&str] = &[
     "text-to-audio",
     "text-to-image",
     "image-to-image",
+    "text-to-video",
+    "image-to-video",
+    "video-text-to-text",
 ];
 
 /// The transformers version of the environment locks (`python/hf-*.lock`); the model type lists
@@ -559,19 +562,22 @@ pub fn detect(dir: &Path) -> Option<String> {
             .and_then(|v| v.as_str())
             .map(str::to_string)?;
         if !class.ends_with("Pipeline")
-            || [
-                "Inpaint",
-                "Video",
-                "Audio",
-                "Upscale",
-                "Depth2Img",
-                "ControlNet",
-            ]
-            .iter()
-            .any(|w| class.contains(w))
+            || ["Inpaint", "Audio", "Upscale", "Depth2Img", "ControlNet"]
+                .iter()
+                .any(|w| class.contains(w))
             || weight_files(dir).is_empty()
         {
             return None;
+        }
+        if class.contains("Video") || class.starts_with("CogVideoX") || class.starts_with("LTX") {
+            return Some(
+                if class.contains("ImageToVideo") {
+                    "image-to-video"
+                } else {
+                    "text-to-video"
+                }
+                .into(),
+            );
         }
         // A pipeline that needs a start image (InstructPix2Pix, Qwen-Image-Edit, SDXL refiner).
         // FLUX.2 klein and FLUX.1 Kontext also draw from text alone: text-to-image, and the
@@ -594,6 +600,9 @@ pub fn detect(dir: &Path) -> Option<String> {
     let cfg = read_json(&dir.join("config.json"))?;
     if cfg.get("_diffusers_version").is_some() || weight_files(dir).is_empty() {
         return None;
+    }
+    if cfg.get("model_type").and_then(|v| v.as_str()) == Some("smolvlm") {
+        return Some("video-text-to-text".into());
     }
     if let Some(tag) = card_pipeline_tag(dir) {
         // A chat or generation card (text-generation, image-text-to-text...) is not ours.
@@ -696,7 +705,7 @@ pub(crate) fn library_models_in(
         &["config.json", "model_index.json"],
         |dir| {
             detect(dir)
-                .filter(|_| !has_onnx(dir))
+                .filter(|task| !has_onnx(dir) || task == "video-text-to-text")
                 .map(|task| (dir.to_path_buf(), task))
         },
         |m| m.0.clone(),
@@ -716,7 +725,7 @@ pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {
                 // A repo with an ONNX export runs on harness-onnx (its `.onnx` is listed).
                 |dir| {
                     detect(dir)
-                        .filter(|_| !has_onnx(dir))
+                        .filter(|task| !has_onnx(dir) || task == "video-text-to-text")
                         .map(|task| (dir.to_path_buf(), task))
                 },
                 |a, b| a.0 == b.0,
@@ -1347,6 +1356,9 @@ mod tests {
             ("QwenImageEditPlusPipeline", "image-to-image"),
             ("Flux2KleinPipeline", "text-to-image"),
             ("FluxKontextPipeline", "text-to-image"),
+            ("LTXPipeline", "text-to-video"),
+            ("LTXImageToVideoPipeline", "image-to-video"),
+            ("CogVideoXPipeline", "text-to-video"),
         ] {
             let dir = folder(&[
                 (
@@ -1357,6 +1369,17 @@ mod tests {
             ]);
             assert_eq!(detect(dir.path()).as_deref(), Some(task), "{class}");
         }
+    }
+
+    #[test]
+    fn video_understanding_detects_smolvlm_despite_its_image_card() {
+        let dir = folder(&[
+            ("config.json", r#"{"model_type":"smolvlm"}"#),
+            ("model.safetensors", "x"),
+            ("README.md", "---\npipeline_tag: image-text-to-text\n---\n"),
+        ]);
+        assert_eq!(detect(dir.path()).as_deref(), Some("video-text-to-text"));
+        assert_eq!(kind_of("video-text-to-text"), ModelKind::Pipeline);
     }
 
     #[test]

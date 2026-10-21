@@ -192,3 +192,29 @@ In a chat, **Thinking** controls the selected model’s thinking behavior for th
 See also the [Tools reference](../../en/TOOLS.md) and the [Features reference](../../en/FEATURES.md).
 
 Next: [Connections and the Gateway](05-connections-and-gateway.md).
+
+
+## Video Generation and Questions
+
+Python video models appear in Playground's Pipeline tab. Select a diffusers LTX-Video or
+CogVideoX folder to generate a clip from a prompt. Supply a start image for image-to-video.
+Choose MP4 or WebM, resolution, frames and steps before running. The progress indicator follows
+denoising steps; Cancel stops at the next step. Finished clips are saved to the active project's
+`outputs` folder when the project has a folder.
+
+Video diffusion needs substantial RAM and VRAM. CPU runs use float32 and can take a long time.
+Start with a short clip and a few steps, then increase quality. LTX frame counts follow its
+`8n + 1` temporal compression; the gateway rounds down to a supported count. Model-specific
+resolution constraints still apply. Download the complete diffusers folder, including its text
+encoder, tokenizer, transformer and VAE.
+
+Select a video-capable transformers model such as `HuggingFaceTB/SmolVLM2-256M-Video-Instruct`
+to ask a question about an MP4 or WebM file. Clips must be at most 32 MiB. Harness samples eight
+frames per video, so brief events between sampled frames may be missed. Video questions return
+one complete answer; streaming is not currently supported.
+
+The same features are available through `POST /v1/videos` (poll the returned job ID, fetch
+`/v1/videos/{id}/content`, or delete the job to cancel) and `POST /v1/chat/completions`.
+For video questions, use `stream: false` and a user message containing a text part and
+`{"type":"video_url","video_url":{"url":"data:video/mp4;base64,..."}}`.
+Only inline videos are accepted; the worker does not fetch remote URLs or read client paths.
