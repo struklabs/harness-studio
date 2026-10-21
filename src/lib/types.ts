@@ -2612,3 +2612,6 @@ export interface N8nOpenAiConnection {
   base_url: string | null;
   requires_token: boolean;
 }
+
+/** Playground-only tools do not change a model's runtime serving mode. */
+export type PlaygroundMode = ServeMode | 'ocr';

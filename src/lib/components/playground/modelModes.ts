@@ -1,4 +1,4 @@
-import type { LocalModel, ModelDefinition, ServeMode } from '#lib/types.js';
+import type { LocalModel, ModelDefinition, PlaygroundMode, ServeMode } from '#lib/types.js';
 import { chatModelsOnly } from '../../chatModels';
 import { DIFFUSERS_IMAGE_TASKS } from './image';
 
@@ -23,7 +23,13 @@ export function definitionMode(def: ModelDefinition, files: LocalModel[] = []): 
   return 'chat';
 }
 
-export function definitionsForMode(definitions: ModelDefinition[], mode: ServeMode, files: LocalModel[] = []): ModelDefinition[] {
+export function definitionsForMode(definitions: ModelDefinition[], mode: PlaygroundMode, files: LocalModel[] = []): ModelDefinition[] {
+  if (mode === 'ocr') return definitions.filter(def => {
+    const file = definitionFile(def, files);
+    if (['image-to-text', 'document-question-answering'].includes(file?.task ?? '')) return true;
+    const projector = files.find(f => f.path.replace(/\\/g, '/').toLowerCase() === def.mmproj?.replace(/\\/g, '/').toLowerCase());
+    return !!def.mmproj && !(projector?.gguf?.has_audio_encoder && !projector.gguf.has_vision_encoder);
+  });
   const rows = definitions.map(def => ({ def, mode: definitionMode(def, files), chat: definitionMode(def, files) === 'chat' }));
   return (mode === 'chat' ? chatModelsOnly(rows) : rows.filter(row => row.mode === mode)).map(row => row.def);
 }

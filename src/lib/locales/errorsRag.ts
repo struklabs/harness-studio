@@ -1,6 +1,9 @@
 // Backend error keys of the Playground's local RAG (harness_core::rag, state.db documents).
 // Texts are single quoted literals (the CLI compiles the English half in); {name} = parameter.
 const tr = {
+  'ocr.bad_file': 'PNG, JPEG, WebP, GIF veya PDF seçin (en fazla 20 MiB).',
+  'ocr.read_failed': 'Belge okunamadı.',
+  'ocr.copy_failed': 'Metin panoya kopyalanamadı.',
   'rag.not_a_file': 'Dosya değil: {path}',
   'rag.file_too_large': '{name} çok büyük (en fazla {max_mib} MiB).',
   'rag.unsupported_file': '{name} desteklenmiyor. PDF, DOCX, Markdown, metin ya da kaynak kodu dosyası ekleyin.',
@@ -40,6 +43,9 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'ocr.bad_file': 'Choose PNG, JPEG, WebP, GIF or PDF (up to 20 MiB).',
+  'ocr.read_failed': 'Could not read the document.',
+  'ocr.copy_failed': 'Could not copy the text to the clipboard.',
   'rag.not_a_file': 'Not a file: {path}',
   'rag.file_too_large': '{name} is too large ({max_mib} MiB at most).',
   'rag.unsupported_file': '{name} is not supported. Add a PDF, DOCX, Markdown, text or source code file.',

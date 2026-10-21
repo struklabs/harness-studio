@@ -1,0 +1,31 @@
+const tr = {
+  'ocr.tab': 'Belge Oku',
+  'ocr.pick': 'Belge Seç',
+  'ocr.drop': 'Bir Görsel veya PDF Bırakın',
+  'ocr.hint': 'En fazla 20 MiB. PDF için metin katmanı gerekir; taranmış sayfaları görsel olarak ekleyin. Görsel OCR için projektörlü bir VLM veya Python OCR modeli, sorular için VLM ya da DQA modeli seçin.',
+  'ocr.read': 'Metni Oku',
+  'ocr.question': 'Belge Hakkında Soru',
+  'ocr.ask': 'Sor',
+  'ocr.copy': 'Metni Kopyala',
+  'ocr.text': 'Belge Metni',
+  'ocr.answer': 'Yanıt',
+  'ocr.busy': 'Okunuyor…',
+  'ocr.need_model': 'Model seçiciden projektörlü bir görsel dil modeli veya OCR / belge soru-cevap modeli seçin.',
+  'ocr.need_gateway': 'Belge okumak için Ayarlar > Gateway bölümünden gateway’i başlatın.',
+};
+const en: Record<keyof typeof tr, string> = {
+  'ocr.tab': 'Read Document',
+  'ocr.pick': 'Choose Document',
+  'ocr.drop': 'Drop an Image or PDF',
+  'ocr.hint': 'Up to 20 MiB. PDFs need a text layer; attach scanned pages as images. Choose a VLM with a projector or a Python OCR model for image OCR, and a VLM or DQA model for questions.',
+  'ocr.read': 'Read Text',
+  'ocr.question': 'Question About the Document',
+  'ocr.ask': 'Ask',
+  'ocr.copy': 'Copy Text',
+  'ocr.text': 'Document Text',
+  'ocr.answer': 'Answer',
+  'ocr.busy': 'Reading…',
+  'ocr.need_model': 'Choose a vision model with a projector or an OCR / document QA model in the model picker.',
+  'ocr.need_gateway': 'Start the gateway in Settings > Gateway to read documents.',
+};
+export default { tr, en };

@@ -1023,6 +1023,37 @@ mod tests {
     }
 
     #[test]
+    fn ocr_models_keep_their_format_specific_runtime() {
+        for task in ["image-to-text", "document-question-answering"] {
+            assert_eq!(
+                hub_compatibility(ModelFormat::Gguf, Some(task)),
+                Compatibility::Runnable {
+                    runtime: LLAMA_FAMILY.into()
+                }
+            );
+        }
+        assert_eq!(
+            python_hf_compatibility(
+                ModelFormat::Safetensors,
+                Some("transformers"),
+                Some("document-question-answering"),
+                &[],
+                &s(&["config.json", "model.safetensors"]),
+                None
+            ),
+            Some(Compatibility::Runnable {
+                runtime: PYTHON_HF_FAMILY.into()
+            })
+        );
+        assert_eq!(
+            hub_compatibility(ModelFormat::Gguf, Some("object-detection")),
+            Compatibility::Unsupported {
+                format: ModelFormat::Gguf
+            }
+        );
+    }
+
+    #[test]
     fn ct2_whisper_goes_to_the_python_engine_and_other_ct2_repos_stay_refused() {
         let asr = Some("automatic-speech-recognition");
         let files = s(&[

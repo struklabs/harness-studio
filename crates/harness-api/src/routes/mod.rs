@@ -300,10 +300,13 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(tools::run_tool))
 }
 
+mod gateway_docs;
+
 fn split() -> (Router<AppState>, utoipa::openapi::OpenApi) {
     let (router, mut doc) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .nest(BASE_PATH, api_routes())
         .split_for_parts();
+    gateway_docs::merge(&mut doc);
     auth_responses(&mut doc);
     (router, doc)
 }

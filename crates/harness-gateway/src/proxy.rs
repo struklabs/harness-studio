@@ -380,7 +380,8 @@ async fn run(
     response_id: Option<&str>,
     guard: &mut RecordGuard,
 ) -> Result<Response, GatewayError> {
-    let caller = crate::auth::check(state, headers, api.anthropic(), endpoint_of(api))?;
+    let endpoint = GatewayEndpoint::of_path(&guard.get().endpoint).unwrap_or(endpoint_of(api));
+    let caller = crate::auth::check(state, headers, api.anthropic(), endpoint)?;
     guard.get().client = ClientInfo::new(
         header_str(headers, "user-agent"),
         header_str(headers, "x-harness-client"),

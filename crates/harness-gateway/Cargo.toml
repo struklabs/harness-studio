@@ -24,6 +24,7 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 http-body = "1"
 http-body-util = "0.1"
 sha2 = "0.11"
+tempfile = "3"
 
 [features]
 # OTLP/gRPC export (harness-core `otel-grpc`); off in the default builds. Runs the gRPC test

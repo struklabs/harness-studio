@@ -195,6 +195,22 @@ See also the [Tools reference](../../en/TOOLS.md) and the [Features reference](.
 
 Next: [Connections and the Gateway](05-connections-and-gateway.md).
 
+## Read Document
+
+Choose **Read Document** and select a vision model with a multimodal projector, or an
+OCR/document QA model from your library. Start the gateway in Settings if it is off.
+Drop or choose a PNG, JPEG, WebP, GIF or PDF (up to 20 MiB), then choose **Read Text**.
+The result preserves reading order, line breaks and paragraph blocks as Markdown;
+**Copy Text** copies it to the clipboard. Enter a question and choose **Ask** to query
+the same document. You can switch models between reading and asking: Python
+`image-to-text` models transcribe; `document-question-answering` models answer questions.
+VLMs with a projector support both operations. Transcription quality depends on the model.
+
+PDFs currently use their existing text layer, extracted page by page. Scanned or mixed
+PDFs with an empty page need page images exported by your PDF application; Harness
+does not rasterize PDFs. There is a limit of 16 pages per request. A Python DQA model
+accepts one image per question; PDF questions use a VLM. LayoutLM pipelines may require
+`pytesseract` and a separately installed Tesseract executable.
 
 ## Video Generation and Questions
 
