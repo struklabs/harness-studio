@@ -123,7 +123,7 @@
   {/if}
   {#if needFamily}
     <span class="text-xs text-destructive" role="alert">
-      <EngineNeeded family={needFamily} size="sm" onInstalled={() => { needFamily = null; setup = false; }} />
+      <EngineNeeded family={needFamily} size="sm" auto onInstalled={() => { needFamily = null; setup = false; }} />
     </span>
   {:else if error}
     <span class="text-xs text-destructive" role="alert">{error}</span>

@@ -8,6 +8,7 @@
   import { app } from '#lib/stores/app.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import EngineNeeded from '../common/EngineNeeded.svelte';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { familyFromError } from '#lib/engines.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
   import { Label } from '#lib/components/ui/label/index.js';
@@ -55,7 +56,10 @@
   let supportsSpeed = $derived(ttsSupportsSpeed(tts.models, tts.model));
   let voices = $derived(voicesOf(tts.models, tts.model));
   let missingFamily = $derived(tts.overview ? ttsRequirement(tts.models, tts.model, tts.overview.runtime_installed) : null);
-  let runtimeMissing = $derived(!!missingFamily);
+  // A missing engine that has a one-click install does not block Run: Run installs it first.
+  let engineAutoInstallable = $derived(!!missingFamily && engineInstall.canInstall(missingFamily) && engineInstall.offered(missingFamily));
+  let installingEngine = $state<string | null>(null);
+  let runtimeMissing = $derived(!!missingFamily && !engineAutoInstallable);
   let cloning = $derived(canClone(tts.models, tts.model));
   let cloneTextNeeded = $derived(cloneNeedsText(tts.models, tts.model));
   let cloneStop = $derived(cloning ? cloneBlocker(cloneFile, cloneConsent, cloneTextNeeded, cloneText) : null);
@@ -84,6 +88,18 @@
     controller = c;
     busy = true;
     error = '';
+    if (missingFamily && engineAutoInstallable) {
+      const family = missingFamily;
+      installingEngine = family;
+      const ok = await tts.installRuntime(family);
+      installingEngine = null;
+      if (!ok) {
+        error = t('eng.auto_failed', { runtime: family, error: engineInstall.state(family).error ?? '' });
+        if (controller === c) controller = null;
+        busy = false;
+        return;
+      }
+    }
     // The previous audio (and its truncation notice) does not outlive a new request.
     if (result) URL.revokeObjectURL(result.url);
     result = null;
@@ -278,6 +294,10 @@
         <Button variant="ghost" size="sm" onclick={cancel}><Square />{t('speak.stop')}</Button>
       {/if}
       <div class="flex flex-wrap items-center gap-2" role="status">
+        {#if installingEngine}
+          {@const pct = engineInstall.state(installingEngine).pct}
+          <span class="text-xs text-muted-foreground">{t(pct === null ? 'eng.auto_installing' : 'eng.auto_installing_pct', { runtime: installingEngine, pct: pct ?? 0 })}</span>
+        {/if}
         {#if runHint}
           <span id="tts-run-hint" class="text-xs text-muted-foreground">{runHint}</span>
           {#if runBlocker === 'runtime'}
@@ -293,7 +313,7 @@
 
   {#if needFamily}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">
-      <EngineNeeded family={needFamily} onInstalled={() => (needFamily = null)} />
+      <EngineNeeded family={needFamily} auto onInstalled={() => { needFamily = null; void run(); }} />
     </div>
   {:else if error}
     <div class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive [overflow-wrap:anywhere]" role="alert">

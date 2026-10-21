@@ -9,6 +9,7 @@
   import { invoke } from '#lib/ipc.js';
   import { toast } from 'svelte-sonner';
   import { app } from '#lib/stores/app.svelte.js';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { t } from '#lib/i18n.svelte.js';
   import { Play, Square, ExternalLink, CircleAlert, Search, LoaderCircle, Bookmark, LifeBuoy, TimerReset, MoreHorizontal } from '@lucide/svelte';
   import { Button, buttonVariants } from '#lib/components/ui/button/index.js';
@@ -160,6 +161,15 @@
       {#if autoConfigMsg}
         <div class="text-muted-foreground" role="status">{autoConfigMsg}</div>
       {/if}
+    </div>
+  {/if}
+
+  {#if engineInstall.autoFamily}
+    {@const family = engineInstall.autoFamily}
+    {@const pct = engineInstall.state(family).pct}
+    <div class="flex items-center gap-2 rounded-md border border-info/30 bg-info/10 px-2.5 py-2 text-xs text-info" role="status">
+      <LoaderCircle class="size-3.5 shrink-0 animate-spin" />
+      <span class="min-w-0 break-words">{t(pct === null ? 'eng.auto_installing' : 'eng.auto_installing_pct', { runtime: family, pct: pct ?? 0 })}</span>
     </div>
   {/if}
 

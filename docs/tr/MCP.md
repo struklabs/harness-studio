@@ -37,7 +37,7 @@ Model yönetimi araçlarının yanında Harness'ın kendi araç motoru da MCP is
 |---|---|---|---|
 | `list_models` | read | salt okuma | Kütüphane (tür, mimari, kuant, boyut, parametre, bağlam, yetenekler), tanımlar (alias), yüklü olduğu sunucular, süren indirmeler. `kind` süzgeci |
 | `get_model_info` | read | salt okuma | GGUF üst verisi, tanımlar, bellek tahmini (`context_size` için VRAM/RAM, sınıf, önerilen `-ngl`; ölçülen verilerle düzeltilmiş) |
-| `hardware_status` | read | salt okuma | CPU, RAM, GPU'lar (`--list-devices` toplam/boş VRAM), önerilen backend, runtime, çalışan sunucu sayısı |
+| `hardware_status` | read | salt okuma | CPU, RAM, GPU'lar (`--list-devices` toplam/boş VRAM), önerilen backend, model motoru, çalışan sunucu sayısı |
 | `recommend_models` | read | salt okuma | Yerel modelleri bu makinenin belleğine sığma sınıfına göre sıralar (tam GPU > sıkışık > hibrit > CPU ağırlıklı > OOM riski; sınıf içinde büyük model önce). `purpose`: chat, tools, reasoning, vision, embedding, rerank |
 | `load_model` | servers:control | yazma | Tanım yoksa dosya adından oluşturur, aynı modeli son sunmuş durmuş örneği yeniden kullanır, hazır olana kadar bekler. Başarısız başlatmada sınıflandırılmış hata (`servers.out_of_memory`...), log sonu ve OOM kurtarma seçenekleri |
 | `unload_model` | servers:control | yazma, idempotent | Modeli sunan sunucuları (ya da bir sunucuyu) durdurur |

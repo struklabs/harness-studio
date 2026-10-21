@@ -25,6 +25,7 @@
   import EngineParams from './dashboard/EngineParams.svelte';
   import { engineLabel } from '#lib/engines.js';
   import ServerActions from './dashboard/ServerActions.svelte';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import TelemetryPanel from './dashboard/TelemetryPanel.svelte';
   import EffectiveValues from './dashboard/EffectiveValues.svelte';
   import LoraLiveScales from './dashboard/LoraLiveScales.svelte';
@@ -1145,7 +1146,8 @@
       } else if (profile && sameSavedModel && !serverName.trim() && profile.name !== autoName) {
         app.setProfiles(await invoke<ServerProfile[]>('save_server_profile', { profile: { ...($state.snapshot(profile) as ServerProfile), name: autoName } }));
       }
-      await invoke('start_server', { config: buildLaunchConfig(), ...app.serverArgs() });
+      // A missing engine (model runtime) is installed here, then the start runs again.
+      await engineInstall.runWithEngine(() => invoke('start_server', { config: buildLaunchConfig(), ...app.serverArgs() }));
       registerUnsavedLoad();
       if (profile) app.unstartedProfiles.delete(profile.id);
       // A Dashboard server start saved its launch: every view shows it from now on.
@@ -1153,7 +1155,7 @@
     } catch (e: any) {
       // Network refusals (e.g. network.lan_without_key) come back as keys; the app-wide
       // "open anyway" dialog is raised by the backend event.
-      actionError = e ? localizeError(e) : t('dash.err_start_failed');
+      actionError = engineInstall.autoFailureText(e) ?? (e ? localizeError(e) : t('dash.err_start_failed'));
     } finally {
       busy = false;
     }

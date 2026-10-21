@@ -6,7 +6,7 @@
 
 1. **Sunucular** sayfasında doğru sunucunun durumunu (**Çalışıyor**, **Başlatılıyor**, **Kapalı**, **Hata**) ve adresini kontrol edin. Üstteki sunucu seçicisinde (**Kontrol edilen sunucu**) çalışmak istediğiniz sunucunun seçili olduğundan emin olun.
 2. Dashboard'daki **Sunucu Logları** alanında ilk hata satırını okuyun. Yükleniyor durumunu bağlantı hatasıyla karıştırmayın; büyük modelin yüklenmesi dakikalar sürebilir.
-3. **Ayarlar > Tanılama > Sağlık** sayfasındaki **Denetimi Çalıştır** düğmesini kullanın. Runtime, GPU kütüphanesi veya port denetiminde **Hata** ya da **Uyarı** varsa önce onu giderin.
+3. **Ayarlar > Tanılama > Sağlık** sayfasındaki **Denetimi Çalıştır** düğmesini kullanın. Model motoru, GPU kütüphanesi veya port denetiminde **Hata** ya da **Uyarı** varsa önce onu giderin.
 
 Aşağıdaki mesajlar uygulamanın Türkçe hata çevirilerinden alınmıştır. `{url}`, `{path}`, `{port}` ve benzeri alanlar ekranda gerçek değerlerle doldurulur. İşletim sistemi hata ayrıntısı farklı dilde olabilir.
 
@@ -32,7 +32,7 @@ Aşağıdaki mesajlar uygulamanın Türkçe hata çevirilerinden alınmıştır.
 | `Model GPU belleğine sığmıyor: ~{need_mib} MiB gerekiyor, birleşik bellekte GPU payı {budget_mib} MiB. Bağlamı ya da GPU katmanlarını azaltın.` | Başlatma öncesi bellek kontrolü. Önerilen kadar bağlamı veya GPU katmanını azaltın. |
 | `Ekran kartı işi durdurdu (sürücü sıfırlandı ya da GPU hatası). Sunucuyu yeniden başlatın; tekrarlarsa daha az GPU katmanı ya da başka bir sürücü sürümü deneyin.` | GPU sürücüsü işlemi yarıda kesti. Sürücüyü güncelleyin veya GPU katmanını azaltın. |
 | `Model dosyası bozuk ya da eksik (yarım kalmış indirme?). Dosyayı yeniden indirin.` | Dosya tam inmemiş ya da bozuk. Modeli yeniden indirin; parçalı modelde tüm parçaların mevcut olduğunu kontrol edin (**Kütüphanem > Onar**). |
-| `Bu llama.cpp runtime'ı "{arch}" model mimarisini desteklemiyor. Runtime'ı güncelleyin.` | Model yeni bir mimari; motor eski. **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında güncelleme denetleyin. |
+| `Bu llama.cpp model motoru "{arch}" model mimarisini desteklemiyor. Model motorunu güncelleyin.` | Model yeni bir mimari; motor eski. **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında güncelleme denetleyin. |
 | `Sunucu {seconds} sn içinde hazır olmadı. Büyük modeller için yükleme zaman aşımını artırın.` | Model zamanında yüklenemedi. **Yükleme zaman aşımı (sn)** değerini Dashboard > GPU sayfasında (o model için) veya **Ayarlar > Ağ > Dinleme** sayfasında (genel) artırın. Günlükte başka hata varsa önce onu çözün. |
 | `llama-server yüklenirken sonlandı ({status}). Logları kontrol edin. [{code}]` | Süreç yükleme sırasında çıktı. **Sunucu Logları** son satırlarında neden yazar (bellek, bozuk dosya, desteklenmeyen mimari, eksik kütüphane). |
 
@@ -48,14 +48,14 @@ Aşağıdaki mesajlar uygulamanın Türkçe hata çevirilerinden alınmıştır.
 
 | Gerçek mesaj | Neden ve ne yapılır? |
 | --- | --- |
-| `llama.cpp runtime henüz kurulu değil. Ayarlar > Model Motoru bölümünden tek tıkla indirin veya sisteminizdeki llama-server’ı seçin.` | Motor kurulmamış. **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında yönetilen motoru indirin. (Mesajdaki "Ayarlar > Model Motoru" yolu bu sayfadır.) |
+| `llama.cpp model motoru henüz kurulu değil. Ayarlar > Model Motoru bölümünden tek tıkla indirin veya sisteminizdeki llama-server’ı seçin.` | Motor kurulmamış. **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasında yönetilen motoru indirin. (Mesajdaki "Ayarlar > Model Motoru" yolu bu sayfadır.) |
 | `Bu model için {motor} motoru gerekli.` (whisper.cpp, stable-diffusion.cpp, sherpa-onnx...) | Modelin çalışması için ek bir motor lazım. Mesajın yanındaki **{motor} Kur** düğmesine basın; ya da **Ayarlar > Model Motoru > Kurulu Model Motoru** sayfasındaki **Diğer Model Motorları** listesinden kurun. Kurulum biter bitmez model yeniden başlatmadan kullanılır. Doğrulanamayan dosya uyarısı çıkarsa Gelişmiş düzeyde **Ayarlar > Registry** sayfasından onaylayarak kurun. |
 | `llama-server bulunamadı: {path}` | Seçilen dosya yok. Yönetilen motoru kurun veya özel ikilinin yolunu düzeltip **Doğrula** seçin. |
 | `Sistemde geçerli bir llama-server ikili dosyası bulunamadı.` | Sisteme kurulu motor aranırken bulunamadı. Yönetilen motoru kurun. |
 | `Özel llama-server yolu ayarlanmamış veya geçerli değil.` | **Özel İkili** seçili ama yol boş/yanlış. Yolu girin veya **Yönetilen (önerilen)** seçeneğine dönün. |
-| `Runtime'ın ihtiyaç duyduğu bir kütüphane yüklenemedi (GPU sürücüsü ya da runtime dosyaları eksik veya uyumsuz).` | Sürücü eksik/eski veya derleme donanıma uymuyor. **Sağlık** denetimini çalıştırın; önerilen derlemeyi ve güncel sürücüyü kullanın. Windows'ta CUDA 12 derlemeleri NVIDIA sürücüsü 528.33 ya da yenisini, CUDA 13 derlemeleri 580 ya da yenisini ister; daha eski sürücüde Harness Vulkan derlemesini önerir. |
+| `Model motorunun ihtiyaç duyduğu bir kütüphane yüklenemedi (GPU sürücüsü ya da model motoru dosyaları eksik veya uyumsuz).` | Sürücü eksik/eski veya derleme donanıma uymuyor. **Sağlık** denetimini çalıştırın; önerilen derlemeyi ve güncel sürücüyü kullanın. Windows'ta CUDA 12 derlemeleri NVIDIA sürücüsü 528.33 ya da yenisini, CUDA 13 derlemeleri 580 ya da yenisini ister; daha eski sürücüde Harness Vulkan derlemesini önerir. |
 | `Aşama 1 doğrulaması başarısız: binary çalıştırılamadı (...). Eksik DLL veya mimari uyumsuzluğu olabilir.` | İndirilen motor çalıştırılamadı. Başka bir derleme (Vulkan veya CPU) kurmayı deneyin. |
-| `Runtime değiştirilmeden önce çalışan tüm sunucuları durdurun.` | Motoru değiştirmek için önce sunucuları durdurun. |
+| `Model motoru değiştirilmeden önce çalışan tüm sunucuları durdurun.` | Motoru değiştirmek için önce sunucuları durdurun. |
 | `llama-bench bulunamadı: {path}. Resmi llama.cpp paketini kullanın.` | Benchmark için `llama-bench` gerekir. Yönetilen resmi paket onu içerir; özel paketinizde bu dosyanın bulunduğunu kontrol edin. |
 
 ### Model İndirme

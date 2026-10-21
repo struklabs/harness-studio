@@ -29,7 +29,7 @@ const tr = {
   "agents.token_required": "Gateway ayarlarında token gereksinimini etkinleştirin.",
   'agents.install_output': 'Kurulum Çıktısı',
   'agents.open_gateway': 'Gateway yerel bağlantılarda token istemiyor. Tokenın kısıtları bu bağlantıya uygulanır; diğer yerel istemciler tokensız erişebilir. Tüm yerel bağlantıları kısıtlamak için Gateway ayarlarından token gereksinimini açın.',
-  'agents.library_missing': 'Hermes Python API çalışma zamanı bulunamadı. Resmî kaynak kurulumunu kullanın.',
+  'agents.library_missing': 'Hermes Python API motoru bulunamadı. Resmî kaynak kurulumunu kullanın.',
   'agents.home_unavailable': 'Hermes görev klasörü hazırlanamadı. Harness veri klasörünün yazılabilir olduğunu kontrol edin.',
   'agents.function': 'Hermes Agent veya OpenClaw bağlayın ve bir görev tamamlayın',
   'agents.install_permission': 'Kurulum: resmî Nous Research kurucusunu kullanıcı yetkilerinizle çalıştırır ve upstream bağımlılıklarını indirir. İsteğe bağlı tarayıcı ve bilgisayar kullanımı araçları atlanır. Tahminler değişebilir.',

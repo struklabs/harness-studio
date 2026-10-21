@@ -8,6 +8,9 @@ import { invoke } from '#lib/ipc.js';
 import { t } from '#lib/i18n.svelte.js';
 import { localizeError } from '#lib/network.js';
 import { runtimeInstallErrorText } from '#lib/runtimeBackend.js';
+import { installManagedRuntime } from '#lib/runtimeInstall.js';
+import { rawError } from '#lib/errors.js';
+import { EngineInstallFailed, MANAGED_LLAMA, runWithEngine, type ChainDeps } from '#lib/engineAuto.js';
 import { engineLabel, engineSpec, familyInstalled, progressPercent } from '#lib/engines.js';
 import { runtimesStore } from '#lib/stores/runtimes.svelte.js';
 import { library } from '#lib/stores/library.svelte.js';
@@ -48,6 +51,8 @@ class EngineInstaller {
   onnxSupport = $state<OnnxRuntimeSupport | null>(null);
   lemonadeInstalled = $state(false);
   lemonadeSupported = $state(false);
+  /** The family an automatic install (started by a model flow) is installing right now. */
+  autoFamily = $state<string | null>(null);
   /** Managed Python environments of the Python engines, by name. */
   pyEnvs = $state<Record<string, PythonEnvStatus>>({});
 
@@ -301,6 +306,60 @@ class EngineInstaller {
     } finally {
       clearInterval(timer);
     }
+  }
+
+  /** The official llama.cpp build, installed as part of a flow (verified, staged, activated). */
+  private async installManagedLlama(): Promise<boolean> {
+    this.states[MANAGED_LLAMA] = { busy: true, pct: null, problem: null, error: null };
+    try {
+      const result = await installManagedRuntime(null, {
+        onProgress: (p) => {
+          if (p && p.total_bytes > 0) this.set(MANAGED_LLAMA, { pct: progressPercent(p.downloaded_bytes, p.total_bytes) });
+        },
+      });
+      if (result === null) {
+        // An archive without a digest is never accepted silently.
+        this.states[MANAGED_LLAMA] = { busy: false, pct: null, problem: 'unverified', error: null };
+        toast.error(t('eng.unverified', { runtime: MANAGED_LLAMA }));
+        return false;
+      }
+      this.states[MANAGED_LLAMA] = IDLE;
+      toast.success(t('eng.installed_ok', { runtime: MANAGED_LLAMA }));
+      await this.refreshAvailability();
+      return true;
+    } catch (e) {
+      const error = runtimeInstallErrorText(e);
+      this.states[MANAGED_LLAMA] = { busy: false, pct: null, problem: 'failed', error };
+      toast.error(t('eng.failed', { runtime: MANAGED_LLAMA, error }));
+      return false;
+    }
+  }
+
+  /**
+   * Runs a model flow (start a server, load a model, run a task). When it fails because its
+   * engine is missing, the engine is installed (progress in `autoFamily` / `state(family)`) and
+   * the flow runs again. No confirm dialog; a failed install throws `EngineInstallFailed`
+   * (see `autoFailureText`), so the caller shows the error and the user can retry.
+   */
+  runWithEngine<T>(action: () => Promise<T>): Promise<T> {
+    const deps: ChainDeps = {
+      installed: (f) => this.installed(f),
+      canInstall: (f) => this.canInstall(f),
+      offered: (f) => this.offered(f),
+      install: (f) => this.install(f),
+      installManaged: () => this.installManagedLlama(),
+      raw: (e) => rawError(e),
+      onInstalling: (f) => (this.autoFamily = f),
+      onDone: () => (this.autoFamily = null),
+    };
+    return runWithEngine(action, deps);
+  }
+
+  /** Localized text for an automatic install that failed, else null (any other error). */
+  autoFailureText(e: unknown): string | null {
+    if (!(e instanceof EngineInstallFailed)) return null;
+    if (e.outcome === 'manual') return t('eng.manual', { runtime: e.family });
+    return t('eng.auto_failed', { runtime: e.family, error: this.state(e.family).error ?? '' });
   }
 
   /** The hints that said "needs an engine" re-read their data, so they disappear at once. */

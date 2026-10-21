@@ -2,6 +2,9 @@
   // "This model needs the {runtime} engine" with its one-click install button. After a
   // successful install the whole notice goes away and `onInstalled` runs, so the model can be
   // loaded or used at once. A family without a managed download says how to add it instead.
+  // With `auto` the notice shows because a user action just failed for lack of the engine: it
+  // installs the engine at once (no click, no confirm), shows the progress here and, on failure,
+  // the error with a retry button.
   import { LoaderCircle, Download } from '@lucide/svelte';
   import { t } from '#lib/i18n.svelte.js';
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
@@ -20,8 +23,10 @@
     size?: 'xs' | 'sm';
     class?: string;
     onInstalled?: () => void;
+    /** Install the engine as soon as the notice appears. */
+    auto?: boolean;
   }
-  let { family, hint = true, hintText, size = 'xs', class: className, onInstalled }: Props = $props();
+  let { family, hint = true, hintText, size = 'xs', class: className, onInstalled, auto = false }: Props = $props();
 
   let st = $derived(engineInstall.state(family));
   let manual = $derived(!engineInstall.canInstall(family));
@@ -31,6 +36,16 @@
       onInstalled?.();
     }
   }
+
+  // One automatic attempt per shown notice; a failure waits for the retry button.
+  let autoTried = false;
+  $effect(() => {
+    if (!auto || autoTried) return;
+    if (engineInstall.installed(family) || !engineInstall.canInstall(family) || !engineInstall.offered(family)) return;
+    if (engineInstall.anyBusy) return;
+    autoTried = true;
+    void install();
+  });
 </script>
 
 {#if !engineInstall.installed(family) || (family === 'audio.cpp' && !app.settings?.audio_cpp_enabled)}
@@ -45,7 +60,9 @@
     {:else}
       <Button type="button" variant="outline" {size} class="shrink-0" disabled={engineInstall.anyBusy} onclick={install}>
         {#if st.busy}<LoaderCircle class="animate-spin" />{:else}<Download />{/if}
-        {st.busy ? t(st.pct === null ? 'eng.installing' : 'eng.installing_pct', { runtime: family, pct: st.pct ?? 0 }) : t('eng.install', { runtime: family })}
+        {st.busy
+          ? t(st.pct === null ? (auto ? 'eng.auto_installing' : 'eng.installing') : auto ? 'eng.auto_installing_pct' : 'eng.installing_pct', { runtime: family, pct: st.pct ?? 0 })
+          : t(st.problem === 'failed' ? 'eng.retry' : 'eng.install', { runtime: family })}
       </Button>
     {/if}
     {#if st.problem === 'unverified'}

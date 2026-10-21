@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // One list of servers: every saved server (profile) plus any instance that runs without being
   // saved (the default server, ad-hoc launches). Each row shows its run state and whether it is
@@ -74,7 +75,7 @@
       await action();
       return true;
     } catch (e) {
-      const msg = e ? localizeError(e) : t('srv.error_generic');
+      const msg = engineInstall.autoFailureText(e) ?? (e ? localizeError(e) : t('srv.error_generic'));
       errors[id] = msg;
       toast.error(msg);
       return false;
@@ -99,7 +100,7 @@
     }
   };
 
-  const start = (id: string) => run(id, withRefresh(() => invoke('start_server_profile', { profileId: id })));
+  const start = (id: string) => run(id, withRefresh(() => engineInstall.runWithEngine(() => invoke('start_server_profile', { profileId: id }))));
   const stop = (id: string) => run(id, withRefresh(() => invoke('stop_server', { serverId: id })));
   const remove = (id: string) =>
     run(
