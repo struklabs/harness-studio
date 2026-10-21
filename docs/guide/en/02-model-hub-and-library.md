@@ -18,12 +18,13 @@ By default the list shows only GGUF repositories, the file format llama.cpp uses
 | Format | What it needs |
 | --- | --- |
 | Whisper ggml `.bin` | Speech module (whisper.cpp) |
-| ONNX speech and embedding models, ONNX chat models | sherpa-onnx or ONNX Runtime (see [Settings](08-settings.md#runtime)) |
+| ONNX speech and embedding models, ONNX chat models | sherpa-onnx or ONNX Runtime (see [Settings](08-settings.md#runtime)). Speech repos in sherpa-onnx's layouts (Piper, Kokoro, Matcha with its vocoder, KittenTTS voices; Zipformer and other transducers, Paraformer, SenseVoice, Whisper, Moonshine v1 recognisers) show as runnable and download as one model per precision; Optimum or transformers.js exports do not. |
 | Diffusion image models (SD1.5, SDXL, SD-Turbo, SD3.5, FLUX packages) | Image module (stable-diffusion.cpp). The extra files a model needs (VAE, text encoders) are downloaded along with it. |
 | Safetensors LLMs | Convert to GGUF (see [below](#convert-safetensors-models-to-gguf)), or the optional mistral.rs runtime |
 | CrispASR / audio.cpp GGUF speech models | CrispASR; experimental audio.cpp (off by default) |
 | MLX-format chat, vision, and audio | MLX engines (Apple Silicon, macOS 14+) |
 | Hugging Face task folders / diffusers pipelines | Python (`python-hf`, CPU/CUDA); diffusers opens in Image Generation |
+| Safetensors sentence-transformers embedders and cross-encoder rerankers without an `onnx/` folder | Python (`python-hf`). They work as embedding and rerank models in knowledge bases and on `/v1/embeddings` and `/v1/rerank`; a repo that ships an ONNX export runs on ONNX Runtime instead, which starts faster and uses less memory. The decoder-based rerankers (Qwen3-Reranker) are not cross-encoders and are not offered. |
 
 If a card says **Required: Speech module (whisper.cpp)** or **Required: Image module (stable-diffusion.cpp)**, you can still download the model, but you need to press **Install** (above the list, or in the model's details) before you can run it.
 

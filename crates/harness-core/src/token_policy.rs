@@ -53,7 +53,9 @@ pub enum GatewayEndpoint {
     Ollama,
     /// `GET /metrics` (Prometheus).
     Metrics,
-    /// `/v1/hf/{model}`: Hugging Face pipeline tasks (classification, NER, QA...).
+    /// `/v1/hf/{model}`: Hugging Face pipeline tasks (classification, NER, QA...), and their
+    /// typed routes: `/v1/classifications`, `/v1/entities`, `/v1/zero-shot`, `/v1/detections`
+    /// and `/v1/moderations`.
     Pipelines,
     /// `/v1/videos` and `/v1/videos/{id}[/content]` (video generation jobs).
     Videos,
@@ -118,6 +120,11 @@ impl GatewayEndpoint {
             _ if p == "/v1/models" || p.starts_with("/v1/models/") => Self::Models,
             _ if p == "/v1/videos" || p.starts_with("/v1/videos/") => Self::Videos,
             _ if p.starts_with("/api/") => Self::Ollama,
+            "/v1/classifications"
+            | "/v1/entities"
+            | "/v1/zero-shot"
+            | "/v1/detections"
+            | "/v1/moderations" => Self::Pipelines,
             _ if p == "/v1/hf" || p.starts_with("/v1/hf/") => Self::Pipelines,
             _ => return None,
         })
@@ -302,6 +309,16 @@ mod tests {
             GatewayEndpoint::of_path("/v1/hf/ner-model"),
             Some(Pipelines)
         );
+        for typed in [
+            "/v1/classifications",
+            "/v1/entities",
+            "/v1/zero-shot",
+            "/v1/detections",
+            "/v1/moderations",
+            "/v1/moderations/",
+        ] {
+            assert_eq!(GatewayEndpoint::of_path(typed), Some(Pipelines), "{typed}");
+        }
         assert_eq!(GatewayEndpoint::of_path("/v1/models"), Some(Models));
         assert_eq!(GatewayEndpoint::of_path("/v1/models/a/b"), Some(Models));
         assert_eq!(GatewayEndpoint::of_path("/v1/messages"), Some(Messages));

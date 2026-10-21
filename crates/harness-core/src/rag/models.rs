@@ -5,7 +5,10 @@
 //! embedding; RANK pooling, classifier labels or a classification head = reranker), the
 //! same classification the library and the gateway's serve mode use, or, for an ONNX file,
 //! by its repo files ([`harness_onnx::package`]: sentence-transformers modules = embedding,
-//! a sequence-classification head = reranker). Definitions whose file is not downloaded
+//! a sequence-classification head = reranker), or, for a safetensors folder of the Python
+//! engine, by what the worker would run it as ([`crate::engine::python_hf::detect`]: a
+//! sentence-transformers folder = embedding, a one-label classification head = reranker).
+//! Definitions whose file is not downloaded
 //! (`hf:`) or unreadable are left out.
 
 use crate::domain::{detect_kind, ModelDefinition, ModelKind};
@@ -55,6 +58,9 @@ pub fn retrieval_models(defs: &[ModelDefinition]) -> Vec<RetrievalModel> {
             if let Some(model) = onnx_model(d, path) {
                 return Some(model);
             }
+            if let Some(model) = python_hf_model(d, path) {
+                return Some(model);
+            }
             let meta = crate::gguf::read_gguf_metadata(path).ok()?;
             let role = match detect_kind(Some(&meta)) {
                 ModelKind::Embedding => RetrievalRole::Embedding,
@@ -76,6 +82,47 @@ pub fn retrieval_models(defs: &[ModelDefinition]) -> Vec<RetrievalModel> {
             })
         })
         .collect()
+}
+
+/// A safetensors embedder or cross-encoder folder of the Python engine, read from its configs.
+fn python_hf_model(def: &ModelDefinition, path: &std::path::Path) -> Option<RetrievalModel> {
+    let role = match crate::engine::python_hf::detect(path)?.as_str() {
+        "feature-extraction" | "sentence-similarity" => RetrievalRole::Embedding,
+        "text-ranking" => RetrievalRole::Rerank,
+        _ => return None,
+    };
+    let json = |name: &str| -> Option<serde_json::Value> {
+        serde_json::from_str(&std::fs::read_to_string(path.join(name)).ok()?).ok()
+    };
+    let config = json("config.json");
+    let number = |v: Option<&serde_json::Value>, key: &str| v?.get(key)?.as_u64();
+    // The pooling module names the vector size (a `2_Dense` module can change it; the model
+    // size is then not known here and the index takes it from the embeddings).
+    let pooling = (0..4).find_map(|i| json(&format!("{i}_Pooling/config.json")));
+    let has_dense = std::fs::read_dir(path)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|e| e.file_name().to_string_lossy().ends_with("_Dense"));
+    let dims = (role == RetrievalRole::Embedding && !has_dense)
+        .then(|| {
+            number(pooling.as_ref(), "word_embedding_dimension")
+                .or_else(|| number(config.as_ref(), "hidden_size"))
+        })
+        .flatten();
+    let context = number(json("sentence_bert_config.json").as_ref(), "max_seq_length")
+        .or_else(|| number(config.as_ref(), "max_position_embeddings"));
+    Some(RetrievalModel {
+        definition_id: def.id.clone(),
+        alias: def.alias.clone(),
+        file: path
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default(),
+        dims,
+        context_length: context,
+        role,
+    })
 }
 
 /// An ONNX encoder definition (harness-onnx), read from the repo files around its graph.
@@ -163,6 +210,111 @@ pub fn prefixes_for(def: &ModelDefinition) -> (&'static str, &'static str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn folder(files: &[(&str, &str)]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, text) in files {
+            let path = dir.path().join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, text).unwrap();
+        }
+        dir
+    }
+
+    fn def(alias: &str, dir: &std::path::Path) -> ModelDefinition {
+        ModelDefinition::new(
+            alias,
+            crate::domain::ModelRef::Local {
+                path: dir.to_path_buf(),
+            },
+        )
+    }
+
+    #[test]
+    fn safetensors_embedders_and_cross_encoders_of_the_python_engine_retrieve() {
+        // A sentence-transformers folder without an `onnx/` export.
+        let st = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["BertModel"],"hidden_size":384,"max_position_embeddings":512}"#,
+            ),
+            ("modules.json", "[]"),
+            (
+                "1_Pooling/config.json",
+                r#"{"word_embedding_dimension":384}"#,
+            ),
+            ("sentence_bert_config.json", r#"{"max_seq_length":256}"#),
+            ("model.safetensors", "x"),
+        ]);
+        // A cross-encoder whose card says text-classification (as most of them do).
+        let ce = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["XLMRobertaForSequenceClassification"],"id2label":{"0":"LABEL_0"},"max_position_embeddings":514}"#,
+            ),
+            (
+                "README.md",
+                "---
+library_name: sentence-transformers
+pipeline_tag: text-classification
+---
+",
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        let classifier = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["BertForSequenceClassification"],"id2label":{"0":"NEG","1":"POS"}}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        let ner = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["BertForTokenClassification"]}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        let defs = vec![
+            def("st", st.path()),
+            def("ce", ce.path()),
+            def("sst", classifier.path()),
+            def("ner", ner.path()),
+        ];
+        let found = retrieval_models(&defs);
+        let by = |alias: &str| found.iter().find(|m| m.alias == alias);
+        let embed = by("st").expect("the embedder is a retrieval model");
+        assert_eq!(embed.role, RetrievalRole::Embedding);
+        assert_eq!(embed.dims, Some(384));
+        assert_eq!(embed.context_length, Some(256));
+        let rerank = by("ce").expect("the cross-encoder is one too");
+        assert_eq!(rerank.role, RetrievalRole::Rerank);
+        assert_eq!(rerank.dims, None);
+        assert_eq!(rerank.context_length, Some(514));
+        // Classifiers and taggers do not retrieve.
+        assert!(by("sst").is_none() && by("ner").is_none());
+    }
+
+    #[test]
+    fn a_dense_module_hides_the_pooling_size() {
+        let st = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["BertModel"],"hidden_size":768}"#,
+            ),
+            ("modules.json", "[]"),
+            (
+                "1_Pooling/config.json",
+                r#"{"word_embedding_dimension":768}"#,
+            ),
+            ("2_Dense/config.json", r#"{"out_features":512}"#),
+            ("model.safetensors", "x"),
+        ]);
+        let found = retrieval_models(&[def("dense", st.path())]);
+        assert_eq!(found[0].role, RetrievalRole::Embedding);
+        assert_eq!(found[0].dims, None);
+    }
 
     #[test]
     fn known_prefixes() {

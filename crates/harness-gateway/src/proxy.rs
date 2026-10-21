@@ -309,7 +309,8 @@ pub(crate) async fn handle_with(
     handle_recorded(state, api, api.path(), headers, body, response_id).await
 }
 
-/// A typed view of another API, recorded and authorized under the client's route.
+/// [`handle`] for a route that is a shaped view of another API (`/v1/moderations` over the
+/// task pipelines): the request is recorded under the route the client called.
 pub(crate) async fn handle_routed(
     state: GwState,
     api: Api,

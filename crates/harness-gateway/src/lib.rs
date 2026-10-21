@@ -36,6 +36,7 @@ pub mod llama_tts;
 mod model_name;
 pub mod ocr;
 pub mod ollama;
+pub mod pipelines;
 pub mod proxy;
 pub mod pyhf;
 mod reasoning;
@@ -752,6 +753,36 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
                     }
                 },
             ),
+        )
+        .route(
+            "/v1/classifications",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
+                pipelines::handle(s, pipelines::Task::Classify, h, b)
+            }),
+        )
+        .route(
+            "/v1/entities",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
+                pipelines::handle(s, pipelines::Task::Entities, h, b)
+            }),
+        )
+        .route(
+            "/v1/zero-shot",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
+                pipelines::handle(s, pipelines::Task::ZeroShot, h, b)
+            }),
+        )
+        .route(
+            "/v1/detections",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
+                pipelines::handle(s, pipelines::Task::Detect, h, b)
+            }),
+        )
+        .route(
+            "/v1/moderations",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| {
+                pipelines::handle(s, pipelines::Task::Moderate, h, b)
+            }),
         )
         .route(
             "/v1/audio/transcriptions",
