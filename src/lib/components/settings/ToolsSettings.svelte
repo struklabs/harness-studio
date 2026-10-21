@@ -33,6 +33,7 @@
   import SettingGroup from './SettingGroup.svelte';
   import SettingRow from './SettingRow.svelte';
   import InstalledToolsSettings from './InstalledToolsSettings.svelte';
+  import ConnectorsSettings from './ConnectorsSettings.svelte';
   import { Input } from '#lib/components/ui/input/index.js';
   import * as Select from '#lib/components/ui/select/index.js';
 
@@ -217,6 +218,7 @@
 
 </div>
     <div hidden={page !== 'tools-installed'}><InstalledToolsSettings showTitle={false} /></div>
+    <div hidden={page !== 'tools-connectors'}><ConnectorsSettings showTitle={false} /></div>
 
 <div hidden={page !== 'tools-builtin'}>    {#if search}
       <SettingGroup title={t('tools.search_title')} hint={t('tools.search_desc')}>

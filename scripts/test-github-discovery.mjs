@@ -20,3 +20,20 @@ test('MCP copy includes only explicit templates and never the review metadata', 
   assert.deepEqual(mcpConfigTemplates(metadata), { mcpServers: { 'github-server-1': local, 'github-server-2': remote } });
   assert.deepEqual(mcpConfigTemplates(null), { mcpServers: {} });
 });
+
+test('review helpers group risks, read MCP evaluations and gate high-risk installs', async () => {
+  const { riskGroups, mcpEvaluations, needsRiskAck } = await import('../src/lib/components/hub/githubDiscovery.ts');
+  const risks = [
+    { file: 'a.py', category: 'network', pattern: 'http(s) URL', line: 1 },
+    { file: 'a.py', category: 'credentials', pattern: 'credential files and stores', line: 2 },
+    { file: 'b.sh', category: 'network', pattern: 'curl / wget', line: 3 },
+  ];
+  assert.deepEqual(riskGroups(risks).map(g => [g.category, g.findings.length]), [['credentials', 1], ['network', 2]]);
+  assert.deepEqual(riskGroups([]), []);
+  const manifest = { checks: [{ id: 'name_format', status: 'pass', detail: '' }], entries: [] };
+  const registry = { checks: [], entries: [{ kind: 'remote_http', label: 'https://x', checks: [] }] };
+  assert.deepEqual(mcpEvaluations({ evaluation: manifest, registry: [{ evaluation: registry }, {}] }).map(v => v.source), ['manifest', 'registry']);
+  assert.deepEqual(mcpEvaluations(null), []);
+  assert.equal(needsRiskAck({ level: 'high' }), true);
+  assert.equal(needsRiskAck({ level: 'medium' }), false);
+});

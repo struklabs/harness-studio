@@ -31,6 +31,11 @@ const MCP_OAUTH_PREFIX: &str = "mcp-oauth:";
 /// API key of a BYOK cloud provider (`cloud-provider:[<datadir-hash>:]<id>`).
 const CLOUD_PREFIX: &str = "cloud-provider:";
 
+/// OAuth session of a connector (`connector:[<datadir-hash>:]<id>`).
+const CONNECTOR_PREFIX: &str = "connector:";
+/// Optional OAuth client secret of a connector family (`connector-client:[<hash>:]<family>`).
+const CONNECTOR_CLIENT_PREFIX: &str = "connector-client:";
+
 pub trait SecretStore: Send + Sync {
     fn get(&self, account: &str) -> Result<Option<String>, String>;
     fn set(&self, account: &str, value: &str) -> Result<(), String>;
@@ -603,6 +608,50 @@ pub fn cloud_key_delete(id: &str) -> Result<(), String> {
     store()
         .delete(&cloud_account(id))
         .map_err(|_| crate::error_key::err("cloud.keychain_unavailable").into())
+}
+
+// --- Connectors (Gmail, Google Drive, Calendar, Excel via Microsoft Graph) ---
+
+fn connector_unavailable<E>(_: E) -> String {
+    crate::error_key::err("connector.keychain_unavailable").into()
+}
+
+/// The OAuth session (JSON: tokens, expiry, scopes) of one connector, if connected.
+pub fn connector_session_get(id: &str) -> Result<Option<String>, String> {
+    store()
+        .get(&scoped_account(CONNECTOR_PREFIX, id))
+        .map_err(connector_unavailable)
+}
+
+pub fn connector_session_set(id: &str, session_json: &str) -> Result<(), String> {
+    store()
+        .set(&scoped_account(CONNECTOR_PREFIX, id), session_json)
+        .map_err(connector_unavailable)
+}
+
+pub fn connector_session_delete(id: &str) -> Result<(), String> {
+    store()
+        .delete(&scoped_account(CONNECTOR_PREFIX, id))
+        .map_err(connector_unavailable)
+}
+
+/// The OAuth client secret the user saved for a connector family (Google desktop clients have
+/// one even with PKCE), `Ok(None)` when there is none.
+pub fn connector_client_secret_get(family: &str) -> Result<Option<String>, String> {
+    store()
+        .get(&scoped_account(CONNECTOR_CLIENT_PREFIX, family))
+        .map(|v| v.filter(|v| !v.trim().is_empty()))
+        .map_err(connector_unavailable)
+}
+
+/// Saves the client secret; `None` or an empty value removes it.
+pub fn connector_client_secret_set(family: &str, value: Option<&str>) -> Result<(), String> {
+    let account = scoped_account(CONNECTOR_CLIENT_PREFIX, family);
+    match value.map(str::trim).filter(|v| !v.is_empty()) {
+        Some(value) => store().set(&account, value),
+        None => store().delete(&account),
+    }
+    .map_err(connector_unavailable)
 }
 
 #[cfg(test)]

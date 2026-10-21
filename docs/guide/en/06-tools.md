@@ -16,6 +16,8 @@ A tool is something the model does besides generating text. The **My Tools** pag
 | Date and math | `current_datetime`, `calculator` |
 | Network, search, and weather | `fetch_url`, `web_search`, `geocode`, `weather` |
 
+Gmail, Google Drive, Google Calendar, and Excel can be added as tools in **Settings > Tools > Connectors**; see [Connectors](connectors.md).
+
 File and command tools need a working folder. Network tools send requests to outside services. In **Settings > Tools > Built-In Tools** you can pick a provider under **Web Search**. Keyless search can be blocked; SearXNG, Brave Search, and Tavily are also available.
 
 ## Choose a Permission Policy

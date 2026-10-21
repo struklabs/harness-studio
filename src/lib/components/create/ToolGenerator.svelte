@@ -27,6 +27,7 @@
   import { Textarea } from '#lib/components/ui/textarea/index.js';
   import ToolPermissions from '#lib/components/tools/ToolPermissions.svelte';
   import ToolTestReport from '#lib/components/tools/ToolTestReport.svelte';
+  import OfficialSuggestions from '#lib/components/tools/OfficialSuggestions.svelte';
   import {
     approveGeneratedTool,
     cancelToolGeneration,
@@ -256,6 +257,7 @@
           {t('tools.gen_what')}
           <FieldHelp text={t('help.tool_description')}><Textarea bind:value={description} rows={3} disabled={phase === 'running'} placeholder={t('tools.gen_what_ph')} class="resize-y text-sm font-normal" /></FieldHelp>
         </label>
+        {#if phase !== 'running'}<OfficialSuggestions kind="tool" query={description} />{/if}
         <label class="flex flex-col gap-1.5 text-xs font-medium">
           {t('tools.gen_network')}
           <select bind:value={networkMode} disabled={phase === 'running'} class="rounded-md border border-input bg-background p-2 text-sm">

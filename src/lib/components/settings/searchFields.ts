@@ -107,6 +107,10 @@ export const SETTINGS_SEARCH_KEYS: Record<string, TKey[]> = {
     'tools.inst_broken', 'tools.inst_enabled_aria', 'tools.inst_test',
     'tools.inst_remove',
   ],
+  'tools-connectors': [
+    'connector.title', 'connector.client_title', 'connector.client_google',
+    'connector.client_microsoft', 'connector.more_title',
+  ],
   'developer-api': [
     'dev.api_title', 'dev.api_desc', 'dev.enable',
     'dev.enable_hint', 'help.api_port', 'dev.port',
