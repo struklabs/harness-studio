@@ -585,6 +585,11 @@ pub fn remove_in(root: &Path, name: &str) -> Result<(), String> {
     let _build = BUILD_LOCK
         .try_lock()
         .map_err(|_| String::from(err("pyenv.env_in_use").with("name", name)))?;
+    remove_locked_in(root, name)
+}
+
+/// [`remove_in`] for a caller that already holds BUILD_LOCK.
+fn remove_locked_in(root: &Path, name: &str) -> Result<(), String> {
     let installing = CANCELS
         .lock()
         .unwrap()
@@ -689,7 +694,9 @@ pub(crate) mod tests {
         let stale = status_in(root, &SPEC);
         assert!(stale.installed && !stale.ready);
 
-        remove_in(root, SPEC.name).unwrap();
+        // BUILD_LOCK is process-wide: wait for other tests' builds instead of racing them.
+        let _build = BUILD_LOCK.blocking_lock();
+        remove_locked_in(root, SPEC.name).unwrap();
         assert!(!env_dir_in(root, SPEC.name).exists());
         // uv and the shared Python are not part of an env.
         assert!(root.exists());
@@ -891,14 +898,16 @@ pub(crate) mod tests {
     #[test]
     fn a_second_install_of_the_same_env_is_refused_and_blocks_removal() {
         let dir = tempfile::tempdir().unwrap();
+        // BUILD_LOCK is process-wide: wait for other tests' builds instead of racing them.
+        let _build = BUILD_LOCK.blocking_lock();
         begin("busy-env").unwrap();
         assert!(begin("busy-env").err().unwrap().contains("pyenv.env_busy"));
         assert!(begin("other-env").is_ok());
-        assert!(remove_in(dir.path(), "busy-env").is_err());
+        assert!(remove_locked_in(dir.path(), "busy-env").is_err());
         for name in ["busy-env", "other-env"] {
             CANCELS.lock().unwrap().as_mut().unwrap().remove(name);
         }
-        assert!(remove_in(dir.path(), "busy-env").is_ok());
+        assert!(remove_locked_in(dir.path(), "busy-env").is_ok());
     }
 
     /// Builds a real env (downloads uv, Python and one wheel): `cargo test -- --ignored`.
