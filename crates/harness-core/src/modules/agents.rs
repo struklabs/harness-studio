@@ -1355,6 +1355,8 @@ fn apply_envelope(status: &mut TaskStatus, stdout: &str, secret: &str) {
         status.tokens = Some(total);
     }
 }
+/// How long the output pipes may stay open after the process has exited.
+const PIPE_DRAIN_GRACE: Duration = Duration::from_secs(2);
 fn run_process(
     c: Command,
     run: &Arc<Run>,
@@ -1477,7 +1479,15 @@ fn run_process_ext(
     };
     // Descendants can retain stdout after their parent exits. Keep cancellation
     // and the deadline active until pipes close instead of blocking in join().
+    // A pipe can also be held by a process that is not ours: Windows lets a concurrent
+    // spawn in this process inherit the write end while it is briefly inheritable, and
+    // that holder may live for minutes. Once the process has exited, the pipes only get
+    // `PIPE_DRAIN_GRACE` to deliver what is buffered; the exit status is still the result.
+    let exited = Instant::now();
     while readers.iter().any(|reader| !reader.is_finished()) {
+        if result.is_ok() && exited.elapsed() > PIPE_DRAIN_GRACE {
+            break;
+        }
         if run.cancel.load(Ordering::SeqCst) || start.elapsed() > timeout {
             let _ = child.kill();
             let _ = child.wait();

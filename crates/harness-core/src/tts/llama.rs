@@ -431,6 +431,19 @@ async fn run_child(
     limit: Option<Duration>,
     permit: Arc<SemaphorePermit<'static>>,
 ) -> std::io::Result<Option<std::process::Output>> {
+    match limit {
+        Some(limit) => run_child_until(command, tokio::time::sleep(limit), permit).await,
+        None => run_child_until(command, std::future::pending(), permit).await,
+    }
+}
+
+/// `run_child` with the stop signal as a future: the child is killed and reaped (`Ok(None)`)
+/// when `stop` completes first. Tests pass an event instead of a duration.
+async fn run_child_until(
+    command: &mut tokio::process::Command,
+    stop: impl std::future::Future<Output = ()>,
+    permit: Arc<SemaphorePermit<'static>>,
+) -> std::io::Result<Option<std::process::Output>> {
     // The group builder's flag only affects Windows in command-group 5.0.1.
     command.kill_on_drop(true);
     crate::orphans::protect(command.as_std_mut());
@@ -457,20 +470,22 @@ async fn run_child(
             stderr: bytes,
         })
     };
-    let out = match limit {
-        Some(limit) => match tokio::time::timeout(limit, wait).await {
-            Ok(out) => out?,
-            Err(_) => {
-                // Retain ownership across timeout so the entire group is killed and reaped.
-                let child = run.child.as_mut().unwrap();
-                child.start_kill()?;
-                child.wait().await?;
-                run.child.take();
-                return Ok(None);
-            }
-        },
-        None => wait.await?,
+    let mut wait = Box::pin(wait);
+    tokio::pin!(stop);
+    let finished = tokio::select! {
+        out = &mut wait => Some(out),
+        () = &mut stop => None,
     };
+    drop(wait);
+    let Some(out) = finished else {
+        // Retain ownership across the stop so the entire group is killed and reaped.
+        let child = run.child.as_mut().unwrap();
+        child.start_kill()?;
+        child.wait().await?;
+        run.child.take();
+        return Ok(None);
+    };
+    let out = out?;
     run.child.take();
     Ok(Some(out))
 }
@@ -580,11 +595,14 @@ mod tests {
                     .unwrap(),
             )
         };
+        // Published by rename: a reader never sees the file created but still empty.
+        let name = if descendant { "descendant" } else { "parent" };
         std::fs::write(
-            dir.join(if descendant { "descendant" } else { "parent" }),
+            dir.join(format!("{name}.tmp")),
             std::process::id().to_string(),
         )
         .unwrap();
+        std::fs::rename(dir.join(format!("{name}.tmp")), dir.join(name)).unwrap();
         std::thread::sleep(Duration::from_secs(60));
     }
 
@@ -599,27 +617,38 @@ mod tests {
                 .env("HARNESS_LLAMA_TTS_FIXTURE", dir.path())
                 .stdout(Stdio::null())
                 .stderr(Stdio::piped());
-            let task = tokio::spawn(async move {
-                run_child(
-                    &mut command,
-                    (!cancel).then_some(Duration::from_secs(3)),
-                    permit,
-                )
-                .await
-            });
-            let pids = tokio::time::timeout(Duration::from_secs(10), async {
-                loop {
-                    if let (Ok(parent), Ok(descendant)) = (
-                        std::fs::read_to_string(dir.path().join("parent")),
-                        std::fs::read_to_string(dir.path().join("descendant")),
-                    ) {
-                        break [parent.parse::<u32>().unwrap(), descendant.parse().unwrap()];
+            // Both processes of the fixture have started (and published their pids).
+            // A generous guard only so a broken fixture fails instead of hanging.
+            let started = |dir: PathBuf| async move {
+                tokio::time::timeout(Duration::from_secs(120), async {
+                    loop {
+                        if let (Ok(parent), Ok(descendant)) = (
+                            std::fs::read_to_string(dir.join("parent")),
+                            std::fs::read_to_string(dir.join("descendant")),
+                        ) {
+                            break [parent.parse::<u32>().unwrap(), descendant.parse().unwrap()];
+                        }
+                        tokio::time::sleep(Duration::from_millis(10)).await;
                     }
-                    tokio::time::sleep(Duration::from_millis(10)).await;
+                })
+                .await
+                .expect("fixture processes started")
+            };
+            // The timeout case stops on the event "fixture is running", not on a clock that
+            // a loaded machine can outrun while the test binary is still starting.
+            let stop = {
+                let dir = dir.path().to_path_buf();
+                async move {
+                    if cancel {
+                        std::future::pending::<()>().await;
+                    } else {
+                        started(dir).await;
+                    }
                 }
-            })
-            .await
-            .expect("fixture processes started");
+            };
+            let task =
+                tokio::spawn(async move { run_child_until(&mut command, stop, permit).await });
+            let pids = started(dir.path().to_path_buf()).await;
             if cancel {
                 task.abort();
                 assert!(task.await.unwrap_err().is_cancelled());
