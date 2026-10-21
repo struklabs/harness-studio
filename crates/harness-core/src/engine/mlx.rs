@@ -24,8 +24,8 @@
 //! The workers listen on 127.0.0.1 only, ask every request but `/health` for the per-run API
 //! key (`HARNESS_WORKER_API_KEY`, from the environment), serve only the folder they were started
 //! with and never run remote code; the vision worker takes images only inline (`data:` URLs).
-//! macOS has no network isolation for them (the Linux Python engine's `unshare` has no
-//! counterpart there).
+//! They run without network under macOS's sandbox (`pyenv::isolation`); listening on their
+//! loopback port stays allowed, so they need no socket relay.
 //!
 //! An MLX folder is a transformers generator (`config.json` + safetensors) that MLX wrote: its
 //! config has MLX's `quantization` (`bits`, `group_size`), or its card says
@@ -1629,7 +1629,7 @@ impl ServerEngine for MlxEngine {
     }
 
     /// A Python worker: [`crate::pyenv::python_env`] and the per-run key. It listens on its
-    /// loopback port itself (no socket: macOS has no `unshare`).
+    /// loopback port itself (no socket: the macOS sandbox allows listening).
     fn worker_env(&self, api_key: &str) -> Option<Vec<(&'static str, std::ffi::OsString)>> {
         Some(super::python_hf::worker_env(api_key))
     }

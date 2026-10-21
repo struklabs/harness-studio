@@ -1794,7 +1794,12 @@ impl ProcessManager {
         // An isolated Python worker (no network) listens on a Unix socket; the port is relayed
         // to it.
         self.stop_relay();
-        let isolated = is_worker && crate::pyenv::isolation::available() && engine.uses_socket();
+        // macOS's sandbox lets the worker listen on its loopback port (below): no socket there,
+        // whose path would also hit the 104-byte limit under a long data directory.
+        let isolated = is_worker
+            && crate::pyenv::isolation::available()
+            && engine.uses_socket()
+            && !cfg!(target_os = "macos");
         // On Linux a worker that can run without network must: no isolation (unprivileged user
         // namespaces turned off) is a refusal with the reason, not a silent fallback.
         if cfg!(target_os = "linux") && is_worker && engine.uses_socket() && !isolated {
@@ -1824,6 +1829,12 @@ impl ProcessManager {
             None
         };
         let bridged = bridge.is_some() && !isolated;
+        // macOS: every worker runs sandboxed on its own loopback port; the sandbox denies
+        // outgoing connections only, so it still listens.
+        let sandboxed = !isolated
+            && cfg!(target_os = "macos")
+            && is_worker
+            && crate::pyenv::isolation::available();
         let mut cmd = if isolated {
             #[cfg(unix)]
             {
@@ -1832,10 +1843,9 @@ impl ProcessManager {
                     Err(e) => return Err(self.set_error(e)),
                 }
             }
-            let mut cmd = Command::new("unshare");
-            cmd.args(["--user", "--map-root-user", "--net", "--"])
-                .arg(&config.binary_path);
-            cmd
+            crate::pyenv::isolation::isolated_std_command(&config.binary_path)
+        } else if sandboxed {
+            crate::pyenv::isolation::isolated_std_command(&config.binary_path)
         } else if let Some(exe) = bridge {
             #[cfg(unix)]
             let socket = match self.start_relay(&config).await {
@@ -1870,10 +1880,10 @@ impl ProcessManager {
             }
             self.push_log(format!(
                 "[Harness Studio] Worker: {}",
-                if isolated {
+                if isolated || sandboxed {
                     "isolated (no network)"
                 } else {
-                    "not isolated"
+                    "network not isolated on this system (offline packages, loopback port, per-run key)"
                 }
             ));
             for (var, value) in env {
