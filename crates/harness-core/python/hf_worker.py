@@ -15,7 +15,9 @@ Endpoints
                                    tools, images as data: or http(s) URLs)
   POST /v1/embeddings              feature-extraction, sentence-similarity (OpenAI shape)
   POST /v1/rerank                  text-ranking (cross-encoders)
-  POST /v1/audio/transcriptions    automatic-speech-recognition (multipart "file", OpenAI shape)
+  POST /v1/audio/transcriptions    automatic-speech-recognition (multipart "file", OpenAI shape; a
+                                   CTranslate2 Whisper export runs on faster-whisper and also answers
+                                   language, segments and word timestamps)
   POST /v1/audio/speech            text-to-speech / text-to-audio ({"input": ...} -> audio/wav)
   POST /v1/images/generations      text-to-image (diffusers; OpenAI shape, b64_json)
   POST /v1/images/edits            image-to-image, or inpainting with a mask, on the same pipeline
@@ -191,6 +193,7 @@ class Model:
         self.exit_on_error = False
         self.pipe = None
         self.st = None  # sentence-transformers model (embeddings / rerank), when the folder is one
+        self.ct2 = None  # faster-whisper WhisperModel, when the folder is a CTranslate2 Whisper export
         self.lock = threading.Lock()  # pipelines are not thread-safe: one request at a time
         self.loaded_at = None
         # Diffusers: the folder's own scheduler, the samplers built from it and the image-to-image
@@ -287,6 +290,8 @@ class Model:
                     trust_remote_code=trust,
                     local_files_only=True,
                 )
+            elif task == "automatic-speech-recognition" and is_ct2_whisper(folder):
+                self.ct2 = load_ct2_whisper(folder, self.device(), self.args.threads)
             elif task in CHAT_TASKS:
                 self.pipe = ChatRunner(task, folder, self.device(), self.dtype(), trust)
             elif task in NATIVE_TASKS:
@@ -314,6 +319,119 @@ class Model:
                 log(f"load failed: {self.error}")
                 sys.stderr.flush()
                 os._exit(3)
+
+
+# --- faster-whisper (CTranslate2 Whisper exports) -------------------------------------------------
+
+# Longest audio one request may carry (seconds of decoded audio).
+MAX_AUDIO_SECONDS = 2 * 60 * 60
+CT2_SAMPLE_RATE = 16000
+
+
+def is_ct2_whisper(folder):
+    """A CTranslate2 Whisper export (faster-whisper): `model.bin`, a vocabulary or tokenizer and a
+    `config.json` without a transformers `model_type` / `architectures` (the CTranslate2 converter
+    writes Whisper's `alignment_heads` / `lang_ids` / `suppress_ids` there). Original transformers
+    weights next to it win."""
+    try:
+        names = set(os.listdir(folder))
+        if "model.bin" not in names or "config.json" not in names:
+            return False
+        if any(n.endswith(".safetensors") for n in names):
+            return False
+        if not names & {"tokenizer.json", "vocabulary.json", "vocabulary.txt"}:
+            return False
+        with open(os.path.join(folder, "config.json"), encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        return False
+    return (
+        isinstance(cfg, dict)
+        and "model_type" not in cfg
+        and "architectures" not in cfg
+        and any(k in cfg for k in ("alignment_heads", "lang_ids", "suppress_ids"))
+    )
+
+
+def load_ct2_whisper(folder, device, threads):
+    """Loads the export with faster-whisper: int8 on the CPU, float16 on CUDA (int8_float16 then
+    int8 where the GPU lacks it, the CPU when CUDA cannot start). The folder is a local path, so
+    nothing is fetched."""
+    import ctranslate2
+    from faster_whisper import WhisperModel
+
+    attempts = [("cpu", "int8")]
+    if device == "cuda":
+        attempts = [("cuda", "float16"), ("cuda", "int8_float16"), ("cuda", "int8")] + attempts
+    last = None
+    for dev, compute in attempts:
+        try:
+            if dev == "cuda" and ctranslate2.get_cuda_device_count() == 0:
+                raise RuntimeError("CTranslate2 sees no CUDA device")
+            m = WhisperModel(folder, device=dev, compute_type=compute, cpu_threads=max(threads, 0), local_files_only=True)
+            log(f"faster-whisper on {dev} ({compute})")
+            return m
+        except Exception as e:
+            last = e
+            log(f"faster-whisper {dev}/{compute} failed: {type(e).__name__}: {e}")
+    raise last
+
+
+def language_name(code):
+    """OpenAI's `verbose_json` names the language ("english"), faster-whisper gives its code."""
+    try:
+        from transformers.models.whisper.tokenization_whisper import LANGUAGES
+
+        return LANGUAGES.get(code, code)
+    except Exception:
+        return code
+
+
+def ct2_transcribe(model, data, form):
+    """One OpenAI transcription / translation with faster-whisper: {text, language, duration,
+    segments: [{id, start, end, text, words?}], words?}."""
+    import numpy as np
+
+    class Rate:  # to_audio resamples to the rate its `pipe.feature_extractor` names
+        feature_extractor = type("F", (), {"sampling_rate": CT2_SAMPLE_RATE})()
+
+    audio = to_audio(data, Rate)["raw"].astype(np.float32, copy=False)
+    seconds = audio.size / CT2_SAMPLE_RATE
+    if seconds > MAX_AUDIO_SECONDS:
+        raise BadRequest(f"the audio is {int(seconds)} s long; the limit is {MAX_AUDIO_SECONDS} s")
+    words_wanted = str(form.get("word_timestamps", "")).lower() in ("1", "true", "yes")
+    kwargs = dict(
+        task="translate" if form.get("task") == "translate" else "transcribe",
+        beam_size=5,
+        condition_on_previous_text=False,
+        word_timestamps=words_wanted,
+        vad_filter=seconds > 30,
+    )
+    if form.get("language"):
+        kwargs["language"] = str(form.get("language")).strip().lower()
+    if form.get("prompt"):
+        kwargs["initial_prompt"] = form.get("prompt")
+    if form.get("temperature") not in (None, ""):
+        kwargs["temperature"] = float(form.get("temperature"))
+    seg_iter, info = model.ct2.transcribe(audio, **kwargs)
+    segments, words = [], []
+    for i, seg in enumerate(seg_iter):
+        item = {"id": i, "start": round(seg.start, 3), "end": round(seg.end, 3), "text": seg.text.strip()}
+        if words_wanted:
+            item["words"] = [
+                {"word": w.word.strip(), "start": round(w.start, 3), "end": round(w.end, 3)} for w in seg.words or []
+            ]
+            words.extend(item["words"])
+        segments.append(item)
+    out = {
+        "text": " ".join(s["text"] for s in segments if s["text"]).strip(),
+        "language": language_name(info.language),
+        "duration": round(seconds, 3),
+        "segments": segments,
+    }
+    if words_wanted:
+        out["words"] = words
+    return out
 
 
 class CustomCodeRefused(Exception):
@@ -724,6 +842,9 @@ def run_hf(model: Model, body: dict, raw: bytes | None):
         if task == "object-detection":
             return jsonable(sorted(out, key=lambda o: -o["score"]))
         return jsonable(out)
+    if model.ct2 is not None:
+        out = ct2_transcribe(model, inputs if isinstance(inputs, (bytes, bytearray)) else decode_bytes(inputs), params)
+        return {"text": out["text"]}
     if task in ("automatic-speech-recognition", "audio-classification", "zero-shot-audio-classification"):
         audio = to_audio(inputs, pipe)
         return jsonable(pipe(audio, **params))
@@ -1677,6 +1798,9 @@ def build_app(model: Model):
         if f is None:
             return error(400, 'multipart field "file" is required')
         data = await f.read()
+        if model.ct2 is not None:
+            r = await call(ct2_transcribe, model, data, form)
+            return r if isinstance(r, Response) else JSONResponse(r)
         gen = {}
         if form.get("language"):
             gen["language"] = form.get("language")
