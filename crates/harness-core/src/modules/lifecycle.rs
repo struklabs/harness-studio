@@ -1187,31 +1187,57 @@ mod shared_repair_tests {
 #[cfg(test)]
 mod disk_cache_tests {
     use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    /// Blocks until the test opens the gate, so "the list did not wait for the
+    /// measurement" is proven by the measurement still being parked, not by a clock.
+    fn gated(gate: &AtomicBool) -> u64 {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        while !gate.load(Ordering::SeqCst) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        7
+    }
+    static GATE_A: AtomicBool = AtomicBool::new(false);
+    static GATE_B: AtomicBool = AtomicBool::new(false);
+    fn slow_a(_: &Path) -> u64 {
+        gated(&GATE_A)
+    }
+    fn slow_b(_: &Path) -> u64 {
+        gated(&GATE_B)
+    }
     fn slow(_: &Path) -> u64 {
         std::thread::sleep(Duration::from_millis(600));
         7
+    }
+    /// Polls until the background measurement has landed (generous cap, not a perf bound).
+    fn lands(cache: &'static Mutex<DiskCache>, path: &Path, measure: fn(&Path) -> u64, want: u64) {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            let got = cached_size_with(cache, path, Duration::from_millis(20), measure);
+            if got == want {
+                return;
+            }
+            assert!(Instant::now() < deadline, "measurement never landed: {got}");
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
     #[test]
     fn slow_measurement_never_blocks_the_list_and_lands_for_the_next_one() {
         static CACHE: OnceLock<Mutex<DiskCache>> = OnceLock::new();
         let cache = CACHE.get_or_init(Default::default);
         let path = Path::new("big-runtime");
-        let started = Instant::now();
+        // The measurement is parked on GATE_A, so both lists can only return 0 by not waiting.
         assert_eq!(
-            cached_size_with(cache, path, Duration::from_millis(20), slow),
+            cached_size_with(cache, path, Duration::from_millis(20), slow_a),
             0
         );
         // A second list while the walk runs returns at once too, without a second walk.
         assert_eq!(
-            cached_size_with(cache, path, Duration::from_millis(20), slow),
+            cached_size_with(cache, path, Duration::from_millis(20), slow_a),
             0
         );
-        assert!(started.elapsed() < Duration::from_millis(400));
-        std::thread::sleep(Duration::from_millis(700));
-        assert_eq!(
-            cached_size_with(cache, path, Duration::from_millis(20), slow),
-            7
-        );
+        GATE_A.store(true, Ordering::SeqCst);
+        lands(cache, path, slow_a, 7);
     }
     #[test]
     fn stale_size_is_served_while_it_refreshes() {
@@ -1229,17 +1255,13 @@ mod disk_cache_tests {
                 changed: false,
             },
         );
-        let started = Instant::now();
+        // Parked on GATE_B: the stale 3 is served while the refresh cannot have finished.
         assert_eq!(
-            cached_size_with(cache, path, Duration::from_millis(20), slow),
+            cached_size_with(cache, path, Duration::from_millis(20), slow_b),
             3
         );
-        assert!(started.elapsed() < Duration::from_millis(400));
-        std::thread::sleep(Duration::from_millis(700));
-        assert_eq!(
-            cached_size_with(cache, path, Duration::from_millis(20), slow),
-            7
-        );
+        GATE_B.store(true, Ordering::SeqCst);
+        lands(cache, path, slow_b, 7);
     }
     #[test]
     fn invalidated_size_waits_briefly_then_shows_the_new_number() {
@@ -1279,12 +1301,36 @@ mod disk_cache_tests {
 #[cfg(test)]
 mod first_list_tests {
     use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
     fn quick(_: &Path) -> u64 {
         9
     }
-    fn slow(_: &Path) -> u64 {
-        std::thread::sleep(Duration::from_millis(600));
+    // Parked until the test opens the gate: proves the list does not wait on the walk.
+    fn gated(gate: &AtomicBool) -> u64 {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        while !gate.load(Ordering::SeqCst) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(1));
+        }
         7
+    }
+    static GATE_COLD: AtomicBool = AtomicBool::new(false);
+    static GATE_RESTORED: AtomicBool = AtomicBool::new(false);
+    fn slow_cold(_: &Path) -> u64 {
+        gated(&GATE_COLD)
+    }
+    fn slow_restored(_: &Path) -> u64 {
+        gated(&GATE_RESTORED)
+    }
+    fn lands(cache: &'static Mutex<DiskCache>, path: &Path, want: u64) {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        loop {
+            let got = cached_size_with(cache, path, Duration::from_secs(5), quick);
+            if got == want {
+                return;
+            }
+            assert!(Instant::now() < deadline, "measurement never landed: {got}");
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
     #[test]
     fn never_measured_folder_does_not_hold_the_first_list() {
@@ -1292,18 +1338,13 @@ mod first_list_tests {
         let cache = CACHE.get_or_init(Default::default);
         let path = Path::new("cold-runtime");
         // Even with a generous wait the first answer is immediate (0) while the walk runs.
-        let started = Instant::now();
         assert_eq!(
-            cached_size_with(cache, path, Duration::from_secs(5), slow),
+            cached_size_with(cache, path, Duration::from_secs(5), slow_cold),
             0
         );
-        assert!(started.elapsed() < Duration::from_millis(400));
-        assert!(PROVISIONAL.load(std::sync::atomic::Ordering::SeqCst));
-        std::thread::sleep(Duration::from_millis(700));
-        assert_eq!(
-            cached_size_with(cache, path, Duration::from_secs(5), quick),
-            7
-        );
+        assert!(PROVISIONAL.load(Ordering::SeqCst));
+        GATE_COLD.store(true, Ordering::SeqCst);
+        lands(cache, path, 7);
     }
     #[test]
     fn persisted_size_is_served_at_once_and_refreshed() {
@@ -1318,16 +1359,11 @@ mod first_list_tests {
                 changed: false,
             },
         );
-        let started = Instant::now();
         assert_eq!(
-            cached_size_with(cache, path, Duration::from_secs(5), slow),
+            cached_size_with(cache, path, Duration::from_secs(5), slow_restored),
             5
         );
-        assert!(started.elapsed() < Duration::from_millis(400));
-        std::thread::sleep(Duration::from_millis(700));
-        assert_eq!(
-            cached_size_with(cache, path, Duration::from_secs(5), quick),
-            7
-        );
+        GATE_RESTORED.store(true, Ordering::SeqCst);
+        lands(cache, path, 7);
     }
 }
