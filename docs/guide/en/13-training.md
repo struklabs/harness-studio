@@ -12,26 +12,36 @@
 
 ## Dataset format
 
-One JSON object per line, in either format (not mixed in one file):
+Choose a **file** (JSONL, JSON array or CSV) or a **folder** of such files. The format is detected for every row and mapped to chat messages; the wizard shows which field became the question and which the answer. One file uses one format:
 
 ```jsonl
 {"messages": [{"role": "user", "content": "What is the capital of France?"}, {"role": "assistant", "content": "Paris."}]}
-{"instruction": "Name the capital of Japan.", "input": "", "output": "Tokyo."}
+{"conversations": [{"from": "human", "value": "Name the capital of Japan."}, {"from": "gpt", "value": "Tokyo."}]}
+{"instruction": "Name the capital of Spain.", "input": "", "output": "Madrid."}
+{"prompt": "Capital of Italy?", "completion": "Rome."}
 ```
 
-- Chat rows need at least two messages, roles `system`, `user` or `assistant`, and must end with an assistant message.
-- Instruction rows need `instruction` and `output`; `input` is optional.
+- **Chat** (`messages`): at least two messages, roles `system`, `user` or `assistant`, ending with an assistant message.
+- **Conversations** (`conversations` with `from` and `value`): `human`/`user`, `gpt`/`assistant` and `system` turns, ending with the assistant.
+- **Instruction** (`instruction`, optional `input`, and `output`/`response`/`answer`): input is appended to the instruction.
+- **Prompt and completion**: `prompt`, `question`, `query` or `input` with `completion`, `response`, `answer`, `output` or `target`. CSV headers use the same names (case-insensitive).
 - Rows may carry a `license` field. If none do, a `<file>.meta.json` next to the file with a `license` string is used. The wizard always shows the licence it found, and warns when it is unknown. The licence is also written to the exported model's `harness-training.json`.
-- A validation share (10 % by default, at least one row) is held out. The check shows the format, row counts, the train/validation split, file size, estimated tokens and every problem with its line number. Files over 256 MB are refused.
+- The check shows the format and mapping, row counts, the train/evaluation split, file size, estimated tokens, a **length histogram** (bars longer than the chosen sequence length are marked, because those examples get cut), the **first sample rows** as the model will see them, and every problem with its line number. Data over 256 MB is refused. Parquet files and Hugging Face dataset ids are not supported yet; export the data as JSONL or CSV.
+- Drag the **Evaluation Split** slider to hold out 1 to 50 % of the rows (at least one) to measure progress on data the model has not trained on.
+
+The job trains on a normalized snapshot (chat messages) kept in its folder, so the original files can change or move afterwards.
 
 ## The wizard
 
-1. **Base model:** pick from the library.
-2. **Dataset:** choose the file; the check runs at once.
-3. **Method and parameters:** LoRA or QLoRA, device (CPU, CUDA, or MPS on Apple Silicon), steps, learning rate, rank, sequence length, validation share.
-4. **Review:** the memory and time estimate for this machine, and whether it fits. The numbers are planning estimates, not promises.
+A switch at the top selects **Simple** or **Advanced** mode (remembered). Simple mode hides the details and picks safe values for your hardware; Advanced mode shows every setting with a help tooltip, the recommended value next to it and a reset button.
 
-**Create and Start** queues the job; **Save as Draft** keeps it for later.
+1. **Base model:** pick from the library (search by name; size and architecture shown), or type a folder path. You can also paste a recipe copied from an earlier run to start from its settings.
+2. **Dataset:** as above.
+3. **Method** (Advanced only): **Automatic** (recommended), **LoRA** or **QLoRA**. Methods this machine or the training engine cannot run (full fine-tuning, DPO) are listed with the reason instead of being offered.
+4. **Settings:** three hardware-aware presets, **Light**, **Balanced** (recommended) and **Quality**. They are computed from the model, your dataset and the memory free on the training device (VRAM on a GPU, RAM on a CPU or Apple Silicon): method, sequence length (never longer than your data needs), LoRA rank, batch size and gradient accumulation, steps, and the memory and time estimate with a fits / tight / will-not-fit verdict. Advanced mode adds steps, learning rate, sequence length, rank, alpha, dropout, batch size, gradient accumulation, warm-up, learning-rate schedule, weight decay and checkpoint/evaluation intervals.
+5. **Review:** name the model (a name is suggested from the model and dataset, checked live against other runs and the model library; it is the name the finished model has in the Library), see the memory and time estimate, and copy the run's **recipe** (JSON) to reproduce or share it.
+
+**Create and Start** queues the job (and installs the training engine first when it is missing, without asking); **Save as Draft** keeps it for later. A run can be **renamed** at any time from the job list, and **Copy Recipe** and the run's settings are on every job.
 
 ## Job lifecycle
 

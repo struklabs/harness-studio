@@ -3,7 +3,10 @@
 export type TrainingMethod = 'lora' | 'qlora';
 export type TrainingDevice = 'cpu' | 'cuda' | 'mps';
 export type TrainingStatus = 'draft' | 'queued' | 'running' | 'done' | 'failed' | 'cancelled';
-export type DatasetFormat = 'chat' | 'instruction';
+export type DatasetFormat = 'chat' | 'instruction' | 'sharegpt' | 'prompt_completion';
+export type TrainingLrScheduler = 'linear' | 'cosine' | 'constant';
+export type TrainingPresetTier = 'light' | 'balanced' | 'quality';
+export type TrainingFitLevel = 'fits' | 'tight' | 'no';
 export type IssueLevel = 'error' | 'warning';
 export type ExportStatus = 'running' | 'done' | 'failed';
 export type TrainingQuant = 'F16' | 'Q8_0' | 'Q4_K_M' | 'Q5_K_M';
@@ -28,6 +31,13 @@ export interface TrainingConfig {
   validation_fraction: number;
   checkpoint_steps: number;
   eval_steps: number;
+  batch_size: number;
+  grad_accum: number;
+  lora_alpha: number;
+  lora_dropout: number;
+  warmup_ratio: number;
+  lr_scheduler: TrainingLrScheduler;
+  weight_decay: number;
 }
 
 export interface TrainingCreateRequest {
@@ -43,6 +53,13 @@ export interface TrainingCreateRequest {
   validation_fraction?: number;
   checkpoint_steps?: number;
   eval_steps?: number;
+  batch_size?: number;
+  grad_accum?: number;
+  lora_alpha?: number;
+  lora_dropout?: number;
+  warmup_ratio?: number;
+  lr_scheduler?: TrainingLrScheduler;
+  weight_decay?: number;
 }
 
 export interface DatasetIssue {
@@ -64,6 +81,54 @@ export interface DatasetReport {
   license: string | null;
   issues: DatasetIssue[];
   ok: boolean;
+  /** Rows per length bucket: edges 32, 64 ... 8192 (estimated tokens), then longer rows. */
+  histogram?: number[];
+  samples?: DatasetSample[];
+  mapping?: DatasetMapping[];
+}
+
+export interface DatasetSample {
+  messages: { role: string; content: string }[];
+  tokens: number;
+}
+
+export interface DatasetMapping {
+  role: string;
+  field: string;
+}
+
+export interface TrainingPreset {
+  tier: TrainingPresetTier;
+  method: TrainingMethod;
+  device: TrainingDevice;
+  batch_size: number;
+  grad_accum: number;
+  sequence_length: number;
+  rank: number;
+  lora_alpha: number;
+  learning_rate: number;
+  steps: number;
+  warmup_ratio: number;
+  lr_scheduler: TrainingLrScheduler;
+  lora_dropout: number;
+  weight_decay: number;
+  estimate: TrainingEstimate;
+  fit: TrainingFitLevel;
+  recommended: boolean;
+  notes: string[];
+}
+
+export interface TrainingPresetSet {
+  device: TrainingDevice;
+  available_bytes: number;
+  presets: TrainingPreset[];
+}
+
+export interface TrainingNameCheck {
+  name: string;
+  available: boolean;
+  taken_by: 'job' | 'library' | null;
+  suggested: string;
 }
 
 export interface TrainingEstimate {

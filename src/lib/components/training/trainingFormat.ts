@@ -55,3 +55,26 @@ export function canExport(job: TrainingJob): boolean {
 export function baseName(path: string): string {
   return path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() ?? path;
 }
+
+export interface LiveStats {
+  stepsPerSecond: number;
+  tokensPerSecond: number;
+  etaSeconds: number;
+}
+
+/**
+ * Throughput and time left of a running job, from its progress so far. The elapsed time also
+ * holds the model loading, so early numbers are a little pessimistic. `null` until a few steps
+ * have run.
+ */
+export function liveStats(job: TrainingJob, nowSeconds: number): LiveStats | null {
+  if (job.status !== 'running' || !job.training || job.step < 3) return null;
+  const elapsed = elapsedSeconds(job, nowSeconds);
+  if (elapsed === null || elapsed <= 0) return null;
+  const stepsPerSecond = job.step / elapsed;
+  return {
+    stepsPerSecond,
+    tokensPerSecond: stepsPerSecond * job.estimate.tokens_per_step,
+    etaSeconds: Math.max(0, (job.total_steps - job.step) / stepsPerSecond),
+  };
+}

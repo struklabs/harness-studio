@@ -14,6 +14,13 @@ fn sample(id: u64, status: TrainingStatus) -> TrainingJob {
         validation_fraction: 0.1,
         checkpoint_steps: 5,
         eval_steps: 1,
+        batch_size: 1,
+        grad_accum: 1,
+        lora_alpha: 16,
+        lora_dropout: 0.05,
+        warmup_ratio: 0.0,
+        lr_scheduler: LrScheduler::Linear,
+        weight_decay: 0.0,
     };
     TrainingJob {
         id,
@@ -41,6 +48,8 @@ fn sample(id: u64, status: TrainingStatus) -> TrainingJob {
             128,
             10,
             50,
+            1,
+            1,
         ),
         export: None,
         resumed: false,
@@ -147,4 +156,24 @@ fn interrupted_export_recovers_without_losing_completed_training() {
     assert_eq!(export.status, ExportStatus::Failed);
     assert!(export.adapter_only);
     assert_eq!(export.error.as_deref(), Some("training.interrupted"));
+}
+
+#[test]
+fn suggested_names_are_readable_and_unique() {
+    let none = |_: &str| false;
+    assert_eq!(
+        suggest_with(
+            Some("/models/qwen2.5-0.5b_instruct"),
+            Some("/d/support-tone.jsonl"),
+            none
+        ),
+        "Qwen2.5 0.5b Instruct Support Tone"
+    );
+    assert_eq!(suggest_with(Some("/m/smol"), None, none), "Smol LoRA");
+    assert_eq!(suggest_with(None, Some("notes.csv"), none), "Notes");
+    assert_eq!(suggest_with(None, None, none), "New Model");
+    let taken = |n: &str| n == "Smol LoRA" || n == "Smol LoRA 2";
+    assert_eq!(suggest_with(Some("/m/smol"), None, taken), "Smol LoRA 3");
+    let long = "x".repeat(200);
+    assert!(suggest_with(Some(&long), None, none).chars().count() <= 70);
 }

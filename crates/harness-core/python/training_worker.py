@@ -79,8 +79,9 @@ def train(root, cfg, resume):
         model = prepare_model_for_kbit_training(model)
     else:
         model.to(device)
-    model = get_peft_model(model, LoraConfig(r=cfg["rank"], lora_alpha=cfg["rank"] * 2,
-                           target_modules="all-linear", task_type="CAUSAL_LM", lora_dropout=0.05))
+    model = get_peft_model(model, LoraConfig(r=cfg["rank"], lora_alpha=cfg.get("lora_alpha") or cfg["rank"] * 2,
+                           target_modules="all-linear", task_type="CAUSAL_LM",
+                           lora_dropout=cfg.get("lora_dropout", 0.05)))
     rows = [json.loads(line) for line in (root / "dataset.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     texts = []
     for row in rows:
@@ -113,7 +114,10 @@ def train(root, cfg, resume):
             return control
 
     args = SFTConfig(output_dir=str(root), max_steps=cfg["steps"],
-                     per_device_train_batch_size=1, per_device_eval_batch_size=1,
+                     per_device_train_batch_size=cfg.get("batch_size", 1), per_device_eval_batch_size=1,
+                     gradient_accumulation_steps=cfg.get("grad_accum", 1),
+                     warmup_ratio=cfg.get("warmup_ratio", 0.0), weight_decay=cfg.get("weight_decay", 0.0),
+                     lr_scheduler_type=cfg.get("lr_scheduler", "linear"),
                      learning_rate=cfg["learning_rate"], max_length=cfg["sequence_length"],
                      logging_steps=1, eval_strategy="steps", eval_steps=cfg["eval_steps"],
                      save_strategy="steps", save_steps=cfg["checkpoint_steps"], save_total_limit=2,

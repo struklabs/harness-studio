@@ -1,12 +1,15 @@
 <script lang="ts">
-  import { Play, Square, RotateCcw, PackageOpen, Trash2 } from '@lucide/svelte';
+  import { Play, Square, RotateCcw, PackageOpen, Trash2, Pencil, Copy } from '@lucide/svelte';
   import { t } from '#lib/i18n.svelte.js';
   import { errorText } from '#lib/errors.js';
+  import { invoke } from '#lib/ipc.js';
   import { training } from '#lib/stores/training.svelte.js';
   import type { TrainingJob } from '#lib/training-types.js';
   import { Button } from '#lib/components/ui/button/index.js';
+  import { Input } from '#lib/components/ui/input/index.js';
+  import { recipeFromConfig } from './wizardConfig';
   import { Progress } from '#lib/components/ui/progress/index.js';
-  import { STATUS_CLASS, STATUS_KEY, canExport, elapsedSeconds, fmtDuration, fmtLoss } from './trainingFormat';
+  import { STATUS_CLASS, STATUS_KEY, canExport, elapsedSeconds, fmtDuration, fmtLoss, liveStats } from './trainingFormat';
   import type { TKey } from '#lib/i18n.svelte.js';
 
   interface Props {
@@ -17,15 +20,47 @@
   let { jobs, now, onExport }: Props = $props();
 
   let removing = $state<number | null>(null);
+  let renaming = $state<number | null>(null);
+  let renameText = $state('');
+  let renameError = $state<string | null>(null);
+  let copiedId = $state<number | null>(null);
+
+  async function commitRename(job: TrainingJob) {
+    renameError = null;
+    const name = renameText.trim();
+    if (!name || name === job.config.name) {
+      renaming = null;
+      return;
+    }
+    try {
+      await invoke('training_rename', { jobId: job.id, name });
+      renaming = null;
+      await training.refresh();
+    } catch (e) {
+      renameError = errorText(e);
+    }
+  }
+
+  async function copyRecipe(job: TrainingJob) {
+    try {
+      await navigator.clipboard.writeText(recipeFromConfig(job.config));
+      copiedId = job.id;
+      setTimeout(() => (copiedId = null), 2000);
+    } catch {
+      // clipboard not available
+    }
+  }
 
   const canCancel = (j: TrainingJob) => j.status === 'draft' || j.status === 'queued' || j.status === 'running';
   const canResume = (j: TrainingJob) => (j.status === 'failed' || j.status === 'cancelled') && j.checkpoint_step !== null;
+  const canRestart = (j: TrainingJob) => (j.status === 'failed' || j.status === 'cancelled') && j.checkpoint_step === null;
   const percent = (j: TrainingJob) => (j.total_steps > 0 ? Math.min(100, (j.step / j.total_steps) * 100) : 0);
 </script>
 
 <ul class="flex flex-col gap-2" aria-label={t('training.jobs_title')}>
   {#each jobs as job (job.id)}
     {@const elapsed = elapsedSeconds(job, now)}
+    {@const live = liveStats(job, now)}
     <li>
       <div
         role="button"
@@ -36,7 +71,15 @@
         onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget && (e.preventDefault(), training.select(job.id))}
       >
         <div class="flex flex-wrap items-center gap-2">
-          <span class="min-w-0 flex-1 truncate text-sm font-medium">{job.config.name}</span>
+          {#if renaming === job.id}
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <span class="flex min-w-0 flex-1 items-center gap-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+              <Input class="h-7" bind:value={renameText} maxlength={80} aria-label={t('training.job_name')} onkeydown={(e) => { if (e.key === 'Enter') void commitRename(job); if (e.key === 'Escape') renaming = null; }} />
+              <Button size="sm" onclick={() => commitRename(job)}>{t('training.rename_save')}</Button>
+            </span>
+          {:else}
+            <span class="min-w-0 flex-1 truncate text-sm font-medium">{job.config.name}</span>
+          {/if}
           <span class="rounded-full px-2 py-0.5 text-xs font-medium {STATUS_CLASS[job.status]}">{t(STATUS_KEY[job.status])}</span>
         </div>
         <p class="text-xs text-muted-foreground">
@@ -44,6 +87,8 @@
           {#if elapsed !== null}· {t('training.elapsed', { time: fmtDuration(elapsed) })}{/if}
           {#if job.resumed}· {t('training.resumed')}{/if}
         </p>
+
+        {#if renaming === job.id && renameError}<p class="text-xs text-destructive" role="alert">{renameError}</p>{/if}
 
         {#if job.status !== 'draft'}
           <div class="flex flex-col gap-1">
@@ -53,6 +98,10 @@
               <span>{t('training.loss')}: {fmtLoss(job.loss)}</span>
               <span>{t('training.eval_loss')}: {fmtLoss(job.eval_loss)}</span>
               {#if job.status === 'running' && !job.training}<span>{t('training.loading_model')}</span>{/if}
+              {#if live}
+                <span>{t('training.live_speed', { sps: live.stepsPerSecond.toFixed(2), tps: Math.round(live.tokensPerSecond).toLocaleString() })}</span>
+                <span>{t('training.live_eta', { time: fmtDuration(live.etaSeconds) })}</span>
+              {/if}
             </div>
           </div>
         {/if}
@@ -73,9 +122,28 @@
           </div>
         {/if}
 
+        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+        <details class="text-xs" onclick={(e) => e.stopPropagation()}>
+          <summary class="cursor-pointer text-muted-foreground">{t('training.run_settings')}</summary>
+          <dl class="mt-1 grid grid-cols-2 gap-x-4 gap-y-0.5 sm:grid-cols-3">
+            <div><dt class="text-muted-foreground">{t('training.steps')}</dt><dd>{job.config.steps}</dd></div>
+            <div><dt class="text-muted-foreground">{t('training.learning_rate')}</dt><dd>{job.config.learning_rate}</dd></div>
+            <div><dt class="text-muted-foreground">{t('training.rank')}</dt><dd>{job.config.rank} / {job.config.lora_alpha || job.config.rank * 2}</dd></div>
+            <div><dt class="text-muted-foreground">{t('training.batch_size')}</dt><dd>{job.config.batch_size} × {job.config.grad_accum}</dd></div>
+            <div><dt class="text-muted-foreground">{t('training.sequence_length')}</dt><dd>{job.config.sequence_length}</dd></div>
+            <div><dt class="text-muted-foreground">{t('training.lr_scheduler')}</dt><dd>{job.config.lr_scheduler}</dd></div>
+          </dl>
+        </details>
+
         <div class="flex flex-wrap gap-1" role="group" aria-label={t('training.actions')}>
+          <Button size="sm" variant="ghost" onclick={(e) => { e.stopPropagation(); renameText = job.config.name; renameError = null; renaming = job.id; }}>
+            <Pencil class="size-3.5" aria-hidden="true" />{t('training.rename')}
+          </Button>
+          <Button size="sm" variant="ghost" onclick={(e) => { e.stopPropagation(); void copyRecipe(job); }}>
+            <Copy class="size-3.5" aria-hidden="true" />{copiedId === job.id ? t('training.recipe_copied') : t('training.recipe_copy')}
+          </Button>
           {#if job.status === 'draft'}
-            <Button size="sm" disabled={!training.envReady} title={training.envReady ? undefined : t('training.env_required')} onclick={(e) => { e.stopPropagation(); void training.startJob(job.id); }}>
+            <Button size="sm" disabled={training.installing} onclick={(e) => { e.stopPropagation(); void training.startJob(job.id); }}>
               <Play class="size-3.5" aria-hidden="true" />{t('training.start')}
             </Button>
           {/if}
@@ -85,8 +153,12 @@
             </Button>
           {/if}
           {#if canResume(job)}
-            <Button size="sm" disabled={!training.envReady} onclick={(e) => { e.stopPropagation(); void training.resume(job.id); }}>
+            <Button size="sm" disabled={training.installing} onclick={(e) => { e.stopPropagation(); void training.resume(job.id); }}>
               <RotateCcw class="size-3.5" aria-hidden="true" />{t('training.resume')}
+            </Button>
+          {:else if canRestart(job)}
+            <Button size="sm" disabled={training.installing} onclick={(e) => { e.stopPropagation(); void training.restart(job.id); }}>
+              <RotateCcw class="size-3.5" aria-hidden="true" />{t('training.restart')}
             </Button>
           {/if}
           {#if canExport(job)}

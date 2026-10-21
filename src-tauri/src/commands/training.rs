@@ -22,6 +22,38 @@ pub(crate) async fn training_preview(
     blocking(move || training::preview(&request)).await?
 }
 
+/// Hardware-aware presets for a model and dataset.
+#[tauri::command]
+pub(crate) async fn training_presets(
+    request: training::PresetRequest,
+) -> Result<training::PresetSet, String> {
+    training::presets::presets(&request).await
+}
+
+/// Whether a model name is free, and a suggested one.
+#[tauri::command]
+pub(crate) async fn training_check_name(
+    name: Option<String>,
+    model: Option<String>,
+    dataset: Option<String>,
+    exclude_job: Option<u64>,
+) -> Result<training::NameCheck, String> {
+    blocking(move || {
+        training::check_name(
+            name.as_deref(),
+            model.as_deref(),
+            dataset.as_deref(),
+            exclude_job,
+        )
+    })
+    .await
+}
+
+#[tauri::command]
+pub(crate) async fn training_rename(job_id: u64, name: String) -> Result<training::TrainingJob, String> {
+    blocking(move || training::rename(job_id, &name)).await?
+}
+
 #[tauri::command]
 pub(crate) async fn training_compatibility() -> training::Compatibility {
     training::compatibility().await
@@ -82,7 +114,21 @@ pub(crate) fn training_export(job_id: u64, request: ExportRequest) -> Result<tra
     training::export(job_id, &request)
 }
 
-/// Opens a file dialog for a training dataset (`.jsonl` / `.json`); `None` when cancelled.
+/// Opens a folder dialog for a training dataset folder (JSONL, JSON and CSV files inside).
+#[tauri::command]
+pub(crate) async fn pick_training_dataset_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    blocking(move || {
+        app.dialog()
+            .file()
+            .blocking_pick_folder()
+            .and_then(|p| p.into_path().ok())
+            .map(|p| p.to_string_lossy().to_string())
+    })
+    .await
+}
+
+/// Opens a file dialog for a training dataset (`.jsonl`, `.json`, `.csv`); `None` when cancelled.
 #[tauri::command]
 pub(crate) async fn pick_training_dataset_file(
     app: tauri::AppHandle,
@@ -92,10 +138,29 @@ pub(crate) async fn pick_training_dataset_file(
     blocking(move || {
         app.dialog()
             .file()
-            .add_filter(label, &["jsonl", "json"])
+            .add_filter(label, &["jsonl", "ndjson", "json", "csv"])
             .blocking_pick_file()
             .and_then(|p| p.into_path().ok())
             .map(|p| p.to_string_lossy().to_string())
     })
     .await
+}
+
+/// Downloads a safetensors Hub repo (weights, config, tokenizer) into the library as a training
+/// base model. Returns the download job id.
+#[tauri::command]
+pub(crate) async fn training_download_base(
+    download_mgr: State<'_, Arc<harness_core::downloader::DownloadManager>>,
+    repo_id: String,
+) -> Result<u64, String> {
+    let token = harness_core::hf_auth::current_token().await;
+    download_mgr
+        .pull_training_base(repo_id.trim(), token.as_deref())
+        .await
+}
+
+/// Starts a failed or cancelled job without a checkpoint over from the beginning.
+#[tauri::command]
+pub(crate) async fn training_restart(job_id: u64) -> Result<training::TrainingJob, String> {
+    training::restart(job_id)
 }
