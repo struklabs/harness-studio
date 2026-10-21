@@ -5447,6 +5447,79 @@ mod tests {
     }
 
     #[test]
+    fn swin2sr_repos_run_on_the_python_engine_and_other_image_to_image_ones_do_not() {
+        use crate::hub_compat::Compatibility::Runnable;
+        let files = |names: &[&str]| -> Vec<serde_json::Value> {
+            names
+                .iter()
+                .map(|n| serde_json::json!({"rfilename": n}))
+                .collect()
+        };
+        let siblings = files(&[
+            "config.json",
+            "model.safetensors",
+            "preprocessor_config.json",
+        ]);
+        let listed = |arch: &str, model_type: &str| {
+            parse_search_item(&serde_json::json!({"id": "x/swin2SR-classical-sr-x2-64",
+                "pipeline_tag": "image-to-image", "library_name": "transformers",
+                "tags": ["transformers", "safetensors", "image-to-image"],
+                "config": {"architectures": [arch], "model_type": model_type},
+                "siblings": siblings}))
+            .unwrap()
+        };
+        let swin = listed("Swin2SRForImageSuperResolution", "swin2sr");
+        assert_eq!(
+            swin.compatibility,
+            Runnable {
+                runtime: "python-hf".into()
+            }
+        );
+        assert_eq!(swin.not_runnable, None);
+        assert!(!matches!(
+            listed("SomeOtherModel", "other").compatibility,
+            Runnable { ref runtime } if runtime == "python-hf"
+        ));
+    }
+
+    #[test]
+    fn a_diffusers_inpainting_repo_runs_on_the_python_engine_unless_a_checkpoint_sits_beside_it() {
+        // stable-diffusion-v1-5/stable-diffusion-inpainting: the folders (and a single-file ckpt).
+        let names = [
+            "config.json",
+            "feature_extractor/preprocessor_config.json",
+            "model_index.json",
+            "scheduler/scheduler_config.json",
+            "text_encoder/config.json",
+            "text_encoder/model.fp16.safetensors",
+            "tokenizer/vocab.json",
+            "unet/config.json",
+            "unet/diffusion_pytorch_model.fp16.safetensors",
+            "vae/config.json",
+            "vae/diffusion_pytorch_model.fp16.safetensors",
+        ];
+        let verdict = |extra: &[&str]| {
+            parse_search_item(&serde_json::json!({
+                "id": "stable-diffusion-v1-5/stable-diffusion-inpainting",
+                "pipeline_tag": "text-to-image", "library_name": "diffusers",
+                "tags": ["diffusers", "safetensors", "stable-diffusion", "text-to-image"],
+                "siblings": names.iter().chain(extra.iter())
+                    .map(|n| serde_json::json!({"rfilename": n})).collect::<Vec<_>>()
+            }))
+            .unwrap()
+            .compatibility
+        };
+        let runtime = |r: &str| crate::hub_compat::Compatibility::Runnable { runtime: r.into() };
+        assert_eq!(verdict(&[]), runtime("python-hf"));
+        // The single-file checkpoint next to the folders is stable-diffusion.cpp's (which also
+        // takes a mask); the Python engine runs the folders once they are in the library.
+        assert_eq!(
+            verdict(&["sd-v1-5-inpainting.ckpt"]),
+            runtime("stable-diffusion.cpp")
+        );
+    }
+
+    #[test]
     fn safetensors_embedders_and_rerankers_without_onnx_run_on_the_python_engine() {
         use crate::hub_compat::Compatibility::{Runnable, Unsupported};
         let python = Runnable {

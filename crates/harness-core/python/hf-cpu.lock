@@ -756,6 +756,10 @@ packaging==26.3 \
     #   huggingface-hub
     #   onnxruntime
     #   transformers
+peft==0.21.2 \
+    --hash=sha256:106ab6077ff72c54d21577f9af5970e34bac7582cb14209f7b2b511e322a4eae \
+    --hash=sha256:b803ccfb3f3f316004d850284306687833a2235ea278fb56abc856203456142e
+    # via -r hf-cpu.in
 pillow==12.3.0 \
     --hash=sha256:00808c5e14ef63ac5161091d242999076604ff74b883423a11e5d7bbb38bf756 \
     --hash=sha256:04f01d28a6aaff387bf842a13be313df23ba0597a44f1a976c9feb3c6ff4711a \

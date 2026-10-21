@@ -26,6 +26,11 @@
 //! grayscale one, and without
 //! `size` the first image's size is the canvas.
 //!
+//! A Python engine model (a diffusers pipeline) answers the same routes itself. `lora` (an absolute path to
+//! a `.safetensors` file, or the id of a Hugging Face repository that is in the local cache) and
+//! `lora_scale` (-4 to 4, 1 by default) load one LoRA adapter for that request only ([`lora_of`]);
+//! an edit's `mask` has to be the image's size there ([`check_python_mask`]). Other engines refuse them.
+//!
 //! On Apple Silicon, a definition whose folder is a FLUX.2 [klein] model in mflux's format goes to
 //! the mflux worker instead ([`mflux_body`]): the same OpenAI fields, within the limits mflux
 //! has (steps, images per request, sides a multiple of 16, edit images); without `size` the
@@ -203,6 +208,12 @@ pub fn plan(request: &Value) -> Result<Plan, GatewayError> {
         None => -1,
     };
     obj.insert("seed".into(), json!(seed));
+    if let Some((lora, scale)) = lora_of(request)? {
+        obj.insert("lora".into(), json!(lora));
+        if let Some(scale) = scale {
+            obj.insert("lora_scale".into(), json!(scale));
+        }
+    }
     let mut sample = serde_json::Map::new();
     if let Some(steps) = number(request, "steps")? {
         if !(1.0..=500.0).contains(&steps) || steps.fract() != 0.0 {
@@ -235,6 +246,105 @@ pub fn plan(request: &Value) -> Result<Plan, GatewayError> {
         format,
         as_url,
     })
+}
+
+/// Range of `lora_scale` (the same as the mflux worker's).
+pub const LORA_SCALE_RANGE: std::ops::RangeInclusive<f64> = -4.0..=4.0;
+
+fn repo_part(s: &str, max: usize) -> bool {
+    !s.is_empty()
+        && s.len() <= max
+        && s.starts_with(|c: char| c.is_ascii_alphanumeric())
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+}
+
+/// The LoRA a request names: `lora` (an absolute path to a `.safetensors` file that exists, or a
+/// Hugging Face repository id `owner/name` / `owner/name:file.safetensors`, which must be in the
+/// local cache: the Python engine runs offline) and `lora_scale`. `None` without a `lora`; a
+/// scale without one, a scale outside [`LORA_SCALE_RANGE`] and any other value are refused.
+pub fn lora_of(request: &Value) -> Result<Option<(String, Option<f64>)>, GatewayError> {
+    let scale = number(request, "lora_scale")?;
+    let Some(lora) = text(request, "lora")? else {
+        if scale.is_some() {
+            return Err(bad("lora_scale needs a lora.").param("lora_scale"));
+        }
+        return Ok(None);
+    };
+    if let Some(scale) = scale.filter(|s| !LORA_SCALE_RANGE.contains(s)) {
+        return Err(bad(format!(
+            "lora_scale {scale} is not valid; use a number from {} to {}.",
+            LORA_SCALE_RANGE.start(),
+            LORA_SCALE_RANGE.end()
+        ))
+        .param("lora_scale"));
+    }
+    let path = std::path::Path::new(lora);
+    let looks_like_path =
+        path.is_absolute() || lora.contains('\\') || lora.as_bytes().get(1) == Some(&b':');
+    if looks_like_path {
+        if !path.is_absolute() {
+            return Err(bad("lora must be an absolute path to a .safetensors file.").param("lora"));
+        }
+        if !lora.to_ascii_lowercase().ends_with(".safetensors") {
+            return Err(bad("A LoRA file must be a .safetensors file.").param("lora"));
+        }
+        if !path.is_file() {
+            return Err(bad("The LoRA file was not found.").param("lora"));
+        }
+    } else {
+        let (repo, file) = match lora.split_once(':') {
+            Some((r, f)) => (r, Some(f)),
+            None => (lora, None),
+        };
+        let valid = repo
+            .split_once('/')
+            .is_some_and(|(owner, name)| repo_part(owner, 96) && repo_part(name, 96))
+            && file.is_none_or(|f| {
+                f.to_ascii_lowercase().ends_with(".safetensors")
+                    && f.len() <= 200
+                    && !f.starts_with(['/', '.'])
+                    && !f.contains("..")
+                    && f.chars()
+                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '/'))
+            });
+        if !valid {
+            return Err(bad(
+                "lora must be an absolute path to a .safetensors file or a Hugging Face repository id (owner/name or owner/name:file.safetensors).",
+            )
+            .param("lora"));
+        }
+    }
+    Ok(Some((lora.to_string(), scale)))
+}
+
+/// The decoded start of a base64 image field (`plan_edit` leaves the bare base64).
+fn b64_head(b64: &str) -> Option<Vec<u8>> {
+    let quads = (HEAD_BYTES / 3 * 4).min(b64.len()) / 4 * 4;
+    B64.decode(&b64[..quads]).ok()
+}
+
+/// A Python engine edit's mask has to be the image's size (as in OpenAI's images API): the
+/// worker would otherwise stretch it, and the repainted area would land in the wrong place.
+/// Sizes that cannot be read from the headers are left to the worker.
+pub fn check_python_mask(img_gen: &Value) -> Result<(), GatewayError> {
+    let size = |key: &str| {
+        img_gen
+            .get(key)
+            .and_then(Value::as_str)
+            .and_then(b64_head)
+            .and_then(|head| image_size(&head))
+    };
+    if let (Some(image), Some(mask)) = (size("init_image"), size("mask_image")) {
+        if image != mask {
+            return Err(bad(format!(
+                "The mask is {}x{} but the image is {}x{}; the mask has to be the image's size.",
+                mask.0, mask.1, image.0, image.1
+            ))
+            .param("mask"));
+        }
+    }
+    Ok(())
 }
 
 /// Width and height of a PNG, JPEG or WebP image, read from its header.
@@ -559,7 +669,15 @@ pub fn mflux_body(
 }
 
 /// Fields of an edit form that are numbers (a form sends everything as text).
-const NUMBER_FIELDS: [&str; 6] = ["n", "steps", "cfg_scale", "guidance", "seed", "strength"];
+const NUMBER_FIELDS: [&str; 7] = [
+    "n",
+    "steps",
+    "cfg_scale",
+    "guidance",
+    "seed",
+    "strength",
+    "lora_scale",
+];
 
 /// Reads OpenAI's multipart edit form (`image` / `image[]` files, `mask`, text fields) into
 /// the JSON shape `plan_edit` reads. A file part is encoded as base64; an `image` or `mask`
@@ -705,6 +823,8 @@ fn python_edit_body(img_gen: &Value) -> Value {
     copy("strength", img_gen.get("strength"));
     copy("image", img_gen.get("init_image"));
     copy("mask", img_gen.get("mask_image"));
+    copy("lora", img_gen.get("lora"));
+    copy("lora_scale", img_gen.get("lora_scale"));
     let sample = img_gen.get("sample_params");
     copy("steps", sample.and_then(|s| s.get("sample_steps")));
     copy(
@@ -888,6 +1008,12 @@ async fn run(
     GatewayError::reject_remote(&def)?;
     // An mflux worker answers its own body.
     if is_mflux_model(&def) {
+        if plan.body.get("lora").is_some() {
+            return Err(bad(
+                "lora is not available per request for this model: set the LoRA in the model's definition.",
+            )
+            .param("lora"));
+        }
         let inpaints = def
             .base
             .local_path()
@@ -903,9 +1029,18 @@ async fn run(
         }
         let request = match kind {
             Kind::Generations => raw_request.unwrap_or_default(),
-            Kind::Edits => python_edit_body(&plan.body),
+            Kind::Edits => {
+                check_python_mask(&plan.body)?;
+                python_edit_body(&plan.body)
+            }
         };
         return python_generate(state, &def, kind, request, &plan, guard).await;
+    }
+    if plan.body.get("lora").is_some() {
+        return Err(bad(
+            "lora is available for Python engine models (diffusers pipelines); this model runs on stable-diffusion.cpp.",
+        )
+        .param("lora"));
     }
     if !is_image_model(&def) {
         return Err(GatewayError::new(
@@ -1378,6 +1513,113 @@ mod tests {
             python_edit_body(&p.body),
             json!({"prompt": "x", "n": 1, "seed": -1, "image": b, "size": "64x64"})
         );
+    }
+
+    #[test]
+    fn a_lora_is_a_checked_file_or_a_repository_and_goes_to_python_models_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("style.safetensors");
+        std::fs::write(&file, b"x").unwrap();
+        let file = file.to_string_lossy().to_string();
+        let ok = |v: Value| lora_of(&v).unwrap();
+        assert_eq!(ok(json!({"prompt": "x"})), None);
+        assert_eq!(ok(json!({"lora": "  "})), None);
+        assert_eq!(
+            ok(json!({"lora": file, "lora_scale": 0.5})),
+            Some((file.clone(), Some(0.5)))
+        );
+        assert_eq!(
+            ok(json!({"lora": "owner/name"})),
+            Some(("owner/name".into(), None))
+        );
+        assert_eq!(
+            ok(json!({"lora": "owner/name:dir/style.safetensors", "lora_scale": -4})),
+            Some(("owner/name:dir/style.safetensors".into(), Some(-4.0)))
+        );
+        let param = |v: Value| {
+            lora_of(&v)
+                .unwrap_err()
+                .param
+                .map(|p| p.to_string())
+                .unwrap_or_default()
+        };
+        let missing = dir
+            .path()
+            .join("missing.safetensors")
+            .to_string_lossy()
+            .to_string();
+        let bin = dir.path().join("style.bin").to_string_lossy().to_string();
+        std::fs::write(&bin, b"x").unwrap();
+        for lora in [
+            missing.as_str(),
+            bin.as_str(),
+            "style.safetensors",
+            "../x/y",
+            "a/b/c",
+            "owner/name:../x.safetensors",
+            "owner/name:style.bin",
+            "owner//name",
+            "-owner/name",
+            "C:style.safetensors",
+        ] {
+            assert_eq!(param(json!({"lora": lora})), "lora", "{lora}");
+        }
+        assert_eq!(param(json!({"lora": 5})), "lora");
+        assert_eq!(param(json!({"lora_scale": 1})), "lora_scale");
+        assert_eq!(
+            param(json!({"lora": "a/b", "lora_scale": 4.5})),
+            "lora_scale"
+        );
+        assert_eq!(
+            param(json!({"lora": "a/b", "lora_scale": "x"})),
+            "lora_scale"
+        );
+        // Through the plan and the Python edit body; the sd.cpp job body would carry it too (the
+        // run refuses it there), and a request without one has no lora field.
+        let image = B64.encode(png(64, 64));
+        let p = plan_edit(json!({"prompt": "x", "image": image, "lora": "a/b", "lora_scale": 0.7}))
+            .unwrap();
+        let body = python_edit_body(&p.body);
+        assert_eq!(
+            (body["lora"].clone(), body["lora_scale"].clone()),
+            (json!("a/b"), json!(0.7))
+        );
+        let plain = plan(&json!({"prompt": "x"})).unwrap();
+        assert!(plain.body.get("lora").is_none() && plain.body.get("lora_scale").is_none());
+        assert_eq!(
+            plan(&json!({"prompt": "x", "lora": "a b"}))
+                .unwrap_err()
+                .param
+                .as_deref(),
+            Some("lora")
+        );
+    }
+
+    #[test]
+    fn a_python_edit_mask_has_the_images_size() {
+        let image = B64.encode(png(641, 480));
+        let same =
+            plan_edit(json!({"prompt": "x", "image": image, "mask": B64.encode(png(641, 480))}))
+                .unwrap();
+        assert!(check_python_mask(&same.body).is_ok());
+        let other =
+            plan_edit(json!({"prompt": "x", "image": image, "mask": B64.encode(png(64, 64))}))
+                .unwrap();
+        let e = check_python_mask(&other.body).unwrap_err();
+        assert_eq!((e.status, e.param.as_deref()), (400, Some("mask")));
+        assert!(
+            e.message.contains("64x64") && e.message.contains("641x480"),
+            "{}",
+            e.message
+        );
+        // No mask, or sizes that cannot be read: nothing to compare.
+        let none = plan_edit(json!({"prompt": "x", "image": image})).unwrap();
+        assert!(check_python_mask(&none.body).is_ok());
+        let odd = plan_edit(
+            json!({"prompt": "x", "image": image, "mask": B64.encode(b"\xFF\xD8\xFF\xD9")}),
+        )
+        .unwrap();
+        assert!(check_python_mask(&odd.body).is_ok());
     }
 
     #[test]

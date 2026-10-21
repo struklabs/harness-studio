@@ -166,6 +166,12 @@ The **Image Generation** tab generates pictures from diffusion models through st
 
 For image-to-image, add an optional **Start Image** and set **Strength** (how much it changes). Models that only edit images require a start image. Python diffusers models also open in this tab.
 
+**Inpainting.** With a start image, Python diffusers models can redraw only part of it. Press **Draw Mask** and paint the area to redraw (the rest is kept), or **Choose Mask** to load a mask file that has the start image's size: white areas are redrawn, and so are transparent ones in a PNG, as in OpenAI's masks. A Stable Diffusion inpainting checkpoint (such as `stable-diffusion-v1-5/stable-diffusion-inpainting`) and FLUX.1 Fill need a mask; a text-to-image diffusers model takes one optionally and inpaints with its own components. **Strength** says how much of the masked area is redrawn.
+
+**LoRA.** For Python diffusers models, **LoRA Adapter** takes the full path of a `.safetensors` LoRA file inside one of your model folders (**Choose LoRA** opens a file dialog; files elsewhere are refused, so copy the LoRA into a model folder first) or a Hugging Face repository (`owner/name`, or `owner/name:file.safetensors`) that is already in the Hugging Face cache, and **LoRA Scale** (-4 to 4, 1 when empty). The adapter is loaded for that request only and unloaded afterwards, so the next request starts from the plain model. It must be trained for the model's family (a Stable Diffusion 1.5 LoRA for an SD 1.5 model). LoRA files of mflux models are set in the model's definition instead.
+
+**Upscale.** Under **Generated** (and next to the start image), **Upscale** enlarges a picture with a super-resolution model: download a Swin2SR model such as `caidas/swin2SR-classical-sr-x2-64` from Model Hub (it runs on the Python engine and doubles the width and height), choose it as **Upscale Model**, and press **Upscale**. The result joins the pictures of this session. The size limit is the model's **Largest image** setting, applied to the enlarged picture.
+
 ### Generate Images with ComfyUI
 
 If you already run [ComfyUI](https://github.com/comfyanonymous/ComfyUI), the **Image Generation** tab can use it instead of the built-in engine. Harness does not install, ship, or start ComfyUI; it only talks to the ComfyUI you run, through its HTTP API.

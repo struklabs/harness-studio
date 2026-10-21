@@ -23,6 +23,8 @@ Endpoints
   POST /v1/audio/speech            text-to-speech / text-to-audio ({"input": ...} -> audio/wav)
   POST /v1/images/generations      text-to-image (diffusers; OpenAI shape, b64_json)
   POST /v1/images/edits            image-to-image, or inpainting with a mask, on the same pipeline
+                                   (`lora` / `lora_scale`: one LoRA adapter for this request only)
+  POST /hf                         image-super-resolution: Swin2SR upscales the image (`inputs`)
 
 Errors use the OpenAI shape {"error": {"message", "type", "code"}}. Every route but /health needs
 "Authorization: Bearer <HARNESS_WORKER_API_KEY>"; the worker refuses to start without that key.
@@ -78,6 +80,7 @@ IMAGE_TASKS = {
     "document-question-answering",
     "visual-question-answering",
     "mask-generation",
+    "image-super-resolution",
 }
 AUDIO_TASKS = {
     "automatic-speech-recognition",
@@ -204,6 +207,8 @@ class Model:
         self.default_scheduler = None
         self.schedulers = {}
         self.variants = {}
+        # An inpainting checkpoint (StableDiffusionInpaintPipeline...): every request needs a mask.
+        self.inpaint_only = False
 
     def max_pixels(self):
         mp = self.args.max_megapixels or (1.0 if self.device() == "cpu" else 4.0)
@@ -213,6 +218,10 @@ class Model:
         """The image-to-image (`img2img`) or inpainting (`inpaint`) pipeline of the loaded model. A
         pipeline that takes a start image itself (InstructPix2Pix, Qwen-Image-Edit, FLUX.2 klein,
         FLUX.1 Kontext...) is its own image-to-image pipeline."""
+        if self.inpaint_only:
+            if kind == "inpaint":
+                return self.pipe
+            raise BadRequest("this model inpaints: send a mask too (white = repaint)")
         if kind == "img2img" and takes(self.pipe, "image"):
             return self.pipe
         if kind not in self.variants:
@@ -266,6 +275,7 @@ class Model:
                     dtype = torch.float16 if self.device() == "cuda" else torch.float32
                 self.pipe = load_text_to_image(folder, dtype, task).to(self.device())
                 self.default_scheduler = self.pipe.scheduler
+                self.inpaint_only = any(w in type(self.pipe).__name__ for w in ("Inpaint", "Fill"))
                 low = self.args.low_memory
                 if low == "on" or (low == "auto" and self.device() in ("cpu", "mps")):
                     # Attention in slices and the VAE a tile / an image at a time: a lower peak
@@ -318,6 +328,7 @@ class Model:
                 ).to(self.device()).eval()
             elif task in NATIVE_TASKS:
                 self.pipe = NativeRunner(task, folder, self.device(), self.dtype(), trust)
+                self.pipe.max_pixels = self.max_pixels()
             else:
                 from transformers import pipeline
 
@@ -501,6 +512,11 @@ def load_text_to_image(folder, dtype, task="text-to-image"):
             raise CustomCodeRefused(f"model_index.json names {name!r}, not a diffusers pipeline")
     else:
         cls = diffusers.AutoPipelineForText2Image
+    extra = {}
+    if not os.path.isdir(os.path.join(folder, "safety_checker")):
+        # The Hub download never fetches the safety checker (a ~1 GB CLIP model nothing here uses);
+        # without its folder diffusers would look for its weights in the pipeline root and fail.
+        extra = {"safety_checker": None, "requires_safety_checker": False}
     return cls.from_pretrained(
         folder,
         torch_dtype=dtype,
@@ -508,6 +524,7 @@ def load_text_to_image(folder, dtype, task="text-to-image"):
         use_safetensors=None if pickles else True,
         trust_remote_code=False,
         variant=weights_variant(folder),
+        **extra,
     )
 
 
@@ -531,8 +548,9 @@ def weights_variant(folder):
 
 
 # Libraries a diffusers `model_index.json` component may come from (anything else is a module of
-# the repo itself).
-INDEX_LIBRARIES = {"diffusers", "transformers", None}
+# the repo itself). `stable_diffusion` is diffusers' own sub-package, the library the Stable
+# Diffusion safety checker is listed under.
+INDEX_LIBRARIES = {"diffusers", "transformers", "stable_diffusion", None}
 
 
 def refuse_custom_code(folder):
@@ -681,6 +699,7 @@ NATIVE_TASKS = {
     "text2text-generation",
     "image-to-text",
     "visual-question-answering",
+    "image-super-resolution",
 }
 
 
@@ -699,6 +718,10 @@ class NativeRunner:
         elif task == "image-to-text":
             self.proc = tf.AutoProcessor.from_pretrained(folder, trust_remote_code=trust)
             self.model = tf.AutoModelForImageTextToText.from_pretrained(folder, **kw)
+        elif task == "image-super-resolution":
+            self.proc = tf.AutoImageProcessor.from_pretrained(folder, trust_remote_code=trust)
+            self.model = tf.AutoModelForImageToImage.from_pretrained(folder, **kw)
+            self.max_pixels = 1_000_000  # output pixels; Model.load sets the "Largest image" limit
         else:  # visual-question-answering (ViLT-style classifiers)
             self.proc = tf.AutoProcessor.from_pretrained(folder, trust_remote_code=trust)
             self.model = tf.AutoModelForVisualQuestionAnswering.from_pretrained(folder, **kw)
@@ -776,6 +799,37 @@ class NativeRunner:
 
     def text2text_generation(self, inputs, params):
         return self._generate(inputs, params, "generated_text")
+
+    def image_super_resolution(self, inputs, params):
+        """Swin2SR and the other `AutoModelForImageToImage` upscalers: the image enlarged by the
+        model's own factor (`config.upscale`). Answers `{image (PNG, base64), width, height,
+        scale}`; the output pixels (input x scale squared) stay within the "Largest image" limit."""
+        import numpy as np
+        from PIL import Image
+
+        img = to_image(inputs)
+        scale = int(getattr(self.model.config, "upscale", 0) or 0)
+        if scale < 1:
+            raise BadRequest("this model does not say its upscale factor")
+        if params.get("scale") is not None and int(params["scale"]) != scale:
+            raise BadRequest(f"this model upscales by {scale}: scale {params['scale']} is not available")
+        w, h = img.size
+        if w < 8 or h < 8:
+            raise BadRequest("the image must be at least 8 pixels on each side")
+        pixels = w * h * scale * scale
+        if pixels > self.max_pixels:
+            raise BadRequest(
+                f"the result would be {pixels / 1e6:.2f} megapixels ({w}x{h} x{scale}); this model allows "
+                f"{self.max_pixels / 1e6:g} (the Largest image setting). Make the image smaller."
+            )
+        enc = self.proc(images=img, return_tensors="pt")
+        enc = {k: v.to(self.device) for k, v in enc.items()}
+        enc = {k: v.to(self.model.dtype) if v.is_floating_point() else v for k, v in enc.items()}
+        out = self.model(**enc).reconstruction[0].float().clamp_(0, 1).cpu().numpy()
+        # The processor pads the input to a multiple of the window; the padding is cut away.
+        arr = (np.moveaxis(out, 0, -1)[: h * scale, : w * scale] * 255.0).round().astype("uint8")
+        result = Image.fromarray(arr)
+        return {"image": png_b64(result), "width": result.width, "height": result.height, "scale": scale}
 
     def image_to_text(self, inputs, params):
         img = to_image(inputs)
@@ -987,9 +1041,132 @@ def diffusion_kwargs(model: Model, params, width=None, height=None):
 
 
 def text_to_image(model: Model, prompt, params):
+    if model.inpaint_only:
+        raise BadRequest("this model inpaints: use /v1/images/edits with an image and a mask")
     kw = diffusion_kwargs(model, params)
     use_sampler(model, model.pipe, params.get("sampler"), params.get("scheduler"))
-    return model.pipe(prompt=prompt, **kw).images
+    with applied_lora(model.pipe, params):
+        return model.pipe(prompt=prompt, **kw).images
+
+
+# --- LoRA (one adapter for one request) ------------------------------------------------------------
+
+# Largest LoRA file one request may load, and the scales it may ask for (as mflux's worker).
+MAX_LORA_BYTES = 2 * 1024 * 1024 * 1024
+LORA_SCALE_RANGE = (-4.0, 4.0)
+LORA_REPO = re.compile(
+    r"^([A-Za-z0-9][A-Za-z0-9._-]{0,95}/[A-Za-z0-9][A-Za-z0-9._-]{0,95})"
+    r"(?::([A-Za-z0-9._-][A-Za-z0-9._/-]{0,198}\.safetensors))?$"
+)
+
+
+def lora_roots():
+    """The Harness model folders a LoRA file may come from (`HARNESS_LORA_ROOTS`, set by Harness,
+    separated by `os.pathsep`). Empty: no local LoRA file is allowed."""
+    raw = os.environ.get("HARNESS_LORA_ROOTS", "")
+    return [r for r in raw.split(os.pathsep) if r.strip()]
+
+
+def lora_file_in_roots(path, roots):
+    """The real path of `path` when it is an existing file inside one of `roots` after resolving
+    symlinks and `..` (so a link pointing outside does not count); otherwise None."""
+    try:
+        real = os.path.realpath(path)
+    except (OSError, ValueError):
+        return None
+    if not os.path.isfile(real):
+        return None
+    for root in roots:
+        try:
+            base = os.path.realpath(root)
+            if os.path.commonpath([os.path.normcase(real), os.path.normcase(base)]) == os.path.normcase(base):
+                return real
+        except (OSError, ValueError):
+            continue
+    return None
+
+
+def lora_request(params):
+    """The LoRA a request asks for: `("file", path, None, scale)` for a local `.safetensors` file
+    (an absolute path), `("repo", repo_id, file_or_None, scale)` for a repository already in the
+    Hugging Face cache (`owner/name` or `owner/name:file.safetensors`; the worker is offline).
+    `None` without `lora`. A bad value is a BadRequest."""
+    value = params.get("lora")
+    scale = params.get("lora_scale")
+    if value is None or (isinstance(value, str) and not value.strip()):
+        if scale is not None:
+            raise BadRequest("lora_scale needs a lora")
+        return None
+    if not isinstance(value, str) or len(value) > 512:
+        raise BadRequest("lora must be a path to a .safetensors file or a repository id (owner/name)")
+    try:
+        scale = 1.0 if scale is None else float(scale)
+    except (TypeError, ValueError):
+        raise BadRequest("lora_scale must be a number")
+    if not LORA_SCALE_RANGE[0] <= scale <= LORA_SCALE_RANGE[1]:
+        raise BadRequest(f"lora_scale must be from {LORA_SCALE_RANGE[0]:g} to {LORA_SCALE_RANGE[1]:g}")
+    value = value.strip()
+    if os.path.isabs(value) or "\\" in value or re.match(r"^[A-Za-z]:", value):
+        if not os.path.isabs(value):
+            raise BadRequest("a LoRA file is an absolute path")
+        if not value.lower().endswith(".safetensors"):
+            raise BadRequest("a LoRA file must be a .safetensors file")
+        # Only files inside the Harness model folders: a request must not probe or load any other
+        # file on this machine. One message for "outside" and "missing" so existence never leaks.
+        real = lora_file_in_roots(value, lora_roots())
+        if real is None:
+            raise BadRequest("the LoRA file is not available: put it in a Harness model folder")
+        if os.path.getsize(real) > MAX_LORA_BYTES:
+            raise BadRequest("the LoRA file is larger than 2 GB")
+        return ("file", real, None, scale)
+    m = LORA_REPO.match(value)
+    if not m:
+        raise BadRequest("lora must be an absolute path to a .safetensors file or a repository id (owner/name)")
+    return ("repo", m.group(1), m.group(2), scale)
+
+
+class applied_lora:
+    """`with applied_lora(pipe, params):` loads the request's LoRA (if any) into the pipeline for
+    the call and unloads it afterwards, so the next request starts from the plain model."""
+
+    def __init__(self, pipe, params):
+        self.pipe, self.spec, self.loaded = pipe, lora_request(params), False
+
+    def __enter__(self):
+        if self.spec is None:
+            return self
+        kind, source, weight, scale = self.spec
+        pipe = self.pipe
+        if not hasattr(pipe, "load_lora_weights"):
+            raise BadRequest(f"this model ({type(pipe).__name__}) cannot load a LoRA")
+        try:
+            import peft  # noqa: F401  (diffusers loads adapters through PEFT)
+        except ImportError:
+            raise BadRequest("the Python engine environment has no PEFT: update the engine to load a LoRA")
+        try:
+            if kind == "file":
+                pipe.load_lora_weights(
+                    os.path.dirname(source), weight_name=os.path.basename(source), adapter_name="request",
+                    local_files_only=True,
+                )
+            else:
+                pipe.load_lora_weights(source, weight_name=weight, adapter_name="request", local_files_only=True)
+            self.loaded = True
+            pipe.set_adapters(["request"], adapter_weights=[scale])
+        except Exception as e:
+            self.__exit__(None, None, None)
+            what = "the LoRA file" if kind == "file" else f"the LoRA {source} (it must already be in the Hugging Face cache)"
+            raise BadRequest(f"{what} could not be loaded into this model: {type(e).__name__}: {e}")
+        return self
+
+    def __exit__(self, *exc):
+        if self.loaded:
+            self.loaded = False
+            try:
+                self.pipe.unload_lora_weights()
+            except Exception:
+                log(traceback.format_exc())
+        return False
 
 
 def to_mask(value):
@@ -1022,8 +1199,10 @@ def edit_image(model: Model, prompt, image, mask, params):
         init = init.resize((w, h))
     if params.get("strength") is not None:
         kw["strength"] = float(params["strength"])
+    if mask is None and model.inpaint_only:
+        raise BadRequest("this model inpaints: send a mask too (white = repaint)")
     if mask is not None:
-        if model.args.task == "image-to-image":
+        if model.args.task == "image-to-image" and not model.inpaint_only:
             raise BadRequest("this model edits a whole image: it takes no mask")
         pipe = model.variant("inpaint")
         kw.update(mask_image=to_mask(mask).resize((w, h)), width=w, height=h)
@@ -1035,7 +1214,8 @@ def edit_image(model: Model, prompt, image, mask, params):
     use_sampler(model, pipe, params.get("sampler"), params.get("scheduler"))
     # Only what this pipeline takes: InstructPix2Pix and the Edit pipelines have no `strength`.
     kw = {k: v for k, v in kw.items() if takes(pipe, k)}
-    return pipe(prompt=prompt, image=init, **kw).images
+    with applied_lora(pipe, params):
+        return pipe(prompt=prompt, image=init, **kw).images
 
 
 def takes(pipe, name):
@@ -2109,7 +2289,7 @@ def build_app(model: Model):
     # The fields both image routes read (OpenAI's plus Harness's extras, as the gateway sends them).
     IMAGE_FIELDS = (
         "negative_prompt", "num_inference_steps", "steps", "guidance_scale", "cfg_scale", "seed",
-        "sampler", "scheduler",
+        "sampler", "scheduler", "lora", "lora_scale",
     )
 
     def image_params(body):
@@ -2121,7 +2301,9 @@ def build_app(model: Model):
             except ValueError:
                 raise BadRequest('"size" must be WIDTHxHEIGHT')
         params["num_images_per_prompt"] = body.get("n") or 1
-        return check_params({k: v for k, v in params.items() if v is not None})
+        params = check_params({k: v for k, v in params.items() if v is not None})
+        lora_request(params)  # a bad LoRA is refused before the request waits for the model
+        return params
 
     async def images(request: Request):
         wrong = requires("text-to-image")
