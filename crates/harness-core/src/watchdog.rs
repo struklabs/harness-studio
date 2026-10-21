@@ -1,36 +1,40 @@
-//! Orphan-process protection on macOS.
+//! Orphan-process protection on macOS and Linux.
 //!
-//! Windows puts llama-server in a Job Object with `KILL_ON_JOB_CLOSE` and Linux sets
-//! `PR_SET_PDEATHSIG`, so the server dies with Harness Studio even after a crash. macOS has
-//! neither. [`install`] adds a `pre_exec` hook that, in the forked child right before `exec`,
-//! double-forks a tiny watchdog (reparented to launchd, so it outlives Harness). The watchdog
-//! closes every inherited descriptor and waits on a kqueue for `NOTE_EXIT` of two processes:
-//! - Harness Studio exits (normally or by crash) -> `SIGTERM` to the server's process group,
-//!   `SIGKILL` 2 s later (the server is started as a group leader, so whatever it started, such
-//!   as a Python worker's subprocesses, goes with it);
-//! - the server exits -> the watchdog exits too.
+//! Windows puts every engine in a Job Object with `KILL_ON_JOB_CLOSE`, so it dies with Harness
+//! Studio even after a crash. Unix has nothing that covers a whole process group: macOS has no
+//! parent-death signal at all, and Linux's `PR_SET_PDEATHSIG` reaches only the direct child (a
+//! Python worker's subprocesses would survive). [`install`] adds a `pre_exec` hook that, in the
+//! forked child right before `exec`, double-forks a tiny watchdog (reparented to init/launchd,
+//! so it outlives Harness). The watchdog closes every inherited descriptor and waits for the
+//! exit of two processes (a kqueue `NOTE_EXIT` on macOS, pidfds on Linux):
+//! - Harness Studio exits (normally, by crash or by SIGKILL) -> `SIGTERM` to the child's process
+//!   group, `SIGKILL` 2 s later (servers are started as group leaders, so whatever they started
+//!   goes with them);
+//! - the child exits -> the watchdog exits too.
 //!
-//! The watchdog is forked from the server before `exec`, so it starts in the server's group; it
+//! The watchdog is forked from the child before `exec`, so it starts in the child's group; it
 //! moves to a session of its own first, so the group signal does not end the watchdog before its
 //! `SIGKILL` and a clean stop of the group (SIGTERM to it) cannot end the watchdog either.
 //!
 //! Only async-signal-safe system calls run between `fork` and `exec` (fork, waitpid, _exit,
-//! close, kqueue, kevent, kill, sleep). Not compiled or run on the development machine
-//! (Windows); see private hs-internal architecture notes
+//! close, getpgid, setsid, kqueue, kevent, pidfd_open, poll, kill, sleep). A Linux kernel older
+//! than 5.3 has no pidfd: the watchdog then exits and `PR_SET_PDEATHSIG` (set by
+//! [`crate::orphans::protect`] on such a kernel) is what is left. See private hs-internal
+//! architecture notes.
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub fn install(cmd: &mut std::process::Command) {
     install_for(cmd, std::process::id() as libc::pid_t);
 }
 
 /// [`install`] watching `parent` instead of this process (tests stand in a parent they can end).
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn install_for(cmd: &mut std::process::Command, parent: libc::pid_t) {
     use std::os::unix::process::CommandExt;
     // SAFETY: the hook only makes async-signal-safe system calls (see module docs).
     unsafe {
         cmd.pre_exec(move || {
-            // Still the forked child: this pid becomes llama-server after exec.
+            // Still the forked child: this pid becomes the engine after exec.
             let server = libc::getpid();
             let middle = libc::fork();
             if middle < 0 {
@@ -49,6 +53,13 @@ fn install_for(cmd: &mut std::process::Command, parent: libc::pid_t) {
     }
 }
 
+/// Which of the two watched processes exited first.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+enum Exit {
+    Parent,
+    Server,
+}
+
 #[cfg(target_os = "macos")]
 unsafe fn register_exit(kq: libc::c_int, pid: libc::pid_t) -> bool {
     let mut change: libc::kevent = std::mem::zeroed();
@@ -59,50 +70,20 @@ unsafe fn register_exit(kq: libc::c_int, pid: libc::pid_t) -> bool {
     libc::kevent(kq, &change, 1, std::ptr::null_mut(), 0, std::ptr::null()) == 0
 }
 
-/// Signals the server's whole process group when it leads one, and the server itself in any
-/// case.
+/// Waits for the first exit; `None` when it cannot be watched (the watchdog then gives up).
 #[cfg(target_os = "macos")]
-unsafe fn signal_server(server: libc::pid_t, group: bool, sig: libc::c_int) {
-    if group {
-        libc::kill(-server, sig);
-    }
-    libc::kill(server, sig);
-}
-
-/// SIGTERM, then SIGKILL after 2 s. Whether the server leads its group (it does:
-/// `command_group` starts it with `setpgid(0, 0)`) is decided once, before SIGTERM: a leader
-/// that exits on SIGTERM can no longer be asked (ESRCH), yet a child that ignored it still
-/// needs the group's SIGKILL. The group id cannot be reused while the group has members.
-#[cfg(target_os = "macos")]
-unsafe fn stop_server(server: libc::pid_t) -> ! {
-    let group = libc::getpgid(server) == server;
-    signal_server(server, group, libc::SIGTERM);
-    libc::sleep(2);
-    signal_server(server, group, libc::SIGKILL);
-    libc::_exit(0)
-}
-
-#[cfg(target_os = "macos")]
-unsafe fn watch(parent: libc::pid_t, server: libc::pid_t) -> ! {
-    // Out of the server's process group (we were forked from it), so signalling the group
-    // spares the watchdog.
-    libc::setsid();
-    // Keep none of the server's pipes open (the log readers wait for EOF).
-    let max_fd = libc::getdtablesize().max(256);
-    for fd in 0..max_fd {
-        libc::close(fd);
-    }
+unsafe fn first_exit(parent: libc::pid_t, server: libc::pid_t) -> Option<Exit> {
     let kq = libc::kqueue();
     if kq < 0 {
-        libc::_exit(0);
+        return None;
     }
     if !register_exit(kq, server) {
-        libc::_exit(0); // the server is already gone
+        return Some(Exit::Server); // the server is already gone
     }
     // Registration fails (ESRCH) when Harness already exited; a zero-signal probe covers
     // an exit right after a successful registration check as well.
     if !register_exit(kq, parent) || libc::kill(parent, 0) != 0 {
-        stop_server(server);
+        return Some(Exit::Parent);
     }
     let mut event: libc::kevent = std::mem::zeroed();
     loop {
@@ -111,14 +92,96 @@ unsafe fn watch(parent: libc::pid_t, server: libc::pid_t) -> ! {
             // EINTR or nothing: wait again.
             continue;
         }
-        if event.ident == parent as libc::uintptr_t {
-            stop_server(server);
-        }
-        libc::_exit(0);
+        return Some(if event.ident == parent as libc::uintptr_t {
+            Exit::Parent
+        } else {
+            Exit::Server
+        });
     }
 }
 
-#[cfg(all(test, target_os = "macos"))]
+#[cfg(target_os = "linux")]
+unsafe fn errno() -> libc::c_int {
+    *libc::__errno_location()
+}
+
+/// Waits for the first exit; `None` when it cannot be watched (the watchdog then gives up).
+#[cfg(target_os = "linux")]
+unsafe fn first_exit(parent: libc::pid_t, server: libc::pid_t) -> Option<Exit> {
+    let pidfd = |pid: libc::pid_t| libc::syscall(libc::SYS_pidfd_open, pid, 0) as libc::c_int;
+    let server_fd = pidfd(server);
+    if server_fd < 0 {
+        return (errno() == libc::ESRCH).then_some(Exit::Server);
+    }
+    let parent_fd = pidfd(parent);
+    if parent_fd < 0 {
+        return (errno() == libc::ESRCH).then_some(Exit::Parent);
+    }
+    let mut fds = [
+        libc::pollfd {
+            fd: parent_fd,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+        libc::pollfd {
+            fd: server_fd,
+            events: libc::POLLIN,
+            revents: 0,
+        },
+    ];
+    loop {
+        if libc::poll(fds.as_mut_ptr(), 2, -1) <= 0 {
+            if errno() == libc::EINTR {
+                continue;
+            }
+            return None;
+        }
+        // Both may be ready at once: the parent's exit decides, so the group is stopped.
+        return Some(if fds[0].revents != 0 {
+            Exit::Parent
+        } else {
+            Exit::Server
+        });
+    }
+}
+
+/// SIGTERM, then SIGKILL after 2 s, to the server's group when it leads one and to the server
+/// itself in any case. Whether it leads its group (servers do: `command_group` starts them
+/// with `setpgid(0, 0)`) was decided when the watchdog started: the leader may be gone by now,
+/// and one that exits on SIGTERM can no longer be asked (ESRCH), yet a child that ignored it
+/// still needs the group's SIGKILL. The group id cannot be reused while the group has members.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+unsafe fn stop_server(server: libc::pid_t, group: bool) -> ! {
+    for (n, sig) in [libc::SIGTERM, libc::SIGKILL].into_iter().enumerate() {
+        if n > 0 {
+            libc::sleep(2);
+        }
+        if group {
+            libc::kill(-server, sig);
+        }
+        libc::kill(server, sig);
+    }
+    libc::_exit(0)
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+unsafe fn watch(parent: libc::pid_t, server: libc::pid_t) -> ! {
+    let group = libc::getpgid(server) == server;
+    // Out of the server's process group (we were forked from it), so signalling the group
+    // spares the watchdog.
+    libc::setsid();
+    // Keep none of the server's pipes open (the log readers wait for EOF).
+    let max_fd = libc::getdtablesize().max(256);
+    for fd in 0..max_fd {
+        libc::close(fd);
+    }
+    match first_exit(parent, server) {
+        Some(Exit::Parent) => stop_server(server, group),
+        Some(Exit::Server) | None => libc::_exit(0),
+    }
+}
+
+#[cfg(all(test, any(target_os = "macos", target_os = "linux")))]
 mod tests {
     use std::os::unix::process::CommandExt;
     use std::process::{Command, Stdio};

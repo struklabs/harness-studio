@@ -534,6 +534,7 @@ pub fn pdf_pages_with(exe: &Path, path: &Path) -> Result<Vec<PageText>, String> 
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
+    crate::orphans::protect(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| pdf_error(path, &e.to_string()))?;
     let mut stdout = child.stdout.take();
     let reader = crate::resource_io::spawn_thread("harness-pdf-output", move || {

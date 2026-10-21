@@ -18,9 +18,11 @@ fn memory_bytes(value: Option<String>) -> io::Result<Option<usize>> {
         .transpose()
 }
 
-/// Set before constructing a process group. Never silently ignore invalid limits.
+/// Set before constructing a process group. Never silently ignore invalid limits. The child
+/// also dies with Harness Studio ([`crate::orphans::protect`]).
 pub fn prepare(command: &mut std::process::Command) -> io::Result<()> {
     let memory = memory_bytes(std::env::var("HARNESS_CHILD_MEMORY_MIB").ok())?;
+    crate::orphans::protect(command);
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
