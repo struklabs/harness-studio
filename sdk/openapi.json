@@ -18747,6 +18747,10 @@
                 "description": "`None` for a file that is not served on its own (projector, adapter, unreadable)."
               }
             ]
+          },
+          "python_chat": {
+            "type": "boolean",
+            "description": "A safetensors chat folder the Python engine can run with transformers when mistral.rs is\nnot registered ([`ModelRecord::resolve_installed`] switches the runtime then)."
           }
         }
       },

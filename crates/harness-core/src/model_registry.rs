@@ -60,11 +60,25 @@ pub struct ModelRecord {
     pub runtime: Option<String>,
     /// `None` for a file that is not served on its own (projector, adapter, unreadable).
     pub compatibility: Option<Compatibility>,
+    /// A safetensors chat folder the Python engine can run with transformers when mistral.rs is
+    /// not registered ([`ModelRecord::resolve_installed`] switches the runtime then).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub python_chat: bool,
 }
 
 impl ModelRecord {
-    /// Settles whether the runtime family is installed ([`hub_compat::resolve_installed`]).
+    /// Settles whether the runtime family is installed ([`hub_compat::resolve_installed`]). A
+    /// safetensors chat folder whose mistral.rs runtime is not registered runs on the Python
+    /// engine instead (mistral.rs wins when both are there).
     pub fn resolve_installed(&mut self, installed: &[String]) {
+        if self.python_chat
+            && self.runtime.as_deref() == Some(hub_compat::MISTRALRS_FAMILY)
+            && !installed.iter().any(|f| f == hub_compat::MISTRALRS_FAMILY)
+        {
+            let runtime = crate::engine::PYTHON_HF.to_string();
+            self.runtime = Some(runtime.clone());
+            self.compatibility = Some(Compatibility::Runnable { runtime });
+        }
         if let Some(c) = self.compatibility.as_mut() {
             hub_compat::resolve_installed(c, installed);
         }
@@ -242,6 +256,7 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             } else {
                 Compatibility::Unsupported { format }
             }),
+            python_chat: false,
         };
     }
     if is_transcribe_cpp(model) {
@@ -251,6 +266,7 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             format,
             runtime: Some(runtime.clone()),
             compatibility: Some(Compatibility::Runnable { runtime }),
+            python_chat: false,
         };
     }
     if (could_be_crisp_asr(model) && crate::engine::crispasr::is_model(&model.path))
@@ -267,6 +283,7 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             compatibility: Some(Compatibility::Runnable {
                 runtime: crate::engine::CRISPASR.into(),
             }),
+            python_chat: false,
         };
     }
     if model.gguf.as_ref().map_or_else(
@@ -284,6 +301,7 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             compatibility: Some(Compatibility::Unsupported {
                 format: ModelFormat::Gguf,
             }),
+            python_chat: false,
         };
     }
     if model.kind == ModelKind::Image {
@@ -296,6 +314,7 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             compatibility: Some(Compatibility::Runnable {
                 runtime: hub_compat::SDCPP_FAMILY.to_string(),
             }),
+            python_chat: false,
         };
     }
     if let Some(family) = (format == ModelFormat::Mlx)
@@ -310,6 +329,7 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             compatibility: Some(Compatibility::Runnable {
                 runtime: family.to_string(),
             }),
+            python_chat: false,
         };
     }
     if model.gguf.is_none() && crate::engine::python_hf::is_model_dir(Path::new(&model.path)) {
@@ -346,6 +366,7 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             format,
             runtime: Some(runtime.clone()),
             compatibility: Some(Compatibility::Runnable { runtime }),
+            python_chat: false,
         };
     }
     if format == ModelFormat::Safetensors && model.kind == ModelKind::Llm {
@@ -357,6 +378,7 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             compatibility: Some(Compatibility::Runnable {
                 runtime: hub_compat::MISTRALRS_FAMILY.to_string(),
             }),
+            python_chat: crate::engine::python_hf::chat_task(Path::new(&model.path)).is_some(),
         };
     }
     // Speech folders are ONNX too but run on sherpa-onnx, not on the ONNX encoder family that
@@ -377,6 +399,7 @@ pub fn local_record(model: &LocalModel, caps: &ModelCaps) -> ModelRecord {
             },
             _ => format.compatibility(),
         }),
+        python_chat: false,
     }
 }
 
@@ -440,9 +463,15 @@ pub fn fit_for(input: FitInput, hw: &SystemHardwareInfo, gpu_build: Option<bool>
         return crate::vram::fit(input, hw);
     };
     if crate::engine::is_mistralrs_dir(Path::new(&path)) {
-        // A safetensors folder: a rough estimate of its own (no GGUF header to read).
+        // A safetensors folder: a rough estimate of its own (no GGUF header to read), by the
+        // engine that runs it (mistral.rs, else the Python engine's transformers).
         let budget = crate::vram::budget_for_model(hw, Some(&path));
-        return crate::engine::mistralrs().estimate_memory(&input, None, &budget, &[]);
+        let engine = if crate::engine::runs_on_mistralrs(Path::new(&path)) {
+            crate::engine::mistralrs()
+        } else {
+            crate::engine::python_hf()
+        };
+        return engine.estimate_memory(&input, None, &budget, &[]);
     }
     if is_onnx_file(&path) {
         let input = crate::vram::complete_input(input);

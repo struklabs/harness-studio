@@ -941,11 +941,31 @@ mod tests {
                 runtime: MISTRALRS.into()
             })
         );
+        // Without a registered mistral.rs the Python engine runs the folder with transformers
+        // (once its environment is installed); mistral.rs keeps it when it is registered.
+        assert!(rec.python_chat);
+        let mut mistral = rec.clone();
+        mistral.resolve_installed(&["mistral.rs".to_string()]);
+        assert_eq!(
+            mistral.compatibility,
+            Some(Compatibility::Runnable {
+                runtime: MISTRALRS.into()
+            })
+        );
+        let mut python = rec.clone();
+        python.resolve_installed(&["python-hf".to_string()]);
+        assert_eq!(python.runtime.as_deref(), Some("python-hf"));
+        assert_eq!(
+            python.compatibility,
+            Some(Compatibility::Runnable {
+                runtime: "python-hf".into()
+            })
+        );
         rec.resolve_installed(&["llama.cpp".to_string()]);
         assert_eq!(
             rec.compatibility,
             Some(Compatibility::NeedsRuntime {
-                runtime: MISTRALRS.into()
+                runtime: "python-hf".into()
             })
         );
         // Its fit is the folder's own estimate.
