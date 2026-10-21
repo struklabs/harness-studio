@@ -4503,8 +4503,7 @@ mod e2e {
         };
         // The "other program": holds a port of the automatic range (the orchestrator's check is
         // skipped here, as if the port had been taken right after it).
-        let listener = crate::ports::AUTO_RANGE
-            .clone()
+        let listener = crate::ports::auto_range()
             .find_map(|p| std::net::TcpListener::bind(("127.0.0.1", p)).ok())
             .expect("a free port in the automatic range");
         let taken = listener.local_addr().unwrap().port();
@@ -4525,7 +4524,7 @@ mod e2e {
         assert_eq!(status, ServerStatus::Running, "{logs:#?}");
         let port = mgr.active_server().unwrap().port;
         assert_ne!(port, taken);
-        assert!(crate::ports::AUTO_RANGE.contains(&port), "{port}");
+        assert!(crate::ports::auto_range().contains(&port), "{port}");
         assert!(
             logs.iter().any(|l| l.contains("yeniden deneniyor")),
             "{logs:#?}"
