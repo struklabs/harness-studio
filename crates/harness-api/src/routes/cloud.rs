@@ -4,8 +4,11 @@
 
 use axum::http::StatusCode;
 use axum::Json;
-use harness_core::cloud::{self, ModelView, ProviderInput, ProviderStatus, ProviderView};
-use serde::Serialize;
+use harness_core::cloud::{
+    self, ModelPrice, ModelView, ProbeResult, ProviderInput, ProviderStatus, ProviderView,
+};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use utoipa::ToSchema;
 
 use crate::error::{ApiResult, Body, ErrorBody, P};
@@ -65,6 +68,46 @@ pub async fn remove_cloud_provider(P(id): P<String>) -> ApiResult<Json<RemovedPr
         (status = 403, body = ErrorBody)))]
 pub async fn test_cloud_provider(P(id): P<String>) -> ApiResult<Json<ProviderStatus>> {
     Ok(Json(cloud::test(&id).await?))
+}
+
+/// Body of `POST /cloud/test`: provider settings to check before they are saved.
+#[derive(Deserialize, ToSchema)]
+pub struct ProbeInput {
+    #[serde(flatten)]
+    pub provider: ProviderInput,
+    /// The provider being edited: its saved key and headers are used when none are sent and the
+    /// address stays on the same host.
+    #[serde(default)]
+    pub provider_id: Option<String>,
+}
+
+/// Connection test for provider settings that are not saved yet: lists the models with the
+/// given key (never stored) and returns what the provider says about them.
+#[utoipa::path(post, path = "/cloud/test", tag = "cloud", request_body = ProbeInput,
+    responses((status = 200, body = ProbeResult), (status = 400, body = ErrorBody),
+        (status = 403, body = ErrorBody)))]
+pub async fn probe_cloud_provider(Body(input): Body<ProbeInput>) -> ApiResult<Json<ProbeResult>> {
+    Ok(Json(cloud::probe(input.provider, input.provider_id).await?))
+}
+
+/// Body of `PUT /cloud/providers/{id}/prices`.
+#[derive(Deserialize, ToSchema)]
+pub struct PricesInput {
+    /// USD per million tokens by provider model id; replaces the saved prices.
+    pub prices: BTreeMap<String, ModelPrice>,
+}
+
+/// Sets the prices Harness uses to track what cloud requests cost (the provider's own prices
+/// apply where none is set).
+#[utoipa::path(put, path = "/cloud/providers/{id}/prices", tag = "cloud", request_body = PricesInput,
+    params(("id" = String, Path)),
+    responses((status = 200, body = ProviderView), (status = 400, body = ErrorBody),
+        (status = 404, body = ErrorBody), (status = 403, body = ErrorBody)))]
+pub async fn set_cloud_prices(
+    P(id): P<String>,
+    Body(input): Body<PricesInput>,
+) -> ApiResult<Json<ProviderView>> {
+    Ok(Json(cloud::set_prices(&id, input.prices).await?))
 }
 
 /// Chat and embedding models of the enabled providers (`embedding` tells them apart).

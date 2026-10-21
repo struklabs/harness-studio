@@ -40,3 +40,19 @@ pub(crate) async fn cloud_test_model(
 ) -> Result<harness_core::integrations::conntest::ConnectionTest, String> {
     harness_core::cloud::test_model(&id, &model).await
 }
+
+#[tauri::command]
+pub(crate) async fn cloud_probe(
+    input: harness_core::cloud::ProviderInput,
+    provider_id: Option<String>,
+) -> Result<harness_core::cloud::ProbeResult, String> {
+    harness_core::cloud::probe(input, provider_id).await
+}
+
+#[tauri::command]
+pub(crate) async fn cloud_set_prices(
+    id: String,
+    prices: std::collections::BTreeMap<String, harness_core::cloud::ModelPrice>,
+) -> Result<harness_core::cloud::ProviderView, String> {
+    harness_core::cloud::set_prices(&id, prices).await
+}

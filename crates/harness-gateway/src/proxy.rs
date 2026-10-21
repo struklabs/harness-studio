@@ -118,6 +118,20 @@ impl RecordGuard {
             if r.warmup {
                 return;
             }
+            // Cloud models: what the request cost at the provider's (or the user's) prices.
+            if r.cost_usd.is_none() && r.status < 400 {
+                if let Some(id) = r
+                    .definition_id
+                    .as_deref()
+                    .filter(|id| id.starts_with("cloud:"))
+                {
+                    r.cost_usd = harness_core::cloud::request_cost(
+                        id,
+                        r.usage.prompt_tokens,
+                        r.usage.completion_tokens,
+                    );
+                }
+            }
             if let Some(t) = self.tool.take() {
                 t.finalize(&mut r, CallIndex::global());
             }
@@ -460,7 +474,7 @@ async fn run(
         }
     }
     // Chat completions to an Anthropic provider are translated to its native Messages API.
-    let anthropic_key = cloud_kind == Some(harness_core::cloud::Kind::Anthropic);
+    let anthropic_key = cloud_kind.is_some_and(|k| k.anthropic_wire());
     let translate = anthropic_key && api == Api::Chat;
     if remote.is_some() && headers.contains_key("x-harness-link-hop") {
         return Err(GatewayError::remote("link.chained_not_allowed"));
@@ -715,6 +729,15 @@ async fn run(
             req = req.header("x-api-key", value);
         } else {
             req = req.bearer_auth(key);
+        }
+    }
+    if cloud.is_some() {
+        // A custom endpoint's own headers (Advanced settings); the values stay in the keychain.
+        for (name, value) in harness_core::cloud::extra_headers(&def.id) {
+            if let Ok(mut value) = HeaderValue::from_str(&value) {
+                value.set_sensitive(true);
+                req = req.header(name, value);
+            }
         }
     }
     if anthropic_key && (translate || !headers.contains_key("anthropic-version")) {
@@ -1391,6 +1414,7 @@ fn model_object(
             "provider": m.provider, "kind": m.kind, "label": m.label, "model": m.model,
             "context_length": m.info.context_length, "input_price": m.info.input_price,
             "output_price": m.info.output_price, "tools": m.info.tools, "vision": m.info.vision,
+            "reasoning": m.info.reasoning, "price_custom": m.info.price_custom,
         });
     }
     object

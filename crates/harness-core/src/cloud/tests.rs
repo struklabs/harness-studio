@@ -121,7 +121,9 @@ fn status_errors_are_keys() {
     assert_eq!(status_error(403), "cloud.unauthorized");
     assert_eq!(status_error(429), "cloud.rate_limited");
     assert_eq!(status_error(402), "cloud.payment_required");
-    assert_eq!(status_error(500), "cloud.unreachable");
+    assert_eq!(status_error(500), "cloud.server_error");
+    assert_eq!(status_error(502), "cloud.server_error");
+    assert_eq!(status_error(418), "cloud.unreachable");
 }
 
 #[test]
@@ -162,6 +164,7 @@ fn providers_accept_only_the_protocols_they_speak() {
         Kind::Anthropic,
         Kind::Openrouter,
         Kind::Custom,
+        Kind::CustomAnthropic,
     ] {
         assert!(kind.accepts("/v1/chat/completions"));
         assert!(!kind.accepts("/v1/completions"));
@@ -174,6 +177,18 @@ fn providers_accept_only_the_protocols_they_speak() {
     assert!(!Kind::Openai.accepts("/v1/messages"));
     assert!(Kind::Gemini.accepts("/v1/embeddings"));
     assert!(!Kind::Anthropic.accepts("/v1/embeddings"));
+    assert!(Kind::CustomAnthropic.accepts("/v1/messages"));
+    assert!(!Kind::CustomAnthropic.accepts("/v1/responses"));
+    assert!(!Kind::CustomAnthropic.accepts("/v1/embeddings"));
+    assert!(!Kind::CustomAnthropic.key_required() && Kind::CustomAnthropic.anthropic_wire());
+    assert_eq!(
+        validate_url("http://127.0.0.1:9000", Kind::CustomAnthropic).unwrap(),
+        "http://127.0.0.1:9000/v1"
+    );
+    assert_eq!(
+        serde_json::to_string(&Kind::CustomAnthropic).unwrap(),
+        "\"custom_anthropic\""
+    );
 }
 
 #[test]
@@ -182,4 +197,150 @@ fn the_key_is_not_in_the_debug_output_of_an_input() {
         serde_json::from_value(json!({"name": "p", "kind": "openai", "key": "sk-secret-value"}))
             .unwrap();
     assert!(!format!("{input:?}").contains("sk-secret-value"));
+}
+
+#[test]
+fn capabilities_come_from_what_each_api_lists() {
+    let anthropic = json!({"data": [{
+        "id": "claude-x", "display_name": "Claude X", "max_input_tokens": 200000,
+        "capabilities": {"image_input": {"supported": true}, "thinking": {"supported": false}}
+    }]});
+    let m = &parse_models(Kind::Anthropic, &anthropic).unwrap()[0];
+    assert_eq!(
+        (m.context_length, m.vision, m.reasoning),
+        (Some(200000), Some(true), Some(false))
+    );
+    // A custom Anthropic-compatible endpoint is read the same way.
+    let c = &parse_models(Kind::CustomAnthropic, &anthropic).unwrap()[0];
+    assert_eq!(c.vision, Some(true));
+    let router = json!({"data": [
+        {"id": "a/think", "supported_parameters": ["tools", "reasoning"]},
+        {"id": "a/plain", "supported_parameters": ["tools"]},
+        {"id": "a/unknown"}
+    ]});
+    let models = parse_models(Kind::Openrouter, &router).unwrap();
+    let reasoning: Vec<_> = models
+        .iter()
+        .map(|m| (m.id.as_str(), m.reasoning))
+        .collect();
+    assert_eq!(
+        reasoning,
+        [
+            ("a/plain", Some(false)),
+            ("a/think", Some(true)),
+            ("a/unknown", None)
+        ]
+    );
+    // OpenAI-style lists say nothing: the tags stay unknown rather than guessed.
+    let openai = json!({"data": [{"id": "gpt-x"}]});
+    let m = &parse_models(Kind::Openai, &openai).unwrap()[0];
+    assert_eq!((m.tools, m.vision, m.reasoning), (None, None, None));
+}
+
+#[test]
+fn provider_errors_carry_a_retry_hint() {
+    let key = |e: String| {
+        crate::error_key::parse(&e)
+            .map(|(k, p)| (k.to_string(), p))
+            .unwrap()
+    };
+    assert_eq!(key(http_error(401, None, b"")).0, "cloud.unauthorized");
+    assert_eq!(key(http_error(403, None, b"")).0, "cloud.unauthorized");
+    assert_eq!(key(http_error(402, None, b"")).0, "cloud.payment_required");
+    assert_eq!(
+        key(http_error(404, None, b"")).0,
+        "cloud.not_found_upstream"
+    );
+    assert_eq!(key(http_error(429, None, b"{}")).0, "cloud.rate_limited");
+    let (k, params) = key(http_error(429, Some(7), b"{}"));
+    assert_eq!(
+        (k.as_str(), params["retry_after"].as_u64()),
+        ("cloud.rate_limited_retry", Some(7))
+    );
+    // Out of credit is not a rate limit: waiting does not help.
+    let quota =
+        br#"{"error":{"code":"insufficient_quota","message":"You exceeded your current quota"}}"#;
+    assert_eq!(
+        key(http_error(429, Some(7), quota)).0,
+        "cloud.quota_exceeded"
+    );
+    assert_eq!(key(http_error(503, None, b"")).0, "cloud.server_error");
+    assert_eq!(
+        key(http_error(529, Some(30), b"")).0,
+        "cloud.server_error_retry"
+    );
+    let mut h = reqwest::header::HeaderMap::new();
+    h.insert("retry-after", "12".parse().unwrap());
+    assert_eq!(retry_after_secs(&h), Some(12));
+    h.insert(
+        "retry-after",
+        "Wed, 21 Oct 2026 07:28:00 GMT".parse().unwrap(),
+    );
+    assert_eq!(retry_after_secs(&h), None);
+}
+
+#[test]
+fn extra_headers_are_checked() {
+    let h = |n: &str, v: &str| HeaderInput {
+        name: n.into(),
+        value: v.into(),
+    };
+    assert_eq!(
+        check_headers(&[h("X-Org-Id", " abc ")]).unwrap(),
+        [("x-org-id".to_string(), "abc".to_string())]
+    );
+    for bad in [
+        h("Authorization", "x"),
+        h("x-api-key", "x"),
+        h("Host", "evil"),
+        h("x-harness-link-hop", "1"),
+        h("bad name", "x"),
+        h("x-ok", "line\nbreak"),
+        h("x-ok", ""),
+    ] {
+        assert!(check_headers(&[bad]).is_err());
+    }
+    assert!(check_headers(&[h("x-a", "1"), h("X-A", "2")]).is_err());
+}
+
+#[test]
+fn costs_use_the_users_price_over_the_providers() {
+    // 1000 prompt + 500 completion tokens at 2 / 8 USD per million.
+    assert_eq!(
+        cost_of(Some(2.0), Some(8.0), Some(1000), Some(500)),
+        Some(0.006)
+    );
+    // Only one side priced: the other counts as free.
+    assert_eq!(
+        cost_of(Some(2.0), None, Some(1_000_000), Some(5)),
+        Some(2.0)
+    );
+    assert_eq!(cost_of(None, None, Some(10), Some(10)), None);
+    assert_eq!(cost_of(Some(1.0), Some(1.0), None, None), None);
+    let api = CloudModel {
+        id: "m".into(),
+        input_price: Some(1.0),
+        output_price: Some(2.0),
+        ..Default::default()
+    };
+    let custom = ModelPrice {
+        input: None,
+        output: Some(5.0),
+    };
+    let m = priced(&api, Some(&custom));
+    assert_eq!(
+        (m.input_price, m.output_price, m.price_custom),
+        (Some(1.0), Some(5.0), true)
+    );
+    assert!(!priced(&api, None).price_custom);
+    assert!(!ModelPrice {
+        input: Some(-1.0),
+        output: None
+    }
+    .valid());
+    assert!(!ModelPrice {
+        input: Some(f64::NAN),
+        output: None
+    }
+    .valid());
 }

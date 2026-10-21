@@ -149,6 +149,34 @@ pub async fn test_connection(
     model: &str,
     client_name: &str,
 ) -> ConnectionTest {
+    test_connection_with(
+        api,
+        base_url,
+        api_key,
+        model,
+        client_name,
+        &Options::default(),
+    )
+    .await
+}
+
+/// How a test request authenticates beyond the default bearer token.
+#[derive(Default)]
+pub struct Options<'a> {
+    /// Send the key as `x-api-key` (Anthropic) instead of `Authorization: Bearer`.
+    pub x_api_key: bool,
+    /// Extra request headers (a custom endpoint's own).
+    pub headers: &'a [(String, String)],
+}
+
+pub async fn test_connection_with(
+    api: WireApi,
+    base_url: &str,
+    api_key: Option<&str>,
+    model: &str,
+    client_name: &str,
+    options: &Options<'_>,
+) -> ConnectionTest {
     let (path, body) = request_for(api, model);
     let url = format!("{}{}", base_url.trim_end_matches('/'), path);
     let started = Instant::now();
@@ -182,8 +210,15 @@ pub async fn test_connection(
     if api == WireApi::Anthropic {
         req = req.header("anthropic-version", "2023-06-01");
     }
+    for (name, value) in options.headers {
+        req = req.header(name.as_str(), value.as_str());
+    }
     if let Some(k) = api_key.filter(|k| !k.trim().is_empty()) {
-        req = req.bearer_auth(k);
+        req = if options.x_api_key {
+            req.header("x-api-key", k)
+        } else {
+            req.bearer_auth(k)
+        };
     }
     let resp = req.send().await;
     result.latency_ms = started.elapsed().as_millis() as u64;

@@ -194,6 +194,10 @@ pub fn http_status(code: &str) -> u16 {
         | "cloud.timeout"
         | "cloud.tls_failed"
         | "cloud.dns_failed"
+        | "cloud.quota_exceeded"
+        | "cloud.rate_limited_retry"
+        | "cloud.server_error"
+        | "cloud.server_error_retry"
         | "cloud.invalid_response" => 502,
         "cloud.name_taken" => 409,
         c if c.ends_with(".not_found") || c.ends_with("_not_found") => 404,

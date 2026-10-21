@@ -184,6 +184,7 @@ fn input(name: &str, kind: cloud::Kind, base: String) -> cloud::ProviderInput {
         base_url: base,
         key: Some(KEY.into()),
         enabled: true,
+        headers: None,
     }
 }
 

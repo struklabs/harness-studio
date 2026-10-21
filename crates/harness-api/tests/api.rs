@@ -624,6 +624,8 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/cloud/providers", &["get", "post"]),
         ("/cloud/providers/{id}", &["put", "delete"]),
         ("/cloud/providers/{id}/test", &["post"]),
+        ("/cloud/providers/{id}/prices", &["put"]),
+        ("/cloud/test", &["post"]),
         ("/cloud/models", &["get"]),
         ("/otel", &["get", "put"]),
         ("/otel/test", &["post"]),

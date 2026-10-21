@@ -276,6 +276,9 @@ pub struct RequestRow {
     pub tool_diag_code: Option<String>,
     /// Evidence as JSON text (tool name, excerpt, schema path, linked request...).
     pub tool_diag_detail: Option<String>,
+    /// USD at a BYOK cloud provider (its or the user's prices); `None` for local models.
+    #[serde(default)]
+    pub cost_usd: Option<f64>,
 }
 
 impl RequestRow {
@@ -335,6 +338,7 @@ impl RequestRow {
             tool_diag_category: r.tool_diag_category.clone(),
             tool_diag_code: r.tool_diag_code.clone(),
             tool_diag_detail: r.tool_diag_detail.clone(),
+            cost_usd: r.cost_usd,
         }
     }
 
@@ -534,6 +538,27 @@ pub struct AnalyticsSummary {
     /// `analytics::direct`).
     #[serde(default)]
     pub direct: super::direct::DirectUsage,
+    /// What BYOK cloud models cost in the range (raw rows only: rollups do not keep prices).
+    #[serde(default)]
+    pub cost: CostSummary,
+}
+
+/// Cost of the cloud-provider requests in a range, USD.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct CostSummary {
+    pub total_usd: f64,
+    /// Per gateway model, most expensive first.
+    pub models: Vec<ModelCost>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct ModelCost {
+    pub alias: String,
+    /// Requests with a known cost.
+    pub requests: u64,
+    pub cost_usd: f64,
 }
 
 /// Filters of `GET /analytics/requests`.
@@ -629,7 +654,7 @@ const ROW_COLUMNS: &str = "id, started_at_ms, endpoint, model, alias, definition
     draft_accepted, finish_reason, ctx_size, context_fill, vram_peak_bytes, ram_peak_bytes,
     backend, compat_json, content_captured, slots, waited,
     tool_involved, tools_offered, tool_calls, tool_diag_category, tool_diag_code,
-    tool_diag_detail";
+    tool_diag_detail, cost_usd";
 
 fn json_list(v: Option<String>) -> Vec<String> {
     v.and_then(|s| serde_json::from_str(&s).ok())
@@ -684,6 +709,7 @@ fn read_row(r: &Row) -> rusqlite::Result<RequestRow> {
         tool_diag_category: r.get(43)?,
         tool_diag_code: r.get(44)?,
         tool_diag_detail: r.get(45)?,
+        cost_usd: r.get(46)?,
     })
 }
 
@@ -862,7 +888,7 @@ impl AnalyticsDb {
                     "INSERT OR IGNORE INTO requests (day, {ROW_COLUMNS}) VALUES (?1, ?2, ?3, ?4,
                      ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20,
                      ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32, ?33, ?34, ?35,
-                     ?36, ?37, ?38, ?39, ?40, ?41, ?42, ?43, ?44, ?45, ?46, ?47)"
+                     ?36, ?37, ?38, ?39, ?40, ?41, ?42, ?43, ?44, ?45, ?46, ?47, ?48)"
                 ))
                 .map_err(db_err)?;
             let mut content = tx
@@ -927,6 +953,7 @@ impl AnalyticsDb {
                         r.tool_diag_category,
                         r.tool_diag_code,
                         r.tool_diag_detail,
+                        r.cost_usd,
                     ])
                     .map_err(db_err)?;
                 written += changed;
@@ -1010,6 +1037,34 @@ impl AnalyticsDb {
                 |r| u(r, 0),
             )
             .map_err(db_err)?;
+
+        let mut cost = CostSummary::default();
+        {
+            let mut st = conn
+                .prepare(&format!(
+                    "SELECT COALESCE(alias,''), COUNT(*), SUM(cost_usd) FROM requests
+                     WHERE {raw} AND cost_usd IS NOT NULL GROUP BY 1"
+                ))
+                .map_err(db_err)?;
+            let rows = st
+                .query_map([], |r| {
+                    Ok(ModelCost {
+                        alias: r.get(0)?,
+                        requests: u(r, 1)?,
+                        cost_usd: r.get::<_, f64>(2)?,
+                    })
+                })
+                .map_err(db_err)?;
+            for row in rows {
+                cost.models.push(row.map_err(db_err)?);
+            }
+            cost.models.sort_by(|a, b| {
+                b.cost_usd
+                    .total_cmp(&a.cost_usd)
+                    .then(a.alias.cmp(&b.alias))
+            });
+            cost.total_usd = cost.models.iter().map(|m| m.cost_usd).sum();
+        }
 
         // Percentile inputs: raw rows only.
         let mut ttft: BTreeMap<String, Vec<f64>> = BTreeMap::new();
@@ -1129,6 +1184,7 @@ impl AnalyticsDb {
             daily,
             raw_since_ms,
             rollup_days,
+            cost,
             ..Default::default()
         })
     }
@@ -1596,6 +1652,48 @@ mod tests {
         let sig = db.agent_signals().unwrap();
         let coder = sig.iter().find(|s| s.alias == "coder").unwrap();
         assert_eq!((coder.tool_ok, coder.tool_bad), (3, 2));
+    }
+
+    #[test]
+    fn cloud_request_costs_are_stored_and_summed_per_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = AnalyticsDb::open(&dir.path().join("a.db")).unwrap();
+        let now = super::super::now_ms();
+        let row = |id: &str, alias: &str, cost: Option<f64>| NewRequest {
+            row: RequestRow {
+                id: id.into(),
+                started_at_ms: now,
+                endpoint: "/v1/chat/completions".into(),
+                alias: Some(alias.into()),
+                status: 200,
+                total_ms: 5,
+                prompt_tokens: Some(1000),
+                completion_tokens: Some(500),
+                cost_usd: cost,
+                ..Default::default()
+            },
+            content: None,
+        };
+        db.insert(&[
+            row("a", "cloud:oa/gpt", Some(0.006)),
+            row("b", "cloud:oa/gpt", Some(0.004)),
+            row("c", "cloud:an/claude", Some(0.5)),
+            row("d", "local", None),
+        ])
+        .unwrap();
+        let page = db.requests(&RequestQuery::default()).unwrap();
+        assert_eq!(
+            page.requests
+                .iter()
+                .filter(|r| r.cost_usd.is_some())
+                .count(),
+            3
+        );
+        let cost = db.summary(None, None).unwrap().cost;
+        assert_eq!(cost.models.len(), 2);
+        assert_eq!(cost.models[0].alias, "cloud:an/claude");
+        assert_eq!(cost.models[1].requests, 2);
+        assert!((cost.total_usd - 0.51).abs() < 1e-9);
     }
 
     #[test]

@@ -4,7 +4,7 @@ export interface CloudModel {
   id: string;
   model: string;
   provider: string;
-  kind: 'openai' | 'gemini' | 'anthropic' | 'openrouter' | 'custom';
+  kind: 'openai' | 'gemini' | 'anthropic' | 'openrouter' | 'custom' | 'custom_anthropic';
   label: string;
   state: 'online' | 'offline' | 'unauthorized' | 'key_missing';
   display_name: string | null;
@@ -13,6 +13,8 @@ export interface CloudModel {
   output_price: number | null;
   tools: boolean | null;
   vision: boolean | null;
+  reasoning?: boolean | null;
+  price_custom?: boolean;
 }
 
 export function isCloudModel(id: string): boolean {
@@ -34,7 +36,7 @@ export function filterCloudModels(models: CloudModel[], query: string): CloudMod
 
 /** "Cloud: <this>": the provider's brand, or the user's name for a custom endpoint. */
 export function cloudLabel(m: Pick<CloudModel, 'kind' | 'label' | 'provider'>): string {
-  return m.kind === 'custom' ? m.provider : m.label;
+  return m.kind === 'custom' || m.kind === 'custom_anthropic' ? m.provider : m.label;
 }
 
 /** Picker groups, one per provider, in the order the providers were listed. */

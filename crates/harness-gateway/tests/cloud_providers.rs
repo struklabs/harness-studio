@@ -99,6 +99,7 @@ async fn cloud_provider_models_route_through_the_gateway() {
         base_url: base_url.clone(),
         key: None,
         enabled: true,
+        headers: None,
     })
     .await
     .unwrap();
@@ -111,6 +112,7 @@ async fn cloud_provider_models_route_through_the_gateway() {
         base_url: String::new(),
         key: Some(KEY.into()),
         enabled: true,
+        headers: None,
     })
     .await
     .is_err());
@@ -122,6 +124,7 @@ async fn cloud_provider_models_route_through_the_gateway() {
         base_url: base_url.clone(),
         key: key.map(str::to_string),
         enabled: true,
+        headers: None,
     };
     let updated = cloud::update(id.clone(), input(Some(KEY))).await.unwrap();
     assert_eq!(updated.status.state, cloud::State::Online);
