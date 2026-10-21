@@ -18747,6 +18747,10 @@
             "type": "boolean",
             "description": "Audio content parts accepted by the model, independent of vision."
           },
+          "speech_output": {
+            "type": "boolean",
+            "description": "Answers with speech of its own on chat completions (`modalities: [\"text\", \"audio\"]`):\nQwen2.5-Omni, LFM2.5-Audio. Chat's \"Speak Replies\" needs no voice model for these."
+          },
           "embedding": {
             "type": "boolean"
           },

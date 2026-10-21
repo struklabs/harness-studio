@@ -16,6 +16,21 @@ export function replySpeechSource(enabled: boolean, reply: ReplyState): string |
   return reply.content.trim() ? reply.content : null;
 }
 
+/** The recording of a streamed `delta.audio` / `message.audio` (OpenAI: base64 WAV in `data`), or
+ *  null when the value carries none. */
+export function replyAudio(value: unknown, mime = 'audio/wav'): Blob | null {
+  const data = (value as { data?: unknown } | null | undefined)?.data;
+  if (typeof data !== 'string' || data === '') return null;
+  try {
+    const raw = atob(data);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
 export function readSpeakReplies(storage: Pick<Storage, 'getItem'> | undefined): boolean {
   try {
     return storage?.getItem(SPEAK_REPLIES_KEY) === '1';

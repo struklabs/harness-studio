@@ -179,6 +179,21 @@ class ReadAloud {
     }
   }
 
+  /** Plays a recording that came with the reply itself (a natively speaking model), as message `id`. */
+  async playClip(id: string, blob: Blob): Promise<void> {
+    this.stop();
+    const c = new AbortController();
+    this.controller = c;
+    this.activeId = id;
+    try {
+      await this.play(blob, c.signal);
+    } catch (e) {
+      if (!c.signal.aborted) toast.error(t('speak.read_failed', { error: localizeError(e) }));
+    } finally {
+      if (this.controller === c) this.stop();
+    }
+  }
+
   private play(blob: Blob, signal: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
       const url = URL.createObjectURL(blob);

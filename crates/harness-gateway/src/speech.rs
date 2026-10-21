@@ -376,6 +376,10 @@ async fn python_speech_model(
     if is_mlx_speech(&def) || is_audio_cpp_speech(&def) {
         return Some(def);
     }
+    // LFM2.5-Audio chats ("any-to-any") and keeps speaking on this route.
+    if is_liquid_speech(&def) {
+        return Some(def);
+    }
     crate::pyhf::task_of(&def)
         .filter(|t| crate::pyhf::is_speech_task(t))
         .map(|_| def)

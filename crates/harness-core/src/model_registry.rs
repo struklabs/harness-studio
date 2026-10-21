@@ -94,11 +94,11 @@ pub fn task_capabilities(task: &str) -> &'static [Capability] {
         "text-generation" | "translation" | "summarization" | "question-answering" => &[Chat],
         "image-text-to-text"
         | "visual-question-answering"
-        | "any-to-any"
         | "image-to-text"
         | "document-question-answering" => &[Chat, Vision],
         "video-text-to-text" => &[Chat, Vision, Video],
         "audio-text-to-text" => &[Chat, Audio],
+        "any-to-any" => &[Chat, Vision, Audio],
         "feature-extraction" | "sentence-similarity" => &[Embedding],
         "text-ranking" => &[Rerank],
         "automatic-speech-recognition" => &[Asr],
