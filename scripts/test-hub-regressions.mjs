@@ -101,6 +101,16 @@ test('split variants remain downloadable until every shard is local', () => {
   assert.equal(localVariantFor(split, files), undefined);
 });
 
+test('audio.cpp package variants are local once their GGUF is, without the voice embeddings', () => {
+  const pkg = { name: 'PocketTTS-GGUF/english/pocket-q8_0', shards: [
+    { filename: 'PocketTTS-GGUF/english/pocket-q8_0.gguf' },
+    { filename: 'PocketTTS-GGUF/english/embeddings/alba.safetensors' },
+  ] };
+  const local = { path: '/library/audio-cpp/audio.cpp-gguf/PocketTTS-GGUF/english/pocket-q8_0.gguf' };
+  assert.equal(localVariantFor(pkg, new Map()), undefined);
+  assert.equal(localVariantFor(pkg, new Map([['pockettts-gguf/english/pocket-q8_0.gguf', local]])), local);
+});
+
 test('repo-folder variants are local without individual files; prefilled variants are not', () => {
   const folder = { path: '/library/owner/repo' };
   const variant = { name: 'repo', shards: [] };

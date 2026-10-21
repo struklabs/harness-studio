@@ -55,7 +55,7 @@
   <span class={cn('inline-flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1', className)}>
     {#if family === 'audio.cpp' && !app.settings?.audio_cpp_enabled}
       <span>{t('audio_cpp.needs_engine')}</span>
-      <Button type="button" variant="outline" {size} onclick={() => security.openSettings('runtime-installed')}>{t('audio_cpp.experimental')}</Button>
+      <Button type="button" variant="outline" {size} onclick={() => security.openSettings('runtime-installed', t('audio_cpp.experimental'))}>{t('audio_cpp.experimental')}</Button>
     {:else}
     {#if hint}<span class="min-w-0 flex-1">{hintText ?? t(update ? 'eng.update_hint' : 'lib.runtime_needs_hint', { runtime: family })}</span>{/if}
     {#if manual}

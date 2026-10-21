@@ -118,7 +118,7 @@
   <p class="text-sm text-muted-foreground">{t('process.description')}</p>
   {#if !enabled && !mlxModels.length}
     <p class="text-sm text-muted-foreground">{t('audio_cpp.needs_engine')}</p>
-    <Button variant="outline" class="self-start" onclick={() => security.openSettings('runtime-installed')}>{t('audio_cpp.enable')}</Button>
+    <Button variant="outline" class="self-start" onclick={() => security.openSettings('runtime-installed', t('audio_cpp.experimental'))}>{t('audio_cpp.enable')}</Button>
   {:else if enabled && overview && !overview.runtime_installed && !mlxModels.length}
     <EngineNeeded family="audio.cpp" onInstalled={() => void load()} />
   {:else}
