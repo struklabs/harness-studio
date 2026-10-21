@@ -12,7 +12,13 @@
 //!   its TCP port to it ([`relay`]). Kernels or distributions that forbid unprivileged user
 //!   namespaces make [`status`] unavailable with the reason; an engine then refuses to start
 //!   unless isolation is not required ([`command`]).
-//! * **Windows / macOS:** no unprivileged equivalent; isolation is the environment
+//! * **macOS:** the process runs under a Seatbelt profile (`sandbox-exec`, [`SANDBOX_PROFILE`])
+//!   that denies every outgoing IP connection, to the internet, the LAN and this machine's
+//!   loopback alike; listening (on a Unix socket or its loopback port) and everything else stay
+//!   allowed, so a server listens on its loopback port with no socket relay. `sandbox-exec` is
+//!   deprecated by Apple but ships with every macOS; where it fails,
+//!   [`status`] is unavailable with the reason and the process runs as on Windows.
+//! * **Windows:** no unprivileged equivalent; isolation is the environment
 //!   ([`super::python_env`]: offline Hugging Face Hub, no user site-packages) and the loopback
 //!   bind of the server.
 
@@ -74,7 +80,70 @@ fn probe() -> IsolationStatus {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+/// Seatbelt profile of an isolated process on macOS: no outgoing IP connection of any kind.
+#[cfg(target_os = "macos")]
+pub const SANDBOX_PROFILE: &str = "(version 1)(allow default)(deny network-outbound (remote ip))";
+
+#[cfg(target_os = "macos")]
+const SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
+
+#[cfg(target_os = "macos")]
+fn probe() -> IsolationStatus {
+    match std::process::Command::new(SANDBOX_EXEC)
+        .args(["-p", SANDBOX_PROFILE, "/usr/bin/true"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output()
+    {
+        Ok(o) if o.status.success() => IsolationStatus {
+            available: true,
+            reason: None,
+        },
+        Ok(o) => IsolationStatus {
+            available: false,
+            reason: Some(
+                String::from_utf8_lossy(&o.stderr)
+                    .trim()
+                    .chars()
+                    .take(300)
+                    .collect::<String>(),
+            )
+            .filter(|r| !r.is_empty())
+            .or_else(|| Some(format!("sandbox-exec exited with {}", o.status))),
+        },
+        Err(e) => IsolationStatus {
+            available: false,
+            reason: Some(format!("sandbox-exec: {e}")),
+        },
+    }
+}
+
+/// The program and the arguments before `program` that run it without network: `unshare` on
+/// Linux, `sandbox-exec` on macOS. Only meaningful while [`available`].
+fn wrapper() -> (&'static str, Vec<&'static str>) {
+    #[cfg(target_os = "macos")]
+    return (SANDBOX_EXEC, vec!["-p", SANDBOX_PROFILE]);
+    #[cfg(not(target_os = "macos"))]
+    ("unshare", vec!["--user", "--map-root-user", "--net", "--"])
+}
+
+/// `program` run without network (see [`wrapper`]); the caller checked [`available`].
+pub fn isolated_std_command(program: &Path) -> std::process::Command {
+    let (wrapper, args) = wrapper();
+    let mut cmd = std::process::Command::new(wrapper);
+    cmd.args(args).arg(program);
+    cmd
+}
+
+fn isolated_command(program: &Path) -> tokio::process::Command {
+    let (wrapper, args) = wrapper();
+    let mut cmd = tokio::process::Command::new(wrapper);
+    cmd.args(args).arg(program);
+    cmd
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn probe() -> IsolationStatus {
     IsolationStatus {
         available: false,
@@ -95,10 +164,7 @@ pub fn command(program: &Path, required: bool) -> Result<(tokio::process::Comman
 fn command_raw(program: &Path, required: bool) -> Result<(tokio::process::Command, bool), String> {
     let st = status();
     if st.available {
-        let mut cmd = tokio::process::Command::new("unshare");
-        cmd.args(["--user", "--map-root-user", "--net", "--"])
-            .arg(program);
-        return Ok((cmd, true));
+        return Ok((isolated_command(program), true));
     }
     if required {
         return Err(err("pyenv.isolation_unavailable")
@@ -118,11 +184,8 @@ pub fn offline_command(program: &Path) -> tokio::process::Command {
 
 fn offline_command_raw(program: &Path) -> tokio::process::Command {
     let st = status();
-    if st.available && cfg!(target_os = "linux") {
-        let mut cmd = tokio::process::Command::new("unshare");
-        cmd.args(["--user", "--map-root-user", "--net", "--"])
-            .arg(program);
-        return cmd;
+    if st.available {
+        return isolated_command(program);
     }
     if cfg!(target_os = "linux") {
         static LOGGED: std::sync::Once = std::sync::Once::new();
@@ -182,10 +245,11 @@ pub fn relay(listener: tokio::net::TcpListener, socket: PathBuf) -> tokio::task:
     })
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn isolated_process_cannot_reach_this_machine() {
         if !available() {
@@ -207,6 +271,36 @@ mod tests {
         let text = String::from_utf8_lossy(&out.stdout);
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(lines, ["lo", "blocked"], "{text}");
+        drop(host);
+    }
+
+    /// macOS: the sandboxed process reaches no port of this machine's loopback, yet listens on
+    /// a Unix socket (an isolated worker's) and on a loopback port (an MLX worker's).
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn isolated_process_cannot_reach_this_machine() {
+        assert!(available(), "{:?}", status());
+        let host = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = host.local_addr().unwrap().port();
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("w.sock");
+        let script = format!(
+            "import socket\n\
+             u = socket.socket(socket.AF_UNIX); u.bind({sock:?}); u.listen(); print('unix')\n\
+             t = socket.socket(); t.bind(('127.0.0.1', 0)); t.listen(); print('tcp')\n\
+             try:\n    socket.create_connection(('127.0.0.1', {port}), timeout=3); print('reached')\n\
+             except OSError:\n    print('blocked')\n",
+            sock = sock.to_string_lossy(),
+        );
+        let (mut cmd, isolated) = command(Path::new("/usr/bin/python3"), true).unwrap();
+        assert!(isolated);
+        let out = cmd.args(["-c", &script]).output().await.unwrap();
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert_eq!(
+            text.lines().collect::<Vec<_>>(),
+            ["unix", "tcp", "blocked"],
+            "{text}"
+        );
         drop(host);
     }
 

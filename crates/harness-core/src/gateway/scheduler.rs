@@ -3679,8 +3679,14 @@ mod tests {
             crate::engine::server_for(&python).family(),
             crate::engine::PYTHON_HF
         );
-        // No GPU estimate of its own (`non_llama_vram_need` is 0), yet it may hold the card.
-        assert_eq!(crate::engine::non_llama_vram_need(&python), 0);
+        // A CPU build has no GPU estimate (`non_llama_vram_need` is 0), yet it may hold the card;
+        // on CUDA / MPS the pipeline's weights and activations are counted.
+        let need = crate::engine::non_llama_vram_need(&python);
+        if crate::engine::python_hf::gpu_device(&python).is_some() {
+            assert!(need > 1 << 30, "{need}");
+        } else {
+            assert_eq!(need, 0);
+        }
         assert!(!holds_no_gpu_memory(&python));
     }
 

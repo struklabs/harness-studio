@@ -1038,8 +1038,140 @@ pub fn listen_on_socket(args: &mut Vec<String>, socket: &Path) {
 }
 
 /// Device memory of a launch: none, the environment is the CPU build.
-pub fn vram_need(_config: &LaunchConfig) -> u64 {
-    0
+pub fn vram_need(config: &LaunchConfig) -> u64 {
+    let Some(device) = gpu_device(config) else {
+        return 0;
+    };
+    let dir = config.model_path.as_path();
+    // Without a safetensors header to read: `config.json`'s dtype, or a diffusers pipeline's
+    // `*.fp16.*` variant files.
+    let config_16 = stored_16_bit(&dir.to_string_lossy());
+    let weights: u64 = weight_files(dir)
+        .iter()
+        .filter_map(|f| {
+            let size = std::fs::metadata(f).ok()?.len();
+            let bits = safetensors_float_bits(f).unwrap_or(
+                if config_16 || f.to_string_lossy().to_ascii_lowercase().contains(".fp16.") {
+                    16
+                } else {
+                    32
+                },
+            );
+            Some(loaded_weight_bytes(config, device, size, bits))
+        })
+        .sum();
+    // The CUDA / MPS context and the interpreter's tensors take ~300 MB; the KV cache and the
+    // activations a quarter of the weights; a diffusers pipeline's activations at 512² and up
+    // ~1.5 GB (the worker slices attention and tiles the VAE on MPS).
+    let overhead = if dir.join("model_index.json").is_file() {
+        1536u64 << 20
+    } else {
+        weights / 4
+    };
+    weights + overhead + (300u64 << 20)
+}
+
+/// Bits per value of a safetensors file's floating-point tensors (the most bytes), from its
+/// header; `None` for another format or a header that cannot be read.
+fn safetensors_float_bits(file: &Path) -> Option<u64> {
+    use std::io::Read;
+    if !file.to_string_lossy().ends_with(".safetensors") {
+        return None;
+    }
+    let mut f = std::fs::File::open(file).ok()?;
+    let mut len = [0u8; 8];
+    f.read_exact(&mut len).ok()?;
+    let len = u64::from_le_bytes(len);
+    if len > 100 << 20 {
+        return None;
+    }
+    let mut header = vec![0u8; len as usize];
+    f.read_exact(&mut header).ok()?;
+    let header: serde_json::Map<String, serde_json::Value> =
+        serde_json::from_slice(&header).ok()?;
+    // Bytes of 16-bit and of 32-bit floats.
+    let mut bytes = [0u64; 2];
+    for tensor in header.values() {
+        let span = tensor
+            .get("data_offsets")
+            .and_then(|o| o.as_array())
+            .and_then(|o| o.get(1)?.as_u64()?.checked_sub(o.first()?.as_u64()?))
+            .unwrap_or(0);
+        match tensor.get("dtype").and_then(|d| d.as_str()) {
+            Some("BF16" | "F16") => bytes[0] += span,
+            Some("F32") => bytes[1] += span,
+            _ => {}
+        }
+    }
+    match bytes {
+        [0, 0] => None,
+        [b16, b32] if b16 >= b32 => Some(16),
+        _ => Some(32),
+    }
+}
+
+/// The worker's `auto` device is MPS here (`hf_worker.py`, `liquid_audio_worker.py`).
+const APPLE_SILICON: bool = cfg!(all(target_os = "macos", target_arch = "aarch64"));
+
+/// The GPU a Python worker puts its weights on: CUDA with the GPU build of its environment,
+/// MPS (unified memory) on Apple Silicon, none on a CPU build or when the launch asks for the
+/// CPU (`device` param).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GpuDevice {
+    Cuda,
+    Mps,
+}
+
+pub fn gpu_device(config: &LaunchConfig) -> Option<GpuDevice> {
+    let asked = match config.params.get("device") {
+        Some(crate::params::ParamValue::Text(d)) => d.trim().to_ascii_lowercase(),
+        _ => String::new(),
+    };
+    match asked.as_str() {
+        "cpu" => None,
+        "cuda" => Some(GpuDevice::Cuda),
+        "mps" => Some(GpuDevice::Mps),
+        _ if APPLE_SILICON => Some(GpuDevice::Mps),
+        _ => env_for(&config.model_path)
+            .gpu_build_of
+            .is_some()
+            .then_some(GpuDevice::Cuda),
+    }
+}
+
+/// Bytes the weights take once loaded in the dtype the worker picks: a launch's own `dtype`,
+/// else float16 for a chat model on MPS, float32 for a diffusers pipeline or LFM2-Audio on MPS,
+/// float16 / the stored dtype on CUDA.
+fn loaded_weight_bytes(
+    config: &LaunchConfig,
+    device: GpuDevice,
+    stored: u64,
+    stored_bits: u64,
+) -> u64 {
+    let dir = config.model_path.as_path();
+    let asked = match config.params.get("dtype") {
+        Some(crate::params::ParamValue::Text(d)) => d.trim().to_ascii_lowercase(),
+        _ => String::new(),
+    };
+    let bits = match asked.as_str() {
+        "float32" => 32,
+        "float16" | "bfloat16" => 16,
+        _ => match device {
+            GpuDevice::Mps if chat_task(dir).is_some() => 16,
+            GpuDevice::Mps
+                if dir.join("model_index.json").is_file() || is_liquid_audio_dir(dir) =>
+            {
+                32
+            }
+            GpuDevice::Cuda
+                if dir.join("model_index.json").is_file() || is_liquid_audio_dir(dir) =>
+            {
+                16
+            }
+            _ => stored_bits,
+        },
+    };
+    stored / stored_bits * bits
 }
 
 impl Engine for PythonHfEngine {
@@ -1189,9 +1321,12 @@ impl ServerEngine for PythonHfEngine {
                 .unwrap_or(0)
         };
         // A chat checkpoint stored in 16 bits runs in float32 on a CPU without native bfloat16
-        // (the worker's choice): twice the weights in RAM.
+        // (the worker's choice): twice the weights in RAM. MPS loads it in float16.
         let model = if input.model_path.as_deref().is_some_and(|p| {
-            chat_task(Path::new(p)).is_some() && env().gpu_build_of.is_none() && stored_16_bit(p)
+            chat_task(Path::new(p)).is_some()
+                && env().gpu_build_of.is_none()
+                && !APPLE_SILICON
+                && stored_16_bit(p)
         }) {
             model * 2
         } else {
@@ -2095,7 +2230,7 @@ pipeline_tag: text-generation
             ..Default::default()
         };
         let fit = PythonHfEngine.estimate_memory(&input, None, &budget, &[]);
-        if env().gpu_build_of.is_none() {
+        if env().gpu_build_of.is_none() && !APPLE_SILICON {
             assert_eq!(fit.estimate.model_host_bytes, 2 << 30);
         }
         // A task model is never doubled.
@@ -2112,6 +2247,102 @@ pipeline_tag: text-generation
         };
         let fit = PythonHfEngine.estimate_memory(&input, None, &budget, &[]);
         assert_eq!(fit.estimate.model_host_bytes, 1 << 30);
+    }
+
+    /// The GPU memory a worker reserves with the job scheduler: the weights in the dtype the
+    /// worker loads them in on its device plus the KV cache / activations and the context; none
+    /// on the CPU.
+    #[test]
+    fn gpu_need_follows_the_device_and_the_loaded_dtype() {
+        const MIB: u64 = 1 << 20;
+        let weights = vec![0u8; 8 * MIB as usize];
+        let chat = folder(&[(
+            "config.json",
+            r#"{"architectures":["Qwen2ForCausalLM"],"dtype":"bfloat16"}"#,
+        )]);
+        std::fs::write(chat.path().join("model.safetensors"), &weights).unwrap();
+        let launch = |dir: &Path, device: &str, dtype: Option<&str>| {
+            let mut config = LaunchConfig {
+                model_path: dir.to_path_buf(),
+                ..Default::default()
+            };
+            config.params.insert(
+                "device".into(),
+                crate::params::ParamValue::Text(device.into()),
+            );
+            if let Some(dtype) = dtype {
+                config.params.insert(
+                    "dtype".into(),
+                    crate::params::ParamValue::Text(dtype.into()),
+                );
+            }
+            config
+        };
+        assert_eq!(vram_need(&launch(chat.path(), "cpu", None)), 0);
+        // float16 on MPS: the stored size, a quarter more, 300 MB.
+        assert_eq!(
+            vram_need(&launch(chat.path(), "mps", None)),
+            8 * MIB + 2 * MIB + 300 * MIB
+        );
+        // Asked for float32: twice the weights.
+        assert_eq!(
+            vram_need(&launch(chat.path(), "mps", Some("float32"))),
+            16 * MIB + 4 * MIB + 300 * MIB
+        );
+        // A float16 diffusers pipeline runs in float32 on MPS, with ~1.5 GB of activations.
+        let pipe = folder(&[(
+            "model_index.json",
+            r#"{"_class_name":"StableDiffusionPipeline"}"#,
+        )]);
+        std::fs::create_dir(pipe.path().join("unet")).unwrap();
+        std::fs::write(
+            pipe.path()
+                .join("unet/diffusion_pytorch_model.fp16.safetensors"),
+            &weights,
+        )
+        .unwrap();
+        assert_eq!(
+            vram_need(&launch(pipe.path(), "mps", None)),
+            16 * MIB + 1536 * MIB + 300 * MIB
+        );
+        assert_eq!(
+            vram_need(&launch(pipe.path(), "cuda", None)),
+            8 * MIB + 1536 * MIB + 300 * MIB
+        );
+        // A bfloat16 safetensors file whose `config.json` names no dtype (LFM2.5-Audio): its
+        // header says 16 bits, so float32 on MPS doubles it.
+        let bf16 = folder(&[(
+            "model_index.json",
+            r#"{"_class_name":"StableDiffusionPipeline"}"#,
+        )]);
+        let header = format!(
+            r#"{{"w":{{"dtype":"BF16","shape":[{n}],"data_offsets":[0,{b}]}}}}"#,
+            n = 4 * MIB,
+            b = 8 * MIB
+        );
+        let mut file = (header.len() as u64).to_le_bytes().to_vec();
+        file.extend_from_slice(header.as_bytes());
+        file.resize(file.len() + 8 * MIB as usize, 0);
+        std::fs::create_dir(bf16.path().join("unet")).unwrap();
+        std::fs::write(
+            bf16.path().join("unet/diffusion_pytorch_model.safetensors"),
+            &file,
+        )
+        .unwrap();
+        let size = file.len() as u64;
+        assert_eq!(
+            vram_need(&launch(bf16.path(), "mps", None)),
+            size / 16 * 32 + 1536 * MIB + 300 * MIB
+        );
+        // With no device asked: MPS on Apple Silicon, else CUDA only with the GPU build.
+        let auto = LaunchConfig {
+            model_path: chat.path().to_path_buf(),
+            ..Default::default()
+        };
+        assert_eq!(
+            gpu_device(&auto).is_some(),
+            APPLE_SILICON || env().gpu_build_of.is_some()
+        );
     }
 
     /// Runs a worker test script with the hf-cpu environment's Python (`HS_PYHF_PYTHON`, else

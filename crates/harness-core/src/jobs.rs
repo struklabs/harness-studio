@@ -82,9 +82,7 @@ pub fn estimate_launch(config: &crate::process::LaunchConfig) -> u64 {
             || crate::engine::non_llama_runs_on_cpu(config)
             || (config.gpu_layers == 0 && engine.family() == crate::engine::MISTRALRS)
             || (engine.family() == crate::engine::PYTHON_HF
-                && crate::engine::python_hf::env_for(&config.model_path)
-                    .gpu_build_of
-                    .is_none())
+                && crate::engine::python_hf::gpu_device(config).is_none())
         {
             return 0;
         }
