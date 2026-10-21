@@ -157,6 +157,9 @@ jobs:
       - name: Frontend tests
         run: npm run test:text-tool-calls
 
+      - name: Frontend unit tests
+        run: npm run test:unit
+
       - name: Mobile client (type check and tests)
         run: |
           npm run mobile:check
