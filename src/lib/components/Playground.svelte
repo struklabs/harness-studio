@@ -63,6 +63,8 @@
   import OcrPanel from './playground/OcrPanel.svelte';
   import PipelinePanel from './playground/PipelinePanel.svelte';
   import VideoPanel from './playground/VideoPanel.svelte';
+  import StudioPanel from './playground/StudioPanel.svelte';
+  import { studioById, studioFromHash, type StudioId } from './playground/studios';
   import { isVideoTask } from './playground/video';
   import { ensureLibraryDefinitions, loadAndChat } from '#lib/stores/downloads.svelte.js';
   import { isChatLoadable } from '#lib/downloadFollowUp.js';
@@ -72,8 +74,7 @@
   import { readAloud, tts } from './playground/tts.svelte';
   import { loadAudio, AudioError, MAX_AUDIO_BYTES, MAX_AUDIO_PER_MESSAGE, type PgAudio } from './playground/audio';
   import TranscribePanel from './playground/TranscribePanel.svelte';
-  import ImagePanel from './playground/ImagePanel.svelte';
-  import ComfyPanel from './playground/ComfyPanel.svelte';
+  import ImageSurface from './playground/ImageSurface.svelte';
   import { imageSession } from './playground/image.svelte';
   import TtsPanel from './playground/TtsPanel.svelte';
   import AudioProcessPanel from '#lib/components/playground/AudioProcessPanel.svelte';
@@ -274,6 +275,10 @@
 
   // ---- Tabs: chat, or the Embedding / Rerank test benches ----
   let pgTab = $state<PlaygroundMode>('chat');
+  /** The open studio of the Studios tab. */
+  let studioId = $state<StudioId>('image');
+  /** Mode whose model the header picker holds: the tab's own, or the open studio's. */
+  let pickerMode = $derived<Exclude<PlaygroundMode, 'studio'>>(pgTab === 'studio' ? (studioById(studioId)?.mode as Exclude<PlaygroundMode, 'studio'>) ?? 'chat' : pgTab);
   let modeModels = $state({ embedding: '', rerank: '', transcription: '', image: '', pipeline: '', ocr: '' });
   /** Pipeline task ("fill-mask"...) of the Tasks tab's model, from its library file. */
   let pipelineTask = $derived.by(() => {
@@ -283,7 +288,7 @@
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
   let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isExternalModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
   let ocrAliases = $derived(definitionsForMode(domain.definitions, 'ocr', library.models).map(def => def.alias));
-  let pickerModel = $derived(pgTab === 'chat' ? settings.model : pgTab === 'image' ? imageSession.model : modeModels[pgTab]);
+  let pickerModel = $derived(pickerMode === 'chat' ? settings.model : pickerMode === 'image' ? imageSession.model : modeModels[pickerMode]);
   $effect(() => {
     void library.version;
     untrack(() => void library.refresh());
@@ -295,7 +300,7 @@
     }
   });
   onMount(() => {
-    const navigate = () => { const mode = playgroundModeFromUrl(location.href); if (mode) pgTab = mode; };
+    const navigate = () => { const mode = playgroundModeFromUrl(location.href); if (mode) pgTab = mode; const studio = studioFromHash(location.hash); if (studio) studioId = studio; };
     navigate();
     window.addEventListener('hashchange', navigate);
     window.addEventListener('popstate', navigate);
@@ -314,7 +319,7 @@
   });
   // Embedding / Rerank list definitions: library files found by a scan get their default one first.
   $effect(() => {
-    void ensureLibraryDefinitions(kindsForTab(pgTab));
+    void ensureLibraryDefinitions(kindsForTab(pickerMode));
   });
   // The Speech tab's "Add to chat": the transcript goes into the draft, the composer gets focus.
   $effect(() => {
@@ -688,9 +693,9 @@
   function useModel(serverId: string, alias: string) {
     if (app.gatewayRunning && isExternalModel(alias) && !models.includes(alias)) models = [...models, alias];
     app.selectServer(serverId);
-    if (pgTab !== 'chat') {
-      modeModels[pgTab] = alias;
-      if (pgTab === 'image') imageSession.model = alias;
+    if (pickerMode !== 'chat') {
+      modeModels[pickerMode] = alias;
+      if (pickerMode === 'image') imageSession.model = alias;
       return;
     }
     settings.model = alias;
@@ -2870,7 +2875,7 @@
         {#if !splitOn}
         <ModelPicker
           currentModel={pickerModel}
-          mode={pgTab}
+          mode={pickerMode}
           label={pgTab === serveMode && pgTab !== 'chat' && pgTab !== 'image' ? pickerLabel : undefined}
           onUse={useModel}
           onPicked={() => tick().then(() => composer?.focus(true))}
@@ -2969,7 +2974,7 @@
       {/if}
       <!-- Speech goes through the gateway (whisper-server JIT), not the selected llama-server:
            the Speech panel shows its own gateway notice instead. -->
-      {#if !canChat && pgTab !== 'transcription' && pgTab !== 'image' && pgTab !== 'pipeline' && pgTab !== 'ocr'}
+      {#if !canChat && pgTab !== 'transcription' && pgTab !== 'image' && pgTab !== 'pipeline' && pgTab !== 'ocr' && pgTab !== 'studio'}
         <div class="flex shrink-0 items-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2" role="status">
           <Unplug class="size-4 shrink-0 text-warning" aria-hidden="true" />
           <span class="min-w-0 flex-1 text-xs text-foreground">
@@ -2991,26 +2996,9 @@
             <AudioProcessPanel />
           </AdvancedOnly>
         {:else if pgTab === 'image'}
-          <div class="mx-auto flex w-full max-w-[960px] px-4 pt-4">
-            <ToggleGroup.Root
-              type="single"
-              variant="outline"
-              size="sm"
-              value={imageSession.source}
-              onValueChange={(v) => {
-                if (v) imageSession.source = v as 'builtin' | 'comfyui';
-              }}
-              aria-label={t('comfy.source_label')}
-            >
-              <ToggleGroup.Item value="builtin" class="h-7 px-2 text-xs">{t('comfy.source_builtin')}</ToggleGroup.Item>
-              <ToggleGroup.Item value="comfyui" class="h-7 px-2 text-xs">{t('comfy.source_comfyui')}</ToggleGroup.Item>
-            </ToggleGroup.Root>
-          </div>
-          {#if imageSession.source === 'comfyui'}
-            <ComfyPanel />
-          {:else}
-            <ImagePanel />
-          {/if}
+          <ImageSurface />
+        {:else if pgTab === 'studio'}
+          <StudioPanel bind:studio={studioId} model={pickerModel} ocrModel={modeModels.ocr} pipelineModel={modeModels.pipeline} {pipelineTask} />
         {:else if pgTab === 'ocr'}
           <OcrPanel model={modeModels.ocr} />
         {:else if pgTab === 'pipeline'}

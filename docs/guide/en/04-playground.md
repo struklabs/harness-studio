@@ -236,8 +236,8 @@ Tesseract executable.
 
 Python video models appear in Playground's Pipeline tab. Select a diffusers LTX-Video or
 CogVideoX folder to generate a clip from a prompt. Supply a start image for image-to-video.
-Choose MP4 or WebM, resolution, frames and steps before running. The progress indicator follows
-denoising steps; Cancel stops at the next step. Finished clips are saved to the active project's
+Choose MP4, WebM, animated WebP or AVI, resolution, frames and steps before running. The progress line shows percent, job stage and elapsed time;
+Cancel stops the job at the next step. MP4, WebM and WebP preview in the app; AVI has no web player, so save the file. Finished clips are saved to the active project's
 `outputs` folder when the project has a folder.
 
 Video diffusion needs substantial RAM and VRAM. CPU runs use float32 and can take a long time.
@@ -256,3 +256,29 @@ The same features are available through `POST /v1/videos` (poll the returned job
 For video questions, use `stream: false` and a user message containing a text part and
 `{"type":"video_url","video_url":{"url":"data:video/mp4;base64,..."}}`.
 Only inline videos are accepted; the worker does not fetch remote URLs or read client paths.
+
+## Studios
+
+The **Studios** tab groups the task-specific workbenches in one place: **Image**, **Audio**,
+**Video**, **Voice Conversion**, **Document**, **Coding**, **Analysis** and **Agent**. A studio
+does not add a second copy of a screen. Image, Audio, Video, Voice Conversion and Document open
+the same panels the Image, Speech, Pipeline and Read Document tabs use, so a setting or a result
+looks the same in both places. Coding, Analysis and Agent start a chat with a starter prompt, or
+open the Agents module, which keeps its own task history and permissions.
+
+Under the switcher a resource strip shows what the studio calls and what it costs: the gateway
+API route, whether it streams, the model, its engine (for example llama.cpp or stable-diffusion.cpp),
+where it runs (this PC, a remote Harness, or the cloud) and a memory estimate. The estimate is the
+model file size times a per-task factor; for video it also grows with frames and resolution. It is
+a guide, not a measurement. Pick the model in the header picker; the picker lists the models of
+the open studio. Outputs go to the active project's `outputs` folder when the project has a folder.
+Open a studio directly with `#playground/studio/video` (or `image`, `audio`, `voice`, `document`,
+`coding`, `analysis`, `agent`).
+
+### How This Compares With Integrated Apps
+
+Desktop apps such as Atomic Chat bring chat and media tools into one window. Studios take the
+same approach with one difference: every studio runs on the engines, gateway, projects and
+permissions you already configured in Harness Studio, so the same model and the same
+OpenAI-compatible API serve the app, your scripts and other tools. Studios are a front door to
+those parts, not a separate runtime.
