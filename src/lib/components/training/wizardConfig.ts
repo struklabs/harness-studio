@@ -285,3 +285,14 @@ export function parseRecipe(text: string): RecipeResult {
   if (range) return { ok: false, error: 'field', field: range };
   return { ok: true, state };
 }
+
+/**
+ * Whether the Training page offers the PyTorch environment. Where jobs train with MLX by
+ * default (Apple Silicon without CUDA) they need none of it, and MLX installs its own engine:
+ * the card shows only once the environment is installed (to update it), or when an MPS or CPU
+ * job asked for it (its install is under way).
+ */
+export function showsTorchEnv(devices: readonly string[] | undefined, env: { installed: boolean } | null | undefined, installing = false): boolean {
+  const mlxDefault = !!devices?.includes('mlx') && !devices.includes('cuda');
+  return !mlxDefault || !!env?.installed || installing;
+}

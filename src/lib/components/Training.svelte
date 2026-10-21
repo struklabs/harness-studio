@@ -16,6 +16,7 @@
   import CompatCard from './training/CompatCard.svelte';
   import LogTail from './training/LogTail.svelte';
   import ExportDialog from './training/ExportDialog.svelte';
+  import { showsTorchEnv } from './training/wizardConfig';
 
   let wizardOpen = $state(false);
   let exporting = $state<TrainingJob | null>(null);
@@ -56,7 +57,7 @@
       <Button onclick={() => (wizardOpen = true)}><Plus class="size-4" aria-hidden="true" />{t('training.new_job')}</Button>
     </header>
 
-    <EnvCard />
+    {#if showsTorchEnv(training.compat?.devices, training.env, training.installing)}<EnvCard />{/if}
 
     {#if training.actionError}
       <p class="text-xs text-destructive" role="alert">{training.actionError}</p>

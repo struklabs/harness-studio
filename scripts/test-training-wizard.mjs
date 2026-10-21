@@ -105,3 +105,13 @@ test('live stats appear after a few steps and give speed and time left', () => {
   assert.equal(liveStats({ ...job, training: false }, 1040), null);
   assert.equal(liveStats({ ...job, status: 'done' }, 1040), null);
 });
+
+test('the PyTorch environment card stays away where MLX trains by default', () => {
+  const mac = ['cpu', 'mps', 'mlx'];
+  assert.equal(w.showsTorchEnv(mac, { installed: false }), false);
+  assert.equal(w.showsTorchEnv(mac, { installed: true }), true);
+  assert.equal(w.showsTorchEnv(mac, { installed: false }, true), true);
+  assert.equal(w.showsTorchEnv(['cpu', 'cuda'], { installed: false }), true);
+  assert.equal(w.showsTorchEnv(['cpu'], null), true);
+  assert.equal(w.showsTorchEnv(undefined, null), true);
+});
