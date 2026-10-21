@@ -13,6 +13,7 @@ test('the eight studios are listed once each and reuse an existing Playground mo
   assert.equal(new Set(STUDIOS.map(s => s.id)).size, STUDIOS.length);
   for (const s of STUDIOS) assert.ok(['chat', 'image', 'transcription', 'pipeline', 'ocr'].includes(s.mode), s.id);
   assert.equal(studioById('video').mode, 'pipeline');
+  assert.equal(studioById('video').api, '/v1/videos, /v1/chat/completions');
   assert.equal(studioById('nope'), undefined);
   assert.ok(STUDIO_STARTERS.coding && STUDIO_STARTERS.analysis);
 });

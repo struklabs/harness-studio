@@ -14,6 +14,7 @@ const tr = {
   'vid.cancel': 'İptal Et',
   'vid.file_limit': 'En fazla 32 MiB boyutunda bir dosya seçin.',
   'vid.memory': 'Video üretimi yüksek RAM/VRAM gerektirir ve CPU üzerinde uzun sürebilir. Daha az kare ve adımla başlayın.',
+  'vid.sampling': 'En fazla 32 MiB boyutunda bir MP4 veya WebM klibi hakkında soru sorun. GGUF görsel modelleri ffmpeg ve ffprobe gerektirir; ağ geçidi en fazla 10 dakikalık kliplerden sekiz kare örnekler. Ses dahil edilmez.',
 
   'pg.rich_raw': 'Ham JSON',
   'pg.rich_preview': 'Ön İzleme',
@@ -350,6 +351,7 @@ const en: Record<keyof typeof tr, string> = {
   'vid.cancel': 'Cancel',
   'vid.file_limit': 'Choose a file no larger than 32 MiB.',
   'vid.memory': 'Video generation needs substantial RAM/VRAM and can be slow on CPU. Start with fewer frames and steps.',
+  'vid.sampling': 'Ask about an MP4 or WebM clip up to 32 MiB. GGUF vision models need ffmpeg and ffprobe; the gateway samples eight frames across clips up to 10 minutes. Audio is not included.',
 
   'pg.rich_raw': 'Raw JSON',
   'pg.rich_preview': 'Preview',

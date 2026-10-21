@@ -13,6 +13,8 @@
   import { Label } from '#lib/components/ui/label/index.js';
   import { Textarea } from '#lib/components/ui/textarea/index.js';
   import JobWaitNote from '../JobWaitNote.svelte';
+  import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
+  import { localizeError } from '#lib/network.js';
   let { model, task, frames = $bindable(9), size = $bindable('256x256') }: { model: string; task?: string; frames?: number; size?: string } = $props();
   let understanding = $derived(task === 'video-text-to-text');
   let prompt = $state('');
@@ -40,7 +42,10 @@
   let job = '';
   async function api(path: string, init: RequestInit = {}) {
     const response = await fetch(`${app.inferenceUrl}${path}`, { ...init, headers: { 'Content-Type': 'application/json', ...app.inferenceHeaders() } });
-    if (!response.ok) throw new Error((await response.json()).error?.message ?? response.statusText);
+    if (!response.ok) {
+      const error = (await response.json()).error;
+      throw new Error(error?.harness?.error_key ?? error?.message ?? response.statusText);
+    }
     return response;
   }
   async function pick(event: Event) {
@@ -60,35 +65,38 @@
     busy = true; error = ''; answer = ''; progress = 0; stage = 'queued'; elapsed = 0; saved = false;
     const started = Date.now(); clearInterval(timer); timer = setInterval(() => { elapsed = Math.round((Date.now() - started) / 1000); }, 1000);
     try {
-      if (understanding) {
-        const r = await api('/chat/completions', { method: 'POST', signal: c.signal, body: JSON.stringify(videoQuestion(model, prompt, media)) });
-        answer = (await r.json()).choices[0].message.content;
-      } else {
-        const r = await api('/videos', { method: 'POST', body: JSON.stringify({ model, prompt, frames, steps, size, output_format: format, ...(media ? { input_reference: media } : {}) }) });
-        const id = (await r.json()).id as string; job = id;
-        if (c.signal.aborted) { cancel(); return; }
-        await waitForVideo(async () => (await api(`/videos/${id}`, { signal: c.signal })).json(), {
-          signal: c.signal,
-          onProgress: (percent, status) => { progress = percent; stage = status; },
-        });
-        const raw = await (await api(`/videos/${id}/content`, { signal: c.signal })).blob();
-        const blob = new Blob([raw], { type: videoMime(format) });
-        if (output) URL.revokeObjectURL(output);
-        output = URL.createObjectURL(blob);
-        outputFormat = format;
-        outputName_ = outputName(prompt, format, 'video');
-        saved = !!projects.active?.folder;
-        await fileToProject(outputName_, await blobToBase64(blob), { source: 'manual', model });
-        job = '';
-      }
-    } catch (e) { if (!c.signal.aborted) error = e instanceof Error ? e.message : String(e); }
+      await engineInstall.runWithEngine(async () => {
+        c.signal.throwIfAborted();
+        if (understanding) {
+          const r = await api('/chat/completions', { method: 'POST', signal: c.signal, body: JSON.stringify(videoQuestion(model, prompt, media)) });
+          answer = (await r.json()).choices[0].message.content;
+        } else {
+          const r = await api('/videos', { method: 'POST', body: JSON.stringify({ model, prompt, frames, steps, size, output_format: format, ...(media ? { input_reference: media } : {}) }) });
+          const id = (await r.json()).id as string; job = id;
+          if (c.signal.aborted) { cancel(); return; }
+          await waitForVideo(async () => (await api(`/videos/${id}`, { signal: c.signal })).json(), {
+            signal: c.signal,
+            onProgress: (percent, status) => { progress = percent; stage = status; },
+          });
+          const raw = await (await api(`/videos/${id}/content`, { signal: c.signal })).blob();
+          const blob = new Blob([raw], { type: videoMime(format) });
+          if (output) URL.revokeObjectURL(output);
+          output = URL.createObjectURL(blob);
+          outputFormat = format;
+          outputName_ = outputName(prompt, format, 'video');
+          saved = !!projects.active?.folder;
+          await fileToProject(outputName_, await blobToBase64(blob), { source: 'manual', model });
+          job = '';
+        }
+      });
+    } catch (e) { if (!c.signal.aborted) error = engineInstall.autoFailureText(e) ?? localizeError(e); }
     finally { busy = false; clearInterval(timer); }
   }
 </script>
 
 <div class="space-y-4 p-4">
   <h2 class="text-lg font-semibold">{t(understanding ? 'vid.questions' : 'vid.generate')}</h2>
-  <p class="text-sm text-muted-foreground">{t('vid.memory')}</p>
+  <p class="text-sm text-muted-foreground">{t(understanding ? 'vid.sampling' : 'vid.memory')}</p>
   <Label for="video-prompt">{t(understanding ? 'vid.question' : 'vid.prompt')}</Label>
   <Textarea id="video-prompt" bind:value={prompt} disabled={busy} />
   <Label for="video-media">{t(understanding ? 'vid.input' : 'vid.start_image')}</Label>
@@ -108,6 +116,9 @@
       <progress max="100" value={progress} aria-label={t('vid.progress')}></progress>
       <span class="text-xs text-muted-foreground">{t('vid.progress_line', { percent: progress, stage: t(stage === 'in_progress' ? 'vid.stage_running' : 'vid.stage_queued'), seconds: elapsed })}</span>
       <JobWaitNote {model} />
+      {#if engineInstall.autoFamily}
+        <span class="text-xs text-muted-foreground">{t('eng.auto_installing', { runtime: engineInstall.autoFamily })}</span>
+      {/if}
     </div>
   {/if}
   {#if error}<p role="alert" class="text-destructive">{error}</p>{/if}

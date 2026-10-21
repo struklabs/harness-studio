@@ -1,6 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { fileVideoTask, isVideoTask, videoFormatsFor, videoQuestion } from '../src/lib/components/playground/video.ts';
+import { definitionVideoTask, fileVideoTask, isVideoTask, videoFormatsFor, videoQuestion } from '../src/lib/components/playground/video.ts';
+
+test('GGUF vision definitions also offer video questions, while audio projectors and text models do not', () => {
+  const def = { base: { kind: 'local', path: '/m/qwen.gguf' }, mmproj: '/m/mmproj.gguf' };
+  const file = { kind: 'llm', path: '/m/qwen.gguf' };
+  assert.equal(definitionVideoTask(def, file), 'video-text-to-text');
+  assert.equal(definitionVideoTask({ ...def, mmproj: null }, file), undefined);
+  assert.equal(definitionVideoTask(def, file, [{ path: '/m/mmproj.gguf', gguf: { has_audio_encoder: true, has_vision_encoder: false } }]), undefined);
+  assert.equal(definitionVideoTask({ ...def, base: { kind: 'local', path: '/m/text-folder' } }, file), undefined);
+  assert.equal(definitionVideoTask(def, { kind: 'pipeline', task: 'text-to-video' }), 'text-to-video');
+});
 test('video tasks use the video surface; image and other pipelines do not', () => {
   for (const task of ['text-to-video', 'image-to-video', 'video-text-to-text']) assert.equal(isVideoTask(task), true);
   for (const task of [undefined, 'text-to-image', 'image-to-text']) assert.equal(isVideoTask(task), false);

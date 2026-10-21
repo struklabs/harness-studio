@@ -48,6 +48,7 @@ pub mod speech;
 mod text_tool_calls;
 mod tool_loop_guard;
 pub mod transcribe_cpp;
+mod video_input;
 pub mod videos;
 pub mod voice_clone;
 
