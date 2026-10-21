@@ -20,6 +20,10 @@ const CAPACITY: usize = 256;
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CoreEvent {
+    /// Office documents or user presets changed.
+    OfficesChanged,
+    /// Agent task history or GPU job state changed; reload the office activity summary.
+    OfficeActivityChanged,
     /// Model definitions were successfully persisted by any client.
     DefinitionsChanged,
     /// The tool registry changed (generated, installed or MCP tools).
@@ -98,6 +102,8 @@ impl CoreEvent {
     /// SSE event name (`event:` field): the serialized `type`.
     pub fn kind(&self) -> &'static str {
         match self {
+            CoreEvent::OfficesChanged => "offices_changed",
+            CoreEvent::OfficeActivityChanged => "office_activity_changed",
             CoreEvent::DefinitionsChanged => "definitions_changed",
             CoreEvent::ToolsChanged => "tools_changed",
             CoreEvent::EnginesChanged => "engines_changed",

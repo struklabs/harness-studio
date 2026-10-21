@@ -94,6 +94,9 @@ pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Sc
     if route == "/conversations" || route.starts_with("/conversations/") {
         return Some(Scope::Conversations);
     }
+    if route.starts_with("/offices/runs/") {
+        return Some(Scope::Admin);
+    }
     if *method == Method::GET {
         return Some(Scope::Read);
     }

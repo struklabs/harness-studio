@@ -25,6 +25,7 @@ Names in **bold** are labels you will see in the app. Model Hub and engine downl
 13. [Training: Fine-Tune a Model on Your Own Data](13-training.md)
 14. [Open Source, Contributions, and Community Content](14-open-source-and-community.md)
 15. [Security Protections](security.md)
+16. [Agent Office](14-agent-office.md)
 
 For public skills and MCP repositories, see [GitHub Discovery](github-discovery.md).
 

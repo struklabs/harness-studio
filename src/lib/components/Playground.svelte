@@ -1,6 +1,7 @@
 <script lang="ts">
   import TrainingCompare from './playground/TrainingCompare.svelte';
   import { training } from '#lib/stores/training.svelte.js';
+  import { officeLive } from '#lib/stores/officeLive.svelte.js';
   import { NO_REASONING, observeThinking, type ReasoningControl } from './playground/thinking';
   import { guardToolCalls } from './playground/toolLoopGuard';
   import AdvancedOnly from './common/AdvancedOnly.svelte';
@@ -1283,6 +1284,12 @@
   $effect(() => holdReleaseWhile('playground-input', () => input.trim().length > 0));
   // A tool call waiting for the user's approval: the agent loop lives in this page.
   $effect(() => holdReleaseWhile('playground-approval', () => awaitingApproval));
+  $effect(() => {
+    const tools = messages.some(m => m.toolCalls?.some(c => c.status === 'running'));
+    officeLive.character = { id: 'playground', name: conv?.title || settings.model || t('office.chat_agent'), kind: 'agent', status: awaitingApproval ? 'waiting_for_approval' : streaming ? (tools ? 'running_tool' : 'thinking') : 'idle', run_id: conv?.id, project_id: projects.activeId };
+    officeLive.open = () => { app.requestedTab = 'playground'; app.requestedPlaygroundTab = 'chat'; };
+  });
+
 
   onMount(() => {
     scrollToBottom(true);

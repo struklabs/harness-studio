@@ -967,7 +967,9 @@ fn save_task(status: &TaskStatus) -> Result<(), String> {
         entries.retain(|e| e.id != status.id);
         entries.insert(0, status.clone());
         Ok(())
-    })
+    })?;
+    crate::events::publish(crate::events::CoreEvent::OfficeActivityChanged);
+    Ok(())
 }
 pub fn task_history() -> Result<Vec<TaskStatus>, String> {
     // Serialize recovery with start/delete so a newly started run cannot be

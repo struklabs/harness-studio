@@ -196,6 +196,7 @@ impl JobScheduler {
         });
         drop(state);
         self.changed.notify_waiters();
+        crate::events::publish(crate::events::CoreEvent::OfficeActivityChanged);
         Ticket {
             scheduler: self.clone(),
             id,
@@ -230,6 +231,7 @@ impl JobScheduler {
         entry.view.status = Status::Cancelling;
         drop(state);
         self.changed.notify_waiters();
+        crate::events::publish(crate::events::CoreEvent::OfficeActivityChanged);
         true
     }
 

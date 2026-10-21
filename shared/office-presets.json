@@ -1,0 +1,463 @@
+[
+  {
+    "version": 1,
+    "id": "builtin-studio",
+    "name": "Small Studio",
+    "size": "small",
+    "theme": "classic",
+    "rooms": [
+      {
+        "id": "room-0",
+        "name": "Studio",
+        "color": "#88b9b0",
+        "x": 1,
+        "y": 1,
+        "width": 14,
+        "height": 10
+      }
+    ],
+    "furniture": [
+      {
+        "id": "desk-0-0",
+        "kind": "desk",
+        "x": 2,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-0-1",
+        "kind": "desk",
+        "x": 5,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-0-2",
+        "kind": "desk",
+        "x": 8,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-0-3",
+        "kind": "desk",
+        "x": 2,
+        "y": 6,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "plant-0",
+        "kind": "plant",
+        "x": 14,
+        "y": 10,
+        "width": 1,
+        "height": 1
+      }
+    ],
+    "desk_agents": {},
+    "room_projects": {}
+  },
+  {
+    "version": 1,
+    "id": "builtin-engineering",
+    "name": "Engineering Floor",
+    "size": "medium",
+    "theme": "classic",
+    "rooms": [
+      {
+        "id": "room-0",
+        "name": "Engineering",
+        "color": "#88b9b0",
+        "x": 1,
+        "y": 1,
+        "width": 10,
+        "height": 14
+      },
+      {
+        "id": "room-1",
+        "name": "Meeting Room",
+        "color": "#a6a0d0",
+        "x": 13,
+        "y": 1,
+        "width": 10,
+        "height": 14
+      }
+    ],
+    "furniture": [
+      {
+        "id": "desk-0-0",
+        "kind": "desk",
+        "x": 2,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-0-1",
+        "kind": "desk",
+        "x": 5,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-0-2",
+        "kind": "desk",
+        "x": 8,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "plant-0",
+        "kind": "plant",
+        "x": 10,
+        "y": 14,
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "desk-1-0",
+        "kind": "desk",
+        "x": 14,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-1-1",
+        "kind": "desk",
+        "x": 17,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-1-2",
+        "kind": "desk",
+        "x": 20,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "plant-1",
+        "kind": "plant",
+        "x": 22,
+        "y": 14,
+        "width": 1,
+        "height": 1
+      }
+    ],
+    "desk_agents": {},
+    "room_projects": {}
+  },
+  {
+    "version": 1,
+    "id": "builtin-agency",
+    "name": "Agency",
+    "size": "large",
+    "theme": "classic",
+    "rooms": [
+      {
+        "id": "room-0",
+        "name": "Design",
+        "color": "#88b9b0",
+        "x": 1,
+        "y": 1,
+        "width": 14,
+        "height": 8
+      },
+      {
+        "id": "room-1",
+        "name": "Engineering",
+        "color": "#a6a0d0",
+        "x": 17,
+        "y": 1,
+        "width": 14,
+        "height": 8
+      },
+      {
+        "id": "room-2",
+        "name": "Operations",
+        "color": "#d2ac7e",
+        "x": 1,
+        "y": 11,
+        "width": 14,
+        "height": 8
+      },
+      {
+        "id": "room-3",
+        "name": "Meeting Room",
+        "color": "#88acc9",
+        "x": 17,
+        "y": 11,
+        "width": 14,
+        "height": 8
+      }
+    ],
+    "furniture": [
+      {
+        "id": "desk-0-0",
+        "kind": "desk",
+        "x": 2,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-0-1",
+        "kind": "desk",
+        "x": 5,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-0-2",
+        "kind": "desk",
+        "x": 8,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-0-3",
+        "kind": "desk",
+        "x": 2,
+        "y": 6,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "plant-0",
+        "kind": "plant",
+        "x": 14,
+        "y": 8,
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "desk-1-0",
+        "kind": "desk",
+        "x": 18,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-1-1",
+        "kind": "desk",
+        "x": 21,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-1-2",
+        "kind": "desk",
+        "x": 24,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-1-3",
+        "kind": "desk",
+        "x": 18,
+        "y": 6,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "plant-1",
+        "kind": "plant",
+        "x": 30,
+        "y": 8,
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "desk-2-0",
+        "kind": "desk",
+        "x": 2,
+        "y": 13,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-2-1",
+        "kind": "desk",
+        "x": 5,
+        "y": 13,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-2-2",
+        "kind": "desk",
+        "x": 8,
+        "y": 13,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-2-3",
+        "kind": "desk",
+        "x": 2,
+        "y": 16,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "plant-2",
+        "kind": "plant",
+        "x": 14,
+        "y": 18,
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "desk-3-0",
+        "kind": "desk",
+        "x": 18,
+        "y": 13,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-3-1",
+        "kind": "desk",
+        "x": 21,
+        "y": 13,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-3-2",
+        "kind": "desk",
+        "x": 24,
+        "y": 13,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-3-3",
+        "kind": "desk",
+        "x": 18,
+        "y": 16,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "plant-3",
+        "kind": "plant",
+        "x": 30,
+        "y": 18,
+        "width": 1,
+        "height": 1
+      }
+    ],
+    "desk_agents": {},
+    "room_projects": {}
+  },
+  {
+    "version": 1,
+    "id": "builtin-lab",
+    "name": "Lab",
+    "size": "medium",
+    "theme": "classic",
+    "rooms": [
+      {
+        "id": "room-0",
+        "name": "Research",
+        "color": "#88b9b0",
+        "x": 1,
+        "y": 1,
+        "width": 10,
+        "height": 14
+      },
+      {
+        "id": "room-1",
+        "name": "Testing",
+        "color": "#a6a0d0",
+        "x": 13,
+        "y": 1,
+        "width": 10,
+        "height": 14
+      }
+    ],
+    "furniture": [
+      {
+        "id": "desk-0-0",
+        "kind": "desk",
+        "x": 2,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-0-1",
+        "kind": "desk",
+        "x": 5,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-0-2",
+        "kind": "desk",
+        "x": 8,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "plant-0",
+        "kind": "plant",
+        "x": 10,
+        "y": 14,
+        "width": 1,
+        "height": 1
+      },
+      {
+        "id": "desk-1-0",
+        "kind": "desk",
+        "x": 14,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-1-1",
+        "kind": "desk",
+        "x": 17,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "desk-1-2",
+        "kind": "desk",
+        "x": 20,
+        "y": 3,
+        "width": 2,
+        "height": 1
+      },
+      {
+        "id": "plant-1",
+        "kind": "plant",
+        "x": 22,
+        "y": 14,
+        "width": 1,
+        "height": 1
+      }
+    ],
+    "desk_agents": {},
+    "room_projects": {}
+  }
+]

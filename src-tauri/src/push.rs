@@ -81,6 +81,12 @@ pub fn spawn(app: &AppHandle, registry: Arc<ServerRegistry>) {
                     Err(_) => break,
                 }
             }
+            if changed.office {
+                let _ = handle.emit("offices-changed", ());
+            }
+            if changed.office_activity {
+                let _ = handle.emit("office-activity-changed", ());
+            }
             if changed.downloads {
                 let _ = handle.emit("downloads-changed", ());
             }
@@ -115,6 +121,8 @@ pub fn spawn(app: &AppHandle, registry: Arc<ServerRegistry>) {
 /// Which kinds of event arrived in one coalescing window.
 #[derive(Default)]
 struct Changed {
+    office: bool,
+    office_activity: bool,
     tools: bool,
     /// A managed engine library was installed or removed.
     engines: bool,
@@ -134,6 +142,8 @@ struct Changed {
 impl Changed {
     fn all() -> Self {
         Self {
+            office: true,
+            office_activity: true,
             tools: true,
             engines: true,
             definitions: true,
@@ -147,7 +157,9 @@ impl Changed {
     }
 
     fn any(&self) -> bool {
-        self.tools
+        self.office
+            || self.office_activity
+            || self.tools
             || self.engines
             || self.definitions
             || self.downloads
@@ -160,6 +172,8 @@ impl Changed {
 
     fn classify(&mut self, e: &CoreEvent) {
         match e {
+            CoreEvent::OfficesChanged => self.office = true,
+            CoreEvent::OfficeActivityChanged => self.office_activity = true,
             CoreEvent::ToolsChanged => self.tools = true,
             CoreEvent::EnginesChanged => self.engines = true,
             CoreEvent::DefinitionsChanged => self.definitions = true,
