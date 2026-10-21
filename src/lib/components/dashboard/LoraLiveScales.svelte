@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import { invoke } from '#lib/ipc.js';
   import type { LoraAdapterLive, ServerStatus } from '#lib/types.js';
   import { t } from '#lib/i18n.svelte.js';
@@ -91,7 +92,7 @@
           class="flex-1"
           disabled={busy}
         />
-        <span class="w-10 shrink-0 text-right font-num">{(draft[a.id] ?? a.scale).toFixed(2)}</span>
+        <span class="w-10 shrink-0 text-right font-num">{fixed(draft[a.id] ?? a.scale, 2)}</span>
       </div>
     {/each}
   </section>

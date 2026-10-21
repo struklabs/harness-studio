@@ -5,6 +5,10 @@
 
 import type { MemoryBreakdown } from './types';
 
+// Locale of the UI language (the page's `lang`), so this file stays free of app imports for its tests.
+const uiDecimals = (value: number, digits: number) =>
+  value.toLocaleString(globalThis.document?.documentElement.lang || 'en', { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+
 export type SegmentKind = 'harness' | 'server' | 'other';
 
 export interface Segment {
@@ -49,5 +53,5 @@ export function buildSegments(used: number, total: number, b: MemoryBreakdown): 
 export function legendPct(bytes: number, total: number): string {
   if (total <= 0 || bytes <= 0) return '0%';
   const p = (bytes / total) * 100;
-  return p < 0.1 ? '<0.1%' : `${p.toFixed(1)}%`;
+  return p < 0.1 ? `<${uiDecimals(0.1, 1)}%` : `${uiDecimals(p, 1)}%`;
 }

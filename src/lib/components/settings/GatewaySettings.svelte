@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   let { page = 'gateway-endpoint' }: { page?: string } = $props();
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   // Settings > Gateway: the managed endpoint (harness-gateway, off by default), its scheduler
@@ -404,7 +405,7 @@
                   {t('gw.queue_hint', {
                     requests: h.requests,
                     share: Math.round(h.wait_share * 100),
-                    secs: (h.avg_wait_ms / 1000).toFixed(1),
+                    secs: fixed(h.avg_wait_ms / 1000, 1),
                     n: h.suggested_slots ?? 0,
                   })}
                 </span>

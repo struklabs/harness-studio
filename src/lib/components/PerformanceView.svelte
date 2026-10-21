@@ -2,7 +2,7 @@
   import { engineInstall } from '#lib/stores/engineInstall.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import * as Empty from '#lib/components/ui/empty/index.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, fixed } from '#lib/format.js';
   import { onMount, untrack } from 'svelte';
   import { invoke } from '#lib/ipc.js';
   import type { TelemetrySnapshot, TelemetryHistoryPoint, PerfDetails, ServerStatus, AppSettings, AnalyticsSummary } from '#lib/types.js';
@@ -136,7 +136,7 @@
     }
   }
 
-  const fmtTps = (v: number | null | undefined) => (v == null ? NA : v.toFixed(1));
+  const fmtTps = (v: number | null | undefined) => (v == null ? NA : fixed(v, 1));
 </script>
 
 <div class="performance-content @container flex h-full w-full min-w-0 flex-col gap-6 overflow-y-auto p-4 sm:p-6">
@@ -267,7 +267,7 @@
         <span class="text-xs text-muted-foreground">{t('perf.chart_slots')}</span>
         <span class="font-num text-2xl font-semibold text-foreground">{snapshot?.total_slots ? `${snapshot.active_slots} / ${snapshot.total_slots}` : NA}</span>
         {#if snapshot?.kv_cache_available}
-          <span class="font-num text-xs text-muted-foreground">{t('ui.perf_kv', { pct: (snapshot.kv_cache_usage_ratio * 100).toFixed(0) })}</span>
+          <span class="font-num text-xs text-muted-foreground">{t('ui.perf_kv', { pct: fixed(snapshot.kv_cache_usage_ratio * 100, 0) })}</span>
         {/if}
       </div>
     </div>

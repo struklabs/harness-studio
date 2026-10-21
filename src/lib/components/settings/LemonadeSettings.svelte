@@ -16,7 +16,7 @@
     RuntimeReleasePick,
   } from '#lib/types.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
-  import { formatBytes, formatBytesPairText } from '#lib/format.js';
+  import { formatBytes, formatBytesPairText, fixed } from '#lib/format.js';
   import { isMac } from '#lib/platform.js';
   import { localizeError } from '#lib/network.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -367,7 +367,7 @@
                   <span class="flex min-w-0 flex-col">
                     <span class="truncate font-medium" title={m.checkpoint}>{m.id}</span>
                     <span class="flex items-center gap-1.5 text-muted-foreground">
-                      {m.recipe} · {t(`lem.kind_${m.kind}` as TKey)} · {m.size_gb.toFixed(2)} GB
+                      {m.recipe} · {t(`lem.kind_${m.kind}` as TKey)} · {fixed(m.size_gb, 2)} GB
                       {#if m.kind !== 'chat' && m.kind !== 'embedding' && m.kind !== 'rerank' && m.kind !== 'transcription'}
                         · {t('lem.not_served')}
                       {/if}

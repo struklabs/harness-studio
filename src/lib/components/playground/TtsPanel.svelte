@@ -15,7 +15,7 @@
   import { Textarea } from '#lib/components/ui/textarea/index.js';
   import { Progress } from '#lib/components/ui/progress/index.js';
   import AdvancedOnly from '../common/AdvancedOnly.svelte';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, fixed } from '#lib/format.js';
   import { Download, LoaderCircle, Power, Square, Volume2, TriangleAlert } from '@lucide/svelte';
   import { onDestroy, untrack } from 'svelte';
   import { library } from '#lib/stores/library.svelte.js';
@@ -267,7 +267,7 @@
           <Label for="tts-speed" class="text-sm font-semibold text-foreground">{t('speak.speed_label')}</Label>
           <div class="flex h-9 items-center gap-2">
             <input id="tts-speed" type="range" min="0.5" max="2" step="0.05" bind:value={tts.speed} disabled={busy} class="min-w-0 flex-1" />
-            <span class="font-num w-10 text-right text-xs text-muted-foreground">{tts.speed.toFixed(2)}×</span>
+            <span class="font-num w-10 text-right text-xs text-muted-foreground">{fixed(tts.speed, 2)}×</span>
           </div>
         </div>
       {/if}

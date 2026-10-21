@@ -198,6 +198,12 @@ pub struct TrainingJob {
     pub checkpoint_step: Option<u32>,
     /// The worker is training (not loading the model).
     pub training: bool,
+    /// When this run's worker finished loading; the live rate leaves the load time out.
+    #[serde(default)]
+    pub training_since: Option<u64>,
+    /// The step this run started training from (the checkpoint's after a resume).
+    #[serde(default)]
+    pub training_from_step: u32,
     /// Keyed error of a failed job.
     pub error: Option<String>,
     pub dataset_report: DatasetReport,
@@ -617,6 +623,8 @@ pub fn create(req: &CreateRequest) -> Result<TrainingJob, String> {
         eval_loss: None,
         checkpoint_step: None,
         training: false,
+        training_since: None,
+        training_from_step: 0,
         error: None,
         dataset_report: report,
         estimate: est,
@@ -1002,16 +1010,63 @@ pub fn log_tail(id: u64) -> Result<String, String> {
 // --- what this machine can run ----------------------------------------------------------------
 
 static PROBE: Mutex<Option<Probe>> = Mutex::new(None);
+/// When the last probe failed or timed out: it is not retried for [`PROBE_RETRY`].
+static PROBE_FAILED: Mutex<Option<std::time::Instant>> = Mutex::new(None);
+/// One probe at a time; callers that arrive meanwhile get its answer.
+static PROBE_GATE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+const PROBE_RETRY: std::time::Duration = std::time::Duration::from_secs(300);
+
+fn cached_probe() -> Option<Probe> {
+    PROBE.lock().unwrap().clone()
+}
+
+fn probe_resting() -> bool {
+    PROBE_FAILED
+        .lock()
+        .unwrap()
+        .is_some_and(|at| at.elapsed() < PROBE_RETRY)
+}
 
 /// Asks the environment which devices and methods work (cached; `None` while it is not
-/// installed).
+/// installed, and for a while after a probe failed). A cold start imports PyTorch, which can
+/// take minutes on a busy machine.
 pub async fn probe() -> Option<Probe> {
-    if let Some(p) = PROBE.lock().unwrap().clone() {
+    if let Some(p) = cached_probe() {
         return Some(p);
     }
-    let p = run::run_probe().await?;
-    *PROBE.lock().unwrap() = Some(p.clone());
-    Some(p)
+    if probe_resting() || !env_status().ready {
+        return None;
+    }
+    let _gate = PROBE_GATE.lock().await;
+    if let Some(p) = cached_probe() {
+        return Some(p);
+    }
+    if probe_resting() {
+        return None;
+    }
+    match run::run_probe().await {
+        Some(p) => {
+            *PROBE.lock().unwrap() = Some(p.clone());
+            *PROBE_FAILED.lock().unwrap() = None;
+            Some(p)
+        }
+        None => {
+            *PROBE_FAILED.lock().unwrap() = Some(std::time::Instant::now());
+            None
+        }
+    }
+}
+
+/// The compatibility table without waiting: the cached probe's, else the one inferred from the
+/// hardware while a probe runs in the background. Must run inside a tokio runtime.
+pub fn compatibility_now() -> Compatibility {
+    let cached = cached_probe();
+    if cached.is_none() {
+        tokio::spawn(async {
+            let _ = probe().await;
+        });
+    }
+    estimate::compatibility(cached.as_ref())
 }
 
 /// Methods this machine can run, from the environment's probe when it is installed.

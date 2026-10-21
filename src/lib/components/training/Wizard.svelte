@@ -1,10 +1,10 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { CircleCheck, TriangleAlert, CircleX, Check, Copy, RefreshCw, Sparkles } from '@lucide/svelte';
-  import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { t, locale, type TKey } from '#lib/i18n.svelte.js';
   import { invoke } from '#lib/ipc.js';
   import { errorText } from '#lib/errors.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, fixed } from '#lib/format.js';
   import { library } from '#lib/stores/library.svelte.js';
   import { training } from '#lib/stores/training.svelte.js';
   import type {
@@ -23,7 +23,7 @@
   import DatasetStep from './DatasetStep.svelte';
   import BaseModelFetch from './BaseModelFetch.svelte';
   import ParamField from './ParamField.svelte';
-  import { baseName, fmtDuration } from './trainingFormat';
+  import { baseName, fmtDuration, localParams } from './trainingFormat';
   import {
     applyPreset,
     buildRequest,
@@ -52,8 +52,13 @@
     }
   }
   let advanced = $state(loadMode());
+  const stepsFor = (adv: boolean) => (adv ? ['model', 'dataset', 'method', 'preset', 'review'] : ['model', 'dataset', 'preset', 'review']) as readonly string[];
   function setAdvanced(v: boolean) {
+    // Stay on the same step when the list gains or loses the Method step.
+    const here = current;
     advanced = v;
+    const at = stepsFor(v).indexOf(here);
+    step = at >= 0 ? at : Math.min(step, stepsFor(v).length - 1);
     try {
       localStorage.setItem(MODE_KEY, v ? '1' : '0');
     } catch {
@@ -61,7 +66,7 @@
     }
   }
 
-  let steps = $derived((advanced ? ['model', 'dataset', 'method', 'preset', 'review'] : ['model', 'dataset', 'preset', 'review']) as readonly string[]);
+  let steps = $derived(stepsFor(advanced));
   let step = $state(0);
   let current = $derived(steps[Math.min(step, steps.length - 1)]);
 
@@ -85,6 +90,8 @@
   let recipeText = $state('');
   let recipeError = $state<string | null>(null);
   let copied = $state(false);
+  // Advanced mode may start a run the estimate says will not fit (the estimate can be pessimistic).
+  let fitOverride = $state(false);
 
   /** Folders with a config.json that are not GGUF: the Hugging Face (safetensors) models. */
   let models = $derived(
@@ -123,6 +130,7 @@
     report = null;
     presetSet = null;
     nameCheck = null;
+    fitOverride = false;
     recipeError = null;
     recipeText = '';
     methodChoice = 'auto';
@@ -315,6 +323,8 @@
     return est.memory_bytes > est.available_bytes * 0.85 ? 'tight' : 'fits';
   });
 
+  let fitBlocked = $derived(fit === 'no' && !(advanced && fitOverride));
+
   const FIT_CLASS = { fits: 'border-emerald-500/40 bg-emerald-500/10', tight: 'border-amber-500/50 bg-amber-500/10', no: 'border-destructive/40 bg-destructive/10' } as const;
   const schedulerOptions = $derived([
     { value: 'linear', label: t('training.scheduler_linear') },
@@ -414,24 +424,27 @@
               }}
             >
               <span class="font-medium">{t(`training.method_pick_${m.id}` as TKey)}</span>
-              <span class="text-xs text-muted-foreground">{m.id === 'qlora' && m.blocked && qlora ? t(qlora.reason as TKey, qlora.params) : t(`training.method_pick_${m.id}_hint` as TKey)}</span>
+              <span class="text-xs text-muted-foreground">{m.id === 'qlora' && m.blocked && qlora ? t(qlora.reason as TKey, localParams(qlora.params, locale())) : t(`training.method_pick_${m.id}_hint` as TKey)}</span>
             </button>
           {/each}
         </div>
         {#if qlora && methodChoice === 'qlora' && qlora.support === 'limited'}
-          <p class="text-xs text-muted-foreground">{t(qlora.reason as TKey, qlora.params)}</p>
+          <p class="text-xs text-muted-foreground">{t(qlora.reason as TKey, localParams(qlora.params, locale()))}</p>
         {/if}
         {#if unavailable.length}
           <div class="flex flex-col gap-1 rounded-md border border-dashed border-border p-3">
             <p class="text-xs font-medium">{t('training.method_unavailable')}</p>
             {#each unavailable as m (m.method)}
-              <p class="text-xs text-muted-foreground"><span class="font-medium text-foreground">{t(`training.method_name_${m.method}` as TKey)}:</span> {t(m.reason as TKey, m.params)}</p>
+              <p class="text-xs text-muted-foreground"><span class="font-medium text-foreground">{t(`training.method_name_${m.method}` as TKey)}:</span> {t(m.reason as TKey, localParams(m.params, locale()))}</p>
             {/each}
           </div>
         {/if}
       </div>
     {:else if current === 'preset'}
       <div class="flex flex-col gap-4 text-sm">
+        {#if training.envReady && compat && !compat.probed}
+          <p class="text-xs text-muted-foreground" role="status">{t('training.compat_detecting')}</p>
+        {/if}
         {#if presetBusy}
           <p class="text-muted-foreground">{t('training.presets_loading')}</p>
         {:else if presetError}
@@ -544,7 +557,7 @@
             <div><dt class="text-xs text-muted-foreground">{t('training.batch_size')}</dt><dd>{cfg.batch_size} × {cfg.grad_accum}</dd></div>
             <div><dt class="text-xs text-muted-foreground">{t('training.dataset_rows')}</dt><dd>{rep.rows} ({rep.train_rows} / {rep.val_rows})</dd></div>
             <div><dt class="text-xs text-muted-foreground">{t('training.dataset_license')}</dt><dd>{rep.license ?? t('training.license_unknown')}</dd></div>
-            <div><dt class="text-xs text-muted-foreground">{t('training.model_params')}</dt><dd>{(est.params / 1e9).toFixed(2)} B</dd></div>
+            <div><dt class="text-xs text-muted-foreground">{t('training.model_params')}</dt><dd>{fixed(est.params / 1e9, 2)} B</dd></div>
           </dl>
           <div class="grid gap-2 sm:grid-cols-2">
             <div class="rounded-md border border-border p-3">
@@ -555,7 +568,7 @@
             <div class="rounded-md border border-border p-3">
               <p class="text-xs text-muted-foreground">{t('training.est_time')}</p>
               <p class="text-base font-medium">{fmtDuration(est.seconds)}</p>
-              <p class="text-xs text-muted-foreground">{t('training.est_per_step', { s: est.seconds_per_step.toFixed(2) })}</p>
+              <p class="text-xs text-muted-foreground">{t('training.est_per_step', { s: fixed(est.seconds_per_step, 2) })}</p>
             </div>
           </div>
           {#if fit}
@@ -570,6 +583,12 @@
               <div>
                 <p class="font-medium">{t(`training.fit_${fit}` as TKey)}</p>
                 <p class="text-xs text-muted-foreground">{t(`training.fit_${fit}_hint` as TKey)}</p>
+                {#if fit === 'no' && advanced}
+                  <label class="mt-2 flex items-center gap-2 text-xs">
+                    <input type="checkbox" bind:checked={fitOverride} class="accent-primary" />
+                    {t('training.fit_override')}
+                  </label>
+                {/if}
               </div>
             </div>
           {/if}
@@ -595,7 +614,7 @@
         <Button disabled={!stepValid || busy || presetBusy} onclick={next}>{t('training.next')}</Button>
       {:else}
         <Button variant="secondary" disabled={!preview || busy || (nameCheck !== null && !nameCheck.available)} onclick={() => create(false)}>{t('training.save_draft')}</Button>
-        <Button disabled={!preview || busy || (nameCheck !== null && !nameCheck.available)} onclick={() => create(true)}>{t('training.create_start')}</Button>
+        <Button disabled={!preview || busy || fitBlocked || (nameCheck !== null && !nameCheck.available)} onclick={() => create(true)}>{t('training.create_start')}</Button>
       {/if}
     </Dialog.Footer>
   </Dialog.Content>

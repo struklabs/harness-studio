@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import HelpPopover from '../common/HelpPopover.svelte';
   import Field from '../dashboard/parts/Field.svelte';
   import { t } from '#lib/i18n.svelte.js';
@@ -131,8 +132,8 @@
               <tr class="border-t border-border">
                 <th scope="row" class="bg-muted/40 px-2 py-1.5 text-left font-num font-medium text-muted-foreground" title={result.texts[i]}>{i + 1}</th>
                 {#each row as v, j (j)}
-                  <td class="px-2 py-1.5 text-center font-num text-foreground" style={tint(v)} title={`${i + 1} ↔ ${j + 1}: ${v.toFixed(4)}`}>
-                    {v.toFixed(3)}
+                  <td class="px-2 py-1.5 text-center font-num text-foreground" style={tint(v)} title={`${i + 1} ↔ ${j + 1}: ${fixed(v, 4)}`}>
+                    {fixed(v, 3)}
                   </td>
                 {/each}
               </tr>

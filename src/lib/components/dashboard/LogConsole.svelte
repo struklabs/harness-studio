@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import { uiLevel } from '#lib/stores/uiLevel.svelte.js';
   import AdvancedOnly from '#lib/components/common/AdvancedOnly.svelte';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
@@ -107,8 +108,8 @@
 
   function fmtSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    if (bytes < 1024 * 1024) return `${fixed(bytes / 1024, 0)} KB`;
+    return `${fixed(bytes / 1024 / 1024, 1)} MB`;
   }
 
   async function refreshFiles() {

@@ -90,11 +90,20 @@ export class TrainingStore {
     }
   }
 
-  async loadCompat() {
+  private compatRetry: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * The table answers at once (inferred from the hardware while the environment's probe runs in
+   * the background); an unconfirmed one is asked again until the probe has answered.
+   */
+  async loadCompat(tries = 40) {
+    clearTimeout(this.compatRetry);
     try {
       this.compat = await invoke<TrainingCompatibility>('training_compatibility');
     } catch {
       // the card stays empty
+    }
+    if (this.compat && !this.compat.probed && this.envReady && tries > 1) {
+      this.compatRetry = setTimeout(() => void this.loadCompat(tries - 1), 15_000);
     }
   }
 

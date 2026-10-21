@@ -38,8 +38,17 @@ export function elapsedSeconds(job: TrainingJob, nowSeconds: number): number | n
   return (job.finished_at ?? nowSeconds) - job.started_at;
 }
 
-export function fmtLoss(v: number | null | undefined): string {
-  return v === null || v === undefined ? '-' : v.toFixed(3);
+/** Backend params with decimal numbers (`max_params`: "0.5") written in `locale` ("0,5"). */
+export function localParams(params: Record<string, string> | undefined, locale?: string): Record<string, string> {
+  const out = { ...(params ?? {}) };
+  const n = Number(out.max_params);
+  if (out.max_params !== undefined && Number.isFinite(n)) out.max_params = n.toLocaleString(locale, { maximumFractionDigits: 1, useGrouping: false });
+  return out;
+}
+
+/** A loss value with three decimals in `locale` ("2,453" in Turkish). */
+export function fmtLoss(v: number | null | undefined, locale?: string): string {
+  return v === null || v === undefined ? '-' : v.toLocaleString(locale, { minimumFractionDigits: 3, maximumFractionDigits: 3, useGrouping: false });
 }
 
 export function fmtInt(n: number): string {
@@ -63,15 +72,17 @@ export interface LiveStats {
 }
 
 /**
- * Throughput and time left of a running job, from its progress so far. The elapsed time also
- * holds the model loading, so early numbers are a little pessimistic. `null` until a few steps
- * have run.
+ * Throughput and time left of a running job, from this run's training time (model loading
+ * left out when the job reports when it began). `null` until a few steps have run.
  */
 export function liveStats(job: TrainingJob, nowSeconds: number): LiveStats | null {
   if (job.status !== 'running' || !job.training || job.step < 3) return null;
-  const elapsed = elapsedSeconds(job, nowSeconds);
-  if (elapsed === null || elapsed <= 0) return null;
-  const stepsPerSecond = job.step / elapsed;
+  // The rate counts training time only: model load and earlier runs of a resumed job stay out.
+  const since = job.training_since ?? null;
+  const elapsed = since !== null ? nowSeconds - since : elapsedSeconds(job, nowSeconds);
+  const steps = since !== null ? job.step - (job.training_from_step ?? 0) : job.step;
+  if (elapsed === null || elapsed <= 0 || steps <= 0) return null;
+  const stepsPerSecond = steps / elapsed;
   return {
     stepsPerSecond,
     tokensPerSecond: stepsPerSecond * job.estimate.tokens_per_step,

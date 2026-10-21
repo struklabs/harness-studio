@@ -1,10 +1,11 @@
+import { fixed } from '#lib/format.js';
 import { t } from '#lib/i18n.svelte.js';
 
 /** Placeholder for a value the server or OS doesn't report (never a fake zero). */
 export const NA = '—';
 
 export function fmtPercent(v: number | null | undefined, decimals = 0): string {
-  return v == null || !Number.isFinite(v) ? NA : `${v.toFixed(decimals)}%`;
+  return v == null || !Number.isFinite(v) ? NA : `${fixed(v, decimals)}%`;
 }
 
 export function fmtCount(v: number | null | undefined): string {
@@ -13,7 +14,7 @@ export function fmtCount(v: number | null | undefined): string {
 
 export function fmtSeconds(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return NA;
-  return v < 10 ? `${v.toFixed(2)} s` : `${v.toFixed(1)} s`;
+  return v < 10 ? `${fixed(v, 2)} s` : `${fixed(v, 1)} s`;
 }
 
 /** Elapsed time, e.g. "2 sa 5 dk", "3 dk 12 sn", "40 sn". */

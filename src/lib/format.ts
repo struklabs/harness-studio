@@ -15,6 +15,11 @@ export function formatBytes(bytes: number | null | undefined, decimals = 2): str
   return `${value.toLocaleString(locale(), { maximumFractionDigits: decimals })} ${unit}`;
 }
 
+/** A number with exactly `digits` decimals in the UI language ("0,62" in Turkish), no grouping. */
+export function fixed(value: number, digits: number): string {
+  return value.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+}
+
 /** Fixed precision on both sides; omit the used unit only when it matches the total unit. */
 export function formatBytesPair(used: number, total: number, decimals = 1): { used: string; rest: string } {
   const u = byteParts(used);

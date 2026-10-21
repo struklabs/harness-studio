@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fixed } from '#lib/format.js';
   import { onDestroy, onMount } from 'svelte';
   import { isTauri } from '@tauri-apps/api/core';
   import { getCurrentWebview } from '@tauri-apps/api/webview';
@@ -104,5 +105,5 @@
   <label for="ocr-question" class="text-sm font-semibold">{t('ocr.question')}</label>
   <Textarea id="ocr-question" bind:value={question} disabled={busy} rows={2} />
   <Button disabled={busy || picking || !documentData || !model || !question.trim() || !app.gatewayRunning} onclick={() => run(true)}>{t('ocr.ask')}</Button>
-  {#if answer}<div role="status"><h3 class="text-sm font-semibold">{t('ocr.answer')}</h3><p class="whitespace-pre-wrap">{answer}</p>{#if score !== null}<p>{t('pl.score')}: {score.toFixed(3)}</p>{/if}</div>{/if}
+  {#if answer}<div role="status"><h3 class="text-sm font-semibold">{t('ocr.answer')}</h3><p class="whitespace-pre-wrap">{answer}</p>{#if score !== null}<p>{t('pl.score')}: {fixed(score, 3)}</p>{/if}</div>{/if}
 </div>

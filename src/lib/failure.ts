@@ -1,3 +1,4 @@
+import { fixed } from '#lib/format.js';
 import type { ServerFailure, ServerStatus, ServerSummary } from '#lib/types.js';
 import { t, type TKey } from '#lib/i18n.svelte.js';
 import { localizeError } from '#lib/network.js';
@@ -25,5 +26,5 @@ export function canRecover(f: ServerFailure | null | undefined): boolean {
 /** Binary units for memory figures (`15.0 GiB`). */
 export function gib(bytes: number | null | undefined): string {
   if (bytes === null || bytes === undefined) return '—';
-  return `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
+  return `${fixed(bytes / 1024 ** 3, 1)} GiB`;
 }

@@ -30,6 +30,9 @@
 
   let st = $derived(engineInstall.state(family));
   let manual = $derived(!engineInstall.canInstall(family));
+  // An installed environment from an older lock is updated, not installed.
+  let update = $derived(engineInstall.outdated(family));
+  let verb = $derived(update ? { busy: 'eng.updating', busyPct: 'eng.updating_pct', auto: 'eng.auto_updating', autoPct: 'eng.auto_updating_pct', idle: 'eng.update' } as const : { busy: 'eng.installing', busyPct: 'eng.installing_pct', auto: 'eng.auto_installing', autoPct: 'eng.auto_installing_pct', idle: 'eng.install' } as const);
 
   async function install() {
     if (await engineInstall.install(family)) {
@@ -54,15 +57,15 @@
       <span>{t('audio_cpp.needs_engine')}</span>
       <Button type="button" variant="outline" {size} onclick={() => security.openSettings('runtime-installed')}>{t('audio_cpp.experimental')}</Button>
     {:else}
-    {#if hint}<span class="min-w-0 flex-1">{hintText ?? t('lib.runtime_needs_hint', { runtime: family })}</span>{/if}
+    {#if hint}<span class="min-w-0 flex-1">{hintText ?? t(update ? 'eng.update_hint' : 'lib.runtime_needs_hint', { runtime: family })}</span>{/if}
     {#if manual}
       <span class="text-muted-foreground">{t('eng.manual', { runtime: family })}</span>
     {:else}
       <Button type="button" variant="outline" {size} class="shrink-0" disabled={engineInstall.anyBusy} onclick={install}>
         {#if st.busy}<LoaderCircle class="animate-spin" />{:else}<Download />{/if}
         {st.busy
-          ? t(st.pct === null ? (auto ? 'eng.auto_installing' : 'eng.installing') : auto ? 'eng.auto_installing_pct' : 'eng.installing_pct', { runtime: family, pct: st.pct ?? 0 })
-          : t(st.problem === 'failed' ? 'eng.retry' : 'eng.install', { runtime: family })}
+          ? t(st.pct === null ? (auto ? verb.auto : verb.busy) : auto ? verb.autoPct : verb.busyPct, { runtime: family, pct: st.pct ?? 0 })
+          : t(st.problem === 'failed' ? 'eng.retry' : verb.idle, { runtime: family })}
       </Button>
     {/if}
     {#if st.problem === 'unverified'}

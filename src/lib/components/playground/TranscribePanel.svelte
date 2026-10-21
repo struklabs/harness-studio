@@ -15,7 +15,7 @@
   import { Badge } from '#lib/components/ui/badge/index.js';
   import { Input } from '#lib/components/ui/input/index.js';
   import { Label } from '#lib/components/ui/label/index.js';
-  import { formatBytes } from '#lib/format.js';
+  import { formatBytes, fixed } from '#lib/format.js';
   import { isMac } from '#lib/platform.js';
 
   import { holdReleaseWhile } from '#lib/windowActivity.js';
@@ -335,7 +335,7 @@
         <div class="flex flex-col gap-2">
           {#each result.segments as segment}
             <div class="flex gap-3 text-sm">
-              <span class="font-num shrink-0 text-muted-foreground">{segment.start.toFixed(2)}–{segment.end.toFixed(2)}</span>
+              <span class="font-num shrink-0 text-muted-foreground">{fixed(segment.start, 2)}–{fixed(segment.end, 2)}</span>
               <span class="whitespace-pre-wrap">{segment.text}</span>
             </div>
           {/each}

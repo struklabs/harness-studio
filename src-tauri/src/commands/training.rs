@@ -56,7 +56,8 @@ pub(crate) async fn training_rename(job_id: u64, name: String) -> Result<trainin
 
 #[tauri::command]
 pub(crate) async fn training_compatibility() -> training::Compatibility {
-    training::compatibility().await
+    // Never waits for the environment probe (a cold one takes minutes); the page asks again.
+    training::compatibility_now()
 }
 
 #[tauri::command]

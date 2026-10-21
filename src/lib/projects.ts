@@ -1,6 +1,10 @@
 // Projects: chats, files and agent tasks grouped under a name and a folder (core `projects`).
 import { invoke } from '#lib/ipc.js';
 
+// Locale of the UI language (the page's `lang`), so this file stays free of app imports for its tests.
+const uiDecimals = (value: number, digits: number) =>
+  value.toLocaleString(globalThis.document?.documentElement.lang || 'en', { minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false });
+
 export interface Project {
   id: string;
   name: string;
@@ -128,6 +132,6 @@ export function projectAllowsSkill(project: Pick<Project, 'skills'> | null | und
 /** Bytes as KB/MB with one decimal. */
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024) return `${uiDecimals(bytes / 1024, 1)} KB`;
+  return `${uiDecimals(bytes / 1024 / 1024, 1)} MB`;
 }
