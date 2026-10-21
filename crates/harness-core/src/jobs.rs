@@ -234,6 +234,14 @@ impl JobScheduler {
             // forever; it runs alone, once no other GPU reservation is held.
             None if reserved > 0 => return false,
             None => {}
+            // Neither can one larger than the whole budget (sd.cpp's partial-offload estimate
+            // on unified memory is the full budget, above the headroom-reduced capacity): it
+            // runs alone too, like the engine's own fit check already allowed.
+            Some(need) if capacity > 0 && need > capacity => {
+                if reserved > 0 {
+                    return false;
+                }
+            }
             Some(need)
                 if need
                     > free
@@ -423,6 +431,22 @@ mod tests {
         // While it runs it holds the whole GPU.
         assert!(!scheduler.admit(after.id, 100, 100));
         drop(unknown);
+        assert!(scheduler.admit(after.id, 100, 100));
+    }
+
+    #[test]
+    fn footprint_above_the_whole_budget_runs_alone_instead_of_waiting_forever() {
+        let scheduler = Arc::new(JobScheduler::default());
+        let resident = scheduler.submit("chat".into(), Priority::Interactive, 40);
+        let video = scheduler.submit("video".into(), Priority::Interactive, 120);
+        let after = scheduler.submit("speech".into(), Priority::Agent, 10);
+        assert!(scheduler.admit(resident.id, 100, 100));
+        assert!(!scheduler.admit(video.id, 100, 100));
+        drop(resident);
+        // Free memory below its estimate does not hold it back once it is alone.
+        assert!(scheduler.admit(video.id, 30, 100));
+        assert!(!scheduler.admit(after.id, 100, 100));
+        drop(video);
         assert!(scheduler.admit(after.id, 100, 100));
     }
 
