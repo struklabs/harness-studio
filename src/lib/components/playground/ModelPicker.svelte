@@ -17,7 +17,7 @@
   import { filterRemoteModels, isRemoteModel, type RemoteModel } from './remoteModels';
   import { cloudLabel, filterCloudModels, formatPrice, groupCloudModels, isCloudModel, type CloudModel } from './cloudModels';
   import { Input } from '#lib/components/ui/input/index.js';
-  import type { ServeMode } from '#lib/types.js';
+  import type { PlaygroundMode } from '#lib/types.js';
   import { cn } from '#lib/utils.js';
   import { localizeError } from '#lib/network.js';
   import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
@@ -37,7 +37,7 @@
     onPicked?: () => void;
     /** Label override when the conversation targets something other than `currentModel` (e.g. embedding server). */
     label?: string;
-    mode?: ServeMode;
+    mode?: PlaygroundMode;
   }
 
   let { currentModel, onUse, onPicked, label, mode = 'chat' }: Props = $props();

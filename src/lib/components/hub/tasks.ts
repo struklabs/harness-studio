@@ -55,7 +55,7 @@ export const TASKS: HubTask[] = [
   { id: 'audio-to-audio', hf: 'Audio-to-Audio', key: 'hub.task_audio_to_audio', group: 'audio' },
   { id: 'audio-classification', hf: 'Audio Classification', key: 'hub.task_audio_classification', group: 'audio' },
   // Computer vision: diffusion / detection GGUFs are for other runtimes (ComfyUI, stable-diffusion.cpp, ...).
-  { id: 'image-to-text', hf: 'Image-to-Text', key: 'hub.task_image_to_text', group: 'cv' },
+  { id: 'image-to-text', hf: 'OCR / Image-to-Text', key: 'hub.task_image_to_text', group: 'cv' },
   { id: 'text-to-image', hf: 'Text-to-Image', key: 'hub.task_text_to_image', group: 'cv' },
   { id: 'image-to-image', hf: 'Image-to-Image', key: 'hub.task_image_to_image', group: 'cv' },
   { id: 'text-to-video', hf: 'Text-to-Video', key: 'hub.task_text_to_video', group: 'cv' },

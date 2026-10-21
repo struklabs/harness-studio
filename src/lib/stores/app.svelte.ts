@@ -81,7 +81,7 @@ class AppState {
   /** Repo (and file in it) the Model Hub should open in its drawer when shown (consumed by the Hub, then null). */
   requestedHubRepo = $state<{ id: string; file?: string } | null>(null);
   /** Playground tab another component wants shown (consumed by the Playground, then null). */
-  requestedPlaygroundTab = $state<'chat' | 'embedding' | 'rerank' | 'transcription' | 'image' | 'pipeline' | null>(null);
+  requestedPlaygroundTab = $state<'chat' | 'embedding' | 'rerank' | 'transcription' | 'image' | 'pipeline' | 'ocr' | null>(null);
   /** Alias to select in the tab `requestedPlaygroundTab` opens (Embedding / Rerank; consumed with it, then null). */
   requestedPlaygroundModel = $state<string | null>(null);
   /** Text to append to the chat composer's draft (consumed by the Playground, then null). */
@@ -92,7 +92,7 @@ class AppState {
    * Opens a Playground tab from anywhere (e.g. a toast action): overlays close first, so a modal
    * drawer cannot keep covering the page, then the tab switch follows on the next task.
    */
-  openPlaygroundTab(tab: 'chat' | 'embedding' | 'rerank' | 'transcription' | 'image' | 'pipeline') {
+  openPlaygroundTab(tab: 'chat' | 'embedding' | 'rerank' | 'transcription' | 'image' | 'pipeline' | 'ocr') {
     this.overlayCloseTick++;
     setTimeout(() => {
       this.requestedPlaygroundTab = tab;

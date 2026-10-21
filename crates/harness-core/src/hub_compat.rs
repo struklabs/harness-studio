@@ -955,6 +955,36 @@ mod tests {
     }
 
     #[test]
+    fn ocr_models_keep_their_format_specific_runtime() {
+        for task in ["image-to-text", "document-question-answering"] {
+            assert_eq!(
+                hub_compatibility(ModelFormat::Gguf, Some(task)),
+                Compatibility::Runnable {
+                    runtime: LLAMA_FAMILY.into()
+                }
+            );
+        }
+        assert_eq!(
+            python_hf_compatibility(
+                ModelFormat::Safetensors,
+                Some("transformers"),
+                Some("document-question-answering"),
+                &[],
+                &s(&["config.json", "model.safetensors"])
+            ),
+            Some(Compatibility::Runnable {
+                runtime: PYTHON_HF_FAMILY.into()
+            })
+        );
+        assert_eq!(
+            hub_compatibility(ModelFormat::Gguf, Some("object-detection")),
+            Compatibility::Unsupported {
+                format: ModelFormat::Gguf
+            }
+        );
+    }
+
+    #[test]
     fn onnx_generators_are_served_for_known_architectures_only() {
         let served =
             |task, config: serde_json::Value| onnx_config_served(Some(task), Some(&config));

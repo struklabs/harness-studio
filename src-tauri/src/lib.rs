@@ -739,6 +739,7 @@ pub fn run() {
             pick_audio_files,
             read_audio_file,
             read_image_file,
+            read_ocr_file,
             rag_add_files,
             rag_reindex,
             rag_cancel,

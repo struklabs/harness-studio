@@ -155,3 +155,41 @@ If **Require a Token on This Computer Too** is off on the gateway, local clients
 For other devices to reach the gateway you need **Allow Network Access** and a token with the `inference` scope; there is no keyless network access. For this use, follow the conditions in the [security model](../../en/SECURITY_MODEL.md) and set your firewall yourself; Harness Studio does not change it. Do not use the gateway's, the Control API's, and the direct server's keys in place of one another.
 
 Next: [Tools](06-tools.md).
+
+### Document OCR and Questions
+
+`POST /v1/ocr` and `POST /v1/document/qa` use the gateway's **pipelines** endpoint
+policy and the **inference** token scope. Both accept JSON with a local `model` alias
+and either `document` (a base64 data URL) or `pages` (1?16 image data URLs in reading
+order). Remote URLs are not fetched. Supported images are PNG, JPEG, WebP and GIF;
+`document` also accepts `data:application/pdf;base64,...`. The decoded total is limited
+to 20 MiB, within the gateway's 64 MiB request body limit.
+
+```json
+{"model":"my-vision-model","document":"data:image/png;base64,..."}
+```
+
+OCR returns `{ "model": "...", "markdown": "...", "pages": [...] }`. Each page has a
+one-based `page`, `markdown`, `lines`, `blocks` (paragraph strings in reading order)
+and `source` (`vlm`, `pipeline` or `pdf_text`). These are simple text layouts, without
+bounding boxes. VLMs use a fixed transcription prompt; Python `image-to-text` models
+use the existing Hugging Face pipeline. Captioning models may describe rather than
+transcribe: choose an OCR-trained model for reliable extraction.
+
+For QA, add a non-empty `question` (at most 8192 UTF-8 bytes):
+
+```json
+{"model":"my-vision-model","document":"data:image/png;base64,...","question":"What is the total?"}
+```
+
+QA returns `{ "model": "...", "answer": "..." }` and includes `score` only when the
+Python `document-question-answering` pipeline supplies one. VLMs use chat and support
+both routes with a configured projector. Python DQA accepts one image per question.
+A Python OCR model and a DQA model can be selected separately for the two calls.
+
+PDFs are extracted using the local per-page text extractor. There is no PDF rasterizer:
+scanned pages without a text layer return HTTP 400 with instructions to supply images.
+PDF OCR returns text without inference; PDF QA sends extracted text to the chosen VLM.
+Invalid inputs or task mismatches return 400, decoded uploads over 20 MiB return 413,
+token policy denials return 403, and inference limits return 429. OpenAPI definitions
+for these gateway-listener routes are included in `sdk/openapi.json`.

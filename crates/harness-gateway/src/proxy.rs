@@ -306,12 +306,34 @@ pub(crate) async fn handle_with(
     body: Bytes,
     response_id: Option<String>,
 ) -> Response {
+    handle_recorded(state, api, api.path(), headers, body, response_id).await
+}
+
+/// A typed view of another API, recorded and authorized under the client's route.
+pub(crate) async fn handle_routed(
+    state: GwState,
+    api: Api,
+    endpoint: &str,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    handle_recorded(state, api, endpoint, headers, body, None).await
+}
+
+async fn handle_recorded(
+    state: GwState,
+    api: Api,
+    endpoint: &str,
+    headers: HeaderMap,
+    body: Bytes,
+    response_id: Option<String>,
+) -> Response {
     let anthropic = api.anthropic();
     let mut guard = RecordGuard::new(
         RequestRecord {
             id: request_id(),
             started_at_ms: unix_ms(),
-            endpoint: api.path().to_string(),
+            endpoint: endpoint.to_string(),
             ..Default::default()
         },
         trace_context(&headers),
@@ -357,7 +379,8 @@ async fn run(
     response_id: Option<&str>,
     guard: &mut RecordGuard,
 ) -> Result<Response, GatewayError> {
-    let caller = crate::auth::check(state, headers, api.anthropic(), endpoint_of(api))?;
+    let endpoint = GatewayEndpoint::of_path(&guard.get().endpoint).unwrap_or(endpoint_of(api));
+    let caller = crate::auth::check(state, headers, api.anthropic(), endpoint)?;
     guard.get().client = ClientInfo::new(
         header_str(headers, "user-agent"),
         header_str(headers, "x-harness-client"),

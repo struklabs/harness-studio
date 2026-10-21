@@ -11108,6 +11108,132 @@
           }
         }
       }
+    },
+    "/v1/document/qa": {
+      "post": {
+        "tags": [
+          "gateway"
+        ],
+        "summary": "Ask about document images with a VLM or Python document-question-answering pipeline.\nText-layer PDF questions require a VLM. The DQA pipeline accepts one image per request.\nGateway listener; named tokens need inference scope and the pipelines endpoint policy.",
+        "operationId": "ask_document",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentAnswer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input or incompatible model"
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Upload exceeds the decoded or gateway body limit"
+          },
+          "429": {
+            "description": "Token rate limit"
+          },
+          "502": {
+            "description": "Model failed"
+          }
+        }
+      }
+    },
+    "/v1/ocr": {
+      "post": {
+        "tags": [
+          "gateway"
+        ],
+        "summary": "Read document text in reading order as Markdown. Gateway listener; named tokens need\ninference scope and the pipelines endpoint policy. Scanned PDFs must be sent as images.",
+        "operationId": "read_document",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DocumentInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentText"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input, missing PDF text layer or incompatible model"
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Upload exceeds the decoded or gateway body limit"
+          },
+          "429": {
+            "description": "Token rate limit"
+          },
+          "502": {
+            "description": "Model failed"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -13961,6 +14087,122 @@
               "$ref": "#/components/schemas/DirectClient"
             },
             "default": []
+          }
+        }
+      },
+      "DocumentAnswer": {
+        "type": "object",
+        "required": [
+          "model",
+          "answer"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "answer": {
+            "type": "string"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double",
+            "description": "Present only when supplied by the DQA pipeline."
+          }
+        }
+      },
+      "DocumentInput": {
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Local library alias. VLMs need a configured multimodal projector."
+          },
+          "document": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "PNG/JPEG/WebP/GIF or PDF base64 data URL. PDF requires a text layer.\nUp to 20 MiB decoded across all pages. Supply this or `pages`, exclusively."
+          },
+          "pages": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "1–16 image data URLs, already rasterized, in reading order."
+          },
+          "question": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required for QA (1–8192 bytes). Ignored for OCR."
+          }
+        }
+      },
+      "DocumentPage": {
+        "type": "object",
+        "required": [
+          "page",
+          "markdown",
+          "lines",
+          "blocks",
+          "source"
+        ],
+        "properties": {
+          "page": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": "string",
+            "description": "`vlm`, `pipeline` or `pdf_text`. No bounding boxes are inferred."
+          }
+        }
+      },
+      "DocumentText": {
+        "type": "object",
+        "required": [
+          "model",
+          "markdown",
+          "pages"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentPage"
+            }
           }
         }
       },
