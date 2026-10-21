@@ -17,6 +17,7 @@
   import { formatName, isPreciseRefusal, notRunnableKey, notRunnableShortKey, taskSourceKey } from './inference';
   import { taskSupportStore } from './taskSupport.svelte';
   import { engineCompatibility } from './engineCompatibility';
+  import { isPythonChat } from './pythonChat';
   import { canConvert, speechNeedsConversion } from './convertible';
   import { CircleCheck, Download, Heart, Lock, Play, Ban, Info, Repeat } from '@lucide/svelte';
 
@@ -214,8 +215,9 @@
       </span>
     {:else if compat.status === 'runnable' && compat.runtime === 'python-hf'}
       {@const diffusers = repo.format === 'diffusers'}
-      <span class="inline-flex items-center gap-1 text-success" title={t(diffusers ? 'hub.compat_pyhf_diffusers_title' : 'hub.compat_pyhf_title')}>
-        <CircleCheck class="size-3" />{t(diffusers ? 'hub.compat_pyhf_diffusers' : 'hub.compat_pyhf')}
+      {@const chat = !diffusers && isPythonChat({ ...repo, compatibility: compat })}
+      <span class="inline-flex items-center gap-1 text-success" title={t(diffusers ? 'hub.compat_pyhf_diffusers_title' : chat ? 'hub.compat_pyhf_chat_title' : 'hub.compat_pyhf_title')}>
+        <CircleCheck class="size-3" />{t(diffusers ? 'hub.compat_pyhf_diffusers' : chat ? 'hub.compat_pyhf_chat' : 'hub.compat_pyhf')}
       </span>
     {:else if compat.status === 'needs_runtime' && compat.runtime === 'python-hf'}
       <span class="inline-flex items-center gap-1 text-info" title={t('hub.compat_needs_pyhf_title')}>

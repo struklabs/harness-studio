@@ -866,12 +866,18 @@ pub const PYTHON_HF_FAMILY: &str = crate::engine::PYTHON_HF;
 /// a `custom_code` repo is not one; a text-to-image repo with a single-file checkpoint stays with
 /// stable-diffusion.cpp. `None` for every other repo. Whether the engine is installed is settled
 /// later ([`resolve_installed`]).
+///
+/// A safetensors chat repo (`text-generation`, `image-text-to-text`) is the Python engine's last
+/// resort: callers ask [`mistralrs_compatibility`] first (and a GGUF is llama.cpp's before
+/// either). Its `config` must not carry a `quantization_config` (bitsandbytes, GPTQ, AWQ... need
+/// packages the environment does not ship).
 pub fn python_hf_compatibility(
     format: ModelFormat,
     library: Option<&str>,
     task: Option<&str>,
     tags: &[String],
     files: &[String],
+    config: Option<&serde_json::Value>,
 ) -> Option<Compatibility> {
     if format == ModelFormat::Diffusers {
         return diffusers_pipeline(library, task, tags, files).then(|| Compatibility::Runnable {
@@ -883,6 +889,12 @@ pub fn python_hf_compatibility(
     }
     let task = task.filter(|t| *t != "text-to-image")?;
     if !crate::engine::python_hf::TASKS.contains(&task) {
+        return None;
+    }
+    if crate::engine::python_hf::CHAT_TASKS.contains(&task)
+        && (format != ModelFormat::Safetensors
+            || config.is_some_and(|c| c.get("quantization_config").is_some()))
+    {
         return None;
     }
     if !matches!(
@@ -901,6 +913,39 @@ pub fn python_hf_compatibility(
         f.ends_with(".safetensors") || (f.starts_with("pytorch_model") && f.ends_with(".bin"))
     });
     (files.is_empty() || (has_config && has_weights)).then(|| Compatibility::Runnable {
+        runtime: PYTHON_HF_FAMILY.to_string(),
+    })
+}
+
+/// The Python engine's verdict on a CTranslate2 Whisper export (faster-whisper): a repo of the
+/// `ctranslate2` library for speech recognition whose name says Whisper, with `model.bin`, a
+/// tokenizer or vocabulary and a `config.json` at the root. Every other CTranslate2 repo
+/// (translation models, NLLB...) is `None` and stays refused. A listing without file names is
+/// taken by its name and tags.
+pub fn ct2_whisper_compatibility(
+    repo_id: &str,
+    format: ModelFormat,
+    task: Option<&str>,
+    tags: &[String],
+    files: &[String],
+) -> Option<Compatibility> {
+    if format != ModelFormat::Ctranslate2
+        || task != Some("automatic-speech-recognition")
+        || !repo_id.to_ascii_lowercase().contains("whisper")
+        || tags.iter().any(|t| t.eq_ignore_ascii_case("custom_code"))
+    {
+        return None;
+    }
+    let root = |f: &&String| !f.contains('/') && !f.contains('\\');
+    let has = |name: &str| files.iter().filter(root).any(|f| f == name);
+    (files.is_empty()
+        || (has("model.bin")
+            && has("config.json")
+            && (has("tokenizer.json") || has("vocabulary.json") || has("vocabulary.txt"))
+            && !files
+                .iter()
+                .any(|f| f.to_ascii_lowercase().ends_with(".safetensors"))))
+    .then(|| Compatibility::Runnable {
         runtime: PYTHON_HF_FAMILY.to_string(),
     })
 }
@@ -965,6 +1010,56 @@ mod tests {
     }
 
     #[test]
+    fn ct2_whisper_goes_to_the_python_engine_and_other_ct2_repos_stay_refused() {
+        let asr = Some("automatic-speech-recognition");
+        let files = s(&[
+            "config.json",
+            "model.bin",
+            "tokenizer.json",
+            "vocabulary.txt",
+        ]);
+        let verdict = |id: &str, format, task, files: &[String]| {
+            ct2_whisper_compatibility(id, format, task, &s(&["ctranslate2"]), files)
+        };
+        let python = Some(Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.to_string(),
+        });
+        let ct2 = ModelFormat::Ctranslate2;
+        assert_eq!(
+            verdict("Systran/faster-whisper-tiny", ct2, asr, &files),
+            python
+        );
+        assert_eq!(
+            verdict("deepdml/faster-whisper-large-v3-turbo-ct2", ct2, asr, &[]),
+            python
+        );
+        // Another CTranslate2 model, another task, another format, an incomplete repo.
+        assert_eq!(verdict("Systran/nllb-200-ct2", ct2, asr, &files), None);
+        assert_eq!(
+            verdict(
+                "Systran/faster-whisper-tiny",
+                ct2,
+                Some("translation"),
+                &files
+            ),
+            None
+        );
+        assert_eq!(
+            verdict("openai/whisper-tiny", ModelFormat::Safetensors, asr, &files),
+            None
+        );
+        assert_eq!(
+            verdict(
+                "Systran/faster-whisper-tiny",
+                ct2,
+                asr,
+                &s(&["config.json", "model.bin"])
+            ),
+            None
+        );
+    }
+
+    #[test]
     fn onnx_generators_are_served_for_known_architectures_only() {
         let served =
             |task, config: serde_json::Value| onnx_config_served(Some(task), Some(&config));
@@ -1001,7 +1096,7 @@ mod tests {
             "vae/diffusion_pytorch_model.safetensors",
         ]);
         let verdict = |library, task, tags: &[&str], files: &[String]| {
-            python_hf_compatibility(ModelFormat::Diffusers, library, task, &s(tags), files)
+            python_hf_compatibility(ModelFormat::Diffusers, library, task, &s(tags), files, None)
         };
         assert_eq!(
             verdict(Some("diffusers"), Some("text-to-image"), &[], &tiny),
@@ -1054,6 +1149,84 @@ mod tests {
         );
     }
 
+    /// Safetensors chat repos (text and vision) are the Python engine's last resort: GGUF is
+    /// llama.cpp's, mistral.rs comes before it, and a repo transformers cannot load as it is
+    /// (remote code, quantized weights, pickles, another library) is not offered.
+    #[test]
+    fn python_hf_is_the_last_resort_for_safetensors_chat_repos() {
+        let files = s(&["config.json", "model.safetensors", "tokenizer.json"]);
+        let python = Some(Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.into(),
+        });
+        let verdict = |format,
+                       library,
+                       task,
+                       tags: &[&str],
+                       files: &[String],
+                       config: Option<&serde_json::Value>| {
+            python_hf_compatibility(format, library, task, &s(tags), files, config)
+        };
+        let st = ModelFormat::Safetensors;
+        for task in ["text-generation", "image-text-to-text"] {
+            let tf = Some("transformers");
+            assert_eq!(
+                verdict(st, tf, Some(task), &[], &files, None),
+                python,
+                "{task}"
+            );
+            // Weights in several shards at the root, a listing without file names.
+            let shards = s(&[
+                "config.json",
+                "model-00001-of-00002.safetensors",
+                "model-00002-of-00002.safetensors",
+            ]);
+            assert_eq!(verdict(st, None, Some(task), &[], &shards, None), python);
+            assert_eq!(verdict(st, tf, Some(task), &[], &[], None), python);
+            // Pickles, remote code, other libraries and GGUF are not offered.
+            let bin = s(&["config.json", "pytorch_model.bin"]);
+            assert_eq!(
+                verdict(ModelFormat::Pytorch, tf, Some(task), &[], &bin, None),
+                None
+            );
+            assert_eq!(
+                verdict(st, tf, Some(task), &["custom_code"], &files, None),
+                None
+            );
+            assert_eq!(
+                verdict(st, Some("mlx"), Some(task), &[], &files, None),
+                None
+            );
+            assert_eq!(
+                verdict(ModelFormat::Gguf, tf, Some(task), &[], &files, None),
+                None
+            );
+        }
+        let tf = Some("transformers");
+        let awq = serde_json::json!({"quantization_config": {"quant_method": "awq"}});
+        assert_eq!(
+            verdict(st, tf, Some("text-generation"), &[], &files, Some(&awq)),
+            None
+        );
+        let gpt2 = serde_json::json!({"architectures": ["GPT2LMHeadModel"]});
+        assert_eq!(
+            verdict(st, tf, Some("text-generation"), &[], &files, Some(&gpt2)),
+            python
+        );
+        // Order: mistral.rs answers first for the architectures it loads...
+        let qwen = serde_json::json!({"architectures": ["Qwen2ForCausalLM"]});
+        assert_eq!(
+            mistralrs_compatibility(st, Some("text-generation"), &files, Some(&qwen)),
+            Some(Compatibility::Runnable {
+                runtime: MISTRALRS_FAMILY.into()
+            })
+        );
+        // ...and not for GPT-2, which is left to the Python engine.
+        assert_eq!(
+            mistralrs_compatibility(st, Some("text-generation"), &files, Some(&gpt2)),
+            None
+        );
+    }
+
     #[test]
     fn python_hf_takes_task_repos_without_remote_code() {
         let files = s(&["config.json", "model.safetensors", "tokenizer.json"]);
@@ -1061,7 +1234,7 @@ mod tests {
             runtime: PYTHON_HF_FAMILY.into(),
         });
         let verdict = |format, library, task, tags: &[&str], files: &[String]| {
-            python_hf_compatibility(format, library, task, &s(tags), files)
+            python_hf_compatibility(format, library, task, &s(tags), files, None)
         };
         assert_eq!(
             verdict(
@@ -1083,7 +1256,7 @@ mod tests {
             ),
             runnable
         );
-        // Remote code, chat models, other libraries and image generation are not its own.
+        // Remote code, other libraries and image generation are not its own.
         assert_eq!(
             verdict(
                 ModelFormat::Safetensors,
@@ -1099,7 +1272,7 @@ mod tests {
                 ModelFormat::Safetensors,
                 Some("transformers"),
                 Some("text-generation"),
-                &[],
+                &["custom_code"],
                 &files
             ),
             None

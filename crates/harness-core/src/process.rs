@@ -4183,7 +4183,7 @@ mod tests {
             FailureKind::Crashed,
             FailurePhase::Running,
         ));
-        assert_eq!(engine(&mgr).as_deref(), Some("Python (HF)"));
+        assert_eq!(engine(&mgr).as_deref(), Some("Python (Transformers)"));
         mgr.record_failure(
             ServerFailure::new(FailureKind::Crashed, FailurePhase::Running).with("engine", "x"),
         );

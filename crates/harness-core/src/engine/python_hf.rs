@@ -16,7 +16,10 @@
 //!
 //! A model is a folder with `config.json` (or a diffusers `model_index.json`) and weights whose
 //! task the worker serves ([`detect`]); remote code is never run, so a folder whose config
-//! has an `auto_map` is not one. Text generators stay with mistral.rs.
+//! has an `auto_map` is not one. Text generators stay with mistral.rs, except where mistral.rs
+//! is not registered: a safetensors chat or vision-chat folder then runs here as the
+//! `text-generation` / `image-text-to-text` tasks ([`chat_task`]), served on
+//! `/v1/chat/completions` by transformers.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -63,6 +66,29 @@ pub fn is_liquid_audio_dir(dir: &Path) -> bool {
             .is_file()
         && read_json(&dir.join("config.json"))
             .is_some_and(|cfg| archs(&cfg).contains(&LIQUID_ARCHITECTURE))
+}
+
+/// Whether `dir` is a CTranslate2 Whisper export (faster-whisper: `Systran/faster-whisper-*` and
+/// fine-tunes): `model.bin`, a tokenizer or vocabulary and a `config.json` that has no
+/// transformers `model_type` / `architectures` but carries Whisper's `alignment_heads`,
+/// `lang_ids` or `suppress_ids`. Transformers weights next to it win (the folder is then an
+/// ordinary Whisper checkpoint). Other CTranslate2 models (translation, NLLB...) are not served.
+pub fn is_ct2_whisper_dir(dir: &Path) -> bool {
+    let has = |name: &str| dir.join(name).is_file();
+    dir.is_dir()
+        && has("model.bin")
+        && (has("tokenizer.json") || has("vocabulary.json") || has("vocabulary.txt"))
+        && !weight_files(dir)
+            .iter()
+            .any(|p| p.extension().is_some_and(|e| e == "safetensors"))
+        && read_json(&dir.join("config.json")).is_some_and(|cfg| {
+            cfg.is_object()
+                && cfg.get("model_type").is_none()
+                && cfg.get("architectures").is_none()
+                && ["alignment_heads", "lang_ids", "suppress_ids"]
+                    .iter()
+                    .any(|k| cfg.get(*k).is_some())
+        })
 }
 
 /// Whether a Hub repo (a listing item or `/api/models/<id>`) is an LFM2-Audio repo in Liquid's
@@ -133,8 +159,16 @@ const PROTECTED_FLAGS: &[&str] = &[
     "--trust-remote-code",
 ];
 
+/// The chat tasks of the worker (transformers `AutoModelForCausalLM` /
+/// `AutoModelForImageTextToText`, served on `/v1/chat/completions`). They are the fallback of a
+/// safetensors chat repo when neither a GGUF nor mistral.rs runs it, so a model card that says
+/// one of them is not a task folder of [`detect`]: [`chat_task`] decides.
+pub const CHAT_TASKS: [&str; 2] = ["text-generation", "image-text-to-text"];
+
 /// Tasks the worker serves (`hf_worker.py` `TASKS`).
 pub const TASKS: &[&str] = &[
+    "text-generation",
+    "image-text-to-text",
     "text-classification",
     "token-classification",
     "zero-shot-classification",
@@ -263,6 +297,20 @@ pub fn serves_model_type(task: Option<&str>, model_type: Option<&str>) -> bool {
     match task {
         Some("text-to-speech" | "text-to-audio") => TTS_MODEL_TYPES.contains(&model_type),
         Some("automatic-speech-recognition") => ASR_MODEL_TYPES.contains(&model_type),
+        _ => true,
+    }
+}
+
+/// Whether the worker loads a model of `task` with these `config.json` `architectures`: a
+/// reranker (`text-ranking`) must be a sequence-classification model, the head a cross-encoder
+/// scores a (query, document) pair with. A decoder-only reranker (Qwen3-Reranker reads
+/// "yes" / "no" off its language-model head) would load with a random head and score noise. No
+/// architectures, or any other task, is left to the task.
+pub fn serves_architectures(task: Option<&str>, architectures: &[&str]) -> bool {
+    match task {
+        Some("text-ranking") if !architectures.is_empty() => architectures
+            .iter()
+            .any(|a| a.ends_with("ForSequenceClassification")),
         _ => true,
     }
 }
@@ -481,24 +529,85 @@ const INDEX_LIBRARIES: [&str; 2] = ["diffusers", "transformers"];
 /// a diffusers component from another library, or a sentence-transformers module that is not
 /// one of the library's own.
 pub fn asks_for_code(dir: &Path) -> bool {
+    /// The answers of folders whose JSON files did not change (size and time of each): every
+    /// engine lookup for a model asks again, and a tokenizer is megabytes of JSON.
+    static ANSWERS: OnceLock<std::sync::Mutex<Answers>> = OnceLock::new();
+    let files = json_files_of(dir);
+    let stamp: Vec<FileStamp> = files
+        .iter()
+        .map(|f| {
+            let meta = std::fs::metadata(f).ok();
+            (
+                f.clone(),
+                meta.as_ref().map_or(0, |m| m.len()),
+                meta.and_then(|m| m.modified().ok()),
+            )
+        })
+        .collect();
+    let answers = ANSWERS.get_or_init(Default::default);
+    if let Some((seen, answer)) = answers.lock().unwrap().get(dir) {
+        if *seen == stamp {
+            return *answer;
+        }
+    }
+    let answer = asks_for_code_in(dir, &files);
+    let mut answers = answers.lock().unwrap();
+    if answers.len() >= 256 {
+        answers.clear();
+    }
+    answers.insert(dir.to_path_buf(), (stamp, answer));
+    answer
+}
+
+/// A JSON file's path, size and modification time.
+type FileStamp = (PathBuf, u64, Option<std::time::SystemTime>);
+
+/// [`asks_for_code`] answers by folder, with the files stamps they were made from.
+type Answers = std::collections::HashMap<PathBuf, (Vec<FileStamp>, bool)>;
+
+/// JSON files that are plain data (a tokenizer's vocabulary, a weight index): megabytes long and
+/// never the place of an `auto_map`. The worker reads every JSON file of the folder anyway.
+fn is_data_json(path: &Path) -> bool {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    matches!(name.as_str(), "tokenizer.json" | "vocab.json") || name.ends_with(".index.json")
+}
+
+/// The JSON files [`asks_for_code`] reads: the ones at the top of the folder and one level down.
+fn json_files_of(dir: &Path) -> Vec<PathBuf> {
     let json_files = |d: &Path| -> Vec<PathBuf> {
-        std::fs::read_dir(d)
+        let mut files: Vec<PathBuf> = std::fs::read_dir(d)
             .into_iter()
             .flatten()
             .flatten()
             .map(|e| e.path())
             .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == "json"))
-            .collect()
+            .collect();
+        files.sort();
+        files
     };
     let mut files = json_files(dir);
-    for sub in std::fs::read_dir(dir).into_iter().flatten().flatten() {
-        let p = sub.path();
-        if p.is_dir() && !sub.file_name().to_string_lossy().starts_with('.') {
-            files.extend(json_files(&p));
-        }
+    let mut subs: Vec<PathBuf> = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| !e.file_name().to_string_lossy().starts_with('.'))
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .collect();
+    subs.sort();
+    for sub in subs {
+        files.extend(json_files(&sub));
     }
+    files
+}
+
+fn asks_for_code_in(dir: &Path, files: &[PathBuf]) -> bool {
     if files
         .iter()
+        .filter(|f| !is_data_json(f))
         .filter_map(|f| read_json(f))
         .any(|v| v.get("auto_map").is_some())
     {
@@ -531,7 +640,7 @@ pub fn asks_for_code(dir: &Path) -> bool {
 /// The task the worker would run a folder with: `text-to-image` for a diffusers text-to-image
 /// pipeline, else the model card's `pipeline_tag` when the worker serves it, else a task from
 /// `config.json`. `None` for anything else: no weights, remote code (`auto_map`), a component
-/// of a diffusers pipeline, or a text generator (mistral.rs runs those).
+/// of a diffusers pipeline, or a text generator (mistral.rs runs those, [`chat_task`] the rest).
 pub fn detect(dir: &Path) -> Option<String> {
     // An MLX speech folder (Whisper's MLX port has a transformers config) is mlx-audio's; a
     // Spark-TTS folder speaks too, though its config is a Qwen2 one.
@@ -553,6 +662,10 @@ pub fn detect(dir: &Path) -> Option<String> {
     // a task the transformers worker does not know).
     if is_liquid_audio_dir(dir) {
         return Some("text-to-speech".into());
+    }
+    // A CTranslate2 Whisper export (faster-whisper) is served by the worker's faster-whisper.
+    if is_ct2_whisper_dir(dir) {
+        return Some("automatic-speech-recognition".into());
     }
     let index = dir.join("model_index.json");
     if index.is_file() && asks_for_code(dir) {
@@ -600,31 +713,69 @@ pub fn detect(dir: &Path) -> Option<String> {
     if cfg.get("_diffusers_version").is_some() || weight_files(dir).is_empty() {
         return None;
     }
+    let from_config = config_task(&cfg, dir);
     if let Some(tag) = card_pipeline_tag(dir) {
-        // A chat or generation card (text-generation, image-text-to-text...) is not ours.
-        return TASKS.contains(&tag.as_str()).then_some(tag);
+        // Most cross-encoder cards (BAAI/bge-reranker-v2-m3) say `text-classification`: a head
+        // with one label scores (query, document) pairs, and `/v1/rerank` needs that task.
+        if tag == "text-classification" && from_config == Some("text-ranking") {
+            return Some("text-ranking".into());
+        }
+        // A chat or generation card (text-generation, image-text-to-text...) is not a task
+        // folder: it is a chat checkpoint ([`chat_task`]).
+        return (TASKS.contains(&tag.as_str()) && !CHAT_TASKS.contains(&tag.as_str()))
+            .then_some(tag);
     }
-    config_task(&cfg, dir).map(String::from)
+    from_config.map(String::from)
 }
 
-/// Whether `path` is a folder this engine runs.
+/// Whether `path` is a folder this engine runs as a task model ([`detect`]). A safetensors chat
+/// checkpoint is a mistral.rs folder first ([`crate::engine::is_mistralrs_dir`]); it runs here
+/// only through [`chat_task`].
 pub fn is_model_dir(path: &Path) -> bool {
     detect(path).is_some()
 }
 
+/// The chat task the worker would run a transformers text-generator checkpoint with:
+/// `image-text-to-text` for a model with a vision tower, `text-generation` otherwise. `None`
+/// for a folder that is not a mistral.rs-style chat checkpoint (no weights, an encoder, a task
+/// model, a diffusers component) or that asks for remote code (`auto_map`), which the worker
+/// never runs.
+pub fn chat_task(dir: &Path) -> Option<&'static str> {
+    if !super::mistralrs::is_model_dir(dir) || asks_for_code(dir) {
+        return None;
+    }
+    // `is_model_dir` has just vouched for the folder.
+    let vision = super::mistralrs::inspect_checkpoint(dir).is_some_and(|i| i.vision);
+    Some(if vision {
+        "image-text-to-text"
+    } else {
+        "text-generation"
+    })
+}
+
+/// The task a launch of `dir` runs: a task folder's ([`detect`]), else a chat checkpoint's
+/// ([`chat_task`]).
+pub fn launch_task(dir: &Path) -> Option<String> {
+    detect(dir).or_else(|| chat_task(dir).map(String::from))
+}
+
 /// The library kind of a task: embedding and ranking models keep their kinds (the gateway
-/// sends `/v1/embeddings` and `/v1/rerank` to them), everything else is a pipeline model.
+/// sends `/v1/embeddings` and `/v1/rerank` to them), chat tasks are language models (they chat
+/// on `/v1/chat/completions`), everything else is a pipeline model.
 pub fn kind_of(task: &str) -> ModelKind {
     match task {
         "feature-extraction" | "sentence-similarity" => ModelKind::Embedding,
         "text-ranking" => ModelKind::Reranker,
+        t if CHAT_TASKS.contains(&t) => ModelKind::Llm,
         _ => ModelKind::Pipeline,
     }
 }
 
 /// The serving mode of a model folder.
 pub fn serve_mode(dir: &Path) -> crate::serve_mode::ServeMode {
-    crate::serve_mode::ServeMode::for_kind(detect(dir).map_or(ModelKind::Pipeline, |t| kind_of(&t)))
+    crate::serve_mode::ServeMode::for_kind(
+        launch_task(dir).map_or(ModelKind::Pipeline, |t| kind_of(&t)),
+    )
 }
 
 /// The library's view of a model folder.
@@ -928,7 +1079,7 @@ impl ServerEngine for PythonHfEngine {
                 .with("host", &config.host)
                 .into());
         }
-        let task = detect(&config.model_path).ok_or_else(|| {
+        let task = launch_task(&config.model_path).ok_or_else(|| {
             String::from(err("pyhf.model_unsupported").with("path", config.model_path.display()))
         })?;
         if is_liquid_audio_dir(&config.model_path) {
@@ -1001,6 +1152,15 @@ impl ServerEngine for PythonHfEngine {
                 })
                 .unwrap_or(0)
         };
+        // A chat checkpoint stored in 16 bits runs in float32 on a CPU without native bfloat16
+        // (the worker's choice): twice the weights in RAM.
+        let model = if input.model_path.as_deref().is_some_and(|p| {
+            chat_task(Path::new(p)).is_some() && env().gpu_build_of.is_none() && stored_16_bit(p)
+        }) {
+            model * 2
+        } else {
+            model
+        };
         // torch + transformers take ~600 MB before the first tensor. A diffusers pipeline on the
         // CPU loads in float32 (a float16 checkpoint doubles) and its activations at 512² and
         // up are another ~1.5 GB.
@@ -1040,6 +1200,17 @@ impl ServerEngine for PythonHfEngine {
             kv: None,
         }
     }
+}
+
+/// Whether a checkpoint's `config.json` says its weights are bfloat16 / float16.
+fn stored_16_bit(dir: &str) -> bool {
+    read_json(&Path::new(dir).join("config.json"))
+        .and_then(|c| {
+            ["dtype", "torch_dtype"]
+                .iter()
+                .find_map(|k| c.get(*k).and_then(|v| v.as_str()).map(String::from))
+        })
+        .is_some_and(|d| d.contains("16"))
 }
 
 /// The command line of an LFM2-Audio launch: the Liquid worker takes the model folder, the
@@ -1159,6 +1330,23 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn rerankers_must_be_sequence_classification_models() {
+        let ok = |task, archs: &[&str]| super::serves_architectures(Some(task), archs);
+        assert!(ok("text-ranking", &["XLMRobertaForSequenceClassification"]));
+        assert!(ok("text-ranking", &["Qwen3ForSequenceClassification"]));
+        // Qwen3-Reranker reads yes / no off its language-model head: no cross-encoder.
+        assert!(!ok("text-ranking", &["Qwen3ForCausalLM"]));
+        // No architectures in the listing: the files decide later.
+        assert!(ok("text-ranking", &[]));
+        assert!(ok("feature-extraction", &["Qwen3Model"]));
+        assert!(ok(
+            "text-classification",
+            &["BertForSequenceClassification"]
+        ));
+        assert!(super::serves_architectures(None, &["Qwen3ForCausalLM"]));
+    }
+
     use super::*;
 
     #[test]
@@ -1187,6 +1375,60 @@ mod tests {
             std::fs::write(path, body).unwrap();
         }
         dir
+    }
+
+    #[test]
+    fn detects_a_ctranslate2_whisper_export_as_speech_recognition() {
+        let ct2 = r#"{"alignment_heads":[[1,2]],"lang_ids":[50259],"suppress_ids":[1]}"#;
+        let export = folder(&[
+            ("config.json", ct2),
+            ("model.bin", "x"),
+            ("tokenizer.json", "{}"),
+            ("vocabulary.txt", "a"),
+        ]);
+        assert!(is_ct2_whisper_dir(export.path()));
+        assert_eq!(
+            detect(export.path()).as_deref(),
+            Some("automatic-speech-recognition")
+        );
+        // A vocabulary alone is enough; the older exports have no tokenizer.json.
+        let old = folder(&[
+            ("config.json", ct2),
+            ("model.bin", "x"),
+            ("vocabulary.json", "[]"),
+        ]);
+        assert!(is_ct2_whisper_dir(old.path()));
+        // Other CTranslate2 models (no Whisper keys), transformers configs, a missing
+        // vocabulary and transformers weights next to the export are not served this way.
+        let nllb = folder(&[
+            (
+                "config.json",
+                r#"{"add_source_bos":false,"unk_token":"<unk>"}"#,
+            ),
+            ("model.bin", "x"),
+            ("shared_vocabulary.json", "[]"),
+            ("tokenizer.json", "{}"),
+        ]);
+        assert!(!is_ct2_whisper_dir(nllb.path()));
+        assert_eq!(detect(nllb.path()), None);
+        let transformers = folder(&[
+            (
+                "config.json",
+                r#"{"model_type":"whisper","alignment_heads":[[1,2]]}"#,
+            ),
+            ("model.bin", "x"),
+            ("tokenizer.json", "{}"),
+        ]);
+        assert!(!is_ct2_whisper_dir(transformers.path()));
+        let bare = folder(&[("config.json", ct2), ("model.bin", "x")]);
+        assert!(!is_ct2_whisper_dir(bare.path()));
+        let both = folder(&[
+            ("config.json", ct2),
+            ("model.bin", "x"),
+            ("tokenizer.json", "{}"),
+            ("model.safetensors", "x"),
+        ]);
+        assert!(!is_ct2_whisper_dir(both.path()));
     }
 
     #[test]
@@ -1236,6 +1478,31 @@ mod tests {
             ("model.safetensors", "x"),
         ]);
         assert_eq!(detect(st.path()).as_deref(), Some("sentence-similarity"));
+        // A cross-encoder whose card says text-classification is still a reranker, and a real
+        // classifier with that card stays one.
+        let card = "---
+library_name: sentence-transformers
+pipeline_tag: text-classification
+---
+# x";
+        let bge = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["XLMRobertaForSequenceClassification"],"id2label":{"0":"LABEL_0"}}"#,
+            ),
+            ("README.md", card),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(detect(bge.path()).as_deref(), Some("text-ranking"));
+        let sst = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["BertForSequenceClassification"],"id2label":{"0":"NEG","1":"POS"}}"#,
+            ),
+            ("README.md", card),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(detect(sst.path()).as_deref(), Some("text-classification"));
         // The card wins over the architecture.
         let summ = folder(&[
             (
@@ -1590,6 +1857,141 @@ library_name: liquid-audio
         );
     }
 
+    /// The worker's chat helpers (request checking, message conversion, tool-call parsing, stop
+    /// strings, SSE framing) need no torch: `python/test_hf_worker_chat.py` runs with any Python 3.
+    #[test]
+    fn chat_helpers_parse_and_frame() {
+        let Some(python) = crate::engine::mlx::tests::system_python() else {
+            eprintln!("no system Python 3, skipping");
+            return;
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let worker = dir.path().join("hf_worker.py");
+        std::fs::write(&worker, WORKER).unwrap();
+        let script = dir.path().join("test_hf_worker_chat.py");
+        std::fs::write(&script, include_str!("../../python/test_hf_worker_chat.py")).unwrap();
+        let out = std::process::Command::new(python)
+            .arg("-I")
+            .arg(&script)
+            .arg(&worker)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(
+            out.status.success() && stdout.contains("PASS"),
+            "{stdout}
+{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    #[test]
+    fn chat_checkpoints_are_chat_tasks_not_task_folders() {
+        let text = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["Qwen2ForCausalLM"],"model_type":"qwen2"}"#,
+            ),
+            (
+                "README.md",
+                "---
+library_name: transformers
+pipeline_tag: text-generation
+---
+# x",
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        // The card's chat tag does not make it a task folder (mistral.rs keeps those)...
+        assert_eq!(detect(text.path()), None);
+        assert!(!is_model_dir(text.path()));
+        // ...but the Python engine can run it as a chat model.
+        assert_eq!(chat_task(text.path()), Some("text-generation"));
+        assert_eq!(launch_task(text.path()).as_deref(), Some("text-generation"));
+        let vlm = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["Idefics3ForConditionalGeneration"],"model_type":"idefics3","vision_config":{}}"#,
+            ),
+            ("preprocessor_config.json", "{}"),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(chat_task(vlm.path()), Some("image-text-to-text"));
+        // An encoder, a task model, an empty folder and remote code are not chat checkpoints.
+        let encoder = folder(&[
+            ("config.json", r#"{"architectures":["BertModel"]}"#),
+            ("model.safetensors", "x"),
+        ]);
+        let task_model = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["BlipForConditionalGeneration"],"model_type":"blip"}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        let remote = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["XForCausalLM"],"auto_map":{"AutoModel":"m.M"}}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        let empty = folder(&[("config.json", r#"{"architectures":["Qwen2ForCausalLM"]}"#)]);
+        for dir in [&encoder, &task_model, &remote, &empty] {
+            assert_eq!(chat_task(dir.path()), None, "{:?}", dir.path());
+        }
+        assert_eq!(
+            launch_task(task_model.path()).as_deref(),
+            Some("image-to-text")
+        );
+        // Library kinds: chat tasks are language models, the rest as before.
+        for task in CHAT_TASKS {
+            assert_eq!(kind_of(task), ModelKind::Llm);
+            assert!(TASKS.contains(&task));
+        }
+        assert_eq!(kind_of("feature-extraction"), ModelKind::Embedding);
+        assert_eq!(kind_of("fill-mask"), ModelKind::Pipeline);
+    }
+
+    /// A chat checkpoint stored in 16 bits is weighed as float32 on the CPU build.
+    #[test]
+    fn chat_memory_counts_float32_weights_on_the_cpu() {
+        let dir = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["Qwen2ForCausalLM"],"dtype":"bfloat16"}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        let budget = MemoryBudget {
+            ram_bytes: 64 << 30,
+            ..Default::default()
+        };
+        let input = FitInput {
+            model_path: Some(dir.path().to_string_lossy().to_string()),
+            model_size_bytes: 1 << 30,
+            ..Default::default()
+        };
+        let fit = PythonHfEngine.estimate_memory(&input, None, &budget, &[]);
+        if env().gpu_build_of.is_none() {
+            assert_eq!(fit.estimate.model_host_bytes, 2 << 30);
+        }
+        // A task model is never doubled.
+        let task = folder(&[
+            (
+                "config.json",
+                r#"{"architectures":["BertForSequenceClassification"],"dtype":"bfloat16"}"#,
+            ),
+            ("model.safetensors", "x"),
+        ]);
+        let input = FitInput {
+            model_path: Some(task.path().to_string_lossy().to_string()),
+            ..input
+        };
+        let fit = PythonHfEngine.estimate_memory(&input, None, &budget, &[]);
+        assert_eq!(fit.estimate.model_host_bytes, 1 << 30);
+    }
+
     /// Runs a worker test script with the hf-cpu environment's Python (`HS_PYHF_PYTHON`, else
     /// skipped): `<script> <hf_worker.py> <empty dir>`, which prints PASS.
     fn run_worker_script(name: &str, body: &str) {
@@ -1645,7 +2047,7 @@ library_name: liquid-audio
             ("requests.py", "class Request:\n    pass\n"),
             (
                 "responses.py",
-                "import json\nclass Response:\n    def __init__(self, content=b'', status_code=200, **_):\n        self.body, self.status_code = content, status_code\n    async def __call__(self, scope, receive, send):\n        await send({'type': 'http.response.start', 'status': self.status_code, 'headers': []})\n        await send({'type': 'http.response.body', 'body': self.body})\nclass JSONResponse(Response):\n    def __init__(self, content, status_code=200, **_):\n        super().__init__(json.dumps(content).encode(), status_code)\n",
+                "import json\nclass Response:\n    def __init__(self, content=b'', status_code=200, **_):\n        self.body, self.status_code = content, status_code\n    async def __call__(self, scope, receive, send):\n        await send({'type': 'http.response.start', 'status': self.status_code, 'headers': []})\n        await send({'type': 'http.response.body', 'body': self.body})\nclass JSONResponse(Response):\n    def __init__(self, content, status_code=200, **_):\n        super().__init__(json.dumps(content).encode(), status_code)\nclass StreamingResponse(Response):\n    pass\n",
             ),
             (
                 "routing.py",

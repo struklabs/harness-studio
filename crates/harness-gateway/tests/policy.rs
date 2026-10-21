@@ -227,6 +227,74 @@ async fn endpoint_and_model_policy_is_enforced() {
     gw.server.stop().await;
 }
 
+/// A valid request body of each typed pipeline route.
+fn typed_routes(model: &str) -> Vec<(&'static str, Value)> {
+    vec![
+        (
+            "/v1/classifications",
+            json!({"model": model, "input": "great"}),
+        ),
+        ("/v1/entities", json!({"model": model, "input": "Ada"})),
+        (
+            "/v1/zero-shot",
+            json!({"model": model, "input": "x", "candidate_labels": ["a", "b"]}),
+        ),
+        (
+            "/v1/detections",
+            json!({"model": model, "image": "data:image/png;base64,AQID"}),
+        ),
+        ("/v1/moderations", json!({"model": model, "input": "hello"})),
+    ]
+}
+
+#[tokio::test]
+async fn typed_pipeline_routes_follow_the_pipelines_scope() {
+    let _s = serial().await;
+    data_root();
+    let gw = Gw::start(true).await;
+    let (chat_only, _) = create(
+        "policy-typed-chat",
+        &[Scope::Inference],
+        TokenPolicy {
+            endpoints: vec![GatewayEndpoint::Chat],
+            ..Default::default()
+        },
+    );
+    let (pipelines, _) = create(
+        "policy-typed-pipelines",
+        &[Scope::Inference],
+        TokenPolicy {
+            endpoints: vec![GatewayEndpoint::Pipelines],
+            ..Default::default()
+        },
+    );
+    for (path, body) in typed_routes("team-chat") {
+        let r = gw.post(path, None, body.clone()).await;
+        assert_eq!(r.status, 401, "{path}: {}", r.body);
+        let r = gw.post(path, Some(&chat_only), body.clone()).await;
+        assert_eq!(r.status, 403, "{path}: {}", r.body);
+        assert_eq!(r.body["error"]["code"], "endpoint_not_allowed", "{path}");
+        // Allowed: the request reaches model resolution (no such model: 404).
+        let (_, nope) = typed_routes("nope")
+            .into_iter()
+            .find(|(p, _)| *p == path)
+            .unwrap();
+        let r = gw.post(path, Some(&pipelines), nope).await;
+        assert_eq!(r.status, 404, "{path}: {}", r.body);
+    }
+    // A request that names no model is refused with the field, before any model work.
+    let r = gw
+        .post(
+            "/v1/moderations",
+            Some(&pipelines),
+            json!({"input": "hello"}),
+        )
+        .await;
+    assert_eq!(r.status, 400, "{}", r.body);
+    assert_eq!(r.body["error"]["param"], "model");
+    gw.server.stop().await;
+}
+
 #[tokio::test]
 async fn rate_limits_answer_429_in_each_api_shape_and_reach_analytics() {
     let _s = serial().await;

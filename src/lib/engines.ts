@@ -134,7 +134,7 @@ const ENGINE_LABELS: Record<string, string> = {
   'mlx-audio': 'MLX Audio',
   'mlx-embed': 'MLX Embeddings',
   mflux: 'mflux',
-  'python-hf': 'Python (HF)',
+  'python-hf': 'Python (Transformers)',
   'liquid-audio': 'Liquid Audio',
   'audio.cpp': 'audio.cpp',
   crispasr: 'CrispASR',

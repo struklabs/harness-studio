@@ -150,10 +150,27 @@ Only WAV is accepted: up to 32 MiB, 10 minutes, and two channels. Some models ne
 
 ## Generate Images
 
+Safetensors chat and vision models that run on the Python engine appear in the model picker like any other chat model, with **Python (Transformers)** shown as their engine. Chats stream, tool calls work when the model's chat template supports tools, and vision models accept pictures. The first message loads the model, which takes a while on a CPU.
+
 The **Image Generation** tab generates pictures from diffusion models through stable-diffusion.cpp or the Python engine (diffusers). Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it), or use one that is already in your folders: it appears in the **Model** list on its own, and **Open in Playground** on its library card opens this tab with it selected. If the list stays empty although the file is there, some of its extra files are missing; the tab says so and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; an empty **Seed** chooses a random seed on each request, while the other empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
 
 For image-to-image, add an optional **Start Image** and set **Strength** (how much it changes). Models that only edit images require a start image. Python diffusers models also open in this tab.
 
+### Generate Images with ComfyUI
+
+If you already run [ComfyUI](https://github.com/comfyanonymous/ComfyUI), the **Image Generation** tab can use it instead of the built-in engine. Harness does not install, ship, or start ComfyUI; it only talks to the ComfyUI you run, through its HTTP API.
+
+1. Start ComfyUI as usual (by default it listens on `http://127.0.0.1:8188`).
+2. In **Image Generation**, switch from **Built-In** to **Image (ComfyUI)**. Enter the **ComfyUI Address** and press **Detect**. The address is saved when ComfyUI answers, and the version and device (for example `mps` on a Mac) are shown.
+3. Pick a **Workflow**:
+   - **Text to Image (Built-In)** is a simple checkpoint, KSampler, and Save Image graph. Choose its **Checkpoint**, or leave **First Checkpoint**.
+   - **Saved Workflows** are the ones you saved in ComfyUI.
+   - **Templates** are ComfyUI's own image templates and those of your custom nodes. Partner-API (paid) templates are not listed.
+4. Write a **Prompt** and press **Generate in ComfyUI**. Optionally set a **Negative Prompt**, **Size**, **Steps**, **Seed**, or **CFG Scale** (under **Advanced Settings** in Simple mode); empty fields keep the workflow's own values, and an empty **Seed** is random. While it runs, the queue position and the sampler steps are shown, and **Cancel** removes the run from ComfyUI's queue or stops it.
+
+While a project with a folder is active (see [Projects and Outputs](#projects-and-outputs)), the pictures are saved to its outputs; otherwise they go to `outputs/comfyui` in the Harness data folder. They are listed under **ComfyUI Outputs** with **Open** and **Show in Folder**. **Remove from List (Keep File)** leaves the file on disk.
+
+Workflows saved in ComfyUI's editor format are converted with your ComfyUI's node definitions. A workflow that uses subgraphs or group nodes cannot be converted; in ComfyUI, export it in API format, save it, and pick that file. A missing custom node is named in the error message.
 ## Projects and Outputs
 
 A project groups chats, the files they produce, and agent tasks under a name and a folder. Open **Projects** in the sidebar and press **New Project**.

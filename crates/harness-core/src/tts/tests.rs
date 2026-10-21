@@ -117,12 +117,15 @@ fn multi_speaker_voices_come_from_the_speaker_map() {
 #[test]
 fn folders_that_are_not_runnable_models_are_not_detected() {
     let tmp = tempfile::tempdir().unwrap();
-    // Matcha and Kitten have tokens + onnx too but another layout.
-    for name in ["matcha-icefall-en_US-ljspeech", "kitten-nano-en-v0_1-fp16"] {
+    // Matcha without its vocoder and an unknown family (Pocket) have tokens + onnx too, but
+    // nothing the tool could run.
+    for name in [
+        "matcha-icefall-en_US-ljspeech",
+        "sherpa-onnx-pocket-tts-int8",
+    ] {
         let d = tmp.path().join(name);
-        touch(&d.join("model.onnx"), b"x");
+        touch(&d.join("model-steps-3.onnx"), b"x");
         touch(&d.join("tokens.txt"), b"x");
-        touch(&d.join("voices.bin"), b"x");
         touch(&d.join("espeak-ng-data/x"), b"x");
         assert!(detect(&d).is_none(), "{name}");
     }
@@ -507,4 +510,68 @@ fn response_formats() {
     assert_eq!(AudioFormat::Mp3.content_type(), "audio/mpeg");
     assert_eq!(AudioFormat::Opus.extension(), "opus");
     assert_eq!(AudioFormat::Wav.extension(), "wav");
+}
+
+#[test]
+fn kitten_matcha_and_unnamed_kokoro_layouts() {
+    let tmp = tempfile::tempdir().unwrap();
+    let kitten = tmp.path().join("kitten-nano-en-v0_1-fp16");
+    touch(&kitten.join("model.fp16.onnx"), b"x");
+    touch(&kitten.join("tokens.txt"), b"x");
+    touch(&kitten.join("voices.bin"), b"x");
+    touch(&kitten.join("espeak-ng-data/x"), b"x");
+    let m = detect(&kitten).unwrap();
+    assert_eq!(m.family, TtsFamily::Kitten);
+    assert_eq!(m.voices.len(), 8);
+    assert_eq!(m.resolve_voice(Some("3")).unwrap().id, "expr-voice-3-f");
+    let params = Params {
+        sid: 3,
+        speed: 1.0,
+        threads: 2,
+        output: PathBuf::from("o.wav"),
+    };
+    let args = build_args(&m, m.voices.first(), &params);
+    for flag in [
+        "--kitten-model=",
+        "--kitten-voices=",
+        "--kitten-tokens=",
+        "--kitten-data-dir=",
+        "--sid=3",
+    ] {
+        assert!(
+            args.iter().any(|a| a.starts_with(flag)),
+            "{flag} in {args:?}"
+        );
+    }
+
+    let matcha = tmp.path().join("matcha-icefall-en_US-ljspeech");
+    touch(&matcha.join("model-steps-3.onnx"), b"x");
+    touch(&matcha.join("hifigan_v2.onnx"), b"x");
+    touch(&matcha.join("tokens.txt"), b"x");
+    touch(&matcha.join("espeak-ng-data/x"), b"x");
+    let m = detect(&matcha).unwrap();
+    assert_eq!(m.family, TtsFamily::Matcha);
+    assert!(m.model_file.ends_with("model-steps-3.onnx"));
+    assert!(m.vocoder.as_ref().unwrap().ends_with("hifigan_v2.onnx"));
+    assert_eq!(m.languages, ["en"]);
+    let args = build_args(&m, m.voices.first(), &params);
+    for flag in [
+        "--matcha-acoustic-model=",
+        "--matcha-vocoder=",
+        "--matcha-tokens=",
+        "--matcha-data-dir=",
+    ] {
+        assert!(
+            args.iter().any(|a| a.starts_with(flag)),
+            "{flag} in {args:?}"
+        );
+    }
+
+    // A Kokoro repo whose name does not say so: the lexicons are the evidence.
+    let anon = tmp.path().join("multi-voice-int8");
+    touch(&anon.join("model.int8.onnx"), b"x");
+    touch(&anon.join("tokens.txt"), b"x");
+    touch(&anon.join("voices.bin"), b"x");
+    touch(&anon.join("lexicon-us-en.txt"), b"x");
+    assert_eq!(detect(&anon).unwrap().family, TtsFamily::Kokoro);
 }
