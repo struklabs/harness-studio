@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/struklabs/harness-studio/blob/main/sdk/module-manifest.v1.schema.json",
+  "title": "Harness Studio module manifest, schema version 1",
+  "description": "The module manifest (`manifest_version` 1). The app refuses a manifest whose manifest_version is outside the range it supports (modules.manifest_incompatible) before anything is downloaded or written. Fields are never removed or retyped inside one manifest_version; see docs/guide/en/12-api-stability.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "manifest_version",
+    "name",
+    "description",
+    "functions",
+    "platforms",
+    "hardware",
+    "components",
+    "permissions",
+    "shared_component_ids",
+    "min_app_version",
+    "planned"
+  ],
+  "$defs": {
+    "locale": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["en", "tr"],
+      "properties": {
+        "en": { "type": "string" },
+        "tr": { "type": "string" }
+      }
+    },
+    "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" }
+  },
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "version": { "$ref": "#/$defs/semver" },
+    "manifest_version": { "type": "integer", "minimum": 1, "maximum": 1 },
+    "name": { "$ref": "#/$defs/locale" },
+    "description": { "$ref": "#/$defs/locale" },
+    "functions": { "type": "array", "items": { "$ref": "#/$defs/locale" } },
+    "platforms": { "type": "array", "items": { "type": "string" } },
+    "hardware": { "$ref": "#/$defs/locale" },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "version", "sources", "download_bytes", "disk_bytes"],
+        "properties": {
+          "id": { "type": "string" },
+          "version": { "type": "string" },
+          "sources": { "type": "array", "items": { "type": "string" } },
+          "download_bytes": { "type": "integer", "minimum": 0 },
+          "disk_bytes": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "permissions": { "type": "array", "items": { "$ref": "#/$defs/locale" } },
+    "shared_component_ids": { "type": "array", "items": { "type": "string" } },
+    "min_app_version": { "$ref": "#/$defs/semver" },
+    "planned": { "type": "boolean" }
+  }
+}

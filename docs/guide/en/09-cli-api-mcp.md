@@ -18,7 +18,7 @@ The Developer settings and MCP connection pages below are **Advanced** pages. Sw
 
 1. Open **Settings > Developer > Control API**.
 2. Enable **Enable the API** and press **Apply**.
-3. Check the **Base URL**. The default is `http://127.0.0.1:11500/api/harness/v1`; if the port is busy, the address shown can differ.
+3. Check the **Base URL**. The `v1` in it is the contract version; see [API Stability and Versioning](12-api-stability.md) for what stays stable. The default is `http://127.0.0.1:11500/api/harness/v1`; if the port is busy, the address shown can differ.
 4. To see the API's description, use **Open** in the **OpenAPI Schema** field. The default OpenAPI schema address, `http://127.0.0.1:11500/api/harness/v1/openapi.json`, only makes sense on this computer while the API is on; if the port changed, use the link in the app.
 
 Management requests are protected by a token. The exceptions for local `/health` and schema access, and the token scopes, are explained in the [security model](../../en/SECURITY_MODEL.md). When it manages the app's data folder, the CLI reaches it through this API; if the API is off, the CLI cannot connect to the owning instance.

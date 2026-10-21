@@ -62,6 +62,13 @@ pub struct ModuleManifest {
     pub min_app_version: String,
     pub planned: bool,
 }
+/// Module manifest schema versions this build installs. A manifest outside the range is
+/// refused at install time (`modules.manifest_incompatible`) before anything is downloaded or
+/// written: a newer one needs a newer app, an older one was dropped after its deprecation
+/// window (`docs/guide/en/12-api-stability.md`). The schema of version 1 is
+/// `sdk/module-manifest.v1.schema.json`.
+pub const MANIFEST_VERSION_MIN: u32 = 1;
+pub const MANIFEST_VERSION_MAX: u32 = 1;
 fn version(v: &str) -> Option<(u32, u32, u32)> {
     let parts: Vec<_> = v.split('.').collect();
     if parts.len() != 3 {
@@ -75,7 +82,7 @@ fn version(v: &str) -> Option<(u32, u32, u32)> {
 }
 impl ModuleManifest {
     pub fn compatibility(&self, platform: &str, app: &str) -> Result<(), String> {
-        if self.manifest_version != 1 {
+        if !(MANIFEST_VERSION_MIN..=MANIFEST_VERSION_MAX).contains(&self.manifest_version) {
             return Err("modules.manifest_incompatible".into());
         }
         if !self.platforms.iter().any(|p| p == platform) {
@@ -518,8 +525,38 @@ mod tests {
         assert!(m.compatibility("linux-aarch64", "0.1.2").is_err());
         assert!(m.compatibility("windows-x86_64", "0.1.1").is_err());
         assert!(m.compatibility("windows-x86_64", "broken").is_err());
-        m.manifest_version = 2;
+        m.manifest_version = MANIFEST_VERSION_MAX + 1;
         assert!(m.compatibility("windows-x86_64", "1.0.0").is_err());
+        m.manifest_version = 0;
+        assert!(m.compatibility("windows-x86_64", "1.0.0").is_err());
+        m.manifest_version = MANIFEST_VERSION_MIN;
+        assert!(m.compatibility("windows-x86_64", "1.0.0").is_ok());
+    }
+    #[test]
+    fn manifest_schema_file_matches_the_manifest_type() {
+        let schema: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../../sdk/module-manifest.v1.schema.json"
+        ))
+        .unwrap();
+        let fields = |v: &serde_json::Value| -> BTreeSet<String> {
+            v.as_object().unwrap().keys().cloned().collect()
+        };
+        let sample = serde_json::to_value(bundled().remove(0)).unwrap();
+        assert_eq!(fields(&schema["properties"]), fields(&sample));
+        let required: BTreeSet<String> = schema["required"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect();
+        assert_eq!(required, fields(&sample));
+        assert_eq!(schema["additionalProperties"], false);
+        let declared = &schema["properties"]["manifest_version"];
+        assert_eq!(declared["minimum"], MANIFEST_VERSION_MIN);
+        assert_eq!(declared["maximum"], MANIFEST_VERSION_MAX);
+        for m in bundled() {
+            assert!((MANIFEST_VERSION_MIN..=MANIFEST_VERSION_MAX).contains(&m.manifest_version));
+        }
     }
     #[test]
     fn recovery_adopts_legacy_installs_and_preserves_explicit_removal() {

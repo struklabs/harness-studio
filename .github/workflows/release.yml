@@ -45,6 +45,16 @@ permissions:
   contents: read
 
 jobs:
+  # Harness testing itself on the tagged commit (headless instance, tiny GGUF, official
+  # registry). It runs next to the installer builds and does not block them: a red result is
+  # a reason to look before publishing the draft release.
+  dogfood:
+    # Tag pushes only: a manual rebuild of an old tag would test the dispatched ref instead.
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/dogfood.yml
+    permissions:
+      contents: read
+
   server:
     if: github.event_name == 'workflow_dispatch' && inputs.server
     runs-on: ubuntu-22.04

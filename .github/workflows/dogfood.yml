@@ -1,0 +1,73 @@
+name: Dogfood
+
+# Harness testing itself: a headless `harness serve` with a tiny GGUF runs one chat, one tool
+# call, one skill install and one tool install from the official registry (scripts/dogfood.mjs;
+# the 5-step toy fine-tune is skipped until a training backend exists).
+#
+# Not part of pull request CI. It runs
+#   - weekly, from the CI workflow's schedule (ci.yml calls this workflow), and by hand there;
+#   - at release time, from release.yml, next to the installer builds;
+#   - by hand from this workflow (Actions > Dogfood).
+# One Linux runner, about 10 minutes, no secrets.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  # stories260K: a 1.2 MB llama-architecture GGUF used by llama.cpp's own tests.
+  GGUF_URL: https://huggingface.co/ggml-org/models/resolve/main/tinyllamas/stories260K.gguf
+  GGUF_SHA256: 270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d
+
+jobs:
+  dogfood:
+    name: Dogfood (harness serve, tiny GGUF)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev pkg-config
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # The model is cached under its checksum, so a changed pin downloads it again.
+      - name: Cache the tiny GGUF
+        id: gguf
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/dogfood/stories260K.gguf
+          key: gguf-stories260k-${{ env.GGUF_SHA256 }}
+
+      - name: Download the tiny GGUF
+        if: steps.gguf.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/dogfood"
+          curl --fail --location --retry 4 --retry-delay 5 --output "$RUNNER_TEMP/dogfood/stories260K.gguf" "$GGUF_URL"
+
+      - name: Verify the tiny GGUF
+        run: echo "$GGUF_SHA256  $RUNNER_TEMP/dogfood/stories260K.gguf" | sha256sum --check
+
+      - name: Build the harness CLI
+        run: cargo build -p harness-cli
+
+      - name: Dogfood
+        env:
+          RUST_BACKTRACE: '1'
+        run: |
+          DOGFOOD_GGUF="$RUNNER_TEMP/dogfood/stories260K.gguf" \
+            node sdk/test-server.mjs -- node scripts/dogfood.mjs

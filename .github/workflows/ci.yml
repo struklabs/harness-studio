@@ -6,7 +6,9 @@ name: CI
 #
 # - Pull requests: one Linux runner per job; docs-only pull requests run nothing heavy.
 # - Push to main: the same path filters, but the Rust job runs on Windows, Linux and macOS.
-# - Weekly schedule and manual runs: every job, all operating systems.
+# - Weekly schedule and manual runs: every job, all operating systems, and the dogfood job
+#   (Harness testing itself, see dogfood.yml); the dogfood job never runs for pull requests or
+#   pushes.
 #
 # No secrets are used: pull requests from forks run without access to any secret.
 on:
@@ -259,6 +261,12 @@ jobs:
       - name: sdk/openapi.json is up to date
         run: node sdk/generate.mjs --check
 
+      # The v1 contract is frozen in sdk/contract/: breaking changes need a new API major version.
+      - name: No breaking changes to the frozen API contract
+        run: |
+          node sdk/check-breaking.mjs --self-test
+          node sdk/check-breaking.mjs
+
       - name: Type-check TypeScript SDK, tests and examples
         run: npm run typecheck --prefix sdk/typescript
 
@@ -270,6 +278,17 @@ jobs:
         run: |
           uv sync --group test
           node ../test-server.mjs -- uv run --group test pytest
+
+  # Harness testing itself (a headless instance with a tiny GGUF, the official registry): weekly
+  # and by hand only. Pull requests and pushes skip it (the job result is "skipped", which
+  # ci-ok counts as passed); release.yml runs the same workflow at release time.
+  dogfood:
+    name: Dogfood
+    needs: changes
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/dogfood.yml
+    permissions:
+      contents: read
 
   audit:
     name: cargo audit
@@ -299,7 +318,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, frontend, rust, registry, sdk, audit]
+    needs: [changes, frontend, rust, registry, sdk, audit, dogfood]
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
