@@ -78,6 +78,10 @@ pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Sc
     if route.starts_with("/automations/") {
         return Some(Scope::Admin);
     }
+    // So does Paperclip: a stored board key, and a handoff that writes into its agents.
+    if route == "/paperclip" || route.starts_with("/paperclip/") {
+        return Some(Scope::Admin);
+    }
     // Provider keys are saved and spent through these routes: every one needs admin.
     if route == "/cloud" || route.starts_with("/cloud/") {
         return Some(Scope::Admin);

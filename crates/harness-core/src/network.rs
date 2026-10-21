@@ -359,6 +359,8 @@ pub fn sanitize_settings(incoming: &mut AppSettings, stored: &AppSettings) -> Re
     incoming.otel = stored.otel.clone();
     // And the n8n connection (its key lives in the keychain).
     incoming.n8n = stored.n8n.clone();
+    // And the Paperclip connection (key in the keychain, links through their own commands).
+    incoming.paperclip = stored.paperclip.clone();
     // And the ComfyUI address (Playground > Image saves it on its own).
     incoming.comfyui = stored.comfyui.clone();
     Ok(())

@@ -24,6 +24,8 @@ const LINK_PREFIX: &str = "harness-link:";
 const WEB_SEARCH_PREFIX: &str = "web-search:";
 /// API key of the user's own n8n instance (Settings > Automations).
 const N8N_ACCOUNT: &str = "n8n-api-key";
+/// Board API key of the user's own Paperclip instance.
+const PAPERCLIP_ACCOUNT: &str = "paperclip-api-key";
 /// OAuth session of a remote MCP server (`mcp-oauth:<server name>`).
 const MCP_OAUTH_PREFIX: &str = "mcp-oauth:";
 /// API key of a BYOK cloud provider (`cloud-provider:[<datadir-hash>:]<id>`).
@@ -489,6 +491,30 @@ pub fn n8n_key_set(value: Option<&str>) -> Result<(), String> {
     }
     .map_err(|e| {
         crate::error_key::err("automations.keychain_unavailable")
+            .with("error", e)
+            .into()
+    })
+}
+
+pub fn paperclip_key_get() -> Result<Option<String>, String> {
+    store()
+        .get(PAPERCLIP_ACCOUNT)
+        .map(|v| v.filter(|v| !v.trim().is_empty()))
+        .map_err(|e| {
+            crate::error_key::err("paperclip.keychain_unavailable")
+                .with("error", e)
+                .into()
+        })
+}
+
+/// Stores the Paperclip key; `None` or an empty value removes it.
+pub fn paperclip_key_set(value: Option<&str>) -> Result<(), String> {
+    match value.map(str::trim).filter(|v| !v.is_empty()) {
+        Some(value) => store().set(PAPERCLIP_ACCOUNT, value),
+        None => store().delete(PAPERCLIP_ACCOUNT),
+    }
+    .map_err(|e| {
+        crate::error_key::err("paperclip.keychain_unavailable")
             .with("error", e)
             .into()
     })

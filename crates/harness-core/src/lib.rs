@@ -71,6 +71,7 @@ pub mod orchestrator;
 pub mod orphans;
 pub mod otel;
 pub mod pairing;
+pub mod paperclip;
 pub mod params;
 pub mod paths;
 pub mod perf;

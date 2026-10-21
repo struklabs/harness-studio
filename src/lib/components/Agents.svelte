@@ -1,5 +1,6 @@
 <script lang="ts">
   import TrustPermissions from "#lib/components/tools/TrustPermissions.svelte";
+  import PaperclipPanel from "#lib/components/PaperclipPanel.svelte";
   import { onMount } from 'svelte';
   import { invoke } from '#lib/ipc.js';
   import { t, type TKey } from '#lib/i18n.svelte.js';
@@ -215,4 +216,5 @@
     <Button disabled={pending || !paperclipAgent || !instance} onclick={() => paperclip('apply')}>{t('agents.apply_config')}</Button>
   {/if}
   {#if notice}<p role="status">{notice}</p>{/if}
+  <PaperclipPanel />
 </section>

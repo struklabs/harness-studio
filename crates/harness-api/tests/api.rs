@@ -641,6 +641,10 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/automations/n8n/proposals/{id}", &["get"]),
         ("/automations/n8n/proposals/{id}/apply", &["post"]),
         ("/automations/n8n/proposals/{id}/reject", &["post"]),
+        ("/paperclip", &["get", "put"]),
+        ("/paperclip/test", &["post"]),
+        ("/paperclip/overview", &["get"]),
+        ("/paperclip/agents/{id}/model", &["post"]),
         ("/analytics/summary", &["get"]),
         ("/analytics/requests", &["get"]),
         ("/analytics/requests/{id}", &["get"]),
@@ -1988,6 +1992,147 @@ async fn n8n_connection_workflows_and_confirmed_trigger() {
         view,
         json!({"url": "", "key_set": false, "permission": "read_only"})
     );
+    api.server.stop().await;
+}
+
+/// Paperclip connection over the API: everything needs `admin`; the key is stored (never
+/// returned), the overview reaches a local mock of Paperclip's REST API, and an insecure
+/// remote address is refused.
+#[tokio::test]
+async fn paperclip_connection_and_overview() {
+    let api = start().await;
+    let admin = api.token.clone();
+    let (reader, _) = named(&api, "paperclip-reader", json!(["read"])).await;
+    let (status, body) = json(api.send(Method::GET, "/paperclip", &reader, None).await).await;
+    assert_eq!(status, 403);
+    assert_eq!(body["error"]["params"]["scope"], "admin");
+
+    let app = axum::Router::new()
+        .route(
+            "/api/health",
+            axum::routing::get(|| async {
+                json!({"status": "ok", "version": "1.0.0"}).to_string()
+            }),
+        )
+        .route(
+            "/api/companies",
+            axum::routing::get(|headers: axum::http::HeaderMap| async move {
+                if headers.get("authorization").and_then(|v| v.to_str().ok())
+                    != Some("Bearer pc-key")
+                {
+                    return (axum::http::StatusCode::UNAUTHORIZED, String::new());
+                }
+                (
+                    axum::http::StatusCode::OK,
+                    json!([{"id": "c1", "name": "Acme", "status": "active"}]).to_string(),
+                )
+            }),
+        )
+        .route(
+            "/api/companies/c1",
+            axum::routing::get(|| async { json!({"id": "c1", "name": "Acme"}).to_string() }),
+        )
+        .route(
+            "/api/companies/c1/agents",
+            axum::routing::get(|| async {
+                json!([{"id": "a1", "name": "CEO", "role": "ceo", "adapterType": "claude_local"}])
+                    .to_string()
+            }),
+        )
+        .route(
+            "/api/companies/c1/issues",
+            axum::routing::get(|| async {
+                json!([{"id": "t1", "title": "Ship", "status": "todo"}]).to_string()
+            }),
+        )
+        .route(
+            "/api/companies/c1/heartbeat-runs",
+            axum::routing::get(|| async { json!([]).to_string() }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let pc = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let (status, body) = json(
+        api.send(
+            Method::PUT,
+            "/paperclip",
+            &admin,
+            Some(json!({"url": "http://paperclip.example.com"})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 400);
+    assert_error(&body, "paperclip.url_invalid");
+
+    let (status, view) = json(
+        api.send(
+            Method::PUT,
+            "/paperclip",
+            &admin,
+            Some(json!({"url": pc, "api_key": "pc-key", "company_id": "c1"})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{view}");
+    assert_eq!(view["url"], pc);
+    assert_eq!(view["key_set"], true);
+    assert_eq!(view["company_id"], "c1");
+    assert!(!view.to_string().contains("pc-key"));
+
+    let (status, test) = json(
+        api.send(Method::POST, "/paperclip/test", &admin, Some(json!({})))
+            .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{test}");
+    assert_eq!(test["companies"][0]["name"], "Acme");
+    let (status, body) = json(
+        api.send(
+            Method::POST,
+            "/paperclip/test",
+            &admin,
+            Some(json!({"api_key": "wrong"})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 502, "{body}");
+    assert_error(&body, "paperclip.unauthorized");
+
+    let (status, overview) = json(
+        api.send(Method::GET, "/paperclip/overview", &admin, None)
+            .await,
+    )
+    .await;
+    assert_eq!(status, 200, "{overview}");
+    assert_eq!(overview["company"]["name"], "Acme");
+    assert_eq!(overview["agents"][0]["adapter_type"], "claude_local");
+    assert_eq!(overview["tasks"][0]["title"], "Ship");
+    assert!(overview["budget"].is_null());
+
+    // The gateway is off in this test: a model handoff is refused before anything is written.
+    let (status, _) = json(
+        api.send(
+            Method::POST,
+            "/paperclip/agents/a1/model",
+            &admin,
+            Some(json!({"model": "m"})),
+        )
+        .await,
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    let (_, view) = json(
+        api.send(Method::PUT, "/paperclip", &admin, Some(json!({"url": ""})))
+            .await,
+    )
+    .await;
+    assert_eq!(view["key_set"], false);
+    assert_eq!(view["url"], "");
     api.server.stop().await;
 }
 

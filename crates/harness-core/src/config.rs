@@ -196,6 +196,8 @@ pub struct AppSettings {
     pub otel: crate::otel::OtelSettings,
     /// The user's own n8n instance (address only; the API key is in the keychain).
     pub n8n: crate::automations::N8nSettings,
+    /// The user's own Paperclip (address, company and task links; the key is in the keychain).
+    pub paperclip: crate::paperclip::PaperclipSettings,
     /// The user's own ComfyUI (address only; see `comfyui`).
     pub comfyui: crate::comfyui::ComfySettings,
     /// Tool engine policy: off / ask every time / allow trusted / allow all, the trusted tools
@@ -291,6 +293,7 @@ impl Default for AppSettings {
             analytics: crate::analytics::AnalyticsSettings::default(),
             otel: crate::otel::OtelSettings::default(),
             n8n: crate::automations::N8nSettings::default(),
+            paperclip: crate::paperclip::PaperclipSettings::default(),
             comfyui: crate::comfyui::ComfySettings::default(),
             tools: crate::tools::ToolSettings::default(),
         }

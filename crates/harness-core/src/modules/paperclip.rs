@@ -85,7 +85,15 @@ pub async fn apply(
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|_| "agents.paperclip_failed")?;
-    let request = |method| client.request(method, url.clone()).bearer_auth(&credential);
+    // A local trusted Paperclip needs no credential; an empty one sends no header.
+    let request = |method| {
+        let builder = client.request(method, url.clone());
+        if credential.is_empty() {
+            builder
+        } else {
+            builder.bearer_auth(&credential)
+        }
+    };
     let response = request(reqwest::Method::GET)
         .send()
         .await
