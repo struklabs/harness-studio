@@ -116,7 +116,6 @@ impl GatewayEndpoint {
             "/v1/images/generations" | "/v1/images/edits" => Self::Images,
             "/v1/messages" | "/v1/messages/count_tokens" => Self::Messages,
             "/metrics" => Self::Metrics,
-            "/v1/ocr" | "/v1/document/qa" => Self::Pipelines,
             _ if p == "/v1/models" || p.starts_with("/v1/models/") => Self::Models,
             _ if p == "/v1/videos" || p.starts_with("/v1/videos/") => Self::Videos,
             _ if p.starts_with("/api/") => Self::Ollama,
@@ -124,7 +123,9 @@ impl GatewayEndpoint {
             | "/v1/entities"
             | "/v1/zero-shot"
             | "/v1/detections"
-            | "/v1/moderations" => Self::Pipelines,
+            | "/v1/moderations"
+            | "/v1/ocr"
+            | "/v1/document/qa" => Self::Pipelines,
             _ if p == "/v1/hf" || p.starts_with("/v1/hf/") => Self::Pipelines,
             _ => return None,
         })
@@ -316,6 +317,8 @@ mod tests {
             "/v1/detections",
             "/v1/moderations",
             "/v1/moderations/",
+            "/v1/ocr",
+            "/v1/document/qa",
         ] {
             assert_eq!(GatewayEndpoint::of_path(typed), Some(Pipelines), "{typed}");
         }
