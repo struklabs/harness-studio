@@ -26,6 +26,7 @@
   } from '../harness.ts';
   import { bytes, errorText } from '../text.ts';
   import HarnessPicker from './HarnessPicker.svelte';
+  import AppSettings from './AppSettings.svelte';
 
   let selected = $state(connections.harness.find((c) => c.apiUrl)?.id ?? connections.harness[0]?.id ?? '');
   const connection = $derived(connections.harness.find((c) => c.id === selected) ?? null);
@@ -208,6 +209,6 @@
 
     {@render gap('mobile.manage.agents')}
     {@render gap('mobile.manage.training')}
-    {@render gap('mobile.manage.settings')}
+    {#if connection.apiUrl}<AppSettings {connection} {identity} />{/if}
   {/if}
 </div>

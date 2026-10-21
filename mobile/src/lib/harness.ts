@@ -54,7 +54,7 @@ export function accountFor(c: HarnessConnection, url: string): string {
   return c.apiUrl && origin !== new URL(c.gatewayUrl).origin && origin === new URL(c.apiUrl).origin ? `${c.account}.api` : c.account;
 }
 
-async function call(c: HarnessConnection, url: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown): Promise<HttpResponse> {
+async function call(c: HarnessConnection, url: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' = 'GET', body?: unknown): Promise<HttpResponse> {
   const res = await http({
     method,
     url,
@@ -70,7 +70,7 @@ async function call(c: HarnessConnection, url: string, method: 'GET' | 'POST' | 
   return res;
 }
 
-async function json<T>(c: HarnessConnection, url: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown): Promise<T> {
+async function json<T>(c: HarnessConnection, url: string, method: 'GET' | 'POST' | 'PUT' | 'PATCH' = 'GET', body?: unknown): Promise<T> {
   const res = await call(c, url, method, body);
   return (res.body ? JSON.parse(res.body) : null) as T;
 }
@@ -188,6 +188,28 @@ export interface Subject {
 export const permissions = (c: HarnessConnection) => json<Subject[]>(c, api(c, '/permissions'));
 export const setTrust = (c: HarnessConnection, s: Subject, trust: string | null) =>
   call(c, api(c, `/permissions/${encodeURIComponent(s.kind)}/${encodeURIComponent(s.id)}/trust`), 'PUT', { trust });
+
+/** The app settings the Control API allows (`GET`/`PATCH /settings`; changing needs admin). */
+export interface RemoteSettings {
+  language: 'tr' | 'en';
+  theme: string;
+  cvd_safe: boolean;
+  ui_scale: number | null;
+  ui_level: 'simple' | 'advanced' | null;
+  close_action: 'ask' | 'tray' | 'quit';
+  start_minimized: boolean;
+  restore_last_session: boolean;
+  keep_window_in_tray: boolean;
+  auto_load_after_download: boolean;
+  analytics_enabled: boolean;
+  analytics_retention_days: number;
+}
+
+export const THEMES = ['system', 'dark', 'light', 'oled', 'night', 'hc-dark', 'hc-light'] as const;
+export const UI_SCALES = [90, 100, 115, 130, 150] as const;
+
+export const appSettings = (c: HarnessConnection) => json<RemoteSettings>(c, api(c, '/settings'));
+export const updateSettings = (c: HarnessConnection, patch: Partial<RemoteSettings>) => json<RemoteSettings>(c, api(c, '/settings'), 'PATCH', patch);
 
 export interface ModelStats {
   alias: string;

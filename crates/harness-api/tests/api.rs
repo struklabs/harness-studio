@@ -528,6 +528,7 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/browser/sessions", &["delete"]),
         ("/browser/settings", &["get", "put"]),
         ("/status", &["get"]),
+        ("/settings", &["get", "patch"]),
         ("/hardware", &["get"]),
         ("/hardware/devices", &["get"]),
         ("/gateway", &["get"]),

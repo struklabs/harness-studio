@@ -78,6 +78,7 @@ pub mod pyenv;
 pub mod rag;
 pub mod reasoning;
 pub mod recovery;
+pub mod remote_settings;
 pub mod resource_io;
 pub mod router;
 pub mod runtime;

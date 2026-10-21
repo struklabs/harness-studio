@@ -189,6 +189,17 @@
         else unlistenRuntime = fn;
       })
       .catch(() => {});
+    // Another client (the Control API, e.g. the mobile app) changed settings: reload them, so
+    // this window neither shows nor saves back its older copy.
+    let unlistenSettings: UnlistenFn | null = null;
+    listen('settings-changed', () => {
+      invoke<AppSettings>('get_app_settings').then(handleSettingsUpdated).catch(() => {});
+    })
+      .then((fn) => {
+        if (destroyed) fn();
+        else unlistenSettings = fn;
+      })
+      .catch(() => {});
 
     return () => {
       window.removeEventListener('hashchange', navigateSections);
@@ -199,6 +210,7 @@
       destroyed = true;
       removeOverlayGuard();
       unlistenRuntime?.();
+      unlistenSettings?.();
       stopApp();
       stopDomain();
       offActivity?.();
