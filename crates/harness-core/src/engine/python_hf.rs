@@ -130,7 +130,7 @@ pub fn env() -> &'static crate::pyenv::envs::EnvSpec {
     env_in(&root)
 }
 
-fn env_in(root: &Path) -> &'static crate::pyenv::envs::EnvSpec {
+pub(crate) fn env_in(root: &Path) -> &'static crate::pyenv::envs::EnvSpec {
     use crate::pyenv::envs::{status_in, ENVS, HF_CPU};
     ENVS.iter()
         .find(|s| s.gpu_build_of == Some(HF_CPU.name) && status_in(root, s).ready)
@@ -918,9 +918,13 @@ pub fn worker_script() -> Result<PathBuf, String> {
 /// The interpreter a launch runs: the environment's, when it is installed for this version;
 /// else `runtime.family_not_installed: python-hf` (the UI offers the install).
 pub fn binary() -> Result<PathBuf, String> {
-    let root = crate::pyenv::envs::root();
-    let spec = env_in(&root);
-    let status = crate::pyenv::envs::status_in(&root, spec);
+    binary_in(&crate::pyenv::envs::root())
+}
+
+/// [`binary`] for the environments under `root`.
+pub fn binary_in(root: &Path) -> Result<PathBuf, String> {
+    let spec = env_in(root);
+    let status = crate::pyenv::envs::status_in(root, spec);
     if !status.ready {
         return Err(format!(
             "{}: {}",
@@ -928,7 +932,7 @@ pub fn binary() -> Result<PathBuf, String> {
             PYTHON_HF
         ));
     }
-    Ok(crate::pyenv::envs::python_in(&root, spec.name))
+    Ok(crate::pyenv::envs::python_in(root, spec.name))
 }
 
 /// The worker script of the model at `model`, written next to its environment: the Liquid worker

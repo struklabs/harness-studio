@@ -107,6 +107,8 @@ A knowledge base is a named set of documents you can reuse in any chat.
 
 A base remembers which embedding model built its index. If you switch to another embedding model, the base is marked **Stale**; **Rebuild** re-reads and re-indexes it. Until then, searches fall back to keywords and a notice says why. Deleting a base removes its index only, never your files.
 
+**OCR Model** (under each base, **None** by default) reads PDF pages that have no text layer, such as scans. Choose an OCR-capable model from your library, make sure the gateway is on, and index the base again (**Resume** or **Rebuild**). Pages with a text layer are never sent to the model. The base shows how many pages were read with OCR. Turning pages into images needs the Python engine, as in [Read Document](#read-document); without it the document fails with a message that says so. At most 200 pages of one document are read this way (`HARNESS_KB_OCR_MAX_PAGES` changes that).
+
 ## Embedding and Rerank
 
 **Embedding** turns text into a numeric vector, used for search and similarity. Start a server with a suitable embedding model (a server whose model type is embedding starts in this mode on its own), fill in the **Texts** boxes on the **Embedding** tab, and press **Get Embeddings**. A similarity matrix needs at least two non-empty texts.
@@ -206,11 +208,15 @@ the same document. You can switch models between reading and asking: Python
 `image-to-text` models transcribe; `document-question-answering` models answer questions.
 VLMs with a projector support both operations. Transcription quality depends on the model.
 
-PDFs currently use their existing text layer, extracted page by page. Scanned or mixed
-PDFs with an empty page need page images exported by your PDF application; Harness
-does not rasterize PDFs. There is a limit of 16 pages per request. A Python DQA model
-accepts one image per question; PDF questions use a VLM. LayoutLM pipelines may require
-`pytesseract` and a separately installed Tesseract executable.
+PDF pages with a text layer are read as text. Pages without one (scans) are turned into
+images and read by the selected model, so scanned and mixed PDFs work too. Turning pages
+into images uses the Python engine (the same environment as Hugging Face models); if it is
+not installed, Read Document says so and points to **Settings > Runtime**, and nothing is
+read in a lesser way. A request reads at most 16 PDF pages, rendered at 150 dpi; the
+environment variables `HARNESS_OCR_MAX_PAGES` (1 to 1000) and `HARNESS_OCR_DPI` (72 to 300)
+change that for the app. A Python DQA model accepts one image per question; PDF questions
+use a VLM. LayoutLM pipelines may require `pytesseract` and a separately installed
+Tesseract executable.
 
 ## Video Generation and Questions
 

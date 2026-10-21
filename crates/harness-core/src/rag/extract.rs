@@ -7,7 +7,8 @@
 //!   [`child_main`], called first thing in `main` of the GUI and the CLI). A crash or a hang
 //!   (killed after [`PDF_TIMEOUT`]) only fails that document. Builds with `panic = "unwind"`
 //!   (debug, tests) extract in-process behind `catch_unwind`.
-//!   Scanned PDFs without a text layer give `rag.pdf_no_text` (there is no OCR).
+//!   Scanned PDFs without a text layer give `rag.pdf_no_text` unless the knowledge base has an
+//!   OCR model: then [`super::ocr`] rasterizes the blank pages and recognizes them.
 //! * **DOCX** — `word/document.xml` from the zip; paragraphs, tabs and breaks, headings
 //!   (`HeadingN` styles) become Markdown `#` lines so the chunker keeps them.
 //! * **Text** — UTF-8 (BOM stripped), UTF-16 with BOM, otherwise Windows-1252. Files with NUL
@@ -211,6 +212,14 @@ fn known_binary(path: &Path) -> bool {
 
 /// Reads and extracts a file (blocking; PDFs may start a child process).
 pub fn extract_file(path: &Path) -> Result<Extracted, String> {
+    let out = extract_file_raw(path)?;
+    check_extracted(path, &out)?;
+    Ok(out)
+}
+
+/// [`extract_file`] without the emptiness and length checks: a scanned PDF comes back with
+/// blank pages so its caller can recognize them (OCR) before checking.
+pub fn extract_file_raw(path: &Path) -> Result<Extracted, String> {
     let meta = std::fs::metadata(path).map_err(|e| {
         String::from(
             err("fs.read_failed")
@@ -271,6 +280,11 @@ pub fn extract_file(path: &Path) -> Result<Extracted, String> {
             }
         }
     };
+    Ok(out)
+}
+
+/// The checks of [`extract_file`]: some text, and not more than [`MAX_TEXT_CHARS`].
+pub fn check_extracted(path: &Path, out: &Extracted) -> Result<(), String> {
     let chars = out.chars();
     if chars == 0 || out.pages.iter().all(|p| p.text.trim().is_empty()) {
         return Err(if out.kind == DocKind::Pdf {
@@ -288,7 +302,7 @@ pub fn extract_file(path: &Path) -> Result<Extracted, String> {
             .num("max", MAX_TEXT_CHARS as u64)
             .into());
     }
-    Ok(out)
+    Ok(())
 }
 
 pub fn file_name(path: &Path) -> String {

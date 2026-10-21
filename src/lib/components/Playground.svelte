@@ -277,6 +277,7 @@
   });
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
   let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isExternalModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
+  let ocrAliases = $derived(definitionsForMode(domain.definitions, 'ocr', library.models).map(def => def.alias));
   let pickerModel = $derived(pgTab === 'chat' ? settings.model : pgTab === 'image' ? imageSession.model : modeModels[pgTab]);
   $effect(() => {
     void library.version;
@@ -3157,6 +3158,7 @@
           ensureConversation={(title) => ensureConversation(title)}
           embedAlias={resolveEmbedModel(settings.ragEmbedModel, ragModels?.embedding ?? [])}
           models={ragModels}
+          ocrAliases={ocrAliases}
           readOnly={!persistEnabled}
           bind:attached={attachedKbs}
           onUseEmbedder={(alias) => (settings.ragEmbedModel = alias)}
