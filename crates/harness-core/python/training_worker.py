@@ -116,7 +116,8 @@ def train(root, cfg, resume):
     args = SFTConfig(output_dir=str(root), max_steps=cfg["steps"],
                      per_device_train_batch_size=cfg.get("batch_size", 1), per_device_eval_batch_size=1,
                      gradient_accumulation_steps=cfg.get("grad_accum", 1),
-                     warmup_ratio=cfg.get("warmup_ratio", 0.0), weight_decay=cfg.get("weight_decay", 0.0),
+                     # transformers 5 dropped `warmup_ratio`; a float below 1 here is that ratio.
+                     warmup_steps=float(cfg.get("warmup_ratio", 0.0)), weight_decay=cfg.get("weight_decay", 0.0),
                      lr_scheduler_type=cfg.get("lr_scheduler", "linear"),
                      learning_rate=cfg["learning_rate"], max_length=cfg["sequence_length"],
                      logging_steps=1, eval_strategy="steps", eval_steps=cfg["eval_steps"],

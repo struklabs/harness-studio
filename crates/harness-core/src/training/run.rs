@@ -128,6 +128,15 @@ pub(super) fn read_metrics(path: &Path) -> Vec<Metric> {
 
 // --- the run -----------------------------------------------------------------------------------
 
+/// Ends a helper task with the run that spawned it.
+struct AbortOnDrop(tokio::task::JoinHandle<()>);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
 async fn until_set(flag: &AtomicBool) {
     while !flag.load(Ordering::SeqCst) {
         tokio::time::sleep(Duration::from_millis(150)).await;
@@ -194,6 +203,15 @@ async fn run(
         _ = until_set(soft) => return Err(CANCELLED.into()),
     }
     cancelled()?;
+    // A cancel from the Jobs panel goes to the scheduler ticket; treat it like the job's own.
+    let _bridge = AbortOnDrop(tokio::spawn({
+        let (mut rx, soft) = (ticket.cancellation(), soft.clone());
+        async move {
+            if rx.wait_for(|c| *c).await.is_ok() {
+                soft.store(true, Ordering::SeqCst);
+            }
+        }
+    }));
 
     let _ = std::fs::remove_file(dir.join("cancel"));
     let mut args: Vec<&std::ffi::OsStr> = vec!["--job".as_ref(), dir.as_os_str()];

@@ -228,10 +228,16 @@
     }
   }
 
+  // A preview refused for a taken name loads once the edited name is free.
+  async function nameEdited() {
+    await checkName(s.name.trim() || null);
+    if (nameCheck?.available && !preview && !previewing) await loadPreview();
+  }
+
   let nameTimer: ReturnType<typeof setTimeout> | undefined;
   function onNameInput() {
     clearTimeout(nameTimer);
-    nameTimer = setTimeout(() => void checkName(s.name.trim() || null), 300);
+    nameTimer = setTimeout(() => void nameEdited(), 300);
   }
 
   async function next() {
@@ -292,7 +298,8 @@
     const cfg = preview?.[0];
     if (!cfg) return;
     try {
-      await navigator.clipboard.writeText(recipeFromConfig(cfg));
+      // The name may have been edited after the preview was computed.
+      await navigator.clipboard.writeText(recipeFromConfig({ ...cfg, name: s.name.trim() || cfg.name }));
       copied = true;
       setTimeout(() => (copied = false), 2000);
     } catch (e) {
@@ -505,7 +512,7 @@
           <div class="flex gap-2">
             <Input id="training-name" bind:value={s.name} maxlength={80} oninput={onNameInput} aria-invalid={nameCheck !== null && !nameCheck.available} />
             {#if nameCheck && nameCheck.suggested !== s.name}
-              <Button type="button" variant="outline" onclick={() => { s.name = nameCheck?.suggested ?? s.name; void checkName(s.name); }}>{t('training.name_suggest')}</Button>
+              <Button type="button" variant="outline" onclick={() => { s.name = nameCheck?.suggested ?? s.name; void nameEdited(); }}>{t('training.name_suggest')}</Button>
             {/if}
           </div>
           {#if nameCheck && !nameCheck.available}

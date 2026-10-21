@@ -718,12 +718,15 @@
               {/if}
 
               {#if convertible && repoId}
-                <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
-                  <span class="min-w-0 flex-1 text-muted-foreground">{t('training.base_drawer_hint')}</span>
-                  <Button variant="outline" size="xs" disabled={trainingBaseBusy} onclick={() => downloadForTraining(repoId)}>
-                    <Download class="size-3.5" />{t('training.base_drawer_button')}
-                  </Button>
-                </div>
+                <!-- Training is an Advanced-level page; Simple mode does not offer its downloads. -->
+                {#if uiLevel.advanced}
+                  <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+                    <span class="min-w-0 flex-1 text-muted-foreground">{t('training.base_drawer_hint')}</span>
+                    <Button variant="outline" size="xs" disabled={trainingBaseBusy} onclick={() => downloadForTraining(repoId)}>
+                      <Download class="size-3.5" />{t('training.base_drawer_button')}
+                    </Button>
+                  </div>
+                {/if}
                 <ConvertPanel {repoId} />
               {:else if unsupportedFormat}
                 <div class="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-foreground" role="status">
