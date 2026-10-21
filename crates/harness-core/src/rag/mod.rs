@@ -158,11 +158,12 @@ impl EmbedModel {
         } else {
             models::prefixes_for(def)
         };
-        let context = def
-            .base
-            .local_path()
-            .and_then(|p| crate::gguf::read_gguf_metadata(p).ok())
-            .and_then(|m| m.context_length);
+        let context = def.base.local_path().and_then(|p| {
+            crate::gguf::read_gguf_metadata(p)
+                .ok()
+                .and_then(|m| m.context_length)
+                .or_else(|| crate::engine::mlx::retrieval_info(p).and_then(|(_, _, c)| c))
+        });
         Self {
             endpoint,
             alias: def.alias.clone(),

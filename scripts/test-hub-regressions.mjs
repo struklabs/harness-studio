@@ -6,6 +6,8 @@ import { isCompanionVariant, pickProjectorVariant, recommendFloatVariant, recomm
 import { needsPrismFork } from '../src/lib/components/hub/forkQuants.ts';
 import { engineCompatibility } from '../src/lib/components/hub/engineCompatibility.ts';
 import { localVariantFor } from '../src/lib/components/hub/variantFiles.ts';
+import { isPythonChat, pythonChatMemory } from '../src/lib/components/hub/pythonChat.ts';
+import { canConvert } from '../src/lib/components/hub/convertible.ts';
 
 test('cached engine requirements follow shared installed state after an install anywhere', () => {
   const installed = new Set();
@@ -251,4 +253,27 @@ test('every backend refusal has frontend mapping and both translations', () => {
   }
   assert.match(inference, /foreign_speech_gguf: 'hub.refusal_short_foreign_speech_gguf'/);
   assert.equal(locales.split("'hub.refusal_short_foreign_speech_gguf':").length - 1, 2);
+});
+
+test('a safetensors chat repo on the Python engine is told apart and weighed against free memory', () => {
+  const chat = { format: 'safetensors', capabilities: ['chat'], compatibility: { status: 'runnable', runtime: 'python-hf' } };
+  assert.equal(isPythonChat(chat), true);
+  assert.equal(isPythonChat({ ...chat, compatibility: { status: 'needs_runtime', runtime: 'python-hf' } }), true);
+  // Task and diffusers repos of the same engine, and mistral.rs's own, are not chat fallbacks.
+  assert.equal(isPythonChat({ ...chat, capabilities: [] }), false);
+  assert.equal(isPythonChat({ ...chat, format: 'diffusers' }), false);
+  assert.equal(isPythonChat({ ...chat, compatibility: { status: 'runnable', runtime: 'mistral.rs' } }), false);
+  assert.equal(isPythonChat({ ...chat, compatibility: { status: 'unsupported', format: 'safetensors' } }), false);
+  // 16-bit weights load as 32-bit on a CPU without native bfloat16: twice the weights plus the libraries.
+  const gib = 1024 ** 3;
+  const small = pythonChatMemory(1 * gib, 16 * gib);
+  assert.equal(small.fits, true);
+  assert.ok(small.needBytes > 2 * gib && small.needBytes < 3 * gib);
+  assert.equal(pythonChatMemory(14 * gib, 16 * gib).fits, false);
+  assert.equal(pythonChatMemory(0, 16 * gib).fits, null);
+  assert.equal(pythonChatMemory(gib, null).fits, null);
+  // The GGUF route stays offered next to the Python engine's.
+  const repo = { ...chat, pipeline_tag: 'text-generation' };
+  assert.equal(canConvert(repo), true);
+  assert.equal(canConvert({ ...repo, pipeline_tag: 'fill-mask' }), false);
 });

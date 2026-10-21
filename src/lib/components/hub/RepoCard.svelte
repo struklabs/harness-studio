@@ -17,6 +17,7 @@
   import { formatName, isPreciseRefusal, notRunnableKey, notRunnableShortKey, taskSourceKey } from './inference';
   import { taskSupportStore } from './taskSupport.svelte';
   import { engineCompatibility } from './engineCompatibility';
+  import { isPythonChat } from './pythonChat';
   import { canConvert, speechNeedsConversion } from './convertible';
   import { CircleCheck, Download, Heart, Lock, Play, Ban, Info, Repeat } from '@lucide/svelte';
 
@@ -73,6 +74,7 @@
     mlx: { label: 'hub.compat_mlx', title: 'hub.compat_mlx_title', needs: 'hub.compat_needs_mlx', needsTitle: 'hub.compat_needs_mlx_title' },
     'mlx-vlm': { label: 'hub.compat_mlx_vlm', title: 'hub.compat_mlx_vlm_title', needs: 'hub.compat_needs_mlx_vlm', needsTitle: 'hub.compat_needs_mlx_vlm_title' },
     'mlx-audio': { label: 'hub.compat_mlx_audio', title: 'hub.compat_mlx_audio_title', needs: 'hub.compat_needs_mlx_audio', needsTitle: 'hub.compat_needs_mlx_audio_title' },
+    'mlx-embed': { label: 'hub.compat_mlx_embed', title: 'hub.compat_mlx_embed_title', needs: 'hub.compat_needs_mlx_embed', needsTitle: 'hub.compat_needs_mlx_embed_title' },
     mflux: { label: 'hub.compat_mflux', title: 'hub.compat_mflux_title', needs: 'hub.compat_needs_mflux', needsTitle: 'hub.compat_needs_mflux_title' },
   };
   /** mlx-audio runs speech recognition too: its chip then says it transcribes. */
@@ -108,6 +110,7 @@
   let decision = $derived(isDecisionRepo(repo));
   let task = $derived(taskInfo(decision ? 'decision-model' : (repo.pipeline_tag ?? repo.inferred_task)));
   // A decision repo's task comes from its tag, not from an inference.
+  let videoTask = $derived((repo.pipeline_tag ?? repo.inferred_task ?? '').includes('video'));
   let inferred = $derived(!decision && !repo.pipeline_tag && !!repo.inferred_task);
   let support = $derived(taskSupportStore.support(task?.id));
   /** Family that would run the task but is not installed (e.g. stable-diffusion.cpp for images). */
@@ -120,7 +123,7 @@
   /** Runtimes that run a repo of a task whose usual family is another one (CrispASR and
    *  transcribe.cpp GGUFs, Qwen3-TTS on llama.cpp, MLX speech): their verdict stands and the
    *  task's "needs whisper.cpp / audio.cpp" hint does not apply. */
-  const OWN_RUNTIMES = ['audio.cpp', 'crispasr', 'transcribe.cpp', 'llama.cpp', 'mlx', 'mlx-vlm', 'mlx-audio', 'mflux'];
+  const OWN_RUNTIMES = ['audio.cpp', 'crispasr', 'transcribe.cpp', 'llama.cpp', 'mlx', 'mlx-vlm', 'mlx-audio', 'mlx-embed', 'mflux'];
   let compat = $derived(engineCompatibility(repo.compatibility, (family) => engineInstall.installed(family)));
   /** A safetensors chat model: not run as it is, but the drawer offers the GGUF conversion. */
   let convertible = $derived(canConvert(repo));
@@ -213,8 +216,9 @@
       </span>
     {:else if compat.status === 'runnable' && compat.runtime === 'python-hf'}
       {@const diffusers = repo.format === 'diffusers'}
-      <span class="inline-flex items-center gap-1 text-success" title={t(diffusers ? 'hub.compat_pyhf_diffusers_title' : 'hub.compat_pyhf_title')}>
-        <CircleCheck class="size-3" />{t(diffusers ? 'hub.compat_pyhf_diffusers' : 'hub.compat_pyhf')}
+      {@const chat = !diffusers && isPythonChat({ ...repo, compatibility: compat })}
+      <span class="inline-flex items-center gap-1 text-success" title={t(diffusers ? 'hub.compat_pyhf_diffusers_title' : chat ? 'hub.compat_pyhf_chat_title' : 'hub.compat_pyhf_title')}>
+        <CircleCheck class="size-3" />{t(diffusers ? 'hub.compat_pyhf_diffusers' : chat ? 'hub.compat_pyhf_chat' : 'hub.compat_pyhf')}
       </span>
     {:else if compat.status === 'needs_runtime' && compat.runtime === 'python-hf'}
       <span class="inline-flex items-center gap-1 text-info" title={t('hub.compat_needs_pyhf_title')}>
@@ -236,6 +240,9 @@
       <span class="inline-flex items-center gap-1 text-info" title={t('hub.badge_decision_title')}>
         <Info class="size-3" />{t('hub.badge_decision')}
       </span>
+    {/if}
+    {#if videoTask}
+      <span class="text-warning text-xs">{t('vid.memory')}</span>
     {/if}
     {#if repo.pickle_weights}
       <span class="inline-flex items-center gap-1 text-muted-foreground" title={t('hub.pickle_weights_title')}>
