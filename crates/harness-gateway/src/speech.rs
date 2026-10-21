@@ -529,7 +529,9 @@ fn rebuild_audio_cpp_body(
         }
         out["speed"] = serde_json::json!(speed);
     }
+    // A reference recording is the voice: no preset is chosen next to it.
     let voice = match &req.voice {
+        None | Some(serde_json::Value::Null) if req.voice_ref.is_some() => None,
         None | Some(serde_json::Value::Null) => voices.first().cloned(),
         Some(_) => Some(
             req.voice_name()
@@ -567,6 +569,14 @@ fn rebuild_audio_cpp_body(
             return Err(bad("`voice_ref` decoded size must not exceed 5 MiB."));
         }
         out["voice_ref"] = serde_json::json!({"type":"base64", "data":STANDARD.encode(decoded)});
+        if let Some(text) = req
+            .voice_ref_text
+            .as_deref()
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+        {
+            out["reference_text"] = serde_json::json!(text);
+        }
     }
     Ok(out)
 }
@@ -666,6 +676,9 @@ async fn python_speak(
         request["voice"] = req.voice.clone().unwrap_or(serde_json::Value::Null);
         if let Some(reference) = &req.voice_ref {
             request["voice_ref"] = reference.clone();
+        }
+        if let Some(text) = &req.voice_ref_text {
+            request["voice_ref_text"] = serde_json::json!(text);
         }
     }
     if is_mlx_speech(def) {
@@ -819,6 +832,32 @@ mod tests {
                 400
             );
         }
+    }
+
+    #[test]
+    fn audio_cpp_clone_skips_the_default_voice_and_forwards_the_transcript() {
+        use serde_json::json;
+        let req = serde_json::from_value(json!({"input":"Hi",
+            "voice_ref":{"type":"base64","data":"YQ=="}, "voice_ref_text":"  Hello there  "}))
+        .unwrap();
+        let out = rebuild_audio_cpp_body("pocket", &["alba".into()], &req, true).unwrap();
+        assert!(out.get("voice").is_none());
+        assert_eq!(out["reference_text"], "Hello there");
+        assert_eq!(out["voice_ref"]["data"], "YQ==");
+        // Without a transcript the field is absent; without a reference the default voice stays.
+        let req = serde_json::from_value(json!({"input":"Hi",
+            "voice_ref":{"type":"base64","data":"YQ=="}}))
+        .unwrap();
+        assert!(
+            rebuild_audio_cpp_body("pocket", &["alba".into()], &req, true)
+                .unwrap()
+                .get("reference_text")
+                .is_none()
+        );
+        let req = serde_json::from_value(json!({"input":"Hi","voice_ref_text":"x"})).unwrap();
+        let out = rebuild_audio_cpp_body("pocket", &["alba".into()], &req, true).unwrap();
+        assert_eq!(out["voice"], "alba");
+        assert!(out.get("reference_text").is_none());
     }
 
     #[test]

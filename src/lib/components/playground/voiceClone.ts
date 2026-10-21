@@ -21,6 +21,12 @@ export function canClone(models: TtsModelInfo[], name: string): boolean {
   return models.find((m) => m.name === name)?.voice_cloning === true;
 }
 
+/** The selected model runs on the experimental audio.cpp engine while that engine is turned off:
+ *  the clone section explains how to enable it, and Run waits. */
+export function engineDisabled(models: TtsModelInfo[], name: string, audioCppEnabled: boolean): boolean {
+  return models.find((m) => m.name === name)?.engine === 'audio.cpp' && !audioCppEnabled;
+}
+
 /** A clone request to the selected model must carry the sample's transcript. */
 export function cloneNeedsText(models: TtsModelInfo[], name: string): boolean {
   return models.find((m) => m.name === name)?.voice_clone_needs_text === true;

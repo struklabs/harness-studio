@@ -149,6 +149,48 @@ pub fn processing_task(family: &str) -> Option<&'static str> {
     }
 }
 
+/// Families that can speak in a voice cloned from a reference recording (the upstream README's
+/// cloning tag). The others speak in their own voices only.
+pub const CLONING_FAMILIES: &[&str] = &[
+    "breeze_tts",
+    "chatterbox",
+    "confucius4_tts",
+    "cosyvoice3",
+    "dots_tts",
+    "dramabox",
+    "fish_audio",
+    "firered_audio",
+    "fireredtts3",
+    "higgs_audio_tts",
+    "index_tts2",
+    "irodori_tts",
+    "miotts",
+    "moss_tts_local",
+    "moss_tts_nano",
+    "omnivoice",
+    "pocket_tts",
+    "qwen3_tts",
+    "voxcpm2",
+    "audio8_tts",
+    "echo_tts",
+    "f5_tts",
+    "glm_tts",
+    "kitten_tts2",
+    "mira_tts",
+    "moss_tts_v15",
+    "moss_ttsd",
+    "outetts",
+    "sopro_tts",
+    "vieneu_v3_turbo",
+    "voxcpm1",
+    "zipvoice",
+];
+
+/// Whether a model family clones a voice from a reference recording.
+pub fn supports_cloning(family: &str) -> bool {
+    CLONING_FAMILIES.contains(&family)
+}
+
 /// Speaker diarization families: `/v1/audio/process` answers them with speaker turns instead of
 /// audio, so the Playground's Process Audio panel (audio in, audio out) does not list them.
 pub fn is_diarization(family: &str) -> bool {
@@ -794,6 +836,24 @@ pub fn vram_need(config: &LaunchConfig) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn cloning_families_are_known_speech_models() {
+        assert_eq!(CLONING_FAMILIES.len(), 32);
+        for family in CLONING_FAMILIES {
+            assert!(TTS_FAMILIES.contains(family), "{family}");
+            assert!(supports_cloning(family));
+        }
+        for family in [
+            "kokoro_tts",
+            "piper_tts",
+            "supertonic",
+            "bs_roformer",
+            "unknown",
+        ] {
+            assert!(!supports_cloning(family), "{family}");
+        }
+    }
+
     #[test]
     fn espeak_dependencies_do_not_block_self_contained_speech_or_processing() {
         for family in [

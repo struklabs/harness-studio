@@ -24,7 +24,7 @@
   import { readAloud, tts } from './tts.svelte';
   import { MAX_SPEECH_CHARS } from './ttsText';
   import VoiceCloneSection from './VoiceCloneSection.svelte';
-  import { canClone, cloneBlocker, cloneNeedsText, voiceRefOf } from './voiceClone';
+  import { canClone, engineDisabled, cloneBlocker, cloneNeedsText, voiceRefOf } from './voiceClone';
 
   let text = $state('');
   let busy = $state(false);
@@ -63,15 +63,17 @@
   let cloning = $derived(canClone(tts.models, tts.model));
   let cloneTextNeeded = $derived(cloneNeedsText(tts.models, tts.model));
   let cloneStop = $derived(cloning ? cloneBlocker(cloneFile, cloneConsent, cloneTextNeeded, cloneText) : null);
+  let engineOff = $derived(engineDisabled(tts.models, tts.model, !!app.settings?.audio_cpp_enabled));
   let runBlocker = $derived(ttsRunBlocker(busy, runtimeMissing, app.gatewayRunning, tts.models.length, text));
   // A clone request needs its sample and the permission box; without a sample the model speaks in its own voice.
   let cloneActive = $derived(cloning && cloneFile !== null);
-  let canRun = $derived(runBlocker === null && (!cloneActive || cloneStop === null));
+  let canRun = $derived(runBlocker === null && !engineOff && (!cloneActive || cloneStop === null));
   let runHint = $derived(
     runBlocker === 'runtime' ? t('speak.run_need_runtime', { family: missingFamily ?? 'sherpa-onnx' })
       : runBlocker === 'gateway' ? t('speak.run_need_gateway')
       : runBlocker === 'model' ? t('speak.run_need_model')
       : runBlocker === 'text' ? t('speak.run_need_text')
+      : engineOff ? t('audio_cpp.needs_engine')
       : cloneActive && cloneStop === 'text' ? t('voice.need_text')
       : cloneActive && cloneStop === 'consent' ? t('voice.need_consent')
       : cloneActive && cloneStop === 'size' ? t('voice.need_smaller') : '',
@@ -271,7 +273,7 @@
       {/if}
     </div>
     {#if cloning}
-      <VoiceCloneSection bind:file={cloneFile} bind:consent={cloneConsent} bind:text={cloneText} needsText={cloneTextNeeded} {busy} />
+      <VoiceCloneSection bind:file={cloneFile} bind:consent={cloneConsent} bind:text={cloneText} needsText={cloneTextNeeded} {busy} {engineOff} />
     {/if}
     <div class="flex flex-col gap-1.5">
       <Label for="tts-text" class="text-sm font-semibold text-foreground">{t('speak.text_label')}</Label>
