@@ -17,6 +17,7 @@
     "mobile:check": "npm --prefix mobile run check",
     "mobile:test": "npm --prefix mobile test",
     "mobile:ios": "npm --prefix mobile run tauri -- ios",
+    "mobile:android": "npm --prefix mobile run tauri -- android",
     "tauri": "tauri",
     "test:diarization": "node --test scripts/test-diarization.mjs",
     "test:rust": "cargo test --workspace",
