@@ -126,7 +126,11 @@ fn remove_stale_clones(dir: &Path, age: std::time::Duration) {
         return;
     };
     for entry in entries.flatten() {
-        if !entry.file_name().to_string_lossy().starts_with(CLONE_PREFIX) {
+        if !entry
+            .file_name()
+            .to_string_lossy()
+            .starts_with(CLONE_PREFIX)
+        {
             continue;
         }
         let stale = entry
@@ -260,7 +264,10 @@ mod tests {
             .unwrap();
         remove_stale_clones(dir.path(), STALE_CLONE_AGE);
         assert!(!old.exists(), "an interrupted request's voice is removed");
-        assert!(fresh.exists(), "the voice of the request starting the worker stays");
+        assert!(
+            fresh.exists(),
+            "the voice of the request starting the worker stays"
+        );
         assert!(preset.exists());
     }
 

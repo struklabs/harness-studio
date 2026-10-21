@@ -22,6 +22,13 @@ export function videoQuestion(model: string, prompt: string, media: string) {
 export const VIDEO_FORMATS = ['mp4', 'webm', 'webp', 'avi'] as const;
 export type VideoFormat = (typeof VIDEO_FORMATS)[number];
 
+/** The containers a model's engine writes, as the gateway accepts them: sd.cpp video GGUFs no mp4,
+ *  Python diffusers pipelines mp4 or webm. The first one is the default. */
+export function videoFormatsFor(file?: Parameters<typeof fileVideoTask>[0]): readonly VideoFormat[] {
+  const sdcpp = file?.kind === 'image' && VIDEO_GGUF_ARCHS.includes(file.gguf?.architecture ?? '');
+  return sdcpp ? ['webm', 'webp', 'avi'] : ['mp4', 'webm'];
+}
+
 const VIDEO_MIME: Record<VideoFormat, string> = { mp4: 'video/mp4', webm: 'video/webm', webp: 'image/webp', avi: 'video/x-msvideo' };
 export function videoMime(format: string): string { return VIDEO_MIME[format as VideoFormat] ?? 'video/webm'; }
 

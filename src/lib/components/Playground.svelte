@@ -366,11 +366,12 @@
   let serveMode = $derived<ServeMode>(app.isRunning ? (app.activeServer?.serve_mode ?? 'chat') : 'chat');
   let lastServeMode: ServeMode = 'chat';
   $effect(() => {
-    // Follow the server: an embedding/rerank server opens its own tab once.
+    // Follow the server: an embedding/rerank server opens its own tab once. Only from the chat
+    // tab: a video model loaded in the Studios (sd-server, serve mode "image") stays there.
     const m = serveMode;
     if (m === lastServeMode) return;
     lastServeMode = m;
-    if (m !== 'chat') pgTab = m;
+    if (m !== 'chat' && untrack(() => pgTab) === 'chat') pgTab = m;
   });
 
   // With the gateway on, any model definition can be chatted with: the gateway loads it on the
