@@ -1856,7 +1856,7 @@ def build_app(model: Model):
         return r if isinstance(r, Response) else JSONResponse(r)
 
     async def chat(request: Request):
-        wrong = requires(*CHAT_TASKS)
+        wrong = requires(*CHAT_TASKS, "video-text-to-text")
         if wrong:
             return wrong
         try:
@@ -1865,6 +1865,11 @@ def build_app(model: Model):
             return error(400, "the body is not JSON")
         if not isinstance(body, dict):
             return error(400, "the body must be a JSON object")
+        if model.args.task == "video-text-to-text":
+            if body.get("stream"):
+                return error(400, "video chat currently requires stream: false")
+            r = await call(video_chat, model, body)
+            return r if isinstance(r, Response) else JSONResponse(r)
         if body.get("stream") is True:
             r = await call(stream_chat, model, body)
             if isinstance(r, Response):
@@ -2071,18 +2076,7 @@ def build_app(model: Model):
             job["cancel"].set()
         return JSONResponse({"status": "cancelled"})
 
-    async def chat(request: Request):
-        wrong = requires("video-text-to-text")
-        if wrong:
-            return wrong
-        body = await request.json()
-        if body.get("stream"):
-            return error(400, "video chat currently requires stream: false")
-        r = await call(video_chat, model, body)
-        return r if isinstance(r, Response) else JSONResponse(r)
-
     routes = [
-        Route("/v1/chat/completions", chat, methods=["POST"]),
         Route("/video/jobs", start_video, methods=["POST"]),
         Route("/video/jobs/{id}", poll_video),
         Route("/video/jobs/{id}/cancel", cancel_video, methods=["POST"]),
