@@ -12,6 +12,7 @@ Harness Studio brings local models, tools, and optional engines into one desktop
 - Cloud providers with your own API key, routed through the gateway.
 - A connection to your own n8n instance, where the Playground can draft, edit, and run workflows after you approve a diff.
 - Knowledge bases for local retrieval with cited sources, and Projects that group chats, files, and agent tasks.
+- A project-scoped Coding area: code generation, edits, tools, and tests with a local or remote model, a change review with diffs, command approval, and undoable checkpoints.
 - A prioritized GPU job queue with cancellation.
 - Browser admin and server mode for headless machines.
 - A first-run Setup window and an uninstall window with per-item removal.

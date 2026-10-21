@@ -762,6 +762,7 @@ pub async fn run_agent_stream(
             timeout: Some(call_timeout),
             cancel: &req.cancel,
             untrusted_corpus: &corpus,
+            hooks: None,
         };
         for c in mine {
             if req.cancel.is_cancelled() {

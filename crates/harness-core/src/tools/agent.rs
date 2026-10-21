@@ -49,6 +49,21 @@ impl Approver for DenyAll {
     }
 }
 
+/// Optional observers of a run: a pre-check that can refuse a call and progress callbacks
+/// (the Coding area shows steps live and keeps edits inside its workspace rules).
+pub trait AgentHooks: Send + Sync + std::fmt::Debug {
+    /// Called before the policy: `Err` refuses the call, the text goes back to the model.
+    fn guard(&self, _tool: &str, _args: &Value) -> Result<(), String> {
+        Ok(())
+    }
+    /// A model request starts (1-based round).
+    fn round(&self, _round: u32) {}
+    /// A call is about to run (after the guard, before approval and execution).
+    fn call_started(&self, _id: &str, _tool: &str, _args: &Value) {}
+    /// A call finished or was refused.
+    fn call_finished(&self, _call: &AgentCall) {}
+}
+
 /// One agent run.
 #[derive(Debug, Clone)]
 pub struct AgentRequest {
@@ -70,6 +85,7 @@ pub struct AgentRequest {
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
     pub cancel: CancelToken,
+    pub hooks: Option<std::sync::Arc<dyn AgentHooks>>,
 }
 
 impl AgentRequest {
@@ -92,6 +108,7 @@ impl AgentRequest {
             temperature: Some(0.0),
             max_tokens: None,
             cancel: CancelToken::new(),
+            hooks: None,
         }
     }
 }
@@ -171,6 +188,9 @@ pub async fn run_agent(
             return Ok(outcome(messages, rounds, calls, StopReason::Cancelled));
         }
         rounds += 1;
+        if let Some(h) = &req.hooks {
+            h.round(rounds);
+        }
         let mut body = json!({"model": req.model, "messages": messages, "stream": false});
         if !tool_json.is_empty() {
             body["tools"] = Value::Array(tool_json.clone());
@@ -240,6 +260,7 @@ pub async fn run_agent(
             timeout: req.call_timeout,
             cancel: &req.cancel,
             untrusted_corpus: &corpus,
+            hooks: req.hooks.as_deref(),
         };
         for (n, tc) in tool_calls.iter().enumerate() {
             let name = tc["function"]["name"].as_str().unwrap_or("").to_string();
@@ -278,6 +299,7 @@ pub(crate) struct CallContext<'a> {
     /// Tool output earlier in the conversation ([`crate::injection::tool_corpus`]): a dangerous
     /// call that repeats text from it asks the user even where the policy would run it.
     pub untrusted_corpus: &'a str,
+    pub hooks: Option<&'a dyn AgentHooks>,
 }
 
 /// The arguments text a model wrote, as the JSON object a tool takes (`{}` when empty).
@@ -309,7 +331,13 @@ impl CallContext<'_> {
     ) -> AgentCall {
         let (result, sent) = match parse_arguments(&arguments) {
             Err(e) => (None, format!("Error: invalid JSON arguments ({e}).")),
-            Ok(args) => {
+            Ok(args) => 'run: {
+                if let Some(h) = self.hooks {
+                    if let Err(why) = h.guard(&name, &args) {
+                        break 'run (None, format!("Error: {why}"));
+                    }
+                    h.call_started(&id, &name, &args);
+                }
                 // A destructive call whose arguments were copied from tool output is the
                 // shape of a prompt injection: it asks, whatever the policy says.
                 let forced;
@@ -363,14 +391,18 @@ impl CallContext<'_> {
                 (Some(r), sent)
             }
         };
-        AgentCall {
+        let call = AgentCall {
             round,
             id,
             tool: name,
             arguments,
             result,
             sent,
+        };
+        if let Some(h) = self.hooks {
+            h.call_finished(&call);
         }
+        call
     }
 }
 
