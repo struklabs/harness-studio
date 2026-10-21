@@ -125,3 +125,26 @@ fn slug_names_are_safe_folder_names() {
     assert_eq!(slug("../../x"), "x");
     assert_eq!(slug("   "), "");
 }
+
+#[test]
+fn interrupted_export_recovers_without_losing_completed_training() {
+    let root = tempfile::tempdir().unwrap();
+    let dir = root.path().join("8");
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut job = sample(8, TrainingStatus::Done);
+    job.export = Some(ExportInfo {
+        status: ExportStatus::Running,
+        dir: None,
+        gguf: None,
+        warning: None,
+        error: None,
+        adapter_only: true,
+    });
+    std::fs::write(dir.join("job.json"), serde_json::to_vec(&job).unwrap()).unwrap();
+    let loaded = load_all(root.path());
+    assert_eq!(loaded[0].job.status, TrainingStatus::Done);
+    let export = loaded[0].job.export.as_ref().unwrap();
+    assert_eq!(export.status, ExportStatus::Failed);
+    assert!(export.adapter_only);
+    assert_eq!(export.error.as_deref(), Some("training.interrupted"));
+}

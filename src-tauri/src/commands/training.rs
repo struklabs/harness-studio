@@ -78,8 +78,8 @@ pub(crate) async fn training_log(job_id: u64) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub(crate) fn training_export(job_id: u64, name: Option<String>, gguf: bool) -> Result<training::TrainingJob, String> {
-    training::export(job_id, &ExportRequest { name, gguf })
+pub(crate) fn training_export(job_id: u64, request: ExportRequest) -> Result<training::TrainingJob, String> {
+    training::export(job_id, &request)
 }
 
 /// Opens a file dialog for a training dataset (`.jsonl` / `.json`); `None` when cancelled.

@@ -1,5 +1,11 @@
 import type { TrainingJob, TrainingStatus } from '#lib/training-types.js';
 
+/** Planning estimate only: tensor mix, tokenizer and small-model overhead vary. */
+export function estimateGgufBytes(params: number, quant: import('#lib/training-types.js').TrainingQuant): number {
+  const bits = { F16: 16, Q8_0: 8.5, Q4_K_M: 4.9, Q5_K_M: 5.7 }[quant];
+  return Math.ceil(params * bits / 8 + 4 * 1024 * 1024);
+}
+
 export const STATUS_KEY = {
   draft: 'training.status_draft',
   queued: 'training.status_queued',

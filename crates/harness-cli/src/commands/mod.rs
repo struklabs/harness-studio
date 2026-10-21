@@ -15,6 +15,7 @@ pub mod runtimes;
 pub mod servers;
 pub mod tokens;
 pub mod tools;
+pub mod training;
 pub mod tts;
 
 use std::path::Path;
@@ -47,6 +48,9 @@ fn need(cmd: &Command) -> Option<Need> {
         | Convert(_)
         | Mcp(_) => return None,
         Load { .. } | Run(_) | Chat(_) | Image(_) => Need::Servers,
+        Training {
+            command: crate::cli::TrainingCommand::List | crate::cli::TrainingCommand::Status { .. },
+        } => Need::Library,
         Launch(a) if a.dry_run => Need::Library,
         Launch(_) => Need::Servers,
         Profile {
@@ -58,6 +62,7 @@ fn need(cmd: &Command) -> Option<Need> {
         | Shutdown
         | Retry { .. }
         | Lora { .. }
+        | Training { .. }
         | Router { .. } => Need::Existing,
         // The summary is requested through a running instance's gateway.
         Conversations {
@@ -124,6 +129,7 @@ pub fn completion(shell: clap_complete::Shell) {
 async fn run_with(session: &Session, command: Command, out: &Out) -> CliResult<()> {
     let client = &session.client;
     match command {
+        Command::Training { command } => training::run(client, &command, out).await,
         Command::Ls => models::ls(client, out).await,
         Command::Show { model } => models::show(client, &model, out).await,
         Command::Pull {
@@ -472,6 +478,25 @@ mod tests {
     use super::*;
     use clap::Parser;
     use harness_core::instance::{InstanceKind, InstanceLock};
+
+    #[test]
+    fn training_workers_require_a_persistent_owner_but_reads_can_run_offline() {
+        for args in [vec!["list"], vec!["status", "1"]] {
+            let argv: Vec<_> = ["harness", "training"].into_iter().chain(args).collect();
+            let cli = Cli::try_parse_from(argv).unwrap();
+            assert!(matches!(need(&cli.command), Some(Need::Library)));
+        }
+        for args in [
+            vec!["start", "spec.json"],
+            vec!["resume", "1"],
+            vec!["cancel", "1"],
+            vec!["export", "1"],
+        ] {
+            let argv: Vec<_> = ["harness", "training"].into_iter().chain(args).collect();
+            let cli = Cli::try_parse_from(argv).unwrap();
+            assert!(matches!(need(&cli.command), Some(Need::Existing)));
+        }
+    }
 
     #[tokio::test]
     async fn automatic_commands_refuse_a_gui_owner_without_api_without_writing() {

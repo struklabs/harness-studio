@@ -503,18 +503,14 @@ fn release_tags_are_the_only_thing_that_reaches_a_url() {
 fn converter_files_are_filtered_out_of_the_source_archive() {
     for yes in [
         "convert_hf_to_gguf.py",
+        "convert_lora_to_gguf.py",
         "conversion/llama.py",
         "gguf-py/gguf/constants.py",
         "requirements/requirements-convert_hf_to_gguf.txt",
     ] {
         assert!(env::is_converter_path(yes), "{yes}");
     }
-    for no in [
-        "src/llama.cpp",
-        "convert_lora_to_gguf.py",
-        "ggml/src/ggml.c",
-        "conversion",
-    ] {
+    for no in ["src/llama.cpp", "ggml/src/ggml.c", "conversion"] {
         assert!(!env::is_converter_path(no), "{no}");
     }
 
@@ -529,6 +525,7 @@ fn converter_files_are_filtered_out_of_the_source_archive() {
         let mut tar = tar::Builder::new(gz);
         for (path, body) in [
             ("llama.cpp-b1/convert_hf_to_gguf.py", "print('convert')"),
+            ("llama.cpp-b1/convert_lora_to_gguf.py", "print('adapter')"),
             ("llama.cpp-b1/conversion/__init__.py", ""),
             ("llama.cpp-b1/conversion/llama.py", "# llama"),
             (
@@ -550,6 +547,7 @@ fn converter_files_are_filtered_out_of_the_source_archive() {
     let out = dir.path().join("out");
     env::extract_converter(&archive, &out).unwrap();
     assert!(out.join("convert_hf_to_gguf.py").is_file());
+    assert!(out.join("convert_lora_to_gguf.py").is_file());
     assert!(out.join("conversion/llama.py").is_file());
     assert!(out.join("gguf-py/gguf/__init__.py").is_file());
     assert!(!out.join("src").exists() && !out.join("models").exists());

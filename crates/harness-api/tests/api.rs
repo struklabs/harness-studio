@@ -818,6 +818,26 @@ fn sdk_openapi_snapshot_is_current() {
     );
 }
 
+#[test]
+fn training_export_schema_exposes_quantization_and_adapter_mode() {
+    let doc: serde_json::Value =
+        serde_json::from_str(&harness_api::openapi_document().to_json().unwrap()).unwrap();
+    let schemas = &doc["components"]["schemas"];
+    assert_eq!(
+        schemas["TrainingQuant"]["enum"],
+        json!(["F16", "Q8_0", "Q4_K_M", "Q5_K_M"])
+    );
+    let properties = &schemas["ExportRequest"]["properties"];
+    assert_eq!(
+        properties["quant"]["$ref"],
+        "#/components/schemas/TrainingQuant"
+    );
+    assert_eq!(properties["adapter_only"]["type"], "boolean");
+    assert!(
+        doc["paths"]["/api/harness/v1/training/{id}/export"]["post"]["requestBody"].is_object()
+    );
+}
+
 /// The analytics routes answer from the real (possibly empty) `analytics.db` with the read
 /// scope; `/metrics` is the Prometheus text format.
 #[tokio::test]

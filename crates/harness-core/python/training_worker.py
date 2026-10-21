@@ -6,6 +6,7 @@ include optimizer/RNG state; an interrupted checkpoint is never selected for res
 import argparse
 import json
 import os
+import shutil
 from pathlib import Path
 
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
@@ -131,10 +132,33 @@ def train(root, cfg, resume):
         tokenizer.save_pretrained(str(root / "adapter"))
 
 
+def export_tokenizer(base, output):
+    """Preserve the base tokenizer's format for the runtime-matched converter.
+
+    Re-saving with training's newer transformers can produce tokenizer config fields
+    that the converter's transformers cannot read (e.g. extra_special_tokens as a list).
+    The tokenizer is not trained, so its original assets are authoritative.
+    """
+    base, output = Path(base), Path(output)
+    output.mkdir(parents=True, exist_ok=True)
+    names = {"tokenizer.json", "tokenizer_config.json", "special_tokens_map.json",
+             "added_tokens.json", "vocab.json", "vocab.txt", "merges.txt",
+             "chat_template.jinja"}
+    for source in base.iterdir():
+        if source.is_file() and (source.name in names or source.suffix in {".model", ".tiktoken"}):
+            shutil.copyfile(source, output / source.name)
+    templates = base / "chat_templates"
+    if templates.is_dir():
+        for source in templates.iterdir():
+            if source.is_file() and source.suffix == ".jinja":
+                (output / "chat_templates").mkdir(exist_ok=True)
+                shutil.copyfile(source, output / "chat_templates" / source.name)
+
+
 def export(root, cfg, output):
     import torch
     from peft import PeftModel
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoModelForCausalLM
     model = AutoModelForCausalLM.from_pretrained(cfg["model"], local_files_only=True,
                                                 trust_remote_code=False, dtype=torch.float32)
     # A finished job has an adapter; a cancelled or failed one exports its last checkpoint.
@@ -146,8 +170,7 @@ def export(root, cfg, output):
         source = Path(checkpoint)
     model = PeftModel.from_pretrained(model, str(source), local_files_only=True)
     model.merge_and_unload().save_pretrained(output, safe_serialization=True)
-    AutoTokenizer.from_pretrained(cfg["model"], local_files_only=True,
-                                 trust_remote_code=False).save_pretrained(output)
+    export_tokenizer(cfg["model"], output)
 
 
 def main():
