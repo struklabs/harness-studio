@@ -272,6 +272,7 @@ pub fn lock_digest(spec: &EnvSpec) -> String {
 /// What Settings shows for one env.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = PyEnvStatus))]
 pub struct EnvStatus {
     pub name: String,
     /// This platform can build it (uv has a build for it, the OS is new enough).

@@ -83,6 +83,10 @@ pub fn locale_template(key: &str) -> Option<&'static str> {
             .chain(english_entries(include_str!(
                 "../../../src/lib/locales/browser.ts"
             )))
+            // Training errors (`training.*`) live with the Training page's translations.
+            .chain(english_entries(include_str!(
+                "../../../src/lib/locales/training.ts"
+            )))
             // Trust level and grant errors (`permissions.*`) live with the Permissions page.
             .chain(english_entries(include_str!(
                 "../../../src/lib/locales/permissions.ts"

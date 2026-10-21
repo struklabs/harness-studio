@@ -169,6 +169,7 @@ pub struct Probe {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+#[cfg_attr(feature = "openapi", schema(as = TrainingSupport))]
 pub enum Support {
     Supported,
     /// Works with a stated limit, or not verified on this machine yet.

@@ -11281,7 +11281,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EnvStatus"
+                  "$ref": "#/components/schemas/PyEnvStatus"
                 }
               }
             }
@@ -11320,7 +11320,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EnvStatus"
+                  "$ref": "#/components/schemas/PyEnvStatus"
                 }
               }
             }
@@ -14667,7 +14667,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/Method"
+                "$ref": "#/components/schemas/TrainingMethod"
               }
             ]
           },
@@ -14677,7 +14677,7 @@
                 "type": "null"
               },
               {
-                "$ref": "#/components/schemas/Device"
+                "$ref": "#/components/schemas/TrainingDevice"
               }
             ]
           },
@@ -15096,12 +15096,42 @@
         "additionalProperties": false
       },
       "Device": {
-        "type": "string",
-        "enum": [
-          "cpu",
-          "cuda",
-          "mps"
-        ]
+        "type": "object",
+        "description": "A backend device from `--list-devices`.",
+        "required": [
+          "id",
+          "backend",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "`Vulkan0`, `CUDA1`, ..."
+          },
+          "backend": {
+            "type": "string",
+            "description": "`Vulkan`, `CUDA`, `ROCm`, `Metal`, `SYCL`, ..."
+          },
+          "name": {
+            "type": "string"
+          },
+          "total_mib": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          },
+          "free_mib": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0
+          }
+        }
       },
       "DeviceReport": {
         "type": "object",
@@ -15903,39 +15933,34 @@
       },
       "EnvStatus": {
         "type": "object",
-        "description": "What Settings shows for one env.",
+        "description": "What Settings shows.",
         "required": [
-          "name",
           "supported",
           "installed",
           "ready",
           "size_bytes",
           "dir",
-          "estimated_size_bytes",
-          "preferred"
+          "estimated_size_bytes"
         ],
         "properties": {
-          "name": {
-            "type": "string"
-          },
           "supported": {
             "type": "boolean",
-            "description": "This platform can build it (uv has a build for it, the OS is new enough)."
+            "description": "This platform can build the environment (uv has a build for it)."
           },
-          "refusal": {
+          "installed": {
+            "type": "boolean",
+            "description": "A complete environment exists (it may be for another llama.cpp tag)."
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "It matches the managed runtime's tag, so a conversion can start at once."
+          },
+          "runtime_tag": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Why it can't (an error key with its values), when it can't."
-          },
-          "installed": {
-            "type": "boolean",
-            "description": "A complete environment exists (it may be from an older lock)."
-          },
-          "ready": {
-            "type": "boolean",
-            "description": "It matches this version's lock, so the engine can start at once."
+            "description": "Tag of the managed llama.cpp runtime (`None` when it is not installed)."
           },
           "manifest": {
             "oneOf": [
@@ -15958,6 +15983,7 @@
           "estimated_size_bytes": {
             "type": "integer",
             "format": "int64",
+            "description": "Rough size a first build adds.",
             "minimum": 0
           },
           "progress": {
@@ -15970,17 +15996,6 @@
                 "description": "Progress of the build running now."
               }
             ]
-          },
-          "gpu_build_of": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The CPU env this is a GPU build of ([`EnvSpec::gpu_build_of`])."
-          },
-          "preferred": {
-            "type": "boolean",
-            "description": "The one of a CPU / GPU pair to install on this machine ([`preferred`])."
           }
         }
       },
@@ -20003,13 +20018,6 @@
           "meta": {}
         }
       },
-      "Method": {
-        "type": "string",
-        "enum": [
-          "lora",
-          "qlora"
-        ]
-      },
       "MethodSupport": {
         "type": "object",
         "required": [
@@ -20024,7 +20032,7 @@
             "description": "`lora`, `qlora`, `sft`, `dpo`, `full`."
           },
           "support": {
-            "$ref": "#/components/schemas/Support"
+            "$ref": "#/components/schemas/TrainingSupport"
           },
           "reason": {
             "type": "string",
@@ -22022,6 +22030,89 @@
               "minimum": 0
             },
             "description": "Download jobs of the companion files a known image model needs (VAE, text encoders);\nempty for every other model."
+          }
+        }
+      },
+      "PyEnvStatus": {
+        "type": "object",
+        "description": "What Settings shows for one env.",
+        "required": [
+          "name",
+          "supported",
+          "installed",
+          "ready",
+          "size_bytes",
+          "dir",
+          "estimated_size_bytes",
+          "preferred"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "supported": {
+            "type": "boolean",
+            "description": "This platform can build it (uv has a build for it, the OS is new enough)."
+          },
+          "refusal": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it can't (an error key with its values), when it can't."
+          },
+          "installed": {
+            "type": "boolean",
+            "description": "A complete environment exists (it may be from an older lock)."
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "It matches this version's lock, so the engine can start at once."
+          },
+          "manifest": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Manifest"
+              }
+            ]
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "dir": {
+            "type": "string"
+          },
+          "estimated_size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "progress": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/EnvProgress",
+                "description": "Progress of the build running now."
+              }
+            ]
+          },
+          "gpu_build_of": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The CPU env this is a GPU build of ([`EnvSpec::gpu_build_of`])."
+          },
+          "preferred": {
+            "type": "boolean",
+            "description": "The one of a CPU / GPU pair to install on this machine ([`preferred`])."
           }
         }
       },
@@ -25431,8 +25522,8 @@
         "type": "string",
         "enum": [
           "supported",
-          "limited",
-          "unsupported"
+          "unsupported",
+          "unknown"
         ]
       },
       "SystemHardwareInfo": {
@@ -26502,10 +26593,10 @@
             "description": "The dataset file the job was created from (the job trains on its snapshot)."
           },
           "method": {
-            "$ref": "#/components/schemas/Method"
+            "$ref": "#/components/schemas/TrainingMethod"
           },
           "device": {
-            "$ref": "#/components/schemas/Device"
+            "$ref": "#/components/schemas/TrainingDevice"
           },
           "steps": {
             "type": "integer",
@@ -26541,6 +26632,14 @@
             "minimum": 0
           }
         }
+      },
+      "TrainingDevice": {
+        "type": "string",
+        "enum": [
+          "cpu",
+          "cuda",
+          "mps"
+        ]
       },
       "TrainingJob": {
         "type": "object",
@@ -26663,6 +26762,13 @@
           }
         }
       },
+      "TrainingMethod": {
+        "type": "string",
+        "enum": [
+          "lora",
+          "qlora"
+        ]
+      },
       "TrainingPreview": {
         "type": "object",
         "description": "What the wizard shows before a job is created: the full configuration (defaults filled in),\nthe dataset report (format, split, size, licence) and the memory and time estimate.",
@@ -26692,6 +26798,14 @@
           "done",
           "failed",
           "cancelled"
+        ]
+      },
+      "TrainingSupport": {
+        "type": "string",
+        "enum": [
+          "supported",
+          "limited",
+          "unsupported"
         ]
       },
       "TriggerN8nRequest": {
