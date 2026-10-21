@@ -61,6 +61,11 @@
           {#if job.load_ms !== null}<span>{t('mobile.where.load', { ms: job.load_ms })}</span>{/if}
           <span>{job.memory_bytes === null ? t('jobs.unknown') : bytes(job.memory_bytes)}</span>
         </div>
+        {#if job.status === 'queued' && job.wait}
+          <p class="mt-1 text-xs text-muted-foreground" data-testid="job-wait">
+            {t(`jobs.wait_${job.wait.reason}` as TKey, { need: job.memory_bytes === null ? t('jobs.unknown') : bytes(job.memory_bytes), free: bytes(job.wait.free_bytes), capacity: bytes(job.wait.capacity_bytes) })}
+          </p>
+        {/if}
       </div>
     {/each}
   {/if}

@@ -90,7 +90,7 @@ pub fn model_shape(dir: &Path) -> Result<ModelShape, String> {
 /// Free memory of the device the job trains on.
 pub fn available_bytes(device: Device) -> u64 {
     match device {
-        Device::Cuda => crate::jobs::available_memory().0,
+        Device::Cuda => crate::jobs::available_memory().free,
         Device::Cpu | Device::Mps => crate::hardware::detect_hardware().available_ram_bytes,
     }
 }

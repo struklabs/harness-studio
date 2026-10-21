@@ -9,6 +9,7 @@
   import { Input } from '#lib/components/ui/input/index.js';
   import { Label } from '#lib/components/ui/label/index.js';
   import { Textarea } from '#lib/components/ui/textarea/index.js';
+  import JobWaitNote from '../JobWaitNote.svelte';
   let { model, task, frames = $bindable(9), size = $bindable('256x256') }: { model: string; task?: string; frames?: number; size?: string } = $props();
   let understanding = $derived(task === 'video-text-to-text');
   let prompt = $state('');
@@ -97,6 +98,7 @@
       <Button variant="outline" onclick={cancel}>{t('vid.cancel')}</Button>
       <progress max="100" value={progress} aria-label={t('vid.progress')}></progress>
       <span class="text-xs text-muted-foreground">{t('vid.progress_line', { percent: progress, stage: t(stage === 'in_progress' ? 'vid.stage_running' : 'vid.stage_queued'), seconds: elapsed })}</span>
+      <JobWaitNote {model} />
     </div>
   {/if}
   {#if error}<p role="alert" class="text-destructive">{error}</p>{/if}

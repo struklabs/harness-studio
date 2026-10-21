@@ -110,6 +110,8 @@ export interface Job {
   memory_bytes: number | null;
   queue_wait_ms: number;
   load_ms: number | null;
+  /** Why it is still queued (absent on older servers and once it started). */
+  wait?: { reason: 'queue' | 'memory' | 'alone'; free_bytes: number; capacity_bytes: number } | null;
 }
 
 export const jobs = (c: HarnessConnection) => json<Job[]>(c, api(c, '/jobs'));
