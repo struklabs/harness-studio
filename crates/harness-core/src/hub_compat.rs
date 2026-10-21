@@ -1256,7 +1256,8 @@ mod tests {
                     Some("diffusers"),
                     Some(task),
                     &[],
-                    &files
+                    &files,
+                    None
                 ),
                 runnable
             );
@@ -1266,7 +1267,8 @@ mod tests {
                     Some("diffusers"),
                     Some(task),
                     &s(&["custom_code"]),
-                    &files
+                    &files,
+                    None
                 ),
                 None
             );
@@ -1278,7 +1280,8 @@ mod tests {
                 Some("transformers"),
                 Some("video-text-to-text"),
                 &[],
-                &files
+                &files,
+                None
             ),
             runnable
         );
@@ -1288,7 +1291,8 @@ mod tests {
                 Some("transformers"),
                 Some("video-text-to-text"),
                 &[],
-                &files
+                &files,
+                None
             ),
             None
         );
