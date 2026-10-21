@@ -34,6 +34,17 @@ pub async fn health(State(s): State<AppState>) -> Json<Health> {
     })
 }
 
+/// The contract versions this build speaks and its optional features (public, like
+/// `/health`): API major version, supported module manifest versions, feature flags.
+#[utoipa::path(get, operation_id = "get_capabilities", path = "/capabilities", tag = "system",
+    security(()),
+    responses((status = 200, body = harness_core::control_api::Capabilities)))]
+pub async fn capabilities(
+    State(s): State<AppState>,
+) -> Json<harness_core::control_api::Capabilities> {
+    Json(harness_core::control_api::capabilities(&s.ctx.version))
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct InstanceSummary {
     pub kind: InstanceKind,

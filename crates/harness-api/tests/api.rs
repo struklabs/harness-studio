@@ -13,6 +13,43 @@ fn assert_error(body: &serde_json::Value, code: &str) {
     assert!(body["error"]["params"].is_object(), "{body}");
 }
 
+/// The contract version is on every response (also errors and refused requests), and
+/// `/capabilities` is public and says which versions and features this build has.
+#[tokio::test]
+async fn api_version_header_and_capabilities() {
+    let api = start().await;
+    let want = harness_core::control_api::API_VERSION.to_string();
+    let header = harness_core::control_api::API_VERSION_HEADER;
+    for path in ["/health", "/status", "/no-such-route"] {
+        let resp = api.http.get(api.url(path)).send().await.unwrap();
+        assert_eq!(resp.headers()[header], want.as_str(), "{path}");
+    }
+    let resp = api
+        .http
+        .get(api.url("/health"))
+        .header("origin", "https://evil.example")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 403);
+    assert_eq!(resp.headers()[header], want.as_str());
+
+    let resp = api.http.get(api.url("/capabilities")).send().await.unwrap();
+    assert_eq!(resp.headers()[header], want.as_str());
+    let (status, body) = json(resp).await;
+    assert_eq!(status, 200);
+    assert_eq!(body["api_version"], 1);
+    assert_eq!(body["min_api_version"], 1);
+    assert_eq!(body["max_api_version"], 1);
+    assert_eq!(body["module_manifest_versions"], serde_json::json!([1]));
+    assert_eq!(body["features"]["control_api"], true);
+    assert_eq!(body["features"]["training_backend"], false);
+
+    let doc = harness_api::openapi_document().to_json().unwrap();
+    let doc: serde_json::Value = serde_json::from_str(&doc).unwrap();
+    assert_eq!(doc["info"]["x-harness-api-version"], 1);
+}
+
 #[tokio::test]
 async fn health_is_public_everything_else_needs_a_token() {
     let api = start().await;
@@ -484,6 +521,7 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/browser/logs", &["get"]),
         ("/browser/update", &["get", "post"]),
         ("/health", &["get"]),
+        ("/capabilities", &["get"]),
         ("/browser/session", &["get"]),
         ("/browser/login", &["post"]),
         ("/browser/logout", &["post"]),

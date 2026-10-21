@@ -508,6 +508,7 @@ fn cors(origins: &[String]) -> CorsLayer {
         HeaderName::from_static("x-harness-queue-ms"),
         HeaderName::from_static("x-harness-load-ms"),
         HeaderName::from_static("x-harness-compat"),
+        HeaderName::from_static(harness_core::control_api::API_VERSION_HEADER),
         HeaderName::from_static("x-harness-error"),
         // Speech: what the Playground's Speech panel reads.
         HeaderName::from_static("x-harness-voice"),
@@ -622,6 +623,14 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
     Router::new()
         .merge(ollama::routes())
         .route("/health", get(health))
+        .route(
+            "/v1/harness/capabilities",
+            get(|| async {
+                axum::Json(harness_core::control_api::capabilities(env!(
+                    "CARGO_PKG_VERSION"
+                )))
+            }),
+        )
         .route(
             "/v1/harness/whoami",
             get(|State(s): State<GwState>, h: HeaderMap| async move {
@@ -851,6 +860,16 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
         // preflight itself), the body, a worker or a model load. One layer covers both the
         // gateway port and the Ollama-compatible port (both are built by this function).
         .layer(axum::middleware::from_fn_with_state(allowed, origin_guard))
+        // Every gateway response (Ollama-compatible port included) names the contract version.
+        .layer(axum::middleware::map_response(
+            |mut res: axum::response::Response| async move {
+                res.headers_mut().insert(
+                    HeaderName::from_static(harness_core::control_api::API_VERSION_HEADER),
+                    HeaderValue::from(harness_core::control_api::API_VERSION),
+                );
+                res
+            },
+        ))
         .with_state(state)
 }
 

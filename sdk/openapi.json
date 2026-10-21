@@ -9,7 +9,8 @@
     "license": {
       "name": "MIT"
     },
-    "version": "0.1.2"
+    "version": "0.1.2",
+    "x-harness-api-version": 1
   },
   "paths": {
     "/api/harness/v1/analytics/queue-hints": {
@@ -1566,6 +1567,30 @@
             }
           }
         }
+      }
+    },
+    "/api/harness/v1/capabilities": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "The contract versions this build speaks and its optional features (public, like\n`/health`): API major version, supported module manifest versions, feature flags.",
+        "operationId": "get_capabilities",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
       }
     },
     "/api/harness/v1/cloud/models": {
@@ -12199,6 +12224,60 @@
           "cancelled": {
             "type": "boolean",
             "description": "`false` when no compaction was running."
+          }
+        }
+      },
+      "Capabilities": {
+        "type": "object",
+        "description": "What `GET /capabilities` (Control API) and `GET /v1/harness/capabilities` (gateway) answer:\nthe contract versions this build speaks, so SDKs and module developers can check\ncompatibility before they rely on anything else.",
+        "required": [
+          "api_version",
+          "min_api_version",
+          "max_api_version",
+          "app_version",
+          "module_manifest_versions",
+          "features"
+        ],
+        "properties": {
+          "api_version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Major version of the contract (`1` = `/api/harness/v1` and the gateway's `/v1`).",
+            "minimum": 0
+          },
+          "min_api_version": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Oldest and newest major versions this build serves (equal until a v2 exists).",
+            "minimum": 0
+          },
+          "max_api_version": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "app_version": {
+            "type": "string",
+            "description": "Version of the program that answers."
+          },
+          "module_manifest_versions": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 0
+            },
+            "description": "Module manifest schema versions this build accepts at install time."
+          },
+          "features": {
+            "type": "object",
+            "description": "Optional features of this build; a client checks the flag instead of the app version.",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           }
         }
       },

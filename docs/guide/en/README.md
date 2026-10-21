@@ -21,6 +21,7 @@ Names in **bold** are labels you will see in the app. Model Hub and engine downl
 9. [CLI, Control API, and MCP](09-cli-api-mcp.md)
 10. [Troubleshooting and FAQ](10-troubleshooting.md)
 11. [Setup Scenarios: First Model, First Agent, Remote Server](11-setup-scenarios.md)
+12. [API Stability and Versioning](12-api-stability.md)
 
 For public skills and MCP repositories, see [GitHub Discovery](github-discovery.md).
 

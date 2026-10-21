@@ -74,6 +74,16 @@ struct BearerAuth;
 
 impl Modify for BearerAuth {
     fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        // The contract's major version (`/v1`), which `sdk/check-breaking.mjs` reads: a
+        // breaking change to the frozen contract is only allowed together with a new major.
+        openapi.info.extensions = Some(
+            utoipa::openapi::extensions::ExtensionsBuilder::new()
+                .add(
+                    "x-harness-api-version",
+                    harness_core::control_api::API_VERSION,
+                )
+                .build(),
+        );
         let components = openapi.components.get_or_insert_with(Default::default);
         components.add_security_scheme(
             "bearer",
@@ -126,6 +136,7 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(modules::export_module))
         .routes(routes!(modules::import_module))
         .routes(routes!(system::health))
+        .routes(routes!(system::capabilities))
         .routes(routes!(system::status))
         .routes(routes!(system::hardware))
         .routes(routes!(system::hardware_devices))
@@ -403,7 +414,10 @@ pub fn router(state: AppState, cors_origins: &[String]) -> Router {
                     Method::PATCH,
                     Method::DELETE,
                 ])
-                .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
+                .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+                .expose_headers([header::HeaderName::from_static(
+                    harness_core::control_api::API_VERSION_HEADER,
+                )]),
         )
     };
     // Outermost, on every request including preflights: a foreign browser origin gets 403
@@ -418,6 +432,18 @@ pub fn router(state: AppState, cors_origins: &[String]) -> Router {
             (allowed, state),
             origin_guard,
         ))
+        // Outermost: every response (errors, 404s and refused origins included) names the
+        // contract version.
+        .layer(axum::middleware::map_response(api_version_header))
+}
+
+/// Adds `X-Harness-API-Version` to a response.
+async fn api_version_header(mut res: axum::response::Response) -> axum::response::Response {
+    res.headers_mut().insert(
+        header::HeaderName::from_static(harness_core::control_api::API_VERSION_HEADER),
+        HeaderValue::from(harness_core::control_api::API_VERSION),
+    );
+    res
 }
 
 /// `403 api.forbidden_origin` unless the request has no `Origin` or comes from the Harness

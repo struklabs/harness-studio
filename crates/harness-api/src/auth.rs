@@ -36,7 +36,7 @@ impl Caller {
 /// `None` = public.
 pub fn required_scope(method: &Method, route: &str, loopback: bool) -> Option<Scope> {
     match route {
-        "/health" => return None,
+        "/health" | "/capabilities" => return None,
         "/browser/login" | "/browser/session" => return None,
         "/openapi.json" if loopback => return None,
         // Any valid token may speak MCP; each tool checks its own scope.

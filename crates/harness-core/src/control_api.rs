@@ -21,6 +21,11 @@ pub const DEFAULT_HOST: &str = "127.0.0.1";
 pub const DEFAULT_PORT: u16 = 11500;
 /// Base path of every endpoint.
 pub const BASE_PATH: &str = "/api/harness/v1";
+/// Major version of the Control API and gateway contract (`/v1`). It only changes together
+/// with the base path; the stability policy is in `docs/guide/en/12-api-stability.md`.
+pub const API_VERSION: u32 = 1;
+/// Response header carrying [`API_VERSION`] on every Control API and gateway response.
+pub const API_VERSION_HEADER: &str = "x-harness-api-version";
 /// Session token file inside the data directory.
 pub const SESSION_TOKEN_FILE: &str = "api-token";
 
@@ -546,9 +551,69 @@ impl TokenStore {
     }
 }
 
+/// What `GET /capabilities` (Control API) and `GET /v1/harness/capabilities` (gateway) answer:
+/// the contract versions this build speaks, so SDKs and module developers can check
+/// compatibility before they rely on anything else.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct Capabilities {
+    /// Major version of the contract (`1` = `/api/harness/v1` and the gateway's `/v1`).
+    pub api_version: u32,
+    /// Oldest and newest major versions this build serves (equal until a v2 exists).
+    pub min_api_version: u32,
+    pub max_api_version: u32,
+    /// Version of the program that answers.
+    pub app_version: String,
+    /// Module manifest schema versions this build accepts at install time.
+    pub module_manifest_versions: Vec<u32>,
+    /// Optional features of this build; a client checks the flag instead of the app version.
+    pub features: std::collections::BTreeMap<String, bool>,
+}
+
+/// The capabilities of this build. `features` lists what exists; a missing or `false` flag
+/// means the client must not rely on it.
+pub fn capabilities(app_version: &str) -> Capabilities {
+    let features = [
+        ("control_api", true),
+        ("gateway", true),
+        ("mcp", true),
+        ("modules", true),
+        ("registry_install", true),
+        // No training backend ships yet; the dogfood job skips its fine-tune smoke test.
+        ("training_backend", false),
+    ]
+    .into_iter()
+    .map(|(k, v)| (k.to_string(), v))
+    .collect();
+    Capabilities {
+        api_version: API_VERSION,
+        min_api_version: API_VERSION,
+        max_api_version: API_VERSION,
+        app_version: app_version.to_string(),
+        module_manifest_versions: (crate::modules::MANIFEST_VERSION_MIN
+            ..=crate::modules::MANIFEST_VERSION_MAX)
+            .collect(),
+        features,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn capabilities_describe_the_v1_contract() {
+        let c = capabilities("1.2.3");
+        assert_eq!(
+            (c.api_version, c.min_api_version, c.max_api_version),
+            (1, 1, 1)
+        );
+        assert_eq!(c.app_version, "1.2.3");
+        assert_eq!(c.module_manifest_versions, vec![1]);
+        assert!(c.features["control_api"]);
+        assert!(!c.features["training_backend"]);
+        assert!(BASE_PATH.ends_with(&format!("/v{API_VERSION}")));
+    }
 
     #[test]
     fn settings_validation() {
