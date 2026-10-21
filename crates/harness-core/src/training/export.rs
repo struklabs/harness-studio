@@ -1,5 +1,5 @@
 //! Training exports use the converter matched to the managed llama.cpp runtime.
-use super::{run, TrainingStatus};
+use super::{run, Device, TrainingStatus};
 use crate::error_key::err;
 use crate::pyenv::proc;
 use serde::{Deserialize, Serialize};
@@ -86,8 +86,7 @@ pub fn export(id: u64, req: &ExportRequest) -> Result<super::TrainingJob, String
     }
     let dir = super::job_dir(id);
     if job.status == TrainingStatus::Draft
-        || (!dir.join("adapter/adapter_model.safetensors").is_file()
-            && run::latest_checkpoint(&dir).is_none())
+        || (!run::has_adapter(&dir.join("adapter")) && run::latest_checkpoint(&dir).is_none())
     {
         return Err(err("training.nothing_to_export").with("id", id).into());
     }
@@ -178,7 +177,7 @@ async fn do_export(
         .map_err(|e| e.to_string())?;
     let partial = staging.path().join("model");
     if adapter_only {
-        let source = if job_dir.join("adapter/adapter_model.safetensors").is_file() {
+        let source = if run::has_adapter(&job_dir.join("adapter")) {
             job_dir.join("adapter")
         } else {
             job_dir.join(format!(
@@ -190,20 +189,24 @@ async fn do_export(
         };
         copy_adapter(&source, &partial)?;
     } else {
-        let cmd = run::worker_command(
-            &[
-                "--job".as_ref(),
-                job_dir.as_os_str(),
-                "--export".as_ref(),
-                partial.as_os_str(),
-            ],
-            &job_dir,
-        )?;
+        let mut args: Vec<&std::ffi::OsStr> = vec![
+            "--job".as_ref(),
+            job_dir.as_os_str(),
+            "--export".as_ref(),
+            partial.as_os_str(),
+        ];
+        // MLX keeps a quantized base quantized in the merged folder (what its engine loads);
+        // the GGUF converter reads full-precision weights.
+        if gguf && job.config.device == Device::Mlx {
+            args.push("--dequantize".as_ref());
+        }
+        let cmd = run::worker_command(job.config.device, &args, &job_dir)?;
         run_export_command(cmd, &partial.join("config.json"), "training.worker_failed").await?;
     }
     let meta = serde_json::json!({ "name": label, "base_model": job.config.model, "method": job.config.method,
         "steps": job.step, "learning_rate": job.config.learning_rate, "rank": job.config.rank,
         "dataset_license": job.dataset_report.license, "dataset_rows": job.dataset_report.rows,
+        "device": job.config.device,
         "training_job": id, "adapter_only": adapter_only, "created_at": crate::capabilities::now_secs() });
     std::fs::write(
         partial.join("harness-training.json"),
@@ -220,7 +223,10 @@ async fn do_export(
         error: None,
         adapter_only,
     };
-    if gguf {
+    if gguf && adapter_only && job.config.device == Device::Mlx {
+        // llama.cpp's LoRA converter reads PEFT adapters, not mlx-lm's.
+        info.warning = Some(err("training.gguf_adapter_mlx").into());
+    } else if gguf {
         match convert_gguf(
             &target,
             Path::new(&job.config.model),
@@ -244,8 +250,13 @@ async fn do_export(
 
 fn copy_adapter(source: &Path, target: &Path) -> Result<(), String> {
     std::fs::create_dir_all(target).map_err(|e| e.to_string())?;
-    // Checkpoint optimizer, RNG, pickle and trainer state are never exported.
-    for file in ["adapter_config.json", "adapter_model.safetensors"] {
+    // Checkpoint optimizer, RNG, pickle and trainer state are never exported. The weights are
+    // PEFT's or mlx-lm's file, whichever the job's worker wrote.
+    let weights = run::ADAPTER_FILES
+        .into_iter()
+        .find(|f| source.join(f).is_file())
+        .unwrap_or(run::ADAPTER_FILES[0]);
+    for file in ["adapter_config.json", weights] {
         std::fs::copy(source.join(file), target.join(file)).map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -338,6 +349,29 @@ async fn convert_gguf(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn mlx_adapter_copy_takes_its_own_weights_file() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("checkpoint-7");
+        std::fs::create_dir(&source).unwrap();
+        for file in [
+            "adapter_config.json",
+            "adapters.safetensors",
+            "optimizer.safetensors",
+            "trainer_state.json",
+        ] {
+            std::fs::write(source.join(file), b"x").unwrap();
+        }
+        let target = root.path().join("out");
+        copy_adapter(&source, &target).unwrap();
+        let mut copied: Vec<String> = std::fs::read_dir(&target)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        copied.sort();
+        assert_eq!(copied, ["adapter_config.json", "adapters.safetensors"]);
+    }
+
     #[test]
     fn export_defaults_and_quant_validation() {
         let req: ExportRequest = serde_json::from_str("{}").unwrap();

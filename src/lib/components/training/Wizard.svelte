@@ -101,7 +101,7 @@
   let unavailable = $derived((compat?.methods ?? []).filter((m) => m.method === 'full' || m.method === 'dpo'));
 
   $effect(() => {
-    if (!devices.includes(s.device)) s.device = devices.includes('cuda') ? 'cuda' : devices.includes('mps') ? 'mps' : 'cpu';
+    if (!devices.includes(s.device)) s.device = (['cuda', 'mlx', 'mps'] as const).find((d) => devices.includes(d)) ?? 'cpu';
   });
   $effect(() => {
     if (methodChoice === 'qlora' && (qloraBlocked || !devices.includes('cuda'))) methodChoice = 'auto';
@@ -264,10 +264,10 @@
     busy = true;
     error = null;
     try {
-      if (start && !training.envReady) {
+      if (start && s.device !== 'mlx' && !training.envReady) {
         // The training engine is installed or updated on the way, without asking.
         installing = true;
-        const ready = await training.ensureEnv();
+        const ready = await training.ensureEnv(s.device);
         installing = false;
         if (!ready) {
           error = training.installError ?? t('training.env_required');
@@ -571,7 +571,7 @@
             <Button type="button" size="sm" variant="outline" onclick={copyRecipe}><Copy class="size-3.5" aria-hidden="true" />{copied ? t('training.recipe_copied') : t('training.recipe_copy')}</Button>
           </div>
         {/if}
-        {#if !training.envReady}
+        {#if !training.envReady && s.device !== 'mlx'}
           <p class="text-xs text-muted-foreground" role="note">{t(training.env?.installed ? 'training.env_auto_update_note' : 'training.env_auto_note')}</p>
         {/if}
         {#if installing}

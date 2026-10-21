@@ -221,7 +221,7 @@ export function recipeFromConfig(config: TrainingConfig): string {
 export type RecipeResult = { ok: true; state: WizardState } | { ok: false; error: 'json' | 'version' | 'field'; field?: string };
 
 const METHODS: TrainingMethod[] = ['lora', 'qlora'];
-const DEVICES: TrainingDevice[] = ['cpu', 'cuda', 'mps'];
+const DEVICES: TrainingDevice[] = ['cpu', 'cuda', 'mps', 'mlx'];
 const SCHEDULERS: TrainingLrScheduler[] = ['linear', 'cosine', 'constant'];
 
 /** Reads recipe text on top of the defaults. Unknown keys are ignored; bad values are named. */

@@ -1,7 +1,7 @@
 // Mirrors harness_core::training (snake_case as serialized).
 
 export type TrainingMethod = 'lora' | 'qlora';
-export type TrainingDevice = 'cpu' | 'cuda' | 'mps';
+export type TrainingDevice = 'cpu' | 'cuda' | 'mps' | 'mlx';
 export type TrainingStatus = 'draft' | 'queued' | 'running' | 'done' | 'failed' | 'cancelled';
 export type DatasetFormat = 'chat' | 'instruction' | 'sharegpt' | 'prompt_completion';
 export type TrainingLrScheduler = 'linear' | 'cosine' | 'constant';

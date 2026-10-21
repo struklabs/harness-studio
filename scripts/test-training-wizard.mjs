@@ -86,6 +86,9 @@ test('a recipe round-trips and rejects broken input by naming the field', () => 
   assert.deepEqual(w.parseRecipe('{"recipe":1,"method":"full"}'), { ok: false, error: 'field', field: 'method' });
   assert.deepEqual(w.parseRecipe('{"recipe":1,"steps":0}'), { ok: false, error: 'field', field: 'steps' });
   assert.equal(w.parseRecipe('{"recipe":1,"unknown":true}').ok, true);
+  // MLX on Apple Silicon is a device of its own; an unknown one is still refused.
+  assert.equal(w.parseRecipe(w.recipeFromConfig({ ...config, device: 'mlx' })).state.device, 'mlx');
+  assert.deepEqual(w.parseRecipe('{"recipe":1,"device":"tpu"}'), { ok: false, error: 'field', field: 'device' });
 });
 
 const fmtSource = readFileSync(new URL('../src/lib/components/training/trainingFormat.ts', import.meta.url), 'utf8');

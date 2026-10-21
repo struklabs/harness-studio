@@ -5,6 +5,7 @@ import { onWindowActive, windowActive } from '#lib/windowActivity.js';
 import type {
   TrainingCompatibility,
   TrainingCreateRequest,
+  TrainingDevice,
   TrainingEnvStatus,
   TrainingJob,
   TrainingMetric,
@@ -175,30 +176,35 @@ export class TrainingStore {
 
   /**
    * Installs or updates the training environment when it is missing or out of date, without
-   * asking: starting a job is the consent. Resolves to whether it is ready afterwards.
+   * asking: starting a job is the consent. Resolves to whether it is ready afterwards. An MLX
+   * job needs none of it: the backend installs the MLX engine itself.
    */
-  async ensureEnv(): Promise<boolean> {
-    if (this.envReady) return true;
+  async ensureEnv(device?: TrainingDevice): Promise<boolean> {
+    if (device === 'mlx' || this.envReady) return true;
     await this.installEnv();
     return this.envReady;
   }
 
+  private deviceOf(jobId: number): TrainingDevice | undefined {
+    return this.jobs.find((j) => j.id === jobId)?.config.device;
+  }
+
   startJob(jobId: number) {
     return this.act(async () => {
-      if (!(await this.ensureEnv())) throw new Error(this.installError ?? 'training.env_required');
+      if (!(await this.ensureEnv(this.deviceOf(jobId)))) throw new Error(this.installError ?? 'training.env_required');
       return invoke<TrainingJob>('training_start', { jobId });
     });
   }
   resume(jobId: number) {
     return this.act(async () => {
-      if (!(await this.ensureEnv())) throw new Error(this.installError ?? 'training.env_required');
+      if (!(await this.ensureEnv(this.deviceOf(jobId)))) throw new Error(this.installError ?? 'training.env_required');
       return invoke<TrainingJob>('training_resume', { jobId });
     });
   }
   /** Starts a failed or cancelled job that has no checkpoint over from step 0. */
   restart(jobId: number) {
     return this.act(async () => {
-      if (!(await this.ensureEnv())) throw new Error(this.installError ?? 'training.env_required');
+      if (!(await this.ensureEnv(this.deviceOf(jobId)))) throw new Error(this.installError ?? 'training.env_required');
       return invoke<TrainingJob>('training_restart', { jobId });
     });
   }

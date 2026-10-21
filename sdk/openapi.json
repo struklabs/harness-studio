@@ -14444,7 +14444,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Devices a job can use here (`cpu`, `cuda`, `mps`)."
+            "description": "Devices a job can use here (`cpu`, `cuda`, `mps`, `mlx`)."
           },
           "probed": {
             "type": "boolean",
@@ -28363,7 +28363,8 @@
         "enum": [
           "cpu",
           "cuda",
-          "mps"
+          "mps",
+          "mlx"
         ]
       },
       "TrainingFitLevel": {
