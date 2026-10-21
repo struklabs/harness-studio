@@ -12,6 +12,7 @@
 //!   first layer could not act (its watchdog was killed too, say by a `kill -9` of the whole
 //!   session). The start time tells a left engine from an unrelated process that got its pid.
 
+#[cfg(unix)]
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -58,6 +59,7 @@ fn engines_dir(root: &Path) -> PathBuf {
     root.join("run").join("engines")
 }
 
+#[cfg(unix)]
 #[derive(Debug, Serialize, Deserialize)]
 struct Entry {
     pid: u32,
