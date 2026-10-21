@@ -27,7 +27,7 @@
   {#if engineOff}
     <div class="flex flex-wrap items-center gap-2 rounded-md border border-warning/40 px-3 py-2 text-xs text-warning" role="status">
       <span class="min-w-0 flex-1">{t('voice.engine_disabled')} {t('audio_cpp.needs_engine')}</span>
-      <Button type="button" variant="outline" size="xs" onclick={() => security.openSettings('runtime-installed')}>{t('audio_cpp.enable')}</Button>
+      <Button type="button" variant="outline" size="xs" onclick={() => security.openSettings('runtime-installed', t('audio_cpp.experimental'))}>{t('audio_cpp.enable')}</Button>
     </div>
   {/if}
   <div class="flex flex-col gap-1.5">
