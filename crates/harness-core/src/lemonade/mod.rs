@@ -12,7 +12,7 @@
 //! newest is used, an older one stays as the rollback; [`LemonadeSettings::runtime`] pins one).
 //!
 //! **How it runs.** One `lemond` process per Harness, on a port Harness picks
-//! ([`crate::ports::AUTO_RANGE`]), bound to 127.0.0.1 and locked with a per-run API key
+//! ([`crate::ports::auto_range`]), bound to 127.0.0.1 and locked with a per-run API key
 //! (`LEMONADE_API_KEY`, every route but `/live` then wants the Bearer key; the key lives in
 //! memory and in the child's environment). It starts on demand ([`ensure_running`]), is
 //! stopped with Harness, and dies with it (Windows job object / parent-death signal) even when

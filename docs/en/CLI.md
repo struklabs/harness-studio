@@ -43,6 +43,8 @@ The default is the same as the GUI's (Tauri `app_data_dir`):
 
 It is changed with `--data-dir` / `HARNESS_DATA_DIR`.
 
+A run on any other data directory takes the automatic ports of its servers from 12440–12499 instead of 11440–11499, so a test or second instance never takes the ports of the regular install.
+
 ## Global options
 
 | Option | Environment variable | Meaning |
