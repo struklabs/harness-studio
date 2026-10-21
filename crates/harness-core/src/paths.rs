@@ -90,6 +90,25 @@ fn sweep_stale_test_dirs() {
     });
 }
 
+/// The data root of a regular install: the GUI's `app_data_dir()` (platform data dir +
+/// identifier), also the CLI's default.
+pub fn default_root() -> Option<PathBuf> {
+    dirs::data_dir().map(|d| d.join("com.harnessstudio.app"))
+}
+
+/// Whether the data root is not the regular install's: `HARNESS_DATA_DIR` / `--data-dir`
+/// elsewhere, a test build's own identifier, unit tests. Such a run takes its automatic ports
+/// from a range of its own ([`crate::ports::auto_range`]), so it never takes the ports the
+/// user's real install hands out.
+pub fn is_isolated() -> bool {
+    is_isolated_root(&data_root(), default_root().as_deref())
+}
+
+fn is_isolated_root(root: &Path, default: Option<&Path>) -> bool {
+    let canonical = |p: &Path| fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    default.is_none_or(|d| canonical(root) != canonical(d))
+}
+
 pub fn config_dir() -> PathBuf {
     data_root().join("config")
 }
@@ -292,6 +311,25 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_regular_install_root_is_not_isolated() {
+        let dir = tempfile::tempdir().unwrap();
+        let regular = dir.path().join("com.harnessstudio.app");
+        fs::create_dir_all(&regular).unwrap();
+        assert!(!is_isolated_root(&regular, Some(&regular)));
+        // The same directory spelled differently.
+        assert!(!is_isolated_root(
+            &regular.join("..").join("com.harnessstudio.app"),
+            Some(&regular)
+        ));
+        assert!(is_isolated_root(&dir.path().join("other"), Some(&regular)));
+        assert!(is_isolated_root(
+            &dir.path().join("com.harnessstudio.app.test"),
+            Some(&regular)
+        ));
+        assert!(is_isolated_root(&regular, None));
+    }
 
     #[test]
     fn test_sanitize_file_name() {

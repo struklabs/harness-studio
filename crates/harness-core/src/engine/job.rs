@@ -211,6 +211,8 @@ async fn run_job_inner(
             Ok(job) => job,
             Err(_) => return failed("jobs.spawn_failed", None, &tail),
         };
+    // Registered for the next start's sweep in case Harness is killed (`orphans`).
+    let _registration = crate::orphans::Registration::new(child.id().unwrap());
     let _group_guard = crate::process_limits::GroupGuard(child.id().unwrap());
     let mut out = BufReader::new(child.inner().stdout.take().unwrap()).lines();
     let mut err = BufReader::new(child.inner().stderr.take().unwrap()).lines();

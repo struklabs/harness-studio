@@ -1,6 +1,7 @@
-"""Harness mflux worker: text to image and image editing with one local FLUX.2 [klein] folder.
+"""Harness mflux worker: text to image, image editing and inpainting with one local mflux folder.
 
     <env python> mflux_worker.py --model <dir> --port <port> [--alias <name>] [--max-seconds N]
+        [--lora <file.safetensors> [--lora-scale N]]...
 
 mflux has no server of its own; this worker serves what Harness needs, itself:
 
@@ -14,8 +15,16 @@ mflux has no server of its own; this worker serves what Harness needs, itself:
 * Browsers: only the origins in HARNESS_WORKER_ORIGINS get CORS headers; their preflight is
   answered here (it carries no key). Any other Origin is refused (403) before anything else.
 * The model is the folder given here (mflux's saved format, `transformer/`, `text_encoder/`,
-  `vae/`, `tokenizer/`), loaded at start (one copy of the weights for both routes): which FLUX.2 [klein] it is comes
-  from its card's `base_model` (MODELS). It listens on 127.0.0.1 only; Hugging Face Hub access is off; proxy
+  `vae/`, `tokenizer/`, FLUX.1's `text_encoder_2/` and `tokenizer_2/` too), loaded at start (one
+  copy of the weights for both routes): which model it is comes from its card's `base_model`
+  (MODELS), and its family (KINDS) says what /v1/images/edits does with it:
+  - FLUX.2 [klein]: editing with up to MAX_EDIT_IMAGES reference images ("strength" optional);
+  - Z-Image, FLUX.1 schnell / dev / Krea, Qwen-Image: image to image from one image, "strength"
+    (0-1, how much of it is redrawn; default DEFAULT_STRENGTH);
+  - FLUX.1 Fill: inpainting one image where its "mask" is white (it draws nothing without an
+    image: /v1/images/generations is a 400).
+* LoRA adapters (--lora, local safetensors files Harness names; --lora-scale per adapter, 1 by
+  default) are applied to the transformer at load. It listens on 127.0.0.1 only; Hugging Face Hub access is off; proxy
   variables are cleared; a request never names a file (edit images are written to a private
   temporary folder and removed after the request).
 * A request cannot run away or swamp the Mac:
@@ -60,7 +69,7 @@ HOST = "127.0.0.1"
 GENERATIONS_PATH = "/v1/images/generations"
 EDITS_PATH = "/v1/images/edits"
 GENERATION_FIELDS = {"model", "prompt", "n", "seed", "steps", "size", "guidance"}
-EDIT_FIELDS = {"image", "strength"}
+EDIT_FIELDS = {"image", "strength", "mask"}
 LABEL = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 SIZE = re.compile(r"^(\d{2,5})x(\d{2,5})$")
 # The card's base model -> mflux's model name (the Rust side has the same table:
@@ -71,7 +80,33 @@ MODELS = {
     "black-forest-labs/flux.2-klein-9b": "flux2-klein-9b",
     "black-forest-labs/flux.2-klein-9b-kv": "flux2-klein-9b-kv",
     "black-forest-labs/flux.2-klein-base-9b": "flux2-klein-base-9b",
+    "tongyi-mai/z-image-turbo": "z-image-turbo",
+    "tongyi-mai/z-image": "z-image",
+    "black-forest-labs/flux.1-schnell": "schnell",
+    "black-forest-labs/flux.1-dev": "dev",
+    "black-forest-labs/flux.1-krea-dev": "krea-dev",
+    "black-forest-labs/flux.1-fill-dev": "dev-fill",
+    "qwen/qwen-image": "qwen-image",
 }
+# mflux's model name -> (family, default steps, memory scale of the transformer's share against
+# FLUX.2-klein-4B's). Steps: the models' own recommendations (distilled ones take few).
+KINDS = {
+    "flux2-klein-4b": ("flux2", 4, 1.0),
+    "flux2-klein-base-4b": ("flux2", 28, 1.0),
+    "flux2-klein-9b": ("flux2", 4, 1.6),
+    "flux2-klein-9b-kv": ("flux2", 4, 1.6),
+    "flux2-klein-base-9b": ("flux2", 28, 1.6),
+    "z-image-turbo": ("z-image", 9, 1.3),
+    "z-image": ("z-image", 28, 1.3),
+    "schnell": ("flux1", 4, 2.6),
+    "dev": ("flux1", 25, 2.6),
+    "krea-dev": ("flux1", 25, 2.6),
+    "dev-fill": ("fill", 25, 2.6),
+    "qwen-image": ("qwen", 30, 4.5),
+}
+# How much of an image to image source is redrawn when the request does not say.
+DEFAULT_STRENGTH = 0.6
+MAX_LORAS = 4
 MAX_PROMPT_CHARS = 4000
 MAX_STEPS = 50
 MAX_IMAGES = 4
@@ -84,9 +119,6 @@ MAX_BODY = MAX_EDIT_IMAGES * (MAX_EDIT_BYTES * 4 // 3 + 4) + 64 * 1024
 # mflux conditions on a reference image of at most this many pixels (it scales larger ones
 # down), so that many tokens is what one costs.
 MAX_REFERENCE_AREA = 1024 * 1024
-# Steps a distilled klein makes by default; a base (undistilled) model needs many more.
-DISTILLED_STEPS = 4
-BASE_STEPS = 28
 # Squares a request without a size gets: the largest that fits this Mac.
 DEFAULT_SIDES = (1024, 768, 512, 384, 256)
 DEFAULT_MAX_SECONDS = 600
@@ -115,7 +147,28 @@ def parser():
     p.add_argument("--port", type=int, required=True)
     p.add_argument("--alias", default=None)
     p.add_argument("--max-seconds", type=float, default=DEFAULT_MAX_SECONDS)
+    p.add_argument("--lora", action="append", default=[])
+    p.add_argument("--lora-scale", action="append", type=float, default=[])
     return p
+
+
+def lora_files(paths, scales):
+    """The adapters and their scales: existing .safetensors files (at most MAX_LORAS), a scale
+    each from -4 to 4 (1 when not given); a ValueError otherwise."""
+    if len(paths) > MAX_LORAS:
+        raise ValueError("at most %d LoRA adapters" % MAX_LORAS)
+    if len(scales) > len(paths):
+        raise ValueError("more --lora-scale than --lora")
+    files = []
+    for path in paths:
+        real = os.path.realpath(path)
+        if not real.endswith(".safetensors") or not os.path.isfile(real):
+            raise ValueError("a LoRA adapter must be a .safetensors file")
+        files.append(real)
+    scales = list(scales) + [1.0] * (len(paths) - len(scales))
+    if any(not -4.0 <= s <= 4.0 for s in scales):
+        raise ValueError("a LoRA scale must be from -4 to 4")
+    return files, scales
 
 
 # ---- the model folder ------------------------------------------------------------------------
@@ -153,9 +206,9 @@ def model_name(model_dir):
 
 
 def weights_bytes(model_dir):
-    """Bytes of the folder's weights (the safetensors of transformer/, text_encoder/, vae/)."""
+    """Bytes of the folder's weights (the safetensors of transformer/, the text encoders, vae/)."""
     total = 0
-    for part in ("transformer", "text_encoder", "vae"):
+    for part in ("transformer", "text_encoder", "text_encoder_2", "vae"):
         folder = os.path.join(model_dir, part)
         for name in os.listdir(folder) if os.path.isdir(folder) else ():
             if name.endswith(".safetensors"):
@@ -184,11 +237,11 @@ def memory_need(weights, width, height, refs=(), name="flux2-klein-4b"):
     the image's tokens (the VAE's attention grows with their square) and a little per reference
     image token. Fitted to FLUX.2-klein-4B 3-bit on an M1 8 GB (3.4 GB of weights; peak MLX
     memory 4.67 / 5.71 / 8.83 GB at 256 / 512 / 768 square, 5.78 GB editing a 512 square image
-    at 512); a 9B transformer's share (all but the VAE's square term) is taken as 1.6 times
-    the 4B's."""
+    at 512); another transformer's share (all but the VAE's square term) is the 4B's times its
+    KINDS scale (a 9B: 1.6)."""
     t = tokens(width, height)
     ref = sum(reference_tokens(w, h) for w, h in refs)
-    scale = 1.6 if "9b" in name else 1.0
+    scale = KINDS.get(name, ("", 0, 1.0))[2]
     activations = ((6.8e-4 * t + 1e-4 * ref) * scale + 5.3e-7 * t * t) * GB
     return int(weights * 1.31 + activations)
 
@@ -294,22 +347,23 @@ def parse_size(v):
 
 
 def decode_image(v, i):
-    """An edit image (base64 or a data: URL) -> (bytes, (width, height))."""
+    """An edit image or mask (base64 or a data: URL) -> (bytes, (width, height)); `i` names it
+    in errors (its number, or "mask")."""
     if not isinstance(v, str) or not v:
-        raise Refused("image %d must be a base64 PNG, JPEG or WebP" % i)
+        raise Refused("%s must be a base64 PNG, JPEG or WebP" % i)
     if v.startswith("data:"):
         v = v.partition(",")[2]
     if len(v) > MAX_EDIT_BYTES * 4 // 3 + 4:
-        raise Refused("image %d is larger than %d MB" % (i, MAX_EDIT_BYTES >> 20))
+        raise Refused("%s is larger than %d MB" % (i, MAX_EDIT_BYTES >> 20))
     try:
         raw = base64.b64decode(v, validate=True)
     except (binascii.Error, ValueError):
-        raise Refused("image %d is not valid base64" % i) from None
+        raise Refused("%s is not valid base64" % i) from None
     size = image_size(raw)
     if size is None or min(size) < 16:
-        raise Refused("image %d is not a PNG, JPEG or WebP image of at least 16x16 pixels" % i)
+        raise Refused("%s is not a PNG, JPEG or WebP image of at least 16x16 pixels" % i)
     if max(size) > MAX_EDIT_SIDE:
-        raise Refused("image %d is %dx%d; an edit takes at most %d pixels a side"
+        raise Refused("%s is %dx%d; an edit takes at most %d pixels a side"
                       % (i, size[0], size[1], MAX_EDIT_SIDE))
     return raw, size
 
@@ -347,6 +401,7 @@ def image_request(raw, edit):
         else number(body["guidance"], "guidance", 0.0, 20.0),
         "images": [],
         "strength": None,
+        "mask": None,
     }
     if edit:
         images = body.get("image")
@@ -355,10 +410,28 @@ def image_request(raw, edit):
             raise Refused("image (the picture to edit) is required")
         if len(images) > MAX_EDIT_IMAGES:
             raise Refused("an edit takes at most %d images" % MAX_EDIT_IMAGES)
-        out["images"] = [decode_image(v, i + 1) for i, v in enumerate(images)]
+        out["images"] = [decode_image(v, "image %d" % (i + 1)) for i, v in enumerate(images)]
         if body.get("strength") is not None:
             out["strength"] = number(body["strength"], "strength", 0.0, 1.0)
+        if body.get("mask") is not None:
+            out["mask"] = decode_image(body["mask"], "mask")
     return out
+
+
+def check_kind(req, edit, kind):
+    """Refuses what this family does not do: FLUX.1 Fill draws only into an image (an edit with
+    one image and a mask), image to image takes one image, only Fill takes a mask."""
+    if kind == "fill":
+        if not edit:
+            raise Refused("this model inpaints: send an image and a mask to /v1/images/edits")
+        if req["mask"] is None:
+            raise Refused("mask (white where the image is redrawn) is required")
+    elif req["mask"] is not None:
+        raise Refused("this model does not inpaint with a mask")
+    if edit and kind != "flux2" and len(req["images"]) != 1:
+        raise Refused("this model takes one image to start from")
+    if req["mask"] is not None and req["mask"][1] != req["images"][0][1]:
+        raise Refused("the mask must be the size of the image")
 
 
 # ---- generation ------------------------------------------------------------------------------
@@ -380,18 +453,21 @@ class Stop:
         self.check()
 
 
-def make_generate(models, weights, budget, name, max_seconds, render, clock=time.monotonic,
-                  base_steps=False):
+def make_generate(models, weights, budget, name, max_seconds, render, clock=time.monotonic):
     """`generate(request, edit, gone)` -> list of PNG bytes (blocking). `models` holds the
-    pipelines (`stop` gets the in-loop callback), `render(model, request, seed, size, paths)`
-    makes one PIL image."""
-    steps_default = BASE_STEPS if base_steps else DISTILLED_STEPS
+    pipelines (`stop` gets the in-loop callback), `render(model, request, seed, size, paths,
+    mask)` makes one PIL image (`paths`: the edit images written out, `mask`: the mask's)."""
+    kind, steps_default, _ = KINDS[name]
 
     def generate(req, edit, gone):
-        refs = [size for _, size in req["images"]]
+        check_kind(req, edit, kind)
+        sizes = [size for _, size in req["images"]]
+        # FLUX.2 [klein] conditions on its images (tokens of their own); the others start from
+        # theirs, at the size asked for.
+        refs = sizes if kind == "flux2" else []
         size = req["size"]
         if size is None:
-            size = fit_size(weights, budget, name, refs, refs[0] if edit else None)
+            size = fit_size(weights, budget, name, refs, sizes[0] if edit else None)
             if size is None:
                 raise Refused("this model does not fit this Mac's memory at any size")
         check_fits(weights, budget, name, size[0], size[1], refs)
@@ -406,11 +482,18 @@ def make_generate(models, weights, budget, name, max_seconds, render, clock=time
                 with open(path, "wb") as f:
                     f.write(raw)
                 paths.append(path)
+            mask = None
+            if req["mask"] is not None:
+                mask = os.path.join(folder, "mask.img")
+                with open(mask, "wb") as f:
+                    f.write(req["mask"][0])
+            if edit and kind not in ("flux2", "fill") and req["strength"] is None:
+                req = dict(req, strength=DEFAULT_STRENGTH)
             pngs = []
             for i in range(req["n"]):
                 stop.check()
                 image = render(models, dict(req, steps=req["steps"] or steps_default),
-                               (seed + i) % 2 ** 32, size, paths)
+                               (seed + i) % 2 ** 32, size, paths, mask)
                 buf = io.BytesIO()
                 image.save(buf, format="PNG")
                 pngs.append(buf.getvalue())
@@ -578,50 +661,80 @@ def main(argv=None):
         sys.exit("mflux_worker: the model must be a local folder")
     name = model_name(model_dir)
     if name is None:
-        sys.exit("mflux_worker: the folder's card names no FLUX.2 [klein] base model")
+        sys.exit("mflux_worker: the folder's card names no base model this worker runs")
+    try:
+        loras, scales = lora_files(args.lora, args.lora_scale)
+    except ValueError as e:
+        sys.exit("mflux_worker: %s" % e)
+    kind = KINDS[name][0]
 
     import mlx.core as mx
     import uvicorn
     from mflux.models.common.config import ModelConfig
     import mlx.nn as nn
-    from mflux.models.flux2.variants import Flux2Klein, Flux2KleinEdit
 
     config = ModelConfig.from_name(name)
+    load = dict(model_path=model_dir, model_config=config, lora_paths=loras or None,
+                lora_scales=scales or None)
 
     class Models:
-        """mflux's two FLUX.2 [klein] pipelines on one copy of the weights: the edit one is
+        """The model's pipelines on one copy of the weights. FLUX.2 [klein]: the edit one is
         loaded, the text-to-image one shares its modules and settings (both are made by the
-        same initializer; mflux's edit pipeline cannot draw without a reference image)."""
+        same initializer; mflux's edit pipeline cannot draw without a reference image). The
+        others draw and start from an image with one pipeline."""
 
         def __init__(self):
             self.stop = None
-            self.editor = Flux2KleinEdit(model_path=model_dir, model_config=config)
+            if kind == "flux2":
+                from mflux.models.flux2.variants import Flux2Klein, Flux2KleinEdit
+
+                self.editor = Flux2KleinEdit(**load)
+                self.drawer = Flux2Klein.__new__(Flux2Klein)
+                nn.Module.__init__(self.drawer)
+                dict.update(self.drawer, self.editor)
+                self.drawer.__dict__.update(self.editor.__dict__)
+            else:
+                if kind == "z-image":
+                    from mflux.models.z_image.variants import ZImage as Pipeline
+                elif kind == "flux1":
+                    from mflux.models.flux.variants.txt2img.flux import Flux1 as Pipeline
+                elif kind == "fill":
+                    from mflux.models.flux.variants.fill.flux_fill import Flux1Fill as Pipeline
+                else:
+                    from mflux.models.qwen.variants.txt2img.qwen_image import QwenImage as Pipeline
+                self.editor = self.drawer = Pipeline(**load)
             self.editor.callbacks.register(self)
-            self.drawer = Flux2Klein.__new__(Flux2Klein)
-            nn.Module.__init__(self.drawer)
-            dict.update(self.drawer, self.editor)
-            self.drawer.__dict__.update(self.editor.__dict__)
 
         def call_in_loop(self, *a, **kw):
             if self.stop is not None:
                 self.stop.check()
 
-    def render(models, req, seed, size, paths):
+    def render(models, req, seed, size, paths, mask):
         options = dict(seed=seed, prompt=req["prompt"], num_inference_steps=req["steps"],
                        width=size[0], height=size[1])
         if req["guidance"] is not None:
             options["guidance"] = req["guidance"]
         if not paths:
             return models.drawer.generate_image(**options).image
-        if req["strength"] is not None:
-            options["image_strength"] = req["strength"]
-        return models.editor.generate_image(image_paths=paths, **options).image
+        if kind == "flux2":
+            if req["strength"] is not None:
+                options["image_strength"] = req["strength"]
+            return models.editor.generate_image(image_paths=paths, **options).image
+        if kind == "fill":
+            return models.editor.generate_image(image_path=paths[0], masked_image_path=mask,
+                                                **options).image
+        # mflux's image_strength is how much of the source is kept (the steps it skips);
+        # "strength" here is how much is redrawn, as in diffusers.
+        return models.editor.generate_image(image_path=paths[0],
+                                            image_strength=1.0 - req["strength"],
+                                            **options).image
 
     models = MODEL_THREAD.submit(Models).result()
     budget = memory_budget(mx.device_info() if hasattr(mx, "device_info")
                            else mx.metal.device_info())
-    generate = make_generate(models, weights_bytes(model_dir), budget, name, args.max_seconds,
-                             render, base_steps="base" in name)
+    lora_bytes = sum(os.path.getsize(f) for f in loras)
+    generate = make_generate(models, weights_bytes(model_dir) + lora_bytes, budget, name,
+                             args.max_seconds, render)
     uvicorn.run(cors(app_for(generate, args.alias)), host=HOST, port=args.port,
                 log_level="info", access_log=True)
 

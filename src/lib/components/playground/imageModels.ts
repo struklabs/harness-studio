@@ -38,14 +38,33 @@ export function takesStrength(alias: string, definitions: ModelDefinition[], fil
   return !f || (f.architecture ?? '').includes('Img2Img');
 }
 
-/** Whether the model `alias` is an mflux FLUX.2 [klein] folder (Apple Silicon; the library names
- * its model `flux2-klein-*`): it takes no negative prompt and no classifier-free guidance, and
- * without a size it draws the largest that fits the Mac's memory. */
-export function isMflux(alias: string, definitions: ModelDefinition[], files: LocalModel[] = []): boolean {
+/** mflux's names of the models it runs (`MFLUX_MODELS` in engine/mlx.rs): the library gives an
+ * mflux folder its model's name as architecture. */
+export const MFLUX_MODELS = [
+  'flux2-klein-4b', 'flux2-klein-base-4b', 'flux2-klein-9b', 'flux2-klein-9b-kv', 'flux2-klein-base-9b',
+  'z-image-turbo', 'z-image', 'schnell', 'dev', 'krea-dev', 'dev-fill', 'qwen-image',
+];
+/** mflux models that inpaint (an image and a mask; nothing from text alone). */
+const MFLUX_INPAINT = ['dev-fill'];
+
+function mfluxFile(alias: string, definitions: ModelDefinition[], files: LocalModel[]): LocalModel | undefined {
   const d = definitions.find((x) => x.alias === alias);
-  if (!d) return false;
+  if (!d) return undefined;
   const path = norm(definitionPath(d));
-  return files.some((f) => f.kind === 'pipeline' && (f.architecture ?? '').startsWith('flux2-klein') && norm(f.path) === path);
+  return files.find((f) => f.kind === 'pipeline' && MFLUX_MODELS.includes(f.architecture ?? '') && norm(f.path) === path);
+}
+
+/** Whether the model `alias` is an mflux folder (Apple Silicon: FLUX.2 [klein], Z-Image, FLUX.1,
+ * Qwen-Image): it takes no negative prompt and no classifier-free guidance, and without a size
+ * it draws the largest that fits the Mac's memory. */
+export function isMflux(alias: string, definitions: ModelDefinition[], files: LocalModel[] = []): boolean {
+  return !!mfluxFile(alias, definitions, files);
+}
+
+/** Whether the model `alias` inpaints with a mask (mflux's FLUX.1 Fill): it needs a start image
+ * and a mask, white where the image is redrawn. */
+export function takesMask(alias: string, definitions: ModelDefinition[], files: LocalModel[] = []): boolean {
+  return MFLUX_INPAINT.includes(mfluxFile(alias, definitions, files)?.architecture ?? '');
 }
 
 /** Keep the user's selection while it is still available. */

@@ -510,7 +510,7 @@ fn check_network_port_with_default(
         gateway.ollama_port,
     ];
     let port = url.port_or_known_default();
-    if port.is_some_and(|p| crate::ports::AUTO_RANGE.contains(&p))
+    if port.is_some_and(crate::ports::is_auto)
         || blocked
             .into_iter()
             .flatten()

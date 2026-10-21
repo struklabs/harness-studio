@@ -62,6 +62,8 @@
   import RerankPanel from './playground/RerankPanel.svelte';
   import OcrPanel from './playground/OcrPanel.svelte';
   import PipelinePanel from './playground/PipelinePanel.svelte';
+  import VideoPanel from './playground/VideoPanel.svelte';
+  import { isVideoTask } from './playground/video';
   import { ensureLibraryDefinitions, loadAndChat } from '#lib/stores/downloads.svelte.js';
   import { isChatLoadable } from '#lib/downloadFollowUp.js';
   import { kindsForTab, servedModelName } from '#lib/libraryDefinitions.js';
@@ -2991,7 +2993,11 @@
         {:else if pgTab === 'ocr'}
           <OcrPanel model={modeModels.ocr} />
         {:else if pgTab === 'pipeline'}
-          <PipelinePanel model={modeModels.pipeline} task={pipelineTask} />
+          {#if isVideoTask(pipelineTask)}
+            {#key modeModels.pipeline}<VideoPanel model={modeModels.pipeline} task={pipelineTask} />{/key}
+          {:else}
+            <PipelinePanel model={modeModels.pipeline} task={pipelineTask} />
+          {/if}
         {:else}
           <RerankPanel model={modeModels.rerank} />
         {/if}

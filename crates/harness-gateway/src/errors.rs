@@ -353,7 +353,12 @@ mod tests {
         );
         let message = body["error"]["message"].as_str().unwrap();
         assert!(
-            message.contains("no free port") && message.contains("11440-11499"),
+            message.contains("no free port")
+                && message.contains(&format!(
+                    "{}-{}",
+                    harness_core::ports::auto_range().start(),
+                    harness_core::ports::auto_range().end()
+                )),
             "{message}"
         );
         let error = SchedError::LoadFailed {

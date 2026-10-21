@@ -22,6 +22,8 @@ export interface ImageParams {
   init?: ImageResult | null;
   /** How much of the start image changes, 0..1; empty = the engine's default (sd-server 0.75, diffusers 0.8). */
   strength?: string;
+  /** Inpainting mask (white = redraw), the start image's size; null = none. */
+  mask?: ImageResult | null;
 }
 
 export interface ImageResult {
@@ -30,7 +32,7 @@ export interface ImageResult {
   format: string;
 }
 
-export { DIFFUSERS_IMAGE_TASKS, imageModel, isImageDefinition, isMflux, needsStartImage, takesStrength } from './imageModels';
+export { DIFFUSERS_IMAGE_TASKS, imageModel, isImageDefinition, isMflux, needsStartImage, takesMask, takesStrength } from './imageModels';
 
 /** `512x768` -> [512, 768]; null when it is not a size the gateway takes (multiple of 8, 64..4096). */
 export function parseSize(size: string): [number, number] | null {
@@ -62,6 +64,7 @@ export function requestBody(model: string, p: ImageParams): Record<string, unkno
     body.image = dataUrl(p.init);
     const strength = Number(p.strength ?? '');
     if (p.strength?.trim() && strength >= 0 && strength <= 1) body.strength = strength;
+    if (p.mask) body.mask = dataUrl(p.mask);
   }
   return body;
 }

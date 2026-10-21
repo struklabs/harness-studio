@@ -433,6 +433,7 @@ async fn run_child(
 ) -> std::io::Result<Option<std::process::Output>> {
     // The group builder's flag only affects Windows in command-group 5.0.1.
     command.kill_on_drop(true);
+    crate::orphans::protect(command.as_std_mut());
     let mut group = command.group();
     group.kill_on_drop(true);
     #[cfg(windows)]
@@ -442,6 +443,8 @@ async fn run_child(
         permit,
     };
     let child = run.child.as_mut().unwrap();
+    // Registered for the next start's sweep in case Harness is killed (`orphans`).
+    let _registration = child.id().map(crate::orphans::Registration::new);
     let mut stderr = child.inner().stderr.take();
     let wait = async {
         let mut bytes = Vec::new();

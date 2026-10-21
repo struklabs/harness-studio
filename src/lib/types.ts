@@ -1065,6 +1065,8 @@ export interface ModelRecord {
   runtime: string | null;
   /** Null for a file served only with another (projector, adapter). */
   compatibility: HfCompatibility | null;
+  /** A safetensors chat folder the Python engine runs with transformers when mistral.rs is not registered. */
+  python_chat?: boolean;
 }
 
 /** `harness_core::hub_compat::ModelFormat`. */
@@ -1109,6 +1111,8 @@ export interface HfModelSearchResult {
   created_at?: string | null;
   /** A Python-engine diffusers pipeline whose download holds PyTorch `.bin` weights (loaded as weights only). */
   pickle_weights?: boolean;
+  /** A safetensors chat repo the Python engine runs with transformers when mistral.rs is not registered. */
+  python_chat?: boolean;
 }
 
 export type HfSortKey = 'downloads' | 'likes' | 'trendingScore' | 'lastModified' | 'createdAt';

@@ -141,6 +141,7 @@ pub fn mime(format: &str) -> &'static str {
     match format {
         "webp" => "image/webp",
         "avi" => "video/x-msvideo",
+        "mp4" => "video/mp4",
         _ => "video/webm",
     }
 }
@@ -209,10 +210,10 @@ pub fn plan(request: &Value) -> Result<Plan, GatewayError> {
     let frames = wan_frames(frames);
     let format = match text(request, "output_format")? {
         None => "webm".to_string(),
-        Some(f) if ["webm", "webp", "avi"].contains(&f) => f.to_string(),
+        Some(f) if ["webm", "webp", "avi", "mp4"].contains(&f) => f.to_string(),
         Some(other) => {
             return Err(bad(format!(
-                "output_format `{other}` is not supported; use webm, webp (animated) or avi."
+                "output_format `{other}` is not supported; use mp4, webm, webp (animated) or avi."
             ))
             .param("output_format"))
         }
@@ -530,7 +531,7 @@ async fn start(
     let model = text(&request, "model")?.map(str::to_string);
     guard.get().model = model.clone();
     guard.admitted(caller.admit(state)?);
-    let plan = plan(&request)?;
+    let mut plan = plan(&request)?;
     let def = state
         .scheduler
         .resolve(model.as_deref())
@@ -543,16 +544,43 @@ async fn start(
     }
     caller.check_model(&def.alias)?;
     GatewayError::reject_remote(&def)?;
-    if !is_image_model(&def) {
+    let python_video = is_python_video(&def);
+    if !is_image_model(&def) && !python_video {
         return Err(GatewayError::new(
             400,
             "model_not_video",
             format!(
-                "`{}` is not a video model (a stable-diffusion.cpp diffusion model such as Wan); /v1/videos needs one.",
+                "`{}` is not a video model (a diffusers video pipeline or a stable-diffusion.cpp model such as Wan); /v1/videos needs one.",
                 def.alias
             ),
         )
         .param("model"));
+    }
+    if python_video {
+        let is_ltx = def
+            .base
+            .local_path()
+            .and_then(|p| std::fs::read_to_string(p.join("model_index.json")).ok())
+            .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+            .is_some_and(|v| {
+                v["_class_name"]
+                    .as_str()
+                    .is_some_and(|c| c.starts_with("LTX"))
+            });
+        if is_ltx {
+            // LTX's temporal VAE compresses eight frames into one latent frame.
+            plan.frames = plan.frames.saturating_sub(1) / 8 * 8 + 1;
+            plan.body["video_frames"] = json!(plan.frames);
+        }
+    }
+    if !python_video && plan.format == "mp4" {
+        return Err(
+            bad("mp4 requires a Python diffusers video model; use webm with sd.cpp.")
+                .param("output_format"),
+        );
+    }
+    if python_video && !["mp4", "webm"].contains(&plan.format.as_str()) {
+        return Err(bad("diffusers video supports mp4 or webm.").param("output_format"));
     }
     let job = VideoJob {
         id: format!("video_{}", request_id().trim_start_matches("req_")),
@@ -572,6 +600,12 @@ async fn start(
     let cancel = state.videos.insert(job.clone());
     tokio::spawn(run(state.clone(), job.id.clone(), def, plan.body, cancel));
     Ok(job)
+}
+
+/// Python video pipelines use the same gateway job lifecycle as sd.cpp.
+pub fn is_python_video(def: &harness_core::domain::ModelDefinition) -> bool {
+    crate::pyhf::task_of(def)
+        .is_some_and(|t| matches!(t.as_str(), "text-to-video" | "image-to-video"))
 }
 
 /// Runs one job to its end (or until it is deleted).
@@ -633,15 +667,20 @@ struct CancelOnDrop {
     http: reqwest::Client,
     url: String,
     armed: bool,
+    api_key: Option<String>,
 }
 
 impl Drop for CancelOnDrop {
     fn drop(&mut self) {
         if self.armed {
-            let (http, url) = (self.http.clone(), self.url.clone());
+            let (http, url, key) = (self.http.clone(), self.url.clone(), self.api_key.clone());
             if let Ok(rt) = tokio::runtime::Handle::try_current() {
                 rt.spawn(async move {
-                    let _ = http.post(url).timeout(Duration::from_secs(5)).send().await;
+                    let mut req = http.post(url).timeout(Duration::from_secs(5));
+                    if let Some(key) = key {
+                        req = req.bearer_auth(key);
+                    }
+                    let _ = req.send().await;
                 });
             }
         }
@@ -667,11 +706,24 @@ async fn generate(
         .map_err(|e| GatewayError::from_sched(&e))?;
     store.update(id, |j| j.status = Status::InProgress);
     let upstream_err = |e: reqwest::Error| {
-        GatewayError::new(502, "upstream_unreachable", format!("sd-server: {e}"))
+        GatewayError::new(502, "upstream_unreachable", format!("video worker: {e}"))
     };
-    let started = state
-        .http
-        .post(format!("{}/sdcpp/v1/vid_gen", lease.upstream))
+    let python = is_python_video(def);
+    let start_path = if python {
+        "/video/jobs"
+    } else {
+        "/sdcpp/v1/vid_gen"
+    };
+    let jobs_path = if python {
+        "/video/jobs"
+    } else {
+        "/sdcpp/v1/jobs"
+    };
+    let mut start = state.http.post(format!("{}{start_path}", lease.upstream));
+    if let Some(key) = &lease.api_key {
+        start = start.bearer_auth(key);
+    }
+    let started = start
         .json(body)
         .timeout(Duration::from_secs(60))
         .send()
@@ -692,24 +744,31 @@ async fn generate(
             } else {
                 "upstream_error"
             },
-            format!("sd-server: {detail}"),
+            format!("video worker: {detail}"),
         ));
     }
     let job_id = accepted
         .get("id")
         .and_then(Value::as_str)
-        .ok_or_else(|| GatewayError::new(502, "upstream_error", "sd-server gave no job id."))?
+        .ok_or_else(|| {
+            GatewayError::new(502, "upstream_error", "The video worker gave no job id.")
+        })?
         .to_string();
     let mut cancel = CancelOnDrop {
         http: state.http.clone(),
-        url: format!("{}/sdcpp/v1/jobs/{job_id}/cancel", lease.upstream),
+        url: format!("{}{jobs_path}/{job_id}/cancel", lease.upstream),
         armed: true,
+        api_key: lease.api_key.clone(),
     };
     loop {
         tokio::time::sleep(Duration::from_secs(1)).await;
-        let polled = state
+        let mut poll = state
             .http
-            .get(format!("{}/sdcpp/v1/jobs/{job_id}", lease.upstream))
+            .get(format!("{}{jobs_path}/{job_id}", lease.upstream));
+        if let Some(key) = &lease.api_key {
+            poll = poll.bearer_auth(key);
+        }
+        let polled = poll
             .timeout(Duration::from_secs(30))
             .send()
             .await
@@ -718,13 +777,13 @@ async fn generate(
             return Err(GatewayError::new(
                 502,
                 "upstream_error",
-                "sd-server lost the job.",
+                "The video worker lost the job.",
             ));
         }
         let v: Value = polled
             .json()
             .await
-            .map_err(|e| GatewayError::new(502, "upstream_error", format!("sd-server: {e}")))?;
+            .map_err(|e| GatewayError::new(502, "upstream_error", format!("video worker: {e}")))?;
         match v.get("status").and_then(Value::as_str).unwrap_or("") {
             "completed" => {
                 cancel.armed = false;
@@ -735,11 +794,15 @@ async fn generate(
                         GatewayError::new(
                             500,
                             "generation_failed",
-                            "sd-server finished without a video.",
+                            "The video worker finished without a video.",
                         )
                     })?;
                 return B64.decode(b64).map_err(|_| {
-                    GatewayError::new(502, "upstream_error", "sd-server sent a broken video.")
+                    GatewayError::new(
+                        502,
+                        "upstream_error",
+                        "The video worker sent a broken video.",
+                    )
                 });
             }
             "failed" | "cancelled" => {
@@ -751,7 +814,7 @@ async fn generate(
                 return Err(GatewayError::new(
                     500,
                     "generation_failed",
-                    format!("sd-server: {message}"),
+                    format!("video worker: {message}"),
                 ));
             }
             _ => {
@@ -855,6 +918,39 @@ mod tests {
     use super::*;
 
     #[test]
+    fn python_video_routes_are_separate_from_questions_and_images() {
+        for (task, expected) in [
+            ("text-to-video", true),
+            ("image-to-video", true),
+            ("video-text-to-text", false),
+            ("text-to-image", false),
+        ] {
+            let dir = tempfile::tempdir().unwrap();
+            std::fs::write(dir.path().join("config.json"), "{}").unwrap();
+            std::fs::write(dir.path().join("model.safetensors"), "x").unwrap();
+            std::fs::write(
+                dir.path().join("README.md"),
+                format!("---\npipeline_tag: {task}\n---\n"),
+            )
+            .unwrap();
+            let def = harness_core::domain::ModelDefinition::new(
+                "video",
+                harness_core::domain::ModelRef::Local {
+                    path: dir.path().to_path_buf(),
+                },
+            );
+            assert_eq!(is_python_video(&def), expected, "{task}");
+        }
+        assert_eq!(
+            plan(&json!({"prompt":"x", "output_format":"mp4"}))
+                .unwrap()
+                .format,
+            "mp4"
+        );
+        assert_eq!(mime("mp4"), "video/mp4");
+    }
+
+    #[test]
     fn a_request_maps_onto_the_native_video_job() {
         let p = plan(&json!({
             "model": "wan", "prompt": "a fox running", "size": "832x480", "seconds": "2",
@@ -930,7 +1026,7 @@ mod tests {
         assert_eq!(param(json!({"prompt": "x", "fps": 2.5})), "fps");
         assert_eq!(param(json!({"prompt": "x", "size": "100x100"})), "size");
         assert_eq!(
-            param(json!({"prompt": "x", "output_format": "mp4"})),
+            param(json!({"prompt": "x", "output_format": "mov"})),
             "output_format"
         );
         assert_eq!(param(json!({"prompt": "x", "cfg_scale": -1})), "cfg_scale");

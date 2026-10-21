@@ -150,6 +150,8 @@ Only WAV is accepted: up to 32 MiB, 10 minutes, and two channels. Some models ne
 
 ## Generate Images
 
+Safetensors chat and vision models that run on the Python engine appear in the model picker like any other chat model, with **Python (Transformers)** shown as their engine. Chats stream, tool calls work when the model's chat template supports tools, and vision models accept pictures. The first message loads the model, which takes a while on a CPU.
+
 The **Image Generation** tab generates pictures from diffusion models through stable-diffusion.cpp or the Python engine (diffusers). Download an image model from Model Hub (the extra files it needs, such as the VAE and text encoders, come with it), or use one that is already in your folders: it appears in the **Model** list on its own, and **Open in Playground** on its library card opens this tab with it selected. If the list stays empty although the file is there, some of its extra files are missing; the tab says so and install the **Image module (stable-diffusion.cpp)** when asked. Turn the gateway on, pick the **Model**, and write a **Prompt** (optionally a **Negative Prompt**). You can set **Size**, **Steps**, **Seed**, **Count**, and **CFG Scale**; an empty **Seed** chooses a random seed on each request, while the other empty fields use the model's own values. Press **Generate**: the model loads on the first request. Pictures appear under **Generated** and are kept only for this session; use **Save** to keep one.
 
 For image-to-image, add an optional **Start Image** and set **Strength** (how much it changes). Models that only edit images require a start image. Python diffusers models also open in this tab.
@@ -209,3 +211,28 @@ PDFs with an empty page need page images exported by your PDF application; Harne
 does not rasterize PDFs. There is a limit of 16 pages per request. A Python DQA model
 accepts one image per question; PDF questions use a VLM. LayoutLM pipelines may require
 `pytesseract` and a separately installed Tesseract executable.
+
+## Video Generation and Questions
+
+Python video models appear in Playground's Pipeline tab. Select a diffusers LTX-Video or
+CogVideoX folder to generate a clip from a prompt. Supply a start image for image-to-video.
+Choose MP4 or WebM, resolution, frames and steps before running. The progress indicator follows
+denoising steps; Cancel stops at the next step. Finished clips are saved to the active project's
+`outputs` folder when the project has a folder.
+
+Video diffusion needs substantial RAM and VRAM. CPU runs use float32 and can take a long time.
+Start with a short clip and a few steps, then increase quality. LTX frame counts follow its
+`8n + 1` temporal compression; the gateway rounds down to a supported count. Model-specific
+resolution constraints still apply. Download the complete diffusers folder, including its text
+encoder, tokenizer, transformer and VAE.
+
+Select a video-capable transformers model such as `HuggingFaceTB/SmolVLM2-256M-Video-Instruct`
+to ask a question about an MP4 or WebM file. Clips must be at most 32 MiB. Harness samples eight
+frames per video, so brief events between sampled frames may be missed. Video questions return
+one complete answer; streaming is not currently supported.
+
+The same features are available through `POST /v1/videos` (poll the returned job ID, fetch
+`/v1/videos/{id}/content`, or delete the job to cancel) and `POST /v1/chat/completions`.
+For video questions, use `stream: false` and a user message containing a text part and
+`{"type":"video_url","video_url":{"url":"data:video/mp4;base64,..."}}`.
+Only inline videos are accepted; the worker does not fetch remote URLs or read client paths.

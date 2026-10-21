@@ -43,7 +43,7 @@ async fn taken_ports(registry: &ServerRegistry, id: &str) -> Result<Vec<u16>, St
 }
 
 /// Settles the port of a launch: an automatic one (`port_auto` or port 0) from
-/// `ports::AUTO_RANGE` — the last pick while it is free —, or the user's own, refused when
+/// `ports::auto_range` — the last pick while it is free —, or the user's own, refused when
 /// another server of ours uses it (the OS-level check, naming the program, follows in
 /// [`launch_with_binary`]).
 async fn settle_port(
@@ -69,7 +69,7 @@ async fn settle_port(
                 (0..32).find_map(|_| {
                     let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).ok()?;
                     let port = listener.local_addr().ok()?.port();
-                    (!crate::ports::AUTO_RANGE.contains(&port)
+                    (!crate::ports::is_auto(port)
                         && ![11435, 11500].contains(&port)
                         && !taken.contains(&port))
                     .then_some(port)
@@ -153,6 +153,8 @@ pub async fn launch(
         crate::engine::mlx::audio_binary()?
     } else if engine.family() == crate::engine::MFLUX {
         crate::engine::mlx::mflux_binary()?
+    } else if engine.family() == crate::engine::MLX_EMBED {
+        crate::engine::mlx::embed_binary()?
     } else {
         crate::runtimes::resolve_family_binary_in(&reg, engine.family(), config.runtime.as_deref())?
     };
@@ -485,6 +487,7 @@ fn is_mlx_family(family: &str) -> bool {
         crate::engine::mlx::MLX_VLM,
         crate::engine::mlx::MLX_AUDIO,
         crate::engine::mlx::MFLUX,
+        crate::engine::mlx::MLX_EMBED,
     ]
     .contains(&family)
 }
@@ -616,7 +619,7 @@ pub async fn plan_load_definition_with(
             taken.extend(profiles.iter().map(|p| p.id.clone()));
             let id = new_server_id(&def.alias, &taken);
             // A new server never needs a port from the user: the launch picks a free one
-            // from Harness's range (`ports::AUTO_RANGE`).
+            // from Harness's range (`ports::auto_range`).
             config.port = 0;
             config.port_auto = true;
             id
@@ -1210,7 +1213,7 @@ pub const ERR_ALREADY_ACTIVE: &str = "servers.already_active";
 /// this key: `servers.port_in_use_by {port, program, pid}` (the program holding it is known),
 /// `servers.port_in_use_at {port}`, `servers.port_in_use_server {port, server}`.
 pub const ERR_PORT_IN_USE: &str = "servers.port_in_use";
-/// Every port of [`crate::ports::AUTO_RANGE`] is taken (other programs hold them).
+/// Every port of [`crate::ports::auto_range`] is taken (other programs hold them).
 pub const ERR_NO_FREE_PORT: &str = "servers.no_free_port";
 /// A custom `--alias` another running server already serves: `servers.alias_in_use: <alias>`.
 pub const ERR_ALIAS_IN_USE: &str = "servers.alias_in_use";

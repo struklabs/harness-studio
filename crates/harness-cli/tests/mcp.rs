@@ -412,7 +412,7 @@ fn e2e_mcp_stdio_loads_a_real_model() {
         .unwrap();
     // A new definition takes a port from Harness's automatic range, not `settings.server.port`.
     assert!(
-        harness_core::ports::AUTO_RANGE.contains(&port),
+        harness_core::ports::auto_range().contains(&port),
         "server port {port}"
     );
 
