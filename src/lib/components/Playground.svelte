@@ -2690,7 +2690,7 @@
     try {
       const request = await chatRequest(endpoint, body,
         { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...app.inferenceHeaders() }, c.signal);
-      if (request.routingFallback) notifyRoutingFallback(request.routingError);
+      if (request.routingFallback) notifyRoutingFallback(request.routingError, body.model);
       const res = request.response;
       toolDefs = (request.body.tools ?? []) as typeof toolDefs;
       sentTools = toolDefs.length > 0;
@@ -2755,7 +2755,7 @@
       if (speech && !msg.error && !msg.stopped) void readAloud.playClip(msg.id, speech);
       else {
         const spoken = splitOn ? null : replySpeechSource(tts.speakReplies, msg);
-        if (spoken) void readAloud.toggle(msg.id, spoken);
+        if (spoken) void readAloud.toggle(msg.id, spoken, true);
       }
     }
     return msg;

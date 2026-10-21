@@ -115,6 +115,32 @@ pub fn voices(path: &Path) -> Vec<String> {
     vec![preset.into()]
 }
 
+/// A reference voice older than this belongs to an interrupted request.
+const STALE_CLONE_AGE: std::time::Duration = std::time::Duration::from_secs(10 * 60);
+
+/// Removes the reference voices of interrupted requests. The gateway writes a request's voice
+/// before the worker starts, so a fresh one belongs to the request that is launching the worker
+/// and stays: removing it made the first clone after a launch return empty audio.
+fn remove_stale_clones(dir: &Path, age: std::time::Duration) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        if !entry.file_name().to_string_lossy().starts_with(CLONE_PREFIX) {
+            continue;
+        }
+        let stale = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_none_or(|elapsed| elapsed >= age);
+        if stale {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
 /// Only verified files enter the worker's per-model folder. Never scan arbitrary model siblings.
 pub fn launch_args(path: &Path) -> Result<Vec<String>, String> {
     use super::crispasr_helpers::{CMUDICT, KOKORO_VOICE, MISAKI, POCKET_VOICE};
@@ -136,18 +162,7 @@ pub fn launch_args(path: &Path) -> Result<Vec<String>, String> {
     }
     let dir = voice_dir(path);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    // Reference voices of an interrupted request never outlive the next launch.
-    if let Ok(entries) = std::fs::read_dir(&dir) {
-        for entry in entries.flatten() {
-            if entry
-                .file_name()
-                .to_string_lossy()
-                .starts_with(CLONE_PREFIX)
-            {
-                let _ = std::fs::remove_file(entry.path());
-            }
-        }
-    }
+    remove_stale_clones(&dir, STALE_CLONE_AGE);
     let name = if backend == "kokoro" {
         "af_heart.gguf"
     } else {
@@ -229,6 +244,24 @@ mod tests {
     #[test]
     fn stale_clone_voices_are_removed_at_launch() {
         assert!("clone-abc.wav".starts_with(CLONE_PREFIX));
+        let dir = tempfile::tempdir().unwrap();
+        let old = dir.path().join("clone-old.wav");
+        let fresh = dir.path().join("clone-fresh.wav");
+        let preset = dir.path().join("alba.safetensors");
+        for file in [&old, &fresh, &preset] {
+            std::fs::write(file, b"x").unwrap();
+        }
+        let hour_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        std::fs::File::options()
+            .write(true)
+            .open(&old)
+            .unwrap()
+            .set_modified(hour_ago)
+            .unwrap();
+        remove_stale_clones(dir.path(), STALE_CLONE_AGE);
+        assert!(!old.exists(), "an interrupted request's voice is removed");
+        assert!(fresh.exists(), "the voice of the request starting the worker stays");
+        assert!(preset.exists());
     }
 
     #[test]

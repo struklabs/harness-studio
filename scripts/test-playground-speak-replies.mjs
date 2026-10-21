@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-const { replySpeechSource, readSpeakReplies, writeSpeakReplies, SPEAK_REPLIES_KEY } =
+const { replySpeechSource, readSpeakReplies, writeSpeakReplies, speakBlocker, SPEAK_REPLIES_KEY } =
   await import('../src/lib/components/playground/speakReplies.ts');
 test('a finished reply is spoken only when the switch is on', () => {
   assert.equal(replySpeechSource(true, { content: 'Hello there' }), 'Hello there');
@@ -25,4 +25,10 @@ test('the switch persists in storage and survives a blocked one', () => {
   assert.equal(readSpeakReplies(blocked), false);
   assert.doesNotThrow(() => writeSpeakReplies(blocked, true));
   assert.equal(readSpeakReplies(undefined), false);
+});
+test('the most basic speech blocker is reported first', () => {
+  assert.equal(speakBlocker(false, false, false), 'no_model');
+  assert.equal(speakBlocker(true, false, false), 'engine');
+  assert.equal(speakBlocker(true, true, false), 'gateway');
+  assert.equal(speakBlocker(true, true, true), null);
 });

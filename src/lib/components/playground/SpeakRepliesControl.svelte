@@ -2,9 +2,14 @@
   import { Volume2, VolumeOff } from '@lucide/svelte';
   import { Button } from '#lib/components/ui/button/index.js';
   import { t } from '#lib/i18n.svelte.js';
+  import { app } from '#lib/stores/app.svelte.js';
   import { readAloud, tts } from './tts.svelte';
+  import { ttsRequirement } from './tts';
+  import { speakBlocker } from './speakReplies';
   /** The selected model speaks natively: it answers aloud itself, no voice model is needed. */
   let { disabled = false, native = false }: { disabled?: boolean; native?: boolean } = $props();
+  let missing = $derived(tts.overview ? ttsRequirement(tts.models, tts.model, tts.overview.runtime_installed) : null);
+  let blocker = $derived(tts.overview ? speakBlocker(tts.models.length > 0, !missing, app.gatewayRunning) : null);
   $effect(() => { if (tts.speakReplies && !native && !tts.overview) void tts.load(); });
   function toggle() {
     const next = !tts.speakReplies;
@@ -27,4 +32,7 @@
   </select>
 {:else if tts.speakReplies && tts.overview}
   <span class="text-xs text-muted-foreground">{t('speak.no_model_chat')}</span>
+{/if}
+{#if tts.speakReplies && !native && blocker && blocker !== 'no_model'}
+  <span class="text-xs text-muted-foreground">{blocker === 'engine' ? t('speak.engine_missing', { family: missing ?? '' }) : t('speak.need_gateway')}</span>
 {/if}

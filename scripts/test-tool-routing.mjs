@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
-import { toolIndex, selectedTools, routeTools, redactDetail } from '../src/lib/components/playground/toolRouting.ts';
+import { toolIndex, selectedTools, routeTools, redactDetail, firstNotice } from '../src/lib/components/playground/toolRouting.ts';
 
 const tools = JSON.parse(readFileSync(new URL('../crates/harness-core/src/tools/builtin/llama_tools.json', import.meta.url))).map(t => t.definition);
 const signal = () => new AbortController().signal;
@@ -175,4 +175,11 @@ test('a request without tools never pays discovery cost', async () => {
   let count = 0;
   await chatRequest('local', { messages }, {}, signal(), async () => { count++; return Response.json({}); });
   assert.equal(count, 1);
+});
+
+test('the routing fallback warning is shown once per model', () => {
+  const seen = new Set();
+  assert.equal(firstNotice(seen, 'tiny'), true);
+  assert.equal(firstNotice(seen, 'tiny'), false);
+  assert.equal(firstNotice(seen, 'other'), true);
 });

@@ -4,7 +4,7 @@ import { DownloadQueue } from '#lib/components/hub/downloadQueue.svelte.js';
 import { t } from '#lib/i18n.svelte.js';
 import { app, DEFAULT_SERVER_ID } from '#lib/stores/app.svelte.js';
 import { localizeError } from '#lib/network.js';
-import { defaultLoadTarget, isChatLoadable, shouldAutoLoad } from '#lib/downloadFollowUp.js';
+import { defaultLoadTarget, isChatLoadable, repoJobsPending, shouldAutoLoad } from '#lib/downloadFollowUp.js';
 import { library, repoRelative, isRepoFolder } from '#lib/stores/library.svelte.js';
 import { domain, samePath } from '#lib/stores/domain.svelte.js';
 import { invoke } from '#lib/ipc.js';
@@ -38,7 +38,10 @@ downloads.onCompleted = async (job) => {
   const list = await library.refresh();
   await ensureLibraryDefinitions(['image', 'asr', 'embedding', 'reranker', 'pipeline']);
   await Promise.all([domain.refreshDefinitions(), tts.load(), asr.load()]);
-  const model = modelOfJob(job, list);
+  // The repo's last file (often the vision projector) offers its chat model: loading on the
+  // model's own toast while the projector was still downloading started it without image input.
+  const waiting = repoJobsPending(job, downloads.jobs);
+  const model = modelOfJob(job, list) ?? (waiting ? undefined : list.find((m) => isChatLoadable(m) && repoRelative(m, job.repo_id) !== null));
   // A vision projector that arrived after its model: the model's definition gets it now, else
   // the gateway serves the model without image input.
   await attachProjectors(job, list);
@@ -72,7 +75,7 @@ downloads.onCompleted = async (job) => {
       app.openTab('dashboard');
     },
   };
-  if (!isChatLoadable(model)) {
+  if (!isChatLoadable(model) || waiting) {
     toast.success(message, { duration: ACTION_TOAST_DURATION, closeButton: true, action: openInDashboard });
     return;
   }

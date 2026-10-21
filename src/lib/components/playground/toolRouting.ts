@@ -13,6 +13,14 @@ export function selectedTools(content: string, tools: ToolDefinition[]): ToolDef
   return tools.filter(t => names.includes(t.function.name));
 }
 
+/** True the first time `key` is seen. A small model can fail routing on every turn; the fallback
+ *  (send all tools) is harmless, so its warning is shown once per model per app session. */
+export function firstNotice(seen: Set<string>, key: string): boolean {
+  if (seen.has(key)) return false;
+  seen.add(key);
+  return true;
+}
+
 /** Keep discovery text-only and bounded; never resend attachment data or entire tool outputs. */
 function discoveryContext(messages: Record<string, unknown>[]): string {
   let turns = 0;

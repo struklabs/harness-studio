@@ -47,3 +47,13 @@ export function writeSpeakReplies(storage: Pick<Storage, 'setItem' | 'removeItem
     /* a per-viewer convenience; storage may be blocked */
   }
 }
+
+export type SpeakBlocker = 'no_model' | 'engine' | 'gateway' | null;
+
+/** What stops a reply from being read aloud, most basic first: a voice model, its engine, then the
+ *  gateway. Telling the user to start the gateway is useless while no voice model exists. */
+export function speakBlocker(hasModel: boolean, engineReady: boolean, gatewayRunning: boolean): SpeakBlocker {
+  if (!hasModel) return 'no_model';
+  if (!engineReady) return 'engine';
+  return gatewayRunning ? null : 'gateway';
+}
