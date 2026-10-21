@@ -13,7 +13,7 @@ use axum::http::{header, HeaderMap, HeaderValue};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use harness_core::pairing::{self, DeviceReport};
+use harness_core::pairing::{self, DeviceSelfReport};
 use serde::Deserialize;
 
 use crate::errors::GatewayError;
@@ -120,7 +120,7 @@ async fn poll(State(s): State<GwState>, Path(id): Path<String>, headers: HeaderM
 async fn report(
     State(s): State<GwState>,
     headers: HeaderMap,
-    Json(body): Json<DeviceReport>,
+    Json(body): Json<DeviceSelfReport>,
 ) -> Response {
     let caller = match auth::whoami(&s, &headers) {
         Ok(c) => c,

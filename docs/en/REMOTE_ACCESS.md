@@ -81,7 +81,7 @@ Create the code with the Gateway Models preset and the models you want to share 
 
 ## Control API and Gateway Routes
 
-Control API (all `admin`): `POST/GET /pairing/offers`, `DELETE /pairing/offers/{id}`, `GET /pairing/pending`, `POST /pairing/pending/{id}/approve|deny`, `POST /pairing/connect`, `POST /pairing/connect/poll`, `GET /devices`, `PATCH|DELETE /devices/{id}`, `POST /devices/revoke-all`, `GET /devices/audit`, `GET /devices/roles`, `GET /devices/suggest`.
+Control API (all `admin`): `POST/GET /pairing/offers`, `DELETE /pairing/offers/{id}`, `GET /pairing/pending`, `POST /pairing/pending/{id}/approve|deny`, `POST /pairing/connect`, `POST /pairing/connect/poll`, `GET /devices`, `PATCH|DELETE /devices/{id}`, `POST /devices/revoke-all`, `GET /devices/audit`, `GET /devices/roles`, `GET /devices/suggest`, `GET|PUT /devices/settings`.
 
 Gateway (public unless noted): `GET /m`, `POST /v1/harness/pair/claim`, `GET /v1/harness/pair/claim/{id}` (header `x-harness-pair-secret`), `POST /v1/harness/device/report` (device token).
 
@@ -91,4 +91,4 @@ Gateway (public unless noted): `GET /m`, `POST /v1/harness/pair/claim`, `GET /v1
 
 ### Planned Relay
 
-For devices that cannot reach each other directly, the owner plans to run the signaling and optional relay service on an existing Oracle Cloud Free Tier server; everything is free for now. Nothing in this release deploys or depends on it, direct connections stay the default, and no deploy scripts ship here.
+For devices that cannot reach each other directly, the owner plans to run the signaling and optional relay service on an existing Oracle Cloud Free Tier server; everything is free for now. The signaling address is a setting (Devices > Pairing Signaling Service, or `PUT /devices/settings`); it is empty by default, which keeps the feature off, and no host is built in. Nothing in this release deploys or depends on it, direct connections stay the default, and no deploy scripts ship here.

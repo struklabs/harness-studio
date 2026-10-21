@@ -101,6 +101,17 @@
   let cError = $state('');
   let cTimer: ReturnType<typeof setTimeout> | null = null;
 
+  let signaling = $state('');
+  let signalingSaved = $state('');
+  let signalingError = $state('');
+  async function saveSignaling() {
+    signalingError = '';
+    try {
+      const r = await invoke<{ signaling_endpoint: string }>('pairing_settings_set', { settings: { signaling_endpoint: signaling } });
+      signaling = signalingSaved = r.signaling_endpoint;
+    } catch (e) { signalingError = errorText(e); }
+  }
+
   const needsAck = $derived(preset === 'admin');
   const cHttpUrl = $derived(cUrl.trim().toLowerCase().startsWith('http:'));
   const gatewayOff = $derived(!app.gateway?.status.running);
@@ -123,6 +134,7 @@
     void load();
     void app.refreshGateway(true);
     cName = t('devices.default_name');
+    invoke<{ signaling_endpoint: string }>('pairing_settings_get').then((r) => { signaling = signalingSaved = r.signaling_endpoint; }).catch(() => {});
     const timer = setInterval(() => { if (!busy) void load(); }, 4000);
     return () => { alive = false; clearInterval(timer); if (cTimer) clearTimeout(cTimer); };
   });
@@ -398,6 +410,16 @@
         <div><CopyButton text={configText(cDone.opencode_config)} label={t('devices.copy_config')} copiedLabel={t('devices.copied')} variant="outline" size="sm" /></div>
       </div>
     {/if}
+  </section>
+
+  <section class="flex flex-col gap-3 rounded-lg border border-border bg-card p-4" aria-labelledby="dev-signaling">
+    <h2 id="dev-signaling" class="text-sm font-semibold">{t('devices.signaling_title')}</h2>
+    <p class="text-xs text-muted-foreground">{t('devices.signaling_description')}</p>
+    <form class="flex flex-wrap items-end gap-2" onsubmit={(e) => { e.preventDefault(); void saveSignaling(); }}>
+      <label class="flex min-w-64 flex-1 flex-col gap-1 text-sm">{t('devices.signaling_endpoint')}<Input bind:value={signaling} placeholder="https://" /></label>
+      <Button type="submit" variant="outline" disabled={signaling === signalingSaved}>{t('devices.signaling_save')}</Button>
+    </form>
+    {#if signalingError}<p class="text-sm text-destructive" role="alert">{signalingError}</p>{/if}
   </section>
 
   <section class="flex flex-col gap-3" aria-labelledby="dev-audit">

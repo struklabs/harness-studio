@@ -134,3 +134,15 @@ pub(crate) async fn pairing_connect_poll(
 ) -> Result<service::ConnectProgress, String> {
     service::connect_progress(&link_name, &claim).await
 }
+
+#[tauri::command]
+pub(crate) async fn pairing_settings_get() -> Result<pairing::PairingSettings, String> {
+    blocking(|| pairing::hub_for(&device_tokens()).settings()).await
+}
+
+#[tauri::command]
+pub(crate) async fn pairing_settings_set(
+    settings: pairing::PairingSettings,
+) -> Result<pairing::PairingSettings, String> {
+    blocking(move || pairing::hub_for(&device_tokens()).set_settings(&settings)).await?
+}

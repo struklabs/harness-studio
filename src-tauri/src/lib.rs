@@ -645,6 +645,8 @@ pub fn run() {
             devices_roles,
             pairing_connect_start,
             pairing_connect_poll,
+            pairing_settings_get,
+            pairing_settings_set,
             cloud_list,
             cloud_models,
             cloud_add,

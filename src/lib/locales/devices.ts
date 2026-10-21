@@ -115,6 +115,11 @@ const tr = {
   'pairing.not_approved': 'Eşleşme henüz onaylanmadı.',
   'pairing.not_a_device': 'Yalnızca eşleşmiş bir cihazın kendi token’ı bildirim yapabilir.',
   'pairing.failed': 'Eşleştirme başarısız oldu.',
+  'devices.signaling_title': 'Eşleştirme Sinyal Hizmeti',
+  'devices.signaling_description': 'Ağlar arası eşleştirme için isteğe bağlı sinyal (ve aktarma) hizmeti adresi. Boş bırakırsanız kapalıdır ve hiçbir yere bağlanılmaz. Çıkarım trafiği her zaman cihazlar arasında doğrudan gider.',
+  'devices.signaling_endpoint': 'Hizmet adresi',
+  'devices.signaling_save': 'Kaydet',
+  'pairing.signaling_url_invalid': 'Boş bırakın ya da kimlik bilgisi, sorgu ve parça içermeyen bir HTTP(S) adresi girin.',
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -234,6 +239,11 @@ const en: Record<keyof typeof tr, string> = {
   'pairing.not_approved': 'The pairing has not been approved yet.',
   'pairing.not_a_device': 'Only a paired device’s own token can report.',
   'pairing.failed': 'Pairing failed.',
+  'devices.signaling_title': 'Pairing Signaling Service',
+  'devices.signaling_description': 'Optional address of a signaling (and relay) service for pairing across networks. Empty means off and nothing is contacted. Inference traffic always goes directly between the devices.',
+  'devices.signaling_endpoint': 'Service address',
+  'devices.signaling_save': 'Save',
+  'pairing.signaling_url_invalid': 'Leave it empty or enter an HTTP(S) address without credentials, query or fragment.',
 };
 
 export default { tr, en };

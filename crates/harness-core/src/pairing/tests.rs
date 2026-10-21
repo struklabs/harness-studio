@@ -301,12 +301,12 @@ fn reports_presence_and_missing_components() {
     let (device, token) = pair(&hub, &tokens, AccessPreset::ChatOnly);
     let (info, _) = tokens.verify(&token).unwrap();
     assert!(!hub
-        .report("not-a-device-token", DeviceReport::default())
+        .report("not-a-device-token", DeviceSelfReport::default())
         .unwrap());
     let ok = hub
         .report(
             &info.id,
-            DeviceReport {
+            DeviceSelfReport {
                 models: vec!["m1".into(), "  ".into()],
                 components: vec!["chat_client".into()],
                 vram_free_bytes: Some(8 << 30),
@@ -356,7 +356,7 @@ fn host(id: &str, vram: u64, reach: Reachability) -> DeviceView {
         scopes: vec![],
         endpoints: vec![],
         models: vec![],
-        report: Some(DeviceReport {
+        report: Some(DeviceSelfReport {
             vram_free_bytes: Some(vram),
             ..Default::default()
         }),
@@ -427,4 +427,35 @@ fn audit_log_is_newest_first_and_capped() {
     let log = hub.audit_log(3);
     assert_eq!(log.len(), 3);
     assert_eq!(log[0].detail.as_deref(), Some("4"));
+}
+
+#[test]
+fn signaling_endpoint_is_a_validated_setting_that_defaults_to_off() {
+    let (_d, _tokens, hub) = setup();
+    assert_eq!(hub.settings().signaling_endpoint, "");
+    let saved = hub
+        .set_settings(&PairingSettings {
+            signaling_endpoint: " https://relay.example.org/ ".into(),
+        })
+        .unwrap();
+    assert_eq!(saved.signaling_endpoint, "https://relay.example.org");
+    assert_eq!(hub.settings(), saved);
+    for bad in [
+        "ftp://x.example",
+        "https://user:pw@x.example",
+        "https://x.example/?a=1",
+        "not a url",
+    ] {
+        assert_eq!(
+            hub.set_settings(&PairingSettings {
+                signaling_endpoint: bad.into()
+            })
+            .unwrap_err(),
+            ERR_SIGNALING_URL,
+            "{bad}"
+        );
+    }
+    let cleared = hub.set_settings(&PairingSettings::default()).unwrap();
+    assert_eq!(cleared.signaling_endpoint, "");
+    assert_eq!(hub.signaling().name(), "local");
 }

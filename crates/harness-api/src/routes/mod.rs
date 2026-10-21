@@ -301,6 +301,7 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(devices::revoke_all))
         .routes(routes!(devices::audit))
         .routes(routes!(devices::roles))
+        .routes(routes!(devices::get_settings, devices::put_settings))
         .routes(routes!(devices::suggest))
         .routes(routes!(
             cloud::list_cloud_providers,

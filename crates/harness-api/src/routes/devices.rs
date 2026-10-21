@@ -10,7 +10,8 @@ use axum::Json;
 use harness_core::pairing::client::ClientClaim;
 use harness_core::pairing::service::{self, ConnectProgress, OfferCreated, RoleInfo, Suggestion};
 use harness_core::pairing::{
-    self, AccessPreset, AuditEntry, DeviceRole, DeviceView, OfferInfo, OfferSpec, PendingClaim,
+    self, AccessPreset, AuditEntry, DeviceRole, DeviceView, OfferInfo, OfferSpec, PairingSettings,
+    PendingClaim,
 };
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -238,5 +239,24 @@ pub async fn suggest(
             service::suggest(&tokens, q.required_bytes, service::local_capacity_bytes())
         })
         .await??,
+    ))
+}
+
+/// Pairing settings: the signaling endpoint (empty = off).
+#[utoipa::path(get, path = "/devices/settings", tag = "devices",
+    responses((status = 200, body = PairingSettings), (status = 403, body = ErrorBody)))]
+pub async fn get_settings(State(s): State<AppState>) -> Json<PairingSettings> {
+    Json(pairing::hub_for(&s.tokens).settings())
+}
+
+#[utoipa::path(put, path = "/devices/settings", tag = "devices", request_body = PairingSettings,
+    responses((status = 200, body = PairingSettings), (status = 400, body = ErrorBody)))]
+pub async fn put_settings(
+    State(s): State<AppState>,
+    Body(incoming): Body<PairingSettings>,
+) -> ApiResult<Json<PairingSettings>> {
+    let tokens = s.tokens.clone();
+    Ok(Json(
+        blocking(move || pairing::hub_for(&tokens).set_settings(&incoming)).await??,
     ))
 }

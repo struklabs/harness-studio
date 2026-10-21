@@ -69,6 +69,8 @@ pub const ERR_TOO_MANY: &str = "pairing.too_many";
 pub const ERR_ADMIN_ACK: &str = "pairing.admin_ack_required";
 pub const ERR_NOT_PENDING: &str = "pairing.not_pending";
 pub const ERR_NONCE: &str = "pairing.nonce_invalid";
+pub const ERR_SIGNALING_URL: &str = "pairing.signaling_url_invalid";
+const SETTINGS_FILE: &str = "pairing_settings.json";
 
 // --- Roles and access ---
 
@@ -157,7 +159,7 @@ impl AccessPreset {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-pub struct DeviceReport {
+pub struct DeviceSelfReport {
     pub models: Vec<String>,
     pub engines: Vec<String>,
     /// Installed components (see [`DeviceRole::components`]).
@@ -176,7 +178,7 @@ pub struct DeviceReport {
     pub reported_at: u64,
 }
 
-impl DeviceReport {
+impl DeviceSelfReport {
     fn sanitize(mut self, now: u64) -> Self {
         fn list(v: &mut Vec<String>, max: usize) {
             v.retain(|s| !s.trim().is_empty());
@@ -207,7 +209,7 @@ struct StoredDevice {
     token_id: String,
     created_at: u64,
     #[serde(default)]
-    report: Option<DeviceReport>,
+    report: Option<DeviceSelfReport>,
 }
 
 const DEVICES_SCHEMA: crate::store::Schema = crate::store::Schema {
@@ -247,7 +249,7 @@ pub struct DeviceView {
     pub endpoints: Vec<GatewayEndpoint>,
     /// Allowed model patterns (empty = every model).
     pub models: Vec<String>,
-    pub report: Option<DeviceReport>,
+    pub report: Option<DeviceSelfReport>,
     /// Components its role needs.
     pub components: Vec<String>,
     /// Components of its role it did not report as installed.
@@ -944,7 +946,7 @@ impl Hub {
 
     /// A device's self-report, keyed by the token it presented. `Ok(false)` = that token
     /// belongs to no paired device (a plain named token).
-    pub fn report(&self, token_id: &str, report: DeviceReport) -> Result<bool, String> {
+    pub fn report(&self, token_id: &str, report: DeviceSelfReport) -> Result<bool, String> {
         let report = report.sanitize(self.now());
         let found = self.update_devices(|list| {
             Ok(match list.iter_mut().find(|d| d.token_id == token_id) {
@@ -1066,6 +1068,52 @@ impl Hub {
             Some(&format!("{} devices", removed.len())),
         );
         Ok(removed.len())
+    }
+}
+
+// --- Settings ---
+
+/// Pairing settings (`config/pairing_settings.json`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub struct PairingSettings {
+    /// Address of a signaling (and optional relay) service for pairing across networks.
+    /// Empty = off: no host is built in and nothing is contacted.
+    pub signaling_endpoint: String,
+}
+
+/// Canonical endpoint: empty, or an `http(s)` address without credentials, query or fragment.
+pub fn validate_signaling_endpoint(raw: &str) -> Result<String, String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return Ok(String::new());
+    }
+    let url =
+        crate::network::parse_public_http_url(raw).map_err(|_| ERR_SIGNALING_URL.to_string())?;
+    if url.query().is_some() || url.fragment().is_some() {
+        return Err(ERR_SIGNALING_URL.to_string());
+    }
+    Ok(url.as_str().trim_end_matches('/').to_string())
+}
+
+impl Hub {
+    pub fn settings(&self) -> PairingSettings {
+        crate::store::JsonStore::new(self.dir.join(SETTINGS_FILE)).load_or_default()
+    }
+
+    pub fn set_settings(&self, incoming: &PairingSettings) -> Result<PairingSettings, String> {
+        let settings = PairingSettings {
+            signaling_endpoint: validate_signaling_endpoint(&incoming.signaling_endpoint)?,
+        };
+        crate::store::JsonStore::new(self.dir.join(SETTINGS_FILE)).save(&settings)?;
+        Ok(settings)
+    }
+
+    /// The provider for the configured endpoint. Until a StrukLabs client exists this is the
+    /// local-only provider whatever the setting says: the endpoint is stored, never contacted.
+    pub fn signaling(&self) -> Box<dyn SignalingProvider> {
+        Box::new(LocalOnlySignaling)
     }
 }
 
