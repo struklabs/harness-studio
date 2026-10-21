@@ -10,8 +10,8 @@
   import { MAX_SAMPLE_BYTES, MAX_SAMPLE_SECONDS, SAMPLE_RATE } from './voiceClone';
   import { formatBytes } from '#lib/format.js';
 
-  let { file = $bindable(null), consent = $bindable(false), text = $bindable(''), busy = false }: {
-    file?: File | null; consent?: boolean; text?: string; busy?: boolean;
+  let { file = $bindable(null), consent = $bindable(false), text = $bindable(''), needsText = false, busy = false }: {
+    file?: File | null; consent?: boolean; text?: string; needsText?: boolean; busy?: boolean;
   } = $props();
   let recState = $state<'idle' | 'starting' | 'recording'>('idle');
   let tooBig = $derived(!!file && file.size > MAX_SAMPLE_BYTES);
@@ -36,8 +36,8 @@
     {#if tooBig}<p class="text-xs text-destructive" role="alert">{t('voice.too_big', { size: formatBytes(MAX_SAMPLE_BYTES) })}</p>{/if}
   </div>
   <div class="flex flex-col gap-1.5">
-    <Label for="tts-clone-text" class="text-sm font-semibold text-foreground">{t('voice.text_label')}</Label>
-    <Textarea id="tts-clone-text" bind:value={text} rows={2} maxlength={1000} placeholder={t('voice.text_placeholder')} disabled={busy} />
+    <Label for="tts-clone-text" class="text-sm font-semibold text-foreground">{needsText ? t('voice.text_label_required') : t('voice.text_label')}</Label>
+    <Textarea id="tts-clone-text" bind:value={text} rows={2} maxlength={1000} placeholder={t('voice.text_placeholder')} disabled={busy} required={needsText} aria-required={needsText} />
   </div>
   <VoiceConsentCheckbox id="tts-clone-consent" bind:checked={consent} disabled={busy} />
 </section>

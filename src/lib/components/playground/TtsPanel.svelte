@@ -23,7 +23,7 @@
   import { readAloud, tts } from './tts.svelte';
   import { MAX_SPEECH_CHARS } from './ttsText';
   import VoiceCloneSection from './VoiceCloneSection.svelte';
-  import { canClone, cloneBlocker, voiceRefOf } from './voiceClone';
+  import { canClone, cloneBlocker, cloneNeedsText, voiceRefOf } from './voiceClone';
 
   let text = $state('');
   let busy = $state(false);
@@ -57,7 +57,8 @@
   let missingFamily = $derived(tts.overview ? ttsRequirement(tts.models, tts.model, tts.overview.runtime_installed) : null);
   let runtimeMissing = $derived(!!missingFamily);
   let cloning = $derived(canClone(tts.models, tts.model));
-  let cloneStop = $derived(cloning ? cloneBlocker(cloneFile, cloneConsent) : null);
+  let cloneTextNeeded = $derived(cloneNeedsText(tts.models, tts.model));
+  let cloneStop = $derived(cloning ? cloneBlocker(cloneFile, cloneConsent, cloneTextNeeded, cloneText) : null);
   let runBlocker = $derived(ttsRunBlocker(busy, runtimeMissing, app.gatewayRunning, tts.models.length, text));
   // A clone request needs its sample and the permission box; without a sample the model speaks in its own voice.
   let cloneActive = $derived(cloning && cloneFile !== null);
@@ -67,6 +68,7 @@
       : runBlocker === 'gateway' ? t('speak.run_need_gateway')
       : runBlocker === 'model' ? t('speak.run_need_model')
       : runBlocker === 'text' ? t('speak.run_need_text')
+      : cloneActive && cloneStop === 'text' ? t('voice.need_text')
       : cloneActive && cloneStop === 'consent' ? t('voice.need_consent')
       : cloneActive && cloneStop === 'size' ? t('voice.need_smaller') : '',
   );
@@ -253,7 +255,7 @@
       {/if}
     </div>
     {#if cloning}
-      <VoiceCloneSection bind:file={cloneFile} bind:consent={cloneConsent} bind:text={cloneText} {busy} />
+      <VoiceCloneSection bind:file={cloneFile} bind:consent={cloneConsent} bind:text={cloneText} needsText={cloneTextNeeded} {busy} />
     {/if}
     <div class="flex flex-col gap-1.5">
       <Label for="tts-text" class="text-sm font-semibold text-foreground">{t('speak.text_label')}</Label>
