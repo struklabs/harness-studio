@@ -61,17 +61,22 @@ pub const MLX_VLM: &str = "mlx-vlm";
 /// Family id of the MLX audio engine (mlx-audio: text to speech).
 pub const MLX_AUDIO: &str = "mlx-audio";
 
+/// Family id of the MLX retrieval engine (mlx-embeddings / mlx-lm: embeddings and reranking).
+pub const MLX_EMBED: &str = "mlx-embed";
+
 /// The managed environment the text worker runs in (`crate::pyenv::envs::MLX` on Apple Silicon).
 pub const ENV: &str = "mlx";
 
-/// The managed environment the vision and audio workers run in (`crate::pyenv::envs::MLX_VLM`:
-/// mlx-vlm brings mlx-audio along).
+/// The managed environment the vision, audio and retrieval workers run in
+/// (`crate::pyenv::envs::MLX_VLM`: mlx-vlm brings mlx-audio along; mlx-embeddings and mlx-lm are
+/// in its lock too).
 pub const VLM_ENV: &str = "mlx-vlm";
 
 /// The worker scripts, written next to their environments ([`worker_script`]).
 const WORKER: &str = include_str!("../../python/mlx_worker.py");
 const VLM_WORKER: &str = include_str!("../../python/mlx_vlm_worker.py");
 const AUDIO_WORKER: &str = include_str!("../../python/mlx_audio_worker.py");
+const EMBED_WORKER: &str = include_str!("../../python/mlx_embed_worker.py");
 const IMAGE_WORKER: &str = include_str!("../../python/mflux_worker.py");
 
 /// The models the image engine runs: the base model a conversion's card names (lower case) and
@@ -792,6 +797,8 @@ pub enum Flavour {
     Audio,
     /// `mflux`: text to image and image editing.
     Image,
+    /// `mlx-embed`: text embeddings or reranking.
+    Retrieval,
 }
 
 /// An MLX engine: the text one (`mlx`), the vision one (`mlx-vlm`) or the audio one
@@ -818,11 +825,15 @@ impl MlxEngine {
     pub const IMAGE: MlxEngine = MlxEngine {
         flavour: Flavour::Image,
     };
+    /// `mlx-embed`.
+    pub const RETRIEVAL: MlxEngine = MlxEngine {
+        flavour: Flavour::Retrieval,
+    };
 
     fn env(&self) -> &'static str {
         match self.flavour {
             Flavour::Text => ENV,
-            Flavour::Vision | Flavour::Audio => VLM_ENV,
+            Flavour::Vision | Flavour::Audio | Flavour::Retrieval => VLM_ENV,
             Flavour::Image => MFLUX_ENV,
         }
     }
@@ -834,6 +845,7 @@ impl MlxEngine {
             Flavour::Vision => is_vlm_dir(path),
             Flavour::Audio => is_audio_dir(path),
             Flavour::Image => is_mflux_dir(path),
+            Flavour::Retrieval => retrieval_task(path).is_some(),
         }
     }
 }
@@ -845,6 +857,7 @@ pub fn catalog(flavour: Flavour) -> &'static ParamCatalog {
     static VISION: OnceLock<ParamCatalog> = OnceLock::new();
     static AUDIO: OnceLock<ParamCatalog> = OnceLock::new();
     static IMAGE: OnceLock<ParamCatalog> = OnceLock::new();
+    static RETRIEVAL: OnceLock<ParamCatalog> = OnceLock::new();
     let parse = |text: &str| -> ParamCatalog {
         toml::from_str(text).expect("the MLX catalogs are valid (unit tested)")
     };
@@ -853,6 +866,9 @@ pub fn catalog(flavour: Flavour) -> &'static ParamCatalog {
         Flavour::Vision => VISION.get_or_init(|| parse(include_str!("../params_mlx_vlm.toml"))),
         Flavour::Audio => AUDIO.get_or_init(|| parse(include_str!("../params_mlx_audio.toml"))),
         Flavour::Image => IMAGE.get_or_init(|| parse(include_str!("../params_mflux.toml"))),
+        Flavour::Retrieval => {
+            RETRIEVAL.get_or_init(|| parse(include_str!("../params_mlx_embed.toml")))
+        }
     }
 }
 
@@ -863,11 +879,13 @@ fn documented_caps(flavour: Flavour) -> &'static RuntimeCapabilities {
     static VISION: OnceLock<RuntimeCapabilities> = OnceLock::new();
     static AUDIO: OnceLock<RuntimeCapabilities> = OnceLock::new();
     static IMAGE: OnceLock<RuntimeCapabilities> = OnceLock::new();
+    static RETRIEVAL: OnceLock<RuntimeCapabilities> = OnceLock::new();
     let cell = match flavour {
         Flavour::Text => &TEXT,
         Flavour::Vision => &VISION,
         Flavour::Audio => &AUDIO,
         Flavour::Image => &IMAGE,
+        Flavour::Retrieval => &RETRIEVAL,
     };
     cell.get_or_init(|| {
         let help: String = catalog(flavour)
@@ -985,12 +1003,103 @@ pub fn is_audio_folder(dir: &Path) -> bool {
         || tts_type(dir).is_some_and(|t| AUDIO_TYPES.contains(&t.as_str()))
 }
 
+/// What an MLX retrieval folder serves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetrievalTask {
+    /// `/v1/embeddings` (mlx-embeddings).
+    Embedding,
+    /// `/v1/rerank` (mlx-lm: a Qwen3-Reranker's "yes" / "no" answer).
+    Rerank,
+}
+
+/// mlx-embeddings architectures (`model_type`) Harness runs as embedders: BERT (BGE, MiniLM,
+/// E5), XLM-RoBERTa (multilingual E5, BGE-M3), ModernBERT and Qwen3-Embedding.
+const EMBED_TYPES: &[&str] = &["bert", "xlm-roberta", "modernbert", "qwen3"];
+
+/// Rerankers Harness runs: Qwen3-Reranker (a Qwen3 language model scored by its answer).
+const RERANK_TYPES: &[&str] = &["qwen3"];
+
+/// Card tasks of embedding models.
+const EMBED_TASKS: &[&str] = &["feature-extraction", "sentence-similarity"];
+
+/// Whether an MLX retrieval repo (its Hub tags) is one Harness runs, and as what: an embedder
+/// of [`EMBED_TYPES`] or a reranker of [`RERANK_TYPES`]. `task` is the repo's `pipeline_tag`.
+pub fn retrieval_repo_task(task: Option<&str>, tags: &[String]) -> Option<RetrievalTask> {
+    let has = |list: &[&str]| {
+        tags.iter()
+            .any(|t| list.contains(&t.to_ascii_lowercase().as_str()))
+    };
+    match task {
+        Some("text-ranking") if has(RERANK_TYPES) => Some(RetrievalTask::Rerank),
+        Some(t) if EMBED_TASKS.contains(&t) && has(EMBED_TYPES) => Some(RetrievalTask::Embedding),
+        _ => None,
+    }
+}
+
+/// What an MLX retrieval folder serves, `None` for any other path: a folder with `config.json`
+/// and safetensors weights in MLX's format (MLX's quantization, or `mlx` as its card's library or
+/// tag) whose card names an embedding task and whose `model_type` is one of [`EMBED_TYPES`], or
+/// names `text-ranking` (or the `reranker` tag) with a [`RERANK_TYPES`] `model_type`.
+pub fn retrieval_task(path: &Path) -> Option<RetrievalTask> {
+    if !path.is_dir() || super::mistralrs::weight_files(path).is_empty() {
+        return None;
+    }
+    let kind = model_type(path)?;
+    let tags = card_tags(path);
+    let mlx = read_json(&path.join("config.json")).is_some_and(|c| quant_bits(&c).is_some())
+        || card_field(path, "library_name").is_some_and(|l| l.eq_ignore_ascii_case("mlx"))
+        || tags.iter().any(|t| t == "mlx");
+    if !mlx {
+        return None;
+    }
+    let task = card_field(path, "pipeline_tag").map(|t| t.to_ascii_lowercase());
+    let tagged = |name: &str| task.as_deref() == Some(name) || tags.iter().any(|t| t == name);
+    if (tagged("text-ranking") || tagged("reranker")) && RERANK_TYPES.contains(&kind.as_str()) {
+        return Some(RetrievalTask::Rerank);
+    }
+    (EMBED_TASKS.iter().any(|t| tagged(t)) && EMBED_TYPES.contains(&kind.as_str()))
+        .then_some(RetrievalTask::Embedding)
+}
+
+/// The serve mode of an MLX retrieval folder: embeddings or rerank (`/v1/embeddings`,
+/// `/v1/rerank`); Chat for any other path (never launched by the retrieval engine).
+pub fn serve_mode(path: &Path) -> crate::serve_mode::ServeMode {
+    match retrieval_task(path) {
+        Some(RetrievalTask::Embedding) => crate::serve_mode::ServeMode::Embedding,
+        Some(RetrievalTask::Rerank) => crate::serve_mode::ServeMode::Rerank,
+        None => crate::serve_mode::ServeMode::Chat,
+    }
+}
+
+/// Tokens of a text (a query plus a document when reranking) the retrieval worker reads by
+/// default (`--max-tokens`); longer ones are cut.
+pub const RETRIEVAL_MAX_TOKENS: u64 = 512;
+
+/// An MLX retrieval folder's task, embedding size (`hidden_size`) and the tokens it reads per
+/// text (its trained context, at most [`RETRIEVAL_MAX_TOKENS`]).
+pub fn retrieval_info(path: &Path) -> Option<(RetrievalTask, Option<u64>, Option<u64>)> {
+    let task = retrieval_task(path)?;
+    let cfg = read_json(&path.join("config.json"))?;
+    let dims = cfg.get("hidden_size").and_then(|v| v.as_u64());
+    let context = cfg
+        .get("max_position_embeddings")
+        .and_then(|v| v.as_u64())
+        .map(|n| n.min(RETRIEVAL_MAX_TOKENS));
+    Some((task, dims, context))
+}
+
+/// Whether `path` is a folder of the `mlx-embed` engine.
+pub fn is_retrieval_dir(path: &Path) -> bool {
+    retrieval_task(path).is_some()
+}
+
 /// Whether an MLX folder has a vision tower, `None` when `path` is not an MLX chat folder.
 fn mlx_vision(path: &Path) -> Option<bool> {
-    (super::mistralrs::is_checkpoint_dir(path) && is_mlx_checkpoint(path) && !is_audio_folder(path))
-        .then(|| {
-            read_json(&path.join("config.json")).is_some_and(|c| c.get("vision_config").is_some())
-        })
+    (super::mistralrs::is_checkpoint_dir(path)
+        && is_mlx_checkpoint(path)
+        && !is_audio_folder(path)
+        && !is_retrieval_dir(path))
+    .then(|| read_json(&path.join("config.json")).is_some_and(|c| c.get("vision_config").is_some()))
 }
 
 /// The mlx-audio text-to-speech architecture of a folder: its `model_type`, or the family whose
@@ -1202,7 +1311,7 @@ pub fn is_vlm_dir(path: &Path) -> bool {
 
 /// Whether `path` is an MLX folder of any MLX engine.
 pub fn is_any_model_dir(path: &Path) -> bool {
-    mlx_vision(path).is_some() || is_audio_dir(path) || is_mflux_dir(path)
+    mlx_vision(path).is_some() || is_audio_dir(path) || is_mflux_dir(path) || is_retrieval_dir(path)
 }
 
 /// mflux's name of a base model repo it runs (`black-forest-labs/FLUX.2-klein-4B` ->
@@ -1278,6 +1387,9 @@ pub fn is_mflux_dir(path: &Path) -> bool {
 
 /// The flavour that runs an MLX folder, `None` for other paths.
 pub fn flavour_of(path: &Path) -> Option<Flavour> {
+    if is_retrieval_dir(path) {
+        return Some(Flavour::Retrieval);
+    }
     match mlx_vision(path) {
         Some(true) => Some(Flavour::Vision),
         Some(false) => Some(Flavour::Text),
@@ -1298,6 +1410,9 @@ pub fn inspect(dir: &Path) -> Option<super::mistralrs::ModelDirInfo> {
 fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> {
     if is_mflux_dir(dir) {
         return Some(mflux_local_model(dir, root));
+    }
+    if let Some(task) = retrieval_task(dir) {
+        return Some(retrieval_local_model(dir, root, task));
     }
     let stt = is_stt_dir(dir);
     // A speech config is often no text generator's (Whisper's MLX port, NeMo's Parakeet,
@@ -1333,6 +1448,41 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
         model.architecture = Some(family);
     }
     Some(model)
+}
+
+/// The library's view of an MLX retrieval folder: an embedding model or a reranker (so it gets
+/// its definition and is offered to knowledge bases), with MLX's bits as its quantization.
+fn retrieval_local_model(
+    dir: &Path,
+    root: &Path,
+    task: RetrievalTask,
+) -> crate::models::LocalModel {
+    let info = super::mistralrs::ModelDirInfo {
+        architecture: model_type(dir),
+        complete: true,
+        ..audio_dir_info(dir)
+    };
+    let mut model = super::mistralrs::to_local_model(dir, &info, root);
+    model.kind = match task {
+        RetrievalTask::Embedding => crate::domain::ModelKind::Embedding,
+        RetrievalTask::Rerank => crate::domain::ModelKind::Reranker,
+    };
+    let cfg = read_json(&dir.join("config.json"));
+    model.context_length = cfg
+        .as_ref()
+        .and_then(|c| c.get("max_position_embeddings")?.as_u64());
+    model.quantization = match cfg.as_ref().and_then(quant_bits) {
+        Some(bits) => format!("{bits}bit"),
+        None => "bf16".into(),
+    };
+    model.task = Some(
+        match task {
+            RetrievalTask::Embedding => "feature-extraction",
+            RetrievalTask::Rerank => "text-ranking",
+        }
+        .into(),
+    );
+    model
 }
 
 /// The library's view of an mflux folder: a text-to-image pipeline model (it edits images too;
@@ -1470,6 +1620,7 @@ pub fn family_of(path: &Path) -> Option<&'static str> {
         Flavour::Vision => MLX_VLM,
         Flavour::Audio => MLX_AUDIO,
         Flavour::Image => MFLUX,
+        Flavour::Retrieval => MLX_EMBED,
     })
 }
 
@@ -1483,6 +1634,7 @@ pub fn worker_script(flavour: Flavour) -> Result<PathBuf, String> {
         Flavour::Vision => (VLM_ENV, "mlx_vlm_worker.py", VLM_WORKER),
         Flavour::Audio => (VLM_ENV, "mlx_audio_worker.py", AUDIO_WORKER),
         Flavour::Image => (MFLUX_ENV, "mflux_worker.py", IMAGE_WORKER),
+        Flavour::Retrieval => (VLM_ENV, "mlx_embed_worker.py", EMBED_WORKER),
     };
     let dir = crate::pyenv::envs::env_dir_in(&crate::pyenv::envs::root(), env);
     let path = dir.join(name);
@@ -1516,6 +1668,11 @@ pub fn vlm_binary() -> Result<PathBuf, String> {
 /// [`binary`] of the audio engine (the `mlx-vlm` environment too).
 pub fn audio_binary() -> Result<PathBuf, String> {
     MlxEngine::AUDIO.binary()
+}
+
+/// [`binary`] of the retrieval engine (the `mlx-vlm` environment too).
+pub fn embed_binary() -> Result<PathBuf, String> {
+    MlxEngine::RETRIEVAL.binary()
 }
 
 /// [`binary`] of the image engine (the `mflux` environment).
@@ -1572,6 +1729,7 @@ impl Engine for MlxEngine {
             Flavour::Vision => MLX_VLM,
             Flavour::Audio => MLX_AUDIO,
             Flavour::Image => MFLUX,
+            Flavour::Retrieval => MLX_EMBED,
         }
     }
 
@@ -1802,6 +1960,16 @@ fn build_args(
     } else if flavour == Flavour::Audio && is_sts_dir(&config.model_path) {
         args.push("--task".into());
         args.push("separate".into());
+    }
+    if flavour == Flavour::Retrieval {
+        args.push("--task".into());
+        args.push(
+            match retrieval_task(&config.model_path) {
+                Some(RetrievalTask::Rerank) => "rerank",
+                _ => "embedding",
+            }
+            .into(),
+        );
     }
     if flavour == Flavour::Image {
         if let Some(lora) = config
@@ -4462,6 +4630,139 @@ print("resampled", resampled)
         }
     }
 
+    /// `mlx-community/bge-small-en-v1.5-bf16` (config and card trimmed): bf16 weights, so only
+    /// its card's `mlx` tag says it is MLX's.
+    const BGE_CONFIG: &str = r#"{"architectures":["BertModel"],"model_type":"bert","hidden_size":384,"max_position_embeddings":512}"#;
+    const BGE_CARD: &str = "---\nlibrary_name: sentence-transformers\npipeline_tag: feature-extraction\ntags:\n- sentence-transformers\n- bert\n- mlx\n---\n# bge\n";
+    /// `mlx-community/Qwen3-Reranker-0.6B-4bit` (config and card trimmed).
+    const RERANKER_CONFIG: &str = r#"{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","hidden_size":1024,"max_position_embeddings":40960,"quantization":{"group_size":64,"bits":4,"mode":"affine"}}"#;
+    const RERANKER_CARD: &str = "---\nlibrary_name: mlx\npipeline_tag: text-ranking\ntags:\n- mlx\n- qwen3\n- reranker\n---\n";
+
+    #[test]
+    fn retrieval_folders_are_mlx_embed_and_never_chat_or_python() {
+        let bge = folder(&[
+            ("config.json", BGE_CONFIG),
+            ("README.md", BGE_CARD),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(retrieval_task(bge.path()), Some(RetrievalTask::Embedding));
+        assert_eq!(flavour_of(bge.path()), Some(Flavour::Retrieval));
+        assert_eq!(family_of(bge.path()), Some(MLX_EMBED));
+        assert!(is_any_model_dir(bge.path()));
+        assert!(!super::super::python_hf::is_model_dir(bge.path()));
+        assert_eq!(
+            serve_mode(bge.path()),
+            crate::serve_mode::ServeMode::Embedding
+        );
+        assert_eq!(
+            retrieval_info(bge.path()),
+            Some((RetrievalTask::Embedding, Some(384), Some(512)))
+        );
+        let model = to_local_model(bge.path(), bge.path().parent().unwrap()).unwrap();
+        assert_eq!(model.kind, crate::domain::ModelKind::Embedding);
+        assert_eq!(model.quantization, "bf16");
+
+        let reranker = folder(&[
+            ("config.json", RERANKER_CONFIG),
+            ("README.md", RERANKER_CARD),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(retrieval_task(reranker.path()), Some(RetrievalTask::Rerank));
+        // A Qwen3 language model, but no chat model.
+        assert!(!is_model_dir(reranker.path()));
+        assert_eq!(flavour_of(reranker.path()), Some(Flavour::Retrieval));
+        assert!(!super::super::mistralrs::is_model_dir(reranker.path()));
+        assert_eq!(
+            serve_mode(reranker.path()),
+            crate::serve_mode::ServeMode::Rerank
+        );
+        let model = to_local_model(reranker.path(), reranker.path().parent().unwrap()).unwrap();
+        assert_eq!(model.kind, crate::domain::ModelKind::Reranker);
+        assert_eq!(model.quantization, "4bit");
+
+        // The same BGE without MLX's tag is the Python engine's; an MLX folder of an untested
+        // architecture is nobody's retrieval model.
+        let plain = folder(&[
+            ("config.json", BGE_CONFIG),
+            ("README.md", &BGE_CARD.replace("- mlx\n", "")),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(retrieval_task(plain.path()), None);
+        let other = folder(&[
+            ("config.json", &BGE_CONFIG.replace("\"bert\"", "\"t5\"")),
+            ("README.md", BGE_CARD),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(retrieval_task(other.path()), None);
+    }
+
+    #[test]
+    fn retrieval_launch_args_name_the_task() {
+        let bge = folder(&[
+            ("config.json", BGE_CONFIG),
+            ("README.md", BGE_CARD),
+            ("model.safetensors", "x"),
+        ]);
+        let reranker = folder(&[
+            ("config.json", RERANKER_CONFIG),
+            ("README.md", RERANKER_CARD),
+            ("model.safetensors", "x"),
+        ]);
+        for (dir, task) in [(&bge, "embedding"), (&reranker, "rerank")] {
+            let mut config = LaunchConfig {
+                model_path: dir.path().to_path_buf(),
+                host: "127.0.0.1".into(),
+                port: 11450,
+                ..Default::default()
+            };
+            config
+                .params
+                .insert("max_tokens".into(), crate::params::ParamValue::Int(1024));
+            let args = build_args(&config, Path::new("w.py"), Flavour::Retrieval)
+                .unwrap()
+                .args;
+            let at = |flag: &str| {
+                args.iter()
+                    .position(|a| a == flag)
+                    .map(|i| args[i + 1].as_str())
+            };
+            assert_eq!(at("--task"), Some(task));
+            assert_eq!(at("--max-tokens"), Some("1024"));
+            assert!(at("--max-seconds").is_none());
+            // The task is Harness's to set.
+            config.custom_args = Some("--task rerank".into());
+            assert!(build_args(&config, Path::new("w.py"), Flavour::Retrieval).is_err());
+        }
+        assert!(MlxEngine::RETRIEVAL.runs(bge.path()));
+        assert!(!MlxEngine::TEXT.runs(reranker.path()));
+    }
+
+    #[test]
+    fn retrieval_repos_by_task_and_architecture() {
+        let tags = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            retrieval_repo_task(Some("feature-extraction"), &tags(&["mlx", "bert"])),
+            Some(RetrievalTask::Embedding)
+        );
+        assert_eq!(
+            retrieval_repo_task(Some("sentence-similarity"), &tags(&["xlm-roberta"])),
+            Some(RetrievalTask::Embedding)
+        );
+        assert_eq!(
+            retrieval_repo_task(Some("text-ranking"), &tags(&["mlx", "qwen3"])),
+            Some(RetrievalTask::Rerank)
+        );
+        // A cross-encoder reranker (XLM-RoBERTa) is not run by the MLX worker.
+        assert_eq!(
+            retrieval_repo_task(Some("text-ranking"), &tags(&["xlm-roberta"])),
+            None
+        );
+        assert_eq!(
+            retrieval_repo_task(Some("text-generation"), &tags(&["qwen3"])),
+            None
+        );
+    }
+
     #[test]
     fn the_worker_guards_what_harness_relies_on() {
         // The key comes from the environment and is compared in constant time; the bind,
@@ -4482,6 +4783,14 @@ print("resampled", resampled)
         assert!(AUDIO_WORKER.contains("HOST = \"127.0.0.1\""));
         assert!(AUDIO_WORKER.contains("kw[\"trust_remote_code\"] = False"));
         assert!(AUDIO_WORKER.contains("HF_HUB_OFFLINE"));
+        assert!(EMBED_WORKER.contains("os.environ.pop(\"HARNESS_WORKER_API_KEY\""));
+        assert!(EMBED_WORKER.contains("hmac.compare_digest"));
+        assert!(EMBED_WORKER.contains("HOST = \"127.0.0.1\""));
+        assert!(EMBED_WORKER.contains("\"trust_remote_code\": False"));
+        assert!(EMBED_WORKER.contains("HF_HUB_OFFLINE"));
+        assert!(EMBED_WORKER.contains("HTTPS_PROXY"));
+        assert!(EMBED_WORKER.contains("allow_abbrev=False"));
+        assert!(EMBED_WORKER.contains("HARNESS_WORKER_API_KEY is required"));
     }
 
     /// `mlx-community/FLUX.2-Klein-4B-3bit`'s layout (weights shortened): the card names the base

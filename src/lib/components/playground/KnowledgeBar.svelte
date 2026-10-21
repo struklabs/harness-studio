@@ -144,9 +144,20 @@
       await domain.refreshDefinitions();
       if (alias) onUseEmbedder(alias);
       await loadEmbedder();
+      if (alias) await reembedKeywordOnly(alias);
     } catch (e) {
       toast.error(errorText(e));
     }
+  }
+
+  /** Bases indexed before an embedding model existed are searched by keyword only: once the
+   *  model is in place they are embedded again, so the new model is actually used. */
+  async function reembedKeywordOnly(alias: string) {
+    const list = await kbApi.list(alias);
+    const keywordOnly = list.filter((kb) => kb.state === 'stale' && !kb.embed_model && !isRunning(kb));
+    if (keywordOnly.length === 0) return;
+    toast.info(t('kb.reembed_started', { count: keywordOnly.length }));
+    for (const kb of keywordOnly) await startIndex(kb.id, { embedModel: alias, rebuild: true });
   }
 
   async function installEmbedder() {
@@ -161,7 +172,7 @@
     return kb.state === 'indexing' || !!progress[kb.id];
   }
 
-  async function startIndex(kbId: string, opts: { folder?: string | null; paths?: string[]; rebuild?: boolean }) {
+  async function startIndex(kbId: string, opts: { folder?: string | null; paths?: string[]; rebuild?: boolean; embedModel?: string | null }) {
     try {
       await kbApi.index(kbId, { embedModel: embedAlias, ...opts });
       progress = { ...progress, [kbId]: { kb_id: kbId, status: 'indexing', docs_done: 0, docs_total: 0, current: null, chunk_done: 0, chunk_total: 0, elapsed_ms: 0 } };

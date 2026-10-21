@@ -21,7 +21,7 @@ pub(crate) async fn search_hf_models_page(options: HfSearchOptions) -> Result<Hf
     // here (not cached with the listing's own fields).
     let installed = blocking(harness_core::model_registry::installed_families).await?;
     for item in &mut page.items {
-        harness_core::hub_compat::resolve_installed(&mut item.compatibility, &installed);
+        item.resolve_installed(&installed);
     }
     Ok(page)
 }
