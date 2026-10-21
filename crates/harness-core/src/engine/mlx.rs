@@ -3436,12 +3436,12 @@ tags:
             r#"
 import sys, asyncio; sys.path.insert(0, {:?}); import mlx_audio_worker as w
 spoken = []
-def speak(text, voice, speed, language):
-    spoken.append((text, voice, speed, language))
+def speak(text, voice, speed, language, ref):
+    spoken.append((text, voice, speed, language) + ((ref,) if ref else ()))
     if text == "slow":
         raise w.TooSlow()
     return b"RIFFfake", {{"long run": "time", "drifted": "frames"}}.get(text)
-app = w.app_for(speak, "tts", ["serena", "ryan"], 50)
+app = w.app_for(speak, "tts", ["serena", "ryan"], 50, clones=True)
 async def call(method, path, body=b"", key=True, kind="http"):
     sent, queue = [], [{{"type": "http.request", "body": body, "more_body": False}}]
     async def receive():
@@ -3470,6 +3470,15 @@ async def main():
         ("openai", ("POST", S, b'{{"input":"hello","voice":"alloy","model":"tts"}}')),
         ("ref", ("POST", S, b'{{"input":"x","ref_audio":"/etc/hosts"}}')),
         ("path", ("POST", S, b'{{"input":"x","voice":"../etc/passwd"}}')),
+        ("clone", ("POST", S, b'{{"input":"c","voice_ref":{{"type":"base64","data":"UklGRg=="}},'
+                   b'"voice_ref_text":" hi ","voice_consent":true}}')),
+        ("data_url", ("POST", S, b'{{"input":"d","voice_ref":{{"type":"base64",'
+                      b'"data":"data:audio/wav;base64,UklGRg=="}}}}')),
+        ("ref_path", ("POST", S, b'{{"input":"x","voice_ref":{{"type":"path","data":"/etc/hosts"}}}}')),
+        ("ref_extra", ("POST", S, b'{{"input":"x","voice_ref":{{"type":"base64","data":"UklGRg==",'
+                       b'"path":"/etc/hosts"}}}}')),
+        ("ref_bad", ("POST", S, b'{{"input":"x","voice_ref":{{"type":"base64","data":"../x"}}}}')),
+        ("ref_text_only", ("POST", S, b'{{"input":"x","voice_ref_text":"hi"}}')),
         ("unknown", ("POST", S, b'{{"input":"x","voice":"bob"}}')),
         ("long", ("POST", S, b'{{"input":"' + b"a" * 60 + b'"}}')),
         ("speed", ("POST", S, b'{{"input":"x","speed":9}}')),
@@ -3506,6 +3515,13 @@ asyncio.run(main())
             "openai (200, 'RIFFfake')",
             "ref (400,",
             "path (400,",
+            "clone (200, 'RIFFfake')",
+            "data_url (200, 'RIFFfake')",
+            "ref_path (400,",
+            "ref_extra (400,",
+            "ref_bad (400,",
+            "ref_text_only (400,",
+            "\"voice_cloning\": true",
             "unknown (400,",
             "long (400,",
             "speed (400,",
@@ -3515,7 +3531,7 @@ asyncio.run(main())
             "cut ((200, 'time'), 'RIFFfake')",
             "drifted ((200, 'frames'), 'RIFFfake')",
             "ws 1008",
-            "spoken [('hello', 'ryan', 1.5, None), ('hello', None, 1.0, None), ('slow', None, 1.0, None), ('long run', None, 1.0, None), ('drifted', None, 1.0, None)]",
+            "spoken [('hello', 'ryan', 1.5, None), ('hello', None, 1.0, None), ('c', None, 1.0, None, (b'RIFF', 'hi')), ('d', None, 1.0, None, (b'RIFF', None)), ('slow', None, 1.0, None), ('long run', None, 1.0, None), ('drifted', None, 1.0, None)]",
         ] {
             assert!(text.contains(line), "{line} missing:\n{text}");
         }
@@ -3802,6 +3818,31 @@ class Plain:
         yield types.SimpleNamespace(audio=[0.0])
 speak = w.make_speak(Plain(), [], 24000, 10, encode, clock)
 print("plain", speak("hi", None, 1.0, None))
+try:
+    speak("hi", None, 1.0, None, (b"RIFF", None))
+except w.Refused as e:
+    print("no clone:", e)
+class Cloner:
+    speech_tokenizer = types.SimpleNamespace(has_encoder=True)
+    def __init__(self):
+        self.calls = []
+    def generate(self, text, voice=None, ref_audio=None, ref_text=None, max_tokens=4096, stream=False):
+        self.calls.append(dict(voice=voice, ref_audio=ref_audio, ref_text=ref_text))
+        yield types.SimpleNamespace(audio=[0.0])
+c = Cloner()
+speak = w.make_speak(c, ["ryan"], 24000, 10, encode, clock, clone=True,
+                     decode_ref=lambda audio: "samples of %r" % audio)
+print("cloned", speak("hi", None, 1.0, None, (b"RIFF", "hello")), c.calls)
+for ref, voice in (((b"RIFF", None), None), ((b"RIFF", "hello"), "ryan")):
+    try:
+        speak("hi", voice, 1.0, None, ref)
+    except w.Refused as e:
+        print("refused:", e)
+print("modes", [w.clone_mode(f, k, c) for f, k in (("qwen3_tts", "base"), ("qwen3_tts", None),
+      ("qwen3_tts", "custom_voice"), ("chatterbox", None), ("kokoro", None))],
+      w.clone_mode("sesame", None, Plain()), w.clone_mode("chatterbox", None, Plain()))
+c.speech_tokenizer = types.SimpleNamespace(has_encoder=False)
+print("no encoder", w.clone_mode("qwen3_tts", "base", c), w.clone_mode("sesame", None, c))
 # Other families count their own tokens per second of audio (Spark after its speaker tokens).
 for family in ("chatterbox_turbo", "voxcpm2", "spark"):
     print("budget", family, w.frame_budget(100, 1.0, *w.TOKEN_RATES[family]))
@@ -3932,6 +3973,14 @@ print("wired", w.wire_weights(metal), wired, w.wire_weights(types.SimpleNamespac
             "runaway ('wav of 3 chunks', 'time') [{'voice': 'ryan', 'max_tokens': 75, 'stream': True}] closed True",
             "too slow",
             "plain ('wav of 1 chunks', None)",
+            "no clone: this model does not clone voices; leave out 'voice_ref'",
+            "cloned ('wav of 1 chunks', None) [{'voice': None, 'ref_audio': \"samples of b'RIFF'\", 'ref_text': 'hello'}]",
+            "refused: this model needs the reference's transcript in 'voice_ref_text'",
+            "refused: give either 'voice' or 'voice_ref', not both",
+            // Qwen3-TTS Base (or no type) and CSM need the transcript, Chatterbox doesn't; a
+            // `generate` without `ref_audio` clones nothing.
+            "modes [True, True, None, False, None] None None",
+            "no encoder None True",
             "budget chatterbox_turbo 1600",
             "budget voxcpm2 400",
             "budget spark 3264",
