@@ -5,11 +5,18 @@
 //! `X-N8N-API-KEY`):
 //!
 //! * `GET /workflows`, `GET /workflows/{id}`: workflows with their active state and triggers;
-//! * `GET /executions`, `GET /executions/{id}?includeData=true`: recent runs and their errors.
+//! * `GET /executions`, `GET /executions/{id}?includeData=true`: recent runs and their errors;
+//! * `POST /workflows`, `PUT /workflows/{id}`, `POST /workflows/{id}/publish` (v2) or
+//!   `/activate` (v1) and `/unpublish` or `/deactivate`: what the Playground's approved
+//!   proposals write ([`proposals`]).
 //!
 //! The public API has no "run workflow" call, so a manual run goes through the workflow's own
 //! **Webhook** trigger (`<url>/webhook/<path>`, active workflows only). Workflows that only have
 //! a manual or schedule trigger are listed but cannot be started from here.
+//!
+//! The Playground can draft, edit and run workflows for the user, but never on its own: the
+//! model only *proposes* ([`tools`]), the user reviews a diff and approves ([`proposals`]), and
+//! what a connection allows at all is the user's per-connection [`N8nPermission`].
 //!
 //! The API key lives in the OS keychain ([`crate::secrets`]); `settings.json` only keeps the
 //! instance URL. The key is sent only to the saved n8n address, redirects are never followed
@@ -22,8 +29,15 @@ use serde_json::Value;
 
 use crate::error_key::err;
 
+pub mod diff;
+pub mod proposals;
+pub mod report;
+pub mod tools;
+
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_write;
 
 pub const ERR_URL_INVALID: &str = "automations.n8n_url_invalid";
 pub const ERR_NOT_CONFIGURED: &str = "automations.n8n_not_configured";
@@ -39,13 +53,64 @@ const RESPONSE_PREVIEW: usize = 2000;
 /// Name of the gateway token created for n8n's OpenAI node.
 pub const N8N_TOKEN_NAME: &str = "n8n";
 
-/// `settings.json` -> `n8n`. The key is not here (OS keychain). Changed only through [`save`].
+/// What the model (through approved proposals) may do on one n8n connection. A ladder: every
+/// level includes the ones below. It limits the Playground's n8n tools and the proposals;
+/// the user's own buttons in Settings are not affected.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
+pub enum N8nPermission {
+    /// List and read workflows and executions (the default).
+    #[default]
+    ReadOnly,
+    /// Also propose new workflows and edits of inactive ones. Nothing proposed goes live.
+    Draft,
+    /// Also edit live workflows and activate or deactivate them.
+    Write,
+    /// Also start workflows through their webhook trigger and read the result.
+    Trigger,
+}
+
+impl N8nPermission {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::ReadOnly => "read_only",
+            Self::Draft => "draft",
+            Self::Write => "write",
+            Self::Trigger => "trigger",
+        }
+    }
+
+    pub fn can_draft(self) -> bool {
+        self >= Self::Draft
+    }
+
+    pub fn can_write(self) -> bool {
+        self >= Self::Write
+    }
+
+    pub fn can_trigger(self) -> bool {
+        self >= Self::Trigger
+    }
+
+    /// The saved permission of the n8n connection.
+    pub fn saved() -> Self {
+        crate::config::AppSettings::load().n8n.permission
+    }
+}
+
+/// `settings.json` -> `n8n`. The key is not here (OS keychain). Changed only through [`save`]
+/// and [`set_permission`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct N8nSettings {
     /// Base URL of the user's n8n (`https://n8n.example.com`), empty = not connected.
     pub url: String,
+    /// What the model may do on this connection.
+    pub permission: N8nPermission,
 }
 
 /// What Settings shows: the saved URL and whether a key is stored (never the key).
@@ -54,6 +119,7 @@ pub struct N8nSettings {
 pub struct N8nView {
     pub url: String,
     pub key_set: bool,
+    pub permission: N8nPermission,
 }
 
 /// Result of the connection test.
@@ -162,9 +228,13 @@ pub fn normalize_url(raw: &str) -> Result<String, String> {
 }
 
 pub fn view() -> Result<N8nView, String> {
-    let url = crate::config::AppSettings::load().n8n.url;
-    let key_set = !url.is_empty() && crate::secrets::n8n_key_get()?.is_some();
-    Ok(N8nView { url, key_set })
+    let n8n = crate::config::AppSettings::load().n8n;
+    let key_set = !n8n.url.is_empty() && crate::secrets::n8n_key_get()?.is_some();
+    Ok(N8nView {
+        url: n8n.url,
+        key_set,
+        permission: n8n.permission,
+    })
 }
 
 /// Saves the address and key. `api_key`: `None` keeps the saved key, `Some("")` removes it,
@@ -176,6 +246,7 @@ pub fn save(url: &str, api_key: Option<&str>) -> Result<N8nView, String> {
         crate::secrets::n8n_key_set(None)?;
         all.n8n = N8nSettings::default();
         all.save()?;
+        tools::refresh();
         return view();
     }
     let url = normalize_url(url)?;
@@ -185,8 +256,27 @@ pub fn save(url: &str, api_key: Option<&str>) -> Result<N8nView, String> {
         None if url != all.n8n.url => crate::secrets::n8n_key_set(None)?,
         None => {}
     }
-    all.n8n = N8nSettings { url };
+    // A permission belongs to the saved address like the key: another address starts read-only.
+    let permission = if url == all.n8n.url {
+        all.n8n.permission
+    } else {
+        N8nPermission::default()
+    };
+    all.n8n = N8nSettings { url, permission };
     all.save()?;
+    tools::refresh();
+    view()
+}
+
+/// Sets what the model may do on the saved connection (the user's choice in Settings).
+pub fn set_permission(permission: N8nPermission) -> Result<N8nView, String> {
+    let mut all = crate::config::AppSettings::load();
+    if all.n8n.url.is_empty() {
+        return Err(err(ERR_NOT_CONFIGURED).into());
+    }
+    all.n8n.permission = permission;
+    all.save()?;
+    tools::refresh();
     view()
 }
 
@@ -259,24 +349,147 @@ impl N8nClient {
         format!("{}/{}", self.base, path)
     }
 
-    async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Value, String> {
+    /// One API call. Returns the HTTP status and the JSON body (`Null` when the body is not
+    /// JSON); only a transport failure is an error here.
+    async fn raw(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        query: &[(&str, String)],
+        body: Option<&Value>,
+    ) -> Result<(u16, Value), String> {
         let url = self.api(path);
-        let resp = self
+        let mut req = self
             .http
-            .get(&url)
+            .request(method, &url)
             .header("X-N8N-API-KEY", &self.key)
             .header("Accept", "application/json")
-            .query(query)
+            .query(query);
+        if let Some(body) = body {
+            req = req.json(body);
+        }
+        let resp = req
             .send()
             .await
             .map_err(|e| crate::http_error::transport(&e, &url))?;
-        let status = resp.status();
-        if !status.is_success() {
-            return Err(status_error(status.as_u16()));
+        let status = resp.status().as_u16();
+        let text = resp.text().await.unwrap_or_default();
+        Ok((status, serde_json::from_str(&text).unwrap_or(Value::Null)))
+    }
+
+    async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Value, String> {
+        let (status, v) = self.raw(reqwest::Method::GET, path, query, None).await?;
+        if !(200..300).contains(&status) {
+            return Err(status_error(status));
         }
-        resp.json::<Value>()
-            .await
-            .map_err(|_| err("automations.n8n_invalid_response").into())
+        if v.is_null() {
+            return Err(err("automations.n8n_invalid_response").into());
+        }
+        Ok(v)
+    }
+
+    /// A write call. `missing`: the error for a 404 on this id (instead of "API missing").
+    async fn write(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: Option<&Value>,
+        missing: &'static str,
+    ) -> Result<Value, String> {
+        let (status, v) = self.raw(method, path, &[], body).await?;
+        if (200..300).contains(&status) {
+            return Ok(v);
+        }
+        Err(match status {
+            404 if v.is_object() => err(missing).into(),
+            400 | 409 | 422 => err("automations.n8n_rejected")
+                .num("status", status)
+                .with("message", clip(&rejection_text(&v), 400))
+                .into(),
+            s => status_error(s),
+        })
+    }
+
+    /// The workflow as n8n stores it (nodes, connections, settings included).
+    pub async fn workflow_json(&self, id: &str) -> Result<Value, String> {
+        let (status, v) = self
+            .raw(
+                reqwest::Method::GET,
+                &format!("workflows/{}", segment(id)?),
+                &[],
+                None,
+            )
+            .await?;
+        match status {
+            200..=299 if v.is_object() => Ok(v),
+            404 if v.is_object() => Err(err("automations.n8n_workflow_not_found").into()),
+            200..=299 => Err(err("automations.n8n_invalid_response").into()),
+            s => Err(status_error(s)),
+        }
+    }
+
+    /// Creates a workflow (inactive; the public API cannot create a live one).
+    pub async fn create_workflow(&self, body: &Value) -> Result<Value, String> {
+        self.write(
+            reqwest::Method::POST,
+            "workflows",
+            Some(body),
+            "automations.n8n_api_missing",
+        )
+        .await
+    }
+
+    pub async fn update_workflow(&self, id: &str, body: &Value) -> Result<Value, String> {
+        self.write(
+            reqwest::Method::PUT,
+            &format!("workflows/{}", segment(id)?),
+            Some(body),
+            "automations.n8n_workflow_not_found",
+        )
+        .await
+    }
+
+    /// Makes a workflow live: `/publish` (n8n 2.x), `/activate` on an older instance.
+    pub async fn activate_workflow(&self, id: &str) -> Result<(), String> {
+        self.switch(id, "publish", "activate").await
+    }
+
+    pub async fn deactivate_workflow(&self, id: &str) -> Result<(), String> {
+        self.switch(id, "unpublish", "deactivate").await
+    }
+
+    async fn switch(&self, id: &str, new: &str, old: &str) -> Result<(), String> {
+        let id = segment(id)?;
+        let body = serde_json::json!({});
+        let (status, v) = self
+            .raw(
+                reqwest::Method::POST,
+                &format!("workflows/{id}/{new}"),
+                &[],
+                Some(&body),
+            )
+            .await?;
+        // An instance without the new route answers with a non-JSON 404.
+        let (status, v) = if status == 404 && !v.is_object() {
+            self.raw(
+                reqwest::Method::POST,
+                &format!("workflows/{id}/{old}"),
+                &[],
+                Some(&body),
+            )
+            .await?
+        } else {
+            (status, v)
+        };
+        match status {
+            200..=299 => Ok(()),
+            404 => Err(err("automations.n8n_workflow_not_found").into()),
+            400 | 409 | 422 => Err(err("automations.n8n_rejected")
+                .num("status", status)
+                .with("message", clip(&rejection_text(&v), 400))
+                .into()),
+            s => Err(status_error(s)),
+        }
     }
 
     /// Connection test: the key must be accepted by the public API.
@@ -423,7 +636,11 @@ impl N8nClient {
             editor_url: self.editor_url(&format!("workflow/{id}")),
             id,
             name,
-            active: w.get("active").and_then(Value::as_bool).unwrap_or(false),
+            // n8n 2.x deprecates `active` for `activeVersionId` (set while the workflow is live).
+            active: w.get("active").and_then(Value::as_bool).unwrap_or(false)
+                || w.get("activeVersionId")
+                    .and_then(Value::as_str)
+                    .is_some_and(|v| !v.is_empty()),
             triggers,
             webhook,
             updated_at: w
@@ -518,7 +735,7 @@ fn is_trigger(node_type: &str) -> bool {
 }
 
 /// n8n ids are strings, older ones numbers.
-fn value_id(v: &Value) -> Option<String> {
+pub(crate) fn value_id(v: &Value) -> Option<String> {
     match v {
         Value::String(s) if !s.is_empty() => Some(s.clone()),
         Value::Number(n) => Some(n.to_string()),
@@ -527,7 +744,7 @@ fn value_id(v: &Value) -> Option<String> {
 }
 
 /// A path segment from the caller: ids only, never `/`, `?` or `..`.
-fn segment(id: &str) -> Result<&str, String> {
+pub(crate) fn segment(id: &str) -> Result<&str, String> {
     let id = id.trim();
     if id.is_empty()
         || id.len() > 64
@@ -540,11 +757,19 @@ fn segment(id: &str) -> Result<&str, String> {
     Ok(id)
 }
 
-fn clip(text: &str, max: usize) -> String {
+pub(crate) fn clip(text: &str, max: usize) -> String {
     match text.char_indices().nth(max) {
         Some((i, _)) => format!("{}...", &text[..i]),
         None => text.to_string(),
     }
+}
+
+/// The reason n8n gives for refusing a write (`{"message": "..."}`).
+fn rejection_text(v: &Value) -> String {
+    v.get("message")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string()
 }
 
 fn status_error(status: u16) -> String {

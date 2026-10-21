@@ -10,7 +10,7 @@ Harness Studio brings local models, tools, and optional engines into one desktop
 - An official registry for tools, MCP servers, and skills, with Agent Skills (SKILL.md) support.
 - Agents: Hermes Agent, OpenClaw, and Paperclip, with task history, per-run permissions, and an audit log.
 - Cloud providers with your own API key, routed through the gateway.
-- A connection to your own n8n instance.
+- A connection to your own n8n instance, where the Playground can draft, edit, and run workflows after you approve a diff.
 - Knowledge bases for local retrieval with cited sources, and Projects that group chats, files, and agent tasks.
 - A prioritized GPU job queue with cancellation.
 - Browser admin and server mode for headless machines.

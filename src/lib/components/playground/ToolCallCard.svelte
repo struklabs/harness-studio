@@ -1,6 +1,7 @@
 <script lang="ts">
   import { t, type TKey } from '#lib/i18n.svelte.js';
   import StructuredResult from './StructuredResult.svelte';
+  import N8nProposalCard from './N8nProposalCard.svelte';
   import { prettyArgs } from '#lib/mcp-client.js';
   import { cn } from '#lib/utils.js';
   import { Button } from '#lib/components/ui/button/index.js';
@@ -137,6 +138,10 @@
         class="mt-1.5 max-h-56 overflow-auto rounded-md border border-border bg-muted p-2 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap text-foreground select-text">{args || '{}'}</pre>
     </Collapsible.Content>
   </Collapsible.Root>
+
+  {#if call.name === 'n8n_propose_workflow' || call.name === 'n8n_propose_run'}
+    <N8nProposalCard {call} />
+  {/if}
 
   {#if waiting}
     <div class="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 p-2.5" role="alert">

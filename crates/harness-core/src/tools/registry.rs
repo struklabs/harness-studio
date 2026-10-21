@@ -69,6 +69,9 @@ pub struct ToolCtx {
     pub cancel: CancelToken,
     /// How long the call may take in all (the tool may use less).
     pub timeout: Duration,
+    /// Id of the call being run (the invocation id), set by [`ToolRegistry::run`]. Lets a tool
+    /// that waits for the user (the n8n proposals) tell the UI which call it belongs to.
+    pub call_id: Option<String>,
     network_target: Arc<Mutex<Option<String>>>,
 }
 
@@ -78,6 +81,7 @@ impl ToolCtx {
             workspace,
             cancel: CancelToken::new(),
             timeout: DEFAULT_TIMEOUT,
+            call_id: None,
             network_target: Arc::new(Mutex::new(None)),
         }
     }
@@ -231,6 +235,7 @@ impl ToolRegistry {
         let mut run_ctx = ctx.clone();
         run_ctx.cancel = run_cancel;
         run_ctx.timeout = limits.timeout;
+        run_ctx.call_id = Some(inv.id.clone());
         let call = tool.call(inv.args.clone(), &run_ctx);
         let result = tokio::select! {
             r = call => r,

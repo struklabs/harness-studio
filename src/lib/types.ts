@@ -2567,7 +2567,11 @@ export interface ConvertEnvStatus {
 export interface N8nView {
   url: string;
   key_set: boolean;
+  permission: N8nPermission;
 }
+
+/** What the model may do on the connection (a ladder: each level includes the ones before). */
+export type N8nPermission = 'read_only' | 'draft' | 'write' | 'trigger';
 
 export interface N8nConnection {
   ok: boolean;
@@ -2610,6 +2614,71 @@ export interface N8nTriggerResult {
   status: number;
   ok: boolean;
   body: string;
+}
+
+export interface N8nNodeRun {
+  name: string;
+  status: string;
+  items: number | null;
+  error: string | null;
+  duration_ms: number | null;
+}
+
+export interface N8nExecutionReport {
+  id: string;
+  workflow_id: string;
+  status: string;
+  mode: string;
+  started_at: string | null;
+  stopped_at: string | null;
+  error: N8nExecutionError | null;
+  nodes: N8nNodeRun[];
+  output: string | null;
+  editor_url: string;
+}
+
+export type N8nProposalKind = 'create_workflow' | 'update_workflow' | 'run_workflow';
+export type N8nProposalStatus = 'pending' | 'applying' | 'applied' | 'rejected' | 'failed' | 'expired';
+
+export interface N8nDiffLine {
+  op: 'keep' | 'add' | 'remove' | 'gap';
+  text: string;
+}
+
+export interface N8nNodeChange {
+  name: string;
+  kind: 'added' | 'removed' | 'changed';
+  node_type: string;
+}
+
+export interface N8nProposalResult {
+  workflow: N8nWorkflow | null;
+  steps: string[];
+  trigger: N8nTriggerResult | null;
+  execution: N8nExecutionReport | null;
+}
+
+/** A change the model proposed on the user's n8n; nothing is sent before the user approves. */
+export interface N8nProposal {
+  id: string;
+  call_id: string | null;
+  kind: N8nProposalKind;
+  status: N8nProposalStatus;
+  created_at_ms: number;
+  decided_at_ms: number | null;
+  connection_url: string;
+  workflow_id: string | null;
+  workflow_name: string;
+  activate: boolean | null;
+  node_changes: N8nNodeChange[];
+  warnings: { code: string; node: string | null }[];
+  diff: { lines: N8nDiffLine[]; added: number; removed: number; truncated: boolean };
+  webhook: N8nWebhook | null;
+  payload: unknown;
+  note: string | null;
+  required_permission: N8nPermission;
+  result: N8nProposalResult | null;
+  error: string | null;
 }
 
 export interface N8nOpenAiConnection {

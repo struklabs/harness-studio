@@ -133,6 +133,7 @@ async function runCoreCall(call: PgToolCall, args: Record<string, unknown>, sign
     }
   }
   call.status = 'running';
+  call.runId = base.call_id;
   ctx.onProgress?.();
   // Stop cancels the running call in the core (a shell's process tree dies with it).
   const onAbort = () => void cancelCoreTool(base.call_id).catch(() => {});

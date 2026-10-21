@@ -10,7 +10,7 @@ Harness Studio yerel modelleri, araçları ve isteğe bağlı motorları tek bir
 - Araçlar, MCP sunucuları ve beceriler için resmî katalog; Agent Skills (SKILL.md) desteği.
 - Ajanlar: Hermes Agent, OpenClaw ve Paperclip; görev geçmişi, çalıştırma bazlı izinler ve denetim kaydı.
 - Kendi API anahtarınızla, ağ geçidi üzerinden kullanılan bulut sağlayıcılar.
-- Kendi n8n sunucunuza bağlantı.
+- Kendi n8n sunucunuza bağlantı; Playground, fark görünümünü onayladıktan sonra iş akışı taslağı hazırlayabilir, düzenleyebilir ve çalıştırabilir.
 - Kaynak göstererek yerel arama yapan bilgi tabanları ve sohbetleri, dosyaları ve ajan görevlerini toplayan Projeler.
 - İptal desteği olan öncelikli GPU iş kuyruğu.
 - Ekransız makineler için tarayıcı yönetimi ve sunucu modu.

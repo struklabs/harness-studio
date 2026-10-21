@@ -628,6 +628,11 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/automations/n8n/executions/{id}/error", &["get"]),
         ("/automations/n8n/workflows/{id}/trigger", &["post"]),
         ("/automations/n8n/openai", &["get"]),
+        ("/automations/n8n/permission", &["put"]),
+        ("/automations/n8n/proposals", &["get"]),
+        ("/automations/n8n/proposals/{id}", &["get"]),
+        ("/automations/n8n/proposals/{id}/apply", &["post"]),
+        ("/automations/n8n/proposals/{id}/reject", &["post"]),
         ("/analytics/summary", &["get"]),
         ("/analytics/requests", &["get"]),
         ("/analytics/requests/{id}", &["get"]),
@@ -1800,7 +1805,10 @@ async fn n8n_connection_workflows_and_confirmed_trigger() {
     )
     .await;
     assert_eq!(status, 200, "{view}");
-    assert_eq!(view, json!({"url": n8n, "key_set": true}));
+    assert_eq!(
+        view,
+        json!({"url": n8n, "key_set": true, "permission": "read_only"})
+    );
 
     let (status, test) = json(
         api.send(
@@ -1873,7 +1881,10 @@ async fn n8n_connection_workflows_and_confirmed_trigger() {
         .await,
     )
     .await;
-    assert_eq!(view, json!({"url": "", "key_set": false}));
+    assert_eq!(
+        view,
+        json!({"url": "", "key_set": false, "permission": "read_only"})
+    );
     api.server.stop().await;
 }
 

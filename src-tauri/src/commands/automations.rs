@@ -1,6 +1,7 @@
 // Settings > Automations: the user's own n8n instance (public REST API only; Harness never
 // runs n8n). The API key goes to the OS keychain and is never returned.
 
+use harness_core::automations::proposals::{Proposal, ProposalStore};
 use harness_core::automations::{self as n8n, N8nClient};
 
 #[tauri::command]
@@ -74,4 +75,39 @@ pub(crate) async fn n8n_openai_connection() -> Result<n8n::OpenAiConnection, Str
 #[tauri::command]
 pub(crate) async fn n8n_create_gateway_token() -> Result<crate::control_api::CreatedToken, String> {
     blocking(n8n::create_gateway_token).await?
+}
+
+/// What the model may do on the saved connection (the user's choice).
+#[tauri::command]
+pub(crate) async fn n8n_set_permission(
+    permission: n8n::N8nPermission,
+) -> Result<n8n::N8nView, String> {
+    blocking(move || n8n::set_permission(permission)).await?
+}
+
+/// Proposals the Playground's model staged, newest first.
+#[tauri::command]
+pub(crate) async fn n8n_list_proposals() -> Result<Vec<Proposal>, String> {
+    Ok(ProposalStore::global().list())
+}
+
+/// The proposal a tool call (by its core run id) staged, if any.
+#[tauri::command]
+pub(crate) async fn n8n_proposal_for_call(run_id: String) -> Result<Option<Proposal>, String> {
+    Ok(ProposalStore::global().for_call(&run_id))
+}
+
+/// The user approved: writes to n8n (the only way a proposal is applied; no tool reaches it).
+#[tauri::command]
+pub(crate) async fn n8n_apply_proposal(id: String) -> Result<Proposal, String> {
+    let client = blocking(N8nClient::saved).await??;
+    ProposalStore::global()
+        .apply(&id, &client, n8n::N8nPermission::saved())
+        .await
+}
+
+/// The user declined.
+#[tauri::command]
+pub(crate) async fn n8n_reject_proposal(id: String) -> Result<Proposal, String> {
+    ProposalStore::global().reject(&id)
 }

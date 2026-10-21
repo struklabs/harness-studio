@@ -138,6 +138,8 @@ fn stable_order(mut tools: Vec<ToolDef>) -> Vec<ToolDef> {
     tools
 }
 
+static SHARED: OnceLock<ToolService> = OnceLock::new();
+
 impl ToolService {
     /// A service without MCP servers (tests, built-in tools only).
     pub fn new(registry: ToolRegistry, sink: LogSink) -> Self {
@@ -197,15 +199,21 @@ impl ToolService {
     /// the MCP servers of `mcp_servers.json`, logging to `analytics.db`. After the installed set
     /// changes, [`Self::reload_installed`] brings the registry up to date.
     pub fn shared() -> &'static ToolService {
-        static SHARED: OnceLock<ToolService> = OnceLock::new();
         SHARED.get_or_init(|| {
             let registry = ToolRegistry::with_builtin();
             for (name, error) in super::installed::sync(&super::installed::tools_root(), &registry)
             {
                 eprintln!("[Harness Tools] installed tool {name} not loaded: {error}");
             }
+            crate::automations::tools::sync(&registry);
             ToolService::with_app_mcp(registry, LogSink::Shared)
         })
+    }
+
+    /// The process-wide service when something already created it (settings code that only
+    /// needs to refresh the registry must not start the service).
+    pub fn try_shared() -> Option<&'static ToolService> {
+        SHARED.get()
     }
 
     /// Re-reads `<data dir>/tools/` into the registry (after an install, removal or switch).

@@ -113,6 +113,17 @@ The **API Keys** page shows each server's key status (**Key set** / **No key**) 
 3. After you save, the page lists your workflows with their active state and triggers, and the latest executions with their status. **Show Error** on a failed execution reads the error message and the failing node from n8n. **Open in n8n Editor** opens the workflow or execution in your browser.
 4. **Run** starts a workflow after you confirm. It works through the workflow's own Webhook trigger, so the workflow must be active and have a plain Webhook node. Workflows that only have a manual or schedule trigger are listed but cannot be started from here, because n8n's public API has no run call.
 
+**Model Access** decides what the model in the Playground may do on this connection. The levels build on each other:
+
+| Level | The model can |
+|---|---|
+| Read Only (default) | List and read workflows and executions. |
+| Draft | Also propose new workflows and edits of inactive ones. Nothing proposed goes live. |
+| Write | Also edit live workflows and activate or deactivate them. |
+| Trigger | Also run workflows through their Webhook trigger and read the result. |
+
+With the n8n tools on, the model can propose a workflow as JSON. The proposal appears as a card in the chat with the changed nodes, warnings (for example a node that runs code, or a new public webhook) and a line diff against what n8n holds now. Nothing is sent to n8n until you choose **Approve and Apply** (or **Approve and Run**); this approval is separate from the tool policy, so it is asked even when tools are set to allow all. After you approve, Harness creates or updates the workflow through n8n's public API and shows the result: the steps taken and, for a run, the execution's status, each node's result and a preview of the output. The model reads the same result and can continue. If the workflow changed in n8n after the proposal was made, the proposal is refused instead of overwriting your edit. The scopes of the n8n API key apply on top of this level.
+
 **Harness Models for n8n** shows the gateway's OpenAI-compatible **Base URL**. In n8n, add an OpenAI credential, paste the Base URL, and use a token as the API Key. **Create Token** makes a token named `n8n` with only the `inference` scope; it is shown once, so copy it then. The gateway must be running (see [Connections and the Gateway](05-connections-and-gateway.md)). If n8n runs in Docker, replace `127.0.0.1` in the Base URL with `host.docker.internal`.
 
 ## Appearance & Startup
