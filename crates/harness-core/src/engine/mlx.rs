@@ -1279,6 +1279,9 @@ pub fn tts_supports_speed(path: &Path) -> bool {
 
 /// Families that clone a voice from a reference recording (the worker's `CLONES`).
 const TTS_CLONE_TYPES: &[&str] = &["qwen3_tts", "sesame", "chatterbox", "chatterbox_turbo"];
+/// Of those, the ones that need the recording's transcript (Qwen3-TTS Base's in-context mode;
+/// CSM, where the recording is the conversation's first turn). Chatterbox takes it alone.
+const TTS_CLONE_TEXT_TYPES: &[&str] = &["qwen3_tts", "sesame"];
 
 /// Whether an mlx-audio text-to-speech folder clones a voice from a reference recording (the
 /// Speech panel's clone section), as the worker decides it: of Qwen3-TTS only the Base model
@@ -1297,6 +1300,13 @@ pub fn tts_clones_voice(path: &Path) -> bool {
         Some(t) => TTS_CLONE_TYPES.contains(&t),
         None => false,
     }
+}
+
+/// Whether a clone request to this folder must carry the reference's transcript (the worker
+/// refuses one without it); false for a folder that clones no voice.
+pub fn tts_clone_needs_text(path: &Path) -> bool {
+    tts_clones_voice(path)
+        && tts_type(path).is_some_and(|t| TTS_CLONE_TEXT_TYPES.contains(&t.as_str()))
 }
 
 /// The named voices of an mlx-audio text-to-speech folder (Qwen3-TTS: the keys of
@@ -2641,6 +2651,7 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
             encoder,
         );
         assert!(tts_clones_voice(base.path()));
+        assert!(tts_clone_needs_text(base.path()));
         // A Base config that does not name its kind clones too.
         assert!(tts_clones_voice(
             qwen(r#"{"model_type":"qwen3_tts"}"#, encoder).path()
@@ -2660,7 +2671,9 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
         // CustomVoice and VoiceDesign speak their own voices.
         for kind in ["custom_voice", "voice_design"] {
             let config = format!(r#"{{"model_type":"qwen3_tts","tts_model_type":"{kind}"}}"#);
-            assert!(!tts_clones_voice(qwen(&config, encoder).path()), "{kind}");
+            let folder = qwen(&config, encoder);
+            assert!(!tts_clones_voice(folder.path()), "{kind}");
+            assert!(!tts_clone_needs_text(folder.path()), "{kind}");
         }
         let other = |model_type: &str| {
             folder(&[
@@ -2672,9 +2685,10 @@ print("seen", [(p, b.decode()[:120], cl) for p, b, cl in seen])
                 ("README.md", TTS_CARD),
             ])
         };
-        for t in ["sesame", "chatterbox_turbo"] {
-            assert!(tts_clones_voice(other(t).path()), "{t}");
-        }
+        // CSM needs the sample's transcript; Chatterbox takes the recording alone.
+        assert!(tts_clone_needs_text(other("sesame").path()));
+        let chatterbox = other("chatterbox_turbo");
+        assert!(tts_clones_voice(chatterbox.path()) && !tts_clone_needs_text(chatterbox.path()));
         for t in ["soprano", "voxcpm2", "dia"] {
             assert!(!tts_clones_voice(other(t).path()), "{t}");
         }

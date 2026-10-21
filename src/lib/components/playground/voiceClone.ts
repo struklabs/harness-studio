@@ -21,10 +21,22 @@ export function canClone(models: TtsModelInfo[], name: string): boolean {
   return models.find((m) => m.name === name)?.voice_cloning === true;
 }
 
-/** What still stops a clone request: the sample, the size limit, then the consent box. */
-export function cloneBlocker(file: File | null, consent: boolean): 'sample' | 'size' | 'consent' | null {
+/** A clone request to the selected model must carry the sample's transcript. */
+export function cloneNeedsText(models: TtsModelInfo[], name: string): boolean {
+  return models.find((m) => m.name === name)?.voice_clone_needs_text === true;
+}
+
+/** What still stops a clone request: the sample, the size limit, the transcript (for a model
+ *  that needs it), then the consent box. */
+export function cloneBlocker(
+  file: File | null,
+  consent: boolean,
+  needsText = false,
+  text = '',
+): 'sample' | 'size' | 'text' | 'consent' | null {
   if (!file) return 'sample';
   if (file.size > MAX_SAMPLE_BYTES) return 'size';
+  if (needsText && !text.trim()) return 'text';
   if (!consent) return 'consent';
   return null;
 }

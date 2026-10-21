@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { canClone, cloneBlocker, cloneFields, voiceRefOf, MAX_SAMPLE_BYTES } from '../src/lib/components/playground/voiceClone.ts';
+import { canClone, cloneBlocker, cloneFields, cloneNeedsText, voiceRefOf, MAX_SAMPLE_BYTES } from '../src/lib/components/playground/voiceClone.ts';
 
 // tts.ts imports its neighbours without the `.ts` extension, as Vite allows.
 registerHooks({ resolve(specifier, context, next) {
@@ -34,9 +34,17 @@ test('engine models keep their voice_cloning capability (mlx-audio Qwen3-TTS Bas
     models: [],
     catalog: [],
     runtime_installed: false,
-    engine_models: [engine('qwen3-tts-base', { voice_cloning: true }), engine('soprano', {}), engine('custom', { voice_cloning: false })],
+    engine_models: [
+      engine('qwen3-tts-base', { voice_cloning: true, voice_clone_needs_text: true }),
+      engine('chatterbox', { voice_cloning: true, voice_clone_needs_text: false }),
+      engine('soprano', {}),
+      engine('custom', { voice_cloning: false }),
+    ],
   });
   assert.equal(canClone(models, 'qwen3-tts-base'), true);
+  assert.equal(cloneNeedsText(models, 'qwen3-tts-base'), true);
+  assert.equal(canClone(models, 'chatterbox'), true);
+  assert.equal(cloneNeedsText(models, 'chatterbox'), false);
   assert.equal(canClone(models, 'soprano'), false);
   assert.equal(canClone(models, 'custom'), false);
 });
@@ -47,6 +55,10 @@ test('a clone request needs a sample, a small file and the permission box, in th
   assert.equal(cloneBlocker(file(MAX_SAMPLE_BYTES + 1), true), 'size');
   assert.equal(cloneBlocker(file(1000), false), 'consent');
   assert.equal(cloneBlocker(file(1000), true), null);
+  // A model that needs the transcript waits for it before the permission box.
+  assert.equal(cloneBlocker(file(1000), false, true, '  '), 'text');
+  assert.equal(cloneBlocker(file(1000), false, true, 'hi'), 'consent');
+  assert.equal(cloneBlocker(file(1000), true, true, 'hi'), null);
 });
 
 test('the request carries the base64 sample, the transcript and consent', async () => {

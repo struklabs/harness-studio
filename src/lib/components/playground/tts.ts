@@ -23,6 +23,8 @@ export interface TtsModelInfo {
   supports_speed?: boolean;
   /** It can speak in a voice cloned from a reference recording. */
   voice_cloning?: boolean;
+  /** A clone request must carry the recording's transcript. */
+  voice_clone_needs_text?: boolean;
   runtime_installed?: boolean;
   quantization: string;
   sample_rate: number | null;
@@ -57,6 +59,8 @@ export interface EngineTtsModel {
   supports_speed?: boolean;
   /** It clones a voice from a reference recording (Qwen3-TTS Base, CSM, Chatterbox). */
   voice_cloning?: boolean;
+  /** A clone request must carry the recording's transcript (Qwen3-TTS Base, CSM). */
+  voice_clone_needs_text?: boolean;
   /** The engine's runtime is installed (absent: it is). */
   runtime_installed?: boolean;
 }
@@ -87,6 +91,7 @@ export function allTtsModels(o: TtsOverview | null): TtsModelInfo[] {
       voices: m.voices.map((v, i) => ({ id: v, sid: i, language: '', gender: '' })),
       supports_speed: m.supports_speed ?? false,
       voice_cloning: m.voice_cloning ?? false,
+      voice_clone_needs_text: m.voice_clone_needs_text ?? false,
     }),
   );
   return [...o.models, ...engine];
