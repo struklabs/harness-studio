@@ -19,6 +19,7 @@
   import { Textarea } from '#lib/components/ui/textarea/index.js';
   import { Badge } from '#lib/components/ui/badge/index.js';
   import * as Dialog from '#lib/components/ui/dialog/index.js';
+  import TaskRuns from './TaskRuns.svelte';
   import { FolderKanban, FileText, Image, AudioLines, File, FolderOpen, ExternalLink, Plus, Archive, ArchiveRestore, Trash2, Download, Pencil, MessageSquare, Bot } from '@lucide/svelte';
 
   let all = $state<Project[]>([]);
@@ -277,6 +278,8 @@
           {/each}
         </ul>
       </section>
+
+      {#key p.id}<TaskRuns projectId={p.id} archived={p.archived} />{/key}
 
       <section class="mt-6 flex flex-col gap-2" aria-labelledby="proj-agent">
         <h3 id="proj-agent" class="text-sm font-semibold">{t('proj.agent_tasks')}</h3>

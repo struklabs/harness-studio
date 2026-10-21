@@ -205,6 +205,18 @@ Press **Use in Playground**, or pick the project in the list above the chats (**
 
 On the project page, **Outputs** lists each file with its source (chat, tool, image generation, speech, or agent), model, and time. **Open** opens it with the default app, **Show in Folder** reveals it, and **Remove from List (Keep File)** forgets it without touching the disk. **Agent Tasks** runs a Hermes Agent task that can read only the project's folders; **Save as Output** keeps its answer as a Markdown file.
 
+### Task Runs: Drafts, Stepping, and Resuming
+
+**Task Runs** on the project page are agent tasks and analysis sessions that move step by step through the gateway. (**Agent Tasks** below are one-shot Hermes or OpenClaw processes; they cannot be stepped.) Press **New Agent Task** or **New Analysis Session** to create a draft: a title, a goal, the **Models** in order of preference, optional **File References**, and one **Step** per line (start a line with `! ` to require your approval before that step).
+
+- **Start**, **Resume**, and **Step Forward** first show the model requirements: whether each model is served, online, has at least the **Minimum Context**, and calls tools when **Tool Calling Required** is ticked. A model that does not qualify is skipped, and the next one in the list runs the step. The reason is shown on the step under **A fallback model was used**. Cloud providers you added with your own key (BYOK) work the same way as `cloud:provider/model`.
+- A request that times out or fails with a temporary error (HTTP 408, 429, or 5xx) is retried with a growing delay, then the next model is tried. At most two runs execute at the same time. Each run shows its token tally and, for cloud models with prices, its cost.
+- **Pause after every step** runs one step at a time. Each finished step keeps its output and takes a checkpoint; **Rerun from This Step** goes back to that point. Tokens already spent stay in the tally.
+- A step with an approval gate stops the run (**Awaiting Approval**) until you press **Approve** or **Deny and Skip**.
+- Everything lives in the project database, not in memory. If Harness closes or crashes mid-step, the run shows **Interrupted** after a few seconds; **Resume** repeats only the unfinished step.
+- **Export as Bundle** writes one file with the run, its outputs, checkpoints, and file references (small text files can be embedded). **Import Bundle** on another device (or project) adds it as a paused run; missing embedded files are restored, changed or missing files are flagged. A bundle never contains endpoints, tokens, or keys.
+- Resuming on a different model works because only the text history is carried over: no cache or live state. The resume dialog lists what changes (different provider type, a smaller context that will shorten older outputs, unverified tool calling, or that outputs will be sent to a cloud provider).
+
 **Archive** hides a project from the list and the Playground picker (**Show Archived** brings it back; **Unarchive** restores it). **Export as Zip** saves the project details, its chats as JSON, and its output files. **Delete Project** keeps the chats (they no longer belong to a project); tick the checkbox to also delete the output files in the project's folders from disk. The folders themselves always stay.
 
 ## Tasks (Advanced)

@@ -1363,6 +1363,12 @@ fn model_object(
             "ttl_seconds": d.ttl_seconds,
         }
     });
+    // The configured context of a local model: what task runs check their requirements against.
+    if let Some(harness_core::params::ParamValue::Int(n)) = d.load.get("context_size") {
+        if *n > 0 {
+            object["harness"]["context_size"] = serde_json::json!(n);
+        }
+    }
     if let Some((name, _)) = harness_core::link::parse_model(&d.id) {
         let status = harness_core::link::status(name).unwrap_or_default();
         object["owned_by"] = serde_json::json!("harness-link");

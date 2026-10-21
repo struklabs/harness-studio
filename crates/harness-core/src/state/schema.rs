@@ -1,7 +1,7 @@
 //! Ordered SQL migrations for `state.db`. Migration `i` (0-based) upgrades the schema
 //! from `user_version = i` to `i + 1`. Never edit a released migration; append a new one.
 
-pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10];
+pub(crate) const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11];
 
 const V1: &str = r#"
 CREATE TABLE folders (
@@ -316,4 +316,79 @@ const V10: &str = r#"
 -- document that were recognized with it (comma separated page numbers; NULL = none).
 ALTER TABLE rag_kbs ADD COLUMN ocr_model TEXT;
 ALTER TABLE rag_documents ADD COLUMN ocr_pages TEXT;
+"#;
+
+/// v11: task runs (Projects: agent tasks and analysis sessions that can pause, step back and
+/// resume). Everything needed to continue lives here, never live RAM state: the run (goal,
+/// policy, file references, token/cost tally, a heartbeat that tells a crashed run from a live
+/// one), its steps with their outputs, a checkpoint after every finished step and an event log
+/// (fallback reasons, retries, recovery). See `crate::taskflow`.
+const V11: &str = r#"
+CREATE TABLE task_runs (
+    rid            INTEGER PRIMARY KEY,
+    id             TEXT NOT NULL UNIQUE,
+    project_id     TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    kind           TEXT NOT NULL DEFAULT 'agent_task',
+    title          TEXT NOT NULL,
+    goal           TEXT NOT NULL DEFAULT '',
+    status         TEXT NOT NULL DEFAULT 'draft',
+    mode           TEXT NOT NULL DEFAULT 'auto',
+    policy_json    TEXT NOT NULL DEFAULT '{}',
+    file_refs_json TEXT NOT NULL DEFAULT '[]',
+    tokens_in      INTEGER NOT NULL DEFAULT 0,
+    tokens_out     INTEGER NOT NULL DEFAULT 0,
+    cost_micro     INTEGER NOT NULL DEFAULT 0,
+    last_model     TEXT,
+    error          TEXT,
+    imported_from  TEXT,
+    heartbeat_at   INTEGER NOT NULL DEFAULT 0,
+    created_at     INTEGER NOT NULL,
+    updated_at     INTEGER NOT NULL,
+    finished_at    INTEGER
+);
+CREATE INDEX task_runs_project ON task_runs(project_id, updated_at);
+
+CREATE TABLE task_steps (
+    rid             INTEGER PRIMARY KEY,
+    id              TEXT NOT NULL UNIQUE,
+    run_id          TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
+    idx             INTEGER NOT NULL,
+    title           TEXT NOT NULL,
+    prompt          TEXT NOT NULL,
+    gate            INTEGER NOT NULL DEFAULT 0,
+    approval        TEXT NOT NULL DEFAULT 'none',
+    status          TEXT NOT NULL DEFAULT 'pending',
+    output          TEXT NOT NULL DEFAULT '',
+    model           TEXT,
+    fallback_reason TEXT,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    tokens_in       INTEGER NOT NULL DEFAULT 0,
+    tokens_out      INTEGER NOT NULL DEFAULT 0,
+    cost_micro      INTEGER NOT NULL DEFAULT 0,
+    error           TEXT,
+    started_at      INTEGER,
+    finished_at     INTEGER,
+    UNIQUE (run_id, idx)
+);
+
+CREATE TABLE task_checkpoints (
+    rid          INTEGER PRIMARY KEY,
+    id           TEXT NOT NULL UNIQUE,
+    run_id       TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
+    step_idx     INTEGER NOT NULL,
+    label        TEXT NOT NULL DEFAULT '',
+    model        TEXT,
+    created_at   INTEGER NOT NULL
+);
+CREATE INDEX task_checkpoints_run ON task_checkpoints(run_id, step_idx);
+
+CREATE TABLE task_events (
+    rid       INTEGER PRIMARY KEY,
+    run_id    TEXT NOT NULL REFERENCES task_runs(id) ON DELETE CASCADE,
+    step_idx  INTEGER,
+    at        INTEGER NOT NULL,
+    kind      TEXT NOT NULL,
+    message   TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX task_events_run ON task_events(run_id, rid);
 "#;
