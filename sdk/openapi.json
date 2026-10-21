@@ -9186,6 +9186,116 @@
         }
       }
     },
+    "/api/harness/v1/settings": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "The allow-listed settings.",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteSettings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Changes the given fields (all or nothing). An open desktop window reloads its settings.",
+        "operationId": "update_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteSettingsPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A value outside its allowed set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field outside the allow-list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/shutdown": {
       "post": {
         "tags": [
@@ -21459,6 +21569,165 @@
             ]
           }
         }
+      },
+      "RemoteSettings": {
+        "type": "object",
+        "description": "The readable settings.",
+        "required": [
+          "language",
+          "theme",
+          "cvd_safe",
+          "close_action",
+          "start_minimized",
+          "restore_last_session",
+          "keep_window_in_tray",
+          "auto_load_after_download",
+          "analytics_enabled",
+          "analytics_retention_days"
+        ],
+        "properties": {
+          "language": {
+            "type": "string",
+            "description": "`tr` or `en`."
+          },
+          "theme": {
+            "type": "string",
+            "description": "Colour theme: `system`, `dark`, `light`, `oled`, `night`, `hc-dark`, `hc-light`."
+          },
+          "cvd_safe": {
+            "type": "boolean",
+            "description": "Colour-vision-safe status and chart colours."
+          },
+          "ui_scale": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Interface size in percent (90, 100, 115, 130, 150); null = chosen from the screen.",
+            "minimum": 0
+          },
+          "ui_level": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`simple` or `advanced`; null = the full interface of an older installation."
+          },
+          "close_action": {
+            "type": "string",
+            "description": "Closing the window: `ask`, `tray` or `quit`."
+          },
+          "start_minimized": {
+            "type": "boolean",
+            "description": "Started at login: stay in the tray."
+          },
+          "restore_last_session": {
+            "type": "boolean",
+            "description": "Relaunch the last server configuration on start."
+          },
+          "keep_window_in_tray": {
+            "type": "boolean",
+            "description": "Keep the hidden window's web view loaded."
+          },
+          "auto_load_after_download": {
+            "type": "boolean",
+            "description": "Load a chat model right after its download."
+          },
+          "analytics_enabled": {
+            "type": "boolean",
+            "description": "Record gateway request metadata."
+          },
+          "analytics_retention_days": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Days raw request rows are kept (1–3650).",
+            "minimum": 0
+          }
+        }
+      },
+      "RemoteSettingsPatch": {
+        "type": "object",
+        "description": "A change: only the fields given are written. Unknown fields (anything outside the\nallow-list) are refused.",
+        "properties": {
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "theme": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cvd_safe": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "ui_scale": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          },
+          "ui_level": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "close_action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "start_minimized": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "restore_last_session": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "keep_window_in_tray": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "auto_load_after_download": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "analytics_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "analytics_retention_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
       },
       "RemovalOptions": {
         "type": "object",

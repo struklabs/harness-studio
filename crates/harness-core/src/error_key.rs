@@ -152,7 +152,7 @@ pub fn http_status(code: &str) -> u16 {
         "runtime.no_release" | "runtime.whisper_no_macos" => 404,
         // The tool policy refuses the call (Control API: it cannot ask the user).
         "tools.disabled" | "tools.approval_required" | "tools.install_approval_required" => 403,
-        "tools.workdir_invalid" => 400,
+        "tools.workdir_invalid" | "settings.invalid_value" => 400,
         // The training backend (and any other placeholder) takes no grants yet.
         "permissions.not_available" => 409,
         "permissions.paths_invalid" | "permissions.capability_unsupported" => 400,

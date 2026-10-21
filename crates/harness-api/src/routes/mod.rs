@@ -18,6 +18,7 @@ mod otel;
 mod permissions;
 mod runtimes;
 mod servers;
+mod settings;
 mod system;
 mod tokens;
 mod tools;
@@ -277,6 +278,7 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(analytics::request))
         .routes(routes!(analytics::queue_hints))
         .routes(routes!(analytics::metrics))
+        .routes(routes!(settings::get, settings::update))
         .routes(routes!(permissions::list))
         .routes(routes!(permissions::grant))
         .routes(routes!(permissions::revoke_grant))

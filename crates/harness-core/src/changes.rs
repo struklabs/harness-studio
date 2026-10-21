@@ -21,6 +21,11 @@ fn logs_tx() -> &'static watch::Sender<u64> {
     TX.get_or_init(|| watch::channel(0).0)
 }
 
+fn settings_tx() -> &'static watch::Sender<u64> {
+    static TX: OnceLock<watch::Sender<u64>> = OnceLock::new();
+    TX.get_or_init(|| watch::channel(0).0)
+}
+
 fn dirty_logs() -> &'static Mutex<BTreeSet<String>> {
     static SET: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
     SET.get_or_init(|| Mutex::new(BTreeSet::new()))
@@ -35,6 +40,17 @@ pub fn servers_changed() {
 /// Wakes when [`servers_changed`] was called after the last `borrow_and_update`.
 pub fn subscribe_servers() -> watch::Receiver<u64> {
     servers_tx().subscribe()
+}
+
+/// The app settings were changed by another client (the Control API); an open window reloads
+/// its copy so it does not write the older one back.
+pub fn settings_changed() {
+    settings_tx().send_modify(|g| *g = g.wrapping_add(1));
+}
+
+/// Wakes when [`settings_changed`] was called after the last `borrow_and_update`.
+pub fn subscribe_settings() -> watch::Receiver<u64> {
+    settings_tx().subscribe()
 }
 
 /// Server `id` has new log lines.

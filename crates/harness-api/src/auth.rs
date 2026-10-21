@@ -404,6 +404,12 @@ mod tests {
                 "{path}"
             );
         }
+        // The allow-listed app settings: anyone with `read` sees them, only admin changes them.
+        assert_eq!(required_scope(&get, "/settings", true), Some(Scope::Read));
+        assert_eq!(
+            required_scope(&Method::PATCH, "/settings", true),
+            Some(Scope::Admin)
+        );
         assert_eq!(required_scope(&get, "/otel", true), Some(Scope::Read));
         assert_eq!(
             required_scope(&Method::PUT, "/otel", true),

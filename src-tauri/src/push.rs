@@ -51,6 +51,15 @@ pub fn spawn(app: &AppHandle, registry: Arc<ServerRegistry>) {
 
     let handle = app.clone();
     tauri::async_runtime::spawn(async move {
+        let mut rx = harness_core::changes::subscribe_settings();
+        while rx.changed().await.is_ok() {
+            rx.borrow_and_update();
+            let _ = handle.emit("settings-changed", ());
+        }
+    });
+
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
         let mut rx = harness_core::events::subscribe();
         loop {
             let mut changed = Changed::default();
