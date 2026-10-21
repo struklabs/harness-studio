@@ -12,6 +12,8 @@ export interface KnowledgeBase {
   /** Embedding model (alias) of the index; null = keyword search only. */
   embed_model: string | null;
   embed_dims: number | null;
+  /** OCR model (alias) that reads PDF pages without a text layer; null = none. */
+  ocr_model: string | null;
   /** Total milliseconds spent indexing. */
   index_ms: number;
   indexed_at: number | null;
@@ -21,6 +23,8 @@ export interface KnowledgeBase {
   chunks: number;
   embedded: number;
   failed: number;
+  /** Pages of its documents read with the OCR model. */
+  ocr_pages: number;
   state: KbState;
   stale_reason: 'model' | 'dims' | null;
 }
@@ -58,6 +62,7 @@ export interface EmbedderStatus {
 export const kbApi = {
   list: (embedModel: string | null) => invoke<KnowledgeBase[]>('kb_list', { embedModel }),
   create: (name: string, folder: string | null) => invoke<KnowledgeBase>('kb_create', { name, folder }),
+  setOcrModel: (kbId: string, ocrModel: string | null) => invoke<KnowledgeBase>('kb_set_ocr_model', { kbId, ocrModel }),
   rename: (kbId: string, name: string) => invoke<void>('kb_rename', { kbId, name }),
   remove: (kbId: string) => invoke<void>('kb_delete', { kbId }),
   documents: (kbId: string) => invoke<RagDocument[]>('kb_documents', { kbId }),

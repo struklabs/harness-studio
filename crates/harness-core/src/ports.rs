@@ -1,7 +1,9 @@
 //! Port policy: users should not have to think about ports.
 //!
 //! * **llama-server instances** without a port of their own (`LaunchConfig::port_auto`, or
-//!   port 0) get one from Harness's range [`AUTO_RANGE`] (11440–11499). The range holds none
+//!   port 0) get one from Harness's range [`AUTO_RANGE`] (11440–11499); an isolated run (a data
+//!   directory other than the regular install's, see [`crate::paths::is_isolated`]) uses
+//!   [`ISOLATED_AUTO_RANGE`] instead, so it never takes the real install's ports. The range holds none
 //!   of the ports other software usually takes ([`WELL_KNOWN`]: 8080, 3000, 5000, 5173, 8000,
 //!   8888, Ollama's 11434, LM Studio's 1234, Harness's own 11435/11500...). An automatic port
 //!   that turns out to be taken (by the time llama-server binds it) is replaced silently; an
@@ -20,6 +22,28 @@ use std::sync::Mutex;
 
 /// Ports Harness hands out to llama-server instances on its own.
 pub const AUTO_RANGE: RangeInclusive<u16> = 11440..=11499;
+
+/// [`AUTO_RANGE`] of an isolated run (`HARNESS_DATA_DIR`, test builds, tests): clear of the
+/// regular install's range and of Harness's fixed ports.
+pub const ISOLATED_AUTO_RANGE: RangeInclusive<u16> = 12440..=12499;
+
+/// The range automatic ports come from in this process (see [`ISOLATED_AUTO_RANGE`]).
+pub fn auto_range() -> RangeInclusive<u16> {
+    range_for(crate::paths::is_isolated())
+}
+
+fn range_for(isolated: bool) -> RangeInclusive<u16> {
+    if isolated {
+        ISOLATED_AUTO_RANGE
+    } else {
+        AUTO_RANGE
+    }
+}
+
+/// A port Harness may hand out on its own, in either range.
+pub fn is_auto(port: u16) -> bool {
+    AUTO_RANGE.contains(&port) || ISOLATED_AUTO_RANGE.contains(&port)
+}
 
 /// Ports other software commonly uses (dev servers, databases, other local LLM tools) and
 /// Harness's own fixed ports. Never chosen automatically.
@@ -58,12 +82,21 @@ pub fn is_well_known(port: u16) -> bool {
     WELL_KNOWN.contains(&port)
 }
 
-/// First free port of [`AUTO_RANGE`] for `host`: `preferred` (the instance's last automatic
+/// First free port of [`auto_range`] for `host`: `preferred` (the instance's last automatic
 /// port) when it is in the range and free, else the first free one not in `taken` (ports of
 /// other running instances and saved profiles). `None` when the whole range is taken.
 pub fn pick_auto(host: &str, preferred: Option<u16>, taken: &[u16]) -> Option<u16> {
+    pick_in(auto_range(), host, preferred, taken)
+}
+
+fn pick_in(
+    range: RangeInclusive<u16>,
+    host: &str,
+    preferred: Option<u16>,
+    taken: &[u16],
+) -> Option<u16> {
     let usable = |p: u16| {
-        AUTO_RANGE.contains(&p)
+        range.contains(&p)
             && !is_well_known(p)
             && !taken.contains(&p)
             && crate::servers::ensure_port_free(host, p).is_ok()
@@ -71,13 +104,13 @@ pub fn pick_auto(host: &str, preferred: Option<u16>, taken: &[u16]) -> Option<u1
     if let Some(p) = preferred.filter(|p| usable(*p)) {
         return Some(p);
     }
-    AUTO_RANGE.clone().find(|p| usable(*p))
+    range.clone().find(|p| usable(*p))
 }
 
 /// A free port for a listener whose configured port is taken: `remembered` (the fallback of the
 /// last run) when it is free, else the first free port above `configured`, then (wrapping
-/// around) the unprivileged ports below it. Never well known, in [`AUTO_RANGE`] (llama-server
-/// instances), or in `avoid`.
+/// around) the unprivileged ports below it. Never well known, in an automatic range
+/// ([`is_auto`]: llama-server instances), or in `avoid`.
 pub fn fallback_port(
     host: &str,
     configured: u16,
@@ -119,7 +152,7 @@ fn candidates_where<'a>(
             p >= 1024
                 && p != configured
                 && !is_well_known(p)
-                && !AUTO_RANGE.contains(&p)
+                && !is_auto(p)
                 && !avoid.contains(&p)
                 && is_free(p)
         })
@@ -538,7 +571,7 @@ mod tests {
     #[test]
     fn the_auto_range_holds_no_well_known_port() {
         for p in WELL_KNOWN {
-            assert!(!AUTO_RANGE.contains(p), "{p}");
+            assert!(!is_auto(*p), "{p}");
         }
         assert!(is_well_known(8080) && is_well_known(11434) && is_well_known(1234));
         assert!(is_well_known(crate::gateway::DEFAULT_PORT));
@@ -548,15 +581,15 @@ mod tests {
     #[test]
     fn auto_ports_come_from_the_range_and_skip_taken_ones() {
         // Hold one port of the range (when it is free on this machine) and reserve another.
-        let held = AUTO_RANGE
+        let held = auto_range()
             .clone()
             .find_map(|p| TcpListener::bind(("127.0.0.1", p)).ok());
         let held_port = held.as_ref().map(|l| l.local_addr().unwrap().port());
         let first = pick_auto("127.0.0.1", None, &[]).unwrap();
-        assert!(AUTO_RANGE.contains(&first));
+        assert!(auto_range().contains(&first));
         assert_ne!(Some(first), held_port);
         let second = pick_auto("127.0.0.1", None, &[first]).unwrap();
-        assert!(AUTO_RANGE.contains(&second) && second != first);
+        assert!(auto_range().contains(&second) && second != first);
         // The preferred (sticky) port is kept while it is free, ignored outside the range.
         assert_eq!(pick_auto("127.0.0.1", Some(second), &[]), Some(second));
         assert_eq!(pick_auto("127.0.0.1", Some(8080), &[]), Some(first));
@@ -565,6 +598,24 @@ mod tests {
             let got = pick_auto("127.0.0.1", Some(h), &[]).unwrap();
             assert_ne!(got, h);
         }
+    }
+
+    #[test]
+    fn isolated_runs_take_their_ports_from_a_range_of_their_own() {
+        // Unit tests never call `paths::init`: their data root is a temp dir, an isolated run.
+        assert!(crate::paths::is_isolated());
+        assert_eq!(auto_range(), ISOLATED_AUTO_RANGE);
+        assert_eq!(range_for(false), AUTO_RANGE);
+        // Clear of the regular install's range and of every fixed port.
+        for p in ISOLATED_AUTO_RANGE {
+            assert!(!AUTO_RANGE.contains(&p) && !is_well_known(p), "{p}");
+        }
+        let got = pick_auto("127.0.0.1", Some(*AUTO_RANGE.start()), &[]).unwrap();
+        assert!(ISOLATED_AUTO_RANGE.contains(&got), "{got}");
+        assert!(is_auto(got) && is_auto(*AUTO_RANGE.start()));
+        // The regular install keeps its range.
+        let regular = pick_in(range_for(false), "127.0.0.1", None, &[]).unwrap();
+        assert!(AUTO_RANGE.contains(&regular), "{regular}");
     }
 
     #[test]
@@ -612,7 +663,7 @@ mod tests {
                 && p != configured
                 && p != taken
                 && p != avoided
-                && !AUTO_RANGE.contains(&p)
+                && !is_auto(p)
                 && !is_well_known(p)
         }));
         let retried: Vec<_> =

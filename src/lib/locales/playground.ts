@@ -1,5 +1,20 @@
 // Playground view: in-app streaming chat against the running llama-server.
 const tr = {
+  'vid.questions': 'Video Soruları',
+  'vid.generate': 'Video Oluştur',
+  'vid.question': 'Soru',
+  'vid.prompt': 'İstem',
+  'vid.input': 'Video',
+  'vid.start_image': 'Başlangıç Görüntüsü',
+  'vid.format': 'Biçim',
+  'vid.frames': 'Kareler',
+  'vid.steps': 'Adımlar',
+  'vid.size': 'Boyut',
+  'vid.run': 'Çalıştır',
+  'vid.cancel': 'İptal Et',
+  'vid.file_limit': 'En fazla 32 MiB boyutunda bir dosya seçin.',
+  'vid.memory': 'Video üretimi yüksek RAM/VRAM gerektirir ve CPU üzerinde uzun sürebilir. Daha az kare ve adımla başlayın.',
+
   'pg.rich_raw': 'Ham JSON',
   'pg.rich_preview': 'Ön İzleme',
   'pg.rich_copy_csv': 'CSV Olarak Kopyala',
@@ -21,6 +36,9 @@ const tr = {
   'pg.audio_remove': '{name} sesini kaldır',
   'pg.audio_picker_filter': 'Ses dosyaları',
   'pg.audio_needs_model': 'Seçili model ses girişini desteklemiyor.',
+  'pg.speak_replies': 'Yanıtları Sesli Oku',
+  'pg.speak_replies_voice': 'Yanıt Ses Modeli',
+  'pg.speak_replies_native': 'Model Kendi Sesiyle Konuşur',
   'pg.web_tools': 'Web ve Araçlar',
   'pg.web_tools_on': 'Açık',
   'pg.web_tools_off': 'Kapalı',
@@ -318,6 +336,21 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'vid.questions': 'Video Questions',
+  'vid.generate': 'Generate Video',
+  'vid.question': 'Question',
+  'vid.prompt': 'Prompt',
+  'vid.input': 'Video',
+  'vid.start_image': 'Start Image',
+  'vid.format': 'Format',
+  'vid.frames': 'Frames',
+  'vid.steps': 'Steps',
+  'vid.size': 'Size',
+  'vid.run': 'Run',
+  'vid.cancel': 'Cancel',
+  'vid.file_limit': 'Choose a file no larger than 32 MiB.',
+  'vid.memory': 'Video generation needs substantial RAM/VRAM and can be slow on CPU. Start with fewer frames and steps.',
+
   'pg.rich_raw': 'Raw JSON',
   'pg.rich_preview': 'Preview',
   'pg.rich_copy_csv': 'Copy as CSV',
@@ -339,6 +372,9 @@ const en: Record<keyof typeof tr, string> = {
   'pg.audio_remove': 'Remove audio {name}',
   'pg.audio_picker_filter': 'Audio files',
   'pg.audio_needs_model': 'The selected model does not support audio input.',
+  'pg.speak_replies': 'Speak Replies',
+  'pg.speak_replies_voice': 'Reply Voice Model',
+  'pg.speak_replies_native': 'Model Speaks Natively',
 
   'pg.web_tools': 'Web and Tools',
   'pg.web_tools_on': 'On',

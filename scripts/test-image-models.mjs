@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { isImageDefinition, isMflux, needsStartImage, takesStrength } = await import('../src/lib/components/playground/imageModels.ts');
+const { isImageDefinition, isMflux, needsStartImage, takesMask, takesStrength } = await import('../src/lib/components/playground/imageModels.ts');
 
 const file = (name, task, architecture) => ({ id: name, name, path: `/m/${name}`, kind: 'pipeline', task, architecture, is_ready: true });
 const def = (alias) => ({ id: `md-${alias}`, alias, base: { kind: 'local', path: `/m/${alias}` } });
@@ -35,4 +35,16 @@ test('mflux FLUX.2 [klein] folders draw and edit; they are told apart from diffu
   assert.equal(needsStartImage('klein', defsAll, all), false);
   assert.equal(takesStrength('klein', defsAll, all), true);
   assert.deepEqual(['tiny-sd', 'qwen-edit', 'unknown'].map((a) => isMflux(a, defsAll, all)), [false, false, false]);
+});
+
+test('mflux Z-Image, FLUX.1 and Qwen-Image folders are mflux; FLUX.1 Fill inpaints from a start image', () => {
+  const z = file('zimage', 'text-to-image', 'z-image-turbo');
+  const schnell = file('schnell', 'text-to-image', 'schnell');
+  const fill = file('fill', 'image-to-image', 'dev-fill');
+  const all = [...files, z, schnell, fill];
+  const defsAll = [...defs, def('zimage'), def('schnell'), def('fill')];
+  assert.deepEqual(['zimage', 'schnell', 'fill'].map((a) => isMflux(a, defsAll, all)), [true, true, true]);
+  assert.deepEqual(['zimage', 'schnell', 'fill', 'tiny-sd'].map((a) => takesMask(a, defsAll, all)), [false, false, true, false]);
+  assert.deepEqual(['zimage', 'fill'].map((a) => needsStartImage(a, defsAll, all)), [false, true]);
+  assert.equal(takesStrength('zimage', defsAll, all), true);
 });

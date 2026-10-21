@@ -11,6 +11,7 @@ import { familyFromError } from '#lib/engines.js';
 import type { RuntimeDownloadProgress } from '#lib/types.js';
 import { allTtsModels, fetchSpeech, pickTtsModel, pickTtsVoice, ttsRequirement, ttsSupportsSpeed, type TtsModelInfo, type TtsOverview } from './tts';
 import { chunkSpeechText, plainSpeechText } from './ttsText';
+import { readSpeakReplies, writeSpeakReplies } from './speakReplies';
 
 const FAMILY = 'sherpa-onnx';
 
@@ -19,6 +20,12 @@ class TtsStore {
   model = $state('');
   voice = $state('');
   speed = $state(1);
+  /** Chat switch: speak every finished reply (see speakReplies.ts). */
+  speakReplies = $state(readSpeakReplies(typeof localStorage === 'undefined' ? undefined : localStorage));
+  setSpeakReplies(on: boolean) {
+    this.speakReplies = on;
+    writeSpeakReplies(typeof localStorage === 'undefined' ? undefined : localStorage, on);
+  }
   /** Catalog id being downloaded, and its progress. */
   installingModel = $state<string | null>(null);
   modelProgress = $state<RuntimeDownloadProgress | null>(null);
@@ -167,6 +174,21 @@ class ReadAloud {
             : undefined,
         );
       }
+    } finally {
+      if (this.controller === c) this.stop();
+    }
+  }
+
+  /** Plays a recording that came with the reply itself (a natively speaking model), as message `id`. */
+  async playClip(id: string, blob: Blob): Promise<void> {
+    this.stop();
+    const c = new AbortController();
+    this.controller = c;
+    this.activeId = id;
+    try {
+      await this.play(blob, c.signal);
+    } catch (e) {
+      if (!c.signal.aborted) toast.error(t('speak.read_failed', { error: localizeError(e) }));
     } finally {
       if (this.controller === c) this.stop();
     }

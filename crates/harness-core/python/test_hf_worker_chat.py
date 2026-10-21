@@ -131,4 +131,46 @@ done = w.completion("id2", 6, "m", {"role": "assistant", "content": "ok"}, "stop
 assert done["object"] == "chat.completion" and done["choices"][0]["message"]["content"] == "ok"
 assert w.CHAT_TASKS <= w.TASKS
 
+# --- audio in and speech out (Qwen2.5-Omni, any-to-any) -----------------------------------------
+clips = []
+fake_clip = lambda part: ("clip", part.get("format"))
+msgs, imgs = w.normalize_messages(
+    [{"role": "user", "content": [{"type": "text", "text": "what is said?"},
+                                   {"type": "input_audio", "input_audio": {"data": "AAAA", "format": "wav"}}]}],
+    True, audio=True, clips=clips, load_clip=fake_clip)
+assert msgs == [{"role": "user", "content": [{"type": "text", "text": "what is said?"}, {"type": "audio"}]}]
+assert clips == [("clip", "wav")] and imgs == []
+# A text model refuses audio; audio is for user messages; the clip count is bounded.
+assert "does not take audio" in refused(
+    w.normalize_messages, [{"role": "user", "content": [{"type": "input_audio", "input_audio": {"data": "AA"}}]}],
+    False, load_clip=fake_clip)
+assert "only accepted in user" in refused(
+    w.normalize_messages, [{"role": "assistant", "content": [{"type": "input_audio", "input_audio": {"data": "AA"}}]}],
+    True, audio=True, clips=[], load_clip=fake_clip)
+many = [{"role": "user", "content": [{"type": "input_audio", "input_audio": {"data": "AA"}}] * (w.MAX_CLIPS + 1)}]
+assert "audio clips" in refused(w.normalize_messages, many, True, audio=True, clips=[], load_clip=fake_clip)
+
+
+class Speaker:
+    speaks = True
+
+
+class Mute:
+    speaks = False
+
+
+assert w.speech_request({"messages": []}, Speaker()) is None
+assert w.speech_request({"modalities": ["text"]}, Speaker()) is None
+assert w.speech_request({"modalities": ["text", "audio"]}, Speaker()) == {"voice": "Chelsie"}
+assert w.speech_request({"modalities": ["audio"], "audio": {"voice": "ETHAN", "format": "wav"}}, Speaker()) == {"voice": "Ethan"}
+assert w.speech_request({"modalities": ["audio"], "audio": {"voice": "alloy"}}, Speaker()) == {"voice": "Chelsie"}
+assert "does not answer with speech" in refused(w.speech_request, {"modalities": ["text", "audio"]}, Mute())
+assert "modalities" in refused(w.speech_request, {"modalities": ["video"]}, Speaker())
+assert "not served" in refused(w.speech_request, {"modalities": ["audio"], "audio": {"format": "mp3"}}, Speaker())
+reply = w.audio_message(b"RIFFxxxxWAVE", "hello")
+assert reply["transcript"] == "hello" and reply["id"].startswith("audio_")
+import base64
+assert base64.b64decode(reply["data"]) == b"RIFFxxxxWAVE"
+assert w.CHAT_TASKS >= {"any-to-any"}
+
 print("PASS")

@@ -1,11 +1,18 @@
 // Backend error keys of the Playground's local RAG (harness_core::rag, state.db documents).
 // Texts are single quoted literals (the CLI compiles the English half in); {name} = parameter.
 const tr = {
+  'ocr.bad_file': 'PNG, JPEG, WebP, GIF veya PDF seçin (en fazla 20 MiB).',
+  'ocr.read_failed': 'Belge okunamadı.',
+  'ocr.copy_failed': 'Metin panoya kopyalanamadı.',
   'rag.not_a_file': 'Dosya değil: {path}',
   'rag.file_too_large': '{name} çok büyük (en fazla {max_mib} MiB).',
   'rag.unsupported_file': '{name} desteklenmiyor. PDF, DOCX, Markdown, metin ya da kaynak kodu dosyası ekleyin.',
   'rag.docx_failed': '{name} okunamadı (DOCX): {error}',
-  'rag.pdf_no_text': '{name} içinde metin yok. Taranmış bir PDF olabilir; metin tanıma (OCR) desteklenmiyor.',
+  'rag.pdf_no_text': '{name} içinde metin yok. Taranmış bir PDF olabilir; taranmış sayfaları okumak için bilgi tabanına bir OCR modeli seçin.',
+  'rag.ocr_too_many_pages': '{name} içinde metin katmanı olmayan {pages} sayfa var; en fazla {max} sayfa okunabilir.',
+  'ocr.rasterizer_unavailable': 'Metin katmanı olmayan PDF sayfalarını görüntüye çevirmek için Python motoru gerekir. Ayarlar > Model Motoru sayfasından kurun, sonra yeniden deneyin.',
+  'ocr.rasterize_failed': 'PDF sayfaları görüntüye çevrilemedi: {error}',
+  'ocr.page_too_large': '{page}. sayfa görüntüsü çok büyük (en fazla {max_mib} MiB).',
   'rag.pdf_failed': '{name} okunamadı (PDF): {error}',
   'rag.pdf_timeout': '{name} {seconds} saniyede okunamadı; işlem durduruldu.',
   'rag.empty_document': '{name} boş.',
@@ -40,11 +47,18 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'ocr.bad_file': 'Choose PNG, JPEG, WebP, GIF or PDF (up to 20 MiB).',
+  'ocr.read_failed': 'Could not read the document.',
+  'ocr.copy_failed': 'Could not copy the text to the clipboard.',
   'rag.not_a_file': 'Not a file: {path}',
   'rag.file_too_large': '{name} is too large ({max_mib} MiB at most).',
   'rag.unsupported_file': '{name} is not supported. Add a PDF, DOCX, Markdown, text or source code file.',
   'rag.docx_failed': 'Could not read {name} (DOCX): {error}',
-  'rag.pdf_no_text': '{name} has no text. It may be a scanned PDF; text recognition (OCR) is not supported.',
+  'rag.pdf_no_text': '{name} has no text. It may be a scanned PDF; choose an OCR model for the knowledge base to read scanned pages.',
+  'rag.ocr_too_many_pages': '{name} has {pages} pages without a text layer; {max} at most can be read.',
+  'ocr.rasterizer_unavailable': 'Turning PDF pages without a text layer into images needs the Python engine. Install it in Settings > Runtime, then try again.',
+  'ocr.rasterize_failed': 'Could not turn the PDF pages into images: {error}',
+  'ocr.page_too_large': 'The image of page {page} is too large ({max_mib} MiB at most).',
   'rag.pdf_failed': 'Could not read {name} (PDF): {error}',
   'rag.pdf_timeout': 'Reading {name} took longer than {seconds} seconds and was stopped.',
   'rag.empty_document': '{name} is empty.',

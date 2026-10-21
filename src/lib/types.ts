@@ -2105,6 +2105,7 @@ export interface ModelCaps {
   vision: boolean;
   audio: boolean;
   audio_input: boolean;
+  speech_output?: boolean;
   embedding: boolean;
   rerank: boolean;
   /** Speech recognition (whisper.cpp ggml). */
@@ -2612,3 +2613,6 @@ export interface N8nOpenAiConnection {
   base_url: string | null;
   requires_token: boolean;
 }
+
+/** Playground-only tools do not change a model's runtime serving mode. */
+export type PlaygroundMode = ServeMode | 'ocr';

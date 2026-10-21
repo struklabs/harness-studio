@@ -28,6 +28,7 @@
     isImageDefinition,
     isMflux,
     needsStartImage,
+    takesMask,
     takesStrength,
     parseSize,
     pngSize,
@@ -67,12 +68,26 @@
   let strengthError = $derived(!!form.init && strengthShown && !strengthOk(form.strength));
   /** InstructPix2Pix, Qwen-Image-Edit...: they edit a start image and draw nothing from text alone. */
   let editsOnly = $derived(needsStartImage(form.model, domain.definitions, library.models));
-  /** mflux (FLUX.2 [klein]): no negative prompt or CFG; an empty size is the largest that fits. */
+  /** mflux (FLUX.2 [klein], Z-Image, FLUX.1, Qwen-Image): no negative prompt or CFG; an empty size is the largest that fits. */
   let mflux = $derived(isMflux(form.model, domain.definitions, library.models));
+  /** FLUX.1 Fill: it redraws the start image where its mask is white. */
+  let inpaints = $derived(takesMask(form.model, domain.definitions, library.models));
   let canRun = $derived(
-    !busy && app.gatewayRunning && !!form.model && form.prompt.trim() !== '' && !sizeError && !strengthError && (!editsOnly || !!form.init),
+    !busy && app.gatewayRunning && !!form.model && form.prompt.trim() !== '' && !sizeError && !strengthError && (!editsOnly || !!form.init) && (!inpaints || !!form.mask),
   );
   let fileInput = $state<HTMLInputElement | null>(null);
+  let maskInput = $state<HTMLInputElement | null>(null);
+
+  async function pickMask(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    const image = await readStartImage(file);
+    if (image === 'type') toast.error(t('img.init_bad_type'));
+    else if (image === 'size') toast.error(t('img.init_too_big', { mb: MAX_START_IMAGE_BYTES / 1024 / 1024 }));
+    else form.mask = image;
+  }
 
   async function pickStartImage(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
@@ -101,7 +116,8 @@
     memoryBlocked = false;
     needFamily = null;
     try {
-      const params = mflux ? { ...form, negative: '', cfgScale: '' } : form;
+      const base = inpaints ? form : { ...form, mask: null };
+      const params = mflux ? { ...base, negative: '', cfgScale: '' } : base;
       const { images, ms } = await fetchImages(app.inferenceUrl, form.model, params, app.inferenceHeaders(), c.signal);
       lastMs = ms;
       addToGallery(
@@ -279,6 +295,18 @@
           {/if}
           <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.init = null)}><X />{t('img.init_remove')}</Button>
         </div>
+        {#if inpaints}
+          <input bind:this={maskInput} type="file" accept={START_IMAGE_TYPES.join(',')} class="hidden" onchange={pickMask} />
+          <div class="flex flex-wrap items-end gap-3">
+            {#if form.mask}
+              <img src={dataUrl(form.mask)} alt={t('img.mask_label')} class="size-24 rounded-md border border-border bg-muted object-contain" />
+              <Button variant="ghost" size="sm" disabled={busy} onclick={() => (form.mask = null)}><X />{t('img.mask_remove')}</Button>
+            {:else}
+              <Button variant="outline" size="sm" disabled={busy} onclick={() => maskInput?.click()}><ImagePlus />{t('img.mask_pick')}</Button>
+            {/if}
+            <span class="text-xs text-muted-foreground">{t('img.mask_note')}</span>
+          </div>
+        {/if}
       {:else}
         <div class="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" disabled={busy} onclick={() => fileInput?.click()}><ImagePlus />{t('img.init_pick')}</Button>

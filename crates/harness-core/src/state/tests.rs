@@ -1591,12 +1591,15 @@ fn v7_database_upgrades_through_knowledge_bases_to_projects_without_losing_data(
     }
     let db = StateDb::open(&path).unwrap();
     assert_eq!(db.user_version().unwrap(), SCHEMA_VERSION);
-    assert_eq!(schema::MIGRATIONS.len(), 9);
+    assert_eq!(schema::MIGRATIONS.len(), 10);
     // v7 and v8 data is intact.
     assert_eq!(db.get_conversation("c1").unwrap().conversation.title, "old");
     assert_eq!(db.rag_documents("c1").unwrap().len(), 1);
     assert_eq!(db.kb_list().unwrap().len(), 1);
     assert_eq!(db.kb_attached("c1").unwrap().len(), 1);
+    // v10 adds the OCR columns: nothing recognized, no OCR model.
+    assert_eq!(db.kb_get("kb1").unwrap().ocr_model, None);
+    assert!(db.rag_documents("c1").unwrap()[0].ocr_pages.is_empty());
     // The v9 tables work next to them.
     assert_eq!(db.conversation_project("c1").unwrap(), None);
     let project = db

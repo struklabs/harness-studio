@@ -638,9 +638,14 @@ async fn openapi_document_is_valid_and_lists_every_route() {
             assert!(item.get(*m).is_some(), "{m} {full}");
         }
     }
+    // Gateway-listener operations are documented in the same snapshot but are not Control API routes.
+    let gateway = ["/v1/ocr", "/v1/document/qa"];
+    for path in gateway {
+        assert!(paths[path]["post"]["requestBody"].is_object(), "{path}");
+    }
     assert_eq!(
         paths.len(),
-        expected.len(),
+        expected.len() + gateway.len(),
         "{:?}",
         paths.keys().collect::<Vec<_>>()
     );

@@ -117,7 +117,8 @@ fn write_info(dir: &Path, info: &InstanceInfo) -> Result<(), String> {
 
 impl InstanceLock {
     /// Takes ownership of `dir`. Fails with [`AcquireError::Held`] while another live process
-    /// holds it; a stale `instance.json` of a crashed owner is replaced.
+    /// holds it; a stale `instance.json` of a crashed owner is replaced, and the engines a
+    /// killed owner left running are stopped ([`crate::orphans::sweep`]).
     pub fn acquire(dir: &Path, kind: InstanceKind, version: &str) -> Result<Self, AcquireError> {
         let file = open_lock_file(dir).map_err(|e| AcquireError::Io(e.to_string()))?;
         match file.try_lock() {
@@ -139,6 +140,7 @@ impl InstanceLock {
             token_path: None,
         };
         write_info(dir, &info).map_err(AcquireError::Io)?;
+        crate::orphans::sweep(dir);
         Ok(Self {
             _file: file,
             dir: dir.to_path_buf(),

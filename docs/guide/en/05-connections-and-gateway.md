@@ -15,6 +15,8 @@ Another program (Claude Code, Codex, OpenCode, an editor extension, Open WebUI, 
 
 The big advantage of the gateway is one fixed address: even if you change the model or the port, the address in your client stays the same. The gateway can also serve models that run on the optional engines (speech, image, ONNX, Lemonade, mistral.rs) next to llama.cpp models, through the same address.
 
+For a model loaded with an audio projector, `/v1/chat/completions` accepts OpenAI `input_audio` message parts (`{"type": "input_audio", "input_audio": {"data": "<base64>", "format": "wav"}}`, WAV or MP3), streamed or not. To make the answer speech, send its text to `/v1/audio/speech` with an installed text-to-speech model.
+
 ### Turn the Gateway on
 
 1. Check that a [model definition exists in My Models](02-model-hub-and-library.md#my-models-and-model-definitions); the name your client uses is the definition's alias.
@@ -175,3 +177,49 @@ If **Require a Token on This Computer Too** is off on the gateway, local clients
 For other devices to reach the gateway you need **Allow Network Access** and a token with the `inference` scope; there is no keyless network access. For this use, follow the conditions in the [security model](../../en/SECURITY_MODEL.md) and set your firewall yourself; Harness Studio does not change it. Do not use the gateway's, the Control API's, and the direct server's keys in place of one another.
 
 Next: [Tools](06-tools.md).
+
+### Document OCR and Questions
+
+`POST /v1/ocr` and `POST /v1/document/qa` use the gateway's **pipelines** endpoint
+policy and the **inference** token scope. Both accept JSON with a local `model` alias
+and either `document` (a base64 data URL) or `pages` (1?16 image data URLs in reading
+order). Remote URLs are not fetched. Supported images are PNG, JPEG, WebP and GIF;
+`document` also accepts `data:application/pdf;base64,...`. The decoded total is limited
+to 20 MiB, within the gateway's 64 MiB request body limit.
+
+```json
+{"model":"my-vision-model","document":"data:image/png;base64,..."}
+```
+
+OCR returns `{ "model": "...", "markdown": "...", "pages": [...] }`. Each page has a
+one-based `page`, `markdown`, `lines`, `blocks` (paragraph strings in reading order)
+and `source` (`vlm`, `pipeline` or `pdf_text`). These are simple text layouts, without
+bounding boxes. VLMs use a fixed transcription prompt; Python `image-to-text` models
+use the existing Hugging Face pipeline. Captioning models may describe rather than
+transcribe: choose an OCR-trained model for reliable extraction.
+
+For QA, add a non-empty `question` (at most 8192 UTF-8 bytes):
+
+```json
+{"model":"my-vision-model","document":"data:image/png;base64,...","question":"What is the total?"}
+```
+
+QA returns `{ "model": "...", "answer": "..." }` and includes `score` only when the
+Python `document-question-answering` pipeline supplies one. VLMs use chat and support
+both routes with a configured projector. Python DQA accepts one image per question.
+A Python OCR model and a DQA model can be selected separately for the two calls.
+
+PDF pages with a text layer are extracted locally, page by page, without inference.
+Pages without one (scans) are rendered to PNG at 150 dpi by the Python engine's
+rasterizer (the `python-hf` environment must be installed; otherwise the call returns
+HTTP 503 with `rasterizer_unavailable` and an install hint) and read by the chosen model;
+their `source` is `vlm` or `pipeline`, the others stay `pdf_text`. Pages keep their PDF
+page numbers. For QA with a VLM, text-layer pages are sent as text and scanned pages as
+images. At most 16 PDF pages are accepted per request (`HARNESS_OCR_MAX_PAGES`, up to
+1000, and `HARNESS_OCR_DPI`, 72 to 300, change the limits); a rendered page may be
+12 MiB and all rendered pages together 20 MiB. A Python DQA pipeline still takes one
+page image per question, not a PDF.
+
+Invalid inputs or task mismatches return 400, decoded uploads over 20 MiB return 413,
+token policy denials return 403, and inference limits return 429. OpenAPI definitions
+for these gateway-listener routes are included in `sdk/openapi.json`.

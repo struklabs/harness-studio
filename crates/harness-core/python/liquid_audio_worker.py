@@ -9,6 +9,10 @@ nothing is downloaded.
 Endpoints
   GET  /health            {"status":"ok"} | 503 {"status":"loading"} | 500 {"status":"error"}
   GET  /v1/models
+  POST /v1/chat/completions  OpenAI chat: text and `input_audio` parts in; text out, and speech out
+                          too when the request says `"modalities": ["text", "audio"]`
+                          (message.audio = {id, data (base64 WAV), transcript}). `stream` is answered
+                          as a short SSE stream of the finished answer.
   POST /v1/audio/speech   JSON {"input", "voice", "response_format" (wav | pcm), "speed" (ignored)}.
                           Answers the audio (24 kHz mono 16-bit). Headers: x-harness-audio-seconds,
                           x-harness-generation-seconds (so a caller can compute the real-time factor).
@@ -25,6 +29,7 @@ One run at a time: the model computes one request at a time, so concurrent reque
 from __future__ import annotations
 
 import argparse
+import base64
 import hmac
 import io
 import json
@@ -34,6 +39,7 @@ import socketserver
 import sys
 import threading
 import time
+import uuid
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -42,7 +48,14 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 
 SAMPLE_RATE = 24000
-MAX_BODY_BYTES = 1024 * 1024
+MAX_BODY_BYTES = 32 * 1024 * 1024
+#: Longest text answer (tokens) and the default one of a chat turn.
+CHAT_MAX_TOKENS = 1024
+CHAT_DEFAULT_TOKENS = 512
+MAX_CLIPS = 4
+MAX_CLIP_SECONDS = 120
+CHAT_SYSTEM_SPEECH = "Respond with interleaved text and audio."
+CHAT_SYSTEM_TEXT = "Respond with text."
 #: Characters of one generation: longer text is split at sentence ends and the parts joined.
 CHUNK_CHARS = 280
 #: Audio tokens (12.5 a second) a part may use at most.
@@ -144,6 +157,141 @@ def wav_bytes(pcm16: bytes) -> bytes:
         w.writeframes(pcm16)
     return out.getvalue()
 
+def message_text(content, role):
+    """`(text, clips)` of one message's content: a string, or text and `input_audio` parts."""
+    if content is None:
+        return "", []
+    if isinstance(content, str):
+        return content, []
+    if not isinstance(content, list):
+        raise Failure(400, "message `content` must be a string or a list of parts", code="bad_content")
+    texts, clips = [], []
+    for part in content:
+        kind = part.get("type") if isinstance(part, dict) else None
+        if kind in ("text", "input_text"):
+            texts.append(str(part.get("text") or ""))
+        elif kind == "input_audio":
+            if role != "user":
+                raise Failure(400, "audio is only accepted in user messages", code="bad_content")
+            audio = part.get("input_audio")
+            if not isinstance(audio, dict) or not isinstance(audio.get("data"), str) or not audio["data"]:
+                raise Failure(400, "input_audio needs base64 data", code="bad_content")
+            fmt = str(audio.get("format") or "wav").lower()
+            if fmt not in ("wav", "mp3", "flac", "ogg"):
+                raise Failure(400, f"input_audio format `{fmt}` is not supported (wav, mp3, flac, ogg)", code="bad_content")
+            clips.append(audio["data"])
+        else:
+            raise Failure(400, f"content part type `{kind}` is not supported (text and input_audio are)", code="bad_content")
+    return "\n".join(t for t in texts if t), clips
+
+
+def chat_plan(body):
+    """The checked pieces of a chat request: system text, the turns `[(role, text, [base64 clips])]`,
+    whether speech is asked, the token budget, the text temperature and whether it streams."""
+    messages = body.get("messages")
+    if not isinstance(messages, list) or not messages:
+        raise Failure(400, "`messages` must be a non-empty list", code="bad_messages")
+    modalities = body.get("modalities")
+    speech = False
+    if modalities is not None:
+        if not isinstance(modalities, list) or not all(m in ("text", "audio") for m in modalities):
+            raise Failure(400, '`modalities` must be a list of "text" and "audio"', code="bad_modalities")
+        speech = "audio" in modalities
+    options = body.get("audio")
+    if speech and options is not None:
+        if not isinstance(options, dict):
+            raise Failure(400, "`audio` must be an object", code="bad_audio")
+        fmt = str(options.get("format") or "wav").lower()
+        if fmt != "wav":
+            raise Failure(400, f"audio format `{fmt}` is not served (wav)", code="format_unavailable")
+    system, turns, clips = [], [], 0
+    for m in messages:
+        if not isinstance(m, dict):
+            raise Failure(400, "every message must be an object", code="bad_messages")
+        role = m.get("role")
+        if role == "developer":
+            role = "system"
+        if role not in ("system", "user", "assistant"):
+            raise Failure(400, f"message role `{role}` is not supported (system, user, assistant)", code="bad_messages")
+        text, found = message_text(m.get("content"), role)
+        clips += len(found)
+        if clips > MAX_CLIPS:
+            raise Failure(400, f"at most {MAX_CLIPS} audio clips per request", code="too_many_clips")
+        if role == "system":
+            if text:
+                system.append(text)
+        else:
+            turns.append((role, text, found))
+    if not turns or turns[-1][0] != "user":
+        raise Failure(400, "the last message must come from the user", code="bad_messages")
+    budget = body.get("max_completion_tokens", body.get("max_tokens"))
+    if budget is None:
+        budget = CHAT_DEFAULT_TOKENS
+    if isinstance(budget, bool) or not isinstance(budget, int) or budget < 1:
+        raise Failure(400, "`max_tokens` must be a positive integer", code="bad_max_tokens")
+    temperature = body.get("temperature")
+    if temperature is not None and (
+        isinstance(temperature, bool) or not isinstance(temperature, (int, float)) or temperature < 0
+    ):
+        raise Failure(400, "`temperature` must be a number of 0 or more", code="bad_temperature")
+    return {
+        "system": "\n".join(system) or (CHAT_SYSTEM_SPEECH if speech else CHAT_SYSTEM_TEXT),
+        "turns": turns,
+        "speech": speech,
+        "max_tokens": min(budget, CHAT_MAX_TOKENS),
+        "temperature": temperature or None,
+        "stream": body.get("stream") is True,
+    }
+
+
+def audio_message(wav, transcript):
+    """OpenAI's `message.audio`: the answer's speech and what it says."""
+    return {
+        "id": "audio_" + uuid.uuid4().hex[:24],
+        "data": base64.b64encode(wav).decode(),
+        "transcript": transcript,
+        "expires_at": int(time.time()) + 3600,
+    }
+
+
+def completion(alias, text, wav, prompt_tokens, completion_tokens, finish):
+    """The OpenAI chat completion of an answer (`wav`: its speech, `None` for text only)."""
+    message = {"role": "assistant", "content": text}
+    if wav:
+        message["audio"] = audio_message(wav, text)
+    return {
+        "id": "chatcmpl-" + uuid.uuid4().hex[:24],
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": alias,
+        "choices": [{"index": 0, "message": message, "finish_reason": finish}],
+        "usage": {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+        },
+    }
+
+
+def completion_events(done):
+    """The SSE events (bytes) that stream a finished completion: role, content, audio, finish."""
+    choice = done["choices"][0]
+    message = choice["message"]
+    base = {"id": done["id"], "object": "chat.completion.chunk", "created": done["created"], "model": done["model"]}
+
+    def event(delta, finish=None, **extra):
+        data = dict(base, choices=[{"index": 0, "delta": delta, "finish_reason": finish}], **extra)
+        return b"data: " + json.dumps(data).encode() + b"\n\n"
+
+    out = [event({"role": "assistant"})]
+    if message["content"]:
+        out.append(event({"content": message["content"]}))
+    if "audio" in message:
+        out.append(event({"audio": message["audio"]}))
+    out.append(event({}, choice["finish_reason"], usage=done["usage"]))
+    out.append(b"data: [DONE]\n\n")
+    return out
+
 
 class Model:
     def __init__(self, args):
@@ -227,6 +375,74 @@ class Model:
             audio_codes = torch.stack(codes[:-1], 1).unsqueeze(0)
             return self.processor.decode(audio_codes).float().cpu()[0]
 
+    def load_clip(self, data: str):
+        """`(samples, rate)` of a base64 audio clip: a float tensor of shape (1, n)."""
+        import soundfile
+
+        try:
+            samples, rate = soundfile.read(io.BytesIO(base64.b64decode(data)), dtype="float32", always_2d=True)
+        except Exception:
+            raise Failure(400, "input_audio could not be decoded", code="bad_audio")
+        if samples.shape[0] == 0:
+            raise Failure(400, "input_audio is empty", code="bad_audio")
+        if samples.shape[0] > MAX_CLIP_SECONDS * rate:
+            raise Failure(400, f"input_audio is longer than {MAX_CLIP_SECONDS} seconds", code="bad_audio")
+        return self.torch.from_numpy(samples.mean(axis=1)).unsqueeze(0), rate
+
+    def chat(self, plan: dict):
+        """Runs a chat turn: `(text, wav bytes or None, prompt tokens, generated tokens, finish)`."""
+        if self.state != "ok":
+            raise Failure(503, f"the model is {self.state}", "server_error", "model_not_ready")
+        from liquid_audio import ChatState
+
+        torch = self.torch
+        chat = ChatState(self.processor, dtype=self.dtype)
+        chat.new_turn("system")
+        chat.add_text(plan["system"])
+        chat.end_turn()
+        for role, text, clips in plan["turns"]:
+            chat.new_turn(role)
+            for data in clips:
+                wave, rate = self.load_clip(data)
+                chat.add_audio(wave, rate)
+            if text:
+                chat.add_text(text)
+            chat.end_turn()
+        chat.new_turn("assistant")
+        prompt_tokens = int(chat.text.numel()) if hasattr(chat, "text") else 0
+        texts, codes, generated, finish = [], [], 0, "stop"
+        kw = {"max_new_tokens": plan["max_tokens"], "audio_temperature": 1.0, "audio_top_k": 4}
+        if plan["temperature"]:
+            kw["text_temperature"] = plan["temperature"]
+        started = time.perf_counter()
+        with self.lock, torch.no_grad():
+            for t in self.model.generate_interleaved(**chat, **kw):
+                generated += 1
+                if t.numel() == 1:
+                    texts.append(t)
+                else:
+                    if not plan["speech"]:
+                        break
+                    codes.append(t)
+            else:
+                finish = "length" if generated >= plan["max_tokens"] else "stop"
+            text = ""
+            if texts:
+                text = self.processor.text.decode(torch.cat([t.reshape(-1) for t in texts]))
+                text = text.replace("<|text_end|>", "").strip()
+            wav = None
+            if plan["speech"] and len(codes) > 1:
+                # The last frame is the end-of-audio code.
+                audio_codes = torch.stack(codes[:-1], 1).unsqueeze(0)
+                samples = self.processor.decode(audio_codes).float().cpu()[0].clamp(-1.0, 1.0)
+                wav = wav_bytes((samples * 32767.0).to(torch.int16).numpy().astype("<i2").tobytes())
+        print(
+            f"liquid-audio: chat {generated} tokens in {time.perf_counter() - started:.1f}s",
+            file=sys.stderr,
+            flush=True,
+        )
+        return text, wav, prompt_tokens, generated, finish
+
     def speak(self, request: dict):
         if self.state != "ok":
             raise Failure(503, f"the model is {self.state}", "server_error", "model_not_ready")
@@ -273,6 +489,10 @@ def make_handler(model: Model, key: str, origins: frozenset):
                 self.send_header(name, value)
             self.end_headers()
             self.wfile.write(data)
+
+        def stream(self, done, cors=()):
+            data = b"".join(completion_events(done))
+            self.answer(200, data, cors, "text/event-stream", (("Cache-Control", "no-cache"),))
 
         def fail(self, f: Failure, cors=()):
             self.answer(f.status, {"error": {"message": str(f), "type": f.kind, "code": f.code}}, cors)
@@ -335,7 +555,7 @@ def make_handler(model: Model, key: str, origins: frozenset):
             cors = ()
             try:
                 cors = self.guard()
-                if self.path != "/v1/audio/speech":
+                if self.path not in ("/v1/audio/speech", "/v1/chat/completions"):
                     raise Failure(404, f"no route {self.path}", code="not_found")
                 try:
                     length = int(self.headers.get("Content-Length") or 0)
@@ -350,6 +570,15 @@ def make_handler(model: Model, key: str, origins: frozenset):
                     raise Failure(400, "the request body is not JSON")
                 if not isinstance(request, dict):
                     raise Failure(400, "the request body must be a JSON object")
+                if self.path == "/v1/chat/completions":
+                    plan = chat_plan(request)
+                    text, wav, prompt_tokens, generated, finish = model.chat(plan)
+                    done = completion(model.name, text, wav, prompt_tokens, generated, finish)
+                    if plan["stream"]:
+                        self.stream(done, cors)
+                    else:
+                        self.answer(200, done, cors)
+                    return
                 body, content_type, seconds, elapsed = model.speak(request)
                 self.answer(
                     200,

@@ -11,11 +11,15 @@ Endpoints
   GET  /health                     {"status":"ok"} | 503 {"status":"loading"} | 500 {"status":"error"}
   GET  /v1/models
   POST /hf                         Hugging Face Inference API: {"inputs": ..., "parameters": {...}}
-  POST /v1/chat/completions        text-generation, image-text-to-text (OpenAI shape, SSE streaming,
-                                   tools, images as data: or http(s) URLs)
+  POST /v1/chat/completions        text-generation, image-text-to-text, any-to-any (OpenAI shape, SSE
+                                   streaming, tools, images as data: or http(s) URLs; any-to-any
+                                   (Qwen2.5-Omni) also takes input_audio parts and answers with
+                                   speech in message.audio when modalities ["text", "audio"] ask)
   POST /v1/embeddings              feature-extraction, sentence-similarity (OpenAI shape)
   POST /v1/rerank                  text-ranking (cross-encoders)
-  POST /v1/audio/transcriptions    automatic-speech-recognition (multipart "file", OpenAI shape)
+  POST /v1/audio/transcriptions    automatic-speech-recognition (multipart "file", OpenAI shape; a
+                                   CTranslate2 Whisper export runs on faster-whisper and also answers
+                                   language, segments and word timestamps)
   POST /v1/audio/speech            text-to-speech / text-to-audio ({"input": ...} -> audio/wav)
   POST /v1/images/generations      text-to-image (diffusers; OpenAI shape, b64_json)
   POST /v1/images/edits            image-to-image, or inpainting with a mask, on the same pipeline
@@ -83,10 +87,11 @@ AUDIO_TASKS = {
     "text-to-audio",
 }
 # image-to-image: a pipeline that starts from an image (InstructPix2Pix, an Img2Img or Edit class).
-DIFFUSERS_TASKS = {"text-to-image", "image-to-image"}
+VIDEO_TASKS = {"text-to-video", "image-to-video"}
+DIFFUSERS_TASKS = {"text-to-image", "image-to-image"} | VIDEO_TASKS
 # Chat checkpoints (transformers Auto classes, OpenAI /v1/chat/completions).
-CHAT_TASKS = {"text-generation", "image-text-to-text"}
-TASKS = TEXT_TASKS | IMAGE_TASKS | AUDIO_TASKS | DIFFUSERS_TASKS | CHAT_TASKS
+CHAT_TASKS = {"text-generation", "image-text-to-text", "any-to-any"}
+TASKS = TEXT_TASKS | IMAGE_TASKS | AUDIO_TASKS | DIFFUSERS_TASKS | CHAT_TASKS | {"video-text-to-text"}
 
 # Largest request body (an image or a few minutes of audio fit easily).
 MAX_BODY_BYTES = 64 * 1024 * 1024
@@ -191,6 +196,7 @@ class Model:
         self.exit_on_error = False
         self.pipe = None
         self.st = None  # sentence-transformers model (embeddings / rerank), when the folder is one
+        self.ct2 = None  # faster-whisper WhisperModel, when the folder is a CTranslate2 Whisper export
         self.lock = threading.Lock()  # pipelines are not thread-safe: one request at a time
         self.loaded_at = None
         # Diffusers: the folder's own scheduler, the samplers built from it and the image-to-image
@@ -264,7 +270,8 @@ class Model:
                 if low == "on" or (low == "auto" and self.device() in ("cpu", "mps")):
                     # Attention in slices and the VAE a tile / an image at a time: a lower peak
                     # for a little time (the outputs stay the same up to the VAE's tile size).
-                    self.pipe.enable_attention_slicing()
+                    if hasattr(self.pipe, "enable_attention_slicing"):
+                        self.pipe.enable_attention_slicing()
                     vae = getattr(self.pipe, "vae", None)
                     if vae is not None and hasattr(vae, "enable_slicing"):
                         vae.enable_slicing()
@@ -287,8 +294,28 @@ class Model:
                     trust_remote_code=trust,
                     local_files_only=True,
                 )
+            elif task == "automatic-speech-recognition" and is_ct2_whisper(folder):
+                self.ct2 = load_ct2_whisper(folder, self.device(), self.args.threads)
             elif task in CHAT_TASKS:
-                self.pipe = ChatRunner(task, folder, self.device(), self.dtype(), trust)
+                runner = OmniRunner if task == "any-to-any" else ChatRunner
+                self.pipe = runner(task, folder, self.device(), self.dtype(), trust)
+            elif task == "video-text-to-text":
+                from transformers import AutoProcessor, AutoModelForImageTextToText
+
+                self.processor = AutoProcessor.from_pretrained(folder, local_files_only=True, trust_remote_code=False)
+                # Video frames already have bounded resolution. SmolVLM's photo defaults
+                # upscale each frame to 2048 px and split it into tiles, overflowing its context.
+                if getattr(self.processor, "image_processor", None) is not None:
+                    image_processor = self.processor.image_processor
+                    if type(image_processor).__name__.startswith("SmolVLM"):
+                        image_processor.do_image_splitting = False
+                        image_processor.size = {"longest_edge": 512}
+                dtype = self.dtype()
+                if dtype == "auto":
+                    dtype = torch.float32 if self.device() == "cpu" else torch.float16
+                self.pipe = AutoModelForImageTextToText.from_pretrained(
+                    folder, local_files_only=True, trust_remote_code=False, dtype=dtype,
+                ).to(self.device()).eval()
             elif task in NATIVE_TASKS:
                 self.pipe = NativeRunner(task, folder, self.device(), self.dtype(), trust)
             else:
@@ -314,6 +341,119 @@ class Model:
                 log(f"load failed: {self.error}")
                 sys.stderr.flush()
                 os._exit(3)
+
+
+# --- faster-whisper (CTranslate2 Whisper exports) -------------------------------------------------
+
+# Longest audio one request may carry (seconds of decoded audio).
+MAX_AUDIO_SECONDS = 2 * 60 * 60
+CT2_SAMPLE_RATE = 16000
+
+
+def is_ct2_whisper(folder):
+    """A CTranslate2 Whisper export (faster-whisper): `model.bin`, a vocabulary or tokenizer and a
+    `config.json` without a transformers `model_type` / `architectures` (the CTranslate2 converter
+    writes Whisper's `alignment_heads` / `lang_ids` / `suppress_ids` there). Original transformers
+    weights next to it win."""
+    try:
+        names = set(os.listdir(folder))
+        if "model.bin" not in names or "config.json" not in names:
+            return False
+        if any(n.endswith(".safetensors") for n in names):
+            return False
+        if not names & {"tokenizer.json", "vocabulary.json", "vocabulary.txt"}:
+            return False
+        with open(os.path.join(folder, "config.json"), encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        return False
+    return (
+        isinstance(cfg, dict)
+        and "model_type" not in cfg
+        and "architectures" not in cfg
+        and any(k in cfg for k in ("alignment_heads", "lang_ids", "suppress_ids"))
+    )
+
+
+def load_ct2_whisper(folder, device, threads):
+    """Loads the export with faster-whisper: int8 on the CPU, float16 on CUDA (int8_float16 then
+    int8 where the GPU lacks it, the CPU when CUDA cannot start). The folder is a local path, so
+    nothing is fetched."""
+    import ctranslate2
+    from faster_whisper import WhisperModel
+
+    attempts = [("cpu", "int8")]
+    if device == "cuda":
+        attempts = [("cuda", "float16"), ("cuda", "int8_float16"), ("cuda", "int8")] + attempts
+    last = None
+    for dev, compute in attempts:
+        try:
+            if dev == "cuda" and ctranslate2.get_cuda_device_count() == 0:
+                raise RuntimeError("CTranslate2 sees no CUDA device")
+            m = WhisperModel(folder, device=dev, compute_type=compute, cpu_threads=max(threads, 0), local_files_only=True)
+            log(f"faster-whisper on {dev} ({compute})")
+            return m
+        except Exception as e:
+            last = e
+            log(f"faster-whisper {dev}/{compute} failed: {type(e).__name__}: {e}")
+    raise last
+
+
+def language_name(code):
+    """OpenAI's `verbose_json` names the language ("english"), faster-whisper gives its code."""
+    try:
+        from transformers.models.whisper.tokenization_whisper import LANGUAGES
+
+        return LANGUAGES.get(code, code)
+    except Exception:
+        return code
+
+
+def ct2_transcribe(model, data, form):
+    """One OpenAI transcription / translation with faster-whisper: {text, language, duration,
+    segments: [{id, start, end, text, words?}], words?}."""
+    import numpy as np
+
+    class Rate:  # to_audio resamples to the rate its `pipe.feature_extractor` names
+        feature_extractor = type("F", (), {"sampling_rate": CT2_SAMPLE_RATE})()
+
+    audio = to_audio(data, Rate)["raw"].astype(np.float32, copy=False)
+    seconds = audio.size / CT2_SAMPLE_RATE
+    if seconds > MAX_AUDIO_SECONDS:
+        raise BadRequest(f"the audio is {int(seconds)} s long; the limit is {MAX_AUDIO_SECONDS} s")
+    words_wanted = str(form.get("word_timestamps", "")).lower() in ("1", "true", "yes")
+    kwargs = dict(
+        task="translate" if form.get("task") == "translate" else "transcribe",
+        beam_size=5,
+        condition_on_previous_text=False,
+        word_timestamps=words_wanted,
+        vad_filter=seconds > 30,
+    )
+    if form.get("language"):
+        kwargs["language"] = str(form.get("language")).strip().lower()
+    if form.get("prompt"):
+        kwargs["initial_prompt"] = form.get("prompt")
+    if form.get("temperature") not in (None, ""):
+        kwargs["temperature"] = float(form.get("temperature"))
+    seg_iter, info = model.ct2.transcribe(audio, **kwargs)
+    segments, words = [], []
+    for i, seg in enumerate(seg_iter):
+        item = {"id": i, "start": round(seg.start, 3), "end": round(seg.end, 3), "text": seg.text.strip()}
+        if words_wanted:
+            item["words"] = [
+                {"word": w.word.strip(), "start": round(w.start, 3), "end": round(w.end, 3)} for w in seg.words or []
+            ]
+            words.extend(item["words"])
+        segments.append(item)
+    out = {
+        "text": " ".join(s["text"] for s in segments if s["text"]).strip(),
+        "language": language_name(info.language),
+        "duration": round(seconds, 3),
+        "segments": segments,
+    }
+    if words_wanted:
+        out["words"] = words
+    return out
 
 
 class CustomCodeRefused(Exception):
@@ -353,7 +493,7 @@ def load_text_to_image(folder, dtype, task="text-to-image"):
     pickles = pickle_weights(folder)
     if pickles and not torch_loads_weights_only(torch.__version__):
         raise UnsafeWeights(f"PyTorch .bin weights need torch 2.6 or later (found {torch.__version__})")
-    if task == "image-to-image":
+    if task == "image-to-image" or task in VIDEO_TASKS:
         with open(os.path.join(folder, "model_index.json"), encoding="utf-8") as f:
             name = json.load(f).get("_class_name")
         cls = getattr(diffusers, name, None) if isinstance(name, str) else None
@@ -724,6 +864,9 @@ def run_hf(model: Model, body: dict, raw: bytes | None):
         if task == "object-detection":
             return jsonable(sorted(out, key=lambda o: -o["score"]))
         return jsonable(out)
+    if model.ct2 is not None:
+        out = ct2_transcribe(model, inputs if isinstance(inputs, (bytes, bytearray)) else decode_bytes(inputs), params)
+        return {"text": out["text"]}
     if task in ("automatic-speech-recognition", "audio-classification", "zero-shot-audio-classification"):
         audio = to_audio(inputs, pipe)
         return jsonable(pipe(audio, **params))
@@ -914,6 +1057,12 @@ DEFAULT_NEW_TOKENS = 2048
 MAX_NEW_TOKENS = 32768
 MAX_STOP_STRINGS = 4
 MAX_IMAGES = 8
+MAX_CLIPS = 4
+MAX_CLIP_SECONDS = 300
+CLIP_RATE = 16000  # what the Omni audio encoder reads
+OMNI_VOICES = {"chelsie": "Chelsie", "ethan": "Ethan"}
+OMNI_DEFAULT_VOICE = "Chelsie"
+OMNI_RATE = 24000
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 IMAGE_FETCH_SECONDS = 15
 CHAT_ROLES = {"system", "developer", "user", "assistant", "tool"}
@@ -1029,8 +1178,10 @@ def _parts(content):
             image = part.get("image_url", part.get("url"))
             url = image.get("url") if isinstance(image, dict) else image
             out.append(("image", url))
+        elif kind == "input_audio":
+            out.append(("audio", part.get("input_audio")))
         else:
-            raise BadRequest(f"content part type {kind!r} is not supported (text and image_url are)")
+            raise BadRequest(f"content part type {kind!r} is not supported (text, image_url and input_audio are)")
     return out
 
 
@@ -1044,10 +1195,29 @@ def _tool_arguments(value):
     return value if isinstance(value, dict) else {}
 
 
-def normalize_messages(messages, vision, load_image=load_chat_image):
-    """OpenAI chat messages as `(template messages, images)`. A vision model gets every content as
-    a list of `{"type": "text"|"image"}` parts and the PIL images in order; a text model gets
-    strings (and refuses images)."""
+def load_chat_clip(value):
+    """A mono float32 clip at `CLIP_RATE` from an `input_audio` part (`{"data": base64, "format"}`)."""
+    import numpy as np
+    from types import SimpleNamespace
+
+    if not isinstance(value, dict) or not isinstance(value.get("data"), str) or not value["data"]:
+        raise BadRequest("input_audio needs base64 data")
+    fmt = str(value.get("format") or "wav").lower()
+    if fmt not in ("wav", "mp3", "flac", "ogg"):
+        raise BadRequest(f"input_audio format {fmt!r} is not supported (wav, mp3, flac)")
+    wanted = SimpleNamespace(feature_extractor=SimpleNamespace(sampling_rate=CLIP_RATE))
+    clip = to_audio(value["data"], wanted)["raw"]
+    if clip.size == 0:
+        raise BadRequest("input_audio is empty")
+    if clip.size > MAX_CLIP_SECONDS * CLIP_RATE:
+        raise BadRequest(f"input_audio is longer than {MAX_CLIP_SECONDS} seconds")
+    return np.ascontiguousarray(clip, dtype="float32")
+
+
+def normalize_messages(messages, vision, load_image=load_chat_image, audio=False, clips=None, load_clip=load_chat_clip):
+    """OpenAI chat messages as `(template messages, images)`. A vision (or audio) model gets every
+    content as a list of `{"type": "text"|"image"|"audio"}` parts, the PIL images in order and the
+    clips (appended to `clips`) in order; a text model gets strings (and refuses media)."""
     if not isinstance(messages, list) or not messages:
         raise BadRequest('"messages" must be a non-empty list')
     out, images = [], []
@@ -1061,7 +1231,12 @@ def normalize_messages(messages, vision, load_image=load_chat_image):
                 raise BadRequest("this model does not take images")
             if role != "user":
                 raise BadRequest("images are only accepted in user messages")
-        if vision and role != "tool":
+        if any(kind == "audio" for kind, _ in parts):
+            if not audio:
+                raise BadRequest("this model does not take audio")
+            if role != "user":
+                raise BadRequest("audio is only accepted in user messages")
+        if (vision or audio) and role != "tool":
             content = []
             for kind, value in parts:
                 if kind == "image":
@@ -1069,6 +1244,11 @@ def normalize_messages(messages, vision, load_image=load_chat_image):
                         raise BadRequest(f"at most {MAX_IMAGES} images per request")
                     images.append(load_image(value))
                     content.append({"type": "image"})
+                elif kind == "audio":
+                    if clips is None or len(clips) >= MAX_CLIPS:
+                        raise BadRequest(f"at most {MAX_CLIPS} audio clips per request")
+                    clips.append(load_clip(value))
+                    content.append({"type": "audio"})
                 else:
                     content.append({"type": "text", "text": value})
         else:
@@ -1283,7 +1463,9 @@ class ChatRunner:
         import torch
         import transformers as tf
 
-        self.vision = task == "image-text-to-text"
+        self.vision = task in ("image-text-to-text", "any-to-any")
+        self.audio = self.speaks = task == "any-to-any"
+        self.audio_out = None
         self.device = device
         if dtype == "auto":
             stored = config_dtype(folder)
@@ -1296,7 +1478,9 @@ class ChatRunner:
             else:
                 dtype = torch.float32
         kw = {"trust_remote_code": trust, "dtype": dtype}
-        if self.vision:
+        if task == "any-to-any":
+            self.load_omni(folder, kw["dtype"])
+        elif self.vision:
             self.proc = tf.AutoProcessor.from_pretrained(folder, trust_remote_code=trust)
             self.tok = getattr(self.proc, "tokenizer", None) or tf.AutoTokenizer.from_pretrained(folder, trust_remote_code=trust)
             self.model = tf.AutoModelForImageTextToText.from_pretrained(folder, **kw)
@@ -1311,7 +1495,22 @@ class ChatRunner:
         text_cfg = cfg.get_text_config() if hasattr(cfg, "get_text_config") else cfg
         self.max_context = getattr(text_cfg, "max_position_embeddings", None) or getattr(cfg, "max_position_embeddings", None)
 
-    def prepare(self, messages, images, tools, max_new_tokens):
+    def load_omni(self, folder, dtype):
+        """Qwen2.5-Omni: the processor, and the thinker + talker + vocoder model (speech out)."""
+        import transformers as tf
+
+        self.proc = tf.AutoProcessor.from_pretrained(folder)
+        self.tok = self.proc.tokenizer
+        self.model = tf.Qwen2_5OmniForConditionalGeneration.from_pretrained(folder, dtype=dtype)
+
+    def extra_generate(self, speech):
+        """Generation arguments of the model family (`speech`: the voice, when speech is asked)."""
+        return {}
+
+    def split_output(self, out):
+        return out
+
+    def prepare(self, messages, images, tools, max_new_tokens, clips=None):
         """Prompt tensors for the messages (tools only when the template mentions them), the
         prompt's length and the number of tokens that may be generated."""
         owner = self.proc if self.vision else self.tok
@@ -1326,7 +1525,8 @@ class ChatRunner:
         else:
             text = plain_prompt(messages)
         if self.vision:
-            inputs = self.proc(text=text, images=images or None, return_tensors="pt")
+            extra = {"audio": clips} if clips else {}
+            inputs = self.proc(text=text, images=images or None, return_tensors="pt", **extra)
         else:
             inputs = self.tok(text, return_tensors="pt", add_special_tokens=not self.template)
         tensors = {}
@@ -1343,7 +1543,7 @@ class ChatRunner:
             raise BadRequest(f"the prompt has {prompt_tokens} tokens; the model's context is {self.max_context}")
         return tensors, prompt_tokens, min(max_new_tokens or DEFAULT_NEW_TOKENS, room)
 
-    def generate(self, tensors, prompt_tokens, max_new_tokens, p, streamer=None, cancel=None):
+    def generate(self, tensors, prompt_tokens, max_new_tokens, p, streamer=None, cancel=None, speech=None):
         """Runs generation; returns `(generated token ids, number of tokens generated)`."""
         import torch
         from transformers import StoppingCriteria, StoppingCriteriaList
@@ -1361,6 +1561,7 @@ class ChatRunner:
 
         watch = Watch()
         kw = dict(tensors, max_new_tokens=max_new_tokens, stopping_criteria=StoppingCriteriaList([watch]))
+        kw.update(self.extra_generate(speech))
         eos = self.tok.eos_token_id
         pad = self.tok.pad_token_id
         kw["pad_token_id"] = pad if pad is not None else (eos[0] if isinstance(eos, list) else eos)
@@ -1382,7 +1583,7 @@ class ChatRunner:
         if p["seed"] is not None:
             torch.manual_seed(p["seed"])
         with torch.inference_mode():
-            out = self.model.generate(**kw)
+            out = self.split_output(self.model.generate(**kw))
         return out[0][prompt_tokens:], watch.generated
 
     def decode(self, ids):
@@ -1397,23 +1598,83 @@ class ChatRunner:
         return int(ids[-1]) in {int(e) for e in eos if e is not None}
 
 
+class OmniRunner(ChatRunner):
+    """Qwen2.5-Omni: audio, pictures and text in; text out, and (when asked) speech out."""
+
+    def extra_generate(self, speech):
+        self.audio_out = None
+        if not speech:
+            return {"return_audio": False}
+        return {"return_audio": True, "speaker": speech["voice"]}
+
+    def split_output(self, out):
+        if isinstance(out, tuple):
+            out, wave = out
+            self.audio_out = wave
+        return out
+
+    def speech_wav(self):
+        """The WAV (24 kHz) of the last speech output, `None` when there was none."""
+        wave = self.audio_out
+        self.audio_out = None
+        if wave is None:
+            return None
+        return wav_bytes(wave.float().cpu().numpy(), OMNI_RATE)
+
+
+def speech_request(body, runner):
+    """`{"voice": ...}` when the request asks for speech (`modalities` has "audio"), else `None`."""
+    modalities = body.get("modalities")
+    if modalities is None:
+        return None
+    if not isinstance(modalities, list) or not all(m in ("text", "audio") for m in modalities):
+        raise BadRequest('"modalities" must be a list of "text" and "audio"')
+    if "audio" not in modalities:
+        return None
+    if not getattr(runner, "speaks", False):
+        raise BadRequest("this model does not answer with speech")
+    options = body.get("audio")
+    if options is not None and not isinstance(options, dict):
+        raise BadRequest('"audio" must be an object')
+    options = options or {}
+    fmt = str(options.get("format") or "wav").lower()
+    if fmt != "wav":
+        raise BadRequest(f"audio format {fmt!r} is not served (wav)")
+    voice = OMNI_VOICES.get(str(options.get("voice") or OMNI_DEFAULT_VOICE).lower(), OMNI_DEFAULT_VOICE)
+    return {"voice": voice}
+
+
+def audio_message(wav, transcript):
+    """OpenAI's `message.audio`: the answer's speech and what it says."""
+    return {
+        "id": "audio_" + uuid.uuid4().hex[:24],
+        "data": base64.b64encode(wav).decode(),
+        "transcript": transcript,
+        "expires_at": int(time.time()) + 3600,
+    }
+
+
 def chat_request(model, body):
     """The checked pieces of a chat request: `(parameters, messages, images, tools, tool names)`."""
     p = chat_params(body)
-    messages, images = normalize_messages(body.get("messages"), model.pipe.vision)
+    clips = []
+    messages, images = normalize_messages(
+        body.get("messages"), model.pipe.vision, audio=getattr(model.pipe, "audio", False), clips=clips
+    )
+    speech = speech_request(body, model.pipe)
     tools = body.get("tools") if body.get("tool_choice") != "none" else None
     if tools is not None and (not isinstance(tools, list) or not all(isinstance(t, dict) for t in tools)):
         raise BadRequest('"tools" must be a list of tool definitions')
     names = {(t.get("function") or {}).get("name") for t in tools or []} - {None}
-    return p, messages, images, tools or None, names
+    return p, messages, images, tools or None, names, {"clips": clips, "speech": speech}
 
 
 def run_chat(model, body):
     """A whole answer: the OpenAI chat completion."""
     runner = model.pipe
-    p, messages, images, tools, names = chat_request(model, body)
-    tensors, prompt_tokens, budget = runner.prepare(messages, images, tools, p["max_new_tokens"])
-    ids, _ = runner.generate(tensors, prompt_tokens, budget, p)
+    p, messages, images, tools, names, media = chat_request(model, body)
+    tensors, prompt_tokens, budget = runner.prepare(messages, images, tools, p["max_new_tokens"], media["clips"])
+    ids, _ = runner.generate(tensors, prompt_tokens, budget, p, speech=media["speech"])
     text = runner.decode(ids)
     finish = "stop" if runner.ended(ids) else "length"
     if p["stop"]:
@@ -1422,6 +1683,9 @@ def run_chat(model, body):
         if trimmer.done:
             finish = "stop"
     message = {"role": "assistant", "content": text}
+    wav = runner.speech_wav() if media["speech"] else None
+    if wav:
+        message["audio"] = audio_message(wav, text)
     if tools:
         content, calls = parse_tool_calls(text, names)
         if calls:
@@ -1439,9 +1703,9 @@ def stream_chat(model, body):
     from transformers import TextIteratorStreamer
 
     runner = model.pipe
-    p, messages, images, tools, names = chat_request(model, body)
+    p, messages, images, tools, names, media = chat_request(model, body)
     cid, created, alias = "chatcmpl-" + uuid.uuid4().hex[:24], int(time.time()), model.args.alias
-    tensors, prompt_tokens, budget = runner.prepare(messages, images, tools, p["max_new_tokens"])
+    tensors, prompt_tokens, budget = runner.prepare(messages, images, tools, p["max_new_tokens"], media["clips"])
 
     def events():
         cancel = threading.Event()
@@ -1452,7 +1716,7 @@ def stream_chat(model, body):
             def work():
                 try:
                     result["ids"], result["generated"] = runner.generate(
-                        tensors, prompt_tokens, budget, p, streamer, cancel
+                        tensors, prompt_tokens, budget, p, streamer, cancel, media["speech"]
                     )
                 except Exception as e:
                     log(traceback.format_exc())
@@ -1495,6 +1759,9 @@ def stream_chat(model, body):
                         finish = "tool_calls"
                     elif text:
                         yield sse(chunk(cid, created, alias, {"content": text}))
+                wav = runner.speech_wav() if media["speech"] and not trimmer.done else None
+                if wav:
+                    yield sse(chunk(cid, created, alias, {"audio": audio_message(wav, text)}))
                 yield sse(chunk(cid, created, alias, {}, finish))
                 if p["include_usage"]:
                     yield sse(chunk(cid, created, alias, None, usage=usage_of(prompt_tokens, result.get("generated", 0))))
@@ -1507,6 +1774,135 @@ def stream_chat(model, body):
 
 
 # --- HTTP --------------------------------------------------------------------------------------
+
+
+class GenerationCancelled(Exception):
+    pass
+
+
+def video_frames(value, count=8):
+    """Sample a bounded number of frames. Only inline media; never fetch client URLs or paths."""
+    import av
+    if len(value) > 45 * 1024 * 1024:
+        raise BadRequest("video must be at most 32 MiB")
+    raw = decode_bytes(value)
+    if len(raw) > 32 * 1024 * 1024:
+        raise BadRequest("video must be at most 32 MiB")
+    with av.open(io.BytesIO(raw)) as container:
+        stream = container.streams.video[0]
+        duration = stream.duration
+        frames = []
+        if duration:
+            for i in range(count):
+                container.seek(int(duration * i / count), stream=stream)
+                frame = next(container.decode(video=0), None)
+                if frame is not None:
+                    frames.append(frame.to_image().resize((384, 384)))
+        else:
+            for frame in container.decode(video=0):
+                frames.append(frame.to_image().resize((384, 384)))
+                if len(frames) == count:
+                    break
+    if not frames:
+        raise BadRequest("video contains no decodable frames")
+    return frames
+
+
+def video_chat(model, body):
+    import torch
+    messages, images = [], []
+    for message in body.get("messages", []):
+        content = message.get("content", "")
+        parts = [{"type": "text", "text": content}] if isinstance(content, str) else content
+        converted = []
+        for part in parts:
+            kind = part.get("type")
+            if kind == "text":
+                converted.append({"type": "text", "text": part["text"]})
+            elif kind in ("video_url", "input_video"):
+                value = part.get("video_url", part.get("input_video"))
+                if isinstance(value, dict):
+                    value = value.get("url") or value.get("data")
+                if not isinstance(value, str) or not value.startswith("data:video/"):
+                    raise BadRequest("video content must be an inline data:video URL")
+                sampled = video_frames(value)
+                if len(images) + len(sampled) > 16:
+                    raise BadRequest("at most two videos per request")
+                images.extend(sampled)
+                converted.extend({"type": "image"} for _ in sampled)
+            else:
+                raise BadRequest(f"unsupported video chat content part: {kind}")
+        messages.append({"role": message["role"], "content": converted})
+    if not images:
+        raise BadRequest("include a video_url content part")
+    prompt = model.processor.apply_chat_template(messages, add_generation_prompt=True)
+    inputs = model.processor(text=prompt, images=images, return_tensors="pt").to(model.pipe.device)
+    with torch.inference_mode():
+        output = model.pipe.generate(**inputs, max_new_tokens=min(512, max(1, int(body.get("max_tokens", 128)))), do_sample=False)
+    text = model.processor.batch_decode(output[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True)[0]
+    return {"id": f"chatcmpl-{time.time_ns()}", "object": "chat.completion", "created": int(time.time()),
+            "model": model.args.alias, "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}]}
+
+
+def generate_video(model, body, job):
+    import av
+    import numpy as np
+    fmt = body.get("output_format", "webm")
+    if fmt not in ("mp4", "webm"):
+        raise BadRequest("output_format must be mp4 or webm")
+    pipe = model.pipe
+    image = body.get("init_image")
+    if image and not takes(pipe, "image"):
+        import diffusers
+        name = type(pipe).__name__.replace("Pipeline", "ImageToVideoPipeline")
+        cls = getattr(diffusers, name, None)
+        if cls is None:
+            raise BadRequest("this model has no image-to-video pipeline")
+        pipe = cls.from_pipe(pipe)
+    if model.args.task == "image-to-video" and not image:
+        raise BadRequest("this model requires an input_reference image")
+    steps = int(body.get("sample_params", {}).get("sample_steps", 20))
+    frames = int(body.get("video_frames", 9))
+    width, height = int(body.get("width", 256)), int(body.get("height", 256))
+    if not 1 <= frames <= 129 or not 1 <= steps <= 500 or width * height * frames > model.max_pixels() * 33:
+        raise BadRequest("video exceeds the frame, step or pixel budget")
+    params = {"steps": steps, "width": width, "height": height, "seed": body.get("seed", -1)}
+    params.update({k: body[k] for k in ("negative_prompt",) if k in body})
+    cfg = body.get("sample_params", {}).get("guidance", {}).get("txt_cfg")
+    if cfg is not None:
+        params["cfg_scale"] = cfg
+    kw = diffusion_kwargs(model, params)
+    kw["num_frames"] = frames
+    if image:
+        kw["image"] = to_image(image).resize((width, height))
+    def step(_pipe, index, _timestep, kwargs):
+        if job["cancel"].is_set():
+            raise GenerationCancelled()
+        job["preview"] = {"step": index + 1, "total_steps": steps}
+        return kwargs
+    kw["callback_on_step_end"] = step
+    with model.lock:
+        if job["cancel"].is_set():
+            raise GenerationCancelled()
+        result = pipe(prompt=body["prompt"], **kw).frames[0]
+    if job["cancel"].is_set():
+        raise GenerationCancelled()
+    output = io.BytesIO()
+    with av.open(output, mode="w", format=fmt) as container:
+        stream = container.add_stream("libx264" if fmt == "mp4" else "libvpx-vp9", rate=int(body.get("fps", 16)))
+        stream.width, stream.height, stream.pix_fmt = width, height, "yuv420p"
+        for image in result:
+            if job["cancel"].is_set():
+                raise GenerationCancelled()
+            arr = np.asarray(image)
+            if arr.dtype != np.uint8:
+                arr = (arr * 255).clip(0, 255).astype(np.uint8)
+            frame = av.VideoFrame.from_ndarray(arr, format="rgb24")
+            for packet in stream.encode(frame):
+                container.mux(packet)
+        for packet in stream.encode():
+            container.mux(packet)
+    return base64.b64encode(output.getvalue()).decode()
 
 
 def build_app(model: Model):
@@ -1587,7 +1983,7 @@ def build_app(model: Model):
         return r if isinstance(r, Response) else JSONResponse(r)
 
     async def chat(request: Request):
-        wrong = requires(*CHAT_TASKS)
+        wrong = requires(*CHAT_TASKS, "video-text-to-text")
         if wrong:
             return wrong
         try:
@@ -1596,6 +1992,11 @@ def build_app(model: Model):
             return error(400, "the body is not JSON")
         if not isinstance(body, dict):
             return error(400, "the body must be a JSON object")
+        if model.args.task == "video-text-to-text":
+            if body.get("stream"):
+                return error(400, "video chat currently requires stream: false")
+            r = await call(video_chat, model, body)
+            return r if isinstance(r, Response) else JSONResponse(r)
         if body.get("stream") is True:
             r = await call(stream_chat, model, body)
             if isinstance(r, Response):
@@ -1677,6 +2078,9 @@ def build_app(model: Model):
         if f is None:
             return error(400, 'multipart field "file" is required')
         data = await f.read()
+        if model.ct2 is not None:
+            r = await call(ct2_transcribe, model, data, form)
+            return r if isinstance(r, Response) else JSONResponse(r)
         gen = {}
         if form.get("language"):
             gen["language"] = form.get("language")
@@ -1757,7 +2161,52 @@ def build_app(model: Model):
             return r
         return JSONResponse({"created": int(time.time()), "data": [{"b64_json": png_b64(i)} for i in r]})
 
+    jobs = {}
+
+    async def start_video(request: Request):
+        wrong = requires(*VIDEO_TASKS) or not_ready()
+        if wrong:
+            return wrong
+        if len(jobs) >= 8:
+            return error(429, "too many video jobs")
+        body = await request.json()
+        if not isinstance(body.get("prompt"), str) or not body["prompt"].strip():
+            return error(400, "prompt is required")
+        job_id = str(time.time_ns())
+        job = {"status": "generating", "cancel": threading.Event()}
+        jobs[job_id] = job
+        def run():
+            try:
+                result = generate_video(model, body, job)
+                if not job["cancel"].is_set():
+                    job.update(status="completed", result={"b64_json": result})
+            except GenerationCancelled:
+                job["status"] = "cancelled"
+            except Exception as e:
+                log(traceback.format_exc())
+                job.update(status="failed", error={"message": str(e)})
+        threading.Thread(target=run, daemon=True).start()
+        return JSONResponse({"id": job_id})
+
+    async def poll_video(request: Request):
+        job = jobs.get(request.path_params["id"])
+        if job is None:
+            return error(404, "unknown video job")
+        result = {k: v for k, v in job.items() if k != "cancel"}
+        if job["status"] in ("completed", "failed", "cancelled"):
+            jobs.pop(request.path_params["id"], None)
+        return JSONResponse(result)
+
+    async def cancel_video(request: Request):
+        job = jobs.pop(request.path_params["id"], None)
+        if job:
+            job["cancel"].set()
+        return JSONResponse({"status": "cancelled"})
+
     routes = [
+        Route("/video/jobs", start_video, methods=["POST"]),
+        Route("/video/jobs/{id}", poll_video),
+        Route("/video/jobs/{id}/cancel", cancel_video, methods=["POST"]),
         Route("/health", health),
         Route("/v1/models", models),
         Route("/models", models),

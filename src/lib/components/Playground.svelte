@@ -60,10 +60,16 @@
   import { isExternalModel } from './playground/cloudModels';
   import EmbeddingPanel from './playground/EmbeddingPanel.svelte';
   import RerankPanel from './playground/RerankPanel.svelte';
+  import OcrPanel from './playground/OcrPanel.svelte';
   import PipelinePanel from './playground/PipelinePanel.svelte';
+  import VideoPanel from './playground/VideoPanel.svelte';
+  import { isVideoTask } from './playground/video';
   import { ensureLibraryDefinitions, loadAndChat } from '#lib/stores/downloads.svelte.js';
   import { isChatLoadable } from '#lib/downloadFollowUp.js';
   import { kindsForTab, servedModelName } from '#lib/libraryDefinitions.js';
+  import SpeakRepliesControl from '#lib/components/playground/SpeakRepliesControl.svelte';
+  import { replyAudio, replySpeechSource } from './playground/speakReplies';
+  import { readAloud, tts } from './playground/tts.svelte';
   import { loadAudio, AudioError, MAX_AUDIO_BYTES, MAX_AUDIO_PER_MESSAGE, type PgAudio } from './playground/audio';
   import TranscribePanel from './playground/TranscribePanel.svelte';
   import ImagePanel from './playground/ImagePanel.svelte';
@@ -74,7 +80,7 @@
   import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import { domain, samePath } from '#lib/stores/domain.svelte.js';
   import { DEFAULT_PRESET_ID, presetFromRequest } from './presets/request';
-  import type { InferencePreset, ServeMode, LibraryView } from '#lib/types.js';
+  import type { InferencePreset, ServeMode, PlaygroundMode, LibraryView } from '#lib/types.js';
   import { Unplug, MessageSquare, Plus, SlidersHorizontal, PanelLeft, TriangleAlert, Columns2 } from '@lucide/svelte';
   import SplitView from './playground/SplitView.svelte';
   import SectionLoading from '#lib/components/common/SectionLoading.svelte';
@@ -216,6 +222,8 @@
   let pendingImages = $state<PgImage[]>([]);
   let pendingAudio = $state<PgAudio[]>([]);
   let libraryAudio = $state(false);
+  /** The selected model answers with speech of its own (Qwen2.5-Omni, LFM2.5-Audio). */
+  let librarySpeaks = $state(false);
   let audioAliases = $state<Record<string, boolean>>({});
   let libraryVision = $state<boolean | null>(null);
   let streaming = $state(false);
@@ -265,8 +273,8 @@
   let splitControllers: AbortController[] = [];
 
   // ---- Tabs: chat, or the Embedding / Rerank test benches ----
-  let pgTab = $state<ServeMode>('chat');
-  let modeModels = $state({ embedding: '', rerank: '', transcription: '', image: '', pipeline: '' });
+  let pgTab = $state<PlaygroundMode>('chat');
+  let modeModels = $state({ embedding: '', rerank: '', transcription: '', image: '', pipeline: '', ocr: '' });
   /** Pipeline task ("fill-mask"...) of the Tasks tab's model, from its library file. */
   let pipelineTask = $derived.by(() => {
     const def = domain.definitions.find(d => d.alias === modeModels.pipeline);
@@ -274,13 +282,14 @@
   });
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
   let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isExternalModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
+  let ocrAliases = $derived(definitionsForMode(domain.definitions, 'ocr', library.models).map(def => def.alias));
   let pickerModel = $derived(pgTab === 'chat' ? settings.model : pgTab === 'image' ? imageSession.model : modeModels[pgTab]);
   $effect(() => {
     void library.version;
     untrack(() => void library.refresh());
   });
   $effect(() => {
-    for (const mode of ['embedding', 'rerank', 'transcription', 'image', 'pipeline'] as const) {
+    for (const mode of ['embedding', 'rerank', 'transcription', 'image', 'pipeline', 'ocr'] as const) {
       const available = definitionsForMode(domain.definitions, mode, library.models).map(def => def.alias);
       modeModels[mode] = selectModeModel(modeModels[mode], available);
     }
@@ -301,7 +310,7 @@
     const alias = app.requestedPlaygroundModel;
     app.requestedPlaygroundModel = null;
     if (alias && tab === 'chat' && isExternalModel(alias)) useModel(app.selectedServerId, alias);
-    else if (alias && (tab === 'embedding' || tab === 'rerank' || tab === 'pipeline')) modeModels[tab] = alias;
+    else if (alias && (tab === 'embedding' || tab === 'rerank' || tab === 'pipeline' || tab === 'ocr')) modeModels[tab] = alias;
   });
   // Embedding / Rerank list definitions: library files found by a scan get their default one first.
   $effect(() => {
@@ -1022,6 +1031,7 @@
     verifiedTools = null;
     reasoningControl = NO_REASONING;
     libraryAudio = false;
+    librarySpeaks = false;
     audioAliases = {};
     libraryVision = null;
     if (!path && definition?.base.kind !== 'hf') return;
@@ -1039,6 +1049,7 @@
       const projector = definition?.mmproj ? view.entries.find(e => normalize(e.model.path) === normalize(definition.mmproj!)) : undefined;
       libraryAudio = !!(projector?.caps.audio_input ?? entry?.caps.audio_input);
       libraryVision = projector?.caps.vision ?? entry?.caps.vision ?? null;
+      librarySpeaks = !!entry?.caps.speech_output;
       audioAliases = Object.fromEntries(domain.definitions.map(d => [d.alias.toLowerCase(), !!d.mmproj &&
         !!view.entries.find(e => normalize(e.model.path) === normalize(d.mmproj!))?.caps.audio_input]));
     }).catch(() => {});
@@ -1420,7 +1431,7 @@
     const own = app.isRunning && (!app.gatewayRunning || aliasOfServer(app.selectedServerId)?.toLowerCase() === settings.model.toLowerCase());
     if (own && propsAudio !== null) return propsAudio;
     const def = domain.definitions.find(d => d.alias.toLowerCase() === settings.model.toLowerCase());
-    return !!def?.mmproj && libraryAudio;
+    return (!!def?.mmproj && libraryAudio) || (librarySpeaks && libraryAudio);
   });
   async function addAudioFiles(files: File[]) {
     if (!audioEnabled) return;
@@ -2571,6 +2582,8 @@
     let sentTools = toolDefs.length > 0;
     // Wait for a complete candidate before rendering tool-call JSON as ordinary text.
     const contentBuffer = new TextCallStreamBuffer();
+    // A model that speaks natively answers aloud itself; the reply voice model is not needed.
+    const nativeSpeech = !splitOn && tts.speakReplies && librarySpeaks;
     const body: Record<string, unknown> = {
       messages: withToolGuidance(apiMessages, toolDefs),
       stream: true,
@@ -2579,6 +2592,11 @@
     };
     if (model) body.model = model;
     if (sentTools) body.tools = toolDefs;
+    if (nativeSpeech) {
+      body.modalities = ['text', 'audio'];
+      body.audio = { format: 'wav' };
+    }
+    let speech: Blob | null = null;
 
     const started = performance.now();
     let ttftMs: number | undefined;
@@ -2618,6 +2636,7 @@
           const content = typeof delta.content === 'string' ? delta.content : '';
           const hasCalls = Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0;
           if ((reasoning || content || hasCalls) && ttftMs === undefined) ttftMs = performance.now() - started;
+          if (nativeSpeech) speech = speech ?? replyAudio(delta.audio);
           if (reasoning) msg.reasoning = (msg.reasoning ?? '') + reasoning;
           if (content) {
             if (sentTools) msg.content += contentBuffer.push(content);
@@ -2727,6 +2746,11 @@
       }
       msg.streaming = false;
       scrollToBottom();
+      if (speech && !msg.error && !msg.stopped) void readAloud.playClip(msg.id, speech);
+      else {
+        const spoken = splitOn ? null : replySpeechSource(tts.speakReplies, msg);
+        if (spoken) void readAloud.toggle(msg.id, spoken);
+      }
     }
     return msg;
   }
@@ -2791,7 +2815,7 @@
           size="sm"
           value={pgTab}
           onValueChange={(v) => {
-            if (v) pgTab = v as ServeMode;
+            if (v) pgTab = v as PlaygroundMode;
           }}
           class="ml-1 shrink-0"
           aria-label={t('emb.tabs_label')}
@@ -2945,7 +2969,7 @@
       {/if}
       <!-- Speech goes through the gateway (whisper-server JIT), not the selected llama-server:
            the Speech panel shows its own gateway notice instead. -->
-      {#if !canChat && pgTab !== 'transcription' && pgTab !== 'image' && pgTab !== 'pipeline'}
+      {#if !canChat && pgTab !== 'transcription' && pgTab !== 'image' && pgTab !== 'pipeline' && pgTab !== 'ocr'}
         <div class="flex shrink-0 items-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2" role="status">
           <Unplug class="size-4 shrink-0 text-warning" aria-hidden="true" />
           <span class="min-w-0 flex-1 text-xs text-foreground">
@@ -2987,8 +3011,14 @@
           {:else}
             <ImagePanel />
           {/if}
+        {:else if pgTab === 'ocr'}
+          <OcrPanel model={modeModels.ocr} />
         {:else if pgTab === 'pipeline'}
-          <PipelinePanel model={modeModels.pipeline} task={pipelineTask} />
+          {#if isVideoTask(pipelineTask)}
+            {#key modeModels.pipeline}<VideoPanel model={modeModels.pipeline} task={pipelineTask} />{/key}
+          {:else}
+            <PipelinePanel model={modeModels.pipeline} task={pipelineTask} />
+          {/if}
         {:else}
           <RerankPanel model={modeModels.rerank} />
         {/if}
@@ -3148,6 +3178,7 @@
           ensureConversation={(title) => ensureConversation(title)}
           embedAlias={resolveEmbedModel(settings.ragEmbedModel, ragModels?.embedding ?? [])}
           models={ragModels}
+          ocrAliases={ocrAliases}
           readOnly={!persistEnabled}
           bind:attached={attachedKbs}
           onUseEmbedder={(alias) => (settings.ragEmbedModel = alias)}
@@ -3207,6 +3238,7 @@
             {#if persistEnabled}
               <McpResourcesButton disabled={streaming || compacting} onAttachFile={async (path) => attachFiles([path])} />
             {/if}
+            <SpeakRepliesControl disabled={compacting} native={librarySpeaks} />
             <WorkspacePicker conversationKey={workspaceVersion} bind:value={settings.workdir} disabled={streaming || compacting} />
             {#if uiLevel.advanced && !splitOn && persistEnabled}
               <CompactButton

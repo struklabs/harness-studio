@@ -81,6 +81,8 @@ export function kindsForTab(tab: string): ModelKind[] {
       return ['embedding'];
     case 'rerank':
       return ['reranker'];
+    case 'ocr':
+      return ['pipeline'];
     case 'pipeline':
       return ['pipeline'];
     default:
@@ -88,7 +90,7 @@ export function kindsForTab(tab: string): ModelKind[] {
   }
 }
 
-export type PlaygroundTab = 'embedding' | 'rerank' | 'transcription' | 'image' | 'pipeline';
+export type PlaygroundTab = 'embedding' | 'rerank' | 'transcription' | 'image' | 'pipeline' | 'ocr';
 
 /**
  * The Playground tab a library file opens in, and whether it is picked by definition alias
@@ -101,6 +103,8 @@ export function playgroundTarget(
   runtime?: string | null,
 ): { tab: PlaygroundTab; pick: 'definition' | 'name'; speech?: 'transcribe' | 'speak' } | null {
   if (!file.is_ready) return null;
+  if (file.kind === 'pipeline' && ['image-to-text', 'document-question-answering'].includes(file.task ?? ''))
+    return { tab: 'ocr', pick: 'definition' };
   // An mlx-audio folder speaks or transcribes: the Speech tab lists it under its definition's alias.
   if (runtime === 'mlx-audio')
     return { tab: 'transcription', pick: 'name', speech: file.task === 'automatic-speech-recognition' ? 'transcribe' : 'speak' };

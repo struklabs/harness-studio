@@ -449,7 +449,11 @@ async fn run(
             )
             .param("model"));
         }
-        if !PYTHON_FORMATS.contains(&format) {
+        // A CTranslate2 Whisper export (faster-whisper) answers timed segments, so it can
+        // also give verbose_json, srt and vtt.
+        if !PYTHON_FORMATS.contains(&format)
+            && !(is_ct2_whisper(&def) && TIMED_FORMATS.contains(&format))
+        {
             return Err(bad(format!(
                 "response_format `{format}` is not available for this model; use json or text."
             ))
@@ -748,6 +752,16 @@ async fn run(
 /// only).
 const PYTHON_FORMATS: [&str; 2] = ["json", "text"];
 
+/// Extra `response_format`s of a CTranslate2 Whisper export: they need the worker's segments.
+const TIMED_FORMATS: [&str; 3] = ["verbose_json", "srt", "vtt"];
+
+/// Whether a definition is a CTranslate2 Whisper export (faster-whisper) of the Python engine.
+fn is_ct2_whisper(def: &ModelDefinition) -> bool {
+    def.base
+        .local_path()
+        .is_some_and(harness_core::engine::python_hf::is_ct2_whisper_dir)
+}
+
 /// A transcription (or a Whisper translation) on a Python engine or mlx-audio model: the audio
 /// goes to the worker's `/v1/audio/transcriptions`; `text` is made from its JSON here.
 #[allow(clippy::too_many_arguments)]
@@ -761,12 +775,26 @@ async fn python_transcribe(
     format: &str,
     guard: &mut RecordGuard,
 ) -> Result<Response, GatewayError> {
+    let ct2 = is_ct2_whisper(def);
     let mut fields: Vec<(&str, String)> = Vec::new();
     if let Some(l) = form.language.clone() {
         fields.push(("language", l));
     }
     if task == Task::Translate {
         fields.push(("task", "translate".into()));
+    }
+    // faster-whisper takes the prompt, the temperature and word timestamps too.
+    let words = ct2 && form.timestamps.iter().any(|(_, v)| v.trim() == "word");
+    if ct2 {
+        if let Some(p) = form.prompt.clone() {
+            fields.push(("prompt", p));
+        }
+        if let Some(t) = form.temperature.clone() {
+            fields.push(("temperature", t));
+        }
+        if words {
+            fields.push(("word_timestamps", "true".into()));
+        }
     }
     let (content_type, body) = multipart_body(filename, audio, &fields);
     let answer = crate::pyhf::post(
@@ -778,6 +806,40 @@ async fn python_transcribe(
         body,
     )
     .await?;
+    if ct2 {
+        let elapsed = guard.started.elapsed().as_millis() as u64;
+        let seconds = serde_json::from_slice::<serde_json::Value>(&answer.body)
+            .ok()
+            .and_then(|v| v.get("duration").and_then(|d| d.as_f64()))
+            .unwrap_or(0.0);
+        let transcript = harness_core::engine::transcribe_cpp::transcript_of(
+            &answer.body,
+            &def.alias,
+            seconds,
+            elapsed,
+        )
+        .ok_or_else(|| {
+            GatewayError::new(
+                502,
+                "upstream_error",
+                "The speech worker's answer has no text.",
+            )
+        })?;
+        let (content_type, mut out) = crate::sherpa_asr::shape(format, &transcript);
+        if format == "verbose_json" {
+            out = verbose_extras(out, task, words.then_some(&answer.body));
+        }
+        guard.finish(200, None);
+        return crate::pyhf::lease_headers(
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, content_type),
+            def,
+            &answer.lease,
+        )
+        .body(axum::body::Body::from(out))
+        .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()));
+    }
     let text = serde_json::from_slice::<serde_json::Value>(&answer.body)
         .ok()
         .and_then(|v| {
@@ -813,6 +875,24 @@ async fn python_transcribe(
     )
     .body(axum::body::Body::from(out))
     .map_err(|e| GatewayError::new(500, "gateway_error", e.to_string()))
+}
+
+/// `verbose_json` of a faster-whisper answer: the task (`translate` for a translation) and,
+/// when word timestamps were asked for, the top-level `words` array of the worker's answer.
+fn verbose_extras(shaped: Vec<u8>, task: Task, worker: Option<&Bytes>) -> Vec<u8> {
+    let Ok(mut v) = serde_json::from_slice::<serde_json::Value>(&shaped) else {
+        return shaped;
+    };
+    if task == Task::Translate {
+        v["task"] = "translate".into();
+    }
+    if let Some(words) = worker
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(b).ok())
+        .and_then(|w| w.get("words").cloned())
+    {
+        v["words"] = words;
+    }
+    serde_json::to_vec(&v).unwrap_or(shaped)
 }
 
 /// OpenAI's shape of whisper-server's answer: no leading space in `text`, plain text with one
@@ -888,6 +968,41 @@ mod tests {
         assert!(out.starts_with(b"1\n"));
         // Not JSON: passed through.
         assert_eq!(shape("json", b"oops").1, b"oops");
+    }
+
+    #[test]
+    fn faster_whisper_verbose_json_names_the_task_and_carries_the_words() {
+        let worker = Bytes::from_static(
+            br#"{"text":"Hi.","words":[{"word":"Hi.","start":0.0,"end":0.4}],"segments":[]}"#,
+        );
+        let shaped = br#"{"task":"transcribe","text":"Hi.","segments":[]}"#.to_vec();
+        let out = verbose_extras(shaped.clone(), Task::Translate, Some(&worker));
+        let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(v["task"], "translate");
+        assert_eq!(v["words"][0]["word"], "Hi.");
+        let v: serde_json::Value =
+            serde_json::from_slice(&verbose_extras(shaped, Task::Transcribe, None)).unwrap();
+        assert_eq!(v["task"], "transcribe");
+        assert!(v.get("words").is_none());
+    }
+
+    #[test]
+    fn faster_whisper_answers_are_shaped_like_openais() {
+        let worker = br#"{"text":"Hello world.","language":"english","duration":2.0,"segments":[{"id":0,"start":0.0,"end":1.5,"text":"Hello"},{"id":1,"start":1.5,"end":2.0,"text":"world."}]}"#;
+        let t = harness_core::engine::transcribe_cpp::transcript_of(worker, "ct2", 2.0, 5).unwrap();
+        let (ct, out) = crate::sherpa_asr::shape("srt", &t);
+        assert!(ct.starts_with("application/x-subrip"));
+        assert!(String::from_utf8(out)
+            .unwrap()
+            .contains("00:00:01,500 --> 00:00:02,000\nworld."));
+        let (ct, out) = crate::sherpa_asr::shape("vtt", &t);
+        assert!(ct.starts_with("text/vtt"));
+        assert!(String::from_utf8(out).unwrap().starts_with("WEBVTT"));
+        let (_, out) = crate::sherpa_asr::shape("verbose_json", &t);
+        let v: serde_json::Value = serde_json::from_slice(&out).unwrap();
+        assert_eq!(v["language"], "english");
+        assert_eq!(v["segments"][1]["text"], "world.");
+        assert_eq!(v["text"], "Hello world.");
     }
 
     #[test]

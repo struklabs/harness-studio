@@ -1749,3 +1749,28 @@ fn scanned_definitions_preserve_speech_tasks_and_missing_file_checks() {
         Some(&crate::params::ParamValue::Text("crispasr_tts".into()))
     );
 }
+
+#[test]
+fn natively_speaking_folders_list_audio_in_and_speech_out() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("config.json"),
+        r#"{"model_type":"qwen2_5_omni"}"#,
+    )
+    .unwrap();
+    std::fs::write(dir.path().join("model.safetensors"), "x").unwrap();
+    let mut folder = real_models()
+        .into_iter()
+        .find(|m| m.kind == ModelKind::Llm)
+        .unwrap();
+    folder.gguf = None;
+    folder.path = dir.path().to_path_buf();
+    let caps = caps_of(&folder, false, false);
+    assert!(caps.chat && caps.vision && caps.audio_input && caps.speech_output);
+    // A GGUF chat model does not speak on its own.
+    let gguf = real_models()
+        .into_iter()
+        .find(|m| m.kind == ModelKind::Llm)
+        .unwrap();
+    assert!(!caps_of(&gguf, false, true).speech_output);
+}

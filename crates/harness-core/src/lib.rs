@@ -64,6 +64,7 @@ pub mod nvml;
 pub mod onnx_runtime;
 pub mod operation_gate;
 pub mod orchestrator;
+pub mod orphans;
 pub mod otel;
 pub mod params;
 pub mod paths;

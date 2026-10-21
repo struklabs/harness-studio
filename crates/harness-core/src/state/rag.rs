@@ -37,6 +37,10 @@ pub struct RagDocument {
     pub mode: String,
     pub embed_model: Option<String>,
     pub embed_dims: Option<i64>,
+    /// Pages of a PDF whose text came from the knowledge base OCR model (1-based, ascending);
+    /// empty when the text layer was used throughout.
+    #[serde(default)]
+    pub ocr_pages: Vec<u32>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -68,7 +72,15 @@ const DOC_COLS: &str = "d.id, d.conversation_id, d.name, d.kind, d.source_path, 
     d.pages, d.chars, d.status, d.error, d.mode, d.embed_model, d.embed_dims, d.created_at, \
     d.updated_at, \
     (SELECT COUNT(*) FROM rag_chunks c WHERE c.document_id = d.id), \
-    (SELECT COUNT(*) FROM rag_chunks c WHERE c.document_id = d.id AND c.embedding IS NOT NULL)";
+    (SELECT COUNT(*) FROM rag_chunks c WHERE c.document_id = d.id AND c.embedding IS NOT NULL), \n    d.ocr_pages";
+
+/// `"2,5"` -> `[2, 5]` (a stored list of page numbers).
+fn parse_pages(text: Option<&str>) -> Vec<u32> {
+    text.unwrap_or_default()
+        .split(',')
+        .filter_map(|n| n.trim().parse().ok())
+        .collect()
+}
 
 fn doc_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<RagDocument> {
     let chars: i64 = r.get(8)?;
@@ -92,6 +104,7 @@ fn doc_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<RagDocument> {
         updated_at: r.get(15)?,
         chunks: r.get(16)?,
         embedded: r.get(17)?,
+        ocr_pages: parse_pages(r.get::<_, Option<String>>(18)?.as_deref()),
     })
 }
 
@@ -202,6 +215,29 @@ impl StateDb {
             let n = tx.execute(
                 "UPDATE rag_documents SET status = ?2, error = ?3, updated_at = ?4 WHERE id = ?1",
                 params![id, status, error, now_ms()],
+            )?;
+            if n == 0 {
+                return Err(StateError::not_found(
+                    err("rag.document_not_found").with("id", id),
+                ));
+            }
+            Ok(())
+        })
+    }
+
+    /// Records the pages whose text came from OCR (empty clears the record).
+    pub fn rag_set_ocr_pages(&self, id: &str, pages: &[u32]) -> StateResult<()> {
+        let stored = (!pages.is_empty()).then(|| {
+            pages
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(",")
+        });
+        self.write(|tx| {
+            let n = tx.execute(
+                "UPDATE rag_documents SET ocr_pages = ?2 WHERE id = ?1",
+                params![id, stored],
             )?;
             if n == 0 {
                 return Err(StateError::not_found(

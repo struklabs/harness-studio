@@ -57,6 +57,8 @@ pub struct KnowledgeBase {
     pub chunks: i64,
     pub embedded: i64,
     pub failed: usize,
+    /// Pages of its documents whose text came from the OCR model.
+    pub ocr_pages: usize,
     pub state: KbState,
     /// Why the index is stale: `model` (another embedding model) or `dims` (vector size).
     pub stale_reason: Option<String>,
@@ -121,6 +123,7 @@ pub fn summarize(
         chunks: docs.iter().map(|d| d.chunks).sum(),
         embedded: docs.iter().map(|d| d.embedded).sum(),
         failed: docs.iter().filter(|d| d.status == "failed").count(),
+        ocr_pages: docs.iter().map(|d| d.ocr_pages.len()).sum(),
         stale_reason: reason.map(String::from),
         state,
         row,
@@ -246,7 +249,12 @@ fn walk(dir: &Path, depth: usize, scan: &mut FolderScan) {
                 .metadata()
                 .map(|m| m.len() > super::extract::MAX_FILE_BYTES || m.len() == 0)
                 .unwrap_or(true);
-            if too_large || generated(&name) || looks_binary(&path) {
+            // PDF and DOCX are binary by nature (a scan holds its images, a DOCX is a zip).
+            let text_kind = !matches!(
+                super::extract::kind_of(&path),
+                Some(super::extract::DocKind::Pdf | super::extract::DocKind::Docx)
+            );
+            if too_large || generated(&name) || (text_kind && looks_binary(&path)) {
                 scan.skipped += 1;
             } else {
                 scan.files.push(path);
@@ -296,6 +304,8 @@ pub struct KbIndexRequest {
     pub root: Option<PathBuf>,
     /// Embed with this model; `None` = keyword search only.
     pub embed: Option<EmbedModel>,
+    /// Recognize scanned PDF pages with this model (the base's OCR model); `None` = no OCR.
+    pub ocr: Option<super::ocr::OcrModel>,
     /// Extract every document again and re-embed it (otherwise only new, unfinished and
     /// outdated documents are worked on).
     pub rebuild: bool,
@@ -418,6 +428,7 @@ async fn index_kb_inner(
                 document_id: d.id.clone(),
                 source,
                 embed: req.embed.clone(),
+                ocr: req.ocr.clone(),
             },
             cancel.clone(),
             |p: Progress| {

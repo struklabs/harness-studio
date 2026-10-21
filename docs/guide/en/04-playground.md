@@ -45,6 +45,14 @@ To get a different answer, choose **Regenerate Response**; this works for an ans
 
 Answers render full Markdown (lists, tables, headings), and `mermaid` code blocks appear as diagrams you can switch to source, copy, or save as SVG. **Read Aloud** on an answer reads it out (see [Text to Speech](#text-to-speech)).
 
+### Audio Input and Spoken Replies
+
+When the selected model hears audio (a GGUF model loaded with an audio projector, such as LFM2.5-Audio, Ultravox, or Voxtral), the composer shows **Attach Audio** and **Record Audio**. Attach up to two WAV, MP3, or FLAC clips of at most 4 MiB each, or record one from the microphone, and send them with or without text: the clip appears in your message and the model answers it. Models without audio input hide both buttons.
+
+Switch on **Speak Replies** (the speaker button beside the composer actions) to hear every finished answer. Choose the voice model next to it from your installed text-to-speech models (see [Text to Speech](#text-to-speech)). Together with an audio clip this makes a spoken conversation: your voice goes to the audio model, and the answer text is turned into speech by the text-to-speech model you picked. The setting is remembered, and **Read Aloud** on a single answer still works when it is off. Replies in split comparison, failed or stopped answers, and tool-call turns are not spoken.
+
+Some models speak by themselves: Qwen2.5-Omni (safetensors, on the Python engine) and Liquid's LFM2.5-Audio (its own `liquid-audio` runtime) take audio, text (and, for Omni, pictures) and answer with text and their own voice. With **Speak Replies** on, the Playground asks such a model for speech (`modalities: ["text", "audio"]`) and plays the recording that comes back with the answer; the button then says **Model Speaks Natively** and no voice model is needed. The Hub lists these any-to-any models as supported when either runtime is installed. Over the API, `/v1/chat/completions` returns the recording in `choices[0].message.audio` (`id`, `data` as base64 WAV, `transcript`); streamed answers carry it in a final `delta.audio`.
+
 ## Tables, Charts, and UI Blocks
 
 Structured JSON tool results appear as key-value cards or sortable tables; **Raw JSON** shows the underlying result. Markdown tables scroll horizontally and offer **Copy as CSV**. A complete `chart` block can show a bar, line, or pie chart. A complete `ui` block can show a card, list, steps, callout, progress bar, or key-value view. These use a limited declarative JSON schema: model HTML and JavaScript are never executed. Invalid or incomplete blocks remain readable code. See the [supported schemas](../../en/FEATURES.md).
@@ -106,6 +114,8 @@ A knowledge base is a named set of documents you can reuse in any chat.
 4. Choose **Use in This Chat**. On every question, only the best matching passages are added (a quarter of the context at most, 2,000 tokens at the very most), and the answer shows them as source chips.
 
 A base remembers which embedding model built its index. If you switch to another embedding model, the base is marked **Stale**; **Rebuild** re-reads and re-indexes it. Until then, searches fall back to keywords and a notice says why. Deleting a base removes its index only, never your files.
+
+**OCR Model** (under each base, **None** by default) reads PDF pages that have no text layer, such as scans. Choose an OCR-capable model from your library, make sure the gateway is on, and index the base again (**Resume** or **Rebuild**). Pages with a text layer are never sent to the model. The base shows how many pages were read with OCR. Turning pages into images needs the Python engine, as in [Read Document](#read-document); without it the document fails with a message that says so. At most 200 pages of one document are read this way (`HARNESS_KB_OCR_MAX_PAGES` changes that).
 
 ## Embedding and Rerank
 
@@ -194,3 +204,49 @@ In a chat, **Thinking** controls the selected model’s thinking behavior for th
 See also the [Tools reference](../../en/TOOLS.md) and the [Features reference](../../en/FEATURES.md).
 
 Next: [Connections and the Gateway](05-connections-and-gateway.md).
+
+## Read Document
+
+Choose **Read Document** and select a vision model with a multimodal projector, or an
+OCR/document QA model from your library. Start the gateway in Settings if it is off.
+Drop or choose a PNG, JPEG, WebP, GIF or PDF (up to 20 MiB), then choose **Read Text**.
+The result preserves reading order, line breaks and paragraph blocks as Markdown;
+**Copy Text** copies it to the clipboard. Enter a question and choose **Ask** to query
+the same document. You can switch models between reading and asking: Python
+`image-to-text` models transcribe; `document-question-answering` models answer questions.
+VLMs with a projector support both operations. Transcription quality depends on the model.
+
+PDF pages with a text layer are read as text. Pages without one (scans) are turned into
+images and read by the selected model, so scanned and mixed PDFs work too. Turning pages
+into images uses the Python engine (the same environment as Hugging Face models); if it is
+not installed, Read Document says so and points to **Settings > Runtime**, and nothing is
+read in a lesser way. A request reads at most 16 PDF pages, rendered at 150 dpi; the
+environment variables `HARNESS_OCR_MAX_PAGES` (1 to 1000) and `HARNESS_OCR_DPI` (72 to 300)
+change that for the app. A Python DQA model accepts one image per question; PDF questions
+use a VLM. LayoutLM pipelines may require `pytesseract` and a separately installed
+Tesseract executable.
+
+## Video Generation and Questions
+
+Python video models appear in Playground's Pipeline tab. Select a diffusers LTX-Video or
+CogVideoX folder to generate a clip from a prompt. Supply a start image for image-to-video.
+Choose MP4 or WebM, resolution, frames and steps before running. The progress indicator follows
+denoising steps; Cancel stops at the next step. Finished clips are saved to the active project's
+`outputs` folder when the project has a folder.
+
+Video diffusion needs substantial RAM and VRAM. CPU runs use float32 and can take a long time.
+Start with a short clip and a few steps, then increase quality. LTX frame counts follow its
+`8n + 1` temporal compression; the gateway rounds down to a supported count. Model-specific
+resolution constraints still apply. Download the complete diffusers folder, including its text
+encoder, tokenizer, transformer and VAE.
+
+Select a video-capable transformers model such as `HuggingFaceTB/SmolVLM2-256M-Video-Instruct`
+to ask a question about an MP4 or WebM file. Clips must be at most 32 MiB. Harness samples eight
+frames per video, so brief events between sampled frames may be missed. Video questions return
+one complete answer; streaming is not currently supported.
+
+The same features are available through `POST /v1/videos` (poll the returned job ID, fetch
+`/v1/videos/{id}/content`, or delete the job to cancel) and `POST /v1/chat/completions`.
+For video questions, use `stream: false` and a user message containing a text part and
+`{"type":"video_url","video_url":{"url":"data:video/mp4;base64,..."}}`.
+Only inline videos are accepted; the worker does not fetch remote URLs or read client paths.

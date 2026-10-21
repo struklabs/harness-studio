@@ -367,6 +367,26 @@ struct ExportedOutput<'a> {
     archive_path: Option<String>,
 }
 
+/// A zip entry time (local, like the zip tools that show it); outside the format's 1980-2107
+/// range it falls back to the format's epoch.
+fn zip_time(at: chrono::DateTime<chrono::Local>) -> zip::DateTime {
+    use chrono::{Datelike, Timelike};
+    u16::try_from(at.year())
+        .ok()
+        .and_then(|year| {
+            zip::DateTime::from_date_and_time(
+                year,
+                at.month() as u8,
+                at.day() as u8,
+                at.hour() as u8,
+                at.minute() as u8,
+                at.second() as u8,
+            )
+            .ok()
+        })
+        .unwrap_or_default()
+}
+
 /// Writes `project.json`, every chat (`chats/<id>.json`, the conversation export format) and
 /// the output files that still exist inside the project (`outputs/`) into a zip at `dest`.
 pub fn export_zip(db: &StateDb, project_id: &str, dest: &Path) -> Result<usize, String> {
@@ -385,7 +405,9 @@ pub fn export_zip(db: &StateDb, project_id: &str, dest: &Path) -> Result<usize, 
     let tmp = dest.with_extension("zip.part");
     let file = std::fs::File::create(&tmp).map_err(|e| fail(&e))?;
     let mut zip = ZipWriter::new(file);
-    let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+    let options = SimpleFileOptions::default()
+        .compression_method(CompressionMethod::Deflated)
+        .last_modified_time(zip_time(chrono::Local::now()));
     let result = (|| -> Result<usize, String> {
         let mut names = std::collections::HashSet::new();
         let mut exported = Vec::new();
@@ -403,7 +425,12 @@ pub fn export_zip(db: &StateDb, project_id: &str, dest: &Path) -> Result<usize, 
                     name = format!("outputs/{n}-{base}");
                     n += 1;
                 }
-                zip.start_file(&name, options).map_err(|e| fail(&e))?;
+                let modified = std::fs::metadata(path).and_then(|m| m.modified());
+                let file_options = match modified {
+                    Ok(at) => options.last_modified_time(zip_time(at.into())),
+                    Err(_) => options,
+                };
+                zip.start_file(&name, file_options).map_err(|e| fail(&e))?;
                 let mut src = std::fs::File::open(path).map_err(|e| fail(&e))?;
                 std::io::copy(&mut src, &mut zip).map_err(|e| fail(&e))?;
                 Some(name)

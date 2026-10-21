@@ -34,6 +34,7 @@ pub mod embedder;
 pub mod extract;
 pub mod kb;
 pub mod models;
+pub mod ocr;
 pub mod search;
 
 use crate::error_key::err;
@@ -158,11 +159,12 @@ impl EmbedModel {
         } else {
             models::prefixes_for(def)
         };
-        let context = def
-            .base
-            .local_path()
-            .and_then(|p| crate::gguf::read_gguf_metadata(p).ok())
-            .and_then(|m| m.context_length);
+        let context = def.base.local_path().and_then(|p| {
+            crate::gguf::read_gguf_metadata(p)
+                .ok()
+                .and_then(|m| m.context_length)
+                .or_else(|| crate::engine::mlx::retrieval_info(p).and_then(|(_, _, c)| c))
+        });
         Self {
             endpoint,
             alias: def.alias.clone(),
@@ -213,6 +215,9 @@ pub struct IndexJob {
     pub source: Option<PathBuf>,
     /// Embed with this model; `None` = keyword search only.
     pub embed: Option<EmbedModel>,
+    /// Recognize the pages of a PDF that have no text layer with this model (a knowledge
+    /// base setting); `None` = a scanned PDF fails with `rag.pdf_no_text`.
+    pub ocr: Option<ocr::OcrModel>,
 }
 
 /// Runs an indexing job to its end (the document's status records the outcome). The job
@@ -345,8 +350,10 @@ async fn index_inner(
         db.rag_set_status(id, "extracting", None)
             .map_err(String::from)?;
         report("extracting", 0, 0, None);
+        let limits = ocr::Limits::kb_from_env();
+        let (doc, ocr_pages) =
+            ocr::extract_for_index(&path, job.ocr.as_ref(), &limits, cancel).await?;
         let extracted = blocking_or_cancel(cancel, move || -> Result<_, String> {
-            let doc = extract::extract_file(&path)?;
             let bytes = std::fs::read(&path).map_err(|e| {
                 String::from(
                     err("fs.read_failed")
@@ -378,6 +385,7 @@ async fn index_inner(
             max_chunks,
         )
         .map_err(String::from)?;
+        db.rag_set_ocr_pages(id, &ocr_pages).map_err(String::from)?;
     }
     let Some(embed) = &job.embed else {
         return Ok(());
@@ -730,3 +738,5 @@ mod tests;
 
 #[cfg(test)]
 mod tests_kb;
+#[cfg(test)]
+mod tests_ocr;

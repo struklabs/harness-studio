@@ -244,7 +244,8 @@
           engineBackend = r.backend ?? null;
         })
         .catch(() => {});
-      void loadTierSize(activeTier);
+      // Every card shows the size of the file it would download, not the rough tier size.
+      for (const option of MODEL_TIERS) void loadTierSize(option.id);
     })();
   });
 

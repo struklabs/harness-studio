@@ -229,6 +229,26 @@ pub(crate) async fn read_image_file(path: String) -> Result<String, String> {
     .await?
 }
 
+/// Reads an explicitly dropped document, bounded before allocation, for the OCR panel.
+#[tauri::command]
+pub(crate) async fn read_ocr_file(path: String) -> Result<String, String> {
+    use base64::Engine;
+    use std::io::Read;
+    blocking(move || {
+        let p = PathBuf::from(&path);
+        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
+        let mime = match ext.as_str() {
+            "png" => "image/png", "jpg" | "jpeg" => "image/jpeg", "webp" => "image/webp",
+            "gif" => "image/gif", "pdf" => "application/pdf", _ => return Err("ocr.bad_file".into()),
+        };
+        let mut bytes = Vec::new();
+        std::fs::File::open(&p).and_then(|f| f.take(harness_gateway::ocr::MAX_DOCUMENT_BYTES as u64 + 1).read_to_end(&mut bytes))
+            .map_err(|e| String::from(harness_core::error_key::err("fs.read_failed").with("path", &path).with("error", e)))?;
+        if bytes.len() > harness_gateway::ocr::MAX_DOCUMENT_BYTES { return Err("ocr.bad_file".into()); }
+        Ok(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
+    }).await?
+}
+
 /// Attaches files to a conversation and indexes them one after the other in the background
 /// (`rag-progress` events). `embed_model` = embedding definition alias (needs the gateway);
 /// without it documents are searchable by keywords and usable as full text.
@@ -266,6 +286,7 @@ pub(crate) async fn rag_add_files(
                 document_id: doc.id.clone(),
                 source: Some(p),
                 embed: embed.clone(),
+                ocr: None,
             },
             flag,
         );
@@ -323,6 +344,7 @@ pub(crate) async fn rag_reindex(
                 document_id: d.id.clone(),
                 source: None,
                 embed: embed.clone(),
+                ocr: None,
             },
             flag,
         );

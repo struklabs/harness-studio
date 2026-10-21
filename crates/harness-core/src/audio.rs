@@ -131,6 +131,7 @@ pub async fn to_wav(input: Vec<u8>) -> Result<Vec<u8>, String> {
     .kill_on_drop(true);
     #[cfg(windows)]
     cmd.creation_flags(0x0800_0000);
+    crate::orphans::protect(cmd.as_std_mut());
     let mut child = cmd
         .spawn()
         .map_err(|e| String::from(err("audio.convert_failed").with("error", e)))?;
