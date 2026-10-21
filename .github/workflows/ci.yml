@@ -139,6 +139,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # Informational: lists known advisories in the production dependencies. It never fails the
+      # job (an advisory without a fix would block every pull request); read the log.
+      - name: npm audit (non-blocking)
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Type-check frontend (svelte-check)
         run: npm run check
 

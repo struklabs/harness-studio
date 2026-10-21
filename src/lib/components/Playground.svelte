@@ -127,6 +127,7 @@
     type Timings,
     type Usage,
   } from './playground/agentLoop';
+  import { toolCorpus } from './playground/untrusted';
   import {
     DEFAULT_SETTINGS,
     DEFAULTS_KEY,
@@ -2259,6 +2260,7 @@
               workdir: settings.workdir,
               project: projects.activeId,
               broker,
+              untrustedCorpus: () => toolCorpus(history),
               onProgress: () => splitView?.scrollToBottom(),
               approvalKey: (call) => `${side}:${call.id}`,
             }),
@@ -2467,6 +2469,7 @@
               workdir: settings.workdir,
               project: projects.activeId,
               broker,
+              untrustedCorpus: () => toolCorpus(messages),
               onProgress: () => scrollToBottom(),
             }),
           persist: saveLast,

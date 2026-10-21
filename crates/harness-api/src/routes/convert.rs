@@ -40,11 +40,18 @@ pub struct ConvertRequest {
     pub keep_original: bool,
 }
 
-/// Queues a conversion (download, convert, quantize, place in the library).
+/// Queues a conversion (download, convert, quantize, place in the library). A named API token
+/// is asked once for consent to heavy CPU work (`428 workload.consent_required`, answered on the
+/// Permissions page or with `POST /workloads/consents`).
 #[utoipa::path(post, operation_id = "start_conversion", path = "/convert", tag = "models", request_body = ConvertRequest,
     responses((status = 202, body = ConvertJob), (status = 403, body = ErrorBody),
-        (status = 409, body = ErrorBody), (status = 422, body = ErrorBody)))]
-pub async fn start(Body(req): Body<ConvertRequest>) -> ApiResult<(StatusCode, Json<ConvertJob>)> {
+        (status = 409, body = ErrorBody), (status = 422, body = ErrorBody),
+        (status = 428, body = ErrorBody)))]
+pub async fn start(
+    axum::Extension(caller): axum::Extension<crate::auth::Caller>,
+    Body(req): Body<ConvertRequest>,
+) -> ApiResult<(StatusCode, Json<ConvertJob>)> {
+    super::workload::require_for(&caller, harness_core::workload::WorkloadKind::HeavyCpu).await?;
     let job = convert::start(req.repo.trim(), req.quant.as_deref(), req.keep_original).await?;
     Ok((StatusCode::ACCEPTED, Json(job)))
 }

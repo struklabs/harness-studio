@@ -10,6 +10,7 @@
   import { localizeError } from '#lib/network.js';
   import { app } from '#lib/stores/app.svelte.js';
   import { security, type ExposureBlocked } from '#lib/stores/security.svelte.js';
+  import { deviceConsent } from '#lib/stores/deviceConsent.svelte.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import * as Dialog from '#lib/components/ui/dialog/index.js';
 
@@ -102,6 +103,33 @@
       <Button variant="outline" onclick={dismiss} disabled={busy}>{t('sec.dialog_cancel')}</Button>
       <Button variant="secondary" onclick={goToSettings} disabled={busy}>{t('sec.dialog_settings')}</Button>
       <Button variant="destructive" onclick={openAnyway} disabled={busy}>{t('sec.dialog_open_anyway')}</Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root
+  open={deviceConsent.prompt !== null}
+  onOpenChange={(open) => {
+    if (!open) deviceConsent.settle('deny');
+  }}
+>
+  <Dialog.Content class="sm:max-w-md" data-testid="device-consent">
+    <Dialog.Header>
+      <Dialog.Title class="flex items-center gap-2">
+        <ShieldAlert class="size-4 text-warning" />
+        {#if deviceConsent.prompt}{t(deviceConsent.prompt.kind === 'camera' ? 'wl.prompt_title_camera' : 'wl.prompt_title_microphone')}{/if}
+      </Dialog.Title>
+      <Dialog.Description>
+        {#if deviceConsent.prompt}
+          {t(deviceConsent.prompt.kind === 'camera' ? 'wl.prompt_body_camera' : 'wl.prompt_body_microphone', { client: t('wl.client_ui') })}
+        {/if}
+      </Dialog.Description>
+    </Dialog.Header>
+    <p class="text-xs text-muted-foreground">{t('wl.prompt_hint')}</p>
+    <Dialog.Footer class="gap-2">
+      <Button variant="outline" onclick={() => deviceConsent.settle('deny')}>{t('wl.prompt_deny')}</Button>
+      <Button variant="secondary" onclick={() => deviceConsent.settle('once')}>{t('wl.prompt_allow_once')}</Button>
+      <Button onclick={() => deviceConsent.settle('remember')}>{t('wl.prompt_allow_remember')}</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

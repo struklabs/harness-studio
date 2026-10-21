@@ -5,6 +5,7 @@ mod analytics;
 mod automations;
 mod benchmarks;
 mod catalog;
+mod checkpoints;
 mod cloud;
 mod conversations;
 mod convert;
@@ -23,6 +24,7 @@ mod system;
 mod tokens;
 mod tools;
 mod training;
+mod workload;
 
 use std::sync::Arc;
 
@@ -309,6 +311,13 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(permissions::revoke_grant))
         .routes(routes!(permissions::revoke_subject))
         .routes(routes!(permissions::set_trust))
+        .routes(routes!(workload::list))
+        .routes(routes!(workload::check))
+        .routes(routes!(workload::remember))
+        .routes(routes!(workload::revoke))
+        .routes(routes!(checkpoints::list, checkpoints::clear))
+        .routes(routes!(checkpoints::undo))
+        .routes(routes!(checkpoints::undo_run))
         .routes(routes!(tools::list_tools))
         .routes(routes!(tools::inventory))
         .routes(routes!(tools::auto_state))

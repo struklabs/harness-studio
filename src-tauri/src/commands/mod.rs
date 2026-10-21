@@ -99,6 +99,7 @@ include!("otel.rs");
 include!("automations.rs");
 include!("comfyui.rs");
 include!("permissions.rs");
+include!("workload.rs");
 
 include!("modules.rs");
 include!("setup.rs");

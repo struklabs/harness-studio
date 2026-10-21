@@ -92,8 +92,12 @@ pub struct ToolService {
 }
 
 /// Replaces long strings (file contents, whole scripts) by their start and length and caps the
-/// total: the tool log records what was asked, not the data that went through.
+/// total: the tool log records what was asked, not the data that went through. Credentials in
+/// what is kept are replaced too ([`crate::leakguard`]).
 pub fn redact_args(args: &Value) -> String {
+    let mut args = args.clone();
+    crate::leakguard::redact_value(&mut args, crate::leakguard::Mode::Broad);
+    let args = &args;
     const MAX_STRING: usize = 200;
     const KEEP: usize = 120;
     const MAX_TOTAL: usize = 4000;
@@ -305,6 +309,13 @@ impl ToolService {
         Some(self.judge(settings, &perms, t.def()).1)
     }
 
+    /// The class in force and the decision of `tool` under `settings` (`None`: unknown tool).
+    pub fn judged(&self, tool: &str, settings: &ToolSettings) -> Option<(ToolDef, Decision)> {
+        let t = self.registry.get(tool)?;
+        let perms = crate::permissions::Permissions::shared().snapshot();
+        Some(self.judge(settings, &perms, t.def()))
+    }
+
     /// Runs one call: policy, working directory, limits, log. Every outcome is a
     /// [`ToolResult`]; the caller turns `error` into whatever its surface needs.
     pub async fn run(&self, inv: ToolInvocation, opts: RunOptions) -> ToolResult {
@@ -414,6 +425,12 @@ impl ToolService {
         };
         let mut ctx = ToolCtx::new(workspace);
         ctx.cancel = opts.cancel.clone();
+        ctx.checkpoint_group = Some(
+            inv.origin
+                .conversation
+                .clone()
+                .unwrap_or_else(|| inv.origin.client.clone()),
+        );
         let limits = RunLimits {
             timeout: opts.timeout.unwrap_or(DEFAULT_TIMEOUT),
             ..Default::default()

@@ -43,10 +43,12 @@ pub mod hub_compat;
 pub mod hub_tasks;
 pub mod image_bundles;
 pub mod importer;
+pub mod injection;
 pub mod instance;
 pub mod integrations;
 pub mod jobs;
 pub mod kv_policy;
+pub mod leakguard;
 pub mod lemonade;
 pub mod library;
 pub mod library_definitions;
@@ -102,6 +104,7 @@ pub mod training;
 pub mod tts;
 pub mod vram;
 pub mod watchdog;
+pub mod workload;
 mod zip_safety;
 
 #[cfg(test)]

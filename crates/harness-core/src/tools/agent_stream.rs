@@ -656,6 +656,9 @@ pub async fn run_agent_stream(
     let call_timeout = req.call_timeout.unwrap_or_else(|| req.limits.timeout());
 
     let mut messages = req.messages.clone();
+    if !tool_json.is_empty() {
+        crate::injection::with_notice(&mut messages);
+    }
     let mut calls: Vec<AgentCall> = Vec::new();
     let mut usage = Usage::default();
     let mut rounds = 0u32;
@@ -750,6 +753,7 @@ pub async fn run_agent_stream(
                 round.text,
             ));
         }
+        let corpus = crate::injection::tool_corpus(&messages);
         let ctx = CallContext {
             service,
             settings: &settings,
@@ -757,6 +761,7 @@ pub async fn run_agent_stream(
             workdir: req.workdir.as_deref(),
             timeout: Some(call_timeout),
             cancel: &req.cancel,
+            untrusted_corpus: &corpus,
         };
         for c in mine {
             if req.cancel.is_cancelled() {
@@ -1101,7 +1106,8 @@ mod tests {
         assert_eq!(out.stop, StopReason::RoundLimit);
         assert_eq!(out.calls.len(), 1);
         assert!(out.calls[0].result.as_ref().unwrap().is_error());
-        assert!(out.calls[0].sent.starts_with("Error:"));
+        assert!(crate::injection::is_wrapped(&out.calls[0].sent));
+        assert!(out.calls[0].sent.contains("Error:"));
     }
 
     #[tokio::test]
