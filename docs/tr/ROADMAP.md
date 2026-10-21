@@ -26,6 +26,10 @@ Harness Studio yerel modelleri, araçları ve isteğe bağlı motorları tek bir
 - Linux uyumluluğunu, uygulama güncellemelerini ve erişilebilirliği iyileştirmek.
 - SDK erişimini ve desteklenen motor seçeneklerini genişletmek.
 
+## Açık Kaynak Temeli
+
+Proje tek monorepo olarak kalır. Modül sınırları CI'da denetlenir (ağ geçidi masaüstü kabuğuna bağlanamaz); motorlar, modüller, Kayıt Defteri ve veri dosyaları için sözleşmeler [Sürümlü Sözleşmeler](../en/CONTRACTS.md) sayfasında belgelenir. [Açık Kaynak kılavuzu](../guide/en/open-source.md) MIT çekirdeği ve SDK'ları, katkıları, nelerin ücretsiz kaldığını, önce üst proje yaklaşımını ve yalnızca resmî içerik tutan Kayıt Defteri'ni anlatır. Model önerileri artık donanım uyumunu, görev uyumunu, kaliteyi ve hızı birleştirir ve bilgisayarınızda ölçülen verileri kullanır.
+
 ## Açık Kaynak Keşfi
 
 Keşfet, ayrı bir GitHub araması ve depo URL’si görünümü içerir. Herkese açık

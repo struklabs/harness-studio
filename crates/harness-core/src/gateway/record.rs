@@ -163,6 +163,7 @@ impl RequestRecord {
         if self.warmup {
             return;
         }
+        crate::model_perf::observe_request(&self);
         crate::events::publish(crate::events::CoreEvent::GatewayRequest {
             record: Box::new(self),
         });

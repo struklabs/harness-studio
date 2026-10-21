@@ -296,6 +296,7 @@ impl Category {
                 "config/server_profiles.json",
                 "config/integrations.json",
                 "config/benchmarks.json",
+                "config/model-perf.json",
                 "config/external_models.json",
                 "config/modules.json",
                 "config/module-sizes.json",

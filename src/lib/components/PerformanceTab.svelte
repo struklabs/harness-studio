@@ -10,6 +10,7 @@
   import { t } from '#lib/i18n.svelte.js';
   import PerformanceView from './PerformanceView.svelte';
   import Benchmark from './Benchmark.svelte';
+  import ModelScores from './ModelScores.svelte';
 
   interface Props {
     visible?: boolean;
@@ -30,11 +31,14 @@
   <main class="flex min-w-0 flex-1 flex-col overflow-hidden">
     <AdvancedPageNotice level={pageLevel(PERFORMANCE_GROUPS, section.active)} />
     <h1 class="shrink-0 border-b border-border px-6 py-3 text-lg font-semibold">{t(PERFORMANCE_GROUPS.flatMap(g => g.pages).find(p => p.id === section.active)!.label)}</h1>
-    <div hidden={['new', 'results', 'compare'].includes(section.active)} class="min-h-0 flex-1">
-      <PerformanceView visible={visible && !['new', 'results', 'compare'].includes(section.active)} {settings} {serverStatus} page={section.active} />
+    <div hidden={['new', 'results', 'compare', 'scores'].includes(section.active)} class="min-h-0 flex-1">
+      <PerformanceView visible={visible && !['new', 'results', 'compare', 'scores'].includes(section.active)} {settings} {serverStatus} page={section.active} />
     </div>
     <div hidden={!['new', 'results', 'compare'].includes(section.active)} class="min-h-0 flex-1">
       {#if benchmarkVisited}<Benchmark {onGoToSettings} page={section.active} onSelectPage={section.select} />{/if}
     </div>
+    {#if section.active === 'scores'}
+      <div class="min-h-0 flex-1"><ModelScores visible={visible} /></div>
+    {/if}
   </main>
 </div>

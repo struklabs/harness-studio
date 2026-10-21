@@ -85,3 +85,42 @@ pub(crate) fn clear_benchmark_runs() -> Result<(), String> {
 
 
 
+
+// --- Measured model performance (Model Hub, Library and Performance recommendations) ---
+
+/// What was measured per model and device: load time, benchmark speed, image and audio speed,
+/// tool-call probe. Older benchmark runs are folded in.
+#[tauri::command]
+pub(crate) async fn list_model_perf() -> Result<Vec<harness_core::model_perf::ModelPerfRecord>, String> {
+    blocking(|| {
+        harness_core::model_perf::list_with_history(&benchmark::load_history())
+    })
+    .await
+}
+
+/// Runs the tool-call probe suite against a running server and stores the result.
+#[tauri::command]
+pub(crate) async fn run_tool_probe(
+    registry: State<'_, Arc<ServerRegistry>>,
+    server_id: String,
+) -> Result<harness_core::model_perf::ModelPerfRecord, String> {
+    let active = registry
+        .active_servers()
+        .into_iter()
+        .find(|(id, a)| *id == server_id && !a.router_mode)
+        .map(|(_, a)| a)
+        .ok_or_else(|| harness_core::error_key::err("tool_probe.no_server").to_string())?;
+    let key = harness_core::model_perf::model_key(&active.model_path);
+    let base = format!("http://{}:{}", active.connect_host, active.port);
+    let result =
+        harness_core::tool_probe::run(&base, &key, active.api_key.as_deref()).await?;
+    let path = active.model_path.clone();
+    blocking(move || {
+        harness_core::model_perf::record_tool_probe(&path, result);
+        harness_core::model_perf::list_with_history(&benchmark::load_history())
+            .into_iter()
+            .find(|r| r.model_key == harness_core::model_perf::model_key(&path))
+            .ok_or_else(|| "tool_probe.no_server".to_string())
+    })
+    .await?
+}

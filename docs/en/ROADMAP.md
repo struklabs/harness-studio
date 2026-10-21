@@ -32,6 +32,10 @@ Harness Studio brings local models, tools, and optional engines into one desktop
 - More remote-device and cloud-provider connections.
 - Better context management and document retrieval.
 
+## Open Source Foundation
+
+The project stays one monorepo. Its module boundaries are enforced in CI (the gateway does not depend on the desktop shell), the contracts for backends, modules, the Registry and data files are documented in [Versioned Contracts](CONTRACTS.md), and the [Open Source guide](../guide/en/open-source.md) explains the MIT core and SDKs, contributions, what stays free, upstream-first changes and the official-only Registry. Model recommendations now combine hardware fit, task fit, quality and speed, using what was measured on your computer.
+
 ## Open Source Discovery
 
 Discover includes a separate GitHub search and repository URL view. Public

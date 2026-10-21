@@ -675,6 +675,8 @@ pub fn run() {
             get_benchmark_status,
             cancel_benchmark,
             list_benchmark_runs,
+            list_model_perf,
+            run_tool_probe,
             delete_benchmark_run,
             clear_benchmark_runs,
             scan_local_models,

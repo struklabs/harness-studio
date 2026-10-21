@@ -2047,6 +2047,7 @@ pub fn all_schemas() -> Vec<Schema> {
         crate::downloader::HASHES_SCHEMA,
         crate::library::sources::SOURCES_SCHEMA,
         crate::benchmark::HISTORY_SCHEMA,
+        crate::model_perf::SCHEMA,
         crate::importer::EXTERNAL_SCHEMA,
     ]
 }

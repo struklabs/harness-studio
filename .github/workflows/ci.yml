@@ -68,6 +68,7 @@ jobs:
               - 'Cargo.lock'
               - 'rust-toolchain*'
               - '.cargo/**'
+              - 'scripts/check-crate-deps.mjs'
             frontend:
               - 'src/**'
               - 'static/**'
@@ -164,6 +165,29 @@ jobs:
         run: |
           npm run mobile:check
           npm run mobile:test
+
+  # Module boundaries of the monorepo: the crates may only depend on each other the way
+  # scripts/check-crate-deps.mjs allows (the gateway does not know the desktop shell, only the
+  # shell uses the UI toolkit). Reads `cargo metadata`; builds nothing.
+  boundaries:
+    name: Crate boundaries
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Check crate dependencies
+        run: node scripts/check-crate-deps.mjs
 
   # Rust workspace: rustfmt, clippy and tests. The crates depend on harness-core (and
   # harness-onnx through it), so any crate change checks the whole workspace. Pull requests
@@ -371,7 +395,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, frontend, rust, registry, sdk, audit, dogfood, mobile]
+    needs: [changes, frontend, boundaries, rust, registry, sdk, audit, dogfood, mobile]
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:

@@ -68,6 +68,7 @@ export const PERFORMANCE_GROUPS: SectionGroup[] = [
     { id: 'new', label: 'menus.new_benchmark', icon: SlidersHorizontal },
     { id: 'results', label: 'menus.results', icon: HardDrive },
     { id: 'compare', label: 'menus.compare', icon: Activity },
+    { id: 'scores', label: 'menus.model_scores', icon: Gauge },
   ] },
 ];
 
