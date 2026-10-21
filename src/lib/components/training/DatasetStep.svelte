@@ -84,6 +84,8 @@
   });
 
   let unknownLicense = $derived(report !== null && !report.license);
+  // The license box above already carries the unknown-license warning.
+  let issues = $derived(report ? report.issues.filter((i) => i.key !== 'training.dataset_license_unknown') : []);
 </script>
 
 <div class="flex flex-col gap-3">
@@ -175,9 +177,9 @@
       </div>
     </div>
 
-    {#if report.issues.length}
+    {#if issues.length}
       <ul class="flex flex-col gap-1 text-sm" aria-label={t('training.dataset_issues')}>
-        {#each report.issues as issue, i (i)}
+        {#each issues as issue, i (i)}
           <li class="flex items-start gap-2">
             {#if issue.level === 'error'}
               <CircleX class="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
