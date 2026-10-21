@@ -1,0 +1,21 @@
+/* The desktop's theme tokens, fonts and Tailwind setup, plus the sources of this UI. */
+@import "../../src/app.css";
+@source "./";
+@source "../../src/lib/components/ui";
+
+html,
+body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+body {
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-tap-highlight-color: transparent;
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}

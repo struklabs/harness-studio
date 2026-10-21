@@ -1,0 +1,31 @@
+# The mobile client (iOS first): a thin Tauri 2 shell around the Svelte UI in `mobile/src`. It
+# talks to a Harness gateway / Control API or to BYOK providers over HTTP and keeps keys in the
+# platform keychain. Its own workspace: none of the desktop crates (engines, runtimes) ship on a
+# phone.
+[workspace]
+
+[package]
+name = "harness-mobile"
+version = "0.1.2"
+description = "Harness Studio mobile client"
+authors = ["struklabs"]
+license = "MIT"
+edition = "2021"
+publish = false
+
+[lib]
+name = "harness_mobile_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "time", "macros"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "http2"] }
+futures-util = "0.3"
+url = "2"
+keyring = { version = "3", features = ["apple-native"] }
