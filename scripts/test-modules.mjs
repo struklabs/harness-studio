@@ -60,7 +60,7 @@ test('uninstall hooks preserve data and module removal choices default to keepin
   assert.match(hooks, /\$R6 != "1"/);
   assert.match(hooks, /cleanup --yes --delete-data/);
   assert.match(hooks, /\$\{If\} \$DeleteAppDataCheckboxState = 1\s+nsExec::Exec '[^']*cleanup --yes --delete-data'/);
-  const ui = readFileSync(new URL('../src/lib/components/Modules.svelte', import.meta.url), 'utf8');
+  const ui = readFileSync(new URL('../src/lib/components/modules/ModuleDetail.svelte', import.meta.url), 'utf8');
   assert.match(ui, /deleteHistory = \$state\(false\)/);
   assert.match(ui, /deleteLogs = \$state\(false\)/);
   assert.match(ui, /choice\.disk_bytes/);
