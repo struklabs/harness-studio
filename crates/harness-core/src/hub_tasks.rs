@@ -305,6 +305,11 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
             .map(String::from)
     };
     let mut pipeline_tag = text("pipeline_tag");
+    if id.to_ascii_lowercase().contains("smolvlm2-")
+        && id.to_ascii_lowercase().contains("video-instruct")
+    {
+        pipeline_tag = Some("video-text-to-text".into());
+    }
     let library = text("library_name");
     let mut tags = str_list(item.get("tags"));
     for t in str_list(card.and_then(|c| c.get("tags"))) {
@@ -957,7 +962,7 @@ const ONNX_ALTS: &[(&str, Support)] = &[(ONNX_FAMILY, Yes)];
 /// Text-to-image and image-to-image (`/v1/images/edits`): stable-diffusion.cpp.
 const T2I_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes), (crate::engine::PYTHON_HF, Yes)];
 /// Text / image to video: stable-diffusion.cpp's Wan through `/v1/videos`.
-const VIDEO_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes)];
+const VIDEO_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes), (crate::engine::PYTHON_HF, Yes)];
 
 use Support::{No, Partial, Yes};
 
@@ -971,7 +976,12 @@ const TABLE: &[Row] = &[
     row("visual-question-answering", Partial, Some("vision")),
     row("any-to-any", Partial, Some("vision")),
     row("document-question-answering", No, Some("vision")),
-    row("video-text-to-text", No, Some("vision")),
+    row_alt(
+        "video-text-to-text",
+        No,
+        Some("vision"),
+        &[(crate::engine::PYTHON_HF, Yes)],
+    ),
     row("text-generation", Yes, None),
     row("feature-extraction", Yes, Some("embeddings")),
     row("sentence-similarity", Yes, Some("embeddings")),
@@ -1100,6 +1110,14 @@ mod tests {
 
     fn tags(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn smolvlm_video_card_uses_the_video_task() {
+        let result = analyze_repo(
+            &serde_json::json!({"id":"HuggingFaceTB/SmolVLM2-256M-Video-Instruct", "pipeline_tag":"image-text-to-text", "library_name":"transformers"}),
+        );
+        assert_eq!(result.pipeline_tag.as_deref(), Some("video-text-to-text"));
     }
 
     #[test]

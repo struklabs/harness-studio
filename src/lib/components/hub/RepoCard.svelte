@@ -110,6 +110,7 @@
   let decision = $derived(isDecisionRepo(repo));
   let task = $derived(taskInfo(decision ? 'decision-model' : (repo.pipeline_tag ?? repo.inferred_task)));
   // A decision repo's task comes from its tag, not from an inference.
+  let videoTask = $derived((repo.pipeline_tag ?? repo.inferred_task ?? '').includes('video'));
   let inferred = $derived(!decision && !repo.pipeline_tag && !!repo.inferred_task);
   let support = $derived(taskSupportStore.support(task?.id));
   /** Family that would run the task but is not installed (e.g. stable-diffusion.cpp for images). */
@@ -239,6 +240,9 @@
       <span class="inline-flex items-center gap-1 text-info" title={t('hub.badge_decision_title')}>
         <Info class="size-3" />{t('hub.badge_decision')}
       </span>
+    {/if}
+    {#if videoTask}
+      <span class="text-warning text-xs">{t('vid.memory')}</span>
     {/if}
     {#if repo.pickle_weights}
       <span class="inline-flex items-center gap-1 text-muted-foreground" title={t('hub.pickle_weights_title')}>

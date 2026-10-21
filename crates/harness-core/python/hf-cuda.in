@@ -14,4 +14,7 @@ timm
 starlette
 uvicorn
 python-multipart
+av
+num2words
+docopt-ng  # wheel-only replacement for num2words CLI dependency docopt
 faster-whisper
