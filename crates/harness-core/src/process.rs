@@ -588,6 +588,8 @@ pub struct TimedLogLine {
 #[derive(Clone)]
 pub struct ProcessManager {
     child: Arc<Mutex<Option<GroupChild>>>,
+    /// The running child's entry for the next start's sweep (`orphans`), dropped with it.
+    registration: Arc<Mutex<Option<crate::orphans::Registration>>>,
     #[cfg(windows)]
     memory_job: Arc<Mutex<Option<crate::process_limits::MemoryJob>>>,
     status: Arc<Mutex<ServerStatus>>,
@@ -787,6 +789,7 @@ impl Default for ProcessManager {
     fn default() -> Self {
         Self {
             child: Arc::new(Mutex::new(None)),
+            registration: Arc::new(Mutex::new(None)),
             #[cfg(windows)]
             memory_job: Arc::new(Mutex::new(None)),
             status: Arc::new(Mutex::new(ServerStatus::Stopped)),
@@ -1485,6 +1488,12 @@ impl ProcessManager {
                 },
                 notes: Vec::new(),
             }
+        } else if engine.family() == crate::engine::MLX_EMBED {
+            // An MLX embedder or reranker keeps its OpenAI route.
+            crate::serve_mode::Prepared {
+                mode: crate::engine::mlx::serve_mode(&launch.model_path),
+                notes: Vec::new(),
+            }
         } else if engine.family() == crate::engine::PYTHON_HF {
             // Embedding and ranking models keep their OpenAI routes; other tasks are pipelines.
             crate::serve_mode::Prepared {
@@ -1923,31 +1932,9 @@ impl ProcessManager {
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
-        #[cfg(target_os = "linux")]
-        {
-            use std::os::unix::process::CommandExt;
-
-            // SAFETY: only async-signal-safe libc calls are made between fork and exec.
-            unsafe {
-                cmd.pre_exec(|| {
-                    if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) == -1 {
-                        return Err(std::io::Error::last_os_error());
-                    }
-                    // The parent may have died between fork and PR_SET_PDEATHSIG.
-                    if libc::getppid() == 1 {
-                        libc::raise(libc::SIGKILL);
-                    }
-                    Ok(())
-                });
-            }
-        }
-
-        // macOS has no parent-death signal: a kqueue watchdog stops the server if we die.
-        #[cfg(target_os = "macos")]
-        crate::watchdog::install(&mut cmd);
-
-        // Process group / Windows Job Object. Windows uses KILL_ON_JOB_CLOSE and Linux uses
-        // PR_SET_PDEATHSIG above, so llama-server also dies if Harness Studio crashes.
+        // Process group / Windows Job Object. Windows uses KILL_ON_JOB_CLOSE; on Unix `prepare`
+        // adds the parent-death watchdog (`orphans::protect`), so the server and its group
+        // also die if Harness Studio crashes or is killed.
         if let Err(e) = crate::process_limits::prepare(&mut cmd) {
             self.stop_relay();
             self.record_failure(crate::failure::spawn_failure(&e));
@@ -2086,6 +2073,8 @@ impl ProcessManager {
                 ..Default::default()
             };
         }
+        *self.registration.lock().unwrap() =
+            Some(crate::orphans::Registration::new(child_group.id()));
         *self.child.lock().unwrap() = Some(child_group);
         claim.committed = true;
         let generation = self
@@ -2232,6 +2221,7 @@ impl ProcessManager {
                         return;
                     }
                     let pid = self.child.lock().unwrap().take().map(|c| c.id());
+                    self.registration.lock().unwrap().take();
                     self.gpu_job.lock().unwrap().take();
                     self.active.lock().unwrap().take();
                     self.audio_run.lock().unwrap().take();
@@ -2738,6 +2728,7 @@ impl ProcessManager {
             match exit {
                 Some(Ok(Some(_))) => {
                     self.child.lock().unwrap().take();
+                    self.registration.lock().unwrap().take();
                     self.gpu_job.lock().unwrap().take();
                     return Ok(());
                 }
@@ -4497,8 +4488,7 @@ mod e2e {
         };
         // The "other program": holds a port of the automatic range (the orchestrator's check is
         // skipped here, as if the port had been taken right after it).
-        let listener = crate::ports::AUTO_RANGE
-            .clone()
+        let listener = crate::ports::auto_range()
             .find_map(|p| std::net::TcpListener::bind(("127.0.0.1", p)).ok())
             .expect("a free port in the automatic range");
         let taken = listener.local_addr().unwrap().port();
@@ -4519,7 +4509,7 @@ mod e2e {
         assert_eq!(status, ServerStatus::Running, "{logs:#?}");
         let port = mgr.active_server().unwrap().port;
         assert_ne!(port, taken);
-        assert!(crate::ports::AUTO_RANGE.contains(&port), "{port}");
+        assert!(crate::ports::auto_range().contains(&port), "{port}");
         assert!(
             logs.iter().any(|l| l.contains("yeniden deneniyor")),
             "{logs:#?}"

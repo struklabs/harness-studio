@@ -131,6 +131,8 @@ pub fn run_shell(
             .map_err(|e| ToolError::new(ToolErrorCode::Io, e.to_string()))?
     };
 
+    // Registered for the next start's sweep in case Harness is killed (`orphans`).
+    let _registration = crate::orphans::Registration::new(child.id());
     let _group_guard = crate::process_limits::GroupGuard(child.id());
     // One buffer for both pipes, in the order the bytes arrive.
     let sink = Arc::new(Mutex::new(Sink::default()));

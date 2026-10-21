@@ -39,7 +39,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The GUI's data directory (`tauri` `app_data_dir()`: the platform data dir + identifier).
 pub fn default_data_dir() -> Option<PathBuf> {
-    dirs::data_dir().map(|d| d.join("com.harnessstudio.app"))
+    harness_core::paths::default_root()
 }
 
 pub fn resolve_data_dir(g: &GlobalArgs) -> CliResult<PathBuf> {

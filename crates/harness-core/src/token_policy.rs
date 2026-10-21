@@ -123,7 +123,9 @@ impl GatewayEndpoint {
             | "/v1/entities"
             | "/v1/zero-shot"
             | "/v1/detections"
-            | "/v1/moderations" => Self::Pipelines,
+            | "/v1/moderations"
+            | "/v1/ocr"
+            | "/v1/document/qa" => Self::Pipelines,
             _ if p == "/v1/hf" || p.starts_with("/v1/hf/") => Self::Pipelines,
             _ => return None,
         })
@@ -315,6 +317,8 @@ mod tests {
             "/v1/detections",
             "/v1/moderations",
             "/v1/moderations/",
+            "/v1/ocr",
+            "/v1/document/qa",
         ] {
             assert_eq!(GatewayEndpoint::of_path(typed), Some(Pipelines), "{typed}");
         }

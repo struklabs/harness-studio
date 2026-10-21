@@ -1,5 +1,20 @@
 // Playground view: in-app streaming chat against the running llama-server.
 const tr = {
+  'vid.questions': 'Video Soruları',
+  'vid.generate': 'Video Oluştur',
+  'vid.question': 'Soru',
+  'vid.prompt': 'İstem',
+  'vid.input': 'Video',
+  'vid.start_image': 'Başlangıç Görüntüsü',
+  'vid.format': 'Biçim',
+  'vid.frames': 'Kareler',
+  'vid.steps': 'Adımlar',
+  'vid.size': 'Boyut',
+  'vid.run': 'Çalıştır',
+  'vid.cancel': 'İptal Et',
+  'vid.file_limit': 'En fazla 32 MiB boyutunda bir dosya seçin.',
+  'vid.memory': 'Video üretimi yüksek RAM/VRAM gerektirir ve CPU üzerinde uzun sürebilir. Daha az kare ve adımla başlayın.',
+
   'pg.rich_raw': 'Ham JSON',
   'pg.rich_preview': 'Ön İzleme',
   'pg.rich_copy_csv': 'CSV Olarak Kopyala',
@@ -320,6 +335,21 @@ const tr = {
 };
 
 const en: Record<keyof typeof tr, string> = {
+  'vid.questions': 'Video Questions',
+  'vid.generate': 'Generate Video',
+  'vid.question': 'Question',
+  'vid.prompt': 'Prompt',
+  'vid.input': 'Video',
+  'vid.start_image': 'Start Image',
+  'vid.format': 'Format',
+  'vid.frames': 'Frames',
+  'vid.steps': 'Steps',
+  'vid.size': 'Size',
+  'vid.run': 'Run',
+  'vid.cancel': 'Cancel',
+  'vid.file_limit': 'Choose a file no larger than 32 MiB.',
+  'vid.memory': 'Video generation needs substantial RAM/VRAM and can be slow on CPU. Start with fewer frames and steps.',
+
   'pg.rich_raw': 'Raw JSON',
   'pg.rich_preview': 'Preview',
   'pg.rich_copy_csv': 'Copy as CSV',

@@ -68,6 +68,29 @@ pub fn is_liquid_audio_dir(dir: &Path) -> bool {
             .is_some_and(|cfg| archs(&cfg).contains(&LIQUID_ARCHITECTURE))
 }
 
+/// Whether `dir` is a CTranslate2 Whisper export (faster-whisper: `Systran/faster-whisper-*` and
+/// fine-tunes): `model.bin`, a tokenizer or vocabulary and a `config.json` that has no
+/// transformers `model_type` / `architectures` but carries Whisper's `alignment_heads`,
+/// `lang_ids` or `suppress_ids`. Transformers weights next to it win (the folder is then an
+/// ordinary Whisper checkpoint). Other CTranslate2 models (translation, NLLB...) are not served.
+pub fn is_ct2_whisper_dir(dir: &Path) -> bool {
+    let has = |name: &str| dir.join(name).is_file();
+    dir.is_dir()
+        && has("model.bin")
+        && (has("tokenizer.json") || has("vocabulary.json") || has("vocabulary.txt"))
+        && !weight_files(dir)
+            .iter()
+            .any(|p| p.extension().is_some_and(|e| e == "safetensors"))
+        && read_json(&dir.join("config.json")).is_some_and(|cfg| {
+            cfg.is_object()
+                && cfg.get("model_type").is_none()
+                && cfg.get("architectures").is_none()
+                && ["alignment_heads", "lang_ids", "suppress_ids"]
+                    .iter()
+                    .any(|k| cfg.get(*k).is_some())
+        })
+}
+
 /// Whether a Hub repo (a listing item or `/api/models/<id>`) is an LFM2-Audio repo in Liquid's
 /// own format: library `liquid-audio` with the audio detokenizer next to the weights. Its GGUF
 /// sibling repos are llama.cpp's (speech recognition only) and are not this.
@@ -107,7 +130,7 @@ pub fn env() -> &'static crate::pyenv::envs::EnvSpec {
     env_in(&root)
 }
 
-fn env_in(root: &Path) -> &'static crate::pyenv::envs::EnvSpec {
+pub(crate) fn env_in(root: &Path) -> &'static crate::pyenv::envs::EnvSpec {
     use crate::pyenv::envs::{status_in, ENVS, HF_CPU};
     ENVS.iter()
         .find(|s| s.gpu_build_of == Some(HF_CPU.name) && status_in(root, s).ready)
@@ -176,6 +199,9 @@ pub const TASKS: &[&str] = &[
     "text-to-audio",
     "text-to-image",
     "image-to-image",
+    "text-to-video",
+    "image-to-video",
+    "video-text-to-text",
 ];
 
 /// The transformers version of the environment locks (`python/hf-*.lock`); the model type lists
@@ -621,7 +647,12 @@ fn asks_for_code_in(dir: &Path, files: &[PathBuf]) -> bool {
 pub fn detect(dir: &Path) -> Option<String> {
     // An MLX speech folder (Whisper's MLX port has a transformers config) is mlx-audio's; a
     // Spark-TTS folder speaks too, though its config is a Qwen2 one.
-    if !dir.is_dir() || super::mlx::is_audio_dir(dir) || super::mlx::is_spark_dir(dir) {
+    // An MLX embedder or reranker (a transformers config, MLX's weights) is mlx-embed's.
+    if !dir.is_dir()
+        || super::mlx::is_audio_dir(dir)
+        || super::mlx::is_spark_dir(dir)
+        || super::mlx::is_retrieval_dir(dir)
+    {
         return None;
     }
     if dir
@@ -635,6 +666,10 @@ pub fn detect(dir: &Path) -> Option<String> {
     if is_liquid_audio_dir(dir) {
         return Some("text-to-speech".into());
     }
+    // A CTranslate2 Whisper export (faster-whisper) is served by the worker's faster-whisper.
+    if is_ct2_whisper_dir(dir) {
+        return Some("automatic-speech-recognition".into());
+    }
     let index = dir.join("model_index.json");
     if index.is_file() && asks_for_code(dir) {
         return None;
@@ -645,19 +680,22 @@ pub fn detect(dir: &Path) -> Option<String> {
             .and_then(|v| v.as_str())
             .map(str::to_string)?;
         if !class.ends_with("Pipeline")
-            || [
-                "Inpaint",
-                "Video",
-                "Audio",
-                "Upscale",
-                "Depth2Img",
-                "ControlNet",
-            ]
-            .iter()
-            .any(|w| class.contains(w))
+            || ["Inpaint", "Audio", "Upscale", "Depth2Img", "ControlNet"]
+                .iter()
+                .any(|w| class.contains(w))
             || weight_files(dir).is_empty()
         {
             return None;
+        }
+        if class.contains("Video") || class.starts_with("CogVideoX") || class.starts_with("LTX") {
+            return Some(
+                if class.contains("ImageToVideo") {
+                    "image-to-video"
+                } else {
+                    "text-to-video"
+                }
+                .into(),
+            );
         }
         // A pipeline that needs a start image (InstructPix2Pix, Qwen-Image-Edit, SDXL refiner).
         // FLUX.2 klein and FLUX.1 Kontext also draw from text alone: text-to-image, and the
@@ -682,6 +720,9 @@ pub fn detect(dir: &Path) -> Option<String> {
         return None;
     }
     let from_config = config_task(&cfg, dir);
+    if cfg.get("model_type").and_then(|v| v.as_str()) == Some("smolvlm") {
+        return Some("video-text-to-text".into());
+    }
     if let Some(tag) = card_pipeline_tag(dir) {
         // Most cross-encoder cards (BAAI/bge-reranker-v2-m3) say `text-classification`: a head
         // with one label scores (query, document) pairs, and `/v1/rerank` needs that task.
@@ -820,7 +861,7 @@ pub(crate) fn library_models_in(
         &["config.json", "model_index.json"],
         |dir| {
             detect(dir)
-                .filter(|_| !has_onnx(dir))
+                .filter(|task| !has_onnx(dir) || task == "video-text-to-text")
                 .map(|task| (dir.to_path_buf(), task))
         },
         |m| m.0.clone(),
@@ -840,7 +881,7 @@ pub fn library_models(roots: &[PathBuf]) -> Vec<crate::models::LocalModel> {
                 // A repo with an ONNX export runs on harness-onnx (its `.onnx` is listed).
                 |dir| {
                     detect(dir)
-                        .filter(|_| !has_onnx(dir))
+                        .filter(|task| !has_onnx(dir) || task == "video-text-to-text")
                         .map(|task| (dir.to_path_buf(), task))
                 },
                 |a, b| a.0 == b.0,
@@ -877,9 +918,13 @@ pub fn worker_script() -> Result<PathBuf, String> {
 /// The interpreter a launch runs: the environment's, when it is installed for this version;
 /// else `runtime.family_not_installed: python-hf` (the UI offers the install).
 pub fn binary() -> Result<PathBuf, String> {
-    let root = crate::pyenv::envs::root();
-    let spec = env_in(&root);
-    let status = crate::pyenv::envs::status_in(&root, spec);
+    binary_in(&crate::pyenv::envs::root())
+}
+
+/// [`binary`] for the environments under `root`.
+pub fn binary_in(root: &Path) -> Result<PathBuf, String> {
+    let spec = env_in(root);
+    let status = crate::pyenv::envs::status_in(root, spec);
     if !status.ready {
         return Err(format!(
             "{}: {}",
@@ -887,7 +932,7 @@ pub fn binary() -> Result<PathBuf, String> {
             PYTHON_HF
         ));
     }
-    Ok(crate::pyenv::envs::python_in(&root, spec.name))
+    Ok(crate::pyenv::envs::python_in(root, spec.name))
 }
 
 /// The worker script of the model at `model`, written next to its environment: the Liquid worker
@@ -1346,6 +1391,60 @@ mod tests {
     }
 
     #[test]
+    fn detects_a_ctranslate2_whisper_export_as_speech_recognition() {
+        let ct2 = r#"{"alignment_heads":[[1,2]],"lang_ids":[50259],"suppress_ids":[1]}"#;
+        let export = folder(&[
+            ("config.json", ct2),
+            ("model.bin", "x"),
+            ("tokenizer.json", "{}"),
+            ("vocabulary.txt", "a"),
+        ]);
+        assert!(is_ct2_whisper_dir(export.path()));
+        assert_eq!(
+            detect(export.path()).as_deref(),
+            Some("automatic-speech-recognition")
+        );
+        // A vocabulary alone is enough; the older exports have no tokenizer.json.
+        let old = folder(&[
+            ("config.json", ct2),
+            ("model.bin", "x"),
+            ("vocabulary.json", "[]"),
+        ]);
+        assert!(is_ct2_whisper_dir(old.path()));
+        // Other CTranslate2 models (no Whisper keys), transformers configs, a missing
+        // vocabulary and transformers weights next to the export are not served this way.
+        let nllb = folder(&[
+            (
+                "config.json",
+                r#"{"add_source_bos":false,"unk_token":"<unk>"}"#,
+            ),
+            ("model.bin", "x"),
+            ("shared_vocabulary.json", "[]"),
+            ("tokenizer.json", "{}"),
+        ]);
+        assert!(!is_ct2_whisper_dir(nllb.path()));
+        assert_eq!(detect(nllb.path()), None);
+        let transformers = folder(&[
+            (
+                "config.json",
+                r#"{"model_type":"whisper","alignment_heads":[[1,2]]}"#,
+            ),
+            ("model.bin", "x"),
+            ("tokenizer.json", "{}"),
+        ]);
+        assert!(!is_ct2_whisper_dir(transformers.path()));
+        let bare = folder(&[("config.json", ct2), ("model.bin", "x")]);
+        assert!(!is_ct2_whisper_dir(bare.path()));
+        let both = folder(&[
+            ("config.json", ct2),
+            ("model.bin", "x"),
+            ("tokenizer.json", "{}"),
+            ("model.safetensors", "x"),
+        ]);
+        assert!(!is_ct2_whisper_dir(both.path()));
+    }
+
+    #[test]
     fn catalog_parses() {
         assert!(!catalog().params.is_empty());
     }
@@ -1533,6 +1632,9 @@ pipeline_tag: text-classification
             ("QwenImageEditPlusPipeline", "image-to-image"),
             ("Flux2KleinPipeline", "text-to-image"),
             ("FluxKontextPipeline", "text-to-image"),
+            ("LTXPipeline", "text-to-video"),
+            ("LTXImageToVideoPipeline", "image-to-video"),
+            ("CogVideoXPipeline", "text-to-video"),
         ] {
             let dir = folder(&[
                 (
@@ -1543,6 +1645,17 @@ pipeline_tag: text-classification
             ]);
             assert_eq!(detect(dir.path()).as_deref(), Some(task), "{class}");
         }
+    }
+
+    #[test]
+    fn video_understanding_detects_smolvlm_despite_its_image_card() {
+        let dir = folder(&[
+            ("config.json", r#"{"model_type":"smolvlm"}"#),
+            ("model.safetensors", "x"),
+            ("README.md", "---\npipeline_tag: image-text-to-text\n---\n"),
+        ]);
+        assert_eq!(detect(dir.path()).as_deref(), Some("video-text-to-text"));
+        assert_eq!(kind_of("video-text-to-text"), ModelKind::Pipeline);
     }
 
     #[test]

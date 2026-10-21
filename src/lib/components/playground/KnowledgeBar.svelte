@@ -36,6 +36,8 @@
     /** Embedding alias in use (the selected one, whether or not the gateway runs). */
     embedAlias: string | null;
     models: RagModels | null;
+    /** Aliases of the library's OCR-capable models (for a base's OCR model). */
+    ocrAliases?: string[];
     readOnly: boolean;
     /** Bases attached to the open conversation. */
     attached: KnowledgeBase[];
@@ -43,7 +45,7 @@
     onUseEmbedder: (alias: string) => void;
   }
 
-  let { conversationId, ensureConversation, embedAlias, models, readOnly, attached = $bindable(), onUseEmbedder }: Props = $props();
+  let { conversationId, ensureConversation, embedAlias, models, ocrAliases = [], readOnly, attached = $bindable(), onUseEmbedder }: Props = $props();
 
   let open = $state(false);
   let bases = $state<KnowledgeBase[]>([]);
@@ -144,9 +146,20 @@
       await domain.refreshDefinitions();
       if (alias) onUseEmbedder(alias);
       await loadEmbedder();
+      if (alias) await reembedKeywordOnly(alias);
     } catch (e) {
       toast.error(errorText(e));
     }
+  }
+
+  /** Bases indexed before an embedding model existed are searched by keyword only: once the
+   *  model is in place they are embedded again, so the new model is actually used. */
+  async function reembedKeywordOnly(alias: string) {
+    const list = await kbApi.list(alias);
+    const keywordOnly = list.filter((kb) => kb.state === 'stale' && !kb.embed_model && !isRunning(kb));
+    if (keywordOnly.length === 0) return;
+    toast.info(t('kb.reembed_started', { count: keywordOnly.length }));
+    for (const kb of keywordOnly) await startIndex(kb.id, { embedModel: alias, rebuild: true });
   }
 
   async function installEmbedder() {
@@ -161,7 +174,7 @@
     return kb.state === 'indexing' || !!progress[kb.id];
   }
 
-  async function startIndex(kbId: string, opts: { folder?: string | null; paths?: string[]; rebuild?: boolean }) {
+  async function startIndex(kbId: string, opts: { folder?: string | null; paths?: string[]; rebuild?: boolean; embedModel?: string | null }) {
     try {
       await kbApi.index(kbId, { embedModel: embedAlias, ...opts });
       progress = { ...progress, [kbId]: { kb_id: kbId, status: 'indexing', docs_done: 0, docs_total: 0, current: null, chunk_done: 0, chunk_total: 0, elapsed_ms: 0 } };
@@ -239,12 +252,22 @@
     }
   }
 
+  async function setOcrModel(kb: KnowledgeBase, alias: string) {
+    try {
+      await kbApi.setOcrModel(kb.id, alias || null);
+      await refresh();
+    } catch (e) {
+      toast.error(errorText(e));
+    }
+  }
+
   function stateLabel(kb: KnowledgeBase): string {
     return t(`kb.state_${kb.state}` as 'kb.state_ready');
   }
 
   function metaText(kb: KnowledgeBase): string {
     const parts = [t('kb.meta', { docs: fmt(kb.documents), chunks: fmt(kb.chunks) })];
+    if (kb.ocr_pages > 0) parts.push(t('kb.ocr_pages', { pages: fmt(kb.ocr_pages) }));
     if (kb.indexed_at) {
       parts.push(
         t('kb.indexed_in', {
@@ -317,6 +340,19 @@
                 <span class={cn('shrink-0 text-xs', kb.state === 'stale' || kb.state === 'incomplete' ? 'text-warning' : 'text-muted-foreground')}>{stateLabel(kb)}</span>
               </div>
               <span class="text-xs text-muted-foreground [overflow-wrap:anywhere]">{metaText(kb)}</span>
+              <label class="flex min-w-0 items-center gap-2 text-xs text-muted-foreground" title={t('kb.ocr_hint')}>
+                <span class="shrink-0">{t('kb.ocr_model')}</span>
+                <select
+                  class="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-xs text-foreground"
+                  value={kb.ocr_model ?? ''}
+                  disabled={running || readOnly}
+                  onchange={(e) => void setOcrModel(kb, e.currentTarget.value)}
+                >
+                  <option value="">{t('kb.ocr_none')}</option>
+                  {#if kb.ocr_model && !ocrAliases.includes(kb.ocr_model)}<option value={kb.ocr_model}>{kb.ocr_model}</option>{/if}
+                  {#each ocrAliases as alias (alias)}<option value={alias}>{alias}</option>{/each}
+                </select>
+              </label>
 
               {#if running}
                 <Progress value={Math.round(runFraction(run) * 100)} />

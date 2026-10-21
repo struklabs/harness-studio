@@ -194,6 +194,7 @@ async fn e2e_rag_pdf_retrieval_rerank_and_cited_answer() {
                 document_id: doc.id.clone(),
                 source: Some(f.clone()),
                 embed: Some(embed.clone()),
+                ocr: None,
             },
             flag,
             move |p| s.lock().unwrap().push((p.status, p.done, p.total)),

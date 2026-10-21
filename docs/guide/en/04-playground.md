@@ -113,6 +113,8 @@ A knowledge base is a named set of documents you can reuse in any chat.
 
 A base remembers which embedding model built its index. If you switch to another embedding model, the base is marked **Stale**; **Rebuild** re-reads and re-indexes it. Until then, searches fall back to keywords and a notice says why. Deleting a base removes its index only, never your files.
 
+**OCR Model** (under each base, **None** by default) reads PDF pages that have no text layer, such as scans. Choose an OCR-capable model from your library, make sure the gateway is on, and index the base again (**Resume** or **Rebuild**). Pages with a text layer are never sent to the model. The base shows how many pages were read with OCR. Turning pages into images needs the Python engine, as in [Read Document](#read-document); without it the document fails with a message that says so. At most 200 pages of one document are read this way (`HARNESS_KB_OCR_MAX_PAGES` changes that).
+
 ## Embedding and Rerank
 
 **Embedding** turns text into a numeric vector, used for search and similarity. Start a server with a suitable embedding model (a server whose model type is embedding starts in this mode on its own), fill in the **Texts** boxes on the **Embedding** tab, and press **Get Embeddings**. A similarity matrix needs at least two non-empty texts.
@@ -200,3 +202,49 @@ In a chat, **Thinking** controls the selected model’s thinking behavior for th
 See also the [Tools reference](../../en/TOOLS.md) and the [Features reference](../../en/FEATURES.md).
 
 Next: [Connections and the Gateway](05-connections-and-gateway.md).
+
+## Read Document
+
+Choose **Read Document** and select a vision model with a multimodal projector, or an
+OCR/document QA model from your library. Start the gateway in Settings if it is off.
+Drop or choose a PNG, JPEG, WebP, GIF or PDF (up to 20 MiB), then choose **Read Text**.
+The result preserves reading order, line breaks and paragraph blocks as Markdown;
+**Copy Text** copies it to the clipboard. Enter a question and choose **Ask** to query
+the same document. You can switch models between reading and asking: Python
+`image-to-text` models transcribe; `document-question-answering` models answer questions.
+VLMs with a projector support both operations. Transcription quality depends on the model.
+
+PDF pages with a text layer are read as text. Pages without one (scans) are turned into
+images and read by the selected model, so scanned and mixed PDFs work too. Turning pages
+into images uses the Python engine (the same environment as Hugging Face models); if it is
+not installed, Read Document says so and points to **Settings > Runtime**, and nothing is
+read in a lesser way. A request reads at most 16 PDF pages, rendered at 150 dpi; the
+environment variables `HARNESS_OCR_MAX_PAGES` (1 to 1000) and `HARNESS_OCR_DPI` (72 to 300)
+change that for the app. A Python DQA model accepts one image per question; PDF questions
+use a VLM. LayoutLM pipelines may require `pytesseract` and a separately installed
+Tesseract executable.
+
+## Video Generation and Questions
+
+Python video models appear in Playground's Pipeline tab. Select a diffusers LTX-Video or
+CogVideoX folder to generate a clip from a prompt. Supply a start image for image-to-video.
+Choose MP4 or WebM, resolution, frames and steps before running. The progress indicator follows
+denoising steps; Cancel stops at the next step. Finished clips are saved to the active project's
+`outputs` folder when the project has a folder.
+
+Video diffusion needs substantial RAM and VRAM. CPU runs use float32 and can take a long time.
+Start with a short clip and a few steps, then increase quality. LTX frame counts follow its
+`8n + 1` temporal compression; the gateway rounds down to a supported count. Model-specific
+resolution constraints still apply. Download the complete diffusers folder, including its text
+encoder, tokenizer, transformer and VAE.
+
+Select a video-capable transformers model such as `HuggingFaceTB/SmolVLM2-256M-Video-Instruct`
+to ask a question about an MP4 or WebM file. Clips must be at most 32 MiB. Harness samples eight
+frames per video, so brief events between sampled frames may be missed. Video questions return
+one complete answer; streaming is not currently supported.
+
+The same features are available through `POST /v1/videos` (poll the returned job ID, fetch
+`/v1/videos/{id}/content`, or delete the job to cancel) and `POST /v1/chat/completions`.
+For video questions, use `stream: false` and a user message containing a text part and
+`{"type":"video_url","video_url":{"url":"data:video/mp4;base64,..."}}`.
+Only inline videos are accepted; the worker does not fetch remote URLs or read client paths.

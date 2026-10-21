@@ -45,16 +45,17 @@ pub struct EnvSpec {
 }
 
 /// The CPU build of the `python-hf` engine: PyTorch (CPU wheels; plain PyPI wheels on macOS,
-/// which use Metal through MPS), transformers, diffusers, sentence-transformers, timm and the
+/// which use Metal through MPS), transformers, diffusers, sentence-transformers, timm, pypdfium2
+/// (PDF pages to images for OCR; Apache-2.0, pdfium inside the wheel) and the
 /// worker's HTTP server. `python/hf-cpu.in` lists the direct requirements; the lock is
 /// `uv pip compile --universal --python-version 3.12 --generate-hashes --emit-index-url
 /// --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
-/// --index-strategy unsafe-best-match python/hf-cpu.in`.
+/// --index-strategy unsafe-best-match --override python/hf-overrides.in python/hf-cpu.in`.
 pub const HF_CPU: EnvSpec = EnvSpec {
     name: "hf-cpu",
     lock: include_str!("../../python/hf-cpu.lock"),
-    verify: "import torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL",
-    estimated_size_bytes: 1_300 * 1024 * 1024,
+    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper, pypdfium2",
+    estimated_size_bytes: 1_504 * 1024 * 1024,
     min_macos: None,
     gpu_build_of: None,
 };
@@ -65,7 +66,7 @@ pub const HF_CPU: EnvSpec = EnvSpec {
 /// `uv pip compile --python-platform <x86_64-pc-windows-msvc | x86_64-unknown-linux-gnu>
 /// --python-version 3.12 --generate-hashes --emit-index-url --index-url
 /// https://download.pytorch.org/whl/cu126 --extra-index-url https://pypi.org/simple
-/// --index-strategy unsafe-best-match python/hf-cuda.in`.
+/// --index-strategy unsafe-best-match --override python/hf-overrides.in python/hf-cuda.in`.
 #[cfg(all(any(windows, target_os = "linux"), target_arch = "x86_64"))]
 pub const HF_CUDA: EnvSpec = EnvSpec {
     name: "hf-cuda",
@@ -73,11 +74,11 @@ pub const HF_CUDA: EnvSpec = EnvSpec {
     lock: include_str!("../../python/hf-cuda-windows.lock"),
     #[cfg(target_os = "linux")]
     lock: include_str!("../../python/hf-cuda-linux.lock"),
-    verify: "import torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL; assert torch.version.cuda, 'not a CUDA build of torch'",
+    verify: "import av, num2words, torch, transformers, diffusers, sentence_transformers, timm, starlette, uvicorn, soundfile, PIL, faster_whisper, pypdfium2; assert torch.version.cuda, 'not a CUDA build of torch'",
     #[cfg(windows)]
-    estimated_size_bytes: 2_900 * 1024 * 1024,
+    estimated_size_bytes: 3_050 * 1024 * 1024,
     #[cfg(target_os = "linux")]
-    estimated_size_bytes: 4_600 * 1024 * 1024,
+    estimated_size_bytes: 4_800 * 1024 * 1024,
     min_macos: None,
     gpu_build_of: Some("hf-cpu"),
 };
@@ -102,8 +103,8 @@ pub const MLX: EnvSpec = EnvSpec {
 pub const MLX_VLM: EnvSpec = EnvSpec {
     name: "mlx-vlm",
     lock: include_str!("../../python/mlx-vlm.lock"),
-    verify: "import mlx.core, mlx_vlm.server.app, uvicorn",
-    estimated_size_bytes: 780 * 1024 * 1024,
+    verify: "import mlx.core, mlx_vlm.server.app, mlx_embeddings, mlx_lm, uvicorn",
+    estimated_size_bytes: 800 * 1024 * 1024,
     min_macos: Some(14),
     gpu_build_of: None,
 };
@@ -115,7 +116,7 @@ pub const MLX_VLM: EnvSpec = EnvSpec {
 pub const MFLUX: EnvSpec = EnvSpec {
     name: "mflux",
     lock: include_str!("../../python/mflux.lock"),
-    verify: "import mlx.core, mflux.models.flux2.variants, uvicorn, PIL",
+    verify: "import mlx.core, mflux.models.flux2.variants, mflux.models.z_image.variants, mflux.models.flux.variants.fill.flux_fill, mflux.models.qwen.variants.txt2img.qwen_image, uvicorn, PIL",
     estimated_size_bytes: 1_100 * 1024 * 1024,
     min_macos: Some(14),
     gpu_build_of: None,

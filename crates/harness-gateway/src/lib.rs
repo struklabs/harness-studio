@@ -8,6 +8,7 @@
 //! * `GET /v1/models`, `GET /v1/models/{model}`
 //! * `POST /v1/chat/completions`, `/v1/completions`, `/v1/responses`, `/v1/embeddings`,
 //!   `/v1/rerank`, `/v1/messages`, `/v1/messages/count_tokens` ([`proxy`])
+//! * Documents: `POST /v1/ocr`, `/v1/document/qa` ([`ocr`], token policy `pipelines`)
 //! * Stateful Responses: `store` / `previous_response_id` on `POST /v1/responses`, and
 //!   `GET`/`DELETE /v1/responses/{id}`, `GET /v1/responses/{id}/input_items` ([`responses`])
 //! * Decisions: `POST /v1/systemone` (Ollama / LM Studio) and `/v1/decisions` (OpenAI / LM
@@ -33,6 +34,7 @@ pub mod hf;
 pub mod images;
 pub mod llama_tts;
 mod model_name;
+pub mod ocr;
 pub mod ollama;
 pub mod pipelines;
 pub mod proxy;
@@ -728,6 +730,14 @@ pub fn router(state: GwState, cors_origins: &[String]) -> Router {
         .route("/v1/embeddings", inference!(Api::Embeddings))
         .route("/v1/rerank", inference!(Api::Rerank))
         .route("/v1/hf", inference!(Api::Hf))
+        .route(
+            "/v1/ocr",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| ocr::handle(s, false, h, b)),
+        )
+        .route(
+            "/v1/document/qa",
+            post(|State(s): State<GwState>, h: HeaderMap, b: Bytes| ocr::handle(s, true, h, b)),
+        )
         .route(
             "/v1/hf/{model}",
             post(

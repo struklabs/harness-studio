@@ -61,22 +61,27 @@ pub const MLX_VLM: &str = "mlx-vlm";
 /// Family id of the MLX audio engine (mlx-audio: text to speech).
 pub const MLX_AUDIO: &str = "mlx-audio";
 
+/// Family id of the MLX retrieval engine (mlx-embeddings / mlx-lm: embeddings and reranking).
+pub const MLX_EMBED: &str = "mlx-embed";
+
 /// The managed environment the text worker runs in (`crate::pyenv::envs::MLX` on Apple Silicon).
 pub const ENV: &str = "mlx";
 
-/// The managed environment the vision and audio workers run in (`crate::pyenv::envs::MLX_VLM`:
-/// mlx-vlm brings mlx-audio along).
+/// The managed environment the vision, audio and retrieval workers run in
+/// (`crate::pyenv::envs::MLX_VLM`: mlx-vlm brings mlx-audio along; mlx-embeddings and mlx-lm are
+/// in its lock too).
 pub const VLM_ENV: &str = "mlx-vlm";
 
 /// The worker scripts, written next to their environments ([`worker_script`]).
 const WORKER: &str = include_str!("../../python/mlx_worker.py");
 const VLM_WORKER: &str = include_str!("../../python/mlx_vlm_worker.py");
 const AUDIO_WORKER: &str = include_str!("../../python/mlx_audio_worker.py");
+const EMBED_WORKER: &str = include_str!("../../python/mlx_embed_worker.py");
 const IMAGE_WORKER: &str = include_str!("../../python/mflux_worker.py");
 
-/// The FLUX.2 [klein] models the image engine runs: the base model a conversion's card names
-/// (lower case) and mflux's name for it (`ModelConfig.from_name`). The worker has the same table
-/// (`MODELS` in `python/mflux_worker.py`).
+/// The models the image engine runs: the base model a conversion's card names (lower case) and
+/// mflux's name for it (`ModelConfig.from_name`). The worker has the same table (`MODELS` in
+/// `python/mflux_worker.py`, with each family's defaults in `KINDS`).
 pub const MFLUX_MODELS: &[(&str, &str)] = &[
     ("black-forest-labs/flux.2-klein-4b", "flux2-klein-4b"),
     (
@@ -89,11 +94,50 @@ pub const MFLUX_MODELS: &[(&str, &str)] = &[
         "black-forest-labs/flux.2-klein-base-9b",
         "flux2-klein-base-9b",
     ),
+    ("tongyi-mai/z-image-turbo", "z-image-turbo"),
+    ("tongyi-mai/z-image", "z-image"),
+    ("black-forest-labs/flux.1-schnell", "schnell"),
+    ("black-forest-labs/flux.1-dev", "dev"),
+    ("black-forest-labs/flux.1-krea-dev", "krea-dev"),
+    ("black-forest-labs/flux.1-fill-dev", "dev-fill"),
+    ("qwen/qwen-image", "qwen-image"),
 ];
 
+/// mflux models that only inpaint (an image and a mask; nothing from text alone).
+pub const MFLUX_INPAINT_MODELS: &[&str] = &["dev-fill"];
+
+/// mflux models with FLUX.1's second text encoder (T5: `text_encoder_2/`, `tokenizer_2/`).
+const MFLUX_TWO_ENCODERS: &[&str] = &["schnell", "dev", "krea-dev", "dev-fill"];
+
 /// The weight folders of an mflux folder, each safetensors shards with their index; the
-/// tokenizer is in `tokenizer/`.
+/// tokenizer is in `tokenizer/`. FLUX.1 has a second text encoder ([`MFLUX_EXTRA_PARTS`]).
 pub const MFLUX_PARTS: &[&str] = &["transformer", "text_encoder", "vae"];
+
+/// Whether an mflux model has FLUX.1's second text encoder (`text_encoder_2/`, `tokenizer_2/`).
+pub fn mflux_has_second_encoder(name: &str) -> bool {
+    MFLUX_TWO_ENCODERS.contains(&name)
+}
+
+/// FLUX.1's second text encoder.
+pub const MFLUX_EXTRA_PARTS: &[&str] = &["text_encoder_2"];
+
+/// The weight folders of an mflux model ([`MFLUX_PARTS`], and FLUX.1's second text encoder).
+pub fn mflux_parts(name: &str) -> Vec<&'static str> {
+    let mut parts = MFLUX_PARTS.to_vec();
+    if MFLUX_TWO_ENCODERS.contains(&name) {
+        parts.extend_from_slice(MFLUX_EXTRA_PARTS);
+    }
+    parts
+}
+
+/// The tokenizer folders of an mflux model.
+fn mflux_tokenizers(name: &str) -> &'static [&'static str] {
+    if MFLUX_TWO_ENCODERS.contains(&name) {
+        &["tokenizer", "tokenizer_2"]
+    } else {
+        &["tokenizer"]
+    }
+}
 
 /// mlx-audio text-to-speech architectures Harness runs (see [`tts_type`]): the ones checked end
 /// to end. OuteTTS, Orpheus, Dia and CSM (`sesame`) load a codec (and CSM its text tokenizer and
@@ -753,6 +797,8 @@ pub enum Flavour {
     Audio,
     /// `mflux`: text to image and image editing.
     Image,
+    /// `mlx-embed`: text embeddings or reranking.
+    Retrieval,
 }
 
 /// An MLX engine: the text one (`mlx`), the vision one (`mlx-vlm`) or the audio one
@@ -779,11 +825,15 @@ impl MlxEngine {
     pub const IMAGE: MlxEngine = MlxEngine {
         flavour: Flavour::Image,
     };
+    /// `mlx-embed`.
+    pub const RETRIEVAL: MlxEngine = MlxEngine {
+        flavour: Flavour::Retrieval,
+    };
 
     fn env(&self) -> &'static str {
         match self.flavour {
             Flavour::Text => ENV,
-            Flavour::Vision | Flavour::Audio => VLM_ENV,
+            Flavour::Vision | Flavour::Audio | Flavour::Retrieval => VLM_ENV,
             Flavour::Image => MFLUX_ENV,
         }
     }
@@ -795,6 +845,7 @@ impl MlxEngine {
             Flavour::Vision => is_vlm_dir(path),
             Flavour::Audio => is_audio_dir(path),
             Flavour::Image => is_mflux_dir(path),
+            Flavour::Retrieval => retrieval_task(path).is_some(),
         }
     }
 }
@@ -806,6 +857,7 @@ pub fn catalog(flavour: Flavour) -> &'static ParamCatalog {
     static VISION: OnceLock<ParamCatalog> = OnceLock::new();
     static AUDIO: OnceLock<ParamCatalog> = OnceLock::new();
     static IMAGE: OnceLock<ParamCatalog> = OnceLock::new();
+    static RETRIEVAL: OnceLock<ParamCatalog> = OnceLock::new();
     let parse = |text: &str| -> ParamCatalog {
         toml::from_str(text).expect("the MLX catalogs are valid (unit tested)")
     };
@@ -814,6 +866,9 @@ pub fn catalog(flavour: Flavour) -> &'static ParamCatalog {
         Flavour::Vision => VISION.get_or_init(|| parse(include_str!("../params_mlx_vlm.toml"))),
         Flavour::Audio => AUDIO.get_or_init(|| parse(include_str!("../params_mlx_audio.toml"))),
         Flavour::Image => IMAGE.get_or_init(|| parse(include_str!("../params_mflux.toml"))),
+        Flavour::Retrieval => {
+            RETRIEVAL.get_or_init(|| parse(include_str!("../params_mlx_embed.toml")))
+        }
     }
 }
 
@@ -824,11 +879,13 @@ fn documented_caps(flavour: Flavour) -> &'static RuntimeCapabilities {
     static VISION: OnceLock<RuntimeCapabilities> = OnceLock::new();
     static AUDIO: OnceLock<RuntimeCapabilities> = OnceLock::new();
     static IMAGE: OnceLock<RuntimeCapabilities> = OnceLock::new();
+    static RETRIEVAL: OnceLock<RuntimeCapabilities> = OnceLock::new();
     let cell = match flavour {
         Flavour::Text => &TEXT,
         Flavour::Vision => &VISION,
         Flavour::Audio => &AUDIO,
         Flavour::Image => &IMAGE,
+        Flavour::Retrieval => &RETRIEVAL,
     };
     cell.get_or_init(|| {
         let help: String = catalog(flavour)
@@ -946,12 +1003,103 @@ pub fn is_audio_folder(dir: &Path) -> bool {
         || tts_type(dir).is_some_and(|t| AUDIO_TYPES.contains(&t.as_str()))
 }
 
+/// What an MLX retrieval folder serves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RetrievalTask {
+    /// `/v1/embeddings` (mlx-embeddings).
+    Embedding,
+    /// `/v1/rerank` (mlx-lm: a Qwen3-Reranker's "yes" / "no" answer).
+    Rerank,
+}
+
+/// mlx-embeddings architectures (`model_type`) Harness runs as embedders: BERT (BGE, MiniLM,
+/// E5), XLM-RoBERTa (multilingual E5, BGE-M3), ModernBERT and Qwen3-Embedding.
+const EMBED_TYPES: &[&str] = &["bert", "xlm-roberta", "modernbert", "qwen3"];
+
+/// Rerankers Harness runs: Qwen3-Reranker (a Qwen3 language model scored by its answer).
+const RERANK_TYPES: &[&str] = &["qwen3"];
+
+/// Card tasks of embedding models.
+const EMBED_TASKS: &[&str] = &["feature-extraction", "sentence-similarity"];
+
+/// Whether an MLX retrieval repo (its Hub tags) is one Harness runs, and as what: an embedder
+/// of [`EMBED_TYPES`] or a reranker of [`RERANK_TYPES`]. `task` is the repo's `pipeline_tag`.
+pub fn retrieval_repo_task(task: Option<&str>, tags: &[String]) -> Option<RetrievalTask> {
+    let has = |list: &[&str]| {
+        tags.iter()
+            .any(|t| list.contains(&t.to_ascii_lowercase().as_str()))
+    };
+    match task {
+        Some("text-ranking") if has(RERANK_TYPES) => Some(RetrievalTask::Rerank),
+        Some(t) if EMBED_TASKS.contains(&t) && has(EMBED_TYPES) => Some(RetrievalTask::Embedding),
+        _ => None,
+    }
+}
+
+/// What an MLX retrieval folder serves, `None` for any other path: a folder with `config.json`
+/// and safetensors weights in MLX's format (MLX's quantization, or `mlx` as its card's library or
+/// tag) whose card names an embedding task and whose `model_type` is one of [`EMBED_TYPES`], or
+/// names `text-ranking` (or the `reranker` tag) with a [`RERANK_TYPES`] `model_type`.
+pub fn retrieval_task(path: &Path) -> Option<RetrievalTask> {
+    if !path.is_dir() || super::mistralrs::weight_files(path).is_empty() {
+        return None;
+    }
+    let kind = model_type(path)?;
+    let tags = card_tags(path);
+    let mlx = read_json(&path.join("config.json")).is_some_and(|c| quant_bits(&c).is_some())
+        || card_field(path, "library_name").is_some_and(|l| l.eq_ignore_ascii_case("mlx"))
+        || tags.iter().any(|t| t == "mlx");
+    if !mlx {
+        return None;
+    }
+    let task = card_field(path, "pipeline_tag").map(|t| t.to_ascii_lowercase());
+    let tagged = |name: &str| task.as_deref() == Some(name) || tags.iter().any(|t| t == name);
+    if (tagged("text-ranking") || tagged("reranker")) && RERANK_TYPES.contains(&kind.as_str()) {
+        return Some(RetrievalTask::Rerank);
+    }
+    (EMBED_TASKS.iter().any(|t| tagged(t)) && EMBED_TYPES.contains(&kind.as_str()))
+        .then_some(RetrievalTask::Embedding)
+}
+
+/// The serve mode of an MLX retrieval folder: embeddings or rerank (`/v1/embeddings`,
+/// `/v1/rerank`); Chat for any other path (never launched by the retrieval engine).
+pub fn serve_mode(path: &Path) -> crate::serve_mode::ServeMode {
+    match retrieval_task(path) {
+        Some(RetrievalTask::Embedding) => crate::serve_mode::ServeMode::Embedding,
+        Some(RetrievalTask::Rerank) => crate::serve_mode::ServeMode::Rerank,
+        None => crate::serve_mode::ServeMode::Chat,
+    }
+}
+
+/// Tokens of a text (a query plus a document when reranking) the retrieval worker reads by
+/// default (`--max-tokens`); longer ones are cut.
+pub const RETRIEVAL_MAX_TOKENS: u64 = 512;
+
+/// An MLX retrieval folder's task, embedding size (`hidden_size`) and the tokens it reads per
+/// text (its trained context, at most [`RETRIEVAL_MAX_TOKENS`]).
+pub fn retrieval_info(path: &Path) -> Option<(RetrievalTask, Option<u64>, Option<u64>)> {
+    let task = retrieval_task(path)?;
+    let cfg = read_json(&path.join("config.json"))?;
+    let dims = cfg.get("hidden_size").and_then(|v| v.as_u64());
+    let context = cfg
+        .get("max_position_embeddings")
+        .and_then(|v| v.as_u64())
+        .map(|n| n.min(RETRIEVAL_MAX_TOKENS));
+    Some((task, dims, context))
+}
+
+/// Whether `path` is a folder of the `mlx-embed` engine.
+pub fn is_retrieval_dir(path: &Path) -> bool {
+    retrieval_task(path).is_some()
+}
+
 /// Whether an MLX folder has a vision tower, `None` when `path` is not an MLX chat folder.
 fn mlx_vision(path: &Path) -> Option<bool> {
-    (super::mistralrs::is_checkpoint_dir(path) && is_mlx_checkpoint(path) && !is_audio_folder(path))
-        .then(|| {
-            read_json(&path.join("config.json")).is_some_and(|c| c.get("vision_config").is_some())
-        })
+    (super::mistralrs::is_checkpoint_dir(path)
+        && is_mlx_checkpoint(path)
+        && !is_audio_folder(path)
+        && !is_retrieval_dir(path))
+    .then(|| read_json(&path.join("config.json")).is_some_and(|c| c.get("vision_config").is_some()))
 }
 
 /// The mlx-audio text-to-speech architecture of a folder: its `model_type`, or the family whose
@@ -1163,11 +1311,11 @@ pub fn is_vlm_dir(path: &Path) -> bool {
 
 /// Whether `path` is an MLX folder of any MLX engine.
 pub fn is_any_model_dir(path: &Path) -> bool {
-    mlx_vision(path).is_some() || is_audio_dir(path) || is_mflux_dir(path)
+    mlx_vision(path).is_some() || is_audio_dir(path) || is_mflux_dir(path) || is_retrieval_dir(path)
 }
 
-/// mflux's name of a FLUX.2 [klein] base model repo (`black-forest-labs/FLUX.2-klein-4B` ->
-/// `flux2-klein-4b`), `None` for any other repo.
+/// mflux's name of a base model repo it runs (`black-forest-labs/FLUX.2-klein-4B` ->
+/// `flux2-klein-4b`, `Tongyi-MAI/Z-Image-Turbo` -> `z-image-turbo`), `None` for any other repo.
 pub fn mflux_model_for_base(base: &str) -> Option<&'static str> {
     let base = base.trim().to_ascii_lowercase();
     MFLUX_MODELS
@@ -1183,10 +1331,11 @@ pub fn mflux_model(dir: &Path) -> Option<&'static str> {
         .find_map(|b| mflux_model_for_base(b))
 }
 
-/// The safetensors of an mflux folder's weight folders ([`MFLUX_PARTS`]).
+/// The safetensors of an mflux folder's weight folders ([`mflux_parts`]).
 pub fn mflux_weight_files(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = MFLUX_PARTS
         .iter()
+        .chain(MFLUX_EXTRA_PARTS)
         .flat_map(|part| {
             std::fs::read_dir(dir.join(part))
                 .into_iter()
@@ -1213,16 +1362,19 @@ fn mflux_quantization(dir: &Path) -> Option<String> {
     })
 }
 
-/// Whether `path` is a folder the `mflux` engine runs: a FLUX.2 [klein] model ([`mflux_model`])
-/// saved by mflux (`transformer/`, `text_encoder/` and `vae/` with an index each, mflux's
-/// metadata in the transformer's, and `tokenizer/`), not a diffusers pipeline.
+/// Whether `path` is a folder the `mflux` engine runs: a model of [`MFLUX_MODELS`]
+/// ([`mflux_model`]) saved by mflux (its [`mflux_parts`] with an index each, mflux's metadata in
+/// the transformer's, and its tokenizers), not a diffusers pipeline.
 pub fn is_mflux_dir(path: &Path) -> bool {
-    path.is_dir()
-        && !path.join("model_index.json").exists()
-        && mflux_model(path).is_some()
+    let Some(name) = mflux_model(path).filter(|_| path.is_dir()) else {
+        return false;
+    };
+    !path.join("model_index.json").exists()
         && mflux_quantization(path).is_some()
-        && path.join("tokenizer").join("tokenizer.json").is_file()
-        && MFLUX_PARTS.iter().all(|part| {
+        && mflux_tokenizers(name)
+            .iter()
+            .all(|t| path.join(t).join("tokenizer.json").is_file())
+        && mflux_parts(name).iter().all(|part| {
             let dir = path.join(part);
             dir.join("model.safetensors.index.json").is_file()
                 && std::fs::read_dir(&dir)
@@ -1235,6 +1387,9 @@ pub fn is_mflux_dir(path: &Path) -> bool {
 
 /// The flavour that runs an MLX folder, `None` for other paths.
 pub fn flavour_of(path: &Path) -> Option<Flavour> {
+    if is_retrieval_dir(path) {
+        return Some(Flavour::Retrieval);
+    }
     match mlx_vision(path) {
         Some(true) => Some(Flavour::Vision),
         Some(false) => Some(Flavour::Text),
@@ -1255,6 +1410,9 @@ pub fn inspect(dir: &Path) -> Option<super::mistralrs::ModelDirInfo> {
 fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> {
     if is_mflux_dir(dir) {
         return Some(mflux_local_model(dir, root));
+    }
+    if let Some(task) = retrieval_task(dir) {
+        return Some(retrieval_local_model(dir, root, task));
     }
     let stt = is_stt_dir(dir);
     // A speech config is often no text generator's (Whisper's MLX port, NeMo's Parakeet,
@@ -1292,8 +1450,43 @@ fn to_local_model(dir: &Path, root: &Path) -> Option<crate::models::LocalModel> 
     Some(model)
 }
 
-/// The library's view of an mflux folder: a text-to-image pipeline model (it edits images too)
-/// with mflux's bits as its quantization (`4bit`).
+/// The library's view of an MLX retrieval folder: an embedding model or a reranker (so it gets
+/// its definition and is offered to knowledge bases), with MLX's bits as its quantization.
+fn retrieval_local_model(
+    dir: &Path,
+    root: &Path,
+    task: RetrievalTask,
+) -> crate::models::LocalModel {
+    let info = super::mistralrs::ModelDirInfo {
+        architecture: model_type(dir),
+        complete: true,
+        ..audio_dir_info(dir)
+    };
+    let mut model = super::mistralrs::to_local_model(dir, &info, root);
+    model.kind = match task {
+        RetrievalTask::Embedding => crate::domain::ModelKind::Embedding,
+        RetrievalTask::Rerank => crate::domain::ModelKind::Reranker,
+    };
+    let cfg = read_json(&dir.join("config.json"));
+    model.context_length = cfg
+        .as_ref()
+        .and_then(|c| c.get("max_position_embeddings")?.as_u64());
+    model.quantization = match cfg.as_ref().and_then(quant_bits) {
+        Some(bits) => format!("{bits}bit"),
+        None => "bf16".into(),
+    };
+    model.task = Some(
+        match task {
+            RetrievalTask::Embedding => "feature-extraction",
+            RetrievalTask::Rerank => "text-ranking",
+        }
+        .into(),
+    );
+    model
+}
+
+/// The library's view of an mflux folder: a text-to-image pipeline model (it edits images too;
+/// an inpainting model is image-to-image) with mflux's bits as its quantization (`4bit`).
 fn mflux_local_model(dir: &Path, root: &Path) -> crate::models::LocalModel {
     let weights = mflux_weight_files(dir);
     let info = super::mistralrs::ModelDirInfo {
@@ -1310,7 +1503,15 @@ fn mflux_local_model(dir: &Path, root: &Path) -> crate::models::LocalModel {
     let mut model = super::mistralrs::to_local_model(dir, &info, root);
     model.kind = crate::domain::ModelKind::Pipeline;
     model.context_length = None;
-    model.task = Some("text-to-image".into());
+    let inpaints = mflux_model(dir).is_some_and(|n| MFLUX_INPAINT_MODELS.contains(&n));
+    model.task = Some(
+        if inpaints {
+            "image-to-image"
+        } else {
+            "text-to-image"
+        }
+        .into(),
+    );
     model.quantization = match mflux_quantization(dir).as_deref() {
         Some(q) if !q.is_empty() && q.chars().all(|c| c.is_ascii_digit()) => format!("{q}bit"),
         _ => String::new(),
@@ -1419,6 +1620,7 @@ pub fn family_of(path: &Path) -> Option<&'static str> {
         Flavour::Vision => MLX_VLM,
         Flavour::Audio => MLX_AUDIO,
         Flavour::Image => MFLUX,
+        Flavour::Retrieval => MLX_EMBED,
     })
 }
 
@@ -1432,6 +1634,7 @@ pub fn worker_script(flavour: Flavour) -> Result<PathBuf, String> {
         Flavour::Vision => (VLM_ENV, "mlx_vlm_worker.py", VLM_WORKER),
         Flavour::Audio => (VLM_ENV, "mlx_audio_worker.py", AUDIO_WORKER),
         Flavour::Image => (MFLUX_ENV, "mflux_worker.py", IMAGE_WORKER),
+        Flavour::Retrieval => (VLM_ENV, "mlx_embed_worker.py", EMBED_WORKER),
     };
     let dir = crate::pyenv::envs::env_dir_in(&crate::pyenv::envs::root(), env);
     let path = dir.join(name);
@@ -1465,6 +1668,11 @@ pub fn vlm_binary() -> Result<PathBuf, String> {
 /// [`binary`] of the audio engine (the `mlx-vlm` environment too).
 pub fn audio_binary() -> Result<PathBuf, String> {
     MlxEngine::AUDIO.binary()
+}
+
+/// [`binary`] of the retrieval engine (the `mlx-vlm` environment too).
+pub fn embed_binary() -> Result<PathBuf, String> {
+    MlxEngine::RETRIEVAL.binary()
 }
 
 /// [`binary`] of the image engine (the `mflux` environment).
@@ -1521,6 +1729,7 @@ impl Engine for MlxEngine {
             Flavour::Vision => MLX_VLM,
             Flavour::Audio => MLX_AUDIO,
             Flavour::Image => MFLUX,
+            Flavour::Retrieval => MLX_EMBED,
         }
     }
 
@@ -1751,6 +1960,30 @@ fn build_args(
     } else if flavour == Flavour::Audio && is_sts_dir(&config.model_path) {
         args.push("--task".into());
         args.push("separate".into());
+    }
+    if flavour == Flavour::Retrieval {
+        args.push("--task".into());
+        args.push(
+            match retrieval_task(&config.model_path) {
+                Some(RetrievalTask::Rerank) => "rerank",
+                _ => "embedding",
+            }
+            .into(),
+        );
+    }
+    if flavour == Flavour::Image {
+        if let Some(lora) = config
+            .lora_path
+            .as_ref()
+            .filter(|p| !p.as_os_str().is_empty())
+        {
+            args.push("--lora".into());
+            args.push(lora.to_string_lossy().to_string());
+            if let Some(scale) = config.lora_scale {
+                args.push("--lora-scale".into());
+                args.push(scale.to_string());
+            }
+        }
     }
     if flavour == Flavour::Audio && !companions_of(&config.model_path).is_empty() {
         let libraries = crate::config::AppSettings::load().all_models_dirs();
@@ -4397,6 +4630,139 @@ print("resampled", resampled)
         }
     }
 
+    /// `mlx-community/bge-small-en-v1.5-bf16` (config and card trimmed): bf16 weights, so only
+    /// its card's `mlx` tag says it is MLX's.
+    const BGE_CONFIG: &str = r#"{"architectures":["BertModel"],"model_type":"bert","hidden_size":384,"max_position_embeddings":512}"#;
+    const BGE_CARD: &str = "---\nlibrary_name: sentence-transformers\npipeline_tag: feature-extraction\ntags:\n- sentence-transformers\n- bert\n- mlx\n---\n# bge\n";
+    /// `mlx-community/Qwen3-Reranker-0.6B-4bit` (config and card trimmed).
+    const RERANKER_CONFIG: &str = r#"{"architectures":["Qwen3ForCausalLM"],"model_type":"qwen3","hidden_size":1024,"max_position_embeddings":40960,"quantization":{"group_size":64,"bits":4,"mode":"affine"}}"#;
+    const RERANKER_CARD: &str = "---\nlibrary_name: mlx\npipeline_tag: text-ranking\ntags:\n- mlx\n- qwen3\n- reranker\n---\n";
+
+    #[test]
+    fn retrieval_folders_are_mlx_embed_and_never_chat_or_python() {
+        let bge = folder(&[
+            ("config.json", BGE_CONFIG),
+            ("README.md", BGE_CARD),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(retrieval_task(bge.path()), Some(RetrievalTask::Embedding));
+        assert_eq!(flavour_of(bge.path()), Some(Flavour::Retrieval));
+        assert_eq!(family_of(bge.path()), Some(MLX_EMBED));
+        assert!(is_any_model_dir(bge.path()));
+        assert!(!super::super::python_hf::is_model_dir(bge.path()));
+        assert_eq!(
+            serve_mode(bge.path()),
+            crate::serve_mode::ServeMode::Embedding
+        );
+        assert_eq!(
+            retrieval_info(bge.path()),
+            Some((RetrievalTask::Embedding, Some(384), Some(512)))
+        );
+        let model = to_local_model(bge.path(), bge.path().parent().unwrap()).unwrap();
+        assert_eq!(model.kind, crate::domain::ModelKind::Embedding);
+        assert_eq!(model.quantization, "bf16");
+
+        let reranker = folder(&[
+            ("config.json", RERANKER_CONFIG),
+            ("README.md", RERANKER_CARD),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(retrieval_task(reranker.path()), Some(RetrievalTask::Rerank));
+        // A Qwen3 language model, but no chat model.
+        assert!(!is_model_dir(reranker.path()));
+        assert_eq!(flavour_of(reranker.path()), Some(Flavour::Retrieval));
+        assert!(!super::super::mistralrs::is_model_dir(reranker.path()));
+        assert_eq!(
+            serve_mode(reranker.path()),
+            crate::serve_mode::ServeMode::Rerank
+        );
+        let model = to_local_model(reranker.path(), reranker.path().parent().unwrap()).unwrap();
+        assert_eq!(model.kind, crate::domain::ModelKind::Reranker);
+        assert_eq!(model.quantization, "4bit");
+
+        // The same BGE without MLX's tag is the Python engine's; an MLX folder of an untested
+        // architecture is nobody's retrieval model.
+        let plain = folder(&[
+            ("config.json", BGE_CONFIG),
+            ("README.md", &BGE_CARD.replace("- mlx\n", "")),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(retrieval_task(plain.path()), None);
+        let other = folder(&[
+            ("config.json", &BGE_CONFIG.replace("\"bert\"", "\"t5\"")),
+            ("README.md", BGE_CARD),
+            ("model.safetensors", "x"),
+        ]);
+        assert_eq!(retrieval_task(other.path()), None);
+    }
+
+    #[test]
+    fn retrieval_launch_args_name_the_task() {
+        let bge = folder(&[
+            ("config.json", BGE_CONFIG),
+            ("README.md", BGE_CARD),
+            ("model.safetensors", "x"),
+        ]);
+        let reranker = folder(&[
+            ("config.json", RERANKER_CONFIG),
+            ("README.md", RERANKER_CARD),
+            ("model.safetensors", "x"),
+        ]);
+        for (dir, task) in [(&bge, "embedding"), (&reranker, "rerank")] {
+            let mut config = LaunchConfig {
+                model_path: dir.path().to_path_buf(),
+                host: "127.0.0.1".into(),
+                port: 11450,
+                ..Default::default()
+            };
+            config
+                .params
+                .insert("max_tokens".into(), crate::params::ParamValue::Int(1024));
+            let args = build_args(&config, Path::new("w.py"), Flavour::Retrieval)
+                .unwrap()
+                .args;
+            let at = |flag: &str| {
+                args.iter()
+                    .position(|a| a == flag)
+                    .map(|i| args[i + 1].as_str())
+            };
+            assert_eq!(at("--task"), Some(task));
+            assert_eq!(at("--max-tokens"), Some("1024"));
+            assert!(at("--max-seconds").is_none());
+            // The task is Harness's to set.
+            config.custom_args = Some("--task rerank".into());
+            assert!(build_args(&config, Path::new("w.py"), Flavour::Retrieval).is_err());
+        }
+        assert!(MlxEngine::RETRIEVAL.runs(bge.path()));
+        assert!(!MlxEngine::TEXT.runs(reranker.path()));
+    }
+
+    #[test]
+    fn retrieval_repos_by_task_and_architecture() {
+        let tags = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            retrieval_repo_task(Some("feature-extraction"), &tags(&["mlx", "bert"])),
+            Some(RetrievalTask::Embedding)
+        );
+        assert_eq!(
+            retrieval_repo_task(Some("sentence-similarity"), &tags(&["xlm-roberta"])),
+            Some(RetrievalTask::Embedding)
+        );
+        assert_eq!(
+            retrieval_repo_task(Some("text-ranking"), &tags(&["mlx", "qwen3"])),
+            Some(RetrievalTask::Rerank)
+        );
+        // A cross-encoder reranker (XLM-RoBERTa) is not run by the MLX worker.
+        assert_eq!(
+            retrieval_repo_task(Some("text-ranking"), &tags(&["xlm-roberta"])),
+            None
+        );
+        assert_eq!(
+            retrieval_repo_task(Some("text-generation"), &tags(&["qwen3"])),
+            None
+        );
+    }
+
     #[test]
     fn the_worker_guards_what_harness_relies_on() {
         // The key comes from the environment and is compared in constant time; the bind,
@@ -4417,6 +4783,14 @@ print("resampled", resampled)
         assert!(AUDIO_WORKER.contains("HOST = \"127.0.0.1\""));
         assert!(AUDIO_WORKER.contains("kw[\"trust_remote_code\"] = False"));
         assert!(AUDIO_WORKER.contains("HF_HUB_OFFLINE"));
+        assert!(EMBED_WORKER.contains("os.environ.pop(\"HARNESS_WORKER_API_KEY\""));
+        assert!(EMBED_WORKER.contains("hmac.compare_digest"));
+        assert!(EMBED_WORKER.contains("HOST = \"127.0.0.1\""));
+        assert!(EMBED_WORKER.contains("\"trust_remote_code\": False"));
+        assert!(EMBED_WORKER.contains("HF_HUB_OFFLINE"));
+        assert!(EMBED_WORKER.contains("HTTPS_PROXY"));
+        assert!(EMBED_WORKER.contains("allow_abbrev=False"));
+        assert!(EMBED_WORKER.contains("HARNESS_WORKER_API_KEY is required"));
     }
 
     /// `mlx-community/FLUX.2-Klein-4B-3bit`'s layout (weights shortened): the card names the base
@@ -4439,6 +4813,88 @@ print("resampled", resampled)
         folder(&files)
     }
     const KLEIN_CARD: &str = "---\nlicense: apache-2.0\npipeline_tag: image-to-image\ntags:\n- flux\n- diffusion-single-file\nbase_model:\n- black-forest-labs/FLUX.2-klein-4B\n---\n\n3-bit\n";
+
+    #[test]
+    fn mflux_runs_z_image_flux1_and_qwen_image_folders() {
+        const INDEX: &str =
+            r#"{"metadata":{"quantization_level":"4","mflux_version":"0.22.0"},"weight_map":{}}"#;
+        let t5 = [
+            ("text_encoder_2/0.safetensors", "t5"),
+            ("text_encoder_2/model.safetensors.index.json", INDEX),
+            ("tokenizer_2/tokenizer.json", "{}"),
+        ];
+        let z = mflux_folder(
+            "---\nbase_model: Tongyi-MAI/Z-Image-Turbo\nlibrary_name: mflux\n---\n",
+            &[],
+        );
+        assert_eq!(mflux_model(z.path()), Some("z-image-turbo"));
+        assert!(is_mflux_dir(z.path()));
+        let m = to_local_model(z.path(), z.path().parent().unwrap()).unwrap();
+        assert_eq!(m.task.as_deref(), Some("text-to-image"));
+        let qwen = mflux_folder("---\nbase_model: Qwen/Qwen-Image\n---\n", &[]);
+        assert!(is_mflux_dir(qwen.path()));
+
+        // FLUX.1 loads its T5 encoder too: without it the folder is not runnable; with it its
+        // weights count.
+        let schnell_card = "---\nbase_model: black-forest-labs/FLUX.1-schnell\n---\n";
+        assert!(!is_mflux_dir(mflux_folder(schnell_card, &[]).path()));
+        let schnell = mflux_folder(schnell_card, &t5);
+        assert!(is_mflux_dir(schnell.path()));
+        assert_eq!(mflux_weight_files(schnell.path()).len(), 4);
+        assert!(!is_mflux_dir(mflux_folder(schnell_card, &t5[..2]).path()));
+
+        // FLUX.1 Fill only inpaints: the library lists it as image to image.
+        let fill = mflux_folder(
+            "---\nbase_model: black-forest-labs/FLUX.1-Fill-dev\n---\n",
+            &t5,
+        );
+        assert_eq!(mflux_model(fill.path()), Some("dev-fill"));
+        let m = to_local_model(fill.path(), fill.path().parent().unwrap()).unwrap();
+        assert_eq!(m.task.as_deref(), Some("image-to-image"));
+        assert_eq!(m.architecture.as_deref(), Some("dev-fill"));
+    }
+
+    #[test]
+    fn mflux_launches_take_a_lora_adapter() {
+        let klein = mflux_folder(KLEIN_CARD, &[]);
+        let mut config = LaunchConfig {
+            model_path: klein.path().to_path_buf(),
+            host: "127.0.0.1".into(),
+            port: 11450,
+            lora_path: Some(PathBuf::from("/loras/pixel art.safetensors")),
+            ..Default::default()
+        };
+        let args = build_args(&config, Path::new("w.py"), Flavour::Image)
+            .unwrap()
+            .args;
+        let at = |args: &[String], flag: &str| {
+            args.iter()
+                .position(|a| a == flag)
+                .map(|i| args[i + 1].clone())
+        };
+        assert_eq!(
+            at(&args, "--lora").as_deref(),
+            Some("/loras/pixel art.safetensors")
+        );
+        assert!(at(&args, "--lora-scale").is_none());
+        config.lora_scale = Some(0.75);
+        let args = build_args(&config, Path::new("w.py"), Flavour::Image)
+            .unwrap()
+            .args;
+        assert_eq!(at(&args, "--lora-scale").as_deref(), Some("0.75"));
+        // The catalog says the engine takes one (the definition's LoRA field is shown).
+        assert!(catalog(Flavour::Image)
+            .params
+            .iter()
+            .any(|p| p.id == "lora_path" && p.flags == ["--lora"]));
+        // Other flavours never get it.
+        let text = folder(&[("config.json", MLX_CONFIG), ("model.safetensors", "x")]);
+        config.model_path = text.path().to_path_buf();
+        let args = build_args(&config, Path::new("w.py"), Flavour::Text)
+            .unwrap()
+            .args;
+        assert!(at(&args, "--lora").is_none());
+    }
 
     #[test]
     fn mflux_klein_folders_are_the_image_engines() {
@@ -4579,7 +5035,7 @@ print("sizes", w.image_size(png(640, 480)), w.image_size(jpeg(320, 200)), w.imag
 def check(raw, edit=False):
     try:
         r = w.image_request(json.dumps(raw).encode(), edit)
-        return {{k: v for k, v in r.items() if k != "images"}} | {{"images": [s for _, s in r["images"]]}}
+        return {{k: v for k, v in r.items() if k not in ("images", "mask")}} | {{"images": [s for _, s in r["images"]]}} | {{"mask": r["mask"] and r["mask"][1]}}
     except w.Refused as e:
         return "refused: " + str(e)
 
@@ -4620,8 +5076,8 @@ calls, folders = [], []
 class Image:
     def save(self, buf, format):
         buf.write(b"PNG")
-def render(models, req, seed, size, paths):
-    calls.append((seed, size, req["steps"], [os.path.basename(p) for p in paths]))
+def render(models, req, seed, size, paths, mask=None):
+    calls.append((seed, size, req["steps"], [os.path.basename(p) for p in paths]) + ((req["strength"], os.path.basename(mask) if mask else None),) * (req["strength"] is not None or mask is not None))
     folders.extend(os.path.dirname(p) for p in paths)
     for _ in range(req["steps"]):
         models.stop.call_in_loop(0, None)
@@ -4636,11 +5092,45 @@ calls.clear()
 req = w.image_request(json.dumps({{"prompt": "x", "image": b64(png(600, 400)), "steps": 1, "seed": 1}}).encode(), True)
 print("edited", gen(req, True, gone), calls, all(not os.path.exists(f) for f in folders))
 calls.clear()
-base = w.make_generate(models, weights, budget, "flux2-klein-base-4b", 100, render, clock, base_steps=True)
+base = w.make_generate(models, weights, budget, "flux2-klein-base-4b", 100, render, clock)
 try:
     base(w.image_request(b'{{"prompt": "x", "size": "256x256"}}', False), False, gone)
 except w.TooSlow:
     print("base too slow after", len(calls), "image(s) of", calls[0][2], "steps at", now[0])
+# Other families: image to image from one image (default strength), FLUX.1 Fill inpaints with a mask.
+calls.clear(); now[0] = 0
+z = w.make_generate(models, weights, budget, "z-image-turbo", 1000, render, clock)
+print("z draws", z(w.image_request(b'{{"prompt": "x", "size": "256x256", "seed": 3}}', False), False, gone), calls[-1])
+z(w.image_request(json.dumps({{"prompt": "x", "image": b64(png(600, 400)), "seed": 3}}).encode(), True), True, gone)
+print("z img2img", calls[-1])
+fill = w.make_generate(models, weights, budget, "dev-fill", 10 ** 6, render, clock)
+for label, raw, edit in [("z two images", {{"prompt": "x", "image": [b64(png(64, 64))] * 2}}, True),
+                         ("z mask", {{"prompt": "x", "image": b64(png(64, 64)), "mask": b64(png(64, 64))}}, True),
+                         ("fill draw", {{"prompt": "x"}}, False),
+                         ("fill no mask", {{"prompt": "x", "image": b64(png(64, 64))}}, True),
+                         ("fill mask size", {{"prompt": "x", "image": b64(png(64, 64)), "mask": b64(png(32, 32))}}, True)]:
+    try:
+        (z if label.startswith("z") else fill)(w.image_request(json.dumps(raw).encode(), edit), edit, gone)
+        print(label, "drawn")
+    except w.Refused as e:
+        print(label, "refused:", e)
+fill(w.image_request(json.dumps({{"prompt": "x", "image": b64(png(256, 256)), "mask": b64(png(256, 256)), "seed": 5, "steps": 2}}).encode(), True), gone=gone, edit=True)
+print("fill", calls[-1], all(not os.path.exists(f) for f in folders))
+print("mask parsed", check({{"prompt": "x", "image": b64(png(64, 64)), "mask": b64(png(64, 64))}}, True)["mask"])
+print("kinds", sorted(set(w.MODELS.values())) == sorted(w.KINDS))
+
+# LoRA adapters: existing safetensors files, a scale each.
+lora = os.path.join({:?}, "style.safetensors")
+open(lora, "wb").write(b"x")
+print("lora", w.lora_files([lora], []), w.lora_files([lora, lora], [0.5]))
+for label, paths, scales in [("lora missing", ["/nope.safetensors"], []), ("lora ext", [__file__ if "__file__" in dir() else "/etc/hosts"], []),
+                             ("lora scale", [lora], [9.0]), ("lora many", [lora] * 5, []), ("lora scales", [lora], [1.0, 1.0])]:
+    try:
+        w.lora_files(paths, scales)
+    except ValueError as e:
+        print(label, "refused:", e)
+print("args", w.parser().parse_args(["--model", "m", "--port", "1", "--lora", "a", "--lora", "b", "--lora-scale", "0.7"]).lora_scale)
+
 gone.set()
 try:
     gen(w.image_request(b'{{"prompt": "x", "size": "256x256"}}', False), False, gone)
@@ -4685,6 +5175,7 @@ async def main():
 asyncio.run(main())
 "#,
             dir.path().to_string_lossy(),
+            dir.path().to_string_lossy(),
         );
         let out = std::process::Command::new(python)
             .args(["-I", "-c", &script])
@@ -4696,8 +5187,8 @@ asyncio.run(main())
         assert!(out.status.success(), "{text}");
         for line in [
             "sizes (640, 480) (320, 200) (512, 768) None",
-            "plain {'prompt': 'a fox', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': None, 'images': []}",
-            "full {'prompt': 'x', 'n': 4, 'seed': 9, 'steps': 50, 'size': (768, 512), 'guidance': 1.5, 'strength': None, 'images': []}",
+            "plain {'prompt': 'a fox', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': None, 'images': [], 'mask': None}",
+            "full {'prompt': 'x', 'n': 4, 'seed': 9, 'steps': 50, 'size': (768, 512), 'guidance': 1.5, 'strength': None, 'images': [], 'mask': None}",
             "auto None",
             "steps refused: steps must be a whole number from 1 to 50",
             "n refused: n must be a whole number from 1 to 4",
@@ -4707,7 +5198,7 @@ asyncio.run(main())
             "empty refused: prompt is required",
             "bool refused: steps must be a whole number",
             "image on generation refused: unsupported field(s) for this model: image",
-            "edit {'prompt': 'x', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': 0.5, 'images': [(600, 400), (64, 64)]}",
+            "edit {'prompt': 'x', 'n': 1, 'seed': None, 'steps': None, 'size': None, 'guidance': None, 'strength': 0.5, 'images': [(600, 400), (64, 64)], 'mask': None}",
             "edit none refused: image (the picture to edit) is required",
             "edit five refused: an edit takes at most 4 images",
             "edit huge refused: image 1 is 5000x64; an edit takes at most 4096 pixels a side",
@@ -4720,6 +5211,22 @@ asyncio.run(main())
             "drawn [b'PNG', b'PNG'] [(4294967295, (512, 512), 4, []), (0, (512, 512), 4, [])] None",
             "edited [b'PNG'] [(1, (592, 400), 1, ['image-0.img'])] True",
             "base too slow after 1 image(s) of 28 steps at",
+            "z draws [b'PNG'] (3, (256, 256), 9, [])",
+            "z img2img (3, (592, 400), 9, ['image-0.img'], (0.6, None))",
+            "z two images refused: this model takes one image to start from",
+            "z mask refused: this model does not inpaint with a mask",
+            "fill draw refused: this model inpaints: send an image and a mask to /v1/images/edits",
+            "fill no mask refused: mask (white where the image is redrawn) is required",
+            "fill mask size refused: the mask must be the size of the image",
+            "fill (5, (256, 256), 2, ['image-0.img'], (None, 'mask.img')) True",
+            "mask parsed (64, 64)",
+            "kinds True",
+            "lora missing refused: a LoRA adapter must be a .safetensors file",
+            "lora ext refused: a LoRA adapter must be a .safetensors file",
+            "lora scale refused: a LoRA scale must be from -4 to 4",
+            "lora many refused: at most 4 LoRA adapters",
+            "lora scales refused: more --lora-scale than --lora",
+            "args [0.7]",
             "gone",
             "refused before drawing: an image of 1024x1024 needs about 16.2",
             "health (200, {'status': 'ok'})",

@@ -50,7 +50,7 @@ pub struct ServerConfig {
     /// profile/session has no host of its own. `127.0.0.1` = this computer only.
     pub host: String,
     /// Port of a Dashboard server that was never saved. 0 (the default) = automatic: Harness
-    /// picks a free one from `ports::AUTO_RANGE` at launch. The old default 8080 of earlier
+    /// picks a free one from `ports::auto_range` at launch. The old default 8080 of earlier
     /// files became 0 once (schema v3); a port set since is kept.
     pub port: u16,
     pub default_ngl: u32,

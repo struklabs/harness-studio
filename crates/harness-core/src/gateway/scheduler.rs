@@ -239,8 +239,8 @@ impl SchedError {
                 format!(
                     "Loading \"{}\" failed: no free port for its server in {}-{}; other programs hold them all.",
                     alias,
-                    crate::ports::AUTO_RANGE.start(),
-                    crate::ports::AUTO_RANGE.end()
+                    crate::ports::auto_range().start(),
+                    crate::ports::auto_range().end()
                 )
             }
             SchedError::LoadFailed {
@@ -1650,7 +1650,7 @@ impl Scheduler {
         // requests inside the shared KV pool, so the automatic slot count may exceed what a
         // direct agent server gets (`slots`).
         config.launched_by = crate::slots::SlotOrigin::Gateway;
-        // The port comes from Harness's range at launch (`ports::AUTO_RANGE`, the same rule
+        // The port comes from Harness's range at launch (`ports::auto_range`, the same rule
         // as every server without a port of its own); a bind race moves it silently.
         config.port = 0;
         config.port_auto = true;

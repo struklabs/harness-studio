@@ -30,6 +30,8 @@ pub const INFERABLE: &[&str] = &[
     "feature-extraction",
     "text-ranking",
     "image-text-to-text",
+    "image-to-text",
+    "document-question-answering",
 ];
 
 /// The Hub's "decision model" task. Not a Hugging Face `pipeline_tag`: decision models carry the
@@ -305,6 +307,11 @@ pub fn analyze_repo(item: &serde_json::Value) -> RepoAnalysis {
             .map(String::from)
     };
     let mut pipeline_tag = text("pipeline_tag");
+    if id.to_ascii_lowercase().contains("smolvlm2-")
+        && id.to_ascii_lowercase().contains("video-instruct")
+    {
+        pipeline_tag = Some("video-text-to-text".into());
+    }
     let library = text("library_name");
     let mut tags = str_list(item.get("tags"));
     for t in str_list(card.and_then(|c| c.get("tags"))) {
@@ -809,6 +816,14 @@ fn infer(
     if token(&["reranker", "rerank", "reranking"]) {
         return Some(("text-ranking", TaskSource::Name));
     }
+    // OCR reuploads frequently omit the pipeline tag. Keep them in Image-to-Text;
+    // their GGUF + projector still selects llama.cpp, not a Python captioner.
+    if has(&["ocr", "olmocr", "got-ocr", "paddleocr", "paddleocr-vl"]) {
+        return Some(("image-to-text", TaskSource::Tags));
+    }
+    if token(&["ocr", "olmocr", "paddleocr"]) {
+        return Some(("image-to-text", TaskSource::Name));
+    }
     // A tag that already is a task name (HF adds the task as a tag when it knows it).
     if let Some(t) = KNOWN_TASKS.iter().find(|k| tags.iter().any(|t| t == **k)) {
         return Some((t, TaskSource::Tags));
@@ -957,7 +972,7 @@ const ONNX_ALTS: &[(&str, Support)] = &[(ONNX_FAMILY, Yes)];
 /// Text-to-image and image-to-image (`/v1/images/edits`): stable-diffusion.cpp.
 const T2I_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes), (crate::engine::PYTHON_HF, Yes)];
 /// Text / image to video: stable-diffusion.cpp's Wan through `/v1/videos`.
-const VIDEO_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes)];
+const VIDEO_ALTS: &[(&str, Support)] = &[(SDCPP_FAMILY, Yes), (crate::engine::PYTHON_HF, Yes)];
 
 use Support::{No, Partial, Yes};
 
@@ -970,8 +985,18 @@ const TABLE: &[Row] = &[
     row("audio-text-to-text", Yes, Some("audio_input")),
     row("visual-question-answering", Partial, Some("vision")),
     row("any-to-any", Partial, Some("vision")),
-    row("document-question-answering", No, Some("vision")),
-    row("video-text-to-text", No, Some("vision")),
+    row_alt(
+        "document-question-answering",
+        Partial,
+        Some("vision"),
+        &[(crate::engine::PYTHON_HF, Yes)],
+    ),
+    row_alt(
+        "video-text-to-text",
+        No,
+        Some("vision"),
+        &[(crate::engine::PYTHON_HF, Yes)],
+    ),
     row("text-generation", Yes, None),
     row("feature-extraction", Yes, Some("embeddings")),
     row("sentence-similarity", Yes, Some("embeddings")),
@@ -994,7 +1019,12 @@ const TABLE: &[Row] = &[
     row("text-to-audio", No, None),
     row("audio-to-audio", No, None),
     row_alt("audio-classification", No, None, ONNX_ALTS),
-    row_alt("image-to-text", Partial, Some("vision"), ONNX_ALTS),
+    row_alt(
+        "image-to-text",
+        Partial,
+        Some("vision"),
+        &[(ONNX_FAMILY, Yes), (crate::engine::PYTHON_HF, Yes)],
+    ),
     row_alt("text-to-image", No, None, T2I_ALTS),
     row_alt("image-to-image", No, None, T2I_ALTS),
     row_alt("text-to-video", No, None, VIDEO_ALTS),
@@ -1100,6 +1130,44 @@ mod tests {
 
     fn tags(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn ocr_tags_and_names_infer_image_to_text() {
+        for tag in ["ocr", "olmocr", "got-ocr", "paddleocr-vl"] {
+            assert_eq!(
+                infer_task(
+                    "test/document-GGUF",
+                    &[tag.into()],
+                    &["model.gguf".into(), "mmproj.gguf".into()]
+                ),
+                Some("image-to-text")
+            );
+        }
+        assert_eq!(
+            infer_task(
+                "test/olmOCR-GGUF",
+                &[],
+                &["model.gguf".into(), "mmproj.gguf".into()]
+            ),
+            Some("image-to-text")
+        );
+        let dqa = analyze_repo(
+            &serde_json::json!({"id":"impira/layoutlm-document-qa", "pipeline_tag":"document-question-answering", "siblings":[{"rfilename":"model.safetensors"}]}),
+        );
+        assert_eq!(
+            dqa.pipeline_tag.as_deref(),
+            Some("document-question-answering")
+        );
+        assert_eq!(dqa.inferred_task, None);
+    }
+
+    #[test]
+    fn smolvlm_video_card_uses_the_video_task() {
+        let result = analyze_repo(
+            &serde_json::json!({"id":"HuggingFaceTB/SmolVLM2-256M-Video-Instruct", "pipeline_tag":"image-text-to-text", "library_name":"transformers"}),
+        );
+        assert_eq!(result.pipeline_tag.as_deref(), Some("video-text-to-text"));
     }
 
     #[test]

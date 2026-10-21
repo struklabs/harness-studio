@@ -182,6 +182,7 @@ async fn e2e_knowledge_base_multilingual_cpu_index_and_retrieval() {
             files: scan.files,
             root: Some(f.to_path_buf()),
             embed: Some(embed.clone()),
+            ocr: None,
             rebuild: false,
         },
         flag,

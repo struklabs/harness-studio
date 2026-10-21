@@ -531,3 +531,42 @@ async fn a_used_budget_survives_a_gateway_restart() {
     assert_eq!(r.body["error"]["harness"]["limit"], "requests_per_minute");
     gw.server.stop().await;
 }
+
+#[tokio::test]
+async fn document_routes_require_inference_and_pipeline_policy() {
+    let _s = serial().await;
+    let gw = Gw::start(true).await;
+    let (chat, _) = create(
+        "document-chat-only",
+        &[Scope::Inference],
+        TokenPolicy {
+            endpoints: vec![GatewayEndpoint::Chat],
+            ..Default::default()
+        },
+    );
+    let (pipeline, _) = create(
+        "document-pipelines",
+        &[Scope::Inference],
+        TokenPolicy {
+            endpoints: vec![GatewayEndpoint::Pipelines],
+            ..Default::default()
+        },
+    );
+    for path in ["/v1/ocr", "/v1/document/qa"] {
+        let r = gw.post(path, None, json!({})).await;
+        assert_eq!(r.status, 401, "{}", r.body);
+        let r = gw.post(path, Some(&chat), json!({})).await;
+        assert_eq!(r.status, 403, "{}", r.body);
+        assert_eq!(r.body["error"]["code"], "endpoint_not_allowed");
+        let r = gw
+            .post(
+                path,
+                Some(&pipeline),
+                json!({"model":"", "document":"x", "question":"q"}),
+            )
+            .await;
+        assert_eq!(r.status, 400, "{}", r.body);
+        assert_eq!(r.body["error"]["param"], "model");
+    }
+    gw.server.stop().await;
+}

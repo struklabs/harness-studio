@@ -73,7 +73,7 @@ Other kinds of models use optional engines that you install when you need them, 
 
 | Capability | Engine |
 | --- | --- |
-| Speech to text | whisper.cpp; sherpa-onnx (Parakeet, SenseVoice, Omnilingual, Nemotron, Cohere, Zipformer and other transducers, Paraformer, Whisper ONNX, Moonshine); ONNX CTC; CrispASR; Python; MLX audio |
+| Speech to text | whisper.cpp; sherpa-onnx (Parakeet, SenseVoice, Omnilingual, Nemotron, Cohere, Zipformer and other transducers, Paraformer, Whisper ONNX, Moonshine); ONNX CTC; CrispASR; Python (Transformers, faster-whisper); MLX audio |
 | Text to speech | sherpa-onnx (Kokoro, Piper, Matcha, KittenTTS); Python; CrispASR; MLX audio; experimental audio.cpp (off by default) |
 | Image generation | stable-diffusion.cpp; Python (diffusers) |
 | ONNX embeddings, reranking, and chat | ONNX Runtime and ONNX Runtime GenAI (through the bundled `harness-onnx` helper) |

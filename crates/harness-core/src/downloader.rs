@@ -661,6 +661,15 @@ fn parse_search_item(item: &serde_json::Value) -> Option<HfModelSearchResult> {
             crate::hub_compat::mlx_compatibility(&id, format, task, &sibling_files(item), &tags)
         })
         .or_else(|| {
+            crate::hub_compat::ct2_whisper_compatibility(
+                &id,
+                format,
+                task,
+                &tags,
+                &sibling_files(item),
+            )
+        })
+        .or_else(|| {
             crate::hub_compat::python_hf_compatibility(
                 format,
                 item.get("library_name").and_then(|v| v.as_str()),
@@ -4908,7 +4917,8 @@ fn safetensors_variants(
 
 /// The variant of a repo in mflux's saved layout ([`crate::hub_compat::is_mflux_layout`]): one
 /// download of the model card (the mflux engine reads its `base_model`) and every file of
-/// `transformer/`, `text_encoder/`, `vae/` and `tokenizer/`, in the repo layout. Nothing else
+/// `transformer/`, `text_encoder/`, `vae/` and `tokenizer/` (FLUX.1's `text_encoder_2/` and
+/// `tokenizer_2/` too), in the repo layout. Nothing else
 /// (nested folders, other root files) is fetched.
 fn mflux_variants(
     repo_id: &str,
@@ -4920,7 +4930,10 @@ fn mflux_variants(
             let path = item.get("path").and_then(|v| v.as_str())?;
             let wanted = path == "README.md"
                 || path.split_once('/').is_some_and(|(dir, name)| {
-                    (crate::engine::mlx::MFLUX_PARTS.contains(&dir) || dir == "tokenizer")
+                    (crate::engine::mlx::MFLUX_PARTS.contains(&dir)
+                        || crate::engine::mlx::MFLUX_EXTRA_PARTS.contains(&dir)
+                        || dir == "tokenizer"
+                        || dir == "tokenizer_2")
                         && !name.is_empty()
                         && !name.contains(['/', '\\'])
                         && !name.starts_with('.')
@@ -9514,11 +9527,39 @@ mod refusal_reason_tests {
     }
 
     #[test]
-    fn faster_whisper_is_a_ctranslate2_export() {
-        assert_eq!(
-            reason("Systran/faster-whisper-small"),
-            Some(NotRunnable::Ctranslate2Export)
-        );
+    fn ct2_whisper_listing_is_python_engine_speech_recognition() {
+        let item = |id: &str| {
+            serde_json::json!({
+                "id": id,
+                "pipeline_tag": "automatic-speech-recognition",
+                "library_name": "ctranslate2",
+                "tags": ["ctranslate2", "audio", "automatic-speech-recognition"],
+                "config": {},
+                "siblings": [
+                    {"rfilename": "config.json"},
+                    {"rfilename": "model.bin"},
+                    {"rfilename": "tokenizer.json"},
+                    {"rfilename": "vocabulary.txt"}
+                ]
+            })
+        };
+        let whisper = parse_search_item(&item("Systran/faster-whisper-tiny")).unwrap();
+        assert!(matches!(
+            whisper.compatibility,
+            crate::hub_compat::Compatibility::Runnable { ref runtime }
+                | crate::hub_compat::Compatibility::NeedsRuntime { ref runtime }
+                if runtime == crate::hub_compat::PYTHON_HF_FAMILY
+        ));
+        assert_eq!(whisper.not_runnable, None);
+        // Other CTranslate2 repos keep their refusal.
+        let other = parse_search_item(&item("Systran/nllb-200-distilled-600M-ct2")).unwrap();
+        assert_eq!(other.not_runnable, Some(NotRunnable::Ctranslate2Export));
+    }
+
+    #[test]
+    fn faster_whisper_runs_on_the_python_engine() {
+        // A CTranslate2 Whisper export is the Python engine's (faster-whisper): no refusal.
+        assert_eq!(reason("Systran/faster-whisper-small"), None);
     }
 
     #[test]

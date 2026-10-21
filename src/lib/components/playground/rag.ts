@@ -24,6 +24,8 @@ export interface RagDocument {
   mode: RagMode;
   embed_model: string | null;
   embed_dims: number | null;
+  /** Pages of a PDF read with the knowledge base OCR model; empty when the text layer was enough. */
+  ocr_pages: number[];
   created_at: number;
   updated_at: number;
 }

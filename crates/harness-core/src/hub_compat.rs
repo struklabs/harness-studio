@@ -644,12 +644,18 @@ pub const MLX_VLM_FAMILY: &str = crate::engine::MLX_VLM;
 /// Silicon).
 pub const MLX_AUDIO_FAMILY: &str = crate::engine::MLX_AUDIO;
 
+/// Runtime family of the MLX retrieval engine (mlx-embeddings embedders, Qwen3-Reranker; Apple
+/// Silicon).
+pub const MLX_EMBED_FAMILY: &str = crate::engine::MLX_EMBED;
+
 /// The MLX engines' verdict on a Hub repo: an MLX repo (`library_name: mlx` or the `mlx` tag)
 /// with a `config.json` and safetensors at the root (a listing without file names is taken by
 /// its tags), `text-generation` or untagged for `mlx`, `image-text-to-text` for `mlx-vlm`,
 /// `text-to-speech` of a tested architecture (by the repo name: Qwen3-TTS, Chatterbox Turbo,
 /// Soprano, VoxCPM2, Spark-TTS) and `automatic-speech-recognition` of one (Whisper, Parakeet:
-/// [`crate::engine::mlx::is_stt_repo`]) for `mlx-audio`.
+/// [`crate::engine::mlx::is_stt_repo`]) for `mlx-audio`, `feature-extraction` /
+/// `sentence-similarity` of a tested embedder architecture and `text-ranking` of a Qwen3
+/// reranker ([`crate::engine::mlx::retrieval_repo_task`]) for `mlx-embed`.
 /// Runnable where MLX runs (Apple Silicon; installed or not is settled later by
 /// [`resolve_installed`]); on a Mac whose macOS is too old for the MLX wheels,
 /// [`Compatibility::UnsupportedPlatform`]; `None` elsewhere and for every other repo.
@@ -731,6 +737,10 @@ pub fn mlx_compatibility_on(
         }
         // Vocal separation (Mel-Band-RoFormer) behind `/v1/audio/process`.
         Some("audio-to-audio") if crate::engine::mlx::is_sts_repo(tags) => MLX_AUDIO_FAMILY,
+        // Embedders and rerankers behind `/v1/embeddings` and `/v1/rerank`.
+        Some(_) if crate::engine::mlx::retrieval_repo_task(task, tags).is_some() => {
+            MLX_EMBED_FAMILY
+        }
         Some(_) => return None,
     };
     if !apple_silicon || format != ModelFormat::Mlx {
@@ -784,8 +794,9 @@ pub fn mflux_compatibility(
     )
 }
 
-/// The FLUX.2 [klein] base model a repo's tags name (`base_model:black-forest-labs/FLUX.2-klein-4B`,
-/// also `base_model:quantized:...` / `base_model:finetune:...`), as mflux's model name.
+/// The base model of [`crate::engine::mlx::MFLUX_MODELS`] a repo's tags name
+/// (`base_model:black-forest-labs/FLUX.2-klein-4B`, also `base_model:quantized:...` /
+/// `base_model:finetune:...`), as mflux's model name.
 pub fn mflux_base_of(tags: &[String]) -> Option<&'static str> {
     tags.iter().find_map(|t| {
         let rest = t.strip_prefix("base_model:")?;
@@ -795,8 +806,10 @@ pub fn mflux_base_of(tags: &[String]) -> Option<&'static str> {
 }
 
 /// Whether a repo's files are mflux's saved layout: `transformer/`, `text_encoder/` and `vae/`
-/// each with numbered safetensors shards (`0.safetensors`) and `model.safetensors.index.json`,
-/// `tokenizer/tokenizer.json`, and no `model_index.json` (a diffusers pipeline's).
+/// (and FLUX.1's `text_encoder_2/` when there is one) each with numbered safetensors shards
+/// (`0.safetensors`) and `model.safetensors.index.json`, `tokenizer/tokenizer.json` (and
+/// `tokenizer_2/tokenizer.json` with a second encoder), and no `model_index.json` (a diffusers
+/// pipeline's).
 pub fn is_mflux_layout(files: &[String]) -> bool {
     let shard = |part: &str| {
         files.iter().any(|f| {
@@ -808,12 +821,21 @@ pub fn is_mflux_layout(files: &[String]) -> bool {
     };
     !files.iter().any(|f| f == "model_index.json")
         && files.iter().any(|f| f == "tokenizer/tokenizer.json")
-        && crate::engine::mlx::MFLUX_PARTS.iter().all(|part| {
-            shard(part)
-                && files
+        && crate::engine::mlx::MFLUX_PARTS
+            .iter()
+            .chain(
+                crate::engine::mlx::MFLUX_EXTRA_PARTS
                     .iter()
-                    .any(|f| *f == format!("{part}/model.safetensors.index.json"))
-        })
+                    .filter(|part| files.iter().any(|f| f.starts_with(&format!("{part}/")))),
+            )
+            .all(|part| {
+                shard(part)
+                    && files
+                        .iter()
+                        .any(|f| *f == format!("{part}/model.safetensors.index.json"))
+            })
+        && (!files.iter().any(|f| f.starts_with("text_encoder_2/"))
+            || files.iter().any(|f| f == "tokenizer_2/tokenizer.json"))
 }
 
 /// [`mflux_compatibility`] with the platform facts given.
@@ -824,13 +846,13 @@ pub fn mflux_compatibility_on(
     apple_silicon: bool,
     os_too_old: bool,
 ) -> Option<Compatibility> {
-    if !apple_silicon
-        || !matches!(task, Some("text-to-image" | "image-to-image") | None)
-        || mflux_base_of(tags).is_none()
-    {
+    let name = mflux_base_of(tags)?;
+    if !apple_silicon || !matches!(task, Some("text-to-image" | "image-to-image") | None) {
         return None;
     }
-    if !is_mflux_layout(files) {
+    // FLUX.1 has its second text encoder; the others have none.
+    let second = files.iter().any(|f| f.starts_with("text_encoder_2/"));
+    if !is_mflux_layout(files) || crate::engine::mlx::mflux_has_second_encoder(name) != second {
         return None;
     }
     Some(if os_too_old {
@@ -907,6 +929,39 @@ pub fn python_hf_compatibility(
     })
 }
 
+/// The Python engine's verdict on a CTranslate2 Whisper export (faster-whisper): a repo of the
+/// `ctranslate2` library for speech recognition whose name says Whisper, with `model.bin`, a
+/// tokenizer or vocabulary and a `config.json` at the root. Every other CTranslate2 repo
+/// (translation models, NLLB...) is `None` and stays refused. A listing without file names is
+/// taken by its name and tags.
+pub fn ct2_whisper_compatibility(
+    repo_id: &str,
+    format: ModelFormat,
+    task: Option<&str>,
+    tags: &[String],
+    files: &[String],
+) -> Option<Compatibility> {
+    if format != ModelFormat::Ctranslate2
+        || task != Some("automatic-speech-recognition")
+        || !repo_id.to_ascii_lowercase().contains("whisper")
+        || tags.iter().any(|t| t.eq_ignore_ascii_case("custom_code"))
+    {
+        return None;
+    }
+    let root = |f: &&String| !f.contains('/') && !f.contains('\\');
+    let has = |name: &str| files.iter().filter(root).any(|f| f == name);
+    (files.is_empty()
+        || (has("model.bin")
+            && has("config.json")
+            && (has("tokenizer.json") || has("vocabulary.json") || has("vocabulary.txt"))
+            && !files
+                .iter()
+                .any(|f| f.to_ascii_lowercase().ends_with(".safetensors"))))
+    .then(|| Compatibility::Runnable {
+        runtime: PYTHON_HF_FAMILY.to_string(),
+    })
+}
+
 /// Whether a diffusers pipeline's download would hold PyTorch `.bin` weights: a component
 /// folder with a `.bin` and no safetensors (`segmind/tiny-sd`).
 pub fn diffusers_pickle_weights(files: &[String]) -> bool {
@@ -939,12 +994,13 @@ fn diffusers_pipeline(
     tags: &[String],
     files: &[String],
 ) -> bool {
-    if !matches!(task, Some("text-to-image" | "image-to-image"))
-        || !matches!(
-            library.map(str::to_ascii_lowercase).as_deref(),
-            None | Some("diffusers")
-        )
-        || tags.iter().any(|t| t.eq_ignore_ascii_case("custom_code"))
+    if !matches!(
+        task,
+        Some("text-to-image" | "image-to-image" | "text-to-video" | "image-to-video")
+    ) || !matches!(
+        library.map(str::to_ascii_lowercase).as_deref(),
+        None | Some("diffusers")
+    ) || tags.iter().any(|t| t.eq_ignore_ascii_case("custom_code"))
     {
         return false;
     }
@@ -964,6 +1020,87 @@ mod tests {
 
     fn s(items: &[&str]) -> Vec<String> {
         items.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn ocr_models_keep_their_format_specific_runtime() {
+        for task in ["image-to-text", "document-question-answering"] {
+            assert_eq!(
+                hub_compatibility(ModelFormat::Gguf, Some(task)),
+                Compatibility::Runnable {
+                    runtime: LLAMA_FAMILY.into()
+                }
+            );
+        }
+        assert_eq!(
+            python_hf_compatibility(
+                ModelFormat::Safetensors,
+                Some("transformers"),
+                Some("document-question-answering"),
+                &[],
+                &s(&["config.json", "model.safetensors"]),
+                None
+            ),
+            Some(Compatibility::Runnable {
+                runtime: PYTHON_HF_FAMILY.into()
+            })
+        );
+        assert_eq!(
+            hub_compatibility(ModelFormat::Gguf, Some("object-detection")),
+            Compatibility::Unsupported {
+                format: ModelFormat::Gguf
+            }
+        );
+    }
+
+    #[test]
+    fn ct2_whisper_goes_to_the_python_engine_and_other_ct2_repos_stay_refused() {
+        let asr = Some("automatic-speech-recognition");
+        let files = s(&[
+            "config.json",
+            "model.bin",
+            "tokenizer.json",
+            "vocabulary.txt",
+        ]);
+        let verdict = |id: &str, format, task, files: &[String]| {
+            ct2_whisper_compatibility(id, format, task, &s(&["ctranslate2"]), files)
+        };
+        let python = Some(Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.to_string(),
+        });
+        let ct2 = ModelFormat::Ctranslate2;
+        assert_eq!(
+            verdict("Systran/faster-whisper-tiny", ct2, asr, &files),
+            python
+        );
+        assert_eq!(
+            verdict("deepdml/faster-whisper-large-v3-turbo-ct2", ct2, asr, &[]),
+            python
+        );
+        // Another CTranslate2 model, another task, another format, an incomplete repo.
+        assert_eq!(verdict("Systran/nllb-200-ct2", ct2, asr, &files), None);
+        assert_eq!(
+            verdict(
+                "Systran/faster-whisper-tiny",
+                ct2,
+                Some("translation"),
+                &files
+            ),
+            None
+        );
+        assert_eq!(
+            verdict("openai/whisper-tiny", ModelFormat::Safetensors, asr, &files),
+            None
+        );
+        assert_eq!(
+            verdict(
+                "Systran/faster-whisper-tiny",
+                ct2,
+                asr,
+                &s(&["config.json", "model.bin"])
+            ),
+            None
+        );
     }
 
     #[test]
@@ -1030,7 +1167,7 @@ mod tests {
         // Other tasks, remote code, no weights in component folders, no model_index.json.
         assert_eq!(
             verdict(Some("diffusers"), Some("text-to-video"), &[], &tiny),
-            None
+            runnable
         );
         assert_eq!(
             verdict(
@@ -1130,6 +1267,64 @@ mod tests {
         // ...and not for GPT-2, which is left to the Python engine.
         assert_eq!(
             mistralrs_compatibility(st, Some("text-generation"), &files, Some(&gpt2)),
+            None
+        );
+    }
+
+    #[test]
+    fn python_video_verdicts_require_native_weights_and_no_custom_code() {
+        let runnable = Some(Compatibility::Runnable {
+            runtime: PYTHON_HF_FAMILY.into(),
+        });
+        for task in ["text-to-video", "image-to-video"] {
+            let files = s(&[
+                "model_index.json",
+                "transformer/diffusion_pytorch_model.safetensors",
+            ]);
+            assert_eq!(
+                python_hf_compatibility(
+                    ModelFormat::Diffusers,
+                    Some("diffusers"),
+                    Some(task),
+                    &[],
+                    &files,
+                    None
+                ),
+                runnable
+            );
+            assert_eq!(
+                python_hf_compatibility(
+                    ModelFormat::Diffusers,
+                    Some("diffusers"),
+                    Some(task),
+                    &s(&["custom_code"]),
+                    &files,
+                    None
+                ),
+                None
+            );
+        }
+        let files = s(&["config.json", "model.safetensors"]);
+        assert_eq!(
+            python_hf_compatibility(
+                ModelFormat::Safetensors,
+                Some("transformers"),
+                Some("video-text-to-text"),
+                &[],
+                &files,
+                None
+            ),
+            runnable
+        );
+        assert_eq!(
+            python_hf_compatibility(
+                ModelFormat::Onnx,
+                Some("transformers"),
+                Some("video-text-to-text"),
+                &[],
+                &files,
+                None
+            ),
             None
         );
     }
@@ -1877,6 +2072,34 @@ mod tests {
     }
 
     #[test]
+    fn mlx_retrieval_repos_are_mlx_embed_on_apple_silicon() {
+        let files = s(&["config.json", "model.safetensors", "tokenizer.json"]);
+        let embed_tags = s(&["sentence-transformers", "bert", "feature-extraction", "mlx"]);
+        let format = detect_format(&embed_tags, Some("sentence-transformers"), &files);
+        assert_eq!(format, ModelFormat::Mlx);
+        let runnable = Some(Compatibility::Runnable {
+            runtime: MLX_EMBED_FAMILY.into(),
+        });
+        let on = |task, tags: &[String], apple| {
+            mlx_compatibility_on(
+                "mlx-community/x",
+                ModelFormat::Mlx,
+                Some(task),
+                &files,
+                tags,
+                apple,
+                false,
+            )
+        };
+        assert_eq!(on("feature-extraction", &embed_tags, true), runnable);
+        let rerank_tags = s(&["mlx", "qwen3", "text-ranking", "reranker"]);
+        assert_eq!(on("text-ranking", &rerank_tags, true), runnable);
+        assert_eq!(on("text-ranking", &rerank_tags, false), None);
+        // An architecture the worker does not run.
+        assert_eq!(on("feature-extraction", &s(&["mlx", "t5"]), true), None);
+    }
+
+    #[test]
     fn mlx_chat_repos_run_on_apple_silicon_only() {
         let files = s(&[
             "config.json",
@@ -2340,6 +2563,40 @@ mod mflux_tests {
         let kontext = s(&["base_model:quantized:black-forest-labs/FLUX.1-Kontext-dev"]);
         assert_eq!(on(Some("image-to-image"), &q4_files(), &kontext), None);
         assert_eq!(on(Some("text-generation"), &q4_files(), &tags), None);
+        // Z-Image and Qwen-Image have klein's layout; FLUX.1 adds its T5 encoder and tokenizer.
+        let zimage = s(&["base_model:Tongyi-MAI/Z-Image-Turbo"]);
+        assert_eq!(mflux_base_of(&zimage), Some("z-image-turbo"));
+        assert_eq!(on(Some("text-to-image"), &q4_files(), &zimage), runnable);
+        let qwen_image = s(&["base_model:Qwen/Qwen-Image"]);
+        assert_eq!(
+            on(Some("text-to-image"), &q4_files(), &qwen_image),
+            runnable
+        );
+        let mut flux1 = q4_files();
+        flux1.extend(s(&[
+            "text_encoder_2/0.safetensors",
+            "text_encoder_2/model.safetensors.index.json",
+            "tokenizer_2/tokenizer.json",
+        ]));
+        for base in [
+            "FLUX.1-schnell",
+            "FLUX.1-dev",
+            "FLUX.1-Krea-dev",
+            "FLUX.1-Fill-dev",
+        ] {
+            let tags = s(&[&format!("base_model:black-forest-labs/{base}")]);
+            assert_eq!(on(Some("text-to-image"), &flux1, &tags), runnable, "{base}");
+            // Without the second encoder (or klein with one) the folder would not load.
+            assert_eq!(
+                on(Some("text-to-image"), &q4_files(), &tags),
+                None,
+                "{base}"
+            );
+        }
+        assert_eq!(on(Some("text-to-image"), &flux1, &tags), None);
+        let mut no_t5_tokenizer = flux1.clone();
+        no_t5_tokenizer.retain(|f| !f.starts_with("tokenizer_2/"));
+        assert!(!is_mflux_layout(&no_t5_tokenizer));
         // BFL's own diffusers repo: `model_index.json` and diffusers' weight names.
         let diffusers = s(&[
             "model_index.json",

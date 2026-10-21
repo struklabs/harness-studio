@@ -14,3 +14,16 @@ label_key = "mlxparam.max_seconds"
 help_key = "mfluxparam.max_seconds_help"
 min = 5
 max = 3600
+
+# One LoRA adapter (a .safetensors file) applied to the transformer at load; its scale is the
+# definition's LoRA scale (`--lora-scale`, 1 when unset). Typed field: `LaunchConfig.lora_path`.
+[[param]]
+id = "lora_path"
+flags = ["--lora"]
+kind = "path"
+group = "model_files"
+level = "basic"
+label_key = "dash.adv_lora_path_label"
+help_key = "mfluxparam.lora_help"
+legacy_field = "lora_path"
+feature = "lora"

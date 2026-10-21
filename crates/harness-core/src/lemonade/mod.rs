@@ -12,7 +12,7 @@
 //! newest is used, an older one stays as the rollback; [`LemonadeSettings::runtime`] pins one).
 //!
 //! **How it runs.** One `lemond` process per Harness, on a port Harness picks
-//! ([`crate::ports::AUTO_RANGE`]), bound to 127.0.0.1 and locked with a per-run API key
+//! ([`crate::ports::auto_range`]), bound to 127.0.0.1 and locked with a per-run API key
 //! (`LEMONADE_API_KEY`, every route but `/live` then wants the Bearer key; the key lives in
 //! memory and in the child's environment). It starts on demand ([`ensure_running`]), is
 //! stopped with Harness, and dies with it (Windows job object / parent-death signal) even when
@@ -316,6 +316,9 @@ pub async fn refresh_catalog(ep: &Endpoint) -> Result<Catalog, String> {
 
 struct Running {
     child: command_group::GroupChild,
+    /// Entry for the next start's sweep (`orphans`), removed with this record.
+    #[allow(dead_code)]
+    registration: crate::orphans::Registration,
     stopping: bool,
     endpoint: Endpoint,
     port: u16,
@@ -479,24 +482,7 @@ fn spawn(
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
-    #[cfg(target_os = "linux")]
-    {
-        use std::os::unix::process::CommandExt;
-        // SAFETY: only async-signal-safe libc calls are made between fork and exec.
-        unsafe {
-            cmd.pre_exec(|| {
-                if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) == -1 {
-                    return Err(std::io::Error::last_os_error());
-                }
-                if libc::getppid() == 1 {
-                    libc::raise(libc::SIGKILL);
-                }
-                Ok(())
-            });
-        }
-    }
-    #[cfg(target_os = "macos")]
-    crate::watchdog::install(&mut cmd);
+    crate::orphans::protect(&mut cmd);
 
     let mut group = cmd.group();
     // The job object kills lemond and its backends when Harness exits, crash included.
@@ -598,6 +584,7 @@ async fn start_locked() -> Result<Endpoint, String> {
         key,
     };
     *service().running.lock().unwrap() = Some(Running {
+        registration: crate::orphans::Registration::new(pid),
         child,
         stopping: false,
         endpoint: endpoint.clone(),

@@ -60,7 +60,10 @@
   import { isExternalModel } from './playground/cloudModels';
   import EmbeddingPanel from './playground/EmbeddingPanel.svelte';
   import RerankPanel from './playground/RerankPanel.svelte';
+  import OcrPanel from './playground/OcrPanel.svelte';
   import PipelinePanel from './playground/PipelinePanel.svelte';
+  import VideoPanel from './playground/VideoPanel.svelte';
+  import { isVideoTask } from './playground/video';
   import { ensureLibraryDefinitions, loadAndChat } from '#lib/stores/downloads.svelte.js';
   import { isChatLoadable } from '#lib/downloadFollowUp.js';
   import { kindsForTab, servedModelName } from '#lib/libraryDefinitions.js';
@@ -77,7 +80,7 @@
   import * as ToggleGroup from '#lib/components/ui/toggle-group/index.js';
   import { domain, samePath } from '#lib/stores/domain.svelte.js';
   import { DEFAULT_PRESET_ID, presetFromRequest } from './presets/request';
-  import type { InferencePreset, ServeMode, LibraryView } from '#lib/types.js';
+  import type { InferencePreset, ServeMode, PlaygroundMode, LibraryView } from '#lib/types.js';
   import { Unplug, MessageSquare, Plus, SlidersHorizontal, PanelLeft, TriangleAlert, Columns2 } from '@lucide/svelte';
   import SplitView from './playground/SplitView.svelte';
   import SectionLoading from '#lib/components/common/SectionLoading.svelte';
@@ -268,8 +271,8 @@
   let splitControllers: AbortController[] = [];
 
   // ---- Tabs: chat, or the Embedding / Rerank test benches ----
-  let pgTab = $state<ServeMode>('chat');
-  let modeModels = $state({ embedding: '', rerank: '', transcription: '', image: '', pipeline: '' });
+  let pgTab = $state<PlaygroundMode>('chat');
+  let modeModels = $state({ embedding: '', rerank: '', transcription: '', image: '', pipeline: '', ocr: '' });
   /** Pipeline task ("fill-mask"...) of the Tasks tab's model, from its library file. */
   let pipelineTask = $derived.by(() => {
     const def = domain.definitions.find(d => d.alias === modeModels.pipeline);
@@ -277,13 +280,14 @@
   });
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
   let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isExternalModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
+  let ocrAliases = $derived(definitionsForMode(domain.definitions, 'ocr', library.models).map(def => def.alias));
   let pickerModel = $derived(pgTab === 'chat' ? settings.model : pgTab === 'image' ? imageSession.model : modeModels[pgTab]);
   $effect(() => {
     void library.version;
     untrack(() => void library.refresh());
   });
   $effect(() => {
-    for (const mode of ['embedding', 'rerank', 'transcription', 'image', 'pipeline'] as const) {
+    for (const mode of ['embedding', 'rerank', 'transcription', 'image', 'pipeline', 'ocr'] as const) {
       const available = definitionsForMode(domain.definitions, mode, library.models).map(def => def.alias);
       modeModels[mode] = selectModeModel(modeModels[mode], available);
     }
@@ -304,7 +308,7 @@
     const alias = app.requestedPlaygroundModel;
     app.requestedPlaygroundModel = null;
     if (alias && tab === 'chat' && isExternalModel(alias)) useModel(app.selectedServerId, alias);
-    else if (alias && (tab === 'embedding' || tab === 'rerank' || tab === 'pipeline')) modeModels[tab] = alias;
+    else if (alias && (tab === 'embedding' || tab === 'rerank' || tab === 'pipeline' || tab === 'ocr')) modeModels[tab] = alias;
   });
   // Embedding / Rerank list definitions: library files found by a scan get their default one first.
   $effect(() => {
@@ -2796,7 +2800,7 @@
           size="sm"
           value={pgTab}
           onValueChange={(v) => {
-            if (v) pgTab = v as ServeMode;
+            if (v) pgTab = v as PlaygroundMode;
           }}
           class="ml-1 shrink-0"
           aria-label={t('emb.tabs_label')}
@@ -2950,7 +2954,7 @@
       {/if}
       <!-- Speech goes through the gateway (whisper-server JIT), not the selected llama-server:
            the Speech panel shows its own gateway notice instead. -->
-      {#if !canChat && pgTab !== 'transcription' && pgTab !== 'image' && pgTab !== 'pipeline'}
+      {#if !canChat && pgTab !== 'transcription' && pgTab !== 'image' && pgTab !== 'pipeline' && pgTab !== 'ocr'}
         <div class="flex shrink-0 items-center gap-3 border-b border-warning/30 bg-warning/10 px-4 py-2" role="status">
           <Unplug class="size-4 shrink-0 text-warning" aria-hidden="true" />
           <span class="min-w-0 flex-1 text-xs text-foreground">
@@ -2992,8 +2996,14 @@
           {:else}
             <ImagePanel />
           {/if}
+        {:else if pgTab === 'ocr'}
+          <OcrPanel model={modeModels.ocr} />
         {:else if pgTab === 'pipeline'}
-          <PipelinePanel model={modeModels.pipeline} task={pipelineTask} />
+          {#if isVideoTask(pipelineTask)}
+            {#key modeModels.pipeline}<VideoPanel model={modeModels.pipeline} task={pipelineTask} />{/key}
+          {:else}
+            <PipelinePanel model={modeModels.pipeline} task={pipelineTask} />
+          {/if}
         {:else}
           <RerankPanel model={modeModels.rerank} />
         {/if}
@@ -3153,6 +3163,7 @@
           ensureConversation={(title) => ensureConversation(title)}
           embedAlias={resolveEmbedModel(settings.ragEmbedModel, ragModels?.embedding ?? [])}
           models={ragModels}
+          ocrAliases={ocrAliases}
           readOnly={!persistEnabled}
           bind:attached={attachedKbs}
           onUseEmbedder={(alias) => (settings.ragEmbedModel = alias)}
