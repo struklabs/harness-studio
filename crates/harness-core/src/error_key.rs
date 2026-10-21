@@ -161,6 +161,15 @@ pub fn http_status(code: &str) -> u16 {
         "permissions.not_available" => 409,
         "permissions.paths_invalid" | "permissions.capability_unsupported" => 400,
         "permissions.folder_not_granted" | "permissions.trust_too_low" => 403,
+        // A heavy job or a device needs the user's consent first / the user or the system said no.
+        "workload.consent_required" => 428,
+        "workload.denied" | "workload.os_blocked" => 403,
+        "workload.client_invalid" => 400,
+        // Undo of an agent file change: the file moved on, or the old content was not kept.
+        "checkpoint.changed_since" | "checkpoint.already_undone" | "checkpoint.not_restorable" => {
+            409
+        }
+        "checkpoint.io" => 500,
         // n8n answered, but not as expected (the Control API is a gateway to it here).
         "automations.n8n_unauthorized"
         | "automations.n8n_forbidden"

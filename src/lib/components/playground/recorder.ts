@@ -1,9 +1,10 @@
 // Speech tab: microphone capture with Web Audio. PCM is collected by an AudioWorklet and encoded
 // to a 16 kHz mono WAV in the browser, so recording works without ffmpeg (no MediaRecorder).
 import { concatChunks, encodeWav, recordingName, resample, WAV_RATE } from './wav';
+import { DeviceRefused, requireDevice } from '#lib/stores/deviceConsent.svelte.js';
 
 /** Why recording could not start; the panel shows the localized text. */
-export type RecordErrorCode = 'insecure' | 'unsupported' | 'denied' | 'no_device' | 'failed';
+export type RecordErrorCode = 'insecure' | 'unsupported' | 'denied' | 'no_device' | 'failed' | 'consent_denied' | 'os_blocked';
 
 export class RecordError extends Error {
   constructor(
@@ -39,6 +40,13 @@ export async function startRecording(onLevel: (peak: number) => void, onLimit: (
   if (!window.isSecureContext) throw new RecordError('insecure');
   if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined' || !('audioWorklet' in AudioContext.prototype)) {
     throw new RecordError('unsupported');
+  }
+  // Harness's own check first: the operating system's switch, then the user's consent.
+  try {
+    await requireDevice('microphone');
+  } catch (e) {
+    if (e instanceof DeviceRefused) throw new RecordError(e.reason === 'os_blocked' ? 'os_blocked' : 'consent_denied');
+    throw new RecordError('failed', e instanceof Error ? e.message : String(e));
   }
   let stream: MediaStream;
   try {

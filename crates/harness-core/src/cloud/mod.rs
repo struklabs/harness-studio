@@ -741,6 +741,9 @@ pub fn rewrite_model(id: &str, body: &[u8]) -> Option<Vec<u8>> {
     let (_, model) = parse_model(id)?;
     let mut value: Value = serde_json::from_slice(body).ok()?;
     value.as_object_mut()?.insert("model".into(), model.into());
+    // The body leaves the machine for a third party: stored keys and well-known token formats
+    // that ended up in a prompt or a tool result are removed first.
+    crate::leakguard::redact_value(&mut value, crate::leakguard::Mode::Tokens);
     serde_json::to_vec(&value).ok()
 }
 

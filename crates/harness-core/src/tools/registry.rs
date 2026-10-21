@@ -72,6 +72,9 @@ pub struct ToolCtx {
     /// Id of the call being run (the invocation id), set by [`ToolRegistry::run`]. Lets a tool
     /// that waits for the user (the n8n proposals) tell the UI which call it belongs to.
     pub call_id: Option<String>,
+    /// The run this call belongs to. When set, file-changing tools keep the previous content
+    /// of a file as a checkpoint (`super::checkpoint`) so the change can be undone.
+    pub checkpoint_group: Option<String>,
     network_target: Arc<Mutex<Option<String>>>,
 }
 
@@ -82,8 +85,20 @@ impl ToolCtx {
             cancel: CancelToken::new(),
             timeout: DEFAULT_TIMEOUT,
             call_id: None,
+            checkpoint_group: None,
             network_target: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Keeps the current content of `path` before `tool` changes it (see
+    /// [`ToolCtx::checkpoint_group`]); `None` when checkpoints are off for this call.
+    pub fn checkpoint(
+        &self,
+        tool: &str,
+        path: &std::path::Path,
+    ) -> Option<super::checkpoint::PendingChange> {
+        let group = self.checkpoint_group.as_deref()?;
+        super::checkpoint::PendingChange::begin(group, tool, path)
     }
 
     pub fn workspace(&self) -> Result<&Workspace, ToolError> {

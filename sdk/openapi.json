@@ -1921,6 +1921,233 @@
         ]
       }
     },
+    "/api/harness/v1/checkpoints": {
+      "get": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "File changes the agent tools made, newest first.",
+        "operationId": "list_checkpoints",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Checkpoint"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "Deletes every checkpoint and its kept content (the files themselves are not touched).",
+        "operationId": "clear_checkpoints",
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/checkpoints/undo-run": {
+      "post": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "Undoes every change of one run, newest first; stops at the first refusal.",
+        "operationId": "undo_checkpoint_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UndoRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Checkpoint"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/checkpoints/{id}/undo": {
+      "post": {
+        "tags": [
+          "tools"
+        ],
+        "summary": "Undoes one change: the file gets its previous content back (a file the agent created is\ndeleted). `409` when the file changed since, the change was undone already, or its\nprevious content was too large to keep.",
+        "operationId": "undo_checkpoint",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/UndoRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Checkpoint"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/cloud/models": {
       "get": {
         "tags": [
@@ -2884,7 +3111,7 @@
         "tags": [
           "models"
         ],
-        "summary": "Queues a conversion (download, convert, quantize, place in the library).",
+        "summary": "Queues a conversion (download, convert, quantize, place in the library). A named API token\nis asked once for consent to heavy CPU work (`428 workload.consent_required`, answered on the\nPermissions page or with `POST /workloads/consents`).",
         "operationId": "start_conversion",
         "requestBody": {
           "content": {
@@ -2938,6 +3165,16 @@
             }
           },
           "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "428": {
             "description": "",
             "content": {
               "application/json": {
@@ -12906,6 +13143,216 @@
         }
       }
     },
+    "/api/harness/v1/workloads": {
+      "get": {
+        "tags": [
+          "permissions"
+        ],
+        "summary": "Every workload kind with the operating system's switch (devices) and the remembered\nanswers.",
+        "operationId": "list_workloads",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkloadView"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/workloads/check": {
+      "post": {
+        "tags": [
+          "permissions"
+        ],
+        "summary": "What would happen if `client` started a workload of this kind now: allowed, denied, not\nasked yet (`ask`: show the prompt) or blocked by the operating system.",
+        "operationId": "check_workload",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/workloads/consents": {
+      "post": {
+        "tags": [
+          "permissions"
+        ],
+        "summary": "Remembers the user's answer for a client and kind (replacing an earlier one).",
+        "operationId": "remember_workload_consent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RememberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Consent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/workloads/consents/{id}": {
+      "delete": {
+        "tags": [
+          "permissions"
+        ],
+        "summary": "Removes one remembered answer: the client is asked again next time.",
+        "operationId": "revoke_workload_consent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/document/qa": {
       "post": {
         "tags": [
@@ -14120,6 +14567,97 @@
           }
         }
       },
+      "CheckRequest": {
+        "type": "object",
+        "required": [
+          "client",
+          "kind"
+        ],
+        "properties": {
+          "client": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/WorkloadKind"
+          }
+        }
+      },
+      "CheckResponse": {
+        "type": "object",
+        "required": [
+          "verdict"
+        ],
+        "properties": {
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          }
+        }
+      },
+      "Checkpoint": {
+        "type": "object",
+        "required": [
+          "id",
+          "group",
+          "tool",
+          "path",
+          "created",
+          "bytes_before",
+          "restorable",
+          "at_ms",
+          "undone"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string",
+            "description": "The run: conversation id, else the client name."
+          },
+          "tool": {
+            "type": "string",
+            "description": "`write_file` or `edit_file`."
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute path of the changed file."
+          },
+          "created": {
+            "type": "boolean",
+            "description": "The file did not exist before the change (undo deletes it)."
+          },
+          "bytes_before": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the previous content in bytes.",
+            "minimum": 0
+          },
+          "restorable": {
+            "type": "boolean",
+            "description": "The previous content was kept and can be restored."
+          },
+          "at_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "undone": {
+            "type": "boolean",
+            "description": "The change was undone."
+          },
+          "after_sha256": {
+            "type": "string",
+            "description": "SHA-256 of the file as the agent left it (undo checks it)."
+          }
+        }
+      },
+      "Choice": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "deny"
+        ]
+      },
       "ClientEndpoint": {
         "type": "object",
         "description": "An OpenAI/Anthropic-compatible address for clients.",
@@ -14619,6 +15157,37 @@
             "minimum": 0
           },
           "disk_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "Consent": {
+        "type": "object",
+        "description": "One remembered answer.",
+        "required": [
+          "id",
+          "client",
+          "kind",
+          "choice",
+          "decided_at_ms"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "client": {
+            "type": "string",
+            "description": "The client: `ui`, `cli`, or the name of an API token."
+          },
+          "kind": {
+            "$ref": "#/components/schemas/WorkloadKind"
+          },
+          "choice": {
+            "$ref": "#/components/schemas/Choice"
+          },
+          "decided_at_ms": {
             "type": "integer",
             "format": "int64",
             "minimum": 0
@@ -23027,6 +23596,15 @@
           "cpu"
         ]
       },
+      "OsAccess": {
+        "type": "string",
+        "description": "The operating system's own switch for a device.",
+        "enum": [
+          "allowed",
+          "denied",
+          "unknown"
+        ]
+      },
       "OtelProtocol": {
         "type": "string",
         "description": "Wire protocol of the OTLP endpoint.",
@@ -24458,6 +25036,25 @@
               "null"
             ],
             "description": "`vulkan`, `cuda`, `rocm`, `sycl`, `cpu`, `metal` (default: the hardware\nrecommendation, then Vulkan, then CPU)."
+          }
+        }
+      },
+      "RememberRequest": {
+        "type": "object",
+        "required": [
+          "client",
+          "kind",
+          "choice"
+        ],
+        "properties": {
+          "client": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/WorkloadKind"
+          },
+          "choice": {
+            "$ref": "#/components/schemas/Choice"
           }
         }
       },
@@ -29040,6 +29637,15 @@
           }
         }
       },
+      "UndoRequest": {
+        "type": "object",
+        "properties": {
+          "force": {
+            "type": "boolean",
+            "description": "Restore even if the file changed after the agent's write."
+          }
+        }
+      },
       "UndoResponse": {
         "type": "object",
         "required": [
@@ -29055,6 +29661,20 @@
             "type": "string"
           },
           "undone": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UndoRunRequest": {
+        "type": "object",
+        "required": [
+          "group"
+        ],
+        "properties": {
+          "group": {
+            "type": "string"
+          },
+          "force": {
             "type": "boolean"
           }
         }
@@ -29269,6 +29889,16 @@
             "description": "Files of an install that are missing or changed in size ([`damaged_in`]); the build then\nreads as not installed and is installed again."
           }
         }
+      },
+      "Verdict": {
+        "type": "string",
+        "description": "What a check found.",
+        "enum": [
+          "allowed",
+          "denied",
+          "ask",
+          "os_blocked"
+        ]
       },
       "VerifiedCaps": {
         "type": "object",
@@ -29516,6 +30146,45 @@
           "editor_url": {
             "type": "string",
             "description": "Link that opens the workflow in the n8n editor."
+          }
+        }
+      },
+      "WorkloadKind": {
+        "type": "string",
+        "enum": [
+          "heavy_gpu",
+          "heavy_cpu",
+          "microphone",
+          "camera"
+        ]
+      },
+      "WorkloadView": {
+        "type": "object",
+        "description": "What the Permissions page shows for one workload kind.",
+        "required": [
+          "kind",
+          "consents"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/WorkloadKind"
+          },
+          "os": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OsAccess",
+                "description": "`None` for the kinds without an operating-system switch."
+              }
+            ]
+          },
+          "consents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Consent"
+            }
           }
         }
       }

@@ -3,6 +3,8 @@
   import InstalledToolsSettings from './InstalledToolsSettings.svelte';
   import Agents from '../Agents.svelte';
   import PermissionsManager from './PermissionsManager.svelte';
+  import WorkloadPermissions from './WorkloadPermissions.svelte';
+  import AgentCheckpoints from './AgentCheckpoints.svelte';
   import FieldHelp from '#lib/components/common/FieldHelp.svelte';
   import { onMount, untrack } from 'svelte';
   import { invoke } from '#lib/ipc.js';
@@ -367,6 +369,8 @@
 <div hidden={page !== 'security-permissions'} class="flex flex-col gap-3">
   {#if page === 'security-permissions'}
     <PermissionsManager />
+    <WorkloadPermissions />
+    <AgentCheckpoints />
     <h3 class="font-medium">{t('trust.overview')}</h3>
     <details><summary>{t('trust.mcp')}</summary><McpServers page={overviewMcpPage} onNavigate={(next) => { if (next === 'servers' || next === 'import' || next === 'status') overviewMcpPage = next; }} /></details>
     <details><summary>{t('trust.tools')}</summary><InstalledToolsSettings /></details>

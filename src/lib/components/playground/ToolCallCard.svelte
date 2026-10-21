@@ -146,15 +146,20 @@
   {#if waiting}
     <div class="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 p-2.5" role="alert">
       <p class="text-xs leading-snug text-foreground">{t('pg.tool_approval_prompt')}</p>
+      {#if call.fromToolOutput}
+        <p class="text-xs leading-snug font-medium text-foreground" data-testid="from-tool-output">{t('pg.tool_from_output')}</p>
+      {/if}
       <div class="flex flex-wrap items-center gap-2">
         <Button size="sm" bind:ref={approveButton} onclick={() => onApprove?.(call.id, always)}>{t('pg.tool_approve')}</Button>
         <Button size="sm" variant="outline" onclick={() => onDeny?.(call.id)}>{t('pg.tool_deny')}</Button>
-        <div class="flex items-center gap-1.5">
-          <Checkbox id={`always-${uid}`} bind:checked={always} />
-          <Label for={`always-${uid}`} class="text-xs font-normal text-muted-foreground">
-            {t('pg.tool_always_allow', { name: call.name })}
-          </Label>
-        </div>
+        {#if !call.fromToolOutput}
+          <div class="flex items-center gap-1.5">
+            <Checkbox id={`always-${uid}`} bind:checked={always} />
+            <Label for={`always-${uid}`} class="text-xs font-normal text-muted-foreground">
+              {t('pg.tool_always_allow', { name: call.name })}
+            </Label>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}

@@ -43,6 +43,7 @@ pub mod agent;
 pub mod agent_stream;
 pub mod automatic;
 pub mod builtin;
+pub mod checkpoint;
 pub mod generator;
 pub mod glob;
 pub mod installed;

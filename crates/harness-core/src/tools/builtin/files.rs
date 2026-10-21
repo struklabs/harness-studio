@@ -310,8 +310,16 @@ pub fn write_file(a: &Value, ctx: &ToolCtx) -> Result<ToolOutput, ToolError> {
     }
     // Directories created above might (in a race) be links now: check the result once more.
     ws.resolve_new(&raw)?;
-    std::fs::write(&path, content.as_bytes())
-        .map_err(|e| io_err("failed to write file", &raw, e))?;
+    let checkpoint = ctx.checkpoint("write_file", &path);
+    if let Err(e) = std::fs::write(&path, content.as_bytes()) {
+        if let Some(c) = checkpoint {
+            c.abandon();
+        }
+        return Err(io_err("failed to write file", &raw, e));
+    }
+    if let Some(c) = checkpoint {
+        c.commit(content.as_bytes());
+    }
     Ok(ToolOutput::text(pretty(json!({
         "result": "file written successfully",
         "path": raw,
@@ -519,7 +527,16 @@ pub fn edit_file(a: &Value, ctx: &ToolCtx) -> Result<ToolOutput, ToolError> {
             "no changes made: the replacement(s) produced identical content",
         ));
     }
-    write_back(&path, &raw, &new_content)?;
+    let checkpoint = ctx.checkpoint("edit_file", &path);
+    if let Err(e) = write_back(&path, &raw, &new_content) {
+        if let Some(c) = checkpoint {
+            c.abandon();
+        }
+        return Err(e);
+    }
+    if let Some(c) = checkpoint {
+        c.commit(new_content.as_bytes());
+    }
     Ok(ToolOutput::text(pretty(json!({
         "result": "file edited successfully",
         "path": raw,

@@ -102,6 +102,16 @@ const tr = {
   'lora.bad_response': 'Sunucunun LoRA adaptör listesi beklenen biçimde değil.',
   'lora.unsupported': 'Bu sunucu LoRA ölçeğini çalışırken değiştirmeyi desteklemiyor (HTTP {status}).',
   'lora.request_failed': 'LoRA isteği tamamlanamadı: {error}',
+  'workload.consent_required': "{client} için {kind} izni henüz sorulmadı. İzinler sayfasından verin.",
+  'workload.denied': "{client} için {kind} kullanımı reddedildi. İzinler sayfasından değiştirebilirsiniz.",
+  'workload.os_blocked': "İşletim sistemi {kind} erişimini engelliyor. Sistemin gizlilik ayarlarından açın.",
+  'workload.client_invalid': "İstemci adı geçersiz.",
+  'workload.consent_not_found': "Bu izin kaydı bulunamadı ({id}); zaten geri alınmış olabilir.",
+  'checkpoint.not_found': "Bu değişiklik kaydı bulunamadı ({id}).",
+  'checkpoint.changed_since': "Dosya ajandan sonra değişmiş ({path}); geri alma reddedildi.",
+  'checkpoint.already_undone': "Bu değişiklik zaten geri alınmış ({path}).",
+  'checkpoint.not_restorable': "Dosyanın önceki hali saklanamadığından geri alınamıyor ({path}).",
+  'checkpoint.io': "Dosya geri yüklenemedi ({path}): {error}",
 };
 
 const en: Record<keyof typeof tr, string> = {
@@ -204,6 +214,16 @@ const en: Record<keyof typeof tr, string> = {
   'lora.bad_response': 'The LoRA adapter list from the server is not in the expected format.',
   'lora.unsupported': 'This server does not support changing LoRA scales while running (HTTP {status}).',
   'lora.request_failed': 'The LoRA request failed: {error}',
+  'workload.consent_required': "{client} has not been asked about {kind} yet. Allow it on the Permissions page.",
+  'workload.denied': "{kind} was denied for {client}. You can change that on the Permissions page.",
+  'workload.os_blocked': "The operating system blocks {kind}. Turn it on in the system privacy settings.",
+  'workload.client_invalid': "The client name is not valid.",
+  'workload.consent_not_found': "This permission record was not found ({id}); it may already be revoked.",
+  'checkpoint.not_found': "This change record was not found ({id}).",
+  'checkpoint.changed_since': "The file changed after the agent ({path}); the undo was refused.",
+  'checkpoint.already_undone': "This change was already undone ({path}).",
+  'checkpoint.not_restorable': "Cannot undo: the file's previous version was not kept ({path}).",
+  'checkpoint.io': "Could not restore the file ({path}): {error}",
 };
 
 export default { tr, en };

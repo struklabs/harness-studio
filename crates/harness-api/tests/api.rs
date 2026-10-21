@@ -692,6 +692,13 @@ async fn openapi_document_is_valid_and_lists_every_route() {
         ("/permissions/{kind}/{id}", &["delete"]),
         ("/permissions/{kind}/{id}/grants/{grant_id}", &["delete"]),
         ("/permissions/{kind}/{id}/trust", &["put"]),
+        ("/workloads", &["get"]),
+        ("/workloads/check", &["post"]),
+        ("/workloads/consents", &["post"]),
+        ("/workloads/consents/{id}", &["delete"]),
+        ("/checkpoints", &["get", "delete"]),
+        ("/checkpoints/{id}/undo", &["post"]),
+        ("/checkpoints/undo-run", &["post"]),
     ];
     for (path, methods) in expected {
         let full = format!("{}{}", control_api::BASE_PATH, path);

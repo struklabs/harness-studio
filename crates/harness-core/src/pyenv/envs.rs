@@ -668,6 +668,127 @@ pub(crate) mod tests {
         assert!(spec("hf-cuda").is_some());
     }
 
+    /// What is wrong with a lock file for `uv pip install --require-hashes`: every requirement
+    /// is an exact pin (or a version-pinned HTTPS wheel URL) with at least one SHA-256, nothing is
+    /// checked out of a repository, and
+    /// package indexes are HTTPS. (`uv pip install --require-hashes --no-deps` refuses the rest at
+    /// install time; this finds it in review and CI instead of on a user's machine.)
+    fn lock_problems(lock: &str) -> Vec<String> {
+        let mut problems = Vec::new();
+        let mut entry = String::new();
+        let flush = |entry: &mut String, problems: &mut Vec<String>| {
+            let e = entry.trim().to_string();
+            entry.clear();
+            if e.is_empty() {
+                return;
+            }
+            let name = e.split_whitespace().next().unwrap_or("").to_string();
+            // A version-pinned wheel from an HTTPS URL (the CUDA transcribe.cpp wheels exist only
+            // as GitHub release assets) is fine because its hash is checked below; anything else
+            // that is not an exact == pin, or a repository checkout, is not.
+            match e.split_once(" @ ") {
+                Some((_, rest)) => {
+                    let url = rest.split_whitespace().next().unwrap_or("");
+                    if !(url.starts_with("https://") && url.ends_with(".whl")) {
+                        problems.push(format!("{name}: direct URL is not an HTTPS wheel"));
+                    }
+                }
+                None if !e.contains("==") => problems.push(format!("{name}: not an exact == pin")),
+                None => {}
+            }
+            if e.contains("git+") {
+                problems.push(format!("{name}: installed from a repository"));
+            }
+            let hashes: Vec<&str> = e.split("--hash=sha256:").skip(1).collect();
+            if hashes.is_empty() {
+                problems.push(format!("{name}: no sha256 hash"));
+            }
+            for h in hashes {
+                let digest: String = h.chars().take_while(char::is_ascii_hexdigit).collect();
+                if digest.len() != 64 {
+                    problems.push(format!("{name}: malformed sha256 hash"));
+                }
+            }
+        };
+        for line in lock.lines() {
+            let t = line.trim();
+            if t.is_empty() || t.starts_with('#') {
+                continue;
+            }
+            if t.starts_with("--") && entry.is_empty() {
+                // Option line: only HTTPS indexes.
+                if let Some(url) = t
+                    .strip_prefix("--index-url ")
+                    .or_else(|| t.strip_prefix("--extra-index-url "))
+                {
+                    if !url.trim().starts_with("https://") {
+                        problems.push(format!("index is not HTTPS: {url}"));
+                    }
+                } else {
+                    problems.push(format!("unexpected option: {t}"));
+                }
+                continue;
+            }
+            entry.push(' ');
+            entry.push_str(t.trim_end_matches('\\'));
+            if !t.ends_with('\\') {
+                flush(&mut entry, &mut problems);
+            }
+        }
+        flush(&mut entry, &mut problems);
+        problems
+    }
+
+    #[test]
+    fn lock_check_finds_unpinned_unhashed_and_url_requirements() {
+        let good = "--index-url https://pypi.org/simple\nsix==1.17.0 \\\n    --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274\n";
+        assert!(lock_problems(good).is_empty(), "{:?}", lock_problems(good));
+        assert_eq!(lock_problems("six>=1.0\n").len(), 2);
+        assert!(lock_problems("six==1.0\n")[0].contains("no sha256"));
+        let zeros = "0".repeat(64);
+        // A hashed wheel from an HTTPS URL is allowed (the CUDA transcribe.cpp release wheels).
+        assert!(lock_problems(&format!(
+            "pkg @ https://x.example/p.whl --hash=sha256:{zeros}\n"
+        ))
+        .is_empty());
+        assert_eq!(
+            lock_problems(&format!(
+                "pkg @ http://x.example/p.whl --hash=sha256:{zeros}\n"
+            ))
+            .len(),
+            1
+        );
+        assert!(!lock_problems("pkg @ https://x.example/p.whl\n").is_empty());
+        assert!(!lock_problems(&format!(
+            "pkg @ git+https://x.example/p --hash=sha256:{zeros}\n"
+        ))
+        .is_empty());
+        assert!(!lock_problems("--index-url http://insecure.example/simple\n").is_empty());
+        assert!(!lock_problems("six==1.0 --hash=sha256:abc\n").is_empty());
+    }
+
+    #[test]
+    fn every_python_lock_is_pinned_by_hash() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("python");
+        let mut checked = 0;
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().and_then(|e| e.to_str()) != Some("lock") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let problems = lock_problems(&text);
+            assert!(
+                problems.is_empty(),
+                "{}: {:?}",
+                path.display(),
+                &problems[..problems.len().min(5)]
+            );
+            checked += 1;
+        }
+        assert!(checked >= 10, "found {checked} lock files");
+    }
+
     #[test]
     fn status_follows_the_manifest_and_the_lock() {
         let dir = tempfile::tempdir().unwrap();

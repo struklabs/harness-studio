@@ -22,6 +22,7 @@ import type { ChatMessage, PgSettings, PgToolCall, ResponseStats } from './types
 import { activeCompaction, summaryBlock } from './compaction.svelte';
 import { repairSearchQuery } from './searchQueryRepair';
 import { userContent } from './images';
+import { derivedFromToolOutput, wrapUntrusted } from './untrusted';
 
 export const DENIED_TEXT = 'User denied this tool call.';
 export const CANCELLED_TEXT = 'Tool call was cancelled before it ran.';
@@ -82,6 +83,11 @@ export interface ExecuteContext {
   /** The chat's project (see `ToolRunRequest.project`). */
   project?: string | null;
   broker: ApprovalBroker;
+  /**
+   * Tool output earlier in the conversation (`toolCorpus`). A dangerous call that repeats text
+   * from it asks the user even where the policy would run it, and never uses "always allow".
+   */
+  untrustedCorpus?: () => string;
   /** Called after visible state changes (used to keep the list scrolled down). */
   onProgress?: () => void;
   /**
@@ -100,7 +106,7 @@ async function askUser(call: PgToolCall, signal: AbortSignal, ctx: ExecuteContex
 }
 
 /** A call on the Harness core: the core decides, the user is asked only when it says "ask". */
-async function runCoreCall(call: PgToolCall, args: Record<string, unknown>, signal: AbortSignal, ctx: ExecuteContext) {
+async function runCoreCall(call: PgToolCall, args: Record<string, unknown>, signal: AbortSignal, ctx: ExecuteContext & { dangerous?: boolean }) {
   const decision = await coreToolDecision(call.name);
   const base = {
     call_id: newRunId(),
@@ -112,8 +118,12 @@ async function runCoreCall(call: PgToolCall, args: Record<string, unknown>, sign
     project: ctx.project ?? null,
   };
   let approved = false;
-  if (decision === 'ask') {
-    if (ctx.broker.isAllowed(call.name)) {
+  // A destructive call whose arguments were copied from tool output is the shape of a prompt
+  // injection: it asks, whatever the policy says.
+  const derived = ctx.dangerous && decision !== 'refuse' && derivedFromToolOutput(args, ctx.untrustedCorpus?.() ?? '');
+  if (derived) call.fromToolOutput = true;
+  if (decision === 'ask' || derived) {
+    if (!derived && ctx.broker.isAllowed(call.name)) {
       call.autoApproved = true;
       approved = true;
     } else {
@@ -186,7 +196,7 @@ export async function executeToolCalls(msg: ChatMessage, signal: AbortSignal, ct
         progress();
       }
     }
-    await runCoreCall(call, parsed.value, signal, ctx);
+    await runCoreCall(call, parsed.value, signal, { ...ctx, dangerous: call.dangerous });
     progress();
   }
 }
@@ -246,7 +256,8 @@ export async function runAgentLoop(o: AgentLoopOptions): Promise<void> {
 
 function toolMessageContent(c: PgToolCall): string {
   if (c.status === 'denied') return DENIED_TEXT;
-  return c.result ?? CANCELLED_TEXT;
+  // Tool output is data: the model reads it inside an untrusted block.
+  return wrapUntrusted(c.name, c.result ?? CANCELLED_TEXT);
 }
 
 /** One round of an answer as OpenAI messages: assistant(tool_calls) + one `tool` message per call. */

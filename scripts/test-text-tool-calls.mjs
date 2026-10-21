@@ -86,7 +86,9 @@ const helpers = source.slice(source.indexOf('export interface AgentLoopOptions')
 const js = ts.transpileModule(helpers, { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
 const { guardToolCalls } = await import('../src/lib/components/playground/toolLoopGuard.ts');
 globalThis.__textCallGuard = guardToolCalls;
-const guardJs = 'const guardToolCalls = globalThis.__textCallGuard;';
+const { wrapUntrusted } = await import('../src/lib/components/playground/untrusted.ts');
+globalThis.__wrapUntrusted = wrapUntrusted;
+const guardJs = 'const guardToolCalls = globalThis.__textCallGuard; const wrapUntrusted = globalThis.__wrapUntrusted; const derivedFromToolOutput = () => false;';
 const { runAgentLoop, buildApiMessages } = await import(`data:text/javascript;base64,${Buffer.from(guardJs + '\nconst activeCompaction = () => undefined; const CANCELLED_TEXT = "Cancelled"; const DENIED_TEXT = "Denied"; const summaryBlock = (s) => s; const userContent = (text) => text;\n' + js).toString('base64')}`);
 
 test('core recovery replaces content with a pending call, preserving the explanation and id', async () => {
@@ -156,7 +158,7 @@ test('salvaged call executes in the actual agent loop and becomes assistant/tool
   assert.equal(rounds, 2);
   const api = buildApiMessages(messages, { systemPrompt: '' });
   assert.deepEqual(api[1], { role: 'assistant', content: 'Searching.', tool_calls: [{ id: 'call_recovered', type: 'function', function: { name: 'web_search', arguments: '{"query":"x"}' } }] });
-  assert.deepEqual(api[2], { role: 'tool', tool_call_id: 'call_recovered', content: 'Search result' });
+  assert.deepEqual(api[2], { role: 'tool', tool_call_id: 'call_recovered', content: wrapUntrusted('web_search', 'Search result') });
   assert.deepEqual(api[3], { role: 'assistant', content: 'Found it.' });
 });
 

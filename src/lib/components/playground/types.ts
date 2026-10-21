@@ -67,6 +67,8 @@ export type ToolCallStatus =
 export interface PgToolCall {
   /** Normalized by the core parser from assistant content instead of native tool_calls. */
   recoveredFromText?: boolean;
+  /** The arguments repeat text from earlier tool output (possible prompt injection): the call asked first. */
+  fromToolOutput?: boolean;
   id: string;
   name: string;
   /** Raw JSON arguments string as produced by the model. */
