@@ -80,6 +80,26 @@ curl http://127.0.0.1:11435/v1/systemone -H "Content-Type: application/json" -d 
 - The `X-Harness-Decision-Mode` response header says which one answered: `native` or `emulated`.
 - Limits: up to 64 questions per request, 2–255 options per choice question (at most 52 with emulation), 2–10 score levels, no streaming. Images are base64 (a data URL, or bare base64 on `/v1/systemone`) and need a model that reads images.
 
+### Task Endpoints
+
+Classifiers, entity taggers, zero-shot models and object detectors (Hugging Face task models served by the ONNX or Python engine) have typed routes next to the generic `POST /v1/hf/{model}`. All of them take a JSON body with the `model` alias, answer the same way whichever engine runs the model, and use the **Task pipelines** endpoint group of a token.
+
+| Path | Model task | Request | Answer |
+| --- | --- | --- | --- |
+| `/v1/classifications` | Text classification | `input` (a text or an array of up to 256 texts), optional `top_k` | `data[i].labels`: `label` and `score`, best first |
+| `/v1/entities` | Token classification (NER) | `input`, optional `aggregation_strategy` (`simple` by default) | `data[i].entities`: `label`, `text`, `score`, `start`, `end` |
+| `/v1/zero-shot` | Zero-shot classification | `input` (one text), `candidate_labels` (array or comma-separated), optional `multi_label`, `hypothesis_template` | `data[0].labels`, best first |
+| `/v1/detections` | Object detection | `image` (a data URL or base64; URLs are not fetched), optional `threshold` | `data`: `label`, `score`, `box` (`xmin`, `ymin`, `xmax`, `ymax`) |
+| `/v1/moderations` | Text classification by a moderation model | `input` (a text or an array), optional `threshold` (0.5 by default) | OpenAI's shape: `results[i].flagged`, `categories`, `category_scores` |
+
+`/v1/moderations` needs a toxicity or moderation classifier in your library; name it in `model` (there is no default, so OpenAI's own model names are refused as unknown). A label that means "nothing to flag" (`non-toxic`, `neutral`, `OK`) is never a category. Labels of the common models are mapped to OpenAI's category names (`insult` to `harassment`, `identity_hate` to `hate`, `obscene` to `sexual`, `threat` to `harassment/threatening`); any other label keeps its own name, so `categories` lists what the model can tell, not OpenAI's whole set. A category is flagged when its score reaches the threshold.
+
+```bash
+curl http://127.0.0.1:11435/v1/entities -H "Content-Type: application/json" -d '{
+  "model": "my-ner", "input": "Ada Lovelace worked with Charles Babbage in London."
+}'
+```
+
 ## The Connections Page
 
 The sections of **Connections** in the left menu:
