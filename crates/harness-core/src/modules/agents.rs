@@ -592,6 +592,7 @@ fn bounded_output(mut c: Command, timeout: Duration) -> Result<(bool, String), S
         crate::process_limits::memory_job(child.inner().as_raw_handle())
             .map_err(|e| e.to_string())?
     };
+    let _registration = crate::orphans::Registration::new(child.id());
     let _group_guard = crate::process_limits::GroupGuard(child.id());
     let stdout = child.inner().stdout.take().unwrap();
     let reader = std::thread::spawn(move || {
@@ -1387,6 +1388,7 @@ fn run_process_ext(
         crate::process_limits::memory_job(child.inner().as_raw_handle())
             .map_err(|e| e.to_string())?
     };
+    let _registration = crate::orphans::Registration::new(child.id());
     let _group_guard = crate::process_limits::GroupGuard(child.id());
     let mut readers = Vec::new();
     for (is_stdout, pipe) in [

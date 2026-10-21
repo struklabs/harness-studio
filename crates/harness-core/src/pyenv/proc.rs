@@ -81,6 +81,8 @@ pub async fn run(
     let mut child = group.spawn()?;
     #[cfg(windows)]
     let _memory_job = crate::process_limits::memory_job(child.inner().raw_handle().unwrap() as _)?;
+    // Registered for the next start's sweep in case Harness is killed (`orphans`).
+    let _registration = crate::orphans::Registration::new(child.id().unwrap());
     let _group_guard = crate::process_limits::GroupGuard(child.id().unwrap());
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     let out = child
