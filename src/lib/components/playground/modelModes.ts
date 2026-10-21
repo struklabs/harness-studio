@@ -1,6 +1,7 @@
 import type { LocalModel, ModelDefinition, PlaygroundMode, ServeMode } from '#lib/types.js';
 import { chatModelsOnly } from '../../chatModels';
 import { DIFFUSERS_IMAGE_TASKS } from './image';
+import { fileVideoTask } from './video';
 
 /** The library file a definition points at, when it is in `files`. */
 export function definitionFile(def: ModelDefinition, files: LocalModel[] = []): LocalModel | undefined {
@@ -31,7 +32,10 @@ export function definitionsForMode(definitions: ModelDefinition[], mode: Playgro
     return !!def.mmproj && !(projector?.gguf?.has_audio_encoder && !projector.gguf.has_vision_encoder);
   });
   const rows = definitions.map(def => ({ def, mode: definitionMode(def, files), chat: definitionMode(def, files) === 'chat' }));
-  return (mode === 'chat' ? chatModelsOnly(rows) : rows.filter(row => row.mode === mode)).map(row => row.def);
+  // sd.cpp's video GGUFs (Wan...) draw single frames in the Image tab and run video jobs from
+  // the Tasks tab and the Video studio.
+  const video = (def: ModelDefinition) => mode === 'pipeline' && definitionMode(def, files) === 'image' && !!fileVideoTask(definitionFile(def, files));
+  return (mode === 'chat' ? chatModelsOnly(rows) : rows.filter(row => row.mode === mode || video(row.def))).map(row => row.def);
 }
 
 /** Served ids that can chat: known non-chat definitions (speech, embedding, rerank) drop out, ids of foreign endpoints stay. */

@@ -65,7 +65,7 @@
   import VideoPanel from './playground/VideoPanel.svelte';
   import StudioPanel from './playground/StudioPanel.svelte';
   import { studioById, studioFromHash, type StudioId } from './playground/studios';
-  import { isVideoTask } from './playground/video';
+  import { fileVideoTask, isVideoTask } from './playground/video';
   import { ensureLibraryDefinitions, loadAndChat } from '#lib/stores/downloads.svelte.js';
   import { isChatLoadable } from '#lib/downloadFollowUp.js';
   import { kindsForTab, servedModelName } from '#lib/libraryDefinitions.js';
@@ -283,7 +283,8 @@
   /** Pipeline task ("fill-mask"...) of the Tasks tab's model, from its library file. */
   let pipelineTask = $derived.by(() => {
     const def = domain.definitions.find(d => d.alias === modeModels.pipeline);
-    return def ? definitionFile(def, library.models)?.task : undefined;
+    const file = def ? definitionFile(def, library.models) : undefined;
+    return fileVideoTask(file) ?? file?.task;
   });
   let chatAliases = $derived(definitionsForMode(domain.definitions, 'chat', library.models).map(def => def.alias));
   let chatModels = $derived(models.filter(alias => chatAliases.includes(alias) || (app.gatewayRunning && isExternalModel(alias)) || (!app.gatewayRunning && serveMode === 'chat')));
