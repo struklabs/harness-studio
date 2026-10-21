@@ -42,6 +42,10 @@ pub enum TtsFamily {
     Kokoro,
     /// VITS, which is what Piper voices are (one voice per model, usually one language).
     Vits,
+    /// Matcha-TTS: an acoustic model plus a separate vocoder (HiFi-GAN or Vocos).
+    Matcha,
+    /// KittenTTS: one small model with a `voices.bin`, espeak-ng phonemes.
+    Kitten,
 }
 
 impl TtsFamily {
@@ -49,6 +53,8 @@ impl TtsFamily {
         match self {
             Self::Kokoro => "kokoro",
             Self::Vits => "vits",
+            Self::Matcha => "matcha",
+            Self::Kitten => "kitten",
         }
     }
 }
@@ -88,6 +94,10 @@ pub struct TtsModel {
     /// Kokoro `voices.bin`.
     #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
     pub voices_file: Option<PathBuf>,
+    /// Matcha's vocoder (`hifigan*.onnx`, `vocos*.onnx`); `model_file` is its acoustic model.
+    #[serde(default)]
+    #[cfg_attr(feature = "openapi", schema(value_type = Option<String>))]
+    pub vocoder: Option<PathBuf>,
     /// `lexicon*.txt` files of the folder.
     #[cfg_attr(feature = "openapi", schema(value_type = Vec<String>))]
     pub lexicons: Vec<PathBuf>,
@@ -104,14 +114,7 @@ pub struct TtsModel {
 }
 
 /// Families of sherpa-onnx models that have their own folder layout and are not run here.
-const OTHER_FAMILIES: [&str; 6] = [
-    "matcha",
-    "kitten",
-    "pocket",
-    "supertonic",
-    "zipvoice",
-    "nabra",
-];
+const OTHER_FAMILIES: [&str; 4] = ["pocket", "supertonic", "zipvoice", "nabra"];
 
 /// Kokoro v1.0's speakers in `voices.bin` order (checked with `--debug` on
 /// `kokoro-int8-multi-lang-v1_0`: `n_speakers=54`, `em_santa` is 53).
@@ -261,6 +264,21 @@ fn kokoro_voices(name: &str) -> Vec<Voice> {
                 language: language.to_string(),
                 gender: gender.to_string(),
             }
+        })
+        .collect()
+}
+
+/// KittenTTS nano v0.1's eight speakers in `voices.bin` order (sherpa-onnx's model page:
+/// `expr-voice-2-m` is speaker 0 ... `expr-voice-5-f` is speaker 7).
+fn kitten_voices() -> Vec<Voice> {
+    ["2-m", "2-f", "3-m", "3-f", "4-m", "4-f", "5-m", "5-f"]
+        .iter()
+        .enumerate()
+        .map(|(sid, v)| Voice {
+            id: format!("expr-voice-{v}"),
+            sid: sid as u32,
+            language: "en-US".to_string(),
+            gender: if v.ends_with('m') { "male" } else { "female" }.to_string(),
         })
         .collect()
 }
@@ -418,20 +436,91 @@ pub(crate) fn quantization_of(file: &str) -> String {
     }
 }
 
-/// Whether `dir` is a text-to-speech model folder, and which: the files sherpa-onnx's
-/// published archives have (`tokens.txt` plus the model, and `voices.bin` for Kokoro or
-/// `espeak-ng-data` / `lexicon.txt` for VITS, a `vits-mms-<language>` name for MMS). Other sherpa-onnx families (Matcha, Kitten,
-/// Pocket...) are not recognised.
-pub fn detect(dir: &Path) -> Option<TtsModel> {
-    let name = file_name(dir);
+/// A Matcha vocoder's file name (it is a separate graph beside the acoustic model).
+fn is_vocoder_file(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    n.ends_with(".onnx") && (n.contains("hifigan") || n.contains("vocos") || n.contains("vocoder"))
+}
+
+/// The family a sherpa-onnx text-to-speech folder is, from the folder (or repo) `name` and the
+/// names of the files at its root; `espeak` is whether it has an `espeak-ng-data` folder. One
+/// function for the local scan ([`detect`]) and for the Hub listing ([`crate::sherpa_layout`]),
+/// so that a repo shown as runnable is one the library recognises after the download.
+pub fn classify(name: &str, files: &[String], espeak: bool) -> Option<TtsFamily> {
     let lower = name.to_ascii_lowercase();
     if OTHER_FAMILIES.iter().any(|f| lower.contains(f)) {
         return None;
     }
+    let has = |n: &str| files.iter().any(|f| f.eq_ignore_ascii_case(n));
+    let onnx: Vec<&String> = files
+        .iter()
+        .filter(|f| f.to_ascii_lowercase().ends_with(".onnx"))
+        .collect();
+    if !has("tokens.txt") || onnx.is_empty() {
+        return None;
+    }
+    let lexicon = files.iter().any(|f| {
+        let n = f.to_ascii_lowercase();
+        n.starts_with("lexicon") && n.ends_with(".txt")
+    });
+    if has("voices.bin") {
+        return if lower.contains("kitten") {
+            espeak.then_some(TtsFamily::Kitten)
+        } else if lower.contains("kokoro") || lexicon {
+            Some(TtsFamily::Kokoro)
+        } else {
+            None
+        };
+    }
+    let matcha_named = lower.contains("matcha")
+        || onnx
+            .iter()
+            .any(|f| f.to_ascii_lowercase().starts_with("model-steps"));
+    if matcha_named {
+        // An acoustic model alone cannot make a waveform: the vocoder must be there too.
+        let vocoder = onnx.iter().any(|f| is_vocoder_file(f));
+        return (vocoder && onnx.len() > 1 && (espeak || lexicon)).then_some(TtsFamily::Matcha);
+    }
+    if espeak || lexicon || lower.starts_with("vits-mms-") {
+        return Some(TtsFamily::Vits);
+    }
+    None
+}
+
+/// The Matcha acoustic model and vocoder of a folder's `.onnx` files.
+fn pick_matcha(files: &[PathBuf]) -> Option<(PathBuf, PathBuf)> {
+    let vocoder = files
+        .iter()
+        .find(|p| is_vocoder_file(&file_name(p)))?
+        .clone();
+    let rest: Vec<PathBuf> = files
+        .iter()
+        .filter(|p| !is_vocoder_file(&file_name(p)))
+        .cloned()
+        .collect();
+    Some((pick_onnx(&rest)?, vocoder))
+}
+
+/// Whether `dir` is a text-to-speech model folder, and which: the files sherpa-onnx's
+/// published archives have (`tokens.txt` plus the model, and `voices.bin` for Kokoro or Kitten,
+/// `espeak-ng-data` / `lexicon.txt` for VITS and Matcha (which also has a vocoder), a
+/// `vits-mms-<language>` name for MMS), see [`classify`]. The other sherpa-onnx families
+/// (Pocket...) are not recognised.
+pub fn detect(dir: &Path) -> Option<TtsModel> {
+    let name = file_name(dir);
+    let lower = name.to_ascii_lowercase();
     let files = files_of(dir);
+    let names: Vec<String> = files.iter().map(|p| file_name(p)).collect();
+    let espeak = dir.join("espeak-ng-data").is_dir();
+    let class = classify(&name, &names, espeak)?;
     let find = |n: &str| files.iter().find(|p| file_name(p) == n).cloned();
     let tokens = find("tokens.txt")?;
-    let model_file = pick_onnx(&files)?;
+    let (model_file, vocoder) = if class == TtsFamily::Matcha {
+        let (m, v) = pick_matcha(&files)?;
+        (m, Some(v))
+    } else {
+        (pick_onnx(&files)?, None)
+    };
     let data_dir = Some(dir.join("espeak-ng-data")).filter(|p| p.is_dir());
     let lexicons: Vec<PathBuf> = files
         .iter()
@@ -448,15 +537,41 @@ pub fn detect(dir: &Path) -> Option<TtsModel> {
     let voices_file = find("voices.bin");
     let quantization = quantization_of(&file_name(&model_file));
 
-    let (family, languages, sample_rate, voices) = if voices_file.is_some() {
-        if !lower.contains("kokoro") {
-            return None;
-        }
+    let (family, languages, sample_rate, voices) = if class == TtsFamily::Kokoro {
         (
             TtsFamily::Kokoro,
             kokoro_languages(&lower),
             Some(24_000),
             kokoro_voices(&lower),
+        )
+    } else if class == TtsFamily::Kitten {
+        (
+            TtsFamily::Kitten,
+            vec!["en".to_string()],
+            Some(24_000),
+            kitten_voices(),
+        )
+    } else if class == TtsFamily::Matcha {
+        let code = language_in_name(&name);
+        let (lang, region) = code.as_deref().map(split_language).unwrap_or_default();
+        let tag = match &region {
+            Some(r) if !lang.is_empty() => format!("{lang}-{r}"),
+            _ => lang.clone(),
+        };
+        (
+            TtsFamily::Matcha,
+            if lang.is_empty() {
+                Vec::new()
+            } else {
+                vec![lang]
+            },
+            None,
+            vec![Voice {
+                id: name.clone(),
+                sid: 0,
+                language: tag,
+                gender: String::new(),
+            }],
         )
     } else if data_dir.is_some() || !lexicons.is_empty() {
         let config_path = model_file.with_extension("onnx.json");
@@ -553,6 +668,7 @@ pub fn detect(dir: &Path) -> Option<TtsModel> {
         tokens,
         data_dir,
         voices_file,
+        vocoder,
         lexicons,
         rule_fsts,
         size_bytes: dir_size(dir),
@@ -899,6 +1015,36 @@ pub fn build_args(model: &TtsModel, voice: Option<&Voice>, params: &Params) -> V
                         .rule_fsts
                         .iter()
                         .map(|f| f.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ));
+            }
+        }
+        TtsFamily::Kitten => {
+            args.push(path_arg("--kitten-model", &model.model_file));
+            if let Some(v) = &model.voices_file {
+                args.push(path_arg("--kitten-voices", v));
+            }
+            args.push(path_arg("--kitten-tokens", &model.tokens));
+            if let Some(d) = &model.data_dir {
+                args.push(path_arg("--kitten-data-dir", d));
+            }
+        }
+        TtsFamily::Matcha => {
+            args.push(path_arg("--matcha-acoustic-model", &model.model_file));
+            if let Some(v) = &model.vocoder {
+                args.push(path_arg("--matcha-vocoder", v));
+            }
+            args.push(path_arg("--matcha-tokens", &model.tokens));
+            if let Some(d) = &model.data_dir {
+                args.push(path_arg("--matcha-data-dir", d));
+            } else if !model.lexicons.is_empty() {
+                args.push(format!(
+                    "--matcha-lexicon={}",
+                    model
+                        .lexicons
+                        .iter()
+                        .map(|l| l.display().to_string())
                         .collect::<Vec<_>>()
                         .join(",")
                 ));

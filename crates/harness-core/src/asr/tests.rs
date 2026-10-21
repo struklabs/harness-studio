@@ -118,12 +118,7 @@ fn what_the_offline_tool_cannot_run_is_not_detected() {
         touch(&d.join(f), b"x");
     }
     assert!(detect(&d).is_none());
-    // Whisper is whisper.cpp's; Canary has no joiner; no tokens, no model.
-    let d = tmp.path().join("sherpa-onnx-whisper-tiny");
-    for f in ["tiny-encoder.onnx", "tiny-decoder.onnx", "tiny-tokens.txt"] {
-        touch(&d.join(f), b"x");
-    }
-    assert!(detect(&d).is_none());
+    // Canary has no joiner; no tokens, no model.
     let d = tmp
         .path()
         .join("sherpa-onnx-nemo-canary-180m-flash-en-es-de-fr-int8");
@@ -254,6 +249,7 @@ fn model(family: AsrFamily, name: &str) -> AsrModel {
         model_file: dir.join("model.int8.onnx"),
         decoder: Some(dir.join("decoder.int8.onnx")),
         joiner: Some(dir.join("joiner.int8.onnx")),
+        preprocessor: None,
         tokens: dir.join("tokens.txt"),
         dir,
         size_bytes: 1,
@@ -514,4 +510,90 @@ fn the_online_decoder_result_is_cut_into_segments() {
     assert!((segs[1].end - 4.05).abs() < 1e-9);
     // No JSON: nothing.
     assert!(parse_online_json("Elapsed seconds: 1", 0.5, 10.0).is_empty());
+}
+
+fn make(dir: &std::path::Path, files: &[&str]) {
+    std::fs::create_dir_all(dir).unwrap();
+    for f in files {
+        std::fs::write(dir.join(f), b"x").unwrap();
+    }
+}
+
+#[test]
+fn whisper_and_moonshine_folders_are_detected_and_get_their_flags() {
+    let tmp = tempfile::tempdir().unwrap();
+    let whisper = tmp.path().join("sherpa-onnx-whisper-tiny.en");
+    make(
+        &whisper,
+        &[
+            "tiny.en-decoder.int8.onnx",
+            "tiny.en-decoder.onnx",
+            "tiny.en-encoder.int8.onnx",
+            "tiny.en-encoder.onnx",
+            "tiny.en-tokens.txt",
+        ],
+    );
+    let m = detect(&whisper).unwrap();
+    assert_eq!(m.family, AsrFamily::Whisper);
+    assert!(m.model_file.ends_with("tiny.en-encoder.int8.onnx"));
+    assert!(m.tokens.ends_with("tiny.en-tokens.txt"));
+    assert_eq!(m.quantization, "int8");
+    let a = build_args(&m, &params());
+    assert!(arg_path(&a, "--whisper-encoder").ends_with("tiny.en-encoder.int8.onnx"));
+    assert!(arg_path(&a, "--whisper-decoder").ends_with("tiny.en-decoder.int8.onnx"));
+    assert!(!a.iter().any(|x| x.starts_with("--whisper-tail-paddings")));
+    assert!(!a.iter().any(|x| x.starts_with("--whisper-language")));
+
+    // A multilingual model takes the request's language.
+    let multi = tmp.path().join("sherpa-onnx-whisper-base");
+    make(
+        &multi,
+        &["base-encoder.onnx", "base-decoder.onnx", "base-tokens.txt"],
+    );
+    let m = detect(&multi).unwrap();
+    let p = Params {
+        language: Some("tr-TR".into()),
+        ..params()
+    };
+    let a = build_args(&m, &p);
+    assert!(has(&a, "--whisper-language=tr"));
+
+    let moon = tmp.path().join("sherpa-onnx-moonshine-tiny-en-int8");
+    make(
+        &moon,
+        &[
+            "cached_decode.int8.onnx",
+            "encode.int8.onnx",
+            "preprocess.onnx",
+            "uncached_decode.int8.onnx",
+            "tokens.txt",
+        ],
+    );
+    let m = detect(&moon).unwrap();
+    assert_eq!(m.family, AsrFamily::Moonshine);
+    let a = build_args(&m, &params());
+    assert!(arg_path(&a, "--moonshine-preprocessor").ends_with("preprocess.onnx"));
+    assert!(arg_path(&a, "--moonshine-encoder").ends_with("encode.int8.onnx"));
+    assert!(arg_path(&a, "--moonshine-uncached-decoder").ends_with("uncached_decode.int8.onnx"));
+    assert!(arg_path(&a, "--moonshine-cached-decoder").ends_with("cached_decode.int8.onnx"));
+    assert!(a.iter().any(|x| x.starts_with("--silero-vad-model=")));
+
+    // An Optimum export of Whisper is no sherpa folder.
+    let optimum = tmp.path().join("whisper-tiny.en");
+    make(
+        &optimum,
+        &["encoder_model.onnx", "decoder_model.onnx", "tokens.txt"],
+    );
+    assert!(detect(&optimum).is_none());
+}
+
+#[test]
+fn whisper_language_codes() {
+    assert_eq!(whisper_language(None), None);
+    assert_eq!(whisper_language(Some("auto")), None);
+    assert_eq!(whisper_language(Some("")), None);
+    assert_eq!(whisper_language(Some("tr")).as_deref(), Some("tr"));
+    assert_eq!(whisper_language(Some("Turkish")).as_deref(), Some("tr"));
+    assert_eq!(whisper_language(Some("de_DE")).as_deref(), Some("de"));
+    assert_eq!(whisper_language(Some("zh;rm -rf")), None);
 }

@@ -51,6 +51,31 @@ pub async fn remove_module_data(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(serde::Deserialize, utoipa::ToSchema)]
+pub struct BundlePath {
+    /// A `.hsmod` file on the machine that runs the Control API.
+    path: String,
+}
+#[utoipa::path(post, path = "/modules/{id}/export", tag = "modules", params(("id" = String, Path)), request_body = BundlePath,
+    responses((status = 200, body = modules::bundle::ExportReport), (status = 422, body = ErrorBody), (status = 403, body = ErrorBody)))]
+pub async fn export_module(
+    P(id): P<String>,
+    Json(body): Json<BundlePath>,
+) -> ApiResult<Json<modules::bundle::ExportReport>> {
+    Ok(Json(
+        blocking(move || modules::bundle::export(&id, std::path::Path::new(&body.path))).await??,
+    ))
+}
+#[utoipa::path(post, path = "/modules/import", tag = "modules", request_body = BundlePath,
+    responses((status = 200, body = modules::bundle::ImportReport), (status = 422, body = ErrorBody), (status = 403, body = ErrorBody)))]
+pub async fn import_module(
+    Json(body): Json<BundlePath>,
+) -> ApiResult<Json<modules::bundle::ImportReport>> {
+    Ok(Json(
+        modules::bundle::import(std::path::Path::new(&body.path)).await?,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

@@ -462,6 +462,88 @@ async fn hub_registers_namespaced_tools_with_annotation_classes() {
         .all(|t| !t.name.starts_with("harness_")));
 }
 
+#[tokio::test]
+async fn server_trust_and_grants_change_the_next_call_until_revoked() {
+    use harness_core::permissions::{Capability, Permissions, SubjectKind};
+    use harness_core::tools::Decision;
+    let dir = common::data_dir(None, free_port(18790));
+    let registry = Arc::new(ToolRegistry::with_builtin());
+    let hub = McpHub::with_servers(
+        registry.clone(),
+        BTreeMap::from([("perm".to_string(), harness_mcp_def(dir.path()))]),
+    );
+    let service = ToolService::with_mcp(registry, LogSink::None, hub.clone());
+    service.sync_mcp(false).await;
+    let tool = "perm_list_models"; // read-only annotation: restricted
+    let perms = Permissions::shared();
+    let trusted_policy = ToolSettings {
+        policy: ToolPolicy::AllowTrusted,
+        ..Default::default()
+    };
+    let ask_policy = ToolSettings::default();
+    let run = |settings: &ToolSettings| {
+        service.run(
+            ToolInvocation::new(tool, json!({}), ToolOrigin::new("test")),
+            RunOptions {
+                settings: Some(settings.clone()),
+                ..Default::default()
+            },
+        )
+    };
+
+    // Default: nothing is granted, the call needs approval.
+    assert_eq!(service.decision(tool, &trusted_policy), Some(Decision::Ask));
+    assert_eq!(
+        run(&trusted_policy).await.error,
+        Some(ToolErrorCode::ApprovalRequired)
+    );
+
+    // A grant makes the server trusted for "allow trusted"; the very next call runs.
+    let g = perms
+        .grant(
+            "test",
+            SubjectKind::McpServer,
+            "perm",
+            Capability::Network,
+            vec![],
+        )
+        .unwrap();
+    assert_eq!(service.decision(tool, &trusted_policy), Some(Decision::Run));
+    assert_ne!(
+        run(&trusted_policy).await.error,
+        Some(ToolErrorCode::ApprovalRequired)
+    );
+    // ...but not under "ask every time", which never looks at trust.
+    assert_eq!(service.decision(tool, &ask_policy), Some(Decision::Ask));
+
+    // Revoked: the next call asks again.
+    perms
+        .revoke_grant("test", SubjectKind::McpServer, "perm", &g.id)
+        .unwrap();
+    assert_eq!(service.decision(tool, &trusted_policy), Some(Decision::Ask));
+    assert_eq!(
+        run(&trusted_policy).await.error,
+        Some(ToolErrorCode::ApprovalRequired)
+    );
+
+    // A level of "safe" lets the server's tools run under any policy but "off"; resetting
+    // the subject returns to the annotation class.
+    perms
+        .set_trust(
+            "test",
+            SubjectKind::McpServer,
+            "perm",
+            Some(PermissionClass::Safe),
+        )
+        .unwrap();
+    assert_eq!(service.decision(tool, &ask_policy), Some(Decision::Run));
+    perms
+        .revoke_subject("test", SubjectKind::McpServer, "perm")
+        .unwrap();
+    assert_eq!(service.decision(tool, &ask_policy), Some(Decision::Ask));
+    hub.shutdown(Duration::from_secs(5)).await;
+}
+
 /// A stdio server that died is replaced by the next call.
 #[tokio::test]
 async fn a_call_after_the_server_died_reconnects() {

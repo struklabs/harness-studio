@@ -8,6 +8,8 @@ pub mod convert;
 pub mod hf;
 pub mod lemonade;
 pub mod models;
+pub mod modules;
+pub mod permissions;
 pub mod resolve;
 pub mod runtimes;
 pub mod servers;
@@ -19,8 +21,8 @@ use std::path::Path;
 
 use crate::cli::{
     BenchmarkCommand, Cli, Command, ConversationCommand, ImportCommand, LoraCommand,
-    ManagedCommand, OtelCommand, ProfileCommand, RouterCommand, RuntimeCommand, ServiceCommand,
-    SkillsCommand, TokenCommand, ToolsCommand,
+    ManagedCommand, ModulesCommand, OtelCommand, ProfileCommand, RouterCommand, RuntimeCommand,
+    ServiceCommand, SkillsCommand, TokenCommand, ToolsCommand,
 };
 use crate::error::CliResult;
 use crate::output::Out;
@@ -317,6 +319,14 @@ async fn run_with(session: &Session, command: Command, out: &Out) -> CliResult<(
             BenchmarkCommand::Ls => admin::benchmark_ls(client, out).await,
             BenchmarkCommand::Show { id } => admin::benchmark_show(client, &id, out).await,
         },
+        Command::Modules { command } => match command {
+            ModulesCommand::Ls => modules::ls(client, out).await,
+            ModulesCommand::Export { id, out: file } => {
+                modules::export(client, &id, &file, out).await
+            }
+            ModulesCommand::Import { file } => modules::import(client, &file, out).await,
+            ModulesCommand::Rm { id } => modules::rm(client, &id, out).await,
+        },
         Command::Runtime { command } => match command {
             RuntimeCommand::Ls => runtimes::ls(client, out).await,
             RuntimeCommand::Add {
@@ -422,6 +432,7 @@ async fn run_with(session: &Session, command: Command, out: &Out) -> CliResult<(
                 .await
             }
         },
+        Command::Permissions { command } => permissions::run(client, command, out).await,
         Command::Skills { command } => match command {
             SkillsCommand::List => tools::skills_list(client, out).await,
             SkillsCommand::Enable { name } => tools::skill_enabled(client, &name, true, out).await,
