@@ -309,7 +309,7 @@ pub fn sha256_file(path: &Path) -> Result<String, String> {
 async fn ffmpeg_low(args: &[std::ffi::OsString]) -> Result<std::process::Output, String> {
     let ffmpeg =
         crate::audio::ffmpeg_path().ok_or_else(|| String::from(err("audio.ffmpeg_missing")))?;
-    let mut cmd = tokio::process::Command::new(ffmpeg);
+    let mut cmd = crate::process::hidden_tokio_command(ffmpeg);
     cmd.args(["-hide_banner", "-loglevel", "error", "-nostdin"])
         .args(args)
         .stdin(std::process::Stdio::null())

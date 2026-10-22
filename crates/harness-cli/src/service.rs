@@ -14,7 +14,6 @@
 //! The definitions are generated here (unit-tested), the OS tools install them.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde_json::json;
 
@@ -352,13 +351,16 @@ fn content(p: ServicePlatform, spec: &ServiceSpec) -> String {
 }
 
 fn run_tool(program: &str, args: &[&str]) -> CliResult<String> {
-    let output = Command::new(program).args(args).output().map_err(|e| {
-        CliError::new(
-            Exit::General,
-            "cli.service_failed",
-            format!("{} could not be run: {}", program, e),
-        )
-    })?;
+    let output = harness_core::process::hidden_command(program)
+        .args(args)
+        .output()
+        .map_err(|e| {
+            CliError::new(
+                Exit::General,
+                "cli.service_failed",
+                format!("{} could not be run: {}", program, e),
+            )
+        })?;
     let text = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),

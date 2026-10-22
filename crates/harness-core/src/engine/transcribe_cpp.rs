@@ -686,7 +686,7 @@ pub(crate) mod tests {
             include_str!("../../python/test_transcribe_cpp_worker.py"),
         )
         .unwrap();
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .arg("-I")
             .arg(&script)
             .arg(&worker)

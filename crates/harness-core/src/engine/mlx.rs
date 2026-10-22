@@ -2432,7 +2432,7 @@ pub(crate) mod tests {
                 dir.path().to_string_lossy(),
                 args
             );
-            let out = std::process::Command::new(python)
+            let out = crate::process::hidden_command(python)
                 .args(["-I", "-c", &code])
                 .env("HARNESS_WORKER_API_KEY", "k")
                 .output()
@@ -2468,7 +2468,7 @@ pub(crate) mod tests {
         static FOUND: std::sync::OnceLock<Option<&'static str>> = std::sync::OnceLock::new();
         *FOUND.get_or_init(|| {
             let python = if cfg!(windows) { "python" } else { "python3" };
-            let out = std::process::Command::new(python)
+            let out = crate::process::hidden_command(python)
                 .args(["-I", "-c", "import sys; print(sys.version_info[0])"])
                 .output()
                 .ok()?;
@@ -2487,7 +2487,7 @@ pub(crate) mod tests {
             "import sys, json, asyncio; sys.path.insert(0, {:?}); import mlx_vlm_worker as w\n{code}",
             dir.path().to_string_lossy()
         );
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .args(["-I", "-c", &code])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()
@@ -3730,7 +3730,7 @@ asyncio.run(main())
 "#,
             dir.path().to_string_lossy()
         );
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()
@@ -3862,7 +3862,7 @@ report("audio", a.cors(a.app_for(lambda *x: b"RIFF", "tts", [], 50)), "GET", "/v
 "#,
             dir.path().to_string_lossy()
         );
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .env("HARNESS_WORKER_ORIGINS", "tauri://localhost")
@@ -3975,7 +3975,7 @@ print("text health foreign", call("GET", "/health", E, False))
 "#,
             dir.path().to_string_lossy()
         );
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .env(
@@ -4190,7 +4190,7 @@ print("wired", w.wire_weights(metal), wired, w.wire_weights(types.SimpleNamespac
 "#,
             dir.path().to_string_lossy()
         );
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             // UTF-8 output: the test prints CJK sentences that a Windows code page cannot encode.
             .args(["-I", "-X", "utf8", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
@@ -4329,7 +4329,7 @@ print("none", "tokenizer_name" in none("x"))
 "#,
             root = dir.path().to_string_lossy()
         );
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()
@@ -4437,7 +4437,7 @@ asyncio.run(main())
 "#,
             dir.path().to_string_lossy()
         );
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()
@@ -4569,7 +4569,7 @@ print("processors", bare._processor == "proc " + w.os.path.realpath("/lib/p"), o
             r#"{"target":"nemo.collections.asr.models.rnnt_bpe_models.EncDecRNNTBPEModel"}"#,
         )
         .unwrap();
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()
@@ -4727,7 +4727,7 @@ print("empty", status, body["error"]["message"])
 "#,
             dir.path().to_string_lossy()
         );
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()
@@ -4759,7 +4759,7 @@ print("empty", status, body["error"]["message"])
     /// NumPy, else `HS_TEST_PYTHON` (an environment's interpreter); `None` skips them.
     fn python_with_numpy() -> Option<String> {
         let has = |python: &str| {
-            std::process::Command::new(python)
+            crate::process::hidden_command(python)
                 .args(["-I", "-c", "import numpy"])
                 .output()
                 .is_ok_and(|o| o.status.success())
@@ -4806,7 +4806,7 @@ print("wav", wav[:4], wav[8:12], int.from_bytes(wav[22:24], "little"), int.from_
 "#,
             dir.path().to_string_lossy()
         );
-        let out = std::process::Command::new(&python)
+        let out = crate::process::hidden_command(&python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()
@@ -4891,7 +4891,7 @@ print("resampled", resampled)
 "#,
             dir.path().to_string_lossy()
         );
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()
@@ -5500,7 +5500,7 @@ asyncio.run(main())
             dir.path().to_string_lossy(),
             dir.path().to_string_lossy(),
         );
-        let out = std::process::Command::new(python)
+        let out = crate::process::hidden_command(python)
             .args(["-I", "-c", &script])
             .env("HARNESS_WORKER_API_KEY", "k")
             .output()

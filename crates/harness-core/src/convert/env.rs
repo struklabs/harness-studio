@@ -299,7 +299,7 @@ pub async fn ensure_in(
         let _ = std::fs::remove_dir_all(&uv.cache_dir);
 
         report.set("verify", "convert_hf_to_gguf.py".to_string(), 0);
-        let mut cmd = tokio::process::Command::new(&python);
+        let mut cmd = crate::process::hidden_tokio_command(&python);
         cmd.current_dir(&src)
             .args(["convert_hf_to_gguf.py", "--help"])
             .envs(python_env(root));

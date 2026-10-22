@@ -336,7 +336,7 @@ impl LaunchPlan {
         let program = found
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|| self.program.clone());
-        let mut cmd = std::process::Command::new(program);
+        let mut cmd = crate::process::hidden_command(program);
         cmd.args(&self.args);
         apply_augmented_path(&mut cmd);
         for k in &self.env_remove {
@@ -524,7 +524,7 @@ fn login_shell() -> Option<PathBuf> {
 fn query_login_shell_path() -> Vec<PathBuf> {
     use std::io::Read;
     use std::os::unix::process::CommandExt;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
     use std::time::{Duration, Instant};
 
     const TIMEOUT: Duration = Duration::from_secs(3);
@@ -532,7 +532,7 @@ fn query_login_shell_path() -> Vec<PathBuf> {
         return Vec::new();
     };
     let script = format!("printf '{PATH_START}%s{PATH_END}' \"$PATH\"");
-    let Ok(mut child) = Command::new(&shell)
+    let Ok(mut child) = crate::process::hidden_command(&shell)
         .args(["-l", "-c", &script])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

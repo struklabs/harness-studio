@@ -46,7 +46,7 @@ fn decode(part: &Value) -> Result<(&'static str, Vec<u8>), GatewayError> {
 }
 
 async fn run(binary: &Path, args: &[&str]) -> Result<Vec<u8>, GatewayError> {
-    let mut command = tokio::process::Command::new(binary);
+    let mut command = harness_core::process::hidden_tokio_command(binary);
     command
         .args(args)
         .stdin(Stdio::null())

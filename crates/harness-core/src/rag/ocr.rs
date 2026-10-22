@@ -186,9 +186,9 @@ fn run_script(
     pages: &str,
 ) -> Result<String, String> {
     use std::io::Read;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
     let failed = |e: String| String::from(err("ocr.rasterize_failed").with("error", e));
-    let mut cmd = Command::new(python);
+    let mut cmd = crate::process::hidden_command(python);
     cmd.arg(script)
         .arg(pdf)
         .arg(out_dir)

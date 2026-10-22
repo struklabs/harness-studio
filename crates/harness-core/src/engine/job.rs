@@ -185,7 +185,7 @@ async fn run_job_inner(
             tail: tail.iter().cloned().collect(),
         };
     let mut tail = std::collections::VecDeque::new();
-    let mut command = tokio::process::Command::new(&cmd.binary);
+    let mut command = crate::process::hidden_tokio_command(&cmd.binary);
     command
         .args(&cmd.args)
         .stdin(Stdio::null())

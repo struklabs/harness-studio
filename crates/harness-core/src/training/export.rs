@@ -364,7 +364,7 @@ async fn convert_gguf(
     let out_dir = staging.join("gguf");
     std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
     let f16 = out_dir.join(format!("{name}-F16.gguf"));
-    let mut cmd = tokio::process::Command::new(crate::convert::env::python_bin_in(&root));
+    let mut cmd = crate::process::hidden_tokio_command(crate::convert::env::python_bin_in(&root));
     cmd.current_dir(crate::convert::env::source_dir_in(&root, &tag))
         .arg(if adapter {
             "convert_lora_to_gguf.py"
@@ -388,7 +388,7 @@ async fn convert_gguf(
         }
         let output = out_dir.join(format!("{name}-{}.gguf", quant.as_str()));
         let bin = crate::convert::quantize_binary()?;
-        let mut cmd = tokio::process::Command::new(&bin);
+        let mut cmd = crate::process::hidden_tokio_command(&bin);
         cmd.current_dir(bin.parent().unwrap())
             .arg(&f16)
             .arg(&output)

@@ -378,7 +378,7 @@ pub async fn encode(wav: Vec<u8>, format: AudioFormat) -> Result<Vec<u8>, String
         String::from(err("tts.format_needs_ffmpeg").with("format", format.as_str()))
     })?;
     let args = ffmpeg_args(format).expect("formats other than wav / pcm have ffmpeg arguments");
-    let mut cmd = tokio::process::Command::new(ffmpeg);
+    let mut cmd = crate::process::hidden_tokio_command(ffmpeg);
     cmd.args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

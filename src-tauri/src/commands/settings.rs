@@ -9,7 +9,7 @@ pub(crate) fn get_app_settings() -> AppSettings {
 #[tauri::command]
 pub(crate) async fn launch_uninstaller(app: tauri::AppHandle) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let mut command = std::process::Command::new(exe);
+    let mut command = harness_core::process::hidden_command(exe);
     command.arg("--uninstall").arg("--wait-pid").arg(std::process::id().to_string());
     command.spawn().map_err(|e| e.to_string())?;
     app.exit(0);

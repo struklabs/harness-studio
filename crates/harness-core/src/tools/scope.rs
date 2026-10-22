@@ -210,7 +210,7 @@ pub(crate) fn link_dir(link: &Path, target: &Path) -> bool {
         if std::os::windows::fs::symlink_dir(target, link).is_ok() {
             return true;
         }
-        std::process::Command::new("cmd")
+        crate::process::hidden_command("cmd")
             .args(["/c", "mklink", "/J"])
             .arg(link)
             .arg(target)

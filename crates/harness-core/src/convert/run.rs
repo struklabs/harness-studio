@@ -248,7 +248,7 @@ async fn execute(id: u64, plan: &ConvertPlan, cancel: &Cancel) -> Result<Done, S
     match quantize {
         Some(bin) => {
             set_stage(id, ConvertStage::Quantizing, "llama-quantize");
-            let mut cmd = tokio::process::Command::new(&bin);
+            let mut cmd = crate::process::hidden_tokio_command(&bin);
             cmd.current_dir(bin.parent().unwrap_or(Path::new(".")))
                 .arg(&produced)
                 .arg(&result_tmp)
@@ -331,7 +331,7 @@ fn converter_command(
     converter_dir: &Path,
     env_root: &Path,
 ) -> tokio::process::Command {
-    let mut cmd = tokio::process::Command::new(python);
+    let mut cmd = crate::process::hidden_tokio_command(python);
     cmd.current_dir(converter_dir)
         .arg("convert_hf_to_gguf.py")
         .envs(env::python_env(env_root));

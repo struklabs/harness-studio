@@ -725,7 +725,7 @@ async fn run(id: &str, action: &str) -> Result<(), String> {
     }
 }
 async fn probe_support(path: &Path, python: bool) -> bool {
-    let mut command = tokio::process::Command::new(path);
+    let mut command = crate::process::hidden_tokio_command(path);
     command
         .kill_on_drop(true)
         .stdin(std::process::Stdio::null())
@@ -791,7 +791,7 @@ pub(super) async fn verify(id: &str) -> Result<(), String> {
         return agents::verify();
     }
     let python = envs::python_in(&envs::root(), ENV);
-    let mut cmd = tokio::process::Command::new(python);
+    let mut cmd = crate::process::hidden_tokio_command(python);
     cmd.args(["-c", envs::TRANSCRIBE_CPP.verify])
         .envs(pyenv::python_env(&runtime(id)))
         .kill_on_drop(true);

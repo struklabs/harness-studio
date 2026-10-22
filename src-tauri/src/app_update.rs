@@ -300,7 +300,7 @@ mod appimage {
             .or_else(|| std::env::var_os("HOME").map(PathBuf::from))
             .unwrap_or_else(|| PathBuf::from("/"));
         close_descriptors_on_exec();
-        let result = std::process::Command::new(&appimage)
+        let result = harness_core::process::hidden_command(&appimage)
             // A login start's `--minimized` would bring the updated version back only as a
             // tray icon after the user asked for the update.
             .args(

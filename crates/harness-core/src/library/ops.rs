@@ -35,14 +35,14 @@ fn spawn_file_manager(path: &Path) -> std::io::Result<std::process::Child> {
     use std::os::windows::process::CommandExt;
     // Explorer wants `/select,"<path>"` verbatim (Windows paths cannot contain `"`); it
     // exits with 1 even on success, so only the spawn result counts.
-    std::process::Command::new("explorer")
+    crate::process::hidden_command("explorer")
         .raw_arg(format!("/select,\"{}\"", path.display()))
         .spawn()
 }
 
 #[cfg(target_os = "macos")]
 fn spawn_file_manager(path: &Path) -> std::io::Result<std::process::Child> {
-    std::process::Command::new("open")
+    crate::process::hidden_command("open")
         .arg("-R")
         .arg(path)
         .spawn()
@@ -50,7 +50,7 @@ fn spawn_file_manager(path: &Path) -> std::io::Result<std::process::Child> {
 
 #[cfg(all(unix, not(target_os = "macos")))]
 fn spawn_file_manager(path: &Path) -> std::io::Result<std::process::Child> {
-    std::process::Command::new("xdg-open")
+    crate::process::hidden_command("xdg-open")
         .arg(path.parent().unwrap_or(path))
         .spawn()
 }

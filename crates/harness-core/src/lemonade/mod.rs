@@ -436,7 +436,7 @@ fn spawn(
     settings: &LemonadeSettings,
 ) -> Result<command_group::GroupChild, String> {
     use command_group::CommandGroup;
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
 
     for dir in [cache_dir(), config_dir(), models_dir()] {
         std::fs::create_dir_all(&dir).map_err(|e| {
@@ -459,7 +459,7 @@ fn spawn(
         &serde_json::to_string_pretty(&cfg).unwrap_or_default(),
     )?;
 
-    let mut cmd = Command::new(binary);
+    let mut cmd = crate::process::hidden_command(binary);
     cmd.args(launch_args(host, port, &cache_dir(), &config_dir()))
         .current_dir(binary.parent().unwrap_or_else(|| Path::new(".")))
         .stdin(Stdio::null())

@@ -536,8 +536,8 @@ pub fn pdf_pages_child(path: &Path) -> Result<Vec<PageText>, String> {
 
 /// Runs `exe --harness-extract-pdf <path>` and reads its JSON answer.
 pub fn pdf_pages_with(exe: &Path, path: &Path) -> Result<Vec<PageText>, String> {
-    use std::process::{Command, Stdio};
-    let mut cmd = Command::new(exe);
+    use std::process::Stdio;
+    let mut cmd = crate::process::hidden_command(exe);
     cmd.arg(CHILD_FLAG)
         .arg(path)
         .stdin(Stdio::null())

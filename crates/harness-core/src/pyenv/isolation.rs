@@ -50,7 +50,7 @@ pub fn available() -> bool {
 
 #[cfg(target_os = "linux")]
 fn probe() -> IsolationStatus {
-    match std::process::Command::new("unshare")
+    match crate::process::hidden_command("unshare")
         .args(["--user", "--map-root-user", "--net", "--", "true"])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
@@ -89,7 +89,7 @@ const SANDBOX_EXEC: &str = "/usr/bin/sandbox-exec";
 
 #[cfg(target_os = "macos")]
 fn probe() -> IsolationStatus {
-    match std::process::Command::new(SANDBOX_EXEC)
+    match crate::process::hidden_command(SANDBOX_EXEC)
         .args(["-p", SANDBOX_PROFILE, "/usr/bin/true"])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
@@ -131,14 +131,14 @@ fn wrapper() -> (&'static str, Vec<&'static str>) {
 /// `program` run without network (see [`wrapper`]); the caller checked [`available`].
 pub fn isolated_std_command(program: &Path) -> std::process::Command {
     let (wrapper, args) = wrapper();
-    let mut cmd = std::process::Command::new(wrapper);
+    let mut cmd = crate::process::hidden_command(wrapper);
     cmd.args(args).arg(program);
     cmd
 }
 
 fn isolated_command(program: &Path) -> tokio::process::Command {
     let (wrapper, args) = wrapper();
-    let mut cmd = tokio::process::Command::new(wrapper);
+    let mut cmd = crate::process::hidden_tokio_command(wrapper);
     cmd.args(args).arg(program);
     cmd
 }
@@ -171,7 +171,7 @@ fn command_raw(program: &Path, required: bool) -> Result<(tokio::process::Comman
             .with("reason", st.reason.as_deref().unwrap_or(""))
             .into());
     }
-    Ok((tokio::process::Command::new(program), false))
+    Ok((crate::process::hidden_tokio_command(program), false))
 }
 
 /// A command for a local tool that needs no network (sherpa-onnx): without network interfaces
@@ -196,7 +196,7 @@ fn offline_command_raw(program: &Path) -> tokio::process::Command {
             )
         });
     }
-    tokio::process::Command::new(program)
+    crate::process::hidden_tokio_command(program)
 }
 
 /// A folder only this user can enter (0700), for the Unix socket of one server process: other

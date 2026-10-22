@@ -274,7 +274,7 @@ pub fn open(roots: &Roots, path: &Path, hide_external_skills: bool) -> Result<u3
             .into());
     }
     let mut cmd = if cfg!(target_os = "macos") {
-        let mut c = std::process::Command::new("open");
+        let mut c = crate::process::hidden_command("open");
         c.arg(path);
         // LaunchServices does not inherit `open`'s environment; pass it explicitly.
         for key in super::launch::OPENCODE_SKILL_ENV {
@@ -285,6 +285,7 @@ pub fn open(roots: &Roots, path: &Path, hide_external_skills: bool) -> Result<u3
         }
         c
     } else {
+        // visible-console: GUI app started detached; DETACHED_PROCESS conflicts with CREATE_NO_WINDOW
         std::process::Command::new(path)
     };
     if let Some(dir) = path.parent() {
