@@ -1,4 +1,8 @@
 //! Noise channel over whole messages; independent of WSS so WebRTC can supply the same frames.
+use super::frames::{
+    decode_frame, encode_frame, split_into_records, validate_relay_frame, Direction,
+    RecordAssembler, MAX_FRAGMENTS, MAX_FRAME, RECORD_DATA_MAX,
+};
 use super::{decode32, encode, ERR_KEYCHAIN, ERR_PROTOCOL};
 use snow::resolvers::{CryptoResolver, DefaultResolver};
 use std::time::{Duration, Instant};
@@ -74,7 +78,7 @@ impl Identity {
             state: State::Handshake(Box::new(state)),
             started: None,
             step: 0,
-            assembled: Vec::new(),
+            assembler: RecordAssembler::default(),
             hash: None,
         })
     }
@@ -106,7 +110,7 @@ pub struct Channel {
     state: State,
     started: Option<Instant>,
     step: u8,
-    assembled: Vec<u8>,
+    assembler: RecordAssembler,
     hash: Option<Vec<u8>>,
 }
 
@@ -139,12 +143,9 @@ impl Channel {
     }
 
     fn frame(&self, kind: u8, payload: &[u8]) -> Vec<u8> {
-        let mut out = Vec::with_capacity(21 + payload.len());
-        out.extend_from_slice(&((17 + payload.len()) as u32).to_be_bytes());
-        out.push(kind);
-        out.extend_from_slice(&self.sid);
-        out.extend_from_slice(payload);
-        out
+        // Handshake replies are 96 bytes and records are bounded by `send_inner`, so the frame
+        // always fits.
+        encode_frame(kind, &self.sid, payload).expect("frame within the protocol bound")
     }
 
     pub fn receive(&mut self, frame: &[u8]) -> Result<Received, String> {
@@ -156,14 +157,25 @@ impl Channel {
     }
 
     fn receive_inner(&mut self, frame: &[u8]) -> Result<Received, String> {
-        if frame.len() < 21
-            || frame.len() > 65556
-            || u32::from_be_bytes(frame[..4].try_into().unwrap()) as usize != frame.len() - 4
-            || frame[5..21] != self.sid
-        {
+        let (_, sid, _) = decode_frame(frame).map_err(|_| ERR_PROTOCOL)?;
+        if frame.len() > MAX_FRAME || sid != self.sid {
             return Err(ERR_PROTOCOL.into());
         }
         let payload = &frame[21..];
+        // Keyless structural check (APP_PROTOCOL 7.5), direction-aware: the browser sends the
+        // handshake frames 0 and 2 and every transport frame this channel receives.
+        let handshake_index = match (&self.state, self.step) {
+            (State::Handshake(_), 0) => 0,
+            (State::Handshake(_), _) => 2,
+            _ => 3,
+        };
+        validate_relay_frame(
+            frame[4],
+            payload.len(),
+            handshake_index,
+            Some(Direction::BrowserToDesktop),
+        )
+        .map_err(|_| ERR_PROTOCOL)?;
         match &mut self.state {
             State::Handshake(hs) => {
                 if self.started.get_or_insert_with(Instant::now).elapsed() > Duration::from_secs(10)
@@ -204,7 +216,7 @@ impl Channel {
                 }
             }
             State::Transport(t) => {
-                if frame[4] != 2 || payload.len() < 80 {
+                if frame[4] != 2 {
                     return Err(ERR_PROTOCOL.into());
                 }
                 let mut record = vec![0; 65535];
@@ -212,25 +224,13 @@ impl Channel {
                     .read_message(payload, &mut record)
                     .map_err(|_| ERR_PROTOCOL)?;
                 record.truncate(n);
-                if n < 64 || n % 64 != 0 || record[0] > 1 {
-                    return Err(ERR_PROTOCOL.into());
-                }
-                let len = u16::from_be_bytes([record[1], record[2]]) as usize;
-                if len > 16384
-                    || 3 + len > n
-                    || record[3 + len..].iter().any(|b| *b != 0)
-                    || self.assembled.len() + len > MAX_ENVELOPE
-                {
-                    return Err(ERR_PROTOCOL.into());
-                }
-                self.assembled.extend_from_slice(&record[3..3 + len]);
+                let envelope = self
+                    .assembler
+                    .push(&record, MAX_ENVELOPE)
+                    .map_err(|_| ERR_PROTOCOL)?;
                 Ok(Received {
                     reply: None,
-                    envelope: if record[0] == 0 {
-                        Some(std::mem::take(&mut self.assembled))
-                    } else {
-                        None
-                    },
+                    envelope,
                 })
             }
             State::Closed => Err(ERR_PROTOCOL.into()),
@@ -249,13 +249,11 @@ impl Channel {
     }
 
     fn send_inner(&mut self, envelope: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+        if envelope.len().div_ceil(RECORD_DATA_MAX) > MAX_FRAGMENTS {
+            return Err(ERR_PROTOCOL.into());
+        }
         let mut frames = Vec::new();
-        let count = envelope.len().div_ceil(16384);
-        for (i, data) in envelope.chunks(16384).enumerate() {
-            let mut record = vec![0; (3 + data.len()).div_ceil(64) * 64];
-            record[0] = u8::from(i + 1 < count);
-            record[1..3].copy_from_slice(&(data.len() as u16).to_be_bytes());
-            record[3..3 + data.len()].copy_from_slice(data);
+        for record in split_into_records(envelope) {
             let mut cipher = vec![0; record.len() + 16];
             let State::Transport(t) = &mut self.state else {
                 return Err(ERR_PROTOCOL.into());
@@ -270,6 +268,6 @@ impl Channel {
 
     pub fn close(&mut self) {
         self.state = State::Closed;
-        self.assembled.clear();
+        self.assembler.clear();
     }
 }

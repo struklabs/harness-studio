@@ -48,11 +48,24 @@ struct Chat {
     changed: Instant,
     detached: Option<Instant>,
     token_id: String,
+    /// Digest of the request (model, messages, params): an identical retry attaches to the run.
+    fingerprint: [u8; 32],
 }
 #[derive(Default)]
 pub struct Applications {
     chats: Mutex<HashMap<(String, String), Chat>>,
     limiter: crate::gateway::limits::RateLimiter,
+    /// One live session per device: the generation of the session that owns each device.
+    live: Mutex<HashMap<String, u64>>,
+    generation: std::sync::atomic::AtomicU64,
+}
+
+fn request_fingerprint(request: &Value) -> [u8; 32] {
+    let canonical =
+        json!({"model":request["model"],"messages":request["messages"],"params":request["params"]});
+    let mut h = Blake2s256::new();
+    h.update(canonical.to_string().as_bytes());
+    h.finalize().into()
 }
 
 impl Applications {
@@ -67,6 +80,47 @@ impl Applications {
         for (_, chat) in self.chats.lock().unwrap().drain() {
             let _ = chat.cancel.send(true);
         }
+    }
+    /// Registers a newly authenticated session for `device`. Any older session of the device is
+    /// superseded: it no longer owns the device and must end with `session.superseded`.
+    pub fn claim_session(&self, device: &str) -> u64 {
+        let generation = self
+            .generation
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+            + 1;
+        self.live.lock().unwrap().insert(device.into(), generation);
+        generation
+    }
+    pub fn is_current(&self, device: &str, generation: u64) -> bool {
+        self.live.lock().unwrap().get(device) == Some(&generation)
+    }
+    /// Ends ownership; true when `generation` was still the current session of the device.
+    pub fn release(&self, device: &str, generation: u64) -> bool {
+        let mut live = self.live.lock().unwrap();
+        if live.get(device) == Some(&generation) {
+            live.remove(device);
+            true
+        } else {
+            false
+        }
+    }
+    #[cfg(test)]
+    pub(super) fn insert_test_chat(&self, device: &str, id: &str, token_id: &str, request: &Value) {
+        let (cancel, _) = watch::channel(false);
+        self.chats.lock().unwrap().insert(
+            (device.into(), id.into()),
+            Chat {
+                events: VecDeque::new(),
+                bytes: 0,
+                next: 0,
+                done: None,
+                cancel,
+                changed: Instant::now(),
+                detached: None,
+                token_id: token_id.into(),
+                fingerprint: request_fingerprint(request),
+            },
+        );
     }
     pub fn attach(&self, device: &str) {
         for ((d, _), c) in self.chats.lock().unwrap().iter_mut() {
@@ -193,7 +247,14 @@ impl Applications {
         info: TokenInfo,
         request: Value,
     ) -> Result<(), Value> {
-        let error = |code: &str| json!({"type":"error","id":request["id"],"code":code,"message":"The chat request could not be completed.","retryable":true});
+        let error = |code: &str| {
+            let message = match code {
+                "chat.limit_reached" => "Too many chats are running for this device.",
+                "chat.busy" => "This chat id is already used by a different request.",
+                _ => "The chat request could not be completed.",
+            };
+            json!({"type":"error","id":request["id"],"code":code,"message":message,"retryable":true})
+        };
         let id = request["id"]
             .as_str()
             .filter(|id| (8..=64).contains(&id.len()))
@@ -220,11 +281,11 @@ impl Applications {
             ) {
                 return Err(error("protocol.malformed"));
             }
+            // The prompt limit is total UTF-8 bytes (APP_PROTOCOL 6.3), not characters.
             chars += message["content"]
                 .as_str()
                 .ok_or_else(|| error("protocol.malformed"))?
-                .chars()
-                .count();
+                .len();
         }
         if chars > 262144 {
             return Err(error("protocol.too_large"));
@@ -249,6 +310,19 @@ impl Applications {
                 return Err(error("protocol.malformed"));
             }
         }
+        let fingerprint = request_fingerprint(&request);
+        {
+            // An identical retry (same id, same request) attaches to the existing run without
+            // consuming rate or concurrency; a different request under the id is `chat.busy`.
+            let chats = self.chats.lock().unwrap();
+            if let Some(chat) = chats.get(&(device.into(), id.clone())) {
+                return if chat.fingerprint == fingerprint && chat.token_id == info.id {
+                    Ok(())
+                } else {
+                    Err(error("chat.busy"))
+                };
+            }
+        }
         let permit = self
             .limiter
             .admit(&info.id, &info.policy.limits)
@@ -266,7 +340,7 @@ impl Applications {
                     .count()
                     >= info.policy.limits.max_concurrent.unwrap_or(1).min(4) as usize
             {
-                return Err(error("chat.busy"));
+                return Err(error("chat.limit_reached"));
             }
             chats.insert(
                 (device.into(), id.clone()),
@@ -279,6 +353,7 @@ impl Applications {
                     changed: Instant::now(),
                     detached: None,
                     token_id: info.id.clone(),
+                    fingerprint,
                 },
             );
         }
@@ -409,6 +484,7 @@ mod tests {
             changed: Instant::now(),
             detached: None,
             token_id: token_id.into(),
+            fingerprint: [0; 32],
         }
     }
 

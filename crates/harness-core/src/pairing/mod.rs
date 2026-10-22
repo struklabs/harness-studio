@@ -539,7 +539,18 @@ impl Hub {
     fn expire(&self, st: &mut HubState, now: u64) {
         st.offers.retain(|o| o.info.expires_at > now);
         // An expired claim is kept for one more window so its device learns it expired.
-        st.claims.retain(|c| c.expires_at + CLAIM_TTL_SECS > now);
+        st.claims.retain(|c| match (&c.stage, &c.remote) {
+            // An approved browser claim is not subject to the offer or claim TTL: it waits for its
+            // first poll, then stays redeliverable until acknowledged (APP_PROTOCOL 4.1).
+            (ClaimStage::Approved(_), Some(r)) => match r.delivered_at {
+                Some(at) => at + remote::TOKEN_REDELIVERY_SECS > now,
+                None => {
+                    r.approved_at.unwrap_or(c.requested_at) + remote::TOKEN_DELIVERY_WINDOW_SECS
+                        > now
+                }
+            },
+            _ => c.expires_at + CLAIM_TTL_SECS > now,
+        });
         st.failures.retain(|t| t + FAIL_WINDOW_SECS > now);
         st.seen.retain(|_, t| *t + 7 * 24 * 3600 > now);
     }
@@ -827,6 +838,9 @@ impl Hub {
         }
         {
             if let Some(c) = st.claims.iter_mut().find(|c| c.id == claim_id) {
+                if let Some(r) = c.remote.as_mut() {
+                    r.approved_at = Some(now);
+                }
                 c.stage = ClaimStage::Approved(Box::new(ClaimGrant {
                     token: created.token,
                     device_id: device.id.clone(),
@@ -867,7 +881,7 @@ impl Hub {
         poll_secret: &str,
         tokens: &TokenStore,
     ) -> Result<ClaimPoll, String> {
-        self.poll_internal(claim_id, poll_secret, tokens, false)
+        self.poll_internal(claim_id, poll_secret, tokens)
     }
 
     fn poll_internal(
@@ -875,7 +889,6 @@ impl Hub {
         claim_id: &str,
         poll_secret: &str,
         tokens: &TokenStore,
-        remote: bool,
     ) -> Result<ClaimPoll, String> {
         let now = self.now();
         let mut st = self.state.lock().unwrap();
@@ -883,9 +896,8 @@ impl Hub {
         let idx = st
             .claims
             .iter()
-            .position(|c| {
-                c.remote.is_some() == remote && c.id == claim_id && c.matches_poll(poll_secret)
-            })
+            // Browser claims are delivered over Noise only (`remote::remote_poll`).
+            .position(|c| c.remote.is_none() && c.id == claim_id && c.matches_poll(poll_secret))
             .ok_or_else(|| ERR_NOT_FOUND.to_string())?;
         let expired = st.claims[idx].expires_at <= now;
         match &st.claims[idx].stage {

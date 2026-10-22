@@ -35,7 +35,34 @@ fn jwt_part(part: &str) -> Result<Value, String> {
     serde_json::from_slice(&bytes).map_err(|_| ERR_PROTOCOL.into())
 }
 
+/// Request body of `POST /account/api/relay/desktop-ticket` (struklabs-web platform). The call is
+/// made with the desktop's account access token by a [`TicketProvider`]; it is never a Harness token.
+pub fn desktop_ticket_request(desktop_id: &str, key: &[u8; 32]) -> Value {
+    json!({"device_id":desktop_id,"noise_static_pub":encode(key)})
+}
+
 impl RelayTicket {
+    /// Builds a ticket from the platform's answer `{ticket, expires_at, relay_url}`. The claims
+    /// are still pinned by `validate` before the ticket is ever sent to a relay. The desktop never
+    /// calls `POST /account/api/relay/redeem`: that endpoint belongs to the relay (operator
+    /// credential), which claims every `jti` there before accepting `auth`.
+    pub fn from_response(desktop_id: &str, key: &[u8; 32], answer: &Value) -> Result<Self, String> {
+        let expires_at = chrono::DateTime::parse_from_rfc3339(
+            answer["expires_at"].as_str().ok_or(ERR_PROTOCOL)?,
+        )
+        .map_err(|_| ERR_PROTOCOL)?
+        .timestamp();
+        // The relay URL is fixed (`RELAY_URL`); a platform answer cannot redirect the desktop.
+        if answer["relay_url"].as_str() != Some(RELAY_URL) || expires_at <= 0 {
+            return Err(ERR_PROTOCOL.into());
+        }
+        Ok(Self {
+            credential: answer["ticket"].as_str().ok_or(ERR_PROTOCOL)?.to_string(),
+            desktop_id: desktop_id.to_string(),
+            public_key: *key,
+            expires_at: expires_at as u64,
+        })
+    }
     /// Checks the claims of the desktop ticket before it is ever sent to a relay. The relay (and
     /// the platform JWKS) own signature verification; the desktop pins what it can check offline:
     /// algorithm, lifetime, audience, role, device, key binding and single use.
@@ -64,6 +91,16 @@ impl RelayTicket {
             return Err(ERR_PROTOCOL.into());
         };
         let jti = claims["jti"].as_str().unwrap_or("");
+        let limits = &claims["limits"];
+        if !claims["iss"].as_str().is_some_and(|i| i.starts_with("https://"))
+            || !claims["sub"].as_str().is_some_and(|s| (8..=128).contains(&s.len()))
+            // The signed per-ticket limits of a desktop ticket (APP_PROTOCOL 7.2).
+            || limits["sessions"] != 8
+            || limits["bytes_per_minute"] != 8_388_608
+            || limits["idle_timeout_ms"] != 60_000
+        {
+            return Err(ERR_PROTOCOL.into());
+        }
         if claims["aud"] != "struklabs-relay"
             || claims["role"] != "desktop"
             || claims["device"] != self.desktop_id.as_str()
@@ -137,6 +174,8 @@ pub struct DesktopSession {
     inbound: u64,
     outbound: u64,
     authenticated: Option<(String, String)>,
+    /// Ownership generation of the device (one live session per device).
+    generation: u64,
     pub closed: bool,
     apps: Arc<apps::Applications>,
     cursors: HashMap<String, i64>,
@@ -162,6 +201,7 @@ impl DesktopSession {
             inbound: 0,
             outbound: 0,
             authenticated: None,
+            generation: 0,
             closed: false,
             apps: apps::Applications::shared(),
             cursors: HashMap::new(),
@@ -169,7 +209,17 @@ impl DesktopSession {
         })
     }
 
+    /// A newer session authenticated the same device: this one ends with `session.superseded`.
+    fn superseded(&self) -> bool {
+        self.authenticated
+            .as_ref()
+            .is_some_and(|(device, _)| !self.apps.is_current(device, self.generation))
+    }
+
     pub fn receive(&mut self, frame: &[u8]) -> Result<Vec<Vec<u8>>, String> {
+        if self.superseded() {
+            return Ok(self.reject("session.superseded"));
+        }
         let result = self.receive_inner(frame);
         if let Err(error) = result {
             let code = if error == ERR_REVOKED {
@@ -249,6 +299,7 @@ impl DesktopSession {
                             }
                         }
                     }
+                    self.generation = self.apps.claim_session(&device);
                     self.apps.attach(&device);
                     self.authenticated = Some((device, token.into()));
                     json!({"type":"hello","from":"desktop","accepted_v":1,"desktop":{"name":self.desktop_name,"version":env!("CARGO_PKG_VERSION")},
@@ -326,7 +377,11 @@ impl DesktopSession {
     }
     pub fn close(&mut self) {
         if let Some((device, _)) = &self.authenticated {
-            self.apps.detach(device);
+            // Only the session that still owns the device detaches its chats; a superseded
+            // session must not mark the new session's chats as orphaned.
+            if self.apps.release(device, self.generation) {
+                self.apps.detach(device);
+            }
         }
         self.closed = true;
         self.channel.close();
@@ -342,6 +397,9 @@ impl DesktopSession {
     }
 
     pub async fn poll(&mut self) -> Result<Vec<Vec<u8>>, String> {
+        if self.superseded() {
+            return Ok(self.reject("session.superseded"));
+        }
         self.check_authorized()?;
         let Some((device, token)) = self.authenticated.clone() else {
             return Ok(vec![]);
@@ -511,8 +569,8 @@ async fn connect_with_apps(
         request,
         Some(
             tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default()
-                .max_message_size(Some(65556))
-                .max_frame_size(Some(65556)),
+                .max_message_size(Some(frames::MAX_FRAME))
+                .max_frame_size(Some(frames::MAX_FRAME)),
         ),
         false,
     )
@@ -532,6 +590,8 @@ async fn connect_with_apps(
     seq += 1;
     let mut sessions: HashMap<String, (DesktopSession, bool, Instant)> = HashMap::new();
     let mut authenticated = false;
+    // Session ids are never reused on a connection: a replayed `session.incoming` is fatal.
+    let mut used_sessions: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut incoming_seq = 0u64;
     let mut last = Instant::now();
     let mut last_ping = Instant::now();
@@ -553,8 +613,14 @@ async fn connect_with_apps(
                     ws.send(Message::Text(json!({"v":1,"seq":seq,"session":sid,"type":"leave","reason":"session_closed"}).to_string().into())).await.map_err(|_|ERR_PROTOCOL)?;seq+=1;
                 }
                 apps.cleanup(&tokens);
-                for (session,_,_) in sessions.values_mut() {
+                let mut finished=Vec::new();
+                for (sid,(session,_,_)) in sessions.iter_mut() {
                     for reply in session.poll().await? {ws.send(Message::Binary(reply.into())).await.map_err(|_|ERR_PROTOCOL)?;}
+                    if session.closed {finished.push(sid.clone());}
+                }
+                for sid in finished {
+                    sessions.remove(&sid);
+                    ws.send(Message::Text(json!({"v":1,"seq":seq,"session":sid,"type":"leave","reason":"session_closed"}).to_string().into())).await.map_err(|_|ERR_PROTOCOL)?;seq+=1;
                 }
                 if last_ping.elapsed()>Duration::from_secs(20) {
                     ws.send(Message::Text(json!({"v":1,"seq":seq,"session":zero,"type":"ping","ts":control_api::now_secs()*1000}).to_string().into())).await.map_err(|_|ERR_PROTOCOL)?;
@@ -575,17 +641,20 @@ async fn connect_with_apps(
                         match field(&v,"type")? {
                             "auth.ok" if !authenticated && v["role"]=="desktop" => authenticated=true,
                             "session.incoming" if authenticated => {
-                                if sessions.len()>=8 || sessions.contains_key(sid) { return Err(ERR_PROTOCOL.into()); }
+                                if sessions.len()>=8 || used_sessions.len()>=65536 || sessions.contains_key(sid) || !used_sessions.insert(sid.to_string()) { return Err(ERR_PROTOCOL.into()); }
                                 let mut session=DesktopSession::new(identity,field(&v,"mode")?,sid,&ticket.desktop_id,name,tokens.clone())?;
                                 session.apps=apps.clone();
                                 sessions.insert(sid.into(),(session,false,Instant::now()));
                             }
                             "transport.fallback" if authenticated => { if let Some(owned)=sessions.get_mut(sid) {owned.1=true;} }
                             "peer.left" => { if let Some((mut s,_,_))=sessions.remove(sid) {s.close();} }
-                            "ping" => {
+                            // Session ownership (APP_PROTOCOL 7.5): the desktop speaks only for the
+                            // connection (all-zero id) and for sessions the relay created for it;
+                            // anything else is dropped and never touches another session.
+                            "ping" if sid==zero || sessions.contains_key(sid) => {
                                 ws.send(Message::Text(json!({"v":1,"seq":seq,"session":sid,"type":"pong","ts":v["ts"]}).to_string().into())).await.map_err(|_|ERR_PROTOCOL)?; seq+=1;
                             }
-                            "pong"|"presence"|"joined"|"ice"|"sdp.offer" => {},
+                            "ping"|"pong"|"presence"|"joined"|"ice"|"sdp.offer" => {},
                             "error" => return Err(if matches!(v["code"].as_str(),Some("relay.revoked"|"relay.auth_failed")){ERR_REVOKED}else{ERR_PROTOCOL}.into()),
                             _ => return Err(ERR_PROTOCOL.into()),
                         }
