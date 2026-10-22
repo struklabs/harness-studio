@@ -2695,5 +2695,103 @@ export interface N8nOpenAiConnection {
   requires_token: boolean;
 }
 
+/** Agents > Paperclip: the user's own Paperclip install (the board key is in the keychain). */
+export interface PaperclipView {
+  url: string;
+  company_id: string;
+  key_set: boolean;
+  /** Paperclip task id -> Harness project id. */
+  task_links: Record<string, string>;
+}
+
+export interface PaperclipHealth {
+  status: string;
+  version: string | null;
+  deployment_mode: string | null;
+}
+
+export interface PaperclipCompany {
+  id: string;
+  name: string;
+  status: string;
+  budget_monthly_cents: number;
+}
+
+export interface PaperclipConnection {
+  ok: boolean;
+  url: string;
+  health: PaperclipHealth;
+  companies: PaperclipCompany[];
+}
+
+export interface PaperclipAgent {
+  id: string;
+  name: string;
+  role: string;
+  title: string | null;
+  reports_to: string | null;
+  status: string;
+  adapter_type: string;
+  model: string | null;
+  uses_harness: boolean;
+  budget_monthly_cents: number;
+  spent_monthly_cents: number;
+}
+
+export interface PaperclipTeam {
+  lead_id: string;
+  lead_name: string;
+  member_ids: string[];
+}
+
+export interface PaperclipTask {
+  id: string;
+  identifier: string | null;
+  title: string;
+  status: string;
+  priority: string | null;
+  assignee_agent_id: string | null;
+  project_id: string | null;
+  updated_at: string | null;
+  harness_project_id: string | null;
+}
+
+export interface PaperclipRun {
+  id: string;
+  agent_id: string;
+  issue_id: string | null;
+  status: string;
+  source: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+}
+
+export interface PaperclipBudget {
+  month_spend_cents: number;
+  month_budget_cents: number;
+  utilization_percent: number;
+  pending_approvals: number;
+  paused_agents: number;
+  active_incidents: number;
+}
+
+export interface PaperclipOverview {
+  company: PaperclipCompany;
+  health: PaperclipHealth;
+  agents: PaperclipAgent[];
+  teams: PaperclipTeam[];
+  tasks: PaperclipTask[];
+  runs: PaperclipRun[];
+  budget: PaperclipBudget | null;
+  costs: { agent_id: string; cost_cents: number; input_tokens: number; output_tokens: number }[];
+}
+
+export interface PaperclipModelApplied {
+  agent_id: string;
+  model: string;
+  token_id: string;
+}
+
 /** Playground-only tools do not change a model's runtime serving mode. */
 export type PlaygroundMode = ServeMode | 'ocr' | 'studio';

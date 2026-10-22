@@ -19,6 +19,7 @@ mod modules;
 mod office;
 mod onnx_runtime;
 mod otel;
+mod paperclip;
 mod permissions;
 mod runtimes;
 mod servers;
@@ -74,6 +75,7 @@ the Secure HttpOnly session cookie; cookie writes need same-origin Origin and X-
         (name = "conversations", description = "Stored chats: list, read, export, documents, context compaction (scope `conversations`)"),
         (name = "training", description = "Training jobs: LoRA / QLoRA fine-tuning of a library model on a JSONL dataset, with loss history, checkpoints, resume and export to the library (admin to create, run and export)"),
         (name = "analytics", description = "Gateway request log, statistics and Prometheus metrics"),
+        (name = "paperclip", description = "The user's own Paperclip install: connection, agents, tasks, runs, budgets, Harness model handoff (admin)"),
         (name = "automations", description = "The user's own n8n instance: connection, workflows, executions, webhook runs (admin)"),
         (name = "permissions", description = "Trust levels and capability grants of MCP servers, agent runtimes and the training backend (admin)"),
         (name = "tools", description = "Tool engine: list and run tools (file read/write/search, shell), the tool policy and the tool log (running needs scope `admin`)")
@@ -344,6 +346,10 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(knowledge::progress))
         .routes(routes!(knowledge::cancel))
         .routes(routes!(knowledge::query))
+        .routes(routes!(paperclip::get_paperclip, paperclip::put_paperclip))
+        .routes(routes!(paperclip::test_paperclip))
+        .routes(routes!(paperclip::paperclip_overview))
+        .routes(routes!(paperclip::paperclip_use_model))
         .routes(routes!(conversations::list))
         .routes(routes!(conversations::get_one))
         .routes(routes!(conversations::export))

@@ -186,6 +186,13 @@ pub fn http_status(code: &str) -> u16 {
         "automations.n8n_proposal_closed"
         | "automations.n8n_proposal_stale"
         | "automations.n8n_connection_changed" => 409,
+        "paperclip.unauthorized"
+        | "paperclip.forbidden"
+        | "paperclip.api_missing"
+        | "paperclip.redirect"
+        | "paperclip.server_error"
+        | "paperclip.http_error"
+        | "paperclip.invalid_response" => 502,
         // A provider outside this machine answered badly: the key, the plan or the network.
         "cloud.unauthorized"
         | "cloud.payment_required"
@@ -210,7 +217,8 @@ pub fn http_status(code: &str) -> u16 {
             || c.starts_with("api.")
             || c.starts_with("otel.")
             || c.starts_with("cloud.")
-            || c.starts_with("automations.") =>
+            || c.starts_with("automations.")
+            || c.starts_with("paperclip.") =>
         {
             400
         }

@@ -101,6 +101,7 @@ include!("training.rs");
 include!("pyenv.rs");
 include!("otel.rs");
 include!("automations.rs");
+include!("paperclip_link.rs");
 include!("comfyui.rs");
 include!("permissions.rs");
 include!("workload.rs");

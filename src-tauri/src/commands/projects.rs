@@ -53,7 +53,13 @@ pub(crate) async fn project_delete(
     delete_files: bool,
 ) -> Result<harness_core::projects::DeleteReport, String> {
     let db = store.0.clone()?;
-    blocking(move || harness_core::projects::delete(&db, &id, delete_files)).await?
+    blocking(move || {
+        let report = harness_core::projects::delete(&db, &id, delete_files)?;
+        // Paperclip tasks linked to the project lose the link with it.
+        let _ = harness_core::paperclip::forget_project(&id);
+        Ok(report)
+    })
+    .await?
 }
 
 #[tauri::command]
