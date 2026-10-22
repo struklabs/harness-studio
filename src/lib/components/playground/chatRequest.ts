@@ -4,13 +4,38 @@ import { flattenChatBody, hasToolHistory, shouldFlattenHistory } from './toolHis
 // Shared by normal and split Playground requests; never persisted with conversations.
 const flattenTemplates = new Set<string>();
 
+export class AudioInputError extends Error {
+  constructor() { super('pg.audio_needs_model'); }
+}
+
+/** Wire-only filtering: saved attachments remain available when switching back to an audio model. */
+export function prepareAudioRequest(body: Record<string, unknown>, audioInput: boolean) {
+  if (audioInput) return { body, audioHistoryOmitted: false };
+  const messages = (body.messages ?? []) as Record<string, unknown>[];
+  const lastUser = messages.findLastIndex(m => m.role === 'user');
+  let audioHistoryOmitted = false;
+  const filtered = messages.map((message, index) => {
+    if (!Array.isArray(message.content) || !message.content.some(part => part?.type === 'input_audio')) return message;
+    // Tool rounds and regeneration still belong to the latest user turn.
+    if (index >= lastUser) throw new AudioInputError();
+    audioHistoryOmitted = true;
+    const content = message.content.filter(part => part?.type !== 'input_audio');
+    return { ...message, content: content.length ? content : '' };
+  });
+  return { body: audioHistoryOmitted ? { ...body, messages: filtered } : body, audioHistoryOmitted };
+}
+
 export async function chatRequest(
   endpoint: string,
   body: Record<string, unknown>,
   headers: Record<string, string>,
   signal: AbortSignal,
-  send: typeof fetch = fetch
+  send: typeof fetch = fetch,
+  options: { audioInput?: boolean; onAudioHistoryOmitted?: () => void } = {}
 ): Promise<{ response: Response; body: Record<string, unknown>; routingFallback: boolean; routingWithoutTools: boolean; routingError: string }> {
+  const audio = prepareAudioRequest(body, options.audioInput === true);
+  body = audio.body;
+  if (audio.audioHistoryOmitted) options.onAudioHistoryOmitted?.();
   const routing = await routeTools(endpoint, body, headers, signal, send);
   body = routing.body;
   const key = JSON.stringify([endpoint.replace(/\/+$/, ''), body.model ?? '']);

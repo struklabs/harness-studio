@@ -5,6 +5,10 @@ import { firstNotice, redactDetail } from './toolRouting';
 
 const warned = new Set<string>();
 
+export function notifyAudioHistoryOmitted() {
+  toast.warning(t('pg.audio_history_omitted'), { id: 'pg-audio-history-omitted' });
+}
+
 /** Concise localized warning, once per model; the redacted, bounded upstream detail is only a copy away. */
 export function notifyRoutingFallback(error: string, model: unknown, withoutTools = false) {
   if (!firstNotice(warned, `${withoutTools ? 'audio:' : ''}${String(model ?? '')}`)) return;
