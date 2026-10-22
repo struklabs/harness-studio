@@ -6,7 +6,7 @@ export interface Bounds { x: number; y: number; width: number; height: number }
 export interface Room extends Bounds { id: string; name: string; color: string }
 export interface Furniture extends Bounds { id: string; kind: 'desk' | 'meeting' | 'kitchen' | 'plant' | 'board' }
 export interface Scene { version: number; id: string; name: string; size: OfficeSize; theme: OfficeTheme; rooms: Room[]; furniture: Furniture[]; desk_agents: Record<string,string>; room_projects: Record<string,string> }
-export interface Character { id: string; name: string; kind: string; status: OfficeStatus; run_id?: string | null; project_id?: string | null }
+export interface Character { id: string; name: string; kind: string; status: OfficeStatus; run_id?: string | null; project_id?: string | null; agent?: string | null }
 export const dimensions: Record<OfficeSize, [number,number]> = { small:[16,12], medium:[24,16], large:[32,20] };
 export const presets = bundled as Scene[];
 const text = (s: unknown): s is string => typeof s === 'string' && !!s.trim() && new TextEncoder().encode(s).length <= 200 && !/[\u0000-\u001f\u007f-\u009f]/.test(s);
@@ -60,9 +60,9 @@ export function wizardScene(size: OfficeSize, departments: string[], assignments
 export function eventStatus(raw: string): OfficeStatus {
   if (['running','loading','thinking'].includes(raw)) return 'thinking';
   if (['tool','running_tool'].includes(raw)) return 'running_tool';
-  if (raw==='waiting_for_approval') return raw;
+  if (['waiting_for_approval','awaiting_approval'].includes(raw)) return 'waiting_for_approval';
   if (['failed','error','interrupted'].includes(raw)) return 'error';
-  if (['queued','stopped','sleeping','cancelling'].includes(raw)) return 'sleeping';
+  if (['queued','stopped','sleeping','cancelling','paused'].includes(raw)) return 'sleeping';
   return 'idle';
 }
 export const statusColor: Record<OfficeStatus,string> = {idle:'#518578',thinking:'#557cda',running_tool:'#bd8335',waiting_for_approval:'#af6bb8',error:'#d65665',sleeping:'#83919f'};

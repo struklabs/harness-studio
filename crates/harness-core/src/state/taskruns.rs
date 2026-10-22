@@ -336,6 +336,29 @@ pub struct StepResult {
 }
 
 impl StateDb {
+    // Publish only after commit: subscribers can immediately read the new snapshot.
+    fn write_task_activity<T>(
+        &self,
+        f: impl FnOnce(&Transaction<'_>) -> StateResult<T>,
+    ) -> StateResult<T> {
+        let result = self.write(f);
+        if result.is_ok() {
+            crate::events::publish(crate::events::CoreEvent::OfficeActivityChanged);
+        }
+        result
+    }
+
+    /// All active office runs, across projects, including approval gates and paused runs.
+    pub fn office_task_runs(&self) -> StateResult<Vec<TaskRun>> {
+        self.read(|c| {
+            let mut stmt = c.prepare(&format!(
+                "SELECT {RUN_COLS} FROM task_runs WHERE status IN ('running', 'awaiting_approval', 'paused') ORDER BY created_at, rid"
+            ))?;
+            let runs = stmt.query_map([], run_from_row)?.collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(runs)
+        })
+    }
+
     /// Runs of the project (or the ones without a project), newest first.
     pub fn task_runs(&self, project_id: Option<&str>) -> StateResult<Vec<TaskRun>> {
         self.read(|c| {
@@ -408,7 +431,7 @@ impl StateDb {
         kind: &str,
         message: &str,
     ) -> StateResult<()> {
-        self.write(|tx| log_event(tx, run_id, step_idx, kind, message))
+        self.write_task_activity(|tx| log_event(tx, run_id, step_idx, kind, message))
     }
 
     /// Creates a draft (nothing runs until it is started).
@@ -417,7 +440,7 @@ impl StateDb {
         check_steps(&input.steps)?;
         let policy = serde_json::to_string(&input.policy).unwrap_or_else(|_| "{}".into());
         let refs = serde_json::to_string(&input.file_refs).unwrap_or_else(|_| "[]".into());
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             if let Some(p) = &input.project_id {
                 super::projects::load_project(tx, p)?;
             }
@@ -452,7 +475,7 @@ impl StateDb {
         check_steps(&input.steps)?;
         let policy = serde_json::to_string(&input.policy).unwrap_or_else(|_| "{}".into());
         let refs = serde_json::to_string(&input.file_refs).unwrap_or_else(|_| "[]".into());
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             let run = load_run(tx, id)?;
             if !matches!(
                 run.status.as_str(),
@@ -510,7 +533,7 @@ impl StateDb {
     }
 
     pub fn delete_task_run(&self, id: &str) -> StateResult<()> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             let run = load_run(tx, id)?;
             if run.status == "running" && now_ms() - run.heartbeat_at < super::HEARTBEAT_STALE_MS {
                 return Err(StateError::invalid(err("taskrun.busy")));
@@ -523,7 +546,7 @@ impl StateDb {
     /// Takes the run for one process: fails when another live process runs it or when too many
     /// runs are active. The run becomes `running` with a fresh heartbeat.
     pub fn claim_task_run(&self, id: &str, max_concurrent: usize) -> StateResult<TaskRun> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             let run = load_run(tx, id)?;
             let now = now_ms();
             let live =
@@ -572,7 +595,7 @@ impl StateDb {
         status: &str,
         error: Option<&str>,
     ) -> StateResult<TaskRun> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             let now = now_ms();
             let finished = matches!(status, "completed" | "failed").then_some(now);
             let n = tx.execute(
@@ -589,7 +612,7 @@ impl StateDb {
     }
 
     pub fn begin_task_step(&self, run_id: &str, idx: i64) -> StateResult<()> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             tx.execute(
                 "UPDATE task_steps SET status = 'running', error = NULL, started_at = ?3 \
                  WHERE run_id = ?1 AND idx = ?2",
@@ -609,7 +632,7 @@ impl StateDb {
         fallback_reason: Option<&str>,
         attempts: i64,
     ) -> StateResult<()> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             tx.execute(
                 "UPDATE task_steps SET model = ?3, fallback_reason = ?4, attempts = ?5 \
                  WHERE run_id = ?1 AND idx = ?2",
@@ -621,7 +644,7 @@ impl StateDb {
 
     /// Puts a step that was in flight back to pending (a stop request, not a rewind).
     pub fn reset_task_step(&self, run_id: &str, idx: i64) -> StateResult<()> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             tx.execute(
                 "UPDATE task_steps SET status = 'pending', model = NULL, fallback_reason = NULL,                  attempts = 0, started_at = NULL WHERE run_id = ?1 AND idx = ?2                  AND status = 'running'",
                 params![run_id, idx],
@@ -632,7 +655,7 @@ impl StateDb {
 
     /// Stores a finished step, adds its tokens and cost to the run and takes a checkpoint.
     pub fn finish_task_step(&self, run_id: &str, idx: i64, r: &StepResult) -> StateResult<()> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             let now = now_ms();
             tx.execute(
                 "UPDATE task_steps SET status = 'done', output = ?3, model = ?4, \
@@ -687,7 +710,7 @@ impl StateDb {
         fallback_reason: Option<&str>,
         attempts: i64,
     ) -> StateResult<()> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             tx.execute(
                 "UPDATE task_steps SET status = 'failed', error = ?3, fallback_reason = ?4, \
                  attempts = ?5, finished_at = ?6 WHERE run_id = ?1 AND idx = ?2",
@@ -704,7 +727,7 @@ impl StateDb {
         idx: i64,
         approval: &str,
     ) -> StateResult<()> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             tx.execute(
                 "UPDATE task_steps SET approval = ?3 WHERE run_id = ?1 AND idx = ?2",
                 params![run_id, idx, approval],
@@ -715,7 +738,7 @@ impl StateDb {
     }
 
     pub fn skip_task_step(&self, run_id: &str, idx: i64) -> StateResult<()> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             tx.execute(
                 "UPDATE task_steps SET status = 'skipped', finished_at = ?3 \
                  WHERE run_id = ?1 AND idx = ?2 AND status <> 'done'",
@@ -729,7 +752,7 @@ impl StateDb {
     /// Puts the run back before step `idx`: that step and every later one run again; earlier
     /// steps and their outputs stay. Tokens and cost already spent stay in the tally.
     pub fn rewind_task_run(&self, run_id: &str, idx: i64) -> StateResult<TaskRun> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             let run = load_run(tx, run_id)?;
             if run.status == "running" && now_ms() - run.heartbeat_at < super::HEARTBEAT_STALE_MS {
                 return Err(StateError::invalid(err("taskrun.busy")));
@@ -767,7 +790,7 @@ impl StateDb {
     /// Runs whose process vanished (no heartbeat for `stale_ms`) become `interrupted`; the step
     /// that was in flight is pending again. Returns the recovered run ids.
     pub fn recover_task_runs(&self, stale_ms: i64) -> StateResult<Vec<String>> {
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             let now = now_ms();
             let mut stmt = tx.prepare(
                 "SELECT id FROM task_runs WHERE status = 'running' AND heartbeat_at <= ?1",
@@ -804,7 +827,7 @@ impl StateDb {
     ) -> StateResult<TaskRun> {
         let policy = serde_json::to_string(&run.policy).unwrap_or_else(|_| "{}".into());
         let refs = serde_json::to_string(&run.file_refs).unwrap_or_else(|_| "[]".into());
-        self.write(|tx| {
+        self.write_task_activity(|tx| {
             if let Some(p) = project_id {
                 super::projects::load_project(tx, p)?;
             }

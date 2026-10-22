@@ -3361,3 +3361,68 @@ async fn pairing_revoke_all_deny_and_lockout() {
     let (_, roles) = json(api.get("/devices/roles").await).await;
     assert_eq!(roles.as_array().unwrap().len(), 3);
 }
+
+#[tokio::test]
+async fn office_taskflow_activity_and_details_are_scoped() {
+    use harness_core::state::{NewTaskRun, RunPolicy, StateDb, StepInput};
+    let api = start().await;
+    let db = StateDb::open(&api.dir.path().join("state.db")).unwrap();
+    let task = db
+        .create_task_run(&NewTaskRun {
+            title: "Office integration".into(),
+            goal: "Private goal".into(),
+            policy: RunPolicy {
+                models: vec!["fixture-agent".into()],
+                ..Default::default()
+            },
+            steps: vec![StepInput {
+                prompt: "Private step".into(),
+                gate: true,
+                ..Default::default()
+            }],
+            ..Default::default()
+        })
+        .unwrap();
+    db.claim_task_run(&task.id, 1).unwrap();
+    db.set_task_run_status(&task.id, "awaiting_approval", None)
+        .unwrap();
+    let (_, reader) = json(
+        api.post(
+            "/tokens",
+            json!({"name":"office-activity-reader","scopes":["read"]}),
+        )
+        .await,
+    )
+    .await;
+    let token = reader["token"].as_str().unwrap();
+    let (status, activity) = json(
+        api.send(Method::GET, "/offices/activity", token, None)
+            .await,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let id = format!("taskflow-{}", task.id);
+    let character = activity
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == id)
+        .unwrap();
+    assert_eq!(character["agent"], "fixture-agent");
+    assert_eq!(character["status"], "waiting_for_approval");
+    assert!(character.get("prompt").is_none());
+    let path = format!("/offices/runs/{id}");
+    assert_eq!(
+        api.send(Method::GET, &path, token, None).await.status(),
+        403
+    );
+    let (status, detail) = json(api.get(&path).await).await;
+    assert_eq!(status, 200);
+    assert_eq!(detail["prompt"], "Private goal");
+    assert_eq!(detail["status"], "awaiting_approval");
+    assert_eq!(
+        api.get("/offices/runs/taskflow-missing").await.status(),
+        404
+    );
+    api.server.stop().await;
+}
