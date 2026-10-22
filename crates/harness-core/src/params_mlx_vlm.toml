@@ -24,3 +24,14 @@ group = "performance"
 level = "advanced"
 label_key = "mlxparam.kv_bits"
 help_key = "mlxparam.kv_bits_help"
+
+[[param]]
+id = "video_max_frames"
+flags = ["--video-max-frames"]
+kind = "int"
+group = "performance"
+level = "advanced"
+label_key = "mlxparam.video_max_frames"
+help_key = "mlxparam.video_max_frames_help"
+min = 2
+max = 64

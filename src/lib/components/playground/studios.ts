@@ -42,9 +42,29 @@ export const STUDIO_STARTERS: Partial<Record<StudioId, string>> = {
   analysis: 'Analyze the data below. State the question, the method, the result and the caveats.\n\n',
 };
 
+const MIB = 1024 * 1024;
+/**
+ * Frames a video question sends, and what each costs on top of the weights (projector included),
+ * as measured with SmolVLM2-256M on an 8 GB M1: llama.cpp gets the gateway's 8 stills (about
+ * 12 MiB a frame over 1.07x the files); mlx-vlm samples at the model's rate up to 16 frames
+ * (about 24 MiB a frame over twice the weights).
+ */
+export const VIDEO_QUESTION_COST = {
+  'llama.cpp': { frames: 8, base: 1.07, perFrame: 12 * MIB },
+  'mlx-vlm': { frames: 16, base: 2, perFrame: 24 * MIB },
+} as const;
+
+/** Memory of a video question at the engine's frame cap: weights, projector and frames. */
+export function videoQuestionEstimate(sizeBytes: number, runtime: string | null | undefined, frames?: number): number {
+  const cost = runtime === 'mlx-vlm' ? VIDEO_QUESTION_COST['mlx-vlm'] : VIDEO_QUESTION_COST['llama.cpp'];
+  const n = Math.min(Math.max(frames ?? cost.frames, 1), cost.frames);
+  return Math.round(sizeBytes * cost.base + n * cost.perFrame);
+}
+
 /** Estimated RAM/VRAM in bytes for a model file in a studio; null when the size is unknown. */
-export function studioMemoryEstimate(studio: StudioSpec, sizeBytes: number | null | undefined, opts: { frames?: number; size?: string } = {}): number | null {
+export function studioMemoryEstimate(studio: StudioSpec, sizeBytes: number | null | undefined, opts: { frames?: number; size?: string; understanding?: boolean; runtime?: string | null } = {}): number | null {
   if (!sizeBytes || sizeBytes <= 0) return null;
+  if (studio.id === 'video' && opts.understanding) return videoQuestionEstimate(sizeBytes, opts.runtime);
   let factor = studio.memoryFactor;
   if (studio.id === 'video') {
     // Every extra frame and pixel keeps latents around: grow with the request, capped.
@@ -85,7 +105,7 @@ export function engineOfFile(file: LocalModel | undefined): string | null {
  * than the model); `runtime` the engine family the model registry gives the file (an MLX folder's
  * kind and task look like llama.cpp's or diffusers').
  */
-export function studioResources(studio: StudioSpec, alias: string, file: LocalModel | undefined, opts: { frames?: number; size?: string; companionBytes?: number; runtime?: string | null } = {}): StudioResources {
+export function studioResources(studio: StudioSpec, alias: string, file: LocalModel | undefined, opts: { frames?: number; size?: string; companionBytes?: number; runtime?: string | null; understanding?: boolean } = {}): StudioResources {
   const location: StudioLocation = alias.startsWith('remote:') ? 'remote' : alias.startsWith('cloud:') ? 'cloud' : 'local';
   const sizeBytes = location === 'local' && file ? file.size_bytes + Math.max(0, opts.companionBytes ?? 0) : null;
   return {

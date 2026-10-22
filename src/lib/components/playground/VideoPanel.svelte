@@ -18,6 +18,8 @@
   let { model, task, frames = $bindable(9), size = $bindable('256x256') }: { model: string; task?: string; frames?: number; size?: string } = $props();
   let understanding = $derived(task === 'video-text-to-text');
   let prompt = $state('');
+  /** Frames the engine sampled from the clip for the last answer (from `x-harness-video-frames`). */
+  let sampledFrames = $state(0);
   let media = $state('');
   let format = $state('mp4');
   /** Only the containers this model's engine writes (sd.cpp has no mp4). */
@@ -62,13 +64,14 @@
   onDestroy(() => { clearInterval(timer); cancel(); if (output) URL.revokeObjectURL(output); });
   async function run() {
     const c = new AbortController(); controller = c;
-    busy = true; error = ''; answer = ''; progress = 0; stage = 'queued'; elapsed = 0; saved = false;
+    busy = true; error = ''; answer = ''; sampledFrames = 0; progress = 0; stage = 'queued'; elapsed = 0; saved = false;
     const started = Date.now(); clearInterval(timer); timer = setInterval(() => { elapsed = Math.round((Date.now() - started) / 1000); }, 1000);
     try {
       await engineInstall.runWithEngine(async () => {
         c.signal.throwIfAborted();
         if (understanding) {
           const r = await api('/chat/completions', { method: 'POST', signal: c.signal, body: JSON.stringify(videoQuestion(model, prompt, media)) });
+          sampledFrames = Number(r.headers.get('x-harness-video-frames')) || 0;
           answer = (await r.json()).choices[0].message.content;
         } else {
           const r = await api('/videos', { method: 'POST', body: JSON.stringify({ model, prompt, frames, steps, size, output_format: format, ...(media ? { input_reference: media } : {}) }) });
@@ -122,7 +125,9 @@
     </div>
   {/if}
   {#if error}<p role="alert" class="text-destructive">{error}</p>{/if}
-  {#if answer}<p class="whitespace-pre-wrap">{answer}</p>{/if}
+  {#if answer}<p class="whitespace-pre-wrap">{answer}</p>
+    {#if sampledFrames}<p class="text-xs text-muted-foreground">{t('vid.sampled', { n: sampledFrames })}</p>{/if}
+  {/if}
   {#if output}
     {@const kind = videoPreview(outputFormat)}
     {#if kind === 'video'}<video controls src={output}><track kind="captions" /></video>

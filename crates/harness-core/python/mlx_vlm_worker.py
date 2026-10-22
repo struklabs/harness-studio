@@ -23,16 +23,23 @@ routes) and loads whatever a request names. This worker puts a narrow door in fr
   request names (and takes base64 that starts with "/" for a path).
 * It listens on 127.0.0.1 only; remote code is never trusted; Hugging Face Hub access is off;
   proxy variables are cleared.
+* Videos a model's processor cannot take natively become frames at the model's own video
+  sampling (`video_sampling` in preprocessor_config.json: fps, at most --video-max-frames), and
+  those frames skip image splitting the way the model's video processor would: a SmolVLM2 frame
+  is one 512 px tile (64 tokens) instead of 13. The answer carries the frame count in
+  `x-harness-video-frames`.
 """
 
 import argparse
 import base64
 import binascii
+import contextvars
 import hmac
 import json
 import re
 import os
 import sys
+import tempfile
 
 os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
@@ -61,6 +68,123 @@ LABEL_KEYS = ("detail", "format")
 LABEL = re.compile(r"^[A-Za-z0-9_-]{1,16}$")
 AUDIO_FORMATS = ("wav", "mp3", "flac", "ogg", "m4a", "aac", "webm", "opus", "pcm16")
 MAX_BODY = 64 * 1024 * 1024
+# Frames per request when the model names no smaller cap; mlx-vlm's own fallback budget.
+VIDEO_MAX_FRAMES = 16
+# mlx-vlm's fallback rate, used when the model has no video sampling of its own.
+VIDEO_FPS = 2.0
+# PIL `info` key on the frames of a video: the processor does not split them into tiles.
+FRAME_MARK = "harness_video_frame"
+# Frames sampled for the current request (a dict, so the request's own task can fill it).
+FRAMES = contextvars.ContextVar("harness_video_frames", default=None)
+
+
+def video_sampling(model_dir):
+    """(fps, max_frames, longest_edge) of the model's video processor, each None if unset."""
+    try:
+        with open(os.path.join(model_dir, "preprocessor_config.json"), encoding="utf-8") as f:
+            sampling = json.load(f).get("video_sampling") or {}
+    except (OSError, ValueError, AttributeError):
+        return None, None, None
+    if not isinstance(sampling, dict):
+        return None, None, None
+
+    def positive(value, kind):
+        return kind(value) if isinstance(value, (int, float)) and not isinstance(value, bool) \
+            and value > 0 else None
+
+    size = sampling.get("video_size")
+    edge = positive(size.get("longest_edge"), int) if isinstance(size, dict) else None
+    return positive(sampling.get("fps"), float), positive(sampling.get("max_frames"), int), edge
+
+
+def frame_budget(model_dir, cap):
+    """(fps, max_frames) for one request: the model's sampling, never above `cap` frames."""
+    fps, max_frames, _ = video_sampling(model_dir)
+    cap = max(2, int(cap))
+    return fps or VIDEO_FPS, min(cap, max_frames) if max_frames else cap
+
+
+def only_frames(images):
+    """True when every image (nested lists allowed) is a sampled video frame."""
+    flat = []
+    stack = [images]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, (list, tuple)):
+            stack.extend(item)
+        elif item is not None:
+            flat.append(item)
+    return bool(flat) and all(getattr(i, "info", {}).get(FRAME_MARK) for i in flat)
+
+
+def mark_frames(frames, edge):
+    """Marks frames so the processor keeps each one whole, shrunk to `edge` px at most."""
+    marked = []
+    for frame in frames:
+        if edge and max(frame.size) > edge:
+            frame = frame.copy()
+            frame.thumbnail((edge, edge))
+        frame.info[FRAME_MARK] = True
+        marked.append(frame)
+    return marked
+
+
+def keep_frames_whole(processor):
+    """Image splitting off for calls that carry only video frames (the processor's class is
+    swapped once for a subclass, so isinstance checks still hold)."""
+    images = getattr(processor, "image_processor", None)
+    if images is None or getattr(images, "_harness_frames", False):
+        return
+    base = type(images)
+
+    def call(self, imgs, *args, **kwargs):
+        if only_frames(imgs) and getattr(self, "do_image_splitting", False):
+            kwargs["do_image_splitting"] = False
+        return base.__call__(self, imgs, *args, **kwargs)
+
+    images.__class__ = type(base.__name__, (base,), {"__call__": call, "_harness_frames": True})
+
+
+VIDEO_SUFFIXES = {"video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov"}
+
+
+def spill(video, folder, index):
+    """A data: URL video written to a file in `folder` (OpenCV reads data: URLs through
+    FFmpeg's data protocol, whose seeks fail past the first few frames); others unchanged."""
+    if not isinstance(video, str) or not video.startswith("data:"):
+        return video
+    head, _, payload = video.partition(",")
+    kind = head[5:].split(";")[0].lower()
+    if not head.endswith(";base64") or kind not in VIDEO_SUFFIXES:
+        return video
+    path = os.path.join(folder, f"video{index}{VIDEO_SUFFIXES[kind]}")
+    with open(path, "wb") as f:
+        f.write(base64.b64decode(payload, validate=True))
+    return path
+
+
+def sample_videos(openai_module, video_module, model_dir, cap):
+    """Routes mlx-vlm's video fallback through the model's sampling and records the count."""
+    resolve = openai_module.resolve_video_inputs
+    fps, max_frames = frame_budget(model_dir, cap)
+    _, _, edge = video_sampling(model_dir)
+
+    def resolve_capped(processor, videos, *, images=None, **_kwargs):
+        if not videos or video_module.processor_handles_video(processor):
+            return resolve(processor, videos, images=images, fps=fps, max_frames=max_frames)
+        # The fallback decodes every frame here, so the files are not needed afterwards.
+        with tempfile.TemporaryDirectory(prefix="harness-video-") as folder:
+            files = [spill(v, folder, i) for i, v in enumerate(videos)]
+            result = resolve(processor, files, images=images, fps=fps, max_frames=max_frames)
+        if getattr(result, "used_fallback", False):
+            keep = len(images or [])
+            result.images[keep:] = mark_frames(result.images[keep:], edge)
+            holder = FRAMES.get()
+            if holder is not None:
+                holder["frames"] = holder.get("frames", 0) + result.selected_count
+        return result
+
+    openai_module.resolve_video_inputs = resolve_capped
 
 
 def parser():
@@ -70,6 +194,7 @@ def parser():
     p.add_argument("--alias", default=None)
     p.add_argument("--max-tokens", type=int, default=8192)
     p.add_argument("--kv-bits", type=int, choices=[4, 8], default=None)
+    p.add_argument("--video-max-frames", type=int, default=VIDEO_MAX_FRAMES)
     return p
 
 
@@ -282,7 +407,16 @@ def guard(inner, alias):
                 return {"type": "http.request", "body": raw, "more_body": False}
             return await receive()
 
-        await inner(scope, replay, send)
+        frames = {}
+        FRAMES.set(frames)
+
+        async def with_frames(message):
+            if message["type"] == "http.response.start" and frames.get("frames"):
+                message = dict(message, headers=list(message.get("headers") or []) + [
+                    (b"x-harness-video-frames", str(frames["frames"]).encode())])
+            await send(message)
+
+        await inner(scope, replay, with_frames)
 
     return app
 
@@ -314,7 +448,10 @@ def main(argv=None):
     def pinned(*_args, model_kind="auto", **_kwargs):
         if model_kind not in ("auto", "text_generation"):
             raise HTTPException(status_code=404, detail="Not served here.")
-        return load(model, None, model_kind="text_generation")
+        loaded = load(model, None, model_kind="text_generation")
+        if isinstance(loaded, tuple) and len(loaded) > 1:
+            keep_frames_whole(loaded[1])
+        return loaded
 
     # Routes look it up on the package at call time; the start-up preload uses the module's.
     package.get_cached_model = pinned
@@ -329,6 +466,9 @@ def main(argv=None):
         return load_weights(*a, **kw)
 
     generation.load = load_no_remote_code
+
+    sample_videos(importlib.import_module("mlx_vlm.server.openai"),
+                  importlib.import_module("mlx_vlm.generate.video"), model, args.video_max_frames)
 
     uvicorn.run(cors(guard(app_module.app, args.alias)), host=HOST, port=args.port,
                 log_level="info", access_log=True)
