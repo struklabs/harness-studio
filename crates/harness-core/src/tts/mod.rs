@@ -245,13 +245,36 @@ fn kokoro_lang_arg(voice: &str) -> Option<&'static str> {
     }
 }
 
-fn kokoro_voices(name: &str) -> Vec<Voice> {
+/// Bytes one Kokoro voice takes in `voices.bin`: a 510 x 256 style table of 32-bit floats.
+const KOKORO_VOICE_BYTES: u64 = 510 * 256 * 4;
+
+/// Speakers of a Kokoro release whose names Harness does not list (v1.1 has 103): numbered
+/// `0`..`n-1` from the size of its `voices.bin`, so each one can still be picked by number.
+fn numbered_kokoro_voices(voices_file: Option<&Path>) -> Vec<Voice> {
+    let size = voices_file
+        .and_then(|p| std::fs::metadata(p).ok())
+        .map(|m| m.len())
+        .unwrap_or(0);
+    if size == 0 || size % KOKORO_VOICE_BYTES != 0 {
+        return Vec::new();
+    }
+    (0..(size / KOKORO_VOICE_BYTES) as u32)
+        .map(|sid| Voice {
+            id: sid.to_string(),
+            sid,
+            language: String::new(),
+            gender: String::new(),
+        })
+        .collect()
+}
+
+fn kokoro_voices(name: &str, voices_file: Option<&Path>) -> Vec<Voice> {
     let table: &[&str] = if name.contains("v0_19") {
         &KOKORO_V019_VOICES
     } else if name.contains("v1_0") {
         &KOKORO_V1_VOICES
     } else {
-        &[]
+        return numbered_kokoro_voices(voices_file);
     };
     table
         .iter()
@@ -542,7 +565,7 @@ pub fn detect(dir: &Path) -> Option<TtsModel> {
             TtsFamily::Kokoro,
             kokoro_languages(&lower),
             Some(24_000),
-            kokoro_voices(&lower),
+            kokoro_voices(&lower, voices_file.as_deref()),
         )
     } else if class == TtsFamily::Kitten {
         (
@@ -861,17 +884,21 @@ impl TtsModel {
                 .with("available", "0, 1, 2...")
                 .into());
         }
+        // Numbered voices (a Kokoro release without a name table) are given as a range.
+        let numbered = self.voices.iter().all(|v| v.id == v.sid.to_string());
+        let available = if numbered && self.voices.len() > 2 {
+            format!("0-{}", self.voices.len() - 1)
+        } else {
+            self.voices
+                .iter()
+                .map(|v| v.id.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
         Err(err("tts.voice_not_found")
             .with("voice", wanted)
             .with("model", &self.name)
-            .with(
-                "available",
-                self.voices
-                    .iter()
-                    .map(|v| v.id.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            )
+            .with("available", &available)
             .into())
     }
 

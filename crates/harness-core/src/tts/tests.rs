@@ -68,6 +68,25 @@ fn a_kokoro_folder_is_detected_with_its_54_voices() {
 }
 
 #[test]
+fn a_kokoro_release_without_a_name_table_numbers_its_voices_from_voices_bin() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = kokoro_dir(tmp.path(), "kokoro-int8-multi-lang-v1_1");
+    // v1.1 ships 103 speakers: one 510 x 256 table of f32 each.
+    std::fs::write(dir.join("voices.bin"), vec![0u8; 103 * 510 * 256 * 4]).unwrap();
+    let m = detect(&dir).unwrap();
+    assert_eq!(m.family, TtsFamily::Kokoro);
+    assert_eq!(m.voices.len(), 103);
+    assert_eq!((m.voices[102].id.as_str(), m.voices[102].sid), ("102", 102));
+    assert_eq!(m.resolve_voice(None).unwrap().sid, 0);
+    assert_eq!(m.resolve_voice(Some("57")).unwrap().sid, 57);
+    let e = m.resolve_voice(Some("200")).unwrap_err();
+    assert!(e.contains("0-102"), "{e}");
+    // A voices.bin of another layout is not guessed at.
+    std::fs::write(dir.join("voices.bin"), b"x").unwrap();
+    assert!(detect(&dir).unwrap().voices.is_empty());
+}
+
+#[test]
 fn a_piper_folder_is_detected_with_its_language() {
     let tmp = tempfile::tempdir().unwrap();
     let dir = piper_dir(
