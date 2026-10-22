@@ -39,6 +39,26 @@ OpenAI-compatible gateway requests can send `X-Harness-Priority: interactive`, `
 
 Benchmarks need `llama-bench`. If it cannot be found, see the [troubleshooting table](10-troubleshooting.md#the-runtime-engine-is-missing-or-will-not-start). A benchmark is a fixed test load; it does not exactly guarantee the speed of a real chat. The most recent benchmark's best prompt and generation speeds are shown next to the gateway's real-use averages so you can compare the two.
 
+## Model Scores
+
+**Performance > Benchmark > Model Scores** lists what Harness Studio measured for each model on this computer and turns it into four separate scores from 0 to 100. The same scores appear under **Show Reasons** on model cards in **My Models** and above the file table of **Model Hub** (for the recommended file).
+
+| Score | What it says |
+|---|---|
+| **Hardware Fit** | Whether the file fits your GPU memory. A measured load time over a minute lowers it. |
+| **Task Fit** | Whether the model suits the task you pick (**Chat**, **Tool Calling**, **Vision**, **Image Generation**, **Speech**). For **Tool Calling** the tool probe replaces the guess. |
+| **Quality** | Parameter count and quantization, moved by up to a fifth by the tool probe. |
+| **Speed** | Measured generation speed (or image and speech request time). Without a measurement it is estimated from the hardware fit and marked **Estimate**. |
+
+Every score lists its reasons and says whether it is **Measured** or an **Estimate**. These measurements are recorded locally, per model and per device, in `model-perf.json` in the configuration folder:
+
+- **Load** time of a server start, or of a load the gateway did for a request.
+- **Generation** and **Prompt** speed of finished benchmarks (older benchmark runs are included).
+- **Image** and **Audio** speed: how long successful gateway image and speech requests took.
+- **Tool Calls**: the result of the tool probe.
+
+To run the tool probe, start a chat server, open **Model Scores**, pick the server under **Tool Call Probe**, and press **Run Probe**. It sends seven short requests with tool definitions (a string argument, numbers, an enum, a choice between tools, required fields, a second tool, and one request where no tool should be called) and counts the correct calls. Nothing is uploaded. Removing your settings in the uninstall window removes the file too.
+
 ## Analytics and the Request Log
 
 1. In the left menu, open **Analytics** under **Monitor**. Make sure the gateway is on and **Record Gateway Requests** is enabled (it is in the **Recording and Retention Policy** section).

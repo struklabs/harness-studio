@@ -11,8 +11,11 @@ Thank you for your interest in Harness Studio, an open-source project by [strukl
 - **Report a security problem** privately. Do not open a public issue; see [SECURITY.md](SECURITY.md).
 - **Improve the English docs.** English is the source of truth; Turkish translations are synced in one batch at release time, not per PR. Agents follow [AGENTS.md](AGENTS.md).
 - **Send code.** For anything larger than a small fix, open an issue or a discussion first so we can agree on the approach before you invest time.
+- **Prefer upstream over forks.** If the problem is in llama.cpp, whisper.cpp or another engine, fix it there first; an adapter in this repository comes second and a fork last.
 
 By participating you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+How the project is licensed, what stays free, why upstream contributions are preferred over forks, and what the Registry accepts are in the [Open Source guide](docs/guide/en/open-source.md). In short: contributions are MIT, there is no CLA, and the Registry holds official content only (no community publishing).
 
 ## Development setup
 
@@ -31,6 +34,8 @@ npm run tauri dev
 
 The interface depends on Tauri commands, so running the frontend alone in a browser is not supported. Always use `npm run tauri dev`.
 
+This is a single monorepo and its crates have enforced layers: for example the gateway must not depend on the desktop shell, and only the shell uses Tauri. `npm run check:crates` (also run in CI) lists any dependency that breaks the layers; a new crate must be added to `scripts/check-crate-deps.mjs`.
+
 Repository layout:
 
 | Path | Contents |
@@ -39,7 +44,7 @@ Repository layout:
 | `src-tauri/` | Tauri shell (desktop integration, commands) |
 | `crates/harness-core` | Core services: servers, downloads, runtimes, tools, storage |
 | `crates/harness-gateway`, `harness-api`, `harness-mcp`, `harness-cli`, `harness-onnx` | Gateway, Control API, MCP server, CLI, ONNX sidecar |
-| `docs/` | User-facing documentation ([features](docs/en/FEATURES.md), [security and privacy](docs/en/SECURITY_MODEL.md), guides) |
+| `docs/` | User-facing documentation ([features](docs/en/FEATURES.md), [security and privacy](docs/en/SECURITY_MODEL.md), guides, [versioned contracts](docs/en/CONTRACTS.md)) |
 | `bench/compare/` | Benchmark suite against other local-AI tools |
 | `scripts/` | Frontend checks and UI test scripts |
 
@@ -58,6 +63,7 @@ CI runs the same checks. Please run them locally first:
 ```sh
 npm run check                                   # svelte-check / TypeScript, must report 0 errors
 npm run check:locales                           # Turkish and English keys must match
+npm run check:crates                            # crates may only depend on each other as the layers allow
 npm run build
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings

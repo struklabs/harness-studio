@@ -557,6 +557,7 @@ impl BenchmarkManager {
         if run.status != RunStatus::Cancelled || !run.results.is_empty() {
             let _ = append_history(run.clone());
         }
+        crate::model_perf::record_bench(&run);
         crate::events::publish(crate::events::CoreEvent::BenchmarkFinished { run: Box::new(run) });
     }
 

@@ -55,6 +55,9 @@
   import { formatParams, relativeTime } from './filters';
   import { isSherpaAsrFile } from '../playground/asr';
   import EngineNeeded from '../common/EngineNeeded.svelte';
+  import ScoreBreakdown from '../common/ScoreBreakdown.svelte';
+  import { modelPerf } from '#lib/stores/modelPerf.svelte.js';
+  import { scoreModel, type ScoreTask } from '#lib/modelScores.js';
 
   interface Props {
     entry: LibraryEntry;
@@ -108,6 +111,23 @@
 
   // Rust estimate (batched with the other rows), corrected with measured loads of this file.
   let fit = $derived(state.fit);
+  // Hardware fit, task fit, quality and speed: estimates, replaced by what was measured here.
+  $effect(() => { void modelPerf.load(); });
+  const SCORED_KINDS = ['llm', 'image', 'asr', 'tts'];
+  let scoreTask = $derived<ScoreTask>(m.kind === 'image' ? 'image' : m.kind === 'asr' || m.kind === 'tts' ? 'speech' : 'chat');
+  let scores = $derived(
+    m.is_ready && SCORED_KINDS.includes(m.kind ?? '')
+      ? scoreModel({
+          task: scoreTask,
+          fit: fit?.category ?? null,
+          kind: m.kind ?? null,
+          caps: entry.caps,
+          paramsB: entry.params.count ? entry.params.count / 1e9 : null,
+          quantization: m.quantization || null,
+          measured: modelPerf.for(m.filename),
+        })
+      : null,
+  );
   /** Memory figure label: Apple Silicon has no separate VRAM. */
   function fitMemKey(f: HardwareFitResult): TKey {
     const apple = f.unifiedMemory && !f.sharedIgpu;
@@ -468,6 +488,8 @@
       <span class={cn('whitespace-normal break-words [overflow-wrap:anywhere]', FIT_TONE[fit.category])}>{fit.label}</span>
     </p>
   {/if}
+
+  {#if scores}<ScoreBreakdown compact {scores} />{/if}
 
   {#if needsRuntime}
     <div class="text-xs text-warning" role="status"><EngineNeeded family={needsRuntime} /></div>

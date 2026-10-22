@@ -2369,6 +2369,12 @@ impl ProcessManager {
                                 }
                                 self.publish_status(ServerStatus::Running);
                                 let secs = start_time.elapsed().as_secs_f32();
+                                if let Some(a) = self.active_server().filter(|a| !a.router_mode) {
+                                    let ms = start_time.elapsed().as_millis() as u64;
+                                    tokio::task::spawn_blocking(move || {
+                                        crate::model_perf::record_load(&a.model_path, ms)
+                                    });
+                                }
                                 self.push_log(
                                     if crate::config::AppSettings::load().language == "tr" {
                                         format!("[Harness Studio] Sunucu hazır ({secs:.1} sn).")

@@ -39,6 +39,9 @@
   import { localVariantFor } from './variantFiles';
   import { isCompanionVariant, isCtcVariant, isWhisperVariant, pickProjectorVariant, recommendCrispasrVariant, recommendCtcVariant, recommendFloatVariant, recommendVariant, recommendWhisperVariant, whisperFitsMemory, whisperOnCpu } from './recommend';
   import { security } from '#lib/stores/security.svelte.js';
+  import ScoreBreakdown from '../common/ScoreBreakdown.svelte';
+  import { modelPerf } from '#lib/stores/modelPerf.svelte.js';
+  import { paramsFromName, scoreModel, type ScoreTask } from '#lib/modelScores.js';
   import { AlertCircle, Ban, CircleCheck, Download, ExternalLink, Info, LoaderCircle, LogIn, Play, RefreshCw, ShieldAlert } from '@lucide/svelte';
   import { errorText } from '#lib/errors.js';
 
@@ -187,6 +190,24 @@
             return recommendVariant(runnable, fits) ?? recommendFloatVariant(runnable, fits);
           })()
   );
+  // Scores of the recommended file: hardware fit and speed from this machine, task and quality
+  // from the repo, all replaced by measurements when this model ran here before.
+  $effect(() => { void modelPerf.load(); });
+  let recommendedScores = $derived.by(() => {
+    const caps = repo?.capabilities ?? [];
+    if (!recommended || !repo || caps.includes('embedding') || caps.includes('rerank')) return null;
+    const kind = caps.includes('image_generation') ? 'image' : caps.includes('asr') ? 'asr' : caps.includes('tts') ? 'tts' : 'llm';
+    const task: ScoreTask = kind === 'image' ? 'image' : kind === 'llm' ? 'chat' : 'speech';
+    return scoreModel({
+      task,
+      fit: variantFits.get(recommended.name)?.category ?? null,
+      kind,
+      caps: { vision: caps.includes('vision'), chat: caps.includes('chat') },
+      paramsB: paramsFromName(repo.id),
+      quantization: recommended.quantization || null,
+      measured: modelPerf.for(recommended.shards[0]?.filename ?? recommended.name) ?? modelPerf.for(repo.id),
+    });
+  });
   $effect(() => {
     const id = repoId;
     const q = recommended?.quantization;
@@ -781,6 +802,12 @@
               {:else}
                 {#if !uiLevel.advanced && !showAllFiles && filteredVariants.length > 1}
                   <Button variant="outline" size="sm" class="self-start" onclick={() => (showAllFiles = true)}>{t('hub.all_files')}</Button>
+                {/if}
+                {#if recommendedScores}
+                  <div class="rounded-lg border border-border p-3">
+                    <p class="mb-2 text-xs font-medium">{t('ms.title')} · {t('hub.recommended_badge')}</p>
+                    <ScoreBreakdown compact scores={recommendedScores} />
+                  </div>
                 {/if}
                 <div class="min-w-0 overflow-hidden rounded-lg border border-border">
                   <Table.Root class="min-w-[560px]">

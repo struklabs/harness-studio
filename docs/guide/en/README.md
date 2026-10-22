@@ -30,6 +30,8 @@ Names in **bold** are labels you will see in the app. Model Hub and engine downl
 
 For public skills and MCP repositories, see [GitHub Discovery](github-discovery.md).
 
+For how the project is built, licensed, and supported, see [Open Source](open-source.md).
+
 ## Get Started in Five Steps
 
 Five minutes is a goal for getting to know the steps. Engine and model downloads take as long as their size and your connection require.
