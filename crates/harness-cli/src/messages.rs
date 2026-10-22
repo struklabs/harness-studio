@@ -76,6 +76,10 @@ const ERROR_LOCALES: &[(&str, &str)] = &[
         include_str!("../../../src/lib/locales/errorsPaperclip.ts"),
     ),
     (
+        "errorsGithub.ts",
+        include_str!("../../../src/lib/locales/errorsGithub.ts"),
+    ),
+    (
         "errorsComfyui.ts",
         include_str!("../../../src/lib/locales/errorsComfyui.ts"),
     ),

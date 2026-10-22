@@ -2,6 +2,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { onMount } from 'svelte';
   import { t, type TKey } from '#lib/i18n.svelte.js';
+  import { errorText } from '#lib/errors.js';
   import { Button } from '#lib/components/ui/button/index.js';
   import { Input } from '#lib/components/ui/input/index.js';
   import { app } from '#lib/stores/app.svelte.js';
@@ -23,7 +24,7 @@
   onMount(() => { void invoke<{ index: { entries: RegistryEntry[] } }>('official_registry_list').then(s => catalog = s.index.entries).catch(() => catalogError = true); });
   async function run(action: () => Promise<void>) {
     busy = true; message = '';
-    try { await action(); } catch (e) { message = t('github.failed', { detail: String(e) }); } finally { busy = false; }
+    try { await action(); } catch (e) { message = t('github.failed', { detail: errorText(e) }); } finally { busy = false; }
   }
   function search() { void run(async () => { review = null; selected = null; results = []; results = await invoke<GithubRepo[]>('github_discovery_search', { query }); if (!results.length) message = t('github.no_results'); }); }
   function inspect(repo: string) { void run(async () => { review = null; selected = null; confirmed = false; riskAck = false; review = await invoke<GithubReview>('github_discovery_inspect', { repo }); }); }
@@ -114,11 +115,11 @@
           <h4 class="font-semibold">{skill.name || skill.path}</h4>
           <p class="text-xs">{skill.path} · {skill.bytes} B</p>
           <p class="text-sm">{t('github.validation', { status: skill.errors.length ? t('github.invalid') : t('github.valid') })}</p>
-          {#each skill.errors as error}<p class="text-sm">{error}</p>{/each}
+          {#each skill.errors as error}<p class="text-sm">{errorText(error)}</p>{/each}
           <p class="text-xs">{t('github.scripts', { scripts: skill.scripts.join(', ') || t('github.none') })}</p>
           <p class="text-xs">{t('github.network', { files: skill.network.join(', ') || t('github.none') })}</p>
           <p class="text-xs">{t('github.references', { count: skill.references.length })}</p>
-          {#each skill.warnings as warning}<p class="text-xs text-warning">{warning}</p>{/each}
+          {#each skill.warnings as warning}<p class="text-xs text-warning">{errorText(warning)}</p>{/each}
           <h5 class="text-sm font-semibold">{t('github.security_title')}</h5>
           <p class="text-sm">{t('github.security_level', { level: t(`github.level_${skill.security.level}` as TKey) })}</p>
           <p class="text-xs">{t('github.risk_counts', { network: skill.security.network, shell: skill.security.shell, eval: skill.security.eval, credentials: skill.security.credentials, binary: skill.security.binary })}</p>

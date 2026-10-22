@@ -1,0 +1,53 @@
+// Backend error keys of GitHub discovery (harness_core::github_discovery: search, review, skill install).
+// Texts are single quoted literals (the CLI compiles the English half in); {name} = parameter.
+const tr = {
+  'ghdisc.repo_invalid': 'Sahip/depo biçiminde bir ad veya herkese açık bir github.com depo adresi girin.',
+  'ghdisc.query_invalid': 'Bir arama ifadesi veya depo adresi girin (en çok 256 karakter).',
+  'ghdisc.public_only': 'Yalnızca herkese açık depolar desteklenir.',
+  'ghdisc.cooldown': 'GitHub istek sınırına ulaşıldı. {seconds} saniye sonra yeniden deneyin veya bir GitHub belirteci ekleyin.',
+  'ghdisc.rate_limited': 'GitHub istek sınırı veya erişim kısıtlaması. {seconds} saniye sonra yeniden deneyin.',
+  'ghdisc.request_failed': 'GitHub isteği başarısız oldu. İnternet bağlantınızı kontrol edin.',
+  'ghdisc.http': 'GitHub beklenmeyen bir yanıt verdi (HTTP {status}).',
+  'ghdisc.response_too_large': 'GitHub yanıtı boyut sınırını aşıyor.',
+  'ghdisc.invalid_response': 'GitHub yanıtı beklenen biçimde değil.',
+  'ghdisc.file_too_large': 'Dosya 1 MiB sınırını aşıyor.',
+  'ghdisc.tree_incomplete': 'Depo ağacı eksik geldi; daha küçük bir depoyu inceleyin.',
+  'ghdisc.too_many_skills': 'Depoda 20’den fazla beceri var.',
+  'ghdisc.skill_path_invalid': 'Geçersiz beceri yolu.',
+  'ghdisc.skill_limits': 'Beceri 128 dosya, dosya başına 1 MiB veya toplam 4 MiB sınırını aşıyor.',
+  'ghdisc.unsafe_resource': 'Güvensiz, bağlantılı veya çok büyük bir beceri kaynağı var.',
+  'ghdisc.missing_resource': 'Eksik veya güvensiz kaynak: {path}',
+  'ghdisc.missing_reference': 'Eksik veya güvensiz bağlantı: {path}',
+  'ghdisc.unsafe_path': 'Güvensiz kaynak yolu: {path}',
+  'ghdisc.script_unreferenced': 'Betik SKILL.md içinde anılmıyor: {path}',
+  'ghdisc.confirm_required': 'Betik listesini ve sabitlenmiş commit’i onaylayın.',
+  'ghdisc.review_again': 'Beceri doğrulaması veya betik onayı tutmadı; depoyu yeniden inceleyin.',
+  'ghdisc.skill_exists': 'Bu beceri zaten kurulu; kurmadan önce kaldırın.',
+};
+
+const en: Record<keyof typeof tr, string> = {
+  'ghdisc.repo_invalid': 'Enter owner/repository or a public github.com repository URL.',
+  'ghdisc.query_invalid': 'Enter a search query or repository URL (up to 256 characters).',
+  'ghdisc.public_only': 'Only public repositories are supported.',
+  'ghdisc.cooldown': 'GitHub rate limit reached. Retry in {seconds} seconds or add a GitHub token.',
+  'ghdisc.rate_limited': 'GitHub rate limit or access restriction. Retry in {seconds} seconds.',
+  'ghdisc.request_failed': 'The GitHub request failed. Check your internet connection.',
+  'ghdisc.http': 'GitHub returned an unexpected answer (HTTP {status}).',
+  'ghdisc.response_too_large': 'The GitHub response exceeds the size limit.',
+  'ghdisc.invalid_response': 'The GitHub response is not in the expected format.',
+  'ghdisc.file_too_large': 'The file exceeds 1 MiB.',
+  'ghdisc.tree_incomplete': 'The repository tree is incomplete; review a smaller repository.',
+  'ghdisc.too_many_skills': 'The repository has more than 20 skills.',
+  'ghdisc.skill_path_invalid': 'Invalid skill path.',
+  'ghdisc.skill_limits': 'The skill exceeds 128 files, 1 MiB per file or 4 MiB in total.',
+  'ghdisc.unsafe_resource': 'A skill resource is unsafe, linked or too large.',
+  'ghdisc.missing_resource': 'Missing or unsafe resource: {path}',
+  'ghdisc.missing_reference': 'Missing or unsafe reference: {path}',
+  'ghdisc.unsafe_path': 'Unsafe resource path: {path}',
+  'ghdisc.script_unreferenced': 'Script is not referenced by SKILL.md: {path}',
+  'ghdisc.confirm_required': 'Confirm the script list and the pinned commit.',
+  'ghdisc.review_again': 'Skill validation or script confirmation failed; review the repository again.',
+  'ghdisc.skill_exists': 'This skill is already installed; remove it before installing.',
+};
+
+export default { tr, en };
