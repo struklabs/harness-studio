@@ -50,10 +50,10 @@
   import { withToolGuidance as baseToolGuidance } from './playground/toolGuidance';
   import { withSkillGuidance, type SkillMetadata } from './playground/skillGuidance';
   import { salvageToolCalls, TextCallStreamBuffer } from './playground/textToolCalls';
-  import { chatRequest } from './playground/chatRequest';
+  import { AudioInputError, chatRequest } from './playground/chatRequest';
   import { projects } from '#lib/stores/projects.svelte.js';
   import { projectAllowsSkill, projectAllowsTool } from '#lib/projects.js';
-  import { notifyRoutingFallback } from './playground/routingNotice';
+  import { notifyAudioHistoryOmitted, notifyRoutingFallback } from './playground/routingNotice';
   import { parseChoiceLogprobs, rememberLogprobs, type TokenLogprob } from './playground/logprobs';
   import { parseTextToolCalls } from '#lib/tools-client.js';
   import ConversationSidebar from './playground/ConversationSidebar.svelte';
@@ -1445,18 +1445,21 @@
   });
   let imagesBlockedHint = $derived(t('pg.image_needs_vision'));
   let audioEnabled = $derived.by(() => {
-    if (splitOn) return SIDES.every(side => {
-      const target = parseTarget(compare[side].target);
-      if (!target) return false;
-      if (target.kind === 'server' && target.serverId === app.selectedServerId && propsAudio !== null) return propsAudio;
-      const alias = target.kind === 'gateway' ? target.alias : aliasOfServer(target.serverId);
-      return !!alias && !!audioAliases[alias.toLowerCase()];
-    });
+    if (splitOn) return SIDES.every(side => paneAudioInput(compare[side]));
     const own = app.isRunning && (!app.gatewayRunning || aliasOfServer(app.selectedServerId)?.toLowerCase() === settings.model.toLowerCase());
     if (own && propsAudio !== null) return propsAudio;
     const def = domain.definitions.find(d => d.alias.toLowerCase() === settings.model.toLowerCase());
     return (!!def?.mmproj && libraryAudio) || (librarySpeaks && libraryAudio);
   });
+  function paneAudioInput(pane: PaneConfig): boolean {
+    const target = parseTarget(pane.target);
+    if (!target) return false;
+    const alias = target.kind === 'gateway' ? target.alias : aliasOfServer(target.serverId);
+    const own = target.kind === 'server' ? target.serverId === app.selectedServerId
+      : app.isRunning && aliasOfServer(app.selectedServerId)?.toLowerCase() === alias?.toLowerCase();
+    if (own && propsAudio !== null) return propsAudio;
+    return !!alias && !!audioAliases[alias.toLowerCase()];
+  }
   async function addAudioFiles(files: File[]) {
     if (!audioEnabled) return;
     const model = settings.model;
@@ -2064,7 +2067,7 @@
     if (!tg) return null;
     if (tg.kind === 'gateway') {
       if (!app.gatewayRunning) return null;
-      return { baseUrl: app.inferenceUrl, headers: app.inferenceHeaders(), model: tg.alias, kind: 'gateway' };
+      return { baseUrl: app.inferenceUrl, headers: app.inferenceHeaders(), model: tg.alias, kind: 'gateway', audioInput: paneAudioInput(p) };
     }
     const s = app.servers.find((x) => x.id === tg.serverId);
     if (!s?.active || s.status !== 'Running') return null;
@@ -2083,6 +2086,7 @@
       model: aliasOfServer(s.id) ?? modelFileName(s.active.model_path),
       kind: 'server',
       serverId: s.id,
+      audioInput: paneAudioInput(p),
     };
   }
 
@@ -2709,7 +2713,8 @@
 
     try {
       const request = await chatRequest(endpoint, body,
-        { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...app.inferenceHeaders() }, c.signal);
+        { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...app.inferenceHeaders() }, c.signal, undefined,
+        { audioInput: audioEnabled, onAudioHistoryOmitted: notifyAudioHistoryOmitted });
       if (request.routingFallback) notifyRoutingFallback(request.routingError, body.model, request.routingWithoutTools);
       const res = request.response;
       toolDefs = (request.body.tools ?? []) as typeof toolDefs;
@@ -2748,7 +2753,8 @@
       }
     } catch (e) {
       if (c.signal.aborted) msg.stopped = true;
-      else msg.error = requestErrorText(e, `${endpoint}/chat/completions`, (message) => t('pg.error_network', { message }));
+      else msg.error = e instanceof AudioInputError ? t('pg.audio_needs_model')
+        : requestErrorText(e, `${endpoint}/chat/completions`, (message) => t('pg.error_network', { message }));
     } finally {
       msg.content += contentBuffer.drain();
       if (tokenLogprobs.length) {

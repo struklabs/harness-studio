@@ -8,8 +8,8 @@ import { guardToolCalls } from './toolLoopGuard';
 
 import type { InferencePreset, ServerSummary } from '#lib/types.js';
 import { salvageToolCalls, TextCallStreamBuffer } from './textToolCalls';
-import { chatRequest } from './chatRequest';
-import { notifyRoutingFallback } from './routingNotice';
+import { AudioInputError, chatRequest } from './chatRequest';
+import { notifyAudioHistoryOmitted, notifyRoutingFallback } from './routingNotice';
 import { parseTextToolCalls } from '#lib/tools-client.js';
 import { invoke } from '#lib/ipc.js';
 import { requestBody, requestOf } from '../presets/request';
@@ -130,6 +130,7 @@ export interface Endpoint {
   model: string;
   kind: 'gateway' | 'server';
   serverId?: string;
+  audioInput?: boolean;
 }
 
 /** `gateway_co_residency` (harness_core::gateway::scheduler::CoResidency). */
@@ -353,7 +354,8 @@ export async function streamInto(
   try {
     const request = await chatRequest(ep.baseUrl,
       { ...body, stream: true, stream_options: { include_usage: true } },
-      { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...ep.headers }, local.signal);
+      { 'Content-Type': 'application/json', Accept: 'text/event-stream', ...ep.headers }, local.signal, undefined,
+      { audioInput: ep.audioInput, onAudioHistoryOmitted: notifyAudioHistoryOmitted });
     if (request.routingFallback) notifyRoutingFallback(request.routingError, body.model, request.routingWithoutTools);
     const res = request.response;
     names.splice(0, names.length, ...((request.body.tools ?? []) as { function: { name: string } }[]).map(tool => tool.function.name));
@@ -389,7 +391,8 @@ export async function streamInto(
     result = { status: res.status };
   } catch (e) {
     if (signal.aborted) msg.stopped = true;
-    else if (!msg.error) msg.error = requestErrorText(e, `${ep.baseUrl}/chat/completions`, text.network);
+    else if (!msg.error) msg.error = e instanceof AudioInputError ? t('pg.audio_needs_model')
+      : requestErrorText(e, `${ep.baseUrl}/chat/completions`, text.network);
   } finally {
     signal.removeEventListener("abort", abort);
     msg.content += contentBuffer.drain();
