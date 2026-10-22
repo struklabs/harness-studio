@@ -69,7 +69,7 @@ pub struct PaperclipView {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
-pub struct Health {
+pub struct PaperclipHealth {
     /// `ok`, `starting` or `unhealthy`.
     pub status: String,
     pub version: Option<String>,
@@ -93,7 +93,7 @@ pub struct Connection {
     pub ok: bool,
     /// The normalized address that answered.
     pub url: String,
-    pub health: Health,
+    pub health: PaperclipHealth,
     pub companies: Vec<Company>,
 }
 
@@ -182,7 +182,7 @@ pub struct AgentCost {
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct Overview {
     pub company: Company,
-    pub health: Health,
+    pub health: PaperclipHealth,
     pub agents: Vec<Agent>,
     pub teams: Vec<Team>,
     pub tasks: Vec<Task>,
@@ -407,7 +407,7 @@ impl PaperclipClient {
             .map_err(|_| err("paperclip.invalid_response").into())
     }
 
-    pub async fn health(&self) -> Result<Health, String> {
+    pub async fn health(&self) -> Result<PaperclipHealth, String> {
         // The health route answers 503 with a body when the database is down.
         let url = format!("{}/api/health", self.base);
         let mut req = self.http.get(&url).header("Accept", "application/json");
@@ -432,7 +432,7 @@ impl PaperclipClient {
             });
         };
         let v = v.as_ref().unwrap_or(&Value::Null);
-        Ok(Health {
+        Ok(PaperclipHealth {
             status: status.to_string(),
             version: str_of(v, &["version", "serverVersion"]),
             deployment_mode: str_of(v, &["deploymentMode"]),

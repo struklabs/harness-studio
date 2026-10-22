@@ -9329,6 +9329,288 @@
         }
       }
     },
+    "/api/harness/v1/paperclip": {
+      "get": {
+        "tags": [
+          "paperclip"
+        ],
+        "summary": "Saved Paperclip address, company, task links and whether a key is stored.",
+        "operationId": "get_paperclip",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperclipView"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token lacks the scope (`api.insufficient_scope`), or the request comes from a browser origin or host that is not allowed (`api.forbidden_origin`, `api.forbidden_host`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "paperclip"
+        ],
+        "operationId": "put_paperclip",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePaperclipRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaperclipView"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/paperclip/agents/{id}/model": {
+      "post": {
+        "tags": [
+          "paperclip"
+        ],
+        "summary": "Points an `opencode_local` Paperclip agent at a Harness model through the gateway: a token\nfor exactly that model (chat and model-list endpoints) is created and written into the\nagent's adapter config.",
+        "operationId": "paperclip_use_model",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UseModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelApplied"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/paperclip/overview": {
+      "get": {
+        "tags": [
+          "paperclip"
+        ],
+        "summary": "Agents, teams, tasks, runs and budgets of the saved company.",
+        "operationId": "paperclip_overview",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/harness/v1/paperclip/test": {
+      "post": {
+        "tags": [
+          "paperclip"
+        ],
+        "summary": "Checks the address and key against Paperclip's health and company list.",
+        "operationId": "test_paperclip",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestPaperclipRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Connection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No token, or an unknown or revoked one (`api.unauthorized`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/harness/v1/permissions": {
       "get": {
         "tags": [
@@ -16137,6 +16419,95 @@
           }
         }
       },
+      "Agent": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "role",
+          "status",
+          "adapter_type",
+          "uses_harness",
+          "budget_monthly_cents",
+          "spent_monthly_cents"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reports_to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "`idle`, `running`, `paused`, `error`, `terminated`, ..."
+          },
+          "adapter_type": {
+            "type": "string",
+            "description": "The execution adapter (\"model protocol\"): `claude_local`, `codex_local`,\n`opencode_local`, ..."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model the adapter is set to, when its config names one."
+          },
+          "uses_harness": {
+            "type": "boolean",
+            "description": "The adapter's model is a Harness gateway entry (`harness/<model>`)."
+          },
+          "budget_monthly_cents": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "spent_monthly_cents": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "AgentCost": {
+        "type": "object",
+        "required": [
+          "agent_id",
+          "cost_cents",
+          "input_tokens",
+          "output_tokens"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "cost_cents": {
+            "type": "number",
+            "format": "double"
+          },
+          "input_tokens": {
+            "type": "number",
+            "format": "double"
+          },
+          "output_tokens": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
       "AnalyticsSummary": {
         "type": "object",
         "description": "`GET /analytics/summary`.",
@@ -16973,6 +17344,46 @@
           "system"
         ]
       },
+      "Budget": {
+        "type": "object",
+        "required": [
+          "month_spend_cents",
+          "month_budget_cents",
+          "utilization_percent",
+          "pending_approvals",
+          "paused_agents",
+          "active_incidents"
+        ],
+        "properties": {
+          "month_spend_cents": {
+            "type": "number",
+            "format": "double"
+          },
+          "month_budget_cents": {
+            "type": "number",
+            "format": "double"
+          },
+          "utilization_percent": {
+            "type": "number",
+            "format": "double"
+          },
+          "pending_approvals": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "paused_agents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "active_incidents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "BundlePath": {
         "type": "object",
         "required": [
@@ -17716,6 +18127,30 @@
           "auto"
         ]
       },
+      "Company": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "budget_monthly_cents"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "budget_monthly_cents": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
       "Compatibility": {
         "type": "object",
         "required": [
@@ -17862,6 +18297,34 @@
           },
           "opencode_config": {
             "description": "`opencode.json` block for the paired Gateway (the token comes from\n`HARNESS_REMOTE_TOKEN`; it is not written into the config)."
+          }
+        }
+      },
+      "Connection": {
+        "type": "object",
+        "description": "Result of the connection test.",
+        "required": [
+          "ok",
+          "url",
+          "health",
+          "companies"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string",
+            "description": "The normalized address that answered."
+          },
+          "health": {
+            "$ref": "#/components/schemas/PaperclipHealth"
+          },
+          "companies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Company"
+            }
           }
         }
       },
@@ -25319,6 +25782,27 @@
           }
         }
       },
+      "ModelApplied": {
+        "type": "object",
+        "description": "Outcome of [`use_harness_model`].",
+        "required": [
+          "agent_id",
+          "model",
+          "token_id"
+        ],
+        "properties": {
+          "agent_id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "token_id": {
+            "type": "string",
+            "description": "The scoped gateway token created for it (revocable in Settings)."
+          }
+        }
+      },
       "ModelCaps": {
         "type": "object",
         "description": "What a model can do, from its header, template and companion files.",
@@ -27637,6 +28121,68 @@
           }
         }
       },
+      "Overview": {
+        "type": "object",
+        "description": "Everything the Paperclip page shows for one company.",
+        "required": [
+          "company",
+          "health",
+          "agents",
+          "teams",
+          "tasks",
+          "runs",
+          "costs"
+        ],
+        "properties": {
+          "company": {
+            "$ref": "#/components/schemas/Company"
+          },
+          "health": {
+            "$ref": "#/components/schemas/PaperclipHealth"
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Agent"
+            }
+          },
+          "teams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Team"
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Run"
+            }
+          },
+          "budget": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Budget",
+                "description": "`None` when the key may not read budgets."
+              }
+            ]
+          },
+          "costs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AgentCost"
+            }
+          }
+        }
+      },
       "OwnedComponent": {
         "type": "object",
         "required": [
@@ -27669,6 +28215,61 @@
             "type": "string",
             "description": "Address of a signaling (and optional relay) service for pairing across networks.\nEmpty = off: no host is built in and nothing is contacted.",
             "default": ""
+          }
+        }
+      },
+      "PaperclipHealth": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "`ok`, `starting` or `unhealthy`."
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deployment_mode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`local_trusted` or `authenticated`."
+          }
+        }
+      },
+      "PaperclipView": {
+        "type": "object",
+        "description": "What the UI shows: the saved values and whether a key is stored (never the key).",
+        "required": [
+          "url",
+          "company_id",
+          "key_set",
+          "task_links"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "company_id": {
+            "type": "string"
+          },
+          "key_set": {
+            "type": "boolean"
+          },
+          "task_links": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
           }
         }
       },
@@ -30469,6 +31070,56 @@
           }
         }
       },
+      "Run": {
+        "type": "object",
+        "required": [
+          "id",
+          "agent_id",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "agent_id": {
+            "type": "string"
+          },
+          "issue_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "`queued`, `running`, `succeeded`, `failed`, `timed_out`, `cancelled`, ..."
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "RunStats": {
         "type": "object",
         "description": "One indexing run, measured.",
@@ -31445,6 +32096,32 @@
               "null"
             ],
             "description": "Export headers, one `name=value` (or `name: value`) per line. Omitted/null = keep the\nsaved ones, `\"\"` = remove them."
+          }
+        }
+      },
+      "SavePaperclipRequest": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Empty disconnects (and removes the key, company and links)."
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Absent keeps the saved key, `\"\"` removes it. Not needed for a local trusted Paperclip."
+          },
+          "company_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Company to show; absent keeps the saved one."
           }
         }
       },
@@ -32542,6 +33219,86 @@
           }
         }
       },
+      "Task": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "identifier": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Readable id such as `PAP-12`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "priority": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assignee_agent_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "harness_project_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Harness project this task is linked to (from `settings.json`)."
+          }
+        }
+      },
+      "Team": {
+        "type": "object",
+        "description": "One reporting line: a manager and the agents that report to it.",
+        "required": [
+          "lead_id",
+          "lead_name",
+          "member_ids"
+        ],
+        "properties": {
+          "lead_id": {
+            "type": "string"
+          },
+          "lead_name": {
+            "type": "string"
+          },
+          "member_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "TelemetryHistoryPoint": {
         "type": "object",
         "required": [
@@ -32909,6 +33666,24 @@
               "null"
             ],
             "description": "Headers to test with (unsaved); omitted = the saved ones."
+          }
+        }
+      },
+      "TestPaperclipRequest": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Unsaved address; absent uses the saved one."
+          },
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -34326,6 +35101,18 @@
           }
         }
       },
+      "UseModelRequest": {
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Gateway model alias (a local model or a Harness Link model)."
+          }
+        }
+      },
       "VariantView": {
         "type": "object",
         "description": "Settings > Runtime view: every build of this platform with its state.",
@@ -34762,6 +35549,10 @@
     {
       "name": "analytics",
       "description": "Gateway request log, statistics and Prometheus metrics"
+    },
+    {
+      "name": "paperclip",
+      "description": "The user's own Paperclip install: connection, agents, tasks, runs, budgets, Harness model handoff (admin)"
     },
     {
       "name": "automations",
