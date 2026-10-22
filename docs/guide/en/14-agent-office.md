@@ -20,7 +20,7 @@ Select an agent to see its latest recorded task, output and status. For the acti
 
 GPU jobs appear while they are queued or running. Their characters open a summary and a route to **Jobs**. Devices identify detected local hardware; their idle badge describes their office presence, not hardware utilization. Use **Performance** for resource measurements.
 
-Connected agent adapters currently report task start and completion. Fine-grained tool and approval states are available for the mounted Playground run. External taskflow runs are not included in this version. Device and activity snapshots refresh while visible; core events refresh agent and GPU job changes immediately. The office catches up after reconnecting or returning to the window.
+Connected agent adapters currently report task start and completion. Fine-grained tool and approval states are available for the mounted Playground run. Task runs appear as separate characters across projects, with the running step's model shown in the activity list. Approval gates show a waiting badge, paused runs sleep, and stale running tasks show an error. Select a task character to read its goal, output and event history; review approvals in Projects. Device and activity snapshots refresh while visible; core events refresh agent, task-run and GPU job changes immediately. The office catches up after reconnecting or returning to the window.
 
 ## Edit the Scene
 

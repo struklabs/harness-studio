@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { officeAgents } from './fixtures/office-agents.ts';
 import { OfficeEditor } from '../src/lib/office/editor.ts';
 import { presets, roomKey, validateScene, wizardScene, eventStatus, positions } from '../src/lib/office/scene.ts';
 const clone = () => structuredClone(presets[0]);
@@ -35,8 +36,9 @@ test('desk reassignment is unique and removing a desk or room removes its refere
   assert.throws(()=>editor.remove('room-0'));assert.equal(editor.scene.rooms.length,1);
 });
 test('event statuses and character positions stay stable with thirty agents', () => {
-  for(const [raw,status] of Object.entries({running:'thinking',loading:'thinking',tool:'running_tool',running_tool:'running_tool',waiting_for_approval:'waiting_for_approval',failed:'error',interrupted:'error',stopped:'sleeping',queued:'sleeping',completed:'idle'}))assert.equal(eventStatus(raw),status);
-  const scene=clone();scene.desk_agents['desk-0-0']='a-5';const actors=Array.from({length:30},(_,i)=>({id:`a-${i}`,name:`Agent ${i}`,kind:'agent',status:'idle'}));
+  for(const [raw,status] of Object.entries({running:'thinking',loading:'thinking',tool:'running_tool',running_tool:'running_tool',waiting_for_approval:'waiting_for_approval',awaiting_approval:'waiting_for_approval',paused:'sleeping',failed:'error',interrupted:'error',stopped:'sleeping',queued:'sleeping',completed:'idle'}))assert.equal(eventStatus(raw),status);
+  const scene=clone();scene.desk_agents['desk-0-0']='taskflow-fixture-5';const actors=officeAgents();
+  assert.ok(actors.every(c=>c.id===c.run_id&&c.agent));
   const result=positions(scene,actors);assert.equal(result.length,30);assert.equal(result[5].x,scene.furniture[0].x+1);assert.deepEqual(positions(scene,actors),result);assert.ok(result.every(c=>Number.isFinite(c.x)&&Number.isFinite(c.y)&&c.x>=0&&c.x<=16&&c.y>=0&&c.y<=12));
 });
 test('navigation is advanced, 3D is separately loaded and hidden frames are cancelled', () => {

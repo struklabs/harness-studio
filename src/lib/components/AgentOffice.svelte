@@ -5,7 +5,7 @@
   import OfficeFloor from '#lib/office/OfficeFloor.svelte';
   import OfficeIso from '#lib/office/OfficeIso.svelte';
   import OfficeWizard from '#lib/office/OfficeWizard.svelte';
-  import { dimensions, presets, newScene, roomKey, validateScene, statusColor, type Scene, type Character, type Room, type Furniture } from '#lib/office/scene.js';
+  import { dimensions, presets, newScene, roomKey, validateScene, statusColor, eventStatus, type Scene, type Character, type Room, type Furniture } from '#lib/office/scene.js';
   import { OfficeEditor } from '#lib/office/editor.js';
   import { officeApi, officeEvents, type RunDetail } from '#lib/office/api.js';
   import { onWindowActivity, windowActive, holdReleaseWhile } from '#lib/windowActivity.js';
@@ -45,8 +45,14 @@
   function adopt(next:Scene,saved=false){editor=new OfficeEditor(validateScene(next));scene=editor.scene;baseline=saved?JSON.stringify(scene):'';selected='';editing=false;error='';}
   function requestLoad(next:Scene){if(dirty)pendingLoad=next;else adopt(next,true);}
   async function documents(){try{const [a,b]=await Promise.all([officeApi.list(),officeApi.list(true)]);offices=a;templates=b;return a;}catch(e){fail(e);return [];}}
-  let refreshing=false;
-  async function refresh(){if(!active||refreshing)return;refreshing=true;try{characters=await officeApi.activity();connected=true;}catch(e){connected=false;fail(e);}finally{refreshing=false;}}
+  let refreshing=false,refreshAgain=false,activitySnapshot='';
+  async function refresh(){
+    if(!active)return;
+    if(refreshing){refreshAgain=true;return;}
+    refreshing=true;
+    try{do{refreshAgain=false;const next=await officeApi.activity();if(!active)return;const snapshot=JSON.stringify(next);if(snapshot!==activitySnapshot){characters=next;activitySnapshot=snapshot;}connected=true;if(chosen){const current=next.find(c=>c.id===chosen?.id)??chosen;chosen=current;await loadDetail(current);}}while(refreshAgain&&active);}
+    catch(e){connected=false;fail(e);}finally{refreshing=false;}
+  }
   onMount(()=>{
     let disposed=false,stop:undefined|(()=>void);active=windowActive();
     void documents().then(a=>{if(disposed)return;if(a[0])adopt(a[0],true);loaded=true;});
@@ -59,7 +65,7 @@
     // Dev only: `?office_fixture=30` (or localStorage `hs_office_fixture`) adds synthetic characters whose status changes every second.
     let fixtureTimer:ReturnType<typeof setInterval>|undefined;
     if(import.meta.env.DEV)void import('#lib/dev/officeFixtures.js').then(m=>{const count=m.officeFixtureCount(location.search,localStorage.getItem('hs_office_fixture'));if(!count||disposed)return;let tick=0;fixture=m.fixtureCharacters(count,tick);fixtureTimer=setInterval(()=>{if(active)fixture=m.fixtureCharacters(count,++tick);},1000);});
-    return ()=>{disposed=true;stop?.();off();release();clearInterval(timer);clearInterval(fixtureTimer);};
+    return ()=>{disposed=true;active=false;stop?.();off();release();clearInterval(timer);clearInterval(fixtureTimer);};
   });
   async function save(){busy=true;try{const next=await officeApi.save(scene);baseline=JSON.stringify(next);await documents();notice='';error='';}catch(e){fail(e);}finally{busy=false;}}
   async function savePreset(){busy=true;try{const template=newScene(scene,presetName.trim()||scene.name);await officeApi.save(template,true);selectedPreset=template.id;await documents();say(t('office.preset_saved'));}catch(e){fail(e);}finally{busy=false;}}
@@ -80,7 +86,15 @@
     }
     const id=crypto.randomUUID();change(s=>s.furniture.push({id,kind,x:1,y:1,width:kind==='desk'?2:1,height:1}));selected=id;
   }
-  async function open(c:Character){chosen=c;detail=null;detailError='';detailLoading=false;if(c.id==='playground')return;if(c.kind!=='agent'||!c.run_id)return;detailLoading=true;const id=c.id,run=c.run_id;try{const value=await officeApi.run(run);if(chosen?.id===id)detail=value;}catch{if(chosen?.id===id)detailError=t('office.detail_failed');}finally{if(chosen?.id===id)detailLoading=false;}}
+  async function open(c:Character){chosen=c;detail=null;detailError='';detailLoading=false;await loadDetail(c,true);}
+  async function loadDetail(c:Character,initial=false){
+    if(c.id==='playground'||c.kind!=='agent'||!c.run_id)return;
+    if(initial)detailLoading=true;
+    const id=c.id,run=c.run_id;
+    try{const value=await officeApi.run(run);if(active&&chosen?.id===id){detail=value;detailError='';if(value&&!characters.some(actor=>actor.id===id))chosen={...c,status:eventStatus(value.status)};}}
+    catch{if(active&&chosen?.id===id)detailError=t('office.detail_failed');}
+    finally{if(chosen?.id===id)detailLoading=false;}
+  }
   function keydown(e:KeyboardEvent){if(!editing || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)return;if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();scene=e.shiftKey?editor.redo():editor.undo();}else if(item&&['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){e.preventDefault();move(item.id,item.x+(e.key==='ArrowLeft'?-1:e.key==='ArrowRight'?1:0),item.y+(e.key==='ArrowUp'?-1:e.key==='ArrowDown'?1:0));}}
 </script>
 <svelte:window onkeydown={keydown}/>
@@ -118,11 +132,11 @@
     </div>
     <details class="presets"><summary>{t('office.presets')}</summary><div class="preset-tools"><label>{t('office.preset')}<select bind:value={selectedPreset}>{#each templates as template}<option value={template.id}>{template.id.startsWith('builtin-')?t(`office.preset_${template.id.slice(8)}` as TKey):template.name}</option>{/each}</select></label><button onclick={()=>{const preset=templates.find(v=>v.id===selectedPreset);if(preset){const next=fromPreset(preset);if(dirty)pendingLoad=next;else adopt(next);}}}>{t('office.use_preset')}</button><label>{t('office.preset_name')}<input bind:value={presetName}/></label><button disabled={busy} onclick={savePreset}>{t('office.save_preset')}</button><button disabled={busy||selectedPreset.startsWith('builtin-')||!presetName.trim()} onclick={renamePreset}>{t('office.rename')}</button><button disabled={busy||selectedPreset.startsWith('builtin-')} onclick={()=>pendingDelete={id:selectedPreset,presets:true}}>{t('office.delete')}</button></div></details>
     <section class="activity" aria-labelledby="office-activity-title"><div class="activity-header"><h2 id="office-activity-title">{t('office.activity')}</h2><span>{actors.length}</span><button onclick={()=>void refresh()}>{t('office.refresh')}</button></div><p class="hint">{t('office.activity_hint')}</p>
-      <ul class="character-list">{#each actors as c (c.id)}<li><button class:chosen={chosen?.id===c.id} onclick={()=>open(c)} draggable={editing} ondragstart={e=>e.dataTransfer?.setData('text/plain',c.id)}><span class="character-icon" style:background={statusColor[c.status]}>{#if c.kind==='device'}<Cpu class="size-3.5" />{:else if c.kind==='job'}<ListTodo class="size-3.5" />{:else}<Bot class="size-3.5" />{/if}</span><span class="character-name">{c.name}<small>{t(`office.kind_${c.kind}` as TKey)}</small></span><span class="status-badge" style:--status={statusColor[c.status]}>{statusLabel(c)}</span></button></li>{/each}</ul>
+      <ul class="character-list">{#each actors as c (c.id)}<li><button class:chosen={chosen?.id===c.id} onclick={()=>open(c)} draggable={editing} ondragstart={e=>e.dataTransfer?.setData('text/plain',c.id)}><span class="character-icon" style:background={statusColor[c.status]}>{#if c.kind==='device'}<Cpu class="size-3.5" />{:else if c.kind==='job'}<ListTodo class="size-3.5" />{:else}<Bot class="size-3.5" />{/if}</span><span class="character-name">{c.name}<small>{t(`office.kind_${c.kind}` as TKey)}{#if c.agent} · {c.agent}{/if}</small></span><span class="status-badge" style:--status={statusColor[c.status]}>{statusLabel(c)}</span></button></li>{/each}</ul>
     </section>
     {#if focusedCharacter}<section class="detail" aria-labelledby="office-detail-title"><header><h2 id="office-detail-title">{focusedCharacter.name}</h2><button onclick={()=>chosen=null}>{t('office.close')}</button></header><p>{statusLabel(focusedCharacter)}</p>
       {#if focusedCharacter.id==='playground'}<p>{t(focusedCharacter.status==='waiting_for_approval'?'office.approval_hint':'office.chat_hint')}</p><button class="primary" onclick={()=>officeLive.open?.()}>{t(focusedCharacter.status==='waiting_for_approval'?'office.open_approval':'office.open_run')}</button>
-      {:else if detailLoading}<p role="status">{t('office.loading')}</p>{:else if detailError}<p role="alert">{detailError}</p>{:else if detail}<h3>{t('office.task')}</h3><pre>{detail.prompt}</pre><h3>{t('office.output')}</h3><pre>{detail.output||t('office.no_output')}</pre>{#if detail.error}<p role="alert">{detail.error}</p>{/if}<p>{detail.audit.join(' → ')}</p>
+      {:else if detailLoading}<p role="status">{t('office.loading')}</p>{:else if detailError}<p role="alert">{detailError}</p>{:else if detail}{#if focusedCharacter.id.startsWith('taskflow-')&&focusedCharacter.status==='waiting_for_approval'}<p>{t('office.taskrun_approval_hint')}</p>{/if}<h3>{t('office.task')}</h3><pre>{detail.prompt}</pre><h3>{t('office.output')}</h3><pre>{detail.output||t('office.no_output')}</pre>{#if detail.error}<p role="alert">{detail.error}</p>{/if}<p>{detail.audit.join(' → ')}</p>
       {:else}<p>{t(focusedCharacter.kind==='device'?'office.device_hint':focusedCharacter.kind==='job'?'office.job_hint':'office.no_run')}</p>{#if focusedCharacter.kind==='job'}<button onclick={()=>app.requestedTab='dashboard'}>{t('office.open_jobs')}</button>{/if}{/if}
     </section>{/if}
   {/if}
