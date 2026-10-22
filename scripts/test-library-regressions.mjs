@@ -223,3 +223,10 @@ test('Embedding and Rerank panels run through the gateway without a llama.cpp se
   assert.doesNotMatch(embed, /!app\.isRunning\}/);
   assert.match(read('../src/lib/components/playground/RerankPanel.svelte'), /\(direct \|\| app\.gatewayRunning\)/);
 });
+
+test('a Python-engine repo card does not also say its task does not run here', () => {
+  // bge-reranker-v2-m3 is tagged text-classification and runs on the Python engine as a reranker.
+  const card = readFileSync(new URL('../src/lib/components/hub/RepoCard.svelte', import.meta.url), 'utf8');
+  assert.match(card, /let pythonEngine = \$derived\('runtime' in repo\.compatibility && repo\.compatibility\.runtime === 'python-hf'\)/);
+  assert.match(card, /support === 'no' && task && !taskNeeds && !pythonEngine/);
+});

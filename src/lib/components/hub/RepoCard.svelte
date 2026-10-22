@@ -116,11 +116,12 @@
   let inferred = $derived(!decision && !repo.pipeline_tag && !!repo.inferred_task);
   let support = $derived(taskSupportStore.support(task?.id));
   /** Family that would run the task but is not installed (e.g. stable-diffusion.cpp for images). */
+  /** The Python engine's verdict is per repo (a reranker tagged text-classification runs on it), so
+   *  the task-wide hints below do not apply. */
+  let pythonEngine = $derived('runtime' in repo.compatibility && repo.compatibility.runtime === 'python-hf');
   let taskNeeds = $derived(
     // A diffusers pipeline runs on the Python engine, not on the task's usual stable-diffusion.cpp.
-    'runtime' in repo.compatibility && repo.compatibility.runtime === 'python-hf'
-      ? null
-      : (taskSupportStore.info(task?.id)?.needs_runtime ?? null)
+    pythonEngine ? null : (taskSupportStore.info(task?.id)?.needs_runtime ?? null)
   );
   /** Runtimes that run a repo of a task whose usual family is another one (CrispASR and
    *  transcribe.cpp GGUFs, Qwen3-TTS on llama.cpp, MLX speech): their verdict stands and the
@@ -269,7 +270,7 @@
       <span class="inline-flex items-center gap-1 text-info" title={t('lib.runtime_needs_hint', { runtime: taskNeeds })}>
         <Info class="size-3" />{t('lib.runtime_needs', { runtime: taskNeeds })}
       </span>
-    {:else if support === 'no' && task && !taskNeeds}
+    {:else if support === 'no' && task && !taskNeeds && !pythonEngine}
       <span class="inline-flex items-center gap-1 text-warning" title={t('hub.card_unsupported_title', { task: task.hf })}>
         <Ban class="size-3" />{t('hub.card_unsupported')}
       </span>
