@@ -286,4 +286,9 @@ test('a safetensors chat repo on the Python engine is told apart and weighed aga
   const repo = { ...chat, pipeline_tag: 'text-generation' };
   assert.equal(canConvert(repo), true);
   assert.equal(canConvert({ ...repo, pipeline_tag: 'fill-mask' }), false);
+  // The drawer still lists the checkpoint's download for the Python engine: the conversion panel
+  // must not take the file table's place for these repos.
+  const drawer = readFileSync(new URL('../src/lib/components/hub/VariantDrawer.svelte', import.meta.url), 'utf8');
+  assert.match(drawer, /\{#if convertible && repoId && !pythonChat\}/);
+  assert.match(drawer, /\{#if convertible && repoId && pythonChat\}\{@render convertTools\(repoId\)\}\{\/if\}/);
 });
